@@ -849,6 +849,24 @@ painter_reset_to_static(struct Painter* painter)
     struct PaintersTile* tile = NULL;
     for( int i = painter->static_element_count; i < painter->element_count; i++ )
     {
+        /* Dynamic walls (runtime-spawned locs re-registered per frame): free
+         * the exclusive tile slot so next frame's painter_add_wall re-claims
+         * it instead of tripping the wall_a/wall_b == -1 assert. */
+        if( painter->elements[i].kind == PNTRELEM_WALL_A ||
+            painter->elements[i].kind == PNTRELEM_WALL_B )
+        {
+            tile = painter_tile_at(
+                painter,
+                painter->elements[i].sx,
+                painter->elements[i].sz,
+                painter->elements[i].source_level);
+            if( painter->elements[i].kind == PNTRELEM_WALL_A && tile->wall_a == i )
+                tile->wall_a = -1;
+            if( painter->elements[i].kind == PNTRELEM_WALL_B && tile->wall_b == i )
+                tile->wall_b = -1;
+            continue;
+        }
+
         if( painter->elements[i].kind != PNTRELEM_SCENERY )
             continue;
 
@@ -870,6 +888,21 @@ painter_reset_to_static(struct Painter* painter)
     }
 
     painter->element_count = painter->static_element_count;
+}
+
+void
+painter_release_wall(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    if( tile->wall_a >= 0 && painter->elements[tile->wall_a]._wall.entity == entity )
+        tile->wall_a = -1;
+    if( tile->wall_b >= 0 && painter->elements[tile->wall_b]._wall.entity == entity )
+        tile->wall_b = -1;
 }
 
 int

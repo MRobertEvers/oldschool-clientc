@@ -80,6 +80,11 @@ ToriRS_LocationFromRSCacheDat2(
         strncpy(loc->name, src->name, TORIRS_NAME_MAX - 1);
         loc->name[TORIRS_NAME_MAX - 1] = '\0';
     }
+    if( src->desc )
+    {
+        strncpy(loc->desc, src->desc, TORIRS_DESC_MAX - 1);
+        loc->desc[TORIRS_DESC_MAX - 1] = '\0';
+    }
 
     torirs_copy_menu_actions(loc->actions, src->actions);
     torirs_location_copy_shapes_models(loc, src);

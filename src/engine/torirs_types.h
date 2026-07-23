@@ -175,6 +175,9 @@ struct ToriRS_Flotype
 
 #define TORIRS_MENU_ACTION_SLOTS 5
 #define TORIRS_NAME_MAX 32
+/* Examine description (reference LocType/NpcType/ObjType.desc, config opcode 3).
+ * Sized well past the longest cache desc so the whole gjstr survives the copy. */
+#define TORIRS_DESC_MAX 256
 /* 64: matches UITREE_MENU_OPTION_LEN; col-tagged labels exceed 32 chars. */
 #define TORIRS_MENU_ACTION_LEN 64
 
@@ -182,6 +185,9 @@ struct ToriRS_Location
 {
     int id;
     char name[TORIRS_NAME_MAX];
+    /** Examine text (LocType.desc, config opcode 3). Empty when the config
+     *  carries none — the examine handler then falls back to "It's a <name>.". */
+    char desc[TORIRS_DESC_MAX];
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int* shapes;
     int** models;
@@ -228,6 +234,9 @@ struct ToriRS_Npctype
 {
     int id;
     char name[TORIRS_NAME_MAX];
+    /** Examine text (NpcType.desc, config opcode 3). Empty on dat2 (OSRS) caches,
+     *  where NPC examine is server-driven and no config opcode carries it. */
+    char desc[TORIRS_DESC_MAX];
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int combat_level;
     int size;
@@ -296,6 +305,9 @@ struct ToriRS_Objtype
 {
     int id;
     char name[TORIRS_NAME_MAX];
+    /** Examine text (ObjType.desc, config opcode 3; dat2 raw field is `examine`).
+     *  For bank notes it is synthesized in CacheProvider_ObjtypeGet (genCert). */
+    char desc[TORIRS_DESC_MAX];
     char inv_actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     /** Ground-stack ops (ObjType.op, config opcodes 30-34) — the right-click
      *  rows for an obj lying on a tile, distinct from the inventory ops. */

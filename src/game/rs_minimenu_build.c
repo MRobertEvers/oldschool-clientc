@@ -75,13 +75,16 @@ pick_ui(int component_id)
 }
 
 static struct UIMinimenuPick
-pick_inv_slot(int component_id, int slot, int obj_id)
+pick_inv_slot(int component_id, int slot, int obj_id, int obj_count)
 {
     struct UIMinimenuPick pick = {
         .kind = UI_MINIMENU_PICK_INV_SLOT,
         .id = component_id,
         .secondary_id = slot,
         .tertiary_id = obj_id,
+        /* Stack count carried for OPHELD6: a huge stack (>=100000) examines as
+         * "<count> x <name>" instead of the desc (reference doAction OP_HELD6). */
+        .quaternary_id = obj_count,
     };
     return pick;
 }
@@ -286,7 +289,7 @@ add_inv_slot_rows(
         int const before = menu->option_count;
         struct ToriRS_Objtype const* obj = ensure_objtype(ctx, inv_slot.obj_id);
         struct UIMinimenuPick pick =
-            pick_inv_slot(node->component_id, slot, inv_slot.obj_id);
+            pick_inv_slot(node->component_id, slot, inv_slot.obj_id, inv_slot.obj_count);
         char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
         char suffix[UITREE_MINIMENU_OPTION_LEN];
 

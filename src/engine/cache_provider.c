@@ -1128,7 +1128,21 @@ CacheProvider_ObjtypeGet(
                     provider->objtype_cache, &objtype->cert_link, HMAP_FIND);
             if( link_entry && link_entry->objtype && link_entry->objtype->name[0] )
             {
-                memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
+                char const* link_name = link_entry->objtype->name;
+                memcpy(objtype->name, link_name, sizeof(objtype->name));
+                /* genCert also synthesizes the examine (reference ObjType.genCert):
+                 * "Swap this note at any bank for a/an <base item>.", the article
+                 * chosen by the base name's first letter. */
+                char first = link_name[0];
+                if( first >= 'A' && first <= 'Z' )
+                    first = (char)(first - 'A' + 'a');
+                char const* article =
+                    (first == 'a' || first == 'e' || first == 'i' || first == 'o' ||
+                     first == 'u')
+                        ? "an"
+                        : "a";
+                snprintf(objtype->desc, sizeof(objtype->desc),
+                         "Swap this note at any bank for %s %s.", article, link_name);
             }
         }
     }

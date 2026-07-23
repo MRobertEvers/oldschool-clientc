@@ -31,6 +31,13 @@ struct WorldEntity_Scenery
      *  (world_cycle World_CycleRegisterPainterDynamics). Build-time scenery
      *  leaves this 0 and lives in the baked static set. */
     int runtime_spawn;
+    /** Painter wall registration for a runtime-spawned WALL loc: WALL_A/WALL_B
+     *  (-1 = not a wall — re-registered as normal scenery) plus the wallside
+     *  the build path passes to painter_add_wall. Recorded at spawn time
+     *  (scenery_add_wall_*) so the per-frame painter re-registration draws the
+     *  wall on the correct side of its tile instead of as centre scenery. */
+    int painter_wall_ab;
+    int painter_wall_side;
 };
 
 #endif

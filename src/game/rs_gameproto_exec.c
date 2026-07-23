@@ -301,6 +301,16 @@ RS_GameProto_Exec(
         UITree_ApplyModel(
             ctx->tree, packet->_if_setmodel.component_id, packet->_if_setmodel.model_id);
         break;
+    case PKT_NAME_IF_SETOBJECT:
+        /* Reference IfType.getModel type 4: the obj's 3D interface model (the
+         * server drives the combat-tab weapon display with this on equip). */
+        if( ctx->app )
+            App_SetInterfaceObjModel(
+                ctx->app,
+                packet->_if_setobject.component_id,
+                packet->_if_setobject.obj_id,
+                packet->_if_setobject.zoom);
+        break;
     case PKT_NAME_IF_SETNPCHEAD:
         /* Reference IfType.getModel type 2: composite the npc chathead and bind
          * it. Needs the App (async model loads via the exec runner). */

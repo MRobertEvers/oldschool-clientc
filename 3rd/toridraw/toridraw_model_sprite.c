@@ -533,6 +533,52 @@ ToriDraw_SpritePostprocessObjIconOutline(
     }
 }
 
+void
+ToriDraw_SpritePostprocessObjIconOutlineColor(
+    uint32_t* pixels,
+    int w,
+    int h,
+    uint32_t outline_argb)
+{
+    /* Pass 1 is identical to ObjIconOutline: mark every empty pixel that touches
+     * a real (value > 1) pixel with the sentinel 0xFF000001 (Client-TS value 1,
+     * the thin near-black silhouette edge). */
+    for( int x = w - 1; x >= 0; x-- )
+    {
+        for( int y = h - 1; y >= 0; y-- )
+        {
+            int idx = x + y * w;
+            if( pixels[idx] != 0 )
+                continue;
+
+            if( (x > 0 && (pixels[idx - 1] & 0x00FFFFFFu) > 1) ||
+                (y > 0 && (pixels[idx - w] & 0x00FFFFFFu) > 1) ||
+                (x < w - 1 && (pixels[idx + 1] & 0x00FFFFFFu) > 1) ||
+                (y < h - 1 && (pixels[idx + w] & 0x00FFFFFFu) > 1) )
+                pixels[idx] = 0xFF000001u;
+        }
+    }
+
+    /* Pass 2 (Client-TS outlineRgb > 0): paint each still-empty pixel that
+     * touches a sentinel (value 1) pixel with the outline colour, pushing the
+     * ring one pixel outside the silhouette edge. No drop shadow. */
+    for( int x = w - 1; x >= 0; x-- )
+    {
+        for( int y = h - 1; y >= 0; y-- )
+        {
+            int idx = x + y * w;
+            if( pixels[idx] != 0 )
+                continue;
+
+            if( (x > 0 && (pixels[idx - 1] & 0x00FFFFFFu) == 1) ||
+                (y > 0 && (pixels[idx - w] & 0x00FFFFFFu) == 1) ||
+                (x < w - 1 && (pixels[idx + 1] & 0x00FFFFFFu) == 1) ||
+                (y < h - 1 && (pixels[idx + w] & 0x00FFFFFFu) == 1) )
+                pixels[idx] = outline_argb;
+        }
+    }
+}
+
 struct ToriDraw_ModelExtentsRaster
 ToriDraw_SpriteNewFromModelRasterExtents(
     struct ToriDraw_Scene* scene,

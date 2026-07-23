@@ -829,6 +829,8 @@ World_SceneryRegister(
     }
     World_CopyMenuActions(scenery->actions, actions);
     scenery->interactive = interactive ? 1 : 0;
+    scenery->painter_wall_ab = -1;
+    scenery->painter_wall_side = 0;
     return idx;
 }
 

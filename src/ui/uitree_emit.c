@@ -1232,7 +1232,25 @@ emit_rs_inv_slots(
 
         if( obj_id > 0 && scene_id >= 0 )
         {
-            /* keep item icon */
+            /* Selected for "Use" (reference outline = 0xFFFFFF): swap the plain
+             * icon for the white-outlined variant. The host answers >0 only for
+             * the one armed (component, slot); every other slot keeps its icon. */
+            if( host )
+            {
+                struct UITreeHostRequest sel_req = {
+                    .kind = UITREE_HOST_GET_INV_SELECT_ICON,
+                    .u.get_inv_select_icon.com_id = c->component_id,
+                    .u.get_inv_select_icon.slot = slot,
+                    .u.get_inv_select_icon.obj_id = obj_id,
+                    .u.get_inv_select_icon.count = obj_count,
+                };
+                int outline_scene = UITree_Host(host, &sel_req);
+                if( outline_scene > 0 )
+                {
+                    scene_id = outline_scene;
+                    atlas_index = 0;
+                }
+            }
         }
         else if( slot < UI_INV_SLOT_OFFSET_MAX )
         {

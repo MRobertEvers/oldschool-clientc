@@ -5,6 +5,11 @@
 
 struct Minimap;
 
+/* DOOR_* are the same six line positions as WALL_* shifted by
+ * MINIMAP_DOOR_SHIFT: an interactive (active) wall loc — a door — draws its
+ * line red instead of white (reference minimapBuildBuffer activeRgb,
+ * Client.ts:5548 / drawDetail rgb pick). */
+#define MINIMAP_DOOR_SHIFT 6
 enum MinimapWallFlag
 {
     MINIMAP_WALL_NONE = 0,
@@ -14,12 +19,12 @@ enum MinimapWallFlag
     MINIMAP_WALL_WEST = 1 << 3,
     MINIMAP_WALL_NORTHEAST_SOUTHWEST = 1 << 4,
     MINIMAP_WALL_NORTHWEST_SOUTHEAST = 1 << 5,
-    MINIMAP_DOOR_NORTH = 1 << 5,
-    MINIMAP_DOOR_EAST = 1 << 6,
-    MINIMAP_DOOR_SOUTH = 1 << 7,
-    MINIMAP_DOOR_WEST = 1 << 8,
-    MINIMAP_DOOR_NORTHEAST_SOUTHWEST = 1 << 9,
-    MINIMAP_DOOR_NORTHWEST_SOUTHEAST = 1 << 10,
+    MINIMAP_DOOR_NORTH = MINIMAP_WALL_NORTH << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_EAST = MINIMAP_WALL_EAST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_SOUTH = MINIMAP_WALL_SOUTH << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_WEST = MINIMAP_WALL_WEST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_NORTHEAST_SOUTHWEST = MINIMAP_WALL_NORTHEAST_SOUTHWEST << MINIMAP_DOOR_SHIFT,
+    MINIMAP_DOOR_NORTHWEST_SOUTHEAST = MINIMAP_WALL_NORTHWEST_SOUTHEAST << MINIMAP_DOOR_SHIFT,
 };
 
 struct MinimapTile
@@ -134,6 +139,16 @@ minimap_add_loc(
 
 void
 minimap_add_tile_wall(
+    struct Minimap* minimap,
+    int sx,
+    int sz,
+    int level,
+    enum MinimapWallFlag wall);
+
+/** Clear wall/door line bits on a tile (exact inverse of add: AND-NOT). Used
+ * by the runtime loc change so an opened door's old line disappears. */
+void
+minimap_del_tile_wall(
     struct Minimap* minimap,
     int sx,
     int sz,

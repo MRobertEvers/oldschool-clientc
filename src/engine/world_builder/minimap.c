@@ -132,6 +132,23 @@ minimap_add_tile_wall(
 }
 
 void
+minimap_del_tile_wall(
+    struct Minimap* minimap,
+    int sx,
+    int sz,
+    int level,
+    enum MinimapWallFlag wall)
+{
+    assert(sx >= 0 && sx < minimap->width);
+    assert(sz >= 0 && sz < minimap->height);
+
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
+
+    struct MinimapTile* tile = &minimap->tiles[idx];
+    tile->wall &= (uint16_t)~wall;
+}
+
+void
 minimap_set_tile_color(
     struct Minimap* minimap,
     int sx,
@@ -513,19 +530,16 @@ minimap_fill_tile(
 }
 
 static void
-minimap_draw_wall(
+minimap_draw_wall_bits(
     uint32_t* pixel_buffer,
     int stride,
     int x,
     int y,
     int wall,
+    uint32_t rgb,
     int clip_width,
     int clip_height)
 {
-    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
-        return;
-
-    uint32_t rgb = 0xFFFFFFFFu;
     int offset = y * stride + x;
 
     if( wall & MINIMAP_WALL_WEST )
@@ -595,6 +609,35 @@ minimap_draw_wall(
                 pixel_buffer[offset + p * stride + p] = rgb;
         }
     }
+}
+
+/** Wall lines: WALL_* bits draw white; DOOR_* bits (interactive wall locs —
+ * doors) draw the same line positions red (reference drawDetail inactiveRgb /
+ * activeRgb, Client.ts:5548/5636). */
+static void
+minimap_draw_wall(
+    uint32_t* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int wall,
+    int clip_width,
+    int clip_height)
+{
+    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
+        return;
+
+    minimap_draw_wall_bits(
+        pixel_buffer, stride, x, y, wall & 0x3F, 0xFFFFFFFFu, clip_width, clip_height);
+    minimap_draw_wall_bits(
+        pixel_buffer,
+        stride,
+        x,
+        y,
+        (wall >> MINIMAP_DOOR_SHIFT) & 0x3F,
+        0xFFEE0000u,
+        clip_width,
+        clip_height);
 }
 
 /** One tile of one source level onto the shared pixel grid. */

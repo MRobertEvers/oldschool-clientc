@@ -145,12 +145,16 @@ UITreeSceneBridge_Init(
     bridge->model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_icon_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
+    bridge->obj_icon_outline_map = bridge_hmap_new_keyed(
+        sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->npc_head_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
+    bridge->obj_model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
         bridge->static_sprite_scene[slot] = -1;
     bridge->player_scene_id = -1;
     bridge->player_head_scene_id = -1;
-    assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map && bridge->npc_head_map);
+    assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map &&
+           bridge->obj_icon_outline_map && bridge->npc_head_map && bridge->obj_model_map);
 }
 
 void
@@ -161,7 +165,9 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->sprite_map);
     bridge_hmap_free(bridge->model_map);
     bridge_hmap_free(bridge->obj_icon_map);
+    bridge_hmap_free(bridge->obj_icon_outline_map);
     bridge_hmap_free(bridge->npc_head_map);
+    bridge_hmap_free(bridge->obj_model_map);
     memset(bridge, 0, sizeof(*bridge));
 }
 
@@ -633,6 +639,18 @@ bridge_resolve_count_variant(
     return obj;
 }
 
+/* Which post-process border the rasterized obj icon gets. NONE matches the
+ * reference cert base sub-icon (outlineRgb == -1: no shadow); SHADOW is the
+ * normal inventory icon (outlineRgb == 0: value-1 edge + drop shadow); WHITE is
+ * the "Use"-selected highlight (outlineRgb > 0: value-1 edge + white ring, and
+ * a 1.04x zoom so the ring stays inside the tile). */
+enum BridgeObjIconOutline
+{
+    BRIDGE_ICON_OUTLINE_NONE = 0,
+    BRIDGE_ICON_OUTLINE_SHADOW,
+    BRIDGE_ICON_OUTLINE_WHITE,
+};
+
 /* Rasterize one objtype's inventory model into a 36x32 obj-icon sprite at the
  * given zoom (reference getSprite model.objRender). Returns NULL when the
  * model is not resident; ownership of the sprite passes to the caller. */
@@ -641,12 +659,13 @@ bridge_rasterize_obj_icon(
     struct UITreeSceneBridge* bridge,
     struct ToriRS_Objtype* obj,
     int zoom,
-    bool postprocess_outline)
+    enum BridgeObjIconOutline outline)
 {
     struct ToriRS_Model* rs_model;
     struct ToriDraw_Model* model;
     struct ToriDraw_ModelHandle hnd;
     struct ToriDraw_Sprite* sprite;
+    int render_zoom;
     int i;
 
     if( !obj || obj->inventory_model_id <= 0 )
@@ -672,13 +691,21 @@ bridge_rasterize_obj_icon(
     hnd.u.model.model = model;
     ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
 
+    render_zoom = zoom > 0 ? zoom : 2000;
+    /* Reference: outlineRgb > 0 renders at (zoom * 1.04)|0 so the white ring has
+     * room. A larger zoom pushes the camera back → a slightly smaller icon. */
+    if( outline == BRIDGE_ICON_OUTLINE_WHITE )
+        render_zoom = render_zoom * 104 / 100;
+
     /* Reference icon raster is 36x32 with the 3D projection center at (16,16)
      * (ItemIconRenderer.OSRS_SPRITE_W/H); rasterizing 32x32 shifts every icon
-     * ~2px and clips the right edge. */
+     * ~2px and clips the right edge. The built-in postprocess bakes the SHADOW
+     * variant; WHITE is applied below on the raw raster (the reference runs the
+     * white pass in place of the shadow, not on top of it). */
     sprite = ToriDraw_SpriteNewFromObjIconRaster(
         bridge->scene,
         hnd,
-        zoom > 0 ? zoom : 2000,
+        render_zoom,
         obj->xan2d,
         obj->yan2d,
         obj->zan2d,
@@ -686,8 +713,13 @@ bridge_rasterize_obj_icon(
         obj->offset_y2d,
         36,
         32,
-        postprocess_outline);
+        outline == BRIDGE_ICON_OUTLINE_SHADOW);
     ToriDraw_ModelFree(model);
+
+    if( sprite && outline == BRIDGE_ICON_OUTLINE_WHITE )
+        ToriDraw_SpritePostprocessObjIconOutlineColor(
+            sprite->pixels_argb, sprite->width, sprite->height, 0xFFFFFFFFu);
+
     return sprite;
 }
 
@@ -714,11 +746,16 @@ bridge_composite_over(
     }
 }
 
-int
-UITreeSceneBridge_EnsureObjIcon(
+/* Shared body for the plain (SHADOW) and "Use"-selected (WHITE) obj icons: the
+ * two differ only in the border passed to the raster and which cache map holds
+ * the result. */
+static int
+bridge_ensure_obj_icon(
     struct UITreeSceneBridge* bridge,
     int obj_id,
-    int count)
+    int count,
+    enum BridgeObjIconOutline outline,
+    struct HMap* map)
 {
     struct MapEntry_ObjIcon* entry;
     int key[2];
@@ -730,6 +767,7 @@ UITreeSceneBridge_EnsureObjIcon(
     assert(bridge);
     assert(bridge->scene);
     assert(bridge->provider);
+    assert(map);
 
     if( obj_id <= 0 )
         return -1;
@@ -738,7 +776,7 @@ UITreeSceneBridge_EnsureObjIcon(
 
     key[0] = obj_id;
     key[1] = count;
-    entry = (struct MapEntry_ObjIcon*)hmap_search(bridge->obj_icon_map, key, HMAP_FIND);
+    entry = (struct MapEntry_ObjIcon*)hmap_search(map, key, HMAP_FIND);
     if( entry )
         return entry->scene_id;
 
@@ -752,7 +790,9 @@ UITreeSceneBridge_EnsureObjIcon(
          * note's own model is the cert-template paper; the base item (cert_link)
          * icon is rendered 1.5x and composited on top. The reference returns
          * null (draws nothing) when the base item cannot render, so the note is
-         * withheld rather than shown as blank paper until both are resident. */
+         * withheld rather than shown as blank paper until both are resident. The
+         * reference applies the outline (white or shadow) to the template paper
+         * only; the base item sub-icon always renders with no shadow. */
         struct ToriRS_Objtype* tmpl =
             CacheProvider_ObjtypeGet(bridge->provider, obj->cert_template);
         struct ToriRS_Objtype* base =
@@ -767,13 +807,13 @@ UITreeSceneBridge_EnsureObjIcon(
                                  bridge,
                                  base,
                                  (base->zoom2d > 0 ? base->zoom2d : 2000) * 3 / 2,
-                                 false)
+                                 BRIDGE_ICON_OUTLINE_NONE)
                            : NULL;
         if( !base_sprite )
             return -1;
 
         sprite = bridge_rasterize_obj_icon(
-            bridge, tmpl, tmpl->zoom2d > 0 ? tmpl->zoom2d : 2000, true);
+            bridge, tmpl, tmpl->zoom2d > 0 ? tmpl->zoom2d : 2000, outline);
         if( !sprite )
         {
             ToriDraw_SpriteFree(base_sprite);
@@ -787,7 +827,7 @@ UITreeSceneBridge_EnsureObjIcon(
         if( obj->inventory_model_id <= 0 )
             return -1;
         sprite = bridge_rasterize_obj_icon(
-            bridge, obj, obj->zoom2d > 0 ? obj->zoom2d : 2000, true);
+            bridge, obj, obj->zoom2d > 0 ? obj->zoom2d : 2000, outline);
         if( !sprite )
             return -1;
     }
@@ -803,12 +843,83 @@ UITreeSceneBridge_EnsureObjIcon(
     scene_id = bridge->next_scene_id++;
     ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, frames, 1);
 
-    entry = (struct MapEntry_ObjIcon*)hmap_search(bridge->obj_icon_map, key, HMAP_INSERT);
+    entry = (struct MapEntry_ObjIcon*)hmap_search(map, key, HMAP_INSERT);
     assert(entry);
     entry->obj_id = obj_id;
     entry->count = count;
     entry->scene_id = scene_id;
     return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsureObjModel(
+    struct UITreeSceneBridge* bridge,
+    int obj_id)
+{
+    struct ToriRS_Objtype* obj;
+    struct ToriRS_Model* rs_model;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+    int scene_id;
+
+    assert(bridge && bridge->scene && bridge->provider);
+    if( obj_id <= 0 )
+        return -1;
+
+    scene_id = bridge_map_get(bridge->obj_model_map, obj_id);
+    if( scene_id > 0 )
+        return scene_id;
+
+    obj = CacheProvider_ObjtypeGet(bridge->provider, obj_id);
+    if( !obj || obj->inventory_model_id <= 0 )
+        return -1;
+    if( !CacheProvider_ModelHas(bridge->provider, obj->inventory_model_id) )
+        return -1;
+    rs_model = CacheProvider_ModelGet(bridge->provider, obj->inventory_model_id);
+    if( !rs_model )
+        return -1;
+
+    bridge_publish_model_textures(bridge, rs_model);
+
+    model = ToriDraw_ModelFromToriRS(rs_model);
+    if( !model )
+        return -1;
+
+    for( int i = 0; i < obj->recolor_count; i++ )
+        ToriDraw_ModelRecolor(model, obj->recolors_from[i], obj->recolors_to[i]);
+
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
+
+    scene_id = (int)(UITREE_SCENE_OBJ_MODEL_BASE | (unsigned)obj_id);
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
+    bridge_map_put(bridge->obj_model_map, obj_id, scene_id);
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsureObjIcon(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count)
+{
+    return bridge_ensure_obj_icon(
+        bridge, obj_id, count, BRIDGE_ICON_OUTLINE_SHADOW, bridge->obj_icon_map);
+}
+
+int
+UITreeSceneBridge_EnsureObjIconSelected(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count)
+{
+    return bridge_ensure_obj_icon(
+        bridge, obj_id, count, BRIDGE_ICON_OUTLINE_WHITE, bridge->obj_icon_outline_map);
 }
 
 int

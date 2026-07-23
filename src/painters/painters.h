@@ -556,6 +556,20 @@ painter_reset_to_static(struct Painter* painter);
 #define WALL_A 0
 #define WALL_B 1
 
+/** Free the exclusive wall_a/wall_b tile slot(s) whose painter element renders
+ *  `entity` (a scene element id). Used when a runtime loc change removes a wall
+ *  loc: the baked static painter element stays in the list but must stop
+ *  claiming the tile slot, both so the dead wall stops being referenced and so
+ *  a replacement wall (re-registered per frame) can claim the slot without
+ *  tripping the add-time assert. */
+void
+painter_release_wall(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
 int
 painter_add_wall(
     struct Painter* painter, //

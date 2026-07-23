@@ -989,6 +989,21 @@ app_host_request(
         /* Reference draws stack counts with the client's p11 — same font (and
          * same load-on-miss self-heal) as the hitsplat numbers. */
         return app_hitsplat_font_scene_id(app);
+    case UITREE_HOST_GET_INV_SELECT_ICON:
+        /* Reference TYPE_INV draw: only the slot armed for "Use" (useMode==1,
+         * matching objSelectedSlot + objSelectedComId) gets the white outline.
+         * The model is already resident (its plain icon is on screen), so the
+         * white variant bakes on first request and is cached thereafter. */
+        if( !app->objsel.active )
+            return 0;
+        if( app->objsel.component_id != req->u.get_inv_select_icon.com_id )
+            return 0;
+        if( app->objsel.slot != req->u.get_inv_select_icon.slot )
+            return 0;
+        return UITreeSceneBridge_EnsureObjIconSelected(
+            &app->bridge,
+            req->u.get_inv_select_icon.obj_id,
+            req->u.get_inv_select_icon.count > 0 ? req->u.get_inv_select_icon.count : 1);
     default:
         return 0;
     }
@@ -1909,17 +1924,24 @@ app_rebuild_world_map(struct App* app, int level)
 }
 
 /* Reference checkMinimap/minimapBuildBuffer trigger (Client.ts:5331): rebake
- * whenever the level the map was baked for stops matching the player's. */
+ * whenever the level the map was baked for stops matching the player's, or a
+ * runtime loc change edited the wall/door bits (world->minimap_seq — an opened
+ * door's red line has to move on the baked sprite). */
 static void
 app_world_map_poll(struct App* app)
 {
+    static unsigned baked_minimap_seq = 0;
     struct WorldEntity_Player* local;
 
     if( !app->world || !app->world->load_complete || app->world_map_scene_id <= 0 )
         return;
     local = app_local_player(app);
-    if( !local || local->grid_position.level == app->world_map_level )
+    if( !local )
         return;
+    if( local->grid_position.level == app->world_map_level &&
+        baked_minimap_seq == app->world->minimap_seq )
+        return;
+    baked_minimap_seq = app->world->minimap_seq;
     app_rebuild_world_map(app, local->grid_position.level);
     app->need_redraw = 1;
 }
@@ -4341,6 +4363,10 @@ enum AppIfHeadKind
 {
     APP_IFHEAD_NPC = 0,
     APP_IFHEAD_PLAYER,
+    /* IF_SETOBJECT (reference IfType model1Type 4): the obj's lit inventory
+     * model bound to a MODEL widget — e.g. the combat-tab weapon. npc_id
+     * carries the obj id; zoom carries the wire zoom. */
+    APP_IFHEAD_OBJ,
 };
 
 #define APP_IFHEAD_MAX_HEADS 24
@@ -4384,6 +4410,19 @@ Task_AppIfHead_Run(
             TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
         }
         scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->npc_id);
+    }
+    else if( self->kind == APP_IFHEAD_OBJ )
+    {
+        /* IF_SETOBJECT: objtype + its inventory model, then the lit interface
+         * model (npc_id carries the obj id). */
+        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->npc_id));
+        {
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->npc_id);
+            if( obj && obj->inventory_model_id > 0 )
+                TASK_AWAITSELF_IF(
+                    CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
+        }
+        scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, self->npc_id);
     }
     else
     {
@@ -4485,6 +4524,7 @@ app_if_head_store(
     app->if_heads[i].com_id = com_id;
     app->if_heads[i].kind = (int)kind;
     app->if_heads[i].npc_id = npc_id;
+    app->if_heads[i].zoom = 0;
     app->if_heads[i].applied_gen = 0;
     app->need_redraw = 1;
 }
@@ -4510,6 +4550,27 @@ App_SetInterfacePlayerHead(
     assert(app);
     app_if_head_store(app, APP_IFHEAD_PLAYER, component_id, -1);
     app_if_head_enqueue(app, APP_IFHEAD_PLAYER, component_id, -1);
+}
+
+void
+App_SetInterfaceObjModel(
+    struct App* app,
+    int component_id,
+    int obj_id,
+    int zoom)
+{
+    assert(app);
+    if( obj_id <= 0 )
+        return;
+    app_if_head_store(app, APP_IFHEAD_OBJ, component_id, obj_id);
+    /* store resets zoom to 0; stamp the wire zoom for the poll's angle apply. */
+    for( int i = 0; i < app->if_head_count; i++ )
+        if( app->if_heads[i].com_id == component_id )
+        {
+            app->if_heads[i].zoom = zoom;
+            break;
+        }
+    app_if_head_enqueue(app, APP_IFHEAD_OBJ, component_id, obj_id);
 }
 
 /* Bind any composited heads onto their MODEL nodes. Runs each redraw: an entry
@@ -4539,6 +4600,10 @@ app_if_head_poll(struct App* app)
                                 &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender)
                           : -1;
         }
+        else if( head->kind == APP_IFHEAD_OBJ )
+        {
+            scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, head->npc_id);
+        }
         else
         {
             scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, head->npc_id);
@@ -4548,6 +4613,20 @@ app_if_head_poll(struct App* app)
 
         if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )
         {
+            /* Reference IF_SETOBJECT: modelXAn/YAn from the objtype, modelZoom
+             * = zoom2d * 100 / wire zoom (Client.ts:6342). */
+            if( head->kind == APP_IFHEAD_OBJ )
+            {
+                struct ToriRS_Objtype* obj =
+                    CacheProvider_ObjtypeGet(app->provider, head->npc_id);
+                if( obj && head->zoom > 0 )
+                    UITree_ApplyModelAngle(
+                        app->tree,
+                        head->com_id,
+                        obj->xan2d,
+                        obj->yan2d,
+                        (obj->zoom2d > 0 ? obj->zoom2d : 2000) * 100 / head->zoom);
+            }
             if( head->anim_id >= 0 )
                 UITree_ApplyModelAnim(app->tree, head->com_id, head->anim_id);
             head->applied_gen = app->tree->generation;
@@ -5388,10 +5467,19 @@ app_minimenu_inv_action(
     }
     case REVCONFIG_MINIMENU_OPHELD6:
     {
-        /* Examine: client-side chat print (no packet). */
+        /* Examine: client-side chat print (no packet). Reference doAction
+         * OP_HELD6: huge stacks show the exact count, else the config desc,
+         * else the generic fallback. */
         struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
-        char line[80];
-        snprintf(line, sizeof(line), "It's a %s.", obj && obj->name[0] ? obj->name : "item");
+        char const* name = (obj && obj->name[0]) ? obj->name : "item";
+        int count = opt->pick.quaternary_id;
+        char line[TORIRS_DESC_MAX + 32];
+        if( count >= 100000 )
+            snprintf(line, sizeof(line), "%d x %s", count, name);
+        else if( obj && obj->desc[0] )
+            snprintf(line, sizeof(line), "%s", obj->desc);
+        else
+            snprintf(line, sizeof(line), "It's a %s.", name);
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
         return 1;
@@ -5449,6 +5537,13 @@ app_inv_node_at(
     }
     return -1;
 }
+
+static int
+app_minimenu_run_option(
+    struct App* app,
+    int option_index,
+    int click_x,
+    int click_y);
 
 static int
 app_minimenu_use_option(
@@ -5618,7 +5713,7 @@ app_inv_drag_tick(
 }
 
 static int
-app_minimenu_use_option(
+app_minimenu_run_option(
     struct App* app,
     int option_index,
     int click_x,
@@ -5644,37 +5739,63 @@ app_minimenu_use_option(
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
-    /* Examine (OPLOC6/OPNPC6): reference resolves these locally from the
-     * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6);
-     * without desc in the type structs, use the OPHELD6 name form. Must run
-     * before the pick.kind switch or the scenery/NPC cases would mis-send
-     * OPLOC1/OPNPC1. */
+    /* Examine (OPLOC6/OPNPC6/OPOBJ6): reference resolves these locally from the
+     * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6/
+     * OP_OBJ6). Look the desc up from the config by the entity's type id, and
+     * fall back to "It's a <name>." when the config carries none (e.g. dat2
+     * NPCs, whose examine is server-driven). Must run before the pick.kind
+     * switch or the scenery/NPC cases would mis-send OPLOC1/OPNPC1. */
     if( opt.action == REVCONFIG_MINIMENU_OPLOC6 || opt.action == REVCONFIG_MINIMENU_OPNPC6 ||
         opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
     {
         char const* name = NULL;
-        char line[80];
+        char const* desc = NULL;
+        char line[TORIRS_DESC_MAX + 32];
         if( app->world && opt.action == REVCONFIG_MINIMENU_OPLOC6 )
         {
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(app->world, opt.pick.id);
-            if( scenery && scenery->name[0] )
-                name = scenery->name;
+            if( scenery )
+            {
+                struct ToriRS_Location* loc =
+                    CacheProvider_LocationGet(app->provider, scenery->loc_id);
+                if( loc && loc->desc[0] )
+                    desc = loc->desc;
+                if( scenery->name[0] )
+                    name = scenery->name;
+            }
         }
         else if( app->world && opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
         {
             struct WorldEntity_ObjStack* stack =
                 World_ObjStackGetByElementId(app->world, opt.pick.id);
-            if( stack && stack->name[0] )
-                name = stack->name;
+            if( stack )
+            {
+                struct ToriRS_Objtype* obj =
+                    CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
+                if( obj && obj->desc[0] )
+                    desc = obj->desc;
+                if( stack->name[0] )
+                    name = stack->name;
+            }
         }
         else if( app->world )
         {
             struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
-            if( npc && npc->name[0] )
-                name = npc->name;
+            if( npc )
+            {
+                struct ToriRS_Npctype* npctype =
+                    CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+                if( npctype && npctype->desc[0] )
+                    desc = npctype->desc;
+                if( npc->name[0] )
+                    name = npc->name;
+            }
         }
-        snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
+        if( desc )
+            snprintf(line, sizeof(line), "%s", desc);
+        else
+            snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
         return 1;
@@ -5951,6 +6072,42 @@ app_minimenu_use_option(
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
     }
+}
+
+/* Execute one menu row, then apply the reference doAction tail
+ * (Client.ts:9506): every executed row clears useMode/targetMode EXCEPT the two
+ * arming rows (USEHELD_START / TGT_BUTTON), which return early. So any click
+ * that isn't "arm Use" or "arm spell" cancels a pending selection — Walk here, a
+ * plain op, a UI button, Cancel — i.e. clicking off anything that can't be a use
+ * target drops the white outline. The arming rows set the selection inside
+ * run_option and must survive; they alone skip the clear. */
+static int
+app_minimenu_use_option(
+    struct App* app,
+    int option_index,
+    int click_x,
+    int click_y)
+{
+    struct UIMinimenu* menu = &app->interact.minimenu;
+    int action = -1;
+    int had_selection;
+    int result;
+
+    if( option_index >= 0 && option_index < menu->option_count )
+        action = menu->options[option_index].action;
+
+    had_selection = app->objsel.active || app->targetsel.active;
+    result = app_minimenu_run_option(app, option_index, click_x, click_y);
+
+    if( action != REVCONFIG_MINIMENU_OPHELDT_START &&
+        action != REVCONFIG_MINIMENU_TGT_BUTTON )
+    {
+        app->objsel.active = 0;
+        app->targetsel.active = 0;
+        if( had_selection )
+            app->need_redraw = 1;
+    }
+    return result;
 }
 
 void

@@ -467,6 +467,106 @@ test_world_builder_cache_render(void)
     (void)best_nonzero;
     (void)best_drawn;
 
+    /* --- runtime loc change (zone LOC_DEL / LOC_ADD_CHANGE) regression ---
+     * Pick a blocking straight wall from the built scene, delete it, and
+     * re-add it: the pool entry and the collision flags on its tile must
+     * round-trip exactly, and the respawn must be flagged for the per-frame
+     * painter pass (runtime_spawn). Exercises WorldBuilder_ApplyLocChange
+     * outside a build (transient maps freed, painter static set baked). */
+    {
+        struct World_EntityPool* spool = &world->entities.scenery;
+        struct WorldEntity_Scenery wall = { 0 };
+        int wall_found = 0;
+        for( int i = World_EntityPoolHead(spool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(spool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(spool, i);
+            if( !sc || sc->grid_position.level != 0 )
+                continue;
+            if( sc->shape != RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE )
+                continue;
+            struct ToriRS_Location* cfg = CacheProvider_LocationGet(provider, sc->loc_id);
+            /* map_scene_id == -1: mapscene walls draw a sprite, not a minimap
+             * line, so they would skip the minimap round-trip asserted below. */
+            if( cfg && cfg->blocks_walk && cfg->map_scene_id == -1 )
+            {
+                wall = *sc;
+                wall_found = 1;
+                break;
+            }
+        }
+        if( wall_found )
+        {
+            struct CollisionMap* cmap = world->collision_maps[0];
+            int wx = wall.grid_position.x;
+            int wz = wall.grid_position.z;
+            int tile_idx = collision_map_index_at(cmap, wx, wz);
+            int flags_with = cmap->flags[tile_idx];
+            int mm_with = world->minimap ? minimap_tile_wall(world->minimap, wx, wz, 0) : 0;
+            unsigned mm_seq = world->minimap_seq;
+
+            WorldBuilder_ApplyLocChange(builder, wx, wz, 0, -1, wall.shape, wall.angle);
+            TEST_ASSERT(
+                World_SceneryFindAt(world, wx, wz, 0, wall.shape) < 0,
+                "LOC_DEL removed the wall pool entry");
+            TEST_ASSERT(
+                cmap->flags[tile_idx] != flags_with, "LOC_DEL cleared the wall collision");
+            if( world->minimap )
+            {
+                TEST_ASSERT(
+                    minimap_tile_wall(world->minimap, wx, wz, 0) != mm_with,
+                    "LOC_DEL cleared the minimap wall line");
+                TEST_ASSERT(
+                    world->minimap_seq != mm_seq, "LOC_DEL bumped minimap_seq (rebake)");
+            }
+
+            WorldBuilder_ApplyLocChange(builder, wx, wz, 0, wall.loc_id, wall.shape, wall.angle);
+            int re_idx = World_SceneryFindAt(world, wx, wz, 0, wall.shape);
+            TEST_ASSERT(re_idx >= 0, "LOC_ADD_CHANGE re-spawned the wall");
+            TEST_ASSERT(
+                cmap->flags[tile_idx] == flags_with,
+                "LOC_ADD_CHANGE restored the collision flags exactly");
+            if( world->minimap )
+                TEST_ASSERT(
+                    minimap_tile_wall(world->minimap, wx, wz, 0) == mm_with,
+                    "LOC_ADD_CHANGE restored the minimap wall line");
+            {
+                struct WorldEntity_Scenery* re = World_EntityPoolGet(spool, re_idx);
+                TEST_ASSERT(re && re->runtime_spawn, "respawned loc flagged runtime_spawn");
+                TEST_ASSERT(re && re->angle == wall.angle, "respawned loc kept the map angle");
+                /* Wallside recorded for the per-frame painter re-registration:
+                 * a straight wall re-adds as WALL_A on its build wallside, not
+                 * as centre scenery. */
+                TEST_ASSERT(
+                    re && re->painter_wall_ab == WALL_A,
+                    "respawned wall recorded painter WALL_A");
+
+                /* The runtime spawn must be LIT: the sharelight accumulator is
+                 * build-only, so scenery_register_sharelight lights the model
+                 * synchronously — unlit face_colors_a stay all-zero (black). */
+                if( re )
+                {
+                    struct ToriDraw_SceneElement* el =
+                        ToriDraw_SceneElementGet(scene, re->element_id);
+                    int lit = 0;
+                    TEST_ASSERT(
+                        el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model,
+                        "respawned loc has a scene model");
+                    if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+                    {
+                        struct ToriDraw_Model* dm = el->model.u.model.model;
+                        for( int f = 0; f < dm->face_count && !lit; f++ )
+                            if( dm->face_colors_a && dm->face_colors_a[f] != 0 )
+                                lit = 1;
+                    }
+                    TEST_ASSERT(lit, "respawned loc model is lit (face colours non-zero)");
+                }
+            }
+        }
+        else
+            printf("no blocking straight wall on level 0; loc-change test skipped\n");
+    }
+
     free(pixels);
     free(pbuf->commands);
     free(pbuf);

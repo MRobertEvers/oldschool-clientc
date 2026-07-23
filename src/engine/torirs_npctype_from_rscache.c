@@ -125,6 +125,11 @@ ToriRS_NpctypeFromRSCacheDat1(
         strncpy(npctype->name, src->name, TORIRS_NAME_MAX - 1);
         npctype->name[TORIRS_NAME_MAX - 1] = '\0';
     }
+    if( src->desc )
+    {
+        strncpy(npctype->desc, src->desc, TORIRS_DESC_MAX - 1);
+        npctype->desc[TORIRS_DESC_MAX - 1] = '\0';
+    }
 
     torirs_copy_menu_actions(npctype->actions, src->op);
     npctype->combat_level = src->vislevel;
@@ -170,6 +175,9 @@ ToriRS_NpctypeFromRSCacheDat2(
         strncpy(npctype->name, src->name, TORIRS_NAME_MAX - 1);
         npctype->name[TORIRS_NAME_MAX - 1] = '\0';
     }
+    /* No desc: dat2 (OSRS) NPC config carries no examine opcode — NPC examine is
+     * server-driven there. npctype->desc stays "" (calloc) so the handler falls
+     * back to "It's a <name>.". */
 
     torirs_copy_menu_actions(npctype->actions, src->actions);
     npctype->combat_level = src->combat_level;

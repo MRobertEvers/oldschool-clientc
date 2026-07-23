@@ -482,7 +482,30 @@ WorldBuilder_ApplyLocChange(
                     .chunk_pos_level = level,
                 };
                 world_collision_del_loc(builder, &old_ml, old_cfg, scene_x, scene_z);
+
+                /* Erase the old loc's minimap wall/door line (reference
+                 * rebuilds the whole minimap buffer from the scene; torirs
+                 * edits the baked tile bits and bumps minimap_seq so the app
+                 * rebakes the map sprite). */
+                if( world->minimap && old_cfg->map_scene_id == -1 )
+                {
+                    int mm_flags = scenery_minimap_wall_flags(
+                        old->shape, old->angle, old_cfg->is_interactive);
+                    if( mm_flags != 0 )
+                    {
+                        minimap_del_tile_wall(
+                            world->minimap, scene_x, scene_z, level, mm_flags);
+                        world->minimap_seq++;
+                    }
+                }
             }
+            /* A removed WALL loc must also release its exclusive painter tile
+             * slot (wall_a/wall_b): the dead static element would otherwise
+             * keep the slot claimed, blocking the replacement wall's per-frame
+             * registration and leaving a stale reference. */
+            if( old->shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
+                old->shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER && world->painter )
+                painter_release_wall(world->painter, scene_x, scene_z, level, old->element_id);
         }
         World_SceneryRemove(world, idx);
     }
@@ -518,7 +541,24 @@ WorldBuilder_ApplyLocChange(
              * collision — adding collision for a loc that failed to spawn (model
              * missing / shape absent) would leave phantom, un-removable flags. */
             if( World_SceneryFindAt(world, scene_x, scene_z, level, shape) >= 0 )
+            {
                 world_collision_add_loc(builder, &ml, cfg, scene_x, scene_z);
+                /* Draw the new loc's minimap line (red when interactive — an
+                 * open door keeps its red line at the new edge). */
+                /* Mapscene locs draw a sprite, not lines (drawDetail skips
+                 * the wall branch for them). */
+                if( world->minimap && cfg->map_scene_id == -1 )
+                {
+                    int mm_flags =
+                        scenery_minimap_wall_flags(shape, angle, cfg->is_interactive);
+                    if( mm_flags != 0 )
+                    {
+                        minimap_add_tile_wall(
+                            world->minimap, scene_x, scene_z, level, mm_flags);
+                        world->minimap_seq++;
+                    }
+                }
+            }
             ToriDraw_SceneBatchEnd(builder->scene);
         }
     }

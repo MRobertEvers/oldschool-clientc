@@ -101,4 +101,17 @@ ToriDraw_SpritePostprocessObjIconOutline(
     int width,
     int height);
 
+/**
+ * Selected-item outline pass (reference ObjType.getSprite outlineRgb > 0): the
+ * value-1 silhouette border, then a solid `outline_argb` ring one pixel outside
+ * it — and, unlike ObjIconOutline, no drop shadow. Used for the white
+ * (0xFFFFFFFF) highlight on the item armed for "Use".
+ */
+void
+ToriDraw_SpritePostprocessObjIconOutlineColor(
+    uint32_t* pixels_argb,
+    int width,
+    int height,
+    uint32_t outline_argb);
+
 #endif

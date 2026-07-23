@@ -342,12 +342,14 @@ Already fully plumbed before this session: `dat2_config_loc.c`/dat1 decode →
 server's `OpLocDecoder.ts`). Action ids in `src/revconfig/revconfig.h` match
 MiniMenuAction exactly.
 
-**Fixed this session:** Examine (OPLOC6/OPNPC6) fell through the pick-kind
+**Fixed (earlier session):** Examine (OPLOC6/OPNPC6) fell through the pick-kind
 switch and mis-sent OPLOC1/OPNPC1; it's now intercepted before the switch and
-resolved locally with a chat line (the type structs carry no `desc`, so it
-uses the name — reference prints `loc.desc`). Remaining gaps: no TGT_LOC
-(spell-on-loc) row, no member gating (reference doesn't gate either), desc
-strings not decoded.
+resolved locally with a chat line. Remaining gaps: no TGT_LOC (spell-on-loc)
+row, no member gating (reference doesn't gate either).
+
+**Examine desc — now decoded (see §39).** The type structs carry a `desc`
+field and the examine handlers print the real config description instead of
+`"It's a <name>."`.
 
 ---
 
@@ -1950,10 +1952,12 @@ changeLocUnchecked` rebuilds the single loc into the scene and re-adds collision
 
 ### Known limitations
 
-- **Model must be preloaded.** `scenery_add` → `CacheProvider_ModelGet` returns
+- **Model must be preloaded.** ~~`scenery_add` → `CacheProvider_ModelGet` returns
   NULL for a loc whose model was not preloaded; the spawn is then skipped
   (collision still updates). Doors usually reuse a preloaded model, but an
-  arbitrary `LOC_ADD_CHANGE` id may need an on-demand model load (not yet wired).
+  arbitrary `LOC_ADD_CHANGE` id may need an on-demand model load (not yet
+  wired).~~ **Fixed in §36** — loc changes are now applied asynchronously after
+  the loc config + models load (reference `changeLocAvailable` gate).
 - **Wall draw order** uses `painter_add_normal_scenery` for the per-frame
   re-registration rather than the wall-specific span the build path uses; fine
   for a standalone door, approximate where a spawned wall must interleave with
@@ -2677,3 +2681,334 @@ entity_spotanim: combine id=74 element=7969 seq=643 frame=0 height=300
   (incl. spotanim-wave + scene-reset-midflight), `test-entity-decode`,
   `test-world-builder` green; projectile (§32) and free-standing spotanim (§31)
   paths unregressed.
+
+## 36. Loc add/change invisible + phantom collision — async loc changes — ✅
+
+§28 wired `WorldBuilder_ApplyLocChange`, but doors still failed live: opening a
+door made the closed door vanish and **nothing** appear, and after an
+open/close cycle the doorway kept phantom collision.
+
+### Root cause chain
+
+1. **The change applied synchronously against a preload-only model cache.**
+   `scenery_load_model` → `CacheProvider_ModelGet` only returns models the
+   static map build preloaded. An open-door model variant is normally *not*
+   referenced by the baked map, so the runtime `scenery_add` silently returned
+   `-1`: no scene element, **no scenery-pool entry**.
+2. **Collision was added anyway.** `ApplyLocChange` ran
+   `world_collision_add_loc` unconditionally after the (failed) spawn.
+3. **The phantom was un-removable.** The *next* change on that tile
+   (`World_SceneryFindAt` by layer) found no pool entry for the invisible loc,
+   so its collision was never deleted — stale flags forever.
+
+Client-TS never has this problem: `locChangeCreate` queues the change and
+`locChangeDoQueue` (`Client.ts:7701`) only applies it once
+`ClientBuild.changeLocAvailable` — the loc's models are downloaded — and its
+old-state capture reads typecodes from the scene, not a side pool.
+
+### torirs
+
+- **Async apply** (`app.c` `Task_AppSpawn` kind `APP_SPAWN_LOC_CHANGE`, entry
+  `App_WorldLocChange`): `LOC_DEL` / `LOC_ADD_CHANGE`
+  (`rs_gameproto_exec.c`) now enqueue a task on the **serial exec FIFO** that
+  awaits `CreateTask_LocLoad` + `CreateTask_ModelLoad` for every model the loc
+  config references (+ `CreateTask_SequenceLoad` for an animated loc), then
+  calls `WorldBuilder_ApplyLocChange`. The FIFO keeps same-tile changes in
+  packet order, and `LOC_DEL` rides the same task kind (nothing to load) so a
+  del can never overtake an in-flight add. This is the C equivalent of the
+  reference `locChanges` queue + `changeLocAvailable` gate.
+- **Collision only with a pool entry** (`world_builder.c`): the runtime
+  `world_collision_add_loc` now runs only when the spawn registered a scenery
+  pool entry — the entry is what lets the next change find and undo the
+  collision, so a failed spawn can no longer leave phantom flags.
+- **Removal loops the layer** (`world_builder.c`): an L-shaped wall
+  (`WALL_TWO_SIDES`) and a double diagonal wall decor register **two** pool
+  entries (one per model half); `ApplyLocChange` previously removed only the
+  first, leaving half the wall + its pool entry behind. The del now loops
+  `World_SceneryFindAt` until the layer is empty (the collision del is an
+  AND-NOT, so running it once per half is idempotent).
+- **Pool angle = map angle** (`world_scenery.u.c`): `World_SceneryRegister` now
+  stores `map_loc->orientation & 3`, not the render rotation. The reference
+  `typecode2` stores the map angle, and both consumers here want that: the
+  runtime collision del (an L-wall's render rotations `orientation+4` /
+  `(orientation+1)&3` deleted the **wrong edges**) and the tryMove wall
+  approach (`app_scenery_approach` fed `angle 4..7` into `testWall`, which only
+  matches `0..3` — L-wall op-clicks could never arrive).
+- **Ground decor collision gate** (`world_collision.u.c`): now
+  `blockwalk && active` (`is_interactive`), matching `ClientBuild.ts`
+  `addLoc`/`locChangeUnchecked` — inactive floor decor never blocks.
+- **Runtime spawn is lit synchronously** (`world_scenery.u.c`
+  `scenery_register_sharelight`): model lighting normally happens in the batch
+  build-end pass (`defaultlight_build` / sharelight merge) driven by the
+  `sharelight_map` accumulator — which is build-only and freed, so a runtime
+  spawn's push was a NULL no-op and the model rendered **all black** (unlit
+  `face_colors_a` stay zero). On `scenery_runtime_spawn` the model is now lit
+  in place with `ToriDraw_LightModelDefault(contrast, ambient)`. Reference
+  parity: `locChangeUnchecked` → `loc.getModel` always applies the default
+  per-loc light; the cross-model normal merge is a static-build concept there
+  too, so a runtime change gets exactly this default light in Client-TS as
+  well.
+- **Test** (`world_builder_test_cache.c`, `make -C src test-world-builder`):
+  against the real dat2 cache build, pick a blocking straight wall, `LOC_DEL`
+  it (pool entry gone, collision flags change), then `LOC_ADD_CHANGE` it back —
+  pool entry, `runtime_spawn` flag, map angle, the tile's collision flags, and
+  a **lit** model (some `face_colors_a != 0`) all verified.
+
+### Known limitations (unchanged from §28 where not listed)
+
+- **No timed re-verts / `P_LOCMERGE`.** The reference `LocChange` carries
+  `startTime`/`endTime` for temporary changes (`P_LOCMERGE`); torirs implements
+  the permanent subset (`startTime 0`, `endTime -1`) that `LOC_DEL`/
+  `LOC_ADD_CHANGE` use.
+- **No `locChangePostBuildCorrect`.** After a map rebuild the reference
+  re-applies surviving changes client-side; torirs relies on the server's zone
+  resync after `REBUILD_NORMAL` (the 245 server re-sends zone state).
+
+## 37. Minimenu closes when the mouse leaves its deadzone — ✅
+
+### Client-TS
+
+While `isMenuOpen` and the frame has **no click** (`Client.ts:8544-8569`): take
+the mouse in menu-area local coords and close the menu when it leaves the menu
+rect grown by 10px on every side —
+`x < menuX - 10 || x > menuX + menuWidth + 10 || y < menuY - 10 ||
+y > menuY + menuHeight + 10`. The 10px band is the hover deadzone: inside it
+the menu stays; beyond it, plain mouse motion dismisses without a click.
+
+### torirs
+
+`UIMinimenu_HitOption` already encoded the identical rect+10px test (`-2` =
+outside), but only mouse *presses* consulted it. `interact_minimenu`
+(`uitree_interact.c`) now, on press-less frames after the hover update, hides
+the menu (`minimenu_closed`, redraw) when the current mouse position hits `-2`.
+Press frames keep the existing branch so the swallow/right-reopen semantics are
+untouched (a press outside still closes-and-reopens on right, swallows on
+left). `make -C src test-uitree` (minimenu/cross suite) green.
+
+---
+
+## 38. Selected ("Use"-armed) inventory item drawn with a white outline — ✅
+
+### Client-TS
+
+The item armed for **Use** (`useMode == 1`, the `objSelected*` state from §16)
+draws with a solid white silhouette outline. It is baked into the 32×32 icon at
+draw time, not overlaid at blit: TYPE_INV draw (`Client.ts:10200-10205`) computes
+`let outline = 0; if (useMode == 1 && objSelectedSlot == slot &&
+objSelectedComId == child.id) outline = 16777215;` (0xFFFFFF) and passes it to
+`ObjType.getSprite(id, count, outline)`.
+
+`getSprite` (`ObjType.ts:365-519`) with `outlineRgb > 0`:
+
+- Renders at `zoom = (zoom2d * 1.04)|0` — pushes the camera back so the model is
+  a hair smaller and the ring has room inside the tile (`:433-435`).
+- **Pass 1 (always):** every empty (0) pixel 4-adjacent to a real (`> 1`) pixel is
+  set to the sentinel **1** — the thin near-black silhouette edge (`:443-459`).
+- **Pass 2 (`outlineRgb > 0`):** every still-empty pixel 4-adjacent to a **1**
+  pixel is set to `outlineRgb`, pushing a white ring one pixel outside the edge
+  (`:461-479`). No drop shadow (the shadow is the mutually-exclusive
+  `outlineRgb === 0` branch, `:480-489`).
+- Outlined sprites are **not** cached (`:366/:501` only cache `outlineRgb === 0`);
+  the reference regenerates every frame while selected. For a cert the outline is
+  applied to the template paper, then the base item composited on top (`:491`).
+
+### torirs
+
+torirs bakes obj icons into the scene atlas once (keyed by `(obj_id, count)`,
+§17/§22.2) rather than re-rendering per frame, so the selected variant is a
+second cached bake, swapped in by scene id — same pixels as the reference, minus
+the wasteful re-raster.
+
+- **Pixel pass** (`3rd/toridraw/toridraw_model_sprite.c`): new
+  `ToriDraw_SpritePostprocessObjIconOutlineColor` — the reference two-pass
+  algorithm exactly (pass 1 sentinel `0xFF000001`, i.e. Client-TS value 1; pass 2
+  the outline colour), and **no** drop shadow, unlike the existing
+  `…ObjIconOutline` (which is the `outlineRgb === 0` shadow branch used for the
+  plain icon).
+- **Bake** (`src/engine/uitree_scene_bridge.c`): `bridge_rasterize_obj_icon` took
+  a `bool postprocess_outline`; it now takes a 3-way `BridgeObjIconOutline`
+  (`NONE` = cert base sub-icon, `SHADOW` = normal icon, `WHITE` = selected). WHITE
+  applies the `zoom * 104 / 100` shrink and the colour pass on the raw raster.
+  `UITreeSceneBridge_EnsureObjIcon` (SHADOW → `obj_icon_map`) and the new
+  `UITreeSceneBridge_EnsureObjIconSelected` (WHITE → a parallel
+  `obj_icon_outline_map`) share one `bridge_ensure_obj_icon` body, so the cert
+  compositing (§17) is inherited by both.
+- **Selection → emit**: new host request `UITREE_HOST_GET_INV_SELECT_ICON`
+  (com_id + slot + obj_id + count). The app handler (`src/app.c`) answers `> 0`
+  only when `objsel.active && objsel.component_id == com_id && objsel.slot == slot`
+  — the reference gate — baking the white variant on first hit (the model is
+  already resident, its plain icon being on screen) and caching thereafter. In
+  `emit_rs_inv_slots` (`src/ui/uitree_emit.c`), each occupied slot queries it and,
+  when `> 0`, overrides `scene_id` (`atlas_index = 0`); the existing drag/scroll
+  offset + trans logic runs afterward, so a selected item that is also being
+  dragged still fades and follows the mouse with its outline (reference: `getSprite`
+  outline first, then `transPlotSprite`).
+
+**Cancelling the selection — click off anything that can't "use".** The
+reference clears `useMode`/`targetMode` at the **tail of `doAction`**
+(`Client.ts:9506`), which runs for *every* executed menu row except the two
+arming rows (`USEHELD_START`, `TGT_BUTTON`) that `return` early (`:9257/:9285`).
+So any click resolving to a non-use action — **Walk here**, a plain op, a UI
+button, even **Cancel** — drops a pending selection and its outline. torirs
+cleared `objsel` only inside the specific use-completion branches of
+`app_minimenu_run_option` (the `doAction` port), so clicking empty ground or a UI
+button left the item armed and outlined. Fixed by mirroring the reference tail:
+`app_minimenu_use_option` is now a thin wrapper (`src/app.c`) that runs the row
+via `app_minimenu_run_option`, then — unless the row's action is
+`REVCONFIG_MINIMENU_OPHELDT_START` or `_TGT_BUTTON` (the arming rows, which set
+the selection inside and must survive) — clears `objsel`/`targetsel` and requests
+a redraw so the outline clears. Every call site (right-click selected row,
+left-click default, the scratch-menu left-click paths, the inv drag short-click)
+routes through the wrapper, so the cancel is uniform. Under `useMode` the world
+menu already suppresses "Walk here" (§16), so clicking bare ground falls to the
+Cancel row and the tail clears — matching the reference.
+
+Not ported (deliberate): re-rastering every frame (torirs caches — the outline is
+static per obj/count), and the `useMode` translucent `selectedArea` variant
+(`Client.ts:10253`, a separate older highlight torirs does not arm).
+
+Verified: clean build (no warnings); `test-inv`, `test-uitree`, `test-ui-slots`,
+`test-uitree-builder-dat1`, `test-revconfig`, `test-net-exec` pass. The pixel pass
+was checked on a synthetic block — `#` model → `.` near-black edge → `W` white
+halo, matching the reference silhouette. Live check: right-click an inventory item
+→ **Use**; the item gains a white outline; using it on a target (or pressing Esc /
+selecting elsewhere) clears it.
+
+---
+
+## 39. Examine text — real config desc instead of "It's a <name>." — ✅
+
+### Client-TS
+
+Examine is resolved **entirely client-side** — no packet, no cross. Each type
+config carries a `desc` string decoded from **config opcode 3** (opcode 2 is
+`name`): `LocType.desc` (`LocType.ts:159`), `NpcType.desc` (`NpcType.ts:102`),
+`ObjType.desc` (`ObjType.ts:171`), all `gjstr()`. The four examine actions —
+`OP_LOC6=1381`, `OP_NPC6=1714`, `OP_OBJ6=1152`, `OP_HELD6=1328`
+(`MiniMenuAction.ts`) — each resolve in `Client.doAction` (`Client.ts:8784`)
+and print via `addChat(0, examine, '')`:
+
+- The message is `desc` if the config has one, else the fallback
+  `"It's a " + name + "."` (`Client.ts` 9032/8950/8861/9233).
+- **Held stacks ≥ 100000** show `"<count> x <name>"` instead
+  (`Client.ts:9238`, reading `com.linkObjNumber[slot]`).
+- **Bank notes** synthesize the desc at load in `ObjType.genCert`
+  (`ObjType.ts:286-291`): `"Swap this note at any bank for <a|an> <base>."`,
+  the article chosen by the base name's first letter.
+
+### torirs
+
+Before: both examine sites printed `"It's a <name>."` because the `ToriRS_*`
+structs dropped the description even though the vendored rscache decoders
+already read it. Now threaded through both layers:
+
+- **`ToriRS_Location`/`Npctype`/`Objtype`** gained a `char desc[TORIRS_DESC_MAX]`
+  (`src/engine/torirs_types.h`), copied from the raw config in the three
+  `*_from_rscache.c` adaptors — dat1 loc/npc/obj + dat2 loc from `src->desc`,
+  dat2 obj from `src->examine` (OSRS names it differently). **dat2 (OSRS) NPCs
+  carry no examine opcode** (server-driven there), so their `desc` stays `""`
+  and the handler falls back — matching the reference's own fallback.
+- **Cert desc** is synthesized in `CacheProvider_ObjtypeGet` alongside the
+  existing lazy genCert name patch (`src/engine/cache_provider.c`), same
+  article rule as the reference.
+- **Held examine** (`app.c` `REVCONFIG_MINIMENU_OPHELD6`) prints the
+  `>=100000` count form / `desc` / fallback. The stack count is threaded from
+  the inv-slot builder into `pick.quaternary_id` (`rs_minimenu_build.c
+  pick_inv_slot`), which was previously unused for inv picks.
+- **World examine** (`app.c` OPLOC6/OPNPC6/OPOBJ6, resolved locally before the
+  pick-kind switch) looks the config up by the entity's type id
+  (`scenery->loc_id` / `stack->obj_id` / `npc->npc_id`) via the cache provider
+  and prints `desc`, else the `"It's a <name>."` fallback using the entity's
+  snapshotted name.
+
+Verified: clean build; existing `test-world-builder` and `test-uitree-builder-dat1`
+pass. A temporary desc probe over the dat1 cache (`cache254`) confirmed the real
+strings decode end-to-end — obj 1265 → "Used for mining.", obj 995 → "Lovely
+money!", loc 1276 (Tree) → "One of the most common trees in RuneScape.", npc 100
+(Goblin) → "An ugly green creature." The jan2026 dat2 (OSRS) cache has **0** loc
+descs, as expected for that era (examine moved server-side).
+
+## 38. Loc-change follow-ups: painter wallside + red minimap door lines — ✅
+
+Two visible gaps left by §36's async loc changes.
+
+### Runtime walls drew on the wrong side of the tile
+
+The per-frame painter re-registration (§28) pushed every runtime-spawned loc
+through `painter_add_normal_scenery`, so a spawned door sorted like centre
+scenery instead of a wall — wrong draw side relative to the tile's floor and
+neighbours. The painter's `wall_a`/`wall_b` are exclusive per-tile slots
+(asserted empty on add) that only the static build path claimed.
+
+- `WorldEntity_Scenery.painter_wall_ab/_side`
+  (`entity_scenery.h`): the `(WALL_A/B, wallside)` the build path passes to
+  `painter_add_wall`, captured at spawn time by `scenery_record_runtime_wall`
+  (`world_scenery.u.c`, all four wall shapes; the L-wall's second half records
+  `WALL_B`).
+- `painter_reset_to_static` (`painters.c`) now frees dynamic walls' tile slots
+  (it only handled scenery), so a per-frame `painter_add_wall` can re-claim
+  them each frame.
+- `painter_release_wall` (`painters.c/h`): on loc removal
+  (`WorldBuilder_ApplyLocChange`), the removed wall's **static** painter
+  element is unhooked from its tile slot — otherwise the dead element blocks
+  the replacement's registration (assert) and stays referenced.
+- `World_CycleRegisterPainterDynamics` (`world_cycle.c`): runtime locs with a
+  recorded wallside re-register via `painter_add_wall`; everything else keeps
+  the normal-scenery path.
+
+### Doors draw as red lines on the minimap
+
+Reference `drawDetail` (Client.ts:5628): wall lines draw `inactiveRgb`
+(white-ish) normally, `activeRgb` (red) when the wall typecode is positive —
+i.e. the loc is **active/interactive** (doors). torirs drew everything white
+and never updated the baked bits on a runtime change.
+
+- `MinimapWallFlag` (`world_builder/minimap.h`): `DOOR_*` bits are the six
+  line positions shifted by `MINIMAP_DOOR_SHIFT` (this also fixes a latent
+  clash where `DOOR_NORTH` shared bit 5 with `WALL_NORTHWEST_SOUTHEAST`).
+  `minimap_draw_wall` draws WALL bits white (`0xFFFFFFFF`) and DOOR bits red
+  (`0xFFEE0000`, reference `0xee0000`).
+- Gather (`world_scenery.u.c` `scenery_minimap_wall_flags`): straight walls
+  one edge, L-walls two, diagonals one diagonal, corners none — shifted into
+  DOOR bits when `is_interactive`. Shared by the static gather and the runtime
+  change.
+- Runtime update: `WorldBuilder_ApplyLocChange` dels the old loc's line bits
+  and adds the new loc's (skipping mapscene locs — they draw a sprite, not
+  lines), bumping `world->minimap_seq`; `app_world_map_poll` rebakes the map
+  sprite when the seq moves, so an opened door's red line follows the swap.
+- Test (`world_builder_test_cache.c`): the wall round-trip now also asserts
+  the minimap line bits clear/restore, `minimap_seq` bumps, and the respawn
+  records `WALL_A`.
+
+Known gap: the reference also draws `WALL_SQUARE_CORNER` as a single corner
+pixel; the C gather still skips corner shapes entirely (pre-existing).
+
+## 39. Combat tab showed the wrong weapon — IF_SETOBJECT was parsed but never executed — ✅
+
+### Client-TS
+
+`IF_SETOBJECT` (Client.ts:6342): `com, obj, zoom` → sets the component's
+`model1Type = 4` (obj interface model), `model1Id = obj`, `modelXAn/YAn` from
+the objtype's `xan2d/yan2d`, and `modelZoom = zoom2d * 100 / zoom`. The
+**server** drives the combat-tab weapon display with this on equip (alongside
+`IF_SETTAB` for the weapon-category layout and `IF_SETTEXT` for the name); the
+client has no held-weapon inference of its own — and no CS1 involvement.
+
+### torirs
+
+The wire decode existed (`gameproto_parse.c`) but `RS_GameProto_Exec` had no
+case — the packet was silently dropped, so the combat tab kept whatever model
+the interface config mounted with.
+
+- `UITreeSceneBridge_EnsureObjModel` (`uitree_scene_bridge.c`): the obj's
+  inventory model, recoloured + default-lit (same transform chain as the icon
+  rasterizer), registered as a scene MODEL under
+  `UITREE_SCENE_OBJ_MODEL_BASE | obj_id` and cached in `obj_model_map`.
+- `App_SetInterfaceObjModel` (`app.c`): rides the existing chathead machinery —
+  a new `APP_IFHEAD_OBJ` kind persists `(com_id, obj_id, zoom)` (survives the
+  packet arriving before the sidebar tab mounts, reapplies on tree
+  generation change) and enqueues an async objtype + model load.
+  `app_if_head_poll` binds the scene model with `UITree_ApplyModel` and applies
+  the reference transform via `UITree_ApplyModelAngle(xan2d, yan2d,
+  zoom2d*100/zoom)`.
+- `rs_gameproto_exec.c`: `PKT_NAME_IF_SETOBJECT` → `App_SetInterfaceObjModel`.

@@ -62,6 +62,11 @@ ToriRS_ObjtypeFromRSCacheDat1(
         strncpy(objtype->name, src->name, TORIRS_NAME_MAX - 1);
         objtype->name[TORIRS_NAME_MAX - 1] = '\0';
     }
+    if( src->desc )
+    {
+        strncpy(objtype->desc, src->desc, TORIRS_DESC_MAX - 1);
+        objtype->desc[TORIRS_DESC_MAX - 1] = '\0';
+    }
 
     torirs_copy_menu_actions(objtype->inv_actions, src->iop);
     torirs_copy_menu_actions(objtype->ground_actions, src->op);
@@ -148,6 +153,12 @@ ToriRS_ObjtypeFromRSCacheDat2(
     {
         strncpy(objtype->name, src->name, TORIRS_NAME_MAX - 1);
         objtype->name[TORIRS_NAME_MAX - 1] = '\0';
+    }
+    /* dat2 (OSRS) names the examine string `examine`; the reference ObjType.desc. */
+    if( src->examine )
+    {
+        strncpy(objtype->desc, src->examine, TORIRS_DESC_MAX - 1);
+        objtype->desc[TORIRS_DESC_MAX - 1] = '\0';
     }
 
     torirs_copy_menu_actions(objtype->inv_actions, src->if_actions);

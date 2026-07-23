@@ -224,8 +224,9 @@ struct App
     struct AppIfHead
     {
         int com_id;
-        int kind;    /* AppIfHeadKind: 0 = npc, 1 = player */
-        int npc_id;
+        int kind;    /* AppIfHeadKind: 0 = npc, 1 = player, 2 = obj (IF_SETOBJECT) */
+        int npc_id;  /* npc id, or the obj id for the obj kind */
+        int zoom;    /* IF_SETOBJECT wire zoom (modelZoom = zoom2d*100/zoom) */
         int anim_id; /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
         uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     }* if_heads;
@@ -464,6 +465,13 @@ App_SetInterfaceNpcHead(struct App* app, int component_id, int npc_id);
  *  widget (reference IfType.getModel type 3). Async. */
 void
 App_SetInterfacePlayerHead(struct App* app, int component_id);
+
+/** IF_SETOBJECT (reference IfType model1Type 4): bind an obj's lit inventory
+ *  model to a MODEL widget with the objtype's 2d angles and modelZoom =
+ *  zoom2d*100/zoom — e.g. the combat-tab wielded weapon. Persisted by com_id
+ *  like the chatheads (survives the sidebar tab mounting after the packet). */
+void
+App_SetInterfaceObjModel(struct App* app, int component_id, int obj_id, int zoom);
 
 /** IF_SETANIM: set a MODEL widget's animation seq; persisted alongside a
  *  matching chathead so it survives the interface (re)mounting. */

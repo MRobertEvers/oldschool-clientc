@@ -134,6 +134,14 @@ enum UITreeHostRequestKind
      * with the client's p11), or -1 while the font is still loading.
      */
     UITREE_HOST_GET_INV_COUNT_FONT,
+    /**
+     * Selected-item white outline (reference TYPE_INV draw: outline = 0xFFFFFF
+     * when useMode && objSelectedSlot == slot && objSelectedComId == child.id).
+     * Given the grid's component id + slot + the slot's obj id/count, returns
+     * the scene id of the white-outlined icon variant when that slot is the
+     * armed "Use" selection, else 0 — emit swaps it in for the plain icon.
+     */
+    UITREE_HOST_GET_INV_SELECT_ICON,
 };
 
 /*
@@ -215,6 +223,13 @@ struct UITreeHostRequest
             int* out_dx;
             int* out_dy;
         } get_inv_drag;
+        struct
+        {
+            int com_id;
+            int slot;
+            int obj_id;
+            int count;
+        } get_inv_select_icon;
         struct
         {
             int slot;

@@ -23,6 +23,8 @@ struct UITreeSceneBridge
     struct HMap* model_map;
     /** (obj_id, count) → scene_id for rasterized inventory icons */
     struct HMap* obj_icon_map;
+    /** (obj_id, count) → scene_id for the white-outlined "Use"-selected variant */
+    struct HMap* obj_icon_outline_map;
 
     /**
      * Client-hardcoded sprites (compass, hitmarks, cross, scrollbar arrows, …)
@@ -39,6 +41,10 @@ struct UITreeSceneBridge
 
     /** npc_id → composited chathead scene model id (reference NpcType.getHead). */
     struct HMap* npc_head_map;
+
+    /** obj_id → lit interface model scene id (reference IfType.getModel type 4,
+     * set by IF_SETOBJECT — e.g. the combat-tab weapon model). */
+    struct HMap* obj_model_map;
 
     /** Texture ids whose load already failed; never re-requested. */
     unsigned char texture_failed[256];
@@ -57,6 +63,10 @@ struct UITreeSceneBridge
 /* Base of the reserved scene-model id range for composited NPC chatheads
  * (id = base | npc_id); distinct from cache model ids and the avatars above. */
 #define UITREE_SCENE_NPC_HEAD_BASE 0x50000000
+
+/** Obj interface models (IF_SETOBJECT: lit + recoloured inventory model bound
+ * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
+#define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
 
 void
 UITreeSceneBridge_Init(
@@ -151,12 +161,35 @@ UITreeSceneBridge_EnsurePlayerHead(
     int gender);
 
 /**
+ * Register an obj's lit + recoloured inventory model as a scene MODEL
+ * (reference IfType.getModel type 4 / ObjType 3D interface model, driven by
+ * IF_SETOBJECT — e.g. the combat-tab weapon). Requires objtype + inventory
+ * model already in CacheProvider. Returns scene model id or -1.
+ */
+int
+UITreeSceneBridge_EnsureObjModel(
+    struct UITreeSceneBridge* bridge,
+    int obj_id);
+
+/**
  * Rasterize an inventory/obj icon into the scene (32x32).
  * Requires objtype + inventory model already in CacheProvider.
  * Returns scene sprite id or -1.
  */
 int
 UITreeSceneBridge_EnsureObjIcon(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count);
+
+/**
+ * Rasterize the white-outlined variant of an obj icon (reference
+ * ObjType.getSprite with outlineRgb = 0xFFFFFF) for the item armed for "Use".
+ * Cached separately from the plain icon; requires the same model residency, so
+ * it only succeeds once EnsureObjIcon would. Returns scene sprite id or -1.
+ */
+int
+UITreeSceneBridge_EnsureObjIconSelected(
     struct UITreeSceneBridge* bridge,
     int obj_id,
     int count);

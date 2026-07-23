@@ -113,6 +113,11 @@ struct World
      * staleness checks that would otherwise re-run every frame. */
     unsigned load_seq;
 
+    /** Bumped whenever a runtime loc change edits the minimap wall bits (door
+     * opened/closed): app_world_map_poll rebakes the baked map sprite when this
+     * moves, so the red door line follows the world state. */
+    unsigned minimap_seq;
+
     /** Client cycle counter (reference loopCycle): advanced by World_Cycle,
      * stamps exact-move windows / spotanim delays / hitmark expiry. */
     int cycle;

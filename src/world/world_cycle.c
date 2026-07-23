@@ -909,9 +909,19 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        painter_add_normal_scenery(
-            world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
-            sc->size_x > 0 ? sc->size_x : 1, sc->size_z > 0 ? sc->size_z : 1);
+        /* Wall locs re-register with their recorded wallside so the painter
+         * orders them like a built wall (drawn on the correct side of the
+         * tile); the removal path released the tile slot and reset_to_static
+         * frees dynamic wall slots each frame, so the exclusive-slot claim is
+         * safe. Everything else draws as normal scenery. */
+        if( sc->painter_wall_ab >= 0 )
+            painter_add_wall(
+                world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
+                sc->painter_wall_ab, sc->painter_wall_side);
+        else
+            painter_add_normal_scenery(
+                world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
+                sc->size_x > 0 ? sc->size_x : 1, sc->size_z > 0 ? sc->size_z : 1);
     }
 
     /* Ground items render below entities (reference tile.groundObject draws in

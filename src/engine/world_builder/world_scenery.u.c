@@ -7,6 +7,7 @@
 #include "minimap.h"
 #include "shademap.h"
 #include "sharelight_map.h"
+#include "toridraw_light_model.h"
 #include "toridraw_model.h"
 #include "toridraw_model_transform.h"
 #include "toridraw_scene.h"
@@ -178,6 +179,39 @@ orientation_wall_flag_diagonal(int orientation)
     }
 }
 
+/* Minimap wall-line bits for one loc (reference drawDetail wall branches):
+ * straight walls one edge, L-walls two edges, diagonal walls one diagonal;
+ * corners draw nothing here. An interactive (active) wall — a door — shifts
+ * into the DOOR_* bits so the bake draws its line red instead of white
+ * (reference: typecode > 0 picks activeRgb). Shared by the static gather and
+ * the runtime loc change. */
+static int
+scenery_minimap_wall_flags(
+    int shape,
+    int orientation,
+    int interactive)
+{
+    int flags;
+    switch( shape )
+    {
+    case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
+        flags = orientation_wall_flag(orientation);
+        break;
+    case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
+        flags = orientation_wall_flag(orientation) |
+                orientation_wall_flag((orientation + 1) & 0x3);
+        break;
+    case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
+        flags = orientation_wall_flag_diagonal(orientation);
+        break;
+    default:
+        return 0;
+    }
+    if( interactive )
+        flags <<= MINIMAP_DOOR_SHIFT;
+    return flags;
+}
+
 static void
 scenery_register_sharelight(
     struct WorldBuilder* builder,
@@ -190,6 +224,29 @@ scenery_register_sharelight(
     int size_z)
 {
     struct World* world = builder->world;
+
+    /* Runtime loc spawn (zone LOC_ADD_CHANGE): the sharelight accumulator is
+     * build-only (already freed), so the batch defaultlight_build pass will
+     * never see this model — light it now or it renders black. The reference
+     * does the same: locChangeUnchecked's loc.getModel always applies the
+     * default per-loc light; the cross-model normal merge is a static-build
+     * concept there too. */
+    if( builder->scenery_runtime_spawn )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model &&
+            ToriDraw_ModelIsLightable(el->model.u.model.model) )
+        {
+            struct ToriDraw_ModelHandle hnd = {
+                .kind = TORIDRAWMK_MODEL,
+                .u.model.model = el->model.u.model.model,
+            };
+            ToriDraw_LightModelDefault(hnd, config_loc->contrast, config_loc->ambient);
+            ToriDraw_ModelFreeNormals(el->model.u.model.model);
+        }
+        return;
+    }
+
     sharelight_map_push(
         builder->sharelight_map,
         config_loc->sharelight != 0,
@@ -201,6 +258,29 @@ scenery_register_sharelight(
         size_z,
         config_loc->ambient,
         config_loc->contrast);
+}
+
+/* Runtime wall spawn: painter_add_wall is suppressed (its static slot is
+ * baked), so capture the (WALL_A/B, side) the build path would have used on
+ * the pool entry — world_cycle's per-frame re-registration replays it via
+ * painter_add_wall instead of painter_add_normal_scenery, keeping the wall on
+ * the correct side of the tile in the painter's draw order. */
+static void
+scenery_record_runtime_wall(
+    struct WorldBuilder* builder,
+    int element_id,
+    int wall_ab,
+    int side)
+{
+    struct WorldEntity_Scenery* scenery;
+    if( !builder->scenery_runtime_spawn || element_id < 0 )
+        return;
+    scenery = World_SceneryGetByElementId(builder->world, element_id);
+    if( scenery )
+    {
+        scenery->painter_wall_ab = wall_ab;
+        scenery->painter_wall_side = side;
+    }
 }
 
 /* Loc recolour endpoints <= this are texture ids (retexture), not HSL colours.
@@ -497,6 +577,7 @@ scenery_add_wall_single(
         element_id,
         WALL_A,
         ROTATION_WALL_TYPE[orientation]);
+    scenery_record_runtime_wall(builder, element_id, WALL_A, ROTATION_WALL_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
@@ -547,6 +628,8 @@ scenery_add_wall_tri_corner(
         element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation]);
+    scenery_record_runtime_wall(
+        builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
@@ -593,6 +676,7 @@ scenery_add_wall_two_sides(
         element_id,
         WALL_A,
         ROTATION_WALL_TYPE[orientation]);
+    scenery_record_runtime_wall(builder, element_id, WALL_A, ROTATION_WALL_TYPE[orientation]);
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 
@@ -618,6 +702,8 @@ scenery_add_wall_two_sides(
         element_id2,
         WALL_B,
         ROTATION_WALL_TYPE[next_orientation]);
+    scenery_record_runtime_wall(
+        builder, element_id2, WALL_B, ROTATION_WALL_TYPE[next_orientation]);
 
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
@@ -656,6 +742,8 @@ scenery_add_wall_rect_corner(
         element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation]);
+    scenery_record_runtime_wall(
+        builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
@@ -1296,50 +1384,12 @@ world_builder_minimap_add_chunk_walls(
 
         /* Recorded per level (no WORLD_CURRENT_LEVEL filter): the bake takes
          * the level it needs, so upper floors get their own wall outlines. */
-        int const wall_level = map_loc->chunk_pos_level;
-
-        switch( map_loc->shape_select )
         {
-        case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
-            minimap_add_tile_wall(
-                world->minimap,
-                offset_x,
-                offset_z,
-                wall_level,
-                orientation_wall_flag(map_loc->orientation));
-            break;
-        case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
-            break;
-        case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
-        {
-            minimap_add_tile_wall(
-                world->minimap,
-                offset_x,
-                offset_z,
-                wall_level,
-                orientation_wall_flag(map_loc->orientation));
-
-            int next_orientation = (map_loc->orientation + 1) & 0x3;
-            minimap_add_tile_wall(
-                world->minimap,
-                offset_x,
-                offset_z,
-                wall_level,
-                orientation_wall_flag(next_orientation));
-            break;
-        }
-        case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
-            break;
-        case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
-            minimap_add_tile_wall(
-                world->minimap,
-                offset_x,
-                offset_z,
-                wall_level,
-                orientation_wall_flag_diagonal(map_loc->orientation));
-            break;
-        default:
-            break;
+            int flags = scenery_minimap_wall_flags(
+                map_loc->shape_select, map_loc->orientation, config_loc->is_interactive);
+            if( flags != 0 )
+                minimap_add_tile_wall(
+                    world->minimap, offset_x, offset_z, map_loc->chunk_pos_level, flags);
         }
     }
 }
