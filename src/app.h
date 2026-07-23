@@ -10,10 +10,10 @@
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs1_host.h"
-#include "game/rs_entity_sync.h"
-#include "game/rs_minimenu_build.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_entity_sync.h"
 #include "game/rs_if1_buttons.h"
+#include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
@@ -25,8 +25,8 @@
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
 #include "ui/uitree_emit.h"
-#include "ui/uitree_hovertext.h"
 #include "ui/uitree_host.h"
+#include "ui/uitree_hovertext.h"
 #include "ui/uitree_interact.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
@@ -224,10 +224,10 @@ struct App
     struct AppIfHead
     {
         int com_id;
-        int kind;    /* AppIfHeadKind: 0 = npc, 1 = player, 2 = obj (IF_SETOBJECT) */
-        int npc_id;  /* npc id, or the obj id for the obj kind */
-        int zoom;    /* IF_SETOBJECT wire zoom (modelZoom = zoom2d*100/zoom) */
-        int anim_id; /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
+        int kind;             /* AppIfHeadKind: 0 = npc, 1 = player, 2 = obj (IF_SETOBJECT) */
+        int npc_id;           /* npc id, or the obj id for the obj kind */
+        int zoom;             /* IF_SETOBJECT wire zoom (modelZoom = zoom2d*100/zoom) */
+        int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
         uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     }* if_heads;
     int if_head_count;
@@ -304,7 +304,7 @@ struct App
     int need_redraw;
 
     /* Async lifecycle state (no blocking IO outside the platform pump). */
-    int app_state; /* enum AppState */
+    int app_state;     /* enum AppState */
     int boot_progress; /* 0..100, drives the loading bar while BOOTING */
     int boot_interface_id;
     /** Set when async work mutated the tree; App_RunOnce consumes it with a
@@ -338,8 +338,8 @@ struct App
     {
         int body_element_id; /* -1 = free slot */
         int spotanim_id;
-        int load_enqueued;  /* asset-load task fired for spotanim_id */
-        int applied_frame;  /* spot seq frame baked into `combined`; -1 none */
+        int load_enqueued; /* asset-load task fired for spotanim_id */
+        int applied_frame; /* spot seq frame baked into `combined`; -1 none */
         struct ToriDraw_Model* body;
         struct ToriDraw_Model* spot;
         struct ToriDraw_Model* combined;
@@ -438,7 +438,9 @@ struct App
 /** Construct all subsystems in dependency order. Asserts on failure (parity
  * with the previous bootstrap). */
 void
-App_Init(struct App* app, struct AppConfig const* cfg);
+App_Init(
+    struct App* app,
+    struct AppConfig const* cfg);
 
 /** Tear down in strict reverse of App_Init. */
 void
@@ -449,34 +451,51 @@ App_Shutdown(struct App* app);
  * App_RunOnce pumps it and flips app_state to APP_STATE_READY when the tree
  * (and initial assets) are built. App_Render draws a loading bar meanwhile. */
 void
-App_OpenRootInterface(struct App* app, int interface_id);
+App_OpenRootInterface(
+    struct App* app,
+    int interface_id);
 
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void
-App_IfTextSet(struct App* app, int com_id, char const* text);
+App_IfTextSet(
+    struct App* app,
+    int com_id,
+    char const* text);
 
 /** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
  *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —
  *  the head appears once the assets resolve. */
 void
-App_SetInterfaceNpcHead(struct App* app, int component_id, int npc_id);
+App_SetInterfaceNpcHead(
+    struct App* app,
+    int component_id,
+    int npc_id);
 
 /** IF_SETPLAYERHEAD: composite the local player's chathead onto the MODEL
  *  widget (reference IfType.getModel type 3). Async. */
 void
-App_SetInterfacePlayerHead(struct App* app, int component_id);
+App_SetInterfacePlayerHead(
+    struct App* app,
+    int component_id);
 
 /** IF_SETOBJECT (reference IfType model1Type 4): bind an obj's lit inventory
  *  model to a MODEL widget with the objtype's 2d angles and modelZoom =
  *  zoom2d*100/zoom — e.g. the combat-tab wielded weapon. Persisted by com_id
  *  like the chatheads (survives the sidebar tab mounting after the packet). */
 void
-App_SetInterfaceObjModel(struct App* app, int component_id, int obj_id, int zoom);
+App_SetInterfaceObjModel(
+    struct App* app,
+    int component_id,
+    int obj_id,
+    int zoom);
 
 /** IF_SETANIM: set a MODEL widget's animation seq; persisted alongside a
  *  matching chathead so it survives the interface (re)mounting. */
 void
-App_SetInterfaceModelAnim(struct App* app, int component_id, int anim_id);
+App_SetInterfaceModelAnim(
+    struct App* app,
+    int component_id,
+    int anim_id);
 
 /** Pump the boot to completion (headless harnesses and tests only — the
  * interactive loop must NOT call this; it renders the loading state
@@ -646,7 +665,10 @@ App_DrainCommands(
  * pass and emit rebuild. Returns non-zero when the frame needs re-rendering.
  */
 int
-App_RunOnce(struct App* app, uint64_t now_ms, struct LibToriRS_Input* input);
+App_RunOnce(
+    struct App* app,
+    uint64_t now_ms,
+    struct LibToriRS_Input* input);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
@@ -657,11 +679,19 @@ App_RefreshAfterTreeMutation(struct App* app);
 
 /** Rasterize the current emit buffer into pixels (width x height ARGB). */
 void
-App_Render(struct App* app, int* pixels, int width, int height);
+App_Render(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height);
 
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int
-App_WriteBmp(struct App* app, char const* path, int width, int height);
+App_WriteBmp(
+    struct App* app,
+    char const* path,
+    int width,
+    int height);
 
 /** Index of the tree's 3D viewport component, or -1 when the open interface has
  * none. The world is a UI element like any other: no viewport in the tree means
