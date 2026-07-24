@@ -186,7 +186,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run mock230 test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string world-builder
+.PHONY: all release clean run mock230 bench-uitree test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -407,6 +407,22 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c
 	./$(OBJ_DIR)/uitree_test
+
+# Widget-rebuild burst benchmark (cc_deleteall + a run of cc_create). Always
+# optimized — the point is the algorithm, not -O0 call overhead. Override the
+# shape with BENCH_ROWS / BENCH_ITERS / BENCH_STATIC_CHILDREN.
+BENCH_ROWS ?= 400
+BENCH_ITERS ?= 20
+BENCH_STATIC_CHILDREN ?= 20
+bench-uitree: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -I$(SRC_DIR) -I$(SRC_DIR)/ui -I$(REPO_ROOT) \
+		-I$(RSCACHE_DIR)/include -I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) \
+		-DBENCH_ROWS=$(BENCH_ROWS) -DBENCH_ITERS=$(BENCH_ITERS) \
+		-DBENCH_STATIC_CHILDREN=$(BENCH_STATIC_CHILDREN) \
+		-o $(OBJ_DIR)/uitree_bench \
+		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		ui/test/uitree_bench.c -lm
+	./$(OBJ_DIR)/uitree_bench
 
 test-uitree-builder: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \

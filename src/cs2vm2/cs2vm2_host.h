@@ -189,6 +189,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,
+    /* Current pointer position in canvas coords (MOUSE_GETX / MOUSE_GETY). */
+    CS2VM_HOST_REQUEST_MOUSE_GETX,
+    CS2VM_HOST_REQUEST_MOUSE_GETY,
     /* The whole 6600..6640 world map family and the 6693..6699 map element
      * family go through one kind each: they share a single state object, so
      * forty request kinds would only spread one switch across three files. */

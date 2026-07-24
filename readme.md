@@ -692,6 +692,177 @@ https://github.com/brendangregg/FlameGraph
 open flamegraph.svg
 ```
 
+### Profiling without sudo (macOS `sample`)
+
+`profile.d` needs root. When you cannot get it, `sample` needs no privileges for
+your own processes and FlameGraph ships a collapser for its format.
+`./profile-mac.sh` does the whole loop — build if needed, start the rev230 mock
+if the port is idle, boot the client headless, sample it, render the SVG, and
+print the main-thread breakdown:
+
+```
+./profile-mac.sh                              # manifest_osrs230.ini, 25s sample
+./profile-mac.sh manifest_rs254.ini 40        # another manifest, 40s
+TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real window instead of SDL dummy
+TORIRS_PROFILE_ATTACH=$(pgrep -f src/torirs) ./profile-mac.sh   # client already running
+OUT=before ./profile-mac.sh                   # names the outputs before.svg/.folded
+```
+
+It finds FlameGraph under `~/Documents/git_repos/FlameGraph`,
+`~/git_repos/FlameGraph`, `../FlameGraph` or `$FLAMEGRAPH_DIR`. By hand it is:
+
+```
+./run-live.sh manifest_osrs230.ini &          # or a headless run, see below
+sample $(pgrep -f 'src/torirs') 20 1 -f out.sample
+awk -f ~/git_repos/FlameGraph/stackcollapse-sample.awk out.sample > out.folded
+~/git_repos/FlameGraph/flamegraph.pl out.folded > flamegraph.svg
+```
+
+For a repeatable measurement, drive a fixed number of frames headless and read
+`user` CPU time (the 50 fps cap sleeps out the slack, so wall clock hides
+regressions until frames blow past 20 ms):
+
+```
+time SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1000 \
+    src/torirs --manifest manifest_osrs230.ini --user asdf --pass a
+```
+
+Note the main thread is only half the samples — the other ~50% is AppKit's event
+thread parked in `mach_msg2_trap`. Filter to the main thread
+(`grep DispatchQueue_1`) before reading percentages.
+
+## UITree performance — what pegged the CPU on rev230
+
+`./run-live.sh manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
+1000 frames (~33 ms/frame) against a 20 ms budget, in the default `-O0` build.
+Almost none of it was the renderer. Three things compounded, all of them widget
+bookkeeping:
+
+**1. The id → index map was rebuilt per widget created.**
+`UITree_FindByComponentId` is backed by an open-addressed map keyed on
+`id_generation`, and *any* id assignment bumps that generation. `cc_create`
+allocates a dynamic uid by probing the map (`UITree_AllocateDynamicComponentId`),
+so the sequence was: create widget → generation bumps → next create's probe finds
+the map stale → full O(component_count) rebuild. Creating _n_ widgets cost
+O(n²) hash inserts; `uitree_id_index_put` + `UITree_RebuildIdIndex` +
+`uitree_id_hash` alone were **46% of main-thread time**.
+
+Now `UITree_Push` folds the new id into the map incrementally and keeps
+`id_index_gen` in step, so only a reclaim (which cannot be undone in an
+open-addressed table without rescanning for a replacement winner) leaves the map
+stale for the next lookup to rebuild. Because a recycled free-list slot can hand
+a later push a *lower* index than the entry already stored for that id, the
+tie-break in `uitree_id_index_put` is now stated over the two candidates
+(dynamic beats non-dynamic; within a class the lower index wins) instead of
+relying on ascending insertion order. `ui/test/uitree_test_id_index.c` pins the
+map to the linear scan it replaced, including that case; building `uitree.c` with
+`-DUITREE_ID_INDEX_VERIFY` asserts the same equivalence on every lookup at
+runtime.
+
+**2. Appending a child walked the sibling list.**
+`link_under_parent` walked `first_child` to the tail on every append, so filling
+a container one `cc_create` at a time was quadratic in the child count.
+`UITreeComponent.last_child_hint` short-circuits the walk. Like
+`UITree::last_root_index` it is a *hint*, never trusted blindly: it is used only
+when it still looks like a live last child of that parent, so any mutation may
+leave it stale without breaking anything.
+
+**3. Every var-transmit hook re-ran every tick.**
+`RS_CS2_PumpTransmits` dispatched with `var_id = -1`, i.e. "re-run every
+registered hook", whenever any varp/varc changed. The rev230 gameframe writes a
+clock varc (384) every single tick, and none of the six live hooks listed it as a
+trigger — so all six scripts (and their `cc_deleteall` + `cc_create` widget
+rebuilds) ran 50 times a second for nothing. The host now records *which* ids
+changed (`RS_CS2Host::var_changed_ids`, TS `changedVarps` parity) and a hook only
+re-runs when the change touches one of its triggers. Unhide
+(`widgets_loaded_dirty`) still dispatches everything, since a widget that was
+hidden through any number of changes must repaint, and a hook with no trigger
+list still matches any change. Varbit triggers resolve through their base varp,
+because that is the id a varbit write notifies with.
+
+**4. Texture discovery swept the whole scene every tick.**
+`app_sync_textures` called `UITreeSceneBridge_CollectMissingTextures`, which
+walked every live scene element and every face of its model just to notice
+texture ids that were not resident yet — a whole world's geometry, per tick, ~8%
+of frame time. Whatever builds a model already knows which textures it needs, and
+`ToriDraw_ModelFromToriRS` is the one funnel every scene model passes through
+(widget models, obj icons, chatheads, entity builds, world scenery), so that is
+where the ids are recorded now. `app_sync_textures` drains them with
+`ToriDraw_ModelTextureWantsTake` (a 256-flag set, so repeats collapse) and costs
+nothing on a tick that built no geometry. `CollectMissingTextures` is still there
+for one-shot audits of a built scene; nothing calls it per frame.
+
+Measured, `-O0`, 1000 frames headless against `src/build/mock230`:
+
+| build | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
+| --- | --- | --- | --- |
+| before | 33.0 s | 33.0 | 97% (pegged) |
+| + id-index/tail-hint (1 & 2) | 15.8 s | 15.8 | 72% |
+| + var-transmit filter (3) | 13.9 s | 13.9 | 62% |
+| + texture wants at model build (4) | 12.9 s | 12.9 | 57% |
+
+The post-network widget tree dump (`TORIRS_DUMP_TREE_EXIT=1`, 1774 lines of
+kinds, resolved boxes and hidden flags) is byte-identical before and after, and
+the rendered frame matches to 43 pixels out of 384,795 (animation phase, not
+geometry). In the `-O0` profile now, everything `UITree_*`/`uitree_*` adds up to
+**3%** of main-thread samples (`UITree_LayoutResolve` is the largest), texture
+sync and the var-transmit scripts are 0.0%, `app_logic_tick` as a whole is 0.3%,
+and **84% is inside `ToriDraw`** — the software renderer, which is where it
+belongs. `flamegraph_osrs230_before.svg` and `flamegraph_osrs230_after.svg` in
+the repo root are those two profiles.
+
+### The rebuild burst — node size and the by-sub-id scan
+
+Steady-state frames barely touch the tree now, but a container rebuild
+(`cc_deleteall` then a run of `cc_create`, which is how a transmit script
+repopulates a bank/spellbook/list) still went through two structural problems.
+`make -C src bench-uitree` measures exactly that path — override the shape with
+`BENCH_ROWS` / `BENCH_ITERS` / `BENCH_STATIC_CHILDREN`.
+
+**5. A widget node was 29,576 bytes.** `menu_options.submenus.ops[10][32][64]`
+alone was 20,480 of it — 20 KB of submenu labels inline in *every* node, for a
+feature a handful of components use, memset on every push and every reclaim and
+strided over by every linear walk of `components[]`. It is now a lazily allocated
+block reached through `UITree_MenuSubmenu*` (NULL until a `CC/IF_SETOPSUBMENU`
+lands), owned per component: `uitree_menu_options_copy` deep-copies it for
+`CC_COPY`, and `uitree_component_free_owned` releases it. The node is **9,112
+bytes**. (`runtime_hooks` is the remaining 7,424 — 16 hook slots × 464 bytes of
+inline args — and could go the same way; it has 79 use sites, so it was left
+alone.)
+
+**6. Finding a child by sub-id walked the sibling list.** `cc_create` calls
+`UITree_FindChildBySubid` once per row to implement replace-in-slot, and during a
+rebuild every one of those calls is a *miss* over an ever-longer list — quadratic
+in row count. Each node now carries `child_key_max`, the highest sub-id key among
+its children (`UITREE_CHILD_KEY_NONE` when none, `UITREE_CHILD_KEY_UNKNOWN` when
+a mutation invalidated it), so a lookup above the ceiling answers "no such child"
+without walking. The ceiling is only ever too high, never too low: a stale-high
+value costs a scan, it cannot hide a child. Removing a child only invalidates it
+if that child *was* the ceiling, which keeps replace-in-slot rebuilds O(1) per
+row too; `CC_DELETEALL` drops it once for the whole batch, and the next lookup
+recomputes it in one walk. Wide sub_ids (> 0xFFFF) skip the fast path, since the
+scan compares non-dynamic children masked to 16 bits.
+
+`make -C src bench-uitree BENCH_ITERS=40`, per rebuild:
+
+| rows | before (29 KB node + scan) | after (9 KB node + ceiling) |
+| --- | --- | --- |
+| 400 | 0.68 ms (1.7 µs/row) | **0.14 ms** (0.3 µs/row) |
+| 1600 | 7.38 ms (4.6 µs/row) | **0.47 ms** (0.3 µs/row) |
+| 3200 | 38.15 ms (11.9 µs/row) | **1.01 ms** (0.3 µs/row) |
+
+Per-row cost is now flat instead of growing with the list, and the array behind a
+3200-row container is 35.6 MB instead of 115.5 MB. Steady-state rev230 barely
+moves (13.1 s → 12.8 s per 1000 frames) — as expected, since the tree is 3% of a
+frame there; this is about the bursts, and about a 766-node gameframe holding
+7 MB instead of 22 MB. `ui/test/uitree_test_id_index.c` checks both the id index
+and every by-sub-id case against the sibling scan they replace (both fast paths
+fail the tests if their bounds are loosened).
+
+Still on the table:
+
+- `runtime_hooks` (7,424 of the remaining 9,112 bytes per node), as above.
+
 ## Profiling - Inline
 
 ```

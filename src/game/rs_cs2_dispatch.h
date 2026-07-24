@@ -58,4 +58,12 @@ RS_CS2_SyncKeyState(
     struct RS_CS2Host* host,
     struct LibToriRS_Input const* input);
 
+/** Refresh the MOUSE_GETX / MOUSE_GETY position from this frame's input. Call
+ *  once per App_RunOnce, before any hook is dispatched: the hover chrome
+ *  (tooltips) places itself at the pointer from inside an onmouserepeat hook. */
+void
+RS_CS2_SyncMouseState(
+    struct RS_CS2Host* host,
+    struct LibToriRS_Input const* input);
+
 #endif

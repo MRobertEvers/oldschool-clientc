@@ -89,8 +89,13 @@ struct RS_CS2Host
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
     int cam_follow_height;
-    /** IF_GETTOP / client type (default 80). */
-    int client_type;
+    /** Group id of the open gameframe root, backing IF_GETTOP (-1 = none open).
+     *  Scripts branch the whole chrome on this: toplevel_kind maps it to a
+     *  layer-lookup key (161 fixed / 164,165 resizable / 548 legacy), and the
+     *  tooltip + notification layers are enum-resolved from that key. A wrong
+     *  value silently builds those overlays under a component of an interface
+     *  that was never opened, so nothing draws. */
+    int top_interface_id;
     /** Audio volumes, backing the SET/GETVOLUME* opcodes (3203..3208). The port
      *  has no audio mixer yet; the host owns the values so a settings panel that
      *  sets one reads the same value back (round-trip, like cam_follow_height). */
@@ -155,6 +160,14 @@ struct RS_CS2Host
      *  bump lets already-fired hooks re-run when a value changes. */
     uint32_t var_change_serial;
     uint32_t inv_change_serial;
+
+    /** Live pointer position in canvas coords, backing MOUSE_GETX / MOUSE_GETY
+     *  (-1,-1 when the pointer is off the canvas, as the reference reports).
+     *  Refreshed by RS_CS2_SyncMouseState. Unlike event_mouse_x/y below this is
+     *  the *current* pointer, not the position latched for a hook dispatch:
+     *  the tooltip/notification layers place themselves at it every frame. */
+    int mouse_x;
+    int mouse_y;
 
     /** Live CS2 event locals for script arg substitution (drag / mouse). */
     int event_mouse_x;

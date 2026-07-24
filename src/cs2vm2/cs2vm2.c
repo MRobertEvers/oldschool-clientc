@@ -7956,6 +7956,15 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
         return vm->vm->host_exec(vm, &request);
     }
+    case CS2_OP_MOUSE_GETX:
+    case CS2_OP_MOUSE_GETY:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = opcode == CS2_OP_MOUSE_GETX ? CS2VM_HOST_REQUEST_MOUSE_GETX
+                                                   : CS2VM_HOST_REQUEST_MOUSE_GETY;
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_CAM_SETFOLLOWHEIGHT:
     {
         struct CS2VM_HostRequest request;

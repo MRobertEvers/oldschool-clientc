@@ -16,6 +16,44 @@
     ((model)->field = (__typeof__((model)->field))ToriDraw_BufCopy(                                \
          (src), (size_t)(count), sizeof(*(model)->field)))
 
+/* Texture ids wanted by models built since the host last drained them. One flag
+ * per id (the raster's texture map is 256 slots), so repeats collapse and the
+ * drain is a fixed 256-step walk regardless of how much geometry was built. */
+#define TORIDRAW_MODEL_TEXTURE_ID_MAX 256
+static unsigned char g_texture_wants[TORIDRAW_MODEL_TEXTURE_ID_MAX];
+
+static void
+note_texture_wants(const struct ToriRS_Model* src)
+{
+    if( !src->face_textures )
+        return;
+    for( int f = 0; f < src->face_count; f++ )
+    {
+        int const texture_id = (int)src->face_textures[f];
+        if( texture_id < 0 || texture_id >= TORIDRAW_MODEL_TEXTURE_ID_MAX )
+            continue;
+        g_texture_wants[texture_id] = 1;
+    }
+}
+
+int
+ToriDraw_ModelTextureWantsTake(
+    int* out_ids,
+    int max_ids)
+{
+    int count = 0;
+    if( !out_ids || max_ids <= 0 )
+        return 0;
+    for( int id = 0; id < TORIDRAW_MODEL_TEXTURE_ID_MAX && count < max_ids; id++ )
+    {
+        if( !g_texture_wants[id] )
+            continue;
+        g_texture_wants[id] = 0;
+        out_ids[count++] = id;
+    }
+    return count;
+}
+
 static struct ToriDraw_Bones*
 bones_from_torirs(const struct ToriRS_Bones* src)
 {
@@ -63,6 +101,8 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
     struct ToriDraw_Model* dst = ToriDraw_ModelNew(src->vertex_count, src->face_count, src->flags);
     if( !dst )
         return NULL;
+
+    note_texture_wants(src);
 
     dst->textured_face_count = src->textured_face_count;
 

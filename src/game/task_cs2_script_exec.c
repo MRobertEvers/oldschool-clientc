@@ -132,6 +132,8 @@ noop_host_pushes_int(enum CS2VM_HostRequestKind kind)
     case CS2VM_HOST_REQUEST_PARAWIDTH:
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
+    case CS2VM_HOST_REQUEST_MOUSE_GETX:
+    case CS2VM_HOST_REQUEST_MOUSE_GETY:
         return true;
     case CS2VM_HOST_REQUEST_CC_CREATE:
         printf("CC_CREATE\n");

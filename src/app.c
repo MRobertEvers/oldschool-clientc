@@ -1244,36 +1244,46 @@ app_request_cs1_eval(struct App* app)
 
 /* Scene models reference textures by face id, but the ToriDraw texture map
  * starts empty (reference: textures load on demand and faces skip-render
- * until they land). Collect ids the scene is missing, queue the loads, and
- * remember the ids — app_sync_textures_poll publishes them into the scene as
- * the loads land. Ids that fail stay marked in the bridge and are never
- * re-requested. */
+ * until they land). The ids come from model construction itself
+ * (ToriDraw_ModelTextureWantsTake) — whatever built a model reported the
+ * textures it needs — so this costs nothing per tick when no geometry was
+ * built. Queue the loads and remember the ids; app_sync_textures_poll
+ * publishes them into the scene as the loads land. Ids that fail stay marked
+ * in the bridge and are never re-requested. */
 static void
 app_sync_textures(struct App* app)
 {
     int ids[256];
     int id_count;
 
-    id_count = UITreeSceneBridge_CollectMissingTextures(&app->bridge, ids, 256);
+    id_count = ToriDraw_ModelTextureWantsTake(ids, 256);
     if( id_count == 0 )
         return;
 
     for( int i = 0; i < id_count; i++ )
     {
-        struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, ids[i]);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        int const id = ids[i];
+        if( id >= 0 && id < 256 && app->bridge.texture_failed[id] )
+            continue;
+        if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
+            continue;
+        if( !CacheProvider_TextureHas(app->provider, id) )
+        {
+            struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
         /* Track for the publish poll (dedupe; the set is tiny). */
         {
             int seen = 0;
             for( int p = 0; p < app->tex_pending_count; p++ )
-                if( app->tex_pending[p] == ids[i] )
+                if( app->tex_pending[p] == id )
                 {
                     seen = 1;
                     break;
                 }
             if( !seen && app->tex_pending_count < 256 )
-                app->tex_pending[app->tex_pending_count++] = ids[i];
+                app->tex_pending[app->tex_pending_count++] = id;
         }
     }
 }
@@ -2404,6 +2414,10 @@ App_OpenRootInterface(
     app->app_state = APP_STATE_BOOTING;
     app->boot_interface_id = interface_id;
     app->boot_progress = 0;
+    /* The booted gameframe root is what IF_GETTOP reports: this client mounts
+     * every server sub-interface into it and treats a differing server
+     * IF_OPENTOP as informational (see rs_gameproto_exec), so the two agree. */
+    app->host.top_interface_id = interface_id;
 
     task = calloc(1, sizeof(*task));
     assert(task);
@@ -6418,6 +6432,7 @@ App_RunOnce(
     /* Publish this frame's key state before any hook runs, so KEYHELD and
      * KEYPRESSED answer about the frame the script is reacting to. */
     RS_CS2_SyncKeyState(&app->host, input);
+    RS_CS2_SyncMouseState(&app->host, input);
 
     UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
 

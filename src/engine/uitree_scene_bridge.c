@@ -923,6 +923,20 @@ UITreeSceneBridge_EnsureObjIconSelected(
 }
 
 int
+UITreeSceneBridge_TextureResident(
+    struct UITreeSceneBridge const* bridge,
+    int texture_id)
+{
+    struct ToriDraw_TextureState* tex_state;
+
+    assert(bridge);
+    if( texture_id < 0 || texture_id >= 256 || !bridge->scene )
+        return 0;
+    tex_state = ToriDraw_SceneTexState(bridge->scene);
+    return tex_state && tex_state->texture_map.textures[texture_id] ? 1 : 0;
+}
+
+int
 UITreeSceneBridge_CollectMissingTextures(
     struct UITreeSceneBridge* bridge,
     int* out_ids,

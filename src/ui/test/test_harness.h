@@ -153,5 +153,7 @@ void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);
 void test_id_index(void);
+void test_child_subid(void);
+void test_menu_submenus(void);
 
 #endif

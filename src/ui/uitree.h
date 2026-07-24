@@ -5,6 +5,9 @@
 #include <stdint.h>
 
 #define UI_INV_SLOT_OFFSET_MAX 20
+/* UITreeComponent::child_key_max sentinels (below any real sub-id key). */
+#define UITREE_CHILD_KEY_UNKNOWN INT32_MIN
+#define UITREE_CHILD_KEY_NONE (INT32_MIN + 1)
 #define UITREE_MENU_OPTION_SLOTS 5
 /* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
 #define UITREE_MENU_OPTION_LEN 64
@@ -233,8 +236,39 @@ struct UITreeMenuOptions
     char target_base[UITREE_MENU_OPTION_LEN];
     int option_action;
     int op_actions[UITREE_MENU_OPTION_SLOTS];
-    struct UITreeMenuSubmenuOptions submenus;
+    /** CC/IF_SETOPSUBMENU rows, owned by the component, NULL until one is set.
+     *  10×32 64-byte labels is 20 KB — inline, that was two thirds of every
+     *  widget node, memset on every push and reclaim and strided over by every
+     *  linear walk, to carry a feature a handful of components use. Go through
+     *  UITree_MenuSubmenu* rather than dereferencing it. */
+    struct UITreeMenuSubmenuOptions* submenus;
 };
+
+/** Submenu label for op_index (1-based) / entry_index (1-based), "" when unset. */
+char const*
+UITree_MenuSubmenuEntry(
+    struct UITreeMenuOptions const* opts,
+    int op_index,
+    int entry_index);
+
+/** Set one submenu label, allocating the block on first use. False if the
+ *  indices are out of range or the allocation failed. */
+bool
+UITree_MenuSubmenuSetEntry(
+    struct UITreeMenuOptions* opts,
+    int op_index,
+    int entry_index,
+    char const* text);
+
+/** Clear the labels of one op (1-based), or of every op when op_index <= 0. */
+void
+UITree_MenuSubmenuClear(
+    struct UITreeMenuOptions* opts,
+    int op_index);
+
+/** Release the block (component reclaim / tree free). */
+void
+UITree_MenuSubmenuFree(struct UITreeMenuOptions* opts);
 
 /* Op slots 1..10; index 9 is the "typed key" slot the OPT opcode variants use. */
 #define UITREE_OPKEY_SLOTS 10
@@ -318,6 +352,13 @@ struct UITreeComponent
      *  only used when it still looks like this node's last child, exactly like
      *  UITree::last_root_index; any mutation may leave it stale. */
     int32_t last_child_hint;
+    /** Largest sub-id key among this node's children (see UITree_FindChildBySubid),
+     *  UITREE_CHILD_KEY_NONE when none carry one, UITREE_CHILD_KEY_UNKNOWN when a
+     *  mutation invalidated it and it has to be recomputed. Lets the by-sub-id
+     *  lookup answer "no such child" without walking the sibling list, which is
+     *  what made a container rebuild quadratic in row count. Only ever too high,
+     *  never too low: a stale-high value costs a scan, it cannot miss a child. */
+    int32_t child_key_max;
     int component_id;
     uint8_t dynamic;
     int dynamic_child_index;

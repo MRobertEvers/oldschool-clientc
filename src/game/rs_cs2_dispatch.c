@@ -1,8 +1,10 @@
 #include "rs_cs2_dispatch.h"
 
 #include "game/task_cs2_run.h"
+#include "ui/uitree_layout.h"
 
 #include <assert.h>
+#include <string.h>
 
 void
 RS_CS2_SetEventMouse(
@@ -46,6 +48,29 @@ RS_CS2_SyncKeyState(
     assert(input);
     memcpy(host->osrs_key_held, input->osrs_key_held, sizeof(host->osrs_key_held));
     memcpy(host->osrs_key_pressed, input->osrs_key_pressed, sizeof(host->osrs_key_pressed));
+}
+
+void
+RS_CS2_SyncMouseState(
+    struct RS_CS2Host* host,
+    struct LibToriRS_Input const* input)
+{
+    int mx;
+    int my;
+
+    assert(host);
+    assert(input);
+    mx = input->curr.mouse_x;
+    my = input->curr.mouse_y;
+    /* Off-canvas reads as (-1,-1): scripts test mouse_getx() = -1 to decide the
+     * pointer left the client and tear their hover chrome down. */
+    if( mx < 0 || my < 0 || mx >= UITREE_LAYOUT_ROOT_W || my >= UITREE_LAYOUT_ROOT_H )
+    {
+        mx = -1;
+        my = -1;
+    }
+    host->mouse_x = mx;
+    host->mouse_y = my;
 }
 
 void

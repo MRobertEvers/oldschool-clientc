@@ -8,6 +8,170 @@
 #include <stdlib.h>
 #include <string.h>
 
+char const*
+UITree_MenuSubmenuEntry(
+    struct UITreeMenuOptions const* opts,
+    int op_index,
+    int entry_index)
+{
+    assert(opts);
+    if( !opts->submenus )
+        return "";
+    if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
+        return "";
+    if( entry_index < 1 || entry_index > UITREE_SUBMENU_ENTRY_SLOTS )
+        return "";
+    return opts->submenus->ops[op_index - 1][entry_index - 1];
+}
+
+bool
+UITree_MenuSubmenuSetEntry(
+    struct UITreeMenuOptions* opts,
+    int op_index,
+    int entry_index,
+    char const* text)
+{
+    assert(opts);
+    if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
+        return false;
+    if( entry_index < 1 || entry_index > UITREE_SUBMENU_ENTRY_SLOTS )
+        return false;
+    if( !opts->submenus )
+    {
+        opts->submenus = calloc(1, sizeof(*opts->submenus));
+        if( !opts->submenus )
+            return false;
+    }
+    strncpy(
+        opts->submenus->ops[op_index - 1][entry_index - 1],
+        text ? text : "",
+        UITREE_MENU_OPTION_LEN - 1);
+    opts->submenus->ops[op_index - 1][entry_index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
+    return true;
+}
+
+void
+UITree_MenuSubmenuClear(
+    struct UITreeMenuOptions* opts,
+    int op_index)
+{
+    assert(opts);
+    if( !opts->submenus )
+        return;
+    if( op_index <= 0 )
+    {
+        /* Every op cleared = no submenus at all; drop the block. */
+        UITree_MenuSubmenuFree(opts);
+        return;
+    }
+    if( op_index > UITREE_SUBMENU_OP_SLOTS )
+        return;
+    for( int i = 0; i < UITREE_SUBMENU_ENTRY_SLOTS; i++ )
+        opts->submenus->ops[op_index - 1][i][0] = '\0';
+}
+
+void
+UITree_MenuSubmenuFree(struct UITreeMenuOptions* opts)
+{
+    assert(opts);
+    free(opts->submenus);
+    opts->submenus = NULL;
+}
+
+/* Copy menu options between components: everything is by value except the
+ * submenu block, which is owned per component and must not be aliased. Whatever
+ * dst held is released, and dst == src (or a shared block) is safe. */
+static void
+uitree_menu_options_copy(
+    struct UITreeMenuOptions* dst,
+    struct UITreeMenuOptions const* src)
+{
+    struct UITreeMenuSubmenuOptions* const dst_owned = dst->submenus;
+    struct UITreeMenuSubmenuOptions* copy = NULL;
+
+    if( src->submenus )
+    {
+        copy = calloc(1, sizeof(*copy));
+        if( copy )
+            memcpy(copy, src->submenus, sizeof(*copy));
+    }
+    *dst = *src;
+    dst->submenus = copy;
+    if( dst_owned != copy )
+        free(dst_owned);
+}
+
+/* The key UITree_FindChildBySubid matches a child on: its dynamic slot for
+ * cc_create'd children, the low half of its uid for cache-baked ones. Immutable
+ * while the child is linked (both fields are set once, at push). */
+static int32_t
+uitree_child_key(struct UITreeComponent const* child)
+{
+    return child->dynamic ? child->dynamic_child_index : (child->component_id & 0xFFFF);
+}
+
+/* Fold a newly appended child into its parent's key ceiling. Leaves an unknown
+ * ceiling unknown — the next lookup recomputes it once. */
+static void
+uitree_child_key_added(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t child_index)
+{
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return;
+
+    struct UITreeComponent* parent = &tree->components[parent_index];
+    int32_t const key = uitree_child_key(&tree->components[child_index]);
+    if( parent->child_key_max == UITREE_CHILD_KEY_UNKNOWN )
+        return;
+    if( parent->child_key_max == UITREE_CHILD_KEY_NONE || key > parent->child_key_max )
+        parent->child_key_max = key;
+}
+
+/* Removing a child can only lower the ceiling, and only if it *was* the ceiling —
+ * so replace-in-slot rebuilds (which delete a row below the ceiling and re-create
+ * it) keep a usable ceiling instead of invalidating it every row. */
+static void
+uitree_child_key_removed(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t child_index)
+{
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return;
+
+    struct UITreeComponent* parent = &tree->components[parent_index];
+    if( parent->child_key_max == UITREE_CHILD_KEY_UNKNOWN )
+        return;
+    if( uitree_child_key(&tree->components[child_index]) >= parent->child_key_max )
+        parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
+}
+
+/* Ceiling for `parent_index`, walking the sibling list once if it is unknown.
+ * The walk costs what a single by-sub-id scan costs, and every lookup until the
+ * next invalidating mutation is then O(1). */
+static int32_t
+uitree_child_key_ceiling(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    struct UITreeComponent* parent = &tree->components[parent_index];
+    if( parent->child_key_max != UITREE_CHILD_KEY_UNKNOWN )
+        return parent->child_key_max;
+
+    int32_t max = UITREE_CHILD_KEY_NONE;
+    for( int32_t child = parent->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        int32_t const key = uitree_child_key(&tree->components[child]);
+        if( max == UITREE_CHILD_KEY_NONE || key > max )
+            max = key;
+    }
+    parent->child_key_max = max;
+    return max;
+}
+
 /* Append `child_index` to `parent_index`'s sibling list. The parent's
  * last_child_hint short-circuits the walk to the tail; it is only trusted when
  * it still looks like a live last child of this parent (and is not the node
@@ -143,6 +307,7 @@ push_element_unlinked(struct UITree* tree)
     component->first_child = -1;
     component->next_sibling = -1;
     component->last_child_hint = -1;
+    component->child_key_max = UITREE_CHILD_KEY_NONE;
     component->free_next = -1;
     component->component_id = -1;
     component->behavior.over_layer_id = -1;
@@ -237,6 +402,7 @@ UITree_UnlinkChild(
                 parent->first_child = next;
             else
                 tree->components[prev].next_sibling = next;
+            uitree_child_key_removed(tree, parent_index, walk);
             tree->components[walk].parent = -1;
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
@@ -342,6 +508,7 @@ UITree_Reparent(
     else
     {
         uitree_append_child(tree, new_parent_index, child_index);
+        uitree_child_key_added(tree, new_parent_index, child_index);
         tree->components[new_parent_index].is_dirty = 1;
     }
     tree->generation++;
@@ -446,6 +613,7 @@ uitree_component_free_owned(struct UITreeComponent* c)
     free(b->script_operand);
     b->script_operand = NULL;
     b->scripts_count = 0;
+    UITree_MenuSubmenuFree(&c->menu_options);
 }
 
 /* Reclaim an already-unlinked component and its entire subtree: free owned
@@ -463,6 +631,10 @@ uitree_reclaim_subtree(
     if( c->freed )
         return;
 
+    /* Callers unlink before reclaiming, but a reclaim of a still-linked node must
+     * not leave its parent claiming a key that just went away. */
+    uitree_child_key_removed(tree, c->parent, idx);
+
     int32_t child = c->first_child;
     while( child >= 0 )
     {
@@ -477,6 +649,7 @@ uitree_reclaim_subtree(
     c->first_child = -1;
     c->next_sibling = -1;
     c->last_child_hint = -1;
+    c->child_key_max = UITREE_CHILD_KEY_NONE;
     c->component_id = -1;
     c->freed = 1;
     c->free_next = tree->free_head;
@@ -915,7 +1088,13 @@ UITree_Push(
     component->dynamic = spec->dynamic ? 1 : 0;
     uitree_id_index_note_added(tree, idx);
     component->dynamic_child_index = spec->dynamic ? spec->dynamic_child_index : -1;
-    component->menu_options = spec->menu_options;
+    /* Both halves of the sub-id key are set now, so the parent's key ceiling can
+     * absorb this child (push_element already linked it). */
+    uitree_child_key_added(tree, component->parent, idx);
+    /* Specs carry labels and ops by value but never a submenu block (those only
+     * arrive later, via CC/IF_SETOPSUBMENU) — copy through so a spec that ever
+     * grows one is duplicated instead of aliased into the node. */
+    uitree_menu_options_copy(&component->menu_options, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
 
     if( spec->has_position )
@@ -1177,6 +1356,7 @@ UITree_ClearChildren(
     }
     c->first_child = -1;
     c->last_child_hint = -1;
+    c->child_key_max = UITREE_CHILD_KEY_NONE; /* no children left to match */
     c->is_dirty = 1;
     tree->generation++;
 }
@@ -1192,6 +1372,21 @@ UITree_FindChildBySubid(
     assert(tree);
     if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
+
+    /* cc_create asks this once per row it builds, and a rebuild is a run of
+     * misses (the rows do not exist yet), so answering a miss without walking
+     * the list is what keeps a rebuild linear. The ceiling is a cache on the
+     * parent; refreshing it does not change the tree's logical state, so mutate
+     * through the const handle (same as UITree_FindByComponentId).
+     *
+     * Only sub_ids that fit the masked comparison below take this path: for a
+     * wider one, a non-dynamic child's masked key can match a key numerically
+     * far below the ceiling. */
+    if( sub_id >= 0 && sub_id <= 0xFFFF )
+    {
+        if( sub_id > uitree_child_key_ceiling((struct UITree*)tree, parent_index) )
+            return -1;
+    }
 
     for( int32_t child = tree->components[parent_index].first_child; child >= 0;
          child = tree->components[child].next_sibling )
@@ -1338,7 +1533,9 @@ UITree_CcCopy(
     dst->target_priority = src.target_priority;
     dst->force_left_click = src.force_left_click;
     dst->position = src.position;
-    dst->menu_options = src.menu_options;
+    /* Deep: the submenu block is owned per component, so the copy must not alias
+     * the source's (both are reclaimed independently). */
+    uitree_menu_options_copy(&dst->menu_options, &src.menu_options);
     dst->runtime_hooks = src.runtime_hooks;
     /* Plain data, but it must be listed explicitly: this function copies field
      * by field rather than by struct assignment, so a template row that binds
@@ -1387,6 +1584,11 @@ UITree_CcDeleteAll(
         }
         child = next;
     }
+    /* The splicing above bypasses UITree_UnlinkChild, so the key ceiling is
+     * dropped once for the whole batch rather than per row; the next by-sub-id
+     * lookup recomputes it over the static children that survived. */
+    parent->last_child_hint = -1;
+    parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
     parent->is_dirty = 1;
     tree->generation++;
 }
@@ -1910,14 +2112,12 @@ UITree_ClearOpSubmenu(
     int op_index)
 {
     int32_t idx;
-    int i;
     if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
         return false;
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    for( i = 0; i < UITREE_SUBMENU_ENTRY_SLOTS; i++ )
-        tree->components[idx].menu_options.submenus.ops[op_index - 1][i][0] = '\0';
+    UITree_MenuSubmenuClear(&tree->components[idx].menu_options, op_index);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

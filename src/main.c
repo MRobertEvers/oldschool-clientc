@@ -201,6 +201,48 @@ dump_tree_node(
     }
 }
 
+/* Runtime hook script ids per component. Callable both at boot and after the
+ * frame loop: server-mounted sub-interfaces (prayer tab 541, …) only carry
+ * their hooks once IF_OPENSUB has landed, so the boot-time dump shows none. */
+static void
+dump_hooks(struct App* app)
+{
+    static char const* const hook_names[] = {
+        "on_click",         "on_hold",
+        "on_mouse_over",    "on_mouse_leave",
+        "on_mouse_repeat",  "on_drag",
+        "on_drag_complete", "on_scroll_wheel",
+        "on_key",           "on_op",
+        "on_timer",         "on_var_transmit",
+        "on_inv_transmit",  "on_misc_transmit",
+        "on_resize",        "on_sub_change",
+    };
+    uint32_t i;
+
+    for( i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent* c = &app->tree->components[i];
+        struct UITreeRuntimeScriptHook* hooks = (struct UITreeRuntimeScriptHook*)&c->runtime_hooks;
+        int h;
+        if( c->freed )
+            continue;
+        for( h = 0; h < 16; h++ )
+        {
+            if( hooks[h].script_id == 0 )
+                continue;
+            fprintf(
+                stderr,
+                "HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
+                c->component_id,
+                (c->component_id >> 16) & 0xFFFF,
+                c->component_id & 0xFFFF,
+                hook_names[h],
+                hooks[h].script_id,
+                hooks[h].argc);
+        }
+    }
+}
+
 static void
 dump_tree(
     struct App* app,
@@ -845,40 +887,7 @@ main(
 
     /* TEMP DEBUG: dump runtime hook script ids (TORIRS_DUMP_HOOKS=1) */
     if( getenv("TORIRS_DUMP_HOOKS") && app.tree )
-    {
-        static char const* const hook_names[] = {
-            "on_click",         "on_hold",
-            "on_mouse_over",    "on_mouse_leave",
-            "on_mouse_repeat",  "on_drag",
-            "on_drag_complete", "on_scroll_wheel",
-            "on_key",           "on_op",
-            "on_timer",         "on_var_transmit",
-            "on_inv_transmit",  "on_misc_transmit",
-            "on_resize",        "on_sub_change",
-        };
-        int i;
-        for( i = 0; i < app.tree->component_count; i++ )
-        {
-            struct UITreeComponent* c = &app.tree->components[i];
-            struct UITreeRuntimeScriptHook* hooks =
-                (struct UITreeRuntimeScriptHook*)&c->runtime_hooks;
-            int h;
-            if( c->freed )
-                continue;
-            for( h = 0; h < 16; h++ )
-            {
-                if( hooks[h].script_id == 0 )
-                    continue;
-                fprintf(
-                    stderr,
-                    "HOOKDUMP com=0x%08x %s script=%d argc=%d\n",
-                    c->component_id,
-                    hook_names[h],
-                    hooks[h].script_id,
-                    hooks[h].argc);
-            }
-        }
-    }
+        dump_hooks(&app);
 
     /* TORIRS_EMIT_SKIP=<component_id>: drop that component's draw commands from
      * the frame before rasterizing — diffing the two BMPs shows exactly which
@@ -1267,11 +1276,39 @@ main(
          * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
         if( getenv("TORIRS_EXIT_BMP") )
         {
+            /* TORIRS_SIM_HOVER=x,y: park the pointer there for a few real
+             * interact frames FIRST, so both the dumps below and the BMP capture
+             * hover-dependent chrome (IF1 overlayer tooltips, over-colour swaps,
+             * CS2 onmouserepeat tooltip layers) instead of whatever the last
+             * main-loop event left behind. */
+            if( getenv("TORIRS_SIM_HOVER") )
+            {
+                struct LibToriRS_Input hov_storage;
+                struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
+                char* hov_sep = NULL;
+                int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
+                int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+                for( int t = 0; t < 4; t++ )
+                {
+                    LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                    LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
+                    LibToriRS_Input_End(hov_input);
+                    App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+                }
+                fprintf(
+                    stderr,
+                    "sim_hover: parked at %d,%d hover_com_id=%d\n",
+                    hov_x,
+                    hov_y,
+                    app.hover_com_id);
+            }
             /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
              * runs before any server IF_OPENSUB lands), this dumps after the
              * frame loop so server-driven interface mounts are visible. */
             if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
                 dump_tree(&app, cfg.interface_id);
+            if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
+                dump_hooks(&app);
             /* Post-network emit dump: the actual draw list for the last frame,
              * to find what paints over the world viewport (0,0..723,503). */
             /* TORIRS_DUMP_BOUNDS=<group>: post-net resolved geometry for one
@@ -1415,26 +1452,6 @@ main(
                             c->parent);
                     }
                 }
-            }
-            /* TORIRS_SIM_HOVER=x,y: park the pointer there for one real
-             * interact frame first, so the dump captures hover-dependent
-             * chrome (IF1 overlayer tooltips, over-colour swaps) instead of
-             * whatever the last main-loop event left behind. */
-            if( getenv("TORIRS_SIM_HOVER") )
-            {
-                struct LibToriRS_Input hov_storage;
-                struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
-                char* hov_sep = NULL;
-                int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
-                int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
-                for( int t = 0; t < 4; t++ )
-                {
-                    LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
-                    LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
-                    LibToriRS_Input_End(hov_input);
-                    App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
-                }
-                fprintf(stderr, "sim_hover: parked at %d,%d\n", hov_x, hov_y);
             }
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);

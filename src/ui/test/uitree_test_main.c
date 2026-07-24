@@ -19,6 +19,8 @@ main(void)
     test_key_dispatch();
     test_minimenu();
     test_id_index();
+    test_child_subid();
+    test_menu_submenus();
 
     if( g_failures )
     {

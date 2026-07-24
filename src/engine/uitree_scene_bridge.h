@@ -200,12 +200,22 @@ UITreeSceneBridge_EnsureObjIconSelected(
  * out_ids. The host loads these via CreateTask_TextureLoad, then calls
  * UITreeSceneBridge_PublishTextures; while missing, the raster skips the face
  * (reference parity: textures pop in once loaded).
+ *
+ * O(every live element × its faces) — a whole world's geometry. The host does
+ * not need it per tick: model construction reports the ids it wants (see
+ * ToriDraw_ModelTextureWantsTake). Kept for one-shot audits of a built scene.
  */
 int
 UITreeSceneBridge_CollectMissingTextures(
     struct UITreeSceneBridge* bridge,
     int* out_ids,
     int max_ids);
+
+/** Is this texture id already in the scene's texture map? */
+int
+UITreeSceneBridge_TextureResident(
+    struct UITreeSceneBridge const* bridge,
+    int texture_id);
 
 /**
  * Upload provider textures into the scene texture map for each id in ids;

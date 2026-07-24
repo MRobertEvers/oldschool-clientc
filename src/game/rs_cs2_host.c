@@ -255,7 +255,6 @@ rs_cs2_clear_ops(
 {
     int32_t idx;
     int i;
-    int j;
     assert(tree);
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
@@ -263,9 +262,7 @@ rs_cs2_clear_ops(
     for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         tree->components[idx].menu_options.ops[i][0] = '\0';
     tree->components[idx].menu_options.option[0] = '\0';
-    for( i = 0; i < UITREE_SUBMENU_OP_SLOTS; i++ )
-        for( j = 0; j < UITREE_SUBMENU_ENTRY_SLOTS; j++ )
-            tree->components[idx].menu_options.submenus.ops[i][j][0] = '\0';
+    UITree_MenuSubmenuClear(&tree->components[idx].menu_options, 0);
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -287,12 +284,8 @@ rs_cs2_apply_op_submenu(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
         return;
-    strncpy(
-        tree->components[idx].menu_options.submenus.ops[op_index - 1][sub_index - 1],
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
-    tree->components[idx]
-        .menu_options.submenus.ops[op_index - 1][sub_index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
+    UITree_MenuSubmenuSetEntry(
+        &tree->components[idx].menu_options, op_index, sub_index, text ? text : "");
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -556,7 +549,9 @@ RS_CS2Host_Init(
     host->varps = varps;
     host->varcs = varcs;
     host->client_clock = 100;
-    host->client_type = 80;
+    host->top_interface_id = -1;
+    host->mouse_x = -1;
+    host->mouse_y = -1;
     host->cam_follow_height = 0;
     /* Volumes start muted (0); a settings panel or the server drives them up.
      * memset already zeroed these — kept explicit alongside the getters they back. */
@@ -3408,6 +3403,12 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
 
+    case CS2VM_HOST_REQUEST_MOUSE_GETX:
+        return CS2VM2_PushInt(vm, host->mouse_x);
+
+    case CS2VM_HOST_REQUEST_MOUSE_GETY:
+        return CS2VM2_PushInt(vm, host->mouse_y);
+
     case CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT:
         host->cam_follow_height = request->u.cam_set_follow_height.height;
         return CS2VM_EXECNO_OK;
@@ -3497,7 +3498,7 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_IF_GETTOP:
-        return CS2VM2_PushInt(vm, host->client_type);
+        return CS2VM2_PushInt(vm, host->top_interface_id);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
         node = rs_cs2_node(host, request->u.if_get_scroll_x.component_id);
