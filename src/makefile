@@ -143,8 +143,9 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
-	net/rev/gameproto_parse.c net/rev/pkt_player_info.c net/rev/pkt_npc_info.c \
-	net/rev/pkt_player_appearance.c net/rev/gameproto_rev_params.c \
+	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
+	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
+	net/rev/gameproto_rev_params.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	bootmanifest/bootmanifest.c \
 	platform/sockstream.c platform/platform_socket.c \
@@ -336,6 +337,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
+	$(OBJ_DIR)/pkt_rebuild_normal.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -398,7 +400,8 @@ test-minimap: $(OBJ_DIR)
 test-entity-decode: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test \
 		net/test/entity_decode_test.c net/bitbuffer.c \
-		net/rev/pkt_player_info.c net/rev/pkt_npc_info.c net/rev/pkt_player_appearance.c \
+		net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
+		net/rev/packets/pkt_player_appearance.c \
 		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test

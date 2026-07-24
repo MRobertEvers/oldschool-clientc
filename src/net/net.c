@@ -294,6 +294,9 @@ net_process_packets(struct ToriRS_Network* net)
             uint8_t* pdata = packetbuffer_data(&net->packet_buffer);
             int psize = packetbuffer_size(&net->packet_buffer);
             int parsed = -1;
+            /* Set the canonical name up front so a rev->parse override need not
+             * (the shared gameproto_parse also sets it). */
+            packet.packet_type = name;
             if( net->rev->parse )
                 parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 )

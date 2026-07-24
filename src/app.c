@@ -5,7 +5,7 @@
 #include "engine/entity_model_build.h"
 #include "engine/task_obj_model_load.h"
 #include "net/jbase37.h"
-#include "net/rev/pkt_player_appearance.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/player_appearance.h"
@@ -2312,8 +2312,11 @@ Task_AppBoot_Run(
     app_sync_textures(app);
 
     /* No viewport component in the opened interface -> no map at all. Trees
-     * that grow one later (a mounted interface) load lazily in App_RunOnce. */
-    if( App_WorldNodeIndex(app) >= 0 )
+     * that grow one later (a mounted interface) load lazily in App_RunOnce.
+     * When networked, the server's REBUILD_NORMAL is the sole world-load driver
+     * (its region + scene base match the entities); a default region 50,50 load
+     * here would race it and clobber the rebuilt scene, so skip it. */
+    if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
 
     app_chat_build_view(app);
@@ -6285,8 +6288,9 @@ App_RunOnce(
     app_update_world_viewport(app);
     /* A viewport that only appeared now (mounted interface, unhidden layer)
      * pulls the map in on first sight — the map is loaded iff the tree has a
-     * world element, never eagerly. */
-    if( app->world_view_valid && !app->world_load_attempted )
+     * world element, never eagerly. Networked boots wait for the server's
+     * REBUILD_NORMAL instead (a default region load would race/clobber it). */
+    if( app->world_view_valid && !app->world_load_attempted && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
     app->world_mouse_in_viewport =
         app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);

@@ -5,9 +5,9 @@
  * appearance blob decode and the extended-info byte order.
  */
 #include "net/bitbuffer.h"
-#include "net/rev/pkt_npc_info.h"
-#include "net/rev/pkt_player_appearance.h"
-#include "net/rev/pkt_player_info.h"
+#include "net/rev/packets/pkt_npc_info.h"
+#include "net/rev/packets/pkt_player_appearance.h"
+#include "net/rev/packets/pkt_player_info.h"
 
 #include <assert.h>
 #include <stdio.h>

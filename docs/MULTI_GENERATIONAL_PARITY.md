@@ -575,3 +575,47 @@ ever matters.
     lc254 offline boot still green. The on-login burst's VARP/energy/message
     packets frame cleanly and drop (decoders not yet wired — not needed for the
     world build); GPI/NPC decode is the natural next step.
+
+- **2026-07-23 — Expanded mock burst + RSProt-style parser folders.**
+  - The mock (`mock230_main.c`) now sends the full Kronos-order on-login burst
+    with real rev-230 opcodes: REBUILD_NORMAL → IF_OPENTOP(60) → IF_OPENSUB(6)×5
+    → IF_SETEVENTS(47) → VARP_SMALL(35)×2 → run energy(77)/weight(27) →
+    UPDATE_INV_FULL(10)×2 → UPDATE_STAT_V2(114)×23 → MESSAGE_GAME(90) →
+    PLAYER_INFO(23)/NPC_INFO(104) placeholders → SERVER_TICK_END(108). Every
+    outbound packet is logged (`mock230: -> NAME op=N fixed/var payload/framed +
+    hex`). All 41 frame cleanly on the client (fixed sizes match the table); the
+    world still builds.
+  - **Packet parsers reorganized like RSProt** under `src/net/rev/packets/` (the
+    "codec" library): the entity parsers moved there (`pkt_player_info.c`,
+    `pkt_npc_info.c`, `pkt_player_appearance.c` = the classic/lc versions), and
+    the osrs230 REBUILD_NORMAL decode became `packets/pkt_rebuild_normal.c`. A
+    revision's `parse` slot now dispatches by canonical name into the versioned
+    parser: `osrs230_parse.c` calls `pkt_rebuild_normal_read`, and future
+    modern packets slot in as `pkt_player_info_v5.c` / `pkt_npc_info_v5.c` that
+    the osrs230 `player_info_read` / `npc_info_read` slots call — matching
+    RSProt's revision → versioned-codec structure.
+
+- **2026-07-24 — Local player renders with appearance; rev->parse packet_type
+  bug fixed.**
+  - The mock now sends a real PLAYER_INFO (opcode 23 → PKT_NAME_PLAYER_INFO):
+    a classic/Kronos-style GPI bitstream placing the local player (teleport to a
+    scene-local tile) plus a byte-aligned extended-info APPEARANCE block (lc254
+    layout: gender, 12 slots with naked-male body idks, 5 colours, 7 anim
+    shorts, name, combat). The client reuses the existing
+    `pkt_player_info_reader_read` + `PktPlayerAppearance_Decode` + model builder
+    unchanged — so the local player spawns and the orbit camera follows it.
+  - **Root-cause fix**: a `rev->parse` override (e.g. `osrs230_parse`) fills the
+    RevPacket payload but the shared code, not the override, set
+    `packet_type`. So osrs230 REBUILD_NORMAL arrived with `packet_type=0`, was
+    treated as NONE, and its world-load branch never ran (the world that loaded
+    was the offline-boot default). `net.c` now sets `packet.packet_type = name`
+    before dispatching to `rev->parse`, so override-parsed packets route
+    correctly. With that, REBUILD drives a full 9-chunk scene load.
+  - **Serialization confirmed**: the exec FIFO already guarantees one packet
+    handler completes before the next starts. Once packet_type was fixed, the
+    trace shows REBUILD → 9-chunk world load → world_active=1 → REBUILD done →
+    PLAYER_INFO applied (world_active=1) → player spawned — strictly ordered, no
+    delay hack needed. (A prior mock `usleep` workaround was removed.)
+  - Verified end-to-end: headless screenshot shows the player model (green
+    top/olive legs) on the path with the camera orbiting it and the minimap
+    tracking it. All net/UI regressions + lc254 offline boot green.

@@ -42,6 +42,49 @@ static const char* MOCK_RSA_N =
 #define LOGIN_ZONE_X 402
 #define LOGIN_ZONE_Z 402
 
+/* 230 server->client opcode -> name (RSProt GameServerProt), for debug. */
+static const char*
+opcode_name(int op)
+{
+    switch( op )
+    {
+    case 68: return "REBUILD_NORMAL";
+    case 23: return "PLAYER_INFO";
+    case 104: return "NPC_INFO_SMALL";
+    case 0: return "SET_NPC_UPDATE_ORIGIN";
+    case 35: return "VARP_SMALL";
+    case 82: return "VARP_LARGE";
+    case 7: return "VARP_RESET";
+    case 88: return "VARP_SYNC";
+    case 77: return "UPDATE_RUNENERGY";
+    case 27: return "UPDATE_RUNWEIGHT";
+    case 114: return "UPDATE_STAT_V2";
+    case 10: return "UPDATE_INV_FULL";
+    case 37: return "UPDATE_INV_PARTIAL";
+    case 60: return "IF_OPENTOP";
+    case 6: return "IF_OPENSUB";
+    case 36: return "IF_CLOSESUB";
+    case 94: return "IF_SETTEXT";
+    case 47: return "IF_SETEVENTS";
+    case 84: return "RUNCLIENTSCRIPT";
+    case 90: return "MESSAGE_GAME";
+    case 2: return "SET_MAP_FLAG";
+    case 108: return "SERVER_TICK_END";
+    default: return "?";
+    }
+}
+
+static void
+hex_preview(char* out, int out_cap, uint8_t const* data, int len)
+{
+    int n = len < 12 ? len : 12;
+    int pos = 0;
+    for( int i = 0; i < n && pos + 3 < out_cap; i++ )
+        pos += snprintf(out + pos, (size_t)(out_cap - pos), "%02x ", data[i]);
+    if( len > n && pos + 4 < out_cap )
+        snprintf(out + pos, (size_t)(out_cap - pos), "...");
+}
+
 static int
 read_full(int fd, uint8_t* buf, int n)
 {
@@ -71,6 +114,19 @@ send_packet(int fd, struct Isaac* enc, int opcode, uint8_t const* payload, int l
     if( len > 0 )
         pbuf(&buf, (uint8_t*)payload, len);
     write(fd, frame, (size_t)buf.position);
+
+    /* Outbound debug: every server->client packet. */
+    char hex[48];
+    hex_preview(hex, sizeof(hex), payload, len);
+    fprintf(
+        stderr,
+        "mock230: -> %-18s op=%-3d %-9s payload=%3d framed=%d  [%s]\n",
+        opcode_name(opcode),
+        opcode,
+        var == 1 ? "var-u8" : var == 2 ? "var-u16" : "fixed",
+        len,
+        (int)buf.position,
+        hex);
 }
 
 static void
@@ -107,33 +163,234 @@ send_rebuild_normal(int fd, struct Isaac* enc)
         count);
 }
 
+/* Payload builder scratch. */
+static uint8_t g_body[8192];
+
+static void
+send_if_opentop(int fd, struct Isaac* enc, int root_group)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p2(&buf, root_group);
+    send_packet(fd, enc, 60, g_body, buf.position, 0); /* fixed 2 */
+}
+
+static void
+send_if_opensub(int fd, struct Isaac* enc, int parent, int child, int group, int type)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p4(&buf, (parent << 16) | child); /* targetUid */
+    p2(&buf, group);
+    p1(&buf, type);
+    send_packet(fd, enc, 6, g_body, buf.position, 0); /* fixed 7 */
+}
+
+static void
+send_if_setevents(int fd, struct Isaac* enc, int uid, int from, int to, int events)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p4(&buf, uid);
+    p2(&buf, from);
+    p2(&buf, to);
+    p4(&buf, events);
+    send_packet(fd, enc, 47, g_body, buf.position, 0); /* fixed 12 */
+}
+
+static void
+send_varp_small(int fd, struct Isaac* enc, int id, int val)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p2(&buf, id);
+    p1(&buf, val & 0xff);
+    send_packet(fd, enc, 35, g_body, buf.position, 0); /* fixed 3 */
+}
+
+static void
+send_stat(int fd, struct Isaac* enc, int skill, int level, int xp)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p1(&buf, skill);
+    p1(&buf, level);
+    p4(&buf, xp);
+    p1(&buf, level); /* boosted level */
+    send_packet(fd, enc, 114, g_body, buf.position, 0); /* fixed 7 */
+}
+
+static void
+send_inv_full(int fd, struct Isaac* enc, int component, int container)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p4(&buf, component);
+    p2(&buf, container);
+    p2(&buf, 0); /* item count = 0 (empty) */
+    send_packet(fd, enc, 10, g_body, buf.position, 2); /* var-short */
+}
+
+static void
+send_message_game(int fd, struct Isaac* enc, const char* text)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p1(&buf, 0); /* type */
+    pjstr(&buf, text, 0);
+    send_packet(fd, enc, 90, g_body, buf.position, 1); /* var-byte */
+}
+
+/* --- PLAYER_INFO (GPI) : classic/Kronos-style bitstream the client's
+ * pkt_player_info_reader_read decodes. Places the local player + appearance. */
+
+static uint8_t g_gpi[1024];
+static int g_gpi_bit;
+
+static void
+gpi_reset(void)
+{
+    memset(g_gpi, 0, sizeof(g_gpi));
+    g_gpi_bit = 0;
+}
+
+/* Write `count` bits of `val`, MSB-first (matches Net_BitBufferGbits). */
+static void
+gpi_bits(int count, int val)
+{
+    for( int i = count - 1; i >= 0; i-- )
+    {
+        int byte = g_gpi_bit >> 3;
+        int bit = 7 - (g_gpi_bit & 7);
+        if( val & (1 << i) )
+            g_gpi[byte] |= (uint8_t)(1 << bit);
+        g_gpi_bit++;
+    }
+}
+
+/* Default naked-male appearance blob (lc254 layout PktPlayerAppearance_Decode
+ * reads): gender, headicon, 12 slots, 5 colours, 7 anim shorts, name37, combat. */
+static int
+build_appearance(uint8_t* out)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, out, 256);
+    p1(&buf, 0); /* gender: male */
+    p1(&buf, 0); /* head icon */
+
+    /* 12 slots [hat,cape,amulet,weapon,torso,shield,arms,legs,hair,hands,feet,jaw].
+     * Empty -> 0x00; body part -> 0x100 + idk (two bytes). */
+    static const int slots[12] = {
+        0, 0, 0, 0, 0x100 + 18, 0, 0x100 + 26, 0x100 + 36, 0x100 + 0, 0x100 + 33, 0x100 + 42,
+        0x100 + 10,
+    };
+    for( int i = 0; i < 12; i++ )
+    {
+        if( slots[i] == 0 )
+            p1(&buf, 0);
+        else
+            p2(&buf, slots[i]);
+    }
+
+    for( int i = 0; i < 5; i++ )
+        p1(&buf, 0); /* body colours */
+
+    /* 7 animation ids (idle/turn/walk/walkb/walkl/walkr/run) — standard human. */
+    static const int anims[7] = { 808, 823, 819, 820, 821, 822, 824 };
+    for( int i = 0; i < 7; i++ )
+        p2(&buf, anims[i]);
+
+    p4(&buf, 0);
+    p4(&buf, 0); /* name37 = 0 (empty) */
+    p1(&buf, 3); /* combat level */
+    return buf.position;
+}
+
+static void
+send_player_info(int fd, struct Isaac* enc)
+{
+    gpi_reset();
+
+    /* Local player: info=1, moveType=3 (teleport), level, scene-local x/z, jump,
+     * then hasExtended=1 so appearance follows. scene_off for zone 402 is 32, so
+     * scene tile = 32 + 20 = 52 (scene centre, on the loaded terrain). */
+    gpi_bits(1, 1); /* info */
+    gpi_bits(2, 3); /* moveType = teleport */
+    gpi_bits(2, 0); /* level */
+    gpi_bits(7, 20); /* scene-local x */
+    gpi_bits(7, 20); /* scene-local z */
+    gpi_bits(1, 1); /* jump */
+    gpi_bits(1, 1); /* has extended info (appearance) */
+
+    gpi_bits(8, 0);     /* tracked player count = 0 */
+    gpi_bits(11, 2047); /* new-player list terminator */
+
+    /* Byte-align, then the extended-info section for the local player. */
+    int pos = (g_gpi_bit + 7) >> 3;
+    uint8_t app[256];
+    int app_len = build_appearance(app);
+    g_gpi[pos++] = 0x01; /* mask = APPEARANCE */
+    g_gpi[pos++] = (uint8_t)app_len;
+    memcpy(g_gpi + pos, app, (size_t)app_len);
+    pos += app_len;
+
+    send_packet(fd, enc, 23, g_gpi, pos, 2); /* PLAYER_INFO, var-short */
+}
+
+/*
+ * Full on-login burst, matching Kronos's order (rebuild -> interfaces ->
+ * masks -> vars/energy/weight -> containers -> stats -> message -> player/npc
+ * info -> tick-end), with the real rev-230 opcodes (RSProt GameServerProt).
+ * Only REBUILD_NORMAL is decoded by the client today; the rest frame cleanly
+ * and drop, so payloads are plausible fillers with table-correct sizes.
+ */
 static void
 send_login_burst(int fd, struct Isaac* enc)
 {
+    /* 1. Map region. */
     send_rebuild_normal(fd, enc);
 
-    /* A few representative on-login packets (Kronos/lc254 order). */
-    { /* VARP_SMALL(35): id(2)+val(1) */
-        uint8_t b[3] = { 0x00, 0x2A, 0x05 };
-        send_packet(fd, enc, 35, b, 3, 0);
-    }
-    { /* UPDATE_RUNENERGY(77): 2 bytes */
-        uint8_t b[2] = { 100, 0 };
-        send_packet(fd, enc, 77, b, 2, 0);
-    }
-    { /* UPDATE_RUNWEIGHT(27): 2 bytes */
-        uint8_t b[2] = { 0, 0 };
-        send_packet(fd, enc, 27, b, 2, 0);
-    }
-    { /* MESSAGE_GAME(90): var-byte. type(smart)+... keep minimal: a string */
-        uint8_t b[64];
-        struct RSCache_Buffer m;
-        RSCache_BufferInit(&m, b, sizeof(b));
-        p1(&m, 0); /* type */
-        pjstr(&m, "Welcome to the mock 230 world.", 0);
-        send_packet(fd, enc, 90, b, m.position, 1);
-    }
-    fprintf(stderr, "mock230: sent on-login burst\n");
+    /* 2. Root gameframe + a handful of sub-interface tabs (fixed=548 desktop). */
+    send_if_opentop(fd, enc, 548);
+    send_if_opensub(fd, enc, 548, 10, 593, 1);  /* worldmap-ish */
+    send_if_opensub(fd, enc, 548, 71, 320, 1);  /* skills tab */
+    send_if_opensub(fd, enc, 548, 72, 149, 1);  /* inventory tab */
+    send_if_opensub(fd, enc, 548, 73, 387, 1);  /* equipment tab */
+    send_if_opensub(fd, enc, 548, 74, 541, 1);  /* prayer tab */
+
+    /* 3. Access mask (IF_SETEVENTS) — unlock inventory slot clicks. */
+    send_if_setevents(fd, enc, (149 << 16) | 0, 0, 27, 0x3fe);
+
+    /* 4. A few config varps. */
+    send_varp_small(fd, enc, 1737, 0);
+    send_varp_small(fd, enc, 261, 10);
+
+    /* 5. Run energy + weight. */
+    { uint8_t b[2] = { 100, 0 }; send_packet(fd, enc, 77, b, 2, 0); }
+    { uint8_t b[2] = { 0, 0 }; send_packet(fd, enc, 27, b, 2, 0); }
+
+    /* 6. Inventory (container 93) + equipment (container 94), both empty. */
+    send_inv_full(fd, enc, (149 << 16) | 0, 93);
+    send_inv_full(fd, enc, (387 << 16) | 0, 94);
+
+    /* 7. All 23 skills at level 1. */
+    for( int skill = 0; skill < 23; skill++ )
+        send_stat(fd, enc, skill, 1, 0);
+
+    /* 8. Welcome message. */
+    send_message_game(fd, enc, "Welcome to the mock 230 world.");
+
+    /* 9. Player info (GPI) — real classic bitstream placing the local player
+     *    with appearance. The client's serial packet queue guarantees REBUILD
+     *    (and its async world load) fully completes before PLAYER_INFO is
+     *    applied, so no send delay is needed. NPC info stays a placeholder. */
+    send_player_info(fd, enc);
+    { uint8_t b[1] = { 0 }; send_packet(fd, enc, 104, b, 1, 2); }
+
+    /* 10. End-of-tick marker. */
+    send_packet(fd, enc, 108, NULL, 0, 0);
+
+    fprintf(stderr, "mock230: on-login burst complete\n");
 }
 
 static int
