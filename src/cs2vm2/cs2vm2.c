@@ -1993,6 +1993,38 @@ CS2VM2_Op_IF_SetGraphic(
     return CS2VM_EXECNO_OK;
 }
 
+/* Absolute (IF) form of CC_SETGRAPHIC2 (1122): sets a widget's secondary /
+ * alternate sprite (OSRS Widget.spriteId). Kronos pops the component first, then
+ * the sprite id (stack top = component, under it = sprite). Both forms feed the
+ * same component-addressed CC_SETGRAPHIC2 host request, which writes
+ * scene_id_active and marks the node dirty — the difference is only that the CC
+ * form takes the component from the dot/active register, this one off the stack. */
+int
+CS2VM2_Op_IF_SetGraphic2(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int graphic_id, component_id;
+
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC2;
+    request.u.cc_set_graphic2.component_id = component_id;
+    request.u.cc_set_graphic2.graphic_id = graphic_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_SetText(
     struct CS2VM2_Thread* vm,
@@ -2241,6 +2273,82 @@ CS2VM2_Op_CC_ClearOps(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_Op_CC_ClearOpSubmenu(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int op_index;
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU;
+    request.u.if_clear_op_submenu.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.if_clear_op_submenu.op_index = op_index;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_CC_SetOpSubmenu(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int sub_index, op_index;
+    char* text;
+    if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_SETOPSUBMENU;
+    request.u.if_set_op_submenu.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.if_set_op_submenu.sub_index = sub_index;
+    request.u.if_set_op_submenu.op_index = op_index;
+    request.u.if_set_op_submenu.text = text;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_CC_SetTargetPriority(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int priority;
+    if( CS2VM2_PopInt(vm, &priority) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY;
+    request.u.if_set_target_priority.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.if_set_target_priority.priority = priority;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -4457,37 +4565,6 @@ CS2VM2_Op_ViewPortGetEffectiveSize(
 }
 
 int
-CS2VM2_Op_ViewPortGetZoom(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
-{
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    /* Matches cs2_host_ui.c defaults for fixed-layout clients. */
-    if( CS2VM2_PushInt(vm, 128) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, 896);
-}
-
-int
-CS2VM2_Op_ViewPortGetFov(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
-{
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    if( CS2VM2_PushInt(vm, 128) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, 896);
-}
-
-int
 CS2VM2_Op_GetWindowMode(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -5400,6 +5477,267 @@ CS2VM2_Op_CC_SetOnInvTransmit(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, &req);
 }
 
+/* Print the calling script and a window of ops around the current pc when an
+ * unimplemented opcode is hit, so its stack signature can be read off the
+ * surrounding pushes/pops (how the MANUAL_STACK entries in gen_opcode_stack.py
+ * were derived) before adding it there. */
+static void
+CS2VM2_ReportUnimplementedOpcode(
+    struct CS2VM2_Frame const* frame,
+    int opcode)
+{
+    struct CS2VM2_Script const* script = frame->script;
+    int first;
+    int last;
+
+    fprintf(
+        stderr,
+        "CS2VM2: unimplemented opcode %d (%s) — no stack signature\n",
+        opcode,
+        CS2_OpCode_String(opcode));
+
+    if( !script )
+        return;
+
+    first = frame->pc - 8;
+    last = frame->pc + 4;
+    if( first < 0 )
+        first = 0;
+    if( last > script->op_count )
+        last = script->op_count;
+
+    fprintf(
+        stderr,
+        "  in script %d (int_locals=%d str_locals=%d), pc=%d:\n",
+        script->script_id,
+        script->local_int_count,
+        script->local_string_count,
+        frame->pc);
+    for( int pci = first; pci < last; pci++ )
+    {
+        fprintf(
+            stderr,
+            "  %s pc=%d op=%d %-22s operand=%d str=%s\n",
+            pci == frame->pc ? "->" : "  ",
+            pci,
+            script->opcodes[pci],
+            CS2_OpCode_String(script->opcodes[pci]),
+            script->int_operands ? script->int_operands[pci] : 0,
+            (script->string_operands && script->string_operands[pci])
+                ? script->string_operands[pci]
+                : "(null)");
+    }
+}
+
+/* HIGHLIGHT_* family (7000..7037): the modern OSRS entity-highlight system
+ * (flag an NPC / loc / obj / player / tile so it draws with an outline overlay
+ * on a given highlight slot). The port has no highlight system yet, so these
+ * hand off to the host as a single stubbed request kind (CS2VM_HOST_REQUEST_
+ * HIGHLIGHT) that the host will eventually back with real highlight state — the
+ * VM's job is only to pop the OSRS args and forward them. The pop counts differ
+ * per subject (an NPC is one slot; a loc/obj is keyed by typeId+coord+slot+group;
+ * the SETUP variants pop 5), so the caller passes pop_count explicitly. `query`
+ * marks the GET variants, whose bool result the host pushes.
+ *
+ *   NPC:  7000 SETUP pop 5   7001 ON pop 3   7002 OFF pop 3
+ *         7003 GET   pop 3, push bool        7004 CLEAR pop 1
+ *   LOC:  7011 ON    pop 4   7012 OFF pop 4
+ *         7013 GET   pop 4, push bool        7014 CLEAR pop 1
+ *   OBJ:  7021 ON    pop 4   7022 OFF pop 4
+ *         7023 GET   pop 4, push bool        7025 OBJTYPE_SETUP pop 5
+ */
+static int
+CS2VM2_Op_Highlight(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int pop_count,
+    bool query)
+{
+    assert(vm);
+    assert(pop_count <= CS2VM_HIGHLIGHT_ARG_MAX);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_HIGHLIGHT;
+    request.u.highlight.opcode = opcode;
+    request.u.highlight.arg_count = pop_count;
+    request.u.highlight.query = query;
+
+    /* Pop into push order: args[0] is the first int the script pushed. */
+    for( int i = pop_count - 1; i >= 0; i-- )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.highlight.args[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* MINIMENU_* (7100..7110): no-arg getters over the current mouseover target and
+ * right-click-menu state. They carry no operands to pop, so this just tags the
+ * request with the opcode and lets the host push each op's result. */
+static int
+CS2VM2_Op_Minimenu(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_MINIMENU;
+    request.u.minimenu.opcode = opcode;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* Audio-volume and client/game/device option get/set (3203..3217). The direct
+ * volume ops carry no id (has_id = false); the *OPTION_* families are keyed by an
+ * option id pushed before the value. SET ops push a value (has_value), getters
+ * push nothing here — the host pushes their results. Pop order mirrors the push
+ * order: value is on top (popped first), then the id. */
+static int
+CS2VM2_Op_ClientOption(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    bool has_id,
+    bool has_value)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CLIENT_OPTION;
+    request.u.client_option.opcode = opcode;
+
+    if( has_value )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.client_option.value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    if( has_id )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.client_option.option_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
+ * ops. SET pops string label, then scriptId, then slot (int stack top-first);
+ * DEL pops slot only. The host stubs them until an enhanced-menu system exists. */
+static int
+CS2VM2_Op_ClientOp(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    bool is_set)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CLIENTOP;
+    request.u.clientop.opcode = opcode;
+    request.u.clientop.is_set = is_set;
+
+    if( is_set )
+    {
+        if( CS2VM2_PopStr(vm, &request.u.clientop.label) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.clientop.script_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    if( CS2VM2_PopInt(vm, &request.u.clientop.slot) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* Minimap zoom controls (7250..7254). The setters take one value (has_value);
+ * GETZOOM takes nothing and the host pushes the current zoom. */
+static int
+CS2VM2_Op_Minimap(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    bool has_value)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_MINIMAP;
+    request.u.minimap.opcode = opcode;
+
+    if( has_value )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.minimap.value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* Viewport FOV/zoom (6200..6205, GETEFFECTIVESIZE excluded — that one still
+ * reads the live canvas size directly). Pop_count is 2 for SETFOV/SETZOOM, 4 for
+ * CLAMPFOV, 0 for the GETs; the host pushes the GETs' results. */
+static int
+CS2VM2_Op_Viewport(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int pop_count)
+{
+    assert(vm);
+    assert(pop_count <= CS2VM_VIEWPORT_ARG_MAX);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_VIEWPORT;
+    request.u.viewport.opcode = opcode;
+    request.u.viewport.arg_count = pop_count;
+
+    for( int i = pop_count - 1; i >= 0; i-- )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.viewport.args[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* UI zoom (6210..6214). SET pops a value (has_value); GET/RESET/GETDEFAULT pop
+ * nothing and the host pushes GET/GETDEFAULT's result. */
+static int
+CS2VM2_Op_UiZoom(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    bool has_value)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_UIZOOM;
+    request.u.uizoom.opcode = opcode;
+
+    if( has_value )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.uizoom.value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* Safe-area bounds (6220..6223, 6231): no-arg getters, the host pushes the
+ * result. */
+static int
+CS2VM2_Op_SafeArea(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_SAFEAREA;
+    request.u.safearea.opcode = opcode;
+    return vm->vm->host_exec(vm, &request);
+}
+
 static int
 CS2VM2_Op_StackMetaStub(
     struct CS2VM2_Thread* vm,
@@ -5415,6 +5753,20 @@ CS2VM2_Op_StackMetaStub(
         return CS2VM_EXECNO_OK;
 
     struct CS2VM2OpcodeStack const meta = g_cs2vm2_opcode_stack[opcode];
+
+    /* Reaching the generic stub with an unknown signature means the opcode is
+     * unimplemented: nobody has given it a real stack signature, so the pop/push
+     * counts below are just the (0,0,0,0) default. Silently no-oping it corrupts
+     * the stack and aborts the script at some unrelated downstream opcode (e.g. a
+     * later BRANCH_EQUALS underflows). Assert here so the culprit surfaces at the
+     * opcode itself. In release builds (NDEBUG) this compiles out and the stub
+     * falls back to its previous best-effort no-op behaviour. */
+    if( !meta.known )
+    {
+        CS2VM2_ReportUnimplementedOpcode(frame, opcode);
+        assert(0 && "unimplemented CS2 opcode reached StackMetaStub");
+    }
+
     for( int i = 0; i < meta.int_in; i++ )
     {
         int discard;
@@ -5590,6 +5942,171 @@ CS2VM2_Op_OC_Unplaceholder(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+/* OC_OP/OC_IOP: ground/inventory right-click action string. The menu slot is
+ * the opcode's baked-in operand (0..4), not a popped arg — same convention as
+ * e.g. CC_SETOP's op index. */
+static int
+CS2VM2_Op_OC_ActionString(
+    struct CS2VM2_Thread* vm,
+    int opcode,
+    int operand,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.oc_op.opcode = opcode;
+    request.u.oc_op.item_id = item_id;
+    request.u.oc_op.op_index = operand;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_EXAMINE: real data (ToriRS_Objtype.desc). */
+static int
+CS2VM2_Op_OC_Examine(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_EXAMINE;
+    request.u.oc_examine.item_id = item_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_PLACEHOLDER: mirrors OC_UNPLACEHOLDER's identity-passthrough stub (no
+ * placeholder linkage data exists yet). */
+static int
+CS2VM2_Op_OC_Placeholder(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_PLACEHOLDER;
+    request.u.oc_placeholder.item_id = item_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: no backing search index exists, so the
+ * host always answers "not found" — see CS2VM_HOST_REQUEST_OC_FIND. */
+static int
+CS2VM2_Op_OC_Find(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    int arg;
+    if( CS2VM2_PopInt(vm, &arg) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_FIND;
+    request.u.oc_find.opcode = opcode;
+    request.u.oc_find.arg = arg;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
+static int
+CS2VM2_Op_OC_ShiftClickIop(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP;
+    request.u.oc_shiftclickiop.item_id = item_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_WEARPOS/WEARPOS2/WEARPOS3: no equip slot data exists yet. */
+static int
+CS2VM2_Op_OC_WearPos(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_WEARPOS;
+    request.u.oc_wearpos.opcode = opcode;
+    request.u.oc_wearpos.item_id = item_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* OC_WEIGHT: no weight data exists yet. */
+static int
+CS2VM2_Op_OC_Weight(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int item_id;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_WEIGHT;
+    request.u.oc_weight.item_id = item_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists yet. */
+static int
+CS2VM2_Op_OC_Isubop(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int item_id;
+    int op_index;
+    int sub_index;
+    if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_OC_ISUBOP;
+    request.u.oc_isubop.item_id = item_id;
+    request.u.oc_isubop.op_index = op_index;
+    request.u.oc_isubop.sub_index = sub_index;
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -6208,10 +6725,38 @@ CS2VM2_RunOp(
         return CS2VM2_Op_GetCanvasSize(vm, frame, operand);
     case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
         return CS2VM2_Op_ViewPortGetEffectiveSize(vm, frame, operand);
+    /* SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM (6200..6205, GETEFFECTIVESIZE
+     * excluded) all route through the host so a SET/CLAMP round-trips through
+     * the matching GET; see CS2VM2_Op_Viewport. */
+    case CS2_OP_VIEWPORT_SETFOV:
+    case CS2_OP_VIEWPORT_SETZOOM:
+        return CS2VM2_Op_Viewport(vm, opcode, 2);
+    case CS2_OP_VIEWPORT_CLAMPFOV:
+        return CS2VM2_Op_Viewport(vm, opcode, 4);
     case CS2_OP_VIEWPORT_GETZOOM:
-        return CS2VM2_Op_ViewPortGetZoom(vm, frame, operand);
     case CS2_OP_VIEWPORT_GETFOV:
-        return CS2VM2_Op_ViewPortGetFov(vm, frame, operand);
+        return CS2VM2_Op_Viewport(vm, opcode, 0);
+    /* UI zoom (6210..6214): SET pops a value, GET/RESET/GETDEFAULT pop nothing. */
+    case CS2_OP_UIZOOM_SET:
+        return CS2VM2_Op_UiZoom(vm, opcode, true);
+    case CS2_OP_UIZOOM_GET:
+    case CS2_OP_UIZOOM_RESET:
+    case CS2_OP_UIZOOM_GETDEFAULT:
+        return CS2VM2_Op_UiZoom(vm, opcode, false);
+    /* Safe-area bounds (6220..6223, 6231): no-arg getters. */
+    case CS2_OP_SAFEAREA_GETMINX:
+    case CS2_OP_SAFEAREA_GETMINY:
+    case CS2_OP_SAFEAREA_GETMAXX:
+    case CS2_OP_SAFEAREA_GETMAXY:
+    case CS2_OP_SAFEAREA_GETMAXY_ALT:
+        return CS2VM2_Op_SafeArea(vm, opcode);
+    case CS2_OP_LOGOUT:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_LOGOUT;
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_GETWINDOWMODE:
         return CS2VM2_Op_GetWindowMode(vm, frame, operand);
     case CS2_OP_GETDEFAULTWINDOWMODE:
@@ -6322,6 +6867,22 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOpBase(vm, frame, operand);
     case CS2_OP_CC_CLEAROPS:
         return CS2VM2_Op_CC_ClearOps(vm, frame, operand);
+    case CS2_OP_CC_SETOPFORCELEFTCLICK:
+        return CS2VM2_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_FORCE_LEFT_CLICK);
+    case CS2_OP_CC_OP1309:
+    {
+        /* Client stub: discard one int and continue. */
+        int discard;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_CC_CLEAROPSUBMENU:
+        return CS2VM2_Op_CC_ClearOpSubmenu(vm, frame, operand);
+    case CS2_OP_CC_SETOPSUBMENU:
+        return CS2VM2_Op_CC_SetOpSubmenu(vm, frame, operand);
+    case CS2_OP_CC_SETTARGETPRIORITY:
+        return CS2VM2_Op_CC_SetTargetPriority(vm, frame, operand);
     case CS2_OP_CC_SETHIDE:
         return CS2VM2_Op_CC_SetHide(vm, frame, operand);
     case CS2_OP_CC_GETID:
@@ -6392,6 +6953,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetScrollSize(vm, frame, operand);
     case CS2_OP_IF_SETGRAPHIC:
         return CS2VM2_Op_IF_SetGraphic(vm, frame, operand);
+    case CS2_OP_IF_SETGRAPHIC2:
+        return CS2VM2_Op_IF_SetGraphic2(vm, frame, operand);
     case CS2_OP_IF_SETTEXT:
         return CS2VM2_Op_IF_SetText(vm, frame, operand);
     case CS2_OP_IF_SETOUTLINE:
@@ -6428,6 +6991,16 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetTargetPriority(vm, frame, operand);
     case CS2_OP_IF_CLEAROPS:
         return CS2VM2_Op_IF_ClearOps(vm, frame, operand);
+    case CS2_OP_IF_OP2309:
+    {
+        /* Client stub (CC_OP1309 IF counterpart): pop component + one int. */
+        int discard;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
+    }
     case CS2_OP_IF_SETOBJECT:
     case CS2_OP_IF_SETOBJECT_ALWAYS_NUM:
     case CS2_OP_IF_SETOBJECT_NONUM:
@@ -6472,6 +7045,28 @@ CS2VM2_RunOp(
         return CS2VM2_Op_OC_Name(vm, frame, operand);
     case CS2_OP_OC_UNPLACEHOLDER:
         return CS2VM2_Op_OC_Unplaceholder(vm, frame, operand);
+    case CS2_OP_OC_OP:
+        return CS2VM2_Op_OC_ActionString(vm, opcode, operand, CS2VM_HOST_REQUEST_OC_OP);
+    case CS2_OP_OC_IOP:
+        return CS2VM2_Op_OC_ActionString(vm, opcode, operand, CS2VM_HOST_REQUEST_OC_IOP);
+    case CS2_OP_OC_EXAMINE:
+        return CS2VM2_Op_OC_Examine(vm);
+    case CS2_OP_OC_PLACEHOLDER:
+        return CS2VM2_Op_OC_Placeholder(vm);
+    case CS2_OP_OC_FIND:
+    case CS2_OP_OC_FINDNEXT:
+    case CS2_OP_OC_FINDRESET:
+        return CS2VM2_Op_OC_Find(vm, opcode);
+    case CS2_OP_OC_SHIFTCLICKIOP:
+        return CS2VM2_Op_OC_ShiftClickIop(vm);
+    case CS2_OP_OC_WEARPOS:
+    case CS2_OP_OC_WEARPOS2:
+    case CS2_OP_OC_WEARPOS3:
+        return CS2VM2_Op_OC_WearPos(vm, opcode);
+    case CS2_OP_OC_WEIGHT:
+        return CS2VM2_Op_OC_Weight(vm);
+    case CS2_OP_OC_ISUBOP:
+        return CS2VM2_Op_OC_Isubop(vm);
     case CS2_OP_CC_SETSCROLLPOS:
         return CS2VM2_Op_CC_SetScrollPos(vm, frame, operand);
     case CS2_OP_CC_SETSCROLLSIZE:
@@ -6661,6 +7256,9 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETONSTOCKTRANSMIT:
     case CS2_OP_CC_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_CC_SETONCLANCHANNELTRANSMIT:
+    case CS2_OP_CC_SETONITEMONITEM:
+    case CS2_OP_CC_SETONCLANSETTINGS:
+    case CS2_OP_CC_SETONMAPPOST:
     /* Input-field listeners: no text-entry model yet, but signature-driven
      * operand counts mean they must be parsed, not stubbed. */
     case CS2_OP_CC_INPUT_SETONSUBMIT:
@@ -6757,6 +7355,115 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
         return vm->vm->host_exec(vm, &request);
     }
+    case CS2_OP_CAM_SETFOLLOWHEIGHT:
+    {
+        struct CS2VM_HostRequest request;
+        int height;
+        if( CS2VM2_PopInt(vm, &height) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT;
+        request.u.cam_set_follow_height.height = height;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_CAM_GETFOLLOWHEIGHT:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_CAM_GETYAW:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_CAM_GETYAW;
+        return vm->vm->host_exec(vm, &request);
+    }
+    /* CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks. SET pops
+     * (slot, scriptId) + string label; DEL pops slot. Host-stubbed for now. */
+    case CS2_OP_CLIENTOP_NPC_SET:
+    case CS2_OP_CLIENTOP_LOC_SET:
+    case CS2_OP_CLIENTOP_OBJ_SET:
+    case CS2_OP_CLIENTOP_PLAYER_SET:
+    case CS2_OP_CLIENTOP_TILE_SET:
+        return CS2VM2_Op_ClientOp(vm, opcode, true);
+    case CS2_OP_CLIENTOP_NPC_DEL:
+    case CS2_OP_CLIENTOP_LOC_DEL:
+    case CS2_OP_CLIENTOP_OBJ_DEL:
+    case CS2_OP_CLIENTOP_PLAYER_DEL:
+    case CS2_OP_CLIENTOP_TILE_DEL:
+        return CS2VM2_Op_ClientOp(vm, opcode, false);
+    case CS2_OP_HIGHLIGHT_NPC_SETUP:
+        return CS2VM2_Op_Highlight(vm, opcode, 5, false);
+    case CS2_OP_HIGHLIGHT_NPC_ON:
+    case CS2_OP_HIGHLIGHT_NPC_OFF:
+        return CS2VM2_Op_Highlight(vm, opcode, 3, false);
+    case CS2_OP_HIGHLIGHT_NPC_GET:
+        return CS2VM2_Op_Highlight(vm, opcode, 3, true);
+    case CS2_OP_HIGHLIGHT_NPC_CLEAR:
+        return CS2VM2_Op_Highlight(vm, opcode, 1, false);
+    /* HIGHLIGHT_LOC_* (7011..7014): highlight a scene loc keyed by
+     * (locTypeId, coordPacked, slot, group) — four ints — so ON/OFF/GET pop 4;
+     * CLEAR pops the group only. GET pushes "not highlighted" (0). */
+    case CS2_OP_HIGHLIGHT_LOC_ON:
+    case CS2_OP_HIGHLIGHT_LOC_OFF:
+        return CS2VM2_Op_Highlight(vm, opcode, 4, false);
+    case CS2_OP_HIGHLIGHT_LOC_GET:
+        return CS2VM2_Op_Highlight(vm, opcode, 4, true);
+    case CS2_OP_HIGHLIGHT_LOC_CLEAR:
+        return CS2VM2_Op_Highlight(vm, opcode, 1, false);
+    /* HIGHLIGHT_OBJ_* (7021..7025): ground-item highlight, same (typeId, coord,
+     * slot, group) key as LOC — ON/OFF/GET pop 4, GET pushes a bool; 7025 is the
+     * OBJTYPE setup (pop 5). */
+    case CS2_OP_HIGHLIGHT_OBJ_ON:
+    case CS2_OP_HIGHLIGHT_OBJ_OFF:
+        return CS2VM2_Op_Highlight(vm, opcode, 4, false);
+    case CS2_OP_HIGHLIGHT_OBJ_GET:
+        return CS2VM2_Op_Highlight(vm, opcode, 4, true);
+    case CS2_OP_HIGHLIGHT_OBJTYPE_SETUP:
+        return CS2VM2_Op_Highlight(vm, opcode, 5, false);
+    /* MINIMENU_* (7100..7110): no-arg mouseover / right-click-menu getters; the
+     * host answers each with the current hover/menu state. */
+    case CS2_OP_MINIMENU_TYPE:
+    case CS2_OP_MINIMENU_ENTRY:
+    case CS2_OP_MINIMENU_FINDNPC:
+    case CS2_OP_MINIMENU_FINDLOC:
+    case CS2_OP_MINIMENU_FINDOBJ:
+    case CS2_OP_MINIMENU_FINDPLAYER:
+    case CS2_OP_MINIMENU_ISOPEN:
+    case CS2_OP_MINIMENU_FINDCOMPONENT:
+    case CS2_OP_MINIMENU_NUMOPS:
+        return CS2VM2_Op_Minimenu(vm, opcode);
+    /* Audio volumes (3203..3208): direct setters take just a value, getters take
+     * nothing; the host owns the value and pushes it back. */
+    case CS2_OP_SETVOLUMEMUSIC:
+    case CS2_OP_SETVOLUMESOUNDS:
+    case CS2_OP_SETVOLUMEAREASOUNDS:
+        return CS2VM2_Op_ClientOption(vm, opcode, false, true);
+    case CS2_OP_GETVOLUMEMUSIC:
+    case CS2_OP_GETVOLUMESOUNDS:
+    case CS2_OP_GETVOLUMEAREASOUNDS:
+        return CS2VM2_Op_ClientOption(vm, opcode, false, false);
+    /* Client/game/device options (3209..3217): id-keyed. SET pops (id, value);
+     * GET/GETRANGE pop the id, the host pushes the result(s). */
+    case CS2_OP_CLIENTOPTION_SET:
+    case CS2_OP_GAMEOPTION_SET:
+    case CS2_OP_DEVICEOPTION_SET:
+        return CS2VM2_Op_ClientOption(vm, opcode, true, true);
+    case CS2_OP_CLIENTOPTION_GET:
+    case CS2_OP_GAMEOPTION_GET:
+    case CS2_OP_DEVICEOPTION_GET:
+    case CS2_OP_DEVICEOPTION_GETRANGE:
+        return CS2VM2_Op_ClientOption(vm, opcode, true, false);
+    /* Minimap zoom (7250..7254): setters pop one value, GETZOOM pushes the
+     * host-owned zoom. */
+    case CS2_OP_MINIMAP_SETZOOMABLE:
+    case CS2_OP_MINIMAP_SETZOOM:
+    case CS2_OP_MINIMAP_SETICONZOOMLIMIT:
+        return CS2VM2_Op_Minimap(vm, opcode, true);
+    case CS2_OP_MINIMAP_GETZOOM:
+        return CS2VM2_Op_Minimap(vm, opcode, false);
     /* Mobile device queries — we are a desktop client: full battery, on mains,
      * unmetered connection. Pushing nothing here underflows the next opcode. */
     case CS2_OP_MOBILE_BATTERYLEVEL:

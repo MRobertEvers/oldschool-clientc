@@ -82,8 +82,45 @@ struct RS_CS2Host
     int client_clock;
     int viewport_w;
     int viewport_h;
+    /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
+     *  orbit-camera render path in app.c does not consume this yet; it is stored
+     *  so a script that sets it can read the same value back. */
+    int cam_follow_height;
     /** IF_GETTOP / client type (default 80). */
     int client_type;
+    /** Audio volumes, backing the SET/GETVOLUME* opcodes (3203..3208). The port
+     *  has no audio mixer yet; the host owns the values so a settings panel that
+     *  sets one reads the same value back (round-trip, like cam_follow_height). */
+    int volume_music;
+    int volume_sounds;
+    int volume_area_sounds;
+    /** Minimap zoom (2..8), backing MINIMAP_SETZOOM / GETZOOM. Host-owned so a
+     *  script setting it reads the same value back; the port has no minimap-zoom
+     *  render path consuming it yet. */
+    int minimap_zoom;
+
+    /** Set by LOGOUT (5630); nothing consumes it yet — the client has no logout
+     *  flow wired up, so this just records that a script asked for one. */
+    bool logout_requested;
+
+    /** Viewport FOV/zoom, backing VIEWPORT_SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM.
+     *  Host-owned so SET/CLAMP round-trips through the matching GET; defaults
+     *  match the values these getters returned before they were host-routed. */
+    int viewport_fov;
+    int viewport_fov_max;
+    int viewport_zoom;
+    int viewport_zoom_max;
+
+    /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
+     *  not read from here). Host-owned so it round-trips like the other
+     *  settings values above. */
+    int ui_zoom;
+
+    /** Backing CAM_GETYAW. There is no setter opcode and no live link yet from
+     *  this host to the render-side camera (app->world_camera.yaw, reached via
+     *  the separate UITree host bus RS_CS2Host cannot see) — 0 (facing north)
+     *  until something wires the real value in. */
+    int cam_yaw;
 
     struct RS_CS2InvTransmitHook inv_transmit_hooks[RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX];
     int inv_transmit_hook_count;

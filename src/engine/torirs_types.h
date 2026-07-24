@@ -280,7 +280,7 @@ struct ToriRS_Spotanimtype
     int seq;     /* animation seq id, or -1 */
     int resizeh; /* 128 == 1.0 */
     int resizev;
-    int angle;   /* 0 / 90 / 180 / 270 */
+    int angle; /* 0 / 90 / 180 / 270 */
     int ambient;
     int contrast;
     int recol_s[6];

@@ -1,0 +1,6 @@
+Connection in progress to localhost:43594
+InterfaceOpen done: iface=161 pack_components=98 tree_components=766 onloads=6 inv_hooks=0 var_hooks=8 mounts=0
+Connection completed
+Connection in progress to localhost:43594
+InterfaceOpen done: iface=161 pack_components=98 tree_components=766 onloads=6 inv_hooks=0 var_hooks=8 mounts=0
+Connection completed

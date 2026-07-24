@@ -1291,6 +1291,7 @@ UITree_CcCopy(
     dst->item_scene_id = src.item_scene_id;
     dst->item_atlas_index = src.item_atlas_index;
     dst->target_priority = src.target_priority;
+    dst->force_left_click = src.force_left_click;
     dst->position = src.position;
     dst->menu_options = src.menu_options;
     dst->runtime_hooks = src.runtime_hooks;
@@ -1829,9 +1830,50 @@ UITree_ApplyTargetPriority(
     int priority)
 {
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    int stored;
     if( idx < 0 )
         return false;
-    tree->components[idx].target_priority = priority;
+    /* Reference: -1 resets to 4; 1..32 stores value-1. Other values are ignored. */
+    if( priority == -1 )
+        stored = 4;
+    else if( priority >= 1 && priority <= 32 )
+        stored = priority - 1;
+    else
+        return false;
+    tree->components[idx].target_priority = stored;
+    return true;
+}
+
+bool
+UITree_ApplyForceLeftClick(
+    struct UITree* tree,
+    int component_id,
+    int enabled)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].force_left_click = enabled ? 1 : 0;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
+UITree_ClearOpSubmenu(
+    struct UITree* tree,
+    int component_id,
+    int op_index)
+{
+    int32_t idx;
+    int i;
+    if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
+        return false;
+    idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    for( i = 0; i < UITREE_SUBMENU_ENTRY_SLOTS; i++ )
+        tree->components[idx].menu_options.submenus.ops[op_index - 1][i][0] = '\0';
+    UITree_MarkNodeDirty(tree, idx);
     return true;
 }
 

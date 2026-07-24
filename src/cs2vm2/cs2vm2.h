@@ -74,18 +74,119 @@ struct CS2VM2_Array
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206
 #define CS2_OP_CC_SETGRAPHIC2 1122
+#define CS2_OP_IF_SETGRAPHIC2 2122
 #define CS2_OP_CC_SETTRANSBOT 1124
 #define CS2_OP_CC_SETFILLMODE 1125
 #define CS2_OP_CC_SETARC 1128
-#define CS2_OP_CC_SETPINCH 1308
+#define CS2_OP_CC_SETPINCH 1004
 #define CS2_OP_CC_SETPLAYERMODEL_SELF 1203
 #define CS2_OP_CC_SETMODEL_PLAYERCHATHEAD 1204
 #define CS2_OP_IF_SETTRANSBOT 2124
 #define CS2_OP_IF_SETFILLMODE 2125
 #define CS2_OP_IF_SETARC 2128
 #define CS2_OP_IF_SETCLICKMASK 2308
-#define CS2_OP_IF_SETPINCH 2309
+#define CS2_OP_IF_SETPINCH 2004
 #define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
+/* HIGHLIGHT_NPC_* entity-highlight family (7000..7004); 7001/7002 are named in
+ * the generated meta, the rest are placeholders there. */
+#define CS2_OP_HIGHLIGHT_NPC_SETUP 7000
+#define CS2_OP_HIGHLIGHT_NPC_GET 7003
+#define CS2_OP_HIGHLIGHT_NPC_CLEAR 7004
+/* HIGHLIGHT_LOC_* scene-object-highlight family (7011..7014); ON/OFF are named
+ * in cs2_opcode.h, GET/CLEAR are placeholders there. Same shape as the NPC
+ * family but keyed on (locTypeId, coordPacked, slot, group) instead of an NPC
+ * slot, so ON/OFF/GET pop 4 (NPC pops 3). */
+#define CS2_OP_HIGHLIGHT_LOC_GET 7013
+#define CS2_OP_HIGHLIGHT_LOC_CLEAR 7014
+/* HIGHLIGHT_OBJ_* ground-item-highlight family (7021..7025); ON/OFF are named in
+ * cs2_opcode.h, GET/SETUP are placeholders there. OBJ ON/OFF/GET pop 4 like the
+ * LOC family; 7025 is the OBJTYPE setup (pop 5). */
+#define CS2_OP_HIGHLIGHT_OBJ_GET 7023
+#define CS2_OP_HIGHLIGHT_OBJTYPE_SETUP 7025
+/* MINIMENU_* mouseover / right-click-menu queries (7100..7110). All are no-arg
+ * getters reading the current hovered target + open menu state; the host answers
+ * them (CS2VM_HOST_REQUEST_MINIMENU). cs2_opcode.h has these as _71xx. */
+#define CS2_OP_MINIMENU_TYPE 7100
+#define CS2_OP_MINIMENU_ENTRY 7101
+#define CS2_OP_MINIMENU_FINDNPC 7102
+#define CS2_OP_MINIMENU_FINDLOC 7103
+#define CS2_OP_MINIMENU_FINDOBJ 7104
+#define CS2_OP_MINIMENU_FINDPLAYER 7105
+#define CS2_OP_MINIMENU_ISOPEN 7108
+#define CS2_OP_MINIMENU_FINDCOMPONENT 7109
+#define CS2_OP_MINIMENU_NUMOPS 7110
+/* Client / game / device option get/set (3209..3217). Unlike the direct volume
+ * setters (3203..3208, which carry just a value), these are keyed by an option
+ * id: SET pops (id, value), GET pops (id) -> value, GETRANGE pops (id) -> min,
+ * max. The host answers them (CS2VM_HOST_REQUEST_CLIENT_OPTION). The volume ops
+ * are already named in cs2_opcode.h; these _32xx are placeholders there. */
+#define CS2_OP_CLIENTOPTION_SET 3209
+#define CS2_OP_CLIENTOPTION_GET 3210
+#define CS2_OP_DEVICEOPTION_SET 3212
+#define CS2_OP_GAMEOPTION_SET 3213
+#define CS2_OP_DEVICEOPTION_GET 3214
+#define CS2_OP_GAMEOPTION_GET 3215
+#define CS2_OP_DEVICEOPTION_GETRANGE 3217
+/* Minimap zoom controls (7250..7254). Setters pop one value; GETZOOM pushes the
+ * current zoom (2..8). The host owns the zoom (CS2VM_HOST_REQUEST_MINIMAP) so a
+ * SETZOOM round-trips through GETZOOM. 7250 is also known as SETMINIMAPLOCK in
+ * cs2_opcode.h (same opcode, both just pop a flag); 7253/7254 are past the meta
+ * table there and decode via its default entry. */
+#define CS2_OP_MINIMAP_SETZOOMABLE 7250
+#define CS2_OP_MINIMAP_SETZOOM 7252
+#define CS2_OP_MINIMAP_GETZOOM 7253
+#define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
+/* UI zoom controls (6210..6214; 6213 unconfirmed, left out). SET/GET/RESET are
+ * host-owned state (like MINIMAP zoom); GETDEFAULT answers a fixed constant
+ * without touching that state. cs2_opcode.h has 6210/6212 as untyped
+ * placeholders and no entry at all for 6211/6214. */
+#define CS2_OP_UIZOOM_SET 6210
+#define CS2_OP_UIZOOM_GET 6211
+#define CS2_OP_UIZOOM_RESET 6212
+#define CS2_OP_UIZOOM_GETDEFAULT 6214
+/* Safe-area bounds (6220..6223, plus the 6231 alternate MAXY). Desktop client,
+ * no notch/home-indicator: MINX/MINY are 0, MAXX/MAXY are the live canvas size
+ * (same source as GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE). cs2_opcode.h has
+ * 6220..6223 as untyped placeholders and no entry at all for 6231. */
+#define CS2_OP_SAFEAREA_GETMINX 6220
+#define CS2_OP_SAFEAREA_GETMINY 6221
+#define CS2_OP_SAFEAREA_GETMAXX 6222
+#define CS2_OP_SAFEAREA_GETMAXY 6223
+#define CS2_OP_SAFEAREA_GETMAXY_ALT 6231
+/* Camera yaw getter. No setter in this range and no live link from RS_CS2Host
+ * to the render-side camera yet (same situation as CAM_*FOLLOWHEIGHT), so this
+ * is a host-owned value with no current writer — see RS_CS2Host.cam_yaw. Not in
+ * cs2_opcode.h at all (no placeholder define existed for 6232). */
+#define CS2_OP_CAM_GETYAW 6232
+/* OC_* obj-config getters with no cs2_opcode.h define at all (the 4213..4221
+ * gap, plus 4222). Same INT8-baked-operand convention as the rest of the OC_
+ * family (4200..4212, all CS2_OPERAND_INT8 in the generated meta). None of these
+ * have backing data on ToriRS_Objtype yet except EXAMINE (desc field, already
+ * real) — see the host handlers for what each stubs to. */
+#define CS2_OP_OC_SHIFTCLICKIOP 4213
+#define CS2_OP_OC_WEARPOS 4214
+#define CS2_OP_OC_WEARPOS2 4215
+#define CS2_OP_OC_WEARPOS3 4216
+#define CS2_OP_OC_WEIGHT 4217
+#define CS2_OP_OC_EXAMINE 4218
+/* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists on
+ * ToriRS_Objtype (only flat inv_actions/ground_actions), so this stubs to "". */
+#define CS2_OP_OC_ISUBOP 4222
+/* CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks that install
+ * or remove transient client-owned ops (Tag, Lookup, Mark tile, etc.) on an
+ * entity/tile slot. SET pops (slot, scriptId) + string label; DEL pops slot.
+ * The host stubs them for now (no enhanced menu entries yet) so scripts that
+ * wire interface state do not abort. cs2_opcode.h has these as _67xx. */
+#define CS2_OP_CLIENTOP_NPC_SET 6700
+#define CS2_OP_CLIENTOP_NPC_DEL 6701
+#define CS2_OP_CLIENTOP_LOC_SET 6702
+#define CS2_OP_CLIENTOP_LOC_DEL 6703
+#define CS2_OP_CLIENTOP_OBJ_SET 6704
+#define CS2_OP_CLIENTOP_OBJ_DEL 6705
+#define CS2_OP_CLIENTOP_PLAYER_SET 6706
+#define CS2_OP_CLIENTOP_PLAYER_DEL 6707
+#define CS2_OP_CLIENTOP_TILE_SET 6708
+#define CS2_OP_CLIENTOP_TILE_DEL 6709
 /*
  * Input-field (widget type 16) configuration. These were previously numbered
  * 7200-7212, which is outside the real opcode space -- no cache script could

@@ -346,6 +346,8 @@ struct UITreeComponent
     int cs1_values[UITREE_CS1_VALUE_MAX];
     struct UITreeRuntimeHooks runtime_hooks;
     int target_priority;
+    /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
+    uint8_t force_left_click;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     int scroll_x;
@@ -1016,6 +1018,18 @@ UITree_ApplyTargetPriority(
     struct UITree* tree,
     int component_id,
     int priority);
+
+bool
+UITree_ApplyForceLeftClick(
+    struct UITree* tree,
+    int component_id,
+    int enabled);
+
+bool
+UITree_ClearOpSubmenu(
+    struct UITree* tree,
+    int component_id,
+    int op_index);
 
 /** str_mask bit i marks arg position i as a string; strs[0..str_argc) are the
  * string values in position order. Pass 0/NULL/0 for int-only hooks. */

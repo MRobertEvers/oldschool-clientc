@@ -23,6 +23,9 @@
 #define UITREE_CLICK_DEBUG 0
 #endif
 
+/** UIZOOM_RESET / UIZOOM_GETDEFAULT constant (1000 = 100%, reference scheme). */
+#define RS_CS2_UIZOOM_DEFAULT 1000
+
 /* =========================================================================
  * Helpers
  * ========================================================================= */
@@ -251,6 +254,7 @@ rs_cs2_clear_ops(
 {
     int32_t idx;
     int i;
+    int j;
     assert(tree);
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
@@ -258,6 +262,9 @@ rs_cs2_clear_ops(
     for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         tree->components[idx].menu_options.ops[i][0] = '\0';
     tree->components[idx].menu_options.option[0] = '\0';
+    for( i = 0; i < UITREE_SUBMENU_OP_SLOTS; i++ )
+        for( j = 0; j < UITREE_SUBMENU_ENTRY_SLOTS; j++ )
+            tree->components[idx].menu_options.submenus.ops[i][j][0] = '\0';
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -271,19 +278,20 @@ rs_cs2_apply_op_submenu(
 {
     int32_t idx;
     assert(tree);
-    if( op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS )
+    /* Script indices are 1-based (same convention as rs_cs2_apply_op). */
+    if( op_index < 1 || op_index > UITREE_SUBMENU_OP_SLOTS )
         return;
-    if( sub_index < 0 || sub_index >= UITREE_SUBMENU_ENTRY_SLOTS )
+    if( sub_index < 1 || sub_index > UITREE_SUBMENU_ENTRY_SLOTS )
         return;
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
         return;
     strncpy(
-        tree->components[idx].menu_options.submenus.ops[op_index][sub_index],
+        tree->components[idx].menu_options.submenus.ops[op_index - 1][sub_index - 1],
         text ? text : "",
         UITREE_MENU_OPTION_LEN - 1);
-    tree->components[idx].menu_options.submenus.ops[op_index][sub_index][UITREE_MENU_OPTION_LEN - 1] =
-        '\0';
+    tree->components[idx]
+        .menu_options.submenus.ops[op_index - 1][sub_index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -548,6 +556,25 @@ RS_CS2Host_Init(
     host->varcs = varcs;
     host->client_clock = 100;
     host->client_type = 80;
+    host->cam_follow_height = 0;
+    /* Volumes start muted (0); a settings panel or the server drives them up.
+     * memset already zeroed these — kept explicit alongside the getters they back. */
+    host->volume_music = 0;
+    host->volume_sounds = 0;
+    host->volume_area_sounds = 0;
+    /* Start at the low end of the documented 2..8 range; a settings panel or the
+     * server can drive it. Real default is TBD once minimap zoom is rendered. */
+    host->minimap_zoom = 2;
+    host->logout_requested = false;
+    /* Preserve what VIEWPORT_GETFOV/GETZOOM returned before they were
+     * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
+    host->viewport_fov = 128;
+    host->viewport_fov_max = 896;
+    host->viewport_zoom = 128;
+    host->viewport_zoom_max = 896;
+    host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
+    /* Facing north; nothing writes this yet (no CAM_SETYAW, no live camera link). */
+    host->cam_yaw = 0;
     /* Op 1 is the primary left-click op, which is what every mouse-driven
      * dispatch reports. Must not be left at the memset 0: on_op handlers read
      * this through the CS2VM_SCRIPT_ARG_OP_INDEX sentinel. */
@@ -1068,6 +1095,238 @@ exec_mec(
     }
 }
 
+/*
+ * MINIMENU_* (7100..7110): mouseover / right-click-menu queries. The live model
+ * lives in the app layer (app->interact.minimenu, plus the hover-text target)
+ * behind the UITree host bus, which the CS2 host cannot reach. Until a per-frame
+ * snapshot is plumbed into RS_CS2Host, answer with "nothing hovered / menu
+ * closed" defaults so the polling toplevel scripts keep running: every int getter
+ * is 0/false and MINIMENU_ENTRY yields two empty strings. Wire real values here
+ * when the snapshot lands — the opcode already routes through this one seam.
+ */
+static int
+exec_minimenu(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int opcode)
+{
+    (void)host;
+
+    switch( opcode )
+    {
+    case CS2_OP_MINIMENU_ENTRY:
+    {
+        /* Two strings, option then target (reference push order). */
+        int result = CS2VM2_PushStr(thread, strdup(""));
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushStr(thread, strdup(""));
+    }
+    case CS2_OP_MINIMENU_TYPE:
+    case CS2_OP_MINIMENU_FINDNPC:
+    case CS2_OP_MINIMENU_FINDLOC:
+    case CS2_OP_MINIMENU_FINDOBJ:
+    case CS2_OP_MINIMENU_FINDPLAYER:
+    case CS2_OP_MINIMENU_ISOPEN:
+    case CS2_OP_MINIMENU_FINDCOMPONENT:
+    case CS2_OP_MINIMENU_NUMOPS:
+        return CS2VM2_PushInt(thread, 0);
+    default:
+        fprintf(stderr, "exec_minimenu: unhandled opcode %d\n", opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/*
+ * Audio volumes (3203..3208) and client/game/device options (3209..3217). The
+ * volume values are host-owned (round-trip: a SET is read back by the matching
+ * GET), the port having no audio mixer yet. The keyed option families have no
+ * backing store here — SET is a no-op, GET answers 0, GETRANGE answers a 0..255
+ * span — enough for a settings panel to run; wire real option state through here
+ * when it exists (request.option_id / request.value carry the key + payload).
+ */
+static int
+exec_client_option(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_ClientOption request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_SETVOLUMEMUSIC:
+        host->volume_music = request.value;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_GETVOLUMEMUSIC:
+        return CS2VM2_PushInt(thread, host->volume_music);
+    case CS2_OP_SETVOLUMESOUNDS:
+        host->volume_sounds = request.value;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_GETVOLUMESOUNDS:
+        return CS2VM2_PushInt(thread, host->volume_sounds);
+    case CS2_OP_SETVOLUMEAREASOUNDS:
+        host->volume_area_sounds = request.value;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_GETVOLUMEAREASOUNDS:
+        return CS2VM2_PushInt(thread, host->volume_area_sounds);
+
+    case CS2_OP_CLIENTOPTION_SET:
+    case CS2_OP_GAMEOPTION_SET:
+    case CS2_OP_DEVICEOPTION_SET:
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_CLIENTOPTION_GET:
+    case CS2_OP_GAMEOPTION_GET:
+    case CS2_OP_DEVICEOPTION_GET:
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_DEVICEOPTION_GETRANGE:
+    {
+        /* min then max (reference range order). */
+        int result = CS2VM2_PushInt(thread, 0);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushInt(thread, 255);
+    }
+    default:
+        fprintf(stderr, "exec_client_option: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/*
+ * Minimap zoom controls (7250..7254). The zoom is host-owned (round-trip: a
+ * SETZOOM is read back by GETZOOM), the port having no minimap-zoom render path
+ * yet. SETZOOMABLE and SETICONZOOMLIMIT have no backing state — accepted and
+ * dropped (request.value is there for when they gain a render effect).
+ */
+static int
+exec_minimap(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_Minimap request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_MINIMAP_SETZOOM:
+        host->minimap_zoom = request.value;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_MINIMAP_GETZOOM:
+        return CS2VM2_PushInt(thread, host->minimap_zoom);
+    case CS2_OP_MINIMAP_SETZOOMABLE:
+    case CS2_OP_MINIMAP_SETICONZOOMLIMIT:
+        return CS2VM_EXECNO_OK;
+    default:
+        fprintf(stderr, "exec_minimap: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/*
+ * Viewport FOV/zoom (6200..6205). The host owns both value/max pairs — a
+ * SETFOV/SETZOOM (or CLAMPFOV) round-trips through the matching GET, unlike
+ * before this opcode was host-routed, when GETFOV/GETZOOM answered a hardcoded
+ * constant no SET could ever change. CLAMPFOV's exact arg order is inferred
+ * (value, min, max, unused) from its established (4,0,0,0) stack signature —
+ * there's no reference decompile to confirm it against.
+ */
+static int
+exec_viewport(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_Viewport request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_VIEWPORT_SETFOV:
+        host->viewport_fov = request.args[0];
+        host->viewport_fov_max = request.args[1];
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_VIEWPORT_GETFOV:
+    {
+        int result = CS2VM2_PushInt(thread, host->viewport_fov);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushInt(thread, host->viewport_fov_max);
+    }
+    case CS2_OP_VIEWPORT_SETZOOM:
+        host->viewport_zoom = request.args[0];
+        host->viewport_zoom_max = request.args[1];
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_VIEWPORT_GETZOOM:
+    {
+        int result = CS2VM2_PushInt(thread, host->viewport_zoom);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushInt(thread, host->viewport_zoom_max);
+    }
+    case CS2_OP_VIEWPORT_CLAMPFOV:
+    {
+        int value = request.args[0];
+        int min = request.args[1];
+        int max = request.args[2];
+        if( value < min )
+            value = min;
+        if( value > max )
+            value = max;
+        host->viewport_fov = value;
+        host->viewport_fov_max = max;
+        return CS2VM_EXECNO_OK;
+    }
+    default:
+        fprintf(stderr, "exec_viewport: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/* UI zoom (6210..6214). SET/GET/RESET are host-owned state; GETDEFAULT answers
+ * the fixed RS_CS2_UIZOOM_DEFAULT constant without touching that state. */
+static int
+exec_uizoom(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_UiZoom request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_UIZOOM_SET:
+        host->ui_zoom = request.value;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_UIZOOM_GET:
+        return CS2VM2_PushInt(thread, host->ui_zoom);
+    case CS2_OP_UIZOOM_RESET:
+        host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_UIZOOM_GETDEFAULT:
+        return CS2VM2_PushInt(thread, RS_CS2_UIZOOM_DEFAULT);
+    default:
+        fprintf(stderr, "exec_uizoom: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/* Safe-area bounds (6220..6223, 6231). Desktop client, no notch/home indicator:
+ * min corners are 0, max corners are the live canvas size (same source as
+ * GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE). GETMAXY_ALT (6231) is the same
+ * value as GETMAXY per the "alternative opcode used in some contexts" note. */
+static int
+exec_safearea(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_SafeArea request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_SAFEAREA_GETMINX:
+    case CS2_OP_SAFEAREA_GETMINY:
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_SAFEAREA_GETMAXX:
+        return CS2VM2_PushInt(thread, thread->canvas_w);
+    case CS2_OP_SAFEAREA_GETMAXY:
+    case CS2_OP_SAFEAREA_GETMAXY_ALT:
+        return CS2VM2_PushInt(thread, thread->canvas_h);
+    default:
+        fprintf(stderr, "exec_safearea: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
 static int
 exec_enum_output_count(
     struct RS_CS2Host* host,
@@ -1280,6 +1539,132 @@ exec_oc_unplaceholder(
         /* Objtype still missing after its load: pass the id through unresolved. */
         return CS2VM2_PushInt(thread, request.item_id);
     }
+}
+
+/* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot
+ * (op_index 0..4). Real data, following the exact OC_NAME yield-on-miss shape. */
+static int
+exec_oc_op(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Op request)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Objtype* obj =
+        provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+
+    if( request.item_id < 0 )
+        return CS2VM2_PushStr(thread, strdup(""));
+
+    if( !obj )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = request.opcode == CS2_OP_OC_IOP ? CS2VM_HOST_REQUEST_OC_IOP
+                                                    : CS2VM_HOST_REQUEST_OC_OP;
+        req.u.oc_op = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.item_id, -1);
+        /* Objtype still missing after its load: no action string to give. */
+        return CS2VM2_PushStr(thread, strdup(""));
+    }
+
+    if( request.op_index < 0 || request.op_index >= TORIRS_MENU_ACTION_SLOTS )
+        return CS2VM2_PushStr(thread, strdup(""));
+
+    char const* action = request.opcode == CS2_OP_OC_IOP
+                              ? obj->inv_actions[request.op_index]
+                              : obj->ground_actions[request.op_index];
+    return CS2VM2_PushStr(thread, strdup(action ? action : ""));
+}
+
+/* OC_EXAMINE: real data (ToriRS_Objtype.desc), following the OC_NAME shape. */
+static int
+exec_oc_examine(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Name request)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Objtype* obj =
+        provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+
+    if( request.item_id < 0 )
+        return CS2VM2_PushStr(thread, strdup(""));
+
+    if( !obj )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_OC_EXAMINE;
+        req.u.oc_examine = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.item_id, -1);
+        return CS2VM2_PushStr(thread, strdup(""));
+    }
+
+    return CS2VM2_PushStr(thread, strdup(obj->desc[0] != '\0' ? obj->desc : ""));
+}
+
+/* OC_PLACEHOLDER: identity passthrough, mirroring OC_UNPLACEHOLDER — no
+ * placeholder linkage data exists on ToriRS_Objtype yet. */
+static int
+exec_oc_placeholder(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Unplaceholder request)
+{
+    return CS2VM2_PushInt(thread, request.item_id);
+}
+
+/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: no backing search index exists in this
+ * port, so every variant answers "not found". */
+static int
+exec_oc_find(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Find request)
+{
+    (void)request;
+    return CS2VM2_PushInt(thread, -1);
+}
+
+/* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
+static int
+exec_oc_shiftclickiop(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Name request)
+{
+    (void)request;
+    return CS2VM2_PushInt(thread, -1);
+}
+
+/* OC_WEARPOS/WEARPOS2/WEARPOS3: no equip slot data exists on ToriRS_Objtype
+ * yet, so every variant answers "not equippable". */
+static int
+exec_oc_wearpos(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_WearPos request)
+{
+    (void)request;
+    return CS2VM2_PushInt(thread, -1);
+}
+
+/* OC_WEIGHT: no weight data exists on ToriRS_Objtype yet. */
+static int
+exec_oc_weight(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Name request)
+{
+    (void)request;
+    return CS2VM2_PushInt(thread, 0);
+}
+
+/* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists on
+ * ToriRS_Objtype yet. */
+static int
+exec_oc_isubop(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Isubop request)
+{
+    (void)request;
+    return CS2VM2_PushStr(thread, strdup(""));
 }
 
 
@@ -1759,6 +2144,10 @@ exec_widget_set_int(
         break;
     case CS2VM_WIDGET_INT_CLICKMASK:
         (void)UITree_ApplyClickMask(rs_cs2_tree(host), request.component_id, request.value);
+        break;
+    case CS2VM_WIDGET_INT_FORCE_LEFT_CLICK:
+        (void)UITree_ApplyForceLeftClick(
+            rs_cs2_tree(host), request.component_id, request.value == 1);
         break;
     case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
         node->drag_dead_zone = (uint8_t)request.value;
@@ -2437,6 +2826,33 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
         return exec_oc_unplaceholder(host, vm, request->u.oc_unplaceholder);
 
+    case CS2VM_HOST_REQUEST_OC_OP:
+        return exec_oc_op(host, vm, request->u.oc_op);
+
+    case CS2VM_HOST_REQUEST_OC_IOP:
+        return exec_oc_op(host, vm, request->u.oc_iop);
+
+    case CS2VM_HOST_REQUEST_OC_EXAMINE:
+        return exec_oc_examine(host, vm, request->u.oc_examine);
+
+    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+        return exec_oc_placeholder(vm, request->u.oc_placeholder);
+
+    case CS2VM_HOST_REQUEST_OC_FIND:
+        return exec_oc_find(vm, request->u.oc_find);
+
+    case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
+        return exec_oc_shiftclickiop(vm, request->u.oc_shiftclickiop);
+
+    case CS2VM_HOST_REQUEST_OC_WEARPOS:
+        return exec_oc_wearpos(vm, request->u.oc_wearpos);
+
+    case CS2VM_HOST_REQUEST_OC_WEIGHT:
+        return exec_oc_weight(vm, request->u.oc_weight);
+
+    case CS2VM_HOST_REQUEST_OC_ISUBOP:
+        return exec_oc_isubop(vm, request->u.oc_isubop);
+
     case CS2VM_HOST_REQUEST_OC_PARAM:
         return exec_oc_param(host, vm, request->u.oc_param);
 
@@ -2448,6 +2864,54 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
+
+    case CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT:
+        host->cam_follow_height = request->u.cam_set_follow_height.height;
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT:
+        return CS2VM2_PushInt(vm, host->cam_follow_height);
+
+    case CS2VM_HOST_REQUEST_HIGHLIGHT:
+        /* HIGHLIGHT_* (7000..7037): no highlight-overlay system in this port yet.
+         * The request carries the opcode and its popped args (request->u.highlight)
+         * for when the host grows real entity/loc/obj highlight state; for now the
+         * GET queries answer "not highlighted" (0) and the rest are no-ops. */
+        if( request->u.highlight.query )
+            return CS2VM2_PushInt(vm, 0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_CLIENTOP:
+        /* CLIENTOP_* (6700..6709): no enhanced client-owned context-menu system
+         * yet. Args are already popped into request->u.clientop (slot / script_id
+         * / label); discard and continue so scripts wiring interface state do not
+         * abort. */
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_MINIMENU:
+        return exec_minimenu(host, vm, request->u.minimenu.opcode);
+
+    case CS2VM_HOST_REQUEST_CLIENT_OPTION:
+        return exec_client_option(host, vm, request->u.client_option);
+
+    case CS2VM_HOST_REQUEST_MINIMAP:
+        return exec_minimap(host, vm, request->u.minimap);
+
+    case CS2VM_HOST_REQUEST_LOGOUT:
+        host->logout_requested = true;
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_VIEWPORT:
+        return exec_viewport(host, vm, request->u.viewport);
+
+    case CS2VM_HOST_REQUEST_UIZOOM:
+        return exec_uizoom(host, vm, request->u.uizoom);
+
+    case CS2VM_HOST_REQUEST_SAFEAREA:
+        return exec_safearea(vm, request->u.safearea);
+
+    case CS2VM_HOST_REQUEST_CAM_GETYAW:
+        return CS2VM2_PushInt(vm, host->cam_yaw);
 
     case CS2VM_HOST_REQUEST_WORLDMAP:
         return exec_worldmap(host, vm, request->u.worldmap);
@@ -2951,6 +3415,14 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_op_submenu.op_index,
                 request->u.if_set_op_submenu.sub_index,
                 request->u.if_set_op_submenu.text);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU:
+        if( tree )
+            (void)UITree_ClearOpSubmenu(
+                tree,
+                request->u.if_clear_op_submenu.component_id,
+                request->u.if_clear_op_submenu.op_index);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:

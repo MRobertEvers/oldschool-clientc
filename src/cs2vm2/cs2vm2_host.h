@@ -123,11 +123,40 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETOPSUBMENU,
     CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY,
     CS2VM_HOST_REQUEST_IF_CLEAROPS,
+    /* Clear submenuActions[opIndex] for one op slot (CC/IF_CLEAROPSUBMENU). */
+    CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU,
     CS2VM_HOST_REQUEST_IF_SETOBJECT,
     // OC Object config
     CS2VM_HOST_REQUEST_OC_PARAM,
     CS2VM_HOST_REQUEST_OC_NAME,
     CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
+    /* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot
+     * (the slot is the opcode's baked-in operand, carried as op_index below).
+     * Real data (ToriRS_Objtype.ground_actions/inv_actions). */
+    CS2VM_HOST_REQUEST_OC_OP,
+    CS2VM_HOST_REQUEST_OC_IOP,
+    /* OC_EXAMINE: real data (ToriRS_Objtype.desc). */
+    CS2VM_HOST_REQUEST_OC_EXAMINE,
+    /* OC_PLACEHOLDER: the reverse of OC_UNPLACEHOLDER (real item -> placeholder
+     * id). No placeholder linkage exists on ToriRS_Objtype, so — like
+     * OC_UNPLACEHOLDER already does — this is an identity passthrough stub. */
+    CS2VM_HOST_REQUEST_OC_PLACEHOLDER,
+    /* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item search iterator. No
+     * backing search index exists in this port, so all three answer "not
+     * found" (-1); carries the opcode to distinguish which one fired. */
+    CS2VM_HOST_REQUEST_OC_FIND,
+    /* OC_SHIFTCLICKIOP: default shift-click op index for an item. No per-item
+     * preference data exists, so this stubs to -1 (no default). */
+    CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP,
+    /* OC_WEARPOS/WEARPOS2/WEARPOS3: equip slot(s) an item occupies. No equip
+     * slot data exists on ToriRS_Objtype, so this stubs to -1 (not equippable);
+     * carries the opcode to distinguish which slot is being asked about. */
+    CS2VM_HOST_REQUEST_OC_WEARPOS,
+    /* OC_WEIGHT: no weight data exists on ToriRS_Objtype, so this stubs to 0. */
+    CS2VM_HOST_REQUEST_OC_WEIGHT,
+    /* OC_ISUBOP: sub-op string under an inventory op slot. No sub-menu nesting
+     * exists on ToriRS_Objtype, so this stubs to "". */
+    CS2VM_HOST_REQUEST_OC_ISUBOP,
     CS2VM_HOST_REQUEST_PARAHEIGHT,
     CS2VM_HOST_REQUEST_IF_SETON_DISCARD,
     CS2VM_HOST_REQUEST_CC_SETON_DISCARD,
@@ -164,6 +193,63 @@ enum CS2VM_HostRequestKind
      * forty request kinds would only spread one switch across three files. */
     CS2VM_HOST_REQUEST_WORLDMAP,
     CS2VM_HOST_REQUEST_MEC,
+
+    /* Camera follow-height get/set (CAM_SETFOLLOWHEIGHT / CAM_GETFOLLOWHEIGHT).
+     * The height at which the follow camera trails the player; the host owns the
+     * value so a script can set it and read it back. */
+    CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT,
+    CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT,
+
+    /* The whole HIGHLIGHT_* family (7000..7037: NPC / LOC / OBJ / PLAYER / TILE
+     * entity-outline highlighting) goes through one kind, like WORLDMAP/MEC —
+     * they share one highlight-state object the host will eventually own, so per
+     * subject kinds would only spread one switch across files. The payload
+     * carries the opcode and its popped args; `query` GET variants push a bool. */
+    CS2VM_HOST_REQUEST_HIGHLIGHT,
+
+    /* The MINIMENU_* mouseover / right-click-menu query family (7100..7110), one
+     * kind carrying the opcode like WORLDMAP. All are no-arg getters that read
+     * the current hovered target + menu-open state; the host pushes each op's
+     * result (an int, or the two strings of MINIMENU_ENTRY). */
+    CS2VM_HOST_REQUEST_MINIMENU,
+
+    /* Audio-volume and client/game/device option get/set (3203..3217), one kind
+     * carrying the opcode + option id + value. The host owns the values (like
+     * CAM_*FOLLOWHEIGHT) and pushes the getters' results. */
+    CS2VM_HOST_REQUEST_CLIENT_OPTION,
+
+    /* Minimap zoom controls (7250..7254), one kind carrying the opcode + value.
+     * The host owns the zoom so SETZOOM round-trips through GETZOOM. */
+    CS2VM_HOST_REQUEST_MINIMAP,
+
+    /* LOGOUT (5630): no payload, no return value. The client has no logout flow
+     * wired up yet, so the host just records the request (see
+     * RS_CS2Host.logout_requested) for whatever drives the actual disconnect. */
+    CS2VM_HOST_REQUEST_LOGOUT,
+
+    /* Viewport FOV/zoom get/set/clamp (6200..6205), one kind carrying the opcode
+     * and its popped args. The host owns both values so a SET/CLAMP round-trips
+     * through the matching GET (like CAM_*FOLLOWHEIGHT). */
+    CS2VM_HOST_REQUEST_VIEWPORT,
+
+    /* UI zoom get/set/reset/default (6210..6214), one kind carrying the opcode +
+     * value. The host owns the current zoom; GETDEFAULT answers a fixed
+     * constant without touching it. */
+    CS2VM_HOST_REQUEST_UIZOOM,
+
+    /* Safe-area bounds (6220..6223, 6231), one kind carrying the opcode. No
+     * payload beyond that — the host answers from the live canvas size. */
+    CS2VM_HOST_REQUEST_SAFEAREA,
+
+    /* CAM_GETYAW: no payload, no setter in this range. Same situation as
+     * CAM_*FOLLOWHEIGHT — the host owns the value, but nothing writes it yet
+     * (no live link to the render-side camera from RS_CS2Host). */
+    CS2VM_HOST_REQUEST_CAM_GETYAW,
+
+    /* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
+     * ops on an NPC/LOC/OBJ/PLAYER/TILE slot. One kind carrying the opcode +
+     * popped args; the host stubs them until an enhanced-menu system exists. */
+    CS2VM_HOST_REQUEST_CLIENTOP,
 };
 
 enum CS2VM_OC_IntField
@@ -420,6 +506,12 @@ struct CS2VM_HostRequest_IF_ClearOps
     int component_id;
 };
 
+struct CS2VM_HostRequest_IF_ClearOpSubmenu
+{
+    int component_id;
+    int op_index; /* 1-based */
+};
+
 struct CS2VM_HostRequest_IF_SetOp
 {
     int component_id;
@@ -599,6 +691,40 @@ struct CS2VM_HostRequest_OC_Unplaceholder
     int item_id;
 };
 
+/** OC_OP/OC_IOP shared payload. `opcode` distinguishes ground vs inventory;
+ *  `op_index` is the menu slot (0..4), carried in from the opcode's baked-in
+ *  operand rather than popped off the stack. */
+struct CS2VM_HostRequest_OC_Op
+{
+    int opcode;
+    int item_id;
+    int op_index;
+};
+
+/** OC_FIND/OC_FINDNEXT/OC_FINDRESET shared payload. `opcode` distinguishes
+ *  which of the three fired; `arg` is its one popped int. */
+struct CS2VM_HostRequest_OC_Find
+{
+    int opcode;
+    int arg;
+};
+
+/** OC_WEARPOS/WEARPOS2/WEARPOS3 shared payload. `opcode` distinguishes which
+ *  slot is being asked about. */
+struct CS2VM_HostRequest_OC_WearPos
+{
+    int opcode;
+    int item_id;
+};
+
+/** oc_isubop(obj, opIndex, subIndex) -> string. */
+struct CS2VM_HostRequest_OC_Isubop
+{
+    int item_id;
+    int op_index;
+    int sub_index;
+};
+
 struct CS2VM_HostRequest_ParaHeight
 {
     int font_id;
@@ -620,6 +746,7 @@ enum CS2VM_WidgetIntField
     CS2VM_WIDGET_INT_NO_CLICK_THROUGH,
     CS2VM_WIDGET_INT_PINCH,
     CS2VM_WIDGET_INT_CLICKMASK,
+    CS2VM_WIDGET_INT_FORCE_LEFT_CLICK,
     CS2VM_WIDGET_INT_DRAG_DEAD_ZONE,
     CS2VM_WIDGET_INT_DRAG_DEAD_TIME,
     CS2VM_WIDGET_INT_MODEL_ANIM,
@@ -746,6 +873,84 @@ struct CS2VM_HostRequest_MEC
     int mec_id;
 };
 
+/** CAM_SETFOLLOWHEIGHT payload; the getter carries no args. */
+struct CS2VM_HostRequest_CamSetFollowHeight
+{
+    int height;
+};
+
+/** Any HIGHLIGHT_* opcode. `args` holds its popped int args in push order
+ *  (args[0] pushed first); the widest variant (NPC_SETUP / OBJTYPE_SETUP) pops
+ *  5. `query` marks the GET variants, which must push a bool result. */
+#define CS2VM_HIGHLIGHT_ARG_MAX 5
+struct CS2VM_HostRequest_Highlight
+{
+    int opcode;
+    int args[CS2VM_HIGHLIGHT_ARG_MAX];
+    int arg_count;
+    bool query;
+};
+
+/** Any MINIMENU_* opcode (7100..7110); they take no args, so only the opcode
+ *  distinguishes them. The host pushes the result. */
+struct CS2VM_HostRequest_Minimenu
+{
+    int opcode;
+};
+
+/** Any volume / *OPTION_* opcode (3203..3217). `option_id` is the option key for
+ *  the CLIENT/GAME/DEVICE families (0 for the direct volume ops); `value` is the
+ *  SET payload (unused by the getters). The host pushes getter results. */
+struct CS2VM_HostRequest_ClientOption
+{
+    int opcode;
+    int option_id;
+    int value;
+};
+
+/** Any minimap zoom opcode (7250..7254). `value` is the setters' popped arg
+ *  (unused by GETZOOM, which the host answers). */
+struct CS2VM_HostRequest_Minimap
+{
+    int opcode;
+    int value;
+};
+
+/** Any VIEWPORT_* opcode (6200..6205). `args` holds the popped ints in push
+ *  order (SETFOV/SETZOOM pop 2, CLAMPFOV pops 4, the GETs pop none). */
+#define CS2VM_VIEWPORT_ARG_MAX 4
+struct CS2VM_HostRequest_Viewport
+{
+    int opcode;
+    int args[CS2VM_VIEWPORT_ARG_MAX];
+    int arg_count;
+};
+
+/** Any UIZOOM_* opcode (6210..6214). `value` is UIZOOM_SET's popped arg (unused
+ *  by the others). */
+struct CS2VM_HostRequest_UiZoom
+{
+    int opcode;
+    int value;
+};
+
+/** Any SAFEAREA_* opcode (6220..6223, 6231); no args to carry. */
+struct CS2VM_HostRequest_SafeArea
+{
+    int opcode;
+};
+
+/** Any CLIENTOP_* opcode (6700..6709). SET carries slot + script_id + label;
+ *  DEL carries only slot (`is_set` false, label NULL, script_id unused). */
+struct CS2VM_HostRequest_ClientOp
+{
+    int opcode;
+    bool is_set;
+    int slot;
+    int script_id;
+    char* label;
+};
+
 struct CS2VM_HostRequest
 {
     enum CS2VM_HostRequestKind kind;
@@ -797,6 +1002,15 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_OC_Param oc_param;
         struct CS2VM_HostRequest_OC_Name oc_name;
         struct CS2VM_HostRequest_OC_Unplaceholder oc_unplaceholder;
+        struct CS2VM_HostRequest_OC_Op oc_op;
+        struct CS2VM_HostRequest_OC_Op oc_iop;
+        struct CS2VM_HostRequest_OC_Name oc_examine;
+        struct CS2VM_HostRequest_OC_Unplaceholder oc_placeholder;
+        struct CS2VM_HostRequest_OC_Find oc_find;
+        struct CS2VM_HostRequest_OC_Name oc_shiftclickiop;
+        struct CS2VM_HostRequest_OC_WearPos oc_wearpos;
+        struct CS2VM_HostRequest_OC_Name oc_weight;
+        struct CS2VM_HostRequest_OC_Isubop oc_isubop;
         struct CS2VM_HostRequest_ParaHeight para_height;
         struct CS2VM_HostRequest_IF_GetWidth if_get_width;
         struct CS2VM_HostRequest_IF_GetHeight if_get_height;
@@ -826,6 +1040,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetOpSubmenu if_set_op_submenu;
         struct CS2VM_HostRequest_IF_SetTargetPriority if_set_target_priority;
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
+        struct CS2VM_HostRequest_IF_ClearOpSubmenu if_clear_op_submenu;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;
         struct CS2VM_HostRequest_IF_SetScrollPos cc_set_scroll_pos;
         struct CS2VM_HostRequest_IF_SetScrollSize cc_set_scroll_size;
@@ -850,6 +1065,15 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_OC_IntParam oc_int_param;
         struct CS2VM_HostRequest_WorldMap worldmap;
         struct CS2VM_HostRequest_MEC mec;
+        struct CS2VM_HostRequest_CamSetFollowHeight cam_set_follow_height;
+        struct CS2VM_HostRequest_Highlight highlight;
+        struct CS2VM_HostRequest_Minimenu minimenu;
+        struct CS2VM_HostRequest_ClientOption client_option;
+        struct CS2VM_HostRequest_Minimap minimap;
+        struct CS2VM_HostRequest_Viewport viewport;
+        struct CS2VM_HostRequest_UiZoom uizoom;
+        struct CS2VM_HostRequest_SafeArea safearea;
+        struct CS2VM_HostRequest_ClientOp clientop;
     } u;
 };
 

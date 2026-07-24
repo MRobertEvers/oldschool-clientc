@@ -521,8 +521,49 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_CLEAROPS 1307
-#define CS2_OP__1308 1308
-#define CS2_OP__1309 1309
+/* CC_SETOPFORCELEFTCLICK — Force left-click to execute the op without opening the menu.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   flag
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: flag == 1 enables; any other value disables.
+ */
+#define CS2_OP_CC_SETOPFORCELEFTCLICK 1308
+/* CC_OP1309 — Client stub that discards one int.
+ * int stack in:   value
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_OP1309 1309
+/* CC_CLEAROPSUBMENU — Clear submenu entries for one op slot.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   op_index
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: op_index is 1-based (1..10).
+ */
+#define CS2_OP_CC_CLEAROPSUBMENU 1310
+/* CC_SETOPSUBMENU — Set a submenu entry label.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   op_index, sub_index  (sub_index = top)
+ * str stack in:   text
+ * int stack out:  -
+ * str stack out:  -
+ * notes: op_index and sub_index are 1-based in script.
+ */
+#define CS2_OP_CC_SETOPSUBMENU 1311
+/* CC_SETTARGETPRIORITY — Set target priority.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   priority
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: -1 resets to 4; 1..32 stores value-1.
+ */
+#define CS2_OP_CC_SETTARGETPRIORITY 1312
 /* CC_SETOPKEY — Bind up to 5 (keychar, keycode) pairs to an op slot on the active child.
  * int stack in:   opindex, k0_char, k0_code, k1_char, k1_code, k2_char, k2_code, k3_char, k3_code, k4_char, k4_code
  * str stack in:   -
@@ -681,6 +722,12 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
+/* More SETON* listeners with no runtime model yet — signature-driven operand
+ * counts, so they are dispatched to the parse-and-discard helper like the rest
+ * of the family (see the CC_SETON* discard group in cs2vm2.c). */
+#define CS2_OP_CC_SETONITEMONITEM 1430
+#define CS2_OP_CC_SETONCLANSETTINGS 1431
+#define CS2_OP_CC_SETONMAPPOST 1433
 
 /*
  * Input-field (widget type 16) listeners. Signature-driven operand counts like
@@ -1140,7 +1187,13 @@
  */
 #define CS2_OP_IF_CLEAROPS 2307
 #define CS2_OP__2308 2308
-#define CS2_OP__2309 2309
+/* IF_OP2309 — Client stub: pop component + one int and discard.
+ * int stack in:   value, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_OP2309 2309
 /* IF_SETOPSUBMENU — Set op submenu label.
  * int stack in:   op_index, sub_index, component  (component = top)
  * str stack in:   text                          
