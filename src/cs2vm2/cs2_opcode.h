@@ -1512,6 +1512,43 @@
 #define CS2_OP_GETREMEMBERUSERNAME 3144
 #define CS2_OP_SHOW_IOS_REVIEW 3145
 #define CS2_OP__3157 3157
+/*
+ * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
+ * table, which has nothing between 3157 and 3181. Desktop has no notification
+ * centre, so the host stubs the whole family: scheduling is a no-op and
+ * SUPPORTED answers 0, which is what the scripts branch on.
+ */
+/* LOCAL_NOTIFICATION — Schedule a local notification.
+ * int stack in:   id, delay_ms
+ * str stack in:   title, body
+ * int stack out:  handle
+ * str stack out:  -
+ * notes: pushes a handle for LOCAL_NOTIFICATION_CANCEL. script 5360
+ *        (proc,local_notification) POP_INT_LOCALs it straight after the call, so
+ *        the push is required or that store underflows.
+ */
+#define CS2_OP_LOCAL_NOTIFICATION 3170
+/* LOCAL_NOTIFICATION_CANCEL — Cancel one scheduled notification.
+ * int stack in:   handle
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_LOCAL_NOTIFICATION_CANCEL 3171
+/* LOCAL_NOTIFICATION_CANCELALL — Cancel every scheduled notification.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_LOCAL_NOTIFICATION_CANCELALL 3172
+/* LOCAL_NOTIFICATION_SUPPORTED — Are local notifications available?
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  supported
+ * str stack out:  -
+ */
+#define CS2_OP_LOCAL_NOTIFICATION_SUPPORTED 3173
 #define CS2_OP_SETBRIGHTNESS 3181
 #define CS2_OP_GETBRIGHTNESS 3182
 #define CS2_OP_SETANTIDRAG 3183
@@ -1946,6 +1983,15 @@
  */
 #define CS2_OP_PARAWIDTH 4109
 #define CS2_OP_TEXT_SWITCH 4110
+/* ESCAPE — Neutralise markup so the text renders literally.
+ * int stack in:   -
+ * str stack in:   text
+ * int stack out:  -
+ * str stack out:  escaped text
+ * notes: '<' -> "<lt>", '>' -> "<gt>" — the escapes ToriDraw_Font decodes back.
+ *        Scripts call this before showing player-supplied text so it cannot
+ *        inject <col=...>/<img=...> formatting.
+ */
 #define CS2_OP_ESCAPE 4111
 /* APPEND_CHAR — Append char.
  * int stack in:   ch         
@@ -1954,9 +2000,35 @@
  * str stack out:  dest + char
  */
 #define CS2_OP_APPEND_CHAR 4112
+/* CHAR_ISPRINTABLE — Can this character code be drawn?
+ * int stack in:   char
+ * str stack in:   -
+ * int stack out:  bool
+ * str stack out:  -
+ * notes: printable ASCII + Latin-1 supplement, plus the cp1252 stragglers
+ *        (euro, OE/oe, em dash, Y-diaeresis). Filters keyboard input.
+ */
 #define CS2_OP_CHAR_ISPRINTABLE 4113
+/* CHAR_ISALPHANUMERIC — ASCII letter or digit?
+ * int stack in:   char
+ * str stack in:   -
+ * int stack out:  bool
+ * str stack out:  -
+ */
 #define CS2_OP_CHAR_ISALPHANUMERIC 4114
+/* CHAR_ISALPHA — ASCII letter?
+ * int stack in:   char
+ * str stack in:   -
+ * int stack out:  bool
+ * str stack out:  -
+ */
 #define CS2_OP_CHAR_ISALPHA 4115
+/* CHAR_ISNUMERIC — ASCII digit?
+ * int stack in:   char
+ * str stack in:   -
+ * int stack out:  bool
+ * str stack out:  -
+ */
 #define CS2_OP_CHAR_ISNUMERIC 4116
 /* STRING_LENGTH — String length.
  * int stack in:   -     
@@ -1969,6 +2041,13 @@
 #define CS2_OP_REMOVETAGS 4119
 #define CS2_OP_STRING_INDEXOF_CHAR 4120
 #define CS2_OP_STRING_INDEXOF_STRING 4121
+/* UPPERCASE — ASCII-uppercase a string.
+ * int stack in:   -
+ * str stack in:   text
+ * int stack out:  -
+ * str stack out:  uppercased text
+ */
+#define CS2_OP_UPPERCASE 4122
 #define CS2_OP_OC_NAME 4200
 #define CS2_OP_OC_OP 4201
 #define CS2_OP_OC_IOP 4202

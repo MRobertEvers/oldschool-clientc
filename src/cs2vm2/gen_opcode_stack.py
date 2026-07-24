@@ -112,7 +112,63 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
     # arg and underflowed, aborting the friends-list builder (script 125).
     3600: (0, 0, 1, 0),  # FRIEND_COUNT: no args -> 1 int
+    # Same class as FRIEND_COUNT: the CLAN_*/FRIEND_*/IGNORE_* name heuristic
+    # assumes an index argument, which is right for the per-entry getters
+    # (CLAN_GETCHATUSERNAME(idx) etc.) but wrong for these whole-channel ones.
+    # They pop an argument that was never pushed, underflow, and abort the panel
+    # (clan sidepanel script 1658 died on CLAN_GETCHATCOUNT).
+    3611: (0, 0, 0, 1),  # CLAN_GETCHATDISPLAYNAME: no args -> channel name
+    3612: (0, 0, 1, 0),  # CLAN_GETCHATCOUNT: no args -> member count
+    3616: (0, 0, 1, 0),  # CLAN_GETCHATMINKICK: no args -> min rank to kick
+    3618: (0, 0, 1, 0),  # CLAN_GETCHATRANK: no args -> own rank
+    3620: (0, 0, 0, 0),  # CLAN_LEAVECHAT: no args, no result
+    3625: (0, 0, 0, 1),  # CLAN_GETCHATOWNERNAME: no args -> owner name
+    3621: (0, 0, 1, 0),  # IGNORE_COUNT: no args -> ignore count
+    3623: (0, 1, 1, 0),  # IGNORE_TEST(name) -> bool (string arg, not an index)
     2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
+    # Sort-builder families for the friend / ignore / clan lists (3628..3657).
+    # These build a sort spec imperatively: CLEAR, then one ADD_* per key (each
+    # taking a single "descending?" flag), then APPLY. The panels that use them
+    # are the friends, clan and account tabs, so with no signature the clan tab
+    # asserted the moment it mounted (CLAN_SORT_CLEAR 3644, script 1658). No host
+    # state backs them yet — the ordering the list ends up in is simply whatever
+    # the underlying enumeration gives.
+    3628: (0, 0, 0, 0),  # FRIEND_SORT_CLEAR
+    3629: (1, 0, 0, 0),  # FRIEND_SORT_ADD_NAME(desc)
+    3630: (1, 0, 0, 0),  # FRIEND_SORT_ADD_WORLD(desc)
+    3631: (1, 0, 0, 0),  # FRIEND_SORT_ADD_RANK(desc)
+    3632: (1, 0, 0, 0),  # FRIEND_SORT_ADD_NAME_LEGACY(desc)
+    3633: (1, 0, 0, 0),  # FRIEND_SORT_ADD_5(desc)
+    3634: (1, 0, 0, 0),  # FRIEND_SORT_ADD_6(desc)
+    3635: (1, 0, 0, 0),  # FRIEND_SORT_ADD_7(desc)
+    3636: (1, 0, 0, 0),  # FRIEND_SORT_ADD_8(desc)
+    3637: (1, 0, 0, 0),  # FRIEND_SORT_ADD_9(desc)
+    3638: (1, 0, 0, 0),  # FRIEND_SORT_ADD_10(desc)
+    3639: (0, 0, 0, 0),  # FRIEND_SORT_APPLY
+    3640: (0, 0, 0, 0),  # IGNORE_SORT_CLEAR
+    3641: (1, 0, 0, 0),  # IGNORE_SORT_ADD_NAME(desc)
+    3642: (1, 0, 0, 0),  # IGNORE_SORT_ADD_2(desc)
+    3643: (0, 0, 0, 0),  # IGNORE_SORT_APPLY
+    3644: (0, 0, 0, 0),  # CLAN_SORT_CLEAR
+    3645: (1, 0, 0, 0),  # CLAN_SORT_ADD_NAME(desc)
+    3646: (1, 0, 0, 0),  # CLAN_SORT_ADD_RANK(desc)
+    3647: (1, 0, 0, 0),  # CLAN_SORT_ADD_WORLD(desc)
+    # 3648..3654 continue the same ADD run (the vendored name list stops early).
+    # 3648 and 3655 are confirmed directly from script 1658's bytecode -- it does
+    # `PUSH_CONSTANT_INT 1; _3648` (one flag) and then a bare `_3655` (the apply).
+    # The rest are inferred from their position in the run; a wrong guess is loud
+    # rather than silent (the stub underflows and names the opcode), and leaving
+    # them unsigned asserts anyway.
+    3648: (1, 0, 0, 0),  # CLAN_SORT_ADD_* (confirmed: pops one flag)
+    3649: (1, 0, 0, 0),
+    3650: (1, 0, 0, 0),
+    3651: (1, 0, 0, 0),
+    3652: (1, 0, 0, 0),
+    3653: (1, 0, 0, 0),
+    3654: (1, 0, 0, 0),  # FRIENDSCHAT_SORT_ADD(desc)
+    3655: (0, 0, 0, 0),  # FRIENDSCHAT_SORT apply (confirmed: no args)
+    3656: (0, 0, 0, 0),  # CLAN_SORT_APPLY
+    3657: (1, 0, 0, 0),  # FRIENDSCHAT_SORT_ADD_RANK(desc)
     # LOGOUT: no args, no return -- triggers the client's logout flow (a request
     # kind the host just flags, since nothing drives an actual disconnect yet).
     5630: (0, 0, 0, 0),

@@ -8,6 +8,40 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Append `child_index` to `parent_index`'s sibling list. The parent's
+ * last_child_hint short-circuits the walk to the tail; it is only trusted when
+ * it still looks like a live last child of this parent (and is not the node
+ * being linked, which a recycled slot can make it), so a stale hint costs one
+ * validation and falls back to the walk. */
+static void
+uitree_append_child(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t child_index)
+{
+    struct UITreeComponent* parent = &tree->components[parent_index];
+    if( parent->first_child < 0 )
+    {
+        parent->first_child = child_index;
+        parent->last_child_hint = child_index;
+        return;
+    }
+
+    int32_t walk = parent->last_child_hint;
+    if( walk < 0 || (uint32_t)walk >= tree->component_count || walk == child_index ||
+        tree->components[walk].freed || tree->components[walk].parent != parent_index ||
+        tree->components[walk].next_sibling >= 0 )
+    {
+        walk = parent->first_child;
+        while( tree->components[walk].next_sibling >= 0 )
+            walk = tree->components[walk].next_sibling;
+    }
+    if( walk == child_index )
+        return; /* already the tail */
+    tree->components[walk].next_sibling = child_index;
+    parent->last_child_hint = child_index;
+}
+
 static int32_t
 link_under_parent(
     struct UITree* tree,
@@ -43,31 +77,21 @@ link_under_parent(
         else
         {
             int32_t walk = tree->last_root_index;
-            if( walk < 0 || (uint32_t)walk >= tree->component_count ||
+            if( walk < 0 || (uint32_t)walk >= tree->component_count || walk == new_index ||
                 tree->components[walk].parent >= 0 )
             {
                 walk = tree->root_index;
                 while( tree->components[walk].next_sibling >= 0 )
                     walk = tree->components[walk].next_sibling;
             }
-            tree->components[walk].next_sibling = new_index;
+            if( walk != new_index )
+                tree->components[walk].next_sibling = new_index;
             tree->last_root_index = new_index;
         }
         return new_index;
     }
 
-    struct UITreeComponent* p = &tree->components[parent_index];
-    if( p->first_child < 0 )
-    {
-        p->first_child = new_index;
-    }
-    else
-    {
-        int32_t walk = p->first_child;
-        while( tree->components[walk].next_sibling >= 0 )
-            walk = tree->components[walk].next_sibling;
-        tree->components[walk].next_sibling = new_index;
-    }
+    uitree_append_child(tree, parent_index, new_index);
     return new_index;
 }
 
@@ -118,6 +142,7 @@ push_element_unlinked(struct UITree* tree)
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;
+    component->last_child_hint = -1;
     component->free_next = -1;
     component->component_id = -1;
     component->behavior.over_layer_id = -1;
@@ -316,19 +341,8 @@ UITree_Reparent(
     }
     else
     {
-        struct UITreeComponent* p = &tree->components[new_parent_index];
-        if( p->first_child < 0 )
-        {
-            p->first_child = child_index;
-        }
-        else
-        {
-            int32_t walk = p->first_child;
-            while( tree->components[walk].next_sibling >= 0 )
-                walk = tree->components[walk].next_sibling;
-            tree->components[walk].next_sibling = child_index;
-        }
-        p->is_dirty = 1;
+        uitree_append_child(tree, new_parent_index, child_index);
+        tree->components[new_parent_index].is_dirty = 1;
     }
     tree->generation++;
 }
@@ -462,6 +476,7 @@ uitree_reclaim_subtree(
     c->parent = -1;
     c->first_child = -1;
     c->next_sibling = -1;
+    c->last_child_hint = -1;
     c->component_id = -1;
     c->freed = 1;
     c->free_next = tree->free_head;
@@ -579,9 +594,11 @@ uitree_id_hash(int component_id)
 }
 
 /* Insert (or resolve a tie for) one component into the open-addressed map.
- * Entries are inserted in ascending array-index order, so the linear-scan
- * winner is reproduced by: a dynamic node replaces a stored non-dynamic node;
- * otherwise the first-stored entry (lowest index of its class) wins. */
+ * Reproduces the linear scan's winner for an id: a dynamic node beats a
+ * non-dynamic one, and within a class the lowest array index wins. The rule is
+ * stated in terms of the two candidates rather than insertion order, because
+ * incremental inserts (UITree_Push reusing a free-list slot) do not arrive in
+ * ascending index order the way a full rebuild's sweep does. */
 static void
 uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
 {
@@ -599,7 +616,9 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
         if( k == component_id )
         {
             int32_t const cur = tree->id_index_vals[h];
-            if( tree->components[idx].dynamic && !tree->components[cur].dynamic )
+            int const new_dyn = tree->components[idx].dynamic ? 1 : 0;
+            int const cur_dyn = tree->components[cur].dynamic ? 1 : 0;
+            if( new_dyn != cur_dyn ? new_dyn : idx < cur )
                 tree->id_index_vals[h] = idx;
             return;
         }
@@ -643,6 +662,31 @@ UITree_RebuildIdIndex(struct UITree* tree)
     tree->id_index_gen = tree->id_generation;
     tree->id_index_valid = 1;
     return true;
+}
+
+/* Record that `idx` just had its component_id assigned (UITree_Push). Bumps
+ * id_generation and, when the map is currently in step with it and has room,
+ * folds the new id in so the map stays usable — otherwise the bump alone leaves
+ * it stale and the next lookup rebuilds. Must be called after component_id and
+ * `dynamic` are both set, since the tie-break reads both. */
+static void
+uitree_id_index_note_added(struct UITree* tree, int32_t idx)
+{
+    bool const in_step = tree->id_index_valid && tree->id_index_gen == tree->id_generation;
+    tree->id_generation++;
+    if( !in_step )
+        return;
+
+    int const id = tree->components[idx].component_id;
+    /* Keep load factor <= 0.5; growing means rehashing, so leave that to the
+     * next lookup's rebuild (which also picks the new capacity). */
+    if( id >= 0 )
+    {
+        if( tree->id_index_cap < tree->component_count * 2u )
+            return;
+        uitree_id_index_put(tree, id, idx);
+    }
+    tree->id_index_gen = tree->id_generation;
 }
 
 int32_t
@@ -868,8 +912,8 @@ UITree_Push(
     struct UITreeComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->component_id = spec->component_id;
-    tree->id_generation++;
     component->dynamic = spec->dynamic ? 1 : 0;
+    uitree_id_index_note_added(tree, idx);
     component->dynamic_child_index = spec->dynamic ? spec->dynamic_child_index : -1;
     component->menu_options = spec->menu_options;
     component->slot_tag = spec->slot_tag;
@@ -1132,6 +1176,7 @@ UITree_ClearChildren(
         }
     }
     c->first_child = -1;
+    c->last_child_hint = -1;
     c->is_dirty = 1;
     tree->generation++;
 }

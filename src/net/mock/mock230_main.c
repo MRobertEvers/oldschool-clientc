@@ -210,19 +210,25 @@ static uint8_t g_body[8192];
 /* RSProt Jagex byte-order alt transforms (see JagexByteBufExtensions.kt). We
  * only have big-endian p1/p2/p4 in rsbuffer, so spell the alts out by byte. */
 static void
-p2alt1(struct RSCache_Buffer* b, int v) /* writeByte(v); writeByte(v>>8) : [lo,hi] */
+p2alt1(
+    struct RSCache_Buffer* b,
+    int v) /* writeByte(v); writeByte(v>>8) : [lo,hi] */
 {
     p1(b, v & 0xff);
     p1(b, (v >> 8) & 0xff);
 }
 static void
-p2alt2(struct RSCache_Buffer* b, int v) /* writeByte(v>>8); writeByte(v+128) : [hi,lo+128] */
+p2alt2(
+    struct RSCache_Buffer* b,
+    int v) /* writeByte(v>>8); writeByte(v+128) : [hi,lo+128] */
 {
     p1(b, (v >> 8) & 0xff);
     p1(b, (v + 128) & 0xff);
 }
 static void
-p4alt1(struct RSCache_Buffer* b, int v) /* writeIntLE : [b0,b1,b2,b3] */
+p4alt1(
+    struct RSCache_Buffer* b,
+    int v) /* writeIntLE : [b0,b1,b2,b3] */
 {
     p1(b, v & 0xff);
     p1(b, (v >> 8) & 0xff);
@@ -230,7 +236,9 @@ p4alt1(struct RSCache_Buffer* b, int v) /* writeIntLE : [b0,b1,b2,b3] */
     p1(b, (v >> 24) & 0xff);
 }
 static void
-p4alt3(struct RSCache_Buffer* b, int v) /* [b2,b3,b0,b1] : (v>>16),(v>>24),v,(v>>8) */
+p4alt3(
+    struct RSCache_Buffer* b,
+    int v) /* [b2,b3,b0,b1] : (v>>16),(v>>24),v,(v>>8) */
 {
     p1(b, (v >> 16) & 0xff);
     p1(b, (v >> 24) & 0xff);
@@ -475,20 +483,61 @@ send_login_burst(
      *    (overlay), matching the display-burst mounts Kronos sends. */
     send_if_opentop(fd, enc, 161);
 
-    /* {sidebar-tab index (0=combat..13=music) -> panel interface archive}. */
+    /* {sidebar-tab index (0=combat..13=music) -> panel interface archive}.
+     *
+     * All 14 slots must be sent: the gameframe shows a tab's icon and stone only
+     * when if_hassub() reports something mounted in its slot (see
+     * [proc,toplevel_sidebuttons_enable]), so a slot we never open is a tab that
+     * simply does not exist on screen — no varbit gates them. Slots 83/84/86 were
+     * missing, which is exactly why the clan, account and logout tabs never
+     * appeared.
+     *
+     * Group ids are the rev-230 set. Two were previously wrong: 78 was 720, which
+     * is a *warning/confirmation dialogue* interface ("Warning!", "Be careful!
+     * It doesn't...") and not the quest journal at all — that is why the quest tab
+     * rendered unrelated content; and 87 was 261, a 3-file stub, where rev 230
+     * puts the real 141-file settings interface at 116. */
     static const struct
     {
-        int slot; /* 161 tab-content component id */
+        int slot;  /* 161 tab-content component id */
         int group; /* panel interface archive */
         const char* name;
     } tabs[] = {
-        { 76, 593, "combat" }, { 77, 320, "stats" },     { 78, 720, "quest" },
-        { 79, 149, "inventory" }, { 80, 387, "equipment" }, { 81, 541, "prayer" },
-        { 82, 218, "magic" },  { 85, 429, "friends" },   { 87, 261, "settings" },
-        { 88, 216, "emotes" }, { 89, 239, "music" },
+        { 76, 593, "combat"    },
+        { 77, 320, "stats"     },
+        { 78, 629, "quest"     },
+        { 79, 149, "inventory" },
+        { 80, 387, "equipment" },
+        { 81, 541, "prayer"    },
+        { 82, 218, "magic"     },
+        { 83, 7,   "clan"      },
+        { 84, 109, "account"   },
+        { 85, 429, "friends"   },
+        { 86, 182, "logout"    },
+        { 87, 116, "settings"  },
+        { 88, 216, "emotes"    },
+        { 89, 239, "music"     },
     };
     for( size_t i = 0; i < sizeof(tabs) / sizeof(tabs[0]); i++ )
         send_if_opensub(fd, enc, 161, tabs[i].slot, tabs[i].group, 1);
+
+    /* 2b. TODO(quest journal): 629 is only a tab strip plus an EMPTY content
+     *     container at 629|43 — the journal body is a separate interface and the
+     *     CS2 never mounts it (script 2800, the tab switcher, only swaps the
+     *     tab-button sprites), so the server owns that mount:
+     *
+     *         send_if_opensub(fd, enc, 629, 43, 399, 1);
+     *         send_varp_small(fd, enc, 1141, 1 << 4);  // varbit 8168 = 1
+     *
+     *     Sub-tab -> content group: 0=712 summary, 1=399 quest list, 2=259
+     *     diaries, 3=187 paths, 4=656 leagues; the selector is varbit 8168 =
+     *     varp 1141 bits 4..6, whose unset value 0 means "character summary".
+     *
+     *     Left disabled for now because it does not render yet and it trips a
+     *     stack overflow in the quest-list builder (script 1352 via 1350). Root
+     *     cause to chase first: the client resolves 629|0 to 500x1 at x=724
+     *     (off-screen) where the cache has 765x503 — the panel geometry is being
+     *     mis-resolved, so mounting the body into it cannot work regardless. */
 
     /* 3. Access mask (IF_SETEVENTS) — unlock inventory slot clicks. The inventory
      *    container component lives inside interface 149. */
@@ -514,7 +563,7 @@ send_login_burst(
 
     /* 7. All 23 skills at level 1. */
     for( int skill = 0; skill < 23; skill++ )
-        send_stat(fd, enc, skill, 1, 0);
+        send_stat(fd, enc, skill, 1, 121);
 
     /* 8. Welcome message. */
     send_message_game(fd, enc, "Welcome to the mock 230 world.");

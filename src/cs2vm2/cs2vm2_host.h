@@ -223,6 +223,11 @@ enum CS2VM_HostRequestKind
      * The host owns the zoom so SETZOOM round-trips through GETZOOM. */
     CS2VM_HOST_REQUEST_MINIMAP,
 
+    /* Mobile local notifications (3170..3173), one kind carrying the opcode plus
+     * the scheduling payload. Desktop has no notification centre, so the host
+     * stubs the family (see exec_local_notification). */
+    CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION,
+
     /* LOGOUT (5630): no payload, no return value. The client has no logout flow
      * wired up yet, so the host just records the request (see
      * RS_CS2Host.logout_requested) for whatever drives the actual disconnect. */
@@ -940,6 +945,18 @@ struct CS2VM_HostRequest_Minimap
     int value;
 };
 
+/** Any local-notification opcode (3170..3173). Only LOCAL_NOTIFICATION fills the
+ *  payload; CANCEL uses `id` alone, and CANCELALL/SUPPORTED carry nothing. The
+ *  strings are borrowed for the duration of the call — the op frees them. */
+struct CS2VM_HostRequest_LocalNotification
+{
+    int opcode;
+    int id;
+    int delay_ms;
+    char const* title;
+    char const* body;
+};
+
 /** Any VIEWPORT_* opcode (6200..6205). `args` holds the popped ints in push
  *  order (SETFOV/SETZOOM pop 2, CLAMPFOV pops 4, the GETs pop none). */
 #define CS2VM_VIEWPORT_ARG_MAX 4
@@ -1095,6 +1112,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_Minimenu minimenu;
         struct CS2VM_HostRequest_ClientOption client_option;
         struct CS2VM_HostRequest_Minimap minimap;
+        struct CS2VM_HostRequest_LocalNotification local_notification;
         struct CS2VM_HostRequest_Viewport viewport;
         struct CS2VM_HostRequest_UiZoom uizoom;
         struct CS2VM_HostRequest_SafeArea safearea;

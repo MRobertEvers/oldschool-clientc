@@ -312,6 +312,12 @@ struct UITreeComponent
     int32_t parent;
     int32_t first_child;
     int32_t next_sibling;
+    /** Hint at the tail of `first_child`'s sibling list, so appending a child is
+     *  O(1) instead of walking the list (cc_create fills a container one child at
+     *  a time, which is quadratic in the child count). Never trusted blindly —
+     *  only used when it still looks like this node's last child, exactly like
+     *  UITree::last_root_index; any mutation may leave it stale. */
+    int32_t last_child_hint;
     int component_id;
     uint8_t dynamic;
     int dynamic_child_index;
@@ -529,8 +535,16 @@ struct UITree
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
-     *  power-of-two, load factor <= 0.5. Rebuilt whenever `id_generation` changes.
-     *  Preserves the dynamic-wins / lowest-index tie-break of the linear scan. */
+     *  power-of-two, load factor <= 0.5. Preserves the dynamic-wins /
+     *  lowest-index tie-break of the linear scan.
+     *
+     *  A full rebuild is O(component_count), so it must not run per mutation:
+     *  UITree_Push inserts the new id incrementally (keeping `id_index_gen` in
+     *  step with `id_generation`) and only a reclaim — which cannot be undone in
+     *  an open-addressed table without rescanning for a replacement winner —
+     *  leaves the map stale for the next lookup to rebuild. Without that,
+     *  cc_create's uid allocation rebuilt the whole map on every widget it made,
+     *  which is quadratic in the tree size (~45% of frame time on rev230). */
     int32_t* id_index_keys; /* component_id per slot, -1 = empty */
     int32_t* id_index_vals; /* winning component index for that id */
     uint32_t id_index_cap;  /* slot count (power of two, 0 = unallocated) */

@@ -165,6 +165,30 @@ main(void)
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 4, "DB_GETFIELDCOUNT(row0,col23) == 4");
 
+    /* DB_GETFIELD must push even when nothing resolves — it pops three args and
+     * the caller's next opcode reads its result, so skipping the push underflows
+     * some later, unrelated opcode (this aborted script 4029 on the live server).
+     * An absent column and an out-of-range index both answer the default. */
+    {
+        int before = t->ints_stack_top;
+
+        CS2VM2_PushInt(t, 0);
+        CS2VM2_PushInt(t, pack_col(0, 250, 0)); /* column id the row does not list */
+        CS2VM2_PushInt(t, 0);
+        call_db(t, CS2_OP_DB_GETFIELD);
+        CHECK(t->ints_stack_top == before + 1, "DB_GETFIELD(absent column) still pushes");
+        CS2VM2_PopInt(t, &iv);
+        CHECK(iv == 0, "DB_GETFIELD(absent column) == 0");
+
+        CS2VM2_PushInt(t, 0);
+        CS2VM2_PushInt(t, pack_col(0, 0, 0));
+        CS2VM2_PushInt(t, 9999); /* tuple index past the end */
+        call_db(t, CS2_OP_DB_GETFIELD);
+        CHECK(t->ints_stack_top == before + 1, "DB_GETFIELD(index out of range) still pushes");
+        CS2VM2_PopInt(t, &iv);
+        CHECK(iv == 0, "DB_GETFIELD(index out of range) == 0");
+    }
+
     /* DB_FINDALL_WITH_COUNT(table 0) -> 198 rows. */
     CS2VM2_PushInt(t, 0);
     call_db(t, CS2_OP_DB_FINDALL_WITH_COUNT);

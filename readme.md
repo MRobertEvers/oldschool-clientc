@@ -2467,7 +2467,7 @@ When implementing a new opcode:
 
 Now, implement these opcode.
 
-#### DB_* client database opcodes (7500..7510) — IMPLEMENTED
+#### DB\_\* client database opcodes (7500..7510) — IMPLEMENTED
 
 The client-database family (`DB_FIND`/`DB_FINDALL`/`DB_FINDNEXT`/`DB_GETFIELD`/
 `DB_GETFIELDCOUNT`/`DB_GETROW`/`DB_GETROWTABLE` and the `_WITH_COUNT`/`_FILTER`
@@ -2495,3 +2495,26 @@ stack order (dbcolumn on top, value below) are the widely-referenced OSRS
 convention but were not confirmed against a rev-230 deob — recheck these first
 if a real DB script misbehaves. No script in this repo exercises the DB opcodes
 yet, so they are covered only by `test-db`, not by live parity.
+
+### OSRS 230 Cache
+
+161 is the root; nothing mounts the tabs, they have to
+be set by the server.
+
+The server has to send IF_OPENSUB.
+
+tabIndex "161 child" group tab
+0 76 593 Combat
+1 77 320 Skills
+2 78 629 Quest / side_journal
+3 79 149 Inventory
+4 80 387 Equipment
+5 81 541 Prayer
+6 82 218 Magic
+7 83 7 Clan chat
+8 84 109 Account Management
+9 85 429 Social / friends
+10 86 182 Logout
+11 87 116 Settings
+12 88 216 Emotes
+13 89 239 Music

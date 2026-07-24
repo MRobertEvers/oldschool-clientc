@@ -27,7 +27,23 @@ UITree_ComponentEstablishesSurface(struct UITreeComponent const* component)
 {
     if( !component )
         return false;
-    return component->type == UIELEM_BUILTIN_CHAT || component->type == UIELEM_BUILTIN_SIDEBAR;
+    if( component->type == UIELEM_BUILTIN_CHAT || component->type == UIELEM_BUILTIN_SIDEBAR )
+        return true;
+
+    /* A scroll viewport is a surface too. Layer clips are deliberately NOT
+     * compounded with ancestor layers (see UITree_LayerChildClip), which is right
+     * for plain nested layers but wrong here: an IF3 scroll area is a viewport
+     * layer holding a content layer sized to the *scroll extent*, so the content
+     * layer's own box is taller/wider than what may be shown. Without the
+     * viewport as its surface the content clips only to the screen and spills out
+     * of the panel (rev-230 emote tab: 171x691 of content escaping a 171x261
+     * viewport and drawing over the tab stones below).
+     *
+     * Clipping to the viewport is what scrolling *means*, and it is what the
+     * reference does — it sets the clip to the scrolling layer's bounds before
+     * drawing that layer's children. */
+    return UITree_ScrollLayerNeedsVertical(component) ||
+           UITree_ScrollLayerNeedsHorizontal(component);
 }
 
 bool

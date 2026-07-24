@@ -1016,7 +1016,7 @@ main(
             fprintf(
                 stderr,
                 "EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
-                "filled=%d trans=%d tiled=%d\n",
+                "filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
                 i,
                 (int)d->kind,
                 d->component_id,
@@ -1028,7 +1028,11 @@ main(
                 d->color,
                 d->filled,
                 d->trans,
-                d->tiled);
+                d->tiled,
+                d->clip.x,
+                d->clip.y,
+                d->clip.w,
+                d->clip.h);
         }
     }
 
@@ -1270,18 +1274,77 @@ main(
                 dump_tree(&app, cfg.interface_id);
             /* Post-network emit dump: the actual draw list for the last frame,
              * to find what paints over the world viewport (0,0..723,503). */
-            if( getenv("TORIRS_DUMP_EMIT_EXIT") )
-                for( int i = 0; i < app.emit.count; i++ )
+            /* TORIRS_DUMP_BOUNDS=<group>: post-net resolved geometry for one
+             * interface. dump_tree deliberately prints no box for RS_LAYERs (it
+             * stays byte-comparable with the reference widgetTreeDump), and
+             * TORIRS_DUMP_LAYOUT runs at boot before anything is mounted — so
+             * this is the only view of a mounted container's resolved box, its
+             * size modes, and its scroll extents. A layer whose box is taller
+             * than the cache says is why its children escape the clip. */
+            if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
+            {
+                int want = (int)strtol(getenv("TORIRS_DUMP_BOUNDS"), NULL, 0);
+                for( uint32_t i = 0; i < app.tree->component_count; i++ )
+                {
+                    struct UITreeComponent const* c = &app.tree->components[i];
+                    if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
+                        continue;
+                    fprintf(
+                        stderr,
+                        "BOUNDS com=0x%08x (%d|%d) type=%d abs=%d,%d %dx%d "
+                        "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
+                        (unsigned)c->component_id,
+                        (c->component_id >> 16) & 0xFFFF,
+                        c->component_id & 0xFFFF,
+                        (int)c->type,
+                        c->position.abs_x, c->position.abs_y,
+                        c->position.abs_w, c->position.abs_h,
+                        c->position.width, c->position.height,
+                        (int)c->position.width_mode, (int)c->position.height_mode,
+                        (int)c->position.x_mode, (int)c->position.y_mode,
+                        c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
+                        c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
+                        c->scroll_x, c->scroll_y);
+                }
+            }
+
+            /* TORIRS_DUMP_EMIT_EXIT: post-net draw list (the boot-time
+             * TORIRS_DUMP_EMIT fires before any server interface has mounted, so
+             * it never shows sub-interface content). Value selects the filter:
+             *   "cover"        -> only viewport-covering rects (the original
+             *                     use: finding an interface painted over the world)
+             *   <group id>     -> only that interface group's components
+             *   anything else  -> every command
+             * The clip is included because a drawable overflowing its container is
+             * a clip bug, and the clip is the only way to tell which. */
+            {
+                char const* emit_filter = getenv("TORIRS_DUMP_EMIT_EXIT");
+                int filter_group = -1;
+                int cover_only = 0;
+                if( emit_filter )
+                {
+                    if( strcmp(emit_filter, "cover") == 0 )
+                        cover_only = 1;
+                    else if( emit_filter[0] >= '1' && emit_filter[0] <= '9' )
+                        filter_group = (int)strtol(emit_filter, NULL, 0);
+                }
+                for( int i = 0; emit_filter && i < app.emit.count; i++ )
                 {
                     struct UITreeEmitDesc* d = &app.emit.cmds[i];
-                    if( d->w >= 300 && d->h >= 200 && d->x < 480 )
-                        fprintf(
-                            stderr,
-                            "EMIT_COVER[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d "
-                            "color=0x%06x filled=%d trans=%d tiled=%d\n",
-                            i, (int)d->kind, d->component_id, d->x, d->y, d->w, d->h,
-                            d->scene_id, d->color, d->filled, d->trans, d->tiled);
+                    int group = (d->component_id >> 16) & 0xFFFF;
+                    if( cover_only && !(d->w >= 300 && d->h >= 200 && d->x < 480) )
+                        continue;
+                    if( filter_group >= 0 && group != filter_group )
+                        continue;
+                    fprintf(
+                        stderr,
+                        "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d "
+                        "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
+                        i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
+                        d->x, d->y, d->w, d->h, d->scene_id, d->color, d->filled, d->trans,
+                        d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
                 }
+            }
             if( getenv("TORIRS_NET_DEBUG") && app.tree )
             {
                 for( int t = 0; t < 14; t++ )

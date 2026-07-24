@@ -1202,6 +1202,33 @@ exec_client_option(
 }
 
 /*
+ * Mobile local notifications (3170..3173). A desktop client has no notification
+ * centre to schedule into, so the whole family is accepted and dropped. The two
+ * answers still matter: SUPPORTED reports 0 so scripts take their "unavailable"
+ * branch, and LOCAL_NOTIFICATION must still push a handle (0 — nothing to cancel)
+ * because its caller stores the result immediately (script 5360).
+ */
+static int
+exec_local_notification(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_LocalNotification request)
+{
+    switch( request.opcode )
+    {
+    case CS2_OP_LOCAL_NOTIFICATION:
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_LOCAL_NOTIFICATION_SUPPORTED:
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_LOCAL_NOTIFICATION_CANCEL:
+    case CS2_OP_LOCAL_NOTIFICATION_CANCELALL:
+        return CS2VM_EXECNO_OK;
+    default:
+        fprintf(stderr, "exec_local_notification: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+/*
  * Minimap zoom controls (7250..7254). The zoom is host-owned (round-trip: a
  * SETZOOM is read back by GETZOOM), the port having no minimap-zoom render path
  * yet. SETZOOMABLE and SETICONZOOMLIMIT have no backing state — accepted and
@@ -2891,6 +2918,56 @@ db_index_or_yield(
     return NULL;
 }
 
+/* Push the zero value for a field type onto that type's stack. */
+static int
+db_push_default(
+    struct CS2VM2_Thread* vm,
+    int type)
+{
+    if( RSCache_DbTypeIsString(type) )
+        return CS2VM2_PushStr(vm, strdup(""));
+    return CS2VM2_PushInt(vm, 0);
+}
+
+/*
+ * Answer a DB_GETFIELD whose row / column / index resolved to nothing.
+ *
+ * The opcode always yields a value, so returning without pushing pops the
+ * caller's three arguments and underflows whatever runs next — the failure then
+ * surfaces at an unrelated opcode (script 4029 read dbcolumn 48 off a row absent
+ * from our partial cache and died on the following BRANCH_EQUALS).
+ *
+ * When the column is known we can still answer in the right shape: honour its
+ * arity and per-field types, since a sentinel `tuple` reads the whole tuple and
+ * pushes one value per component. When the column itself is missing there is no
+ * type information to work from, so all we can do is answer a single integer.
+ */
+static int
+db_push_missing(
+    struct CS2VM2_Thread* vm,
+    struct RSCache_Dat2ConfigDbRow const* row,
+    int col_id,
+    int tuple)
+{
+    struct RSCache_DbColumn const* col = NULL;
+
+    if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
+        col = &row->columns[col_id];
+    if( !col || col->type_count <= 0 || !col->types )
+        return CS2VM2_PushInt(vm, 0);
+
+    if( tuple >= 0 && tuple < col->type_count )
+        return db_push_default(vm, col->types[tuple]);
+
+    for( int i = 0; i < col->type_count; i++ )
+    {
+        int rc = db_push_default(vm, col->types[i]);
+        if( rc != CS2VM_EXECNO_OK )
+            return rc;
+    }
+    return CS2VM_EXECNO_OK;
+}
+
 /* Push one field value onto its type's stack. */
 static int
 db_push_value(
@@ -3016,12 +3093,17 @@ exec_db(
         if( yielded )
             return code;
         db_unpack_column(column, &table, &col_id, &tuple);
+        /* Missing row/column/index still has to honour the stack contract: this op
+         * always yields a value, so the caller's next opcode underflows if we pop
+         * three and push nothing (script 4029 read dbcolumn 48 off a row absent
+         * from our partial cache and aborted on the following BRANCH_EQUALS).
+         * Answer the default, matching DB_GETFIELDCOUNT's not-found path. */
         if( !row || col_id < 0 || col_id >= row->column_count || !row->columns[col_id].present )
-            return CS2VM_EXECNO_OK;
+            return db_push_missing(vm, row, col_id, tuple);
         col = &row->columns[col_id];
         arity = col->type_count;
         if( index < 0 || index >= col->tuple_count || arity <= 0 )
-            return CS2VM_EXECNO_OK;
+            return db_push_missing(vm, row, col_id, tuple);
         base = index * arity;
         if( tuple >= 0 && tuple < arity )
             return db_push_value(vm, &col->values[base + tuple]);
@@ -3343,6 +3425,9 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_MINIMAP:
         return exec_minimap(host, vm, request->u.minimap);
+
+    case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION:
+        return exec_local_notification(vm, request->u.local_notification);
 
     case CS2VM_HOST_REQUEST_LOGOUT:
         host->logout_requested = true;

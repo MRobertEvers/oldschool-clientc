@@ -796,6 +796,191 @@ CS2VM2_Op_ToString(
     return CS2VM2_PushStr(vm, str);
 }
 
+/*
+ * ESCAPE — neutralise a string's markup so it renders literally.
+ *
+ * The renderer treats '<' as the start of a tag (<col=...>, <br>, <img=...>),
+ * so unescaped text can inject formatting — this is what scripts call before
+ * putting player-supplied text into a widget. `<lt>` / `<gt>` are the escapes
+ * ToriDraw_Font decodes back to '<' / '>' (see toridraw_font.c), so escaping to
+ * those round-trips to the original characters on screen.
+ *
+ * NOTE: the xrsps reference escapes to the HTML entities `&lt;` / `&gt;` — that
+ * is right for a DOM renderer and wrong for us; our font would draw them
+ * literally. Match the renderer, not the reference, for this one.
+ */
+static int
+CS2VM2_Op_Escape(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    char* text;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    assert(text);
+
+    /* Worst case every character is '<' or '>', each growing to four bytes. */
+    size_t len = strlen(text);
+    char* out = malloc((len * 4u) + 1u);
+    assert(out);
+
+    size_t out_len = 0;
+    for( size_t i = 0; i < len; i++ )
+    {
+        if( text[i] == '<' )
+        {
+            memcpy(out + out_len, "<lt>", 4);
+            out_len += 4;
+        }
+        else if( text[i] == '>' )
+        {
+            memcpy(out + out_len, "<gt>", 4);
+            out_len += 4;
+        }
+        else
+        {
+            out[out_len++] = text[i];
+        }
+    }
+    out[out_len] = '\0';
+
+    free(text);
+    return CS2VM2_PushStr(vm, out);
+}
+
+/*
+ * CHAR_ISPRINTABLE — can this character code be drawn?
+ *
+ * The client's font covers printable ASCII, the Latin-1 supplement, and a handful
+ * of stragglers that cp1252 places in the 0x80..0x9F control range and so map to
+ * scattered Unicode points (euro, OE/oe ligatures, em dash, Y-diaeresis). Used to
+ * filter keyboard input, so being wrong here silently eats keystrokes.
+ */
+static int
+CS2VM2_Op_CharIsPrintable(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int chr;
+    if( CS2VM2_PopInt(vm, &chr) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int printable = (chr >= 32 && chr <= 126) || (chr >= 160 && chr <= 255) ||
+                    chr == 0x20AC || chr == 0x0152 || chr == 0x2014 || chr == 0x0153 ||
+                    chr == 0x0178;
+    return CS2VM2_PushInt(vm, printable ? 1 : 0);
+}
+
+/* CHAR_ISALPHANUMERIC / CHAR_ISALPHA / CHAR_ISNUMERIC — ASCII-only predicates. */
+static int
+CS2VM2_Op_CharClass(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    int chr;
+    if( CS2VM2_PopInt(vm, &chr) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int is_alpha = (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z');
+    int is_digit = (chr >= '0' && chr <= '9');
+    int match = 0;
+
+    switch( opcode )
+    {
+    case CS2_OP_CHAR_ISALPHANUMERIC:
+        match = is_alpha || is_digit;
+        break;
+    case CS2_OP_CHAR_ISALPHA:
+        match = is_alpha;
+        break;
+    case CS2_OP_CHAR_ISNUMERIC:
+        match = is_digit;
+        break;
+    default:
+        break;
+    }
+    return CS2VM2_PushInt(vm, match ? 1 : 0);
+}
+
+/* UPPERCASE — ASCII-uppercase a string (locale-independent, like the client). */
+static int
+CS2VM2_Op_Uppercase(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    char* text;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    assert(text);
+
+    for( char* ch = text; *ch; ch++ )
+    {
+        if( *ch >= 'a' && *ch <= 'z' )
+            *ch = (char)(*ch - 'a' + 'A');
+    }
+    /* PopStr already transferred ownership, so the buffer can be pushed back. */
+    return CS2VM2_PushStr(vm, text);
+}
+
+/* LOWERCASE — ASCII-lowercase a string (locale-independent, like the client). */
+static int
+CS2VM2_Op_Lowercase(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    char* text;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    assert(text);
+
+    for( char* ch = text; *ch; ch++ )
+    {
+        if( *ch >= 'A' && *ch <= 'Z' )
+            *ch = (char)(*ch - 'A' + 'a');
+    }
+    /* PopStr already transferred ownership, so the buffer can be pushed back. */
+    return CS2VM2_PushStr(vm, text);
+}
+
+/* REMOVETAGS — strip every <...> run, leaving the plain text. */
+static int
+CS2VM2_Op_RemoveTags(
+    struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    char* text;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    assert(text);
+
+    size_t len = strlen(text);
+    char* out = malloc(len + 1u);
+    assert(out);
+
+    size_t out_len = 0;
+    bool in_tag = false;
+    for( size_t i = 0; i < len; i++ )
+    {
+        if( text[i] == '<' )
+            in_tag = true;
+        else if( in_tag && text[i] == '>' )
+            in_tag = false;
+        else if( !in_tag )
+            out[out_len++] = text[i];
+    }
+    out[out_len] = '\0';
+
+    free(text);
+    return CS2VM2_PushStr(vm, out);
+}
+
 int
 CS2VM2_Op_Append(
     struct CS2VM2_Thread* vm,
@@ -5938,6 +6123,63 @@ CS2VM2_Op_ClientOp(
     return vm->vm->host_exec(vm, &request);
 }
 
+/* Mobile local notifications (3170..3173). Only LOCAL_NOTIFICATION carries a
+ * payload — (id, delay_ms) off the int stack and (title, body) off the string
+ * stack, each popped top-down — and the host answers it with a cancel handle.
+ * CANCEL takes the handle; CANCELALL and SUPPORTED take nothing, and the host
+ * pushes SUPPORTED's answer. */
+static int
+CS2VM2_Op_LocalNotification(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION;
+    request.u.local_notification.opcode = opcode;
+
+    char* title = NULL;
+    char* body = NULL;
+    int result;
+
+    switch( opcode )
+    {
+    case CS2_OP_LOCAL_NOTIFICATION:
+        /* Strings pop top-down: body was pushed last, so it comes off first. */
+        if( CS2VM2_PopStr(vm, &body) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &title) != CS2VM_EXECNO_OK )
+        {
+            free(body);
+            return CS2VM_EXECNO_ERROR;
+        }
+        if( CS2VM2_PopInt(vm, &request.u.local_notification.delay_ms) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &request.u.local_notification.id) != CS2VM_EXECNO_OK )
+        {
+            free(body);
+            free(title);
+            return CS2VM_EXECNO_ERROR;
+        }
+        request.u.local_notification.title = title;
+        request.u.local_notification.body = body;
+        break;
+    case CS2_OP_LOCAL_NOTIFICATION_CANCEL:
+        if( CS2VM2_PopInt(vm, &request.u.local_notification.id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    default:
+        break;
+    }
+
+    result = vm->vm->host_exec(vm, &request);
+    /* The host only borrows the strings, so they are freed here regardless. */
+    free(title);
+    free(body);
+    return result;
+}
+
 /* Minimap zoom controls (7250..7254). The setters take one value (has_value);
  * GETZOOM takes nothing and the host pushes the current zoom. */
 static int
@@ -7674,6 +7916,24 @@ CS2VM2_RunOp(
         return CS2VM2_Op_Compare(vm, frame, operand);
     case CS2_OP_SUBSTRING:
         return CS2VM2_Op_Substring(vm, frame, operand);
+    /* Pure string transforms. These previously fell through to StackMetaStub,
+     * which discards the input and pushes "" — so they silently blanked whatever
+     * text they touched instead of transforming it. */
+    case CS2_OP_ESCAPE:
+        return CS2VM2_Op_Escape(vm);
+    case CS2_OP_LOWERCASE:
+        return CS2VM2_Op_Lowercase(vm);
+    case CS2_OP_UPPERCASE:
+        return CS2VM2_Op_Uppercase(vm);
+    case CS2_OP_REMOVETAGS:
+        return CS2VM2_Op_RemoveTags(vm);
+    /* Character-class predicates: pop a char code, push a bool. */
+    case CS2_OP_CHAR_ISPRINTABLE:
+        return CS2VM2_Op_CharIsPrintable(vm);
+    case CS2_OP_CHAR_ISALPHANUMERIC:
+    case CS2_OP_CHAR_ISALPHA:
+    case CS2_OP_CHAR_ISNUMERIC:
+        return CS2VM2_Op_CharClass(vm, opcode);
     case CS2_OP_STRING_INDEXOF_STRING:
         return CS2VM2_Op_StringIndexOfString(vm, frame, operand);
     case CS2_OP_STRING_INDEXOF_CHAR:
@@ -7805,6 +8065,12 @@ CS2VM2_RunOp(
         return CS2VM2_Op_Minimap(vm, opcode, true);
     case CS2_OP_MINIMAP_GETZOOM:
         return CS2VM2_Op_Minimap(vm, opcode, false);
+    /* Local notifications (3170..3173): stubbed by the host on desktop. */
+    case CS2_OP_LOCAL_NOTIFICATION:
+    case CS2_OP_LOCAL_NOTIFICATION_CANCEL:
+    case CS2_OP_LOCAL_NOTIFICATION_CANCELALL:
+    case CS2_OP_LOCAL_NOTIFICATION_SUPPORTED:
+        return CS2VM2_Op_LocalNotification(vm, opcode);
     /* Mobile device queries — we are a desktop client: full battery, on mains,
      * unmetered connection. Pushing nothing here underflows the next opcode. */
     case CS2_OP_MOBILE_BATTERYLEVEL:

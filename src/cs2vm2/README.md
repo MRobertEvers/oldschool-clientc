@@ -127,6 +127,33 @@ the same opcode re-executes from scratch.
 
 The `yield_halt_*` fields detect double-yields at the same opcode site (error).
 
+#### Rolling back mutations to persistent VM fields
+
+The checkpoint is deliberately **pointer-only** — it restores stack tops, `frame_sp`,
+`pc`, and the component IDs, and copies nothing. That keeps the per-opcode cost near
+zero, which matters because it runs on *every* opcode.
+
+That is sufficient for the stacks (rolling the top back logically discards the
+values), but not for fields that live outside them — an array cell, for instance.
+An opcode that writes such a field and *then* yields would leave the write applied,
+and re-executing the opcode on resume would apply it a second time.
+
+Opcodes that mutate persistent VM fields therefore **opt in** to rollback by routing
+the write through a tracked mutator rather than assigning directly:
+
+```c
+/* instead of: vm->arrays[slot].values[index] = value; */
+CS2VM2_ArrayStore(vm, slot, index, value);
+```
+
+`CS2VM2_ArrayStore` records `(slot, index, old_value)` in `thread->undo_log` before
+writing. `undo_log_len` is reset at each opcode boundary, so the log only ever holds
+the in-flight opcode's mutations; on yield the restore walks it backwards and undoes
+them. Opcodes that touch no persistent field append nothing and pay nothing.
+
+Add new tracked mutators the same way when an opcode gains a persistent side effect
+— do not widen the checkpoint into a bulk snapshot.
+
 ### Active vs dot component
 
 IF and CC opcodes resolve widget targets through two component IDs on the thread:
@@ -252,6 +279,52 @@ Reference implementations (still on the CS2VMX API) live in `v1/games/`:
 
 Set `g_cs2_trace_mode` (0 = off, 1 = targeted, 2 = all) and optionally
 `CS2VM2_SetTraceExtra("...")` to annotate trace output to stderr.
+
+In the client, `TORIRS_CS2_TRACE=1` dumps every executed opcode (script, pc, stack
+depths, top-of-stack, `result=yield`), and `TORIRS_CS2_DUMP_SCRIPT=<id>` prints one
+script's disassembly plus its `int_args` / `str_args` / `local_ints` counts.
+
+## Bug postmortem: transposed `POP_ARRAY_INT` operands
+
+**Symptom.** Roughly a fifth of the spell icons were missing from the rev-230 magic
+tab (interface 218): 53 of 65 standard spells drawn, in a grid with scattered holes.
+The absent spells were not hidden or un-decoded — they were never *positioned*, so
+they stacked invisibly at the layout origin.
+
+**Root cause.** `$array($index) = $value` compiles to `push index; push value;
+POP_ARRAY_INT`, so at the opcode the **value is on top of the stack and the index sits
+beneath it**. `CS2VM2_Op_PopArrayInt` popped them the other way round, writing
+`array[value] = index`.
+
+**Why it hid for so long.** A transposition is invisible whenever index == value.
+Almost every CS2 array fill is exactly that shape — the spellbook builds its list with
+`$visible_indices($visible_count) = $i` where the two counters advance together — so
+the array came out looking perfectly correct (a clean `[0..64]` identity), and simple
+array round-trip tests pass either way.
+
+It only surfaces on an **asymmetric** write. `~magic_spellbook_sort` (script 2621) is a
+recursive quicksort doing in-place swaps, where index and value are deliberately
+different. Each swap wrote to the wrong cells, so the "sorted" result was not a
+permutation: 65 entries collapsed to 51 distinct values with 14 duplicates. The layout
+loop then positioned the same spell repeatedly and never visited the 14 lost indices.
+
+**Diagnosis path.** Log every array read/write (slot, index, value, script, pc) and
+replay them offline. The array reads the layout loop saw matched the writes exactly,
+which ruled out the read path and any cross-VM interference, and pointed at the writes.
+Comparing one concrete write against the decompiled source made it unambiguous: with
+`$int1=0, $int2=64` the pivot is `$index4=32`, so `$intarray0($index4) = $intarray0($int2)`
+must write `arr[32]=64` — the VM emitted `arr[64]=32`.
+
+**Worth noting:** the yield machinery was the wrong suspect and cost the most time. The
+sort does yield mid-way (on `oc_param` loading `spell_levelreq`), which looks damning.
+Snapshotting and restoring *all* candidate state across the yield — frame locals, the
+whole array, the int-stack values — changed nothing, which is what finally exonerated
+it. `CS2VM2_ArrayStore` and the undo log came out of that investigation and are kept:
+they close a real (if latent) replay hole, but they were not this bug.
+
+**Lesson.** For any stack opcode taking two same-typed operands, verify the pop order
+against real bytecode rather than intuition — a transposition is silent on symmetric
+data and can lurk indefinitely.
 
 ## Opcode table regeneration
 
