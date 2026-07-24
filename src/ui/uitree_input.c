@@ -313,7 +313,10 @@ UITree_HitTest(
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
     {
-        int32_t root_hit = UITree_HitTestRecursive(tree, root, px, py);
+        int32_t root_hit;
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
+        root_hit = UITree_HitTestRecursive(tree, root, px, py);
         if( root_hit >= 0 )
             hit = root_hit;
     }
@@ -461,7 +464,11 @@ UITree_CollectNodesAt(
 
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
+    {
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
         collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
+    }
 
     /* Slice below the top-most blocking panel, then reverse to top-most-first. */
     {
@@ -494,7 +501,10 @@ UITree_HitTestInteractive(
          root = tree->components[root].next_sibling )
     {
         int root_blocks = 0;
-        int32_t root_hit = hit_test_interactive_recursive(
+        int32_t root_hit;
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
+        root_hit = hit_test_interactive_recursive(
             tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks);
         /* Later roots render on top. A no_click_through root captures the point
          * and discards hits from roots underneath (even if it has no hit itself). */

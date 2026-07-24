@@ -246,6 +246,30 @@ interface161_enum_lookup(
     return -1;
 }
 
+void
+interface161_enum_dump(
+    struct RSCacheDat2Disk* cache,
+    int enum_id)
+{
+    struct Interface161EnumCacheEntry* entry = enum_cache_get(cache, enum_id);
+    if( !entry || !entry->keys )
+    {
+        printf("enum %d: <empty>\n", enum_id);
+        return;
+    }
+    printf("enum %d: %d entries\n", enum_id, entry->count);
+    for( int i = 0; i < entry->count; i++ )
+    {
+        int v = entry->values[i];
+        printf(
+            "  key=%d value=%d  (iface=%d component=%d)\n",
+            entry->keys[i],
+            v,
+            (v >> 16) & 0xffff,
+            v & 0xffff);
+    }
+}
+
 int
 interface161_enum_output_count(
     struct RSCacheDat2Disk* cache,

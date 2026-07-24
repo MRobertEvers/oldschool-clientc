@@ -11,6 +11,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
+#include "varc/varc_manager.h"
 #include "varp/varp_manager.h"
 
 #include <assert.h>
@@ -141,6 +142,13 @@ rs_cs2_yield_if_group_missing(
     if( rs_cs2_await_spent(host, request->kind, group_id, -1) )
         return CS2VM_EXECNO_OK;
 
+    if( getenv("TORIRS_CS2_MOUNT_DEBUG") )
+        fprintf(
+            stderr,
+            "cs2-automount: group %d requested via component 0x%08x (req kind=%d)\n",
+            group_id,
+            (unsigned)component_id,
+            (int)request->kind);
     return rs_cs2_yield_load(host, request, group_id, -1);
 }
 
@@ -524,7 +532,8 @@ RS_CS2Host_Init(
     struct UITree* tree,
     struct CacheProvider* provider,
     struct InvManager* invs,
-    struct VarPManager* varps)
+    struct VarPManager* varps,
+    struct VarCManager* varcs)
 {
     assert(host);
     assert(tree);
@@ -536,6 +545,7 @@ RS_CS2Host_Init(
     host->provider = provider;
     host->invs = invs;
     host->varps = varps;
+    host->varcs = varcs;
     host->client_clock = 100;
     host->client_type = 80;
     /* Op 1 is the primary left-click op, which is what every mouse-driven
@@ -554,6 +564,21 @@ RS_CS2Host_Init(
     host->var_change_serial = 1;
     host->inv_change_serial = 1;
     host->worldmap = RS_WorldMap_New(provider);
+}
+
+void
+RS_CS2Host_NotifyVarChanged(
+    struct RS_CS2Host* host,
+    int var_id)
+{
+    (void)var_id; /* re-dispatch re-checks all hooks, gated by serial + hidden */
+    if( !host )
+        return;
+    /* Advance the serial so already-fired var-transmit hooks re-run, and flag the
+     * per-tick pump to re-dispatch (TS parity: value changes bump changedVarpCount,
+     * processed once per cycle rather than synchronously mid-script). */
+    host->var_change_serial++;
+    host->var_transmit_dirty = 1;
 }
 
 void
@@ -2352,9 +2377,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
     {
         int id = request->u.vars_read_varc_int.varc_id;
-        int value = 0;
-        if( id >= 0 && id < RS_CS2_HOST_VARC_INT_MAX )
-            value = host->varc_int[id];
+        int value = host->varcs ? VarCManager_GetInt(host->varcs, id) : 0;
         return CS2VM2_PushInt(vm, value);
     }
 
@@ -2374,33 +2397,25 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
     {
         int id = request->u.vars_read_varc_string.varc_id;
-        char const* value = "";
-        if( id >= 0 && id < RS_CS2_HOST_VARC_STRING_MAX )
-            value = host->varc_string[id];
+        char const* value = host->varcs ? VarCManager_GetString(host->varcs, id) : "";
         return CS2VM2_PushStr(vm, strdup(value));
     }
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
     {
         int id = request->u.vars_write_varc_int.varc_id;
-        if( id >= 0 && id < RS_CS2_HOST_VARC_INT_MAX )
-            host->varc_int[id] = request->u.vars_write_varc_int.value;
+        /* The manager fires its change callback (RS_CS2Host_NotifyVarChanged) on a
+         * real change, which flags a var-transmit re-dispatch for the tick. */
+        if( host->varcs )
+            VarCManager_SetInt(host->varcs, id, request->u.vars_write_varc_int.value);
         return CS2VM_EXECNO_OK;
     }
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
     {
         int id = request->u.vars_write_varc_string.varc_id;
-        if( id >= 0 && id < RS_CS2_HOST_VARC_STRING_MAX )
-        {
-            strncpy(
-                host->varc_string[id],
-                request->u.vars_write_varc_string.value
-                    ? request->u.vars_write_varc_string.value
-                    : "",
-                RS_CS2_HOST_VARC_STRING_LEN - 1);
-            host->varc_string[id][RS_CS2_HOST_VARC_STRING_LEN - 1] = '\0';
-        }
+        if( host->varcs )
+            VarCManager_SetString(host->varcs, id, request->u.vars_write_varc_string.value);
         return CS2VM_EXECNO_OK;
     }
 

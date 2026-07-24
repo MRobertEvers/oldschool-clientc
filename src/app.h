@@ -28,6 +28,7 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_hovertext.h"
 #include "ui/uitree_interact.h"
+#include "varc/varc_manager.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
 
@@ -283,6 +284,7 @@ struct App
      * re-enqueues while any item slot still lacks a rasterized icon). */
     int inv_icon_reconcile_inflight;
     struct VarPManager varps;
+    struct VarCManager varcs;
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
     struct RS_CS1Host cs1_host;
@@ -486,6 +488,23 @@ void
 App_OpenRootInterface(
     struct App* app,
     int interface_id);
+
+/** IF_OPENSUB (rev-230 openSubInterface): mount a cache interface group under a
+ *  component slot of the open root. target_uid = packed (parent<<16|child) of
+ *  the mount slot; type 0=modal, 1=overlay, 3=tab/sidemodal. Async — enqueued on
+ *  the serial exec pipeline so it settles before the next packet is applied. */
+void
+App_OpenSubInterface(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type);
+
+/** IF_CLOSESUB: unmount whatever is mounted at a component slot. */
+void
+App_CloseSubInterface(
+    struct App* app,
+    int target_uid);
 
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void

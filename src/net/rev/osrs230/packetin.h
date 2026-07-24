@@ -48,9 +48,9 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 10, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* UPDATE_INV_FULL */
     { 37, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* UPDATE_INV_PARTIAL */
     { 80, 2, PKT_NAME_NONE },  /* UPDATE_INV_STOPTRANSMIT */
-    { 60, 2, PKT_NAME_NONE },  /* IF_OPENTOP (root interface) */
-    { 6, 7, PKT_NAME_NONE },   /* IF_OPENSUB */
-    { 36, 4, PKT_NAME_NONE },  /* IF_CLOSESUB */
+    { 60, 2, PKT_NAME_IF_OPENTOP },  /* IF_OPENTOP (root interface) */
+    { 6, 7, PKT_NAME_IF_OPENSUB },   /* IF_OPENSUB */
+    { 36, 4, PKT_NAME_IF_CLOSESUB }, /* IF_CLOSESUB */
     { 53, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_RESYNC */
     { 94, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_SETTEXT */
     { 47, 12, PKT_NAME_NONE }, /* IF_SETEVENTS */

@@ -363,6 +363,49 @@ RS_GameProto_Exec(
             RS_UISlots_SetTab(ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
         break;
 
+    /* ---- modern gameframe interfaces (rev-230 openTop/openSub) ---- */
+    case PKT_NAME_IF_OPENTOP:
+    {
+        /* IF_OPENTOP names the gameframe root (TS setRootInterface). This client
+         * already boots its gameframe (161) from the manifest and mounts every
+         * server sub-interface INTO it, so the booted root is authoritative and
+         * IF_OPENTOP is informational — we do NOT reboot on it. Rebooting here was
+         * destructive: a stray/zero id (the live server sent 0) rebuilt the tree to
+         * an empty root, wiping the live 161 gameframe and leaving a panel covering
+         * the viewport. Log the mismatch for visibility; a real gameframe *switch*
+         * (161<->548 fixed) would need proper sub-remount handling, not a raw reboot. */
+        int top = packet->_if_opentop.interface_id;
+        int boot = ctx->app ? ctx->app->boot_interface_id : -1;
+        if( top != boot )
+            fprintf(
+                stderr,
+                "if-opentop: server root=%d differs from booted root=%d; keeping booted root\n",
+                top,
+                boot);
+        break;
+    }
+    case PKT_NAME_IF_OPENSUB:
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
+                packet->_if_opensub.interface_id,
+                (unsigned)packet->_if_opensub.target_uid,
+                (packet->_if_opensub.target_uid >> 16) & 0xffff,
+                packet->_if_opensub.target_uid & 0xffff,
+                packet->_if_opensub.type);
+        if( ctx->app )
+            App_OpenSubInterface(
+                ctx->app,
+                packet->_if_opensub.target_uid,
+                packet->_if_opensub.interface_id,
+                packet->_if_opensub.type);
+        break;
+    case PKT_NAME_IF_CLOSESUB:
+        if( ctx->app )
+            App_CloseSubInterface(ctx->app, packet->_if_closesub.target_uid);
+        break;
+
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
         if( ctx->chat )

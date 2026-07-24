@@ -112,17 +112,24 @@ RS_CS2_PumpTransmits(
     assert(host);
     assert(runner);
 
-    /* Once per logic tick (TS processWidgetTransmits parity): traverse the transmit
-     * hooks only when a widget was unhidden this tick. The per-hook last_seen_serial
-     * gate inside the dispatch tasks keeps up-to-date hooks from re-firing, so a
-     * quiet tick runs zero scripts. */
-    if( !host->widgets_loaded_dirty )
+    /* Once per logic tick (TS processWidgetTransmits parity): re-dispatch the
+     * transmit hooks when a widget was unhidden (widgets_loaded_dirty) or a
+     * varp/varc value changed (var_transmit_dirty) this tick. The per-hook
+     * last_seen_serial gate inside the dispatch tasks keeps up-to-date hooks from
+     * re-firing, so a quiet tick runs zero scripts. */
+    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty )
         return;
-    host->widgets_loaded_dirty = 0;
 
-    task = CreateTask_CS2InvTransmitDispatch(host, -1);
-    assert(task);
-    ToriRS_TaskQueue_Add(runner->queue, task);
+    /* Inv hooks re-run on unhide; var hooks re-run on unhide OR a value change. */
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2InvTransmitDispatch(host, -1);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
+    host->widgets_loaded_dirty = 0;
+    host->var_transmit_dirty = 0;
 
     task = CreateTask_CS2VarTransmitDispatch(host, -1);
     assert(task);

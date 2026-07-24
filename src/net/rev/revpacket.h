@@ -345,6 +345,32 @@ struct PktIfOpenMainSide
     int side_component_id; /* g2 */
 };
 
+/* rev-230 IF_OPENTOP: open a group as the gameframe root (TS setRootInterface).
+ * Wire (RSProt IfOpenTopEncoder): interfaceId as p2Alt1 (little-endian short). */
+struct PktIfOpenTop
+{
+    int interface_id;
+};
+
+/* rev-230 IF_OPENSUB: mount a sub-interface group into a component slot of an
+ * already-open root (TS openSubInterface). Wire (RSProt IfOpenSubEncoder):
+ * p1 type, p2Alt2 interfaceId, p4Alt3 destinationCombinedId. target_uid is the
+ * packed (destInterface<<16 | destComponent) mount slot; type 0=modal, 1=overlay,
+ * 3=tab/sidemodal. */
+struct PktIfOpenSub
+{
+    int target_uid;    /* packed parent<<16 | child of the mount slot */
+    int interface_id;  /* sub-interface group to mount */
+    int type;          /* 0 modal, 1 overlay, 3 tab/sidemodal */
+};
+
+/* rev-230 IF_CLOSESUB: unmount whatever is mounted at a component slot. Wire
+ * (RSProt IfCloseSubEncoder): combinedId as p4 (big-endian packed). */
+struct PktIfCloseSub
+{
+    int target_uid; /* packed parent<<16 | child of the mount slot */
+};
+
 /* Always 6 bytes on the wire: p1 type + p2 + p2 + p1. Field meaning varies:
  * type 1 = npc slot in `id`; type 2-6 = tile target (id=x, z, height=y);
  * type 10 = player slot in `id`; type 255/-1 = clear. */
@@ -508,6 +534,9 @@ struct RevPacket
         struct PktIfOpenSide _if_openside;
         struct PktIfOpenOverlay _if_openoverlay;
         struct PktIfOpenMainSide _if_openmain_side;
+        struct PktIfOpenTop _if_opentop;
+        struct PktIfOpenSub _if_opensub;
+        struct PktIfCloseSub _if_closesub;
         struct PktHintArrow _hint_arrow;
         struct PktUpdatePid _update_pid;
         struct PktUpdateRunWeight _update_runweight;

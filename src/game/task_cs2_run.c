@@ -783,10 +783,14 @@ Task_CS2Run_Run(
                         dbg->local_int_count,
                         dbg->local_string_count,
                         dbg->op_count);
-                    pci = thread->last_error_pc - 24;
+                    /* TORIRS_CS2_DUMP_FULL=1 prints the whole script (to map every
+                     * mis-stubbed host op that leaks the stack), else a window. */
+                    int dbg_full = getenv("TORIRS_CS2_DUMP_FULL") != NULL;
+                    int pc_hi = dbg_full ? dbg->op_count - 1 : thread->last_error_pc + 2;
+                    pci = dbg_full ? 0 : thread->last_error_pc - 24;
                     if( pci < 0 )
                         pci = 0;
-                    for( ; pci < dbg->op_count && pci <= thread->last_error_pc + 2; pci++ )
+                    for( ; pci < dbg->op_count && pci <= pc_hi; pci++ )
                         fprintf(
                             stderr,
                             "  pc=%d op=%d %s operand=%d str=%s\n",

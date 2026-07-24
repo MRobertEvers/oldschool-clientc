@@ -1684,6 +1684,7 @@ main(
     int mount_count = 0;
     struct MountSpec mounts[MAX_MOUNTS];
     int clientscript_decode_flags = 0;
+    int dump_enum_id = -1;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -1719,6 +1720,8 @@ main(
                 mount_count++;
             }
         }
+        else if( strcmp(argv[i], "--dump-enum") == 0 && i + 1 < argc )
+            dump_enum_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--verbose-layout") == 0 )
             verbose_layout = 1;
         else if( !cache_dir )
@@ -1746,6 +1749,14 @@ main(
         fprintf(stderr, "failed to open cache: %s\n", cache_dir);
         interface161_fixture_free(&fixture);
         return 1;
+    }
+
+    if( dump_enum_id >= 0 )
+    {
+        interface161_enum_dump(cache, dump_enum_id);
+        RSCacheDat2Disk_Free(cache);
+        interface161_fixture_free(&fixture);
+        return 0;
     }
 
     struct ToriDraw_Scene* scene = NULL;

@@ -223,6 +223,8 @@ UITree_FindHoveredComponentIdForRegion(
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
     {
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
         find_hovered_recursive(
             tree, host, root,
             mouse_x, mouse_y, 0, 0, NULL, NULL,

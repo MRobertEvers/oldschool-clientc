@@ -2193,6 +2193,32 @@ UITree_InterfaceParentIsMountedGroup(
     return 0;
 }
 
+int
+UITree_RootIsDisplayable(
+    struct UITree const* tree,
+    int32_t root)
+{
+    int toplevel_group;
+    int group;
+
+    assert(tree);
+    if( root < 0 || tree->root_index < 0 )
+        return 0;
+
+    /* A CS2 script that sets a property on an interface that isn't open yet makes
+     * the host auto-mount that group as a top-level root so the property can apply
+     * (loaded-for-access, NOT displayed). Such orphan roots must not render, hover,
+     * or take clicks — otherwise a full-canvas panel (e.g. interface 728) covers
+     * the gameframe. Displayable = the active gameframe (which is baked as several
+     * roots sharing the toplevel group id), the app-overlay chrome (group 0x7FFE),
+     * or a group actually placed into a slot (InterfaceParent-mounted). */
+    toplevel_group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
+    group = (tree->components[root].component_id >> 16) & 0xffff;
+    if( group <= 0 || group == toplevel_group || group == 0x7FFE )
+        return 1;
+    return UITree_InterfaceParentIsMountedGroup(tree, group);
+}
+
 int32_t
 UITree_ResolveDragRenderArea(
     struct UITree const* tree,

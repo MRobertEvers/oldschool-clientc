@@ -16,4 +16,10 @@ interface161_enum_output_count(
     struct RSCacheDat2Disk* cache,
     int enum_id);
 
+/* Debug: print every (key -> value) pair of an int->int enum to stdout. */
+void
+interface161_enum_dump(
+    struct RSCacheDat2Disk* cache,
+    int enum_id);
+
 #endif

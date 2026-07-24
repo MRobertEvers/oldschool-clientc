@@ -1137,6 +1137,13 @@ UITree_InterfaceParentIsMountedGroup(
     struct UITree const* tree,
     int group_id);
 
+/** 1 if a top-level root should be shown/hovered/clicked; 0 for an unplaced
+ *  orphan interface group (auto-mounted for CS2 property access, not displayed). */
+int
+UITree_RootIsDisplayable(
+    struct UITree const* tree,
+    int32_t root);
+
 /** click_mask bits 17–19. */
 static inline int
 UITree_ClickMaskDragDepth(int32_t click_mask)

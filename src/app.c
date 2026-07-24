@@ -10,6 +10,7 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
@@ -1301,6 +1302,21 @@ app_sync_textures_poll(struct App* app)
     app->tex_pending_count = kept;
 }
 
+/* Var-change callbacks: forward a varp (server) or varc (CS2) value change to the
+ * CS2 host so it re-dispatches var-transmit hooks this tick. Userdata is the host. */
+static void
+app_varp_changed(void* userdata, int varp_id)
+{
+    RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varp_id);
+}
+
+static void
+app_varc_changed(void* userdata, int varc_id, bool is_string)
+{
+    (void)is_string;
+    RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varc_id);
+}
+
 void
 App_Init(
     struct App* app,
@@ -1385,6 +1401,7 @@ App_Init(
     assert(app->tree);
     InvManager_Init(&app->invs);
     VarPManager_Init(&app->varps);
+    VarCManager_Init(&app->varcs);
 
     /* Phase 4b: world sim + builder. The World is a pure simulation that
      * references scene elements/assets by integer id; the builder keeps it in
@@ -1429,8 +1446,13 @@ App_Init(
      * welcome message; its only "Welcome to RuneScape" is the login title). */
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
-    RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
+    RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
+    /* Close the reactive loop: a varp (server) or varc (CS2) value change flags a
+     * var-transmit re-dispatch on the host, so interfaces react to value changes
+     * and not only to unhide. Userdata is the CS2 host. */
+    VarPManager_SetChangeCallback(&app->varps, app_varp_changed, &app->host);
+    VarCManager_SetChangeCallback(&app->varcs, app_varc_changed, &app->host);
     RS_PlayerStats_Init(&app->stats);
     RS_CS1Host_Init(&app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
 
@@ -1530,6 +1552,7 @@ App_Shutdown(struct App* app)
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
     VarPManager_Free(&app->varps);
+    VarCManager_Free(&app->varcs);
     InvManager_Free(&app->invs);
     UITree_Free(app->tree);
     if( app->builder_active )
@@ -2389,6 +2412,124 @@ App_OpenRootInterface(
     task->app = app;
     PT_INIT(&task->pt);
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
+/* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
+ * already-open root, then relayout + re-request CS1 over the new subtree. Runs
+ * on the serial exec pipeline so a mount a packet triggers completes before the
+ * next packet is popped (packet order holds), mirroring rs_ui_slots' slot mount.
+ * type -1 means close (unmount via CreateTask_InterfaceOpenSub with iface<=0). */
+struct Task_OpenSubRefresh
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int target_uid;
+    int interface_id;
+    int type;
+};
+
+static int
+Task_OpenSubRefresh_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_OpenSubRefresh* self = (struct Task_OpenSubRefresh*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+    if( self->interface_id > 0 )
+    {
+        TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(
+            app->provider,
+            app->tree,
+            &app->host,
+            &app->invs,
+            &app->bridge,
+            self->target_uid,
+            self->interface_id,
+            self->type,
+            &app->open_stats));
+    }
+    else
+    {
+        /* IF_CLOSESUB: drop the mount record and hide the slot's content. The
+         * mount task asserts interface_id>0, so a close never routes through it. */
+        UITree_InterfaceParentClear(app->tree, self->target_uid);
+        UITree_ApplyHide(app->tree, self->target_uid, 1);
+    }
+    App_RefreshAfterTreeMutation(app);
+    PT_END(&self->pt);
+}
+
+static void
+Task_OpenSubRefresh_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_OpenSubRefresh_VTable = {
+    .run = Task_OpenSubRefresh_Run,
+    .free = Task_OpenSubRefresh_Free,
+};
+
+static void
+app_enqueue_open_sub(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    struct Task_OpenSubRefresh* task;
+
+    assert(app);
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_OpenSubRefresh_VTable;
+    strncpy(task->task.name, "OpenSubRefresh", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->target_uid = target_uid;
+    task->interface_id = interface_id;
+    task->type = type;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+void
+App_OpenSubInterface(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type)
+{
+    assert(app);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
+            interface_id,
+            (unsigned)target_uid,
+            (target_uid >> 16) & 0xffff,
+            target_uid & 0xffff,
+            type);
+    app_enqueue_open_sub(app, target_uid, interface_id, type);
+}
+
+void
+App_CloseSubInterface(
+    struct App* app,
+    int target_uid)
+{
+    assert(app);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
+            (unsigned)target_uid,
+            (target_uid >> 16) & 0xffff,
+            target_uid & 0xffff);
+    /* iface_id <= 0 makes the mount task just clear the slot. */
+    app_enqueue_open_sub(app, target_uid, -1, 0);
 }
 
 /* Shared per-frame completion polls for async work (world load, textures,

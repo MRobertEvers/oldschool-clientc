@@ -1800,6 +1800,10 @@ emit_walk_pass(
 
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
+        /* Don't render unplaced orphan interface groups (CS2 auto-mounts them for
+         * property access, not display) — they would cover the gameframe. */
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
         emit_walk_node(
             tree,
             host,

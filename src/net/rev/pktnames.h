@@ -30,6 +30,13 @@ enum GameProtoPktName
     PKT_NAME_IF_OPENSIDE,
     PKT_NAME_IF_OPENOVERLAY,
 
+    /* modern gameframe interfaces (rev-230 openTop/openSub, targetComponent-uid
+     * mount model): a root group is opened as the tree root and sub-interfaces
+     * mount into a component slot addressed by a packed (parent<<16|child) uid. */
+    PKT_NAME_IF_OPENTOP,
+    PKT_NAME_IF_OPENSUB,
+    PKT_NAME_IF_CLOSESUB,
+
     /* interface mutators */
     PKT_NAME_IF_SETCOLOUR,
     PKT_NAME_IF_SETHIDE,

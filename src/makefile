@@ -139,6 +139,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	ui/uitree_hovertext.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
+	varc/varc_manager.c \
 	inv/inv_manager.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
@@ -184,7 +185,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run mock230 test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
+.PHONY: all release clean run mock230 test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -306,6 +307,10 @@ run: $(TARGET)
 test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
+
+test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test varc/varc_manager.c varc/varc_manager_test.c
+	./$(OBJ_DIR)/varc_manager_test
 
 # CS1 VM core is engine-agnostic, so the suite links only the VM sources.
 test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c

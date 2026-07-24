@@ -27,6 +27,25 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6205: (0, 0, 2, 0),  # VIEWPORT_GETFOV
     3328: (0, 0, 1, 0),  # idle-time getter (script 5327 logout warning polls it)
     7253: (0, 0, 1, 0),  # getter polled by toplevel cc_setontimer scripts (7052)
+    # _7100 (INT8 operand): a newer client-state getter (7000+ feature range,
+    # neighbours HIGHLIGHT_*). Script 5350 does `_7100 0; POP_INT_LOCAL` — one int
+    # out — so the {0,0,0,0} default underflowed and aborted the hook (leaving the
+    # mobile overlay covering the viewport). Exact semantics unconfirmed; the stub
+    # pushes a safe 0 (desktop/off default). Confirm and specialise if needed.
+    7100: (0, 0, 1, 0),  # unconfirmed client-state getter -> 1 int
+    # _7500..7503: newer host getters used by loot-tools formatter script 7603.
+    # {0,0,0,0} left the args on the stack every call -> the stack grew until
+    # PUSH_INT_LOCAL overflowed and the hook aborted (runaway cc_create/hover,
+    # panel covering the viewport). Signatures derived from 7603's balanced
+    # int/string stack trace (args pushed before the op, results popped after):
+    7500: (3, 0, 1, 0),  # (id,int,int) -> 1 int
+    7501: (0, 0, 1, 0),  # no-arg getter -> 1 int
+    7502: (3, 0, 2, 2),  # (id,int,int) -> 2 ints + 2 strings
+    7503: (2, 0, 1, 0),  # (id,int) -> 1 int (loop-count getter)
+    # FRIEND_COUNT is a no-arg getter (total friends), but the name heuristic gave
+    # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
+    # arg and underflowed, aborting the friends-list builder (script 125).
+    3600: (0, 0, 1, 0),  # FRIEND_COUNT: no args -> 1 int
 }
 
 

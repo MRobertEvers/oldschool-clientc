@@ -11,15 +11,10 @@ struct UITree;
 struct CacheProvider;
 struct InvManager;
 struct VarPManager;
+struct VarCManager;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
-
-#define RS_CS2_HOST_VARC_INT_MAX 256
-/* The chatbox input dialog mirrors its string into VarC string 335, so a cap of
- * 64 silently dropped every read and write of it. */
-#define RS_CS2_HOST_VARC_STRING_MAX 512
-#define RS_CS2_HOST_VARC_STRING_LEN 128
 
 #define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 128
@@ -82,8 +77,7 @@ struct RS_CS2Host
     int awaited_id;
     int awaited_id2; /* second resource of a two-resource request, else -1 */
 
-    int varc_int[RS_CS2_HOST_VARC_INT_MAX];
-    char varc_string[RS_CS2_HOST_VARC_STRING_MAX][RS_CS2_HOST_VARC_STRING_LEN];
+    struct VarCManager* varcs; /* client-variable store; may be NULL */
 
     int client_clock;
     int viewport_w;
@@ -101,9 +95,14 @@ struct RS_CS2Host
      *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating
      *  keeps already-fired hooks from re-running. */
     int widgets_loaded_dirty;
-    /** Bumped when a var/inv value actually changes (none do yet in this port —
-     *  future server integration bumps these at the write site). Start at 1 so
-     *  freshly registered hooks (last_seen_serial=0) fire once on first dispatch. */
+    /** Set when a varp/varc value actually changed this tick (via
+     *  RS_CS2Host_NotifyVarChanged, wired to the var managers' change callbacks).
+     *  RS_CS2_PumpTransmits consumes it once per tick to re-dispatch var-transmit
+     *  hooks, so interfaces react to value changes and not only to unhide. */
+    int var_transmit_dirty;
+    /** Bumped when a var/inv value actually changes. Start at 1 so freshly
+     *  registered hooks (last_seen_serial=0) fire once on first dispatch; the
+     *  bump lets already-fired hooks re-run when a value changes. */
     uint32_t var_change_serial;
     uint32_t inv_change_serial;
 
@@ -143,7 +142,16 @@ RS_CS2Host_Init(
     struct UITree* tree,
     struct CacheProvider* provider,
     struct InvManager* invs,
-    struct VarPManager* varps);
+    struct VarPManager* varps,
+    struct VarCManager* varcs);
+
+/** Signal that a varp/varc value changed: bumps var_change_serial and flags a
+ *  var-transmit re-dispatch for the tick. Wired to the var managers' change
+ *  callbacks; safe to call with any/no var id. */
+void
+RS_CS2Host_NotifyVarChanged(
+    struct RS_CS2Host* host,
+    int var_id);
 
 void
 RS_CS2Host_SetBridge(

@@ -1262,6 +1262,25 @@ main(
          * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
         if( getenv("TORIRS_EXIT_BMP") )
         {
+            /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
+             * runs before any server IF_OPENSUB lands), this dumps after the
+             * frame loop so server-driven interface mounts are visible. */
+            if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
+                dump_tree(&app, cfg.interface_id);
+            /* Post-network emit dump: the actual draw list for the last frame,
+             * to find what paints over the world viewport (0,0..723,503). */
+            if( getenv("TORIRS_DUMP_EMIT_EXIT") )
+                for( int i = 0; i < app.emit.count; i++ )
+                {
+                    struct UITreeEmitDesc* d = &app.emit.cmds[i];
+                    if( d->w >= 300 && d->h >= 200 && d->x < 480 )
+                        fprintf(
+                            stderr,
+                            "EMIT_COVER[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d "
+                            "color=0x%06x filled=%d trans=%d tiled=%d\n",
+                            i, (int)d->kind, d->component_id, d->x, d->y, d->w, d->h,
+                            d->scene_id, d->color, d->filled, d->trans, d->tiled);
+                }
             if( getenv("TORIRS_NET_DEBUG") && app.tree )
             {
                 for( int t = 0; t < 14; t++ )

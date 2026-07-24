@@ -382,9 +382,18 @@ Task_InterfaceOpen_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* 1. Load interface pack. */
+    /* 1. Load interface pack. A live server can open an interface id our local
+     * cache does not carry; the load then no-ops and the pack stays absent, so
+     * skip the mount gracefully instead of asserting (and crashing the client). */
     TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
-    assert(CacheProvider_ComponentPackHas(self->provider, self->interface_id));
+    if( !CacheProvider_ComponentPackHas(self->provider, self->interface_id) )
+    {
+        fprintf(
+            stderr,
+            "interface open: pack %d missing from cache; skipping mount\n",
+            self->interface_id);
+        PT_EXIT(&self->pt);
+    }
 
     /* 2. Prefetch pack sprites / fonts / models. */
     TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));

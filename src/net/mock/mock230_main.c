@@ -14,16 +14,15 @@
  */
 #include "net/isaac.h"
 #include "net/rsa.h"
-
-#include <rsbuffer.h>
-
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <rsbuffer.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 /* Mock private key (D) + modulus (N); client uses (10001, N). */
@@ -39,8 +38,10 @@ static const char* MOCK_RSA_N =
 #define SESSION_ID 0x0102030405060708ULL
 
 /* Lumbridge-ish login spot. zone = tile>>3; scene base = (zone-6)*8. */
-#define LOGIN_ZONE_X 402
-#define LOGIN_ZONE_Z 402
+// #define LOGIN_ZONE_X 402
+// #define LOGIN_ZONE_Z 402
+#define LOGIN_ZONE_X 426
+#define LOGIN_ZONE_Z 408
 
 /* 230 server->client opcode -> name (RSProt GameServerProt), for debug. */
 static const char*
@@ -48,34 +49,61 @@ opcode_name(int op)
 {
     switch( op )
     {
-    case 68: return "REBUILD_NORMAL";
-    case 23: return "PLAYER_INFO";
-    case 104: return "NPC_INFO_SMALL";
-    case 0: return "SET_NPC_UPDATE_ORIGIN";
-    case 35: return "VARP_SMALL";
-    case 82: return "VARP_LARGE";
-    case 7: return "VARP_RESET";
-    case 88: return "VARP_SYNC";
-    case 77: return "UPDATE_RUNENERGY";
-    case 27: return "UPDATE_RUNWEIGHT";
-    case 114: return "UPDATE_STAT_V2";
-    case 10: return "UPDATE_INV_FULL";
-    case 37: return "UPDATE_INV_PARTIAL";
-    case 60: return "IF_OPENTOP";
-    case 6: return "IF_OPENSUB";
-    case 36: return "IF_CLOSESUB";
-    case 94: return "IF_SETTEXT";
-    case 47: return "IF_SETEVENTS";
-    case 84: return "RUNCLIENTSCRIPT";
-    case 90: return "MESSAGE_GAME";
-    case 2: return "SET_MAP_FLAG";
-    case 108: return "SERVER_TICK_END";
-    default: return "?";
+    case 68:
+        return "REBUILD_NORMAL";
+    case 23:
+        return "PLAYER_INFO";
+    case 104:
+        return "NPC_INFO_SMALL";
+    case 0:
+        return "SET_NPC_UPDATE_ORIGIN";
+    case 35:
+        return "VARP_SMALL";
+    case 82:
+        return "VARP_LARGE";
+    case 7:
+        return "VARP_RESET";
+    case 88:
+        return "VARP_SYNC";
+    case 77:
+        return "UPDATE_RUNENERGY";
+    case 27:
+        return "UPDATE_RUNWEIGHT";
+    case 114:
+        return "UPDATE_STAT_V2";
+    case 10:
+        return "UPDATE_INV_FULL";
+    case 37:
+        return "UPDATE_INV_PARTIAL";
+    case 60:
+        return "IF_OPENTOP";
+    case 6:
+        return "IF_OPENSUB";
+    case 36:
+        return "IF_CLOSESUB";
+    case 94:
+        return "IF_SETTEXT";
+    case 47:
+        return "IF_SETEVENTS";
+    case 84:
+        return "RUNCLIENTSCRIPT";
+    case 90:
+        return "MESSAGE_GAME";
+    case 2:
+        return "SET_MAP_FLAG";
+    case 108:
+        return "SERVER_TICK_END";
+    default:
+        return "?";
     }
 }
 
 static void
-hex_preview(char* out, int out_cap, uint8_t const* data, int len)
+hex_preview(
+    char* out,
+    int out_cap,
+    uint8_t const* data,
+    int len)
 {
     int n = len < 12 ? len : 12;
     int pos = 0;
@@ -86,7 +114,10 @@ hex_preview(char* out, int out_cap, uint8_t const* data, int len)
 }
 
 static int
-read_full(int fd, uint8_t* buf, int n)
+read_full(
+    int fd,
+    uint8_t* buf,
+    int n)
 {
     int got = 0;
     while( got < n )
@@ -101,7 +132,13 @@ read_full(int fd, uint8_t* buf, int n)
 
 /* Frame + ISAAC-scramble one server->client packet and send it. */
 static void
-send_packet(int fd, struct Isaac* enc, int opcode, uint8_t const* payload, int len, int var)
+send_packet(
+    int fd,
+    struct Isaac* enc,
+    int opcode,
+    uint8_t const* payload,
+    int len,
+    int var)
 {
     uint8_t frame[8192];
     struct RSCache_Buffer buf;
@@ -123,14 +160,18 @@ send_packet(int fd, struct Isaac* enc, int opcode, uint8_t const* payload, int l
         "mock230: -> %-18s op=%-3d %-9s payload=%3d framed=%d  [%s]\n",
         opcode_name(opcode),
         opcode,
-        var == 1 ? "var-u8" : var == 2 ? "var-u16" : "fixed",
+        var == 1   ? "var-u8"
+        : var == 2 ? "var-u16"
+                   : "fixed",
         len,
         (int)buf.position,
         hex);
 }
 
 static void
-send_rebuild_normal(int fd, struct Isaac* enc)
+send_rebuild_normal(
+    int fd,
+    struct Isaac* enc)
 {
     uint8_t body[4096];
     struct RSCache_Buffer buf;
@@ -166,40 +207,96 @@ send_rebuild_normal(int fd, struct Isaac* enc)
 /* Payload builder scratch. */
 static uint8_t g_body[8192];
 
+/* RSProt Jagex byte-order alt transforms (see JagexByteBufExtensions.kt). We
+ * only have big-endian p1/p2/p4 in rsbuffer, so spell the alts out by byte. */
 static void
-send_if_opentop(int fd, struct Isaac* enc, int root_group)
+p2alt1(struct RSCache_Buffer* b, int v) /* writeByte(v); writeByte(v>>8) : [lo,hi] */
 {
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+}
+static void
+p2alt2(struct RSCache_Buffer* b, int v) /* writeByte(v>>8); writeByte(v+128) : [hi,lo+128] */
+{
+    p1(b, (v >> 8) & 0xff);
+    p1(b, (v + 128) & 0xff);
+}
+static void
+p4alt1(struct RSCache_Buffer* b, int v) /* writeIntLE : [b0,b1,b2,b3] */
+{
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+    p1(b, (v >> 16) & 0xff);
+    p1(b, (v >> 24) & 0xff);
+}
+static void
+p4alt3(struct RSCache_Buffer* b, int v) /* [b2,b3,b0,b1] : (v>>16),(v>>24),v,(v>>8) */
+{
+    p1(b, (v >> 16) & 0xff);
+    p1(b, (v >> 24) & 0xff);
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+}
+
+static void
+send_if_opentop(
+    int fd,
+    struct Isaac* enc,
+    int root_group)
+{
+    /* RSProt IfOpenTopEncoder: interfaceId as p2Alt1. */
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
-    p2(&buf, root_group);
+    p2alt1(&buf, root_group);
     send_packet(fd, enc, 60, g_body, buf.position, 0); /* fixed 2 */
 }
 
+/* Mount sub-interface `group` (type: 0 modal, 1 overlay, 3 tab) into component
+ * `child` of root `parent`. RSProt IfOpenSubEncoder wire order:
+ *   p1 type, p2Alt2 interfaceId, p4Alt3 destinationCombinedId(parent<<16|child). */
 static void
-send_if_opensub(int fd, struct Isaac* enc, int parent, int child, int group, int type)
+send_if_opensub(
+    int fd,
+    struct Isaac* enc,
+    int parent,
+    int child,
+    int group,
+    int type)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
-    p4(&buf, (parent << 16) | child); /* targetUid */
-    p2(&buf, group);
     p1(&buf, type);
+    p2alt2(&buf, group);
+    p4alt3(&buf, (parent << 16) | child);
     send_packet(fd, enc, 6, g_body, buf.position, 0); /* fixed 7 */
 }
 
+/* RSProt IfSetEventsEncoder wire order:
+ *   p4Alt3 combinedId, p2Alt2 start, p4Alt1 events, p2 end. */
 static void
-send_if_setevents(int fd, struct Isaac* enc, int uid, int from, int to, int events)
+send_if_setevents(
+    int fd,
+    struct Isaac* enc,
+    int uid,
+    int from,
+    int to,
+    int events)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
-    p4(&buf, uid);
-    p2(&buf, from);
+    p4alt3(&buf, uid);
+    p2alt2(&buf, from);
+    p4alt1(&buf, events);
     p2(&buf, to);
-    p4(&buf, events);
     send_packet(fd, enc, 47, g_body, buf.position, 0); /* fixed 12 */
 }
 
 static void
-send_varp_small(int fd, struct Isaac* enc, int id, int val)
+send_varp_small(
+    int fd,
+    struct Isaac* enc,
+    int id,
+    int val)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
@@ -209,30 +306,42 @@ send_varp_small(int fd, struct Isaac* enc, int id, int val)
 }
 
 static void
-send_stat(int fd, struct Isaac* enc, int skill, int level, int xp)
+send_stat(
+    int fd,
+    struct Isaac* enc,
+    int skill,
+    int level,
+    int xp)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
     p1(&buf, skill);
     p1(&buf, level);
     p4(&buf, xp);
-    p1(&buf, level); /* boosted level */
+    p1(&buf, level);                                    /* boosted level */
     send_packet(fd, enc, 114, g_body, buf.position, 0); /* fixed 7 */
 }
 
 static void
-send_inv_full(int fd, struct Isaac* enc, int component, int container)
+send_inv_full(
+    int fd,
+    struct Isaac* enc,
+    int component,
+    int container)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
     p4(&buf, component);
     p2(&buf, container);
-    p2(&buf, 0); /* item count = 0 (empty) */
+    p2(&buf, 0);                                       /* item count = 0 (empty) */
     send_packet(fd, enc, 10, g_body, buf.position, 2); /* var-short */
 }
 
 static void
-send_message_game(int fd, struct Isaac* enc, const char* text)
+send_message_game(
+    int fd,
+    struct Isaac* enc,
+    const char* text)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
@@ -256,7 +365,9 @@ gpi_reset(void)
 
 /* Write `count` bits of `val`, MSB-first (matches Net_BitBufferGbits). */
 static void
-gpi_bits(int count, int val)
+gpi_bits(
+    int count,
+    int val)
 {
     for( int i = count - 1; i >= 0; i-- )
     {
@@ -281,8 +392,8 @@ build_appearance(uint8_t* out)
     /* 12 slots [hat,cape,amulet,weapon,torso,shield,arms,legs,hair,hands,feet,jaw].
      * Empty -> 0x00; body part -> 0x100 + idk (two bytes). */
     static const int slots[12] = {
-        0, 0, 0, 0, 0x100 + 18, 0, 0x100 + 26, 0x100 + 36, 0x100 + 0, 0x100 + 33, 0x100 + 42,
-        0x100 + 10,
+        0,          0,          0,         0,          0x100 + 18, 0,
+        0x100 + 26, 0x100 + 36, 0x100 + 0, 0x100 + 33, 0x100 + 42, 0x100 + 10,
     };
     for( int i = 0; i < 12; i++ )
     {
@@ -307,20 +418,22 @@ build_appearance(uint8_t* out)
 }
 
 static void
-send_player_info(int fd, struct Isaac* enc)
+send_player_info(
+    int fd,
+    struct Isaac* enc)
 {
     gpi_reset();
 
     /* Local player: info=1, moveType=3 (teleport), level, scene-local x/z, jump,
      * then hasExtended=1 so appearance follows. scene_off for zone 402 is 32, so
      * scene tile = 32 + 20 = 52 (scene centre, on the loaded terrain). */
-    gpi_bits(1, 1); /* info */
-    gpi_bits(2, 3); /* moveType = teleport */
-    gpi_bits(2, 0); /* level */
+    gpi_bits(1, 1);  /* info */
+    gpi_bits(2, 3);  /* moveType = teleport */
+    gpi_bits(2, 0);  /* level */
     gpi_bits(7, 20); /* scene-local x */
     gpi_bits(7, 20); /* scene-local z */
-    gpi_bits(1, 1); /* jump */
-    gpi_bits(1, 1); /* has extended info (appearance) */
+    gpi_bits(1, 1);  /* jump */
+    gpi_bits(1, 1);  /* has extended info (appearance) */
 
     gpi_bits(8, 0);     /* tracked player count = 0 */
     gpi_bits(11, 2047); /* new-player list terminator */
@@ -345,20 +458,40 @@ send_player_info(int fd, struct Isaac* enc)
  * and drop, so payloads are plausible fillers with table-correct sizes.
  */
 static void
-send_login_burst(int fd, struct Isaac* enc)
+send_login_burst(
+    int fd,
+    struct Isaac* enc)
 {
     /* 1. Map region. */
     send_rebuild_normal(fd, enc);
 
-    /* 2. Root gameframe + a handful of sub-interface tabs (fixed=548 desktop). */
-    send_if_opentop(fd, enc, 548);
-    send_if_opensub(fd, enc, 548, 10, 593, 1);  /* worldmap-ish */
-    send_if_opensub(fd, enc, 548, 71, 320, 1);  /* skills tab */
-    send_if_opensub(fd, enc, 548, 72, 149, 1);  /* inventory tab */
-    send_if_opensub(fd, enc, 548, 73, 387, 1);  /* equipment tab */
-    send_if_opensub(fd, enc, 548, 74, 541, 1);  /* prayer tab */
+    /* 2. Root gameframe + sidebar tab panels. The client boots the resizable
+     *    gameframe root 161 (manifest ui:boot interface_id=161), so open 161 as
+     *    the top and mount each tab's cache interface into 161's tab-content
+     *    slots. Those slots are components 76..89 of interface 161 (14 layers
+     *    under component 75 — one per sidebar tab, index 0..13), confirmed from
+     *    the baked 161 tree (TORIRS_DUMP_TREE). Tab->panel-archive mapping is the
+     *    standard OSRS gameframe layout (Kronos DisplayHandler order). type=1
+     *    (overlay), matching the display-burst mounts Kronos sends. */
+    send_if_opentop(fd, enc, 161);
 
-    /* 3. Access mask (IF_SETEVENTS) — unlock inventory slot clicks. */
+    /* {sidebar-tab index (0=combat..13=music) -> panel interface archive}. */
+    static const struct
+    {
+        int slot; /* 161 tab-content component id */
+        int group; /* panel interface archive */
+        const char* name;
+    } tabs[] = {
+        { 76, 593, "combat" }, { 77, 320, "stats" },     { 78, 720, "quest" },
+        { 79, 149, "inventory" }, { 80, 387, "equipment" }, { 81, 541, "prayer" },
+        { 82, 218, "magic" },  { 85, 429, "friends" },   { 87, 261, "settings" },
+        { 88, 216, "emotes" }, { 89, 239, "music" },
+    };
+    for( size_t i = 0; i < sizeof(tabs) / sizeof(tabs[0]); i++ )
+        send_if_opensub(fd, enc, 161, tabs[i].slot, tabs[i].group, 1);
+
+    /* 3. Access mask (IF_SETEVENTS) — unlock inventory slot clicks. The inventory
+     *    container component lives inside interface 149. */
     send_if_setevents(fd, enc, (149 << 16) | 0, 0, 27, 0x3fe);
 
     /* 4. A few config varps. */
@@ -366,8 +499,14 @@ send_login_burst(int fd, struct Isaac* enc)
     send_varp_small(fd, enc, 261, 10);
 
     /* 5. Run energy + weight. */
-    { uint8_t b[2] = { 100, 0 }; send_packet(fd, enc, 77, b, 2, 0); }
-    { uint8_t b[2] = { 0, 0 }; send_packet(fd, enc, 27, b, 2, 0); }
+    {
+        uint8_t b[2] = { 100, 0 };
+        send_packet(fd, enc, 77, b, 2, 0);
+    }
+    {
+        uint8_t b[2] = { 0, 0 };
+        send_packet(fd, enc, 27, b, 2, 0);
+    }
 
     /* 6. Inventory (container 93) + equipment (container 94), both empty. */
     send_inv_full(fd, enc, (149 << 16) | 0, 93);
@@ -385,7 +524,10 @@ send_login_burst(int fd, struct Isaac* enc)
      *    (and its async world load) fully completes before PLAYER_INFO is
      *    applied, so no send delay is needed. NPC info stays a placeholder. */
     send_player_info(fd, enc);
-    { uint8_t b[1] = { 0 }; send_packet(fd, enc, 104, b, 1, 2); }
+    {
+        uint8_t b[1] = { 0 };
+        send_packet(fd, enc, 104, b, 1, 2);
+    }
 
     /* 10. End-of-tick marker. */
     send_packet(fd, enc, 108, NULL, 0, 0);
@@ -501,7 +643,9 @@ handle_client(int fd)
 }
 
 int
-main(int argc, char** argv)
+main(
+    int argc,
+    char** argv)
 {
     int port = argc > 1 ? atoi(argv[1]) : 43594;
 
