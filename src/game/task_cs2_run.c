@@ -746,6 +746,32 @@ Task_CS2Run_Run(
             thread->dot_component_id = self->dot_component_id;
 
         self->started = 1;
+
+        /* TORIRS_CS2_DUMP_SCRIPT=<id>: one-shot disassembly of a script when it
+         * starts, to understand hooks that run without failing (e.g. tab-visibility
+         * onSubChange). */
+        {
+            static int s_dumped = 0;
+            char const* want = getenv("TORIRS_CS2_DUMP_SCRIPT");
+            if( want && !s_dumped )
+            {
+                struct CS2VM2_Script* d =
+                    CacheProvider_ClientScriptGet(self->provider, atoi(want));
+                if( d )
+                {
+                    s_dumped = 1;
+                    fprintf(stderr, "== DUMP script %d (ops=%d) ==\n", d->script_id, d->op_count);
+                    for( int p = 0; p < d->op_count; p++ )
+                        fprintf(
+                            stderr,
+                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                            p, d->opcodes[p], CS2_OpCode_String(d->opcodes[p]),
+                            d->int_operands ? d->int_operands[p] : 0,
+                            (d->string_operands && d->string_operands[p]) ? d->string_operands[p]
+                                                                          : "(null)");
+                }
+            }
+        }
     }
 
     for( ;; )

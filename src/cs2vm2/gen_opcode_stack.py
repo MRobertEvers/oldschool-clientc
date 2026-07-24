@@ -46,6 +46,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
     # arg and underflowed, aborting the friends-list builder (script 125).
     3600: (0, 0, 1, 0),  # FRIEND_COUNT: no args -> 1 int
+    2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
 }
 
 

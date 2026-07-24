@@ -2508,6 +2508,21 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.if_get_width.component_id);
         return CS2VM2_PushInt(vm, node && node->behavior.hide ? 1 : 0);
 
+    case CS2VM_HOST_REQUEST_IF_HASSUB:
+    {
+        /* A component "has a sub" when an interface group is mounted into it
+         * (IF_OPENSUB target). The InterfaceParent map records exactly that. */
+        int cid = request->u.if_get_width.component_id;
+        int has = tree && UITree_InterfaceParentFind(tree, cid) >= 0;
+        if( getenv("TORIRS_HASSUB_DEBUG") )
+            fprintf(
+                stderr,
+                "hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
+                (unsigned)cid, (cid >> 16) & 0xffff, cid & 0xffff, has,
+                tree ? tree->interface_parent_count : -1);
+        return CS2VM2_PushInt(vm, has ? 1 : 0);
+    }
+
     case CS2VM_HOST_REQUEST_IF_GETTEXT:
     {
         char buf[512];
@@ -2530,6 +2545,18 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_hide.component_id,
                 request->u.if_set_hide.hidden ? 1 : 0);
 #endif
+            if( getenv("TORIRS_SETHIDE_DEBUG") )
+            {
+                int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
+                if( g == 149 || g == 320 || (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
+                    fprintf(
+                        stderr,
+                        "sethide: component 0x%08x (%d|%d) hide=%d\n",
+                        (unsigned)request->u.if_set_hide.component_id,
+                        g,
+                        request->u.if_set_hide.component_id & 0xffff,
+                        request->u.if_set_hide.hidden ? 1 : 0);
+            }
             hide_idx = UITree_FindByComponentId(tree, request->u.if_set_hide.component_id);
             if( hide_idx >= 0 )
                 was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;

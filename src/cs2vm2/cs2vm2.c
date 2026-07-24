@@ -2479,6 +2479,31 @@ CS2VM2_Op_IF_GetHide(
     return CS2VM_EXECNO_OK;
 }
 
+/* IF_HASSUB(component) -> 1 if a sub-interface is mounted into `component`, else 0.
+ * The gameframe tab-visibility proc (script 908) uses this to decide which tab
+ * slot to reveal; without it every slot reads as empty and no tab ever shows. */
+int
+CS2VM2_Op_IF_HasSub(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_HASSUB;
+    request.u.if_get_width.component_id = component_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_GetY(
     struct CS2VM2_Thread* vm,
@@ -6353,6 +6378,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetScrollHeight(vm, frame, operand);
     case CS2_OP_IF_GETHIDE:
         return CS2VM2_Op_IF_GetHide(vm, frame, operand);
+    case CS2_OP_IF_HASSUB:
+        return CS2VM2_Op_IF_HasSub(vm, frame, operand);
     case CS2_OP_IF_SETHIDE:
         return CS2VM2_Op_IF_SetHide(vm, frame, operand);
     case CS2_OP_IF_SETPOSITION:

@@ -352,6 +352,15 @@ collect_runtime_hooks_kind(
             if( group != self->interface_id && self->target_uid >= 0 )
                 continue;
         }
+        if( !use_resize && getenv("TORIRS_ONSUBCHANGE_DEBUG") )
+            fprintf(
+                stderr,
+                "onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
+                self->interface_id,
+                (unsigned)c->component_id,
+                (c->component_id >> 16) & 0xffff,
+                c->component_id & 0xffff,
+                slot->script_id);
         assert(self->runtime_hook_count < INTERFACE_OPEN_RUNTIME_HOOK_MAX);
         dst = &self->runtime_hooks[self->runtime_hook_count++];
         dst->component_id = c->component_id;
