@@ -599,7 +599,6 @@ RS_CS2Host_NotifyVarChanged(
     struct RS_CS2Host* host,
     int var_id)
 {
-    (void)var_id; /* re-dispatch re-checks all hooks, gated by serial + hidden */
     if( !host )
         return;
     /* Advance the serial so already-fired var-transmit hooks re-run, and flag the
@@ -607,6 +606,24 @@ RS_CS2Host_NotifyVarChanged(
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
     host->var_transmit_dirty = 1;
+
+    /* Remember which id changed so the dispatch can skip hooks that do not list
+     * it as a trigger. An unknown id (< 0) or a full set means "re-run
+     * everything" — never fewer hooks than the wildcard dispatch would run. */
+    if( host->var_changed_all )
+        return;
+    if( var_id < 0 || host->var_changed_count >= RS_CS2_HOST_VAR_CHANGED_MAX )
+    {
+        host->var_changed_all = 1;
+        host->var_changed_count = 0;
+        return;
+    }
+    for( int i = 0; i < host->var_changed_count; i++ )
+    {
+        if( host->var_changed_ids[i] == var_id )
+            return;
+    }
+    host->var_changed_ids[host->var_changed_count++] = var_id;
 }
 
 void

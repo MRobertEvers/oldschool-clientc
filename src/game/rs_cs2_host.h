@@ -19,6 +19,9 @@ struct RS_WorldMapState;
 #define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_TRANSMIT_TRIGGER_MAX 32
+/** Var ids remembered per tick for transmit-hook matching; past this the tick
+ *  degrades to "every hook re-runs" (correct, just not selective). */
+#define RS_CS2_HOST_VAR_CHANGED_MAX 64
 /* Must match CS2VM_HostRequest_IF_SetOnInvTransmit.int_args[32]. */
 #define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX 32
 
@@ -137,6 +140,16 @@ struct RS_CS2Host
      *  RS_CS2_PumpTransmits consumes it once per tick to re-dispatch var-transmit
      *  hooks, so interfaces react to value changes and not only to unhide. */
     int var_transmit_dirty;
+    /** Which var ids changed since the last dispatch (TS changedVarps parity).
+     *  A var-transmit hook re-runs only when the change touches one of its
+     *  triggers: rev230's gameframe writes a clock varc every tick, and a
+     *  dispatch that ignored the id re-ran every hook — rebuilding whole widget
+     *  lists (cc_deleteall + cc_create) 50 times a second for nothing.
+     *  var_changed_all means "assume every hook" (overflow, or an unhide, where
+     *  the trigger set says nothing about what must be re-run). */
+    int var_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
+    int var_changed_count;
+    int var_changed_all;
     /** Bumped when a var/inv value actually changes. Start at 1 so freshly
      *  registered hooks (last_seen_serial=0) fire once on first dispatch; the
      *  bump lets already-fired hooks re-run when a value changes. */

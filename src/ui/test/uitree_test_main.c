@@ -18,6 +18,7 @@ main(void)
     test_emit_golden();
     test_key_dispatch();
     test_minimenu();
+    test_id_index();
 
     if( g_failures )
     {

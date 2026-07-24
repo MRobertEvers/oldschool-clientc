@@ -128,10 +128,25 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /* An unhide has to re-check every hook (a widget that was hidden through any
+     * number of value changes must repaint). A plain value change only re-runs
+     * the hooks that listed one of the changed vars as a trigger — otherwise
+     * rev230's per-tick clock varc drags every hook's script along with it. */
+    {
+        int const* ids = host->var_changed_ids;
+        int count = host->var_changed_count;
+        if( host->widgets_loaded_dirty || host->var_changed_all )
+        {
+            ids = NULL;
+            count = 0;
+        }
+        task = CreateTask_CS2VarTransmitDispatchSet(host, ids, count);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     host->widgets_loaded_dirty = 0;
     host->var_transmit_dirty = 0;
-
-    task = CreateTask_CS2VarTransmitDispatch(host, -1);
-    assert(task);
-    ToriRS_TaskQueue_Add(runner->queue, task);
+    host->var_changed_count = 0;
+    host->var_changed_all = 0;
 }

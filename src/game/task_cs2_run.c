@@ -12,6 +12,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
 #include "ui/uitree.h"
+#include "varp/varp_manager.h"
 #include "ui/uitree_layout.h"
 #include <3rd/minipt.h>
 
@@ -1267,25 +1268,52 @@ struct Task_CS2VarTransmitDispatch
     struct pt pt;
 
     struct RS_CS2Host* host;
-    int var_id;
+    /** Snapshot of the changed-var set this dispatch is for (the host's set is
+     *  cleared and refilled while this task walks the hooks across yields).
+     *  var_count == 0 means "every hook", the pre-filter behavior. */
+    int var_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
+    int var_count;
     int hook_index;
 };
 
+/** Does `var_id` name the varbit whose base varp is `changed_id`? A hook may
+ *  list varbit triggers while the change notification carries the base varp
+ *  (VarPManager_SetVarbitOptimistic writes through the base), so matching on the
+ *  raw id alone would silently stop such a hook from ever re-running. */
+static int
+var_trigger_is_varbit_of(
+    struct RS_CS2Host const* host,
+    int trigger_id,
+    int changed_id)
+{
+    struct VarPManager const* varps = host->varps;
+    if( !varps || trigger_id < 0 || trigger_id >= varps->varbit_count )
+        return 0;
+    return varps->varbit_types[trigger_id].basevar == changed_id;
+}
+
 static int
 hook_matches_var(
+    struct RS_CS2Host const* host,
     struct RS_CS2VarTransmitHook const* hook,
-    int var_id)
+    int const* var_ids,
+    int var_count)
 {
-    int i;
     assert(hook);
-    if( var_id < 0 )
+    if( var_count <= 0 )
         return 1;
+    /* No trigger list = "any change" (that is what the wildcard dispatch did for
+     * these hooks, and a hook with no triggers has nothing to filter on). */
     if( hook->trigger_count <= 0 )
         return 1;
-    for( i = 0; i < hook->trigger_count; i++ )
+    for( int i = 0; i < hook->trigger_count; i++ )
     {
-        if( hook->trigger_ids[i] == var_id )
-            return 1;
+        for( int v = 0; v < var_count; v++ )
+        {
+            if( hook->trigger_ids[i] == var_ids[v] ||
+                var_trigger_is_varbit_of(host, hook->trigger_ids[i], var_ids[v]) )
+                return 1;
+        }
     }
     return 0;
 }
@@ -1306,7 +1334,7 @@ Task_CS2VarTransmitDispatch_Run(
          self->hook_index++ )
     {
         hook = &self->host->var_transmit_hooks[self->hook_index];
-        if( !hook_matches_var(hook, self->var_id) )
+        if( !hook_matches_var(self->host, hook, self->var_ids, self->var_count) )
             continue;
         if( hook->script_id <= 0 )
             continue;
@@ -1363,9 +1391,10 @@ static struct ToriRS_TaskVTable Task_CS2VarTransmitDispatch_VTable = {
 };
 
 struct ToriRS_Task*
-CreateTask_CS2VarTransmitDispatch(
+CreateTask_CS2VarTransmitDispatchSet(
     struct RS_CS2Host* host,
-    int var_id)
+    int const* var_ids,
+    int var_count)
 {
     struct Task_CS2VarTransmitDispatch* self;
 
@@ -1376,7 +1405,23 @@ CreateTask_CS2VarTransmitDispatch(
     self->task.vtable = &Task_CS2VarTransmitDispatch_VTable;
     strcpy(self->task.name, "CS2VarTransmitDispatch");
     self->host = host;
-    self->var_id = var_id;
+    if( var_ids && var_count > 0 )
+    {
+        if( var_count > RS_CS2_HOST_VAR_CHANGED_MAX )
+            var_count = RS_CS2_HOST_VAR_CHANGED_MAX;
+        memcpy(self->var_ids, var_ids, (size_t)var_count * sizeof(int));
+        self->var_count = var_count;
+    }
     PT_INIT(&self->pt);
     return &self->task;
+}
+
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitDispatch(
+    struct RS_CS2Host* host,
+    int var_id)
+{
+    if( var_id < 0 )
+        return CreateTask_CS2VarTransmitDispatchSet(host, NULL, 0);
+    return CreateTask_CS2VarTransmitDispatchSet(host, &var_id, 1);
 }

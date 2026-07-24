@@ -68,4 +68,15 @@ CreateTask_CS2VarTransmitDispatch(
     struct RS_CS2Host* host,
     int var_id);
 
+/**
+ * Same, for a whole set of changed var ids (RS_CS2Host::var_changed_ids): a hook
+ * runs when any of them is one of its triggers. An empty set means every hook,
+ * which is what an unhide needs (the trigger lists say nothing about it).
+ */
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitDispatchSet(
+    struct RS_CS2Host* host,
+    int const* var_ids,
+    int var_count);
+
 #endif /* TASK_CS2_RUN_H */

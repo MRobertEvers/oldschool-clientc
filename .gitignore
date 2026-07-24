@@ -1,5 +1,6 @@
 .env
 build/
+build_opt/
 cache/
 cache254/
 cacheosrs/

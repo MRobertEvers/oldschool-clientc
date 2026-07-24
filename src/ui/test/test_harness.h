@@ -152,5 +152,6 @@ void test_emit_icons(void);
 void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);
+void test_id_index(void);
 
 #endif
