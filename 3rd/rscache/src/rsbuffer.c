@@ -7,6 +7,8 @@
 #include <string.h>
 #include <wchar.h>
 
+#define RSCACHE_BUFFER_DEFAULT_CAPACITY 256
+
 void
 RSCache_BufferInit(
     struct RSCache_Buffer* buffer,
@@ -16,6 +18,110 @@ RSCache_BufferInit(
     buffer->data = data;
     buffer->size = size;
     buffer->position = 0;
+    buffer->owns_data = false;
+}
+
+bool
+RSCache_BufferInitAlloc(
+    struct RSCache_Buffer* buffer,
+    uint32_t initial_capacity)
+{
+    if( initial_capacity == 0 )
+        initial_capacity = RSCACHE_BUFFER_DEFAULT_CAPACITY;
+
+    buffer->data = malloc(initial_capacity);
+    if( !buffer->data )
+    {
+        buffer->size = 0;
+        buffer->position = 0;
+        buffer->owns_data = false;
+        return false;
+    }
+
+    buffer->size = initial_capacity;
+    buffer->position = 0;
+    buffer->owns_data = true;
+    return true;
+}
+
+void
+RSCache_BufferRelease(struct RSCache_Buffer* buffer)
+{
+    if( !buffer )
+        return;
+    if( buffer->owns_data )
+        free(buffer->data);
+    buffer->data = NULL;
+    buffer->size = 0;
+    buffer->position = 0;
+    buffer->owns_data = false;
+}
+
+uint8_t*
+RSCache_BufferDetach(
+    struct RSCache_Buffer* buffer,
+    uint32_t* out_size)
+{
+    if( !buffer || !buffer->owns_data )
+    {
+        if( out_size )
+            *out_size = 0;
+        return NULL;
+    }
+
+    uint8_t* data = buffer->data;
+    if( out_size )
+        *out_size = buffer->position;
+
+    buffer->data = NULL;
+    buffer->size = 0;
+    buffer->position = 0;
+    buffer->owns_data = false;
+    return data;
+}
+
+bool
+RSCache_BufferEnsure(
+    struct RSCache_Buffer* buffer,
+    uint32_t extra)
+{
+    uint32_t needed = buffer->position + extra;
+    /* Wrap of the cursor itself is a caller bug, not a growth request. */
+    if( needed < buffer->position )
+        return false;
+    if( needed <= buffer->size )
+        return true;
+    if( !buffer->owns_data )
+        return false;
+
+    uint32_t capacity = buffer->size ? buffer->size : RSCACHE_BUFFER_DEFAULT_CAPACITY;
+    while( capacity < needed )
+    {
+        uint32_t doubled = capacity * 2;
+        /* Saturate to the exact requirement rather than wrap on a huge length. */
+        capacity = doubled > capacity ? doubled : needed;
+    }
+
+    uint8_t* data = realloc(buffer->data, capacity);
+    if( !data )
+        return false;
+
+    buffer->data = data;
+    buffer->size = capacity;
+    return true;
+}
+
+/* Every "p" routes through this: grow when owned, assert when borrowed and out
+ * of room. Borrowed overflow already asserted before owned mode existed, so the
+ * net stack's behaviour is unchanged. */
+static inline void
+buffer_reserve(
+    struct RSCache_Buffer* buffer,
+    uint32_t extra)
+{
+    bool room = RSCache_BufferEnsure(buffer, extra);
+    assert(room && "RSCache_Buffer write past the end of a borrowed buffer");
+    (void)room;
 }
 
 int
@@ -32,7 +138,7 @@ RSCache_BufferP1(
     int value)
 {
     assert(value < 256);
-    assert(buffer->position < buffer->size);
+    buffer_reserve(buffer, 1);
     buffer->data[buffer->position++] = value & 0xff;
 }
 
@@ -43,6 +149,16 @@ RSCache_BufferG1b(struct RSCache_Buffer* buffer)
     if( buffer->position >= buffer->size )
         return 0;
     return buffer->data[buffer->position++];
+}
+
+void
+RSCache_BufferP1b(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    assert(value >= -128 && value <= 127);
+    buffer_reserve(buffer, 1);
+    buffer->data[buffer->position++] = (uint8_t)(value & 0xff);
 }
 
 int
@@ -61,6 +177,7 @@ RSCache_BufferP2(
     struct RSCache_Buffer* buffer,
     int value)
 {
+    buffer_reserve(buffer, 2);
     buffer->data[buffer->position++] = value >> 8 & 0xff;
     buffer->data[buffer->position++] = value & 0xff;
 }
@@ -80,6 +197,15 @@ RSCache_BufferG2b(struct RSCache_Buffer* buffer)
     return value;
 }
 
+void
+RSCache_BufferP2b(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    assert(value >= -32768 && value <= 32767);
+    RSCache_BufferP2(buffer, value & 0xffff);
+}
+
 int
 RSCache_BufferG3(struct RSCache_Buffer* buffer)
 {
@@ -90,6 +216,17 @@ RSCache_BufferG3(struct RSCache_Buffer* buffer)
                 (buffer->data[buffer->position + 2] & 0xff);
     buffer->position += 3;
     return value;
+}
+
+void
+RSCache_BufferP3(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    buffer_reserve(buffer, 3);
+    buffer->data[buffer->position++] = value >> 16 & 0xff;
+    buffer->data[buffer->position++] = value >> 8 & 0xff;
+    buffer->data[buffer->position++] = value & 0xff;
 }
 
 int
@@ -110,6 +247,7 @@ RSCache_BufferP4(
     struct RSCache_Buffer* buffer,
     int value)
 {
+    buffer_reserve(buffer, 4);
     buffer->data[buffer->position++] = value >> 24 & 0xff;
     buffer->data[buffer->position++] = value >> 16 & 0xff;
     buffer->data[buffer->position++] = value >> 8 & 0xff;
@@ -122,6 +260,15 @@ RSCache_BufferG8(struct RSCache_Buffer* buffer)
     int64_t high = (int64_t)RSCache_BufferG4(buffer) & 0xffffffffLL;
     int64_t low = (int64_t)RSCache_BufferG4(buffer) & 0xffffffffLL;
     return (high << 32) | low;
+}
+
+void
+RSCache_BufferP8(
+    struct RSCache_Buffer* buffer,
+    int64_t value)
+{
+    RSCache_BufferP4(buffer, (int)((uint64_t)value >> 32));
+    RSCache_BufferP4(buffer, (int)((uint64_t)value & 0xffffffffULL));
 }
 
 int
@@ -141,6 +288,22 @@ RSCache_BufferReadVarInt2(struct RSCache_Buffer* buffer)
     return value;
 }
 
+void
+RSCache_BufferWriteVarInt2(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    /* Unsigned so a negative input emits the five groups the reader needs to
+     * rebuild the same bit pattern, instead of shifting a sign bit forever. */
+    uint32_t bits = (uint32_t)value;
+    while( bits > 0x7fu )
+    {
+        RSCache_BufferP1(buffer, (int)((bits & 0x7fu) | 0x80u));
+        bits >>= 7;
+    }
+    RSCache_BufferP1(buffer, (int)(bits & 0x7fu));
+}
+
 float
 RSCache_BufferReadFloat(struct RSCache_Buffer* buffer)
 {
@@ -148,6 +311,16 @@ RSCache_BufferReadFloat(struct RSCache_Buffer* buffer)
     float f;
     memcpy(&f, &bits, sizeof(f));
     return f;
+}
+
+void
+RSCache_BufferWriteFloat(
+    struct RSCache_Buffer* buffer,
+    float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    RSCache_BufferP4(buffer, (int)bits);
 }
 
 int
@@ -190,6 +363,49 @@ RSCache_BufferReadShortSmartAt(
     return RSCache_BufferG2At(data, offset) - 0xC000;
 }
 
+void
+RSCache_BufferP1At(
+    uint8_t* data,
+    int* offset,
+    int value)
+{
+    data[(*offset)++] = (uint8_t)(value & 0xff);
+}
+
+void
+RSCache_BufferP2At(
+    uint8_t* data,
+    int* offset,
+    int value)
+{
+    data[(*offset)++] = (uint8_t)(value >> 8 & 0xff);
+    data[(*offset)++] = (uint8_t)(value & 0xff);
+}
+
+void
+RSCache_BufferP4At(
+    uint8_t* data,
+    int* offset,
+    int value)
+{
+    data[(*offset)++] = (uint8_t)(value >> 24 & 0xff);
+    data[(*offset)++] = (uint8_t)(value >> 16 & 0xff);
+    data[(*offset)++] = (uint8_t)(value >> 8 & 0xff);
+    data[(*offset)++] = (uint8_t)(value & 0xff);
+}
+
+void
+RSCache_BufferWriteShortSmartAt(
+    uint8_t* data,
+    int* offset,
+    int value)
+{
+    if( value >= -64 && value <= 63 )
+        RSCache_BufferP1At(data, offset, value + 64);
+    else
+        RSCache_BufferP2At(data, offset, (value + 0xC000) & 0xffff);
+}
+
 int
 RSCache_BufferReadUsmart(struct RSCache_Buffer* buffer)
 {
@@ -198,6 +414,20 @@ RSCache_BufferReadUsmart(struct RSCache_Buffer* buffer)
     if( peek < 128 )
         return RSCache_BufferG2(buffer) & 0xFFFF;
     return RSCache_BufferG4(buffer) & 0x7fffffff;
+}
+
+void
+RSCache_BufferWriteUsmart(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    /* The reader picks the width off the top bit of the first byte, so the
+     * 2-byte form is only reachable while the value fits in 15 bits. */
+    assert(value >= 0);
+    if( value < 0x8000 )
+        RSCache_BufferP2(buffer, value);
+    else
+        RSCache_BufferP4(buffer, value | (int)0x80000000);
 }
 
 int
@@ -212,6 +442,24 @@ RSCache_BufferReadBigSmart(struct RSCache_Buffer* buffer)
         return v;
     }
     return RSCache_BufferG4(buffer) & 0x7fffffff;
+}
+
+void
+RSCache_BufferWriteBigSmart(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    if( value == -1 )
+    {
+        RSCache_BufferP2(buffer, 32767);
+        return;
+    }
+    assert(value >= 0);
+    /* 32767 is spoken for by -1, so the 2-byte form stops one short of it. */
+    if( value < 32767 )
+        RSCache_BufferP2(buffer, value);
+    else
+        RSCache_BufferP4(buffer, value | (int)0x80000000);
 }
 
 static inline char*
@@ -297,6 +545,22 @@ RSCache_BufferReadUnsignedIntSmartShortCompat(struct RSCache_Buffer* buffer)
     return var1;
 }
 
+void
+RSCache_BufferWriteUnsignedIntSmartShortCompat(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    assert(value >= 0);
+    /* 32767 is the "keep going" escape, so a value that is an exact multiple of
+     * it still needs a trailing remainder or the reader eats what follows. */
+    while( value >= 32767 )
+    {
+        RSCache_BufferWriteUnsignedShortSmart(buffer, 32767);
+        value -= 32767;
+    }
+    RSCache_BufferWriteUnsignedShortSmart(buffer, value);
+}
+
 int
 RSCache_BufferReadShortSmart(struct RSCache_Buffer* buffer)
 {
@@ -304,11 +568,35 @@ RSCache_BufferReadShortSmart(struct RSCache_Buffer* buffer)
     return peek < 128 ? (RSCache_BufferG1(buffer) - 64) : (RSCache_BufferG2(buffer) - 0xC000);
 }
 
+void
+RSCache_BufferWriteShortSmart(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    assert(value >= -16384 && value <= 16383);
+    if( value >= -64 && value <= 63 )
+        RSCache_BufferP1(buffer, value + 64);
+    else
+        RSCache_BufferP2(buffer, (value + 0xC000) & 0xffff);
+}
+
 int
 RSCache_BufferReadUnsignedShortSmart(struct RSCache_Buffer* buffer)
 {
     int peek = buffer->data[buffer->position] & 0xFF;
     return peek < 128 ? RSCache_BufferG1(buffer) : (RSCache_BufferG2(buffer) - 0x8000);
+}
+
+void
+RSCache_BufferWriteUnsignedShortSmart(
+    struct RSCache_Buffer* buffer,
+    int value)
+{
+    assert(value >= 0 && value <= 32767);
+    if( value < 128 )
+        RSCache_BufferP1(buffer, value);
+    else
+        RSCache_BufferP2(buffer, value + 0x8000);
 }
 
 int
@@ -522,33 +810,50 @@ RSCache_BufferReadParams(
 }
 
 void
+RSCache_BufferWriteParams(
+    struct RSCache_Buffer* buffer,
+    const struct RSCache_Params* params)
+{
+    int count = params ? params->count : 0;
+    /* The count is a single byte on the wire. */
+    assert(count >= 0 && count <= 255);
+
+    RSCache_BufferP1(buffer, count);
+    for( int i = 0; i < count; i++ )
+    {
+        bool is_string = params->is_string[i];
+        RSCache_BufferP1(buffer, is_string ? 1 : 0);
+        RSCache_BufferP3(buffer, params->keys[i]);
+        if( is_string )
+        {
+            const char* str = params->values[i] ? (const char*)params->values[i] : "";
+            RSCache_BufferPjstr(buffer, str, RSCACHE_JSTR_TERMINATOR_NULL);
+        }
+        else
+        {
+            RSCache_BufferP4(buffer, params->values[i] ? *(const int*)params->values[i] : 0);
+        }
+    }
+}
+
+void
 RSCache_BufferPjstr(
     struct RSCache_Buffer* buffer,
     const char* str,
     int terminator)
 {
-    int len = strlen(str);
-    for( int i = 0; i < len; i++ )
+    /* Byte-transparent on purpose. The matching reader maps input bytes
+     * 128..159 through a Unicode table and then truncates each result to
+     * (char), which is not invertible: the 32 truncated values collide with 14
+     * printable ASCII bytes (space ! " & 0 9 : R S ` a x } ~) and two source
+     * bytes (149, 153) both land on 0x22. Applying the inverse map here would
+     * corrupt any ordinary string containing a space or an 'a'. */
+    if( str )
     {
-        unsigned char c = (unsigned char)str[i];
-        if( c >= 'A' && c <= 'Z' )
-        {
-            RSCache_BufferP1(buffer, c);
-        }
-        else if( c >= 'a' && c <= 'z' )
-        {
-            RSCache_BufferP1(buffer, c);
-        }
-        else if( c >= '0' && c <= '9' )
-        {
-            RSCache_BufferP1(buffer, c);
-        }
-        else
-        {
-            RSCache_BufferP1(buffer, c); // Pass through other chars
-        }
+        size_t len = strlen(str);
+        RSCache_BufferPwrite(buffer, (const uint8_t*)str, (int)len);
     }
-    RSCache_BufferP1(buffer, terminator); // Null terminator
+    RSCache_BufferP1(buffer, terminator);
 }
 
 void
@@ -557,7 +862,9 @@ RSCache_BufferPwrite(
     const uint8_t* data,
     int data_size)
 {
-    assert(buffer->position + data_size <= buffer->size);
-    memcpy(buffer->data + buffer->position, data, data_size);
-    buffer->position += data_size;
+    if( data_size <= 0 )
+        return;
+    buffer_reserve(buffer, (uint32_t)data_size);
+    memcpy(buffer->data + buffer->position, data, (size_t)data_size);
+    buffer->position += (uint32_t)data_size;
 }

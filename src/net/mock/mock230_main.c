@@ -508,53 +508,48 @@ send_login_burst(
     /* 1. Map region. */
     send_rebuild_normal(fd, enc);
 
-    /* 2. Root gameframe + sidebar tab panels. The client boots the resizable
-     *    gameframe root 161 (manifest ui:boot interface_id=161), so open 161 as
-     *    the top and mount each tab's cache interface into 161's tab-content
-     *    slots. Those slots are components 76..89 of interface 161 (14 layers
-     *    under component 75 — one per sidebar tab, index 0..13), confirmed from
-     *    the baked 161 tree (TORIRS_DUMP_TREE). Tab->panel-archive mapping is the
-     *    standard OSRS gameframe layout (Kronos DisplayHandler order). type=1
-     *    (overlay), matching the display-burst mounts Kronos sends. */
+    /* 2. Root gameframe + HUD / sidebar IF_OPENSUBs. Client boots resizable
+     *    root 161 (manifest ui:boot interface_id=161 = toplevel_osrs_stretch).
+     *    Component child ids are RuneLite InterfaceID.ToplevelOsrsStretch.*;
+     *    interface group ids are InterfaceID.* (verified present in cache.osrs230).
+     *    type=1 (overlay). ehc_listener == TLI_LISTENER (161|36). */
     send_if_opentop(fd, enc, 161);
 
-    /* {sidebar-tab index (0=combat..13=music) -> panel interface archive}.
-     *
-     * All 14 slots must be sent: the gameframe shows a tab's icon and stone only
-     * when if_hassub() reports something mounted in its slot (see
-     * [proc,toplevel_sidebuttons_enable]), so a slot we never open is a tab that
-     * simply does not exist on screen — no varbit gates them. Slots 83/84/86 were
-     * missing, which is exactly why the clan, account and logout tabs never
-     * appeared.
-     *
-     * Group ids are the rev-230 set. Two were previously wrong: 78 was 720, which
-     * is a *warning/confirmation dialogue* interface ("Warning!", "Be careful!
-     * It doesn't...") and not the quest journal at all — that is why the quest tab
-     * rendered unrelated content; and 87 was 261, a 3-file stub, where rev 230
-     * puts the real 141-file settings interface at 116. */
     static const struct
     {
-        int slot;  /* 161 tab-content component id */
-        int group; /* panel interface archive */
+        int slot;  /* 161 component child */
+        int group; /* interface archive to mount */
         const char* name;
-    } tabs[] = {
-        { 76, 593, "combat"    },
-        { 77, 320, "stats"     },
-        { 78, 629, "quest"     },
+    } opensubs[] = {
+        /* HUD overlays */
+        { 96, 162, "chatbox" },
+        { 6,  651, "buff_bar" },
+        { 5,  708, "stat_boosts_hud" },
+        { 93, 163, "pm_chat" },
+        { 2,  303, "hpbar_hud" },
+        { 3,  90,  "pvp_icons" },
+        { 33, 160, "orbs" },
+        { 9,  122, "xp_drops" },
+        { 35, 728, "popout" },
+        { 36, 896, "ehc_worldhop" },
+        /* Sidebar tabs side0..side13 */
+        { 76, 593, "combat_interface" },
+        { 77, 320, "stats" },
+        { 78, 629, "side_journal" },
         { 79, 149, "inventory" },
-        { 80, 387, "equipment" },
-        { 81, 541, "prayer"    },
-        { 82, 218, "magic"     },
-        { 83, 7,   "clan"      },
-        { 84, 109, "account"   },
-        { 85, 429, "friends"   },
-        { 86, 182, "logout"    },
-        { 87, 116, "settings"  },
-        { 88, 216, "emotes"    },
-        { 89, 239, "music"     },
+        { 80, 387, "wornitems" },
+        { 81, 541, "prayerbook" },
+        { 82, 218, "magic_spellbook" },
+        { 83, 707, "side_channels" },
+        { 84, 109, "account" },
+        { 85, 429, "friends" },
+        { 86, 182, "logout" },
+        { 87, 116, "settings_side" },
+        { 88, 216, "emote" },
+        { 89, 239, "music" },
     };
-    for( size_t i = 0; i < sizeof(tabs) / sizeof(tabs[0]); i++ )
-        send_if_opensub(fd, enc, 161, tabs[i].slot, tabs[i].group, 1);
+    for( size_t i = 0; i < sizeof(opensubs) / sizeof(opensubs[0]); i++ )
+        send_if_opensub(fd, enc, 161, opensubs[i].slot, opensubs[i].group, 1);
 
     /* 2b. TODO(quest journal): 629 is only a tab strip plus an EMPTY content
      *     container at 629|43 — the journal body is a separate interface and the

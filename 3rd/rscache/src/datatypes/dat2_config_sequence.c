@@ -231,8 +231,9 @@ free_sequence(struct RSCache_Dat2ConfigSequence* def);
 // 	}
 // }
 
-#define REV_220_SEQ_ARCHIVE_REV 1141
-#define REV_226_SEQ_ARCHIVE_REV 1268
+/* The era thresholds now live in the header as
+ * RSCACHE_SEQUENCE_ARCHIVE_REV_220 / _226, next to the codec-version constants
+ * they select, so a caller can reason about them without reading this file. */
 
 static void
 add_frame_sound(
@@ -253,7 +254,7 @@ add_frame_sound(
 }
 
 static void
-decode_pre_220_frame_sound(
+decode_frame_sound_v1(
     struct RSCache_Dat2ConfigFrameSound* sound,
     struct RSCache_Buffer* buffer)
 {
@@ -267,7 +268,7 @@ decode_pre_220_frame_sound(
 }
 
 static void
-decode_220_226_frame_sound(
+decode_frame_sound_v2(
     struct RSCache_Dat2ConfigFrameSound* sound,
     struct RSCache_Buffer* buffer)
 {
@@ -280,7 +281,7 @@ decode_220_226_frame_sound(
 }
 
 static void
-decode_226_plus_frame_sound(
+decode_frame_sound_v3(
     struct RSCache_Dat2ConfigFrameSound* sound,
     struct RSCache_Buffer* buffer)
 {
@@ -301,7 +302,7 @@ handle_frame_sounds_pre_220(
     for( int var4 = 0; var4 < var3; ++var4 )
     {
         struct RSCache_Dat2ConfigFrameSound sound = { 0 };
-        decode_pre_220_frame_sound(&sound, buffer);
+        decode_frame_sound_v1(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
             add_frame_sound(&def->frame_sounds, var4, sound);
@@ -318,7 +319,7 @@ handle_frame_sounds_220_226(
     for( int var4 = 0; var4 < var3; ++var4 )
     {
         struct RSCache_Dat2ConfigFrameSound sound = { 0 };
-        decode_220_226_frame_sound(&sound, buffer);
+        decode_frame_sound_v2(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
             add_frame_sound(&def->frame_sounds, var4, sound);
@@ -336,7 +337,7 @@ handle_frame_sounds_226_plus(
     {
         int frame = g2(buffer);
         struct RSCache_Dat2ConfigFrameSound sound = { 0 };
-        decode_226_plus_frame_sound(&sound, buffer);
+        decode_frame_sound_v3(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
             add_frame_sound(&def->frame_sounds, frame, sound);
@@ -345,7 +346,7 @@ handle_frame_sounds_226_plus(
 }
 
 static void
-decode_sequence_pre_220(
+decode_sequence_v1(
     struct RSCache_Dat2ConfigSequence* def,
     struct RSCache_Buffer* buffer)
 {
@@ -476,7 +477,7 @@ decode_sequence_pre_220(
 }
 
 static void
-decode_sequence_220_226(
+decode_sequence_v2(
     struct RSCache_Dat2ConfigSequence* def,
     struct RSCache_Buffer* buffer)
 {
@@ -607,7 +608,7 @@ decode_sequence_220_226(
 }
 
 static void
-decode_sequence_226_plus(
+decode_sequence_v3(
     struct RSCache_Dat2ConfigSequence* def,
     struct RSCache_Buffer* buffer)
 {
@@ -835,23 +836,67 @@ RSCache_Dat2ConfigSequenceDecodeInplace(
 }
 
 static void
+decode_sequence_codec(
+    struct RSCache_Dat2ConfigSequence* def,
+    int codec_version,
+    struct RSCache_Buffer* buffer)
+{
+    switch( codec_version )
+    {
+    case RSCACHE_CODEC_SEQUENCE_V1:
+        decode_sequence_v1(def, buffer);
+        break;
+    case RSCACHE_CODEC_SEQUENCE_V2:
+        decode_sequence_v2(def, buffer);
+        break;
+    default:
+        decode_sequence_v3(def, buffer);
+        break;
+    }
+}
+
+int
+RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache)
+{
+    /* Newest layout when nothing identifies the cache: every dat2 cache the
+     * client ships decodes as v3, and a modern archive revision (a unix
+     * timestamp) sits far above both thresholds anyway. */
+    int derived = RSCACHE_CODEC_SEQUENCE_V3;
+
+    if( !RSCache_RevisionAtLeast(
+            cache, RSCACHE_TYPE_SEQUENCE, 220, RSCACHE_SEQUENCE_ARCHIVE_REV_220 + 1, true) )
+        derived = RSCACHE_CODEC_SEQUENCE_V1;
+    else if( !RSCache_RevisionAtLeast(
+                 cache, RSCACHE_TYPE_SEQUENCE, 226, RSCACHE_SEQUENCE_ARCHIVE_REV_226 + 1, true) )
+        derived = RSCACHE_CODEC_SEQUENCE_V2;
+
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_SEQUENCE, derived);
+}
+
+void
+RSCache_Dat2ConfigSequenceDecodeProfile(
+    struct RSCache_Dat2ConfigSequence* sequence,
+    const struct RSCache* cache,
+    char* data,
+    int buffer_size)
+{
+    struct RSCache_Buffer buffer = {
+        .data = (uint8_t*)(data), .size = (uint32_t)(buffer_size), .position = 0
+    };
+    decode_sequence_codec(sequence, RSCache_Dat2ConfigSequenceCodecVersion(cache), &buffer);
+}
+
+/* Retained entry point: callers that only have the sequence group's JS5 archive
+ * revision. Routes through the profile so the era ladder lives in one place. */
+static void
 decode_sequence(
     struct RSCache_Dat2ConfigSequence* def,
     int revision,
     struct RSCache_Buffer* buffer)
 {
-    if( revision <= REV_220_SEQ_ARCHIVE_REV )
-    {
-        decode_sequence_pre_220(def, buffer);
-    }
-    else if( revision <= REV_226_SEQ_ARCHIVE_REV )
-    {
-        decode_sequence_220_226(def, buffer);
-    }
-    else
-    {
-        decode_sequence_226_plus(def, buffer);
-    }
+    struct RSCache cache = RSCache_ProfileZero();
+    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_SEQUENCE, revision);
+    decode_sequence_codec(def, RSCache_Dat2ConfigSequenceCodecVersion(&cache), buffer);
 }
 
 static void

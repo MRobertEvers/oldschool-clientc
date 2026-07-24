@@ -169,6 +169,15 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3655: (0, 0, 0, 0),  # FRIENDSCHAT_SORT apply (confirmed: no args)
     3656: (0, 0, 0, 0),  # CLAN_SORT_APPLY
     3657: (1, 0, 0, 0),  # FRIENDSCHAT_SORT_ADD_RANK(desc)
+    # ACTIVECLANSETTINGS/CHANNEL FIND_* (3800/3801, 3850/3851): pop clanType,
+    # push bool. Script 84 (side_channels init) does `push 0; FIND_AFFINED;
+    # push 1; BRANCH_EQUALS` — without a signature StackMetaStub asserts and
+    # aborts the panel. Stub pushes 0 (no clan) so the not-found branch runs;
+    # the subsequent GET* ops are skipped.
+    3800: (1, 0, 1, 0),  # ACTIVECLANSETTINGS_FIND_LISTENED(clanType) -> bool
+    3801: (1, 0, 1, 0),  # ACTIVECLANSETTINGS_FIND_AFFINED(clanType) -> bool
+    3850: (1, 0, 1, 0),  # ACTIVECLANCHANNEL_FIND_LISTENED(clanType) -> bool
+    3851: (1, 0, 1, 0),  # ACTIVECLANCHANNEL_FIND_AFFINED(clanType) -> bool
     # LOGOUT: no args, no return -- triggers the client's logout flow (a request
     # kind the host just flags, since nothing drives an actual disconnect yet).
     5630: (0, 0, 0, 0),

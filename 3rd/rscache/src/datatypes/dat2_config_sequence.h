@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_SEQUENCE_H
 
 #include "../filelist.h"
+#include "../rscache_profile.h"
 
 #include <stdbool.h>
 
@@ -47,6 +48,42 @@ struct RSCache_Dat2ConfigSequence
     char* debug_name;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 };
+
+/*
+ * Codec versions.
+ *
+ * Sequences are the clearest case of a difference too large for a flag: the
+ * frame-sound record changes shape outright between eras, so each gets its own
+ * codec rather than a branch inside one.
+ *
+ *  v1  pre-220  — frame sound is a single g3 packing id/loops/location.
+ *  v2  220..226 — id/loops/location split into separate fields.
+ *  v3  226+     — adds a per-sound weight byte, plus opcode 16 vertical offset.
+ *
+ * The reference client (RuneLite's SequenceLoader.configureForRevision) gates
+ * these on the sequence group's own JS5 archive revision, which is why the
+ * thresholds below are archive revisions rather than game revisions.
+ */
+#define RSCACHE_CODEC_SEQUENCE_V1 1
+#define RSCACHE_CODEC_SEQUENCE_V2 2
+#define RSCACHE_CODEC_SEQUENCE_V3 3
+
+/** Archive revision at which the frame-sound record split (game rev 220). */
+#define RSCACHE_SEQUENCE_ARCHIVE_REV_220 1141
+/** Archive revision at which the weight byte appeared (game rev 226). */
+#define RSCACHE_SEQUENCE_ARCHIVE_REV_226 1268
+
+/** Which sequence codec this cache needs. */
+int
+RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache);
+
+/** Decode using the codec version the profile selects. */
+void
+RSCache_Dat2ConfigSequenceDecodeProfile(
+    struct RSCache_Dat2ConfigSequence* sequence,
+    const struct RSCache* cache,
+    char* data,
+    int buffer_size);
 
 struct RSCache_Dat2ConfigSequence*
 RSCache_Dat2ConfigSequenceNewDecode(

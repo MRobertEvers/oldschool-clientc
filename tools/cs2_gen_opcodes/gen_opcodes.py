@@ -9,10 +9,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENDOR = ROOT / "vendor" / "Opcodes.kt"
-OUT_DIR = ROOT.parent.parent / "src2" / "vm"
+OUT_DIR = ROOT.parent.parent / "src" / "cs2vm2"
 RSCACHE_OUT_DIR = ROOT.parent.parent / "src" / "osrs" / "rscache" / "dat2a"
 
 from opcode_docs import OPCODE_DOCS, OpcodeDoc
+from local_opcodes import (
+    DECODE_OPERAND_OVERRIDES,
+    HANDLER_OVERRIDES,
+    LOCAL_ALIASES,
+    LOCAL_NAMES,
+    META_OPERAND_OVERRIDES,
+    SECTION_COMMENTS,
+)
 
 # Opcodes executed by cs2_runtime.c without host invoke (RuneStar Command.kt core).
 VM_OPCODES = {
@@ -47,6 +55,19 @@ def parse_opcodes(path: Path) -> list[tuple[str, int]]:
     return entries
 
 
+def merge_local(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    """Layer LOCAL_NAMES over the vendor table, sorted by opcode id.
+
+    An id named in LOCAL_NAMES drops its vendor entry: the vendor name is a
+    placeholder (_NNNN) or an older label we have since corrected, and keeping
+    both would emit two #defines for one opcode.
+    """
+    merged = [(name, val) for name, val in entries if val not in LOCAL_NAMES]
+    merged += [(name, val) for val, name in LOCAL_NAMES.items()]
+    merged.sort(key=lambda e: (e[1], e[0]))
+    return merged
+
+
 def operand_kind(opcode: int) -> str:
     if opcode == 3:
         return "CS2_OPERAND_STRING"
@@ -55,7 +76,17 @@ def operand_kind(opcode: int) -> str:
     return "CS2_OPERAND_INT32"
 
 
+def meta_operand_kind(opcode: int) -> str:
+    return META_OPERAND_OVERRIDES.get(opcode, operand_kind(opcode))
+
+
+def decode_operand_kind(opcode: int) -> str:
+    return DECODE_OPERAND_OVERRIDES.get(opcode, operand_kind(opcode))
+
+
 def handler_kind(opcode: int) -> str:
+    if opcode in HANDLER_OVERRIDES:
+        return HANDLER_OVERRIDES[opcode]
     if opcode in VM_OPCODES:
         return "CS2_HANDLER_VM"
     return "CS2_HANDLER_HOST"
@@ -80,7 +111,7 @@ def format_opcode_comment(name: str, doc: OpcodeDoc) -> list[str]:
     label_width = max(len(label) for label, _ in stacks)
     value_width = max(len(value) for _, (value, _) in stacks)
 
-    lines = [f"/* {name} — {doc.summary}."]
+    lines = [f"/* {name} — {doc.summary}." if doc.summary else f"/* {name}"]
     if doc.operand:
         lines.append(f" * operand: {doc.operand}")
     for label, (value, top) in stacks:
@@ -94,7 +125,7 @@ def format_opcode_comment(name: str, doc: OpcodeDoc) -> list[str]:
         for note_line in note_lines[1:]:
             lines.append(f" *        {note_line}")
     lines.append(" */")
-    return lines
+    return [line.rstrip() for line in lines]
 
 
 def emit_header(entries: list[tuple[str, int]]) -> str:
@@ -107,11 +138,20 @@ def emit_header(entries: list[tuple[str, int]]) -> str:
         f"#define CS2_OPCODE_COUNT {len(entries)}",
         "",
     ]
+    emitted_banners: set[int] = set()
+    emitted_aliases: set[int] = set()
     for name, val in entries:
+        if val in SECTION_COMMENTS and val not in emitted_banners:
+            emitted_banners.add(val)
+            lines.extend(SECTION_COMMENTS[val])
         doc = OPCODE_DOCS.get(name)
         if doc:
             lines.extend(format_opcode_comment(name, doc))
         lines.append(f"#define CS2_OP_{name} {val}")
+        if val not in emitted_aliases:
+            emitted_aliases.add(val)
+            for alias in LOCAL_ALIASES.get(val, ()):
+                lines.append(f"#define CS2_OP_{alias} {val}")
     lines += ["", "#endif", ""]
     return "\n".join(lines)
 
@@ -174,7 +214,7 @@ def emit_meta_c(entries: list[tuple[str, int]]) -> str:
     for i in range(max_id + 1):
         if i in id_to_name:
             name = id_to_name[i]
-            opk = operand_kind(i)
+            opk = meta_operand_kind(i)
             hdk = handler_kind(i)
             lines.append(
                 f'    [{i}] = {{ "{name}", {opk}, {hdk} }},'
@@ -260,9 +300,9 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
     ]
     for i in range(max_id + 1):
         if i in id_to_name:
-            opk = operand_kind(i)
+            opk = decode_operand_kind(i)
         else:
-            opk = "CS2_OPERAND_INT32"
+            opk = DECODE_OPERAND_OVERRIDES.get(i, "CS2_OPERAND_INT32")
         val = kind_map[opk]
         lines.append(f"    [{i}] = {val},")
     lines += [
@@ -284,7 +324,7 @@ def main() -> int:
     if not VENDOR.is_file():
         print(f"missing {VENDOR}", file=sys.stderr)
         return 1
-    entries = parse_opcodes(VENDOR)
+    entries = merge_local(parse_opcodes(VENDOR))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "cs2_opcode.h").write_text(emit_header(entries), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_meta.h").write_text(emit_meta_h(), encoding="utf-8")

@@ -241,8 +241,8 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         operand="0 = active component, 1 = dot component",
         int_in=("parent", "type", "child_index", "is_nested"),
         notes=(
-            "sets active to new child. Fixed CC_CREATE to take 4 args "
-            "(rev ≥ 200 / osrs230), which was breaking stack analysis. "
+            "sets active to new child. Fixed CC_CREATE to take 4 args\n"
+            "(rev ≥ 200 / osrs230), which was breaking stack analysis.\n"
             "Older revisions (< 200) used 3 args [parent, type, child_index]."
         ),
     ),
@@ -487,7 +487,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "IF_SETGRAPHIC": OpcodeDoc(
         summary="Set graphic",
-        int_in=("component", "graphic_id"),
+        int_in=("graphic_id", "component"),
     ),
     "IF_SETCOLOUR": OpcodeDoc(
         summary="Set colour",
@@ -873,5 +873,492 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("param value",),
         str_out=("param value (string)",),
         notes="pushes int or str depending on param type",
+    ),
+    "CC_CLEAROPSUBMENU": OpcodeDoc(
+        summary="Clear submenu entries for one op slot",
+        operand="0 = active component, 1 = dot component",
+        int_in=("op_index",),
+        notes="op_index is 1-based (1..10).",
+    ),
+    "CC_COPY": OpcodeDoc(
+        summary="Clone a dynamic child into another slot under the same parent",
+        int_in=("parent", "src_sub", "dst_sub"),
+        notes="sets active to the copy; used by the bank tab strip builder",
+    ),
+    "CC_OP1309": OpcodeDoc(
+        summary="Client stub that discards one int",
+        int_in=("value",),
+    ),
+    "CC_SETOPFORCELEFTCLICK": OpcodeDoc(
+        summary="Force left-click to execute the op without opening the menu",
+        operand="0 = active component, 1 = dot component",
+        int_in=("flag",),
+        notes="flag == 1 enables; any other value disables.",
+    ),
+    "CC_SETOPKEY": OpcodeDoc(
+        summary="Bind up to 5 (keychar, keycode) pairs to an op slot on the active child",
+        int_in=("opindex", "k0_char", "k0_code", "k1_char", "k1_code", "k2_char", "k2_code", "k3_char", "k3_code", "k4_char", "k4_code"),
+        notes=(
+            "opindex is 1-based (1..10). Pairs are read bottom-up and stop at the\n"
+            "first negative keychar; a negative k0_char clears the slot."
+        ),
+    ),
+    "CC_SETOPKEYIGNOREHELD": OpcodeDoc(
+        summary="Suppress auto-repeat while the key is held",
+        int_in=("opindex",),
+    ),
+    "CC_SETOPKEYRATE": OpcodeDoc(
+        summary="Set auto-repeat rate for an op key slot",
+        int_in=("opindex", "keyrate", "tickrate"),
+        notes="tickrate == 0 disables repeat.",
+    ),
+    "CC_SETOPSUBMENU": OpcodeDoc(
+        summary="Set a submenu entry label",
+        operand="0 = active component, 1 = dot component",
+        int_in=("op_index", "sub_index"),
+        str_in=("text",),
+        notes="op_index and sub_index are 1-based in script.",
+    ),
+    "CC_SETOPTKEY": OpcodeDoc(
+        summary="Bind one (keychar, keycode) pair to the typed-key slot (op 10)",
+        int_in=("keychar", "keycode"),
+    ),
+    "CC_SETOPTKEYIGNOREHELD": OpcodeDoc(
+        summary="Suppress auto-repeat on the typed-key slot (op 10)",
+    ),
+    "CC_SETOPTKEYRATE": OpcodeDoc(
+        summary="Set auto-repeat rate for the typed-key slot (op 10)",
+        int_in=("tickrate", "keyrate"),
+        notes=(
+            "reference pops these in the opposite order to CC_SETOPKEYRATE. The\n"
+            "values are unused downstream, so only the count matters; mirrored\n"
+            "rather than \"corrected\" without a real-cache trace."
+        ),
+    ),
+    "CC_SETTARGETPRIORITY": OpcodeDoc(
+        summary="Set target priority",
+        operand="0 = active component, 1 = dot component",
+        int_in=("priority",),
+        notes="-1 resets to 4; 1..32 stores value-1.",
+    ),
+    "CHAR_ISALPHA": OpcodeDoc(
+        summary="ASCII letter?",
+        int_in=("char",),
+        int_out=("bool",),
+    ),
+    "CHAR_ISALPHANUMERIC": OpcodeDoc(
+        summary="ASCII letter or digit?",
+        int_in=("char",),
+        int_out=("bool",),
+    ),
+    "CHAR_ISNUMERIC": OpcodeDoc(
+        summary="ASCII digit?",
+        int_in=("char",),
+        int_out=("bool",),
+    ),
+    "CHAR_ISPRINTABLE": OpcodeDoc(
+        summary="Can this character code be drawn?",
+        int_in=("char",),
+        int_out=("bool",),
+        notes=(
+            "printable ASCII + Latin-1 supplement, plus the cp1252 stragglers\n"
+            "(euro, OE/oe, em dash, Y-diaeresis). Filters keyboard input."
+        ),
+    ),
+    "COORDY": OpcodeDoc(
+        summary="Extract the plane from packed coord. RuneScript's axes are x/y/z with y as the level, so \"y\" here is the plane and COORDZ is the second tile axis — not the other way round",
+        int_in=("packed",),
+        int_out=("(packed >> 28) & 0x3",),
+    ),
+    "COORDZ": OpcodeDoc(
+        summary="Extract Z (the second tile axis) from packed coord",
+        int_in=("packed",),
+        int_out=("packed & 0x3FFF",),
+    ),
+    "ESCAPE": OpcodeDoc(
+        summary="Neutralise markup so the text renders literally",
+        str_in=("text",),
+        str_out=("escaped text",),
+        notes=(
+            "'<' -> \"<lt>\", '>' -> \"<gt>\" — the escapes ToriDraw_Font decodes back.\n"
+            "Scripts call this before showing player-supplied text so it cannot\n"
+            "inject <col=...>/<img=...> formatting."
+        ),
+    ),
+    "GETKEYINPUTMODE": OpcodeDoc(
+        summary="Current keyboard capture mode",
+        int_out=("mode",),
+        notes="0 none, 1 keyboard, 2 interface-scoped, 3 widget-scoped.",
+    ),
+    "IF_INPUT_SETACCEPTMODE": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCHARFILTER": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCURSORCOLOUR": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCURSORHEIGHT": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCURSOROFFSET": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCURSORTRANS": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETCURSORWIDTH": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETLINECOUNTLIMIT": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETLINEWIDTHLIMIT": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETLINEWRAPPINGWIDTH": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETSELECTBGCOLOUR": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETSELECTCOLOUR": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETSUBMITMODE": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETWRAPMODE": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_OP2309": OpcodeDoc(
+        summary="Client stub: pop component + one int and discard",
+        int_in=("value", "component"),
+    ),
+    "IF_SETOPKEY": OpcodeDoc(
+        summary="Bind one (keychar, keycode) pair to an op slot by component uid",
+        int_in=("opindex", "keychar", "keycode", "component"),
+        notes="component is on top (popped first). opindex is 1-based (1..10).",
+    ),
+    "IF_SETOPKEYIGNOREHELD": OpcodeDoc(
+        summary="Suppress auto-repeat while the key is held",
+        int_in=("opindex", "component"),
+    ),
+    "IF_SETOPKEYRATE": OpcodeDoc(
+        summary="Set auto-repeat rate for an op key slot by component uid",
+        int_in=("opindex", "keyrate", "tickrate", "component"),
+        notes="tickrate == 0 disables repeat.",
+    ),
+    "IF_SETOPTKEY": OpcodeDoc(
+        summary="Bind one (keychar, keycode) pair to the typed-key slot (op 10)",
+        int_in=("keychar", "keycode", "component"),
+    ),
+    "IF_SETOPTKEYIGNOREHELD": OpcodeDoc(
+        summary="Suppress auto-repeat on the typed-key slot (op 10)",
+        int_in=("component",),
+    ),
+    "IF_SETOPTKEYRATE": OpcodeDoc(
+        summary="Set auto-repeat rate for the typed-key slot (op 10)",
+        int_in=("tickrate", "keyrate", "component"),
+    ),
+    "KEYHELD": OpcodeDoc(
+        summary="Is the given key currently held down?",
+        int_in=("keycode",),
+        int_out=("held",),
+        notes="keycode is an OSRS internal key code (see torirs_keymap.h), not ASCII.",
+    ),
+    "KEYPRESSED": OpcodeDoc(
+        summary="Was the given key pressed during this frame?",
+        int_in=("keycode",),
+        int_out=("pressed",),
+        notes="edge-triggered; cleared each frame. OSRS internal key code.",
+    ),
+    "LOCAL_NOTIFICATION": OpcodeDoc(
+        summary="Schedule a local notification",
+        int_in=("id", "delay_ms"),
+        str_in=("title", "body"),
+        int_out=("handle",),
+        notes=(
+            "pushes a handle for LOCAL_NOTIFICATION_CANCEL. script 5360\n"
+            "(proc,local_notification) POP_INT_LOCALs it straight after the call, so\n"
+            "the push is required or that store underflows."
+        ),
+    ),
+    "LOCAL_NOTIFICATION_CANCEL": OpcodeDoc(
+        summary="Cancel one scheduled notification",
+        int_in=("handle",),
+    ),
+    "LOCAL_NOTIFICATION_CANCELALL": OpcodeDoc(
+        summary="Cancel every scheduled notification",
+    ),
+    "LOCAL_NOTIFICATION_SUPPORTED": OpcodeDoc(
+        summary="Are local notifications available?",
+        int_out=("supported",),
+    ),
+    "MAX": OpcodeDoc(
+        summary="Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b)",
+    ),
+    "MEC_CATEGORY": OpcodeDoc(
+        summary="Map element category (-1 when uncategorised)",
+        int_in=("mecId",),
+        int_out=("category",),
+    ),
+    "MEC_SPRITE": OpcodeDoc(
+        summary="Map element icon sprite id (-1 when none)",
+        int_in=("mecId",),
+        int_out=("spriteId",),
+    ),
+    "MEC_TEXT": OpcodeDoc(
+        summary="Map element label",
+        int_in=("mecId",),
+        str_out=("text",),
+    ),
+    "MEC_TEXTSIZE": OpcodeDoc(
+        summary="Map element label size",
+        int_in=("mecId",),
+        int_out=("size",),
+    ),
+    "MIN": OpcodeDoc(
+        summary="Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b)",
+    ),
+    "MOBILE_BATTERYCHARGING": OpcodeDoc(
+        summary="Is the device charging",
+        int_out=("charging",),
+        notes="Desktop is always on mains power.",
+    ),
+    "MOBILE_BATTERYLEVEL": OpcodeDoc(
+        summary="Battery charge percentage (0..100)",
+        int_out=("percent",),
+        notes="Desktop has no battery; we report a full charge.",
+    ),
+    "MOBILE_WIFIAVAILABLE": OpcodeDoc(
+        summary="Is a wifi (non-metered) connection available",
+        int_out=("available",),
+        notes="Desktop is treated as an unmetered connection.",
+    ),
+    "MOVECOORD": OpcodeDoc(
+        summary="Offset a packed coord by (x, y, z), where y is the plane",
+        int_in=("packed", "x", "plane", "z"),
+        int_out=("packed + ((plane << 28) | (x << 14) | z)",),
+    ),
+    "SETKEYINPUTENABLED": OpcodeDoc(
+        summary="Enable/disable keyboard capture (no-op here)",
+        int_in=("enabled",),
+    ),
+    "SETKEYINPUTMODE_ALL": OpcodeDoc(
+        summary="Release keyboard capture (input dialog type 0)",
+        notes=(
+            "takes no args despite the SET prefix — the doc comment is required to\n"
+            "stop the generator's \"SET* pops one\" heuristic guessing wrong."
+        ),
+    ),
+    "SETKEYINPUTMODE_KEYBOARD": OpcodeDoc(
+        summary="Capture keyboard for a dialog (input dialog type 1)",
+        notes="takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).",
+    ),
+    "UPPERCASE": OpcodeDoc(
+        summary="ASCII-uppercase a string",
+        str_in=("text",),
+        str_out=("uppercased text",),
+    ),
+    "WORLDMAP_COORDINMAP": OpcodeDoc(
+        summary="Does a map area cover a world coord",
+        int_in=("mapId", "coord"),
+        int_out=("inMap",),
+    ),
+    "WORLDMAP_DISABLEELEMENT": OpcodeDoc(
+        summary="Enable/disable a single element",
+        int_in=("elementId", "enabled"),
+    ),
+    "WORLDMAP_DISABLEELEMENTCATEGORY": OpcodeDoc(
+        summary="Enable/disable an element category",
+        int_in=("categoryId", "enabled"),
+    ),
+    "WORLDMAP_DISABLEELEMENTS": OpcodeDoc(
+        summary="Master switch for drawing map elements",
+        int_in=("enabled",),
+    ),
+    "WORLDMAP_ELEMENT": OpcodeDoc(
+        summary="Element id of the map element event being handled",
+        int_out=("elementId",),
+    ),
+    "WORLDMAP_ELEMENTCOORD": OpcodeDoc(
+        summary="Second coord of the map element event",
+        int_out=("coord",),
+    ),
+    "WORLDMAP_ELEMENTCOORD1": OpcodeDoc(
+        summary="First coord of the map element event",
+        int_out=("coord",),
+    ),
+    "WORLDMAP_FLASHELEMENT": OpcodeDoc(
+        summary="Start flashing one map element",
+        int_in=("elementId",),
+    ),
+    "WORLDMAP_FLASHELEMENTCATEGORY": OpcodeDoc(
+        summary="Start flashing an element category",
+        int_in=("categoryId",),
+    ),
+    "WORLDMAP_GETCONFIGBOUNDS": OpcodeDoc(
+        summary="Tile bounds of a map area",
+        int_in=("mapId",),
+        int_out=("minX", "minY", "maxX", "maxY"),
+    ),
+    "WORLDMAP_GETCONFIGORIGIN": OpcodeDoc(
+        summary="Packed origin coord of a map area",
+        int_in=("mapId",),
+        int_out=("coord",),
+    ),
+    "WORLDMAP_GETCONFIGSIZE": OpcodeDoc(
+        summary="Size of a map area in tiles",
+        int_in=("mapId",),
+        int_out=("width", "height"),
+    ),
+    "WORLDMAP_GETCONFIGZOOM": OpcodeDoc(
+        summary="Default zoom percentage of a map area",
+        int_in=("mapId",),
+        int_out=("zoom",),
+    ),
+    "WORLDMAP_GETCURRENTMAP": OpcodeDoc(
+        summary="Id of the current map area (-1 when none)",
+        int_out=("mapId",),
+    ),
+    "WORLDMAP_GETDISABLEELEMENT": OpcodeDoc(
+        summary="Is one element enabled",
+        int_in=("elementId",),
+        int_out=("enabled",),
+    ),
+    "WORLDMAP_GETDISABLEELEMENTCATEGORY": OpcodeDoc(
+        summary="Is an element category enabled",
+        int_in=("categoryId",),
+        int_out=("enabled",),
+    ),
+    "WORLDMAP_GETDISABLEELEMENTS": OpcodeDoc(
+        summary="Is element drawing enabled",
+        int_out=("enabled",),
+    ),
+    "WORLDMAP_GETDISPLAYCOORD": OpcodeDoc(
+        summary="Map a world coord to a display position",
+        int_in=("coord",),
+        int_out=("x", "y"),
+    ),
+    "WORLDMAP_GETDISPLAYCOORD_CURRENT": OpcodeDoc(
+        summary="World coord under the view centre",
+        int_out=("x", "y"),
+    ),
+    "WORLDMAP_GETDISPLAYPOSITION": OpcodeDoc(
+        summary="Centre of the view, in display tiles",
+        int_out=("x", "y"),
+    ),
+    "WORLDMAP_GETMAP": OpcodeDoc(
+        summary="Map area covering a world coord (-1 when none)",
+        int_in=("coord",),
+        int_out=("mapId",),
+    ),
+    "WORLDMAP_GETMAPNAME": OpcodeDoc(
+        summary="External (display) name of a map area",
+        int_in=("mapId",),
+        str_out=("name",),
+    ),
+    "WORLDMAP_GETNEARESTICON": OpcodeDoc(
+        summary="Display coord of the nearest icon of an element",
+        int_in=("elementId", "sourceCoord"),
+        int_out=("coord",),
+    ),
+    "WORLDMAP_GETSIZE": OpcodeDoc(
+        summary="Visible size of the map surface, in tiles",
+        int_out=("width", "height"),
+    ),
+    "WORLDMAP_GETSOURCECOORD": OpcodeDoc(
+        summary="Map a display coord back to a world coord",
+        int_in=("coord",),
+        int_out=("coord",),
+    ),
+    "WORLDMAP_GETZOOM": OpcodeDoc(
+        summary="Current zoom percentage (25/37/50/75/100/200)",
+        int_out=("zoom",),
+    ),
+    "WORLDMAP_INIT": OpcodeDoc(
+        summary="Select the map area containing the player and centre on it",
+    ),
+    "WORLDMAP_ISLOADED": OpcodeDoc(
+        summary="Are the world map area configs available",
+        int_out=("loaded",),
+    ),
+    "WORLDMAP_JUMPTODISPLAYCOORD": OpcodeDoc(
+        summary="Pan towards a display coord",
+        int_in=("coord",),
+    ),
+    "WORLDMAP_JUMPTODISPLAYCOORD_INSTANT": OpcodeDoc(
+        summary="Snap to a display coord",
+        int_in=("coord",),
+    ),
+    "WORLDMAP_JUMPTOMAP": OpcodeDoc(
+        summary="Switch map area, panning to the player when it is in range and to the fallback coord otherwise",
+        int_in=("mapId", "fallbackCoord"),
+    ),
+    "WORLDMAP_JUMPTOMAP_INSTANT": OpcodeDoc(
+        summary="JUMPTOMAP, always using the fallback coord",
+        int_in=("mapId", "fallbackCoord"),
+    ),
+    "WORLDMAP_JUMPTOSOURCECOORD": OpcodeDoc(
+        summary="Pan towards a world coord",
+        int_in=("coord",),
+    ),
+    "WORLDMAP_JUMPTOSOURCECOORD_INSTANT": OpcodeDoc(
+        summary="Snap to a world coord",
+        int_in=("coord",),
+    ),
+    "WORLDMAP_LISTELEMENT_NEXT": OpcodeDoc(
+        summary="Continue iterating visible icons",
+        int_out=("element", "coord"),
+    ),
+    "WORLDMAP_LISTELEMENT_START": OpcodeDoc(
+        summary="Begin iterating visible icons",
+        int_out=("element", "coord"),
+        notes="yields (-1, -1) when the iteration is exhausted.",
+    ),
+    "WORLDMAP_PERPETUALFLASH": OpcodeDoc(
+        summary="Flash forever instead of maxFlashCount times",
+        int_in=("enabled",),
+    ),
+    "WORLDMAP_RESETCYCLESPERFLASH": OpcodeDoc(
+        summary="Restore the default flash rate",
+    ),
+    "WORLDMAP_RESETMAXFLASHCOUNT": OpcodeDoc(
+        summary="Restore the default flash count",
+    ),
+    "WORLDMAP_SETCYCLESPERFLASH": OpcodeDoc(
+        summary="Client cycles between flash toggles",
+        int_in=("cycles",),
+    ),
+    "WORLDMAP_SETMAP": OpcodeDoc(
+        summary="Make a map area current (resets zoom + position)",
+        int_in=("mapId",),
+    ),
+    "WORLDMAP_SETMAXFLASHCOUNT": OpcodeDoc(
+        summary="How many times a flashing element blinks",
+        int_in=("count",),
+    ),
+    "WORLDMAP_SETZOOM": OpcodeDoc(
+        summary="Set the zoom percentage",
+        int_in=("zoom",),
+    ),
+    "WORLDMAP_STOPCURRENTFLASHES": OpcodeDoc(
+        summary="Clear every active flash",
     ),
 }

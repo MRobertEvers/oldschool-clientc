@@ -12,7 +12,7 @@ REPO = Path(__file__).resolve().parents[2]
 CACHE = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "cache"
 DAT2 = CACHE / "main_file_cache.dat2"
 IDX12 = CACHE / "main_file_cache.idx12"
-META = REPO / "src2" / "vm" / "cs2_opcode_meta.c"
+META = REPO / "src" / "cs2vm2" / "cs2_opcode_meta.c"
 
 
 def load_known_opcodes() -> set[int]:
