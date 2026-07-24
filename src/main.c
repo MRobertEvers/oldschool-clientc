@@ -1,5 +1,6 @@
 #include "app.h"
 #include "bootmanifest/bootmanifest.h"
+#include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
 #include "game/rs_cs2_dispatch.h"
@@ -1052,6 +1053,23 @@ main(
     {
         int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
+        /* TORIRS_TEX_AUDIT=1: after the boot settles, sweep every live scene
+         * element for face texture ids the scene texture map still lacks — the
+         * ground truth for "this face renders untextured". */
+        if( getenv("TORIRS_TEX_AUDIT") )
+        {
+            int ids[256];
+            int n = UITreeSceneBridge_CollectMissingTextures(&app.bridge, ids, 256);
+            fprintf(stderr, "TEX_AUDIT: %d missing scene textures:", n);
+            for( int i = 0; i < n; i++ )
+                fprintf(stderr, " %d", ids[i]);
+            fprintf(stderr, "\n");
+            fprintf(stderr, "TEX_AUDIT: failed:");
+            for( int i = 0; i < 256; i++ )
+                if( app.bridge.texture_failed[i] )
+                    fprintf(stderr, " %d", i);
+            fprintf(stderr, "\n");
+        }
         /* TORIRS_TEST_LOCCHANGE=1: exercise the runtime loc-change path offline
          * (debugging the door segfault) by re-applying a change to the first
          * existing scenery loc in the scene. */

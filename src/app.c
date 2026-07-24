@@ -1259,6 +1259,13 @@ app_sync_textures(struct App* app)
     id_count = ToriDraw_ModelTextureWantsTake(ids, 256);
     if( id_count == 0 )
         return;
+    if( getenv("TORIRS_TEX_DEBUG") )
+    {
+        fprintf(stderr, "tex_wants drained %d:", id_count);
+        for( int i = 0; i < id_count; i++ )
+            fprintf(stderr, " %d", ids[i]);
+        fprintf(stderr, "\n");
+    }
 
     for( int i = 0; i < id_count; i++ )
     {
@@ -3773,6 +3780,10 @@ app_world_build_model(
             ToriDraw_ModelRecolor(model, recolors->recolors_from[i], recolors->recolors_to[i]);
         for( int i = 0; i < recolors->retexture_count; i++ )
             ToriDraw_ModelRetexture(model, recolors->retextures_from[i], recolors->retextures_to[i]);
+        /* Swapped-in ids are new to the loader's registry — see
+         * ToriDraw_ModelNoteTextureWants. */
+        if( recolors->retexture_count > 0 )
+            ToriDraw_ModelNoteTextureWants(model);
     }
 
     {
@@ -3799,6 +3810,7 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
 {
     struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, spot->model);
     struct ToriDraw_Model* model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+    int retextured = 0;
     if( !model )
         return NULL;
 
@@ -3812,8 +3824,15 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
     for( int i = 0; i < 6; i++ )
     {
         if( spot->retex_s[i] != 0 )
+        {
             ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+            retextured = 1;
+        }
     }
+    /* Swapped-in ids are new to the loader's registry — see
+     * ToriDraw_ModelNoteTextureWants. */
+    if( retextured )
+        ToriDraw_ModelNoteTextureWants(model);
 
     /* Resize: reference model.resize(resizeh, resizev, resizeh) scales x by
      * resizeh, y by resizev, z by resizeh. ToriDraw_ModelScale is (x, z, y). */

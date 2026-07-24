@@ -430,6 +430,10 @@ scenery_load_model(
      * loses its recolour-driven texture and renders with the wrong texture. */
     apply_transforms(config_loc, model, rotation);
 
+    /* Retexturing rewrote face_textures to ids the source models never carried,
+     * so the conversion-time report is stale — re-report from the final model. */
+    ToriDraw_ModelNoteTextureWants(model);
+
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
         ToriDraw_ModelFree(model);

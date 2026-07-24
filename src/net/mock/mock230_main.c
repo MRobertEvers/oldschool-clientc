@@ -210,6 +210,13 @@ static uint8_t g_body[8192];
 /* RSProt Jagex byte-order alt transforms (see JagexByteBufExtensions.kt). We
  * only have big-endian p1/p2/p4 in rsbuffer, so spell the alts out by byte. */
 static void
+p1alt2(
+    struct RSCache_Buffer* b,
+    int v) /* writeByte(-v) */
+{
+    p1(b, (-v) & 0xff);
+}
+static void
 p2alt1(
     struct RSCache_Buffer* b,
     int v) /* writeByte(v); writeByte(v>>8) : [lo,hi] */
@@ -330,18 +337,46 @@ send_stat(
     send_packet(fd, enc, 114, g_body, buf.position, 0); /* fixed 7 */
 }
 
+/* One slot in an UPDATE_INV_FULL payload. obj_id < 0 means empty. */
+struct MockInvSlot
+{
+    int obj_id;
+    int count;
+};
+
+/* RSProt UpdateInvFullEncoder: pCombinedId, p2 inventoryId, p2 capacity, then
+ * per slot p1Alt2(count) [+ p4Alt1 if count>=255] + p2(id+1). Empty = Alt2(0),
+ * p2(0). capacity is the slot count written (backpack = 28). */
 static void
 send_inv_full(
     int fd,
     struct Isaac* enc,
     int component,
-    int container)
+    int container,
+    struct MockInvSlot const* slots,
+    int capacity)
 {
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, g_body, sizeof(g_body));
-    p4(&buf, component);
+    p4(&buf, component); /* pCombinedId */
     p2(&buf, container);
-    p2(&buf, 0);                                       /* item count = 0 (empty) */
+    p2(&buf, capacity);
+    for( int i = 0; i < capacity; i++ )
+    {
+        int obj_id = slots ? slots[i].obj_id : -1;
+        int count = slots ? slots[i].count : 0;
+        if( obj_id < 0 || count <= 0 )
+        {
+            p1alt2(&buf, 0);
+            p2(&buf, 0);
+            continue;
+        }
+        int wire_count = count > 0xff ? 0xff : count;
+        p1alt2(&buf, wire_count);
+        if( count >= 255 )
+            p4alt1(&buf, count);
+        p2(&buf, obj_id + 1);
+    }
     send_packet(fd, enc, 10, g_body, buf.position, 2); /* var-short */
 }
 
@@ -557,9 +592,20 @@ send_login_burst(
         send_packet(fd, enc, 27, b, 2, 0);
     }
 
-    /* 6. Inventory (container 93) + equipment (container 94), both empty. */
-    send_inv_full(fd, enc, (149 << 16) | 0, 93);
-    send_inv_full(fd, enc, (387 << 16) | 0, 94);
+    /* 6. Inventory (container 93) + equipment (container 94). Backpack gets an
+     *    abyssal whip (obj 4151) in slot 0; remaining 27 slots + equipment empty. */
+    {
+        struct MockInvSlot backpack[28];
+        for( int i = 0; i < 28; i++ )
+        {
+            backpack[i].obj_id = -1;
+            backpack[i].count = 0;
+        }
+        backpack[0].obj_id = 4151;
+        backpack[0].count = 1;
+        send_inv_full(fd, enc, (149 << 16) | 0, 93, backpack, 28);
+    }
+    send_inv_full(fd, enc, (387 << 16) | 0, 94, NULL, 0);
 
     /* 7. All 23 skills at level 1. */
     for( int skill = 0; skill < 23; skill++ )
@@ -696,7 +742,7 @@ main(
     int argc,
     char** argv)
 {
-    int port = argc > 1 ? atoi(argv[1]) : 43594;
+    int port = argc > 1 ? atoi(argv[1]) : 43595;
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
     if( srv < 0 )

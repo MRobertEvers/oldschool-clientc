@@ -14,6 +14,20 @@ struct ToriRS_Model;
 struct ToriDraw_Model*
 ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src);
 
+/** Record every texture id an already-built ToriDraw model's faces reference.
+ *
+ *  ToriDraw_ModelFromToriRS reports what the *source* model asked for, which is
+ *  not the whole story: face_textures also gets written by paths that never see
+ *  a ToriRS_Model (the terrain tile builder constructs its model field by field)
+ *  and gets rewritten after conversion by ToriDraw_ModelRetexture (loc recolour
+ *  pairs, loc/npc/spotanim retexture pairs). Those ids are new to the registry
+ *  and nothing else will ever report them, so every such path must call this —
+ *  otherwise the texture is never requested and the raster skips the face
+ *  forever. Merge and copy are exempt: their ids come from parts already noted.
+ */
+void
+ToriDraw_ModelNoteTextureWants(const struct ToriDraw_Model* model);
+
 /** Drain the texture ids referenced by models converted since the last call, into
  *  out_ids (each id at most once). Returns how many were written.
  *

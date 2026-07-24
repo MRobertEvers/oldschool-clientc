@@ -3,6 +3,7 @@
 
 #include "blendmap.h"
 #include "engine/cache_provider.h"
+#include "engine/toridraw_model_from_torirs.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
@@ -342,6 +343,11 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     overlay_hsl);
                 if( !td )
                     continue;
+
+                /* Tile models are built field by field here, never through
+                 * ToriDraw_ModelFromToriRS, so this is the only place the
+                 * overlay's texture id gets reported to the loader. */
+                ToriDraw_ModelNoteTextureWants(td);
 
                 struct ToriDraw_ModelHandle hnd = {
                     .kind = TORIDRAWMK_MODEL,

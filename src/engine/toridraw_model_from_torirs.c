@@ -36,6 +36,20 @@ note_texture_wants(const struct ToriRS_Model* src)
     }
 }
 
+void
+ToriDraw_ModelNoteTextureWants(const struct ToriDraw_Model* model)
+{
+    if( !model || !model->face_textures )
+        return;
+    for( int f = 0; f < model->face_count; f++ )
+    {
+        int const texture_id = (int)model->face_textures[f];
+        if( texture_id < 0 || texture_id >= TORIDRAW_MODEL_TEXTURE_ID_MAX )
+            continue;
+        g_texture_wants[texture_id] = 1;
+    }
+}
+
 int
 ToriDraw_ModelTextureWantsTake(
     int* out_ids,
