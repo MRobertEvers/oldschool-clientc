@@ -216,6 +216,13 @@ read_decode(
         return g1(buffer);
 }
 
+int
+RSCache_MapTerrainFlags(const struct RSCache* cache)
+{
+    return RSCache_IsDat1(cache) ? RSCACHE_MAP_TERRAIN_DECODE_U8
+                                 : RSCACHE_MAP_TERRAIN_DECODE_U16;
+}
+
 struct RSCache_MapTerrain*
 RSCache_MapTerrainNewFromDecodeFlags(
     char* data,

@@ -210,6 +210,11 @@ struct UITreeBehavior
     int* script_comparator;
     int* script_operand;
     uint8_t hide;
+    /** Set when `hide` was forced by the interface-mount bookkeeping (a group
+     *  baked into the tree but not mounted anywhere, or the group a mount slot
+     *  just replaced) rather than by the cache data or a script. Mounting the
+     *  group clears it — a cache/script hide is left alone. */
+    uint8_t hide_unmounted;
     uint8_t script_kind;
     int button_type;
     int client_code;

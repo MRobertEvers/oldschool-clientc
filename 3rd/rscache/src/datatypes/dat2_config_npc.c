@@ -8,17 +8,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define REV_210_NPC_ARCHIVE_REV 1493
-
 static void
 decode_npc_type(
     struct RSCache_Dat2ConfigNpc* npc,
-    int revision,
+    int flags,
     struct RSCache_Buffer* buffer);
+
+int
+RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
+{
+    int flags = 0;
+
+    /* Default true when the cache is unidentified. Every dat2 cache the client
+     * ships is at or past this gate, and the modern shape is what the previous
+     * hardcoded `true` produced — so an unknown cache keeps decoding exactly as
+     * it did before this flag became reachable. */
+    if( RSCache_RevisionAtLeast(
+            cache, RSCACHE_TYPE_NPC, 210, RSCACHE_NPC_ARCHIVE_REV_210, true) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS;
+
+    return flags;
+}
 
 struct RSCache_Dat2ConfigNpc*
 RSCache_Dat2ConfigNpcNewDecode(
     int revision,
+    char* data,
+    int data_size)
+{
+    struct RSCache cache = RSCache_ProfileZero();
+    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_NPC, revision);
+    return RSCache_Dat2ConfigNpcNewDecodeProfile(&cache, data, data_size);
+}
+
+struct RSCache_Dat2ConfigNpc*
+RSCache_Dat2ConfigNpcNewDecodeProfile(
+    const struct RSCache* cache,
     char* data,
     int data_size)
 {
@@ -32,7 +57,7 @@ RSCache_Dat2ConfigNpcNewDecode(
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)(data), (uint32_t)(data_size));
 
-    decode_npc_type(npc, revision, &buffer);
+    decode_npc_type(npc, RSCache_Dat2ConfigNpcFlags(cache), &buffer);
 
     return npc;
 }
@@ -86,14 +111,14 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
 static void
 decode_npc_type(
     struct RSCache_Dat2ConfigNpc* npc,
-    int revision,
+    int flags,
     struct RSCache_Buffer* buffer)
 {
     assert(npc);
     assert(buffer);
     assert(buffer->data);
 
-    bool rev210_head_icons = revision >= REV_210_NPC_ARCHIVE_REV;
+    bool rev210_head_icons = (flags & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
 
     int prev_opcode = -1;
     while( 1 )
@@ -111,6 +136,7 @@ decode_npc_type(
         if( opcode == 0 )
         {
             // printf("decode_npc_type: Reached end of data (opcode 0)\n");
+            npc->_consumed = (int)buffer->position;
             return;
         }
 
@@ -345,7 +371,9 @@ decode_npc_type(
         }
         case 102:
         {
-            bool rev210_head_icons = true; // TODO: Make this configurable
+            /* rev210_head_icons comes from the enclosing scope — see
+             * RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS. It used to be
+             * shadowed here by a hardcoded `true`. */
             int default_head_icon_archive = -1;
 
             if( !rev210_head_icons )

@@ -203,6 +203,14 @@ cs2_script_try_decode_footer(
     return out;
 }
 
+int
+RSCache_ClientScriptFlags(const struct RSCache* cache)
+{
+    (void)cache;
+    /* Unconditional by design — see the header. */
+    return RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+}
+
 struct RSCache_ClientScript*
 RSCache_ClientScriptNewFromDecodeFlags(
     int script_id,

@@ -9,20 +9,14 @@
  * Compile rscache_unity.c once to link the implementation.
  */
 
-enum RSCache_Game
-{
-    RSCACHE_GAME_OLDSCHOOL = 0,
-    RSCACHE_GAME_RS2 = 1,
-};
-
-struct RSCache
-{
-    int game;
-    int version;
-};
+/* `enum RSCache_Game` and `struct RSCache` now live in rscache_profile.h, which
+ * is included below. The struct used to be declared here with two fields and no
+ * users; it is now the cache-identity value every revision-sensitive codec takes.
+ * See rscache_profile.h for what it carries and why. */
 
 // Unity
 // clang-format off
+#include "rscache_profile.h"
 #include "rsbuffer.h"
 #include "archive.h"
 #include "reference_table.h"
@@ -67,6 +61,8 @@ struct RSCache
 #include "datatypes/dat1_pix32.h"
 #include "datatypes/dat1_pix_font.h"
 #include "datatypes/dat1_config_component.h"
+/* Above the datatypes: a revision module names the codecs it binds. */
+#include "revisions/revisions.h"
 // clang-format on
 
 #endif

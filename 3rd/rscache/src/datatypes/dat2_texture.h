@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT2_TEXTURE_H
 #define RSCACHE_DATATYPES_DAT2_TEXTURE_H
 
+#include "../rscache_profile.h"
+
 #include <stdbool.h>
 
 enum RSCache_Dat2TextureDirection
@@ -35,16 +37,39 @@ struct RSCache_Dat2Texture
     int animation_speed;
 };
 
-/** revision is the js5 archive revision of the textures group. Modern OSRS
- * (rev >= 233; archive revisions are unix timestamps there) uses a simplified
- * single-sprite definition: spriteId u16, averageHsl u16, opaque u8,
- * animationDirection u8, animationSpeed u8 (xrsps SpriteTextureLoader
- * decodeSimplified). Older caches use the multi-sprite layout. */
+/*
+ * Codec versions.
+ *
+ *  v1  the multi-sprite definition: sprite ids, types and transforms.
+ *  v2  modern OSRS (rev >= 233) simplified single-sprite record — spriteId u16,
+ *      averageHsl u16, opaque u8, animationDirection u8, animationSpeed u8
+ *      (xrsps SpriteTextureLoader.decodeSimplified). Seven bytes, fixed.
+ */
+#define RSCACHE_CODEC_TEXTURE_V1 1
+#define RSCACHE_CODEC_TEXTURE_V2 2
+
+/** Archive revision above which the textures group uses the simplified record.
+ *  Modern archive revisions are unix timestamps, far past any classic value, so
+ *  this only has to separate "timestamp" from "small integer". */
+#define RSCACHE_TEXTURE_ARCHIVE_REV_SIMPLIFIED 2000
+
+/** Which texture codec this cache needs. */
+int
+RSCache_Dat2TextureCodecVersion(const struct RSCache* cache);
+
+struct RSCache_Dat2Texture*
+RSCache_Dat2TextureNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int length);
+
+/** Retained entry point: decode knowing only the textures group's archive
+ *  revision. */
 struct RSCache_Dat2Texture*
 RSCache_Dat2TextureNewDecode(
     int revision,
-    char* buffer,
-    int buffer_size);
+    char* data,
+    int length);
 void
 RSCache_Dat2TextureFree(struct RSCache_Dat2Texture* texture);
 void

@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_MAPS_H
 #define RSCACHE_DATATYPES_MAPS_H
 
+#include "../rscache_profile.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -107,8 +109,15 @@ struct RSCache_MapTerrain
 #define RSCACHE_CHUNK_TILE_COUNT                                                                   \
     ((RSCACHE_MAP_TERRAIN_X * RSCACHE_MAP_TERRAIN_Z * RSCACHE_MAP_TERRAIN_LEVELS))
 
+/** Terrain tile attribute / overlay id width. Purely a container difference:
+ *  jagfile-era map squares store these as u8, js5-era ones as u16. */
 #define RSCACHE_MAP_TERRAIN_DECODE_U16 0
 #define RSCACHE_MAP_TERRAIN_DECODE_U8 1
+
+/** Terrain decode flags for this cache. Replaces callers hardcoding the width
+ *  from whichever provider they happen to live in. */
+int
+RSCache_MapTerrainFlags(const struct RSCache* cache);
 
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2DiskArchive;

@@ -7,10 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Same "modern cache" threshold convention as the loc decoder: modern js5
- * archive revisions are unix timestamps, far above any classic revision. */
-#define REV_TEXTURE_SIMPLIFIED_ARCHIVE_REV 2000
-
 static struct RSCache_Dat2Texture*
 texture_decode_simplified(
     struct RSCache_Dat2Texture* def,
@@ -36,9 +32,27 @@ texture_decode_simplified(
     return def;
 }
 
+int
+RSCache_Dat2TextureCodecVersion(const struct RSCache* cache)
+{
+    /* Full record by default: the simplified 7-byte form is the modern one, and
+     * a cache with no identifying information is more likely to be old. A modern
+     * cache always carries a timestamp archive revision, which the threshold
+     * catches. */
+    int derived = RSCache_RevisionAtLeast(
+                      cache,
+                      RSCACHE_TYPE_TEXTURE,
+                      233,
+                      RSCACHE_TEXTURE_ARCHIVE_REV_SIMPLIFIED,
+                      false)
+                      ? RSCACHE_CODEC_TEXTURE_V2
+                      : RSCACHE_CODEC_TEXTURE_V1;
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_TEXTURE, derived);
+}
+
 struct RSCache_Dat2Texture*
-RSCache_Dat2TextureNewDecode(
-    int revision,
+RSCache_Dat2TextureNewDecodeProfile(
+    const struct RSCache* cache,
     char* data,
     int length)
 {
@@ -46,10 +60,21 @@ RSCache_Dat2TextureNewDecode(
     assert(def);
     memset(def, 0, sizeof(struct RSCache_Dat2Texture));
 
-    if( revision >= REV_TEXTURE_SIMPLIFIED_ARCHIVE_REV )
+    if( RSCache_Dat2TextureCodecVersion(cache) == RSCACHE_CODEC_TEXTURE_V2 )
         return texture_decode_simplified(def, data, length);
 
     return RSCache_Dat2TextureDecodeInplace(def, data, length);
+}
+
+struct RSCache_Dat2Texture*
+RSCache_Dat2TextureNewDecode(
+    int revision,
+    char* data,
+    int length)
+{
+    struct RSCache cache = RSCache_ProfileZero();
+    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_TEXTURE, revision);
+    return RSCache_Dat2TextureNewDecodeProfile(&cache, data, length);
 }
 
 void

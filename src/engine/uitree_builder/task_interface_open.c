@@ -271,12 +271,40 @@ layout_tree(struct Task_InterfaceOpen* self)
         self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
+/* True when the tree already holds nodes of `group` — the pack was baked by an
+ * earlier open or, more often, by the CS2 runtime (task_cs2_bake_pack) when a
+ * script touched the group before the server opened it. */
+static int
+interface_group_in_tree(
+    struct UITree const* tree,
+    int group)
+{
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( ((c->component_id >> 16) & 0xffff) == group )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * Move every node of the opened group under the mount target.
+ *
+ * The group's nodes are not necessarily tree roots: the CS2 runtime bakes a
+ * pack the moment a script touches it, and the unmounted-spillover pass then
+ * hides that copy — so by the time the server's IF_OPENSUB arrives the pack can
+ * already be sitting in the tree (hidden, and holding every dynamic child the
+ * script created). Scanning all components, rather than only the root sibling
+ * list, catches that copy and any stale mount at a different slot, and clearing
+ * hide_unmounted un-hides exactly what the mount bookkeeping hid.
+ */
 static void
 mount_pack_under_target(struct Task_InterfaceOpen* self)
 {
     int32_t mount_idx;
-    int32_t root;
-    int32_t next;
     assert(self->target_uid >= 0);
     mount_idx = UITree_FindByComponentId(self->tree, self->target_uid);
     assert(mount_idx >= 0 && "openSub target must exist");
@@ -284,16 +312,28 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
     (void)UITree_InterfaceParentSet(
         self->tree, self->target_uid, self->interface_id, self->mount_type);
 
-    for( root = self->tree->root_index; root >= 0; root = next )
+    for( uint32_t i = 0; i < self->tree->component_count; i++ )
     {
-        int cid = self->tree->components[root].component_id;
-        int group = (cid >> 16) & 0xffff;
-        next = self->tree->components[root].next_sibling;
-        if( group != self->interface_id )
+        struct UITreeComponent* c = &self->tree->components[i];
+        int cid = c->component_id;
+        if( c->freed || cid < 0 )
             continue;
-        if( self->tree->components[root].parent == mount_idx )
+        if( ((cid >> 16) & 0xffff) != self->interface_id )
             continue;
-        UITree_Reparent(self->tree, root, mount_idx);
+        /* Pack-internal node (its parent belongs to the same group): the bake
+         * already linked it, and its ancestor carries the mount. */
+        if( c->parent >= 0 && c->parent != mount_idx &&
+            ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
+                self->interface_id )
+            continue;
+        if( c->behavior.hide_unmounted )
+        {
+            c->behavior.hide = 0;
+            c->behavior.hide_unmounted = 0;
+        }
+        if( c->parent == mount_idx )
+            continue;
+        UITree_Reparent(self->tree, (int32_t)i, mount_idx);
     }
 }
 

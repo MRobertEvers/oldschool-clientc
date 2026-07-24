@@ -30,9 +30,38 @@ decode_loc(
 int
 RSCache_Dat2ConfigLocFlagsForRevision(int revision)
 {
-    int flags = RSCACHE_CONFIG_LOC_DECODE_DAT2;
-    if( revision >= REV_LOC_OSRS_220_ARCHIVE_REV )
+    /* Retained entry point for callers holding only the loc group's archive
+     * revision. Routed through the profile so the era rule lives in one place. */
+    struct RSCache cache = RSCache_ProfileZero();
+    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_LOC, revision);
+    return RSCache_Dat2ConfigLocFlags(&cache);
+}
+
+int
+RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
+{
+    int flags = RSCache_IsDat1(cache) ? RSCACHE_CONFIG_LOC_DECODE_DAT
+                                      : RSCACHE_CONFIG_LOC_DECODE_DAT2;
+
+    /* Default false when the cache is unidentified: this is the pre-220 payload
+     * shape, and an unidentified cache with no archive revision is far more
+     * likely to be an old one than a modern one (a modern cache always carries a
+     * timestamp revision, which the threshold below catches). */
+    if( RSCache_RevisionAtLeast(
+            cache, RSCACHE_TYPE_LOC, 220, REV_LOC_OSRS_220_ARCHIVE_REV, false) )
         flags |= RSCACHE_CONFIG_LOC_DECODE_OSRS_220;
+
+    /* The Kronos client omits a byte its stock contemporaries write. Not
+     * revision ordered, so only an explicit profile can say so — this is the
+     * flag's first and only source. */
+    if( RSCache_HasQuirk(cache, RSCACHE_QUIRK_KRONOS) )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_KRONOS;
+
+    /* LARGE_MODEL_IDS stays off for every profile: an exact-consumption scan of
+     * the jan2026 OSRS cache (60601/60601 files) showed big-smart model ids
+     * misaligning 15k of them. Kept as a flag because the field genuinely widens
+     * in other lineages, but no declared revision sets it. */
+
     return flags;
 }
 

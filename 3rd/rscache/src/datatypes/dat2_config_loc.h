@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_LOC_H
 
 #include "../rsbuffer.h"
+#include "../rscache_profile.h"
 #include "dat2_configs.h"
 
 #include <stdbool.h>
@@ -178,7 +179,15 @@ struct RSCache_Dat2ConfigLoc
  * carry a byte, etc. (xrsps LocType.ts cacheInfo.revision >= 220 branches). */
 #define RSCACHE_CONFIG_LOC_DECODE_OSRS_220 8
 
-/** Era payload flags for a loc config group's js5 archive revision. */
+/** Era payload flags for this cache. The canonical entry point: it is the only
+ *  thing that can set RSCACHE_CONFIG_LOC_DECODE_KRONOS, since that quirk is a
+ *  client-build difference no revision comparison implies. */
+int
+RSCache_Dat2ConfigLocFlags(const struct RSCache* cache);
+
+/** Era payload flags from a loc config group's js5 archive revision alone.
+ *  Equivalent to RSCache_Dat2ConfigLocFlags on a profile that knows nothing but
+ *  that revision — so it cannot yield the KRONOS or DAT flags. */
 int
 RSCache_Dat2ConfigLocFlagsForRevision(int revision);
 

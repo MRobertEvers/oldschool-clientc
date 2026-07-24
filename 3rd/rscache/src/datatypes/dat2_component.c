@@ -233,6 +233,23 @@ RSCache_Dat2ComponentDecodeRev643(void)
     return rev;
 }
 
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRevFromProfile(
+    const struct RSCache* cache,
+    int32_t index_revision)
+{
+    struct RSCache_Dat2ComponentDecodeRev rev = {
+        /* The epoch is the only thing that can separate the two families: their
+         * index revisions occupy the same numeric range. */
+        .era = (cache && cache->epoch == RSCACHE_EPOCH_643)
+                   ? RSCACHE_DAT2_COMPONENT_DECODE_ERA_643
+                   : RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS,
+        .index_revision = index_revision,
+        .game_revision = cache ? (int32_t)cache->version : RSCACHE_REVISION_UNKNOWN,
+    };
+    return rev;
+}
+
 static bool
 rev_is_643(struct RSCache_Dat2ComponentDecodeRev rev)
 {
@@ -240,13 +257,19 @@ rev_is_643(struct RSCache_Dat2ComponentDecodeRev rev)
 }
 
 /* OSRS 237 widened the type-6 model ids from u16-with-65535-sentinel to i32.
- * An unknown index revision keeps the narrow reads, which is what every cache
- * in this repo needs. */
+ *
+ * A known game revision answers this outright. Otherwise fall back to the
+ * interfaces index revision, which only discriminates for caches whose
+ * interfaces table carries a timestamp — local caches read 997 (kronos), 1193
+ * and 1767694604, all below the threshold. An unknown revision keeps the narrow
+ * reads, which is what every cache in this repo needs. */
 static bool
 rev_has_int_model_ids(struct RSCache_Dat2ComponentDecodeRev rev)
 {
     if( rev.era != RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS )
         return false;
+    if( rev.game_revision != RSCACHE_REVISION_UNKNOWN )
+        return rev.game_revision >= 237;
     if( rev.index_revision == RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN )
         return false;
     return rev.index_revision > RSCACHE_DAT2_COMPONENT_INDEX_REVISION_237;

@@ -4,6 +4,7 @@
 #include "rscache.h"
 
 // clang-format off
+#include "src/rscache_profile.c"
 #include "src/compression.c"
 #include "src/rsbuffer.c"
 #include "src/archive.c"
@@ -48,4 +49,14 @@
 #include "src/datatypes/dat1_pix32.c"
 #include "src/datatypes/dat1_pix_font.c"
 #include "src/datatypes/dat1_config_component.c"
+/* Revision modules last: they sit above the datatypes and name the codecs they
+ * bind, so they must see every datatype header. */
+#include "src/revisions/revisions.c"
+#include "src/revisions/rev_dat1_lc245_2.c"
+#include "src/revisions/rev_dat1_lc254.c"
+#include "src/revisions/rev_dat2_osrs184_kronos.c"
+#include "src/revisions/rev_dat2_osrs230.c"
+#include "src/revisions/rev_dat2_osrs233.c"
+#include "src/revisions/rev_dat2_osrs239.c"
+#include "src/revisions/rev_dat2_rs643.c"
 // clang-format on

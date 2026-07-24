@@ -3,6 +3,7 @@
 
 #include "../dat2disk.h"
 #include "../filelist.h"
+#include "../rscache_profile.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -286,6 +287,12 @@ struct RSCache_Dat2ComponentDecodeRev
 {
     enum RSCache_Dat2ComponentDecodeEra era;
     int32_t index_revision;
+    /** Game revision, when the caller knows it — it answers the rev-237 question
+     *  directly instead of via the index-revision threshold, which only works
+     *  for caches whose interfaces table happens to carry a timestamp. Zero
+     *  (RSCACHE_REVISION_UNKNOWN) means "fall back to index_revision", which is
+     *  what the designated initialisers below leave it as. */
+    int32_t game_revision;
 };
 
 /** OSRS-family layout at `index_revision` (pass
@@ -297,6 +304,23 @@ RSCache_Dat2ComponentDecodeRevOsrs(int32_t index_revision);
 /** 643-era layout; index revisions are not meaningful across families. */
 struct RSCache_Dat2ComponentDecodeRev
 RSCache_Dat2ComponentDecodeRev643(void);
+
+/**
+ * Derive the layout from a cache profile — the canonical path.
+ *
+ * Resolves the one question the index revision cannot: the 643 and OSRS families
+ * number their reference tables in the same range, so only the profile's `epoch`
+ * can tell them apart. Before this existed, RSCache_Dat2ComponentDecodeRev643
+ * had no caller and the 643 layout was unreachable.
+ *
+ * `index_revision` is still passed in because it is per-table metadata the
+ * profile does not carry; supply the interfaces reference table's version, or
+ * RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN.
+ */
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRevFromProfile(
+    const struct RSCache* cache,
+    int32_t index_revision);
 
 void
 RSCache_Dat2ComponentInit(struct RSCache_Dat2Component* c);
