@@ -2,6 +2,7 @@
 #define RSCACHE_REFERENCE_TABLE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct RSCache_ReferenceTableArchiveFile
 {
@@ -37,10 +38,40 @@ struct RSCache_ReferenceTable
     int archive_count;
 };
 
+#define RSCACHE_REFTABLE_FLAG_IDENTIFIERS 0x1
+#define RSCACHE_REFTABLE_FLAG_WHIRLPOOL 0x2
+#define RSCACHE_REFTABLE_FLAG_SIZES 0x4
+#define RSCACHE_REFTABLE_FLAG_HASH 0x8
+
 struct RSCache_ReferenceTable*
 RSCache_ReferenceTableNewDecode(
     char* data,
     int data_size);
+
+/**
+ * Encode a reference table back to its on-disk bytes.
+ *
+ * Exact inverse of the decoder, including the field *order*, which is not the
+ * order the struct declares: identifiers, crcs, whirlpools, sizes, versions,
+ * child counts, child ids, child identifiers. Only the ids listed in
+ * `table->ids` are written, in that order, since that is what the decoder walks.
+ *
+ * Formats 5, 6 and 7 are all supported — the local caches use all three (modern
+ * OSRS is 7, cache.643 is 6, kronos mixes 5 and 6). Format 7 replaces every
+ * count and delta with a usmart.
+ *
+ * Returns bytes written to `out`, or 0 on failure (bad format, or `out` too
+ * small). Ask RSCache_ReferenceTableEncodeBound for a safe size.
+ */
+uint32_t
+RSCache_ReferenceTableEncode(
+    const struct RSCache_ReferenceTable* table,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Safe `out_capacity` for RSCache_ReferenceTableEncode. */
+uint32_t
+RSCache_ReferenceTableEncodeBound(const struct RSCache_ReferenceTable* table);
 
 void
 RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table);

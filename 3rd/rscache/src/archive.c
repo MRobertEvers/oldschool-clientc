@@ -163,6 +163,123 @@ RSCache_ArchiveDecryptDecompress(
     return true;
 }
 
+uint32_t
+RSCache_ArchiveEncodeBound(
+    uint32_t data_size,
+    int compression)
+{
+    /* 1 compression byte + 2 length fields, plus room for the payload to grow
+     * slightly when a compressor cannot win. */
+    uint32_t framing = 1u + 4u + 4u + 16u;
+    switch( compression )
+    {
+    case RSCACHE_ARCHIVE_COMPRESSION_NONE:
+        return framing + data_size;
+    case RSCACHE_ARCHIVE_COMPRESSION_BZIP2:
+        return framing + RSCache_CompressionBzipCompressBound((int)data_size);
+    case RSCACHE_ARCHIVE_COMPRESSION_GZIP:
+        return framing + RSCache_CompressionGzipCompressBound((int)data_size);
+    default:
+        return 0;
+    }
+}
+
+uint32_t
+RSCache_ArchiveEncode(
+    uint8_t* out,
+    uint32_t out_capacity,
+    const uint8_t* data,
+    uint32_t data_size,
+    int compression,
+    uint32_t* xtea_key_nullable)
+{
+    if( !out || (!data && data_size != 0) )
+        return 0;
+
+    uint8_t* payload = NULL;
+    uint32_t payload_size = 0;
+
+    switch( compression )
+    {
+    case RSCACHE_ARCHIVE_COMPRESSION_NONE:
+        payload_size = data_size;
+        break;
+
+    case RSCACHE_ARCHIVE_COMPRESSION_BZIP2:
+    {
+        uint32_t bound = RSCache_CompressionBzipCompressBound((int)data_size);
+        payload = malloc(bound ? bound : 1);
+        if( !payload )
+            return 0;
+        payload_size =
+            RSCache_CompressionBzipCompress(payload, (int)bound, data, (int)data_size);
+        if( payload_size == 0 )
+        {
+            free(payload);
+            return 0;
+        }
+        break;
+    }
+
+    case RSCACHE_ARCHIVE_COMPRESSION_GZIP:
+    {
+        uint32_t bound = RSCache_CompressionGzipCompressBound((int)data_size);
+        payload = malloc(bound ? bound : 1);
+        if( !payload )
+            return 0;
+        payload_size =
+            RSCache_CompressionGzipCompress(payload, (int)bound, data, (int)data_size);
+        if( payload_size == 0 )
+        {
+            free(payload);
+            return 0;
+        }
+        break;
+    }
+
+    default:
+        return 0;
+    }
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    bool uncompressed_field = compression != RSCACHE_ARCHIVE_COMPRESSION_NONE;
+    uint32_t needed = 1u + 4u + (uncompressed_field ? 4u : 0u) + payload_size;
+    if( out_capacity < needed )
+    {
+        free(payload);
+        return 0;
+    }
+
+    p1(&buffer, compression);
+    /* The stored length counts the payload only, not the uncompressed-length
+     * field that precedes it — the decoder reads that field separately and then
+     * consumes `size` payload bytes. */
+    p4(&buffer, (int)payload_size);
+
+    /* Everything from here is what XTEA covers. */
+    uint32_t encrypted_start = buffer.position;
+
+    if( uncompressed_field )
+        p4(&buffer, (int)data_size);
+
+    pbuf(&buffer, payload ? payload : data, (int)payload_size);
+    free(payload);
+
+    if( xtea_key_nullable )
+    {
+        /* The decoder decrypts `size + 4` bytes starting right after the length
+         * field, which is the uncompressed-length field plus the payload. For an
+         * uncompressed archive there is no such field, so the span is just the
+         * payload. */
+        uint32_t span = buffer.position - encrypted_start;
+        xteas_encrypt((char*)out + encrypted_start, (int)span, (int32_t*)xtea_key_nullable);
+    }
+
+    return buffer.position;
+}
+
 static uint8_t decompress_buffer[65536];
 
 bool

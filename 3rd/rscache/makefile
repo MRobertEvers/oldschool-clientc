@@ -30,7 +30,7 @@ CFLAGS  += $(INCLUDES) $(WARNINGS) -MMD -MP
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 
 UNITY_OBJ := $(BUILD)/rscache_unity.o
-DEP_OBJS  := $(BUILD)/bzip.o $(BUILD)/miniz.o $(BUILD)/xteas.o
+DEP_OBJS  := $(BUILD)/bzip.o $(BUILD)/bzip_encode.o $(BUILD)/miniz.o $(BUILD)/xteas.o
 LIB_OBJS  := $(UNITY_OBJ) $(DEP_OBJS)
 
 # One binary per test source. Tests that need a cache directory on disk skip
@@ -52,6 +52,10 @@ $(UNITY_OBJ): rscache_unity.c | $(BUILD)
 $(BUILD)/bzip.o: $(THIRD)/bzip/bzip.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+# The encoder is ours, not vendored, so it builds with the warning set on.
+$(BUILD)/bzip_encode.o: $(THIRD)/bzip/bzip_encode.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/miniz.o: $(THIRD)/miniz/miniz.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
@@ -61,14 +65,21 @@ $(BUILD)/xteas.o: $(THIRD)/xteas/xteas.c | $(BUILD)
 $(BUILD)/%: test/%.c $(LIB_OBJS) | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -o $@ $< $(LIB_OBJS)
 
+# The bzip2 encoder is ours, so it is also checked against the reference bzip2
+# binary — our own decoder agreeing with our own encoder is not proof.
+$(BUILD)/bzip_interop_helper: test/bzip_interop_helper.c $(BUILD)/bzip_encode.o | $(BUILD)
+	$(CC) $(CFLAGS) -o $@ $< $(BUILD)/bzip_encode.o
+
 # Run every test binary; fail the target if any one of them fails, but run them
 # all first so a single invocation reports every broken codec.
-test: $(TEST_BINS)
+test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 	@status=0; \
 	for bin in $(TEST_BINS); do \
 		echo "==> $$bin"; \
 		./$$bin || status=1; \
 	done; \
+	echo "==> bzip2 interop"; \
+	sh test/test_bzip_interop.sh $(BUILD)/bzip_interop_helper || status=1; \
 	exit $$status
 
 clean:

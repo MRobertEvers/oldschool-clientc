@@ -367,6 +367,11 @@ hide_unmounted_spillover(struct Task_InterfaceOpen* self)
             if( group == host_group )
                 continue;
         }
+        /* Mark it as ours: a pack the CS2 runtime baked ahead of its mount is
+         * hidden here, and mount_pack_under_target must be able to tell that
+         * hide apart from a cache/script one when the mount finally lands. */
+        if( !self->tree->components[root].behavior.hide )
+            self->tree->components[root].behavior.hide_unmounted = 1;
         self->tree->components[root].behavior.hide = 1;
     }
 }
@@ -484,31 +489,63 @@ Task_InterfaceOpen_Run(
         }
     }
 
-    /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge). */
+    /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge).
+     *
+     * Bake only when the group is not in the tree yet. The CS2 runtime bakes a
+     * pack as soon as a script touches it (task_cs2_bake_pack), which for the
+     * gameframe happens well before the server's IF_OPENSUB, and every dynamic
+     * child the scripts create (an inventory's 28 obj boxes, say) lives in that
+     * copy — component lookups resolve an id to its lowest node index, so the
+     * scripts keep writing there. Baking a second copy therefore mounts an
+     * empty duplicate over the populated one and the panel renders blank. */
     {
         struct ToriRS_ComponentPack* pack =
             CacheProvider_ComponentPackGet(self->provider, self->interface_id);
         assert(pack);
         collect_onloads(self, pack);
-        (void)UITree_BuildFromComponentPack(
-            self->tree, pack, open_resolve_sprite, open_resolve_font, self);
+        if( interface_group_in_tree(self->tree, self->interface_id) )
+        {
+            if( getenv("TORIRS_NET_DEBUG") )
+                fprintf(
+                    stderr,
+                    "interface open: group %d already baked; reusing it\n",
+                    self->interface_id);
+        }
+        else
+        {
+            (void)UITree_BuildFromComponentPack(
+                self->tree, pack, open_resolve_sprite, open_resolve_font, self);
+        }
         upload_model_nodes(self->tree, self->bridge);
     }
 
     if( self->target_uid >= 0 )
     {
-        /* Close existing mount at target, then reparent. */
+        /* Close existing mount at target, then reparent. The outgoing group's
+         * nodes are children of the mount target (that is what mounting did),
+         * so hiding only tree roots would leave them on screen. */
         {
             int old = UITree_InterfaceParentFind(self->tree, self->target_uid);
             if( old >= 0 )
             {
                 int old_group = self->tree->interface_parents[old].group_id;
-                int32_t r;
-                for( r = self->tree->root_index; r >= 0; r = self->tree->components[r].next_sibling )
+                if( old_group != self->interface_id )
                 {
-                    int cid = self->tree->components[r].component_id;
-                    if( ((cid >> 16) & 0xffff) == old_group )
-                        self->tree->components[r].behavior.hide = 1;
+                    for( uint32_t i = 0; i < self->tree->component_count; i++ )
+                    {
+                        struct UITreeComponent* c = &self->tree->components[i];
+                        if( c->freed || c->component_id < 0 )
+                            continue;
+                        if( ((c->component_id >> 16) & 0xffff) != old_group )
+                            continue;
+                        if( c->parent >= 0 &&
+                            ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
+                                old_group )
+                            continue;
+                        if( !c->behavior.hide )
+                            c->behavior.hide_unmounted = 1;
+                        c->behavior.hide = 1;
+                    }
                 }
                 UITree_InterfaceParentClear(self->tree, self->target_uid);
             }

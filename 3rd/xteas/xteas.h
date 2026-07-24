@@ -11,4 +11,13 @@ xteas_decrypt(
     int data_length,
     int32_t* key);
 
+/** Inverse of xteas_decrypt. Encrypts in place; leftover bytes past full 8-byte
+ * blocks are unchanged, so encrypt-then-decrypt reproduces the input exactly for
+ * any length, including lengths that are not a multiple of 8. */
+void
+xteas_encrypt(
+    char* data,
+    int data_length,
+    int32_t* key);
+
 #endif

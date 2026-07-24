@@ -18,6 +18,8 @@
 // clang-format off
 #include "rscache_profile.h"
 #include "rsbuffer.h"
+#include "checksum.h"
+#include "compression.h"
 #include "archive.h"
 #include "reference_table.h"
 #include "xtea_config.h"

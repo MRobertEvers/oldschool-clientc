@@ -5,6 +5,8 @@
 
 // clang-format off
 #include "src/rscache_profile.c"
+#include "src/checksum.c"
+#include "src/whirlpool.c"
 #include "src/compression.c"
 #include "src/rsbuffer.c"
 #include "src/archive.c"

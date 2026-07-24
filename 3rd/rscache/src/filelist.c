@@ -1,6 +1,7 @@
 #include "filelist.h"
 
 #include "archive.h"
+#include "bzip.h"
 #include "compression.h"
 #include "rsbuffer.h"
 
@@ -145,6 +146,65 @@ error:
     free(file_offsets);
     RSCache_FileListFree(filelist);
     return NULL;
+}
+
+uint32_t
+RSCache_FileListEncodeBound(const struct RSCache_FileList* filelist)
+{
+    if( !filelist )
+        return 0;
+
+    uint32_t total = 0;
+    for( int i = 0; i < filelist->file_count; i++ )
+        total += (uint32_t)filelist->file_sizes[i];
+
+    if( filelist->file_count == 1 )
+        return total;
+
+    /* One int32 delta per file for the single chunk, plus the chunk-count byte. */
+    return total + (uint32_t)filelist->file_count * 4u + 1u;
+}
+
+uint32_t
+RSCache_FileListEncode(
+    const struct RSCache_FileList* filelist,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !filelist || !out || !filelist->files || !filelist->file_sizes )
+        return 0;
+    if( filelist->file_count <= 0 )
+        return 0;
+    if( out_capacity < RSCache_FileListEncodeBound(filelist) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* A single-file group carries no size table: the decoder takes the whole
+     * payload as file 0 rather than reading a trailer. Emitting one here would
+     * append the table to the file's own bytes. */
+    if( filelist->file_count == 1 )
+    {
+        pbuf(&buffer, (const uint8_t*)filelist->files[0], filelist->file_sizes[0]);
+        return buffer.position;
+    }
+
+    for( int i = 0; i < filelist->file_count; i++ )
+        pbuf(&buffer, (const uint8_t*)filelist->files[i], filelist->file_sizes[i]);
+
+    /* Single chunk: the deltas are the successive differences of the file sizes,
+     * which the decoder accumulates back into per-file chunk sizes. */
+    int previous = 0;
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        p4(&buffer, filelist->file_sizes[i] - previous);
+        previous = filelist->file_sizes[i];
+    }
+
+    p1(&buffer, 1); /* chunk count */
+
+    return buffer.position;
 }
 
 void
@@ -339,6 +399,156 @@ RSCache_FileListDatFindFileByName(
     return -1;
 }
 
+/* Patch a big-endian u24 already written into `data` at `offset`. The jagfile
+ * file table records each member's compressed size, which is only known after
+ * compressing it, so the column is reserved and filled in afterwards. */
+static void
+patch_u24(
+    uint8_t* data,
+    uint32_t offset,
+    int value)
+{
+    data[offset] = (uint8_t)((value >> 16) & 0xff);
+    data[offset + 1] = (uint8_t)((value >> 8) & 0xff);
+    data[offset + 2] = (uint8_t)(value & 0xff);
+}
+
+uint32_t
+RSCache_FileListDatEncodeBound(const struct RSCache_FileListDat* filelist)
+{
+    if( !filelist )
+        return 0;
+
+    uint32_t payload = 0;
+    for( int i = 0; i < filelist->file_count; i++ )
+        payload += (uint32_t)filelist->file_sizes[i];
+
+    /* 6-byte archive header + 2-byte file count + 10 bytes per file entry, and
+     * bzip2 can expand slightly on incompressible input, so route the payload
+     * estimate through its own bound. */
+    uint32_t framed = 6u + 2u + (uint32_t)filelist->file_count * 10u + payload;
+    return bzip_compress_bound(framed) + framed + 64u;
+}
+
+uint32_t
+RSCache_FileListDatEncode(
+    const struct RSCache_FileListDat* filelist,
+    bool whole_archive,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !filelist || !out || !filelist->files || !filelist->file_sizes ||
+        !filelist->file_name_hashes )
+        return 0;
+    if( filelist->file_count < 0 )
+        return 0;
+
+    /* Build the body — file table plus payloads — then frame it. In the
+     * whole-archive arrangement the body is compressed as one unit; in the
+     * per-file arrangement the table is plain and each payload is compressed
+     * individually, so the table's "compressed size" column is only known after
+     * compressing. Hence two passes rather than one streaming write. */
+
+    uint32_t body_capacity = 2u + (uint32_t)filelist->file_count * 10u;
+    for( int i = 0; i < filelist->file_count; i++ )
+        body_capacity += (uint32_t)bzip_compress_bound((uint32_t)filelist->file_sizes[i]) + 64u;
+
+    uint8_t* body = malloc(body_capacity);
+    if( !body )
+        return 0;
+
+    struct RSCache_Buffer body_buffer;
+    RSCache_BufferInit(&body_buffer, body, body_capacity);
+
+    p2(&body_buffer, filelist->file_count);
+
+    /* Reserve the table; the per-file compressed sizes are patched in below once
+     * known. Position is recorded so the patch does not have to re-derive it. */
+    uint32_t table_position = body_buffer.position;
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        p4(&body_buffer, filelist->file_name_hashes[i]);
+        p3(&body_buffer, filelist->file_sizes[i]); /* uncompressed */
+        p3(&body_buffer, 0);                        /* compressed, patched below */
+    }
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        uint32_t stored;
+        if( whole_archive )
+        {
+            /* The outer stream compresses everything, so members go in plain. */
+            pbuf(&body_buffer, (const uint8_t*)filelist->files[i], filelist->file_sizes[i]);
+            stored = (uint32_t)filelist->file_sizes[i];
+        }
+        else
+        {
+            uint32_t before = body_buffer.position;
+            uint32_t written = RSCache_CompressionBzipCompress(
+                body + before,
+                (int)(body_capacity - before),
+                (const uint8_t*)filelist->files[i],
+                filelist->file_sizes[i]);
+            if( written == 0 && filelist->file_sizes[i] != 0 )
+            {
+                free(body);
+                return 0;
+            }
+            body_buffer.position += written;
+            stored = written;
+        }
+
+        /* Patch the compressed-size column for this entry. The two size columns
+         * are what tell a reader which arrangement is in use, so they have to
+         * agree with what was actually written. */
+        patch_u24(
+            body,
+            table_position + (uint32_t)i * 10u + 7u,
+            whole_archive ? filelist->file_sizes[i] : (int)stored);
+    }
+
+    uint32_t body_size = body_buffer.position;
+
+    struct RSCache_Buffer out_buffer;
+    RSCache_BufferInit(&out_buffer, out, out_capacity);
+
+    if( whole_archive )
+    {
+        uint32_t bound = bzip_compress_bound(body_size);
+        uint8_t* packed = malloc(bound);
+        if( !packed )
+        {
+            free(body);
+            return 0;
+        }
+
+        uint32_t packed_size =
+            RSCache_CompressionBzipCompress(packed, (int)bound, body, (int)body_size);
+        if( packed_size == 0 )
+        {
+            free(packed);
+            free(body);
+            return 0;
+        }
+
+        /* Unequal sizes are the signal for "whole archive compressed". */
+        p3(&out_buffer, (int)body_size);
+        p3(&out_buffer, (int)packed_size);
+        pbuf(&out_buffer, packed, (int)packed_size);
+        free(packed);
+    }
+    else
+    {
+        /* Equal sizes are the signal for "each file compressed separately". */
+        p3(&out_buffer, (int)body_size);
+        p3(&out_buffer, (int)body_size);
+        pbuf(&out_buffer, body, (int)body_size);
+    }
+
+    free(body);
+    return out_buffer.position;
+}
+
 struct RSCache_FileListDatIndexed*
 RSCache_FileListDatIndexedNewFromDecode(
     char* index_data,
@@ -382,6 +592,52 @@ RSCache_FileListDatIndexedNewFromDecode(
     filelist->data_size = data_size;
 
     return filelist;
+}
+
+uint32_t
+RSCache_FileListDatIndexedEncodeIndexBound(const struct RSCache_FileListDatIndexed* filelist)
+{
+    if( !filelist )
+        return 0;
+    return 2u + (uint32_t)filelist->offset_count * 2u;
+}
+
+uint32_t
+RSCache_FileListDatIndexedEncodeIndex(
+    const struct RSCache_FileListDatIndexed* filelist,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !filelist || !out || !filelist->offsets )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    if( out_capacity < RSCache_FileListDatIndexedEncodeIndexBound(filelist) )
+        return 0;
+
+    p2(&buffer, filelist->offset_count);
+
+    for( int i = 0; i < filelist->offset_count; i++ )
+    {
+        /* Each entry is the record's length; the decoder accumulates them from a
+         * base of 2. The final record's length is not recoverable from `offsets`
+         * — nothing stores an offset past the last record — so it is taken as the
+         * remainder of the .dat. That reproduces a correct index, but will differ
+         * from the original entry if the source .dat carried trailing slack. */
+        int length;
+        if( i + 1 < filelist->offset_count )
+            length = filelist->offsets[i + 1] - filelist->offsets[i];
+        else
+            length = filelist->data_size - filelist->offsets[i];
+
+        if( length < 0 || length > 0xFFFF )
+            return 0;
+        p2(&buffer, length);
+    }
+
+    return buffer.position;
 }
 
 void

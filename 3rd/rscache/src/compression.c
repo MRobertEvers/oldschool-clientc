@@ -1,10 +1,13 @@
 #include "compression.h"
 
 #include "bzip.h"
+#include "checksum.h"
 #include "miniz.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef enum
 {
@@ -161,4 +164,123 @@ RSCache_CompressionBzipDecompress(
 {
     bzip_decompress((int8_t*)out, (int8_t*)compressed_data, compressed_length, 0);
     return (uint32_t)out_length;
+}
+
+#define GZIP_HEADER_SIZE 10
+#define GZIP_FOOTER_SIZE 8
+
+uint32_t
+RSCache_CompressionGzipCompressBound(int data_length)
+{
+    if( data_length < 0 )
+        return 0;
+    /* miniz's bound plus our own framing. */
+    return (uint32_t)(compressBound((mz_ulong)data_length) + GZIP_HEADER_SIZE + GZIP_FOOTER_SIZE);
+}
+
+uint32_t
+RSCache_CompressionGzipCompress(
+    uint8_t* out,
+    int out_length,
+    const uint8_t* data,
+    int data_length)
+{
+    if( !out || !data || data_length < 0 )
+        return 0;
+    if( out_length < GZIP_HEADER_SIZE + GZIP_FOOTER_SIZE )
+        return 0;
+
+    /* Fixed 10-byte header: magic, deflate method, no flags, no mtime, no extra
+     * fields. mtime is deliberately zero — a timestamp would make the same input
+     * produce different bytes on each run, which would defeat the byte-exact
+     * round-trip checks the encoders are verified with. */
+    out[0] = 0x1f;
+    out[1] = 0x8b;
+    out[2] = 8; /* CM = deflate */
+    out[3] = 0; /* FLG = none */
+    out[4] = 0;
+    out[5] = 0;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = 0;   /* XFL */
+    out[9] = 0xff; /* OS = unknown */
+
+    size_t body_capacity = (size_t)out_length - GZIP_HEADER_SIZE - GZIP_FOOTER_SIZE;
+
+    /* Raw deflate: no zlib wrapper, since gzip supplies its own framing. */
+    size_t body_size = tdefl_compress_mem_to_mem(
+        out + GZIP_HEADER_SIZE,
+        body_capacity,
+        data,
+        (size_t)data_length,
+        TDEFL_DEFAULT_MAX_PROBES);
+    if( body_size == 0 )
+        return 0;
+
+    uint8_t* footer = out + GZIP_HEADER_SIZE + body_size;
+    uint32_t crc = RSCache_Crc32(0, data, (size_t)data_length);
+    uint32_t isize = (uint32_t)data_length;
+
+    /* Both footer fields are little-endian, unlike everything else in a cache. */
+    footer[0] = (uint8_t)(crc & 0xff);
+    footer[1] = (uint8_t)((crc >> 8) & 0xff);
+    footer[2] = (uint8_t)((crc >> 16) & 0xff);
+    footer[3] = (uint8_t)((crc >> 24) & 0xff);
+    footer[4] = (uint8_t)(isize & 0xff);
+    footer[5] = (uint8_t)((isize >> 8) & 0xff);
+    footer[6] = (uint8_t)((isize >> 16) & 0xff);
+    footer[7] = (uint8_t)((isize >> 24) & 0xff);
+
+    return (uint32_t)(GZIP_HEADER_SIZE + body_size + GZIP_FOOTER_SIZE);
+}
+
+/* The cache stores bzip2 payloads with the 4-byte "BZh1" magic removed; the
+ * client prepends it before decompressing (see bzip_decompress). */
+#define BZIP_MAGIC_SIZE 4
+/* Block size 1 (100k) — what every RuneScape cache uses. */
+#define BZIP_CACHE_LEVEL 1
+
+uint32_t
+RSCache_CompressionBzipCompressBound(int data_length)
+{
+    if( data_length < 0 )
+        return 0;
+    return bzip_compress_bound((uint32_t)data_length);
+}
+
+uint32_t
+RSCache_CompressionBzipCompress(
+    uint8_t* out,
+    int out_length,
+    const uint8_t* data,
+    int data_length)
+{
+    if( !out || !data || data_length < 0 )
+        return 0;
+
+    /* Compress into scratch so the magic can be dropped without shifting the
+     * caller's buffer around. */
+    uint32_t scratch_size = bzip_compress_bound((uint32_t)data_length);
+    uint8_t* scratch = malloc(scratch_size);
+    if( !scratch )
+        return 0;
+
+    uint32_t written =
+        bzip_compress(scratch, scratch_size, data, (uint32_t)data_length, BZIP_CACHE_LEVEL);
+    if( written <= BZIP_MAGIC_SIZE )
+    {
+        free(scratch);
+        return 0;
+    }
+
+    uint32_t payload = written - BZIP_MAGIC_SIZE;
+    if( (uint32_t)out_length < payload )
+    {
+        free(scratch);
+        return 0;
+    }
+
+    memcpy(out, scratch + BZIP_MAGIC_SIZE, payload);
+    free(scratch);
+    return payload;
 }

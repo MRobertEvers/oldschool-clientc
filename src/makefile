@@ -172,7 +172,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
-	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o \
 	$(WB_OBJS))
 
@@ -306,6 +306,11 @@ $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
 
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
+# bzip_encode.c is the compression side (bzip.c is decompress-only). rscache's
+# RSCache_CompressionBzipCompress calls into it, so it belongs in every link set
+# that includes rscache_unity.o.
+$(OBJ_DIR)/bzip_encode.o: $(REPO_ROOT)/3rd/bzip/bzip_encode.c
+	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 $(OBJ_DIR)/miniz.o: $(REPO_ROOT)/3rd/miniz/miniz.c
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c
@@ -363,7 +368,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
-	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
 		net/test/net_login_test.c $(NET_CORE_OBJS) -lm
@@ -443,7 +448,7 @@ test-entity-decode: $(OBJ_DIR)
 		net/test/entity_decode_test.c net/bitbuffer.c \
 		net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 		net/rev/packets/pkt_player_appearance.c \
-		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o \
+		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test
 
@@ -507,10 +512,10 @@ test-revconfig: $(OBJ_DIR)
 # Standalone TCP mock server for the OSRS rev-230 protocol (login + on-login
 # burst incl. REBUILD_NORMAL). Run: src/build/mock230 [port]
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 net/mock/mock230_main.c \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/mock230"
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.

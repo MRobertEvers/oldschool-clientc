@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FLAG_IDENTIFIERS 0x1
-#define FLAG_WHIRLPOOL 0x2
-#define FLAG_SIZES 0x4
-#define FLAG_HASH 0x8
+#define FLAG_IDENTIFIERS RSCACHE_REFTABLE_FLAG_IDENTIFIERS
+#define FLAG_WHIRLPOOL RSCACHE_REFTABLE_FLAG_WHIRLPOOL
+#define FLAG_SIZES RSCACHE_REFTABLE_FLAG_SIZES
+#define FLAG_HASH RSCACHE_REFTABLE_FLAG_HASH
 
 struct RSCache_ReferenceTable*
 RSCache_ReferenceTableNewDecode(
@@ -86,6 +86,20 @@ RSCache_ReferenceTableNewDecode(
     for( int i = 0; i < id_count; i++ )
         table->archives[ids[i]].crc = g4(&buffer);
 
+    /* Whirlpool digests sit between the CRCs and the sizes. No cache in this repo
+     * sets the flag (verified across all seven), so this branch was previously
+     * absent — which would have silently misread every field after it for a cache
+     * that did set it. */
+    if( (table->flags & FLAG_WHIRLPOOL) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+            greadto(
+                &buffer,
+                (char*)table->archives[ids[i]].whirlpool,
+                sizeof(table->archives[ids[i]].whirlpool),
+                (int)sizeof(table->archives[ids[i]].whirlpool));
+    }
+
     if( (table->flags & FLAG_SIZES) != 0 )
     {
         for( int i = 0; i < id_count; i++ )
@@ -139,6 +153,131 @@ RSCache_ReferenceTableNewDecode(
     }
 
     return table;
+}
+
+uint32_t
+RSCache_ReferenceTableEncodeBound(const struct RSCache_ReferenceTable* table)
+{
+    if( !table )
+        return 0;
+
+    /* Per-archive worst case: identifier 4 + crc 4 + whirlpool 64 + sizes 8 +
+     * version 4 + child count 4 (usmart) = 88, plus 8 per child (delta + name
+     * hash). Plus the fixed header. */
+    uint32_t total = 16;
+    total += (uint32_t)table->id_count * 4u; /* id deltas */
+    total += (uint32_t)table->id_count * 88u;
+
+    for( int i = 0; i < table->id_count; i++ )
+    {
+        int id = table->ids[i];
+        if( id >= 0 && id < table->archive_count )
+            total += (uint32_t)table->archives[id].children.count * 8u;
+    }
+
+    return total;
+}
+
+uint32_t
+RSCache_ReferenceTableEncode(
+    const struct RSCache_ReferenceTable* table,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !table || !out )
+        return 0;
+    if( table->format < 5 || table->format > 7 )
+        return 0;
+    if( !table->ids || !table->archives )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* Format 7 widened every count and delta from u16 to usmart. */
+    bool smart = table->format >= 7;
+#define REFTABLE_PCOUNT(value)                                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        if( smart )                                                                                \
+            pusmart(&buffer, (value));                                                             \
+        else                                                                                       \
+            p2(&buffer, (value));                                                                  \
+    } while( 0 )
+
+    p1(&buffer, table->format);
+    if( table->format >= 6 )
+        p4(&buffer, table->version);
+    p1(&buffer, table->flags);
+
+    REFTABLE_PCOUNT(table->id_count);
+
+    /* Ids are stored as deltas from the previous id. */
+    int previous = 0;
+    for( int i = 0; i < table->id_count; i++ )
+    {
+        REFTABLE_PCOUNT(table->ids[i] - previous);
+        previous = table->ids[i];
+    }
+
+    if( (table->flags & FLAG_IDENTIFIERS) != 0 )
+    {
+        for( int i = 0; i < table->id_count; i++ )
+            p4(&buffer, table->archives[table->ids[i]].identifier);
+    }
+
+    for( int i = 0; i < table->id_count; i++ )
+        p4(&buffer, table->archives[table->ids[i]].crc);
+
+    if( (table->flags & FLAG_WHIRLPOOL) != 0 )
+    {
+        for( int i = 0; i < table->id_count; i++ )
+            pbuf(
+                &buffer,
+                table->archives[table->ids[i]].whirlpool,
+                (int)sizeof(table->archives[table->ids[i]].whirlpool));
+    }
+
+    if( (table->flags & FLAG_SIZES) != 0 )
+    {
+        for( int i = 0; i < table->id_count; i++ )
+        {
+            int id = table->ids[i];
+            p4(&buffer, table->archives[id].compressed);
+            p4(&buffer, table->archives[id].uncompressed);
+        }
+    }
+
+    for( int i = 0; i < table->id_count; i++ )
+        p4(&buffer, table->archives[table->ids[i]].version);
+
+    for( int i = 0; i < table->id_count; i++ )
+        REFTABLE_PCOUNT(table->archives[table->ids[i]].children.count);
+
+    for( int i = 0; i < table->id_count; i++ )
+    {
+        int id = table->ids[i];
+        int child_previous = 0;
+        for( int j = 0; j < table->archives[id].children.count; j++ )
+        {
+            REFTABLE_PCOUNT(table->archives[id].children.files[j].id - child_previous);
+            child_previous = table->archives[id].children.files[j].id;
+        }
+    }
+
+    if( (table->flags & FLAG_IDENTIFIERS) != 0 )
+    {
+        for( int i = 0; i < table->id_count; i++ )
+        {
+            int id = table->ids[i];
+            for( int j = 0; j < table->archives[id].children.count; j++ )
+                p4(&buffer, table->archives[id].children.files[j].name_hash);
+        }
+    }
+
+#undef REFTABLE_PCOUNT
+
+    return buffer.position;
 }
 
 void

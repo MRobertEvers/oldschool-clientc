@@ -190,4 +190,31 @@ RSCache_Dat2DiskIndexFileWriteRecord(
     int entry_idx,
     struct RSCache_Dat2DiskIndexRecord* record);
 
+/**
+ * Write one already-framed archive container into a cache directory.
+ *
+ * `data` must be the output of RSCache_ArchiveEncode — compression byte, lengths
+ * and payload — not raw decompressed bytes. This layer only places those bytes in
+ * the sector chain and records the idx entry.
+ *
+ * Creates `main_file_cache.dat2` and `main_file_cache.idx<table_id>` if absent,
+ * and appends; an archive id that already has an entry is re-pointed at the new
+ * copy, leaving the old sectors orphaned. That is the same
+ * append-and-orphan behaviour the real client's cache writer has, so repacking a
+ * cache in place grows the file.
+ *
+ * One subtlety worth knowing: RSCache_Dat2DiskIndexFileReadRecord treats
+ * `sector <= 0` as "no such archive", so nothing may live at sector 0. A fresh
+ * `.dat2` therefore gets one reserved zero sector before the first archive.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int
+RSCache_Dat2DiskWriteArchive(
+    const char* directory,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int data_size);
+
 #endif

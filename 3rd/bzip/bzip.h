@@ -76,4 +76,29 @@ extern const char *bunzip_errors[];
 void bzip_decompress(int8_t *file_data, int8_t *archive_data, int archive_size,
                      int offset);
 
+/* --- compression (bzip_encode.c) --- */
+
+/* bzip2's internal checksum is the *unreflected* CRC-32 (poly 0x04C11DB7,
+   MSB-first), which is a different function from zlib's reflected CRC-32 of the
+   same polynomial family. Seed with RSCACHE_BZIP_CRC_INIT and complement the
+   result to finish. */
+#define RSCACHE_BZIP_CRC_INIT 0xFFFFFFFFu
+
+uint32_t bzip_crc32_update(uint32_t crc, const uint8_t *data, uint32_t length);
+
+/** Compress `data` into a complete bzip2 stream, magic included.
+
+    `level` is the block-size multiplier 1..9 (level 1 == 100k blocks, which is
+    what the RuneScape cache formats use). Returns bytes written, or 0 on
+    failure — including `out_capacity` being too small.
+
+    Output is a valid stream that any bzip2 decompressor accepts, but is not
+    byte-identical to the reference `bzip2` binary's output: table selection and
+    refinement are heuristic. */
+uint32_t bzip_compress(uint8_t *out, uint32_t out_capacity, const uint8_t *data,
+                       uint32_t data_length, int level);
+
+/** Safe `out_capacity` for bzip_compress over `data_length` bytes. */
+uint32_t bzip_compress_bound(uint32_t data_length);
+
 #endif
