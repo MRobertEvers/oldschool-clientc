@@ -40,8 +40,8 @@ struct BootManifest
     char host[128];
     int port;           /* 0 = unset */
     int client_version; /* 0 = unset */
-    char rsa_exp[256];
-    char rsa_mod[256];
+    char rsa_exp[512];
+    char rsa_mod[512];
     int32_t jag_crc[9];
     int jag_crc_set;
 

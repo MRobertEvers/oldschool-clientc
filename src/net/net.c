@@ -287,13 +287,20 @@ net_process_packets(struct ToriRS_Network* net)
         {
             fprintf(stderr, "net: dropping unknown wire opcode %d (%s)\n", wire, net->rev->name);
         }
-        else if( gameproto_parse(
-                     net->rev,
-                     name,
-                     packetbuffer_data(&net->packet_buffer),
-                     packetbuffer_size(&net->packet_buffer),
-                     &packet) )
-            push_parsed_packet(net, &packet);
+        else
+        {
+            /* Rev-specific parse first (osrs230 REBUILD_NORMAL etc.); <0 means
+             * "not mine" -> fall back to the shared lc-style parser. */
+            uint8_t* pdata = packetbuffer_data(&net->packet_buffer);
+            int psize = packetbuffer_size(&net->packet_buffer);
+            int parsed = -1;
+            if( net->rev->parse )
+                parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
+            if( parsed < 0 )
+                parsed = gameproto_parse(net->rev, name, pdata, psize, &packet);
+            if( parsed > 0 )
+                push_parsed_packet(net, &packet);
+        }
     }
     packetbuffer_reset(&net->packet_buffer);
 }

@@ -86,5 +86,7 @@ GameProtoRev_ByName(char const* name)
         return GameProtoRev_LC245_2();
     if( strcmp(name, "xrsps233") == 0 )
         return GameProtoRev_XRSPS233();
+    if( strcmp(name, "osrs230") == 0 )
+        return GameProtoRev_OSRS230();
     return NULL;
 }

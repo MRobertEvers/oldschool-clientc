@@ -50,10 +50,10 @@ struct INIElement
         struct
         {
             char name[48];
-            /* 256 (was 128) so a 128-hex RSA modulus or a 9-int32 CRC list
-             * fits in one boot-manifest value; the bound check in ini.c keys
-             * off sizeof(value). */
-            char value[256];
+            /* 512 so a 256-hex-char (1024-bit) RSA modulus plus its NUL fits in
+             * one boot-manifest value; the bound check in ini.c keys off
+             * sizeof(value). */
+            char value[512];
         } _keyval;
     };
 };

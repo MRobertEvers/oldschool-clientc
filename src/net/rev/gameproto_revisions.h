@@ -29,6 +29,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_LC254 = 1,
     GAMEPROTO_REVISION_LC245_2 = 2,
     GAMEPROTO_REVISION_XRSPS233 = 3,
+    GAMEPROTO_REVISION_OSRS230 = 4,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -114,7 +115,10 @@ GameProtoRev_LC254(void);
 struct GameProtoRevTable const*
 GameProtoRev_XRSPS233(void);
 
-/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233"); NULL when unknown. */
+struct GameProtoRevTable const*
+GameProtoRev_OSRS230(void);
+
+/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233", "osrs230"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 

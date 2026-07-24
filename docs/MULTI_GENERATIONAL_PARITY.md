@@ -534,3 +534,44 @@ ever matters.
     seam work is needed, only the decoders + the XTEA loader.
   - No Phase 2 code landed (the original design was invalidated before
     implementation); the finding above is the deliverable.
+
+- **2026-07-23 — Pivot to real OSRS rev 230 + mock server; world builds.**
+  The xrsps custom WebSocket protocol was dropped (drifted too far from real
+  revisions). New target: authentic **OSRS revision 230** (raw TCP + ISAAC +
+  RSA), driven by RSProt (the 230 protocol lib) for opcodes/login and Kronos
+  (rev-184 server) for on-login packet order. All Phase-0/1 seam work carried
+  over unchanged.
+  - **osrs230 rev module** (`src/net/rev/osrs230/`): full server-packet size
+    table from RSProt `GameServerProt` (framing never desyncs); `packetin_code`
+    maps REBUILD_NORMAL (opcode 68) now, rest frame-and-drop. `parse` override
+    (`osrs230_parse.c`) decodes the 230 REBUILD_NORMAL (worldArea, zoneX via
+    p2Alt2, zoneZ, keyCount, per-square XTEA ints). `transport_kind=TCP`,
+    `opcode_plaintext=0` — reuses the classic ISAAC packetbuffer + login vtable.
+    `PktMapRebuild` gained heap key fields (freed in gameproto_free);
+    `net.c` now dispatches `rev->parse` before the shared parser.
+  - **osrs230 login driver** (`src/net/loginproto_osrs230.c`, NetLoginVTable):
+    op 14 → `[status][sessionId:8]` → op 16 GAMELOGIN with header + RSA block
+    (encCheck=1, 4 seeds, sessionId echo, authType, user/pass) → response 2 →
+    GAME. ISAAC out=seed, in=seed+50. Simplified vs full RSProt (no XTEA/OTP/
+    CRC/host-stats block) since the client and mock agree on the block.
+  - **Mock server** (`src/net/mock/mock230_main.c`, `make -C src mock230`): a
+    standalone TCP listener that RSA-decrypts the login block with a fixed
+    private key (client uses the matching public key via
+    `manifest_osrs230.ini` rsa_exp/rsa_mod), arms ISAAC, and sends the on-login
+    burst — REBUILD_NORMAL (Lumbridge zone 402,402) + VARP_SMALL + run
+    energy/weight + a welcome MESSAGE_GAME — then idles.
+  - **Map XTEA**: the client loads keys from the cache's own `xteas.json`
+    (array form `{archive:5, group, key[4]}`), which `RSCache_XteaConfigLoadKeys`
+    already reads and `FindKey(5, archiveId)` already matches. The correct cache
+    is `cache.osrs230/` (has xteas.json), NOT the xrsps keys.json cache — so
+    REBUILD_NORMAL keys are only needed for instanced regions.
+    `manifest_osrs230.ini` points at `cache.osrs230`.
+  - **Verified end-to-end**: `mock230` + `torirs --manifest manifest_osrs230.ini`
+    → 230 login handshake (RSA/ISAAC) completes, client reaches GAME, parses
+    REBUILD_NORMAL (zoneX=402 zoneZ=402), triggers the existing
+    `CreateTask_WorldLoad`, and builds the Lumbridge scene — `world_load: 430
+    locs, 399 models, 17 seqs` (was 0/0 before the right cache). Headless BMP
+    shows Lumbridge castle, terrain, water, minimap. All net/ui regressions +
+    lc254 offline boot still green. The on-login burst's VARP/energy/message
+    packets frame cleanly and drop (decoders not yet wired — not needed for the
+    world build); GPI/NPC decode is the natural next step.

@@ -16,6 +16,13 @@ struct PktMapRebuild
 {
     int zonex;
     int zonez;
+    /* dat2 / osrs230 REBUILD_NORMAL carries per-map-square XTEA keys (dat1
+     * maps are unencrypted, so these stay 0/NULL there). region_keys holds
+     * region_count*4 ints; region_ids[i] = (mapSquareX<<8)|mapSquareZ. Both
+     * heap-allocated, freed by gameproto_free. */
+    int region_count;
+    int* region_ids;
+    int32_t* region_keys;
 };
 
 // Player info packet is more of a command stream
