@@ -3,6 +3,7 @@
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
+#include "engine/torirs_db.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_worldmap_from_rscache.h"
@@ -619,6 +620,10 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     host->item_search_count = 0;
     host->item_search_cap = 0;
     host->item_search_index = 0;
+    free(host->db_find_rows);
+    host->db_find_rows = NULL;
+    host->db_find_count = 0;
+    host->db_find_cursor = 0;
 }
 
 void
@@ -2770,6 +2775,358 @@ exec_set_on_cc_event(
 }
 
 /* =========================================================================
+ * Client database (DB_* opcodes 7500..7510)
+ *
+ * DB_GETROW/DB_GETFIELD/DB_GETROWTABLE read a DBROW (config kind 38, resolved
+ * through CacheProvider_DbRowGet). DB_FIND/DB_FINDALL read a table's inverted
+ * index (cache table 21) to build the host find-iterator, which DB_FINDNEXT
+ * then walks one row at a time.
+ *
+ * A dbcolumn operand packs (tableId, columnId, tupleIndex). The bit layout
+ * below is the widely-referenced OSRS convention; it could not be confirmed
+ * against an accessible rev-230 deobfuscation, so if a real script's DB access
+ * misbehaves this is the first thing to re-check. `tupleIndex == 0xF` is the
+ * "whole tuple / all fields" sentinel.
+ *
+ * Stack convention (also unverifiable from public sources, chosen so the async
+ * value-type resolution works): the dbcolumn/dbrow/dbtable handle is the last
+ * argument pushed, so it is popped first; for DB_FIND the search value sits
+ * below it and is popped only once the index reveals whether it is an int or a
+ * string.
+ * ========================================================================= */
+
+static void
+db_unpack_column(
+    int packed,
+    int* table_id,
+    int* column_id,
+    int* tuple_index)
+{
+    *table_id = (packed >> 12) & 0xFFFFF;
+    *column_id = (packed >> 4) & 0xFF;
+    *tuple_index = packed & 0xF;
+}
+
+static void
+db_set_iterator(
+    struct RS_CS2Host* host,
+    int const* rows,
+    int count)
+{
+    free(host->db_find_rows);
+    host->db_find_rows = NULL;
+    host->db_find_count = 0;
+    host->db_find_cursor = 0;
+    if( count <= 0 || !rows )
+        return;
+    host->db_find_rows = malloc((size_t)count * sizeof(int));
+    assert(host->db_find_rows);
+    memcpy(host->db_find_rows, rows, (size_t)count * sizeof(int));
+    host->db_find_count = count;
+}
+
+/* Park a yield for a DB resource (a row or a table index). Returns the yield
+ * exec code; the caller returns it straight up. */
+static int
+db_yield_load(
+    struct RS_CS2Host* host,
+    int opcode,
+    int load_kind,
+    int load_id)
+{
+    struct CS2VM_HostRequest req = { 0 };
+    req.kind = CS2VM_HOST_REQUEST_DB;
+    req.u.db.opcode = opcode;
+    req.u.db.load_kind = load_kind;
+    req.u.db.load_id = load_id;
+    return rs_cs2_yield_load(host, &req, load_id, load_kind);
+}
+
+/* Resolve a DBROW, loading it once if needed. On the first miss this yields
+ * (returns true via *yielded with the yield code in *out_code); on a second
+ * miss after the load it returns NULL with *yielded false (genuinely absent). */
+static struct RSCache_Dat2ConfigDbRow*
+db_row_or_yield(
+    struct RS_CS2Host* host,
+    int opcode,
+    int row_id,
+    bool* yielded,
+    int* out_code)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct RSCache_Dat2ConfigDbRow* row =
+        (provider && row_id >= 0) ? CacheProvider_DbRowGet(provider, row_id) : NULL;
+
+    *yielded = false;
+    if( row || row_id < 0 )
+        return row;
+    if( !rs_cs2_await_spent(host, CS2VM_HOST_REQUEST_DB, row_id, CS2VM_DB_LOAD_ROW) )
+    {
+        *yielded = true;
+        *out_code = db_yield_load(host, opcode, CS2VM_DB_LOAD_ROW, row_id);
+    }
+    return NULL;
+}
+
+static struct ToriRS_DbTableIndex*
+db_index_or_yield(
+    struct RS_CS2Host* host,
+    int opcode,
+    int table_id,
+    bool* yielded,
+    int* out_code)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_DbTableIndex* idx =
+        (provider && table_id >= 0) ? CacheProvider_DbTableIndexGet(provider, table_id) : NULL;
+
+    *yielded = false;
+    if( idx || table_id < 0 )
+        return idx;
+    if( !rs_cs2_await_spent(host, CS2VM_HOST_REQUEST_DB, table_id, CS2VM_DB_LOAD_INDEX) )
+    {
+        *yielded = true;
+        *out_code = db_yield_load(host, opcode, CS2VM_DB_LOAD_INDEX, table_id);
+    }
+    return NULL;
+}
+
+/* Push one field value onto its type's stack. */
+static int
+db_push_value(
+    struct CS2VM2_Thread* vm,
+    struct RSCache_DbValue const* value)
+{
+    if( value->is_string )
+        return CS2VM2_PushStr(vm, strdup(value->string_value ? value->string_value : ""));
+    return CS2VM2_PushInt(vm, value->int_value);
+}
+
+/* DB_FIND value lookup: scan the column index's tuple position for an entry
+ * matching `value` (int or string), and copy its row-id list into the iterator.
+ * Sets an empty iterator when nothing matches. */
+static void
+db_find_value(
+    struct RS_CS2Host* host,
+    struct ToriRS_DbTableIndex const* idx,
+    int column_id,
+    int tuple_index,
+    bool value_is_string,
+    int value_int,
+    char const* value_str)
+{
+    struct RSCache_DbIndexFile* file = ToriRS_DbTableIndex_Column(idx, column_id);
+    int pos;
+
+    db_set_iterator(host, NULL, 0);
+    if( !file || file->tuple_size <= 0 )
+        return;
+    pos = (tuple_index >= 0 && tuple_index < file->tuple_size) ? tuple_index : 0;
+
+    struct RSCache_DbIndexTuple* tuple = &file->tuples[pos];
+    for( int i = 0; i < tuple->entry_count; i++ )
+    {
+        struct RSCache_DbIndexEntry* entry = &tuple->entries[i];
+        bool match;
+        if( value_is_string || tuple->base_type == RSCACHE_DB_BASE_STRING )
+            match = entry->string_value && value_str && strcmp(entry->string_value, value_str) == 0;
+        else
+            match = (entry->int_value == value_int);
+        if( match )
+        {
+            db_set_iterator(host, entry->row_ids, entry->row_count);
+            return;
+        }
+    }
+}
+
+/* Handles the full DB_* opcode family. All stack manipulation happens here so
+ * that a value whose int/string type is only known after the index loads can be
+ * popped on the retry (see the stack-convention note above). */
+static int
+exec_db(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    bool yielded;
+    int code;
+
+    switch( opcode )
+    {
+    case CS2_OP_DB_FINDNEXT:
+    {
+        int row = -1;
+        if( host->db_find_cursor < host->db_find_count )
+            row = host->db_find_rows[host->db_find_cursor++];
+        return CS2VM2_PushInt(vm, row);
+    }
+
+    case CS2_OP_DB_GETROW:
+    {
+        int row_id;
+        if( CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        (void)db_row_or_yield(host, opcode, row_id, &yielded, &code);
+        if( yielded )
+            return code;
+        /* Row is now resident (or genuinely absent) — nothing else to push. */
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2_OP_DB_GETROWTABLE:
+    {
+        int row_id;
+        struct RSCache_Dat2ConfigDbRow* row;
+        if( CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        row = db_row_or_yield(host, opcode, row_id, &yielded, &code);
+        if( yielded )
+            return code;
+        return CS2VM2_PushInt(vm, row ? row->table_id : -1);
+    }
+
+    case CS2_OP_DB_GETFIELDCOUNT:
+    {
+        int column, row_id, table, col_id, tuple;
+        struct RSCache_Dat2ConfigDbRow* row;
+        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        row = db_row_or_yield(host, opcode, row_id, &yielded, &code);
+        if( yielded )
+            return code;
+        db_unpack_column(column, &table, &col_id, &tuple);
+        if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
+            return CS2VM2_PushInt(vm, row->columns[col_id].tuple_count);
+        return CS2VM2_PushInt(vm, 0);
+    }
+
+    case CS2_OP_DB_GETFIELD:
+    {
+        int index, column, row_id, table, col_id, tuple;
+        struct RSCache_Dat2ConfigDbRow* row;
+        struct RSCache_DbColumn* col;
+        int arity, base;
+        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        row = db_row_or_yield(host, opcode, row_id, &yielded, &code);
+        if( yielded )
+            return code;
+        db_unpack_column(column, &table, &col_id, &tuple);
+        if( !row || col_id < 0 || col_id >= row->column_count || !row->columns[col_id].present )
+            return CS2VM_EXECNO_OK;
+        col = &row->columns[col_id];
+        arity = col->type_count;
+        if( index < 0 || index >= col->tuple_count || arity <= 0 )
+            return CS2VM_EXECNO_OK;
+        base = index * arity;
+        if( tuple >= 0 && tuple < arity )
+            return db_push_value(vm, &col->values[base + tuple]);
+        /* Sentinel / whole tuple: push every component in field order. */
+        for( int i = 0; i < arity; i++ )
+        {
+            int rc = db_push_value(vm, &col->values[base + i]);
+            if( rc != CS2VM_EXECNO_OK )
+                return rc;
+        }
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2_OP_DB_FINDALL:
+    case CS2_OP_DB_FINDALL_WITH_COUNT:
+    {
+        int table_id;
+        struct ToriRS_DbTableIndex* idx;
+        struct RSCache_DbIndexFile* master;
+        bool with_count = (opcode == CS2_OP_DB_FINDALL_WITH_COUNT);
+        if( CS2VM2_PopInt(vm, &table_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        idx = db_index_or_yield(host, opcode, table_id, &yielded, &code);
+        if( yielded )
+            return code;
+        db_set_iterator(host, NULL, 0);
+        master = ToriRS_DbTableIndex_Master(idx);
+        /* The master file has one tuple position; every value entry's rows,
+         * concatenated, are all the rows in the table. */
+        if( master && master->tuple_size > 0 && master->tuples[0].entry_count > 0 )
+        {
+            struct RSCache_DbIndexTuple* t0 = &master->tuples[0];
+            int total = 0;
+            for( int i = 0; i < t0->entry_count; i++ )
+                total += t0->entries[i].row_count;
+            if( total > 0 )
+            {
+                int* rows = malloc((size_t)total * sizeof(int));
+                int n = 0;
+                assert(rows);
+                for( int i = 0; i < t0->entry_count; i++ )
+                    for( int r = 0; r < t0->entries[i].row_count; r++ )
+                        rows[n++] = t0->entries[i].row_ids[r];
+                db_set_iterator(host, rows, total);
+                free(rows);
+            }
+        }
+        if( with_count )
+            return CS2VM2_PushInt(vm, host->db_find_count);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2_OP_DB_FIND:
+    case CS2_OP_DB_FIND_WITH_COUNT:
+    case CS2_OP_DB_FIND_FILTER:
+    case CS2_OP_DB_FIND_FILTER_WITH_COUNT:
+    {
+        int column, table, col_id, tuple;
+        struct ToriRS_DbTableIndex* idx;
+        struct RSCache_DbIndexFile* file;
+        bool with_count = (opcode == CS2_OP_DB_FIND_WITH_COUNT ||
+                           opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
+        bool value_is_string = false;
+        int value_int = 0;
+        char* value_str = NULL;
+
+        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        db_unpack_column(column, &table, &col_id, &tuple);
+        idx = db_index_or_yield(host, opcode, table, &yielded, &code);
+        if( yielded )
+            return code;
+
+        /* The index is resident: use its tuple base type to pop the value with
+         * the right stack. */
+        file = idx ? ToriRS_DbTableIndex_Column(idx, col_id) : NULL;
+        if( file && file->tuple_size > 0 )
+        {
+            int pos = (tuple >= 0 && tuple < file->tuple_size) ? tuple : 0;
+            value_is_string = (file->tuples[pos].base_type == RSCACHE_DB_BASE_STRING);
+        }
+        if( value_is_string )
+        {
+            if( CS2VM2_PopStr(vm, &value_str) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+        }
+        else if( CS2VM2_PopInt(vm, &value_int) != CS2VM_EXECNO_OK )
+        {
+            return CS2VM_EXECNO_ERROR;
+        }
+
+        db_find_value(host, idx, col_id, tuple, value_is_string, value_int, value_str);
+        free(value_str);
+        if( with_count )
+            return CS2VM2_PushInt(vm, host->db_find_count);
+        return CS2VM_EXECNO_OK;
+    }
+
+    default:
+        assert(0 && "exec_db: unexpected opcode");
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+/* =========================================================================
  * Main dispatcher
  * ========================================================================= */
 
@@ -2974,6 +3331,9 @@ rs_cs2_host_exec_dispatch(
          * / label); discard and continue so scripts wiring interface state do not
          * abort. */
         return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_DB:
+        return exec_db(host, vm, request->u.db.opcode);
 
     case CS2VM_HOST_REQUEST_MINIMENU:
         return exec_minimenu(host, vm, request->u.minimenu.opcode);

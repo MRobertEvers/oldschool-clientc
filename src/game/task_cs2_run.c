@@ -44,6 +44,8 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_WORLDMAP,
     TASK_CS2_YIELD_MAPELEMENT,
     TASK_CS2_YIELD_OBJALL,
+    TASK_CS2_YIELD_DBROW,
+    TASK_CS2_YIELD_DBINDEX,
     TASK_CS2_YIELD_ABORT,
 };
 
@@ -304,6 +306,20 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
     self->yield_plan = TASK_CS2_YIELD_ENUM;
 }
 
+/* DB opcodes yield for either a DBROW (config kind 38) or a table's
+ * DBTABLEINDEX (cache table 21); the request's load_kind/load_id say which. */
+static void
+task_cs2_plan_db(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.db.load_id;
+    if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_ROW )
+        self->yield_plan = TASK_CS2_YIELD_DBROW;
+    else if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_INDEX )
+        self->yield_plan = TASK_CS2_YIELD_DBINDEX;
+    else
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+}
+
 /* The world map is one object for the whole cache, so there is no id to wait
  * on — the load task itself is the wait. */
 static void
@@ -510,6 +526,10 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
         task_cs2_plan_struct(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_DB:
+        task_cs2_plan_db(self);
         break;
 
     case CS2VM_HOST_REQUEST_WORLDMAP:
@@ -901,6 +921,14 @@ Task_CS2Run_Run(
                 TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
             if( self->await_id2 >= 0 )
                 TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_DBROW )
+        {
+            TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_DBINDEX )
+        {
+            TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {

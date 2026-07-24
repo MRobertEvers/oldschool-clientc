@@ -181,6 +181,14 @@ struct RS_CS2Host
     int item_search_count;
     int item_search_cap;
     int item_search_index;
+
+    /** Active DB find-iterator (DB_FIND* build it, DB_FINDNEXT walks it).
+     *  `db_find_rows` is a malloc'd copy of the matched row ids (count
+     *  `db_find_count`); `db_find_cursor` is the FINDNEXT cursor. Freed in
+     *  RS_CS2Host_Free. */
+    int* db_find_rows;
+    int db_find_count;
+    int db_find_cursor;
 };
 
 void

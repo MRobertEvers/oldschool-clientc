@@ -104,6 +104,16 @@ CreateTask_Dat2ParamLoad(
     int param_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2DbRowLoad(
+    struct CacheProvider* provider,
+    int row_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2DbTableIndexLoad(
+    struct CacheProvider* provider,
+    int table_id);
+
+struct ToriRS_Task*
 CreateTask_Dat2ComponentLoad(
     struct CacheProvider* provider,
     int packed_component_id);

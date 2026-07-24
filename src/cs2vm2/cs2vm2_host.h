@@ -251,6 +251,13 @@ enum CS2VM_HostRequestKind
      * ops on an NPC/LOC/OBJ/PLAYER/TILE slot. One kind carrying the opcode +
      * popped args; the host stubs them until an enhanced-menu system exists. */
     CS2VM_HOST_REQUEST_CLIENTOP,
+
+    /* Client database family (DB_* opcodes 7500..7510), one kind carrying the
+     * opcode and its popped args. Reads DBROW config (kind 38) and the
+     * DBTABLEINDEX (cache table 21); the host owns the active find-iterator
+     * (matched row ids + cursor). The payload's load_kind/load_id say which
+     * resource a yield is waiting on (a row or a table index). */
+    CS2VM_HOST_REQUEST_DB,
 };
 
 enum CS2VM_OC_IntField
@@ -364,6 +371,20 @@ struct CS2VM_HostRequest_EnumLookup
 struct CS2VM_HostRequest_EnumGetOutputCount
 {
     int enum_id;
+};
+
+enum CS2VM_DbLoadKind
+{
+    CS2VM_DB_LOAD_NONE = 0,
+    CS2VM_DB_LOAD_ROW = 1,
+    CS2VM_DB_LOAD_INDEX = 2,
+};
+
+struct CS2VM_HostRequest_Db
+{
+    int opcode;    /* the DB_* opcode (7500..7510) */
+    int load_kind; /* enum CS2VM_DbLoadKind — what a pending yield awaits */
+    int load_id;   /* row id (LOAD_ROW) or table id (LOAD_INDEX) */
 };
 
 struct CS2VM_HostRequest_CC_DeleteAll
@@ -976,6 +997,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_VarsWriteVarcString vars_write_varc_string;
         struct CS2VM_HostRequest_EnumLookup enum_lookup;
         struct CS2VM_HostRequest_EnumGetOutputCount enum_get_output_count;
+        struct CS2VM_HostRequest_Db db;
         struct CS2VM_HostRequest_CC_DeleteAll cc_delete_all;
         struct CS2VM_HostRequest_CC_Create cc_create;
         struct CS2VM_HostRequest_CC_Copy cc_copy;

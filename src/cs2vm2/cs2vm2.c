@@ -4507,6 +4507,24 @@ CS2VM2_Op_EnumGetOutputCount(
     return CS2VM_EXECNO_OK;
 }
 
+/* DB_* opcodes (7500..7510). The host owns all stack manipulation: DB_FIND must
+ * defer popping its search value until the table index reveals the value's type,
+ * so the VM op just forwards the opcode and lets exec_db drive the stack. */
+int
+CS2VM2_Op_Db(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+
+    assert(vm);
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_DB;
+    request.u.db.opcode = opcode;
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IsMapMembers(
     struct CS2VM2_Thread* vm,
@@ -6734,6 +6752,19 @@ CS2VM2_RunOp(
         return CS2VM2_Op_Enum(vm, frame, operand);
     case CS2_OP_ENUM_GETOUTPUTCOUNT:
         return CS2VM2_Op_EnumGetOutputCount(vm, frame, operand);
+    /* Client database family (7500..7510): one handler, host-driven stack. */
+    case CS2_OP_DB_FIND_WITH_COUNT:
+    case CS2_OP_DB_FINDNEXT:
+    case CS2_OP_DB_GETFIELD:
+    case CS2_OP_DB_GETFIELDCOUNT:
+    case CS2_OP_DB_FINDALL_WITH_COUNT:
+    case CS2_OP_DB_GETROWTABLE:
+    case CS2_OP_DB_GETROW:
+    case CS2_OP_DB_FIND_FILTER_WITH_COUNT:
+    case CS2_OP_DB_FIND:
+    case CS2_OP_DB_FINDALL:
+    case CS2_OP_DB_FIND_FILTER:
+        return CS2VM2_Op_Db(vm, opcode);
     case CS2_OP_MAP_MEMBERS:
         return CS2VM2_Op_IsMapMembers(vm, frame, operand);
     case CS2_OP_ON_MOBILE:

@@ -82,7 +82,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_flotype_from_rscache.c \
 	engine/torirs_sprite_from_rscache.c engine/torirs_font_from_rscache.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
-	engine/torirs_paramtype_from_rscache.c \
+	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
@@ -106,6 +106,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
 	engine/dat2/task_dat2_param_load.c \
+	engine/dat2/task_dat2_dbrow_load.c engine/dat2/task_dat2_dbindex_load.c \
 	engine/dat2/task_dat2_component_load.c \
 	engine/dat2/task_dat2_worldmap_load.c \
 	engine/dat2/task_dat2_mapelement_load.c \

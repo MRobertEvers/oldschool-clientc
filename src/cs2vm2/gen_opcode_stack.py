@@ -81,15 +81,21 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7108: (0, 0, 1, 0),  # MINIMENU_ISOPEN:        -> bool
     7109: (0, 0, 1, 0),  # MINIMENU_FINDCOMPONENT: -> bool
     7110: (0, 0, 1, 0),  # MINIMENU_NUMOPS:        -> 1 int (option count)
-    # _7500..7503: newer host getters used by loot-tools formatter script 7603.
-    # {0,0,0,0} left the args on the stack every call -> the stack grew until
-    # PUSH_INT_LOCAL overflowed and the hook aborted (runaway cc_create/hover,
-    # panel covering the viewport). Signatures derived from 7603's balanced
-    # int/string stack trace (args pushed before the op, results popped after):
-    7500: (3, 0, 1, 0),  # (id,int,int) -> 1 int
-    7501: (0, 0, 1, 0),  # no-arg getter -> 1 int
-    7502: (3, 0, 2, 2),  # (id,int,int) -> 2 ints + 2 strings
-    7503: (2, 0, 1, 0),  # (id,int) -> 1 int (loop-count getter)
+    # DB_* client-database family (7500..7510). These have dedicated handlers
+    # (CS2VM2_Op_Db -> exec_db) that own the stack, so these entries only feed the
+    # debug trace. DB_FIND/GETFIELD have a value/tuple whose int-vs-string type is
+    # runtime-dependent; the counts below are the common all-int shape.
+    7500: (2, 0, 1, 0),  # DB_FIND_WITH_COUNT(dbcolumn, value) -> count
+    7501: (0, 0, 1, 0),  # DB_FINDNEXT() -> rowId (or -1)
+    7502: (3, 0, 1, 0),  # DB_GETFIELD(dbrow, dbcolumn, index) -> field value(s)
+    7503: (2, 0, 1, 0),  # DB_GETFIELDCOUNT(dbrow, dbcolumn) -> tuple count
+    7504: (1, 0, 1, 0),  # DB_FINDALL_WITH_COUNT(dbtable) -> count
+    7505: (1, 0, 1, 0),  # DB_GETROWTABLE(dbrow) -> tableId
+    7506: (1, 0, 0, 0),  # DB_GETROW(dbrow) -> (loads/activates the row)
+    7507: (2, 0, 1, 0),  # DB_FIND_FILTER_WITH_COUNT(dbcolumn, value) -> count
+    7508: (2, 0, 0, 0),  # DB_FIND(dbcolumn, value)
+    7509: (1, 0, 0, 0),  # DB_FINDALL(dbtable)
+    7510: (2, 0, 0, 0),  # DB_FIND_FILTER(dbcolumn, value)
     # FRIEND_COUNT is a no-arg getter (total friends), but the name heuristic gave
     # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
     # arg and underflowed, aborting the friends-list builder (script 125).

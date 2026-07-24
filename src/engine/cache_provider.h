@@ -55,6 +55,12 @@ struct CacheProvider
     /** Every world map area, loaded as one object (cache table 19). NULL until
      *  the load task runs, and on caches that have no world map at all. */
     struct ToriRS_WorldMapAreas* worldmap_areas;
+    /** DBROW config (kind 38) keyed by row id; the decoded rscache struct is
+     *  owned directly. Backs DB_GETROW / DB_GETFIELD / DB_GETROWTABLE. */
+    struct HMap* dbrow_cache;
+    /** DBTABLEINDEX (cache table 21) keyed by table id; one bundle of index
+     *  files per table. Backs DB_FIND / DB_FINDALL. */
+    struct HMap* dbindex_cache;
 };
 
 /** World-builder map key: encodes a map square (map_x, map_z) into a single int. */
@@ -170,6 +176,14 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ParamLoad)(
         struct CacheProvider* provider,
         int param_id);
+    /** Decode DBROW config (kind 38) for a row id into dbrow_cache. */
+    struct ToriRS_Task* (*Task_DbRowLoad)(
+        struct CacheProvider* provider,
+        int row_id);
+    /** Decode a table's DBTABLEINDEX (cache table 21) into dbindex_cache. */
+    struct ToriRS_Task* (*Task_DbTableIndexLoad)(
+        struct CacheProvider* provider,
+        int table_id);
     struct ToriRS_Task* (*Task_ComponentLoad)(
         struct CacheProvider* provider,
         int packed_component_id);
@@ -314,6 +328,44 @@ CacheProvider_ParamHas(
 
 void
 CacheProvider_ParamsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_DbRowAdd(
+    struct CacheProvider* provider,
+    int row_id,
+    struct RSCache_Dat2ConfigDbRow* row);
+
+struct RSCache_Dat2ConfigDbRow*
+CacheProvider_DbRowGet(
+    struct CacheProvider* provider,
+    int row_id);
+
+bool
+CacheProvider_DbRowHas(
+    struct CacheProvider* provider,
+    int row_id);
+
+void
+CacheProvider_DbRowsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_DbTableIndexAdd(
+    struct CacheProvider* provider,
+    int table_id,
+    struct ToriRS_DbTableIndex* index);
+
+struct ToriRS_DbTableIndex*
+CacheProvider_DbTableIndexGet(
+    struct CacheProvider* provider,
+    int table_id);
+
+bool
+CacheProvider_DbTableIndexHas(
+    struct CacheProvider* provider,
+    int table_id);
+
+void
+CacheProvider_DbTableIndexesCleanup(struct CacheProvider* provider);
 
 /**
  * World map areas are one object for the whole cache, so there is no id: the
@@ -850,6 +902,26 @@ CreateTask_ParamLoad(
     if( !provider->vtable->Task_ParamLoad )
         return NULL;
     return provider->vtable->Task_ParamLoad(provider, param_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_DbRowLoad(
+    struct CacheProvider* provider,
+    int row_id)
+{
+    if( !provider->vtable->Task_DbRowLoad )
+        return NULL;
+    return provider->vtable->Task_DbRowLoad(provider, row_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_DbTableIndexLoad(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    if( !provider->vtable->Task_DbTableIndexLoad )
+        return NULL;
+    return provider->vtable->Task_DbTableIndexLoad(provider, table_id);
 }
 
 static inline struct ToriRS_Task*

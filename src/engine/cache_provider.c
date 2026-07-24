@@ -1,6 +1,7 @@
 #include "engine/cache_provider.h"
 
 #include "cs2vm2/cs2vm2_script.h"
+#include "engine/torirs_db.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 
 #include <assert.h>
@@ -29,6 +30,8 @@
 #define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
 #define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
 #define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
+#define CACHE_PROVIDER_DBROW_CAPACITY 2048
+#define CACHE_PROVIDER_DBINDEX_CAPACITY 256
 
 struct MapEntry_ProviderModel
 {
@@ -148,6 +151,18 @@ struct MapEntry_ProviderTexture
 {
     int id;
     struct ToriRS_Texture* texture;
+};
+
+struct MapEntry_ProviderDbRow
+{
+    int id;
+    struct RSCache_Dat2ConfigDbRow* row;
+};
+
+struct MapEntry_ProviderDbIndex
+{
+    int id;
+    struct ToriRS_DbTableIndex* index;
 };
 
 static size_t
@@ -278,6 +293,10 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
     provider->objtypes_all_loaded = false;
     provider->mapelement_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderMapElement), CACHE_PROVIDER_MAPELEMENT_CAPACITY);
+    provider->dbrow_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbRow), CACHE_PROVIDER_DBROW_CAPACITY);
+    provider->dbindex_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbIndex), CACHE_PROVIDER_DBINDEX_CAPACITY);
 }
 
 void
@@ -304,6 +323,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_UnderlaysCleanup(provider);
     CacheProvider_TexturesCleanup(provider);
     CacheProvider_MapElementsCleanup(provider);
+    CacheProvider_DbRowsCleanup(provider);
+    CacheProvider_DbTableIndexesCleanup(provider);
 
     ToriRS_WorldMapAreasFree(provider->worldmap_areas);
     provider->worldmap_areas = NULL;
@@ -350,6 +371,10 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->objtype_name_cache = NULL;
     cache_provider_hmap_free(provider->mapelement_cache);
     provider->mapelement_cache = NULL;
+    cache_provider_hmap_free(provider->dbrow_cache);
+    provider->dbrow_cache = NULL;
+    cache_provider_hmap_free(provider->dbindex_cache);
+    provider->dbindex_cache = NULL;
 }
 
 void
@@ -808,6 +833,139 @@ CacheProvider_ParamsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+}
+
+void
+CacheProvider_DbRowAdd(
+    struct CacheProvider* provider,
+    int row_id,
+    struct RSCache_Dat2ConfigDbRow* row)
+{
+    struct MapEntry_ProviderDbRow* entry;
+
+    assert(provider);
+    assert(row);
+
+    cache_provider_hmap_prepare_insert(&provider->dbrow_cache);
+    entry =
+        (struct MapEntry_ProviderDbRow*)hmap_search(provider->dbrow_cache, &row_id, HMAP_INSERT);
+    assert(entry && "DbRow must be inserted into hmap");
+
+    entry->id = row_id;
+    entry->row = row;
+}
+
+struct RSCache_Dat2ConfigDbRow*
+CacheProvider_DbRowGet(
+    struct CacheProvider* provider,
+    int row_id)
+{
+    struct MapEntry_ProviderDbRow* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderDbRow*)hmap_search(provider->dbrow_cache, &row_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->row;
+}
+
+bool
+CacheProvider_DbRowHas(
+    struct CacheProvider* provider,
+    int row_id)
+{
+    return CacheProvider_DbRowGet(provider, row_id) != NULL;
+}
+
+void
+CacheProvider_DbRowsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderDbRow* entry;
+
+    assert(provider);
+    if( !provider->dbrow_cache )
+        return;
+
+    iter = hmap_iter_new(provider->dbrow_cache);
+    while( (entry = (struct MapEntry_ProviderDbRow*)hmap_iter_next(iter)) )
+    {
+        if( entry->row )
+            ToriRS_DbRowFree(entry->row);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->dbrow_cache);
+    provider->dbrow_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbRow), CACHE_PROVIDER_DBROW_CAPACITY);
+}
+
+void
+CacheProvider_DbTableIndexAdd(
+    struct CacheProvider* provider,
+    int table_id,
+    struct ToriRS_DbTableIndex* index)
+{
+    struct MapEntry_ProviderDbIndex* entry;
+
+    assert(provider);
+    assert(index);
+
+    cache_provider_hmap_prepare_insert(&provider->dbindex_cache);
+    entry = (struct MapEntry_ProviderDbIndex*)hmap_search(
+        provider->dbindex_cache, &table_id, HMAP_INSERT);
+    assert(entry && "DbTableIndex must be inserted into hmap");
+
+    entry->id = table_id;
+    entry->index = index;
+}
+
+struct ToriRS_DbTableIndex*
+CacheProvider_DbTableIndexGet(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    struct MapEntry_ProviderDbIndex* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderDbIndex*)hmap_search(
+        provider->dbindex_cache, &table_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->index;
+}
+
+bool
+CacheProvider_DbTableIndexHas(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    return CacheProvider_DbTableIndexGet(provider, table_id) != NULL;
+}
+
+void
+CacheProvider_DbTableIndexesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderDbIndex* entry;
+
+    assert(provider);
+    if( !provider->dbindex_cache )
+        return;
+
+    iter = hmap_iter_new(provider->dbindex_cache);
+    while( (entry = (struct MapEntry_ProviderDbIndex*)hmap_iter_next(iter)) )
+    {
+        if( entry->index )
+            ToriRS_DbTableIndexFree(entry->index);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->dbindex_cache);
+    provider->dbindex_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbIndex), CACHE_PROVIDER_DBINDEX_CAPACITY);
 }
 
 void
