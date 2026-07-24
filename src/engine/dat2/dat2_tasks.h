@@ -24,6 +24,9 @@ CreateTask_Dat2ObjLoad(
     int obj_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2ObjLoadAll(struct CacheProvider* provider);
+
+struct ToriRS_Task*
 CreateTask_Dat2NpcLoad(
     struct CacheProvider* provider,
     int npc_id);

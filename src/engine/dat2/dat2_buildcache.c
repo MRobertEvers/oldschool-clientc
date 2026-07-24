@@ -214,6 +214,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
     .Task_ClientScriptLoad = CreateTask_Dat2ClientScriptLoad,
     .Task_ObjLoad = CreateTask_Dat2ObjLoad,
+    .Task_ObjLoadAll = CreateTask_Dat2ObjLoadAll,
     .Task_NpcLoad = CreateTask_Dat2NpcLoad,
     .Task_SpotanimLoad = CreateTask_Dat2SpotanimLoad,
     .Task_IdkLoad = CreateTask_Dat2IdkLoad,

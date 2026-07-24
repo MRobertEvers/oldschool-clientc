@@ -1312,6 +1312,15 @@
 #define CS2_OP_IF_SETONRESIZE 2427
 #define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
 #define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
+/* IF_ counterparts of CC_SETONITEMONITEM/CLANSETTINGS/MAPPOST (1430/1431/1433):
+ * set the listener by widget UID instead of on the active/dot child. No runtime
+ * model yet — signature-driven operand counts, so they are dispatched to the
+ * parse-and-discard helper (see the IF_SETON* discard group in cs2vm2.c). Used
+ * by the magic spellbook redraw (script 2610) — without a dispatch case op 2430
+ * fell through to StackMetaStub and aborted, blanking the spell icons. */
+#define CS2_OP_IF_SETONITEMONITEM 2430
+#define CS2_OP_IF_SETONCLANSETTINGS 2431
+#define CS2_OP_IF_SETONMAPPOST 2433
 /* IF_GETX — Get relative X.
  * int stack in:   component
  * str stack in:   -        

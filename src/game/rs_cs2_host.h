@@ -171,6 +171,16 @@ struct RS_CS2Host
 
     /** World map view state, backing the WORLDMAP_* opcodes. Owned here. */
     struct RS_WorldMapState* worldmap;
+
+    /** Item-name search state, backing OC_FIND/OC_FINDNEXT/OC_FINDRESET.
+     *  `item_search_results` is a malloc'd, ascending-sorted array of the
+     *  `item_search_count` matched obj ids (capacity `item_search_cap`);
+     *  `item_search_index` is the FINDNEXT cursor. Rebuilt by each OC_FIND,
+     *  walked by OC_FINDNEXT, cleared by OC_FINDRESET. Freed in RS_CS2Host_Free. */
+    int* item_search_results;
+    int item_search_count;
+    int item_search_cap;
+    int item_search_index;
 };
 
 void

@@ -78,6 +78,12 @@ RSCache_BufferReadShortSmart(struct RSCache_Buffer* buffer);
 int
 RSCache_BufferReadUnsignedShortSmart(struct RSCache_Buffer* buffer);
 
+/* LEB128 little-endian base-128 varint (`readVarInt2` in the reference client):
+ * 7 data bits per byte, low byte first, high bit set means "more bytes follow".
+ * Used by the DBTABLEINDEX (cache table 21) and DBROW tableId (config kind 38). */
+int
+RSCache_BufferReadVarInt2(struct RSCache_Buffer* buffer);
+
 void
 RSCache_BufferReadParams(
     struct RSCache_Buffer* buffer,

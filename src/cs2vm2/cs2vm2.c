@@ -6006,8 +6006,15 @@ CS2VM2_Op_OC_Placeholder(
     return vm->vm->host_exec(vm, &request);
 }
 
-/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: no backing search index exists, so the
- * host always answers "not found" — see CS2VM_HOST_REQUEST_OC_FIND. */
+/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item-name search (see
+ * CS2VM_HOST_REQUEST_OC_FIND). Only OC_FIND takes a stack argument — the query
+ * string.
+ *
+ * OC_FIND may yield so the host can bulk-load the obj group. On a yield the VM
+ * rolls the string stack back and re-executes this op, so the popped query must
+ * stay valid and un-freed: it is left in place (PopStr does not clear the slot,
+ * and the checkpoint restore re-exposes it) and passed to the host only as a
+ * borrow. It is freed here only once the host completes. */
 static int
 CS2VM2_Op_OC_Find(
     struct CS2VM2_Thread* vm,
@@ -6015,16 +6022,26 @@ CS2VM2_Op_OC_Find(
 {
     assert(vm);
 
-    int arg;
-    if( CS2VM2_PopInt(vm, &arg) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
+    char* query = NULL;
+    if( opcode == CS2_OP_OC_FIND )
+    {
+        if( CS2VM2_PopStr(vm, &query) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_FIND;
     request.u.oc_find.opcode = opcode;
-    request.u.oc_find.arg = arg;
-    return vm->vm->host_exec(vm, &request);
+    request.u.oc_find.query = query; /* borrowed; NULL for FINDNEXT/FINDRESET */
+
+    int result = vm->vm->host_exec(vm, &request);
+
+    /* On yield, leave `query` on the (rolled-back) stack for the retry; free it
+     * only when the op is truly finished. */
+    if( result != CS2VM_EXECNO_YIELD )
+        free(query);
+    return result;
 }
 
 /* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
@@ -7286,6 +7303,9 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETONCLICKREPEAT:
     case CS2_OP_IF_SETONCHATTRANSMIT:
     case CS2_OP_IF_SETONSTOCKTRANSMIT:
+    case CS2_OP_IF_SETONITEMONITEM:
+    case CS2_OP_IF_SETONCLANSETTINGS:
+    case CS2_OP_IF_SETONMAPPOST:
     case CS2_OP_IF_INPUT_SETONSUBMIT:
     case CS2_OP_IF_INPUT_SETONABORT:
     case CS2_OP_IF_INPUT_SETONFOCUSCHANGED:

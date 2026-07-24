@@ -27,6 +27,7 @@
 #define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
 #define CACHE_PROVIDER_TEXTURE_CAPACITY 512
 #define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
+#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
 #define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
 
 struct MapEntry_ProviderModel
@@ -93,6 +94,12 @@ struct MapEntry_ProviderObjtype
 {
     int id;
     struct ToriRS_Objtype* objtype;
+};
+
+struct MapEntry_ProviderObjtypeName
+{
+    int name_hash;
+    int obj_id;
 };
 
 struct MapEntry_ProviderNpctype
@@ -266,6 +273,9 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
     provider->sprite_name_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSpriteName), CACHE_PROVIDER_SPRITE_NAME_CAPACITY);
+    provider->objtype_name_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
+    provider->objtypes_all_loaded = false;
     provider->mapelement_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderMapElement), CACHE_PROVIDER_MAPELEMENT_CAPACITY);
 }
@@ -336,6 +346,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->texture_cache = NULL;
     cache_provider_hmap_free(provider->sprite_name_cache);
     provider->sprite_name_cache = NULL;
+    cache_provider_hmap_free(provider->objtype_name_cache);
+    provider->objtype_name_cache = NULL;
     cache_provider_hmap_free(provider->mapelement_cache);
     provider->mapelement_cache = NULL;
 }
@@ -1077,6 +1089,34 @@ CacheProvider_ClientScriptsCleanup(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderClientScript), CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY);
 }
 
+/* Lowercase `name` into `out` (NUL-terminated, capped at out_size) and return a
+ * case-insensitive djb2 hash of the lowercased text. The item search matches on
+ * the lowercased name (reference: obj.name.toLowerCase()), so indexing and
+ * lookup share this one transform. */
+static int
+objtype_name_lower_hash(
+    char const* name,
+    char* out,
+    size_t out_size)
+{
+    size_t i = 0;
+    unsigned int hash = 5381u;
+
+    assert(name);
+    assert(out && out_size > 0);
+
+    for( ; name[i] != '\0' && i + 1 < out_size; i++ )
+    {
+        char c = name[i];
+        if( c >= 'A' && c <= 'Z' )
+            c = (char)(c - 'A' + 'a');
+        out[i] = c;
+        hash = ((hash << 5) + hash) + (unsigned char)c;
+    }
+    out[i] = '\0';
+    return (int)hash;
+}
+
 void
 CacheProvider_ObjtypeAdd(
     struct CacheProvider* provider,
@@ -1095,6 +1135,28 @@ CacheProvider_ObjtypeAdd(
 
     entry->id = obj_id;
     entry->objtype = objtype;
+
+    /* Mirror the insert into the name index so CacheProvider_ObjtypeIdByName and
+     * the OC_FIND search resolve by name. Skip nameless entries and the "null"
+     * sentinel; on a duplicate name the later id wins (an exact-name index only
+     * needs one representative, and the substring search reads objtype_cache). */
+    if( provider->objtype_name_cache && objtype->name[0] != '\0' )
+    {
+        char lower[TORIRS_NAME_MAX];
+        int name_hash = objtype_name_lower_hash(objtype->name, lower, sizeof(lower));
+        if( strcmp(lower, "null") != 0 )
+        {
+            struct MapEntry_ProviderObjtypeName* name_entry;
+            cache_provider_hmap_prepare_insert(&provider->objtype_name_cache);
+            name_entry = (struct MapEntry_ProviderObjtypeName*)hmap_search(
+                provider->objtype_name_cache, &name_hash, HMAP_INSERT);
+            if( name_entry )
+            {
+                name_entry->name_hash = name_hash;
+                name_entry->obj_id = obj_id;
+            }
+        }
+    }
 }
 
 struct ToriRS_Objtype*
@@ -1178,6 +1240,111 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->objtype_cache);
     provider->objtype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderObjtype), CACHE_PROVIDER_OBJTYPE_CAPACITY);
+
+    /* The name index only holds ids into objtype_cache, so it must be reset in
+     * lockstep; the full-scan flag is likewise no longer true. */
+    if( provider->objtype_name_cache )
+    {
+        cache_provider_hmap_free(provider->objtype_name_cache);
+        provider->objtype_name_cache = cache_provider_hmap_new(
+            sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
+    }
+    provider->objtypes_all_loaded = false;
+}
+
+int
+CacheProvider_ObjtypeIdByName(
+    struct CacheProvider* provider,
+    char const* name)
+{
+    struct MapEntry_ProviderObjtypeName* entry;
+    struct ToriRS_Objtype* obj;
+    char lower[TORIRS_NAME_MAX];
+    int name_hash;
+
+    assert(provider);
+    if( !name || !name[0] || !provider->objtype_name_cache )
+        return -1;
+
+    name_hash = objtype_name_lower_hash(name, lower, sizeof(lower));
+    entry = (struct MapEntry_ProviderObjtypeName*)hmap_search(
+        provider->objtype_name_cache, &name_hash, HMAP_FIND);
+    if( !entry )
+        return -1;
+
+    /* Reject a hash collision that would hand back a different name. */
+    obj = CacheProvider_ObjtypeGet(provider, entry->obj_id);
+    if( obj )
+    {
+        char check[TORIRS_NAME_MAX];
+        objtype_name_lower_hash(obj->name, check, sizeof(check));
+        if( strcmp(check, lower) != 0 )
+            return -1;
+    }
+    return entry->obj_id;
+}
+
+static int
+objtype_id_cmp(const void* lhs, const void* rhs)
+{
+    int lid = *(const int*)lhs;
+    int rid = *(const int*)rhs;
+    return (lid > rid) - (lid < rid);
+}
+
+int
+CacheProvider_ObjtypeSearchByName(
+    struct CacheProvider* provider,
+    char const* lower_query,
+    int** out_ids)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderObjtype* entry;
+    int* ids = NULL;
+    int count = 0;
+    int cap = 0;
+
+    if( out_ids )
+        *out_ids = NULL;
+    if( !provider || !provider->objtype_cache || !lower_query || !lower_query[0] )
+        return 0;
+
+    iter = hmap_iter_new(provider->objtype_cache);
+    while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
+    {
+        struct ToriRS_Objtype* objtype = entry->objtype;
+        char lower[TORIRS_NAME_MAX];
+
+        if( !objtype || objtype->name[0] == '\0' )
+            continue;
+        objtype_name_lower_hash(objtype->name, lower, sizeof(lower));
+        if( strcmp(lower, "null") == 0 )
+            continue;
+        if( !strstr(lower, lower_query) )
+            continue;
+
+        if( count == cap )
+        {
+            int new_cap = cap ? cap * 2 : 64;
+            int* grown = realloc(ids, (size_t)new_cap * sizeof(int));
+            if( !grown )
+                break;
+            ids = grown;
+            cap = new_cap;
+        }
+        ids[count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    /* Ascending id order, matching the reference scan (0..65534). */
+    if( count > 1 )
+        qsort(ids, (size_t)count, sizeof(int), objtype_id_cmp);
+
+    if( out_ids )
+        *out_ids = ids;
+    else
+        free(ids);
+    return count;
 }
 
 void

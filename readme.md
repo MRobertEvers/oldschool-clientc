@@ -2454,3 +2454,15 @@ Here is what I want you to do:
 Some major differences I am aware of already is that the UI is MUCH less hard-coded, so there is less of a reliance on "RevConfig".
 
 Update the MULTI_GENERATIONAL_PARITY.md document to reflect knowledge you learn while implementing this.
+
+### CS2
+
+You should finish implement these CS2 opcodes in src/main.
+
+When implementing a new opcode:
+
+1. Ensure the opcode python generator is updated
+2. If HOST interaction is needed, add that support; always at least stub the host if the opcode is not purely a VM only opcode.
+3. Add the opcode to the dispatch in the cs2vm2
+
+Now, implement these opcode.

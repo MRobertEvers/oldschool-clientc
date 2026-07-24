@@ -124,6 +124,23 @@ RSCache_BufferG8(struct RSCache_Buffer* buffer)
     return (high << 32) | low;
 }
 
+int
+RSCache_BufferReadVarInt2(struct RSCache_Buffer* buffer)
+{
+    int value = 0;
+    int bits = 0;
+    int byte;
+    do
+    {
+        if( buffer->position >= buffer->size )
+            break;
+        byte = RSCache_BufferG1(buffer);
+        value |= (byte & 0x7f) << bits;
+        bits += 7;
+    } while( byte > 127 );
+    return value;
+}
+
 float
 RSCache_BufferReadFloat(struct RSCache_Buffer* buffer)
 {

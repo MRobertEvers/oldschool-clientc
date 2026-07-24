@@ -141,9 +141,10 @@ enum CS2VM_HostRequestKind
      * id). No placeholder linkage exists on ToriRS_Objtype, so — like
      * OC_UNPLACEHOLDER already does — this is an identity passthrough stub. */
     CS2VM_HOST_REQUEST_OC_PLACEHOLDER,
-    /* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item search iterator. No
-     * backing search index exists in this port, so all three answer "not
-     * found" (-1); carries the opcode to distinguish which one fired. */
+    /* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item-name search iterator.
+     * OC_FIND scans every resident objtype for a name substring and records the
+     * matches; FINDNEXT walks them; FINDRESET clears them. Yields once (kind
+     * OC_FIND) to bulk-load the obj group before the first scan. */
     CS2VM_HOST_REQUEST_OC_FIND,
     /* OC_SHIFTCLICKIOP: default shift-click op index for an item. No per-item
      * preference data exists, so this stubs to -1 (no default). */
@@ -701,12 +702,14 @@ struct CS2VM_HostRequest_OC_Op
     int op_index;
 };
 
-/** OC_FIND/OC_FINDNEXT/OC_FINDRESET shared payload. `opcode` distinguishes
- *  which of the three fired; `arg` is its one popped int. */
+/** OC_FIND/OC_FINDNEXT/OC_FINDRESET shared payload. `opcode` distinguishes which
+ *  of the three fired. `query` is OC_FIND's popped search string (NULL for the
+ *  other two); it is *borrowed* — still owned by the VM handler, which keeps it
+ *  on the stack across a load yield and frees it on completion. */
 struct CS2VM_HostRequest_OC_Find
 {
     int opcode;
-    int arg;
+    char* query;
 };
 
 /** OC_WEARPOS/WEARPOS2/WEARPOS3 shared payload. `opcode` distinguishes which

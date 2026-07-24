@@ -614,6 +614,11 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     assert(host);
     RS_WorldMap_Free(host->worldmap);
     host->worldmap = NULL;
+    free(host->item_search_results);
+    host->item_search_results = NULL;
+    host->item_search_count = 0;
+    host->item_search_cap = 0;
+    host->item_search_index = 0;
 }
 
 void
@@ -1614,15 +1619,97 @@ exec_oc_placeholder(
     return CS2VM2_PushInt(thread, request.item_id);
 }
 
-/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: no backing search index exists in this
- * port, so every variant answers "not found". */
+/* OC_FIND needs every objtype name resident to scan. The dat2 provider can
+ * bulk-load the whole obj group in one task; a provider that cannot (dat1)
+ * reports ready immediately and the search runs over whatever is cached. */
+static bool
+rs_cs2_objtypes_ready(struct RS_CS2Host* host)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    if( !provider )
+        return true;
+    if( provider->objtypes_all_loaded )
+        return true;
+    if( !provider->vtable || !provider->vtable->Task_ObjLoadAll )
+        return true;
+    return false;
+}
+
+static void
+rs_cs2_item_search_clear(struct RS_CS2Host* host)
+{
+    free(host->item_search_results);
+    host->item_search_results = NULL;
+    host->item_search_count = 0;
+    host->item_search_cap = 0;
+    host->item_search_index = 0;
+}
+
+/* OC_FIND/OC_FINDNEXT/OC_FINDRESET: a stateful item-name search. FIND scans
+ * every resident objtype for a lowercased name substring (yielding once to
+ * bulk-load the obj group first), FINDNEXT walks the matches in ascending id
+ * order, FINDRESET clears them. */
 static int
 exec_oc_find(
+    struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest_OC_Find request)
 {
-    (void)request;
-    return CS2VM2_PushInt(thread, -1);
+    struct CacheProvider* provider = rs_cs2_provider(host);
+
+    if( request.opcode == CS2_OP_OC_FINDRESET )
+    {
+        rs_cs2_item_search_clear(host);
+        return CS2VM_EXECNO_OK;
+    }
+
+    if( request.opcode == CS2_OP_OC_FINDNEXT )
+    {
+        int next_id = -1;
+        if( host->item_search_index < host->item_search_count )
+            next_id = host->item_search_results[host->item_search_index++];
+        return CS2VM2_PushInt(thread, next_id);
+    }
+
+    /* OC_FIND: start a fresh search, discarding any previous results. */
+    rs_cs2_item_search_clear(host);
+
+    if( request.query && request.query[0] != '\0' )
+    {
+        char lower[256];
+        size_t qidx = 0;
+
+        /* The scan needs every objtype name in memory; load the whole group
+         * once (one yield), then search on the retry. */
+        if( !rs_cs2_objtypes_ready(host) )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_OC_FIND;
+            req.u.oc_find = request;
+            if( !rs_cs2_await_spent(host, req.kind, -1, -1) )
+                return rs_cs2_yield_load(host, &req, -1, -1);
+            /* Awaited but still not fully loaded (load failed / unsupported):
+             * search whatever is resident rather than yield a second time. */
+        }
+
+        /* Lowercase the query (reference: query.toLowerCase()); provider-side
+         * the objtype names are lowercased per entry for the substring match. */
+        for( ; request.query[qidx] != '\0' && qidx + 1 < sizeof(lower); qidx++ )
+        {
+            char ch = request.query[qidx];
+            if( ch >= 'A' && ch <= 'Z' )
+                ch = (char)(ch - 'A' + 'a');
+            lower[qidx] = ch;
+        }
+        lower[qidx] = '\0';
+
+        host->item_search_count =
+            CacheProvider_ObjtypeSearchByName(provider, lower, &host->item_search_results);
+        host->item_search_cap = host->item_search_count;
+        host->item_search_index = 0;
+    }
+
+    return CS2VM2_PushInt(thread, host->item_search_count);
 }
 
 /* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
@@ -2839,7 +2926,7 @@ rs_cs2_host_exec_dispatch(
         return exec_oc_placeholder(vm, request->u.oc_placeholder);
 
     case CS2VM_HOST_REQUEST_OC_FIND:
-        return exec_oc_find(vm, request->u.oc_find);
+        return exec_oc_find(host, vm, request->u.oc_find);
 
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
         return exec_oc_shiftclickiop(vm, request->u.oc_shiftclickiop);

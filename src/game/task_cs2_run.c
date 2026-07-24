@@ -43,6 +43,7 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_FONT,
     TASK_CS2_YIELD_WORLDMAP,
     TASK_CS2_YIELD_MAPELEMENT,
+    TASK_CS2_YIELD_OBJALL,
     TASK_CS2_YIELD_ABORT,
 };
 
@@ -351,6 +352,15 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
         self->await_id = self->pending.u.oc_int_param.item_id;
         break;
+    case CS2VM_HOST_REQUEST_OC_OP:
+        self->await_id = self->pending.u.oc_op.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_IOP:
+        self->await_id = self->pending.u.oc_iop.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_EXAMINE:
+        self->await_id = self->pending.u.oc_examine.item_id;
+        break;
     default:
         assert(0 && "task_cs2_plan_obj: unexpected kind");
         self->yield_plan = TASK_CS2_YIELD_ABORT;
@@ -510,10 +520,20 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_mapelement(self);
         break;
 
+    /* OC_FIND yields once to bulk-load the whole obj group before its item-name
+     * scan; there is no single id to wait on, so the load task is the wait. */
+    case CS2VM_HOST_REQUEST_OC_FIND:
+        self->await_id = -1;
+        self->yield_plan = TASK_CS2_YIELD_OBJALL;
+        break;
+
     case CS2VM_HOST_REQUEST_OC_PARAM:
     case CS2VM_HOST_REQUEST_OC_NAME:
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+    case CS2VM_HOST_REQUEST_OC_OP:
+    case CS2VM_HOST_REQUEST_OC_IOP:
+    case CS2VM_HOST_REQUEST_OC_EXAMINE:
         task_cs2_plan_obj(self);
         break;
 
@@ -870,6 +890,10 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_MAPELEMENT )
         {
             TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_OBJALL )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {

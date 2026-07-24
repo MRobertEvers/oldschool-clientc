@@ -14,6 +14,8 @@ struct ToriRS_Font;
 struct ToriRS_Enum;
 struct ToriRS_Struct;
 struct ToriRS_ParamType;
+struct ToriRS_DbTableIndex;
+struct RSCache_Dat2ConfigDbRow;
 
 struct CacheProvider
 {
@@ -41,6 +43,15 @@ struct CacheProvider
     struct HMap* mapelement_cache;
     /** name_hash (ArchiveNameHashDat2) → sprite archive id */
     struct HMap* sprite_name_cache;
+    /** Lowercased-objtype-name hash → obj id, populated alongside objtype_cache
+     *  in CacheProvider_ObjtypeAdd. Backs CacheProvider_ObjtypeIdByName and the
+     *  OC_FIND item-name search (see CacheProvider_ObjtypeSearchByName). */
+    struct HMap* objtype_name_cache;
+    /** Set once every objtype in the config group has been decoded into
+     *  objtype_cache (CacheProvider_ObjtypeLoadAll / Task_ObjLoadAll). The
+     *  OC_FIND scan needs all names resident; this lets it load them exactly
+     *  once instead of on every search. */
+    bool objtypes_all_loaded;
     /** Every world map area, loaded as one object (cache table 19). NULL until
      *  the load task runs, and on caches that have no world map at all. */
     struct ToriRS_WorldMapAreas* worldmap_areas;
@@ -91,6 +102,11 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ObjLoad)(
         struct CacheProvider* provider,
         int obj_id);
+    /** Decode every objtype in the config group into objtype_cache in one pass
+     * (the whole group is one archive read). Backs the OC_FIND item-name
+     * search. NULL on providers that cannot enumerate the obj group. */
+    struct ToriRS_Task* (*Task_ObjLoadAll)(
+        struct CacheProvider* provider);
     struct ToriRS_Task* (*Task_NpcLoad)(
         struct CacheProvider* provider,
         int npc_id);
@@ -405,6 +421,24 @@ CacheProvider_ObjtypeHas(
 void
 CacheProvider_ObjtypesCleanup(struct CacheProvider* provider);
 
+/** Exact-name lookup via objtype_name_cache: returns the obj id whose name
+ *  (case-insensitively) equals `name`, or -1 if none is resident. */
+int
+CacheProvider_ObjtypeIdByName(
+    struct CacheProvider* provider,
+    char const* name);
+
+/** OC_FIND item-name search: scans every resident objtype and collects the ids
+ *  whose name is present, is not "null", and (lowercased) contains
+ *  `lower_query` (which the caller must already have lowercased). On a match it
+ *  mallocs an ascending-sorted id array into *out_ids (caller frees) and
+ *  returns the count; returns 0 (and *out_ids = NULL) when nothing matches. */
+int
+CacheProvider_ObjtypeSearchByName(
+    struct CacheProvider* provider,
+    char const* lower_query,
+    int** out_ids);
+
 void
 CacheProvider_NpctypeAdd(
     struct CacheProvider* provider,
@@ -621,6 +655,14 @@ CreateTask_ObjLoad(
     if( !provider->vtable->Task_ObjLoad )
         return NULL;
     return provider->vtable->Task_ObjLoad(provider, obj_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_ObjLoadAll(struct CacheProvider* provider)
+{
+    if( !provider->vtable->Task_ObjLoadAll )
+        return NULL;
+    return provider->vtable->Task_ObjLoadAll(provider);
 }
 
 static inline struct ToriRS_Task*

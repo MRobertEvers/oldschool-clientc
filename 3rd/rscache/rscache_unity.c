@@ -34,6 +34,7 @@
 #include "src/datatypes/dat2_sprites.c"
 #include "src/datatypes/dat2_config_enum.c"
 #include "src/datatypes/dat2_config_struct.c"
+#include "src/datatypes/dat2_config_db.c"
 #include "src/datatypes/dat2_config_param.c"
 #include "src/datatypes/dat2_config_mapelement.c"
 #include "src/datatypes/dat2_worldmap.c"
