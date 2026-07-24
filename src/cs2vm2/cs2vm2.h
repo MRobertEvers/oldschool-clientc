@@ -55,6 +55,10 @@ struct CS2VM2_Frame
 #define CS2VM_MAX_CYCLES 1000000
 #define CS2VM2_MAX_ARRAYS 128
 #define CS2VM2_ARRAY_CAPACITY 256
+/* Max array-cell writes a single opcode may make (the undo log only ever holds
+ * the in-flight op's stores; it is reset at each op boundary). One bytecode op
+ * writes at most one cell today, so this is generous headroom. */
+#define CS2VM2_ARRAY_UNDO_MAX 64
 
 struct CS2VM2_Array
 {
@@ -222,6 +226,7 @@ struct CS2VM2_YieldCheckpoint
     int frame_sp;
     int active_component_id;
     int dot_component_id;
+    int undo_log_len; /* undo_log length at op entry; on yield, roll back to here */
 };
 
 #define CS2VM2_MAX_THREADS 4
@@ -251,6 +256,22 @@ struct CS2VM2_Thread
     int yield_halt_script_id;
     int yield_halt_pc;
     int yield_halt_count;
+
+    /* Per-op undo log for VM-field mutations (currently array stores). A yielding
+     * op must leave VM state untouched so its replay-on-resume is idempotent
+     * (see CS2VM_EXECNO_YIELD); the pointer-only checkpoint covers the stacks and
+     * frames, but an op that also mutates a persistent field (e.g. an array cell)
+     * would leave that change applied when the op re-runs. Ops opt in by routing
+     * such writes through CS2VM2_ArrayStore, which records the prior value here so
+     * the yield restore can undo them. Reset at the start of every op, so it only
+     * ever holds the in-flight op's mutations — no per-op copying of whole arrays. */
+    struct CS2VM2_ArrayUndo
+    {
+        short slot;
+        int index;
+        int old_value;
+    } undo_log[CS2VM2_ARRAY_UNDO_MAX];
+    int undo_log_len;
 
     int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;
@@ -374,6 +395,11 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* thread);
 
 void
 CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* thread);
+
+/* Tracked array store — writes arrays[slot][index] = value and records the prior
+ * value in the per-op undo log so a yield restore undoes it (see undo_log). */
+void
+CS2VM2_ArrayStore(struct CS2VM2_Thread* thread, int slot, int index, int value);
 
 struct CS2VM2_Thread*
 CS2VM2_ThreadMain(struct CS2VM2* vm);

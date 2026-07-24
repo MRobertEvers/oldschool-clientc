@@ -2466,3 +2466,32 @@ When implementing a new opcode:
 3. Add the opcode to the dispatch in the cs2vm2
 
 Now, implement these opcode.
+
+#### DB_* client database opcodes (7500..7510) — IMPLEMENTED
+
+The client-database family (`DB_FIND`/`DB_FINDALL`/`DB_FINDNEXT`/`DB_GETFIELD`/
+`DB_GETFIELDCOUNT`/`DB_GETROW`/`DB_GETROWTABLE` and the `_WITH_COUNT`/`_FILTER`
+variants) is implemented end to end:
+
+- **Cache decode** (`3rd/rscache/src/datatypes/dat2_config_db.c`): DBROW (config
+  kind 38), DBTABLE (kind 39), and the DBTABLEINDEX (cache table 21). Types and
+  tuple counts are `readUnsignedShortSmart`; ints are 4-byte BE; strings are
+  null-terminated; ScriptVarType 36 is the string base type. DBROW `tableId` and
+  every index count/rowId are `readVarInt2` (LEB128). Validated byte-exact
+  against the osrs230/239/jan2026 caches (0 parse failures over ~30k rows).
+- **Load pipeline**: `CreateTask_Dat2DbRowLoad` + `CreateTask_Dat2DbTableIndexLoad`
+  (dat2 vtable), a new `RSCache_IO_Dat2DbTableIndex*` IO pair, and the
+  `dbrow_cache` / `dbindex_cache` on the CacheProvider.
+- **Host** (`exec_db` in `game/rs_cs2_host.c`): owns the find-iterator
+  (matched row ids + cursor). `DB_FIND` reads the table's inverted index
+  (table 21, file `column+1`); `DB_FINDALL` reads the master file 0;
+  `DB_GETFIELD`/`DB_GETROWTABLE` read the DBROW's inline values.
+- **Test**: `make -C src test-db` (drives the real async pipeline against
+  osrs230 and checks decoded values, e.g. quest row 0 = "Animal Magnetism").
+
+CAVEAT (unverifiable from public sources, flagged in `exec_db`): the dbcolumn
+bit-packing `table=c>>12, column=(c>>4)&0xFF, tuple=c&0xF` and the FIND
+stack order (dbcolumn on top, value below) are the widely-referenced OSRS
+convention but were not confirmed against a rev-230 deob — recheck these first
+if a real DB script misbehaves. No script in this repo exercises the DB opcodes
+yet, so they are covered only by `test-db`, not by live parity.

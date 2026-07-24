@@ -238,9 +238,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     # --- Host widget create/find (cs2_host_ui.c) ---
     "CC_CREATE": OpcodeDoc(
         summary="Create dynamic child component",
-        operand="widget type",
-        int_in=("sub_id",),
-        notes="sets active to new child",
+        operand="0 = active component, 1 = dot component",
+        int_in=("parent", "type", "child_index", "is_nested"),
+        notes=(
+            "sets active to new child. Fixed CC_CREATE to take 4 args "
+            "(rev ≥ 200 / osrs230), which was breaking stack analysis. "
+            "Older revisions (< 200) used 3 args [parent, type, child_index]."
+        ),
     ),
     "CC_DELETEALL": OpcodeDoc(
         summary="Delete all dynamic children of active parent",

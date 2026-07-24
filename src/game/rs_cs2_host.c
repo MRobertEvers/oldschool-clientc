@@ -3459,14 +3459,15 @@ rs_cs2_host_exec_dispatch(
             if( getenv("TORIRS_SETHIDE_DEBUG") )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
-                if( g == 149 || g == 320 || (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
+                if( g == 149 || g == 320 || g == 218 || (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
                     fprintf(
                         stderr,
-                        "sethide: component 0x%08x (%d|%d) hide=%d\n",
+                        "sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
                         (unsigned)request->u.if_set_hide.component_id,
                         g,
                         request->u.if_set_hide.component_id & 0xffff,
-                        request->u.if_set_hide.hidden ? 1 : 0);
+                        request->u.if_set_hide.hidden ? 1 : 0,
+                        UITree_FindByComponentId(tree, request->u.if_set_hide.component_id) >= 0 ? 1 : 0);
             }
             hide_idx = UITree_FindByComponentId(tree, request->u.if_set_hide.component_id);
             if( hide_idx >= 0 )

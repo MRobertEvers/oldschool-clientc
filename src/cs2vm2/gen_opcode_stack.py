@@ -85,6 +85,18 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # (CS2VM2_Op_Db -> exec_db) that own the stack, so these entries only feed the
     # debug trace. DB_FIND/GETFIELD have a value/tuple whose int-vs-string type is
     # runtime-dependent; the counts below are the common all-int shape.
+    # Math / bit ops (4007..4030) — pure-VM handlers (CS2VM2_Op_*); listed so the
+    # trace and known-flag are correct. All pop N ints and push one.
+    4007: (2, 0, 1, 0),  # ADDPERCENT(value, percent)
+    4014: (2, 0, 1, 0),  # AND(a, b)
+    4016: (2, 0, 1, 0),  # MIN(a, b)
+    4017: (2, 0, 1, 0),  # MAX(a, b)
+    4025: (1, 0, 1, 0),  # BITCOUNT(value)
+    4026: (2, 0, 1, 0),  # TOGGLEBIT(value, bit)
+    4027: (3, 0, 1, 0),  # SETBIT_RANGE(value, low, high)
+    4028: (3, 0, 1, 0),  # CLEARBIT_RANGE(value, low, high)
+    4029: (3, 0, 1, 0),  # GETBIT_RANGE(value, low, high)
+    4030: (4, 0, 1, 0),  # SETBIT_RANGE_VALUE(value, newBits, low, high)
     7500: (2, 0, 1, 0),  # DB_FIND_WITH_COUNT(dbcolumn, value) -> count
     7501: (0, 0, 1, 0),  # DB_FINDNEXT() -> rowId (or -1)
     7502: (3, 0, 1, 0),  # DB_GETFIELD(dbrow, dbcolumn, index) -> field value(s)

@@ -260,7 +260,9 @@ dat2_cache_table_supported(int table_id)
            table_id == RSCACHE_DAT2_DISK_TABLE_SKELETONS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_ANIMAYAS ||
            /* World map area configs ("details" / "compositemap"). */
-           table_id == RSCACHE_DAT2_DISK_TABLE_WORLDMAP;
+           table_id == RSCACHE_DAT2_DISK_TABLE_WORLDMAP ||
+           /* Client database inverted indexes (one archive per table id). */
+           table_id == RSCACHE_DAT2_DISK_TABLE_DBTABLE_INDEX;
 }
 
 static int

@@ -170,12 +170,13 @@ dump_tree_node(
 
     if( c->type != UIELEM_RS_LAYER )
         printf(
-            " abs=%d,%d %dx%d hidden=%d",
+            " abs=%d,%d %dx%d hidden=%d ownhide=%d",
             c->position.abs_x,
             c->position.abs_y,
             c->position.abs_w,
             c->position.abs_h,
-            dump_node_hidden(tree, idx));
+            dump_node_hidden(tree, idx),
+            c->behavior.hide);
     printf("\n");
 
     {

@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 7252
-#define CS2_OPCODE_COUNT 768
+#define CS2_OPCODE_COUNT 785
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -287,6 +287,7 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_DELETEALL 102
+#define CS2_OP_CC_COPY 105
 /* CC_FIND — Find child by sub-id.
  * int stack in:   parent, sub                     (sub = top)
  * str stack in:   -                             
@@ -633,6 +634,13 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
+#define CS2_OP_CC_SETONITEMONITEM 1430
+#define CS2_OP_CC_SETONCLANSETTINGS 1431
+#define CS2_OP_CC_SETONMAPPOST 1433
+#define CS2_OP_CC_INPUT_SETONSUBMIT 1436
+#define CS2_OP_CC_INPUT_SETONABORT 1437
+#define CS2_OP_CC_INPUT_SETONFOCUSCHANGED 1438
+#define CS2_OP_CC_INPUT_SETONUPDATE 1439
 /* CC_GETX — Get relative X of child component.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   -
@@ -1053,6 +1061,13 @@
 #define CS2_OP_IF_SETONRESIZE 2427
 #define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
 #define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
+#define CS2_OP_IF_SETONITEMONITEM 2430
+#define CS2_OP_IF_SETONCLANSETTINGS 2431
+#define CS2_OP_IF_SETONMAPPOST 2433
+#define CS2_OP_IF_INPUT_SETONSUBMIT 2436
+#define CS2_OP_IF_INPUT_SETONABORT 2437
+#define CS2_OP_IF_INPUT_SETONFOCUSCHANGED 2438
+#define CS2_OP_IF_INPUT_SETONUPDATE 2439
 /* IF_GETX — Get relative X.
  * int stack in:   component
  * str stack in:   -        
@@ -1539,6 +1554,8 @@
  * str stack out:  -    
  */
 #define CS2_OP_OR 4015
+#define CS2_OP_MIN 4016
+#define CS2_OP_MAX 4017
 /* SCALE — Scale interpolate (c*a)/b.
  * int stack in:   a, b, c  (c = top)
  * str stack in:   -      

@@ -55,6 +55,7 @@ CS2VM2_SaveYieldCheckpoint(
     cp->frame_sp = vm->frame_sp;
     cp->active_component_id = vm->active_component_id;
     cp->dot_component_id = vm->dot_component_id;
+    cp->undo_log_len = vm->undo_log_len;
     /* No frame copy: a yielding op leaves frame contents untouched (see the
      * CS2VM_EXECNO_YIELD contract), so restore is a pure pointer rollback. */
 }
@@ -82,6 +83,38 @@ CS2VM2_RestoreYieldCheckpoint(
     vm->active_component_id = cp->active_component_id;
     vm->dot_component_id = cp->dot_component_id;
     vm->frames[vm->frame_sp - 1].pc = op_pc;
+
+    /* Undo any opt-in VM-field mutations the yielding op applied before it
+     * yielded, newest first, so the op re-runs from the same clean state as the
+     * stacks/frames. Ops that never mutate persistent fields append nothing and
+     * pay nothing here. */
+    while( vm->undo_log_len > cp->undo_log_len )
+    {
+        struct CS2VM2_ArrayUndo const* undo = &vm->undo_log[--vm->undo_log_len];
+        if( undo->slot >= 0 && undo->slot < CS2VM2_MAX_ARRAYS &&
+            undo->index >= 0 && undo->index < CS2VM2_ARRAY_CAPACITY )
+            vm->arrays[undo->slot].values[undo->index] = undo->old_value;
+    }
+}
+
+/* Opt-in tracked array store: records the prior value so a yield restore can undo
+ * it (see the undo_log contract in CS2VM2_Thread). Used by array-writing opcodes
+ * whose replay-on-yield would otherwise double-apply. */
+void
+CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, int slot, int index, int value)
+{
+    assert(vm);
+    if( slot < 0 || slot >= CS2VM2_MAX_ARRAYS || !vm->arrays[slot].defined ||
+        index < 0 || index >= vm->arrays[slot].size )
+        return;
+    if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
+    {
+        vm->undo_log[vm->undo_log_len].slot = (short)slot;
+        vm->undo_log[vm->undo_log_len].index = index;
+        vm->undo_log[vm->undo_log_len].old_value = vm->arrays[slot].values[index];
+        vm->undo_log_len++;
+    }
+    vm->arrays[slot].values[index] = value;
 }
 
 void
@@ -4287,6 +4320,214 @@ CS2VM2_Op_Mul(
     return CS2VM2_PushInt(vm, intpop_a * intpop_b);
 }
 
+/* Bitwise / arithmetic ops mirroring the reference client (xrsps MathOps). Each
+ * pops its operands (top-of-stack listed first) and pushes one int. */
+
+int
+CS2VM2_Op_And(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, a & b);
+}
+
+int
+CS2VM2_Op_Min(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, a < b ? a : b);
+}
+
+int
+CS2VM2_Op_Max(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a, b;
+    if( CS2VM2_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, a > b ? a : b);
+}
+
+/* value + value * percent / 100. The multiply is done in 64-bit to match the
+ * reference's exact (non-overflowing) arithmetic; C truncation toward zero on
+ * the divide matches the reference truncation. */
+int
+CS2VM2_Op_AddPercent(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value, percent;
+    if( CS2VM2_PopInt(vm, &percent) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value + (int)(((int64_t)value * percent) / 100));
+}
+
+int
+CS2VM2_Op_BitCount(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, __builtin_popcount((unsigned)value));
+}
+
+int
+CS2VM2_Op_ToggleBit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int bit, value;
+    if( CS2VM2_PopInt(vm, &bit) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value ^ (1 << bit));
+}
+
+/* Contiguous-bit-range mask helper: bits [low, high] inclusive. */
+static inline int
+cs2_bit_range_mask(
+    int low,
+    int high)
+{
+    return ((1 << (high - low + 1)) - 1) << low;
+}
+
+int
+CS2VM2_Op_SetBitRange(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int low, high, value;
+    if( CS2VM2_PopInt(vm, &high) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &low) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value | cs2_bit_range_mask(low, high));
+}
+
+int
+CS2VM2_Op_ClearBitRange(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int low, high, value;
+    if( CS2VM2_PopInt(vm, &high) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &low) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, value & ~cs2_bit_range_mask(low, high));
+}
+
+int
+CS2VM2_Op_GetBitRange(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int low, high, value;
+    if( CS2VM2_PopInt(vm, &high) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &low) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, (value >> low) & ((1 << (high - low + 1)) - 1));
+}
+
+/* Clear bits [low, high] of value, then write newBits (clamped to the range
+ * width) shifted into that position. Stack (top first): high, low, newBits, value. */
+int
+CS2VM2_Op_SetBitRangeValue(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int high, low, new_bits, value;
+    if( CS2VM2_PopInt(vm, &high) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &low) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &new_bits) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int max_value = (1 << (high - low + 1)) - 1;
+    int clamped = new_bits > max_value ? max_value : new_bits;
+    return CS2VM2_PushInt(vm, (value & ~cs2_bit_range_mask(low, high)) | (clamped << low));
+}
+
 int
 CS2VM2_Op_Div(
     struct CS2VM2_Thread* vm,
@@ -5036,16 +5277,21 @@ CS2VM2_Op_PopArrayInt(
     assert(frame);
     (void)frame;
 
+    /* `$array($index) = $value` compiles to: push index, push value, POP_ARRAY_INT
+     * — so the VALUE is on top and the INDEX sits beneath it. Popping these in the
+     * wrong order transposes them, which is invisible whenever index == value (the
+     * spellbook's `$visible_indices($n) = $n` fill) and silently scrambles every
+     * asymmetric write (the spellbook sort's in-place swaps). */
     int index;
     int value;
-    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
 
-    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].defined && index >= 0 &&
-        index < vm->arrays[operand].size )
-        vm->arrays[operand].values[index] = value;
+    /* Tracked store: records the prior cell value in the per-op undo log so a
+     * yield inside this op cannot leave the write half-applied on replay. */
+    CS2VM2_ArrayStore(vm, operand, index, value);
 
     return CS2VM_EXECNO_OK;
 }
@@ -5127,9 +5373,33 @@ CS2VM2_Op_InvPow(
     if( CS2VM2_PopInt(vm, &base) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int result = 1;
-    for( int i = 0; i < exponent; i++ )
-        result *= base;
+    /* Inverse power: the exponent-th integer root of base (NOT base^exponent).
+     * Mirrors the reference client (xrsps MathOps.INVPOW). */
+    int result;
+    if( base == 0 )
+        result = 0;
+    else
+        switch( exponent )
+        {
+        case 0:
+            result = 2147483647; /* Integer.MAX_VALUE */
+            break;
+        case 1:
+            result = base;
+            break;
+        case 2:
+            result = (int)sqrt((double)base);
+            break;
+        case 3:
+            result = (int)cbrt((double)base);
+            break;
+        case 4:
+            result = (int)sqrt(sqrt((double)base));
+            break;
+        default:
+            result = (int)pow((double)base, 1.0 / exponent);
+            break;
+        }
     return CS2VM2_PushInt(vm, result);
 }
 
@@ -7372,6 +7642,26 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClearBit(vm, frame, operand);
     case CS2_OP_OR:
         return CS2VM2_Op_Or(vm, frame, operand);
+    case CS2_OP_AND:
+        return CS2VM2_Op_And(vm, frame, operand);
+    case CS2_OP_MIN:
+        return CS2VM2_Op_Min(vm, frame, operand);
+    case CS2_OP_MAX:
+        return CS2VM2_Op_Max(vm, frame, operand);
+    case CS2_OP_ADDPERCENT:
+        return CS2VM2_Op_AddPercent(vm, frame, operand);
+    case CS2_OP_BITCOUNT:
+        return CS2VM2_Op_BitCount(vm, frame, operand);
+    case CS2_OP_TOGGLEBIT:
+        return CS2VM2_Op_ToggleBit(vm, frame, operand);
+    case CS2_OP_SETBIT_RANGE:
+        return CS2VM2_Op_SetBitRange(vm, frame, operand);
+    case CS2_OP_CLEARBIT_RANGE:
+        return CS2VM2_Op_ClearBitRange(vm, frame, operand);
+    case CS2_OP_GETBIT_RANGE:
+        return CS2VM2_Op_GetBitRange(vm, frame, operand);
+    case CS2_OP_SETBIT_RANGE_VALUE:
+        return CS2VM2_Op_SetBitRangeValue(vm, frame, operand);
     case CS2_OP_INVPOW:
         return CS2VM2_Op_InvPow(vm, frame, operand);
     case CS2_OP_RANDOM:
@@ -7786,6 +8076,11 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
 
         int op_pc = frame->pc;
         frame->pc += 1;
+
+        /* The undo log only tracks the in-flight op: reset it here so a yield
+         * rolls back exactly this op's tracked mutations, and committed prior
+         * mutations are never touched. */
+        vm->undo_log_len = 0;
 
         struct CS2VM2_YieldCheckpoint yield_cp;
         CS2VM2_SaveYieldCheckpoint(vm, &yield_cp);

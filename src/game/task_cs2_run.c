@@ -803,7 +803,9 @@ Task_CS2Run_Run(
                 if( d )
                 {
                     s_dumped = 1;
-                    fprintf(stderr, "== DUMP script %d (ops=%d) ==\n", d->script_id, d->op_count);
+                    fprintf(stderr, "== DUMP script %d (ops=%d int_args=%d str_args=%d local_ints=%d) ==\n",
+                        d->script_id, d->op_count, d->int_argument_count, d->string_argument_count,
+                        d->local_int_count);
                     for( int p = 0; p < d->op_count; p++ )
                         fprintf(
                             stderr,

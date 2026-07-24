@@ -267,12 +267,14 @@
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
 /* CC_CREATE — Create dynamic child component.
- * operand: widget type
- * int stack in:   sub_id
- * str stack in:   -     
- * int stack out:  -     
- * str stack out:  -     
- * notes: sets active to new child
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: sets active to new child. Fixed CC_CREATE to take 4 args
+ *        (rev ≥ 200 / osrs230), which was breaking stack analysis.
+ *        Older revisions (< 200) used 3 args [parent, type, child_index].
  */
 #define CS2_OP_CC_CREATE 100
 #define CS2_OP_CC_DELETE 101
@@ -1871,11 +1873,15 @@
  * str stack out:  -    
  */
 #define CS2_OP_OR 4015
+/* MIN — Minimum of two ints.  int in: a, b (b = top)  int out: min(a, b) */
+#define CS2_OP_MIN 4016
+/* MAX — Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b) */
+#define CS2_OP_MAX 4017
 /* SCALE — Scale interpolate (c*a)/b.
  * int stack in:   a, b, c  (c = top)
- * str stack in:   -      
- * int stack out:  result 
- * str stack out:  -      
+ * str stack in:   -
+ * int stack out:  result
+ * str stack out:  -
  * notes: b == 0 yields 0
  */
 #define CS2_OP_SCALE 4018
@@ -1884,7 +1890,11 @@
 #define CS2_OP_SETBIT_RANGE 4027
 #define CS2_OP_CLEARBIT_RANGE 4028
 #define CS2_OP_GETBIT_RANGE 4029
+/* SETBIT_RANGE_VALUE (a.k.a. SETBIT_RANGE_TOINT): clear the [low,high] bit range
+ * of `value` then write `newBits` (clamped to the range width) into it.
+ * int in: value, newBits, low, high (high = top)  int out: result */
 #define CS2_OP_SETBIT_RANGE_TOINT 4030
+#define CS2_OP_SETBIT_RANGE_VALUE 4030
 #define CS2_OP_SIN_DEG 4032
 #define CS2_OP_COS_DEG 4033
 #define CS2_OP__4034 4034

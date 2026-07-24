@@ -6963,6 +6963,21 @@ App_RunOnce(
         /* Rebind chatheads onto their (possibly newly mounted) MODEL nodes. */
         app_if_head_poll(app);
         app_chat_build_view(app);
+        /* TORIRS_FORCE_SHOW_SLOT=<component_id> (debug): clear the hide flag on one
+         * mounted node each frame so a panel the gameframe keeps hidden can still be
+         * rendered for inspection — the sidebar tab-reveal CS2 is still a follow-on,
+         * so e.g. the magic tab (161|82 = 0x00a10052) is otherwise never visible.
+         * Only this node's own flag is forced; the subtree's own hide state stands. */
+        {
+            char const* force_show = getenv("TORIRS_FORCE_SHOW_SLOT");
+            if( force_show )
+            {
+                int want = (int)strtol(force_show, NULL, 0);
+                int32_t idx = UITree_FindByComponentId(app->tree, want);
+                if( idx >= 0 )
+                    app->tree->components[idx].behavior.hide = 0;
+            }
+        }
         app->emit.count = 0;
         UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
         app->need_redraw = 0;
