@@ -42,6 +42,7 @@
 #include "src/datatypes/dat2_config_var.c"
 #include "src/datatypes/dat2_config_inv.c"
 #include "src/datatypes/dat2_config_healthbar.c"
+#include "src/datatypes/dat2_config_hitsplat.c"
 #include "src/datatypes/dat2_config_mapelement.c"
 #include "src/datatypes/dat2_worldmap.c"
 #include "src/datatypes/dat2_framemap.c"

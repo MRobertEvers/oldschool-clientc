@@ -54,6 +54,7 @@
 #include "datatypes/dat2_config_var.h"
 #include "datatypes/dat2_config_inv.h"
 #include "datatypes/dat2_config_healthbar.h"
+#include "datatypes/dat2_config_hitsplat.h"
 #include "datatypes/dat2_config_mapelement.h"
 #include "datatypes/dat2_worldmap.h"
 #include "datatypes/dat2_framemap.h"

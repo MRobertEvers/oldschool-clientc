@@ -1347,6 +1347,46 @@ visit_healthbar(
     (void)profile;
 }
 
+static void
+visit_hitsplat(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigHitsplat first;
+    struct RSCache_Dat2ConfigHitsplat second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigHitsplatDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigHitsplatEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigHitsplatDecodeInplace(&second, encoded, (int)written);
+    if( first.sprite_id == second.sprite_id && first.has_opcode_8 == second.has_opcode_8 &&
+        first.opcode_8 == second.opcode_8 && first.has_opcode_9 == second.has_opcode_9 &&
+        first.opcode_9 == second.opcode_9 && first.opcode_11 == second.opcode_11 &&
+        first.has_opcode_13 == second.has_opcode_13 && first.opcode_13 == second.opcode_13 &&
+        first.has_opcode_49 == second.has_opcode_49 && first.opcode_49 == second.opcode_49 &&
+        first.has_opcode_18 == second.has_opcode_18 &&
+        (!first.has_opcode_18 ||
+         memcmp(first.opcode_18, second.opcode_18, sizeof(first.opcode_18)) == 0) )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
 /* --------------------------------------------------------------- struct --- */
 
 static void
@@ -2168,6 +2208,8 @@ main(int argc, char** argv)
         { "inv", RSCACHE_DAT2_CONFIG_KIND_INV, RSCACHE_TYPE_INV, visit_inv },
         { "healthbar", RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR, RSCACHE_TYPE_HEALTHBAR,
           visit_healthbar },
+        { "hitsplat", RSCACHE_DAT2_CONFIG_KIND_HITSPLAT, RSCACHE_TYPE_HITSPLAT,
+          visit_hitsplat },
     };
 
     /* Types whose archives are one record each, rather than config groups. */
