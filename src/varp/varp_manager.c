@@ -395,7 +395,13 @@ VarPManager_GetVarbit(
     if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
         return 0;
 
-    int bit_count = vb->endbit - vb->startbit;
+    /*
+     * `endbit` is inclusive, so the width is the difference plus one. Without the
+     * +1 every varbit reads one bit too narrow and a single-bit varbit — the
+     * commonest kind, and what `startbit == endbit` means — masks to zero and
+     * always reads 0. The reference masks with `(1 << (msb - lsb + 1)) - 1`.
+     */
+    int bit_count = vb->endbit - vb->startbit + 1;
     if( bit_count <= 0 || bit_count >= VARP_MANAGER_READBIT_MAX )
         return 0;
 
@@ -478,7 +484,9 @@ VarPManager_SetVarbitOptimistic(
     if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
         return;
 
-    int bit_count = vb->endbit - vb->startbit;
+    /* Inclusive `endbit`, as in GetVarbit — the two must agree or a written
+     * varbit reads back as a different value. */
+    int bit_count = vb->endbit - vb->startbit + 1;
     if( bit_count <= 0 || bit_count >= VARP_MANAGER_READBIT_MAX )
         return;
 

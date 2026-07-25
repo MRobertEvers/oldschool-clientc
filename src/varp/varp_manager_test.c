@@ -266,9 +266,67 @@ test_load_varbit_dat(void)
     TEST_ASSERT(mgr.varbit_types[0].startbit == 1, "startbit");
     TEST_ASSERT(mgr.varbit_types[0].endbit == 4, "endbit");
 
-    /* bits [1,4) of 0b1110 = 0b111 = 7 */
+    /*
+     * `endbit` is inclusive, so this varbit is bits 1..4 — four bits wide.
+     *
+     * The value matters. This used to read `var[0] = 0x0E` (0b01110) and expect 7,
+     * which passes whether the width is taken as 3 bits or 4 because bit 4 is zero
+     * either way — so it could not tell the two apart, and the off-by-one it was
+     * meant to catch went unnoticed. 0x1E (0b11110) sets bit 4, so the two
+     * readings now disagree: 4 bits gives 15, 3 bits gives 7.
+     */
+    mgr.var[0] = 0x1E;
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 15, "four-bit varbit reads all four bits");
+
     mgr.var[0] = 0x0E;
-    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 7, "round-trip get");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 7, "and the high bit clear reads 7");
+
+    /* A write must come back as the same value, or reader and writer disagree. */
+    VarPManager_SetVarbitOptimistic(&mgr, 0, 11);
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 11, "set then get round-trips");
+
+    VarPManager_Free(&mgr);
+}
+
+/*
+ * A single-bit varbit: startbit == endbit. The commonest shape in a real cache —
+ * varbits 0..4 of the rev-230 cache are five consecutive one-bit flags in varp 318 —
+ * and the case a width of `endbit - startbit` rejects outright, masking to zero and
+ * reading 0 for every possible varp value.
+ */
+static void
+test_single_bit_varbit(void)
+{
+    printf("TEST: single-bit varbit\n");
+
+    struct VarPManager mgr;
+    VarPManager_Init(&mgr);
+
+    struct VarPType varps[1] = { { 0 } };
+    TEST_ASSERT(VarPManager_SetVarpTypes(&mgr, varps, 1), "SetVarpTypes");
+
+    /* Three flags packed into bits 0, 1 and 2 of varp 0. */
+    struct VarBitType bits[3] = {
+        { .basevar = 0, .startbit = 0, .endbit = 0 },
+        { .basevar = 0, .startbit = 1, .endbit = 1 },
+        { .basevar = 0, .startbit = 2, .endbit = 2 },
+    };
+    TEST_ASSERT(VarPManager_SetVarbitTypes(&mgr, bits, 3), "SetVarbitTypes");
+
+    mgr.var[0] = 0b101;
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 1, "bit 0 set");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 1) == 0, "bit 1 clear");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 2) == 1, "bit 2 set");
+
+    /* Writing one flag must not disturb its neighbours. */
+    VarPManager_SetVarbitOptimistic(&mgr, 1, 1);
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 1, "bit 0 untouched");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 1) == 1, "bit 1 now set");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 2) == 1, "bit 2 untouched");
+
+    VarPManager_SetVarbitOptimistic(&mgr, 2, 0);
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 2) == 0, "bit 2 cleared");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 1, "bit 0 still set");
 
     VarPManager_Free(&mgr);
 }
@@ -325,6 +383,7 @@ main(void)
     test_set_varbit_optimistic();
     test_load_varp_dat();
     test_load_varbit_dat();
+    test_single_bit_varbit();
     test_resolve_transform();
 
     if( g_failures )

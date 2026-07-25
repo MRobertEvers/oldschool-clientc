@@ -16,7 +16,17 @@ struct VarBitType
 {
     int basevar;  /* varp index */
     int startbit; /* LSB of bit range */
-    int endbit;   /* MSB of bit range (exclusive) */
+    /**
+     * MSB of the bit range, **inclusive**.
+     *
+     * So the range is `endbit - startbit + 1` bits wide, and `startbit == endbit`
+     * is a legal one-bit varbit — which is the commonest shape by far: varbits
+     * 0..4 of the rev-230 cache are five consecutive single-bit flags packed into
+     * varp 318.
+     *
+     * Matches the reference, which masks with `(1 << (msb - lsb + 1)) - 1`.
+     */
+    int endbit;
 };
 
 #define VARP_MANAGER_READBIT_MAX 32

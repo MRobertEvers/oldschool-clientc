@@ -8,6 +8,7 @@
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_tasks.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/uitree_builder/task_interface_open.h"
@@ -2326,6 +2327,20 @@ Task_AppBoot_Run(
     PT_BEGIN(&self->pt);
 
     app->boot_progress = 10;
+
+    /*
+     * Varbit types, before anything that can run a script.
+     *
+     * A varbit read happens deep inside CS2 execution with nowhere to yield to a
+     * load, so the table has to be resident first. Without it every varbit reads 0
+     * and any script branching on one silently takes the zero path.
+     *
+     * dat2 only: the dat1 varbits live in the config jagfile as a single
+     * `varbit.dat` blob, which VarPManager_LoadVarbitDat already parses — that side
+     * needs wiring into the dat1 config load, not this task.
+     */
+    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+        TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
     if( app->builder_active )
     {

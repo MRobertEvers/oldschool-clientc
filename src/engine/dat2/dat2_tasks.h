@@ -98,6 +98,19 @@ CreateTask_Dat2StructLoad(
     struct CacheProvider* provider,
     int struct_id);
 
+/**
+ * Load every varbit type into `varps`, once, at boot.
+ *
+ * Whole-group and eager, unlike the per-id lazy loaders around it:
+ * VarPManager_SetVarbitTypes takes the whole table at once, and a varbit read happens
+ * deep inside script execution where there is nowhere to yield to a load.
+ */
+struct VarPManager;
+struct ToriRS_Task*
+CreateTask_Dat2VarbitLoad(
+    struct CacheProvider* provider,
+    struct VarPManager* varps);
+
 struct ToriRS_Task*
 CreateTask_Dat2ParamLoad(
     struct CacheProvider* provider,
