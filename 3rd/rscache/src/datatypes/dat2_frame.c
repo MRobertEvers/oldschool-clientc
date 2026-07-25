@@ -76,6 +76,17 @@ frame_new_decode(
     int* scratch_translator_x = malloc(500 * sizeof(int));
     int* scratch_translator_y = malloc(500 * sizeof(int));
     int* scratch_translator_z = malloc(500 * sizeof(int));
+    /* Entry count is bounded by `length`: a real entry consumes bone index i and a
+     * synthesized one a distinct index below it, with last_i advancing past both, so
+     * together they never exceed one entry per bone. */
+    bool* scratch_synthesized = calloc(500, sizeof(bool));
+
+    /* Capture the flag stream verbatim before the cursor walks it — see the
+     * provenance note in the header. */
+    def->flag_count = length;
+    def->bone_flags = length > 0 ? malloc((size_t)length) : NULL;
+    if( length > 0 && def->bone_flags )
+        memcpy(def->bone_flags, buffer->data + buffer->position, (size_t)length);
 
     int last_i = -1;
     int index = 0;
@@ -101,6 +112,7 @@ frame_new_decode(
                     scratch_translator_x[index] = 0;
                     scratch_translator_y[index] = 0;
                     scratch_translator_z[index] = 0;
+                    scratch_synthesized[index] = true;
                     ++index;
                     break;
                 }
@@ -161,6 +173,9 @@ frame_new_decode(
         free(scratch_translator_x);
         free(scratch_translator_y);
         free(scratch_translator_z);
+        free(scratch_synthesized);
+        free(def->bone_flags);
+        free(def);
         return NULL;
     }
 
@@ -170,6 +185,7 @@ frame_new_decode(
     def->translator_arg_x = malloc(index * sizeof(int));
     def->translator_arg_y = malloc(index * sizeof(int));
     def->translator_arg_z = malloc(index * sizeof(int));
+    def->synthesized = calloc((size_t)(index > 0 ? index : 1), sizeof(bool));
 
     // Copy data to final arrays
     for( int i = 0; i < index; ++i )
@@ -178,6 +194,7 @@ frame_new_decode(
         def->translator_arg_x[i] = scratch_translator_x[i];
         def->translator_arg_y[i] = scratch_translator_y[i];
         def->translator_arg_z[i] = scratch_translator_z[i];
+        def->synthesized[i] = scratch_synthesized[i];
     }
 
     // Free temporary arrays
@@ -185,8 +202,75 @@ frame_new_decode(
     free(scratch_translator_x);
     free(scratch_translator_y);
     free(scratch_translator_z);
+    free(scratch_synthesized);
 
     return def;
+}
+
+uint32_t
+RSCache_Dat2FrameEncodeBound(const struct RSCache_Dat2Frame* def)
+{
+    if( !def )
+        return 0;
+
+    /* Header, the flag stream, then up to three shortsmarts (2 bytes each) per
+     * entry. */
+    return 3u + (uint32_t)def->flag_count + (uint32_t)def->translator_count * 6u + 16u;
+}
+
+uint32_t
+RSCache_Dat2FrameEncode(
+    const struct RSCache_Dat2Frame* def,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !def || !out )
+        return 0;
+    if( def->flag_count > 0 && !def->bone_flags )
+        return 0;
+    if( def->translator_count > 0 && !def->synthesized )
+        return 0;
+    if( out_capacity < RSCache_Dat2FrameEncodeBound(def) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    p2(&buffer, def->framemap_id);
+    p1(&buffer, def->flag_count);
+
+    /* The flag stream verbatim. Reproducing it rather than deriving it is what makes
+     * this exact: the flag bits say which translation components were present, and a
+     * component that was absent got a type-derived default on decode, which cannot be
+     * told apart from an authored value equal to that default. */
+    for( int i = 0; i < def->flag_count; i++ )
+        p1(&buffer, def->bone_flags[i]);
+
+    /*
+     * Then the value stream, in entry order, skipping the entries the decoder
+     * invented. Real entries appear in ascending bone order and a synthesized entry
+     * always immediately precedes the real one that caused it, so walking the array
+     * and skipping synthesized entries reproduces the source order exactly.
+     */
+    for( int i = 0; i < def->translator_count; i++ )
+    {
+        if( def->synthesized[i] )
+            continue;
+
+        int bone = def->index_frame_ids[i];
+        if( bone < 0 || bone >= def->flag_count )
+            return 0;
+
+        int flags = def->bone_flags[bone];
+        if( flags & 1 )
+            pshortsmart(&buffer, def->translator_arg_x[i]);
+        if( flags & 2 )
+            pshortsmart(&buffer, def->translator_arg_y[i]);
+        if( flags & 4 )
+            pshortsmart(&buffer, def->translator_arg_z[i]);
+    }
+
+    return buffer.position;
 }
 
 int
@@ -220,6 +304,8 @@ RSCache_Dat2FrameFree(struct RSCache_Dat2Frame* def)
     {
         free(def->translator_arg_z);
     }
+    free(def->bone_flags);
+    free(def->synthesized);
 
     free(def);
 }

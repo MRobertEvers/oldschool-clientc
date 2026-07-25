@@ -514,6 +514,144 @@ visit_sprites(
     (void)profile;
 }
 
+/* ---------------------------------------------------------------- frame --- */
+
+/*
+ * Frames need their framemap, which lives in a different table and is named by the
+ * first two bytes of the frame archive — so this needs its own traversal rather than
+ * the generic table scan.
+ */
+static void
+scan_frames(
+    const char* root,
+    const char* cache_dir,
+    struct tally* tally)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s", root, cache_dir);
+
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+        return;
+
+    struct RSCache_ReferenceTable* frames = disk->tables[RSCACHE_DAT2_DISK_TABLE_ANIMATIONS];
+    if( !frames )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+
+    const int scan_limit = 400;
+    int scanned = 0;
+
+    for( int i = 0; i < frames->id_count && scanned < scan_limit; i++ )
+    {
+        struct RSCache_Dat2DiskArchive* frame_archive =
+            RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_DISK_TABLE_ANIMATIONS, frames->ids[i]);
+        if( !frame_archive )
+            continue;
+
+        /* A frame archive is a group of frame files, each starting with its framemap
+         * id. Take the first file only — enough to exercise the codec without
+         * multiplying the framemap loads. */
+        if( !frame_archive->data || frame_archive->data_size < 3 )
+        {
+            RSCache_Dat2DiskArchiveFree(frame_archive);
+            continue;
+        }
+        RSCache_Dat2DiskArchiveInitMetadata(disk, frame_archive);
+
+        struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
+            frame_archive->data, frame_archive->data_size, frame_archive->file_count);
+        if( !files )
+        {
+            RSCache_Dat2DiskArchiveFree(frame_archive);
+            continue;
+        }
+
+        for( int f = 0; f < files->file_count && scanned < scan_limit; f++ )
+        {
+            if( files->file_sizes[f] < 3 )
+                continue;
+
+            int framemap_id =
+                RSCache_Dat2FrameFramemapIdFromFile(files->files[f], files->file_sizes[f]);
+
+            struct RSCache_Dat2DiskArchive* fm_archive = RSCache_Dat2DiskArchiveNewLoad(
+                disk, RSCACHE_DAT2_DISK_TABLE_SKELETONS, framemap_id);
+            if( !fm_archive )
+                continue;
+
+            struct RSCache_Dat2Framemap* framemap = RSCache_Dat2FramemapNewDecode2(
+                framemap_id, fm_archive->data, fm_archive->data_size);
+            if( !framemap )
+            {
+                RSCache_Dat2DiskArchiveFree(fm_archive);
+                continue;
+            }
+
+            struct RSCache_Dat2Frame* first = RSCache_Dat2FrameNewDecode2(
+                0, framemap, files->files[f], files->file_sizes[f]);
+            if( first )
+            {
+                tally->records++;
+                scanned++;
+
+                uint32_t capacity = RSCache_Dat2FrameEncodeBound(first) + 64u;
+                uint8_t* encoded = malloc(capacity);
+                if( encoded )
+                {
+                    uint32_t written = RSCache_Dat2FrameEncode(first, encoded, capacity);
+                    if( written == 0 )
+                    {
+                        tally->encode_failed++;
+                    }
+                    else
+                    {
+                        note_bytes(
+                            tally, encoded, written, (const uint8_t*)files->files[f],
+                            files->file_sizes[f]);
+
+                        struct RSCache_Dat2Frame* second = RSCache_Dat2FrameNewDecode2(
+                            0, framemap, (char*)encoded, (int)written);
+                        if( second )
+                        {
+                            bool equal = first->translator_count == second->translator_count &&
+                                         first->showing == second->showing &&
+                                         first->flag_count == second->flag_count;
+                            for( int k = 0; equal && k < first->translator_count; k++ )
+                            {
+                                if( first->index_frame_ids[k] != second->index_frame_ids[k] ||
+                                    first->translator_arg_x[k] != second->translator_arg_x[k] ||
+                                    first->translator_arg_y[k] != second->translator_arg_y[k] ||
+                                    first->translator_arg_z[k] != second->translator_arg_z[k] ||
+                                    first->synthesized[k] != second->synthesized[k] )
+                                    equal = false;
+                            }
+                            if( equal )
+                                tally->semantic_ok++;
+                            RSCache_Dat2FrameFree(second);
+                        }
+                    }
+                    free(encoded);
+                }
+                RSCache_Dat2FrameFree(first);
+            }
+
+            RSCache_Dat2FramemapFree(framemap);
+            RSCache_Dat2DiskArchiveFree(fm_archive);
+        }
+
+        RSCache_FileListFree(files);
+        RSCache_Dat2DiskArchiveFree(frame_archive);
+    }
+
+    if( scanned >= scan_limit )
+        printf("   (capped at %d frames)\n", scan_limit);
+
+    RSCache_Dat2DiskFree(disk);
+}
+
 /* ------------------------------------------------------------- spotanim --- */
 
 static void
@@ -1614,6 +1752,16 @@ main(int argc, char** argv)
     };
 
     int scanned_any = 0;
+
+    RSCACHE_TEST_GROUP("frame");
+    for( size_t d = 0; d < sizeof(CACHE_DIRS) / sizeof(CACHE_DIRS[0]); d++ )
+    {
+        struct tally tally = { 0 };
+        scan_frames(root, CACHE_DIRS[d], &tally);
+        if( tally.records > 0 )
+            scanned_any = 1;
+        tally_report("frame", CACHE_DIRS[d], &tally);
+    }
 
     for( size_t c = 0; c < sizeof(TABLE_CASES) / sizeof(TABLE_CASES[0]); c++ )
     {

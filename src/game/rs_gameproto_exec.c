@@ -33,13 +33,16 @@ rs15_to_rgb(int c)
 /* Container key for an inv packet: the revision's own inventory id when it
  * carries one (rev 230+ addresses the container and the bound component
  * separately, and CS2 reads containers by inventory id), else the component id
- * the older revisions use as the container key. */
+ * the older revisions use as the container key. Zero counts as absent, not as
+ * container 0: RevPacket is zero-initialised before parsing, so a revision (or
+ * a hand-built test packet) that never touches inv_id must keep the legacy
+ * component-id keying. */
 static int
 exec_inv_container_id(
     int inv_id,
     int component_id)
 {
-    return inv_id >= 0 ? inv_id : component_id;
+    return inv_id > 0 ? inv_id : component_id;
 }
 
 static void
