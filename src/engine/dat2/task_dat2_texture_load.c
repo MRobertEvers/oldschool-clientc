@@ -36,6 +36,16 @@ struct Task_Dat2TextureLoad
     struct RSCache_Dat2SpritePack** packs;
     int sprite_index;
     struct RSCache_Dat2ProcTexture* proc_def;
+
+    /* Procedural dependency closure, walked one item per await. Both are worklists that grow
+     * while being walked: resolving a texture dependency can introduce further texture and
+     * sprite dependencies of its own. */
+    int dep_textures[64];
+    int dep_texture_count;
+    int dep_texture_cursor;
+    int dep_sprites[64];
+    int dep_sprite_count;
+    int dep_sprite_cursor;
 };
 
 /* Size procedural textures are baked at. The material's `small` flag selects 64 in the
@@ -43,45 +53,208 @@ struct Task_Dat2TextureLoad
  * the scene texture map stays homogeneous. */
 #define PROCTEX_BAKE_SIZE 128
 
+/* --- dependency caches ----------------------------------------------------------------- */
+
+static struct RSCache_Dat2ProcTexture*
+proctex_program_get(
+    struct Dat2BuildCache* bc,
+    int texture_id)
+{
+    if( !bc->proctex_programs || texture_id < 0 || texture_id >= bc->proctex_program_capacity )
+        return NULL;
+    return bc->proctex_programs[texture_id];
+}
+
+static void
+proctex_program_put(
+    struct Dat2BuildCache* bc,
+    int texture_id,
+    struct RSCache_Dat2ProcTexture* program)
+{
+    if( texture_id < 0 || texture_id > 0xFFFF )
+    {
+        RSCache_Dat2ProcTextureFree(program);
+        return;
+    }
+    if( texture_id >= bc->proctex_program_capacity )
+    {
+        int want = texture_id + 64;
+        struct RSCache_Dat2ProcTexture** grown =
+            realloc(bc->proctex_programs, (size_t)want * sizeof(*grown));
+        if( !grown )
+        {
+            RSCache_Dat2ProcTextureFree(program);
+            return;
+        }
+        memset(
+            grown + bc->proctex_program_capacity,
+            0,
+            (size_t)(want - bc->proctex_program_capacity) * sizeof(*grown));
+        bc->proctex_programs = grown;
+        bc->proctex_program_capacity = want;
+    }
+    if( bc->proctex_programs[texture_id] )
+        RSCache_Dat2ProcTextureFree(bc->proctex_programs[texture_id]);
+    bc->proctex_programs[texture_id] = program;
+}
+
+static struct Dat2ProcTexSprite*
+proctex_sprite_get(
+    struct Dat2BuildCache* bc,
+    int sprite_id)
+{
+    for( int i = 0; i < bc->proctex_sprite_count; i++ )
+        if( bc->proctex_sprites[i].sprite_id == sprite_id )
+            return &bc->proctex_sprites[i];
+    return NULL;
+}
+
+static void
+proctex_sprite_put(
+    struct Dat2BuildCache* bc,
+    int sprite_id,
+    int32_t* argb,
+    int width,
+    int height)
+{
+    if( bc->proctex_sprite_count == bc->proctex_sprite_capacity )
+    {
+        int want = bc->proctex_sprite_capacity ? bc->proctex_sprite_capacity * 2 : 32;
+        struct Dat2ProcTexSprite* grown =
+            realloc(bc->proctex_sprites, (size_t)want * sizeof(*grown));
+        if( !grown )
+        {
+            free(argb);
+            return;
+        }
+        bc->proctex_sprites = grown;
+        bc->proctex_sprite_capacity = want;
+    }
+    bc->proctex_sprites[bc->proctex_sprite_count].sprite_id = sprite_id;
+    bc->proctex_sprites[bc->proctex_sprite_count].argb = argb;
+    bc->proctex_sprites[bc->proctex_sprite_count].width = width;
+    bc->proctex_sprites[bc->proctex_sprite_count].height = height;
+    bc->proctex_sprite_count++;
+}
+
+/* --- generator resolvers ---------------------------------------------------------------- */
+
 /*
- * Procedural textures reference sprites and other textures. Neither resolver is wired yet:
- * doing so needs the sprite pack loader threaded through the async task (a texture would have
- * to await its dependencies before baking, like the sprite-backed path does), and nested
- * texture sources need cycle-safe recursion across tasks.
- *
- * They return false rather than fabricating pixels, which makes the two operations that use
- * them (sprite_source, texture_source) evaluate as unsupported and the texture get refused.
- * That is the intended conservative behaviour — see ProcTexGenerator's header note on why a
- * plausible-but-wrong texture is worse than a missing one.
+ * Both resolvers read only from the caches above, which the task has already populated by
+ * awaiting the dependency closure. They never trigger IO: the generator runs synchronously
+ * inside one protothread step, so a blocking load here is not expressible.
  */
 static bool
-proctex_sprite_unavailable(
+proctex_resolve_sprite(
     void* user,
     int sprite_id,
     const int32_t** out_argb,
     int* out_width,
     int* out_height)
 {
-    (void)user;
-    (void)sprite_id;
-    (void)out_argb;
-    (void)out_width;
-    (void)out_height;
-    return false;
+    struct Dat2BuildCache* bc = user;
+    struct Dat2ProcTexSprite* sprite = proctex_sprite_get(bc, sprite_id);
+
+    if( !sprite || !sprite->argb )
+        return false;
+    *out_argb = sprite->argb;
+    *out_width = sprite->width;
+    *out_height = sprite->height;
+    return true;
 }
 
+static struct ToriRS_Texture*
+proctex_bake(
+    const struct RSCache_Dat2ProcTexture* def,
+    const struct RSCache_Dat2MaterialTable* materials,
+    struct Dat2BuildCache* bc,
+    int texture_id,
+    int size);
+
+/*
+ * A nested texture source. Renders the dependency's own program on demand and memoises the
+ * ARGB result on the buildcache as a pseudo-sprite, so a texture referenced by several others
+ * is evaluated once.
+ *
+ * Brightness is **1.0**, not the 0.8 used for the final image: a nested texture is an
+ * intermediate signal feeding more operations, and gamma-correcting it here would apply the
+ * curve twice. The reference passes 1.0 for the same reason.
+ */
 static bool
-proctex_texture_unavailable(
+proctex_resolve_texture(
     void* user,
     int texture_id,
     int size,
     const int32_t** out_argb)
 {
-    (void)user;
-    (void)texture_id;
-    (void)size;
-    (void)out_argb;
-    return false;
+    struct Dat2BuildCache* bc = user;
+    /* Keyed in the sprite cache under a namespace that cannot collide with a real sprite id. */
+    int cache_key = 0x1000000 + (texture_id << 8) + (size & 0xFF);
+    struct Dat2ProcTexSprite* cached = proctex_sprite_get(bc, cache_key);
+    struct RSCache_Dat2ProcTexture* program;
+    struct ProcTexGenerator* gen;
+    int32_t* pixels;
+    int unsupported = 0;
+
+    if( cached )
+    {
+        if( !cached->argb )
+            return false;
+        *out_argb = cached->argb;
+        return true;
+    }
+
+    program = proctex_program_get(bc, texture_id);
+    if( !program || !ProcTexGenerator_IsFullySupported(program, NULL) )
+    {
+        /* Memoise the failure too, so a broken dependency is not retried per scanline. */
+        proctex_sprite_put(bc, cache_key, NULL, 0, 0);
+        return false;
+    }
+
+    pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
+    if( !pixels )
+        return false;
+
+    gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
+    if( !gen )
+    {
+        free(pixels);
+        return false;
+    }
+    if( !ProcTexGenerator_Render(gen, program, size, 1.0, pixels, &unsupported, NULL) ||
+        unsupported > 0 )
+    {
+        ProcTexGenerator_Free(gen);
+        free(pixels);
+        proctex_sprite_put(bc, cache_key, NULL, 0, 0);
+        return false;
+    }
+    ProcTexGenerator_Free(gen);
+
+    proctex_sprite_put(bc, cache_key, pixels, size, size);
+    *out_argb = pixels;
+    return true;
+}
+
+/* Append to a worklist, skipping ids already queued. Returns false when full — bounded so a
+ * pathological dependency graph cannot grow the walk without limit. */
+static bool
+proctex_dep_queue(
+    int* list,
+    int* count,
+    int capacity,
+    int value)
+{
+    if( value < 0 )
+        return true;
+    for( int i = 0; i < *count; i++ )
+        if( list[i] == value )
+            return true;
+    if( *count >= capacity )
+        return false;
+    list[(*count)++] = value;
+    return true;
 }
 
 /*
@@ -97,6 +270,7 @@ static struct ToriRS_Texture*
 proctex_bake(
     const struct RSCache_Dat2ProcTexture* def,
     const struct RSCache_Dat2MaterialTable* materials,
+    struct Dat2BuildCache* bc,
     int texture_id,
     int size)
 {
@@ -123,7 +297,7 @@ proctex_bake(
     if( !pixels )
         return NULL;
 
-    gen = ProcTexGenerator_New(proctex_sprite_unavailable, proctex_texture_unavailable, NULL);
+    gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
     if( !gen )
     {
         free(pixels);
@@ -454,14 +628,117 @@ Task_Dat2TextureLoad_Run(
             fprintf(stderr, "Failed to decode proc texture %d\n", task->texture_id);
             PT_EXIT(&task->pt);
         }
+        proctex_program_put(task->bc, task->texture_id, task->proc_def);
+        /* Owned by the buildcache from here; the local is only a decode handle. */
+        task->proc_def = NULL;
+
+        /*
+         * Walk the dependency closure before baking. `texture_source` names other programs and
+         * `sprite_source` names sprites, and the generator runs synchronously inside a single
+         * protothread step — so nothing can be fetched once baking starts. Everything the graph
+         * can reach has to be resident first.
+         *
+         * The worklist grows while being walked (a dependency has dependencies), and residency
+         * is what terminates it: an already-decoded program is never re-queued, so a cyclic
+         * texture_source reference is naturally bounded.
+         */
+        proctex_dep_queue(
+            task->dep_textures, &task->dep_texture_count, 64, task->texture_id);
+        for( task->dep_texture_cursor = 0;
+             task->dep_texture_cursor < task->dep_texture_count;
+             task->dep_texture_cursor++ )
+        {
+            int dep_id = task->dep_textures[task->dep_texture_cursor];
+            struct RSCache_Dat2ProcTexture* dep = proctex_program_get(task->bc, dep_id);
+
+            if( !dep )
+            {
+                RSCache_IO_Dat2ProcTextureLoad(io, 0, dep_id);
+                PT_YIELD(&task->pt);
+                archive = RSCache_IO_Dat2ProcTextureDecode(io, 0);
+                if( !archive )
+                    continue;
+                dep = RSCache_Dat2ProcTextureNewDecode(
+                    archive->data,
+                    archive->data_size,
+                    dep_id,
+                    RSCache_Dat2ProcTextureFlags(CacheProvider_Profile(&task->bc->base)));
+                RSCache_Dat2DiskArchiveFree(archive);
+                archive = NULL;
+                if( !dep )
+                    continue;
+                proctex_program_put(task->bc, dep_id, dep);
+            }
+
+            for( int i = 0; i < dep->texture_dependency_count; i++ )
+                proctex_dep_queue(
+                    task->dep_textures,
+                    &task->dep_texture_count,
+                    64,
+                    dep->texture_dependencies[i]);
+            for( int i = 0; i < dep->sprite_dependency_count; i++ )
+                proctex_dep_queue(
+                    task->dep_sprites,
+                    &task->dep_sprite_count,
+                    64,
+                    dep->sprite_dependencies[i]);
+        }
+
+        /* Sprite dependencies: decode each pack once and flatten to ARGB for the generator. */
+        for( task->dep_sprite_cursor = 0;
+             task->dep_sprite_cursor < task->dep_sprite_count;
+             task->dep_sprite_cursor++ )
+        {
+            int sprite_id = task->dep_sprites[task->dep_sprite_cursor];
+            struct RSCache_Dat2SpritePack* pack;
+
+            if( proctex_sprite_get(task->bc, sprite_id) )
+                continue;
+
+            RSCache_IO_Dat2SpriteLoad(io, 0, sprite_id);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2SpriteDecode(io, 0);
+            if( !archive )
+            {
+                /* Record the miss so the resolver fails fast instead of re-searching. */
+                proctex_sprite_put(task->bc, sprite_id, NULL, 0, 0);
+                continue;
+            }
+
+            pack = RSCache_Dat2SpritePackNewDecode(
+                (const unsigned char*)archive->data,
+                archive->data_size,
+                RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
+            RSCache_Dat2DiskArchiveFree(archive);
+            archive = NULL;
+
+            if( pack && pack->count > 0 )
+            {
+                struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
+                int count = sprite->width * sprite->height;
+                int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
+                if( argb )
+                {
+                    for( int i = 0; i < count; i++ )
+                        argb[i] = pack->palette[sprite->palette_pixels[i]];
+                    proctex_sprite_put(
+                        task->bc, sprite_id, argb, sprite->width, sprite->height);
+                }
+            }
+            else
+            {
+                proctex_sprite_put(task->bc, sprite_id, NULL, 0, 0);
+            }
+            if( pack )
+                RSCache_Dat2SpritePackFree(pack);
+        }
 
         proc_texture = proctex_bake(
-            task->proc_def,
+            proctex_program_get(task->bc, task->texture_id),
             task->bc->materials,
+            task->bc,
             task->texture_id,
             PROCTEX_BAKE_SIZE);
-        RSCache_Dat2ProcTextureFree(task->proc_def);
-        task->proc_def = NULL;
 
         if( !proc_texture )
             PT_EXIT(&task->pt);

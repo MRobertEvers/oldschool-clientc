@@ -774,46 +774,53 @@ in reach reads them. The tail *before* them is confirmed: `anim_u`/`anim_v` matc
 independently-decoded materials table for all 26 textures whose material declares a non-zero
 animation, negative values included — which is what pins the alignment.
 
-#### Evaluator — infrastructure done, 14 of 36 operations ported
+#### Evaluator — 35 of 36 operations ported, 82% of textures renderable
 
-`src/engine/proctex/proctex_generator.c` implements the evaluation model: pull-per-scanline,
-12.4 fixed point, monochrome/colour conversion rules, full per-line caching (the reference's LRU
-is a memory optimisation that cannot affect output), and cycle detection the format cannot
-express but nothing validates.
+`src/engine/proctex/` implements the evaluation model: pull-per-scanline, 12.4 fixed point,
+monochrome/colour conversion rules, full per-line caching (the reference's LRU is a memory
+optimisation that cannot affect output), Java `util.Random` and Jagex's `nextIntJagex` for the
+seeded noise operations, and cycle detection the format cannot express but nothing validates.
+Split into `proctex_generator.c` (model, lifecycle, the simple operations) and
+`proctex_ops.u.c` (the rest, unity-included, matching how `world_builder.c` is arranged).
 
-Ported: `const_mono`, `const_colour`, `h_gradient`, `v_gradient`, `clamp`, `arithmetic` (all 12
-blend modes, mono + colour), `curve` (all three interpolation modes), `gradient`,
-`colour_strip`, `diagonal_gradient`, `invert`, `grayscale`, `binary`, `range`.
+Ported: every operation except `rasterizer`. That includes the seeded noise family
+(`perlin_noise`, `voronoi_noise`, `pseudo_random_noise`), the neighbourhood operations
+(`blur`, `emboss`, both edge detectors), the pattern generators (`bricks`,
+`irregular_bricks`, `weave`, `herringbone`, `square_waveform`, `line_noise`), the warps
+(`trig_warp`, `mirror`, `kaleidoscope`, `tiling`), `mixer`, `hsl`, `brightness`,
+`mandelbrot` and `op37`.
 
-**Measured coverage is 39 of 1,164 textures (3%)** — a texture needs *every* operation in its
-graph, so the metric that matters is per-texture completeness, not per-instance. Build order,
-by how many textures each missing operation alone blocks:
+**Dependency resolution is the part that is not just an operation port.** `texture_source`
+names another texture's program and `sprite_source` names a sprite, so baking is not
+self-contained — and the generator runs synchronously inside one protothread step, so nothing
+can be fetched once it starts. The texture task therefore walks the **dependency closure**
+first: a worklist that grows while being walked (a dependency has dependencies), terminated by
+residency — an already-decoded program is never re-queued, so a cyclic `texture_source`
+reference is naturally bounded rather than needing its own cycle check. Programs and
+flattened-to-ARGB sprites are cached on the buildcache by id, and a nested texture is rendered
+on demand at **brightness 1.0** rather than the final 0.8, because it is an intermediate signal
+feeding more operations and gamma-correcting it twice would be wrong.
 
-| Operation | Blocks | Operation | Blocks |
-|---|---|---|---|
-| `perlin_noise` | 493 | `tiling` | 90 |
-| `emboss` | 371 | `hsl` | 81 |
-| `texture_source` | 364 | `mirror` | 75 |
-| `mixer` | 303 | `line_noise` | 52 |
-| `blur` | 270 | `rasterizer` | 49 |
-| `voronoi_noise` | 259 | `square_waveform` | 34 |
-| `sprite_source` | 242 | `bricks` | 24 |
-| `trig_warp` | 205 | `irregular_bricks` | 12 |
-| `pseudo_random_noise` | 142 | `kaleidoscope` | 9 |
+Coverage, measured over all 1,164 textures in `cache.643`:
 
-Implementing the 22 non-heavyweight operations reaches **95% (1,106/1,164)**; `rasterizer`
-(1,721 lines of vector rasteriser), `irregular_bricks` and `op37` account for the last 58.
+| Ported set | Textures fully renderable |
+|---|---|
+| 14 operations, no dependency resolution | 39 (3%) |
+| 32 operations, no dependency resolution | 463 (39%) |
+| 35 operations + dependency closure | **961 (82%)** |
 
-An unported operation yields flat mid-grey and increments a counter, and `proctex_bake`
-**refuses any texture with a non-zero count**. That is deliberate: a partially-evaluated
-texture composites into something that looks real and is not, and a confidently-wrong texture
-is worse than a missing one (a missing one just falls back to flat shading, which reads as
-"not done yet"). It is also why the 643 viewport looks unchanged for now — the plumbing is
-live and correct, the operation set is not yet broad enough for real textures to survive.
+The gap to 100% is one operation, `rasterizer` — 1,721 lines of vector rasteriser (lines,
+cubic beziers, rectangles, ellipses, each with fill and outline). It blocks 48 textures
+directly and, through `texture_source` chains, the bulk of the remaining 203.
 
-`sprite_source` and `texture_source` additionally need dependency resolution threaded through
-the async task (a texture must await its sprites, and nested texture sources need cycle-safe
-recursion across tasks). Their resolvers currently return false rather than fabricate pixels.
+An unported operation still yields flat mid-grey and increments a counter, and `proctex_bake`
+**refuses any texture with a non-zero count** — as does a texture whose dependency cannot be
+resolved. A partially-evaluated texture composites into something that looks real and is not,
+and that is worse than a missing one, which just falls back to flat shading and reads as "not
+done yet".
+
+Real 643 scenery is now textured from this path; the boulders along the shoreline at map 40,55
+are the first output. `TORIRS_PROCTEX_DEBUG` reports refusals and the operation responsible.
 
 ### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
 

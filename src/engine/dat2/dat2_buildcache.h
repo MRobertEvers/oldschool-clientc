@@ -36,6 +36,33 @@ struct Dat2BuildCache
      */
     int proctex_mode; /* enum Dat2ProcTexMode */
     struct RSCache_Dat2MaterialTable* materials;
+
+    /*
+     * Dependency caches for procedural textures.
+     *
+     * A texture program can name other *textures* (`texture_source`) and *sprites*
+     * (`sprite_source`), so baking one is not self-contained: the dependency closure has to be
+     * resident first. Both are indexed by id and process-lifetime, because a program is
+     * immutable once decoded and the same handful get referenced repeatedly across a square.
+     *
+     * Residency is also what makes the closure walk terminate: a program already present is
+     * never re-queued, so a cyclic `texture_source` reference cannot loop forever.
+     */
+    struct RSCache_Dat2ProcTexture** proctex_programs;
+    int proctex_program_capacity;
+
+    struct Dat2ProcTexSprite* proctex_sprites;
+    int proctex_sprite_count;
+    int proctex_sprite_capacity;
+};
+
+/** A sprite dependency, decoded once to ARGB for the generator to sample. */
+struct Dat2ProcTexSprite
+{
+    int sprite_id;
+    int32_t* argb;
+    int width;
+    int height;
 };
 
 /** Tri-state for `Dat2BuildCache.proctex_mode`. */

@@ -1,23 +1,21 @@
-#include "engine/proctex/proctex_generator.h"
+#include "engine/proctex/proctex_internal.h"
 
-#include <assert.h>
-#include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-/* 12.4 fixed point: 4096 == 1.0. */
-#define PROCTEX_ONE 4096
-
-/* Shared trig tables, indexed 0..255 over a full turn, scaled by 4096. Built once. */
-static int32_t PROCTEX_SINE[256];
-static int32_t PROCTEX_COSINE[256];
-static bool proctex_trig_ready = false;
+/*
+ * Shared trig tables, indexed 0..255 over a full turn, scaled by 4096, plus the inverse
+ * square-root table the emboss and edge operations index. Definitions live here; the ops unit
+ * sees them via proctex_internal.h.
+ */
+int32_t PROCTEX_SINE[256];
+int32_t PROCTEX_COSINE[256];
+int8_t PROCTEX_INV_SQRT[32896];
+static bool proctex_tables_ready = false;
 
 static void
 proctex_init_trig(void)
 {
-    if( proctex_trig_ready )
+    if( proctex_tables_ready )
         return;
     for( int i = 0; i < 256; i++ )
     {
@@ -25,46 +23,20 @@ proctex_init_trig(void)
         PROCTEX_SINE[i] = (int32_t)(sin(d) * 4096.0);
         PROCTEX_COSINE[i] = (int32_t)(cos(d) * 4096.0);
     }
-    proctex_trig_ready = true;
+    /* Lower-triangular over (x, y) with y <= x, exactly as the reference builds it — the
+     * consumers index it with the pair already ordered, so the packing is part of the
+     * contract, not a space optimisation. */
+    {
+        int i = 0;
+        for( int x = 0; x < 256; x++ )
+            for( int y = 0; y <= x; y++ )
+                PROCTEX_INV_SQRT[i++] =
+                    (int8_t)(int)(255.0 /
+                                  sqrt((double)proctex_fround(
+                                      (double)(x * x + y * y + 65535) / 65535.0)));
+    }
+    proctex_tables_ready = true;
 }
-
-/** Per-operation scanline cache. Colour ops use all three planes, monochrome only [0]. */
-struct proctex_cache
-{
-    int32_t* plane[3];
-    uint8_t* done;
-};
-
-struct ProcTexGenerator
-{
-    ProcTexSpriteFn sprite_fn;
-    ProcTexTextureFn texture_fn;
-    void* user;
-
-    const struct RSCache_Dat2ProcTexture* tex;
-    int width;
-    int height;
-
-    int32_t* h_gradient; /* width entries: (x << 12) / width */
-    int32_t* v_gradient; /* height entries: (y << 12) / height */
-
-    int32_t brightness_table[256];
-    double brightness;
-
-    struct proctex_cache* caches;
-    int cache_count;
-
-    /* Per-operation precomputed lookup tables, built lazily on first use:
-     * curve -> 257 monochrome values, gradient -> 257 packed RGB values. */
-    int32_t** tables;
-
-    int unsupported_count;
-    bool is_transparent;
-    /* Guards against a cyclic graph in a malformed record; the format cannot express one but
-     * nothing validates that, and a cycle here would recurse until the stack died. */
-    uint8_t* visiting;
-    bool cycle_detected;
-};
 
 /* --- which operations are ported ------------------------------------------------------- */
 
@@ -92,7 +64,40 @@ ProcTexGenerator_SupportsOp(int op_type)
     case RSCACHE_PROCTEX_GRAYSCALE:
     case RSCACHE_PROCTEX_BINARY:
     case RSCACHE_PROCTEX_RANGE:
+    /* Ported in proctex_ops.u.c. */
+    case RSCACHE_PROCTEX_MIXER:
+    case RSCACHE_PROCTEX_BLUR:
+    case RSCACHE_PROCTEX_EMBOSS:
+    case RSCACHE_PROCTEX_PERLIN_NOISE:
+    case RSCACHE_PROCTEX_VORONOI_NOISE:
+    case RSCACHE_PROCTEX_TRIG_WARP:
+    case RSCACHE_PROCTEX_PSEUDO_RANDOM_NOISE:
+    case RSCACHE_PROCTEX_TILING:
+    case RSCACHE_PROCTEX_HSL:
+    case RSCACHE_PROCTEX_MIRROR:
+    case RSCACHE_PROCTEX_SQUARE_WAVEFORM:
+    case RSCACHE_PROCTEX_BRIGHTNESS:
+    case RSCACHE_PROCTEX_MONO_EDGE_DETECT:
+    case RSCACHE_PROCTEX_COLOUR_EDGE_DETECT:
+    case RSCACHE_PROCTEX_WEAVE:
+    case RSCACHE_PROCTEX_HERRINGBONE:
+    case RSCACHE_PROCTEX_MANDELBROT:
+    case RSCACHE_PROCTEX_OP37:
+    case RSCACHE_PROCTEX_SPRITE_SOURCE:
+    case RSCACHE_PROCTEX_TILING_SPRITE:
+    case RSCACHE_PROCTEX_TEXTURE_SOURCE:
         return true;
+    /*
+     * Still unported. Deliberately listed so the set is auditable rather than implied by a
+     * default: `bricks`/`irregular_bricks`/`line_noise`/`kaleidoscope`/`rasterizer` need their
+     * evaluators, and `sprite_source`/`texture_source` additionally need dependency resolution
+     * threaded through the async texture task before they can produce anything.
+     */
+    case RSCACHE_PROCTEX_BRICKS:
+    case RSCACHE_PROCTEX_IRREGULAR_BRICKS:
+    case RSCACHE_PROCTEX_LINE_NOISE:
+    case RSCACHE_PROCTEX_KALEIDOSCOPE:
+    case RSCACHE_PROCTEX_RASTERIZER:
     default:
         return false;
     }
@@ -160,6 +165,13 @@ proctex_free_caches(struct ProcTexGenerator* gen)
         free(gen->tables);
         gen->tables = NULL;
     }
+    if( gen->aux )
+    {
+        for( int i = 0; i < gen->cache_count; i++ )
+            free(gen->aux[i]);
+        free(gen->aux);
+        gen->aux = NULL;
+    }
     free(gen->visiting);
     gen->visiting = NULL;
     gen->cache_count = 0;
@@ -199,6 +211,10 @@ proctex_setup(
         for( int i = 0; i < size; i++ )
             gen->h_gradient[i] = (i << 12) / size;
         gen->width = size;
+        /* Masks are used as `& mask` wraparound by the warp/mirror/noise operations, so they
+         * assume a power-of-two size. Every bake size in use (64, 128) is one. */
+        gen->width_mask = size - 1;
+        gen->width_times_32 = size * 32;
     }
     if( gen->height != size )
     {
@@ -209,6 +225,7 @@ proctex_setup(
         for( int i = 0; i < size; i++ )
             gen->v_gradient[i] = (i << 12) / size;
         gen->height = size;
+        gen->height_mask = size - 1;
     }
 
     if( gen->brightness != brightness )
@@ -228,7 +245,8 @@ proctex_setup(
     gen->tables = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1),
                          sizeof(*gen->tables));
     gen->visiting = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
-    if( !gen->caches || !gen->tables || !gen->visiting )
+    gen->aux = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
+    if( !gen->caches || !gen->tables || !gen->visiting || !gen->aux )
         return false;
 
     for( int i = 0; i < gen->cache_count; i++ )
@@ -249,14 +267,10 @@ proctex_setup(
 
 /* --- evaluation -------------------------------------------------------------------------- */
 
-static bool
-proctex_eval(
-    struct ProcTexGenerator* gen,
-    int op_index,
-    int line);
+/* Forward declaration; defined below and used by the ops unit. */
 
 /** Monochrome view of input `n` of `op_index`, for `line`. Never NULL. */
-static const int32_t*
+const int32_t*
 proctex_input_mono(
     struct ProcTexGenerator* gen,
     const struct RSCache_ProcTexOperation* op,
@@ -279,7 +293,7 @@ proctex_input_mono(
 }
 
 /** Colour view of input `n`. Fills `out[3]`; a monochrome source is broadcast. */
-static bool
+bool
 proctex_input_colour(
     struct ProcTexGenerator* gen,
     const struct RSCache_ProcTexOperation* op,
@@ -310,19 +324,6 @@ proctex_input_colour(
         out[2] = gen->caches[src].plane[2] + offset;
     }
     return true;
-}
-
-static int32_t
-proctex_clamp_i(
-    int32_t value,
-    int32_t lo,
-    int32_t hi)
-{
-    if( value < lo )
-        return lo;
-    if( value > hi )
-        return hi;
-    return value;
 }
 
 /* --- curve / gradient lookup tables ---------------------------------------------------- */
@@ -582,7 +583,7 @@ proctex_arith(
 
 /* --- the evaluator --------------------------------------------------------------------- */
 
-static bool
+bool
 proctex_eval(
     struct ProcTexGenerator* gen,
     int op_index,
@@ -862,6 +863,102 @@ proctex_eval(
         }
         break;
 
+    /*
+     * Operations living in proctex_ops.u.c. They write straight into this operation's cache
+     * planes, so they need the index rather than the buffers, and they return false only on a
+     * hard failure (a missing input) — not on an unsupported feature.
+     */
+    case RSCACHE_PROCTEX_MIXER:
+        if( !proctex_op_mixer(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_BLUR:
+        if( !proctex_op_blur(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_EMBOSS:
+        if( !proctex_op_emboss(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_PERLIN_NOISE:
+        if( !proctex_op_perlin(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_VORONOI_NOISE:
+        if( !proctex_op_voronoi(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_TRIG_WARP:
+        if( !proctex_op_trig_warp(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_PSEUDO_RANDOM_NOISE:
+        if( !proctex_op_pseudo_random(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_TILING:
+        if( !proctex_op_tiling(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_HSL:
+        if( !proctex_op_hsl(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_MIRROR:
+        if( !proctex_op_mirror(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_SQUARE_WAVEFORM:
+        if( !proctex_op_square_waveform(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_BRIGHTNESS:
+        if( !proctex_op_brightness(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_MONO_EDGE_DETECT:
+        if( !proctex_op_mono_edge(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_COLOUR_EDGE_DETECT:
+        if( !proctex_op_colour_edge(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_WEAVE:
+        if( !proctex_op_weave(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_HERRINGBONE:
+        if( !proctex_op_herringbone(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_MANDELBROT:
+        if( !proctex_op_mandelbrot(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_OP37:
+        if( !proctex_op_op37(gen, op_index, line) )
+            goto fail;
+        break;
+    /*
+     * These two reach outside the graph — to a sprite, or to another texture's program. The
+     * host resolves both, having made the dependency closure resident before the bake started;
+     * a false return here means the dependency genuinely is not available, which fails the
+     * texture rather than substituting anything.
+     */
+    case RSCACHE_PROCTEX_SPRITE_SOURCE:
+        if( !proctex_op_sprite_source(gen, op_index, line, 0) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_TILING_SPRITE:
+        if( !proctex_op_sprite_source(gen, op_index, line, 1) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_TEXTURE_SOURCE:
+        if( !proctex_op_texture_source(gen, op_index, line) )
+            goto fail;
+        break;
+
     default:
         /*
          * Not ported yet. Mid-grey is a deliberately neutral, obviously-flat result: it keeps
@@ -965,3 +1062,7 @@ ProcTexGenerator_Render(
         *out_transparent = gen->is_transparent;
     return true;
 }
+
+/* Operation evaluators live in their own unit, included here so they share this file's
+ * statics and stay out of the Makefile (the same arrangement world_builder.c uses). */
+#include "engine/proctex/proctex_ops.u.c"
