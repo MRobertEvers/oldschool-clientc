@@ -120,6 +120,50 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
     char* data,
     int data_size);
 
+/**
+ * Encode an npc record.
+ *
+ * Takes a profile because opcode 102's *shape* is era dependent — see
+ * RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS. Encoding with the wrong profile
+ * produces a record the target client misreads, exactly as decoding with the wrong
+ * one did.
+ *
+ * ## Why byte-exactness is low here (~0%, and only ~33% same-length)
+ *
+ * This decoder establishes **no reference defaults**: the struct is calloc'd, so
+ * every unset field reads as 0. The reference client — and this library's own dat1
+ * npc decoder, which does `npc->readyanim = -1` — defaults the animation, scale
+ * and level fields to -1 instead.
+ *
+ * Two consequences:
+ *
+ *  1. **For this encoder**, "absent" and "present with value 0" are the same state,
+ *     so a field explicitly written as 0 (combat_level 0 is common) gets omitted.
+ *     Nothing is corrupted — a re-decode yields the same struct, which is why the
+ *     semantic round trip is 100% — but the bytes are shorter than the original.
+ *
+ *  2. **Independently of encoding**, a dat2 npc with no opcode 13 gets
+ *     standing_animation 0 rather than -1, and that value reaches the world as a
+ *     sequence id (`info->idle->readyanim` in src/world/world_cycle.c). Asking for
+ *     sequence 0 is not the same as asking for no animation, and dat1 and dat2
+ *     therefore disagree about the same logical field.
+ *
+ * Point 2 is a pre-existing decoder gap, not an encoding concern, and fixing it
+ * changes what the client renders — so it is recorded here rather than changed in
+ * passing. Closing it would also let this encoder distinguish absent from zero and
+ * raise byte-exactness substantially; the two changes belong together.
+ *
+ * Separately, opcodes 93, 107 and 109 *clear* flags (is_minimap_visible,
+ * is_interactable, rotation_flag) that the decoder never sets true, so their
+ * presence is unrecoverable. No client code reads those three fields today.
+ */
+uint32_t
+RSCache_Dat2ConfigNpcEncodeProfile(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigNpc* npc,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 /** Retained entry point: decode knowing only the npc group's archive revision. */
 struct RSCache_Dat2ConfigNpc*
 RSCache_Dat2ConfigNpcNewDecode(int revision, char* buffer, int buffer_size);

@@ -823,6 +823,163 @@ visit_obj(
     (void)profile;
 }
 
+/* ------------------------------------------------------------------ npc --- */
+
+static bool
+npc_equal(
+    const struct RSCache_Dat2ConfigNpc* lhs,
+    const struct RSCache_Dat2ConfigNpc* rhs)
+{
+    if( !str_equal(lhs->name, rhs->name) )
+        return false;
+    if( lhs->size != rhs->size || lhs->standing_animation != rhs->standing_animation ||
+        lhs->walking_animation != rhs->walking_animation ||
+        lhs->idle_rotate_left_animation != rhs->idle_rotate_left_animation ||
+        lhs->idle_rotate_right_animation != rhs->idle_rotate_right_animation ||
+        lhs->rotate180_animation != rhs->rotate180_animation ||
+        lhs->rotate_left_animation != rhs->rotate_left_animation ||
+        lhs->rotate_right_animation != rhs->rotate_right_animation ||
+        lhs->category != rhs->category || lhs->combat_level != rhs->combat_level ||
+        lhs->width_scale != rhs->width_scale || lhs->height_scale != rhs->height_scale ||
+        lhs->has_render_priority != rhs->has_render_priority || lhs->ambient != rhs->ambient ||
+        lhs->contrast != rhs->contrast || lhs->rotation_speed != rhs->rotation_speed ||
+        lhs->varbit_id != rhs->varbit_id || lhs->varp_index != rhs->varp_index ||
+        lhs->is_pet != rhs->is_pet || lhs->run_animation != rhs->run_animation ||
+        lhs->run_rotate180_animation != rhs->run_rotate180_animation ||
+        lhs->run_rotate_left_animation != rhs->run_rotate_left_animation ||
+        lhs->run_rotate_right_animation != rhs->run_rotate_right_animation ||
+        lhs->crawl_animation != rhs->crawl_animation ||
+        lhs->crawl_rotate180_animation != rhs->crawl_rotate180_animation ||
+        lhs->crawl_rotate_left_animation != rhs->crawl_rotate_left_animation ||
+        lhs->crawl_rotate_right_animation != rhs->crawl_rotate_right_animation ||
+        lhs->low_priority_follower_ops != rhs->low_priority_follower_ops ||
+        lhs->height != rhs->height )
+        return false;
+
+    if( lhs->models_count != rhs->models_count )
+        return false;
+    for( int i = 0; i < lhs->models_count; i++ )
+    {
+        if( lhs->models[i] != rhs->models[i] )
+            return false;
+    }
+    if( lhs->chathead_models_count != rhs->chathead_models_count )
+        return false;
+    for( int i = 0; i < lhs->chathead_models_count; i++ )
+    {
+        if( lhs->chathead_models[i] != rhs->chathead_models[i] )
+            return false;
+    }
+
+    for( int i = 0; i < 5; i++ )
+    {
+        if( !str_equal(lhs->actions[i], rhs->actions[i]) )
+            return false;
+    }
+    for( int i = 0; i < 6; i++ )
+    {
+        if( lhs->stats[i] != rhs->stats[i] )
+            return false;
+    }
+
+    if( lhs->recolor_count != rhs->recolor_count || lhs->retexture_count != rhs->retexture_count )
+        return false;
+    for( int i = 0; i < lhs->recolor_count; i++ )
+    {
+        if( lhs->recolor_to_find[i] != rhs->recolor_to_find[i] ||
+            lhs->recolor_to_replace[i] != rhs->recolor_to_replace[i] )
+            return false;
+    }
+    for( int i = 0; i < lhs->retexture_count; i++ )
+    {
+        if( lhs->retexture_to_find[i] != rhs->retexture_to_find[i] ||
+            lhs->retexture_to_replace[i] != rhs->retexture_to_replace[i] )
+            return false;
+    }
+
+    if( lhs->head_icon_count != rhs->head_icon_count )
+        return false;
+    for( int i = 0; i < lhs->head_icon_count; i++ )
+    {
+        if( lhs->head_icon_archive_ids[i] != rhs->head_icon_archive_ids[i] ||
+            lhs->head_icon_sprite_index[i] != rhs->head_icon_sprite_index[i] )
+            return false;
+    }
+
+    if( lhs->configs_count != rhs->configs_count )
+        return false;
+    for( int i = 0; i < lhs->configs_count; i++ )
+    {
+        if( lhs->configs[i] != rhs->configs[i] )
+            return false;
+    }
+
+    if( lhs->params.count != rhs->params.count )
+        return false;
+    for( int i = 0; i < lhs->params.count; i++ )
+    {
+        if( lhs->params.keys[i] != rhs->params.keys[i] ||
+            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            return false;
+        if( lhs->params.is_string[i] )
+        {
+            if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
+            return false;
+    }
+
+    return true;
+}
+
+static void
+visit_npc(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigNpc* first =
+        RSCache_Dat2ConfigNpcNewDecodeProfile(profile, (char*)data, size);
+    if( !first )
+        return;
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first->_consumed == size )
+        tally->consumed_exact++;
+
+    uint32_t capacity = (uint32_t)size * 3u + 4096u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_Dat2ConfigNpcFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_Dat2ConfigNpcEncodeProfile(profile, first, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_Dat2ConfigNpcFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_Dat2ConfigNpc* second =
+        RSCache_Dat2ConfigNpcNewDecodeProfile(profile, (char*)encoded, (int)written);
+    if( second )
+    {
+        if( npc_equal(first, second) )
+            tally->semantic_ok++;
+        RSCache_Dat2ConfigNpcFree(second);
+    }
+
+    RSCache_Dat2ConfigNpcFree(first);
+    free(encoded);
+}
+
 /* ----------------------------------------------------------------- main --- */
 
 struct datatype_case
@@ -851,6 +1008,7 @@ main(int argc, char** argv)
         { "mapelement", RSCACHE_DAT2_CONFIG_KIND_AREA, RSCACHE_TYPE_MAPELEMENT,
           visit_mapelement },
         { "obj", RSCACHE_DAT2_CONFIG_KIND_OBJECT, RSCACHE_TYPE_OBJ, visit_obj },
+        { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, RSCACHE_TYPE_NPC, visit_npc },
     };
 
     int scanned_any = 0;

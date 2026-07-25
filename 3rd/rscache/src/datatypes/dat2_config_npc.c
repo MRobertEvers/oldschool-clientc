@@ -41,6 +41,276 @@ RSCache_Dat2ConfigNpcNewDecode(
     return RSCache_Dat2ConfigNpcNewDecodeProfile(&cache, data, data_size);
 }
 
+uint32_t
+RSCache_Dat2ConfigNpcEncodeProfile(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigNpc* npc,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !npc || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* The decoder calloc's the struct, so every default is zero — there is no
+     * init function assigning -1 or true to anything. A field is therefore
+     * omitted exactly when it is zero. */
+
+    if( npc->models_count > 0 )
+    {
+        p1(&buffer, 1);
+        p1(&buffer, npc->models_count);
+        for( int i = 0; i < npc->models_count; i++ )
+            p2(&buffer, npc->models[i]);
+    }
+    /* Emit whenever the pointer is non-NULL, including for the empty string. The
+     * decoder leaves `name` NULL when opcode 2 is absent, so "" and absent are
+     * genuinely different states — real records do carry an empty name (npc 325 in
+     * cache.osrs230, for one), and skipping it loses information. */
+    if( npc->name )
+    {
+        p1(&buffer, 2);
+        pjstr(&buffer, npc->name, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+    if( npc->size != 0 )
+    {
+        p1(&buffer, 12);
+        p1(&buffer, npc->size);
+    }
+    if( npc->standing_animation != 0 )
+    {
+        p1(&buffer, 13);
+        p2(&buffer, npc->standing_animation);
+    }
+
+    /* Opcode 17 carries the walk animation plus its three turn variants; opcode 14
+     * carries the walk animation alone. Use the compact form when the turn
+     * animations are absent, which is what the packer does. */
+    if( npc->rotate180_animation != 0 || npc->rotate_left_animation != 0 ||
+        npc->rotate_right_animation != 0 )
+    {
+        p1(&buffer, 17);
+        p2(&buffer, npc->walking_animation);
+        p2(&buffer, npc->rotate180_animation);
+        p2(&buffer, npc->rotate_left_animation);
+        p2(&buffer, npc->rotate_right_animation);
+    }
+    else if( npc->walking_animation != 0 )
+    {
+        p1(&buffer, 14);
+        p2(&buffer, npc->walking_animation);
+    }
+
+    if( npc->idle_rotate_left_animation != 0 )
+    {
+        p1(&buffer, 15);
+        p2(&buffer, npc->idle_rotate_left_animation);
+    }
+    if( npc->idle_rotate_right_animation != 0 )
+    {
+        p1(&buffer, 16);
+        p2(&buffer, npc->idle_rotate_right_animation);
+    }
+    if( npc->category != 0 )
+    {
+        p1(&buffer, 18);
+        p2(&buffer, npc->category);
+    }
+
+    for( int i = 0; i < 5; i++ )
+    {
+        /* Same reasoning as the name: an empty action is not an absent one. */
+        if( npc->actions[i] )
+        {
+            p1(&buffer, 30 + i);
+            pjstr(&buffer, npc->actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
+        }
+    }
+
+    if( npc->recolor_count > 0 )
+    {
+        p1(&buffer, 40);
+        p1(&buffer, npc->recolor_count);
+        for( int i = 0; i < npc->recolor_count; i++ )
+        {
+            p2(&buffer, (int)(uint16_t)npc->recolor_to_find[i]);
+            p2(&buffer, (int)(uint16_t)npc->recolor_to_replace[i]);
+        }
+    }
+    if( npc->retexture_count > 0 )
+    {
+        p1(&buffer, 41);
+        p1(&buffer, npc->retexture_count);
+        for( int i = 0; i < npc->retexture_count; i++ )
+        {
+            p2(&buffer, (int)(uint16_t)npc->retexture_to_find[i]);
+            p2(&buffer, (int)(uint16_t)npc->retexture_to_replace[i]);
+        }
+    }
+
+    if( npc->chathead_models_count > 0 )
+    {
+        p1(&buffer, 60);
+        p1(&buffer, npc->chathead_models_count);
+        for( int i = 0; i < npc->chathead_models_count; i++ )
+            p2(&buffer, npc->chathead_models[i]);
+    }
+
+    for( int i = 0; i < 6; i++ )
+    {
+        if( npc->stats[i] != 0 )
+        {
+            p1(&buffer, 74 + i);
+            p2(&buffer, npc->stats[i]);
+        }
+    }
+
+    /* Opcodes 93, 107 and 109 *clear* flags the decoder never sets, because the
+     * struct is zeroed and no init assigns them true. is_minimap_visible,
+     * is_interactable and rotation_flag are therefore always false after a decode
+     * and their opcodes cannot be reproduced. Nothing in the client reads these
+     * three fields, so the gap is dormant — but it does mean an npc record that
+     * carried opcode 93/107/109 re-encodes shorter than the original. */
+
+    if( npc->combat_level != 0 )
+    {
+        p1(&buffer, 95);
+        p2(&buffer, npc->combat_level);
+    }
+    if( npc->width_scale != 0 )
+    {
+        p1(&buffer, 97);
+        p2(&buffer, npc->width_scale);
+    }
+    if( npc->height_scale != 0 )
+    {
+        p1(&buffer, 98);
+        p2(&buffer, npc->height_scale);
+    }
+    if( npc->has_render_priority )
+        p1(&buffer, 99);
+    if( npc->ambient != 0 )
+    {
+        p1(&buffer, 100);
+        p1(&buffer, npc->ambient);
+    }
+    if( npc->contrast != 0 )
+    {
+        p1(&buffer, 101);
+        p1(&buffer, npc->contrast);
+    }
+
+    /* Opcode 102's shape is era dependent — the whole reason this encoder takes a
+     * profile. Pre-210 it is a single u16 sprite index; from 210 it is a bitfield
+     * plus a bigsmart/ushortsmart pair per set bit. */
+    if( npc->head_icon_count > 0 )
+    {
+        bool rev210 =
+            (RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
+
+        if( !rev210 )
+        {
+            p1(&buffer, 102);
+            p2(&buffer, npc->head_icon_sprite_index ? (int)(uint16_t)npc->head_icon_sprite_index[0]
+                                                    : 0);
+        }
+        else
+        {
+            int bitfield = 0;
+            for( int i = 0; i < npc->head_icon_count && i < 32; i++ )
+            {
+                if( npc->head_icon_archive_ids[i] != -1 )
+                    bitfield |= (1 << i);
+            }
+
+            p1(&buffer, 102);
+            p1(&buffer, bitfield);
+            for( int i = 0; i < npc->head_icon_count; i++ )
+            {
+                if( (bitfield & (1 << i)) == 0 )
+                    continue;
+                pbigsmart(&buffer, npc->head_icon_archive_ids[i]);
+                pushortsmart(&buffer, (int)npc->head_icon_sprite_index[i] + 1);
+            }
+        }
+    }
+
+    if( npc->rotation_speed != 0 )
+    {
+        p1(&buffer, 103);
+        p2(&buffer, npc->rotation_speed);
+    }
+    if( npc->is_pet )
+        p1(&buffer, 111);
+
+    /* 115 carries the run animation plus turn variants, 114 the run alone. */
+    if( npc->run_rotate180_animation != 0 || npc->run_rotate_left_animation != 0 ||
+        npc->run_rotate_right_animation != 0 )
+    {
+        p1(&buffer, 115);
+        p2(&buffer, npc->run_animation);
+        p2(&buffer, npc->run_rotate180_animation);
+        p2(&buffer, npc->run_rotate_left_animation);
+        p2(&buffer, npc->run_rotate_right_animation);
+    }
+    else if( npc->run_animation != 0 )
+    {
+        p1(&buffer, 114);
+        p2(&buffer, npc->run_animation);
+    }
+
+    if( npc->crawl_rotate180_animation != 0 || npc->crawl_rotate_left_animation != 0 ||
+        npc->crawl_rotate_right_animation != 0 )
+    {
+        p1(&buffer, 117);
+        p2(&buffer, npc->crawl_animation);
+        p2(&buffer, npc->crawl_rotate180_animation);
+        p2(&buffer, npc->crawl_rotate_left_animation);
+        p2(&buffer, npc->crawl_rotate_right_animation);
+    }
+    else if( npc->crawl_animation != 0 )
+    {
+        p1(&buffer, 116);
+        p2(&buffer, npc->crawl_animation);
+    }
+
+    /* Opcodes 106 and 118 both carry the varbit/varp pair and the config list;
+     * 118 adds a trailing value that the decoder parks in the last config slot,
+     * where 106 always leaves -1. Emit 106 when that slot is -1, 118 otherwise. */
+    if( npc->configs_count >= 2 )
+    {
+        int trailing = npc->configs[npc->configs_count - 1];
+        int listed = npc->configs_count - 1; /* entries the loop wrote, i.e. length+1 */
+
+        p1(&buffer, trailing == -1 ? 106 : 118);
+        p2(&buffer, npc->varbit_id == -1 ? 0xFFFF : npc->varbit_id);
+        p2(&buffer, npc->varp_index == -1 ? 0xFFFF : npc->varp_index);
+        if( trailing != -1 )
+            p2(&buffer, trailing);
+        p1(&buffer, listed - 1); /* the wire length is one less than entries written */
+        for( int i = 0; i < listed; i++ )
+            p2(&buffer, npc->configs[i] == -1 ? 0xFFFF : npc->configs[i]);
+    }
+
+    if( npc->low_priority_follower_ops )
+        p1(&buffer, 123);
+    if( npc->height != 0 )
+    {
+        p1(&buffer, 124);
+        p2(&buffer, npc->height);
+    }
+    if( npc->params.count > 0 )
+    {
+        p1(&buffer, 249);
+        pparams(&buffer, &npc->params);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
 struct RSCache_Dat2ConfigNpc*
 RSCache_Dat2ConfigNpcNewDecodeProfile(
     const struct RSCache* cache,

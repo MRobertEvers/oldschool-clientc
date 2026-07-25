@@ -13,6 +13,12 @@ Every byte layout below was verified against the caches in this repo — `cache`
 `cache.osrs239`, `cache254` and `cache254.lostcity` — by decoding, re-encoding and
 comparing. Where a field's meaning is inferred rather than confirmed, it says so.
 
+> **[EXCEPTIONS.md](EXCEPTIONS.md)** is the companion to this file: every place the
+> implementation departed from its plan, stopped short of complete, or accepted a
+> shortfall — with the reason. Read it before concluding something here is simply
+> missing. It also lists the one open defect awaiting a decision (dat2 npc default
+> values) and the bugs found and fixed along the way.
+
 ## Contents
 
 - [Layout of the library](#layout-of-the-library)
