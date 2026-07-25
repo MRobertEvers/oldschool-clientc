@@ -302,6 +302,7 @@ td_scene_allocate_element_id(
 
     element->scene_id = id;
     element->pool = (uint8_t)pool;
+    scene->anim_list_dirty = true;
     return id;
 }
 
@@ -346,6 +347,7 @@ td_scene_free_element_id(
     }
 
     ToriDraw_IntrusiveListRelease(&scene->elements, element_id);
+    scene->anim_list_dirty = true;
 }
 
 static void
@@ -830,6 +832,7 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
     scene->current_batch_id = 0;
     scene->current_batch_element_count = 0;
     scene->next_batch_id = 0;
+    scene->anim_list_dirty = true;
 
     td_scene_emit(scene, TORIDRAW_EVENT_SCENE_RESET, 0, 0, 0, 0, NULL, NULL, NULL);
 }
@@ -880,6 +883,8 @@ ToriDraw_SceneClearPool(
         td_scene_reset_element(element);
         ToriDraw_IntrusiveListRelease(&scene->elements, i);
     }
+
+    scene->anim_list_dirty = true;
 
     if( pool == TORIDRAW_SCENE_POOL_STATIC )
     {
@@ -957,6 +962,62 @@ ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene)
     return scene->elements.count;
 }
 
+void
+ToriDraw_SceneAnimListInvalidate(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    scene->anim_list_dirty = true;
+}
+
+int const*
+ToriDraw_SceneAnimatedElements(
+    struct ToriDraw_Scene* scene,
+    int* out_count)
+{
+    assert(scene);
+    assert(out_count);
+
+    if( scene->anim_list_dirty )
+    {
+        int const slots = scene->elements.count;
+
+        if( scene->anim_list_cap < slots )
+        {
+            int cap = scene->anim_list_cap ? scene->anim_list_cap : 32;
+            while( cap < slots )
+                cap <<= 1;
+            {
+                int* grown = (int*)realloc(scene->anim_list, (size_t)cap * sizeof(int));
+                if( !grown )
+                {
+                    /* Out of memory: report empty rather than a truncated list,
+                     * and stay dirty so the next call retries. */
+                    *out_count = 0;
+                    return NULL;
+                }
+                scene->anim_list = grown;
+                scene->anim_list_cap = cap;
+            }
+        }
+
+        scene->anim_list_count = 0;
+        for( int id = 0; id < slots; id++ )
+        {
+            struct ToriDraw_SceneElement const* element;
+            if( !td_scene_element_valid(scene, id) )
+                continue;
+            element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, id);
+            if( !element || element->anim_seq_id == -1 || element->anim_external )
+                continue;
+            scene->anim_list[scene->anim_list_count++] = id;
+        }
+        scene->anim_list_dirty = false;
+    }
+
+    *out_count = scene->anim_list_count;
+    return scene->anim_list;
+}
+
 static void
 td_scene_element_assign_model(
     struct ToriDraw_Scene* scene,
@@ -1030,7 +1091,10 @@ ToriDraw_SceneElementSetAnimation(
     {
         *slot = NULL;
         if( primary )
+        {
             element->anim_seq_id = -1;
+            scene->anim_list_dirty = true;
+        }
         td_scene_emit(
             scene, TORIDRAW_EVENT_ANIM_UNLOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
     }
@@ -1057,6 +1121,7 @@ ToriDraw_SceneElementSetAnimationSeq(
     element->is_skeletal = false;
     element->skeletal_animation = NULL;
     element->skeletal_play_frames = 0;
+    scene->anim_list_dirty = true;
 
     if( element->model.kind == TORIDRAWMK_MODEL )
     {

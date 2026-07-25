@@ -142,6 +142,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->sm_flex_prio12_face_to_depth);
     free(scene->tmp_face_order);
     free(scene->tex_state);
+    free(scene->anim_list);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -284,6 +285,8 @@ ToriDraw_SceneNew(uint32_t flags)
         return NULL;
 
     scene->flags = flags;
+    /* Build on first query rather than reporting an empty list. */
+    scene->anim_list_dirty = true;
 
     if( !ToriDraw_SceneAllocBuffers(scene, &caps) )
     {

@@ -2993,9 +2993,15 @@ app_world_sync_positions(struct App* app)
 static void
 app_world_tick_animations(struct App* app)
 {
-    int slot_count = ToriDraw_SceneElementSlotCount(app->scene);
-    for( int element_id = 0; element_id < slot_count; element_id++ )
+    /* Only elements with a seq bound, rather than every slot in a pool that is
+     * overwhelmingly static scenery. The list is a hint (it can hold ids that
+     * have since died or lost their seq), so the per-element checks below still
+     * stand — they are just no longer paid once per slot per cycle. */
+    int anim_count = 0;
+    int const* anim_ids = ToriDraw_SceneAnimatedElements(app->scene, &anim_count);
+    for( int k = 0; k < anim_count; k++ )
     {
+        int element_id = anim_ids[k];
         struct ToriDraw_SceneElement* element;
 
         if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
@@ -4069,6 +4075,7 @@ app_world_spawn_player_now(
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
         if( el )
             el->anim_external = true;
+        ToriDraw_SceneAnimListInvalidate(app->scene);
     }
 
     {
@@ -4153,6 +4160,7 @@ app_world_spawn_npc_now(
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
         if( el )
             el->anim_external = true;
+        ToriDraw_SceneAnimListInvalidate(app->scene);
     }
 
     {
@@ -7928,6 +7936,7 @@ App_WorldApplyNpcType(
             struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
             if( el )
                 el->anim_external = true;
+            ToriDraw_SceneAnimListInvalidate(app->scene);
         }
     }
     else if( model )

@@ -178,6 +178,21 @@ ToriDraw_SceneElementIsLive(
 int
 ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene);
 
+/** Ids of elements carrying a non-external animation seq, so the per-cycle tick
+ *  visits only those instead of scanning the (mostly static) element pool.
+ *  Rebuilt lazily; the returned pointer is owned by the scene and is invalidated
+ *  by the next call. Entries are a hint — callers must still re-check liveness
+ *  and anim_seq_id. Returns NULL with *out_count 0 if the list cannot be built. */
+int const*
+ToriDraw_SceneAnimatedElements(
+    struct ToriDraw_Scene* scene,
+    int* out_count);
+
+/** Force the next ToriDraw_SceneAnimatedElements call to rebuild. Needed when a
+ *  caller mutates anim_seq_id or anim_external on an element directly. */
+void
+ToriDraw_SceneAnimListInvalidate(struct ToriDraw_Scene* scene);
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,

@@ -399,6 +399,23 @@ struct ToriDraw_Scene
     struct ToriDraw_ScenePendingPose* pending_poses;
     int pending_pose_count;
     int pending_pose_cap;
+
+    /*
+     * Ids of elements the per-cycle animation tick has to visit — those with a
+     * seq bound that is not externally driven. The pool is dominated by static
+     * scenery, so scanning every slot each cycle to find the handful of
+     * animated ones was pure overhead; this list is rebuilt lazily whenever
+     * anim_list_dirty is set. See ToriDraw_SceneAnimatedElements.
+     *
+     * Entries are only a hint: consumers still re-check liveness and
+     * anim_seq_id, so a stale id is harmless. A *missing* id is what matters,
+     * hence every element alloc/release/clear and every seq mutation marks the
+     * list dirty.
+     */
+    int* anim_list;
+    int anim_list_count;
+    int anim_list_cap;
+    bool anim_list_dirty;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0
