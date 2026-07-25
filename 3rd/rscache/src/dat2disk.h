@@ -87,6 +87,11 @@ enum RSCache_Dat2Rs2DiskTable
     RSCACHE_DAT2_RS2_TABLE_SEQ = 20,
     RSCACHE_DAT2_RS2_TABLE_SPOTANIM = 21,
     RSCACHE_DAT2_RS2_TABLE_VARBIT = 22,
+    /** Procedural texture materials. Its presence is what selects the procedural texture
+     *  system over the sprite-backed one — see RSCache_Dat2UsesProcTextures. */
+    RSCACHE_DAT2_RS2_TABLE_MATERIALS = 26,
+    RSCACHE_DAT2_RS2_TABLE_PARTICLES = 27,
+    RSCACHE_DAT2_RS2_TABLE_DEFAULTS = 28,
 };
 
 /**

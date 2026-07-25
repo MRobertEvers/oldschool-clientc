@@ -24,6 +24,28 @@ struct Dat2BuildCache
     struct HMap* clientscripts_hmap;
     struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_DISK_TABLE_COUNT];
     size_t map_buffer_bytes;
+
+    /*
+     * Procedural texture state (RS2 / 643 only).
+     *
+     * Which texture system a cache uses is decided by whether it ships a materials table, not
+     * by its revision (rs-map-viewer gates on exactly that). Rather than ask the disk layer
+     * synchronously — which the async IO design does not offer — the texture task probes table
+     * 26 once on first texture load and memoises the answer here. `proctex_mode` is tri-state
+     * so "not probed yet" is distinguishable from "probed, absent".
+     */
+    int proctex_mode; /* enum Dat2ProcTexMode */
+    struct RSCache_Dat2MaterialTable* materials;
+};
+
+/** Tri-state for `Dat2BuildCache.proctex_mode`. */
+enum Dat2ProcTexMode
+{
+    DAT2_PROCTEX_UNPROBED = 0,
+    /** Sprite-backed textures (OSRS, and RS2 before 474). */
+    DAT2_PROCTEX_SPRITE,
+    /** Procedural materials (RS2 474+ with a table 26). */
+    DAT2_PROCTEX_PROCEDURAL,
 };
 
 struct Dat2BuildCache*

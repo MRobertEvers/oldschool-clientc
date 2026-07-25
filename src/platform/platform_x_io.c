@@ -247,42 +247,26 @@ static int
 dat2_cache_table_supported(int table_id)
 {
     /*
-     * An allow-list of tables the IO layer will read.
+     * Is `table_id` a table this IO layer may read?
      *
-     * The RS2 (643) branch promotes loc, enum, npc, obj, seq and spotanim out of the config
-     * table into tables 16..22, so every one of those reads was refused here — the request
-     * simply came back empty and the caller reported a decode failure, with nothing to say
-     * the table had been rejected rather than missing. Exactly the same shape of bug as the
-     * reference-table allow-list in dat2disk.c.
+     * This USED TO BE AN ALLOW-LIST OF NAMED TABLES, and that shape has now caused the same
+     * bug three separate times (D18, then again here for the RS2 tables 16..22, then again for
+     * the materials table 26). The failure is always the same and always expensive to find: an
+     * id absent from the list is refused *before* any read, so the caller sees an empty result
+     * and reports "decode failed" or "no materials table" — nothing anywhere says the read was
+     * rejected rather than the data being missing.
      *
-     * Note ids 18..22 are listed twice over in effect: they are RS2's npc/obj/seq/spotanim/
-     * varbit and OSRS's worldmap/dbtable/animaya tables. That is safe because this predicate
-     * only asks "may I read this table", not "what is in it".
+     * Enumerating names cannot work, because table ids are era-dependent: 19 is OSRS's worldmap
+     * and RS2's objs, 26 is RS2's materials and nothing in OSRS. A name-keyed list conflates
+     * "unknown to us" with "not present in the cache".
+     *
+     * So this is now a RANGE check, matching RSCache_Dat2DiskIsValidTableId — which was
+     * converted for exactly this reason. Whether a table has any meaning is the profile's
+     * business (RSCache_RecordAddressFor and friends); whether it may be *read* is only a
+     * question of it being a legal index id. A table the cache does not ship still fails
+     * naturally, one layer down, with a real message.
      */
-    return table_id == RSCACHE_DAT2_RS2_TABLE_LOC ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_ENUM ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_NPC ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_OBJ ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_SEQ ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_SPOTANIM ||
-           table_id == RSCACHE_DAT2_RS2_TABLE_VARBIT ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_CONFIGS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_MAPS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_TEXTURES ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_SPRITES ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_FONTS ||
-           /* Animation tables: sequence frames (idx0), framemaps/skeletons (idx1),
-            * skeletal AnimMaya (idx22). */
-           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMATIONS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_SKELETONS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMAYAS ||
-           /* World map area configs ("details" / "compositemap"). */
-           table_id == RSCACHE_DAT2_DISK_TABLE_WORLDMAP ||
-           /* Client database inverted indexes (one archive per table id). */
-           table_id == RSCACHE_DAT2_DISK_TABLE_DBTABLE_INDEX;
+    return table_id >= 0 && table_id < RSCACHE_DAT2_DISK_TABLE_COUNT;
 }
 
 static int

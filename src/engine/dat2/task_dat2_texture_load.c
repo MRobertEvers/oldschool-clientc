@@ -1,8 +1,11 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/proctex/proctex_generator.h"
 #include "engine/texture_palette_bake.h"
 #include "engine/torirs_types.h"
+
+#include "datatypes/dat2_proctexture.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
@@ -32,7 +35,143 @@ struct Task_Dat2TextureLoad
     struct RSCache_Dat2Texture* def;
     struct RSCache_Dat2SpritePack** packs;
     int sprite_index;
+    struct RSCache_Dat2ProcTexture* proc_def;
 };
+
+/* Size procedural textures are baked at. The material's `small` flag selects 64 in the
+ * reference; we bake everything at 128 to match what the sprite-backed path already does, so
+ * the scene texture map stays homogeneous. */
+#define PROCTEX_BAKE_SIZE 128
+
+/*
+ * Procedural textures reference sprites and other textures. Neither resolver is wired yet:
+ * doing so needs the sprite pack loader threaded through the async task (a texture would have
+ * to await its dependencies before baking, like the sprite-backed path does), and nested
+ * texture sources need cycle-safe recursion across tasks.
+ *
+ * They return false rather than fabricating pixels, which makes the two operations that use
+ * them (sprite_source, texture_source) evaluate as unsupported and the texture get refused.
+ * That is the intended conservative behaviour — see ProcTexGenerator's header note on why a
+ * plausible-but-wrong texture is worse than a missing one.
+ */
+static bool
+proctex_sprite_unavailable(
+    void* user,
+    int sprite_id,
+    const int32_t** out_argb,
+    int* out_width,
+    int* out_height)
+{
+    (void)user;
+    (void)sprite_id;
+    (void)out_argb;
+    (void)out_width;
+    (void)out_height;
+    return false;
+}
+
+static bool
+proctex_texture_unavailable(
+    void* user,
+    int texture_id,
+    int size,
+    const int32_t** out_argb)
+{
+    (void)user;
+    (void)texture_id;
+    (void)size;
+    (void)out_argb;
+    return false;
+}
+
+/*
+ * Evaluate one procedural texture into a ToriRS_Texture.
+ *
+ * Refuses the texture when any operation in its graph has no ported evaluator. That is the
+ * whole point of the check: an unported operation contributes flat mid-grey, which would
+ * composite into something that looks like a real texture and is not. A missing texture makes
+ * the face fall back to flat shading, which is visibly "not textured yet" rather than
+ * confidently wrong.
+ */
+static struct ToriRS_Texture*
+proctex_bake(
+    const struct RSCache_Dat2ProcTexture* def,
+    const struct RSCache_Dat2MaterialTable* materials,
+    int texture_id,
+    int size)
+{
+    struct ProcTexGenerator* gen;
+    struct ToriRS_Texture* texture;
+    int32_t* pixels;
+    int unsupported = 0;
+    bool transparent = false;
+    int first_unsupported = -1;
+
+    if( !ProcTexGenerator_IsFullySupported(def, &first_unsupported) )
+    {
+        if( getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(
+                stderr,
+                "proctex %d: skipped, operation %d (%s) has no evaluator yet\n",
+                texture_id,
+                first_unsupported,
+                RSCache_ProcTexOpName(first_unsupported));
+        return NULL;
+    }
+
+    pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
+    if( !pixels )
+        return NULL;
+
+    gen = ProcTexGenerator_New(proctex_sprite_unavailable, proctex_texture_unavailable, NULL);
+    if( !gen )
+    {
+        free(pixels);
+        return NULL;
+    }
+
+    /* 0.8 matches the gamma the sprite-backed path applies via ToriRS_TextureGammaBlend, so
+     * the two systems land at a comparable brightness in the same scene. */
+    if( !ProcTexGenerator_Render(gen, def, size, 0.8, pixels, &unsupported, &transparent) ||
+        unsupported > 0 )
+    {
+        if( getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(stderr, "proctex %d: render failed (unsupported=%d)\n",
+                    texture_id, unsupported);
+        ProcTexGenerator_Free(gen);
+        free(pixels);
+        return NULL;
+    }
+    ProcTexGenerator_Free(gen);
+
+    texture = calloc(1, sizeof(*texture));
+    if( !texture )
+    {
+        free(pixels);
+        return NULL;
+    }
+    texture->texels = pixels;
+    texture->width = size;
+    texture->height = size;
+    texture->opaque = !transparent;
+    /* Animation and average HSL come from the material when there is one — for rev 555+ the
+     * material's animation wins over the texture record's own copy. */
+    if( materials && texture_id >= 0 && texture_id < materials->count )
+    {
+        texture->animation_direction = materials->materials[texture_id].anim_u;
+        texture->animation_speed = materials->materials[texture_id].anim_v;
+        texture->average_hsl = materials->materials[texture_id].average_hsl;
+    }
+    else
+    {
+        texture->animation_direction = def->anim_u;
+        texture->animation_speed = def->anim_v;
+    }
+    if( texture->average_hsl == 0 )
+        texture->average_hsl = ToriRS_TextureAverageHsl(pixels, size, size);
+
+    return texture;
+}
 
 static void
 task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
@@ -249,6 +388,87 @@ Task_Dat2TextureLoad_Run(
     struct ToriRS_Texture* torirs_texture = NULL;
 
     PT_BEGIN(&task->pt);
+
+    /*
+     * Decide which texture system this cache uses, once. The materials table existing is the
+     * gate (see Dat2BuildCache.proctex_mode), so probe table 26 rather than infer from the
+     * revision — a cache can be new enough and still not ship one.
+     */
+    if( task->bc->proctex_mode == DAT2_PROCTEX_UNPROBED )
+    {
+        if( RSCache_Dat2UsesProcTextures(CacheProvider_Profile(&task->bc->base), true) )
+        {
+            RSCache_IO_Dat2MaterialTableLoad(io, 0);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2MaterialTableDecode(io, 0);
+            if( archive )
+            {
+                task->bc->materials = RSCache_Dat2MaterialTableNewDecode(
+                    archive->data,
+                    archive->data_size,
+                    RSCache_Dat2ProcTextureFlags(CacheProvider_Profile(&task->bc->base)));
+                RSCache_Dat2DiskArchiveFree(archive);
+                archive = NULL;
+            }
+            task->bc->proctex_mode =
+                task->bc->materials ? DAT2_PROCTEX_PROCEDURAL : DAT2_PROCTEX_SPRITE;
+        }
+        else
+        {
+            task->bc->proctex_mode = DAT2_PROCTEX_SPRITE;
+        }
+
+        fprintf(
+            stderr,
+            "textures: %s system%s\n",
+            task->bc->proctex_mode == DAT2_PROCTEX_PROCEDURAL ? "procedural (RS2 materials)"
+                                                              : "sprite-backed",
+            task->bc->materials ? "" : " (no materials table)");
+    }
+
+    if( task->bc->proctex_mode == DAT2_PROCTEX_PROCEDURAL )
+    {
+        struct ToriRS_Texture* proc_texture = NULL;
+
+        /* RS2 gives every texture id its own archive, so there is no shared group to memoise
+         * — one load per id. */
+        RSCache_IO_Dat2ProcTextureLoad(io, 0, task->texture_id);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2ProcTextureDecode(io, 0);
+        if( !archive )
+        {
+            fprintf(stderr, "Failed to load proc texture %d\n", task->texture_id);
+            PT_EXIT(&task->pt);
+        }
+
+        task->proc_def = RSCache_Dat2ProcTextureNewDecode(
+            archive->data,
+            archive->data_size,
+            task->texture_id,
+            RSCache_Dat2ProcTextureFlags(CacheProvider_Profile(&task->bc->base)));
+        RSCache_Dat2DiskArchiveFree(archive);
+        archive = NULL;
+
+        if( !task->proc_def )
+        {
+            fprintf(stderr, "Failed to decode proc texture %d\n", task->texture_id);
+            PT_EXIT(&task->pt);
+        }
+
+        proc_texture = proctex_bake(
+            task->proc_def,
+            task->bc->materials,
+            task->texture_id,
+            PROCTEX_BAKE_SIZE);
+        RSCache_Dat2ProcTextureFree(task->proc_def);
+        task->proc_def = NULL;
+
+        if( !proc_texture )
+            PT_EXIT(&task->pt);
+
+        CacheProvider_TextureAdd(&task->bc->base, task->texture_id, proc_texture);
+        PT_EXIT(&task->pt);
+    }
 
     /* All texture defs decode on first touch; later tasks skip the archive
      * load entirely instead of re-decompressing it per texture. */

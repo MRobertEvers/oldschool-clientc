@@ -716,6 +716,105 @@ OSRS revision line — comparing across lineages is D16), so
 `0 == RSCACHE_REVISION_UNKNOWN` — a coincidence, not a mechanism. The fix is a
 cache-side `rev=` key resolving through `RSCache_ProfileByName("643")`.
 
+### B18. Procedural textures (RS2 / 643) — decode done, evaluator partial *(Partly resolved)*
+
+**Why this exists at all:** 643 does not use sprite-backed textures. Per rs-map-viewer's
+`Dat2CacheLoaderFactory.getTextureLoader` there are *three* texture systems, selected by era:
+
+| Loader | Selected when | Status here |
+|---|---|---|
+| `SpriteTextureLoader` | `oldschool`, or `runescape` && rev < 474 | `dat2_texture.c`, working |
+| `ProceduralTextureLoader` | rev >= 474 **and** a materials index exists | **this section** |
+| `OldProceduralTextureLoader` | otherwise | not implemented |
+
+A 643 texture is not an image; it is a **program** — a DAG of up to 255 operations (noise
+fields, gradients, brick/weave generators, arithmetic, colour transforms, a vector rasteriser)
+evaluated at whatever size the caller wants. That is why every 643 texture load used to fail
+and, because the raster skips faces whose texture is absent, why all 1,880 scenery models
+rendered invisible while flat-coloured terrain still drew (see B12).
+
+#### Cache decode — done and validated
+
+`dat2_proctexture.c` decodes both archives. Validated by **exact consumption**, the bar used
+throughout this library:
+
+| Record | Result |
+|---|---|
+| materials (table 26, group 0) | **27,938 / 27,938 bytes — byte-exact** |
+| texture programs (table 9, one archive per id) | **1,162 / 1,164 exact (99.8%)**, 0 hard failures |
+
+Three findings worth keeping, each one a bug the obvious implementation has:
+
+- **The materials record is column-major**, not one record per material: a `u16 count`, then one
+  full pass over every material per field. Columns also *skip* materials whose `exists` byte was
+  0, so a column is not a fixed stride. Reading it row-major desyncs on the first absent
+  material.
+- **Operation field defaults are load-bearing on the stream layout, not just on semantics.**
+  Perlin noise's field 2, when negative, is followed by `field1` inline u16 amplitudes — and
+  `field1` *defaults to 4*. Zero-initialising instead of defaulting read none of them and
+  desynced 8 bytes, which surfaced as absurd "unknown field" ids (255, 196, 234) several
+  operations later rather than as a perlin problem. That alone accounted for **74 of 88** broken
+  textures.
+- **A clamped array must still consume the whole array.** Curve markers and gradient stops are
+  stored in fixed-size structs; clamping the *loop* rather than the *store* under-consumed 4
+  bytes per surplus marker and mis-read the next operation's field id. That was the remaining 6.
+
+Two textures (275, 742 — 0.17%) still stop short. They carry `diagonal_gradient` fields 2, 4
+and 5, which **rs-map-viewer does not decode either** (its handler covers 0, 1 and 3 only, so
+the reference silently desyncs on them too and never notices, having no consumption check).
+u8 and u16 were both tried: each consumes plausibly, moves the failure a few operations along,
+and yields another in-range-looking field id — never exact consumption. That is the E1 trap, so
+**no width is asserted**; the decoder stops cleanly and the caller skips the texture. A wrong
+width would silently build a mis-wired graph and render confidently wrong pixels.
+
+Also recorded: **three trailing bytes** that the reference stops short of. Over all 1,158
+decodable textures, byte 0 is `0x22` in 1,151 (else 0x00/0x02/0x20 — a bitmask), byte 1 is a
+small count 0..13, byte 2 is 0 or 1. They are consumed but **not interpreted**, because nothing
+in reach reads them. The tail *before* them is confirmed: `anim_u`/`anim_v` match the
+independently-decoded materials table for all 26 textures whose material declares a non-zero
+animation, negative values included — which is what pins the alignment.
+
+#### Evaluator — infrastructure done, 14 of 36 operations ported
+
+`src/engine/proctex/proctex_generator.c` implements the evaluation model: pull-per-scanline,
+12.4 fixed point, monochrome/colour conversion rules, full per-line caching (the reference's LRU
+is a memory optimisation that cannot affect output), and cycle detection the format cannot
+express but nothing validates.
+
+Ported: `const_mono`, `const_colour`, `h_gradient`, `v_gradient`, `clamp`, `arithmetic` (all 12
+blend modes, mono + colour), `curve` (all three interpolation modes), `gradient`,
+`colour_strip`, `diagonal_gradient`, `invert`, `grayscale`, `binary`, `range`.
+
+**Measured coverage is 39 of 1,164 textures (3%)** — a texture needs *every* operation in its
+graph, so the metric that matters is per-texture completeness, not per-instance. Build order,
+by how many textures each missing operation alone blocks:
+
+| Operation | Blocks | Operation | Blocks |
+|---|---|---|---|
+| `perlin_noise` | 493 | `tiling` | 90 |
+| `emboss` | 371 | `hsl` | 81 |
+| `texture_source` | 364 | `mirror` | 75 |
+| `mixer` | 303 | `line_noise` | 52 |
+| `blur` | 270 | `rasterizer` | 49 |
+| `voronoi_noise` | 259 | `square_waveform` | 34 |
+| `sprite_source` | 242 | `bricks` | 24 |
+| `trig_warp` | 205 | `irregular_bricks` | 12 |
+| `pseudo_random_noise` | 142 | `kaleidoscope` | 9 |
+
+Implementing the 22 non-heavyweight operations reaches **95% (1,106/1,164)**; `rasterizer`
+(1,721 lines of vector rasteriser), `irregular_bricks` and `op37` account for the last 58.
+
+An unported operation yields flat mid-grey and increments a counter, and `proctex_bake`
+**refuses any texture with a non-zero count**. That is deliberate: a partially-evaluated
+texture composites into something that looks real and is not, and a confidently-wrong texture
+is worse than a missing one (a missing one just falls back to flat shading, which reads as
+"not done yet"). It is also why the 643 viewport looks unchanged for now — the plumbing is
+live and correct, the operation set is not yet broad enough for real textures to survive.
+
+`sprite_source` and `texture_source` additionally need dependency resolution threaded through
+the async task (a texture must await its sprites, and nested texture sources need cycle-safe
+recursion across tasks). Their resolvers currently return false rather than fabricate pixels.
+
 ### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
 
 **Status: varbit, varplayer, varclient and inv are implemented** — decoder, encoder and
@@ -880,6 +979,7 @@ exception to "only add the write half".
 | D19 | **The loc group memo tested the group-local id, not the global one.** `dat2_buildcache_locs_init_from_archive_based` skipped a record when `dat2_buildcache_loc_get(id)` already had it — but `id` is the *file* id, which a sharded RS2 group numbers `0..255` locally. Once group 0 was resident, every file of every later group looked "already loaded" and was skipped wholesale, so only 4 of 100 loc definitions ever reached the provider. | Group 0 was the **only** group that worked, because there `base_id + id == id` and the bug is invisible — a textbook case of the identity case hiding an off-by-base. Found by printing the group, base and post-init lookup together: `loc 3825 -> table 16 group 14 base 3584 files 256 file_ids=yes -> get=MISS` proved the archive and addressing were all correct and the *add* was not. Fixing it took the 643 world from 6 models to **72** — exactly the count an independent cache-side probe predicted. |
 | D18 | **Two independent allow-lists silently made whole cache tables unreachable.** `RSCache_Dat2DiskIsValidTableId` (reference tables) and `dat2_cache_table_supported` in `src/platform/platform_x_io.c` (archive reads) each enumerated only the *named* OSRS tables. An id absent from the list was skipped **before** any read, so it presented as "decode failed" or an empty result rather than "this table is not allowed" — nothing logged the rejection. Both had to be widened before the RS2 branch (tables 16-22) could be read at all. | The first surfaced as `tables[16] = NULL` while `255/16` loaded fine by hand and decoded to 224 dense groups. The second surfaced *after* that fix as `Failed to decode dat2 loc group for loc N` for every id, with the group demonstrably present. **The lesson is the pattern, not either instance:** an allow-list keyed on names conflates "unknown to us" with "not present", and the second copy cost an extra debugging cycle because the first fix did not prompt a search for siblings. |
 | D20 | **`RSCache_MapTerrainFlags` gated the terrain tile widths on the *container* when the real gate is the *era*.** It read `IsDat1 ? u8 : u16`, so every dat2 cache got the wide layout — but the attribute opcode and overlay id only widen to u16 at **OldSchool 209** (rs-map-viewer: `game === "oldschool" && revision >= 209`). 643 is dat2 and pre-209, and its revision *number* clears every OSRS threshold while belonging to a different lineage, so both the container test and a naive revision test got it wrong. Separately, the dat2 load path never consulted the function at all — it called `RSCache_MapTerrainNewFromArchive`, which hardcoded modern widths — so fixing the predicate alone would have changed nothing. | **Not a clean failure, which is why it survived so long.** The u16 attribute read swallows the following tile's opcode, and the loop only breaks on 0 or 1, so the square resynchronises into plausible garbage instead of erroring: **120 of 15,376** tiles kept an underlay or overlay, against 4,481 for a working OSRS square. Both the 3D scene *and* the terrain-baked minimap came out blank, and that pair — two independent consumers of the scene, with every input verified present — is what pointed at the built scene rather than at the viewport. Found by counting shape-tiles at the one place both consumers read (`TORIRS_TERRAIN_DEBUG`). Now pinned by tests over the 643 profile and over OSRS 184 vs 209. |
+| D21 | **A name-keyed table allow-list caused the same bug a third time.** `dat2_cache_table_supported` in `src/platform/platform_x_io.c` enumerated the *named* tables it would read, so the RS2 materials table (26) was refused **before any read** and the procedural texture system reported "no materials table" — indistinguishable from the cache genuinely not shipping one. Now a range check (`0 <= id < TABLE_COUNT`), matching `RSCache_Dat2DiskIsValidTableId`, which was converted for exactly this reason. | **The third occurrence of D18, and the lesson is now acted on rather than restated.** Enumerating names cannot work here because table ids are era-dependent: 19 is OSRS's worldmap and RS2's objs, 26 is RS2's materials and nothing in OSRS — so a name-keyed list structurally conflates "unknown to us" with "not present in the cache". Whether a table *means* anything is the profile's business; whether it may be *read* is only a question of it being a legal index id. A table the cache lacks now fails one layer down with a real message. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
