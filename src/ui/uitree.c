@@ -2282,10 +2282,10 @@ UITree_GetLayoutWidth(
     struct UITree const* tree,
     int component_id)
 {
-    UITree_EnsureLayout(tree);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
+    UITree_EnsureLayoutFor(tree, idx);
     struct UITreeElemPosition const* pos = &tree->components[idx].position;
     if( pos->layout_resolved && pos->abs_w > 0 )
         return pos->abs_w;
@@ -2297,10 +2297,10 @@ UITree_GetLayoutHeight(
     struct UITree const* tree,
     int component_id)
 {
-    UITree_EnsureLayout(tree);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
+    UITree_EnsureLayoutFor(tree, idx);
     struct UITreeElemPosition const* pos = &tree->components[idx].position;
     if( pos->layout_resolved && pos->abs_h > 0 )
         return pos->abs_h;
@@ -2317,10 +2317,10 @@ UITree_GetRelativeX(
     struct UITreeComponent const* node;
 
     assert(tree);
-    UITree_EnsureLayout(tree);
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
+    UITree_EnsureLayoutFor(tree, idx);
     node = &tree->components[idx];
     if( !node->position.layout_resolved )
         return node->position.x;
@@ -2340,10 +2340,10 @@ UITree_GetRelativeY(
     struct UITreeComponent const* node;
 
     assert(tree);
-    UITree_EnsureLayout(tree);
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
+    UITree_EnsureLayoutFor(tree, idx);
     node = &tree->components[idx];
     if( !node->position.layout_resolved )
         return node->position.y;

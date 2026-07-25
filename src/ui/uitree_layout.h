@@ -40,6 +40,15 @@ UITree_LayoutInvalidate(struct UITree* tree);
 void
 UITree_EnsureLayout(struct UITree const* tree);
 
+/** Same guarantee as UITree_EnsureLayout, but only for `idx` and its ancestors.
+ *  A node's box depends solely on its ancestors, so a single CS2 getter needs
+ *  the root->node chain (O(depth)) rather than a full O(components) resolve.
+ *  Leaves layout_stale set — the rest of the tree is still unresolved. */
+void
+UITree_EnsureLayoutFor(
+    struct UITree const* tree,
+    int32_t idx);
+
 void
 UITree_LayoutResolve(
     struct UITree* tree,

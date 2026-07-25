@@ -95,6 +95,186 @@ resolve_relative(
     pos->layout_resolved = 1;
 }
 
+/*
+ * Parent box a child lays out against: the parent's resolved box, with an
+ * RS_LAYER's scroll extent standing in for its visible size. Falls back to the
+ * root box when there is no parent.
+ */
+static void
+layout_parent_box(
+    struct UITree const* tree,
+    int32_t parent,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct UITreeComponent const* p;
+
+    *out_x = root_x;
+    *out_y = root_y;
+    *out_w = root_w;
+    *out_h = root_h;
+
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+
+    p = &tree->components[parent];
+    *out_x = p->position.abs_x;
+    *out_y = p->position.abs_y;
+    *out_w = p->position.abs_w;
+    *out_h = p->position.abs_h;
+    if( p->type == UIELEM_RS_LAYER )
+    {
+        if( p->u.rs_layer.scroll_width > 0 )
+            *out_w = p->u.rs_layer.scroll_width;
+        if( p->u.rs_layer.scroll_height > 0 )
+            *out_h = p->u.rs_layer.scroll_height;
+    }
+}
+
+/*
+ * Resolve one node against an already-resolved parent box.
+ *
+ * A node's box is a pure function of its own fields and its parent's box —
+ * never its siblings or children. That is the property UITree_EnsureLayoutFor
+ * relies on to resolve a single root->node chain instead of the whole tree.
+ */
+static void
+layout_compute_node(
+    struct UITree* tree,
+    uint32_t i,
+    int px,
+    int py,
+    int pw,
+    int ph)
+{
+    struct UITreeComponent* c = &tree->components[i];
+    struct UITreeElemPosition* pos = &c->position;
+
+    if( pos->kind == UIPOS_RELATIVE )
+    {
+        resolve_relative(pos, px, py, pw, ph);
+        return;
+    }
+
+    int w = pos->width;
+    int h = pos->height;
+    if( pos->width_mode >= 0 || pos->height_mode >= 0 )
+    {
+        int8_t wm = pos->width_mode >= 0 ? pos->width_mode : 0;
+        int8_t hm = pos->height_mode >= 0 ? pos->height_mode : 0;
+        if( wm == 4 || hm == 4 )
+        {
+            UITree_If3ComputeSize(
+                wm,
+                hm,
+                pos->width,
+                pos->height,
+                pw,
+                ph,
+                pos->aspect_w > 0 ? pos->aspect_w : 1,
+                pos->aspect_h > 0 ? pos->aspect_h : 1,
+                &w,
+                &h);
+        }
+        else
+        {
+            w = dim_from_parent_mode(wm, pos->width, pw);
+            h = dim_from_parent_mode(hm, pos->height, ph);
+        }
+    }
+
+    if( c->parent < 0 && w == 0 && h == 0 )
+    {
+        w = pw;
+        h = ph;
+    }
+
+    int rx = pos->x;
+    int ry = pos->y;
+    if( pos->x_mode >= 0 || pos->y_mode >= 0 )
+    {
+        int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
+        int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
+        rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
+        ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
+    }
+
+    pos->abs_x = px + rx;
+    pos->abs_y = py + ry;
+    pos->abs_w = w;
+    pos->abs_h = h;
+    pos->layout_resolved = 1;
+}
+
+/* Deepest root->node chain UITree_EnsureLayoutFor will walk before giving up
+ * and doing a full resolve. Real interface trees nest far shallower than this. */
+#define UITREE_LAYOUT_MAX_CHAIN 64
+
+void
+UITree_EnsureLayoutFor(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    /* Lazy JIT re-layout for a single CS2 getter. `layout_stale` is one
+     * tree-wide flag set by every CC_SETPOSITION/CC_SETSIZE, so servicing a
+     * getter with the full resolve made an interleaved set/get script cost
+     * O(components) per get. Only ancestors can affect this node's box, so
+     * resolving the root->node chain (O(depth), typically well under 10) is
+     * both equivalent and vastly cheaper.
+     *
+     * Deliberately does NOT clear layout_stale: the rest of the tree is still
+     * unresolved, and the once-per-frame full resolve still has to run. */
+    struct UITree* t = (struct UITree*)tree;
+    int32_t chain[UITREE_LAYOUT_MAX_CHAIN];
+    int chain_len = 0;
+    int32_t cur;
+
+    if( !t || !t->layout_stale )
+        return;
+    if( idx < 0 || (uint32_t)idx >= t->component_count )
+        return;
+
+    for( cur = idx; cur >= 0 && (uint32_t)cur < t->component_count;
+         cur = t->components[cur].parent )
+    {
+        /* Over-deep (or a cycle in the parent links): fall back to the full
+         * resolve rather than produce a half-laid-out node. */
+        if( chain_len >= UITREE_LAYOUT_MAX_CHAIN )
+        {
+            UITree_LayoutResolve(t, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            return;
+        }
+        chain[chain_len++] = cur;
+    }
+
+    while( chain_len-- > 0 )
+    {
+        int32_t node = chain[chain_len];
+        int px;
+        int py;
+        int pw;
+        int ph;
+        layout_parent_box(
+            t,
+            t->components[node].parent,
+            0,
+            0,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            &px,
+            &py,
+            &pw,
+            &ph);
+        layout_compute_node(t, (uint32_t)node, px, py, pw, ph);
+    }
+}
+
 void
 UITree_LayoutResolve(
     struct UITree* tree,
@@ -141,12 +321,11 @@ UITree_LayoutResolve(
         tree->layout_order_valid = 0;
     }
 
+    /* abs_* scratch is no longer read: nodes resolve against their parent's box
+     * in the tree directly (see layout_parent_box). The buffers stay allocated
+     * so UITree_Free is unchanged. */
     int* const depth = tree->layout_depth;
     int* const order = tree->layout_order;
-    int* const abs_x = tree->layout_abs_x;
-    int* const abs_y = tree->layout_abs_y;
-    int* const abs_w = tree->layout_abs_w;
-    int* const abs_h = tree->layout_abs_h;
 
     /* depth/order are a pure function of tree topology (parent links). Recompute
      * only when the topology changed; otherwise reuse the cached ordering. The
@@ -206,94 +385,19 @@ UITree_LayoutResolve(
         tree->layout_order_valid = 1;
     }
 
+    /* Depth order guarantees a parent is resolved before its children, so each
+     * node can read its parent's box straight out of the tree. */
     for( uint32_t k = 0; k < tree->layout_order_count; k++ )
     {
         int i = order[k];
-        struct UITreeComponent* c = &tree->components[i];
-        struct UITreeElemPosition* pos = &c->position;
+        int px;
+        int py;
+        int pw;
+        int ph;
 
-        int px = root_x;
-        int py = root_y;
-        int pw = root_w;
-        int ph = root_h;
-        if( c->parent >= 0 && (uint32_t)c->parent < n )
-        {
-            px = abs_x[c->parent];
-            py = abs_y[c->parent];
-            pw = abs_w[c->parent];
-            ph = abs_h[c->parent];
-            struct UITreeComponent const* parent = &tree->components[c->parent];
-            if( parent->type == UIELEM_RS_LAYER )
-            {
-                if( parent->u.rs_layer.scroll_width > 0 )
-                    pw = parent->u.rs_layer.scroll_width;
-                if( parent->u.rs_layer.scroll_height > 0 )
-                    ph = parent->u.rs_layer.scroll_height;
-            }
-        }
-
-        if( pos->kind == UIPOS_RELATIVE )
-        {
-            resolve_relative(pos, px, py, pw, ph);
-            abs_x[i] = pos->abs_x;
-            abs_y[i] = pos->abs_y;
-            abs_w[i] = pos->abs_w;
-            abs_h[i] = pos->abs_h;
-            continue;
-        }
-
-        int w = pos->width;
-        int h = pos->height;
-        if( pos->width_mode >= 0 || pos->height_mode >= 0 )
-        {
-            int8_t wm = pos->width_mode >= 0 ? pos->width_mode : 0;
-            int8_t hm = pos->height_mode >= 0 ? pos->height_mode : 0;
-            if( wm == 4 || hm == 4 )
-            {
-                UITree_If3ComputeSize(
-                    wm,
-                    hm,
-                    pos->width,
-                    pos->height,
-                    pw,
-                    ph,
-                    pos->aspect_w > 0 ? pos->aspect_w : 1,
-                    pos->aspect_h > 0 ? pos->aspect_h : 1,
-                    &w,
-                    &h);
-            }
-            else
-            {
-                w = dim_from_parent_mode(wm, pos->width, pw);
-                h = dim_from_parent_mode(hm, pos->height, ph);
-            }
-        }
-
-        if( c->parent < 0 && w == 0 && h == 0 )
-        {
-            w = pw;
-            h = ph;
-        }
-
-        int rx = pos->x;
-        int ry = pos->y;
-        if( pos->x_mode >= 0 || pos->y_mode >= 0 )
-        {
-            int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
-            int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
-            rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
-            ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
-        }
-
-        abs_x[i] = px + rx;
-        abs_y[i] = py + ry;
-        abs_w[i] = w;
-        abs_h[i] = h;
-        pos->abs_x = abs_x[i];
-        pos->abs_y = abs_y[i];
-        pos->abs_w = abs_w[i];
-        pos->abs_h = abs_h[i];
-        pos->layout_resolved = 1;
+        layout_parent_box(
+            tree, tree->components[i].parent, root_x, root_y, root_w, root_h, &px, &py, &pw, &ph);
+        layout_compute_node(tree, (uint32_t)i, px, py, pw, ph);
     }
     tree->layout_stale = 0;
     /* Scratch buffers are owned by the tree and reused; freed in UITree_Free. */
