@@ -439,6 +439,146 @@ visit_framemap(
     (void)profile;
 }
 
+/* ---------------------------------------------------------------- model --- */
+
+/*
+ * Models need a field-by-field comparison rather than the usual handful of
+ * scalars: the struct is 20 arrays, and which of them are NULL is itself
+ * meaningful — the decoders free an array when nothing in it was used, and an
+ * encoder that reinstated it would change what the renderer does.
+ */
+
+#define MODEL_SCALAR(field)                                                                        \
+    do                                                                                             \
+    {                                                                                              \
+        if( first->field != second->field )                                                        \
+            return #field;                                                                         \
+    } while( 0 )
+
+/** Both NULL or both present, and equal over `count` entries. */
+#define MODEL_ARRAY(field, count)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if( (first->field == NULL) != (second->field == NULL) )                                     \
+            return #field " presence";                                                             \
+        if( first->field )                                                                          \
+        {                                                                                          \
+            for( int i = 0; i < (count); i++ )                                                      \
+                if( first->field[i] != second->field[i] )                                           \
+                    return #field;                                                                 \
+        }                                                                                          \
+    } while( 0 )
+
+/** NULL when the models match, else the name of the first field that differs. */
+static const char*
+model_difference(
+    const struct RSCache_Model* first,
+    const struct RSCache_Model* second)
+{
+    MODEL_SCALAR(vertex_count);
+    MODEL_SCALAR(face_count);
+    MODEL_SCALAR(textured_face_count);
+    MODEL_SCALAR(model_priority);
+    MODEL_SCALAR(rotated);
+    MODEL_SCALAR(animaya_vertex_count);
+
+    int vertices = first->vertex_count;
+    int faces = first->face_count;
+    int textured = first->textured_face_count;
+
+    MODEL_ARRAY(vertices_x, vertices);
+    MODEL_ARRAY(vertices_y, vertices);
+    MODEL_ARRAY(vertices_z, vertices);
+    MODEL_ARRAY(vertex_bone_map, vertices);
+
+    MODEL_ARRAY(face_indices_a, faces);
+    MODEL_ARRAY(face_indices_b, faces);
+    MODEL_ARRAY(face_indices_c, faces);
+    MODEL_ARRAY(face_alphas, faces);
+    MODEL_ARRAY(face_infos, faces);
+    MODEL_ARRAY(face_priorities, faces);
+    MODEL_ARRAY(face_colors, faces);
+    MODEL_ARRAY(face_bone_map, faces);
+    MODEL_ARRAY(face_textures, faces);
+    MODEL_ARRAY(face_texture_coords, faces);
+
+    MODEL_ARRAY(textured_p_coordinate, textured);
+    MODEL_ARRAY(textured_m_coordinate, textured);
+    MODEL_ARRAY(textured_n_coordinate, textured);
+    MODEL_ARRAY(texture_render_types, textured);
+
+    MODEL_ARRAY(animaya_group_counts, first->animaya_vertex_count);
+    if( (first->animaya_groups == NULL) != (second->animaya_groups == NULL) )
+        return "animaya_groups presence";
+    if( first->animaya_groups && first->animaya_group_counts )
+    {
+        for( int i = 0; i < first->animaya_vertex_count; i++ )
+        {
+            int count = first->animaya_group_counts[i];
+            if( (first->animaya_groups[i] == NULL) != (second->animaya_groups[i] == NULL) )
+                return "animaya_groups[i] presence";
+            for( int j = 0; first->animaya_groups[i] && j < count; j++ )
+            {
+                if( first->animaya_groups[i][j] != second->animaya_groups[i][j] )
+                    return "animaya_groups";
+                if( first->animaya_scales[i][j] != second->animaya_scales[i][j] )
+                    return "animaya_scales";
+            }
+        }
+    }
+
+    return NULL;
+}
+
+#undef MODEL_SCALAR
+#undef MODEL_ARRAY
+
+static void
+visit_model(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_ModelProvenance* prov = NULL;
+    struct RSCache_Model* first = RSCache_ModelNewDecodeProvenance((uint8_t*)data, size, &prov);
+    if( !first )
+        return;
+    tally->records++;
+
+    uint32_t capacity = RSCache_ModelEncodeBound(first, prov) + 64u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_ModelProvenanceFree(prov);
+        RSCache_ModelFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_ModelEncode(profile, first, prov, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_ModelProvenanceFree(prov);
+        RSCache_ModelFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_Model* second = RSCache_ModelNewDecode(encoded, (int)written);
+    if( second )
+    {
+        if( model_difference(first, second) == NULL )
+            tally->semantic_ok++;
+        RSCache_ModelFree(second);
+    }
+
+    RSCache_ModelProvenanceFree(prov);
+    RSCache_ModelFree(first);
+    free(encoded);
+}
+
 /* -------------------------------------------------------------- sprites --- */
 
 static void
@@ -1844,6 +1984,7 @@ main(int argc, char** argv)
         { "sprites", RSCACHE_DAT2_DISK_TABLE_SPRITES, RSCACHE_TYPE_SPRITE, visit_sprites },
         { "cs2script", RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT, RSCACHE_TYPE_CLIENTSCRIPT,
           visit_clientscript },
+        { "model", RSCACHE_DAT2_DISK_TABLE_MODELS, RSCACHE_TYPE_MODEL, visit_model },
     };
 
     int scanned_any = 0;

@@ -26,6 +26,7 @@ comparing. Where a field's meaning is inferred rather than confirmed, it says so
 - [dat2 — the JS5 container](#dat2--the-js5-container)
 - [dat1 — the jagfile container](#dat1--the-jagfile-container)
 - [The revision model](#the-revision-model)
+- [Model stream layouts](#model-stream-layouts)
 - [Writing a cache](#writing-a-cache)
 - [Building and testing](#building-and-testing)
 
@@ -446,6 +447,51 @@ The same pass found the arrays were 6 wide while the opcode ranges are 10, so
 opcode 46 wrote past `recol_s` into `recol_d`.
 
 ---
+
+## Model stream layouts
+
+Worth its own section because models are the one datatype whose format is **not** a
+revision property. It is stamped on the file, in the last two bytes, and a single
+cache holds a mix — `cache.osrs230` is 89% V2 and 11% V3. So a decode sniffs the magic
+rather than consulting the profile, and `RSCache_ModelCodecVersion` answers only "what
+would this cache write?".
+
+| Magic | Format | Trailer | Adds |
+|---|---|---|---|
+| *(none)* | OB2 | 18 | the 2004 baseline; texture ids packed into the per-face info byte |
+| `FF FF` | OB3 | 23 | texture render types, a separate face-texture section, complex/cube texture mapping |
+| `FF FE` | V2 | 23 | OB2's section order plus skeletal (animaya) skin data |
+| `FF FD` | V3 | 26 | OB3's section order plus animaya |
+
+A model body is a set of **parallel column sections**, not a record stream: the trailer
+holds the *byte counts* of four of them, and the decoder walks up to eight cursors over
+one buffer at once. There are two section orders, not four:
+
+```
+OB2, V2   vertex flags · face index types · [priorities] · [face skins] · [face infos]
+          · [vertex skins (+animaya)] · [alphas] · index deltas · colours
+          · texture p/m/n · X · Y · Z · tail
+
+OB3, V3   render types · vertex flags · [face infos] · face index types · [priorities]
+          · [face skins] · [vertex skins (+animaya)] · [alphas] · index deltas
+          · [face textures] · texture coords · colours · X · Y · Z
+          · simple texture p/m/n · tail
+```
+
+Three things about the encoding are worth knowing before touching it:
+
+- **Vertex positions are delta-encoded** with a per-vertex flag byte naming which axes
+  carry a delta, and the three axes go to three *separate* streams. The flag bit is set
+  exactly when the delta is non-zero — verified over ~377,000 models — so it is
+  derived, not stored.
+- **Face indices reuse the previous face's** under one of four schemes, chosen per
+  face. The scheme is in the stream but not recoverable from the decoded model, since
+  more than one can express the same triangle. Type 1 spells all three out and is
+  always legal, so it is the fallback.
+- **The tail is not decoded.** Every format except OB2 ends with a gate byte
+  introducing a further per-face block, then a flag byte introducing 10 more; OB3/V3
+  also keep their complex and cube texture mapping payloads there. See B11 in
+  `EXCEPTIONS.md`.
 
 ## Writing a cache
 

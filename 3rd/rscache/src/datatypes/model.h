@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_MODEL_H
 #define RSCACHE_DATATYPES_MODEL_H
 
+#include "../rscache_profile.h"
+
 #include <stdint.h>
 
 /**
@@ -135,6 +137,108 @@ struct RSCache_Model
     uint8_t** animaya_scales;
 };
 
+/**
+ * Which of the four stream layouts a model uses.
+ *
+ * The format is *not* a revision property — it is stamped on the file itself, in
+ * the last two bytes, and a single cache holds a mix (osrs230 is ~89% V2 and ~11%
+ * V3). So the decoder sniffs rather than consulting the profile, and
+ * RSCache_ModelCodecVersion exists only to answer "what would this cache write?".
+ */
+enum RSCache_ModelFormat
+{
+    /** No magic. The 2004 layout: 18-byte trailer, texture ids packed into the
+     *  per-face info byte. */
+    RSCACHE_MODEL_FORMAT_OB2 = 0,
+    /** Magic 0xFF 0xFF. Adds texture render types, a separate face-texture
+     *  section, and the complex/cube texture mapping blocks. */
+    RSCACHE_MODEL_FORMAT_OB3,
+    /** Magic 0xFF 0xFE. OB2's section order plus skeletal (animaya) skin data. */
+    RSCACHE_MODEL_FORMAT_V2,
+    /** Magic 0xFF 0xFD. OB3's section order plus animaya. */
+    RSCACHE_MODEL_FORMAT_V3
+};
+
+/** Most header flag bytes any format carries (V3). */
+#define RSCACHE_MODEL_HEADER_FLAG_MAX 8
+
+/**
+ * What the model decode consumed but did not keep.
+ *
+ * Opt-in: the plain decode entry points never allocate this, so the client pays
+ * nothing for it. Only a caller that intends to re-encode asks for it.
+ *
+ * Three things in the stream cannot be recovered from a decoded model:
+ *
+ *  1. **The per-face index type.** Each face picks one of four ways to reuse the
+ *     previous face's indices. The decoder resolves it to absolute indices and
+ *     drops the choice. More than one type can express the same triangle, so a
+ *     re-encode without this is correct but not byte-identical.
+ *  2. **The OB2/V2 face info byte.** It packs the shading mode, a "textured" bit
+ *     and — in its top six bits — the texture coordinate index. When a face's
+ *     coordinates match its texture triangle's p/m/n the decoder rewrites the
+ *     index to -1, and if no face survives that it frees the array outright.
+ *     Either way the original index is gone.
+ *  3. **The trailing bytes.** Every format except OB2 ends with sections this
+ *     library does not interpret: a gated per-face block, and OB3/V3's
+ *     complex/cube texture mapping payloads. See the note on `tail`.
+ *
+ * Everything else the encoder recomputes, which measurement showed is safe:
+ * across ~11,000 models in six caches the per-vertex flag bits are exactly
+ * "this axis has a non-zero delta" (never set over a zero delta, never carrying
+ * a bit above 0x4), and every section byte count in the trailer matches a
+ * minimal shortsmart re-encode. So the deltas, their flag bits and all four
+ * byte counts are derived rather than stored.
+ */
+struct RSCache_ModelProvenance
+{
+    /** enum RSCache_ModelFormat — which layout the source used. */
+    int format;
+
+    /** The header's flag bytes verbatim, in stream order, excluding the vertex
+     *  and face counts and the byte counts (which are recomputed). Kept rather
+     *  than inferred from which arrays are non-NULL because the decoder frees
+     *  some of them on a "nothing here was used" check, which is not reversible:
+     *  `has_face_info = 1` with zero faces is indistinguishable from 0. */
+    uint8_t header_flags[RSCACHE_MODEL_HEADER_FLAG_MAX];
+    int header_flag_count;
+
+    /* Mirrors of the counts the arrays below are sized by, so a provenance handed
+     * to the encoder alongside the wrong model is rejected instead of read out of
+     * bounds. */
+    int vertex_count;
+    int face_count;
+    int textured_face_count;
+
+    /** Per face, the index-reuse type (0-4). `face_count` entries. */
+    uint8_t* face_index_types;
+    /** Per face, the raw info byte. OB2/V2 only; NULL for OB3/V3, which store
+     *  the byte directly in the model's `face_infos`. */
+    uint8_t* face_info_bytes;
+
+    /**
+     * Bytes between the last section this library decodes and the trailer,
+     * preserved verbatim.
+     *
+     * Two distinct things live here and neither is decoded today:
+     *
+     *  - OB3/V3 only: the complex and cube texture mapping blocks. The decoder
+     *    reads the *simple* (render type 0) p/m/n triples and skips the rest,
+     *    sizing them as parallel column blocks of 19 bytes per complex triangle
+     *    plus 2 per cube triangle.
+     *  - V2/OB3/V3: a gate byte whose non-zero value introduces one further
+     *    per-face block, then a second flag byte whose non-zero value introduces
+     *    10 more bytes. The per-face block holds small values (0-3, in runs)
+     *    and is set on roughly a fifth of V2 models; what it means is not
+     *    established, so it is carried rather than interpreted.
+     *
+     * Empty for OB2, whose body ends exactly at its trailer on every model
+     * measured.
+     */
+    uint8_t* tail;
+    int tail_size;
+};
+
 struct RSCache_ModelBones
 {
     int bones_count;
@@ -167,6 +271,75 @@ struct RSCache_Model*
 RSCache_ModelNewDecode(
     uint8_t* data,
     int data_size);
+
+/**
+ * As RSCache_ModelNewDecode, but also records what the decode discards.
+ *
+ * `*out_provenance` receives a fresh provenance (free it with
+ * RSCache_ModelProvenanceFree) on success. Pass NULL for `out_provenance` to get
+ * the plain decode. On failure both the model and the provenance are NULL.
+ */
+struct RSCache_Model*
+RSCache_ModelNewDecodeProvenance(
+    uint8_t* data,
+    int data_size,
+    struct RSCache_ModelProvenance** out_provenance);
+
+void
+RSCache_ModelProvenanceFree(struct RSCache_ModelProvenance* provenance);
+
+/**
+ * Which format this cache would write.
+ *
+ * Only meaningful for authoring a new model — a *decode* must sniff the magic,
+ * because the format travels with the file and a single cache mixes them.
+ */
+int
+RSCache_ModelCodecVersion(const struct RSCache* cache);
+
+/**
+ * Encode a model.
+ *
+ * With `provenance` from RSCache_ModelNewDecodeProvenance the output is
+ * byte-identical to the source. Without it the output is a valid model of the
+ * requested format that decodes back to an equal struct, but differs in the
+ * three places listed on struct RSCache_ModelProvenance — chiefly that every
+ * face is written with index type 1 (a full triple), which is always legal but
+ * larger than what a packer would choose.
+ *
+ * The four byte counts in the trailer are not taken from the provenance; they are
+ * recomputed from the sections actually written, so a caller may modify vertex
+ * positions, colours, alphas, priorities or bone maps and re-encode. Changing the
+ * *counts* (vertex_count, face_count, textured_face_count) invalidates a
+ * provenance and is rejected.
+ *
+ * Returns bytes written, or 0 on failure. Failure is reported rather than
+ * approximated: a mismatched provenance, a missing array the header flags say is
+ * present, a vertex delta outside shortsmart range, or an index type whose
+ * reuse pattern the model's indices do not actually satisfy.
+ */
+uint32_t
+RSCache_ModelEncode(
+    const struct RSCache* cache,
+    const struct RSCache_Model* model,
+    const struct RSCache_ModelProvenance* provenance,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** As RSCache_ModelEncode, for a caller naming the format directly. */
+uint32_t
+RSCache_ModelEncodeFormat(
+    const struct RSCache_Model* model,
+    const struct RSCache_ModelProvenance* provenance,
+    int format,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Worst-case output size for RSCache_ModelEncode. */
+uint32_t
+RSCache_ModelEncodeBound(
+    const struct RSCache_Model* model,
+    const struct RSCache_ModelProvenance* provenance);
 struct RSCache_Model*
 RSCache_ModelNewCopy(struct RSCache_Model* model);
 struct RSCache_Model*

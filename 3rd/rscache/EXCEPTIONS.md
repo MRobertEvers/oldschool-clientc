@@ -292,42 +292,103 @@ the low word, restoring any constant that fits in 32 bits; a genuinely 64-bit co
 is already lost at decode. Widening `int_operands` to `int64_t` is the fix and would
 touch the CS2 VM.
 
-### B10. `model` — the one encoder not written *(Gap)*
+### B10. `model` — resolved; three of four formats are byte-exact
 
-Four formats selected by a magic trailer (`FF FF` ob3, `FF FE` OSRS extended,
-`FF FD` OSRS material, otherwise ob2), ~2300 lines of decoder between them. Not
-attempted, and the reason is scale rather than a blocker — but the shape of the work
-is worth recording, because it is not like the other encoders.
+Four formats selected by a magic trailer (`FF FF` ob3, `FF FE` OSRS extended, `FF FD`
+OSRS material, otherwise ob2), ~2300 lines of decoder between them. Now encoded, at
+**100% semantic and 100% byte-exact over 273,065 models** in the five stock caches,
+with two bounded exceptions recorded below.
 
-**Why it is structurally harder.** Every other datatype is a single forward cursor
-(config opcode streams) or a small fixed layout. A model is neither. `decode_ob2`
-runs **eight independent section cursors** over one buffer — vertex flags, face
-indices, face render priorities, packed transparency vertex groups, face infos,
-packed vertex groups, plus three separate per-axis vertex delta streams — and the
-18-byte trailer carries the byte *counts* of several of those sections. An encoder has
-to lay out every section, then go back and fill in counts that depend on what it
-wrote.
+| Cache | Models | Formats | Byte-exact (provenance) | Semantic (no provenance) |
+|---|---|---|---|---|
+| `cache` | 56323 | v2 + v3 | 100% | 100% |
+| `cache.jan2026` | 59885 | v2 + v3 | 100% | 100% |
+| `cache.osrs230` | 56306 | v2 + v3 | 100% | 100% |
+| `cache.osrs239` | 61615 | v2 + v3 | 100% | 100% |
+| `cache.osrs184` | 38936 | ob2 + ob3 | 100% | 100% |
+| `cache.kronos` | 39117 | ob2 + ob3 | 99.87% (49 short) | 100% |
+| `cache.643` | 65014 | ob3 | 85.9% | 96.5% |
 
-**Two provenance questions, in the same class as frame and maps terrain:**
+**What the plan above got wrong, and what measurement replaced it with.** The two
+provenance questions it flagged were both settled by measuring rather than assuming,
+and the answers went opposite ways:
 
-1. *Vertex flag bits.* Vertices are delta-encoded, with a per-vertex flag byte saying
-   which axes carry a delta. The decoder reconstructs absolute positions, discarding
-   the flags. Probably derivable — a delta is presumably emitted exactly when it is
-   non-zero — but that is an assumption about the packer, and it needs measuring
-   before it is relied on.
-2. *Face-index delta type.* Each face's indices are encoded by one of four schemes
-   reusing previous indices in different ways. The type is in the stream; the decoder
-   reads it, reconstructs absolute indices and does not keep it. Any valid choice
-   produces a correct model, so a greedy encoder is *semantically* fine, but
-   byte-exactness needs the original choice recorded.
+1. *Vertex flag bits* — **derivable, confirmed.** "A bit per axis with a non-zero
+   delta" reproduces the flag byte on every one of ~377,000 models: no flag was ever
+   set over a zero delta, and no flag byte ever carried a bit above `0x4`. So nothing
+   is recorded, and the deltas and their flags are recomputed. The same sweep settled
+   the byte counts in the trailer: every one matches a minimal shortsmart re-encode,
+   so those are recomputed too rather than carried.
+2. *Face-index delta type* — **not derivable, recorded.** As predicted.
 
-**Recommended approach**, following what worked for frame and maps: record provenance
-at decode time — the per-vertex flag byte and the per-face index type — rather than
-trying to re-derive either. Then verify with a measurement pass before trusting any
-derivation, the way the framemap trailing bytes and the clientscript `trailer_len`
-relation were pinned. Do one format end to end (ob3 or ob2) with the round-trip
-harness green before starting the next; they share enough structure that the first is
-most of the design work.
+The plan also missed a third thing, which turned out to be the largest: **the trailing
+region**. Every format except ob2 ends with sections this library does not decode at
+all — ob3/v3's complex and cube texture mapping payloads, and a gate byte introducing
+a further per-face block followed by a flag byte introducing 10 more. Those are
+carried verbatim as an opaque tail. See B11.
+
+**Design.** Sections are built into separate growable buffers and concatenated in the
+order the format wants, which is what makes the "trailer carries section byte counts"
+problem disappear — the counts are just the buffers' lengths, so there is no
+backfilling and no second pass. The four layouts turn out to be two orders (ob2 = v2,
+ob3 = v3) and four trailers.
+
+**The exceptions.**
+
+*`cache.kronos`, 49 of 39117 not byte-exact.* Not an encoder fault: the source packed
+some shortsmarts in the **two-byte form for values that fit in one**. `c0 3f` and `7f`
+both decode to 63; this encoder always writes the shorter. Semantic round-trip is
+100% and the output is 1-4 bytes smaller, so these are re-packings, not losses. Zero
+occurrences in the other six caches, which is consistent with kronos being a custom
+cache whose models were packed by a different tool. Reproducing it would mean
+recording a width bit per delta; not worth it for a canonically-shorter encoding.
+
+*`cache.643`, 85.9% byte-exact.* This one is a **decoder** gap, not an encoder one —
+see B12.
+
+### B11. The model trailing region is carried, not understood *(Gap)*
+
+Bytes between the last section this library decodes and the trailer are preserved
+verbatim in `RSCache_ModelProvenance.tail`. Two distinct things live there:
+
+- **ob3/v3 only:** the complex and cube texture mapping blocks. The decoder reads the
+  *simple* (render type 0) p/m/n triples and skips the rest, sizing them as parallel
+  column blocks of 19 bytes per complex triangle plus 2 per cube triangle. Since they
+  are never decoded they cannot be re-derived, only copied.
+- **v2/ob3/v3:** a gate byte whose non-zero value introduces one further per-face
+  block, then a flag byte whose non-zero value introduces 10 more bytes. This shape
+  was established by measurement — reading the region that way accounts for the file
+  length **exactly** on all 2676 v2 models in four caches, where ignoring it left every
+  one of them short by `face_count + 1`. The per-face block holds small values (0-3, in
+  runs) and is set on roughly a fifth of v2 models. What it *means* is not established,
+  so it is carried rather than interpreted.
+
+Consequences, both bounded and deliberate:
+
+- A model authored from scratch (no provenance) gets the minimal instance of the
+  trailing structure — two zero bytes — rather than nothing. Not cosmetic: `decode_ob3`
+  and `decode_version3` read a byte there without checking they are still inside the
+  file, so a body ending at the trailer had them read the vertex count as a flag and,
+  if it were non-zero, ten bytes from past the end.
+- Editing a model's *complex* texture triangles is not supported. Simple triangles are
+  re-encoded from the struct and can be edited freely.
+
+The fix is to decode the region properly, which is a decoder change and out of scope
+here. Until then the encoder is faithful without being complete.
+
+### B12. `cache.643` ob3 models do not decode *(Gap)*
+
+Revision 643 is RS2-branch, not OSRS, and its models do not fit the ob3 layout this
+library implements: re-deriving the section offsets independently, **1795 of 3000
+sampled models lay out past the end of the file**, and 355 use a face index type 0 that
+appears in no OSRS cache. Byte-exactness of 85.9% is the honest signal here; the 100%
+*semantic* figure is not evidence of anything, because both decodes are wrong in the
+same way and therefore agree.
+
+`cache.643` is deliberately **not** in the round-trip harness's cache list, so this
+does not show up as a passing test. Nothing in the client boots a 643 cache today. The
+work needed is a fifth format (or a 643-gated variant of ob3), which belongs with the
+decoder.
 
 ## C. Open — real defects deliberately not fixed
 
@@ -373,6 +434,10 @@ exception to "only add the write half".
 | D8 | **loc opcodes 78 and 79 are not mutually exclusive.** 78 carries a single ambient sound id; 79 carries the retrigger interval plus a list. Real records carry **both** (loc 16433 in `cache.osrs230`, with 79 first). The encoder used `else if` and silently dropped `ambient_sound_id`. | 30 records per cache failed semantic round-trip; the byte dump showed `4f …` immediately followed by `4e …`. |
 | D10 | **sequence opcode 15 used the wrong list shape in v1/v2.** Per RuneLite's `SequenceLoader` — quoted verbatim at the top of `dat2_config_sequence.c` — opcode 13 is the *positional* list (u8 count, frame = loop index) while opcode 15 is the *framed* list (u16 count, explicit frame per entry). The decoder used the positional handler for both, so any record using opcode 15 would misalign. | Read directly off the inline reference while writing the encoder. **Unexercised**: no record in the corpus uses opcode 15, so the numbers did not move. Kept because it matches the documented reference, but it has no test coverage — noted so nobody assumes otherwise. |
 | D11 | **sequence `chat_frame_ids` was allocated without recording its length.** That left the array unencodable *and* uncomparable — nothing knew how many entries it had. Added `chat_frame_id_count`, set in all three era decoders. | Found while writing the encoder: the field could not be emitted at all. |
+| D12 | **`decode_ob3` read the vertex flag byte and the X delta through the same cursor**, starting at the X delta stream. The flag byte lives in its own section (right after the texture render types); reading both from one cursor walked the flags off into the X data and mangled every vertex of every ob3 model. `decode_version3__osrs_material` — the same layout, one format newer — has always had it right, which is what made the diagnosis quick. | The section layout, re-derived independently, consumes the file exactly for ob3 in `cache.kronos` and `cache.osrs184`, which pins where the flag section is. After the fix all 11,268 + 11,294 ob3 models in those two caches round-trip **byte-exactly** — impossible unless the decode now consumes the stream the way it was written. |
+| D13 | **`decode_ob3` re-read the texture render type from the mapping section** instead of the array it had already read from the head of the file, consuming 7 bytes per simple triangle where its *own* offset arithmetic 20 lines earlier allots `simpleTextureFaceCount * 6`. Every texture triangle after the first therefore took its p/m/n from one byte too far along. Self-inconsistent within one function, and again `version3` reads the stored array. | Three models in `cache.osrs184` failed the round trip with `textured_p_coordinate` diverging and the output one byte short. Both went to zero with the fix, and the ob3 byte-exact rate went to 100%. |
+| D14 | **`decode_ob3` discarded the texture render types entirely** — read into a local, never stored — even though `struct RSCache_Model` has the field and `version3` fills it. Without it there is no way to tell a simple texture triangle from a complex one after the fact, and the two are sized differently, so the mapping section could not be laid out at all. | Found writing the encoder: the section length was unknowable from the struct. |
+| D15 | **Four arrays were `malloc`'d but only partially written**, leaving uninitialised heap where the reference implementation reads a zeroed array: `face_indices_a/b/c` (a face with index type 0 assigns none of them) in ob3/v2/v3, and `face_texture_coords` plus `textured_p/m/n_coordinate` (written only for textured faces / render-type-0 triangles) in ob3 and v3. Switched to `calloc`, which is also what Java's zero-initialised arrays give the reference. | Found by the round-trip comparison, which was nondeterministic until the reads were defined. Index type 0 occurs in no OSRS cache, but it does occur 355 times in `cache.643`. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
@@ -408,14 +473,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1193 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1205 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
 | profile | 111 |
-| roundtrip | 211 |
+| roundtrip | 223 |
 | compression | 99 |
 | bzip2 interop | 9 |
 
@@ -423,23 +488,38 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-Encoders done (15). **Every config datatype**: struct, enum, param, idk, spotanim,
-obj, underlay, overlay, texture, mapelement, npc, loc, sequence. Plus two binary
-types: framemap and sprites. Semantic round-trip is 100% on all fifteen across all
-six dat2 caches.
+**Encoders: 20 — every datatype this library decodes.** The 13 config types (struct,
+enum, param, idk, spotanim, obj, underlay, overlay, texture, mapelement, npc, loc,
+sequence) plus framemap, sprites, map terrain, frame, clientscript and model.
 
-The round-trip harness now scans both traversals — config groups (many records per
-archive) and whole-archive tables (one record per archive, capped at 2000 archives
-per table with the cap printed).
+Semantic round-trip is asserted at 100% on all twenty, across every dat2 cache that
+carries the datatype.
 
-Encoders done (19): the 13 config types, plus framemap, sprites, map terrain, frame
-and clientscript. Semantic round-trip is 100% on all of them across every dat2 cache
-that carries the datatype.
+Byte-exactness, which is reported rather than asserted (see E):
 
-Remaining: **model** only — see B10 for why it is structurally unlike the others and
-the recommended approach. Nothing is blocked; it is a scale problem. Byte-exactness by datatype: frame and framemap (old caches) 100%,
-struct 100%, underlay 99%, sequence ~36%, sprites ~25% (ordering only), obj/loc/npc
-low (ordering plus documented loss), mapelement 0% by construction.
+| Band | Datatypes |
+|---|---|
+| 100% | **model**, frame, clientscript, framemap (old caches), struct |
+| ~99% | underlay |
+| ~36% | sequence |
+| ~25% | sprites — ordering only (B3b) |
+| low | obj, loc, npc — ordering plus documented loss (B2, B3) |
+| 0% | mapelement, by construction (B2) |
 
-Then the six missing decoders (varbit, varplayer, varclient, varclient_string, inv,
-hitsplat, healthbar) and engine wiring.
+The round-trip harness scans both traversals — config groups (many records per
+archive) and whole-archive tables (one record per archive, capped at 2000 archives per
+table with the cap printed).
+
+Remaining, both additive and neither blocking:
+
+- **Six missing decoders** — varbit, varplayer, varclient, varclient_string, inv,
+  hitsplat, healthbar. These have config-kind enum entries but no decoder at all, so
+  the read half has to be written before the write half.
+- **Engine wiring** — `app.c` builds a `struct RSCache` from the manifest's
+  `client_version`, the build caches store it, and the ~12 call sites that pass a bare
+  revision or a raw flag constant pass it instead. Old entry points already survive as
+  wrappers, so nothing else has to change.
+
+Two model-specific gaps are recorded above and are decoder work, not encoder work:
+the trailing region is carried without being understood (B11), and `cache.643`'s ob3
+models do not decode (B12).
