@@ -307,6 +307,213 @@ scan_config_group(
     RSCache_Dat2DiskFree(disk);
 }
 
+/*
+ * Scan a whole table where each archive is a single record, rather than a config
+ * group holding many files. Framemaps (table 1) and sprite packs (table 8) work this
+ * way, so they need a different traversal from the config types.
+ *
+ * The archive ids come from the reference table, which is the only place that
+ * records which of them exist — they are neither dense nor 0-based in general.
+ */
+static void
+scan_table_archives(
+    const char* root,
+    const char* cache_dir,
+    int table_id,
+    enum RSCache_Type type,
+    record_visitor visit,
+    struct tally* tally)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s", root, cache_dir);
+
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+        return;
+
+    struct RSCache_ReferenceTable* table = disk->tables[table_id];
+    if( !table )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+
+    struct RSCache profile;
+    const char* revision_name = profile_name_for_cache(cache_dir);
+    if( !revision_name || !RSCache_ProfileByName(revision_name, &profile) )
+        profile = RSCache_ProfileZero();
+    RSCache_ProfileSetGroupRevision(&profile, type, table->version);
+
+    /* Cap the sweep: some of these tables hold tens of thousands of archives and
+     * every one is a separate sector-chain read. A few thousand is ample to catch a
+     * systematic encoder fault, and the cap is reported so it cannot be mistaken for
+     * full coverage. */
+    const int scan_limit = 2000;
+    int scanned = 0;
+
+    for( int i = 0; i < table->id_count && scanned < scan_limit; i++ )
+    {
+        int archive_id = table->ids[i];
+
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(disk, table_id, archive_id);
+        if( !archive )
+            continue;
+
+        if( archive->data && archive->data_size > 0 )
+        {
+            visit(&profile, (const uint8_t*)archive->data, archive->data_size, tally);
+            scanned++;
+        }
+
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+
+    if( scanned >= scan_limit )
+        printf("   (capped at %d archives of %d)\n", scan_limit, table->id_count);
+
+    RSCache_Dat2DiskFree(disk);
+}
+
+/* ------------------------------------------------------------- framemap --- */
+
+static void
+visit_framemap(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2Framemap* first = RSCache_Dat2FramemapNewDecode2(0, (char*)data, size);
+    if( !first )
+        return;
+    tally->records++;
+
+    uint32_t capacity = RSCache_Dat2FramemapEncodeBound(first) + 64u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_Dat2FramemapFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_Dat2FramemapEncode(first, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_Dat2FramemapFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_Dat2Framemap* second =
+        RSCache_Dat2FramemapNewDecode2(0, (char*)encoded, (int)written);
+    if( second )
+    {
+        bool equal = first->length == second->length;
+        for( int i = 0; equal && i < first->length; i++ )
+        {
+            if( first->types[i] != second->types[i] ||
+                first->bone_groups_lengths[i] != second->bone_groups_lengths[i] )
+            {
+                equal = false;
+                break;
+            }
+            for( int j = 0; j < first->bone_groups_lengths[i]; j++ )
+            {
+                if( first->bone_groups[i][j] != second->bone_groups[i][j] )
+                {
+                    equal = false;
+                    break;
+                }
+            }
+        }
+        if( equal )
+            tally->semantic_ok++;
+        RSCache_Dat2FramemapFree(second);
+    }
+
+    RSCache_Dat2FramemapFree(first);
+    free(encoded);
+    (void)profile;
+}
+
+/* -------------------------------------------------------------- sprites --- */
+
+static void
+visit_sprites(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    /* Decode unnormalised: normalising rewrites the geometry in place, so an encode
+     * of a normalised pack is deliberately not a copy of the source. */
+    struct RSCache_Dat2SpritePack* first =
+        RSCache_Dat2SpritePackNewDecode(data, size, RSCACHE_SPRITELOAD_FLAG_NONE);
+    if( !first )
+        return;
+    tally->records++;
+
+    uint32_t capacity = RSCache_Dat2SpritePackEncodeBound(first) + 64u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_Dat2SpritePackFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_Dat2SpritePackEncode(first, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_Dat2SpritePackFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_Dat2SpritePack* second =
+        RSCache_Dat2SpritePackNewDecode(encoded, (int)written, RSCACHE_SPRITELOAD_FLAG_NONE);
+    if( second )
+    {
+        bool equal = first->count == second->count &&
+                     first->palette_length == second->palette_length;
+        for( int i = 1; equal && i < first->palette_length; i++ )
+        {
+            if( first->palette[i] != second->palette[i] )
+                equal = false;
+        }
+        for( int i = 0; equal && i < first->count; i++ )
+        {
+            const struct RSCache_Dat2Sprite* want = &first->sprites[i];
+            const struct RSCache_Dat2Sprite* got = &second->sprites[i];
+            if( want->width != got->width || want->height != got->height ||
+                want->crop_width != got->crop_width || want->crop_height != got->crop_height ||
+                want->offset_x != got->offset_x || want->offset_y != got->offset_y )
+            {
+                equal = false;
+                break;
+            }
+            int dimension = want->crop_width * want->crop_height;
+            if( memcmp(want->palette_pixels, got->palette_pixels, (size_t)dimension) != 0 ||
+                memcmp(want->pixel_alphas, got->pixel_alphas, (size_t)dimension) != 0 )
+            {
+                equal = false;
+                break;
+            }
+        }
+        if( equal )
+            tally->semantic_ok++;
+        RSCache_Dat2SpritePackFree(second);
+    }
+
+    RSCache_Dat2SpritePackFree(first);
+    free(encoded);
+    (void)profile;
+}
+
 /* ------------------------------------------------------------- spotanim --- */
 
 static void
@@ -1393,7 +1600,40 @@ main(int argc, char** argv)
         { "sequence", RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, RSCACHE_TYPE_SEQUENCE, visit_sequence },
     };
 
+    /* Types whose archives are one record each, rather than config groups. */
+    struct table_case
+    {
+        const char* name;
+        int table_id;
+        enum RSCache_Type type;
+        record_visitor visit;
+    };
+    static const struct table_case TABLE_CASES[] = {
+        { "framemap", RSCACHE_DAT2_DISK_TABLE_SKELETONS, RSCACHE_TYPE_FRAMEMAP, visit_framemap },
+        { "sprites", RSCACHE_DAT2_DISK_TABLE_SPRITES, RSCACHE_TYPE_SPRITE, visit_sprites },
+    };
+
     int scanned_any = 0;
+
+    for( size_t c = 0; c < sizeof(TABLE_CASES) / sizeof(TABLE_CASES[0]); c++ )
+    {
+        RSCACHE_TEST_GROUP(TABLE_CASES[c].name);
+
+        for( size_t d = 0; d < sizeof(CACHE_DIRS) / sizeof(CACHE_DIRS[0]); d++ )
+        {
+            struct tally tally = { 0 };
+            scan_table_archives(
+                root,
+                CACHE_DIRS[d],
+                TABLE_CASES[c].table_id,
+                TABLE_CASES[c].type,
+                TABLE_CASES[c].visit,
+                &tally);
+            if( tally.records > 0 )
+                scanned_any = 1;
+            tally_report(TABLE_CASES[c].name, CACHE_DIRS[d], &tally);
+        }
+    }
 
     for( size_t c = 0; c < sizeof(CASES) / sizeof(CASES[0]); c++ )
     {

@@ -45,6 +45,34 @@ RSCache_Dat2SpritePackNewDecode(
     int length,
     enum RSCache_SpriteLoadFlags flags);
 
+/**
+ * Encode a sprite pack.
+ *
+ * **Decode with RSCACHE_SPRITELOAD_FLAG_NONE if you want the original geometry
+ * back.** Normalising rewrites the pack in place — `crop_width`/`crop_height`
+ * become the memory dimensions and the offsets are zeroed — so encoding a
+ * normalised pack yields a valid pack of full-size, unoffset sprites rather than a
+ * copy of the source.
+ *
+ * Two things cannot be reproduced, because the decoder does not retain them:
+ *   - the per-sprite flags byte. Row-major is always written (never
+ *     FLAG_VERTICAL), and FLAG_ALPHA only when the alpha channel cannot be
+ *     re-derived from `index != 0`. A vertically-stored sprite therefore
+ *     round-trips semantically but not byte-exactly.
+ *   - a palette entry of 0, which the decoder rewrites to 1 on the way in.
+ *
+ * Returns bytes written, or 0 on failure.
+ */
+uint32_t
+RSCache_Dat2SpritePackEncode(
+    const struct RSCache_Dat2SpritePack* pack,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Worst-case output size for RSCache_Dat2SpritePackEncode. */
+uint32_t
+RSCache_Dat2SpritePackEncodeBound(const struct RSCache_Dat2SpritePack* pack);
+
 void
 RSCache_Dat2SpritePackFree(struct RSCache_Dat2SpritePack* pack);
 

@@ -106,6 +106,55 @@ framemap_new_decode(
     return def;
 }
 
+uint32_t
+RSCache_Dat2FramemapEncodeBound(const struct RSCache_Dat2Framemap* def)
+{
+    if( !def )
+        return 0;
+
+    /* 1 length byte, then a type byte and a group-length byte per entry, then one
+     * byte per bone in every group. */
+    uint32_t total = 1u + (uint32_t)def->length * 2u;
+    for( int i = 0; i < def->length; i++ )
+        total += (uint32_t)def->bone_groups_lengths[i];
+    return total;
+}
+
+uint32_t
+RSCache_Dat2FramemapEncode(
+    const struct RSCache_Dat2Framemap* def,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !def || !out )
+        return 0;
+    if( out_capacity < RSCache_Dat2FramemapEncodeBound(def) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* Fixed layout, not an opcode stream, and nothing the decoder reads is
+     * discarded — so this is byte-exact for every well-formed framemap. The three
+     * passes have to stay in this order: all types, then all group lengths, then all
+     * group contents. */
+    p1(&buffer, def->length);
+
+    for( int i = 0; i < def->length; i++ )
+        p1(&buffer, def->types[i]);
+
+    for( int i = 0; i < def->length; i++ )
+        p1(&buffer, def->bone_groups_lengths[i]);
+
+    for( int i = 0; i < def->length; i++ )
+    {
+        for( int j = 0; j < def->bone_groups_lengths[i]; j++ )
+            p1(&buffer, def->bone_groups[i][j]);
+    }
+
+    return buffer.position;
+}
+
 void
 RSCache_Dat2FramemapFree(struct RSCache_Dat2Framemap* def)
 {

@@ -210,6 +210,114 @@ RSCache_Dat2SpritePackNewDecode(
     return pack;
 }
 
+uint32_t
+RSCache_Dat2SpritePackEncodeBound(const struct RSCache_Dat2SpritePack* pack)
+{
+    if( !pack )
+        return 0;
+
+    uint32_t total = 0;
+    for( int i = 0; i < pack->count; i++ )
+    {
+        const struct RSCache_Dat2Sprite* sprite = &pack->sprites[i];
+        uint32_t dimension = (uint32_t)sprite->crop_width * (uint32_t)sprite->crop_height;
+        /* flags byte, palette indices, and alphas in the worst case. */
+        total += 1u + dimension * 2u;
+    }
+
+    /* Palette, then the trailer: memory width/height, palette length, four u16
+     * columns per sprite, and the sprite count. */
+    total += (uint32_t)(pack->palette_length > 0 ? pack->palette_length - 1 : 0) * 3u;
+    total += 5u + (uint32_t)pack->count * 8u + 2u;
+    return total;
+}
+
+uint32_t
+RSCache_Dat2SpritePackEncode(
+    const struct RSCache_Dat2SpritePack* pack,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !pack || !out || pack->count <= 0 )
+        return 0;
+    if( out_capacity < RSCache_Dat2SpritePackEncodeBound(pack) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* Pixel data first — the decoder reads it from offset 0 forward, and everything
+     * else from the end backwards. */
+    for( int i = 0; i < pack->count; i++ )
+    {
+        const struct RSCache_Dat2Sprite* sprite = &pack->sprites[i];
+        int dimension = sprite->crop_width * sprite->crop_height;
+
+        /*
+         * The flags byte is not retained by the decoder, so it has to be chosen
+         * rather than reproduced.
+         *
+         * FLAG_VERTICAL is never written: the column-major variant carries the same
+         * pixels in a different order, and writing row-major is always valid. A
+         * sprite that was stored vertically therefore round-trips semantically but
+         * not byte-exactly.
+         *
+         * FLAG_ALPHA is written only when the alphas cannot be re-derived. With the
+         * flag clear the decoder synthesises alpha as (index != 0 ? 0xFF : 0), so
+         * whenever the stored alphas already match that rule the channel is pure
+         * redundancy and omitting it is both smaller and byte-exact against a source
+         * that omitted it too.
+         */
+        bool alpha_derivable = true;
+        for( int j = 0; j < dimension; j++ )
+        {
+            uint8_t expected = sprite->palette_pixels[j] != 0 ? 0xFF : 0x00;
+            if( sprite->pixel_alphas[j] != expected )
+            {
+                alpha_derivable = false;
+                break;
+            }
+        }
+
+        int flags = alpha_derivable ? 0 : FLAG_ALPHA;
+        p1(&buffer, flags);
+
+        for( int j = 0; j < dimension; j++ )
+            p1(&buffer, sprite->palette_pixels[j]);
+
+        if( !alpha_derivable )
+        {
+            for( int j = 0; j < dimension; j++ )
+                p1(&buffer, sprite->pixel_alphas[j]);
+        }
+    }
+
+    /* Palette. Index 0 is implicit and never stored. The decoder rewrites a stored 0
+     * to 1, so a palette that legitimately held 0 cannot be reproduced — that
+     * information is lost at decode. */
+    for( int i = 1; i < pack->palette_length; i++ )
+        p3(&buffer, pack->palette[i]);
+
+    /* Trailer. Memory width/height are per-pack but stored on every sprite by the
+     * decoder, so take them from the first. */
+    p2(&buffer, pack->sprites[0].width);
+    p2(&buffer, pack->sprites[0].height);
+    p1(&buffer, pack->palette_length - 1);
+
+    for( int i = 0; i < pack->count; i++ )
+        p2(&buffer, pack->sprites[i].offset_x);
+    for( int i = 0; i < pack->count; i++ )
+        p2(&buffer, pack->sprites[i].offset_y);
+    for( int i = 0; i < pack->count; i++ )
+        p2(&buffer, pack->sprites[i].crop_width);
+    for( int i = 0; i < pack->count; i++ )
+        p2(&buffer, pack->sprites[i].crop_height);
+
+    p2(&buffer, pack->count);
+
+    return buffer.position;
+}
+
 void
 RSCache_Dat2SpritePackFree(struct RSCache_Dat2SpritePack* pack)
 {

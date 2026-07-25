@@ -110,6 +110,25 @@ Handled by an **exact allowance** in the harness (`CONSUMPTION_ALLOWANCES`), not
 blanket skip: the count is pinned at 1, so a regression to 2 still fails. It prints
 as `ALLOWED` on every run.
 
+### B1c. Modern framemap archives carry trailing bytes the decoder ignores *(Gap)*
+
+Measured by comparing each archive's size against what its decode accounts for:
+
+| Cache | Archives | delta 0 | delta 2 | other |
+|---|---|---|---|---|
+| `cache.kronos` (format 5, table ver 0) | 1887 | **1887** | 0 | 0 |
+| `cache.osrs230` (format 7, table ver 67) | 2429 | 0 | 2338 | 91 |
+| `cache.jan2026` | 2613 | 0 | 2495 | 118 |
+
+Old caches decode exactly; modern ones leave **2 unread trailing bytes**, observed as
+`00 00`, and ~4% leave some other amount — so it is *not* simply a two-zero-byte
+pad. The meaning has not been established and is not guessed at, so the bytes are
+neither decoded nor written back.
+
+Consequence: a modern framemap round-trips semantically but re-encodes 2 bytes short,
+which is why byte-exactness reads 100% on old caches and 0% on modern ones. Quantified
+in `dat2_framemap.h`.
+
 ### B2. Lossy decoders cap byte-exactness *(Gap)*
 
 These decoders consume fields without storing them, so an encoder cannot write them
@@ -125,6 +144,7 @@ back. All still round-trip **semantically**.
 | npc | opcodes 93, 107, 109 *clear* flags the decoder never sets true, so their presence is unrecoverable. No client code reads those three fields. |
 | spotanim | recolour/retexture slots past 6 (the opcode ranges are 10 wide) |
 | sequence | v1's frame-sound record packs id/loops/location into 24 bits, leaving `retain` and `weight` nowhere to live; v1 and v2 index frame sounds by *position*, so the list is written dense with zero-filled holes (the decoder's own `id >= 1` filter drops them again); opcode 100's blend table is consumed without storing |
+| sprites | the per-sprite flags byte, which the decoder does not retain. Row-major is always written (never FLAG_VERTICAL) and FLAG_ALPHA only when the alpha channel cannot be re-derived from `index != 0`, so a vertically-stored sprite is same-length but different bytes — sprites measure **100% same-length, 24–29% exact**, i.e. the shortfall is entirely byte ordering. Also: a palette entry of 0, which the decoder rewrites to 1 on the way in. |
 | loc | the largest lossy set of any type — roughly 25 opcodes consumed without storing (25, 44, 45, 61, 69, 88/90/91/96–105, 163–191 and the boolean-flag block), plus opcode 95's pre-220 payload. Also collapses three groups of aliased opcodes: actions 0–4 (writable via 30+i *or* 150+i), map_function_id (60, 82, 107) and map_scene_id (68, 102) — the encoder emits the lowest opcode of each. Hence ~0–1% byte-exact against ~52% same-length. |
 
 ### B3. Jagex's opcode ordering is not reproduced *(Gap)*
@@ -142,6 +162,17 @@ but **100% same-length**, i.e. purely reordering.
 
 Deliberately not chased: matching the order would raise one column and change
 nothing observable.
+
+### B3b. Sprite packs must be decoded unnormalised to re-encode faithfully *(Gap)*
+
+`RSCACHE_SPRITELOAD_FLAG_NORMALIZE` rewrites the pack **in place**: `crop_width`/
+`crop_height` become the memory dimensions, the offsets are zeroed and the pixel
+buffers are resized. Encoding a normalised pack therefore produces a valid pack of
+full-size, unoffset sprites rather than a copy of the source.
+
+Not a defect — normalising is what the renderer wants — but it means a repack
+pipeline has to decode with `RSCACHE_SPRITELOAD_FLAG_NONE`. Stated in the encoder's
+header.
 
 ### B4. Container writer limitations *(Gap)*
 
@@ -262,14 +293,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1111 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1135 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 469 |
 | profile | 111 |
-| roundtrip | 165 |
+| roundtrip | 189 |
 | compression | 99 |
 | bzip2 interop | 9 |
 
@@ -277,10 +308,15 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-Encoders done (13) — **every config datatype**: struct, enum, param, idk, spotanim,
-obj, underlay, overlay, texture, mapelement, npc, loc, sequence. Semantic round-trip
-is 100% on all thirteen across all six dat2 caches.
+Encoders done (15). **Every config datatype**: struct, enum, param, idk, spotanim,
+obj, underlay, overlay, texture, mapelement, npc, loc, sequence. Plus two binary
+types: framemap and sprites. Semantic round-trip is 100% on all fifteen across all
+six dat2 caches.
 
-Remaining: the binary types (model, frame, framemap, sprites, maps, clientscript),
-the six missing decoders (varbit, varplayer, varclient, varclient_string, inv,
-hitsplat, healthbar), and engine wiring.
+The round-trip harness now scans both traversals — config groups (many records per
+archive) and whole-archive tables (one record per archive, capped at 2000 archives
+per table with the cap printed).
+
+Remaining binary types: model (four formats behind a magic trailer), frame, maps,
+clientscript. Then the six missing decoders (varbit, varplayer, varclient,
+varclient_string, inv, hitsplat, healthbar) and engine wiring.
