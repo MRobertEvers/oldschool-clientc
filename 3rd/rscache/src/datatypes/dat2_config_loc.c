@@ -47,7 +47,7 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
      * shape, and an unidentified cache with no archive revision is far more
      * likely to be an old one than a modern one (a modern cache always carries a
      * timestamp revision, which the threshold below catches). */
-    if( RSCache_RevisionAtLeast(
+    if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_LOC, 220, REV_LOC_OSRS_220_ARCHIVE_REV, false) )
         flags |= RSCACHE_CONFIG_LOC_DECODE_OSRS_220;
 

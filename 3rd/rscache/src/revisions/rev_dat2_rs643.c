@@ -20,7 +20,7 @@
  * `version` is left unknown deliberately: 643 is not on the OSRS revision line,
  * so comparing it against thresholds like "220" would be meaningless. Datatypes
  * therefore fall back to their archive-revision gates for this cache, which is
- * the correct behaviour — and the reason RSCache_RevisionAtLeast takes an
+ * the correct behaviour — and the reason RSCache_RevisionAtLeastOsrs takes an
  * explicit `default_when_unknown` rather than assuming.
  */
 

@@ -23,7 +23,7 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
      * ships is at or past this gate, and the modern shape is what the previous
      * hardcoded `true` produced — so an unknown cache keeps decoding exactly as
      * it did before this flag became reachable. */
-    if( RSCache_RevisionAtLeast(
+    if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_NPC, 210, RSCACHE_NPC_ARCHIVE_REV_210, true) )
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS;
 

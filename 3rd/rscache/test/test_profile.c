@@ -59,18 +59,18 @@ test_revision_at_least(void)
         cache.version = 230;
         /* An archive revision that would say "old" must not override it. */
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_LOC, 1);
-        RSCACHE_CHECK(RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
-        RSCACHE_CHECK(!RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_LOC, 237, 2000, true));
+        RSCACHE_CHECK(RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_LOC, 237, 2000, true));
     }
 
     /* Without one, the group's archive revision decides. */
     {
         struct RSCache cache = RSCache_ProfileZero();
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_LOC, 1767694604);
-        RSCACHE_CHECK(RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
+        RSCACHE_CHECK(RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
 
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_LOC, 997);
-        RSCACHE_CHECK(!RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
     }
 
     /* Group revisions are independent. The npc, seq and loc groups share table 2
@@ -79,20 +79,55 @@ test_revision_at_least(void)
         struct RSCache cache = RSCache_ProfileZero();
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_NPC, 1500);
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_SEQUENCE, 1000);
-        RSCACHE_CHECK(RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_NPC, 210, 1493, false));
-        RSCACHE_CHECK(!RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_SEQUENCE, 220, 1142, false));
+        RSCACHE_CHECK(RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_NPC, 210, 1493, false));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_SEQUENCE, 220, 1142, false));
     }
 
     /* With neither, the caller's stated default is returned verbatim — both
      * ways round, so an unidentified cache is a deliberate choice per datatype. */
     {
         struct RSCache cache = RSCache_ProfileZero();
-        RSCACHE_CHECK(RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_OBJ, 220, 2000, true));
-        RSCACHE_CHECK(!RSCache_RevisionAtLeast(&cache, RSCACHE_TYPE_OBJ, 220, 2000, false));
+        RSCACHE_CHECK(RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_OBJ, 220, 2000, true));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_OBJ, 220, 2000, false));
         /* A group revision with no threshold to compare against is also unknown. */
         RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_OBJ, 5000);
-        RSCACHE_CHECK(RSCache_RevisionAtLeast(
+        RSCACHE_CHECK(RSCache_RevisionAtLeastOsrs(
             &cache, RSCACHE_TYPE_OBJ, 220, RSCACHE_GROUP_REVISION_UNKNOWN, true));
+    }
+
+    RSCACHE_TEST_GROUP("a dat1 revision never satisfies an OldSchool threshold");
+    /*
+     * The two numbering lineages overlap and mean different things: dat1 runs to 254 in
+     * a 2004-era sequence, OldSchool restarted from 1 and is now in the 230s. Comparing
+     * across them would make a dat1 cache look newer than every OSRS gate in the
+     * library and switch its decoders to layouts that postdate it by two decades.
+     *
+     * This is not hypothetical — it is what the engine wiring would have done the
+     * moment it began passing real profiles to the Flags functions.
+     */
+    {
+        struct RSCache cache;
+        RSCACHE_CHECK(RSCache_ProfileByName("lc254", &cache));
+        RSCACHE_CHECK(cache.version == 254);
+        RSCACHE_CHECK(RSCache_IsDat1(&cache));
+
+        /* Every threshold the library actually gates on. */
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_LOC, 220, 2000, false));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_NPC, 210, 1493, false));
+        RSCACHE_CHECK(
+            !RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_SEQUENCE, 226, 1268, false));
+        RSCACHE_CHECK(!RSCache_RevisionAtLeastOsrs(&cache, RSCACHE_TYPE_TEXTURE, 220, 2000, false));
+
+        /* And the flags a decoder actually receives: the dat1 shape, nothing modern. */
+        RSCACHE_CHECK(RSCache_Dat2ConfigLocFlags(&cache) == RSCACHE_CONFIG_LOC_DECODE_DAT);
+
+        /* The 643 branch is likewise its own lineage, not a later OSRS. */
+        struct RSCache rs643;
+        if( RSCache_ProfileByName("rs643", &rs643) )
+        {
+            RSCACHE_CHECK(
+                !RSCache_RevisionAtLeastOsrs(&rs643, RSCACHE_TYPE_LOC, 220, 2000, false));
+        }
     }
 }
 

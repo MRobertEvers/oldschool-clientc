@@ -48,7 +48,7 @@ RSCache_GroupRevision(
 }
 
 bool
-RSCache_RevisionAtLeast(
+RSCache_RevisionAtLeastOsrs(
     const struct RSCache* cache,
     enum RSCache_Type type,
     int game_rev,
@@ -58,9 +58,18 @@ RSCache_RevisionAtLeast(
     if( !cache )
         return default_when_unknown;
 
-    /* A declared game revision is the authoritative answer — it came from the
-     * manifest or the handshake rather than from interpreting a counter. */
-    if( cache->version != RSCACHE_REVISION_UNKNOWN )
+    /*
+     * A declared game revision is the authoritative answer — it came from the
+     * manifest or the handshake rather than from interpreting a counter — but only
+     * for a cache in the lineage `game_rev` is numbered in.
+     *
+     * The epoch test is load-bearing, not defensive. dat1 revisions run to 254 in a
+     * 2004-era sequence; OldSchool restarted from 1 and is now in the 230s. Without
+     * the guard a dat1 rev-254 profile satisfies *every* threshold in this library —
+     * 210, 220, 226, 237 — and each one silently switches a decoder to a field layout
+     * that postdates it by nearly twenty years.
+     */
+    if( cache->epoch == RSCACHE_EPOCH_OSRS && cache->version != RSCACHE_REVISION_UNKNOWN )
         return cache->version >= game_rev;
 
     /* Otherwise fall back to the reference client's own gate for this group. */

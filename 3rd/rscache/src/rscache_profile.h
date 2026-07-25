@@ -43,7 +43,7 @@
  * is for differences too large for that, where the era gets its own
  * `decode_<type>_vN` / `encode_<type>_vN` pair.
  *
- * Both should route era questions through RSCache_RevisionAtLeast rather than
+ * Both should route era questions through RSCache_RevisionAtLeastOsrs rather than
  * comparing raw revisions, so the timestamp ambiguity is resolved in exactly one
  * place.
  */
@@ -181,13 +181,14 @@ RSCache_GroupRevision(
     enum RSCache_Type type);
 
 /**
- * Does this cache's `type` records use the layout introduced at game revision
- * `game_rev` or later?
+ * Does this cache's `type` records use the layout introduced at **OldSchool** game
+ * revision `game_rev` or later?
  *
  * This is the single place the "what does a revision number mean" ambiguity is
  * resolved, and the only era predicate datatypes should use:
  *
- *  1. If the profile carries a game revision, compare against it. Unambiguous.
+ *  1. If the cache is OSRS-epoch and carries a game revision, compare against it.
+ *     Unambiguous.
  *  2. Otherwise compare the group's JS5 archive revision against
  *     `archive_rev_threshold` — the value the reference client gates the same
  *     field on. Pass RSCACHE_GROUP_REVISION_UNKNOWN when no such constant is
@@ -195,9 +196,22 @@ RSCache_GroupRevision(
  *  3. With neither available, answer `default_when_unknown`. Callers pick the
  *     branch that has been observed to decode the local caches, so behaviour on
  *     an unidentified cache is a deliberate choice rather than an accident.
+ *
+ * ## Why the name says Osrs
+ *
+ * Revision numbers are **not one sequence**. dat1 caches are numbered in a 2004-era
+ * lineage that reaches 254; OldSchool restarted from 1 in 2013 and is now in the 230s.
+ * The two ranges overlap and mean completely different things, so a bare
+ * `version >= 220` is only meaningful once you know which lineage `version` is from.
+ *
+ * Every threshold in this library is an OldSchool revision, so a **dat1 profile must
+ * not satisfy any of them** — rev 254 is older than OSRS 220, not newer. This function
+ * enforces that by skipping step 1 for a non-OSRS epoch, and the name carries the
+ * invariant so a future dat1-era gate does not reach for the wrong predicate. If one
+ * is ever needed, add a sibling rather than widening this.
  */
 bool
-RSCache_RevisionAtLeast(
+RSCache_RevisionAtLeastOsrs(
     const struct RSCache* cache,
     enum RSCache_Type type,
     int game_rev,

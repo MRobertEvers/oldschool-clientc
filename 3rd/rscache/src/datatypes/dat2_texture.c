@@ -95,7 +95,7 @@ RSCache_Dat2TextureCodecVersion(const struct RSCache* cache)
      * a cache with no identifying information is more likely to be old. A modern
      * cache always carries a timestamp archive revision, which the threshold
      * catches. */
-    int derived = RSCache_RevisionAtLeast(
+    int derived = RSCache_RevisionAtLeastOsrs(
                       cache,
                       RSCACHE_TYPE_TEXTURE,
                       233,

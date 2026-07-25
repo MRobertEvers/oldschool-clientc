@@ -2744,7 +2744,7 @@ RSCache_ModelCodecVersion(const struct RSCache* cache)
      * of OB3; osrs230 and osrs239 are 89% V2 and 11% V3. So the choice below is the
      * dominant format of the era, not a rule the cache obeys.
      */
-    if( RSCache_RevisionAtLeast(
+    if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_MODEL, 220, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         return RSCACHE_MODEL_FORMAT_V2;
 

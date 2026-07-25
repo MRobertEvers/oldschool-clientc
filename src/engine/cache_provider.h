@@ -4,6 +4,7 @@
 #include "torirs_types.h"
 
 #include <hmap.h>
+#include <rscache.h>
 #include <stdbool.h>
 
 struct CS2VM2_Script;
@@ -61,7 +62,37 @@ struct CacheProvider
     /** DBTABLEINDEX (cache table 21) keyed by table id; one bundle of index
      *  files per table. Backs DB_FIND / DB_FINDALL. */
     struct HMap* dbindex_cache;
+
+    /**
+     * Which cache this provider is reading: container, epoch, game revision and
+     * quirks, in the one value rscache's decoders take.
+     *
+     * Set once at boot from the manifest (see CacheProvider_SetProfile) and read
+     * wherever a decoder needs to know the era. Before this existed, era information
+     * reached decoders as a bare `int revision` lifted from whichever JS5 archive the
+     * record came from — a per-archive counter whose *units* changed between eras —
+     * or as a raw flag constant written out at the call site.
+     *
+     * Zeroed until set, which RSCache_ProfileZero defines as "OSRS dat2, revision
+     * unknown": every datatype's flag function then falls back to the branch observed
+     * to decode the local caches, so an unset profile degrades to today's behaviour
+     * rather than to nonsense.
+     */
+    struct RSCache profile;
 };
+
+/** Record which cache this provider reads. Call once, before any load task runs. */
+void
+CacheProvider_SetProfile(
+    struct CacheProvider* provider,
+    const struct RSCache* profile);
+
+/** The cache profile. Never NULL for a live provider. */
+static inline const struct RSCache*
+CacheProvider_Profile(const struct CacheProvider* provider)
+{
+    return &provider->profile;
+}
 
 /** World-builder map key: encodes a map square (map_x, map_z) into a single int. */
 static inline int

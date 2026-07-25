@@ -1157,10 +1157,10 @@ RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache)
      * timestamp) sits far above both thresholds anyway. */
     int derived = RSCACHE_CODEC_SEQUENCE_V3;
 
-    if( !RSCache_RevisionAtLeast(
+    if( !RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_SEQUENCE, 220, RSCACHE_SEQUENCE_ARCHIVE_REV_220 + 1, true) )
         derived = RSCACHE_CODEC_SEQUENCE_V1;
-    else if( !RSCache_RevisionAtLeast(
+    else if( !RSCache_RevisionAtLeastOsrs(
                  cache, RSCACHE_TYPE_SEQUENCE, 226, RSCACHE_SEQUENCE_ARCHIVE_REV_226 + 1, true) )
         derived = RSCACHE_CODEC_SEQUENCE_V2;
 

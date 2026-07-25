@@ -1334,6 +1334,54 @@ app_varc_changed(void* userdata, int varc_id, bool is_string)
     RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varc_id);
 }
 
+/**
+ * Tell the provider which cache it is reading.
+ *
+ * The profile is what rscache's decoders consult instead of a bare revision number.
+ * Resolving it here, once, is the point: era information used to reach decoders as
+ * whichever JS5 archive counter the record happened to come from — a per-archive value
+ * whose units differ between eras — or as a flag constant spelled out at the call site.
+ *
+ * Order of preference:
+ *
+ *  1. A declared revision profile matching the manifest's `client_version` and
+ *     container. This is authoritative: the manifest states the revision outright, and
+ *     the profile carries the things no counter can imply (epoch, and quirks such as
+ *     Kronos's omitted loc byte).
+ *  2. Failing that, the container alone, with the revision left unknown. Every flag
+ *     function then takes its documented default, which is the branch observed to
+ *     decode the local caches — i.e. exactly the behaviour that predates profiles.
+ *
+ * Note `client_version` is a *protocol* revision and its numbering is per lineage:
+ * 254 is a 2004-era dat1 client, 230 is OldSchool. It is only meaningful next to the
+ * container, which is why both go into the lookup rather than the number alone.
+ */
+static void
+app_provider_set_cache_profile(
+    struct App* app,
+    struct AppConfig const* cfg)
+{
+    assert(app);
+    assert(app->provider);
+
+    int container =
+        cfg->cache_kind == APP_CACHE_DAT1 ? RSCACHE_CONTAINER_DAT1 : RSCACHE_CONTAINER_DAT2;
+
+    /* Handles both branches itself: an exact declared profile when the revision names
+     * one, the nearest lower one of the same container otherwise, and a bare
+     * container+epoch when the revision is unset (0 == RSCACHE_REVISION_UNKNOWN). */
+    struct RSCache profile = RSCache_ProfileForContainerRevision(container, cfg->client_version);
+
+    printf(
+        "app: cache profile container=%s epoch=%d revision=%d quirks=0x%x\n",
+        container == RSCACHE_CONTAINER_DAT1 ? "dat1" : "dat2",
+        profile.epoch,
+        profile.version,
+        profile.quirks);
+
+    CacheProvider_SetProfile(app->provider, &profile);
+}
+
 void
 App_Init(
     struct App* app,
@@ -1406,6 +1454,7 @@ App_Init(
         app->dat2_bc = dat2_buildcache_new();
         app->provider = dat2_buildcache_as_provider(app->dat2_bc);
     }
+    app_provider_set_cache_profile(app, cfg);
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
     app->scene = ToriDraw_SceneNew(0);

@@ -246,9 +246,24 @@ cache_provider_hmap_prepare_insert(struct HMap** map_out)
 }
 
 void
+CacheProvider_SetProfile(
+    struct CacheProvider* provider,
+    const struct RSCache* profile)
+{
+    assert(provider);
+    assert(profile);
+    provider->profile = *profile;
+}
+
+void
 CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
+
+    /* "OSRS dat2, revision unknown" until the boot path says otherwise. Every flag
+     * function treats an unknown revision as its documented default, so a provider
+     * whose profile was never set decodes exactly as it did before profiles existed. */
+    provider->profile = RSCache_ProfileZero();
 
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
