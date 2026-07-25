@@ -214,6 +214,365 @@ gstringfl(
     return gcstring(buffer);
 }
 
+/* Model ids are plain u16 unless the era widens them, mirroring
+ * LOC_READ_MODEL_ID on the decode side. */
+#define LOC_WRITE_MODEL_ID(buf, flags, value)                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        if( (flags) & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS )                                  \
+            pbigsmart((buf), (value));                                                             \
+        else                                                                                       \
+            p2((buf), (value));                                                                    \
+    } while( 0 )
+
+static void
+loc_pstringfl(
+    struct RSCache_Buffer* buffer,
+    const char* value,
+    int flags)
+{
+    pjstr(
+        buffer,
+        value,
+        (flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? RSCACHE_JSTR_TERMINATOR_NEWLINE
+                                                : RSCACHE_JSTR_TERMINATOR_NULL);
+}
+
+uint32_t
+RSCache_Dat2ConfigLocEncodeFlags(
+    const struct RSCache_Dat2ConfigLoc* loc,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !loc || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    struct RSCache_Dat2ConfigLoc defaults;
+    init_loc(&defaults);
+
+    /* Opcode 1 carries one model per shape; opcode 5 carries several models under a
+     * single group and no shapes. The decoder distinguishes them by whether it
+     * allocated `shapes`, so that is what selects the form here. */
+    if( loc->shapes_and_model_count > 0 && loc->models )
+    {
+        if( loc->shapes )
+        {
+            p1(&buffer, 1);
+            p1(&buffer, loc->shapes_and_model_count);
+            for( int i = 0; i < loc->shapes_and_model_count; i++ )
+            {
+                LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[i][0]);
+                p1(&buffer, loc->shapes[i]);
+            }
+        }
+        else
+        {
+            p1(&buffer, 5);
+            p1(&buffer, loc->lengths[0]);
+            for( int i = 0; i < loc->lengths[0]; i++ )
+                LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[0][i]);
+        }
+    }
+
+    if( loc->name )
+    {
+        p1(&buffer, 2);
+        loc_pstringfl(&buffer, loc->name, flags);
+    }
+    if( loc->desc )
+    {
+        p1(&buffer, 3);
+        loc_pstringfl(&buffer, loc->desc, flags);
+    }
+
+    if( loc->size_x != defaults.size_x )
+    {
+        p1(&buffer, 14);
+        p1(&buffer, loc->size_x);
+    }
+    if( loc->size_z != defaults.size_z )
+    {
+        p1(&buffer, 15);
+        p1(&buffer, loc->size_z);
+    }
+
+    /* blocks_walk / blocks_projectiles are driven by three opcodes rather than
+     * carrying values: 17 zeroes both, 27 sets walk to 1, 18 clears projectiles.
+     * Defaults are walk 2, projectiles 1. */
+    if( loc->blocks_walk == 0 && loc->blocks_projectiles == 0 )
+    {
+        p1(&buffer, 17);
+    }
+    else
+    {
+        if( loc->blocks_walk == 1 )
+            p1(&buffer, 27);
+        if( loc->blocks_projectiles == 0 )
+            p1(&buffer, 18);
+    }
+
+    if( loc->is_interactive != defaults.is_interactive )
+    {
+        p1(&buffer, 19);
+        p1(&buffer, loc->is_interactive);
+    }
+
+    /* contour_ground_type is a small enum the decoder derives from five different
+     * opcodes. Map it back, but note 93 and 95 mean something else entirely once the
+     * >= 220 payloads apply, so those two are only reachable pre-220. */
+    switch( loc->contour_ground_type )
+    {
+    case 1:
+        p1(&buffer, 21);
+        break;
+    case 2:
+        p1(&buffer, 81);
+        p1(&buffer, loc->contoured_ground / 256);
+        break;
+    case 3:
+        if( !(flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) )
+        {
+            p1(&buffer, 93);
+            p2b(&buffer, loc->contour_ground_param);
+        }
+        break;
+    case 4:
+        p1(&buffer, 94);
+        break;
+    case 5:
+        if( !(flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) )
+        {
+            p1(&buffer, 95);
+            /* The decoder discards this value, so it cannot be reproduced. */
+            p2(&buffer, 0);
+        }
+        break;
+    default:
+        break;
+    }
+
+    if( loc->sharelight )
+        p1(&buffer, 22);
+    if( loc->occlude )
+        p1(&buffer, 23);
+
+    if( loc->seq_id != defaults.seq_id )
+    {
+        p1(&buffer, 24);
+        LOC_WRITE_MODEL_ID(&buffer, flags, loc->seq_id == -1 ? 65535 : loc->seq_id);
+    }
+
+    if( loc->wall_width != defaults.wall_width )
+    {
+        p1(&buffer, 28);
+        p1(&buffer, loc->wall_width);
+    }
+    if( loc->ambient != defaults.ambient )
+    {
+        p1(&buffer, 29);
+        p1b(&buffer, loc->ambient);
+    }
+
+    /* Actions 0..4 are writable through either opcode 30+i or 150+i, and the
+     * decoder stores both in the same slots. Emit the 30-range; a record that used
+     * the 150-range round-trips semantically but not byte-exactly. */
+    for( int i = 0; i < 9; i++ )
+    {
+        if( loc->actions[i] )
+        {
+            p1(&buffer, 30 + i);
+            loc_pstringfl(&buffer, loc->actions[i], flags);
+        }
+    }
+
+    if( loc->contrast != defaults.contrast )
+    {
+        p1(&buffer, 39);
+        /* The decoder multiplies by 25. */
+        p1b(&buffer, loc->contrast / 25);
+    }
+
+    if( loc->recolor_count > 0 )
+    {
+        p1(&buffer, 40);
+        p1(&buffer, loc->recolor_count);
+        for( int i = 0; i < loc->recolor_count; i++ )
+        {
+            p2(&buffer, loc->recolors_from[i]);
+            p2(&buffer, loc->recolors_to[i]);
+        }
+    }
+    if( loc->retexture_count > 0 )
+    {
+        p1(&buffer, 41);
+        p1(&buffer, loc->retexture_count);
+        for( int i = 0; i < loc->retexture_count; i++ )
+        {
+            p2(&buffer, loc->retextures_from[i]);
+            p2(&buffer, loc->retextures_to[i]);
+        }
+    }
+
+    /* map_function_id is settable by 60, 82 and 107; map_scene_id by 68 and 102.
+     * Emit the lowest opcode of each group. */
+    if( loc->map_function_id != defaults.map_function_id )
+    {
+        p1(&buffer, 60);
+        p2(&buffer, loc->map_function_id);
+    }
+    if( loc->mirrored )
+        p1(&buffer, 62);
+    if( !loc->shadowed )
+        p1(&buffer, 64);
+    if( loc->resize_x != defaults.resize_x )
+    {
+        p1(&buffer, 65);
+        p2(&buffer, loc->resize_x);
+    }
+    if( loc->resize_height != defaults.resize_height )
+    {
+        p1(&buffer, 66);
+        p2(&buffer, loc->resize_height);
+    }
+    if( loc->resize_z != defaults.resize_z )
+    {
+        p1(&buffer, 67);
+        p2(&buffer, loc->resize_z);
+    }
+    if( loc->map_scene_id != defaults.map_scene_id )
+    {
+        p1(&buffer, 68);
+        p2(&buffer, loc->map_scene_id);
+    }
+    if( loc->offset_x != defaults.offset_x )
+    {
+        p1(&buffer, 70);
+        p2b(&buffer, loc->offset_x);
+    }
+    if( loc->offset_y != defaults.offset_y )
+    {
+        p1(&buffer, 71);
+        p2b(&buffer, loc->offset_y);
+    }
+    if( loc->offset_z != defaults.offset_z )
+    {
+        p1(&buffer, 72);
+        p2b(&buffer, loc->offset_z);
+    }
+    if( loc->obstructs_ground )
+        p1(&buffer, 73);
+    if( loc->break_routefinding )
+        p1(&buffer, 74);
+    if( loc->support_items != defaults.support_items )
+    {
+        p1(&buffer, 75);
+        p1(&buffer, loc->support_items);
+    }
+
+    /* Opcodes 77 and 92 both carry the transform varbit/varp and the transform
+     * list; 92 adds a value the decoder parks in the last slot, where 77 leaves
+     * -1. Same shape as npc's 106/118 pair. */
+    if( loc->transform_count >= 2 )
+    {
+        int trailing = loc->transforms[loc->transform_count - 1];
+        int listed = loc->transform_count - 1;
+
+        p1(&buffer, trailing == -1 ? 77 : 92);
+        p2(&buffer, loc->transform_varbit == -1 ? 65535 : loc->transform_varbit);
+        p2(&buffer, loc->transform_varp == -1 ? 65535 : loc->transform_varp);
+        if( trailing != -1 )
+            LOC_WRITE_MODEL_ID(&buffer, flags, trailing);
+        p1(&buffer, listed - 1);
+        for( int i = 0; i < listed; i++ )
+            LOC_WRITE_MODEL_ID(&buffer, flags, loc->transforms[i] == -1 ? 65535
+                                                                       : loc->transforms[i]);
+    }
+
+    /*
+     * Ambient sound. Opcodes 78 and 79 are **not** mutually exclusive: 78 carries a
+     * single sound id, 79 carries the retrigger interval plus a list of ids, and
+     * real records carry both (loc 16433 in cache.osrs230 does, with 79 first). They
+     * write to different fields, so emitting only one loses the other.
+     *
+     * Both also write distance and retain; the later opcode wins on decode, and
+     * since both are written from the same struct values that is consistent either
+     * way. 79 goes first to match the observed packing order.
+     *
+     * The retain byte is absent on Kronos builds — the one place the quirk flag
+     * changes the *encode* as well as the decode.
+     */
+    bool kronos = (flags & RSCACHE_CONFIG_LOC_DECODE_KRONOS) != 0;
+    if( loc->ambient_sound_id_count > 0 || loc->ambient_sound_ticks_min != 0 ||
+        loc->ambient_sound_ticks_max != 0 )
+    {
+        p1(&buffer, 79);
+        p2(&buffer, loc->ambient_sound_ticks_min);
+        p2(&buffer, loc->ambient_sound_ticks_max);
+        p1(&buffer, loc->ambient_sound_distance);
+        if( !kronos )
+            p1(&buffer, loc->ambient_sound_retain);
+        p1(&buffer, loc->ambient_sound_id_count);
+        for( int i = 0; i < loc->ambient_sound_id_count; i++ )
+            p2(&buffer, loc->ambient_sound_ids[i]);
+    }
+    if( loc->ambient_sound_id != defaults.ambient_sound_id )
+    {
+        p1(&buffer, 78);
+        p2(&buffer, loc->ambient_sound_id);
+        p1(&buffer, loc->ambient_sound_distance);
+        if( !kronos )
+            p1(&buffer, loc->ambient_sound_retain);
+    }
+
+    if( !loc->seq_random_start )
+        p1(&buffer, 89);
+
+    if( loc->random_seq_id_count > 0 )
+    {
+        p1(&buffer, 106);
+        p1(&buffer, loc->random_seq_id_count);
+        for( int i = 0; i < loc->random_seq_id_count; i++ )
+        {
+            LOC_WRITE_MODEL_ID(&buffer, flags, loc->random_seq_ids[i]);
+            p1(&buffer, loc->random_seq_delays[i]);
+        }
+    }
+
+    if( loc->campaign_id_count > 0 )
+    {
+        p1(&buffer, 160);
+        p1(&buffer, loc->campaign_id_count);
+        for( int i = 0; i < loc->campaign_id_count; i++ )
+            p2(&buffer, loc->campaign_ids[i]);
+    }
+
+    if( loc->params.count > 0 )
+    {
+        p1(&buffer, 249);
+        pparams(&buffer, &loc->params);
+    }
+
+    p1(&buffer, 0);
+
+    RSCache_Dat2ConfigLocFreeInplace(&defaults);
+    return buffer.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigLocEncode(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigLoc* loc,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_Dat2ConfigLocEncodeFlags(
+        loc, RSCache_Dat2ConfigLocFlags(cache), out, out_capacity);
+}
+
 static void
 decode_loc(
     struct RSCache_Dat2ConfigLoc* loc,

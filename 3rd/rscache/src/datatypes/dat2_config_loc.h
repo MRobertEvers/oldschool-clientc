@@ -198,6 +198,43 @@ RSCache_Dat2ConfigLocNewDecode(
     int revision,
     char* buffer,
     int buffer_size);
+/**
+ * Encode a loc record for this cache.
+ *
+ * The era flags change the *encoding*, not just the decoding: the string
+ * terminator follows the container, model ids widen with
+ * LARGE_MODEL_IDS, contour opcodes 93 and 95 are unavailable once the >= 220
+ * payloads apply (they mean sound fades there), and the Kronos quirk drops the
+ * ambient-sound retain byte. Encoding with the wrong profile produces a record the
+ * target client misreads.
+ *
+ * Fields that cannot be reproduced, so such records round-trip semantically but not
+ * byte-exactly:
+ *   - roughly 25 opcodes the decoder consumes without storing (25, 44, 45, 61, 69,
+ *     88/90/91/96..105, 163..191, and the boolean-flag block);
+ *   - actions 0..4, which the decoder accepts through either opcode 30+i or 150+i
+ *     and stores in the same slots — this writes the 30-range;
+ *   - map_function_id (opcodes 60, 82, 107) and map_scene_id (68, 102), likewise
+ *     collapsed to the lowest opcode of each group;
+ *   - an action of literal "hidden", normalised to NULL by the decoder;
+ *   - opcode 95's payload pre-220, which the decoder discards.
+ */
+uint32_t
+RSCache_Dat2ConfigLocEncode(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigLoc* loc,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** As RSCache_Dat2ConfigLocEncode, for callers holding raw
+ *  RSCACHE_CONFIG_LOC_DECODE_* flags rather than a profile. */
+uint32_t
+RSCache_Dat2ConfigLocEncodeFlags(
+    const struct RSCache_Dat2ConfigLoc* loc,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 void
 RSCache_Dat2ConfigLocFree(struct RSCache_Dat2ConfigLoc* loc);
 void

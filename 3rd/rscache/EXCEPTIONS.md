@@ -112,6 +112,7 @@ back. All still round-trip **semantically**.
 | texture v1 | a run of `count - 1` bytes read and discarded after the sprite types; re-encodes as zeros |
 | npc | opcodes 93, 107, 109 *clear* flags the decoder never sets true, so their presence is unrecoverable. No client code reads those three fields. |
 | spotanim | recolour/retexture slots past 6 (the opcode ranges are 10 wide) |
+| loc | the largest lossy set of any type — roughly 25 opcodes consumed without storing (25, 44, 45, 61, 69, 88/90/91/96–105, 163–191 and the boolean-flag block), plus opcode 95's pre-220 payload. Also collapses three groups of aliased opcodes: actions 0–4 (writable via 30+i *or* 150+i), map_function_id (60, 82, 107) and map_scene_id (68, 102) — the encoder emits the lowest opcode of each. Hence ~0–1% byte-exact against ~52% same-length. |
 
 ### B3. Jagex's opcode ordering is not reproduced *(Gap)*
 
@@ -210,6 +211,8 @@ exception to "only add the write half".
 | D4 | **Reference table never read whirlpool digests** even when the flag was set, so every field after them would have been misread. Dormant only because no cache sets the flag. | Found writing the symmetric encoder. |
 | D5 | **`P2`/`P4` had no bounds check at all** — they wrote past the end of a borrowed buffer silently. | Found while adding the growable buffer mode. |
 | D6 | **npc encoder skipped empty-string names.** npc's decoder leaves `name` NULL when opcode 2 is absent, so `""` and absent are different states; real records carry empty names. | 26 records per cache failed semantic round-trip; dumping npc 325 in `cache.osrs230` showed the missing opcode 2. |
+| D8 | **loc opcodes 78 and 79 are not mutually exclusive.** 78 carries a single ambient sound id; 79 carries the retrigger interval plus a list. Real records carry **both** (loc 16433 in `cache.osrs230`, with 79 first). The encoder used `else if` and silently dropped `ambient_sound_id`. | 30 records per cache failed semantic round-trip; the byte dump showed `4f …` immediately followed by `4e …`. |
+| D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
 
@@ -244,14 +247,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1076 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1093 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 469 |
 | profile | 111 |
-| roundtrip | 130 |
+| roundtrip | 147 |
 | compression | 99 |
 | bzip2 interop | 9 |
 
@@ -259,7 +262,10 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-Encoders done: struct, enum, param, idk, spotanim, obj, underlay, overlay, texture,
-mapelement, npc. Remaining: loc, sequence, then the binary types (model, frame,
-framemap, sprites, maps, clientscript), the six missing decoders (varbit, varplayer,
-varclient, varclient_string, inv, hitsplat, healthbar), and engine wiring.
+Encoders done (12): struct, enum, param, idk, spotanim, obj, underlay, overlay,
+texture, mapelement, npc, loc. Semantic round-trip is 100% on all twelve across all
+six dat2 caches.
+
+Remaining: sequence, then the binary types (model, frame, framemap, sprites, maps,
+clientscript), the six missing decoders (varbit, varplayer, varclient,
+varclient_string, inv, hitsplat, healthbar), and engine wiring.

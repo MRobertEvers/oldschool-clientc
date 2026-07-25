@@ -171,6 +171,22 @@ tally_report(
     }
 }
 
+/** Revision name for a cache directory, or NULL when the directory does not
+ *  identify one (`cache` and `cache.jan2026` are unlabelled snapshots). */
+static const char*
+profile_name_for_cache(const char* cache_dir)
+{
+    if( strcmp(cache_dir, "cache.kronos") == 0 )
+        return "kronos";
+    if( strcmp(cache_dir, "cache.osrs184") == 0 )
+        return "osrs184";
+    if( strcmp(cache_dir, "cache.osrs230") == 0 )
+        return "osrs230";
+    if( strcmp(cache_dir, "cache.osrs239") == 0 )
+        return "osrs239";
+    return NULL;
+}
+
 /* Load one config group and hand each member file to `visit`. */
 typedef void (*record_visitor)(
     const struct RSCache* profile,
@@ -203,9 +219,20 @@ scan_config_group(
     }
     RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
 
-    /* Feed the group's own archive revision into the profile, which is what a
-     * caller with no declared revision has to do. */
-    struct RSCache profile = RSCache_ProfileZero();
+    /*
+     * Use the declared profile when the cache directory names a revision we
+     * support, and fall back to the group's archive revision otherwise.
+     *
+     * This is not cosmetic. `cache.kronos` needs RSCACHE_QUIRK_KRONOS, which no
+     * archive revision can imply — it is a client-build difference. Scanning it
+     * without the quirk leaves 228 loc records misaligned on the ambient-sound
+     * retain byte, which is exactly the failure the quirk exists to prevent. A real
+     * caller knows its revision; the harness should too.
+     */
+    struct RSCache profile;
+    const char* revision_name = profile_name_for_cache(cache_dir);
+    if( !revision_name || !RSCache_ProfileByName(revision_name, &profile) )
+        profile = RSCache_ProfileZero();
     RSCache_ProfileSetGroupRevision(&profile, type, archive->revision);
 
     struct RSCache_FileList* files =
@@ -980,6 +1007,179 @@ visit_npc(
     free(encoded);
 }
 
+/* ------------------------------------------------------------------ loc --- */
+
+static bool
+loc_equal(
+    const struct RSCache_Dat2ConfigLoc* lhs,
+    const struct RSCache_Dat2ConfigLoc* rhs)
+{
+    if( !str_equal(lhs->name, rhs->name) || !str_equal(lhs->desc, rhs->desc) )
+        return false;
+    if( lhs->size_x != rhs->size_x || lhs->size_z != rhs->size_z ||
+        lhs->blocks_walk != rhs->blocks_walk ||
+        lhs->blocks_projectiles != rhs->blocks_projectiles ||
+        lhs->is_interactive != rhs->is_interactive || lhs->sharelight != rhs->sharelight ||
+        lhs->occlude != rhs->occlude || lhs->seq_id != rhs->seq_id ||
+        lhs->wall_width != rhs->wall_width || lhs->ambient != rhs->ambient ||
+        lhs->contrast != rhs->contrast || lhs->map_function_id != rhs->map_function_id ||
+        lhs->map_scene_id != rhs->map_scene_id || lhs->mirrored != rhs->mirrored ||
+        lhs->shadowed != rhs->shadowed || lhs->resize_x != rhs->resize_x ||
+        lhs->resize_height != rhs->resize_height || lhs->resize_z != rhs->resize_z ||
+        lhs->offset_x != rhs->offset_x || lhs->offset_y != rhs->offset_y ||
+        lhs->offset_z != rhs->offset_z || lhs->obstructs_ground != rhs->obstructs_ground ||
+        lhs->break_routefinding != rhs->break_routefinding ||
+        lhs->support_items != rhs->support_items ||
+        lhs->transform_varbit != rhs->transform_varbit ||
+        lhs->transform_varp != rhs->transform_varp ||
+        lhs->contoured_ground != rhs->contoured_ground ||
+        lhs->contour_ground_type != rhs->contour_ground_type ||
+        lhs->seq_random_start != rhs->seq_random_start )
+        return false;
+
+    /* Ambient sound. The retain byte is only meaningful when a sound is present. */
+    if( lhs->ambient_sound_id != rhs->ambient_sound_id ||
+        lhs->ambient_sound_distance != rhs->ambient_sound_distance ||
+        lhs->ambient_sound_ticks_min != rhs->ambient_sound_ticks_min ||
+        lhs->ambient_sound_ticks_max != rhs->ambient_sound_ticks_max ||
+        lhs->ambient_sound_retain != rhs->ambient_sound_retain ||
+        lhs->ambient_sound_id_count != rhs->ambient_sound_id_count )
+        return false;
+    for( int i = 0; i < lhs->ambient_sound_id_count; i++ )
+    {
+        if( lhs->ambient_sound_ids[i] != rhs->ambient_sound_ids[i] )
+            return false;
+    }
+
+    if( lhs->shapes_and_model_count != rhs->shapes_and_model_count )
+        return false;
+    if( !!lhs->shapes != !!rhs->shapes )
+        return false;
+    for( int i = 0; i < lhs->shapes_and_model_count; i++ )
+    {
+        if( lhs->shapes && lhs->shapes[i] != rhs->shapes[i] )
+            return false;
+        if( lhs->lengths[i] != rhs->lengths[i] )
+            return false;
+        for( int j = 0; j < lhs->lengths[i]; j++ )
+        {
+            if( lhs->models[i][j] != rhs->models[i][j] )
+                return false;
+        }
+    }
+
+    for( int i = 0; i < 9; i++ )
+    {
+        if( !str_equal(lhs->actions[i], rhs->actions[i]) )
+            return false;
+    }
+
+    if( lhs->recolor_count != rhs->recolor_count || lhs->retexture_count != rhs->retexture_count )
+        return false;
+    for( int i = 0; i < lhs->recolor_count; i++ )
+    {
+        if( lhs->recolors_from[i] != rhs->recolors_from[i] ||
+            lhs->recolors_to[i] != rhs->recolors_to[i] )
+            return false;
+    }
+    for( int i = 0; i < lhs->retexture_count; i++ )
+    {
+        if( lhs->retextures_from[i] != rhs->retextures_from[i] ||
+            lhs->retextures_to[i] != rhs->retextures_to[i] )
+            return false;
+    }
+
+    if( lhs->transform_count != rhs->transform_count )
+        return false;
+    for( int i = 0; i < lhs->transform_count; i++ )
+    {
+        if( lhs->transforms[i] != rhs->transforms[i] )
+            return false;
+    }
+
+    if( lhs->random_seq_id_count != rhs->random_seq_id_count )
+        return false;
+    for( int i = 0; i < lhs->random_seq_id_count; i++ )
+    {
+        if( lhs->random_seq_ids[i] != rhs->random_seq_ids[i] ||
+            lhs->random_seq_delays[i] != rhs->random_seq_delays[i] )
+            return false;
+    }
+
+    if( lhs->campaign_id_count != rhs->campaign_id_count )
+        return false;
+    for( int i = 0; i < lhs->campaign_id_count; i++ )
+    {
+        if( lhs->campaign_ids[i] != rhs->campaign_ids[i] )
+            return false;
+    }
+
+    if( lhs->params.count != rhs->params.count )
+        return false;
+    for( int i = 0; i < lhs->params.count; i++ )
+    {
+        if( lhs->params.keys[i] != rhs->params.keys[i] ||
+            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            return false;
+        if( lhs->params.is_string[i] )
+        {
+            if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
+            return false;
+    }
+
+    return true;
+}
+
+static void
+visit_loc(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    int flags = RSCache_Dat2ConfigLocFlags(profile);
+
+    struct RSCache_Dat2ConfigLoc first;
+    struct RSCache_Dat2ConfigLoc second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigLocDecodeInplace(&first, (char*)data, size, flags);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint32_t capacity = (uint32_t)size * 3u + 8192u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_Dat2ConfigLocFreeInplace(&first);
+        return;
+    }
+
+    uint32_t written = RSCache_Dat2ConfigLocEncodeFlags(&first, flags, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_Dat2ConfigLocFreeInplace(&first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigLocDecodeInplace(&second, (char*)encoded, (int)written, flags);
+    if( loc_equal(&first, &second) )
+        tally->semantic_ok++;
+
+    RSCache_Dat2ConfigLocFreeInplace(&first);
+    RSCache_Dat2ConfigLocFreeInplace(&second);
+    free(encoded);
+}
+
 /* ----------------------------------------------------------------- main --- */
 
 struct datatype_case
@@ -1009,6 +1209,7 @@ main(int argc, char** argv)
           visit_mapelement },
         { "obj", RSCACHE_DAT2_CONFIG_KIND_OBJECT, RSCACHE_TYPE_OBJ, visit_obj },
         { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, RSCACHE_TYPE_NPC, visit_npc },
+        { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, RSCACHE_TYPE_LOC, visit_loc },
     };
 
     int scanned_any = 0;
