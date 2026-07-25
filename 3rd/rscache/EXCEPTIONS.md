@@ -98,6 +98,18 @@ so the suite stays green while the gap stays visible. Semantic round-trip *is* s
 asserted for that cache: an encoder must reproduce whatever the decoder managed to
 read, even when that is incomplete.
 
+### B1b. One sequence record in `cache.kronos` does not decode *(Gap)*
+
+Sequence **8127** is 2631 bytes; the decode stops at 1863. It carries a 291-frame
+opcode-1 block and then an opcode the v1 codec does not recognise. Kronos is a
+custom client build, so a record with a field newer than its archive revision (786)
+implies is plausible — but the specific opcode has not been identified, and is not
+guessed at. One record in 8526, mirrored in `cache.osrs184`.
+
+Handled by an **exact allowance** in the harness (`CONSUMPTION_ALLOWANCES`), not a
+blanket skip: the count is pinned at 1, so a regression to 2 still fails. It prints
+as `ALLOWED` on every run.
+
 ### B2. Lossy decoders cap byte-exactness *(Gap)*
 
 These decoders consume fields without storing them, so an encoder cannot write them
@@ -112,6 +124,7 @@ back. All still round-trip **semantically**.
 | texture v1 | a run of `count - 1` bytes read and discarded after the sprite types; re-encodes as zeros |
 | npc | opcodes 93, 107, 109 *clear* flags the decoder never sets true, so their presence is unrecoverable. No client code reads those three fields. |
 | spotanim | recolour/retexture slots past 6 (the opcode ranges are 10 wide) |
+| sequence | v1's frame-sound record packs id/loops/location into 24 bits, leaving `retain` and `weight` nowhere to live; v1 and v2 index frame sounds by *position*, so the list is written dense with zero-filled holes (the decoder's own `id >= 1` filter drops them again); opcode 100's blend table is consumed without storing |
 | loc | the largest lossy set of any type — roughly 25 opcodes consumed without storing (25, 44, 45, 61, 69, 88/90/91/96–105, 163–191 and the boolean-flag block), plus opcode 95's pre-220 payload. Also collapses three groups of aliased opcodes: actions 0–4 (writable via 30+i *or* 150+i), map_function_id (60, 82, 107) and map_scene_id (68, 102) — the encoder emits the lowest opcode of each. Hence ~0–1% byte-exact against ~52% same-length. |
 
 ### B3. Jagex's opcode ordering is not reproduced *(Gap)*
@@ -212,6 +225,8 @@ exception to "only add the write half".
 | D5 | **`P2`/`P4` had no bounds check at all** — they wrote past the end of a borrowed buffer silently. | Found while adding the growable buffer mode. |
 | D6 | **npc encoder skipped empty-string names.** npc's decoder leaves `name` NULL when opcode 2 is absent, so `""` and absent are different states; real records carry empty names. | 26 records per cache failed semantic round-trip; dumping npc 325 in `cache.osrs230` showed the missing opcode 2. |
 | D8 | **loc opcodes 78 and 79 are not mutually exclusive.** 78 carries a single ambient sound id; 79 carries the retrigger interval plus a list. Real records carry **both** (loc 16433 in `cache.osrs230`, with 79 first). The encoder used `else if` and silently dropped `ambient_sound_id`. | 30 records per cache failed semantic round-trip; the byte dump showed `4f …` immediately followed by `4e …`. |
+| D10 | **sequence opcode 15 used the wrong list shape in v1/v2.** Per RuneLite's `SequenceLoader` — quoted verbatim at the top of `dat2_config_sequence.c` — opcode 13 is the *positional* list (u8 count, frame = loop index) while opcode 15 is the *framed* list (u16 count, explicit frame per entry). The decoder used the positional handler for both, so any record using opcode 15 would misalign. | Read directly off the inline reference while writing the encoder. **Unexercised**: no record in the corpus uses opcode 15, so the numbers did not move. Kept because it matches the documented reference, but it has no test coverage — noted so nobody assumes otherwise. |
+| D11 | **sequence `chat_frame_ids` was allocated without recording its length.** That left the array unencodable *and* uncomparable — nothing knew how many entries it had. Added `chat_frame_id_count`, set in all three era decoders. | Found while writing the encoder: the field could not be emitted at all. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
@@ -247,14 +262,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1093 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1111 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 469 |
 | profile | 111 |
-| roundtrip | 147 |
+| roundtrip | 165 |
 | compression | 99 |
 | bzip2 interop | 9 |
 
@@ -262,10 +277,10 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-Encoders done (12): struct, enum, param, idk, spotanim, obj, underlay, overlay,
-texture, mapelement, npc, loc. Semantic round-trip is 100% on all twelve across all
-six dat2 caches.
+Encoders done (13) — **every config datatype**: struct, enum, param, idk, spotanim,
+obj, underlay, overlay, texture, mapelement, npc, loc, sequence. Semantic round-trip
+is 100% on all thirteen across all six dat2 caches.
 
-Remaining: sequence, then the binary types (model, frame, framemap, sprites, maps,
-clientscript), the six missing decoders (varbit, varplayer, varclient,
-varclient_string, inv, hitsplat, healthbar), and engine wiring.
+Remaining: the binary types (model, frame, framemap, sprites, maps, clientscript),
+the six missing decoders (varbit, varplayer, varclient, varclient_string, inv,
+hitsplat, healthbar), and engine wiring.

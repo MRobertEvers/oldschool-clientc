@@ -327,6 +327,38 @@ handle_frame_sounds_220_226(
     }
 }
 
+/*
+ * The *framed* list, as used by opcode 15 in the v1/v2 eras (and opcode 14 in v3).
+ *
+ * Distinct from handle_frame_sounds_pre_220 / _220_226, which are the *positional*
+ * lists used by opcode 13: those take a u8 count and derive the frame from the loop
+ * index, whereas this takes a u16 count and reads an explicit frame per entry.
+ *
+ * Both forms coexist in the same era — see RuneLite's SequenceLoader, quoted at the
+ * top of this file: `opcode == 13 && !rev226` is positional while
+ * `opcode == (rev226 ? 14 : 15)` is framed. This decoder previously used the
+ * positional handler for opcode 15 too, which misaligned any record that used it.
+ *
+ * `record` selects the per-sound shape, which follows the era independently of the
+ * list shape.
+ */
+static void
+handle_frame_sounds_framed(
+    struct RSCache_Dat2ConfigSequence* def,
+    struct RSCache_Buffer* buffer,
+    void (*record)(struct RSCache_Dat2ConfigFrameSound*, struct RSCache_Buffer*))
+{
+    int count = g2(buffer);
+    for( int i = 0; i < count; ++i )
+    {
+        int frame = g2(buffer);
+        struct RSCache_Dat2ConfigFrameSound sound = { 0 };
+        record(&sound, buffer);
+        if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
+            add_frame_sound(&def->frame_sounds, frame, sound);
+    }
+}
+
 static void
 handle_frame_sounds_226_plus(
     struct RSCache_Dat2ConfigSequence* def,
@@ -361,6 +393,7 @@ decode_sequence_v1(
         int opcode = g1(buffer);
         if( opcode == 0 )
         {
+            def->_consumed = (int)buffer->position;
             break;
         }
 
@@ -431,6 +464,7 @@ decode_sequence_v1(
         case 12:
         {
             int var3 = g1(buffer);
+            def->chat_frame_id_count = var3;
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
@@ -450,7 +484,8 @@ decode_sequence_v1(
             def->anim_maya_id = g4(buffer);
             break;
         case 15:
-            handle_frame_sounds_220_226(def, buffer);
+            /* Framed list (u16 count + explicit frame) with v1's packed record. */
+            handle_frame_sounds_framed(def, buffer, decode_frame_sound_v1);
             break;
         case 16:
             def->anim_maya_start = g2(buffer);
@@ -492,6 +527,7 @@ decode_sequence_v2(
         int opcode = g1(buffer);
         if( opcode == 0 )
         {
+            def->_consumed = (int)buffer->position;
             break;
         }
 
@@ -562,6 +598,7 @@ decode_sequence_v2(
         case 12:
         {
             int var3 = g1(buffer);
+            def->chat_frame_id_count = var3;
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
@@ -581,7 +618,8 @@ decode_sequence_v2(
             def->anim_maya_id = g4(buffer);
             break;
         case 15:
-            handle_frame_sounds_220_226(def, buffer);
+            /* Framed list (u16 count + explicit frame) with v2's record. */
+            handle_frame_sounds_framed(def, buffer, decode_frame_sound_v2);
             break;
         case 16:
             def->anim_maya_start = g2(buffer);
@@ -623,6 +661,7 @@ decode_sequence_v3(
         int opcode = g1(buffer);
         if( opcode == 0 )
         {
+            def->_consumed = (int)buffer->position;
             break;
         }
 
@@ -693,6 +732,7 @@ decode_sequence_v3(
         case 12:
         {
             int var3 = g1(buffer);
+            def->chat_frame_id_count = var3;
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
@@ -749,6 +789,260 @@ decode_sequence_v3(
             break;
         }
     }
+}
+
+/* Highest frame index carrying a sound, or -1. v1 and v2 store the frame index
+ * implicitly as the position in the list, so the list has to be written dense up
+ * to this bound with zero-filled holes. */
+static int
+frame_sound_highest_frame(const struct RSCache_Dat2ConfigFrameSoundMap* map)
+{
+    int highest = -1;
+    for( int i = 0; i < map->count; i++ )
+    {
+        if( map->frames[i] > highest )
+            highest = map->frames[i];
+    }
+    return highest;
+}
+
+static const struct RSCache_Dat2ConfigFrameSound*
+frame_sound_for_frame(
+    const struct RSCache_Dat2ConfigFrameSoundMap* map,
+    int frame)
+{
+    for( int i = 0; i < map->count; i++ )
+    {
+        if( map->frames[i] == frame )
+            return &map->sounds[i];
+    }
+    return NULL;
+}
+
+uint32_t
+RSCache_Dat2ConfigSequenceEncodeCodec(
+    const struct RSCache_Dat2ConfigSequence* def,
+    int codec_version,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !def || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    bool is_v3 = codec_version == RSCACHE_CODEC_SEQUENCE_V3;
+
+    /*
+     * The opcode *numbers* move between eras, not just the record shapes:
+     *
+     *   opcode   v1                  v2                  v3
+     *   13       frame sounds (g3)   frame sounds        anim_maya_id
+     *   14       anim_maya_id        anim_maya_id        frame sounds (framed)
+     *   15       frame sounds        frame sounds        maya start/end
+     *   16       maya start/end      maya start/end      vertical offset
+     *   100      -                   -                   blend table
+     *
+     * so the codec version has to be known to emit any of them.
+     */
+    int opcode_maya_id = is_v3 ? 13 : 14;
+    int opcode_sounds = is_v3 ? 14 : 13;
+    int opcode_maya_range = is_v3 ? 15 : 16;
+
+    if( def->frame_count > 0 )
+    {
+        p1(&buffer, 1);
+        p2(&buffer, def->frame_count);
+        for( int i = 0; i < def->frame_count; i++ )
+            p2(&buffer, def->frame_lengths[i]);
+        /* Frame ids are split: low 16 bits for every frame, then the high 16. */
+        for( int i = 0; i < def->frame_count; i++ )
+            p2(&buffer, def->frame_ids[i] & 0xFFFF);
+        for( int i = 0; i < def->frame_count; i++ )
+            p2(&buffer, (def->frame_ids[i] >> 16) & 0xFFFF);
+    }
+
+    if( def->frame_step != 0 )
+    {
+        p1(&buffer, 2);
+        p2(&buffer, def->frame_step);
+    }
+
+    if( def->interleave_leave )
+    {
+        /* The decoder appends a 9999999 sentinel, so the wire count is the number
+         * of entries before it. */
+        int count = 0;
+        while( def->interleave_leave[count] != 9999999 )
+            count++;
+
+        p1(&buffer, 3);
+        p1(&buffer, count);
+        for( int i = 0; i < count; i++ )
+            p1(&buffer, def->interleave_leave[i]);
+    }
+
+    if( def->stretches )
+        p1(&buffer, 4);
+    if( def->forced_priority != 0 )
+    {
+        p1(&buffer, 5);
+        p1(&buffer, def->forced_priority);
+    }
+    if( def->left_hand_item != 0 )
+    {
+        p1(&buffer, 6);
+        p2(&buffer, def->left_hand_item);
+    }
+    if( def->right_hand_item != 0 )
+    {
+        p1(&buffer, 7);
+        p2(&buffer, def->right_hand_item);
+    }
+    if( def->max_loops != 0 )
+    {
+        p1(&buffer, 8);
+        p1(&buffer, def->max_loops);
+    }
+    if( def->precedence_animating != 0 )
+    {
+        p1(&buffer, 9);
+        p1(&buffer, def->precedence_animating);
+    }
+    if( def->priority != 0 )
+    {
+        p1(&buffer, 10);
+        p1(&buffer, def->priority);
+    }
+    if( def->reply_mode != 0 )
+    {
+        p1(&buffer, 11);
+        p1(&buffer, def->reply_mode);
+    }
+
+    if( def->chat_frame_ids && def->chat_frame_id_count > 0 )
+    {
+        p1(&buffer, 12);
+        p1(&buffer, def->chat_frame_id_count);
+        /* Split low/high halves, exactly as opcode 1 does for frame ids. */
+        for( int i = 0; i < def->chat_frame_id_count; i++ )
+            p2(&buffer, def->chat_frame_ids[i] & 0xFFFF);
+        for( int i = 0; i < def->chat_frame_id_count; i++ )
+            p2(&buffer, (def->chat_frame_ids[i] >> 16) & 0xFFFF);
+    }
+
+    if( def->anim_maya_id != 0 )
+    {
+        p1(&buffer, opcode_maya_id);
+        p4(&buffer, def->anim_maya_id);
+    }
+
+    if( def->frame_sounds.count > 0 )
+    {
+        p1(&buffer, opcode_sounds);
+
+        if( is_v3 )
+        {
+            /* v3 stores the frame explicitly, so only real entries are written. */
+            p2(&buffer, def->frame_sounds.count);
+            for( int i = 0; i < def->frame_sounds.count; i++ )
+            {
+                const struct RSCache_Dat2ConfigFrameSound* sound = &def->frame_sounds.sounds[i];
+                p2(&buffer, def->frame_sounds.frames[i]);
+                p2(&buffer, sound->id);
+                p1(&buffer, sound->weight);
+                p1(&buffer, sound->loops);
+                p1(&buffer, sound->location);
+                p1(&buffer, sound->retain);
+            }
+        }
+        else
+        {
+            /* v1/v2 index by position, so the list is dense. Frames with no sound
+             * are written as zeros, which the decoder's own filter (id >= 1) drops
+             * again on the way back in. */
+            int highest = frame_sound_highest_frame(&def->frame_sounds);
+            int count = highest + 1;
+            p1(&buffer, count);
+
+            for( int frame = 0; frame < count; frame++ )
+            {
+                const struct RSCache_Dat2ConfigFrameSound* sound =
+                    frame_sound_for_frame(&def->frame_sounds, frame);
+
+                if( codec_version == RSCACHE_CODEC_SEQUENCE_V1 )
+                {
+                    /* Packed: id << 8 | loops << 4 | location. retain and weight
+                     * have no home in this record. */
+                    int bits = sound ? ((sound->id << 8) | ((sound->loops & 7) << 4) |
+                                        (sound->location & 15))
+                                     : 0;
+                    p3(&buffer, bits);
+                }
+                else
+                {
+                    p2(&buffer, sound ? sound->id : 0);
+                    p1(&buffer, sound ? sound->loops : 0);
+                    p1(&buffer, sound ? sound->location : 0);
+                    p1(&buffer, sound ? sound->retain : 0);
+                }
+            }
+        }
+    }
+
+    if( def->anim_maya_start != 0 || def->anim_maya_end != 0 )
+    {
+        p1(&buffer, opcode_maya_range);
+        p2(&buffer, def->anim_maya_start);
+        p2(&buffer, def->anim_maya_end);
+    }
+
+    /* Opcode 16 is the vertical offset only in v3; in v1/v2 that number is the maya
+     * range, already written above. */
+    if( is_v3 && def->vertical_offset != 0 )
+    {
+        p1(&buffer, 16);
+        p1b(&buffer, def->vertical_offset);
+    }
+
+    if( def->anim_maya_masks )
+    {
+        int count = 0;
+        for( int i = 0; i < 256; i++ )
+        {
+            if( def->anim_maya_masks[i] )
+                count++;
+        }
+
+        p1(&buffer, 17);
+        p1(&buffer, count);
+        for( int i = 0; i < 256; i++ )
+        {
+            if( def->anim_maya_masks[i] )
+                p1(&buffer, i);
+        }
+    }
+
+    if( def->debug_name )
+    {
+        p1(&buffer, 18);
+        pjstr(&buffer, def->debug_name, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigSequenceEncode(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigSequence* def,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_Dat2ConfigSequenceEncodeCodec(
+        def, RSCache_Dat2ConfigSequenceCodecVersion(cache), out, out_capacity);
 }
 
 static void

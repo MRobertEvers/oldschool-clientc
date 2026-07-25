@@ -44,9 +44,17 @@ struct RSCache_Dat2ConfigSequence
     int vertical_offset; /* rev226+ opcode 16 */
     int* interleave_leave;
     int* chat_frame_ids;
+    /** Entries in `chat_frame_ids`. The array used to be allocated without
+     *  recording its length, which left it unencodable and uncomparable. */
+    int chat_frame_id_count;
     bool* anim_maya_masks;
     char* debug_name;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
+
+    /** Bytes consumed by the last decode, set on reaching the terminating opcode 0.
+     *  Zero if the decode bailed early. Same diagnostic loc, npc and spotanim
+     *  carry. */
+    int _consumed;
 };
 
 /*
@@ -76,6 +84,45 @@ struct RSCache_Dat2ConfigSequence
 /** Which sequence codec this cache needs. */
 int
 RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache);
+
+/**
+ * Encode a sequence record with the codec the profile selects.
+ *
+ * The codec version is not optional here: the opcode *numbers* move between eras,
+ * not just the record shapes. Per RuneLite's SequenceLoader, which this mirrors:
+ *
+ *   opcode   v1 / v2                   v3 (rev226+)
+ *   13       frame sounds              anim_maya_id
+ *   14       anim_maya_id              frame sounds (explicit frame per entry)
+ *   15       frame sounds (framed)     maya start/end
+ *   16       maya start/end            vertical offset
+ *   100      -                         per-frame blend table
+ *
+ * Encoding with the wrong version therefore produces a record whose fields land in
+ * entirely different slots, not merely a mis-sized one.
+ *
+ * Fields that cannot be reproduced:
+ *   - v1 frame sounds pack id/loops/location into 24 bits, leaving no room for
+ *     `retain` or `weight`;
+ *   - v1 and v2 index frame sounds by *position*, so the list is written dense with
+ *     zero-filled holes, which the decoder's own `id >= 1` filter drops again;
+ *   - opcode 100's blend table, which the decoder consumes without storing.
+ */
+uint32_t
+RSCache_Dat2ConfigSequenceEncode(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigSequence* def,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** As RSCache_Dat2ConfigSequenceEncode, for callers that already know the codec
+ *  version (RSCACHE_CODEC_SEQUENCE_V1..V3). */
+uint32_t
+RSCache_Dat2ConfigSequenceEncodeCodec(
+    const struct RSCache_Dat2ConfigSequence* def,
+    int codec_version,
+    uint8_t* out,
+    uint32_t out_capacity);
 
 /** Decode using the codec version the profile selects. */
 void
