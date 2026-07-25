@@ -514,6 +514,99 @@ visit_sprites(
     (void)profile;
 }
 
+/** NULL-tolerant string compare; defined further down with the config visitors. */
+static bool
+str_equal(
+    const char* lhs,
+    const char* rhs);
+
+/* --------------------------------------------------------- clientscript --- */
+
+static void
+visit_clientscript(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    int flags = RSCache_ClientScriptFlags(profile);
+
+    struct RSCache_ClientScript* first =
+        RSCache_ClientScriptNewFromDecodeFlags(0, data, size, flags);
+    if( !first )
+        return;
+    tally->records++;
+
+    uint32_t capacity = RSCache_ClientScriptEncodeBound(first);
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_ClientScriptFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_ClientScriptEncodeFlags(first, flags, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_ClientScriptFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_ClientScript* second =
+        RSCache_ClientScriptNewFromDecodeFlags(0, encoded, (int)written, flags);
+    if( second )
+    {
+        const struct RSCache_CS2_Script* want = &first->script;
+        const struct RSCache_CS2_Script* got = &second->script;
+
+        bool equal = want->op_count == got->op_count &&
+                     want->local_int_count == got->local_int_count &&
+                     want->local_string_count == got->local_string_count &&
+                     want->local_long_count == got->local_long_count &&
+                     want->int_argument_count == got->int_argument_count &&
+                     want->string_argument_count == got->string_argument_count &&
+                     want->long_argument_count == got->long_argument_count &&
+                     want->switch_table_count == got->switch_table_count &&
+                     str_equal(want->signature, got->signature);
+
+        for( int i = 0; equal && i < want->op_count; i++ )
+        {
+            if( want->opcodes[i] != got->opcodes[i] ||
+                want->int_operands[i] != got->int_operands[i] ||
+                !str_equal(want->string_operands[i], got->string_operands[i]) )
+                equal = false;
+        }
+        for( int s = 0; equal && s < want->switch_table_count; s++ )
+        {
+            if( want->switch_tables[s].case_count != got->switch_tables[s].case_count )
+            {
+                equal = false;
+                break;
+            }
+            for( int c = 0; c < want->switch_tables[s].case_count; c++ )
+            {
+                if( want->switch_tables[s].cases[c].key != got->switch_tables[s].cases[c].key ||
+                    want->switch_tables[s].cases[c].target_pc !=
+                        got->switch_tables[s].cases[c].target_pc )
+                {
+                    equal = false;
+                    break;
+                }
+            }
+        }
+
+        if( equal )
+            tally->semantic_ok++;
+        RSCache_ClientScriptFree(second);
+    }
+
+    RSCache_ClientScriptFree(first);
+    free(encoded);
+}
+
 /* ---------------------------------------------------------------- frame --- */
 
 /*
@@ -1749,6 +1842,8 @@ main(int argc, char** argv)
     static const struct table_case TABLE_CASES[] = {
         { "framemap", RSCACHE_DAT2_DISK_TABLE_SKELETONS, RSCACHE_TYPE_FRAMEMAP, visit_framemap },
         { "sprites", RSCACHE_DAT2_DISK_TABLE_SPRITES, RSCACHE_TYPE_SPRITE, visit_sprites },
+        { "cs2script", RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT, RSCACHE_TYPE_CLIENTSCRIPT,
+          visit_clientscript },
     };
 
     int scanned_any = 0;

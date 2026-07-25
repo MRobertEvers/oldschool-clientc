@@ -263,6 +263,72 @@ proper `&` test.
 `shape` and `rotation` need no reconstruction: `attr_opcode` stores the original
 overlay opcode verbatim and both derive from it.
 
+### B9. `clientscript` — resolved; the trailer relation was measured
+
+Previously listed here as unimplementable because the arithmetic between
+`trailer_len`, `footer_size` and the switch-table bytes would not reconcile from
+reading the decoder. Settled by measuring real scripts instead of reasoning further:
+
+| switch bytes S | trailer_len |
+|---|---|
+| 0 | 1 |
+| 50 | 51 |
+| 92 | 93 |
+| 162 | 163 |
+| 192 | 193 |
+| 418 | 419 |
+
+**`trailer_len = S + 1`** — the +1 being the switch-count byte that `footer_size` does
+not cover. `data_size - trailer_pos` came to `F + S + 2` in every case, the 2 being
+the trailing `trailer_len` u16 the decoder never reads back.
+
+Result: **100% byte-exact over ~10,000 scripts across all five caches carrying table
+12.** Byte-exactness at that scale is what confirms the relation; a guessed layout
+could not achieve it.
+
+One field remains unreproducible: `PUSH_CONSTANT_LONG` carries two u32s and the decode
+keeps only the low one, because `int_operands` is `int`. The encoder sign-extends from
+the low word, restoring any constant that fits in 32 bits; a genuinely 64-bit constant
+is already lost at decode. Widening `int_operands` to `int64_t` is the fix and would
+touch the CS2 VM.
+
+### B10. `model` — the one encoder not written *(Gap)*
+
+Four formats selected by a magic trailer (`FF FF` ob3, `FF FE` OSRS extended,
+`FF FD` OSRS material, otherwise ob2), ~2300 lines of decoder between them. Not
+attempted, and the reason is scale rather than a blocker — but the shape of the work
+is worth recording, because it is not like the other encoders.
+
+**Why it is structurally harder.** Every other datatype is a single forward cursor
+(config opcode streams) or a small fixed layout. A model is neither. `decode_ob2`
+runs **eight independent section cursors** over one buffer — vertex flags, face
+indices, face render priorities, packed transparency vertex groups, face infos,
+packed vertex groups, plus three separate per-axis vertex delta streams — and the
+18-byte trailer carries the byte *counts* of several of those sections. An encoder has
+to lay out every section, then go back and fill in counts that depend on what it
+wrote.
+
+**Two provenance questions, in the same class as frame and maps terrain:**
+
+1. *Vertex flag bits.* Vertices are delta-encoded, with a per-vertex flag byte saying
+   which axes carry a delta. The decoder reconstructs absolute positions, discarding
+   the flags. Probably derivable — a delta is presumably emitted exactly when it is
+   non-zero — but that is an assumption about the packer, and it needs measuring
+   before it is relied on.
+2. *Face-index delta type.* Each face's indices are encoded by one of four schemes
+   reusing previous indices in different ways. The type is in the stream; the decoder
+   reads it, reconstructs absolute indices and does not keep it. Any valid choice
+   produces a correct model, so a greedy encoder is *semantically* fine, but
+   byte-exactness needs the original choice recorded.
+
+**Recommended approach**, following what worked for frame and maps: record provenance
+at decode time — the per-vertex flag byte and the per-face index type — rather than
+trying to re-derive either. Then verify with a measurement pass before trusting any
+derivation, the way the framemap trailing bytes and the clientscript `trailer_len`
+relation were pinned. Do one format end to end (ob3 or ob2) with the round-trip
+harness green before starting the next; they share enough structure that the first is
+most of the design work.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*
@@ -342,14 +408,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1183 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1193 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
 | profile | 111 |
-| roundtrip | 201 |
+| roundtrip | 211 |
 | compression | 99 |
 | bzip2 interop | 9 |
 
@@ -366,15 +432,12 @@ The round-trip harness now scans both traversals — config groups (many records
 archive) and whole-archive tables (one record per archive, capped at 2000 archives
 per table with the cap printed).
 
-Encoders done (18): the 13 config types, plus framemap, sprites, map terrain and
-frame. Semantic round-trip is 100% on all of them across all six dat2 caches.
+Encoders done (19): the 13 config types, plus framemap, sprites, map terrain, frame
+and clientscript. Semantic round-trip is 100% on all of them across every dat2 cache
+that carries the datatype.
 
-Remaining:
-  - **model** — four formats behind a magic trailer, ~2300 lines of decoder. Tractable
-    but large; its own increment.
-  - **clientscript** — cs2 bytecode; not yet examined.
-
-Nothing is blocked. Byte-exactness by datatype: frame and framemap (old caches) 100%,
+Remaining: **model** only — see B10 for why it is structurally unlike the others and
+the recommended approach. Nothing is blocked; it is a scale problem. Byte-exactness by datatype: frame and framemap (old caches) 100%,
 struct 100%, underlay 99%, sequence ~36%, sprites ~25% (ordering only), obj/loc/npc
 low (ordering plus documented loss), mapelement 0% by construction.
 

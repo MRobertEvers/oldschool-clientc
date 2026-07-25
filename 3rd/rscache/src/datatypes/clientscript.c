@@ -203,6 +203,158 @@ cs2_script_try_decode_footer(
     return out;
 }
 
+/* Bytes the switch tables occupy on the wire. */
+static int
+cs2_switch_bytes(const struct RSCache_CS2_Script* script)
+{
+    int total = 0;
+    for( int i = 0; i < script->switch_table_count; i++ )
+        total += 2 + script->switch_tables[i].case_count * 8;
+    return total;
+}
+
+static void
+cs2_script_write_operand(
+    struct RSCache_Buffer* body,
+    int opcode,
+    int op_index,
+    const struct RSCache_CS2_Script* script)
+{
+    if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
+    {
+        /* The decode reads two u32s and keeps only the low one, so the high half is
+         * already gone. Sign-extend from the low word, which reproduces the common
+         * case of a small constant; a genuinely 64-bit constant cannot be restored.
+         * Widening int_operands to int64_t is the real fix. */
+        int low = script->int_operands[op_index];
+        p4(body, low < 0 ? -1 : 0);
+        p4(body, low);
+        return;
+    }
+    if( cs2_operand_uses_int8(opcode) )
+    {
+        p1b(body, script->int_operands[op_index]);
+        return;
+    }
+    switch( rscache_cs2_opcode_operand_kind(opcode) )
+    {
+    case RSCACHE_CS2_OPERAND_STRING:
+        pjstr(
+            body,
+            script->string_operands[op_index] ? script->string_operands[op_index] : "",
+            RSCACHE_JSTR_TERMINATOR_NULL);
+        break;
+    case RSCACHE_CS2_OPERAND_INT8:
+        p1b(body, script->int_operands[op_index]);
+        break;
+    case RSCACHE_CS2_OPERAND_NONE:
+        break;
+    case RSCACHE_CS2_OPERAND_INT32:
+    default:
+        p4(body, script->int_operands[op_index]);
+        break;
+    }
+}
+
+uint32_t
+RSCache_ClientScriptEncodeBound(const struct RSCache_ClientScript* script)
+{
+    if( !script )
+        return 0;
+
+    const struct RSCache_CS2_Script* cs2 = &script->script;
+    uint32_t total = (uint32_t)(cs2->signature ? strlen(cs2->signature) : 0) + 1u;
+    /* Worst case per op: u16 opcode plus an 8-byte long operand. Strings are counted
+     * separately since they can exceed that. */
+    total += (uint32_t)cs2->op_count * 10u;
+    for( int i = 0; i < cs2->op_count; i++ )
+    {
+        if( cs2->string_operands && cs2->string_operands[i] )
+            total += (uint32_t)strlen(cs2->string_operands[i]) + 1u;
+    }
+    total += (uint32_t)CS2_SCRIPT_TRAILER_FOOTER_MODERN;
+    total += (uint32_t)cs2_switch_bytes(cs2);
+    total += 64u;
+    return total;
+}
+
+uint32_t
+RSCache_ClientScriptEncodeFlags(
+    const struct RSCache_ClientScript* script,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !script || !out )
+        return 0;
+
+    const struct RSCache_CS2_Script* cs2 = &script->script;
+    if( cs2->op_count <= 0 || !cs2->opcodes || !cs2->int_operands )
+        return 0;
+    if( out_capacity < RSCache_ClientScriptEncodeBound(script) )
+        return 0;
+
+    bool legacy = flags == RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    pjstr(&buffer, cs2->signature ? cs2->signature : "", RSCACHE_JSTR_TERMINATOR_NULL);
+
+    for( int i = 0; i < cs2->op_count; i++ )
+    {
+        int opcode = (int)cs2->opcodes[i];
+        p2(&buffer, opcode);
+        cs2_script_write_operand(&buffer, opcode, i, cs2);
+    }
+
+    /* Fixed trailer fields. The long counts exist only in the modern layout. */
+    p4(&buffer, cs2->op_count);
+    p2(&buffer, cs2->local_int_count);
+    p2(&buffer, cs2->local_string_count);
+    if( !legacy )
+        p2(&buffer, cs2->local_long_count);
+    p2(&buffer, cs2->int_argument_count);
+    p2(&buffer, cs2->string_argument_count);
+    if( !legacy )
+        p2(&buffer, cs2->long_argument_count);
+    p1(&buffer, cs2->switch_table_count);
+
+    for( int i = 0; i < cs2->switch_table_count; i++ )
+    {
+        const struct RSCache_CS2_ScriptSwitch* table = &cs2->switch_tables[i];
+        p2(&buffer, table->case_count);
+        for( int c = 0; c < table->case_count; c++ )
+        {
+            p4(&buffer, table->cases[c].key);
+            p4(&buffer, table->cases[c].target_pc);
+        }
+    }
+
+    /*
+     * The trailing length. The decoder locates the trailer with
+     *   trailer_pos = data_size - footer_size - trailer_len
+     * which only works if trailer_len is the switch-table byte count **plus one**.
+     * Measured across every script in cache.osrs230, with and without switches:
+     * S=0 -> 1, S=50 -> 51, S=92 -> 93, S=162 -> 163, S=192 -> 193, S=418 -> 419.
+     * The +1 is the switch-count byte, which the footer size does not cover.
+     */
+    p2(&buffer, cs2_switch_bytes(cs2) + 1);
+
+    return buffer.position;
+}
+
+uint32_t
+RSCache_ClientScriptEncode(
+    const struct RSCache* cache,
+    const struct RSCache_ClientScript* script,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_ClientScriptEncodeFlags(
+        script, RSCache_ClientScriptFlags(cache), out, out_capacity);
+}
+
 int
 RSCache_ClientScriptFlags(const struct RSCache* cache)
 {
