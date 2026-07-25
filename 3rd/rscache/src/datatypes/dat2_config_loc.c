@@ -80,6 +80,21 @@ RSCache_Dat2ConfigLocNewDecode(
     return loc;
 }
 
+struct RSCache_Dat2ConfigLoc*
+RSCache_Dat2ConfigLocNewDecodeProfile(
+    const struct RSCache* cache,
+    char* buffer,
+    int buffer_size)
+{
+    struct RSCache_Dat2ConfigLoc* loc = malloc(sizeof(struct RSCache_Dat2ConfigLoc));
+    assert(loc);
+    memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
+
+    decode_loc(loc, buffer, buffer_size, RSCache_Dat2ConfigLocFlags(cache));
+
+    return loc;
+}
+
 void
 RSCache_Dat2ConfigLocFree(struct RSCache_Dat2ConfigLoc* loc)
 {

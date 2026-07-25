@@ -75,11 +75,16 @@ Task_Dat1LocLoad_Run(
 
     offset = loc_index->offsets[task->loc_id];
     memset(&decoded, 0, sizeof(decoded));
+    /* Flags from the cache profile rather than a constant spelled out here, so the
+     * one place that knows the era decides. For a dat1 profile this is exactly
+     * RSCACHE_CONFIG_LOC_DECODE_DAT, which is what this used to pass literally —
+     * the OSRS-era gates cannot fire on a dat1 cache, since 254 and 220 are
+     * numbered in different lineages. */
     RSCache_Dat2ConfigLocDecodeInplace(
         &decoded,
         loc_index->data + offset,
         loc_index->data_size - offset,
-        RSCACHE_CONFIG_LOC_DECODE_DAT);
+        RSCache_Dat2ConfigLocFlags(CacheProvider_Profile(&task->bc->base)));
     decoded._id = task->loc_id;
 
     torirs_loc = ToriRS_LocationFromRSCacheDat2(task->loc_id, &decoded);

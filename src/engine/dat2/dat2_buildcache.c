@@ -1266,8 +1266,15 @@ dat2_buildcache_locs_init_from_archive(
         if( dat2_buildcache_loc_get(dat2_buildcache, id) )
             continue;
 
-        loc = RSCache_Dat2ConfigLocNewDecode(
-            archive->revision, filelist->files[i], filelist->file_sizes[i]);
+        /* Profile, not the archive revision. Equivalent on the caches the client
+         * boots — a modern archive revision is a timestamp, which clears the same
+         * OSRS-220 gate the declared revision does — but the profile additionally
+         * carries the container and the Kronos quirk, neither of which a revision
+         * number can imply. */
+        loc = RSCache_Dat2ConfigLocNewDecodeProfile(
+            CacheProvider_Profile(&dat2_buildcache->base),
+            filelist->files[i],
+            filelist->file_sizes[i]);
         if( !loc )
             continue;
 

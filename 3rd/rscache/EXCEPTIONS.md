@@ -5,9 +5,8 @@ or accepted a shortfall — with the reason, so none of it has to be re-derived 
 re-litigated later.
 
 Scope: the cache read/write expansion (revision-explicit structure, encoders,
-container writers, README). Phases 1–5 and 8 are complete, and Phase 6 is complete
-except for three types blocked on a reference client (B13). Phase 7 (engine wiring)
-remains.
+container writers, README). Phases 1–5, 7 and 8 are complete; Phase 6 is complete
+except for three types blocked on a reference client (B13).
 
 Three kinds of entry:
 
@@ -441,6 +440,55 @@ every CS2 script branching on one takes the zero path, and no CS2 hook triggerin
 varbit ever fires. Varps themselves are unaffected (`apply_varp_value` grows `var[]`
 untyped on server writes); it is specifically the types that are absent.
 
+### B14. Engine wiring — done, with two sites deliberately left *(Gap)*
+
+The engine now constructs a cache profile once at boot and hands it to the decoders
+instead of passing a bare archive revision or a flag constant written out at the call
+site.
+
+- `struct CacheProvider` carries a `struct RSCache profile`, set by
+  `CacheProvider_SetProfile`. It defaults to `RSCache_ProfileZero()` — "OSRS dat2,
+  revision unknown" — so a provider whose profile was never set decodes exactly as it
+  did before profiles existed.
+- `app_provider_set_cache_profile` resolves it from the manifest's `client_version` and
+  `kind` through `RSCache_ProfileForContainerRevision`, which handles the exact match,
+  the nearest-lower fallback, and the revision-unset case itself. The boot log states
+  what it picked: `container=dat1 epoch=0 revision=254` and
+  `container=dat2 epoch=1 revision=230`.
+- Converted: the dat1 loc decode (was a literal `RSCACHE_CONFIG_LOC_DECODE_DAT`) and
+  the dat2 loc decode (was `FlagsForRevision(archive->revision)`), the latter via a new
+  `RSCache_Dat2ConfigLocNewDecodeProfile`. Both are equivalent on the caches the client
+  boots, and both now additionally carry the container and the Kronos quirk, neither of
+  which a revision number can imply.
+- Wiring this up is what exposed **D16** — the cross-lineage revision comparison that
+  would have added `OSRS_220` to every dat1 loc decode.
+
+**Left deliberately:** `spotanim` and `component` still take a bare revision.
+`RSCache_Dat2ConfigSpotanimNewDecode` `(void)`s its `revision` parameter outright, so
+converting those three call sites would change no behaviour at all; `component` already
+resolves its era through `RSCache_Dat2ComponentDecodeRev`, which works. Both are
+cosmetic, and skipped as such rather than missed.
+
+### B15. Varbits now load at boot; the dat1 half does not *(Gap)*
+
+`CreateTask_Dat2VarbitLoad` loads config group 14 at boot and installs the table into
+`VarPManager` — **17,605 types from 17,426 records** on `cache.osrs230`, ids 0..17604
+with the holes zeroed to `basevar = -1`. It runs before anything that can execute a
+script, because a varbit read happens deep inside CS2 with nowhere to yield to a load.
+That closes the B13 consequence: `GetVarbit` returns real values now, so a script
+branching on a varbit takes the branch the server intended.
+
+Fixing the loader also required **D17** — both the reader and the writer masked one bit
+too narrow, which alone would have made every single-bit varbit read 0 even with the
+table loaded.
+
+**dat1 is not wired.** Its varbits live in the config jagfile as a single `varbit.dat`
+blob, and `VarPManager_LoadVarbitDat` already parses that exact shape — it just needs
+calling from the dat1 config load. Not done because the dat1 client is CS1, whose
+varbit opcode path is a different host request, so the payoff needs checking before the
+plumbing. The task is gated `cache_kind != APP_CACHE_DAT1` so the dat1 boot is
+untouched.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*
@@ -489,6 +537,8 @@ exception to "only add the write half".
 | D13 | **`decode_ob3` re-read the texture render type from the mapping section** instead of the array it had already read from the head of the file, consuming 7 bytes per simple triangle where its *own* offset arithmetic 20 lines earlier allots `simpleTextureFaceCount * 6`. Every texture triangle after the first therefore took its p/m/n from one byte too far along. Self-inconsistent within one function, and again `version3` reads the stored array. | Three models in `cache.osrs184` failed the round trip with `textured_p_coordinate` diverging and the output one byte short. Both went to zero with the fix, and the ob3 byte-exact rate went to 100%. |
 | D14 | **`decode_ob3` discarded the texture render types entirely** — read into a local, never stored — even though `struct RSCache_Model` has the field and `version3` fills it. Without it there is no way to tell a simple texture triangle from a complex one after the fact, and the two are sized differently, so the mapping section could not be laid out at all. | Found writing the encoder: the section length was unknowable from the struct. |
 | D15 | **Four arrays were `malloc`'d but only partially written**, leaving uninitialised heap where the reference implementation reads a zeroed array: `face_indices_a/b/c` (a face with index type 0 assigns none of them) in ob3/v2/v3, and `face_texture_coords` plus `textured_p/m/n_coordinate` (written only for textured faces / render-type-0 triangles) in ob3 and v3. Switched to `calloc`, which is also what Java's zero-initialised arrays give the reference. | Found by the round-trip comparison, which was nondeterministic until the reads were defined. Index type 0 occurs in no OSRS cache, but it does occur 355 times in `cache.643`. |
+| D16 | **`RSCache_RevisionAtLeast` compared revisions across lineages.** dat1 revisions run to 254 in a 2004-era sequence; OldSchool restarted from 1 and is now in the 230s. With no epoch guard, a dat1 rev-254 profile satisfied **every** threshold in the library — 210, 220, 226, 237 — each one switching a decoder to a field layout that postdates the cache by nearly twenty years. Renamed to `RSCache_RevisionAtLeastOsrs` so the lineage is unmissable at the call site, and step 1 now requires an OSRS epoch. | Latent until Phase 7: nothing passed a real profile to a `Flags` function, so the comparison never ran on a dat1 cache. Found by hand-evaluating `RSCache_Dat2ConfigLocFlags` for the rev-254 profile *before* wiring it up — it would have added `OSRS_220` to every dat1 loc decode. Now pinned by a test that asserts a dat1 profile clears all four thresholds and that its loc flags are exactly `RSCACHE_CONFIG_LOC_DECODE_DAT`. |
+| D17 | **`VarPManager_GetVarbit` and `SetVarbitOptimistic` masked one bit too narrow.** `endbit` is inclusive, so the width is `endbit - startbit + 1`; both functions used the difference alone. Every varbit read one bit short, and a **single-bit** varbit — `startbit == endbit`, the commonest shape — hit the `bit_count <= 0` guard and returned 0 for every possible varp value. The reference masks with `(1 << (msb - lsb + 1)) - 1`. | The cache settles the inclusive question: varbits 0..4 of `cache.osrs230` are `start=end=0,1,2,3,4` — five consecutive one-bit flags in varp 318, which would all be zero-width under an exclusive reading. Invisible because `varbit_count` was always 0, and because **the existing test could not discriminate**: it read `var[0] = 0x0E` and expected 7, which holds at both 3 and 4 bits wide since bit 4 is clear. Rewritten to use `0x1E`, where the two readings differ (15 vs 7), plus a single-bit case and a write-then-read check. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
@@ -545,13 +595,13 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1314 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1323 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
-| profile | 111 |
+| profile | 120 |
 | roundtrip | 295 |
 | compression | 99 |
 | config_var | 37 |
@@ -590,15 +640,10 @@ Remaining, both additive and neither blocking:
   blocked on a reference client, not on effort: exact consumption cannot pin the first
   two (E1) and the corpus cannot validate the third. The other four of the original
   seven are done — see B13.
-- **Engine wiring** — `app.c` builds a `struct RSCache` from the manifest's
-  `client_version`, the build caches store it, and the ~12 call sites that pass a bare
-  revision or a raw flag constant pass it instead. Old entry points already survive as
-  wrappers, so nothing else has to change.
-
-  This is also where the varbit bug in B13 actually gets fixed. The decoder now exists,
-  but nothing calls it: `VarPManager_SetVarbitTypes` still has no caller outside tests,
-  so `GetVarbit` keeps returning 0. Loading group 14 at boot and handing it over is the
-  remaining half.
+- **The remaining revision-taking call sites.** Phase 7 converted the ones that
+  matter (see B14); `spotanim` and `component` still take a bare revision. spotanim
+  `(void)`s it, so converting it changes no behaviour — cosmetic, and left alone
+  deliberately rather than overlooked.
 
 Two model-specific gaps are recorded above and are decoder work, not encoder work:
 the trailing region is carried without being understood (B11), and `cache.643`'s ob3

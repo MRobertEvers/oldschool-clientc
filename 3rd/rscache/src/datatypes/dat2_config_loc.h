@@ -198,6 +198,20 @@ RSCache_Dat2ConfigLocNewDecode(
     int revision,
     char* buffer,
     int buffer_size);
+
+/**
+ * Decode with the flags a cache profile selects.
+ *
+ * Prefer this to the `revision` form. A bare archive revision cannot express two
+ * things the profile can: the container (a dat1 record has a different string
+ * terminator and narrower ids) and a client quirk such as RSCACHE_QUIRK_KRONOS,
+ * which no revision number implies because it is a build difference.
+ */
+struct RSCache_Dat2ConfigLoc*
+RSCache_Dat2ConfigLocNewDecodeProfile(
+    const struct RSCache* cache,
+    char* buffer,
+    int buffer_size);
 /**
  * Encode a loc record for this cache.
  *
