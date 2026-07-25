@@ -80,3 +80,53 @@ RSCache_RevisionAtLeastOsrs(
 
     return default_when_unknown;
 }
+
+struct RSCache_RecordAddress
+RSCache_RecordAddressFor(
+    const struct RSCache* cache,
+    enum RSCache_Type type)
+{
+    struct RSCache_RecordAddress addr = { 0 };
+    addr.table = RSCACHE_DAT2_DISK_TABLE_CONFIGS;
+    addr.group = -1;
+    addr.group_shift = 0;
+    addr.file_mask = 0;
+
+    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
+    {
+        /* Per void's Index.kt for the table, and each DefinitionDecoder subclass for the
+         * shard width. Only the types a world render needs are mapped so far. */
+        switch( type )
+        {
+        case RSCACHE_TYPE_LOC:
+            addr.table = RSCACHE_DAT2_RS2_TABLE_LOC;
+            addr.group_shift = 8;
+            addr.file_mask = 0xFF;
+            return addr;
+        case RSCACHE_TYPE_NPC:
+            addr.table = RSCACHE_DAT2_RS2_TABLE_NPC;
+            addr.group_shift = 7;
+            addr.file_mask = 0x7F;
+            return addr;
+        case RSCACHE_TYPE_OBJ:
+            addr.table = RSCACHE_DAT2_RS2_TABLE_OBJ;
+            addr.group_shift = 8;
+            addr.file_mask = 0xFF;
+            return addr;
+        case RSCACHE_TYPE_SEQUENCE:
+            addr.table = RSCACHE_DAT2_RS2_TABLE_SEQ;
+            addr.group_shift = 7;
+            addr.file_mask = 0x7F;
+            return addr;
+        case RSCACHE_TYPE_SPOTANIM:
+            addr.table = RSCACHE_DAT2_RS2_TABLE_SPOTANIM;
+            addr.group_shift = 8;
+            addr.file_mask = 0xFF;
+            return addr;
+        default:
+            break;
+        }
+    }
+
+    return addr;
+}

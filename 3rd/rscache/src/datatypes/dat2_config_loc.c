@@ -38,6 +38,15 @@ RSCache_Dat2ConfigLocFlagsForRevision(int revision)
 }
 
 int
+RSCache_Dat2ConfigLocCodecVersion(const struct RSCache* cache)
+{
+    /* An explicit pin from the revision module wins — that is the point of the pin. */
+    int derived =
+        (cache && cache->epoch == RSCACHE_EPOCH_643) ? RSCACHE_CODEC_LOC_RS2 : RSCACHE_CODEC_LOC_OSRS;
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_LOC, derived);
+}
+
+int
 RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
 {
     int flags = RSCache_IsDat1(cache) ? RSCACHE_CONFIG_LOC_DECODE_DAT
@@ -56,6 +65,12 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
      * flag's first and only source. */
     if( RSCache_HasQuirk(cache, RSCACHE_QUIRK_KRONOS) )
         flags |= RSCACHE_CONFIG_LOC_DECODE_KRONOS;
+
+    /* The codec version decides the stream shape; the flag is how the shared decoder body
+     * is told which one it is. Routing it through CodecVersion rather than testing the
+     * epoch here means a revision module can pin it explicitly. */
+    if( RSCache_Dat2ConfigLocCodecVersion(cache) == RSCACHE_CODEC_LOC_RS2 )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_RS2;
 
     /* LARGE_MODEL_IDS stays off for every profile: an exact-consumption scan of
      * the jan2026 OSRS cache (60601/60601 files) showed big-smart model ids
@@ -588,6 +603,77 @@ RSCache_Dat2ConfigLocEncode(
         loc, RSCache_Dat2ConfigLocFlags(cache), out, out_capacity);
 }
 
+/*
+ * RS2 (643) nested model list: `u8 count`, then per entry `u8 shape`, `u8 model_count`,
+ * `model_count x u16 model`. One shape owns a list of models, where OSRS has each model
+ * name its own shape. See RSCACHE_CONFIG_LOC_DECODE_RS2.
+ *
+ * Returns false when the record would run past its end, so the caller can stop and leave
+ * `_consumed` short rather than churn garbage into later fields.
+ */
+static bool
+loc_read_models_rs2(
+    struct RSCache_Dat2ConfigLoc* loc,
+    struct RSCache_Buffer* buffer)
+{
+    if( buffer->position >= buffer->size )
+        return false;
+
+    int count = g1(buffer);
+    if( count == 0 )
+        return true;
+
+    loc->shapes_and_model_count = count;
+    loc->shapes = (int*)malloc((size_t)count * sizeof(int));
+    loc->models = (int**)malloc((size_t)count * sizeof(int*));
+    loc->lengths = (int*)malloc((size_t)count * sizeof(int));
+    if( !loc->shapes || !loc->models || !loc->lengths )
+        return false;
+    memset(loc->models, 0, (size_t)count * sizeof(int*));
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( buffer->position + 2 > buffer->size )
+            return false;
+        loc->shapes[i] = g1(buffer);
+
+        int model_count = g1(buffer);
+        loc->lengths[i] = model_count;
+        loc->models[i] = model_count > 0 ? (int*)malloc((size_t)model_count * sizeof(int)) : NULL;
+        if( model_count > 0 && !loc->models[i] )
+            return false;
+
+        for( int j = 0; j < model_count; j++ )
+        {
+            if( buffer->position + 2 > buffer->size )
+                return false;
+            loc->models[i][j] = g2(buffer);
+        }
+    }
+    return true;
+}
+
+/** Consume a nested model list without storing it — opcode 5's second block. */
+static bool
+loc_skip_models_rs2(struct RSCache_Buffer* buffer)
+{
+    if( buffer->position >= buffer->size )
+        return false;
+
+    int count = g1(buffer);
+    for( int i = 0; i < count; i++ )
+    {
+        if( buffer->position + 2 > buffer->size )
+            return false;
+        (void)g1(buffer); /* shape */
+        int model_count = g1(buffer);
+        if( buffer->position + (uint32_t)(model_count * 2) > buffer->size )
+            return false;
+        buffer->position += (uint32_t)(model_count * 2);
+    }
+    return true;
+}
+
 static void
 decode_loc(
     struct RSCache_Dat2ConfigLoc* loc,
@@ -617,6 +703,12 @@ decode_loc(
         {
         case 1:
         {
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            {
+                if( !loc_read_models_rs2(loc, &buffer) )
+                    goto decode_done;
+                break;
+            }
             /**
              * This opcode defines several models associated with a single map loc.
              *
@@ -648,6 +740,18 @@ decode_loc(
             break;
         case 5:
         {
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            {
+                /* Two nested blocks. The first is kept; the second is consumed and
+                 * dropped, which is what the reference does with both — it only needs the
+                 * stream to stay aligned. Storing the first keeps the models a world
+                 * render actually draws. */
+                if( !loc_read_models_rs2(loc, &buffer) )
+                    goto decode_done;
+                if( !loc_skip_models_rs2(&buffer) )
+                    goto decode_done;
+                break;
+            }
             /**
              * This is a single model loc.
              * Generally, always just draw the models.

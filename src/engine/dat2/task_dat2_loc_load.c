@@ -17,6 +17,7 @@ struct Task_Dat2LocLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int loc_id;
+    struct RSCache_RecordAddress addr;
 };
 
 static int
@@ -31,21 +32,51 @@ Task_Dat2LocLoad_Run(
 
     PT_BEGIN(&task->pt);
 
+    /*
+     * Where the loc records live is an era question, so the profile answers it rather than
+     * this task assuming the OSRS layout.
+     *
+     * OSRS keeps every loc as a file in config group 6, so one load covers all of them.
+     * RS2 (643) promotes locs to table 16 and shards them 256 per group, so a load covers
+     * only the requested id's group — which is why the whole-group memo below is keyed on
+     * having *this* id rather than on having loaded anything at all.
+     */
+    task->addr = RSCache_RecordAddressFor(
+        CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_LOC);
+
     /* The whole group decodes on first touch; later tasks skip the archive
      * load entirely instead of re-decompressing it per id. */
     if( !dat2_buildcache_loc_get(task->bc, task->loc_id) )
     {
-        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-        PT_YIELD(&task->pt);
+        if( task->addr.group_shift == 0 )
+        {
+            RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+        }
+        else
+        {
+            RSCache_IO_Dat2RecordGroupLoad(
+                io, 0, task->addr.table, task->loc_id >> task->addr.group_shift);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, task->addr.table);
+        }
 
-        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
         if( !archive )
         {
-            fprintf(stderr, "Failed to decode dat2 loc config group for loc %d\n", task->loc_id);
+            fprintf(stderr, "Failed to decode dat2 loc group for loc %d\n", task->loc_id);
             PT_EXIT(&task->pt);
         }
 
-        dat2_buildcache_locs_init_from_archive(task->bc, archive, NULL, 0);
+        /*
+         * Sharded groups number their files 0..255 within the group, so the ids the
+         * archive reports are group-relative. Pass the group's base id so the records land
+         * under their global loc id.
+         */
+        int base_id = task->addr.group_shift
+                          ? ((task->loc_id >> task->addr.group_shift) << task->addr.group_shift)
+                          : 0;
+        dat2_buildcache_locs_init_from_archive_based(task->bc, archive, NULL, 0, base_id);
         RSCache_Dat2DiskArchiveFree(archive);
     }
 

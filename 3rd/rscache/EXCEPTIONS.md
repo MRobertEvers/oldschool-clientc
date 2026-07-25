@@ -496,10 +496,38 @@ implement** — 26, 42, 48, 76, 108, 116, 118, 126, 131, 184, 193, 202, 210, 220
 were all observed. The ~32% that decode are the records that happen to use only shared low
 opcodes.
 
-So the loc decoder needs a 643 variant, the same shape of job as the flo tables in step 4.
-`void`'s `ObjectDecoder.kt` is the reference (locs are "objects" in its naming). Fan-out is
-also **not uniform** across tables: loc and obj are 256 files per group, npc is 128, so the
-shift and mask have to be per-type rather than a fixed `>> 8`.
+**Step 2b is done: `RSCACHE_CONFIG_LOC_DECODE_RS2`.** 643 locs went from
+**651 / 2048 (32%)** consuming exactly to **56,345 / 57,282 (98.4%)** across all 224 groups.
+
+The list of "16 unimplemented opcodes" was almost entirely a red herring — post-desync data
+bytes being read as opcodes. The actual difference is two opcodes, and it is structural:
+
+| | OSRS | RS2 (643) |
+|---|---|---|
+| opcode 1 | `u8 count`, then `count x (u16 model, u8 shape)` | `u8 count`, then per entry `u8 shape, u8 model_count, model_count x u16` |
+| opcode 5 | `u8 count`, then `count x u16 model` | **two** of the above blocks |
+
+RS2 inverts the nesting — one shape owns a list of models, rather than each model naming its
+shape. Reading an RS2 record with the OSRS shape desynchronises inside the *first* opcode,
+which is why everything downstream looked like an unknown opcode. The 32% that survived were
+records whose opcode 1 was absent or degenerate. Per `void`'s `ObjectDecoder.kt`, whose
+`skip` helper is called once for opcode 1 and twice for opcode 5.
+
+Opcode 5's second block is consumed and dropped; the first is kept, since that is what a
+world render draws. The reference discards both — it only needs the stream aligned.
+
+*Remaining 1.6% (937 records):* a scattered long tail — opcodes 108, 20, 127, 4, 6, 10, 180,
+110, 86, 83, each on 5-52 records. None appear in void's table either, so they are residual
+desyncs from some further RS2 shape rather than missing handlers. Also still absent versus
+void's table, though not implicated in any current failure: 42 (`u8 count` then `count`
+bytes), 162 (u32), 164/165/166 (u16).
+
+Fan-out is **not uniform** across tables: loc and obj are 256 files per group, npc is 128, so
+the shift and mask must be per-type rather than a fixed `>> 8`. Not yet wired into the
+profile.
+
+No regression: every OSRS cache's loc figures are unchanged, both boots unchanged, 1,359
+checks green.
 
 **The shape of the fix: two container generations, not one with variations.**
 
@@ -722,6 +750,7 @@ exception to "only add the write half".
 | D15 | **Four arrays were `malloc`'d but only partially written**, leaving uninitialised heap where the reference implementation reads a zeroed array: `face_indices_a/b/c` (a face with index type 0 assigns none of them) in ob3/v2/v3, and `face_texture_coords` plus `textured_p/m/n_coordinate` (written only for textured faces / render-type-0 triangles) in ob3 and v3. Switched to `calloc`, which is also what Java's zero-initialised arrays give the reference. | Found by the round-trip comparison, which was nondeterministic until the reads were defined. Index type 0 occurs in no OSRS cache, but it does occur 355 times in `cache.643`. |
 | D16 | **`RSCache_RevisionAtLeast` compared revisions across lineages.** dat1 revisions run to 254 in a 2004-era sequence; OldSchool restarted from 1 and is now in the 230s. With no epoch guard, a dat1 rev-254 profile satisfied **every** threshold in the library — 210, 220, 226, 237 — each one switching a decoder to a field layout that postdates the cache by nearly twenty years. Renamed to `RSCache_RevisionAtLeastOsrs` so the lineage is unmissable at the call site, and step 1 now requires an OSRS epoch. | Latent until Phase 7: nothing passed a real profile to a `Flags` function, so the comparison never ran on a dat1 cache. Found by hand-evaluating `RSCache_Dat2ConfigLocFlags` for the rev-254 profile *before* wiring it up — it would have added `OSRS_220` to every dat1 loc decode. Now pinned by a test that asserts a dat1 profile clears all four thresholds and that its loc flags are exactly `RSCACHE_CONFIG_LOC_DECODE_DAT`. |
 | D17 | **`VarPManager_GetVarbit` and `SetVarbitOptimistic` masked one bit too narrow.** `endbit` is inclusive, so the width is `endbit - startbit + 1`; both functions used the difference alone. Every varbit read one bit short, and a **single-bit** varbit — `startbit == endbit`, the commonest shape — hit the `bit_count <= 0` guard and returned 0 for every possible varp value. The reference masks with `(1 << (msb - lsb + 1)) - 1`. | The cache settles the inclusive question: varbits 0..4 of `cache.osrs230` are `start=end=0,1,2,3,4` — five consecutive one-bit flags in varp 318, which would all be zero-width under an exclusive reading. Invisible because `varbit_count` was always 0, and because **the existing test could not discriminate**: it read `var[0] = 0x0E` and expected 7, which holds at both 3 and 4 bits wide since bit 4 is clear. Rewritten to use `0x1E`, where the two readings differ (15 vs 7), plus a single-bit case and a write-then-read check. |
+| D18 | **Two independent allow-lists silently made whole cache tables unreachable.** `RSCache_Dat2DiskIsValidTableId` (reference tables) and `dat2_cache_table_supported` in `src/platform/platform_x_io.c` (archive reads) each enumerated only the *named* OSRS tables. An id absent from the list was skipped **before** any read, so it presented as "decode failed" or an empty result rather than "this table is not allowed" — nothing logged the rejection. Both had to be widened before the RS2 branch (tables 16-22) could be read at all. | The first surfaced as `tables[16] = NULL` while `255/16` loaded fine by hand and decoded to 224 dense groups. The second surfaced *after* that fix as `Failed to decode dat2 loc group for loc N` for every id, with the group demonstrably present. **The lesson is the pattern, not either instance:** an allow-list keyed on names conflates "unknown to us" with "not present", and the second copy cost an extra debugging cycle because the first fix did not prompt a search for siblings. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught

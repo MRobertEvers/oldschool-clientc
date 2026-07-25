@@ -231,6 +231,45 @@ RSCache_CodecVersionOr(
     return explicit_version == RSCACHE_CODEC_AUTO ? derived : (int)explicit_version;
 }
 
+/**
+ * Where a record type lives, and how a record id splits into an archive and a file.
+ *
+ * OSRS keeps most types as one config group holding every record as a file, so the id *is*
+ * the file id. RS2 promotes several types to their own table and shards them into groups, so
+ * an id has to be split — and the shard width is per type, not uniform:
+ *
+ *   loc  table 16, 256 files per group -> archive = id >> 8, file = id & 0xFF
+ *   npc  table 18, 128 files per group -> archive = id >> 7, file = id & 0x7F
+ *   obj  table 19, 256 files per group -> archive = id >> 8, file = id & 0xFF
+ *
+ * Measured against cache.rs643 and matching void's DefinitionDecoder subclasses, which
+ * declare exactly these overrides (`getArchive`/`getFile`). A single hardcoded `>> 8` would
+ * silently mis-address every npc.
+ *
+ * `group_shift == 0` means "not sharded": the config-group layout, where `group` is the
+ * config kind and the id indexes files directly.
+ */
+struct RSCache_RecordAddress
+{
+    /** Disk table the records live in. */
+    int table;
+    /** Config-kind / group id when not sharded; ignored when `group_shift` is non-zero. */
+    int group;
+    /** Bits to shift an id right to get its group. 0 = not sharded. */
+    int group_shift;
+    /** Mask for the file index within a group. */
+    int file_mask;
+};
+
+/**
+ * How to address `type` in this cache. Falls back to the OSRS config-group layout for any
+ * type or era without a sharded mapping, which is what every existing caller already does.
+ */
+struct RSCache_RecordAddress
+RSCache_RecordAddressFor(
+    const struct RSCache* cache,
+    enum RSCache_Type type);
+
 static inline bool
 RSCache_IsDat1(const struct RSCache* cache)
 {

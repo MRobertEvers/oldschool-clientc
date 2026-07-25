@@ -212,6 +212,14 @@ void
 dat2_buildcache_locs_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
+dat2_buildcache_locs_init_from_archive_based(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count,
+    int base_id);
+
+void
 dat2_buildcache_locs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCache_Dat2DiskArchive* archive,

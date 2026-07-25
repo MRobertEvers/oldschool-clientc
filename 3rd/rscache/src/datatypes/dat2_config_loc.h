@@ -178,6 +178,42 @@ struct RSCache_Dat2ConfigLoc
 /** OSRS rev >= 220 payloads: opcode 93 is sound fades (not contour), 95/96
  * carry a byte, etc. (xrsps LocType.ts cacheInfo.revision >= 220 branches). */
 #define RSCACHE_CONFIG_LOC_DECODE_OSRS_220 8
+/**
+ * RS2 branch (the 643 era): opcodes 1 and 5 carry a *nested* model list.
+ *
+ * OSRS opcode 1 is `u8 count` then `count x (u16 model, u8 shape)`. RS2 inverts the
+ * nesting: `u8 count` then per entry `u8 shape, u8 model_count, model_count x u16`, so one
+ * shape owns a list of models rather than each model naming its shape. Opcode 5 is two of
+ * those blocks back to back where OSRS has a bare model list.
+ *
+ * This is the difference that matters, not the handful of extra opcodes: reading an RS2
+ * record with the OSRS shape desynchronises inside the very first opcode, and every
+ * "unimplemented opcode" reported after that is a data byte being read as an opcode. Only
+ * 651 of 2048 records in cache.rs643 survived, and those were the ones whose opcode 1
+ * happened to be absent or degenerate.
+ *
+ * Per void's ObjectDecoder.kt (`skip`, called once for opcode 1 and twice for opcode 5).
+ */
+#define RSCACHE_CONFIG_LOC_DECODE_RS2 16
+
+/* --- codec versions -------------------------------------------------------- */
+/*
+ * Loc has two *structural* codecs, not one flag-driven codec.
+ *
+ * The distinction this library draws: field-level differences (a byte appears, a width
+ * grows) are absorbed by RSCache_Dat2ConfigLocFlags; a different *stream shape* gets its
+ * own codec version. RS2 is the latter — opcodes 1 and 5 invert the model-list nesting, so
+ * the same opcode number means a different structure rather than a wider field.
+ *
+ * A revision module pins the codec explicitly (see rev_dat2_rs643.c); the derivation below
+ * is only the fallback for a cache nobody declared.
+ */
+#define RSCACHE_CODEC_LOC_OSRS 1
+#define RSCACHE_CODEC_LOC_RS2 2
+
+/** Which loc codec this cache uses. */
+int
+RSCache_Dat2ConfigLocCodecVersion(const struct RSCache* cache);
 
 /** Era payload flags for this cache. The canonical entry point: it is the only
  *  thing that can set RSCACHE_CONFIG_LOC_DECODE_KRONOS, since that quirk is a

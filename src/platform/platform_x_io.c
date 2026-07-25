@@ -246,7 +246,27 @@ load_file_item(
 static int
 dat2_cache_table_supported(int table_id)
 {
-    return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
+    /*
+     * An allow-list of tables the IO layer will read.
+     *
+     * The RS2 (643) branch promotes loc, enum, npc, obj, seq and spotanim out of the config
+     * table into tables 16..22, so every one of those reads was refused here — the request
+     * simply came back empty and the caller reported a decode failure, with nothing to say
+     * the table had been rejected rather than missing. Exactly the same shape of bug as the
+     * reference-table allow-list in dat2disk.c.
+     *
+     * Note ids 18..22 are listed twice over in effect: they are RS2's npc/obj/seq/spotanim/
+     * varbit and OSRS's worldmap/dbtable/animaya tables. That is safe because this predicate
+     * only asks "may I read this table", not "what is in it".
+     */
+    return table_id == RSCACHE_DAT2_RS2_TABLE_LOC ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_ENUM ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_NPC ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_OBJ ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_SEQ ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_SPOTANIM ||
+           table_id == RSCACHE_DAT2_RS2_TABLE_VARBIT ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
            table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT ||
            table_id == RSCACHE_DAT2_DISK_TABLE_CONFIGS ||

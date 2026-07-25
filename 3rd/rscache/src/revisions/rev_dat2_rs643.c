@@ -32,6 +32,20 @@ RSCache_ProfileDat2Rs643(void)
     cache.game = RSCACHE_GAME_RS2;
     cache.container = RSCACHE_CONTAINER_DAT2;
     cache.epoch = RSCACHE_EPOCH_643;
+
+    /*
+     * Explicit codec pins. This is the rsprot-style part: the revision *declares* which
+     * codec it speaks rather than leaving every datatype to sniff the epoch. Both of these
+     * are structural differences from OSRS, not field-level ones:
+     *
+     *   loc  — opcodes 1 and 5 invert the model-list nesting (one shape owning a list of
+     *          models, rather than each model naming its shape).
+     *   flo  — overlay opcode 3 *conflicts*: a u16 texture here, a bare flag in the older
+     *          reading.
+     */
+    cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2;
+    cache.codec[RSCACHE_TYPE_OVERLAY] = RSCACHE_CODEC_FLO_RS2;
+    cache.codec[RSCACHE_TYPE_UNDERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.version = RSCACHE_REVISION_UNKNOWN;
 
     return cache;

@@ -1197,6 +1197,18 @@ dat2_buildcache_locs_init_from_archive(
     const int* wanted_ids,
     int wanted_count)
 {
+    dat2_buildcache_locs_init_from_archive_based(
+        dat2_buildcache, archive, wanted_ids, wanted_count, 0);
+}
+
+void
+dat2_buildcache_locs_init_from_archive_based(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count,
+    int base_id)
+{
     struct RSCache_FileList* filelist;
 
     assert(dat2_buildcache);
@@ -1278,8 +1290,11 @@ dat2_buildcache_locs_init_from_archive(
         if( !loc )
             continue;
 
-        loc->_id = id;
-        dat2_buildcache_loc_add(dat2_buildcache, id, loc);
+        /* `base_id` is 0 for the OSRS config-group layout, where the file id already *is*
+         * the loc id. A sharded RS2 group numbers its files 0..255 locally, so the group's
+         * base has to be added back to reach the global id. */
+        loc->_id = base_id + id;
+        dat2_buildcache_loc_add(dat2_buildcache, base_id + id, loc);
     }
 
     RSCache_FileListFree(filelist);
@@ -1364,6 +1379,11 @@ dat2_buildcache_underlays_init_from_archive(
     const int* wanted_ids,
     int wanted_count)
 {
+    /* RS2 (643) flo records conflict with the OSRS reading on opcode 3, so the era has to
+     * be stated rather than inferred from the opcodes present. */
+    int flo_flags = CacheProvider_Profile(&dat2_buildcache->base)->epoch == RSCACHE_EPOCH_643
+                        ? RSCACHE_CONFIG_FLO_DECODE_RS2
+                        : 0;
     struct RSCache_FileList* filelist;
 
     assert(dat2_buildcache);
@@ -1385,7 +1405,9 @@ dat2_buildcache_underlays_init_from_archive(
         if( dat2_buildcache_underlay_get(dat2_buildcache, id) )
             continue;
 
-        underlay = RSCache_Dat2ConfigUnderlayNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        underlay = malloc(sizeof(struct RSCache_Dat2ConfigUnderlay));
+        RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
+            underlay, filelist->files[i], filelist->file_sizes[i], flo_flags);
         if( !underlay )
             continue;
 
@@ -1475,6 +1497,11 @@ dat2_buildcache_overlays_init_from_archive(
     const int* wanted_ids,
     int wanted_count)
 {
+    /* RS2 (643) flo records conflict with the OSRS reading on opcode 3, so the era has to
+     * be stated rather than inferred from the opcodes present. */
+    int flo_flags = CacheProvider_Profile(&dat2_buildcache->base)->epoch == RSCACHE_EPOCH_643
+                        ? RSCACHE_CONFIG_FLO_DECODE_RS2
+                        : 0;
     struct RSCache_FileList* filelist;
 
     assert(dat2_buildcache);
@@ -1496,7 +1523,9 @@ dat2_buildcache_overlays_init_from_archive(
         if( dat2_buildcache_overlay_get(dat2_buildcache, id) )
             continue;
 
-        overlay = RSCache_Dat2ConfigOverlayNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        overlay = malloc(sizeof(struct RSCache_Dat2ConfigOverlay));
+        RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
+            overlay, filelist->files[i], filelist->file_sizes[i], flo_flags);
         if( !overlay )
             continue;
 
