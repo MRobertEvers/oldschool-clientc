@@ -46,6 +46,18 @@ struct Task_Dat2TextureLoad
     int dep_sprites[64];
     int dep_sprite_count;
     int dep_sprite_cursor;
+    /*
+     * The id currently being awaited, per worklist.
+     *
+     * These MUST be task state, not locals. A PT_YIELD resumes at the yield statement with the
+     * frame's locals gone, so an id read before the await is garbage after it — and the garbage
+     * was silently used as the key the decoded program got stored under, so every later lookup
+     * missed and texture_source/sprite_source refused. Same gotcha the loop cursors above exist
+     * for; it just bites harder here because the corrupted value is a cache key rather than an
+     * index that would trip a bounds check.
+     */
+    int dep_texture_id;
+    int dep_sprite_id;
 };
 
 /* Size procedural textures are baked at. The material's `small` flag selects 64 in the
@@ -648,12 +660,12 @@ Task_Dat2TextureLoad_Run(
              task->dep_texture_cursor < task->dep_texture_count;
              task->dep_texture_cursor++ )
         {
-            int dep_id = task->dep_textures[task->dep_texture_cursor];
-            struct RSCache_Dat2ProcTexture* dep = proctex_program_get(task->bc, dep_id);
+            struct RSCache_Dat2ProcTexture* dep;
 
-            if( !dep )
+            task->dep_texture_id = task->dep_textures[task->dep_texture_cursor];
+            if( !proctex_program_get(task->bc, task->dep_texture_id) )
             {
-                RSCache_IO_Dat2ProcTextureLoad(io, 0, dep_id);
+                RSCache_IO_Dat2ProcTextureLoad(io, 0, task->dep_texture_id);
                 PT_YIELD(&task->pt);
                 archive = RSCache_IO_Dat2ProcTextureDecode(io, 0);
                 if( !archive )
@@ -661,14 +673,19 @@ Task_Dat2TextureLoad_Run(
                 dep = RSCache_Dat2ProcTextureNewDecode(
                     archive->data,
                     archive->data_size,
-                    dep_id,
+                    task->dep_texture_id,
                     RSCache_Dat2ProcTextureFlags(CacheProvider_Profile(&task->bc->base)));
                 RSCache_Dat2DiskArchiveFree(archive);
                 archive = NULL;
                 if( !dep )
                     continue;
-                proctex_program_put(task->bc, dep_id, dep);
+                proctex_program_put(task->bc, task->dep_texture_id, dep);
             }
+
+            /* Re-read through the cache rather than reusing a pointer from before the await. */
+            dep = proctex_program_get(task->bc, task->dep_texture_id);
+            if( !dep )
+                continue;
 
             for( int i = 0; i < dep->texture_dependency_count; i++ )
                 proctex_dep_queue(
@@ -689,19 +706,19 @@ Task_Dat2TextureLoad_Run(
              task->dep_sprite_cursor < task->dep_sprite_count;
              task->dep_sprite_cursor++ )
         {
-            int sprite_id = task->dep_sprites[task->dep_sprite_cursor];
             struct RSCache_Dat2SpritePack* pack;
 
-            if( proctex_sprite_get(task->bc, sprite_id) )
+            task->dep_sprite_id = task->dep_sprites[task->dep_sprite_cursor];
+            if( proctex_sprite_get(task->bc, task->dep_sprite_id) )
                 continue;
 
-            RSCache_IO_Dat2SpriteLoad(io, 0, sprite_id);
+            RSCache_IO_Dat2SpriteLoad(io, 0, task->dep_sprite_id);
             PT_YIELD(&task->pt);
             archive = RSCache_IO_Dat2SpriteDecode(io, 0);
             if( !archive )
             {
                 /* Record the miss so the resolver fails fast instead of re-searching. */
-                proctex_sprite_put(task->bc, sprite_id, NULL, 0, 0);
+                proctex_sprite_put(task->bc, task->dep_sprite_id, NULL, 0, 0);
                 continue;
             }
 
@@ -722,12 +739,16 @@ Task_Dat2TextureLoad_Run(
                     for( int i = 0; i < count; i++ )
                         argb[i] = pack->palette[sprite->palette_pixels[i]];
                     proctex_sprite_put(
-                        task->bc, sprite_id, argb, sprite->width, sprite->height);
+                        task->bc,
+                        task->dep_sprite_id,
+                        argb,
+                        sprite->width,
+                        sprite->height);
                 }
             }
             else
             {
-                proctex_sprite_put(task->bc, sprite_id, NULL, 0, 0);
+                proctex_sprite_put(task->bc, task->dep_sprite_id, NULL, 0, 0);
             }
             if( pack )
                 RSCache_Dat2SpritePackFree(pack);

@@ -982,6 +982,19 @@ proctex_eval(
     return true;
 
 fail:
+    /* An evaluator refused. This is distinct from an unported operation (which returns a flat
+     * value and bumps unsupported_count): it means a dependency the graph needs is genuinely
+     * absent — a missing input wiring, or a sprite/texture the host could not resolve. Worth
+     * naming, because the two look identical from the caller's `render failed`. */
+    if( getenv("TORIRS_PROCTEX_DEBUG") )
+        fprintf(
+            stderr,
+            "  proctex: op %d type %d (%s) REFUSED at line %d (inputs=%d)\n",
+            op_index,
+            op->type,
+            RSCache_ProcTexOpName(op->type),
+            line,
+            op->input_count);
     gen->visiting[op_index] = 0;
     return false;
 }

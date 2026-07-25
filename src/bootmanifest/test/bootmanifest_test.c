@@ -28,6 +28,8 @@ test_load_fields(void)
 
     CHECK(bm.cache_kind == APP_CACHE_DAT2);
     CHECK(strcmp(bm.cache_dir, "bootmanifest/test/some/cache") == 0);
+    CHECK(bm.spawn_x == 12);
+    CHECK(bm.spawn_z == 34);
 
     CHECK(strcmp(bm.rev_name, "xrsps233") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
@@ -68,6 +70,8 @@ test_apply_to_config(void)
     CHECK(cfg.jag_crc_set == 1);
     CHECK(cfg.ui_logic == APP_UI_LOGIC_CS2);
     CHECK(cfg.interface_id == 161);
+    CHECK(cfg.spawn_x == 12);
+    CHECK(cfg.spawn_z == 34);
 }
 
 /* ApplyToConfig must only write fields the manifest actually set, so a

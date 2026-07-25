@@ -2092,11 +2092,42 @@ app_world_load_begin(
 
     if( !chunks_xz )
     {
-        char const* env = getenv("TORIRS_WORLD_MAP");
-        if( env && sscanf(env, "%d,%d", &chunks[0], &chunks[1]) != 2 )
+        char const* env;
+
+        /*
+         * Spawn square precedence: TORIRS_WORLD_MAP, then the manifest's `[cache:boot] spawn`,
+         * then the client default of 50,50.
+         *
+         * The manifest layer matters because 50,50 is not universally loadable. A cache carries
+         * XTEA keys only for the squares it was dumped with, and cache.643 has no key for
+         * 50,50 (nor 49,49 / 50,49 / 51,49 / 51,50 — a hole right over Lumbridge). Terrain is
+         * unencrypted, so an unkeyed square still renders ground and then **zero locs**, which
+         * looks like a broken renderer rather than absent data.
+         */
+        if( app->cfg.spawn_x >= 0 && app->cfg.spawn_z >= 0 )
         {
-            chunks[0] = 50;
-            chunks[1] = 50;
+            chunks[0] = app->cfg.spawn_x;
+            chunks[1] = app->cfg.spawn_z;
+        }
+        env = getenv("TORIRS_WORLD_MAP");
+        if( env )
+        {
+            int env_x;
+            int env_z;
+            if( sscanf(env, "%d,%d", &env_x, &env_z) == 2 )
+            {
+                chunks[0] = env_x;
+                chunks[1] = env_z;
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "TORIRS_WORLD_MAP must be \"x,z\", got '%s' - using %d,%d\n",
+                    env,
+                    chunks[0],
+                    chunks[1]);
+            }
         }
         chunks_xz = chunks;
         chunk_pair_count = 1;

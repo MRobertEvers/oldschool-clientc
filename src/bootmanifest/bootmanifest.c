@@ -90,6 +90,21 @@ bm_set_kv(
             bm_join_path(bm->cache_dir, sizeof(bm->cache_dir), manifest_dir, value);
             return;
         }
+        if( strcmp(key, "spawn") == 0 )
+        {
+            int spawn_x = -1;
+            int spawn_z = -1;
+            if( sscanf(value, "%d,%d", &spawn_x, &spawn_z) == 2 && spawn_x >= 0 && spawn_z >= 0 )
+            {
+                bm->spawn_x = spawn_x;
+                bm->spawn_z = spawn_z;
+            }
+            else
+            {
+                fprintf(stderr, "bootmanifest: [cache] spawn must be \"x,z\", got '%s'\n", value);
+            }
+            return;
+        }
         break;
 
     case BM_SECTION_NET:
@@ -207,6 +222,8 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
 {
     memset(bm, 0, sizeof(*bm));
     bm->cache_kind = -1; /* unset sentinel */
+    bm->spawn_x = -1;
+    bm->spawn_z = -1;
 
     FILE* f = fopen(path, "rb");
     if( !f )
@@ -319,4 +336,9 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->revconfig_cache_ini = bm->revconfig_cache;
     if( bm->interface_id > 0 )
         cfg->interface_id = bm->interface_id;
+    if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )
+    {
+        cfg->spawn_x = bm->spawn_x;
+        cfg->spawn_z = bm->spawn_z;
+    }
 }

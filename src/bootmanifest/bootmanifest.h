@@ -11,7 +11,7 @@
  *
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
- *   [cache:boot]  kind=dat1|dat2   dir=<path>
+ *   [cache:boot]  kind=dat1|dat2   dir=<path>   spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
@@ -33,6 +33,11 @@ struct BootManifest
     /* [cache:boot] */
     int cache_kind;      /* enum AppCacheKind; -1 = unset */
     char cache_dir[512]; /* resolved against manifest dir */
+    /* Map square to spawn on, "x,z". Both -1 = unset (client default 50,50).
+     * Needed because the default is not universally loadable: a cache ships XTEA keys only for
+     * the squares it was dumped with, and cache.643 has no key for 50,50. */
+    int spawn_x;
+    int spawn_z;
 
     /* [net:boot] */
     char rev_name[32];

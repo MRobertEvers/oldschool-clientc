@@ -90,6 +90,16 @@ struct AppConfig
     char const* script_dir;
     int interface_id;
     enum AppCacheKind cache_kind;
+    /** Map square to spawn on when nothing else selects one. Both -1 = use the client
+     *  default (50,50). Set from the manifest `[cache:boot] spawn`; TORIRS_WORLD_MAP still
+     *  overrides it, and a server REBUILD_NORMAL overrides both.
+     *
+     *  This exists because 50,50 is not universally loadable: a cache carries XTEA keys only
+     *  for the squares it was dumped with, and an unkeyed square yields terrain (which is not
+     *  encrypted) with **zero locs** — ground and no scenery, which reads as a renderer bug
+     *  rather than missing data. */
+    int spawn_x;
+    int spawn_z;
     /** RevConfig layout INI. When set, the tree is built from it instead of
      * opening interface_id out of the cache (the only path a dat1 cache has:
      * its interfaces have no gameframe root). NULL/"" = open interface_id. */

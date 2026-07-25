@@ -302,6 +302,9 @@ main(
         .script_dir = SCRIPT_DIR,
         .interface_id = DEFAULT_INTERFACE_ID,
         .cache_kind = APP_CACHE_DAT1,
+        /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
+        .spawn_x = -1,
+        .spawn_z = -1,
     };
     static struct App app;
     static char derived_cache_ini[512];
