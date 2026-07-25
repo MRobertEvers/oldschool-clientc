@@ -460,7 +460,9 @@ underlay  1 -> u24 rgb        2 -> u16 texture (65535 => -1)     3 -> u16 scale 
 Note underlay opcode 2 is a **u16** in 643 where ours reads a byte, and overlay gains a
 u16 texture at opcode 3 — so even the shared opcodes are not all the same width.
 
-*(3) Table 5 decompression is LZMA*, from `cache/.../compress/DecompressionContext.kt`.
+*(3) Table 5 decompression is NOT LZMA — that conclusion was wrong.* `RSCache_ArchiveDecryptDecompress` returns false, whereas an unknown compression byte *asserts*, so it could never have been a missing compressor. The real cause is mundane: `cache.rs643`'s `xteas.json` holds 1591 keys and **none is `l50_50` or `m50_50`**, so Lumbridge specifically cannot be decrypted. Any square with a key works — `TORIRS_WORLD_MAP=40,55` loads its maps fine. No LZMA decoder is needed for a world render. Kept below for the record because the compression byte *does* have a fourth value in this era, so it may still matter for some archive somewhere.
+
+*(3-original) The LZMA reading*, from `cache/.../compress/DecompressionContext.kt`.
 The container compression byte has a fourth value this library does not implement:
 
 ```
@@ -554,6 +556,74 @@ exists; nothing consults it for table or kind ids.
 This is why 643 is not a small job, and it is worth doing as a *container* change rather
 than a datatype one: every "643 field differs" symptom found so far turned out to be a
 consequence of reading the wrong archive.
+
+**The 643 world loads.** With `TORIRS_WORLD_MAP=40,55` (a square whose XTEA key exists):
+
+```
+world_load: 1 chunks, 7 underlays, 5 overlays, 39 textures, 100 locs, 72 models, 3 seqs
+```
+
+72 models is not "some" — it is **every** model the square's locs reference, matching an
+independent cache-side count exactly. Verified alongside it: 1881 loc instances, 1793 of
+them shape-matched against their definitions, 100 distinct loc ids, 96 carrying models.
+
+**The 3D viewport is still blank**, and that is now an engine/UI question rather than a
+cache one. Three pieces of evidence separate the two:
+
+1. The same offline harness renders the OSRS square in full — house, river, trees, terrain
+   — so the renderer and the BMP path both work.
+2. 643's frame emits **103** 2D draw commands against OSRS's 8, i.e. far more UI is being
+   composited, and the viewport region is flat dark.
+3. Booting 643 with `interface_id=0` renders its "Choose a banner" dialog correctly, with
+   text, sprites and layout — so 643 **interface** decode and render are fine too.
+
+Two hypotheses were tested and **both are wrong**, which narrows this usefully:
+
+- *"548 is the wrong gameframe id."* No — void's `gameframe.ifaces.toml` states
+  `[toplevel] id = 548, type = "full_screen"` outright.
+- *"`clientCode` 1337 is an OSRS-only convention, so 643 has no world component."* No —
+  `clientCode` is a real u16 cache field (see `dat2_component.c`), and 643's iface 548
+  carries **1337 on component 5**, in the same shape OSRS 161 carries it on component 91:
+  `type = 0` (layer), baked size `0x0`. The zero size is normal for both, so dimensions come
+  from layout at runtime rather than from the pack.
+
+Also ruled out: nothing in the 643 tree is hidden (`hidden=1` count is 0), so this is not
+the rev230 "mounted but hidden pending a varc" situation.
+
+**Localised precisely: the world *is* drawn, then painted over.** Both eras emit exactly one
+`UITREE_EMIT_WORLD` command and both set `world_view_valid`, so every earlier hypothesis
+about a missing or hidden viewport was wrong. The instrumentation
+(`TORIRS_WORLD_VIEW_DEBUG=1`) puts it beyond doubt:
+
+| | world node | world rect | emit index | UI draws after it |
+|---|---|---|---|---|
+| OSRS 161 | 91 | 0,0 **723x503** | **0** (first) | 6 |
+| 643 548 | 5 | 4,4 **512x334** | 1 | **101** |
+
+`512x334` at `(4,4)` is the classic RS *fixed* gameframe viewport, so 643's rect is correct,
+not degenerate. The failure is ordering and occlusion: 101 subsequent kind-1 (fill/sprite)
+commands cover the viewport region, which is why the screenshot shows correct sidebar,
+minimap ring and tabs with a flat dark rectangle where the scene should be.
+
+**Occlusion was then ruled out too.** An overlap test over every command drawn after the
+world found **nothing** covering more than 5% of the viewport rect, so the region is clear
+and the scene simply renders empty into it. The screenshot is byte-identical before and after
+the D19 fix took models from 6 to 72, which says the same thing.
+
+The sharpest remaining clue is that **the minimap ring is also empty**. The minimap is baked
+from terrain and does not depend on the 3D camera, so two independent consumers of the scene
+both come out blank. That points at the built scene rather than at the viewport, the camera
+or the draw order — all three of which are now excluded.
+
+What is *not* in doubt, and bounds the search: 7 underlays and 5 overlays loaded, and those
+ids are read off terrain tiles, so the terrain archive decoded; 72 models and 39 textures
+loaded; 1793 of 1881 loc instances shape-match their definitions. Every input the scene build
+needs is present and correct.
+
+Remaining work, all engine-side: identify which of 548's components form the backing that
+must not occlude the viewport. Note also that this era slots gameframe children by
+`fixedIndex`/`resizeIndex` (void's `interface_types.toml`) — a fixed-vs-resizable duality
+this client has no notion of, and likely the same root cause.
 
 **`cache.rs643` is a different dump from `cache.643`** and is the better one to work
 against — 36 index files against 39, and the RS2 tables are populated (t18 npcs, t19 objs,
@@ -750,6 +820,7 @@ exception to "only add the write half".
 | D15 | **Four arrays were `malloc`'d but only partially written**, leaving uninitialised heap where the reference implementation reads a zeroed array: `face_indices_a/b/c` (a face with index type 0 assigns none of them) in ob3/v2/v3, and `face_texture_coords` plus `textured_p/m/n_coordinate` (written only for textured faces / render-type-0 triangles) in ob3 and v3. Switched to `calloc`, which is also what Java's zero-initialised arrays give the reference. | Found by the round-trip comparison, which was nondeterministic until the reads were defined. Index type 0 occurs in no OSRS cache, but it does occur 355 times in `cache.643`. |
 | D16 | **`RSCache_RevisionAtLeast` compared revisions across lineages.** dat1 revisions run to 254 in a 2004-era sequence; OldSchool restarted from 1 and is now in the 230s. With no epoch guard, a dat1 rev-254 profile satisfied **every** threshold in the library — 210, 220, 226, 237 — each one switching a decoder to a field layout that postdates the cache by nearly twenty years. Renamed to `RSCache_RevisionAtLeastOsrs` so the lineage is unmissable at the call site, and step 1 now requires an OSRS epoch. | Latent until Phase 7: nothing passed a real profile to a `Flags` function, so the comparison never ran on a dat1 cache. Found by hand-evaluating `RSCache_Dat2ConfigLocFlags` for the rev-254 profile *before* wiring it up — it would have added `OSRS_220` to every dat1 loc decode. Now pinned by a test that asserts a dat1 profile clears all four thresholds and that its loc flags are exactly `RSCACHE_CONFIG_LOC_DECODE_DAT`. |
 | D17 | **`VarPManager_GetVarbit` and `SetVarbitOptimistic` masked one bit too narrow.** `endbit` is inclusive, so the width is `endbit - startbit + 1`; both functions used the difference alone. Every varbit read one bit short, and a **single-bit** varbit — `startbit == endbit`, the commonest shape — hit the `bit_count <= 0` guard and returned 0 for every possible varp value. The reference masks with `(1 << (msb - lsb + 1)) - 1`. | The cache settles the inclusive question: varbits 0..4 of `cache.osrs230` are `start=end=0,1,2,3,4` — five consecutive one-bit flags in varp 318, which would all be zero-width under an exclusive reading. Invisible because `varbit_count` was always 0, and because **the existing test could not discriminate**: it read `var[0] = 0x0E` and expected 7, which holds at both 3 and 4 bits wide since bit 4 is clear. Rewritten to use `0x1E`, where the two readings differ (15 vs 7), plus a single-bit case and a write-then-read check. |
+| D19 | **The loc group memo tested the group-local id, not the global one.** `dat2_buildcache_locs_init_from_archive_based` skipped a record when `dat2_buildcache_loc_get(id)` already had it — but `id` is the *file* id, which a sharded RS2 group numbers `0..255` locally. Once group 0 was resident, every file of every later group looked "already loaded" and was skipped wholesale, so only 4 of 100 loc definitions ever reached the provider. | Group 0 was the **only** group that worked, because there `base_id + id == id` and the bug is invisible — a textbook case of the identity case hiding an off-by-base. Found by printing the group, base and post-init lookup together: `loc 3825 -> table 16 group 14 base 3584 files 256 file_ids=yes -> get=MISS` proved the archive and addressing were all correct and the *add* was not. Fixing it took the 643 world from 6 models to **72** — exactly the count an independent cache-side probe predicted. |
 | D18 | **Two independent allow-lists silently made whole cache tables unreachable.** `RSCache_Dat2DiskIsValidTableId` (reference tables) and `dat2_cache_table_supported` in `src/platform/platform_x_io.c` (archive reads) each enumerated only the *named* OSRS tables. An id absent from the list was skipped **before** any read, so it presented as "decode failed" or an empty result rather than "this table is not allowed" — nothing logged the rejection. Both had to be widened before the RS2 branch (tables 16-22) could be read at all. | The first surfaced as `tables[16] = NULL` while `255/16` loaded fine by hand and decoded to 224 dense groups. The second surfaced *after* that fix as `Failed to decode dat2 loc group for loc N` for every id, with the group demonstrably present. **The lesson is the pattern, not either instance:** an allow-list keyed on names conflates "unknown to us" with "not present", and the second copy cost an extra debugging cycle because the first fix did not prompt a search for siblings. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 

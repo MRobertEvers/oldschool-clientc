@@ -132,12 +132,15 @@ struct RSCache_MapTerrain
 /*
  * Terrain decode flags. A bitmask — test with `&`, not `==`.
  *
- * The width bit is a container difference: jagfile-era map squares store the tile
- * attribute and overlay id as u8, js5-era ones as u16.
+ * The width bit is an **era** difference, not a container one: the tile attribute
+ * opcode and overlay id are u8 everywhere until OldSchool revision 209 widens them
+ * to u16. dat1 is narrow, and so is a pre-209 dat2 cache — including the whole
+ * 643/RS2 branch, whose revision number is larger than 209 but is not on the
+ * OldSchool line. Ask RSCache_MapTerrainFlags rather than inferring it.
  */
-/** u16 attribute/overlay widths. Zero, so it is the default. */
+/** u16 attribute/overlay widths (OldSchool rev 209+). Zero, so it is the default. */
 #define RSCACHE_MAP_TERRAIN_DECODE_U16 0
-/** u8 attribute/overlay widths (dat1). */
+/** u8 attribute/overlay widths (dat1, and any pre-209 dat2 cache). */
 #define RSCACHE_MAP_TERRAIN_DECODE_U8 1
 /**
  * Skip the post-decode fixup.
@@ -177,6 +180,17 @@ RSCache_MapTerrainNewFromArchive(
     struct RSCache_Dat2DiskArchive* archive,
     int map_x,
     int map_z);
+
+/** As above, but takes the tile widths from the cache profile instead of assuming
+ *  the modern OSRS ones. Prefer this: a pre-209 dat2 square decodes as void under
+ *  the wide layout (see RSCache_MapTerrainFlags). `cache` may be NULL, which keeps
+ *  the legacy assumption. */
+struct RSCache_MapTerrain*
+RSCache_MapTerrainNewFromArchiveProfile(
+    struct RSCache_Dat2DiskArchive* archive,
+    int map_x,
+    int map_z,
+    const struct RSCache* cache);
 
 struct RSCache_MapTerrain*
 RSCache_MapTerrainNewFromDecodeFlags(

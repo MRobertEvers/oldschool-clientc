@@ -2278,6 +2278,41 @@ app_update_world_viewport(struct App* app)
     app_debug_log_bridges(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
+    if( getenv("TORIRS_WORLD_VIEW_DEBUG") )
+    {
+        int kinds[24] = { 0 };
+        for( int i = 0; i < app->emit.count; i++ )
+            if( app->emit.cmds[i].kind >= 0 && app->emit.cmds[i].kind < 24 )
+                kinds[app->emit.cmds[i].kind]++;
+        fprintf(stderr, "worldview: node_index=%d emit_count=%d kinds:", App_WorldNodeIndex(app), app->emit.count);
+        for( int k = 0; k < 24; k++ )
+            if( kinds[k] )
+                fprintf(stderr, " %d:%d", k, kinds[k]);
+        int wx = 0, wy = 0, ww = 0, wh = 0, widx = -1;
+        for( int i = 0; i < app->emit.count; i++ )
+            if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
+            {
+                wx = app->emit.cmds[i].x; wy = app->emit.cmds[i].y;
+                ww = app->emit.cmds[i].w; wh = app->emit.cmds[i].h; widx = i;
+            }
+        fprintf(stderr, " WORLDRECT=%d,%d %dx%d idx=%d\n", wx, wy, ww, wh, widx);
+        /* Anything drawn after the world that covers a meaningful slice of it. */
+        for( int i = widx + 1; i < app->emit.count; i++ )
+        {
+            struct UITreeEmitDesc* d = &app->emit.cmds[i];
+            int ox = d->x > wx ? d->x : wx, oy = d->y > wy ? d->y : wy;
+            int ex = (d->x + d->w) < (wx + ww) ? (d->x + d->w) : (wx + ww);
+            int ey = (d->y + d->h) < (wy + wh) ? (d->y + d->h) : (wy + wh);
+            int area = (ex - ox) > 0 && (ey - oy) > 0 ? (ex - ox) * (ey - oy) : 0;
+            if( area > (ww * wh) / 20 )
+                fprintf(
+                    stderr,
+                    "  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
+                    "overlap=%d%%\n",
+                    i, d->kind, d->component_id, d->node_index, d->x, d->y, d->w, d->h,
+                    d->trans, area * 100 / (ww * wh));
+        }
+    }
     for( int i = 0; i < app->emit.count; i++ )
     {
         if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )

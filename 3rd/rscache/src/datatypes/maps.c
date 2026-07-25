@@ -194,8 +194,25 @@ RSCache_MapTerrainNewFromArchive(
     int map_x,
     int map_z)
 {
-    struct RSCache_MapTerrain* map_terrain =
-        RSCache_MapTerrainNewDecode(archive->data, archive->data_size, map_x, map_z);
+    /* Legacy entry point: assumes the modern OSRS width. Callers that know their
+     * cache should use the Profile variant — a pre-209 square decodes as void
+     * here. See RSCache_MapTerrainFlags. */
+    return RSCache_MapTerrainNewFromArchiveProfile(archive, map_x, map_z, NULL);
+}
+
+struct RSCache_MapTerrain*
+RSCache_MapTerrainNewFromArchiveProfile(
+    struct RSCache_Dat2DiskArchive* archive,
+    int map_x,
+    int map_z,
+    const struct RSCache* cache)
+{
+    struct RSCache_MapTerrain* map_terrain = RSCache_MapTerrainNewFromDecodeFlags(
+        archive->data,
+        archive->data_size,
+        map_x,
+        map_z,
+        RSCache_MapTerrainFlags(cache));
     if( !map_terrain )
     {
         printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_z);
@@ -219,8 +236,36 @@ read_decode(
 int
 RSCache_MapTerrainFlags(const struct RSCache* cache)
 {
-    return RSCache_IsDat1(cache) ? RSCACHE_MAP_TERRAIN_DECODE_U8
-                                 : RSCACHE_MAP_TERRAIN_DECODE_U16;
+    /*
+     * The tile attribute opcode and the overlay id widened from u8 to u16 at
+     * **OldSchool revision 209** — rs-map-viewer's SceneBuilder gates on exactly
+     * `game === "oldschool" && revision >= 209`.
+     *
+     * It is an era difference, not a container one. This used to read
+     * `IsDat1 ? U8 : U16`, which handed the wide layout to *every* dat2 cache. A
+     * pre-209 dat2 square then desyncs on its very first tile — the u16 attribute
+     * read swallows the following tile's opcode — and because the loop only ever
+     * breaks on 0 or 1 it resynchronises into garbage rather than failing. The
+     * square decodes as almost entirely void: 120 of 15,376 tiles carried an
+     * underlay or overlay for 643, against 4,481 for a working OSRS square, so
+     * both the 3D scene and the terrain-baked minimap came out blank.
+     *
+     * 643 must take the narrow branch even though 643 > 209 numerically: it is not
+     * on the OldSchool revision line at all. That is the same cross-lineage trap as
+     * D16, which is why the epoch is tested first and RevisionAtLeastOsrs — whose
+     * name carries the invariant — is only reached for an OSRS-epoch cache.
+     */
+    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
+        return RSCACHE_MAP_TERRAIN_DECODE_U8;
+    if( RSCache_IsDat1(cache) )
+        return RSCACHE_MAP_TERRAIN_DECODE_U8;
+
+    /* Default true for an unidentified dat2 cache: that preserves the previous
+     * behaviour for the OSRS corpus, all of which is well past 209. */
+    return RSCache_RevisionAtLeastOsrs(
+               cache, RSCACHE_TYPE_MAP_TERRAIN, 209, RSCACHE_GROUP_REVISION_UNKNOWN, true)
+               ? RSCACHE_MAP_TERRAIN_DECODE_U16
+               : RSCACHE_MAP_TERRAIN_DECODE_U8;
 }
 
 struct RSCache_MapTerrain*

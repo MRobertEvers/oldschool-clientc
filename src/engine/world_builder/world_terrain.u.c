@@ -229,6 +229,15 @@ world_build_scene_terrain(struct WorldBuilder* builder)
     blendmap_build(builder->blendmap);
     lightmap_build(builder->lightmap, world->heightmap);
 
+    /* Counters for TORIRS_TERRAIN_DEBUG: how far each tile got down the build.
+     * A blank viewport is either "no shape tile was ever set" (the map/flo layer
+     * never reached the shapemap) or "shapes exist but decode/add dropped them" —
+     * these separate the two without guessing. */
+    int dbg_active = 0;
+    int dbg_inactive = 0;
+    int dbg_no_model = 0;
+    int dbg_added = 0;
+
     for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
     {
         world_apply_shade(
@@ -241,7 +250,11 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 struct TerrainShapeMapTile* shape_tile =
                     terrain_shape_map_get_tile(builder->terrain_shapemap, x, z, level);
                 if( !shape_tile || !shape_tile->active )
+                {
+                    dbg_inactive++;
                     continue;
+                }
+                dbg_active++;
 
                 struct OverlaymapTile* overlay_tile =
                     overlaymap_get_tile(builder->overlaymap, x, z, level);
@@ -342,7 +355,10 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     (int)underlay_hsl,
                     overlay_hsl);
                 if( !td )
+                {
+                    dbg_no_model++;
                     continue;
+                }
 
                 /* Tile models are built field by field here, never through
                  * ToriDraw_ModelFromToriRS, so this is the only place the
@@ -366,9 +382,21 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     builder->scene, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
                 World_TerrainSet(world, element_id, x, z, level);
+                dbg_added++;
             }
         }
     }
+
+    if( getenv("TORIRS_TERRAIN_DEBUG") )
+        fprintf(
+            stderr,
+            "terrain: scene_size=%d shapetiles active=%d inactive=%d "
+            "tile_model_null=%d elements_added=%d\n",
+            scene_size,
+            dbg_active,
+            dbg_inactive,
+            dbg_no_model,
+            dbg_added);
 }
 
 #endif

@@ -77,6 +77,14 @@ Task_Dat2LocLoad_Run(
                           ? ((task->loc_id >> task->addr.group_shift) << task->addr.group_shift)
                           : 0;
         dat2_buildcache_locs_init_from_archive_based(task->bc, archive, NULL, 0, base_id);
+        if( getenv("TORIRS_LOC_MODEL_DEBUG") )
+            fprintf(
+                stderr,
+                "locgroup: loc %d -> table %d group %d base %d files %d file_ids=%s -> get=%s\n",
+                task->loc_id, task->addr.table,
+                task->loc_id >> task->addr.group_shift, base_id, archive->file_count,
+                archive->file_ids ? "yes" : "NULL",
+                dat2_buildcache_loc_get(task->bc, task->loc_id) ? "hit" : "MISS");
         RSCache_Dat2DiskArchiveFree(archive);
     }
 

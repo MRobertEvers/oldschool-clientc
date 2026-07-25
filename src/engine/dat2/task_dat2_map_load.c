@@ -92,7 +92,10 @@ Task_Dat2MapTerrainLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    rscache_terrain = RSCache_MapTerrainNewFromArchive(archive, task->map_x, task->map_z);
+    /* Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209), so
+     * the profile picks them — not the container, which is dat2 for both widths. */
+    rscache_terrain = RSCache_MapTerrainNewFromArchiveProfile(
+        archive, task->map_x, task->map_z, CacheProvider_Profile(&task->bc->base));
     RSCache_Dat2DiskArchiveFree(archive);
     if( !rscache_terrain )
     {

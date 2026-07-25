@@ -268,8 +268,19 @@ Task_WorldLoad_Run(
     }
 
     for( self->i = 0; self->i < self->locs.count; self->i++ )
-        world_load_collect_loc_models(
-            CacheProvider_LocationGet(p, self->locs.items[self->i]), &self->models);
+    {
+        struct ToriRS_Location* dbg = CacheProvider_LocationGet(p, self->locs.items[self->i]);
+        if( getenv("TORIRS_LOC_MODEL_DEBUG") )
+            fprintf(
+                stderr,
+                "collect loc %d: %s groups=%d shapes=%s models=%s\n",
+                self->locs.items[self->i],
+                dbg ? "present" : "MISSING",
+                dbg ? dbg->shapes_and_model_count : -1,
+                (dbg && dbg->shapes) ? "yes" : "no",
+                (dbg && dbg->models) ? "yes" : "no");
+        world_load_collect_loc_models(dbg, &self->models);
+    }
 
     for( self->i = 0; self->i < self->models.count; self->i++ )
         TASK_AWAITSELF_IF(

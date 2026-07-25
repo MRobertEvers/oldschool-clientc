@@ -1275,7 +1275,12 @@ dat2_buildcache_locs_init_from_archive_based(
 
         if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
             continue;
-        if( dat2_buildcache_loc_get(dat2_buildcache, id) )
+        /* The *global* id, not the group-local one. A sharded group numbers its files
+         * 0..255 locally, so testing `id` here asked "is loc 0..255 already loaded" for
+         * every group — and once group 0 was in, that was true, so every later group was
+         * skipped wholesale. Group 0 was the only one that worked, because there
+         * `base_id + id == id` and the bug is invisible. */
+        if( dat2_buildcache_loc_get(dat2_buildcache, base_id + id) )
             continue;
 
         /* Profile, not the archive revision. Equivalent on the caches the client
