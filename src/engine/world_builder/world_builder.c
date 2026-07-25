@@ -141,18 +141,38 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     world_builder_minimap_add_chunk_walls(builder, mapx, mapz);
     world_builder_minimap_add_chunk_mapfunctions(builder, mapx, mapz);
 
+    /* Counters for TORIRS_SCENERY_DEBUG. Each `continue` below silently drops a
+     * loc instance, so a square that renders bare terrain looks identical whether
+     * the configs are missing, the morph resolved to nothing, or every instance
+     * landed out of bounds. Count them apart. */
+    int dbg_total = 0;
+    int dbg_no_config = 0;
+    int dbg_no_resolve = 0;
+    int dbg_oob = 0;
+    int dbg_added = 0;
+    int dbg_level[8] = { 0 };
+    int dbg_shape[32] = { 0 };
+    g_scenery_dbg_elements = 0;
+
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
         struct ToriRS_MapLoc* map_loc = &map_locs->locs[i];
         struct ToriRS_Location* config_loc = CacheProvider_LocationGet(builder->cache, map_loc->loc_id);
+        dbg_total++;
         if( !config_loc )
+        {
+            dbg_no_config++;
             continue;
+        }
 
         int base_seq_id = config_loc->seq_id;
 
         config_loc = world_builder_resolve_loc(builder, config_loc);
         if( !config_loc )
+        {
+            dbg_no_resolve++;
             continue;
+        }
 
         struct ToriRS_Location resolved_loc = *config_loc;
         resolved_loc.seq_id = base_seq_id;
@@ -162,7 +182,15 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
         int scene_z = World_ToSceneZ(world, mapz, map_loc->chunk_pos_z);
 
         if( !scene_in_bounds(builder, scene_x, scene_z) )
+        {
+            dbg_oob++;
             continue;
+        }
+        dbg_added++;
+        if( map_loc->chunk_pos_level >= 0 && map_loc->chunk_pos_level < 8 )
+            dbg_level[map_loc->chunk_pos_level]++;
+        if( map_loc->shape_select >= 0 && map_loc->shape_select < 32 )
+            dbg_shape[map_loc->shape_select]++;
 
         builder->scenery_mapx = mapx;
         builder->scenery_mapz = mapz;
@@ -170,6 +198,32 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
 
         world_collision_add_loc(builder, map_loc, config_loc, scene_x, scene_z);
         scenery_add(builder, map_loc, config_loc, scene_x, scene_z);
+    }
+
+    if( getenv("TORIRS_SCENERY_DEBUG") )
+        fprintf(
+            stderr,
+            "scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
+            "scene_elements=%d\n",
+            mapx,
+            mapz,
+            dbg_total,
+            dbg_no_config,
+            dbg_no_resolve,
+            dbg_oob,
+            dbg_added,
+            g_scenery_dbg_elements);
+
+    if( getenv("TORIRS_SCENERY_DEBUG") )
+    {
+        fprintf(stderr, "  levels:");
+        for( int lv = 0; lv < 4; lv++ )
+            fprintf(stderr, " %d:%d", lv, dbg_level[lv]);
+        fprintf(stderr, "\n  shapes:");
+        for( int sh = 0; sh < 32; sh++ )
+            if( dbg_shape[sh] )
+                fprintf(stderr, " %d:%d", sh, dbg_shape[sh]);
+        fprintf(stderr, "\n");
     }
 }
 

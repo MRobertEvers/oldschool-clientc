@@ -43,6 +43,12 @@ struct ToriRS_Frame
     enum ToriRS_FramePassKind pass;
     int emit_index;
     int painters_index;
+    /* TORIRS_FRAME_DEBUG counters — painted commands that did / did not become
+     * draws. Diagnostic only; nothing reads them outside the debug print. */
+    int dbg_emit_element;
+    int dbg_emit_terrain;
+    int dbg_drop_not_live;
+    int dbg_drop_no_model;
     /** Sub-step within UITREE_EMIT_SCROLLBAR_V/H expansion (0 = not mid-bar). */
     int scrollbar_step;
     bool in_world;

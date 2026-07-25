@@ -34,6 +34,7 @@
 #include "src/datatypes/dat2_config_loc.c"
 #include "src/datatypes/dat2_config_flo.c"
 #include "src/datatypes/dat2_texture.c"
+#include "src/datatypes/dat2_proctexture.c"
 #include "src/datatypes/dat2_sprites.c"
 #include "src/datatypes/dat2_config_enum.c"
 #include "src/datatypes/dat2_config_struct.c"

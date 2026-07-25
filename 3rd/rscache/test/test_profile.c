@@ -391,10 +391,37 @@ test_texture_and_map_flags(void)
     RSCache_ProfileSetGroupRevision(&unknown, RSCACHE_TYPE_TEXTURE, 1767694604);
     RSCACHE_CHECK_EQ(RSCache_Dat2TextureCodecVersion(&unknown), RSCACHE_CODEC_TEXTURE_V2);
 
-    /* Terrain widths follow the container, not the revision. */
+    /*
+     * Terrain widths follow the ERA, not the container: u8 until OldSchool 209,
+     * u16 from there. dat1 and OSRS are the easy ends.
+     */
     struct RSCache dat1 = RSCache_ProfileDat1Lc254();
     RSCACHE_CHECK_EQ(RSCache_MapTerrainFlags(&dat1), RSCACHE_MAP_TERRAIN_DECODE_U8);
     RSCACHE_CHECK_EQ(RSCache_MapTerrainFlags(&osrs233), RSCACHE_MAP_TERRAIN_DECODE_U16);
+
+    /*
+     * 643 is the case that matters, and the one a container test got wrong: it is
+     * dat2, so "dat2 means u16" gave it the wide layout, and its revision number
+     * (643) clears every OSRS threshold while belonging to a different lineage
+     * entirely. Both readings must lose to the epoch.
+     *
+     * Getting this wrong is not a clean failure. The u16 attribute read swallows
+     * the next tile's opcode, the loop only breaks on 0 or 1, so the square
+     * resynchronises into garbage: 120 of 15,376 tiles kept an underlay or overlay
+     * instead of ~4,200, and the world rendered as void. See B12/D20.
+     */
+    struct RSCache rs643 = RSCache_ProfileDat2Rs643();
+    RSCACHE_CHECK_EQ(RSCache_MapTerrainFlags(&rs643), RSCACHE_MAP_TERRAIN_DECODE_U8);
+
+    /* An OSRS cache from before the widening is narrow too — the threshold is a
+     * real revision test, not a proxy for "is this OldSchool". */
+    struct RSCache osrs_old = RSCache_ProfileZero();
+    osrs_old.epoch = RSCACHE_EPOCH_OSRS;
+    osrs_old.version = 184;
+    RSCACHE_CHECK_EQ(RSCache_MapTerrainFlags(&osrs_old), RSCACHE_MAP_TERRAIN_DECODE_U8);
+
+    osrs_old.version = 209;
+    RSCACHE_CHECK_EQ(RSCache_MapTerrainFlags(&osrs_old), RSCACHE_MAP_TERRAIN_DECODE_U16);
 }
 
 static void

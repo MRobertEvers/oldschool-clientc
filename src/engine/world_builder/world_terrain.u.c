@@ -388,15 +388,35 @@ world_build_scene_terrain(struct WorldBuilder* builder)
     }
 
     if( getenv("TORIRS_TERRAIN_DEBUG") )
+    {
+        /* Height range as well as tile counts: a plausible tile count with wild
+         * heights renders as smeared geometry rather than as nothing, which looks
+         * like a camera or scale fault and is not one. */
+        int hmin = 1 << 30;
+        int hmax = -(1 << 30);
+        for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+            for( int z = 0; z < scene_size; z++ )
+                for( int x = 0; x < scene_size; x++ )
+                {
+                    int h = heightmap_get(world->heightmap, x, z, level);
+                    if( h < hmin )
+                        hmin = h;
+                    if( h > hmax )
+                        hmax = h;
+                }
+
         fprintf(
             stderr,
             "terrain: scene_size=%d shapetiles active=%d inactive=%d "
-            "tile_model_null=%d elements_added=%d\n",
+            "tile_model_null=%d elements_added=%d height=[%d..%d]\n",
             scene_size,
             dbg_active,
             dbg_inactive,
             dbg_no_model,
-            dbg_added);
+            dbg_added,
+            hmin,
+            hmax);
+    }
 }
 
 #endif

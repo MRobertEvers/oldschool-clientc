@@ -740,10 +740,10 @@ bookkeeping:
 
 **1. The id → index map was rebuilt per widget created.**
 `UITree_FindByComponentId` is backed by an open-addressed map keyed on
-`id_generation`, and *any* id assignment bumps that generation. `cc_create`
+`id_generation`, and _any_ id assignment bumps that generation. `cc_create`
 allocates a dynamic uid by probing the map (`UITree_AllocateDynamicComponentId`),
 so the sequence was: create widget → generation bumps → next create's probe finds
-the map stale → full O(component_count) rebuild. Creating _n_ widgets cost
+the map stale → full O(component*count) rebuild. Creating \_n* widgets cost
 O(n²) hash inserts; `uitree_id_index_put` + `UITree_RebuildIdIndex` +
 `uitree_id_hash` alone were **46% of main-thread time**.
 
@@ -751,7 +751,7 @@ Now `UITree_Push` folds the new id into the map incrementally and keeps
 `id_index_gen` in step, so only a reclaim (which cannot be undone in an
 open-addressed table without rescanning for a replacement winner) leaves the map
 stale for the next lookup to rebuild. Because a recycled free-list slot can hand
-a later push a *lower* index than the entry already stored for that id, the
+a later push a _lower_ index than the entry already stored for that id, the
 tie-break in `uitree_id_index_put` is now stated over the two candidates
 (dynamic beats non-dynamic; within a class the lower index wins) instead of
 relying on ascending insertion order. `ui/test/uitree_test_id_index.c` pins the
@@ -763,7 +763,7 @@ runtime.
 `link_under_parent` walked `first_child` to the tail on every append, so filling
 a container one `cc_create` at a time was quadratic in the child count.
 `UITreeComponent.last_child_hint` short-circuits the walk. Like
-`UITree::last_root_index` it is a *hint*, never trusted blindly: it is used only
+`UITree::last_root_index` it is a _hint_, never trusted blindly: it is used only
 when it still looks like a live last child of that parent, so any mutation may
 leave it stale without breaking anything.
 
@@ -772,7 +772,7 @@ leave it stale without breaking anything.
 registered hook", whenever any varp/varc changed. The rev230 gameframe writes a
 clock varc (384) every single tick, and none of the six live hooks listed it as a
 trigger — so all six scripts (and their `cc_deleteall` + `cc_create` widget
-rebuilds) ran 50 times a second for nothing. The host now records *which* ids
+rebuilds) ran 50 times a second for nothing. The host now records _which_ ids
 changed (`RS_CS2Host::var_changed_ids`, TS `changedVarps` parity) and a hook only
 re-runs when the change touches one of its triggers. Unhide
 (`widgets_loaded_dirty`) still dispatches everything, since a widget that was
@@ -794,12 +794,12 @@ for one-shot audits of a built scene; nothing calls it per frame.
 
 Measured, `-O0`, 1000 frames headless against `src/build/mock230`:
 
-| build | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
-| --- | --- | --- | --- |
-| before | 33.0 s | 33.0 | 97% (pegged) |
-| + id-index/tail-hint (1 & 2) | 15.8 s | 15.8 | 72% |
-| + var-transmit filter (3) | 13.9 s | 13.9 | 62% |
-| + texture wants at model build (4) | 12.9 s | 12.9 | 57% |
+| build                              | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
+| ---------------------------------- | ------------------- | -------- | ---------------------- |
+| before                             | 33.0 s              | 33.0     | 97% (pegged)           |
+| + id-index/tail-hint (1 & 2)       | 15.8 s              | 15.8     | 72%                    |
+| + var-transmit filter (3)          | 13.9 s              | 13.9     | 62%                    |
+| + texture wants at model build (4) | 12.9 s              | 12.9     | 57%                    |
 
 The post-network widget tree dump (`TORIRS_DUMP_TREE_EXIT=1`, 1774 lines of
 kinds, resolved boxes and hidden flags) is byte-identical before and after, and
@@ -820,7 +820,7 @@ repopulates a bank/spellbook/list) still went through two structural problems.
 `BENCH_ROWS` / `BENCH_ITERS` / `BENCH_STATIC_CHILDREN`.
 
 **5. A widget node was 29,576 bytes.** `menu_options.submenus.ops[10][32][64]`
-alone was 20,480 of it — 20 KB of submenu labels inline in *every* node, for a
+alone was 20,480 of it — 20 KB of submenu labels inline in _every_ node, for a
 feature a handful of components use, memset on every push and every reclaim and
 strided over by every linear walk of `components[]`. It is now a lazily allocated
 block reached through `UITree_MenuSubmenu*` (NULL until a `CC/IF_SETOPSUBMENU`
@@ -832,13 +832,13 @@ alone.)
 
 **6. Finding a child by sub-id walked the sibling list.** `cc_create` calls
 `UITree_FindChildBySubid` once per row to implement replace-in-slot, and during a
-rebuild every one of those calls is a *miss* over an ever-longer list — quadratic
+rebuild every one of those calls is a _miss_ over an ever-longer list — quadratic
 in row count. Each node now carries `child_key_max`, the highest sub-id key among
 its children (`UITREE_CHILD_KEY_NONE` when none, `UITREE_CHILD_KEY_UNKNOWN` when
 a mutation invalidated it), so a lookup above the ceiling answers "no such child"
 without walking. The ceiling is only ever too high, never too low: a stale-high
 value costs a scan, it cannot hide a child. Removing a child only invalidates it
-if that child *was* the ceiling, which keeps replace-in-slot rebuilds O(1) per
+if that child _was_ the ceiling, which keeps replace-in-slot rebuilds O(1) per
 row too; `CC_DELETEALL` drops it once for the whole batch, and the next lookup
 recomputes it in one walk. Wide sub_ids (> 0xFFFF) skip the fast path, since the
 scan compares non-dynamic children masked to 16 bits.
@@ -846,10 +846,10 @@ scan compares non-dynamic children masked to 16 bits.
 `make -C src bench-uitree BENCH_ITERS=40`, per rebuild:
 
 | rows | before (29 KB node + scan) | after (9 KB node + ceiling) |
-| --- | --- | --- |
-| 400 | 0.68 ms (1.7 µs/row) | **0.14 ms** (0.3 µs/row) |
-| 1600 | 7.38 ms (4.6 µs/row) | **0.47 ms** (0.3 µs/row) |
-| 3200 | 38.15 ms (11.9 µs/row) | **1.01 ms** (0.3 µs/row) |
+| ---- | -------------------------- | --------------------------- |
+| 400  | 0.68 ms (1.7 µs/row)       | **0.14 ms** (0.3 µs/row)    |
+| 1600 | 7.38 ms (4.6 µs/row)       | **0.47 ms** (0.3 µs/row)    |
+| 3200 | 38.15 ms (11.9 µs/row)     | **1.01 ms** (0.3 µs/row)    |
 
 Per-row cost is now flat instead of growing with the list, and the array behind a
 3200-row container is 35.6 MB instead of 115.5 MB. Steady-state rev230 barely
@@ -2689,3 +2689,7 @@ tabIndex "161 child" group tab
 11 87 116 Settings
 12 88 216 Emotes
 13 89 239 Music
+
+### Steel Titan
+
+Steel Titan is at 7343/7344; the OSRS NPC codec doesn't match 643. I'll add an RS2 NPC codec (void's layout) and re-decode.

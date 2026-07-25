@@ -3172,6 +3172,34 @@ app_world_paint(struct App* app)
     painter_set_level_mask(app->world->painter, level_mask);
 
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+
+    /* TORIRS_PAINT_DEBUG: what the painter actually emitted this frame, by kind.
+     * Scene elements existing is not the same as being painted — the bucket
+     * flood-fill, the level mask and the cull map each drop work silently. */
+    if( getenv("TORIRS_PAINT_DEBUG") )
+    {
+        int by_kind[16] = { 0 };
+        for( int i = 0; i < app->painter_buffer->command_count; i++ )
+            by_kind[app->painter_buffer->commands[i]._bf_kind & 0xF]++;
+        fprintf(
+            stderr,
+            "paint: cam=%d,%d campos=(%d,%d,%d) pitch=%d yaw=%d level_mask=0x%x roof=%d "
+            "commands=%d kinds:",
+            cam_sx,
+            cam_sz,
+            (int)app->world_camera_pos.x,
+            (int)app->world_camera_pos.y,
+            (int)app->world_camera_pos.z,
+            app->world_camera.pitch,
+            app->world_camera.yaw,
+            level_mask,
+            app_world_roof_check(app),
+            app->painter_buffer->command_count);
+        for( int k = 0; k < 16; k++ )
+            if( by_kind[k] )
+                fprintf(stderr, " %d:%d", k, by_kind[k]);
+        fprintf(stderr, "\n");
+    }
 }
 
 /* "Only hittest the world if the mouse is over the world element": inside the
@@ -8079,6 +8107,15 @@ App_Render(
         ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
 
     ToriRS_Soft3D_RenderFrame(&soft, &frame);
+
+    if( getenv("TORIRS_FRAME_DEBUG") )
+        fprintf(
+            stderr,
+            "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+            frame.dbg_emit_element,
+            frame.dbg_emit_terrain,
+            frame.dbg_drop_not_live,
+            frame.dbg_drop_no_model);
 
     if( soft.pick_enabled )
         app_world_pick_finish(app, &soft.pick_hits);

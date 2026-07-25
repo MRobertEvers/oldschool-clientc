@@ -335,6 +335,11 @@ apply_transforms(
         ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 }
 
+/* TORIRS_SCENERY_DEBUG: scene elements this build actually produced. An instance
+ * reaching scenery_add is not the same as geometry landing in the scene — the
+ * per-shape helpers can drop it at several points below. */
+static int g_scenery_dbg_elements;
+
 static int
 scenery_load_model(
     struct WorldBuilder* builder,
@@ -379,12 +384,28 @@ scenery_load_model(
         if( !found )
         {
             /* Shape not present on this loc config — skip (common for mismatched map/loc data). */
+            if( getenv("TORIRS_SCENERY_DEBUG") )
+                fprintf(
+                    stderr,
+                    "  scenery_load_model: loc %d shape %d NOT in config (groups=%d)\n",
+                    builder->scenery_base_loc_id,
+                    shape_select,
+                    config_loc->shapes_and_model_count);
             return -1;
         }
     }
 
     if( models_count <= 0 )
+    {
+        if( getenv("TORIRS_SCENERY_DEBUG") )
+            fprintf(
+                stderr,
+                "  scenery_load_model: loc %d shape %d NO MODEL IDS (shapes=%s)\n",
+                builder->scenery_base_loc_id,
+                shape_select,
+                config_loc->shapes ? "yes" : "no");
         return -1;
+    }
 
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
@@ -393,6 +414,13 @@ scenery_load_model(
         if( !rs_model )
         {
             /* Model not preloaded into the cache: skip this scenery loc. */
+            if( getenv("TORIRS_SCENERY_DEBUG") )
+                fprintf(
+                    stderr,
+                    "  scenery_load_model: loc %d shape %d model %d NOT LOADED\n",
+                    builder->scenery_base_loc_id,
+                    shape_select,
+                    model_ids[i]);
             for( int j = 0; j < i; j++ )
                 ToriDraw_ModelFree(models[j]);
             return -1;
@@ -436,8 +464,60 @@ scenery_load_model(
 
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
+        if( getenv("TORIRS_SCENERY_DEBUG") )
+            fprintf(
+                stderr,
+                "  scenery_load_model: loc %d shape %d model EMPTY (v=%d f=%d)\n",
+                builder->scenery_base_loc_id,
+                shape_select,
+                model->vertex_count,
+                model->face_count);
         ToriDraw_ModelFree(model);
         return -1;
+    }
+
+    /* TORIRS_SCENERY_DEBUG: geometry extent of the first few scenery models. A
+     * byte-exact model decode still permits a wrong *interpretation* (axis order,
+     * delta scale), which shows up here as an implausible bounding box rather than
+     * as a decode failure. Tree-sized scenery should be a few hundred units. */
+    static int dbg_seen_locs[64];
+    static int dbg_seen_count;
+    bool dbg_fresh_loc = false;
+    if( getenv("TORIRS_SCENERY_DEBUG") && dbg_seen_count < 64 )
+    {
+        dbg_fresh_loc = true;
+        for( int s = 0; s < dbg_seen_count; s++ )
+            if( dbg_seen_locs[s] == builder->scenery_base_loc_id )
+            {
+                dbg_fresh_loc = false;
+                break;
+            }
+        if( dbg_fresh_loc )
+            dbg_seen_locs[dbg_seen_count++] = builder->scenery_base_loc_id;
+    }
+
+    if( dbg_fresh_loc )
+    {
+        int xmin = 1 << 30, xmax = -(1 << 30);
+        int ymin = 1 << 30, ymax = -(1 << 30);
+        int zmin = 1 << 30, zmax = -(1 << 30);
+        for( int v = 0; v < model->vertex_count; v++ )
+        {
+            if( model->vertices_x[v] < xmin ) xmin = model->vertices_x[v];
+            if( model->vertices_x[v] > xmax ) xmax = model->vertices_x[v];
+            if( model->vertices_y[v] < ymin ) ymin = model->vertices_y[v];
+            if( model->vertices_y[v] > ymax ) ymax = model->vertices_y[v];
+            if( model->vertices_z[v] < zmin ) zmin = model->vertices_z[v];
+            if( model->vertices_z[v] > zmax ) zmax = model->vertices_z[v];
+        }
+        fprintf(
+            stderr,
+            "  scenery_model: loc %d model %d v=%d f=%d x=[%d..%d] y=[%d..%d] z=[%d..%d]\n",
+            builder->scenery_base_loc_id,
+            model_ids[0],
+            model->vertex_count,
+            model->face_count,
+            xmin, xmax, ymin, ymax, zmin, zmax);
     }
 
     ToriDraw_ModelSetBoundsCylinder(model);
@@ -505,6 +585,7 @@ scenery_load_model(
             map_tile->chunk_pos_level);
     }
 
+    g_scenery_dbg_elements++;
     return element_id;
 }
 

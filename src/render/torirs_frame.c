@@ -1070,12 +1070,29 @@ try_emit_world_draw_model(
         else
             continue;
 
+        /* TORIRS_FRAME_DEBUG: a painted command that never becomes a draw. The
+         * painter emitting a command is not the same as geometry reaching the
+         * raster — a dead element id or a model-less element drops out here
+         * silently, which looks identical to "the painter found nothing". */
         if( element_id < 0 || !ToriDraw_SceneElementIsLive(frame->scene, element_id) )
+        {
+            if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                frame->dbg_drop_not_live++;
             continue;
+        }
 
         el = ToriDraw_SceneElementGet(frame->scene, element_id);
         if( !el || el->model.kind == TORIDRAWMK_NONE )
+        {
+            if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                frame->dbg_drop_no_model++;
             continue;
+        }
+
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+            frame->dbg_emit_element++;
+        else
+            frame->dbg_emit_terrain++;
 
         rel = el->world_position;
         rel.x -= frame->cam_x;

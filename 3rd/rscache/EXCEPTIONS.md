@@ -610,20 +610,77 @@ world found **nothing** covering more than 5% of the viewport rect, so the regio
 and the scene simply renders empty into it. The screenshot is byte-identical before and after
 the D19 fix took models from 6 to 72, which says the same thing.
 
-The sharpest remaining clue is that **the minimap ring is also empty**. The minimap is baked
-from terrain and does not depend on the 3D camera, so two independent consumers of the scene
-both come out blank. That points at the built scene rather than at the viewport, the camera
-or the draw order — all three of which are now excluded.
+The sharpest clue turned out to be that **the minimap ring was also empty**. The minimap is
+baked from terrain and does not depend on the 3D camera, so two independent consumers of the
+scene were both blank — which pointed at the built scene rather than at the viewport, the
+camera or the draw order, all three of which were excluded by then. That was correct, and led
+to D20 below.
 
-What is *not* in doubt, and bounds the search: 7 underlays and 5 overlays loaded, and those
-ids are read off terrain tiles, so the terrain archive decoded; 72 models and 39 textures
-loaded; 1793 of 1881 loc instances shape-match their definitions. Every input the scene build
-needs is present and correct.
+**Both halves are now resolved. Terrain renders; scenery does not, for a separate and much
+larger reason.**
 
-Remaining work, all engine-side: identify which of 548's components form the backing that
-must not occlude the viewport. Note also that this era slots gameframe children by
-`fixedIndex`/`resizeIndex` (void's `interface_types.toml`) — a fixed-vs-resizable duality
-this client has no notion of, and likely the same root cause.
+*Terrain* was D20: `RSCache_MapTerrainFlags` gated the tile widths on the **container**
+(`IsDat1 ? u8 : u16`) when the real gate is the **era** — u8 until OldSchool 209. 643 is dat2,
+so it took the wide layout, desynced on its first tile, and kept only **120 of 15,376** tiles
+against ~4,200 for a working square. Fixed, and the dat2 terrain task now passes the profile
+(`RSCache_MapTerrainNewFromArchiveProfile`) instead of assuming modern widths.
+
+*Scenery* was chased down the whole pipeline with four env-gated counters, and every stage is
+**correct**:
+
+| Stage | 643 | OSRS 230 control |
+|---|---|---|
+| loc instances in the square | 1881 | 4728 |
+| reached `scenery_add` (config + morph + bounds all OK) | **1881** | 4725 |
+| became scene elements | **1880** | 4542 |
+| painter commands emitted (kind ELEMENT) | **1436** | 2948 |
+| draws issued to the raster | **1436** | 2948 |
+| dropped as dead/model-less | **0** | 0 |
+
+Camera, level mask and roof check are **byte-identical** between the two
+(`campos=(4160,-2000,4160) pitch=450 yaw=0 level_mask=0xf roof=3`), and the models are healthy
+— sampling distinct locs gives 362 vertices / 524 faces at ±445 units, walls at
+`y=[-959..0]`. So 1,436 correct models were being submitted, positioned, and drawn every
+frame, and produced no pixels.
+
+The reason: **the raster skips faces whose texture is absent, and every 643 texture load
+fails** (70 of them). Terrain underlays are flat colour, so they still drew — which is exactly
+why the viewport showed smooth untextured ground and nothing else. Confirmed decisively with
+the pre-existing `TORIRS_STRIP_TEXTURES=1`: with face textures cleared, the scenery appears
+immediately — trees, rubble, plants, the lot.
+
+**Root cause: 643 does not use sprite-backed textures at all.** Per rs-map-viewer's
+`Dat2CacheLoaderFactory.getTextureLoader`, there are *three* texture systems, chosen by era:
+
+| Loader | Selected when | What we implement |
+|---|---|---|
+| `SpriteTextureLoader` | `oldschool`, **or** `runescape` && rev < 474 | ✅ this one only |
+| `ProceduralTextureLoader` | rev ≥ 474 **and** a materials index exists | ❌ |
+| `OldProceduralTextureLoader` | otherwise | ❌ |
+
+643 is `runescape` at rev 643 with **table 26 (materials) present**, so it takes the
+*procedural* path. Verified against the dump: `cache.643` table 26 holds 27,938 bytes and
+table 9 archive 8 **loads fine at 31 bytes** — the archive is there, it is the *decode* that
+rejects it, because a 643 record is a procedural material definition, not the OSRS
+sprite-backed shape. `cache.osrs230` has no table 26 at all. The RS2 index block confirms the
+naming: `materials: 26, particles: 27, defaults: 28`.
+
+This is a **new subsystem, not a fix**: rs-map-viewer's procedural texture code is ~7,700
+lines across 42 distinct operations (Perlin and Voronoi noise, Mandelbrot, bricks, herringbone,
+weave, kaleidoscope, emboss, gradients, curves, mixers…) — effectively a small texture-shader
+VM whose programs are stored in the materials archive. Nothing smaller will make 643 scenery
+appear textured; the only cheap alternative is to render 643 untextured on purpose
+(flat-shaded), which is what `TORIRS_STRIP_TEXTURES` already demonstrates and is a legitimate
+interim state.
+
+Remaining engine-side note, unrelated to textures: this era slots gameframe children by
+`fixedIndex`/`resizeIndex` (void's `interface_types.toml`) — a fixed-vs-resizable duality this
+client has no notion of.
+
+Diagnostics added along the way, all env-gated and kept: `TORIRS_TERRAIN_DEBUG` (shape-tile
+counts + height range), `TORIRS_SCENERY_DEBUG` (per-drop-reason counts, level/shape histograms,
+per-loc model extents), `TORIRS_PAINT_DEBUG` (painter commands by kind + camera),
+`TORIRS_FRAME_DEBUG` (draws issued vs dropped).
 
 **`cache.rs643` is a different dump from `cache.643`** and is the better one to work
 against — 36 index files against 39, and the RS2 tables are populated (t18 npcs, t19 objs,
@@ -822,6 +879,7 @@ exception to "only add the write half".
 | D17 | **`VarPManager_GetVarbit` and `SetVarbitOptimistic` masked one bit too narrow.** `endbit` is inclusive, so the width is `endbit - startbit + 1`; both functions used the difference alone. Every varbit read one bit short, and a **single-bit** varbit — `startbit == endbit`, the commonest shape — hit the `bit_count <= 0` guard and returned 0 for every possible varp value. The reference masks with `(1 << (msb - lsb + 1)) - 1`. | The cache settles the inclusive question: varbits 0..4 of `cache.osrs230` are `start=end=0,1,2,3,4` — five consecutive one-bit flags in varp 318, which would all be zero-width under an exclusive reading. Invisible because `varbit_count` was always 0, and because **the existing test could not discriminate**: it read `var[0] = 0x0E` and expected 7, which holds at both 3 and 4 bits wide since bit 4 is clear. Rewritten to use `0x1E`, where the two readings differ (15 vs 7), plus a single-bit case and a write-then-read check. |
 | D19 | **The loc group memo tested the group-local id, not the global one.** `dat2_buildcache_locs_init_from_archive_based` skipped a record when `dat2_buildcache_loc_get(id)` already had it — but `id` is the *file* id, which a sharded RS2 group numbers `0..255` locally. Once group 0 was resident, every file of every later group looked "already loaded" and was skipped wholesale, so only 4 of 100 loc definitions ever reached the provider. | Group 0 was the **only** group that worked, because there `base_id + id == id` and the bug is invisible — a textbook case of the identity case hiding an off-by-base. Found by printing the group, base and post-init lookup together: `loc 3825 -> table 16 group 14 base 3584 files 256 file_ids=yes -> get=MISS` proved the archive and addressing were all correct and the *add* was not. Fixing it took the 643 world from 6 models to **72** — exactly the count an independent cache-side probe predicted. |
 | D18 | **Two independent allow-lists silently made whole cache tables unreachable.** `RSCache_Dat2DiskIsValidTableId` (reference tables) and `dat2_cache_table_supported` in `src/platform/platform_x_io.c` (archive reads) each enumerated only the *named* OSRS tables. An id absent from the list was skipped **before** any read, so it presented as "decode failed" or an empty result rather than "this table is not allowed" — nothing logged the rejection. Both had to be widened before the RS2 branch (tables 16-22) could be read at all. | The first surfaced as `tables[16] = NULL` while `255/16` loaded fine by hand and decoded to 224 dense groups. The second surfaced *after* that fix as `Failed to decode dat2 loc group for loc N` for every id, with the group demonstrably present. **The lesson is the pattern, not either instance:** an allow-list keyed on names conflates "unknown to us" with "not present", and the second copy cost an extra debugging cycle because the first fix did not prompt a search for siblings. |
+| D20 | **`RSCache_MapTerrainFlags` gated the terrain tile widths on the *container* when the real gate is the *era*.** It read `IsDat1 ? u8 : u16`, so every dat2 cache got the wide layout — but the attribute opcode and overlay id only widen to u16 at **OldSchool 209** (rs-map-viewer: `game === "oldschool" && revision >= 209`). 643 is dat2 and pre-209, and its revision *number* clears every OSRS threshold while belonging to a different lineage, so both the container test and a naive revision test got it wrong. Separately, the dat2 load path never consulted the function at all — it called `RSCache_MapTerrainNewFromArchive`, which hardcoded modern widths — so fixing the predicate alone would have changed nothing. | **Not a clean failure, which is why it survived so long.** The u16 attribute read swallows the following tile's opcode, and the loop only breaks on 0 or 1, so the square resynchronises into plausible garbage instead of erroring: **120 of 15,376** tiles kept an underlay or overlay, against 4,481 for a working OSRS square. Both the 3D scene *and* the terrain-baked minimap came out blank, and that pair — two independent consumers of the scene, with every input verified present — is what pointed at the built scene rather than at the viewport. Found by counting shape-tiles at the one place both consumers read (`TORIRS_TERRAIN_DEBUG`). Now pinned by tests over the 643 profile and over OSRS 184 vs 209. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
