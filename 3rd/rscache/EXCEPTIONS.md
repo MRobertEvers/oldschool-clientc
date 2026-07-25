@@ -474,25 +474,33 @@ converting those three call sites would change no behaviour at all; `component` 
 resolves its era through `RSCache_Dat2ComponentDecodeRev`, which works. Both are
 cosmetic, and skipped as such rather than missed.
 
-### B15. Varbits now load at boot; the dat1 half does not *(Gap)*
+### B15. Varbits load at boot, both eras *(Resolved)*
 
-`CreateTask_Dat2VarbitLoad` loads config group 14 at boot and installs the table into
-`VarPManager` — **17,605 types from 17,426 records** on `cache.osrs230`, ids 0..17604
-with the holes zeroed to `basevar = -1`. It runs before anything that can execute a
-script, because a varbit read happens deep inside CS2 with nowhere to yield to a load.
-That closes the B13 consequence: `GetVarbit` returns real values now, so a script
-branching on a varbit takes the branch the server intended.
+`CreateTask_Dat2VarbitLoad` and `CreateTask_Dat1VarbitLoad` install the varbit table into
+`VarPManager` at boot, before anything that can execute a script — a varbit read happens
+deep inside CS2/CS1 with nowhere to yield to a load.
 
-Fixing the loader also required **D17** — both the reader and the writer masked one bit
-too narrow, which alone would have made every single-bit varbit read 0 even with the
-table loaded.
+| Boot | Source | Types |
+|---|---|---|
+| `manifest_osrs230` | dat2 config group 14, one file per id | 17,605 from 17,426 records (holes zeroed to `basevar = -1`) |
+| `manifest_rs254` | dat1 `varbit.dat` in the config jagfile | 6, consuming the blob exactly |
 
-**dat1 is not wired.** Its varbits live in the config jagfile as a single `varbit.dat`
-blob, and `VarPManager_LoadVarbitDat` already parses that exact shape — it just needs
-calling from the dat1 config load. Not done because the dat1 client is CS1, whose
-varbit opcode path is a different host request, so the payoff needs checking before the
-plumbing. The task is gated `cache_kind != APP_CACHE_DAT1` so the dat1 boot is
-untouched.
+That closes the B13 consequence: `GetVarbit` returns real values, so a script branching on
+a varbit takes the branch the server intended. Both eras mattered, not just dat2 — CS1's
+`CS1VM_HOST_REQUEST_VARBIT` routes to the *same* `VarPManager_GetVarbit`
+(rs_cs1_host.c), so dat1 scripts were reading 0 too.
+
+The two eras store identical records differently — dat2 one file per id, dat1 a u16 count
+then that many terminator-delimited records in one blob — which is why rscache's decoders
+take a cursor: one codec covers both shapes.
+
+Fixing the loaders also required **D17**: both the reader and the writer masked one bit too
+narrow, which alone would have made every single-bit varbit read 0 even with the table
+loaded.
+
+`VarPManager_LoadVarbitDat` gained an exact-consumption warning it lacked (the reference
+prints "varbit load mismatch" for the same condition). It is silent on `cache254.lostcity`,
+which is how the 6-type count was confirmed as real rather than a misparse.
 
 ## C. Open — real defects deliberately not fixed
 

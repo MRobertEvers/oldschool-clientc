@@ -606,7 +606,28 @@ decode_ob3(
     int vertex_count = RSCache_BufferG2At(inputData, &headerOffset);
     int face_count = RSCache_BufferG2At(inputData, &headerOffset);
     int textured_face_count = RSCache_BufferG1At(inputData, &headerOffset);
-    int has_face_render_types = RSCache_BufferG1At(inputData, &headerOffset);
+    /*
+     * A **bitmask**, not a boolean, and reading it as one is what broke every 643-era
+     * model. Bit 0 is the face-render-types flag; the rest announce sections OSRS caches
+     * never use, so `== 1` happened to work there and nowhere else.
+     *
+     *   0x1  face render types present
+     *   0x2  particle effects present   (data lives past everything else; not decoded)
+     *   0x4  billboards present         (likewise)
+     *   0x8  a version byte precedes the header
+     *
+     * Per rs-map-viewer's ModelData.decodeV1, which is the only reference here that
+     * handles the 643 branch.
+     */
+    int header_flags = RSCache_BufferG1At(inputData, &headerOffset);
+    int has_face_render_types = header_flags & 0x1;
+
+    /* The version byte sits immediately *before* the 23-byte header when bit 3 is set.
+     * It selects the width of the per-complex-face texture scale block below. */
+    int format_version = 1;
+    if( (header_flags & 0x8) != 0 && inputLength >= 24 )
+        format_version = inputData[inputLength - 24] & 0xff;
+
     int model_priority = RSCache_BufferG1At(inputData, &headerOffset);
     int has_face_transparencies = RSCache_BufferG1At(inputData, &headerOffset);
     int has_packed_transparency_vertex_groups = RSCache_BufferG1At(inputData, &headerOffset);
@@ -704,17 +725,35 @@ decode_ob3(
     dataOffset += vertexYDataByteCount;
     int offsetOfVertexZData = dataOffset;
     dataOffset += vertexZDataByteCount;
+    /*
+     * Texture mapping. Per complex face: a 6-byte p/m/n triple, a scale block whose
+     * width the format version selects, then one byte each of rotation, direction and
+     * translation. Cube faces add two bytes to the translation block.
+     *
+     * This previously charged **19 bytes per complex face** rather than 15 (at the
+     * default version), which overshot the file on 1795 of 3000 sampled 643 models.
+     * Invisible on every OSRS cache in the corpus because they contain no complex
+     * texture faces at all — `complex == 0` makes any per-complex figure correct.
+     */
+    int texture_scale_bytes = 6;
+    if( format_version == 14 )
+        texture_scale_bytes = 7;
+    else if( format_version >= 15 )
+        texture_scale_bytes = 9;
+
     int offsetOfSimpleTextureMapping = dataOffset;
     dataOffset += simpleTextureFaceCount * 6;
     dataOffset += complexTextureFaceCount * 6;
-    dataOffset += complexTextureFaceCount * 6;
-    dataOffset += complexTextureFaceCount * 2;
-    dataOffset += complexTextureFaceCount;
-    dataOffset += complexTextureFaceCount * 2;
-    dataOffset = dataOffset + complexTextureFaceCount * 2 + cubeTextureFaceCount * 2;
+    dataOffset += complexTextureFaceCount * texture_scale_bytes;
+    dataOffset += complexTextureFaceCount;     /* rotation */
+    dataOffset += complexTextureFaceCount;     /* direction */
+    dataOffset += complexTextureFaceCount;     /* translation */
+    dataOffset += cubeTextureFaceCount * 2;
 
     {
-        const int flags[] = { has_face_render_types,
+        /* The raw bitmask, not the extracted bit: the trailer has to carry the byte the
+         * source wrote, particle and billboard bits included. */
+        const int flags[] = { header_flags,
                               model_priority,
                               has_face_transparencies,
                               has_packed_transparency_vertex_groups,
@@ -2011,6 +2050,13 @@ struct model_header
     int has_face_labels;
     /** OB3/V3 only — OB2/V2 pack texture ids into the per-face info byte. */
     int has_face_textures;
+    /**
+     * OB3/V3: the raw header byte that `has_face_info` is bit 0 of. Written to the
+     * trailer verbatim, because its other bits announce particle and billboard sections
+     * this library carries in the tail without interpreting. For OB2/V2 it equals
+     * `has_face_info`, which really is a boolean there.
+     */
+    int face_info_flags;
     int has_vertex_labels;
     /** V2/V3 only. */
     int has_animaya;
@@ -2052,7 +2098,12 @@ model_header_from_provenance(
     header->vertex_count = prov->vertex_count;
     header->face_count = prov->face_count;
     header->textured_face_count = prov->textured_face_count;
-    header->has_face_info = f[0];
+    header->face_info_flags = f[0];
+    /* Bit 0 for the OB3/V3 family, where the byte is a bitmask; the whole value for
+     * OB2/V2, where it is a plain flag. */
+    header->has_face_info =
+        (format == RSCACHE_MODEL_FORMAT_OB3 || format == RSCACHE_MODEL_FORMAT_V3) ? (f[0] & 1)
+                                                                                 : f[0];
     header->model_priority = f[1];
     header->has_alpha = f[2];
     header->has_face_labels = f[3];
@@ -2122,6 +2173,8 @@ model_header_from_model(
     header->face_count = model->face_count;
     header->textured_face_count = model->textured_face_count;
     header->has_face_info = model->face_infos != NULL;
+    /* Derived: no particle or billboard bits, since nothing here can know about them. */
+    header->face_info_flags = header->has_face_info;
     header->has_face_labels = model->face_bone_map != NULL;
     header->has_vertex_labels = model->vertex_bone_map != NULL;
 
@@ -2672,7 +2725,7 @@ RSCache_ModelEncodeFormat(
             p2(&buffer, header.vertex_count);
             p2(&buffer, header.face_count);
             p1(&buffer, header.textured_face_count);
-            p1(&buffer, header.has_face_info);
+            p1(&buffer, header.face_info_flags);
             p1(&buffer, header.model_priority);
             p1(&buffer, header.has_alpha);
             p1(&buffer, header.has_face_labels);
