@@ -158,7 +158,7 @@ config kind `k`, one file per record id. The kinds are in
 | 1 | underlay | yes | 16 | varplayer | yes |
 | 3 | identkit | yes | 19 | varclient | yes |
 | 4 | overlay | yes | 32 | hitsplat | **no** |
-| 5 | inv | yes | 33 | healthbar | **no** |
+| 5 | inv | yes | 33 | healthbar | yes |
 | 6 | locs | yes | 34 | struct | yes |
 | 8 | enum | yes | 35 | area / mapelement | yes |
 | 9 | npc | yes | 38 | dbrow | yes |
@@ -172,8 +172,9 @@ config kind `k`, one file per record id. The kinds are in
 Seven of these had no decoder until recently, and they were not obsolete or
 era-specific: every one is present and populated in every OSRS cache, and `varbit` holds
 more records than `npc`. The enum was transcribed from RuneLite's `ConfigType` in full,
-and decoders were written only for the types something drew. Four are now done; the
-three that remain are blocked on a reference client rather than on effort. See below.
+and decoders were written only for the types something drew. Five are now done; the two
+that remain are `hitsplat` — which is not a fixed-width opcode stream at all — and
+`varclient string`, which this corpus cannot validate. See below.
 
 ### The variable and inventory config kinds
 
@@ -247,13 +248,39 @@ rather than guessing an operand width, which leaves `_consumed` short of the rec
 the signal the round-trip harness asserts on, so an unrecognised field surfaces as a
 test failure instead of silently misaligning everything after it.
 
-**hitsplat and healthbar are not settled, and exact consumption cannot settle them** —
-the first place in this library that technique has come up short. Brute-forcing
-healthbar's seven observed opcodes yields **41 assignments that all consume 100% of 85
-distinct records**. Only `7 -> u16`, `11 -> u16` and `14 -> u8` are common to all 41;
-opcodes 2, 3, 5 and 8 stay ambiguous. The records are short with few opcodes, so there
-is room to re-segment them — the opposite of loc, npc and spotanim, where long varied
-records made consumption decisive. These need a reference client, not more measurement.
+**healthbar needed a second constraint, because exact consumption could not settle it**
+— the first place in this library that technique came up short. Brute-forcing its seven
+opcodes yields **41 assignments that all consume 100%** of 85 distinct records; only
+`7 -> u16`, `11 -> u16` and `14 -> u8` are common to all of them. The records are short
+with few opcodes, so there is room to re-segment them into a different but
+equally-consuming parse — the opposite of loc, npc and spotanim, where long varied
+records made consumption decisive.
+
+What settled it: **an operand larger than the biggest sprite id in its own cache cannot
+be an id, a width, a duration or a colour index** — it is a wrong width read across a
+field boundary. That cuts 41 candidates to exactly one:
+
+| Kind | Opcodes | Packing order |
+|---|---|---|
+| 33 healthbar | `2` = u8 · `3` = u8 · `5` = u16 · `7` = u16 sprite · `8` = u16 sprite · `11` = u16 · `14` = u8 | 7, 8, 2, 3, 5, 11, 14 — *not* ascending |
+
+Note the order: every record leads with the two sprite ids and only then drops to the
+low opcodes. Opcodes 7 and 8 hold values that are all valid sprite ids in adjacent pairs
+(0x0587/0x0588), which is what a front-and-back bar pair looks like — though which is
+the front is not established, so they are named `sprite_id_a`/`sprite_id_b`. The other
+five keep their opcode numbers as names: the widths are known, the meanings are not, and
+inventing names would be a guess dressed as knowledge.
+
+Derived from osrs230, osrs239 and jan2026 — and byte-exact on kronos and osrs184 too,
+which were never in the search.
+
+**hitsplat is a different problem: it is not a fixed-width opcode stream at all.**
+Searching every assignment of widths 0-4 over 243 distinct records yields **zero** that
+consume 100%, with or without the plausibility filter. So at least one field's length is
+not constant — a smart/varint, a string, or a width that depends on an earlier value.
+The dumps agree: `ff ff` appears mid-record, which is what a u16 `-1` sentinel looks
+like. A reference client would settle it in minutes; extending the solver to
+variable-width fields would not be quick.
 
 **varclient string cannot be validated here at all.** The group is absent from
 `cache.osrs230` and `cache.jan2026`, empty in `cache.kronos`, and the 8 records in

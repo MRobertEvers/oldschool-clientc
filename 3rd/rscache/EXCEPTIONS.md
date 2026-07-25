@@ -405,8 +405,11 @@ fixed-shape records with nothing for a decoder to lose.
 | varclient | 6,131 | 100% | exact |
 | inv | 5,135 | 100% | exact |
 
-`hitsplat`, `healthbar` and `varclient_string` remain — all three blocked on a
-reference rather than on effort. The survey that established this is below.
+**`healthbar` is also implemented** — 354 records, 100% byte-exact — once a second
+constraint was found to break the tie exact consumption could not (B16).
+
+`hitsplat` and `varclient_string` remain. hitsplat is blocked on something sharper than
+a missing reference: no fixed-width opcode model fits it at all (B17).
 
 #### The original survey
 
@@ -428,8 +431,9 @@ Three things came out of it that were not previously known:
    varclient (`2` = bare flag, `3` = u16). varbit and varplayer also match Client-TS's
    dat1 equivalents. The same sweep proves the opcode *sets* complete for this corpus:
    a record holding any other opcode would have failed to parse, and none did.
-3. **hitsplat and healthbar cannot be settled from the corpus** — see E1. Two are
-   blocked on a reference client, not on effort.
+3. **healthbar was settled after all, by a second constraint** (B16). hitsplat was
+   not, and the reason turned out to be structural rather than a shortage of evidence
+   (B17).
 
 **`varbit` has a live behavioural consequence**, which is why it was done first, and
 which the decoder alone does **not** fix — Phase 7 still has to load the types at boot.
@@ -563,6 +567,56 @@ edit decoders in place, never rewrite a file that already works.**
 - **`same-len` exists to make `exact` interpretable** (B3) — without it a low
   percentage cannot be told apart from data loss.
 
+### B16. healthbar — settled by operand plausibility, not consumption *(Resolved)*
+
+Recorded because the *technique* generalises and E1 would otherwise read as a dead end.
+
+Exact consumption left **41 candidate width assignments** over healthbar's seven
+opcodes, all consuming 100% of 85 distinct records. The tie was broken by a second,
+independent constraint:
+
+> An operand value larger than the biggest sprite id in its own cache cannot be an id,
+> a width, a duration or a colour index. It is a wrong width being read across a field
+> boundary.
+
+Applying that to all 41 leaves **exactly one**, and it is the assignment a hand-parse of
+the shortest records produces:
+
+```
+2 -> u8    3 -> u8    5 -> u16    7 -> u16    8 -> u16    11 -> u16    14 -> u8
+```
+
+Two things corroborate it beyond the search. Opcodes 7 and 8 hold values that are all
+valid sprite ids, in adjacent pairs (0x0587/0x0588, 0x0880/0x0881) — what a
+front-and-back bar pair looks like. And the derivation used only osrs230, osrs239 and
+jan2026, yet the decoder is byte-exact on **kronos and osrs184 too**, which were never
+in the search: 354 records, six caches, 100%.
+
+Field naming stays honest about the split between what is settled and what is not. The
+widths are known, so the records parse; the *meanings* mostly are not, so five fields
+are named after their opcode and only the two sprite ids get real names —
+`sprite_id_a`/`sprite_id_b`, since which is the front is still unverified. Also worth
+noting the packing order is **7, 8, 2, 3, 5, 11, 14**, not ascending; emitting ascending
+order would round-trip semantically while reading 0% byte-exact.
+
+### B17. hitsplat is not a fixed-width opcode stream *(Gap)*
+
+A negative result, and a useful one — it rules out the whole family of models the search
+above covers, so nobody need repeat it.
+
+Searching every assignment of operand widths 0-4 to hitsplat's opcodes, over 243
+distinct records in three caches, yields **zero** that consume 100% — and zero even with
+the plausibility constraint switched off. So the format is not "opcode, then a
+fixed-width operand" for any width assignment whatsoever.
+
+It must therefore contain at least one field whose length is not a constant: a
+smart/varint, a string, or a field whose width depends on a value read earlier. The
+dumps support that — `ff ff` appears mid-record, which is what a u16 `-1` sentinel looks
+like, and `0x31` (49) shows up as an apparent opcode far above the others.
+
+Extending the solver to variable-width fields is possible but the search space grows
+sharply, and a reference client would settle it in minutes. Left for one.
+
 ### E1. Exact consumption is necessary but not sufficient — where it fails
 
 Worth stating plainly, because everything above leans on it and it has now come up
@@ -582,7 +636,12 @@ in B13 are the good case in the extreme: their records are *fixed length*, so a 
 assignment survives.
 
 Practical rule: treat a unique-assignment result as evidence and a multiple-assignment
-result as "get a reference". Never ship the first assignment that consumes 100%.
+result as "find a second constraint, or get a reference". Never ship the first
+assignment that consumes 100%.
+
+For healthbar the second constraint was operand plausibility against the cache's own
+sprite table, which cut 41 candidates to 1 — see B16. That is the first thing to reach
+for when consumption leaves a tie.
 
 ---
 
@@ -595,14 +654,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1323 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1341 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
 | profile | 120 |
-| roundtrip | 295 |
+| roundtrip | 313 |
 | compression | 99 |
 | config_var | 37 |
 | bzip2 interop | 9 |
@@ -611,19 +670,19 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-**Encoders: 24 — every datatype this library decodes.** The 17 config types (struct,
+**Encoders: 25 — every datatype this library decodes.** The 18 config types (struct,
 enum, param, idk, spotanim, obj, underlay, overlay, texture, mapelement, npc, loc,
-sequence, **varbit, varplayer, varclient, inv**) plus framemap, sprites, map terrain,
-frame, clientscript and model.
+sequence, **varbit, varplayer, varclient, inv, healthbar**) plus framemap, sprites, map
+terrain, frame, clientscript and model.
 
-Semantic round-trip is asserted at 100% on all twenty-four, across every dat2 cache
+Semantic round-trip is asserted at 100% on all twenty-five, across every dat2 cache
 that carries the datatype.
 
 Byte-exactness, which is reported rather than asserted (see E):
 
 | Band | Datatypes |
 |---|---|
-| 100% | **varbit, varplayer, varclient, inv**, model, frame, clientscript, framemap (old caches), struct |
+| 100% | **varbit, varplayer, varclient, inv, healthbar**, model, frame, clientscript, framemap (old caches), struct |
 | ~99% | underlay |
 | ~36% | sequence |
 | ~25% | sprites — ordering only (B3b) |
@@ -636,10 +695,9 @@ table with the cap printed).
 
 Remaining, both additive and neither blocking:
 
-- **Three missing decoders** — hitsplat, healthbar and varclient_string. All three are
-  blocked on a reference client, not on effort: exact consumption cannot pin the first
-  two (E1) and the corpus cannot validate the third. The other four of the original
-  seven are done — see B13.
+- **Two missing decoders** — hitsplat and varclient_string. hitsplat is not a
+  fixed-width opcode stream at all (B17); varclient_string cannot be validated against
+  this corpus. Five of the original seven are done — see B13 and B16.
 - **The remaining revision-taking call sites.** Phase 7 converted the ones that
   matter (see B14); `spotanim` and `component` still take a bare revision. spotanim
   `(void)`s it, so converting it changes no behaviour — cosmetic, and left alone

@@ -1309,6 +1309,44 @@ visit_inv(
     (void)profile;
 }
 
+static void
+visit_healthbar(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigHealthbar first;
+    struct RSCache_Dat2ConfigHealthbar second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigHealthbarDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigHealthbarEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigHealthbarDecodeInplace(&second, encoded, (int)written);
+    if( first.sprite_id_a == second.sprite_id_a && first.sprite_id_b == second.sprite_id_b &&
+        first.has_opcode_2 == second.has_opcode_2 && first.opcode_2 == second.opcode_2 &&
+        first.has_opcode_3 == second.has_opcode_3 && first.opcode_3 == second.opcode_3 &&
+        first.has_opcode_5 == second.has_opcode_5 && first.opcode_5 == second.opcode_5 &&
+        first.has_opcode_11 == second.has_opcode_11 && first.opcode_11 == second.opcode_11 &&
+        first.has_opcode_14 == second.has_opcode_14 && first.opcode_14 == second.opcode_14 )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
 /* --------------------------------------------------------------- struct --- */
 
 static void
@@ -2128,6 +2166,8 @@ main(int argc, char** argv)
         { "varclient", RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, RSCACHE_TYPE_VARCLIENT,
           visit_varclient },
         { "inv", RSCACHE_DAT2_CONFIG_KIND_INV, RSCACHE_TYPE_INV, visit_inv },
+        { "healthbar", RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR, RSCACHE_TYPE_HEALTHBAR,
+          visit_healthbar },
     };
 
     /* Types whose archives are one record each, rather than config groups. */
