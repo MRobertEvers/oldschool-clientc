@@ -8748,14 +8748,72 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
     CS2VM2_ClearYieldHalt(vm);
 }
 
+/*
+ * Reset one thread without touching its bulk arrays.
+ *
+ * struct CS2VM2 is ~2.9 MB, almost all of it frames[50] (12 KB each) and
+ * arrays[128]. A blanket memset of the whole VM on every script invocation was
+ * one of the largest single costs in the frame (it showed up as __bzero), and
+ * none of that zeroing is load-bearing:
+ *
+ *   - frames[]  — CS2VM2_PushCallScript memsets each frame as it pushes it, and
+ *                 nothing reads a frame at or above frame_sp.
+ *   - stacks    — ints_stack/strs_stack are only read below their _top.
+ *   - undo_log, children_iter_indices — only read below their counters.
+ *   - arrays[]  — every read is guarded by .defined && index < .size, and
+ *                 defining an array memsets its own values[].
+ *
+ * So only the scalars and the per-array .defined/.size flags need clearing.
+ * Values below match exactly what the old memset produced (note yield_halt_pc
+ * is 0 here, not the -1 that CS2VM2_ClearYieldHalt uses).
+ */
+static void
+cs2vm2_thread_init(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2* vm)
+{
+    thread->vm = vm;
+
+    thread->ints_stack_top = 0;
+    thread->strs_stack_top = 0;
+    thread->frame_sp = 0;
+
+    thread->active_component_id = 0;
+    thread->dot_component_id = 0;
+
+    thread->last_error_opcode = 0;
+    thread->last_error_pc = 0;
+    thread->last_error_script_id = 0;
+
+    thread->yield_halt_frame_sp = 0;
+    thread->yield_halt_script_id = 0;
+    thread->yield_halt_pc = 0;
+    thread->yield_halt_count = 0;
+
+    thread->undo_log_len = 0;
+
+    thread->children_iter_count = 0;
+    thread->children_iter_index = 0;
+
+    for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
+    {
+        thread->arrays[i].defined = 0;
+        thread->arrays[i].size = 0;
+    }
+
+    thread->canvas_w = 0;
+    thread->canvas_h = 0;
+}
+
 void
 CS2VM2_Init(struct CS2VM2* vm)
 {
     assert(vm);
-    memset(vm, 0, sizeof(*vm));
     vm->thread_count = CS2VM2_MAX_THREADS;
+    vm->host_exec = NULL;
+    vm->user = NULL;
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
-        vm->threads[i].vm = vm;
+        cs2vm2_thread_init(&vm->threads[i], vm);
 }
 
 void

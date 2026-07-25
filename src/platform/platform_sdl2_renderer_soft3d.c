@@ -207,6 +207,63 @@ soft3d_draw_sprite(
     oy = spr->crop_y;
     pixel_count = (size_t)sw * (size_t)sh;
 
+    /*
+     * Fast path: no command below mutates pixels, so blit the scene's cached
+     * sprite directly instead of cloning it.
+     *
+     * The general path allocates and copies the whole image up to four times
+     * per sprite per frame (clone, flip, clamp-to-nominal, rotate). At rev230
+     * gameframe sprite counts that clone traffic — and the calloc inside
+     * soft3d_clamp_to_nominal in particular — was a top frame-time cost, and
+     * every one of those copies is the identity when the sprite is drawn
+     * plain, which is the overwhelmingly common case.
+     */
+    if( cmd->outline <= 0 && cmd->graphic_shadow == 0 && cmd->trans <= 0 &&
+        !cmd->flip_h && !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 )
+    {
+        if( cmd->tiled )
+        {
+            ToriDraw2D_BlitArgbTiled(
+                &vp,
+                cmd->x,
+                cmd->y,
+                cmd->w,
+                cmd->h,
+                spr->pixels_argb,
+                sw,
+                sh,
+                cmd->x + ox,
+                cmd->y + oy,
+                soft->pixels);
+            return;
+        }
+        if( !cmd->if3 )
+        {
+            ToriDraw2D_BlitArgb(
+                &vp, cmd->x + ox, cmd->y + oy, spr->pixels_argb, sw, sh, soft->pixels);
+            return;
+        }
+        /* if3 scales the *nominal* box, so a crop offset is only skippable when
+         * the sprite already sits at that box's origin — otherwise the offset
+         * would have to scale with it and the general path has to run. */
+        if( ox == 0 && oy == 0 )
+        {
+            int draw_w = cmd->w > 0 ? cmd->w : sw;
+            int draw_h = cmd->h > 0 ? cmd->h : sh;
+            ToriDraw2D_BlitArgbScaled(
+                &vp,
+                cmd->x,
+                cmd->y,
+                draw_w,
+                draw_h,
+                spr->pixels_argb,
+                sw,
+                sh,
+                soft->pixels);
+            return;
+        }
+    }
+
     spr_px = malloc(pixel_count * sizeof(uint32_t));
     if( !spr_px )
         return;
@@ -261,6 +318,10 @@ soft3d_draw_sprite(
     {
         ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, cmd->flip_h, cmd->flip_v, 0);
 
+        /* Identity when the sprite already fills its nominal box at the origin;
+         * skipping it drops a full-image calloc+copy from the general path too
+         * (a flipped or translucent sprite still usually needs no clamp). */
+        if( ox != 0 || oy != 0 || sw != nominal_w || sh != nominal_h )
         {
             uint32_t* clamped =
                 soft3d_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);

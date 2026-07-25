@@ -17,6 +17,7 @@
 #include <3rd/minipt.h>
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +58,6 @@ struct Task_CS2Run
 
     struct RS_CS2Host* host;
     struct CacheProvider* provider;
-    struct CS2VM2 vm;
 
     int script_id;
     struct CS2VM2_Script* script; /* optional preloaded; else load by script_id */
@@ -80,6 +80,12 @@ struct Task_CS2Run
     int yield_obj_id;
     int yield_obj_count;
     int started;
+
+    /* Last member on purpose: this is ~2.9 MB and needs no zeroing here —
+     * CS2VM2_Init sets up the little of it that is load-bearing. Keeping it at
+     * the tail lets task_cs2_run_new zero everything before it with one small
+     * memset instead of calloc'ing the whole struct on every script run. */
+    struct CS2VM2 vm;
 };
 
 static int
@@ -1017,8 +1023,12 @@ task_cs2_run_new(
     assert(host);
     assert(host->provider);
 
-    self = calloc(1, sizeof(*self));
+    /* Zero everything up to `vm` only; the VM tail is initialised by
+     * CS2VM2_Init in Task_CS2Run_Run before anything reads it, and zeroing it
+     * here would cost a ~2.9 MB memset per script invocation. */
+    self = malloc(sizeof(*self));
     assert(self);
+    memset(self, 0, offsetof(struct Task_CS2Run, vm));
 
     self->task.vtable = &Task_CS2Run_VTable;
     strcpy(self->task.name, "CS2Run");
