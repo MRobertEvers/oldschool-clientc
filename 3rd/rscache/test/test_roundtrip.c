@@ -1156,6 +1156,159 @@ visit_param(
     (void)profile;
 }
 
+/* ------------------------------------------------- var* and inv configs --- */
+
+/*
+ * These four are the fixed-shape configs, so unlike the opcode-stream types they
+ * should be **byte-exact everywhere** — there is no ordering to reproduce and nothing
+ * the decode drops. Their visitors additionally assert exact consumption, which is the
+ * check that catches an opcode the decoder does not know: the decoders stop rather
+ * than guess a width, so an unrecognised field leaves `_consumed` short instead of
+ * silently misaligning the rest of the record.
+ */
+
+static void
+visit_varbit(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigVarbit first;
+    struct RSCache_Dat2ConfigVarbit second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigVarbitDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[512];
+    uint32_t written = RSCache_Dat2ConfigVarbitEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        RSCache_Dat2ConfigVarbitFreeInplace(&first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigVarbitDecodeInplace(&second, encoded, (int)written);
+
+    bool equal = first.basevar == second.basevar && first.startbit == second.startbit &&
+                 first.endbit == second.endbit &&
+                 !!first.debugname == !!second.debugname &&
+                 (!first.debugname || strcmp(first.debugname, second.debugname) == 0);
+    if( equal )
+        tally->semantic_ok++;
+
+    RSCache_Dat2ConfigVarbitFreeInplace(&first);
+    RSCache_Dat2ConfigVarbitFreeInplace(&second);
+    (void)profile;
+}
+
+static void
+visit_varplayer(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigVarplayer first;
+    struct RSCache_Dat2ConfigVarplayer second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigVarplayerDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigVarplayerEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigVarplayerDecodeInplace(&second, encoded, (int)written);
+    if( first.clientcode == second.clientcode )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
+static void
+visit_varclient(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigVarclient first;
+    struct RSCache_Dat2ConfigVarclient second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigVarclientDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigVarclientEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigVarclientDecodeInplace(&second, encoded, (int)written);
+    if( first.persist == second.persist && first.has_opcode_3 == second.has_opcode_3 &&
+        first.opcode_3 == second.opcode_3 )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
+static void
+visit_inv(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigInv first;
+    struct RSCache_Dat2ConfigInv second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_Dat2ConfigInvDecodeInplace(&first, data, size);
+    tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigInvEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigInvDecodeInplace(&second, encoded, (int)written);
+    if( first.size == second.size )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
 /* --------------------------------------------------------------- struct --- */
 
 static void
@@ -1969,6 +2122,12 @@ main(int argc, char** argv)
         { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, RSCACHE_TYPE_NPC, visit_npc },
         { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, RSCACHE_TYPE_LOC, visit_loc },
         { "sequence", RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, RSCACHE_TYPE_SEQUENCE, visit_sequence },
+        { "varbit", RSCACHE_DAT2_CONFIG_KIND_VARBIT, RSCACHE_TYPE_VARBIT, visit_varbit },
+        { "varplayer", RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, RSCACHE_TYPE_VARPLAYER,
+          visit_varplayer },
+        { "varclient", RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, RSCACHE_TYPE_VARCLIENT,
+          visit_varclient },
+        { "inv", RSCACHE_DAT2_CONFIG_KIND_INV, RSCACHE_TYPE_INV, visit_inv },
     };
 
     /* Types whose archives are one record each, rather than config groups. */

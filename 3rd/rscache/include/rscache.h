@@ -51,6 +51,8 @@
 #include "datatypes/dat2_config_struct.h"
 #include "datatypes/dat2_config_db.h"
 #include "datatypes/dat2_config_param.h"
+#include "datatypes/dat2_config_var.h"
+#include "datatypes/dat2_config_inv.h"
 #include "datatypes/dat2_config_mapelement.h"
 #include "datatypes/dat2_worldmap.h"
 #include "datatypes/dat2_framemap.h"

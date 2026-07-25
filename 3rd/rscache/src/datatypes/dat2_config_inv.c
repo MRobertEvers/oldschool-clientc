@@ -1,0 +1,74 @@
+#include "dat2_config_inv.h"
+
+void
+RSCache_Dat2ConfigInvDecode(
+    struct RSCache_Dat2ConfigInv* entry,
+    struct RSCache_Buffer* buffer)
+{
+    if( !entry || !buffer )
+        return;
+
+    for( ;; )
+    {
+        if( buffer->position >= buffer->size )
+            break;
+
+        int opcode = g1(buffer);
+        if( opcode == 0 )
+            break;
+
+        if( opcode == 2 )
+            entry->size = g2(buffer);
+        else
+            break; /* Stop rather than guess a width — see the header. */
+    }
+}
+
+void
+RSCache_Dat2ConfigInvDecodeInplace(
+    struct RSCache_Dat2ConfigInv* entry,
+    const void* data,
+    int data_size)
+{
+    if( !entry )
+        return;
+    if( !data || data_size <= 0 )
+        return;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+    RSCache_Dat2ConfigInvDecode(entry, &buffer);
+    entry->_consumed = (int)buffer.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigInvEncodeBound(const struct RSCache_Dat2ConfigInv* entry)
+{
+    (void)entry;
+    return 4u;
+}
+
+uint32_t
+RSCache_Dat2ConfigInvEncode(
+    const struct RSCache_Dat2ConfigInv* entry,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out || out_capacity < 4u )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* Emitted when non-zero. Exact for the corpus, where every record carries a
+     * non-zero size; a zero-size record would re-encode as the bare terminator with
+     * the same meaning. */
+    if( entry->size != 0 )
+    {
+        p1(&buffer, 2);
+        p2(&buffer, entry->size);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}

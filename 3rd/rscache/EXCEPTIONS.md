@@ -5,7 +5,9 @@ or accepted a shortfall — with the reason, so none of it has to be re-derived 
 re-litigated later.
 
 Scope: the cache read/write expansion (revision-explicit structure, encoders,
-container writers, README). Phases 1–4 and 8 are complete; Phase 5 is partway.
+container writers, README). Phases 1–5 and 8 are complete, and Phase 6 is complete
+except for three types blocked on a reference client (B13). Phase 7 (engine wiring)
+remains.
 
 Three kinds of entry:
 
@@ -390,6 +392,55 @@ does not show up as a passing test. Nothing in the client boots a 643 cache toda
 work needed is a fifth format (or a 643-gated variant of ob3), which belongs with the
 decoder.
 
+### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
+
+**Status: varbit, varplayer, varclient and inv are implemented** — decoder, encoder and
+round-trip visitor each, at **100% semantic and 100% byte-exact over ~190,000 records**
+in six caches, with exact consumption asserted (not merely reported) because these are
+fixed-shape records with nothing for a decoder to lose.
+
+| Type | Records | Byte-exact | Consumption |
+|---|---|---|---|
+| varbit | 92,548 | 100% | exact |
+| varplayer | 25,588 | 100% | exact |
+| varclient | 6,131 | 100% | exact |
+| inv | 5,135 | 100% | exact |
+
+`hitsplat`, `healthbar` and `varclient_string` remain — all three blocked on a
+reference rather than on effort. The survey that established this is below.
+
+#### The original survey
+
+`varbit`, `varplayer`, `varclient`, `varclient_string`, `inv`, `hitsplat` and
+`healthbar` are declared in `dat2_configs.h` with no decoder. Surveyed rather than
+implemented; the survey is in `README.md` under "The undecoded config kinds" and the
+work is specced as Phase 6.
+
+Three things came out of it that were not previously known:
+
+1. **They are not era-specific.** Every one is present and populated in every OSRS
+   cache, and `varbit` holds more records than `npc` (19,650 vs 15,535 in
+   `cache.jan2026`). The enum was transcribed from RuneLite's `ConfigType` wholesale —
+   the comment is still in the v0 copy — and decoders were written only for the types
+   something drew.
+2. **Four wire formats were settled and implemented**, each pinned by a unique width
+   assignment consuming 100% of records across five caches: varbit (`1` = u16 basevar +
+   u8 startbit + u8 endbit), inv (`2` = u16 size), varplayer (`5` = u16 clientcode),
+   varclient (`2` = bare flag, `3` = u16). varbit and varplayer also match Client-TS's
+   dat1 equivalents. The same sweep proves the opcode *sets* complete for this corpus:
+   a record holding any other opcode would have failed to parse, and none did.
+3. **hitsplat and healthbar cannot be settled from the corpus** — see E1. Two are
+   blocked on a reference client, not on effort.
+
+**`varbit` has a live behavioural consequence**, which is why it was done first, and
+which the decoder alone does **not** fix — Phase 7 still has to load the types at boot.
+`VarPManager` implements varbit resolution fully, but nothing loads the types: the only
+loader parses the *dat1* `varbit.dat` blob and is called only from tests. So
+`varbit_count == 0` at runtime and `VarPManager_GetVarbit` returns 0 for every varbit —
+every CS2 script branching on one takes the zero path, and no CS2 hook triggering on a
+varbit ever fires. Varps themselves are unaffected (`apply_varp_value` grows `var[]`
+untyped on server writes); it is specifically the types that are absent.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*
@@ -462,6 +513,27 @@ edit decoders in place, never rewrite a file that already works.**
 - **`same-len` exists to make `exact` interpretable** (B3) — without it a low
   percentage cannot be told apart from data loss.
 
+### E1. Exact consumption is necessary but not sufficient — where it fails
+
+Worth stating plainly, because everything above leans on it and it has now come up
+short once. Exact consumption proves a decoder **wrong** very sharply; it does not
+prove one **right**.
+
+Establishing the `healthbar` opcode widths from the corpus, brute-forcing its seven
+observed opcodes over operand widths 0-4 gave **41 distinct assignments that all
+consume 100% of 85 distinct records** across three caches. Only three opcodes are
+pinned across every one of them.
+
+The technique works when records are long and varied — loc, npc and spotanim have
+enough opcodes per record that a wrong width desynchronises and misses the terminator.
+It fails when records are short with few opcodes, because there is slack to
+re-segment them into an equally-consuming but different parse. The four settled types
+in B13 are the good case in the extreme: their records are *fixed length*, so a single
+assignment survives.
+
+Practical rule: treat a unique-assignment result as evidence and a multiple-assignment
+result as "get a reference". Never ship the first assignment that consumes 100%.
+
 ---
 
 ## F. Not ours
@@ -473,33 +545,35 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1205 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1314 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
 | profile | 111 |
-| roundtrip | 223 |
+| roundtrip | 295 |
 | compression | 99 |
+| config_var | 37 |
 | bzip2 interop | 9 |
 
 Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-**Encoders: 20 — every datatype this library decodes.** The 13 config types (struct,
+**Encoders: 24 — every datatype this library decodes.** The 17 config types (struct,
 enum, param, idk, spotanim, obj, underlay, overlay, texture, mapelement, npc, loc,
-sequence) plus framemap, sprites, map terrain, frame, clientscript and model.
+sequence, **varbit, varplayer, varclient, inv**) plus framemap, sprites, map terrain,
+frame, clientscript and model.
 
-Semantic round-trip is asserted at 100% on all twenty, across every dat2 cache that
-carries the datatype.
+Semantic round-trip is asserted at 100% on all twenty-four, across every dat2 cache
+that carries the datatype.
 
 Byte-exactness, which is reported rather than asserted (see E):
 
 | Band | Datatypes |
 |---|---|
-| 100% | **model**, frame, clientscript, framemap (old caches), struct |
+| 100% | **varbit, varplayer, varclient, inv**, model, frame, clientscript, framemap (old caches), struct |
 | ~99% | underlay |
 | ~36% | sequence |
 | ~25% | sprites — ordering only (B3b) |
@@ -512,13 +586,19 @@ table with the cap printed).
 
 Remaining, both additive and neither blocking:
 
-- **Six missing decoders** — varbit, varplayer, varclient, varclient_string, inv,
-  hitsplat, healthbar. These have config-kind enum entries but no decoder at all, so
-  the read half has to be written before the write half.
+- **Three missing decoders** — hitsplat, healthbar and varclient_string. All three are
+  blocked on a reference client, not on effort: exact consumption cannot pin the first
+  two (E1) and the corpus cannot validate the third. The other four of the original
+  seven are done — see B13.
 - **Engine wiring** — `app.c` builds a `struct RSCache` from the manifest's
   `client_version`, the build caches store it, and the ~12 call sites that pass a bare
   revision or a raw flag constant pass it instead. Old entry points already survive as
   wrappers, so nothing else has to change.
+
+  This is also where the varbit bug in B13 actually gets fixed. The decoder now exists,
+  but nothing calls it: `VarPManager_SetVarbitTypes` still has no caller outside tests,
+  so `GetVarbit` keeps returning 0. Loading group 14 at boot and handing it over is the
+  remaining half.
 
 Two model-specific gaps are recorded above and are decoder work, not encoder work:
 the trailing region is carried without being understood (B11), and `cache.643`'s ob3

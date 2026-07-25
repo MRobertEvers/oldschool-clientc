@@ -24,6 +24,7 @@ comparing. Where a field's meaning is inferred rather than confirmed, it says so
 - [Layout of the library](#layout-of-the-library)
 - [Common ground: sectors and index files](#common-ground-sectors-and-index-files)
 - [dat2 — the JS5 container](#dat2--the-js5-container)
+  - [The variable and inventory config kinds](#the-variable-and-inventory-config-kinds)
 - [dat1 — the jagfile container](#dat1--the-jagfile-container)
 - [The revision model](#the-revision-model)
 - [Model stream layouts](#model-stream-layouts)
@@ -149,11 +150,117 @@ xteas.json                 optional: XTEA keys for encrypted map archives
 | 12 | clientscript | | |
 
 Table 2 (configs) is itself subdivided: archive `k` within it holds all records of
-config kind `k`. The kinds are in [dat2_configs.h](src/datatypes/dat2_configs.h) —
-1 underlay, 3 identkit, 4 overlay, 5 inv, 6 locs, 8 enum, 9 npc, 10 obj, 11 params,
-12 sequence, 13 spotanim, 14 varbit, 15 varclient string, 16 varplayer,
-19 varclient, 32 hitsplat, 33 healthbar, 34 struct, 35 area/mapelement, 38 dbrow,
-39 dbtable.
+config kind `k`, one file per record id. The kinds are in
+[dat2_configs.h](src/datatypes/dat2_configs.h).
+
+| Kind | Type | Decoder | Kind | Type | Decoder |
+|---|---|---|---|---|---|
+| 1 | underlay | yes | 16 | varplayer | yes |
+| 3 | identkit | yes | 19 | varclient | yes |
+| 4 | overlay | yes | 32 | hitsplat | **no** |
+| 5 | inv | yes | 33 | healthbar | **no** |
+| 6 | locs | yes | 34 | struct | yes |
+| 8 | enum | yes | 35 | area / mapelement | yes |
+| 9 | npc | yes | 38 | dbrow | yes |
+| 10 | obj | yes | 39 | dbtable | yes |
+| 11 | params | yes | | | |
+| 12 | sequence | yes | | | |
+| 13 | spotanim | yes | | | |
+| 14 | varbit | yes | | | |
+| 15 | varclient string | **no** | | | |
+
+Seven of these had no decoder until recently, and they were not obsolete or
+era-specific: every one is present and populated in every OSRS cache, and `varbit` holds
+more records than `npc`. The enum was transcribed from RuneLite's `ConfigType` in full,
+and decoders were written only for the types something drew. Four are now done; the
+three that remain are blocked on a reference client rather than on effort. See below.
+
+### The variable and inventory config kinds
+
+`varbit` (14), `varplayer` (16), `varclient` (19) and `inv` (5) live in
+`dat2_config_var.c` and `dat2_config_inv.c`. Each round-trips at **100% byte-exact**
+over the whole corpus with exact consumption asserted, which fixed-shape records make
+possible.
+
+Record counts, measured across the corpus:
+
+| Kind | Type | 643 | kronos | osrs184 | osrs230 | osrs239 | jan2026 |
+|---|---|---|---|---|---|---|---|
+| 14 | varbit | – | 9488 | 9510 | 17426 | 19008 | **19650** |
+| 16 | varplayer | 2121 | 2600 | 2604 | 4729 | 5705 | 5219 |
+| 19 | varclient | 1514 | 381 | 382 | 1259 | 1505 | 1345 |
+| 5 | inv | 609 | 633 | 633 | 920 | 1026 | 1003 |
+| 32 | hitsplat | 2008 | 14 | 14 | 78 | 83 | 82 |
+| 33 | healthbar | 177 | 12 | 12 | 81 | 85 | 83 |
+| 15 | varclient string | 351 | 0 | – | – | 8 | – |
+
+643's dashes are not empty groups — they are `Failed to read dat2 index entry for
+table 2 archive N`. The 643 branch shards its configs differently, so that column is
+not comparable to the OSRS ones.
+
+**What each is, and when it is read.**
+
+- **varbit** — a named bit range inside a varp: `basevar`, `startbit`, `endbit`. This
+  is how the game packs many small values (quest stages, setting toggles, diary
+  progress) into a shared player variable. Read whenever a script or interface asks for
+  one: the CS2 `read varbit` op, IF1 button handlers, and CS2 hook triggers.
+- **varplayer** — the *type* of a player variable. The only client-relevant field is
+  `clientcode`, which ties a varp to built-in client behaviour (run energy, weight,
+  chat filters). Read on a varp change to drive the client-side side effect.
+- **varclient** / **varclient string** — client-only variables, never server-synced.
+  The config says which ones persist across a logout. CS2 reads and writes these
+  constantly for UI state: selected tab, scroll offsets, options.
+- **inv** — the capacity of each inventory id (player inventory, bank, shops,
+  equipment). Needed by every inventory operation that has to know the container size.
+- **hitsplat** — how a damage splat is drawn: sprites, font, colours, offsets,
+  duration. Read on every combat hit.
+- **healthbar** — how an overhead health bar is drawn: front and back sprite ids,
+  width, duration.
+
+**How the four settled formats were established.** Every record of the group in five
+caches was dumped and the operand widths brute-forced over 0-4. In each case **exactly
+one** assignment consumes 100% of records, so the widths are pinned rather than assumed;
+the same sweep proves the opcode *sets* complete, since a record holding any other
+opcode would have failed to parse and none did. `varbit` and `varplayer` also match
+`Client-TS/src/config/VarBitType.ts` and `VarpType.ts`, the dat1 form of the same types.
+
+| Kind | Opcodes | Record shape |
+|---|---|---|
+| 14 varbit | `1` = u16 basevar, u8 startbit, u8 endbit · `10` = debugname (dat1 only) | fixed 6 bytes |
+| 5 inv | `2` = u16 size | fixed 4 bytes |
+| 16 varplayer | `5` = u16 clientcode | 1 byte (empty) or 4 |
+| 19 varclient | `2` = flag, no operand · `3` = u16 | 1, 2 or 5 bytes |
+
+Two details in there are load-bearing rather than incidental:
+
+- **A varbit with no base variable decodes to -1, not 0.** varplayer 0 is a real
+  variable, so the two must not be confused.
+- **varclient tracks opcode 3's *presence* separately from its value.** Forty records
+  carry it with an explicit zero, so keying the encoder on the value would drop the
+  opcode and shorten the record.
+
+The decoders take a **cursor**, not a `(data, size)` pair, with a thin per-record
+wrapper on top. That is what lets one codec serve both eras: dat2 splits a group into
+one file per id, while dat1 stores the same records back to back in a single
+`varbit.dat` blob behind a u16 count. On an opcode it does not know, a decoder stops
+rather than guessing an operand width, which leaves `_consumed` short of the record —
+the signal the round-trip harness asserts on, so an unrecognised field surfaces as a
+test failure instead of silently misaligning everything after it.
+
+**hitsplat and healthbar are not settled, and exact consumption cannot settle them** —
+the first place in this library that technique has come up short. Brute-forcing
+healthbar's seven observed opcodes yields **41 assignments that all consume 100% of 85
+distinct records**. Only `7 -> u16`, `11 -> u16` and `14 -> u8` are common to all 41;
+opcodes 2, 3, 5 and 8 stay ambiguous. The records are short with few opcodes, so there
+is room to re-segment them — the opposite of loc, npc and spotanim, where long varied
+records made consumption decisive. These need a reference client, not more measurement.
+
+**varclient string cannot be validated here at all.** The group is absent from
+`cache.osrs230` and `cache.jan2026`, empty in `cache.kronos`, and the 8 records in
+`cache.osrs239` do not look like string variables — 27 to 113 bytes, with runs of
+ascending u16s and opcodes up to 0x21. Either the id means something else by 239 or the
+type changed; 643 has 351 records but a different table-2 mapping, so it cannot
+corroborate either.
 
 ### Table 255 — the master index
 
