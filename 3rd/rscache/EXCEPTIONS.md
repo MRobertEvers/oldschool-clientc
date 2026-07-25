@@ -377,19 +377,189 @@ Consequences, both bounded and deliberate:
 The fix is to decode the region properly, which is a decoder change and out of scope
 here. Until then the encoder is faithful without being complete.
 
-### B12. `cache.643` ob3 models do not decode *(Gap)*
+### B12. `cache.643` models — fixed; the rest of 643 is not *(Partly resolved)*
 
-Revision 643 is RS2-branch, not OSRS, and its models do not fit the ob3 layout this
-library implements: re-deriving the section offsets independently, **1795 of 3000
-sampled models lay out past the end of the file**, and 355 use a face index type 0 that
-appears in no OSRS cache. Byte-exactness of 85.9% is the honest signal here; the 100%
-*semantic* figure is not evidence of anything, because both decodes are wrong in the
-same way and therefore agree.
+**Models decode.** `cache.643` went from 85.9% byte-exact to **65,014 / 65,014**, and the
+no-provenance path from 2,273 failures to zero. Two errors in `decode_ob3`, both found by
+reading `rs-map-viewer`'s `ModelData.decodeV1` — the only reference to hand that covers
+the RS2 branch:
 
-`cache.643` is deliberately **not** in the round-trip harness's cache list, so this
-does not show up as a passing test. Nothing in the client boots a 643 cache today. The
-work needed is a fifth format (or a 643-gated variant of ob3), which belongs with the
-decoder.
+1. **Header byte 4 is a bitmask, not a boolean.** Bit 0 is the face-render-types flag;
+   bit 1 announces particle effects, bit 2 billboards, bit 3 a version byte sitting
+   immediately *before* the 23-byte header. Testing the byte for `== 1` therefore read
+   bit 0 as clear on any model with particles or billboards, dropping a face-sized
+   section and shifting every offset after it.
+2. **A complex texture face is 15 bytes, not 19** — a 6-byte p/m/n triple, a scale block
+   whose width the version selects (6, or 7 at version 14, or 9 from 15), then one byte
+   each of rotation, direction and translation. The old figure overshot by 4 bytes per
+   complex face, which is why 1795 of 3000 sampled models laid out past their own end.
+
+Neither error could show on an OSRS cache: they contain **no complex texture faces at
+all**, so any per-complex figure is correct, and their flag byte is only ever 0 or 1.
+That is the whole reason this sat as a gap — the corpus that validated everything else
+could not see it.
+
+The particle and billboard payloads still are not decoded, by rs-map-viewer either — it
+computes `particleEffectsOffset` and never reads it. They sit past every other section,
+so the opaque tail already carries them and round-trips them byte-exactly.
+
+**The rest of 643 is not fixed**, and `manifest_rs643.ini` documents it: a 643 world does
+not render. Three gaps, none about models:
+
+1. **Config kind ids differ.** 643's table 2 lacks archives 6 (loc), 8, 9, 10, 12, 13 and
+   14 — the ids OSRS uses — and carries 15, 23, 36 and 40..48 instead. The kinds were
+   renumbered, so the loc group is not where the client looks.
+2. **Overlay decode aborts.** `RSCache_Dat2ConfigOverlayDecodeInplace` hits its
+   `assert(false)` on 643 records. A hard abort, so nothing renders regardless of (1).
+3. **Table 5 archives fail to decompress**, though the table is present with 5230
+   archives — a container-level difference rather than a missing table.
+
+**The three gaps are now fully specified**, from `void` (the 643-era server at
+`~/Documents/git_repos/void`) — clean named Kotlin decoders, which is what the two
+client deobs were not. Nothing below is inferred; it is transcribed.
+
+*(1) The 643 layout is not "renumbered config groups" — several types are their own
+top-level table.* From `cache/.../Index.kt`:
+
+| Type | OSRS | 643 |
+|---|---|---|
+| loc | table 2, group 6 | **table 16** |
+| enum | table 2, group 8 | **table 17** |
+| npc | table 2, group 9 | **table 18** |
+| obj | table 2, group 10 | **table 19** |
+| sequence | table 2, group 12 | **table 20** |
+| spotanim | table 2, group 13 | **table 21** |
+| varbit | table 2, group 14 | **table 22** |
+
+That explains the survey's "missing" archives exactly: they were never absent, they had
+moved out of table 2 altogether. It also means **table ids themselves are era-dependent**,
+which this library currently treats as universal — `RSCACHE_DAT2_DISK_TABLE_WORLDMAP` is
+19, but 643's table 19 is items; `..._WORLDMAP_GEOGRAPHY` is 18, and 643's 18 is npcs.
+Fixing this properly means the table enum becomes a per-profile mapping rather than a
+fixed set, which is a real design change and the reason 643 support is not a small job.
+
+The config kinds that *stayed* in table 2 mostly kept their ids (underlay 1, identkit 3,
+overlay 4, inv 5, params 11, sequences 12, varc strings 15, varp 16, varc 19) but four
+moved: **structs 34 -> 26, hitsplat 32 -> 46, healthbar 33 -> 72, varbit 14 -> 69**.
+
+*(2) The overlay/underlay opcode tables*, from `OverlayDecoder.kt` / `UnderlayDecoder.kt`.
+This is what our `assert(false)` was hitting — 643 overlay has nine opcodes OSRS does not:
+
+```
+overlay   1 -> u24 rgb        2 -> u8 texture     3 -> u16 texture (65535 => -1)  NEW
+          5 -> hideUnderlay=false                 7 -> u24 blend rgb
+          8 -> flag, no operand                   9 -> u16 scale << 2             NEW
+         10 -> flag blockShadow=false     NEW    11 -> u8                         NEW
+         12 -> flag underlayOverrides     NEW    13 -> u24 waterColour            NEW
+         14 -> u8 waterScale << 2         NEW    16 -> u8 waterIntensity          NEW
+
+underlay  1 -> u24 rgb        2 -> u16 texture (65535 => -1)     3 -> u16 scale << 2
+          4 -> flag blockShadow=false             5 -> flag
+```
+
+Note underlay opcode 2 is a **u16** in 643 where ours reads a byte, and overlay gains a
+u16 texture at opcode 3 — so even the shared opcodes are not all the same width.
+
+*(3) Table 5 decompression is LZMA*, from `cache/.../compress/DecompressionContext.kt`.
+The container compression byte has a fourth value this library does not implement:
+
+```
+0 = none      1 = bzip2      2 = gzip      3 = LZMA      (5 = non-OSRS packed, ours)
+```
+
+`archive.c` handles 0, 1, 2 and its own 5, then `assert("Unknown compression method" && 0)`
+— which is the "Failed to decompress dat2 archive for table 5" on 643. So this one is not
+a 643 *format* difference at all, it is a missing compressor: 643 packs some archives with
+LZMA. The header is the usual `type, compressed size, decompressed size`, then raw LZMA
+properties + stream at the current position. Needs an LZMA decoder vendored, which is a
+new third-party dependency and the only part of 643 support that is not just code.
+
+**Step 1 is done: the table allow-list is gone.**
+`RSCache_Dat2DiskIsValidTableId` was an allow-list over the *named* OSRS enum values, and
+`init_reference_tables` skips a rejected id **before** attempting the load — so an
+unnamed table was unreachable rather than merely absent, with nothing logged. It now
+accepts any id the container can address (`0 .. RSCACHE_DAT2_DISK_TABLE_COUNT`, widened to
+36). A table genuinely missing from a cache already returns NULL, which callers handle, so
+gating on a name bought nothing and cost a whole generation of support.
+
+`cache.rs643` now reports tables 16 (loc, 224 groups) and 17 (enum, 15) loaded. No
+regression: the OSRS caches load *more* tables than before (15, 17, 21 were previously
+unnamed), never fewer, and all round-trip checks stay green. RS2 ids are declared as a
+separate `enum RSCache_Dat2Rs2DiskTable`, not added to the OSRS enum, because 18-22
+collide between the lineages.
+
+**Step 2's addressing is confirmed, and it exposed a fourth gap.** Reading table 16 with
+`group = id >> 8, file = id & 0xFF` yields real loc records — **651 of 2048 across groups
+0-7 consume exactly** using the existing decoder. That proves the table and the addressing;
+what it also proves is that **643 loc records use opcodes the OSRS loc decoder does not
+implement** — 26, 42, 48, 76, 108, 116, 118, 126, 131, 184, 193, 202, 210, 220, 236, 237
+were all observed. The ~32% that decode are the records that happen to use only shared low
+opcodes.
+
+So the loc decoder needs a 643 variant, the same shape of job as the flo tables in step 4.
+`void`'s `ObjectDecoder.kt` is the reference (locs are "objects" in its naming). Fan-out is
+also **not uniform** across tables: loc and obj are 256 files per group, npc is 128, so the
+shift and mask have to be per-type rather than a fixed `>> 8`.
+
+**The shape of the fix: two container generations, not one with variations.**
+
+The right framing is a split — `DAT2_RS2` and `DAT2_OSRS` — rather than patching a table
+map onto today's single dat2. What differs is not a handful of fields, it is three
+namespaces at once:
+
+| | RS2 (643) | OSRS |
+|---|---|---|
+| table 18 | npcs | worldmap geography |
+| table 19 | items | worldmap |
+| table 22 | varbit / structs | animayas |
+| config kind 26 / 46 / 72 / 69 | structs / hitsplat / healthbar / varbit | *unused* |
+| config kind 34 / 32 / 33 / 14 | *other* | structs / hitsplat / healthbar / varbit |
+| compression byte 3 | LZMA | *unused* |
+| model format | ob3 with particle/billboard bits | v2 / v3 |
+
+The two share the sector and index layer completely — the same reader serves both — so the
+split belongs above that: `enum RSCache_Dat2DiskTable` and `enum RSCache_Dat2ConfigKind` are
+compile-time constants today and need to become profile-resolved lookups. `epoch` already
+distinguishes `RSCACHE_EPOCH_643` from `RSCACHE_EPOCH_OSRS`, so the identity to key off
+exists; nothing consults it for table or kind ids.
+
+This is why 643 is not a small job, and it is worth doing as a *container* change rather
+than a datatype one: every "643 field differs" symptom found so far turned out to be a
+consequence of reading the wrong archive.
+
+**`cache.rs643` is a different dump from `cache.643`** and is the better one to work
+against — 36 index files against 39, and the RS2 tables are populated (t18 npcs, t19 objs,
+t20 seqs, t21 spotanims, t22 varbits) where `cache.643` had them empty. Two things to note
+before relying on it:
+
+- Its RS2 table counts are small — npc 107, obj 81, seq 120, spotanim 12, varbit 9. Either
+  a partial dump or those ids mean something else again; not yet established.
+- **Tables 16 and 17 are rejected by an allow-list, not failing to decode.**
+  `RSCache_Dat2DiskIsValidTableId` is a switch over the *named* enum values, and 16/17
+  have no entry, so `init_reference_tables` hits `continue` **before** attempting the
+  load — hence no error message. Reading 255/16 directly and decoding it by hand works
+  first time: format 6, version 1182, **224 groups with dense ids 0..223**. So nothing is
+  broken here; the table is simply unreachable by name. This is the first fix and it is
+  tiny.
+
+- **RS2 loc addressing is group+file, not one flat config group.** 224 groups against
+  OSRS's single group of ~56k files implies ~256 files per group, i.e. `group = id >> 8,
+  file = id & 0xFF`. The exact fan-out is inferred from the arithmetic and should be
+  confirmed against a group's file count before the loader is written. The small counts
+  seen earlier (npc 107, obj 81, seq 120) are **group** counts for the same reason, not
+  evidence of a partial dump.
+
+Doing this properly is sequenced: the table mapping (1) has to land before the flo tables
+(2) are even reachable, since the loc group cannot be found until then. (3) is independent
+and can be done at any point.
+
+Also worth recording: **a manifest cannot request the 643 profile by revision.** The
+profile declares `version = RSCACHE_REVISION_UNKNOWN` deliberately (643 is not on the
+OSRS revision line — comparing across lineages is D16), so
+`RSCache_ProfileForContainerRevision(DAT2, 643)` misses it and falls back to the nearest
+*OSRS* profile. Leaving `client_version` unset works, but only because
+`0 == RSCACHE_REVISION_UNKNOWN` — a coincidence, not a mechanism. The fix is a
+cache-side `rev=` key resolving through `RSCache_ProfileByName("643")`.
 
 ### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
 

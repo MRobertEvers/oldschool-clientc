@@ -58,7 +58,35 @@ enum RSCache_Dat2DiskTable
     RSCACHE_DAT2_DISK_TABLE_DBTABLE_INDEX = 21,
     RSCACHE_DAT2_DISK_TABLE_ANIMAYAS = 22,
     RSCACHE_DAT2_DISK_TABLE_GAMEVALS = 24,
-    RSCACHE_DAT2_DISK_TABLE_COUNT,
+    RSCACHE_DAT2_DISK_TABLE_COUNT = 36,
+};
+
+/*
+ * RS2-branch table ids (the 643 era).
+ *
+ * A **separate set**, not extra entries above, because several ids mean different things
+ * in the two lineages and a single flat enum cannot hold both:
+ *
+ *   id | RS2 (643)  | OSRS
+ *   18 | npc        | worldmap geography
+ *   19 | obj        | worldmap
+ *   20 | seq        | worldmap ground
+ *   21 | spotanim   | dbtable index
+ *   22 | varbit     | animayas
+ *
+ * OSRS keeps these types as groups inside the config table (2); RS2 promotes them to
+ * their own top-level tables. Which set applies is an `epoch` question — see
+ * RSCache_Dat2DiskTableFor. Ids per void's Index.kt, verified against cache.rs643.
+ */
+enum RSCache_Dat2Rs2DiskTable
+{
+    RSCACHE_DAT2_RS2_TABLE_LOC = 16,
+    RSCACHE_DAT2_RS2_TABLE_ENUM = 17,
+    RSCACHE_DAT2_RS2_TABLE_NPC = 18,
+    RSCACHE_DAT2_RS2_TABLE_OBJ = 19,
+    RSCACHE_DAT2_RS2_TABLE_SEQ = 20,
+    RSCACHE_DAT2_RS2_TABLE_SPOTANIM = 21,
+    RSCACHE_DAT2_RS2_TABLE_VARBIT = 22,
 };
 
 /**

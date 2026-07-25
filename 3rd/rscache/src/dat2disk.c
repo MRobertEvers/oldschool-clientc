@@ -549,34 +549,20 @@ dat2disk_read_index(
 bool
 RSCache_Dat2DiskIsValidTableId(int table_id)
 {
-    switch( table_id )
-    {
-    case RSCACHE_DAT2_DISK_TABLE_ANIMATIONS:
-    case RSCACHE_DAT2_DISK_TABLE_SKELETONS:
-    case RSCACHE_DAT2_DISK_TABLE_CONFIGS:
-    case RSCACHE_DAT2_DISK_TABLE_INTERFACES:
-    case RSCACHE_DAT2_DISK_TABLE_SOUND_EFFECTS:
-    case RSCACHE_DAT2_DISK_TABLE_MAPS:
-    case RSCACHE_DAT2_DISK_TABLE_MUSIC_TRACKS:
-    case RSCACHE_DAT2_DISK_TABLE_MODELS:
-    case RSCACHE_DAT2_DISK_TABLE_SPRITES:
-    case RSCACHE_DAT2_DISK_TABLE_TEXTURES:
-    case RSCACHE_DAT2_DISK_TABLE_BINARY:
-    case RSCACHE_DAT2_DISK_TABLE_MUSIC_JINGLES:
-    case RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT:
-    case RSCACHE_DAT2_DISK_TABLE_FONTS:
-    case RSCACHE_DAT2_DISK_TABLE_MUSIC_SAMPLES:
-    case RSCACHE_DAT2_DISK_TABLE_MUSIC_PATCHES:
-    case RSCACHE_DAT2_DISK_TABLE_WORLDMAP_GEOGRAPHY:
-    case RSCACHE_DAT2_DISK_TABLE_WORLDMAP:
-    case RSCACHE_DAT2_DISK_TABLE_WORLDMAP_GROUND:
-    case RSCACHE_DAT2_DISK_TABLE_DBTABLE_INDEX:
-    case RSCACHE_DAT2_DISK_TABLE_ANIMAYAS:
-    case RSCACHE_DAT2_DISK_TABLE_GAMEVALS:
-        return true;
-    default:
-        return false;
-    }
+    /*
+     * Any table the container can address.
+     *
+     * This used to be an allow-list of the *named* OSRS enum values, which silently made
+     * whole tables unreachable rather than merely absent: `init_reference_tables` skips a
+     * rejected id before attempting the load, so nothing is even logged. Tables 16 and 17
+     * — where the RS2 branch keeps locs and enums — decode perfectly well once past this
+     * check, so the list was the only thing hiding them.
+     *
+     * A table that genuinely is not in a cache already returns NULL from the reference
+     * table load, which callers handle, so gating on a name bought nothing and cost a
+     * generation of support.
+     */
+    return table_id >= 0 && table_id < RSCACHE_DAT2_DISK_TABLE_COUNT;
 }
 
 static void
