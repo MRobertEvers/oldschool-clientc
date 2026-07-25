@@ -3,6 +3,17 @@
 
 #include "engine/cache_provider.h"
 
+/**
+ * Load every varbit type into `varps`, once, at boot — the dat1 counterpart of
+ * CreateTask_Dat2VarbitLoad. dat1 packs them all into `varbit.dat` in the config
+ * jagfile rather than one file per id; the per-record shape is the same.
+ */
+struct VarPManager;
+struct ToriRS_Task*
+CreateTask_Dat1VarbitLoad(
+    struct CacheProvider* provider,
+    struct VarPManager* varps);
+
 struct ToriRS_Task*
 CreateTask_Dat1ModelLoad(
     struct CacheProvider* provider,

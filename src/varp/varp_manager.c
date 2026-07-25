@@ -1,5 +1,7 @@
 #include "varp_manager.h"
 
+#include <stdio.h>
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -365,6 +367,20 @@ VarPManager_LoadVarbitDat(
         for( int i = 0; i < count; i++ )
             decode_varbit_type(&types[i], &c);
     }
+
+    /*
+     * The blob is self-describing only in its count, so a decode that stops short of
+     * the end means the per-record shape is wrong — the same exact-consumption check
+     * rscache uses, and the one the reference prints "varbit load mismatch" for. Warn
+     * rather than fail: the types read so far are still usable.
+     */
+    if( c.pos != size )
+        fprintf(
+            stderr,
+            "varbit.dat: decoded %d types but consumed %zu of %zu bytes\n",
+            count,
+            c.pos,
+            size);
 
     bool ok = VarPManager_SetVarbitTypes(mgr, types, count);
     free(types);

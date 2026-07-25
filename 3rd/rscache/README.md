@@ -157,7 +157,7 @@ config kind `k`, one file per record id. The kinds are in
 |---|---|---|---|---|---|
 | 1 | underlay | yes | 16 | varplayer | yes |
 | 3 | identkit | yes | 19 | varclient | yes |
-| 4 | overlay | yes | 32 | hitsplat | **no** |
+| 4 | overlay | yes | 32 | hitsplat | yes |
 | 5 | inv | yes | 33 | healthbar | yes |
 | 6 | locs | yes | 34 | struct | yes |
 | 8 | enum | yes | 35 | area / mapelement | yes |
@@ -172,9 +172,9 @@ config kind `k`, one file per record id. The kinds are in
 Seven of these had no decoder until recently, and they were not obsolete or
 era-specific: every one is present and populated in every OSRS cache, and `varbit` holds
 more records than `npc`. The enum was transcribed from RuneLite's `ConfigType` in full,
-and decoders were written only for the types something drew. Five are now done; the two
-that remain are `hitsplat` — which is not a fixed-width opcode stream at all — and
-`varclient string`, which this corpus cannot validate. See below.
+and decoders were written only for the types something drew. Six are now done; only
+`varclient string` remains, and it is the one this corpus genuinely cannot validate. See
+below.
 
 ### The variable and inventory config kinds
 
@@ -274,13 +274,28 @@ inventing names would be a guess dressed as knowledge.
 Derived from osrs230, osrs239 and jan2026 — and byte-exact on kronos and osrs184 too,
 which were never in the search.
 
-**hitsplat is a different problem: it is not a fixed-width opcode stream at all.**
-Searching every assignment of widths 0-4 over 243 distinct records yields **zero** that
-consume 100%, with or without the plausibility filter. So at least one field's length is
-not constant — a smart/varint, a string, or a width that depends on an earlier value.
-The dumps agree: `ff ff` appears mid-record, which is what a u16 `-1` sentinel looks
-like. A reference client would settle it in minutes; extending the solver to
-variable-width fields would not be quick.
+**hitsplat needed the same constraint plus a wider search.** Bounding operand widths at
+4 bytes yields **zero** assignments that consume the file — which looks like a statement
+about the format but is really a statement about the search: **opcode 18 carries an
+11-byte composite payload**, and a search that cannot represent it fails everywhere
+rather than pointing at it.
+
+Reading the records found it where searching could not. The shortest is unambiguous by
+inspection — `05 0d c1 | 08 00 00 | 09 00 96 | 00` is three u16 opcodes and a terminator
+— and the longest, `09 00 32 | 12 <11 bytes> | 00`, only balances at eleven. With opcode
+18 allowed up to 16 wide, and the plausibility rule applied to every scalar width rather
+than just 1-2 bytes, exactly one assignment survives:
+
+| Kind | Opcodes |
+|---|---|
+| 32 hitsplat | `5` = u16 sprite id · `8` = u16 · `9` = u16 · `11` = flag · `13` = u16 · `18` = 11-byte composite · `49` = u8 |
+
+Two things are carried rather than interpreted. **Opcode order is per record** — `5,8,9`,
+`5,8,11,9`, `8,49,5,9`, `8,49,5,9,13` and `9,18` all occur, which look like distinct kinds
+of splat — so the order is recorded and replayed. And **opcode 18's payload stays raw**:
+it looks like `u16, i16, u16, u8, u16, u16` (bytes 2-3 are `ff ff` on every record, an
+i16 `-1` sentinel, and the last three fields track each other), but that is suggestive
+rather than established, and round-tripping needs the bytes, not their names.
 
 **varclient string cannot be validated here at all.** The group is absent from
 `cache.osrs230` and `cache.jan2026`, empty in `cache.kronos`, and the 8 records in

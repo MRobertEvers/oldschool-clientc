@@ -7,6 +7,7 @@
 #include "net/jbase37.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
+#include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/player_appearance.h"
@@ -2335,11 +2336,13 @@ Task_AppBoot_Run(
      * load, so the table has to be resident first. Without it every varbit reads 0
      * and any script branching on one silently takes the zero path.
      *
-     * dat2 only: the dat1 varbits live in the config jagfile as a single
-     * `varbit.dat` blob, which VarPManager_LoadVarbitDat already parses — that side
-     * needs wiring into the dat1 config load, not this task.
+     * Both eras, different storage: dat2 splits config group 14 into one file per id,
+     * dat1 packs them into a single `varbit.dat` inside the config jagfile. CS1 reads
+     * varbits through the same VarPManager as CS2, so both need it.
      */
-    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
+        TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
+    else
         TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
     if( app->builder_active )

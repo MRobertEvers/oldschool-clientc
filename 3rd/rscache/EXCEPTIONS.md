@@ -405,11 +405,12 @@ fixed-shape records with nothing for a decoder to lose.
 | varclient | 6,131 | 100% | exact |
 | inv | 5,135 | 100% | exact |
 
-**`healthbar` is also implemented** — 354 records, 100% byte-exact — once a second
-constraint was found to break the tie exact consumption could not (B16).
+**`healthbar` and `hitsplat` are also implemented** — 354 and 349 records, both 100%
+byte-exact — once a second constraint broke the tie exact consumption could not (B16,
+B17).
 
-`hitsplat` and `varclient_string` remain. hitsplat is blocked on something sharper than
-a missing reference: no fixed-width opcode model fits it at all (B17).
+Only `varclient_string` remains, and it is the one genuinely blocked case: the corpus
+cannot validate a decoder for it at all.
 
 #### The original survey
 
@@ -431,9 +432,9 @@ Three things came out of it that were not previously known:
    varclient (`2` = bare flag, `3` = u16). varbit and varplayer also match Client-TS's
    dat1 equivalents. The same sweep proves the opcode *sets* complete for this corpus:
    a record holding any other opcode would have failed to parse, and none did.
-3. **healthbar was settled after all, by a second constraint** (B16). hitsplat was
-   not, and the reason turned out to be structural rather than a shortage of evidence
-   (B17).
+3. **Both healthbar and hitsplat were settled after all**, by a second constraint the
+   first pass had not tried (B16) and — for hitsplat — by widening a search bound that
+   was quietly doing all the damage (B17).
 
 **`varbit` has a live behavioural consequence**, which is why it was done first, and
 which the decoder alone does **not** fix — Phase 7 still has to load the types at boot.
@@ -599,23 +600,53 @@ are named after their opcode and only the two sprite ids get real names —
 noting the packing order is **7, 8, 2, 3, 5, 11, 14**, not ascending; emitting ascending
 order would round-trip semantically while reading 0% byte-exact.
 
-### B17. hitsplat is not a fixed-width opcode stream *(Gap)*
+### B17. hitsplat — one composite opcode hid the whole format *(Resolved)*
 
-A negative result, and a useful one — it rules out the whole family of models the search
-above covers, so nobody need repeat it.
+Recorded at length because the **wrong conclusion** was drawn here first, and the
+mistake is an easy one to repeat.
 
-Searching every assignment of operand widths 0-4 to hitsplat's opcodes, over 243
-distinct records in three caches, yields **zero** that consume 100% — and zero even with
-the plausibility constraint switched off. So the format is not "opcode, then a
-fixed-width operand" for any width assignment whatsoever.
+The measurement was right: brute-forcing every assignment of operand widths 0-4 over
+243 distinct records yields **zero** that consume the file, with or without the
+plausibility filter. The conclusion drawn from it — "not a fixed-width opcode stream,
+needs a reference client" — was wrong. It is a fixed-width stream except for one opcode:
 
-It must therefore contain at least one field whose length is not a constant: a
-smart/varint, a string, or a field whose width depends on a value read earlier. The
-dumps support that — `ff ff` appears mid-record, which is what a u16 `-1` sentinel looks
-like, and `0x31` (49) shows up as an apparent opcode far above the others.
+> **Opcode 18 carries an 11-byte composite payload.** A search bounded at 4 bytes cannot
+> represent it, so instead of pointing at opcode 18 the search fails *everywhere* and
+> looks like a statement about the whole format.
 
-Extending the solver to variable-width fields is possible but the search space grows
-sharply, and a reference client would settle it in minutes. Left for one.
+That is the trap: a search over too small a hypothesis space returns "no solution", which
+reads like "the model is wrong" when it actually means "the model is too narrow". A
+zero-survivor result says nothing about *which* assumption failed.
+
+What found it was reading the data instead of searching it. The shortest record is
+unambiguous by inspection — `05 0d c1 | 08 00 00 | 09 00 96 | 00` is three u16 opcodes
+and a terminator — and the longest, `09 00 32 | 12 <11 bytes> | 00`, only balances if
+opcode 18 consumes eleven. Re-running the search with opcode 18 allowed up to 16 wide
+leaves four assignments; extending the healthbar plausibility constraint to every scalar
+width (it had been capped at 2 bytes) leaves exactly one:
+
+```
+5 -> u16 (sprite id)   8 -> u16   9 -> u16   11 -> flag   13 -> u16
+18 -> 11-byte composite   49 -> u8
+```
+
+243/243 records consume exactly. Derived from osrs230, osrs239 and jan2026; byte-exact on
+kronos and osrs184 too, which were never in the search — 349 records, six caches, 100%.
+
+Two things are carried rather than interpreted, both deliberately:
+
+- **Opcode order is per record.** Unlike healthbar there is no single packing order:
+  `5,8,9` · `5,8,11,9` · `8,49,5,9` · `8,49,5,9,13` · `9,18` all occur. These look like
+  distinct kinds of splat with distinct field sets. The order is recorded and replayed,
+  as the model encoder does for its per-face index types.
+- **Opcode 18's 11 bytes stay raw.** They look like `u16, i16, u16, u8, u16, u16` —
+  bytes 2-3 are `ff ff` on every record, which is what an i16 `-1` sentinel looks like,
+  and the last three fields track each other. Suggestive, not established; splitting on
+  an unverified boundary would bake a guess into the API and buy nothing, since
+  round-tripping needs the bytes and not their names.
+
+Only opcode 5 gets a real name (`sprite_id` — 49 distinct values in 1105-4770, every one
+a valid sprite id). The rest keep their opcode numbers.
 
 ### E1. Exact consumption is necessary but not sufficient — where it fails
 
@@ -654,14 +685,14 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1341 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1359 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
 | container | 505 |
 | profile | 120 |
-| roundtrip | 313 |
+| roundtrip | 331 |
 | compression | 99 |
 | config_var | 37 |
 | bzip2 interop | 9 |
@@ -670,19 +701,19 @@ Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-**Encoders: 25 — every datatype this library decodes.** The 18 config types (struct,
+**Encoders: 26 — every datatype this library decodes.** The 19 config types (struct,
 enum, param, idk, spotanim, obj, underlay, overlay, texture, mapelement, npc, loc,
-sequence, **varbit, varplayer, varclient, inv, healthbar**) plus framemap, sprites, map
-terrain, frame, clientscript and model.
+sequence, **varbit, varplayer, varclient, inv, healthbar, hitsplat**) plus framemap,
+sprites, map terrain, frame, clientscript and model.
 
-Semantic round-trip is asserted at 100% on all twenty-five, across every dat2 cache
+Semantic round-trip is asserted at 100% on all twenty-six, across every dat2 cache
 that carries the datatype.
 
 Byte-exactness, which is reported rather than asserted (see E):
 
 | Band | Datatypes |
 |---|---|
-| 100% | **varbit, varplayer, varclient, inv, healthbar**, model, frame, clientscript, framemap (old caches), struct |
+| 100% | **varbit, varplayer, varclient, inv, healthbar, hitsplat**, model, frame, clientscript, framemap (old caches), struct |
 | ~99% | underlay |
 | ~36% | sequence |
 | ~25% | sprites — ordering only (B3b) |
@@ -695,9 +726,9 @@ table with the cap printed).
 
 Remaining, both additive and neither blocking:
 
-- **Two missing decoders** — hitsplat and varclient_string. hitsplat is not a
-  fixed-width opcode stream at all (B17); varclient_string cannot be validated against
-  this corpus. Five of the original seven are done — see B13 and B16.
+- **One missing decoder** — varclient_string, the only genuinely blocked case: absent
+  from two caches, empty in a third, and the 8 records in osrs239 do not look like
+  string variables at all. Six of the original seven are done — see B13, B16 and B17.
 - **The remaining revision-taking call sites.** Phase 7 converted the ones that
   matter (see B14); `spotanim` and `component` still take a bare revision. spotanim
   `(void)`s it, so converting it changes no behaviour — cosmetic, and left alone
