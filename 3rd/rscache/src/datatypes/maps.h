@@ -95,6 +95,26 @@ struct RSCache_MapFloor
     uint8_t settings;
     uint8_t shape;
     uint8_t rotation;
+
+    /*
+     * Provenance, so the record can be written back.
+     *
+     * `height` alone cannot answer "did the source specify a height?" — the
+     * post-decode fixup fills it in procedurally wherever it decoded as 0, so
+     * "absent" and "authored" are the same state afterwards. An encoder reading
+     * only `height` would emit an opcode-1 height for every tile and bake the
+     * generated terrain into the file.
+     *
+     * `height_authored` records that opcode 1 was present, and `authored_height`
+     * keeps the raw wire byte. Both are needed rather than just the flag: fixup
+     * overwrites `height` when it is 0, so a tile that genuinely specified height 0
+     * would otherwise still lose its value.
+     *
+     * These are set on decode whether or not fixup runs, so one encoder handles a
+     * raw stream and a fixed-up one identically.
+     */
+    uint8_t height_authored;
+    uint8_t authored_height;
 };
 
 struct RSCache_MapTerrain
@@ -109,10 +129,28 @@ struct RSCache_MapTerrain
 #define RSCACHE_CHUNK_TILE_COUNT                                                                   \
     ((RSCACHE_MAP_TERRAIN_X * RSCACHE_MAP_TERRAIN_Z * RSCACHE_MAP_TERRAIN_LEVELS))
 
-/** Terrain tile attribute / overlay id width. Purely a container difference:
- *  jagfile-era map squares store these as u8, js5-era ones as u16. */
+/*
+ * Terrain decode flags. A bitmask — test with `&`, not `==`.
+ *
+ * The width bit is a container difference: jagfile-era map squares store the tile
+ * attribute and overlay id as u8, js5-era ones as u16.
+ */
+/** u16 attribute/overlay widths. Zero, so it is the default. */
 #define RSCACHE_MAP_TERRAIN_DECODE_U16 0
+/** u8 attribute/overlay widths (dat1). */
 #define RSCACHE_MAP_TERRAIN_DECODE_U8 1
+/**
+ * Skip the post-decode fixup.
+ *
+ * The fixup generates a height for every tile that decoded without one — from
+ * Perlin noise at level 0, derived from the level below above that — which is what
+ * the renderer wants but means the terrain it produces is not what the file said.
+ * Pass this to get the stream exactly as stored.
+ *
+ * Not required for encoding: the decode records `height_authored` either way. This
+ * exists for callers that want the untouched values, e.g. to compare two caches.
+ */
+#define RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP 2
 
 /** Terrain decode flags for this cache. Replaces callers hardcoding the width
  *  from whichever provider they happen to live in. */
@@ -147,6 +185,39 @@ RSCache_MapTerrainNewFromDecodeFlags(
     int map_x,
     int map_z,
     int flags);
+
+/**
+ * Encode map-square terrain.
+ *
+ * Works on a terrain decoded either way — raw (RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP)
+ * or fixed up — because the decode records height provenance in
+ * `height_authored` / `authored_height` rather than leaving the encoder to guess
+ * from `height`. Guessing is not possible: the fixup rewrites `height` for *every*
+ * tile, procedurally where the file gave none and scaled by the tile-height basis
+ * where it did, so nothing writable survives in that field.
+ *
+ * Pass the same width flag the decode used — the tile attribute and overlay id are
+ * u8 in dat1 and u16 in dat2, and using the wrong width shifts every tile.
+ *
+ * `shape` and `rotation` are not written because both derive from `attr_opcode`,
+ * which is stored verbatim.
+ *
+ * Byte-exactness depends only on the order the source listed a tile's attributes in:
+ * this writes overlay, settings, underlay, then the terminator, and the decoder
+ * accepts them in any order.
+ *
+ * Returns bytes written, or 0 on failure.
+ */
+uint32_t
+RSCache_MapTerrainEncode(
+    const struct RSCache_MapTerrain* map_terrain,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Worst-case output size for RSCache_MapTerrainEncode at the given width flag. */
+uint32_t
+RSCache_MapTerrainEncodeBound(int flags);
 
 struct RSCache_MapTerrain*
 RSCache_MapTerrainNewDecode(

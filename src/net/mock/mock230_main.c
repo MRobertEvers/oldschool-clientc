@@ -380,6 +380,63 @@ send_inv_full(
     send_packet(fd, enc, 10, g_body, buf.position, 2); /* var-short */
 }
 
+/* pSmart: values under 128 go out as one byte, larger ones as a big-endian
+ * short biased by 0x8000. */
+static void
+psmart(
+    struct RSCache_Buffer* b,
+    int v)
+{
+    if( v < 128 )
+    {
+        p1(b, v);
+        return;
+    }
+    p2(b, v + 0x8000);
+}
+
+/* RSProt UpdateInvPartialEncoder: pCombinedId, p2 inventoryId, then per changed
+ * slot pSmart(slot) + the same slot body the full encoder writes. `slots` is a
+ * sparse list of {slot, obj, count}; obj < 0 clears the slot. */
+struct MockInvSlotUpdate
+{
+    int slot;
+    int obj_id;
+    int count;
+};
+
+static void
+send_inv_partial(
+    int fd,
+    struct Isaac* enc,
+    int component,
+    int container,
+    struct MockInvSlotUpdate const* updates,
+    int update_count)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, g_body, sizeof(g_body));
+    p4(&buf, component); /* pCombinedId */
+    p2(&buf, container);
+    for( int i = 0; i < update_count; i++ )
+    {
+        int obj_id = updates[i].obj_id;
+        int count = updates[i].count;
+        psmart(&buf, updates[i].slot);
+        if( obj_id < 0 || count <= 0 )
+        {
+            p1alt2(&buf, 0);
+            p2(&buf, 0);
+            continue;
+        }
+        p1alt2(&buf, count > 0xff ? 0xff : count);
+        if( count >= 255 )
+            p4alt1(&buf, count);
+        p2(&buf, obj_id + 1);
+    }
+    send_packet(fd, enc, 37, g_body, buf.position, 2); /* var-short */
+}
+
 static void
 send_message_game(
     int fd,
@@ -601,6 +658,27 @@ send_login_burst(
         send_inv_full(fd, enc, (149 << 16) | 0, 93, backpack, 28);
     }
     send_inv_full(fd, enc, (387 << 16) | 0, 94, NULL, 0);
+
+    /* 6b. Follow-up UPDATE_INV_PARTIAL over the same container, so the sparse
+     *     encoder is exercised alongside the full one: a plain item, a stack
+     *     past the 255 count escape, and a cleared slot. */
+    {
+        static struct MockInvSlotUpdate const updates[] = {
+            { 1, 1333, 1     }, /* rune scimitar */
+            { 2, 995,  15000 }, /* coins: count escapes to the 4-byte form. NB the
+                                 * icon does not rasterize yet for stacks that
+                                 * resolve to a high count_obj variant — the wire
+                                 * value arrives fine (TORIRS_INV_DEBUG). */
+            { 3, -1,   0     }, /* clear (already empty; must stay empty) */
+        };
+        send_inv_partial(
+            fd,
+            enc,
+            (149 << 16) | 0,
+            93,
+            updates,
+            (int)(sizeof(updates) / sizeof(updates[0])));
+    }
 
     /* 7. All 23 skills at level 1. */
     for( int skill = 0; skill < 23; skill++ )

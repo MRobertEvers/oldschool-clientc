@@ -643,10 +643,185 @@ test_disk_writer(void)
     (void)system(command);
 }
 
+static void
+check_terrain_roundtrip(
+    int flags,
+    const char* label)
+{
+    rscache_test_group = label;
+
+    /*
+     * Build a terrain stream by hand rather than reading one off disk: map archives
+     * are XTEA-encrypted, and a synthetic square can cover the cases that matter —
+     * bare tiles, overlays, settings, underlays, an authored height, and crucially an
+     * authored height of *zero*, which is the case the fixup would otherwise destroy.
+     */
+    uint8_t source[1 << 20];
+    struct RSCache_Buffer writer;
+    RSCache_BufferInit(&writer, source, sizeof(source));
+
+    bool u16 = !(flags & RSCACHE_MAP_TERRAIN_DECODE_U8);
+    int tile_index = 0;
+
+    for( int level = 0; level < RSCACHE_MAP_TERRAIN_LEVELS; level++ )
+    {
+        for( int x = 0; x < RSCACHE_MAP_TERRAIN_X; x++ )
+        {
+            for( int z = 0; z < RSCACHE_MAP_TERRAIN_Z; z++ )
+            {
+                int variant = tile_index % 6;
+                tile_index++;
+
+                switch( variant )
+                {
+                case 0:
+                    /* Bare tile: terminator only. */
+                    break;
+                case 1:
+                    /* Overlay: opcode 2..49 then the overlay id. */
+                    if( u16 )
+                    {
+                        p2(&writer, 6);
+                        p2(&writer, 300);
+                    }
+                    else
+                    {
+                        p1(&writer, 6);
+                        p1(&writer, 40);
+                    }
+                    break;
+                case 2:
+                    /* Settings: opcode 50..81. */
+                    if( u16 )
+                        p2(&writer, 49 + 5);
+                    else
+                        p1(&writer, 49 + 5);
+                    break;
+                case 3:
+                    /* Underlay: opcode 82+. */
+                    if( u16 )
+                        p2(&writer, 81 + 7);
+                    else
+                        p1(&writer, 81 + 7);
+                    break;
+                case 4:
+                    /* Authored height, non-zero. */
+                    if( u16 )
+                        p2(&writer, 1);
+                    else
+                        p1(&writer, 1);
+                    p1(&writer, 42);
+                    continue; /* opcode 1 terminates the tile */
+                default:
+                    /* Authored height of ZERO. Indistinguishable from "absent" if
+                     * only `height` is consulted, because the fixup overwrites a
+                     * zero height. This is the case that requires provenance. */
+                    if( u16 )
+                        p2(&writer, 1);
+                    else
+                        p1(&writer, 1);
+                    p1(&writer, 0);
+                    continue;
+                }
+
+                if( u16 )
+                    p2(&writer, 0);
+                else
+                    p1(&writer, 0);
+            }
+        }
+    }
+
+    int source_size = (int)writer.position;
+
+    struct RSCache_MapTerrain* decoded = RSCache_MapTerrainNewFromDecodeFlags(
+        (char*)source, source_size, 50, 50, flags);
+    RSCACHE_CHECK(decoded != NULL);
+    if( !decoded )
+        return;
+
+    /* The fixup flag must actually take effect. */
+    bool expect_fixed = !(flags & RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP);
+    RSCACHE_CHECK_EQ(decoded->is_fixedup, expect_fixed);
+
+    uint32_t bound = RSCache_MapTerrainEncodeBound(flags);
+    uint8_t* encoded = malloc(bound);
+    RSCACHE_CHECK(encoded != NULL);
+    if( !encoded )
+    {
+        free(decoded);
+        return;
+    }
+
+    uint32_t written = RSCache_MapTerrainEncode(decoded, flags, encoded, bound);
+    RSCACHE_CHECK(written > 0);
+
+    /* Byte-exact: this synthetic source lists attributes in the same canonical order
+     * the encoder writes, so nothing should differ. */
+    RSCACHE_CHECK_EQ(written, (uint32_t)source_size);
+    if( written == (uint32_t)source_size )
+        RSCACHE_CHECK_BYTES_EQ(encoded, source, source_size);
+
+    /* And it must decode back to the same tiles. */
+    struct RSCache_MapTerrain* again =
+        RSCache_MapTerrainNewFromDecodeFlags((char*)encoded, (int)written, 50, 50, flags);
+    RSCACHE_CHECK(again != NULL);
+    if( again )
+    {
+        bool equal = true;
+        int authored_zero_seen = 0;
+        for( int i = 0; i < RSCACHE_CHUNK_TILE_COUNT; i++ )
+        {
+            const struct RSCache_MapFloor* want = &decoded->tiles_xyz[i];
+            const struct RSCache_MapFloor* got = &again->tiles_xyz[i];
+
+            if( want->height_authored && want->authored_height == 0 )
+                authored_zero_seen++;
+
+            if( want->overlay_id != got->overlay_id || want->underlay_id != got->underlay_id ||
+                want->attr_opcode != got->attr_opcode || want->settings != got->settings ||
+                want->shape != got->shape || want->rotation != got->rotation ||
+                want->height != got->height ||
+                want->height_authored != got->height_authored ||
+                want->authored_height != got->authored_height )
+            {
+                equal = false;
+                break;
+            }
+        }
+        RSCACHE_CHECK(equal);
+        /* The authored-zero case has to be present, or the test is not covering the
+         * situation that motivated recording provenance at all. */
+        RSCACHE_CHECK(authored_zero_seen > 0);
+        free(again);
+    }
+
+    free(encoded);
+    free(decoded);
+}
+
+static void
+test_map_terrain(void)
+{
+    RSCACHE_TEST_GROUP("map terrain");
+
+    /* Both widths, and both with and without the fixup — the encoder has to be
+     * indifferent to whether the terrain it is handed was transformed. */
+    check_terrain_roundtrip(RSCACHE_MAP_TERRAIN_DECODE_U16, "terrain: u16, fixed up");
+    check_terrain_roundtrip(RSCACHE_MAP_TERRAIN_DECODE_U8, "terrain: u8, fixed up");
+    check_terrain_roundtrip(
+        RSCACHE_MAP_TERRAIN_DECODE_U16 | RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP,
+        "terrain: u16, raw");
+    check_terrain_roundtrip(
+        RSCACHE_MAP_TERRAIN_DECODE_U8 | RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP,
+        "terrain: u8, raw");
+}
+
 int
 main(void)
 {
     printf("container tests\n");
+    test_map_terrain();
     test_archive_container();
     test_dat2_group();
     test_jagfile();

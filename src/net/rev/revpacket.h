@@ -42,6 +42,11 @@ struct PktPlayerInfo
 struct PktUpdateInvFull
 {
     int component_id;
+    /* Container id the revision addresses separately from the bound component
+     * (rev 230+ sends both: combinedId + inventoryId). -1 when the revision has
+     * no such field and the component id *is* the container key. CS2 reads
+     * containers by inventory id (93 backpack, 94 worn), so this wins when set. */
+    int inv_id;
     int size;
     // These are 1-indexed, e.g. 841 is shortbow. Over the
     // network, it's sent as 842.
@@ -396,6 +401,7 @@ struct PktUpdateRunWeight
 struct PktUpdateInvStopTransmit
 {
     int component_id; /* g2 */
+    int inv_id;       /* see PktUpdateInvFull.inv_id; -1 when absent */
 };
 
 struct PktUpdateInvPartialEntry
@@ -408,6 +414,7 @@ struct PktUpdateInvPartialEntry
 struct PktUpdateInvPartial
 {
     int component_id;
+    int inv_id; /* see PktUpdateInvFull.inv_id; -1 when absent */
     int count;
     struct PktUpdateInvPartialEntry* entries; /* heap-allocated, count entries */
 };

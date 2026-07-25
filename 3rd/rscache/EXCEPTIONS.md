@@ -214,6 +214,58 @@ widen in other lineages.
 
 ---
 
+### B8. `frame` cannot be encoded until its decode stops synthesizing *(Gap)*
+
+Every encoder inverts a *parse*. `frame`'s decode is not a parse — it **synthesizes
+entries that were never in the stream** — so an encoder would persist invented data as
+if it had been authored.
+
+`frame_new_decode` runs two cursors (a flag stream and a data stream) and *inserts*
+entries: for a bone whose type is non-zero it walks backwards and adds a
+zero-translation entry for the nearest preceding type-0 bone. It also drops bones
+whose flag byte is `<= 0`, so absent and zero-flagged are indistinguishable. The
+output arrays interleave real and synthesized entries with nothing marking which is
+which.
+
+Inverting that means reconstructing the flag stream *and* knowing which entries were
+invented. The synthesized ones are inferable (all-zero translation on a type-0 bone
+immediately preceding a non-zero one) but the inference is fragile, and getting it
+subtly wrong yields animation data that decodes to different bone transforms — a
+failure that looks like a rendering glitch rather than a cache error.
+
+**The fix is the same one applied to maps** (see below): record provenance during
+decode — a per-entry `synthesized` flag, plus the raw flag bytes — rather than trying
+to recover it afterwards. Not yet done.
+
+### B8b. `maps` terrain — resolved by recording provenance
+
+Previously listed here as unencodable for the same reason. `fixup_terrain` rewrites
+`height` for **every** tile — procedurally from Perlin noise where the file gave none,
+scaled by the tile-height basis where it did — so nothing writable survives in that
+field, and "absent" and "authored" become the same state.
+
+Fixed rather than worked around, by recording provenance at decode time:
+
+- `RSCache_MapFloor.height_authored` — opcode 1 was present.
+- `RSCache_MapFloor.authored_height` — the raw wire byte. Needed *as well as* the
+  flag, because the fixup overwrites `height` when it is 0, so a tile that genuinely
+  specified height 0 would otherwise still lose its value. That case is covered
+  explicitly in the test.
+- `RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP` — opt-in raw decode, for callers that want the
+  stored values untouched.
+
+Both fields are set whether or not the fixup runs, so **one encoder handles a raw
+stream and a fixed-up one identically** — the flag is not required for encoding.
+
+Client behaviour is unchanged: the fixup still runs by default, nothing sets
+NO_FIXUP, and `MapFloor` was 9 bytes padded to 10 so the two new bytes cost no memory.
+One related correction: the flags word was tested with `==` against
+`RSCACHE_MAP_TERRAIN_DECODE_U16` (zero), which would have silently selected the wrong
+width the moment any other bit was added; it is now a proper `&` test.
+
+`shape` and `rotation` need no reconstruction — `attr_opcode` stores the original
+overlay opcode verbatim and both derive from it.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*
@@ -293,12 +345,12 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1135 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1171 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
 | rsbuffer | 267 |
-| container | 469 |
+| container | 505 |
 | profile | 111 |
 | roundtrip | 189 |
 | compression | 99 |
@@ -317,6 +369,14 @@ The round-trip harness now scans both traversals — config groups (many records
 archive) and whole-archive tables (one record per archive, capped at 2000 archives
 per table with the cap printed).
 
-Remaining binary types: model (four formats behind a magic trailer), frame, maps,
-clientscript. Then the six missing decoders (varbit, varplayer, varclient,
-varclient_string, inv, hitsplat, healthbar) and engine wiring.
+Encoders done (16): the 13 config types, plus framemap, sprites and map terrain.
+
+Remaining binary types:
+  - **model** — four formats behind a magic trailer, ~2300 lines of decoder. Tractable
+    but large; its own increment.
+  - **clientscript** — cs2 bytecode; not yet examined.
+  - **frame** — blocked on B8: needs provenance recorded at decode, the same treatment
+    map terrain just received.
+
+Then the six missing decoders (varbit, varplayer, varclient, varclient_string, inv,
+hitsplat, healthbar) and engine wiring.

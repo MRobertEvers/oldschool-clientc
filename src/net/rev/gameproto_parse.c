@@ -213,6 +213,7 @@ gameproto_parse(
     case PKT_NAME_UPDATE_INV_FULL:
     {
         packet->_update_inv_full.component_id = g2(&buffer);
+        packet->_update_inv_full.inv_id = -1; /* component id is the container key */
         packet->_update_inv_full.size = g1(&buffer);
 
         packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
@@ -582,12 +583,14 @@ gameproto_parse(
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
     {
         packet->_update_inv_stop_transmit.component_id = g2(&buffer);
+        packet->_update_inv_stop_transmit.inv_id = -1;
         assert(buffer.position == data_size);
         return 1;
     }
     case PKT_NAME_UPDATE_INV_PARTIAL:
     {
         packet->_update_inv_partial.component_id = g2(&buffer);
+        packet->_update_inv_partial.inv_id = -1;
         /* count is derived from remaining bytes; allocate conservatively */
         int max_entries = (data_size - 2) / 5 + 1;
         packet->_update_inv_partial.entries =

@@ -252,7 +252,7 @@ RSCache_MapTerrainNewFromDecodeFlags(
 
                 while( true )
                 {
-                    int attribute = read_decode(&buffer, flags == RSCACHE_MAP_TERRAIN_DECODE_U16);
+                    int attribute = read_decode(&buffer, !(flags & RSCACHE_MAP_TERRAIN_DECODE_U8));
                     if( attribute == 0 )
                     {
                         break;
@@ -262,11 +262,15 @@ RSCache_MapTerrainNewFromDecodeFlags(
                         int height = g1(&buffer);
                         assert(tile->height == 0);
                         tile->height = height;
+                        /* Provenance for the encoder: the fixup below will
+                         * overwrite `height` if it is 0, so keep the raw byte. */
+                        tile->height_authored = 1;
+                        tile->authored_height = (uint8_t)height;
                         break;
                     }
                     else if( attribute <= 49 )
                     {
-                        tile->overlay_id = read_decode(&buffer, flags == RSCACHE_MAP_TERRAIN_DECODE_U16);
+                        tile->overlay_id = read_decode(&buffer, !(flags & RSCACHE_MAP_TERRAIN_DECODE_U8));
                         tile->attr_opcode = attribute;
                         tile->shape = (attribute - 2) / 4;
                         tile->rotation = (attribute - 2) & 3;
@@ -284,9 +288,103 @@ RSCache_MapTerrainNewFromDecodeFlags(
         }
     }
 
-    fixup_terrain(map_terrain, map_x, map_z);
+    /* fixup_terrain sets is_fixedup itself. */
+    if( !(flags & RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP) )
+        fixup_terrain(map_terrain, map_x, map_z);
 
     return map_terrain;
+}
+
+static void
+write_decode(
+    struct RSCache_Buffer* buffer,
+    int value,
+    bool u16)
+{
+    if( u16 )
+        p2(buffer, value);
+    else
+        p1(buffer, value);
+}
+
+uint32_t
+RSCache_MapTerrainEncodeBound(int flags)
+{
+    /* Worst case per tile: an overlay opcode and its id, a settings opcode, an
+     * underlay opcode, then the height opcode and its byte. */
+    uint32_t width = (flags & RSCACHE_MAP_TERRAIN_DECODE_U8) ? 1u : 2u;
+    uint32_t per_tile = width * 5u + 1u;
+    return per_tile * (uint32_t)RSCACHE_CHUNK_TILE_COUNT + 64u;
+}
+
+uint32_t
+RSCache_MapTerrainEncode(
+    const struct RSCache_MapTerrain* map_terrain,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !map_terrain || !out )
+        return 0;
+    if( out_capacity < RSCache_MapTerrainEncodeBound(flags) )
+        return 0;
+
+    bool u16 = !(flags & RSCACHE_MAP_TERRAIN_DECODE_U8);
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* Same traversal order as the decode: level, then x, then z. */
+    for( int level = 0; level < RSCACHE_MAP_TERRAIN_LEVELS; level++ )
+    {
+        for( int x = 0; x < RSCACHE_MAP_TERRAIN_X; x++ )
+        {
+            for( int z = 0; z < RSCACHE_MAP_TERRAIN_Z; z++ )
+            {
+                const struct RSCache_MapFloor* tile =
+                    &map_terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(x, z, level)];
+
+                /*
+                 * The decoder accepts these in any order and stops at opcode 0 or 1,
+                 * so height is necessarily last. Everything else is emitted in
+                 * ascending opcode order.
+                 *
+                 * shape and rotation are not written: both are derived from
+                 * attr_opcode, which is stored verbatim, so writing the opcode
+                 * reproduces them.
+                 */
+                if( tile->attr_opcode != 0 )
+                {
+                    write_decode(&buffer, tile->attr_opcode, u16);
+                    write_decode(&buffer, tile->overlay_id, u16);
+                }
+                if( tile->settings != 0 )
+                    write_decode(&buffer, tile->settings + 49, u16);
+                if( tile->underlay_id != 0 )
+                    write_decode(&buffer, tile->underlay_id + 81, u16);
+
+                /*
+                 * Height comes from `authored_height`, never from `height`: the
+                 * fixup rewrites `height` for every tile — procedurally where none
+                 * was given, and scaled by the tile-height basis where one was — so
+                 * it no longer holds anything writable. `height_authored` is what
+                 * distinguishes "the file said nothing" from "the file said this",
+                 * and it is recorded whether or not the fixup ran.
+                 */
+                if( tile->height_authored )
+                {
+                    write_decode(&buffer, 1, u16);
+                    p1(&buffer, tile->authored_height);
+                }
+                else
+                {
+                    write_decode(&buffer, 0, u16);
+                }
+            }
+        }
+    }
+
+    return buffer.position;
 }
 
 struct RSCache_MapTerrain*

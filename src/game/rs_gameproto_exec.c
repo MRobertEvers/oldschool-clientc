@@ -30,17 +30,41 @@ rs15_to_rgb(int c)
     return ((r << 3) << 16) | ((g << 3) << 8) | (b << 3);
 }
 
+/* Container key for an inv packet: the revision's own inventory id when it
+ * carries one (rev 230+ addresses the container and the bound component
+ * separately, and CS2 reads containers by inventory id), else the component id
+ * the older revisions use as the container key. */
+static int
+exec_inv_container_id(
+    int inv_id,
+    int component_id)
+{
+    return inv_id >= 0 ? inv_id : component_id;
+}
+
 static void
 exec_update_inv_full(
     struct RS_GameProtoCtx const* ctx,
     struct PktUpdateInvFull const* p)
 {
-    /* Keyed by the bound interface component id (reference inventories are
-     * component-addressed). Obj icons upload lazily when the bound inv view
-     * next renders (same path as the RevConfig-seeded containers). */
-    if( InvManager_EnsureContainer(ctx->invs, p->component_id, p->size, "server-inv") < 0 )
+    /* Obj icons upload lazily when the bound inv view next renders (same path
+     * as the RevConfig-seeded containers). */
+    int container = exec_inv_container_id(p->inv_id, p->component_id);
+    if( InvManager_EnsureContainer(ctx->invs, container, p->size, "server-inv") < 0 )
         return;
-    InvManager_ApplyFull(ctx->invs, p->component_id, p->obj_ids, p->obj_counts, p->size);
+    InvManager_ApplyFull(ctx->invs, container, p->obj_ids, p->obj_counts, p->size);
+    if( getenv("TORIRS_INV_DEBUG") )
+    {
+        fprintf(
+            stderr,
+            "inv-full: container=%d (com 0x%08x) size=%d\n",
+            container,
+            (unsigned)p->component_id,
+            p->size);
+        for( int i = 0; i < p->size; i++ )
+            if( p->obj_ids[i] > 0 )
+                fprintf(stderr, "  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
+    }
 }
 
 static void
@@ -49,17 +73,32 @@ exec_update_inv_partial(
     struct PktUpdateInvPartial const* p)
 {
     int src;
-    if( InvManager_EnsureContainer(ctx->invs, p->component_id, 0, "server-inv") < 0 )
+    int container = exec_inv_container_id(p->inv_id, p->component_id);
+    if( InvManager_EnsureContainer(ctx->invs, container, 0, "server-inv") < 0 )
         return;
-    src = InvManager_ContainerForSource(ctx->invs, p->component_id);
+    src = InvManager_ContainerForSource(ctx->invs, container);
     if( src < 0 )
         return;
+    if( getenv("TORIRS_INV_DEBUG") )
+        fprintf(
+            stderr,
+            "inv-partial: container=%d (com 0x%08x) slots=%d\n",
+            container,
+            (unsigned)p->component_id,
+            p->count);
     for( int i = 0; i < p->count; i++ )
     {
         struct InvSlot slot = { 0 };
         slot.obj_id = p->entries[i].obj_id;
         slot.obj_count = p->entries[i].count;
         InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
+        if( getenv("TORIRS_INV_DEBUG") )
+            fprintf(
+                stderr,
+                "  slot %2d obj=%d x%d\n",
+                p->entries[i].slot,
+                slot.obj_id,
+                slot.obj_count);
     }
 }
 

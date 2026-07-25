@@ -4,6 +4,98 @@
 #include "net/rev/revpacket.h"
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* Byte cursor over a framed payload. Every reader clamps to `len` and sets
+ * `over` on the first read past the end, so a layout that does not match the
+ * wire is caught by the caller (which drops the packet) instead of applying
+ * half-decoded inventory state. */
+struct Osrs230Cursor
+{
+    uint8_t const* data;
+    int len;
+    int pos;
+    int over;
+};
+
+static int
+c_g1(struct Osrs230Cursor* c)
+{
+    if( c->pos + 1 > c->len )
+    {
+        c->over = 1;
+        return 0;
+    }
+    return c->data[c->pos++];
+}
+
+/* gByteAlt2: the writer sends (-value); reference reads -readByte(). */
+static int
+c_g1alt2(struct Osrs230Cursor* c)
+{
+    return (-c_g1(c)) & 0xff;
+}
+
+static int
+c_g2(struct Osrs230Cursor* c)
+{
+    int hi = c_g1(c);
+    int lo = c_g1(c);
+    return (hi << 8) | lo;
+}
+
+static int
+c_g4(struct Osrs230Cursor* c)
+{
+    int b0 = c_g1(c);
+    int b1 = c_g1(c);
+    int b2 = c_g1(c);
+    int b3 = c_g1(c);
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+/* gIntAlt1: little-endian. */
+static int
+c_g4alt1(struct Osrs230Cursor* c)
+{
+    int b0 = c_g1(c);
+    int b1 = c_g1(c);
+    int b2 = c_g1(c);
+    int b3 = c_g1(c);
+    return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+}
+
+/* gSmart: 1 byte below 128, else a 2-byte big-endian value biased by 0x8000. */
+static int
+c_gsmart(struct Osrs230Cursor* c)
+{
+    int peek;
+    if( c->pos + 1 > c->len )
+    {
+        c->over = 1;
+        return 0;
+    }
+    peek = c->data[c->pos];
+    if( peek < 128 )
+        return c_g1(c);
+    return c_g2(c) - 0x8000;
+}
+
+/* One inventory slot body, shared by the full and partial encoders:
+ *   p1Alt2 count (255 escapes to a p4Alt1 real count), p2 objId + 1. */
+static void
+osrs230_read_inv_slot(
+    struct Osrs230Cursor* c,
+    int* out_obj_id,
+    int* out_count)
+{
+    int count = c_g1alt2(c);
+    if( count == 255 )
+        count = c_g4alt1(c);
+    *out_count = count;
+    *out_obj_id = c_g2(c) - 1;
+}
 
 /*
  * OSRS rev-230 protocol dispatch (the rev-table `parse` slot). The revision
@@ -53,6 +145,110 @@ osrs230_parse(
             return 0;
         out->_if_closesub.target_uid =
             (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        return 1;
+
+    /* UPDATE_INV_FULL (op 10, var-u16). RSProt UpdateInvFullEncoder:
+     *   p4 combinedId, p2 inventoryId, p2 capacity, then per slot the shared
+     *   slot body. The lc254 layout the common parser assumes (p2 component,
+     *   p1 size, id-then-count) does not fit here. */
+    case PKT_NAME_UPDATE_INV_FULL:
+    {
+        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        int capacity;
+        out->_update_inv_full.component_id = c_g4(&cur);
+        out->_update_inv_full.inv_id = c_g2(&cur);
+        capacity = c_g2(&cur);
+        if( cur.over || capacity < 0 || capacity > 4096 )
+            return 0;
+        out->_update_inv_full.size = capacity;
+        out->_update_inv_full.obj_ids = malloc((size_t)capacity * sizeof(int));
+        out->_update_inv_full.obj_counts = malloc((size_t)capacity * sizeof(int));
+        if( !out->_update_inv_full.obj_ids || !out->_update_inv_full.obj_counts )
+        {
+            free(out->_update_inv_full.obj_ids);
+            free(out->_update_inv_full.obj_counts);
+            out->_update_inv_full.obj_ids = NULL;
+            out->_update_inv_full.obj_counts = NULL;
+            out->_update_inv_full.size = 0;
+            return 0;
+        }
+        for( int i = 0; i < capacity; i++ )
+            osrs230_read_inv_slot(
+                &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
+        if( cur.over )
+        {
+            fprintf(
+                stderr,
+                "osrs230: UPDATE_INV_FULL inv=%d capacity=%d overran %d bytes; dropped\n",
+                out->_update_inv_full.inv_id,
+                capacity,
+                len);
+            free(out->_update_inv_full.obj_ids);
+            free(out->_update_inv_full.obj_counts);
+            out->_update_inv_full.obj_ids = NULL;
+            out->_update_inv_full.obj_counts = NULL;
+            out->_update_inv_full.size = 0;
+            return 0;
+        }
+        return 1;
+    }
+
+    /* UPDATE_INV_PARTIAL (op 37, var-u16): p4 combinedId, p2 inventoryId, then
+     * {gSmart slot + slot body} until the frame is consumed. A trailing partial
+     * record means the layout is wrong for this payload, so drop the whole
+     * packet rather than write a mis-decoded slot into the container. */
+    case PKT_NAME_UPDATE_INV_PARTIAL:
+    {
+        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        int max_entries;
+        int written = 0;
+        out->_update_inv_partial.component_id = c_g4(&cur);
+        out->_update_inv_partial.inv_id = c_g2(&cur);
+        out->_update_inv_partial.count = 0;
+        out->_update_inv_partial.entries = NULL;
+        if( cur.over )
+            return 0;
+        /* Smallest record is 4 bytes (1 slot + 1 count + 2 obj). */
+        max_entries = (len - cur.pos) / 4 + 1;
+        out->_update_inv_partial.entries = (struct PktUpdateInvPartialEntry*)malloc(
+            (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
+        if( !out->_update_inv_partial.entries )
+            return 0;
+        while( cur.pos < len && written < max_entries )
+        {
+            struct PktUpdateInvPartialEntry* entry = &out->_update_inv_partial.entries[written];
+            entry->slot = c_gsmart(&cur);
+            osrs230_read_inv_slot(&cur, &entry->obj_id, &entry->count);
+            if( cur.over )
+                break;
+            written++;
+        }
+        if( cur.over || cur.pos != len )
+        {
+            fprintf(
+                stderr,
+                "osrs230: UPDATE_INV_PARTIAL inv=%d did not consume its %d-byte frame "
+                "(stopped at %d after %d slots); dropped\n",
+                out->_update_inv_partial.inv_id,
+                len,
+                cur.pos,
+                written);
+            free(out->_update_inv_partial.entries);
+            out->_update_inv_partial.entries = NULL;
+            return 0;
+        }
+        out->_update_inv_partial.count = written;
+        return 1;
+    }
+
+    /* UPDATE_INV_STOPTRANSMIT (op 80): p4 combinedId. The server stops sending
+     * this container; nothing to apply client-side beyond the record. */
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+        if( len < 4 )
+            return 0;
+        out->_update_inv_stop_transmit.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        out->_update_inv_stop_transmit.inv_id = -1;
         return 1;
 
     default:
