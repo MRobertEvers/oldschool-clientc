@@ -38,11 +38,40 @@ struct tally
     int semantic_ok;
     int byte_exact;
     int encode_failed;
+    /* Records whose re-encode came out the same *length* as the source. Together
+     * with byte_exact this separates the two reasons a round trip is not
+     * byte-exact:
+     *
+     *   same length, different bytes  -> the fields were reordered. Nothing was
+     *                                    lost or invented; the packer simply emits
+     *                                    opcodes in an order of its own.
+     *   different length              -> a field was dropped or added, i.e. the
+     *                                    decoder is lossy for that record.
+     *
+     * Without this distinction a low byte-exact percentage is unreadable — it could
+     * mean either. */
+    int length_match;
     /* Records whose decode landed exactly on their terminator. Only tracked for
      * datatypes that expose a _consumed field. */
     int consumed_exact;
     bool tracks_consumed;
 };
+
+static void
+note_bytes(
+    struct tally* tally,
+    const uint8_t* encoded,
+    uint32_t written,
+    const uint8_t* original,
+    int original_size)
+{
+    if( written != (uint32_t)original_size )
+        return;
+
+    tally->length_match++;
+    if( memcmp(encoded, original, (size_t)original_size) == 0 )
+        tally->byte_exact++;
+}
 
 /*
  * Caches whose records this library cannot yet fully decode, so exact consumption
@@ -73,25 +102,18 @@ tally_report(
     if( tally->records == 0 )
         return;
 
-    if( tally->tracks_consumed )
-        printf(
-            "   %-10s %-14s records=%-6d semantic=%-6d byte-exact=%-6d (%3d%%)  consumed=%d\n",
-            datatype,
-            cache,
-            tally->records,
-            tally->semantic_ok,
-            tally->byte_exact,
-            tally->records ? tally->byte_exact * 100 / tally->records : 0,
-            tally->consumed_exact);
-    else
-        printf(
-            "   %-10s %-14s records=%-6d semantic=%-6d byte-exact=%-6d (%3d%%)\n",
-            datatype,
-            cache,
-            tally->records,
-            tally->semantic_ok,
-            tally->byte_exact,
-            tally->records ? tally->byte_exact * 100 / tally->records : 0);
+    printf(
+        "   %-10s %-14s records=%-6d semantic=%-6d exact=%-6d (%3d%%) same-len=%-6d (%3d%%)%s\n",
+        datatype,
+        cache,
+        tally->records,
+        tally->semantic_ok,
+        tally->byte_exact,
+        tally->records ? tally->byte_exact * 100 / tally->records : 0,
+        tally->length_match,
+        tally->records ? tally->length_match * 100 / tally->records : 0,
+        tally->tracks_consumed && tally->consumed_exact != tally->records ? "  [consumption gap]"
+                                                                         : "");
 
     /* Where a decoder reports consumption, landing short of the terminator means
      * the record was misread — a decoder bug, not an encoder one. */
@@ -233,8 +255,7 @@ visit_spotanim(
     if( first->_consumed == size )
         tally->consumed_exact++;
 
-    if( written == (uint32_t)size && memcmp(encoded, data, (size_t)size) == 0 )
-        tally->byte_exact++;
+    note_bytes(tally, encoded, written, data, size);
 
     struct RSCache_Dat2ConfigSpotanim* second =
         RSCache_Dat2ConfigSpotanimNewDecode(0, (char*)encoded, (int)written);
@@ -326,8 +347,7 @@ visit_idk(
         return;
     }
 
-    if( written == (uint32_t)size && memcmp(encoded, data, (size_t)size) == 0 )
-        tally->byte_exact++;
+    note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigIdkDecodeInplace(&second, (char*)encoded, (int)written);
     if( idk_equal(&first, &second) )
@@ -420,8 +440,7 @@ visit_enum(
         return;
     }
 
-    if( written == (uint32_t)size && memcmp(encoded, data, (size_t)size) == 0 )
-        tally->byte_exact++;
+    note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigEnumDecodeInplace(&second, encoded, (int)written);
     if( enum_equal(&first, &second) )
@@ -459,8 +478,7 @@ visit_param(
         return;
     }
 
-    if( written == (uint32_t)size && memcmp(encoded, data, (size_t)size) == 0 )
-        tally->byte_exact++;
+    note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigParamDecodeInplace(&second, encoded, (int)written);
 
@@ -509,8 +527,7 @@ visit_struct(
         return;
     }
 
-    if( written == (uint32_t)size && memcmp(encoded, data, (size_t)size) == 0 )
-        tally->byte_exact++;
+    note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigStructDecodeInplace(&second, encoded, (int)written);
 
@@ -533,6 +550,275 @@ visit_struct(
 
     RSCache_Dat2ConfigStructFreeInplace(&first);
     RSCache_Dat2ConfigStructFreeInplace(&second);
+    free(encoded);
+    (void)profile;
+}
+
+/* ------------------------------------------------------------------ flo --- */
+
+static void
+visit_underlay(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigUnderlay first;
+    struct RSCache_Dat2ConfigUnderlay second;
+
+    RSCache_Dat2ConfigUnderlayDecodeInplace(&first, (char*)data, size);
+    tally->records++;
+
+    uint8_t encoded[64];
+    uint32_t written = RSCache_Dat2ConfigUnderlayEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigUnderlayDecodeInplace(&second, (char*)encoded, (int)written);
+    if( first.rgb_color == second.rgb_color )
+        tally->semantic_ok++;
+    (void)profile;
+}
+
+static void
+visit_overlay(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigOverlay first;
+    struct RSCache_Dat2ConfigOverlay second;
+
+    RSCache_Dat2ConfigOverlayDecodeInplace(&first, (char*)data, size);
+    tally->records++;
+
+    uint8_t encoded[512];
+    uint32_t written = RSCache_Dat2ConfigOverlayEncode(&first, encoded, sizeof(encoded));
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        RSCache_Dat2ConfigOverlayFreeInplace(&first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_Dat2ConfigOverlayDecodeInplace(&second, (char*)encoded, (int)written);
+    bool equal = first.rgb_color == second.rgb_color && first.texture == second.texture &&
+                 first.secondary_rgb_color == second.secondary_rgb_color &&
+                 first.hide_underlay == second.hide_underlay &&
+                 first.flotype_overlay == second.flotype_overlay &&
+                 !!first.flotype_name == !!second.flotype_name &&
+                 (!first.flotype_name || strcmp(first.flotype_name, second.flotype_name) == 0);
+    if( equal )
+        tally->semantic_ok++;
+
+    RSCache_Dat2ConfigOverlayFreeInplace(&first);
+    RSCache_Dat2ConfigOverlayFreeInplace(&second);
+    (void)profile;
+}
+
+/* ------------------------------------------------------------ mapelement --- */
+
+static void
+visit_mapelement(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_MapElement first;
+    struct RSCache_MapElement second;
+    memset(&first, 0, sizeof(first));
+    memset(&second, 0, sizeof(second));
+
+    RSCache_MapElementDecodeInplace(&first, data, size);
+    tally->records++;
+
+    uint32_t capacity = (uint32_t)size * 2u + 1024u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+        return;
+
+    uint32_t written = RSCache_MapElementEncode(&first, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_MapElementFreeInplace(&first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    RSCache_MapElementDecodeInplace(&second, encoded, (int)written);
+
+    /* Only the four retained fields can be compared — this encoder is documented
+     * as lossy for everything else. */
+    bool equal = first.sprite_id == second.sprite_id && first.text_size == second.text_size &&
+                 first.category == second.category && !!first.name == !!second.name &&
+                 (!first.name || strcmp(first.name, second.name) == 0);
+    if( equal )
+        tally->semantic_ok++;
+
+    RSCache_MapElementFreeInplace(&first);
+    RSCache_MapElementFreeInplace(&second);
+    free(encoded);
+    (void)profile;
+}
+
+/* ------------------------------------------------------------------ obj --- */
+
+static bool
+str_equal(
+    const char* lhs,
+    const char* rhs)
+{
+    if( !!lhs != !!rhs )
+        return false;
+    return !lhs || strcmp(lhs, rhs) == 0;
+}
+
+static bool
+obj_equal(
+    const struct RSCache_Dat2ConfigObj* lhs,
+    const struct RSCache_Dat2ConfigObj* rhs)
+{
+    if( !str_equal(lhs->name, rhs->name) || !str_equal(lhs->examine, rhs->examine) )
+        return false;
+    if( lhs->inventory_model_id != rhs->inventory_model_id || lhs->zoom2d != rhs->zoom2d ||
+        lhs->xan2d != rhs->xan2d || lhs->yan2d != rhs->yan2d || lhs->zan2d != rhs->zan2d ||
+        lhs->offset_x2d != rhs->offset_x2d || lhs->offset_y2d != rhs->offset_y2d ||
+        lhs->cost != rhs->cost || lhs->stacking_behaviour != rhs->stacking_behaviour ||
+        lhs->is_members != rhs->is_members || lhs->tradeable != rhs->tradeable ||
+        lhs->weight != rhs->weight || lhs->category != rhs->category ||
+        lhs->team != rhs->team || lhs->ambient != rhs->ambient ||
+        lhs->contrast != rhs->contrast || lhs->resize_x != rhs->resize_x ||
+        lhs->resize_y != rhs->resize_y || lhs->resize_z != rhs->resize_z ||
+        lhs->wearpos_1 != rhs->wearpos_1 || lhs->wearpos_2 != rhs->wearpos_2 ||
+        lhs->wearpos_3 != rhs->wearpos_3 ||
+        lhs->shift_click_drop_index != rhs->shift_click_drop_index ||
+        lhs->noted_id != rhs->noted_id || lhs->noted_template != rhs->noted_template ||
+        lhs->bought_id != rhs->bought_id || lhs->bought_template_id != rhs->bought_template_id ||
+        lhs->placeholder_id != rhs->placeholder_id ||
+        lhs->placeholder_template_id != rhs->placeholder_template_id )
+        return false;
+
+    if( lhs->male_model_0 != rhs->male_model_0 || lhs->male_model_1 != rhs->male_model_1 ||
+        lhs->male_model_2 != rhs->male_model_2 || lhs->male_offset != rhs->male_offset ||
+        lhs->male_head_model != rhs->male_head_model ||
+        lhs->male_head_model_2 != rhs->male_head_model_2 ||
+        lhs->female_model_0 != rhs->female_model_0 ||
+        lhs->female_model_1 != rhs->female_model_1 ||
+        lhs->female_model_2 != rhs->female_model_2 || lhs->female_offset != rhs->female_offset ||
+        lhs->female_head_model != rhs->female_head_model ||
+        lhs->female_head_model_2 != rhs->female_head_model_2 )
+        return false;
+
+    for( int i = 0; i < 5; i++ )
+    {
+        if( !str_equal(lhs->actions[i], rhs->actions[i]) )
+            return false;
+        if( !str_equal(lhs->if_actions[i], rhs->if_actions[i]) )
+            return false;
+    }
+
+    if( lhs->recolor_count != rhs->recolor_count || lhs->retexture_count != rhs->retexture_count )
+        return false;
+    for( int i = 0; i < lhs->recolor_count; i++ )
+    {
+        if( lhs->recolors_from[i] != rhs->recolors_from[i] ||
+            lhs->recolors_to[i] != rhs->recolors_to[i] )
+            return false;
+    }
+    for( int i = 0; i < lhs->retexture_count; i++ )
+    {
+        if( lhs->retextures_from[i] != rhs->retextures_from[i] ||
+            lhs->retextures_to[i] != rhs->retextures_to[i] )
+            return false;
+    }
+
+    for( int i = 0; i < 10; i++ )
+    {
+        if( lhs->count_obj[i] != rhs->count_obj[i] || lhs->count_co[i] != rhs->count_co[i] )
+            return false;
+    }
+
+    for( int action = 0; action < 5; action++ )
+    {
+        if( !!lhs->sub_actions[action] != !!rhs->sub_actions[action] )
+            return false;
+        if( !lhs->sub_actions[action] )
+            continue;
+        for( int sub = 0; sub < 20; sub++ )
+        {
+            if( !str_equal(lhs->sub_actions[action][sub], rhs->sub_actions[action][sub]) )
+                return false;
+        }
+    }
+
+    if( lhs->params.count != rhs->params.count )
+        return false;
+    for( int i = 0; i < lhs->params.count; i++ )
+    {
+        if( lhs->params.keys[i] != rhs->params.keys[i] ||
+            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            return false;
+        if( lhs->params.is_string[i] )
+        {
+            if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
+            return false;
+    }
+
+    return true;
+}
+
+static void
+visit_obj(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct tally* tally)
+{
+    struct RSCache_Dat2ConfigObj* first = RSCache_Dat2ConfigObjNewDecode((char*)data, size);
+    if( !first )
+        return;
+    tally->records++;
+
+    uint32_t capacity = (uint32_t)size * 3u + 4096u;
+    uint8_t* encoded = malloc(capacity);
+    if( !encoded )
+    {
+        RSCache_Dat2ConfigObjFree(first);
+        return;
+    }
+
+    uint32_t written = RSCache_Dat2ConfigObjEncode(first, encoded, capacity);
+    if( written == 0 )
+    {
+        tally->encode_failed++;
+        free(encoded);
+        RSCache_Dat2ConfigObjFree(first);
+        return;
+    }
+    note_bytes(tally, encoded, written, data, size);
+
+    struct RSCache_Dat2ConfigObj* second =
+        RSCache_Dat2ConfigObjNewDecode((char*)encoded, (int)written);
+    if( second )
+    {
+        if( obj_equal(first, second) )
+            tally->semantic_ok++;
+        RSCache_Dat2ConfigObjFree(second);
+    }
+
+    RSCache_Dat2ConfigObjFree(first);
     free(encoded);
     (void)profile;
 }
@@ -560,6 +846,11 @@ main(int argc, char** argv)
         { "enum", RSCACHE_DAT2_CONFIG_KIND_ENUM, RSCACHE_TYPE_ENUM, visit_enum },
         { "param", RSCACHE_DAT2_CONFIG_KIND_PARAMS, RSCACHE_TYPE_PARAM, visit_param },
         { "struct", RSCACHE_DAT2_CONFIG_KIND_STRUCT, RSCACHE_TYPE_STRUCT, visit_struct },
+        { "underlay", RSCACHE_DAT2_CONFIG_KIND_UNDERLAY, RSCACHE_TYPE_UNDERLAY, visit_underlay },
+        { "overlay", RSCACHE_DAT2_CONFIG_KIND_OVERLAY, RSCACHE_TYPE_OVERLAY, visit_overlay },
+        { "mapelement", RSCACHE_DAT2_CONFIG_KIND_AREA, RSCACHE_TYPE_MAPELEMENT,
+          visit_mapelement },
+        { "obj", RSCACHE_DAT2_CONFIG_KIND_OBJECT, RSCACHE_TYPE_OBJ, visit_obj },
     };
 
     int scanned_any = 0;

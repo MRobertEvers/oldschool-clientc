@@ -527,18 +527,40 @@ Tests:
 repo root. Point it elsewhere with `make test CACHE_ROOT=/path/to/caches`. It skips
 silently when no cache directories are found.
 
-Its current state — semantic round-trip is asserted, byte-exactness reported:
+It reports three numbers per datatype, and the third is what makes the second
+interpretable:
 
-| Datatype | Records (all caches) | Semantic | Byte-exact |
-|---|---|---|---|
-| struct | 23,167 | 100% | 100% |
-| param | 11,409 | 100% | 57–94% |
-| spotanim | 17,688 | 100% | 0–92% |
-| enum | 28,271 | 100% | 55–67% |
-| idk | 1,530 | 100% | 0–53% |
+- **semantic** — asserted. Anything below 100% is an encoder bug.
+- **exact** — `encode(decode(x)) == x`, byte for byte.
+- **same-len** — the re-encode came out the same *length*. This separates the two
+  quite different reasons a round trip is not byte-exact:
 
-Byte-exactness below 100% is expected wherever the decoder is lossy (see [known
-decode gaps](#known-decode-gaps)); what matters is that it does not *fall*.
+| same-len | exact | Diagnosis |
+|---|---|---|
+| high | low | **Field ordering.** Nothing lost or invented — the packer emits opcodes in an order of its own. Harmless: an opcode stream is order-independent to any conforming reader. |
+| low | low | **Loss.** The decoder dropped a field it read, so it cannot be written back. |
+
+Measured on `cache` (the other five caches are within a few points):
+
+| Datatype | Records | Semantic | Exact | Same-len | Shortfall is |
+|---|---|---|---|---|---|
+| struct | 5,869 | 100% | 100% | 100% | — |
+| underlay | 229 | 100% | 99% | 99% | — |
+| overlay | 412 | 100% | 74% | 99% | ordering |
+| idk | 307 | 100% | 41% | **100%** | ordering, entirely |
+| obj | 30,928 | 100% | 45% | 91% | mostly ordering |
+| spotanim | 3,295 | 100% | 87% | 98% | ordering |
+| param | 2,277 | 100% | 85% | 87% | loss (opcode 8 type path) |
+| enum | 5,678 | 100% | 56% | 56% | loss (opcodes 1, 7, 8) |
+| mapelement | 1,027 | 100% | 0% | 0% | loss, by construction |
+
+Jagex's obj packer writes, for example, `1, 7, 8, 4, 6, 5, 75, 39, 16, 2, 3` — the
+strings last, not ascending. Reproducing that order exactly would raise the exact
+column but change nothing a client can observe, so it has not been chased. The
+lossy rows match what [known decode gaps](#known-decode-gaps) documents
+independently.
+
+What matters for regression purposes is that none of these columns *fall*.
 
 The bzip2 encoder gets an interop test because agreement between our own encoder
 and our own decoder would not rule out a shared misreading of the format.

@@ -32,6 +32,62 @@ texture_decode_simplified(
     return def;
 }
 
+uint32_t
+RSCache_Dat2TextureEncodeProfile(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2Texture* texture,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !texture || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    if( RSCache_Dat2TextureCodecVersion(cache) == RSCACHE_CODEC_TEXTURE_V2 )
+    {
+        /* Simplified record: a fixed seven bytes, one sprite. */
+        p2(&buffer, texture->sprite_ids_count > 0 ? texture->sprite_ids[0] : 0);
+        p2(&buffer, texture->average_hsl);
+        p1(&buffer, texture->opaque ? 1 : 0);
+        p1(&buffer, texture->animation_direction);
+        p1(&buffer, texture->animation_speed);
+        return buffer.position;
+    }
+
+    /* Full record. Unlike the config types this is a fixed layout, not an opcode
+     * stream, so every field is always written. */
+    int count = texture->sprite_ids_count;
+
+    p2(&buffer, texture->average_hsl);
+    p1(&buffer, texture->opaque ? 1 : 0);
+    p1(&buffer, count);
+
+    for( int i = 0; i < count; i++ )
+        p2(&buffer, texture->sprite_ids[i]);
+
+    if( count > 1 )
+    {
+        for( int i = 0; i < count - 1; i++ )
+            p1(&buffer, texture->sprite_types ? texture->sprite_types[i] : 0);
+
+        /* A second run of count-1 bytes the decoder reads and discards. Their
+         * original values are not recoverable, so they re-encode as zero — this is
+         * the one field that keeps a multi-sprite texture from being byte-exact. */
+        for( int i = 0; i < count - 1; i++ )
+            p1(&buffer, 0);
+    }
+
+    for( int i = 0; i < count; i++ )
+        p4(&buffer, texture->transforms ? texture->transforms[i] : 0);
+
+    p1(&buffer, texture->animation_direction);
+    p1(&buffer, texture->animation_speed);
+
+    return buffer.position;
+}
+
 int
 RSCache_Dat2TextureCodecVersion(const struct RSCache* cache)
 {

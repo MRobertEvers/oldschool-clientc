@@ -88,6 +88,78 @@ RSCache_Dat2ConfigOverlayDecodeInplace(
     return buffer.position;
 }
 
+uint32_t
+RSCache_Dat2ConfigOverlayEncode(
+    const struct RSCache_Dat2ConfigOverlay* overlay,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !overlay || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    struct RSCache_Dat2ConfigOverlay defaults;
+    init_overlay(&defaults);
+
+    if( overlay->rgb_color != defaults.rgb_color )
+    {
+        p1(&buffer, 1);
+        p3(&buffer, overlay->rgb_color);
+    }
+    if( overlay->texture != defaults.texture )
+    {
+        p1(&buffer, 2);
+        p1(&buffer, overlay->texture);
+    }
+    /* Opcodes 3 and 5 are payload-free flags. hide_underlay defaults to true, so
+     * opcode 5 is what clears it. */
+    if( overlay->flotype_overlay )
+        p1(&buffer, 3);
+    if( !overlay->hide_underlay )
+        p1(&buffer, 5);
+    if( overlay->flotype_name )
+    {
+        p1(&buffer, 6);
+        /* dat1-era field: newline terminated, matching gstringnewline. */
+        pjstr(&buffer, overlay->flotype_name, RSCACHE_JSTR_TERMINATOR_NEWLINE);
+    }
+    if( overlay->secondary_rgb_color != defaults.secondary_rgb_color )
+    {
+        p1(&buffer, 7);
+        p3(&buffer, overlay->secondary_rgb_color);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigUnderlayEncode(
+    const struct RSCache_Dat2ConfigUnderlay* underlay,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !underlay || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* An underlay is a single colour. Colour 0 is a legitimate value (black), but
+     * it is also the zeroed default, so a record whose colour is 0 encodes as a
+     * bare terminator — which decodes back to 0. */
+    if( underlay->rgb_color != 0 )
+    {
+        p1(&buffer, 1);
+        p3(&buffer, underlay->rgb_color);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
 void
 RSCache_Dat2ConfigOverlayFree(struct RSCache_Dat2ConfigOverlay* overlay)
 {

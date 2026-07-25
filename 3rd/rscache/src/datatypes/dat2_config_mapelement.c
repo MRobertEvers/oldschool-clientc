@@ -135,6 +135,50 @@ RSCache_MapElementDecodeInplace(
     }
 }
 
+uint32_t
+RSCache_MapElementEncode(
+    const struct RSCache_MapElement* entry,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* This decoder keeps four fields and consumes the other two dozen opcodes
+     * purely to stay aligned, so an encoded record carries only those four. The
+     * result is a valid, readable map element with the same icon, label, size and
+     * category — but it is *not* a faithful copy of the source record, and
+     * re-encoding a decoded one loses hover sprites, colours, visibility varbits,
+     * ops and params. Byte-exactness is impossible by construction here; anything
+     * that needs the full record has to extend the decoder first. */
+    if( entry->sprite_id != 0 )
+    {
+        p1(&buffer, 1);
+        pbigsmart(&buffer, entry->sprite_id);
+    }
+    if( entry->name )
+    {
+        p1(&buffer, 3);
+        pjstr(&buffer, entry->name, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+    if( entry->text_size != 0 )
+    {
+        p1(&buffer, 6);
+        p1(&buffer, entry->text_size);
+    }
+    if( entry->category != 0 )
+    {
+        p1(&buffer, 19);
+        p2(&buffer, entry->category);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
 void
 RSCache_MapElementFreeInplace(struct RSCache_MapElement* entry)
 {

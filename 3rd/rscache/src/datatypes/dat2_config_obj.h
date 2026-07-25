@@ -117,6 +117,25 @@ struct RSCache_Dat2ConfigObj
     struct RSCache_Params params;
 };
 
+/**
+ * Encode an obj (item) record.
+ *
+ * Omits fields still at their decode default and writes opcodes in ascending
+ * order, which matches how the packer emits them.
+ *
+ * Three fields cannot be reproduced, so records using them round-trip
+ * semantically but not byte-exactly:
+ *   - opcode 9, a string the decoder discards;
+ *   - an action of the literal "Hidden", which the decoder normalises to NULL and
+ *     is therefore indistinguishable from an absent action;
+ *   - a name of the literal "null", indistinguishable from an absent opcode 2.
+ */
+uint32_t
+RSCache_Dat2ConfigObjEncode(
+    const struct RSCache_Dat2ConfigObj* object,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 struct RSCache_Dat2ConfigObj*
 RSCache_Dat2ConfigObjNewDecode(
     char* buffer,

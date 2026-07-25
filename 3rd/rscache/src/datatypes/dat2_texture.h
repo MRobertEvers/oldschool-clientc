@@ -57,6 +57,20 @@ struct RSCache_Dat2Texture
 int
 RSCache_Dat2TextureCodecVersion(const struct RSCache* cache);
 
+/**
+ * Encode a texture record using the codec the profile selects.
+ *
+ * A multi-sprite v1 record is never byte-exact: the decoder reads and discards a
+ * run of `count - 1` bytes after the sprite types, so their values are already
+ * lost and re-encode as zero. Single-sprite records and all v2 records are exact.
+ */
+uint32_t
+RSCache_Dat2TextureEncodeProfile(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2Texture* texture,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 struct RSCache_Dat2Texture*
 RSCache_Dat2TextureNewDecodeProfile(
     const struct RSCache* cache,

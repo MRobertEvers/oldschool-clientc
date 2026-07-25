@@ -25,6 +25,22 @@ struct RSCache_Dat2ConfigOverlay
     char* flotype_name;
 };
 
+/** Encode an overlay record. Fields at their decode default are omitted, and the
+ *  name field uses the newline terminator its decoder expects. */
+uint32_t
+RSCache_Dat2ConfigOverlayEncode(
+    const struct RSCache_Dat2ConfigOverlay* overlay,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Encode an underlay record — a single opcode-1 colour, or a bare terminator when
+ *  the colour is 0. */
+uint32_t
+RSCache_Dat2ConfigUnderlayEncode(
+    const struct RSCache_Dat2ConfigUnderlay* underlay,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 struct RSCache_Dat2ConfigOverlay*
 RSCache_Dat2ConfigOverlayNewDecode(
     char* buffer,
