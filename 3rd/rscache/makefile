@@ -38,6 +38,10 @@ LIB_OBJS  := $(UNITY_OBJ) $(DEP_OBJS)
 TEST_SRCS := $(wildcard test/test_*.c)
 TEST_BINS := $(patsubst test/%.c,$(BUILD)/%,$(TEST_SRCS))
 
+# Where the cache corpus lives, for the round-trip suite. Override to point at a
+# different set: make test CACHE_ROOT=/path/to/caches
+CACHE_ROOT ?= $(THIRD)/..
+
 .PHONY: all test clean
 .DEFAULT_GOAL := all
 
@@ -76,7 +80,10 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 	@status=0; \
 	for bin in $(TEST_BINS); do \
 		echo "==> $$bin"; \
-		./$$bin || status=1; \
+		case "$$bin" in \
+		*test_roundtrip) ./$$bin "$(CACHE_ROOT)" || status=1 ;; \
+		*) ./$$bin || status=1 ;; \
+		esac; \
 	done; \
 	echo "==> bzip2 interop"; \
 	sh test/test_bzip_interop.sh $(BUILD)/bzip_interop_helper || status=1; \

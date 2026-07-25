@@ -19,6 +19,19 @@ RSCache_Dat2ConfigParamDecodeInplace(
     const void* data,
     int data_size);
 
+/**
+ * Encode a param record.
+ *
+ * Always writes the type through opcode 1. A record whose type arrived via
+ * opcode 8 (numeric type id) therefore re-encodes to different bytes with the
+ * same meaning — which opcode carried it is not retained by the decoder.
+ */
+uint32_t
+RSCache_Dat2ConfigParamEncode(
+    const struct RSCache_Dat2ConfigParam* entry,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 void
 RSCache_Dat2ConfigParamFree(struct RSCache_Dat2ConfigParam* entry);
 

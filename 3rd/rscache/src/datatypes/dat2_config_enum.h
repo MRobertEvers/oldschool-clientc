@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_ENUM_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_ENUM_H
 
+#include <stdint.h>
+
 struct RSCache_Dat2ConfigEnum
 {
     int id;
@@ -18,6 +20,19 @@ RSCache_Dat2ConfigEnumDecodeInplace(
     struct RSCache_Dat2ConfigEnum* entry,
     const void* data,
     int data_size);
+
+/**
+ * Encode an enum record.
+ *
+ * Not byte-exact for records carrying opcodes 1, 7 or 8 — the decoder consumes
+ * those without keeping them, so the information is already gone. Semantically
+ * exact in all cases.
+ */
+uint32_t
+RSCache_Dat2ConfigEnumEncode(
+    const struct RSCache_Dat2ConfigEnum* entry,
+    uint8_t* out,
+    uint32_t out_capacity);
 
 void
 RSCache_Dat2ConfigEnumFree(struct RSCache_Dat2ConfigEnum* entry);

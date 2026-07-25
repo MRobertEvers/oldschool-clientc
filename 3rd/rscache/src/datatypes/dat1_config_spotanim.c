@@ -51,10 +51,23 @@ RSCache_Dat1ConfigSpotanimDecodeInplace(
             spotanim->ambient = g1(&buffer);
         else if( opcode == 8 )
             spotanim->contrast = g1(&buffer);
+        /* Ranges are 10 wide, arrays hold 6. Consume the value either way to keep
+         * the stream aligned, but only store it if it fits — writing
+         * unconditionally overflowed recol_s into recol_d. */
         else if( opcode >= 40 && opcode < 50 )
-            spotanim->recol_s[opcode - 40] = g2(&buffer);
+        {
+            int slot = opcode - 40;
+            int value = g2(&buffer);
+            if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
+                spotanim->recol_s[slot] = value;
+        }
         else if( opcode >= 50 && opcode < 60 )
-            spotanim->recol_d[opcode - 50] = g2(&buffer);
+        {
+            int slot = opcode - 50;
+            int value = g2(&buffer);
+            if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
+                spotanim->recol_d[slot] = value;
+        }
         else
         {
             /* An unknown opcode desynchronises the rest of the table (entries

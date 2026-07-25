@@ -11,6 +11,8 @@
  *   code 40..49: recol_s[code-40] g2   code 50..59: recol_d[code-50] g2
  *   code 0: terminator
  */
+#include "dat2_config_spotanim.h"
+
 struct RSCache_Dat1ConfigSpotanim
 {
     int model;
@@ -20,8 +22,10 @@ struct RSCache_Dat1ConfigSpotanim
     int angle;
     int ambient;
     int contrast;
-    int recol_s[6];
-    int recol_d[6];
+    /* Six slots, though the opcode ranges above are ten wide — see
+     * RSCACHE_SPOTANIM_COLOUR_SLOTS. */
+    int recol_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
+    int recol_d[RSCACHE_SPOTANIM_COLOUR_SLOTS];
 };
 
 /** Whole "spotanim.dat" table: entries are variable-length and only

@@ -40,4 +40,11 @@ RSCache_Dat2ConfigIdkDecodeInplace(
     char* buffer,
     int buffer_size);
 
+/** Encode an identkit record. Returns bytes written, or 0 on failure. */
+uint32_t
+RSCache_Dat2ConfigIdkEncode(
+    const struct RSCache_Dat2ConfigIdk* idk,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 #endif

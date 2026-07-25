@@ -401,6 +401,44 @@ Model format is the exception: it is identified by a magic trailer in the last t
 bytes (`FF FF` ob3, `FF FE` OSRS extended, `FF FD` OSRS material, otherwise ob2)
 and ignores the revision entirely.
 
+### Known decode gaps
+
+Honest inventory of what the decoders do *not* handle, all found by exact
+consumption over the corpus:
+
+- **Revision 239 records.** `cache.osrs239` fails exact consumption for npc
+  (2462/16292 under either head-icon shape) and spotanim (0/4010). Revision 239
+  changed layouts that are not implemented. No manifest references that cache — it
+  is validation data — so the client is unaffected, but a port targeting 239 would
+  need this closed first. The round-trip suite prints it as a KNOWN GAP on every
+  run rather than asserting on it.
+- **Lossy config decoders.** Several decoders consume fields without storing them,
+  so those records cannot re-encode byte-exactly: enum drops opcodes 1, 7 and 8;
+  param does not record whether the type arrived via opcode 1 or 8; mapelement
+  keeps only the fields the MEC_* scripts read. All still round-trip
+  *semantically*.
+- **Strings in the 128–159 byte range.** The decoder maps them through a Unicode
+  table and truncates to `char`, which is not reversible — see
+  `RSCache_BufferPjstr`. Affects byte-exactness only, for the rare record carrying
+  such a byte.
+
+### A worked example: how spotanim was wrong
+
+Worth recording because it shows what exact consumption buys. The dat2 spotanim
+decoder treated opcodes 40–79 as "one colour slot per opcode, u16 each". Modern
+records instead carry **count-prefixed lists** — opcode 40 is `u8 count` then
+`count × (u16 from, u16 to)` — and some caches add an **opcode 9 name string**
+(`cache.osrs230` has `soul_wars` on spotanim 0; stock `cache.jan2026` does not).
+
+Reading a bare u16 at opcode 40 desynced the rest of the record, and the decoder
+bailed on whatever byte came next with `Unrecognized dat2 spotanim opcode 210`.
+Because opcodes 1 and 2 (model and animation) come *first*, those fields were
+correct and spotanims mostly looked fine — every recolour was silently lost. Exact
+consumption was 0/3295 on `cache.osrs230` before the fix and 3295/3295 after.
+
+The same pass found the arrays were 6 wide while the opcode ranges are 10, so
+opcode 46 wrote past `recol_s` into `recol_d`.
+
 ---
 
 ## Writing a cache
@@ -482,7 +520,25 @@ Tests:
 | `test_profile` | era gates and codec selection at every threshold, via both the game-revision and archive-revision paths |
 | `test_compression` | CRC vectors, XTEA, gzip and bzip2 round trips, Whirlpool test vectors |
 | `test_container` | archive, group, jagfile, `.idx`, reference table round trips; and a synthetic cache written to disk and reopened |
+| `test_roundtrip` | per-datatype encode/decode over every cache in the corpus |
 | `test_bzip_interop.sh` | our bzip2 streams verified by the reference `bzip2 -t` and `-dc` |
+
+`test_roundtrip` takes the corpus location as its argument; `make test` passes the
+repo root. Point it elsewhere with `make test CACHE_ROOT=/path/to/caches`. It skips
+silently when no cache directories are found.
+
+Its current state — semantic round-trip is asserted, byte-exactness reported:
+
+| Datatype | Records (all caches) | Semantic | Byte-exact |
+|---|---|---|---|
+| struct | 23,167 | 100% | 100% |
+| param | 11,409 | 100% | 57–94% |
+| spotanim | 17,688 | 100% | 0–92% |
+| enum | 28,271 | 100% | 55–67% |
+| idk | 1,530 | 100% | 0–53% |
+
+Byte-exactness below 100% is expected wherever the decoder is lossy (see [known
+decode gaps](#known-decode-gaps)); what matters is that it does not *fall*.
 
 The bzip2 encoder gets an interop test because agreement between our own encoder
 and our own decoder would not rule out a shared misreading of the format.

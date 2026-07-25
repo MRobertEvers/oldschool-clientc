@@ -135,6 +135,77 @@ decode_fail:
     }
 }
 
+uint32_t
+RSCache_Dat2ConfigEnumEncode(
+    const struct RSCache_Dat2ConfigEnum* entry,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out )
+        return 0;
+
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, out, out_capacity);
+
+    /* Opcode 2 carries the value type as a character, and the decoder keeps only
+     * whether it was 's'. Absent opcode 2 therefore decodes to "not a string", so
+     * the field is only emitted for string enums — writing it unconditionally
+     * would append bytes to every integer enum that omitted it. */
+    if( entry->output_is_string )
+    {
+        p1(&buf, 2);
+        p1(&buf, (int)'s');
+    }
+
+    if( entry->default_string )
+    {
+        p1(&buf, 3);
+        pjstr(&buf, entry->default_string, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+    if( entry->default_int != 0 )
+    {
+        p1(&buf, 4);
+        p4(&buf, entry->default_int);
+    }
+
+    if( entry->count > 0 )
+    {
+        /* One block of the appropriate type. The decoder appends opcode 5 and 6
+         * entries into the same arrays, so a record that used both cannot be
+         * distinguished afterwards and re-encodes as a single block. */
+        if( entry->output_is_string )
+        {
+            p1(&buf, 5);
+            p2(&buf, entry->count);
+            for( int i = 0; i < entry->count; i++ )
+            {
+                p4(&buf, entry->keys[i]);
+                pjstr(
+                    &buf,
+                    entry->string_values && entry->string_values[i] ? entry->string_values[i] : "",
+                    RSCACHE_JSTR_TERMINATOR_NULL);
+            }
+        }
+        else
+        {
+            p1(&buf, 6);
+            p2(&buf, entry->count);
+            for( int i = 0; i < entry->count; i++ )
+            {
+                p4(&buf, entry->keys[i]);
+                p4(&buf, entry->int_values ? entry->int_values[i] : 0);
+            }
+        }
+    }
+
+    /* Opcodes 1, 7 and 8 are consumed and discarded by the decoder, so they
+     * cannot be reproduced. A record carrying them round-trips semantically but
+     * not byte-exactly. */
+
+    p1(&buf, 0);
+    return buf.position;
+}
+
 void
 RSCache_Dat2ConfigEnumFreeInplace(struct RSCache_Dat2ConfigEnum* entry)
 {

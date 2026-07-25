@@ -34,6 +34,72 @@ init_idk(struct RSCache_Dat2ConfigIdk* idk)
         idk->if_model_ids[i] = -1;
 }
 
+uint32_t
+RSCache_Dat2ConfigIdkEncode(
+    const struct RSCache_Dat2ConfigIdk* idk,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !idk || !out )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* body_part_id defaults to -1, which is not representable in the u8 the
+     * opcode writes, so -1 means "field absent". */
+    if( idk->body_part_id != -1 )
+    {
+        p1(&buffer, 1);
+        p1(&buffer, idk->body_part_id);
+    }
+
+    if( idk->model_ids_count > 0 )
+    {
+        p1(&buffer, 2);
+        p1(&buffer, idk->model_ids_count);
+        for( int i = 0; i < idk->model_ids_count; i++ )
+            p2(&buffer, idk->model_ids[i]);
+    }
+
+    if( idk->is_not_selectable )
+        p1(&buffer, 3);
+
+    if( idk->recolor_count > 0 )
+    {
+        p1(&buffer, 40);
+        p1(&buffer, idk->recolor_count);
+        for( int i = 0; i < idk->recolor_count; i++ )
+        {
+            p2(&buffer, idk->recolors_from[i]);
+            p2(&buffer, idk->recolors_to[i]);
+        }
+    }
+
+    if( idk->retexture_count > 0 )
+    {
+        p1(&buffer, 41);
+        p1(&buffer, idk->retexture_count);
+        for( int i = 0; i < idk->retexture_count; i++ )
+        {
+            p2(&buffer, idk->retextures_from[i]);
+            p2(&buffer, idk->retextures_to[i]);
+        }
+    }
+
+    for( int i = 0; i < 10; i++ )
+    {
+        if( idk->if_model_ids[i] != -1 )
+        {
+            p1(&buffer, 60 + i);
+            p2(&buffer, idk->if_model_ids[i]);
+        }
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
 void
 RSCache_Dat2ConfigIdkDecodeInplace(
     struct RSCache_Dat2ConfigIdk* idk,

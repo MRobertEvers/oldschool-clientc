@@ -133,6 +133,55 @@ RSCache_Dat2ConfigParamDecodeInplace(
     }
 }
 
+uint32_t
+RSCache_Dat2ConfigParamEncode(
+    const struct RSCache_Dat2ConfigParam* entry,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out )
+        return 0;
+
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, out, out_capacity);
+
+    /* The type reaches the struct as a character, via either opcode 1 (the
+     * character directly) or opcode 8 (a numeric id mapped to one). Which was
+     * used is not recorded, so this always writes opcode 1 — that reproduces the
+     * character exactly, at the cost of byte-exactness for records that used
+     * opcode 8. */
+    if( entry->type != 0 )
+    {
+        p1(&buf, 1);
+        p1(&buf, (unsigned char)entry->type);
+    }
+
+    if( entry->default_int != 0 )
+    {
+        p1(&buf, 2);
+        p4(&buf, entry->default_int);
+    }
+
+    /* auto_disable defaults to 1; opcode 4 is a flag that clears it. */
+    if( !entry->auto_disable )
+        p1(&buf, 4);
+
+    if( entry->default_string )
+    {
+        p1(&buf, 5);
+        pjstr(&buf, entry->default_string, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+
+    if( entry->default_long != 0 )
+    {
+        p1(&buf, 7);
+        p8(&buf, (int64_t)entry->default_long);
+    }
+
+    p1(&buf, 0);
+    return buf.position;
+}
+
 void
 RSCache_Dat2ConfigParamFreeInplace(struct RSCache_Dat2ConfigParam* entry)
 {
