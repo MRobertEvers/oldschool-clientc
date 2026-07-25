@@ -537,7 +537,7 @@ test_disk_writer(void)
         { 9, large_payload, (int)sizeof(large_payload), RSCACHE_ARCHIVE_COMPRESSION_BZIP2 },
     };
 
-    int table_id = RSCACHE_DAT2_DISK_TABLE_CONFIGS;
+    int table_id = RSCACHE_DAT2_OSRS_TABLE_CONFIGS;
 
     for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
     {

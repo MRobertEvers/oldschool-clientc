@@ -22,7 +22,8 @@ struct Dat2BuildCache
     struct HMap* overlay_hmap;
     struct HMap* texture_hmap;
     struct HMap* clientscripts_hmap;
-    struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_DISK_TABLE_COUNT];
+    /** Indexed by enum RSCache_Dat2Table — see dat2_buildcache_reference_table_add. */
+    struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_TABLE_COUNT];
     size_t map_buffer_bytes;
 
     /*
@@ -372,21 +373,28 @@ dat2_buildcache_clientscript_has(
 void
 dat2_buildcache_clientscripts_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
+/*
+ * Reference tables are held by LOGICAL table (enum RSCache_Dat2Table), not by on-disk id.
+ *
+ * The build cache outlives no cache but its own, so either key would work here; logical
+ * keeps it in the same currency as the loads that fill it, and stops a task having to know
+ * which branch is open in order to look up what it just requested.
+ */
 void
 dat2_buildcache_reference_table_add(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id,
-    struct RSCache_ReferenceTable* table);
+    int table,
+    struct RSCache_ReferenceTable* reference_table);
 
 struct RSCache_ReferenceTable*
 dat2_buildcache_reference_table_get(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id);
+    int table);
 
 bool
 dat2_buildcache_reference_table_has(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id);
+    int table);
 
 void
 dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache);

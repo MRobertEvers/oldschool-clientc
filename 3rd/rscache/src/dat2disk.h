@@ -34,52 +34,153 @@ struct RSCache_Dat2DiskArchive
     int* file_ids;
 };
 
-enum RSCache_Dat2DiskTable
-{
-    RSCACHE_DAT2_DISK_TABLE_ANIMATIONS = 0,
-    RSCACHE_DAT2_DISK_TABLE_SKELETONS = 1,
-    RSCACHE_DAT2_DISK_TABLE_CONFIGS = 2,
-    RSCACHE_DAT2_DISK_TABLE_INTERFACES = 3,
-    RSCACHE_DAT2_DISK_TABLE_SOUND_EFFECTS = 4,
-    RSCACHE_DAT2_DISK_TABLE_MAPS = 5,
-    RSCACHE_DAT2_DISK_TABLE_MUSIC_TRACKS = 6,
-    RSCACHE_DAT2_DISK_TABLE_MODELS = 7,
-    RSCACHE_DAT2_DISK_TABLE_SPRITES = 8,
-    RSCACHE_DAT2_DISK_TABLE_TEXTURES = 9,
-    RSCACHE_DAT2_DISK_TABLE_BINARY = 10,
-    RSCACHE_DAT2_DISK_TABLE_MUSIC_JINGLES = 11,
-    RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT = 12,
-    RSCACHE_DAT2_DISK_TABLE_FONTS = 13,
-    RSCACHE_DAT2_DISK_TABLE_MUSIC_SAMPLES = 14,
-    RSCACHE_DAT2_DISK_TABLE_MUSIC_PATCHES = 15,
-    RSCACHE_DAT2_DISK_TABLE_WORLDMAP_GEOGRAPHY = 18,
-    RSCACHE_DAT2_DISK_TABLE_WORLDMAP = 19,
-    RSCACHE_DAT2_DISK_TABLE_WORLDMAP_GROUND = 20,
-    RSCACHE_DAT2_DISK_TABLE_DBTABLE_INDEX = 21,
-    RSCACHE_DAT2_DISK_TABLE_ANIMAYAS = 22,
-    RSCACHE_DAT2_DISK_TABLE_GAMEVALS = 24,
-    RSCACHE_DAT2_DISK_TABLE_COUNT = 36,
-};
-
 /*
- * RS2-branch table ids (the 643 era).
+ * ## Tables are an epoch's property, not the container's
  *
- * A **separate set**, not extra entries above, because several ids mean different things
- * in the two lineages and a single flat enum cannot hold both:
+ * A dat2 cache addresses its contents by table id, but *what a table id means* is a
+ * property of the branch the cache came from. The two branches this library reads
+ * disagree over most of the range above 15:
  *
  *   id | RS2 (643)  | OSRS
+ *   16 | loc        | (unused)
+ *   17 | enum       | (unused)
  *   18 | npc        | worldmap geography
  *   19 | obj        | worldmap
  *   20 | seq        | worldmap ground
  *   21 | spotanim   | dbtable index
  *   22 | varbit     | animayas
+ *   26 | materials  | (unused)
  *
- * OSRS keeps these types as groups inside the config table (2); RS2 promotes them to
- * their own top-level tables. Which set applies is an `epoch` question — see
- * RSCache_Dat2DiskTableFor. Ids per void's Index.kt, verified against cache.rs643.
+ * OSRS keeps those record types as groups inside the config table (2); RS2 promotes
+ * them to their own top-level tables.
+ *
+ * So there are **three** enums here, and the split is deliberate:
+ *
+ *   RSCache_Dat2Table          — what a caller *wants* (a logical table), epoch-free.
+ *   RSCache_Dat2OsrsDiskTable  — the on-disk ids an OldSchool cache uses.
+ *   RSCache_Dat2Rs2DiskTable   — the on-disk ids a 643-era cache uses.
+ *
+ * Each disk enum is **complete and self-contained**: neither borrows a constant from
+ * the other, even where the two happen to agree (the 0..15 block does, everywhere).
+ * That duplication is the point — an RS2 code path that reaches for an OSRS constant
+ * is then a visible mistake rather than a coincidence that holds until the id it
+ * borrowed is one of the ones that diverge. Table 19 read through the wrong enum does
+ * not fail; it decodes objs as worldmap data.
+ *
+ * Callers name a logical table and let RSCache_Dat2DiskTableForEpoch (or
+ * RSCache_Dat2DiskTableId, which takes the epoch from the open disk) pick the id.
+ * A logical table the epoch has no table for resolves to
+ * RSCACHE_DAT2_DISK_TABLE_ABSENT, which is a load that must not be attempted rather
+ * than one that fails.
+ *
+ * Ids per void's Index.kt, verified against cache.rs643 and the OSRS caches in-tree.
+ */
+
+/**
+ * A table by role, independent of which branch's cache is open.
+ *
+ * This is the currency of the loading code: every call site that knows *what* it wants
+ * but not *which cache* names one of these, and resolution happens in one place.
+ */
+enum RSCache_Dat2Table
+{
+    /* Present in both epochs (and, as it happens, at the same ids). */
+    RSCACHE_DAT2_TABLE_ANIMATIONS = 0,
+    RSCACHE_DAT2_TABLE_SKELETONS,
+    RSCACHE_DAT2_TABLE_CONFIGS,
+    RSCACHE_DAT2_TABLE_INTERFACES,
+    RSCACHE_DAT2_TABLE_SOUND_EFFECTS,
+    RSCACHE_DAT2_TABLE_MAPS,
+    RSCACHE_DAT2_TABLE_MUSIC_TRACKS,
+    RSCACHE_DAT2_TABLE_MODELS,
+    RSCACHE_DAT2_TABLE_SPRITES,
+    RSCACHE_DAT2_TABLE_TEXTURES,
+    RSCACHE_DAT2_TABLE_BINARY,
+    RSCACHE_DAT2_TABLE_MUSIC_JINGLES,
+    RSCACHE_DAT2_TABLE_CLIENTSCRIPT,
+    RSCACHE_DAT2_TABLE_FONTS,
+    RSCACHE_DAT2_TABLE_MUSIC_SAMPLES,
+    RSCACHE_DAT2_TABLE_MUSIC_PATCHES,
+
+    /* OldSchool only. */
+    RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY,
+    RSCACHE_DAT2_TABLE_WORLDMAP,
+    RSCACHE_DAT2_TABLE_WORLDMAP_GROUND,
+    RSCACHE_DAT2_TABLE_DBTABLE_INDEX,
+    RSCACHE_DAT2_TABLE_ANIMAYAS,
+    RSCACHE_DAT2_TABLE_GAMEVALS,
+
+    /* RS2 only: the record types OldSchool keeps inside the config table. */
+    RSCACHE_DAT2_TABLE_LOC,
+    RSCACHE_DAT2_TABLE_ENUM,
+    RSCACHE_DAT2_TABLE_NPC,
+    RSCACHE_DAT2_TABLE_OBJ,
+    RSCACHE_DAT2_TABLE_SEQ,
+    RSCACHE_DAT2_TABLE_SPOTANIM,
+    RSCACHE_DAT2_TABLE_VARBIT,
+    RSCACHE_DAT2_TABLE_MATERIALS,
+    RSCACHE_DAT2_TABLE_PARTICLES,
+    RSCACHE_DAT2_TABLE_DEFAULTS,
+
+    RSCACHE_DAT2_TABLE_COUNT,
+};
+
+/** OldSchool on-disk table ids. Complete in itself — see the note above. */
+enum RSCache_Dat2OsrsDiskTable
+{
+    RSCACHE_DAT2_OSRS_TABLE_ANIMATIONS = 0,
+    RSCACHE_DAT2_OSRS_TABLE_SKELETONS = 1,
+    RSCACHE_DAT2_OSRS_TABLE_CONFIGS = 2,
+    RSCACHE_DAT2_OSRS_TABLE_INTERFACES = 3,
+    RSCACHE_DAT2_OSRS_TABLE_SOUND_EFFECTS = 4,
+    RSCACHE_DAT2_OSRS_TABLE_MAPS = 5,
+    RSCACHE_DAT2_OSRS_TABLE_MUSIC_TRACKS = 6,
+    RSCACHE_DAT2_OSRS_TABLE_MODELS = 7,
+    RSCACHE_DAT2_OSRS_TABLE_SPRITES = 8,
+    RSCACHE_DAT2_OSRS_TABLE_TEXTURES = 9,
+    RSCACHE_DAT2_OSRS_TABLE_BINARY = 10,
+    RSCACHE_DAT2_OSRS_TABLE_MUSIC_JINGLES = 11,
+    RSCACHE_DAT2_OSRS_TABLE_CLIENTSCRIPT = 12,
+    RSCACHE_DAT2_OSRS_TABLE_FONTS = 13,
+    RSCACHE_DAT2_OSRS_TABLE_MUSIC_SAMPLES = 14,
+    RSCACHE_DAT2_OSRS_TABLE_MUSIC_PATCHES = 15,
+    RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GEOGRAPHY = 18,
+    RSCACHE_DAT2_OSRS_TABLE_WORLDMAP = 19,
+    RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GROUND = 20,
+    RSCACHE_DAT2_OSRS_TABLE_DBTABLE_INDEX = 21,
+    RSCACHE_DAT2_OSRS_TABLE_ANIMAYAS = 22,
+    RSCACHE_DAT2_OSRS_TABLE_GAMEVALS = 24,
+};
+
+/**
+ * RS2-branch (643-era) on-disk table ids. Complete in itself — see the note above.
+ *
+ * The 0..15 block is spelled out again rather than shared with the OldSchool enum. It
+ * agrees id-for-id in every cache measured, and it is still written out, because the
+ * agreement is a fact about these two branches and not a rule the next one has to keep.
+ *
+ * cache.rs643 also ships idx23..25, idx29..34 and idx36, whose contents are not
+ * identified here. They are reachable — RSCache_Dat2DiskIsValidTableId is a range
+ * check, not an allow-list — just unnamed.
  */
 enum RSCache_Dat2Rs2DiskTable
 {
+    RSCACHE_DAT2_RS2_TABLE_ANIMATIONS = 0,
+    RSCACHE_DAT2_RS2_TABLE_SKELETONS = 1,
+    RSCACHE_DAT2_RS2_TABLE_CONFIGS = 2,
+    RSCACHE_DAT2_RS2_TABLE_INTERFACES = 3,
+    RSCACHE_DAT2_RS2_TABLE_SOUND_EFFECTS = 4,
+    RSCACHE_DAT2_RS2_TABLE_MAPS = 5,
+    RSCACHE_DAT2_RS2_TABLE_MUSIC_TRACKS = 6,
+    RSCACHE_DAT2_RS2_TABLE_MODELS = 7,
+    RSCACHE_DAT2_RS2_TABLE_SPRITES = 8,
+    RSCACHE_DAT2_RS2_TABLE_TEXTURES = 9,
+    RSCACHE_DAT2_RS2_TABLE_BINARY = 10,
+    RSCACHE_DAT2_RS2_TABLE_MUSIC_JINGLES = 11,
+    RSCACHE_DAT2_RS2_TABLE_CLIENTSCRIPT = 12,
+    RSCACHE_DAT2_RS2_TABLE_FONTS = 13,
+    RSCACHE_DAT2_RS2_TABLE_MUSIC_SAMPLES = 14,
+    RSCACHE_DAT2_RS2_TABLE_MUSIC_PATCHES = 15,
     RSCACHE_DAT2_RS2_TABLE_LOC = 16,
     RSCACHE_DAT2_RS2_TABLE_ENUM = 17,
     RSCACHE_DAT2_RS2_TABLE_NPC = 18,
@@ -93,6 +194,33 @@ enum RSCache_Dat2Rs2DiskTable
     RSCACHE_DAT2_RS2_TABLE_PARTICLES = 27,
     RSCACHE_DAT2_RS2_TABLE_DEFAULTS = 28,
 };
+
+/** Resolution result for a logical table this epoch has no table for. Not an error:
+ *  an OldSchool cache has no materials table and a 643 cache has no world map, so the
+ *  right response is to skip the load, not to attempt and report it. */
+#define RSCACHE_DAT2_DISK_TABLE_ABSENT (-1)
+
+/**
+ * One past the highest addressable table id, across every epoch — the bound for
+ * anything indexed by table id, and for RSCache_Dat2DiskIsValidTableId.
+ *
+ * Deliberately not a per-epoch count: it sizes arrays and validates ids, neither of
+ * which should change with the cache that happens to be open. 36 is the highest idx
+ * file any cache in-tree ships (cache.rs643's idx36).
+ */
+#define RSCACHE_DAT2_DISK_TABLE_CAPACITY 37
+
+/**
+ * The on-disk table id `table` has in `epoch` (an enum RSCache_Epoch), or
+ * RSCACHE_DAT2_DISK_TABLE_ABSENT when that epoch has no such table.
+ *
+ * RSCACHE_EPOCH_DAT1_CLASSIC has no dat2 tables at all and resolves to ABSENT for
+ * everything: a dat1 cache is a different container, read through dat1disk.h.
+ */
+int
+RSCache_Dat2DiskTableForEpoch(
+    int epoch,
+    enum RSCache_Dat2Table table);
 
 /**
  * There are many tables in the Dat2 cache format.
@@ -135,12 +263,39 @@ enum RSCache_Dat2Rs2DiskTable
 struct RSCache_Dat2Disk
 {
     char* directory;
-    struct RSCache_ReferenceTable* tables[RSCACHE_DAT2_DISK_TABLE_COUNT];
+    struct RSCache_ReferenceTable* tables[RSCACHE_DAT2_DISK_TABLE_CAPACITY];
     FILE* dat2_file;
+    /** enum RSCache_Epoch — which branch's table layout this cache uses.
+     *  RSCACHE_EPOCH_OSRS until a caller says otherwise; see
+     *  RSCache_Dat2DiskSetEpoch. */
+    int epoch;
 };
 
 bool
 RSCache_Dat2DiskIsValidTableId(int table_id);
+
+/**
+ * Declare which branch this cache came from, so table lookups through
+ * RSCache_Dat2DiskTableId resolve to that branch's ids.
+ *
+ * Stated, never detected — the same rule as RSCache.epoch, and for the same reason:
+ * 643 and early-OldSchool caches are indistinguishable by their reference-table
+ * revisions. A disk opened without this call is treated as OldSchool.
+ *
+ * Only affects id *resolution*. Opening a cache reads whichever idx files are present
+ * regardless of epoch, so this may be called at any point after the open.
+ */
+void
+RSCache_Dat2DiskSetEpoch(
+    struct RSCache_Dat2Disk* disk,
+    int epoch);
+
+/** The on-disk id `table` has in this cache, or RSCACHE_DAT2_DISK_TABLE_ABSENT.
+ *  A NULL disk answers as OldSchool. */
+int
+RSCache_Dat2DiskTableId(
+    const struct RSCache_Dat2Disk* disk,
+    enum RSCache_Dat2Table table);
 
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewFromDirectory(char const* directory);

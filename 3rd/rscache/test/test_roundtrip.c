@@ -266,7 +266,7 @@ scan_config_group(
         return;
 
     struct RSCache_Dat2DiskArchive* archive =
-        RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_DISK_TABLE_CONFIGS, config_kind);
+        RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_OSRS_TABLE_CONFIGS, config_kind);
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
@@ -767,7 +767,7 @@ scan_frames(
     if( !disk )
         return;
 
-    struct RSCache_ReferenceTable* frames = disk->tables[RSCACHE_DAT2_DISK_TABLE_ANIMATIONS];
+    struct RSCache_ReferenceTable* frames = disk->tables[RSCACHE_DAT2_OSRS_TABLE_ANIMATIONS];
     if( !frames )
     {
         RSCache_Dat2DiskFree(disk);
@@ -780,7 +780,7 @@ scan_frames(
     for( int i = 0; i < frames->id_count && scanned < scan_limit; i++ )
     {
         struct RSCache_Dat2DiskArchive* frame_archive =
-            RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_DISK_TABLE_ANIMATIONS, frames->ids[i]);
+            RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_OSRS_TABLE_ANIMATIONS, frames->ids[i]);
         if( !frame_archive )
             continue;
 
@@ -811,7 +811,7 @@ scan_frames(
                 RSCache_Dat2FrameFramemapIdFromFile(files->files[f], files->file_sizes[f]);
 
             struct RSCache_Dat2DiskArchive* fm_archive = RSCache_Dat2DiskArchiveNewLoad(
-                disk, RSCACHE_DAT2_DISK_TABLE_SKELETONS, framemap_id);
+                disk, RSCACHE_DAT2_OSRS_TABLE_SKELETONS, framemap_id);
             if( !fm_archive )
                 continue;
 
@@ -2221,11 +2221,11 @@ main(int argc, char** argv)
         record_visitor visit;
     };
     static const struct table_case TABLE_CASES[] = {
-        { "framemap", RSCACHE_DAT2_DISK_TABLE_SKELETONS, RSCACHE_TYPE_FRAMEMAP, visit_framemap },
-        { "sprites", RSCACHE_DAT2_DISK_TABLE_SPRITES, RSCACHE_TYPE_SPRITE, visit_sprites },
-        { "cs2script", RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT, RSCACHE_TYPE_CLIENTSCRIPT,
+        { "framemap", RSCACHE_DAT2_OSRS_TABLE_SKELETONS, RSCACHE_TYPE_FRAMEMAP, visit_framemap },
+        { "sprites", RSCACHE_DAT2_OSRS_TABLE_SPRITES, RSCACHE_TYPE_SPRITE, visit_sprites },
+        { "cs2script", RSCACHE_DAT2_OSRS_TABLE_CLIENTSCRIPT, RSCACHE_TYPE_CLIENTSCRIPT,
           visit_clientscript },
-        { "model", RSCACHE_DAT2_DISK_TABLE_MODELS, RSCACHE_TYPE_MODEL, visit_model },
+        { "model", RSCACHE_DAT2_OSRS_TABLE_MODELS, RSCACHE_TYPE_MODEL, visit_model },
     };
 
     int scanned_any = 0;

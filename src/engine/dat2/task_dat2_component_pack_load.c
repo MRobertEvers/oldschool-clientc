@@ -32,9 +32,9 @@ Task_Dat2ComponentPackLoad_Run(
 
     /* The interfaces table version is the cache revision the if1/if3 field
      * layout is keyed on (see RSCACHE_DAT2_COMPONENT_INDEX_REVISION_237). */
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES) )
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_INTERFACES) )
     {
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_INTERFACES);
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_INTERFACES);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
@@ -43,13 +43,13 @@ Task_Dat2ComponentPackLoad_Run(
             fprintf(stderr, "Failed to load interfaces reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES, table);
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_INTERFACES, table);
     }
 
     RSCache_IO_Dat2ComponentPackLoad(io, 0, task->iface_id);
     PT_YIELD(&task->pt);
 
-    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_INTERFACES);
     rscache_pack = RSCache_IO_Dat2ComponentPackDecode(
         io, 0, table ? table->version : RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN);
     if( !rscache_pack )

@@ -12,7 +12,8 @@ RSCache_Dat2FramemapNewFromCache(
     struct RSCache_Dat2Disk* cache,
     int framemap_id)
 {
-    struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_DISK_TABLE_SKELETONS, framemap_id);
+    struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(
+        cache, RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_SKELETONS), framemap_id);
     if( !archive )
     {
         printf("Failed to load framemap %d\n", framemap_id);

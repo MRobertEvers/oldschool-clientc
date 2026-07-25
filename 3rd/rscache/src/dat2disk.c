@@ -2,6 +2,7 @@
 
 #include "archive.h"
 #include "reference_table.h"
+#include "rscache_profile.h"
 #include "xtea_config.h"
 
 #include <assert.h>
@@ -562,15 +563,167 @@ RSCache_Dat2DiskIsValidTableId(int table_id)
      * table load, which callers handle, so gating on a name bought nothing and cost a
      * generation of support.
      */
-    return table_id >= 0 && table_id < RSCACHE_DAT2_DISK_TABLE_COUNT;
+    return table_id >= 0 && table_id < RSCACHE_DAT2_DISK_TABLE_CAPACITY;
+}
+
+/*
+ * Two tables, one per branch, indexed by logical table.
+ *
+ * Written as full tables rather than "OSRS ids with a few RS2 overrides" on purpose.
+ * An override list makes the shared 0..15 block an inherited default, which is exactly
+ * the coupling the separate enums exist to remove: the day a branch renumbers one of
+ * those, the override list is silently wrong for it while still compiling.
+ */
+static const int DAT2_TABLE_IDS_OSRS[RSCACHE_DAT2_TABLE_COUNT] = {
+    [RSCACHE_DAT2_TABLE_ANIMATIONS] = RSCACHE_DAT2_OSRS_TABLE_ANIMATIONS,
+    [RSCACHE_DAT2_TABLE_SKELETONS] = RSCACHE_DAT2_OSRS_TABLE_SKELETONS,
+    [RSCACHE_DAT2_TABLE_CONFIGS] = RSCACHE_DAT2_OSRS_TABLE_CONFIGS,
+    [RSCACHE_DAT2_TABLE_INTERFACES] = RSCACHE_DAT2_OSRS_TABLE_INTERFACES,
+    [RSCACHE_DAT2_TABLE_SOUND_EFFECTS] = RSCACHE_DAT2_OSRS_TABLE_SOUND_EFFECTS,
+    [RSCACHE_DAT2_TABLE_MAPS] = RSCACHE_DAT2_OSRS_TABLE_MAPS,
+    [RSCACHE_DAT2_TABLE_MUSIC_TRACKS] = RSCACHE_DAT2_OSRS_TABLE_MUSIC_TRACKS,
+    [RSCACHE_DAT2_TABLE_MODELS] = RSCACHE_DAT2_OSRS_TABLE_MODELS,
+    [RSCACHE_DAT2_TABLE_SPRITES] = RSCACHE_DAT2_OSRS_TABLE_SPRITES,
+    [RSCACHE_DAT2_TABLE_TEXTURES] = RSCACHE_DAT2_OSRS_TABLE_TEXTURES,
+    [RSCACHE_DAT2_TABLE_BINARY] = RSCACHE_DAT2_OSRS_TABLE_BINARY,
+    [RSCACHE_DAT2_TABLE_MUSIC_JINGLES] = RSCACHE_DAT2_OSRS_TABLE_MUSIC_JINGLES,
+    [RSCACHE_DAT2_TABLE_CLIENTSCRIPT] = RSCACHE_DAT2_OSRS_TABLE_CLIENTSCRIPT,
+    [RSCACHE_DAT2_TABLE_FONTS] = RSCACHE_DAT2_OSRS_TABLE_FONTS,
+    [RSCACHE_DAT2_TABLE_MUSIC_SAMPLES] = RSCACHE_DAT2_OSRS_TABLE_MUSIC_SAMPLES,
+    [RSCACHE_DAT2_TABLE_MUSIC_PATCHES] = RSCACHE_DAT2_OSRS_TABLE_MUSIC_PATCHES,
+    [RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY] = RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GEOGRAPHY,
+    [RSCACHE_DAT2_TABLE_WORLDMAP] = RSCACHE_DAT2_OSRS_TABLE_WORLDMAP,
+    [RSCACHE_DAT2_TABLE_WORLDMAP_GROUND] = RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GROUND,
+    [RSCACHE_DAT2_TABLE_DBTABLE_INDEX] = RSCACHE_DAT2_OSRS_TABLE_DBTABLE_INDEX,
+    [RSCACHE_DAT2_TABLE_ANIMAYAS] = RSCACHE_DAT2_OSRS_TABLE_ANIMAYAS,
+    [RSCACHE_DAT2_TABLE_GAMEVALS] = RSCACHE_DAT2_OSRS_TABLE_GAMEVALS,
+    /* The RS2-only types live in the config table here, addressed by config kind —
+     * RSCache_RecordAddressFor is what resolves those, not this. */
+    [RSCACHE_DAT2_TABLE_LOC] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_ENUM] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_NPC] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_OBJ] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_SEQ] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_SPOTANIM] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_VARBIT] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_MATERIALS] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_PARTICLES] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_DEFAULTS] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+};
+
+static const int DAT2_TABLE_IDS_RS2[RSCACHE_DAT2_TABLE_COUNT] = {
+    [RSCACHE_DAT2_TABLE_ANIMATIONS] = RSCACHE_DAT2_RS2_TABLE_ANIMATIONS,
+    [RSCACHE_DAT2_TABLE_SKELETONS] = RSCACHE_DAT2_RS2_TABLE_SKELETONS,
+    [RSCACHE_DAT2_TABLE_CONFIGS] = RSCACHE_DAT2_RS2_TABLE_CONFIGS,
+    [RSCACHE_DAT2_TABLE_INTERFACES] = RSCACHE_DAT2_RS2_TABLE_INTERFACES,
+    [RSCACHE_DAT2_TABLE_SOUND_EFFECTS] = RSCACHE_DAT2_RS2_TABLE_SOUND_EFFECTS,
+    [RSCACHE_DAT2_TABLE_MAPS] = RSCACHE_DAT2_RS2_TABLE_MAPS,
+    [RSCACHE_DAT2_TABLE_MUSIC_TRACKS] = RSCACHE_DAT2_RS2_TABLE_MUSIC_TRACKS,
+    [RSCACHE_DAT2_TABLE_MODELS] = RSCACHE_DAT2_RS2_TABLE_MODELS,
+    [RSCACHE_DAT2_TABLE_SPRITES] = RSCACHE_DAT2_RS2_TABLE_SPRITES,
+    [RSCACHE_DAT2_TABLE_TEXTURES] = RSCACHE_DAT2_RS2_TABLE_TEXTURES,
+    [RSCACHE_DAT2_TABLE_BINARY] = RSCACHE_DAT2_RS2_TABLE_BINARY,
+    [RSCACHE_DAT2_TABLE_MUSIC_JINGLES] = RSCACHE_DAT2_RS2_TABLE_MUSIC_JINGLES,
+    [RSCACHE_DAT2_TABLE_CLIENTSCRIPT] = RSCACHE_DAT2_RS2_TABLE_CLIENTSCRIPT,
+    [RSCACHE_DAT2_TABLE_FONTS] = RSCACHE_DAT2_RS2_TABLE_FONTS,
+    [RSCACHE_DAT2_TABLE_MUSIC_SAMPLES] = RSCACHE_DAT2_RS2_TABLE_MUSIC_SAMPLES,
+    [RSCACHE_DAT2_TABLE_MUSIC_PATCHES] = RSCACHE_DAT2_RS2_TABLE_MUSIC_PATCHES,
+    /* 18..22 are npc/obj/seq/spotanim/varbit in this branch, so none of the OldSchool
+     * tables that share those ids exist here. Reading them anyway is what this table
+     * prevents: it decodes real archives as the wrong type rather than failing. */
+    [RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_WORLDMAP] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_WORLDMAP_GROUND] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_DBTABLE_INDEX] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_ANIMAYAS] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_GAMEVALS] = RSCACHE_DAT2_DISK_TABLE_ABSENT,
+    [RSCACHE_DAT2_TABLE_LOC] = RSCACHE_DAT2_RS2_TABLE_LOC,
+    [RSCACHE_DAT2_TABLE_ENUM] = RSCACHE_DAT2_RS2_TABLE_ENUM,
+    [RSCACHE_DAT2_TABLE_NPC] = RSCACHE_DAT2_RS2_TABLE_NPC,
+    [RSCACHE_DAT2_TABLE_OBJ] = RSCACHE_DAT2_RS2_TABLE_OBJ,
+    [RSCACHE_DAT2_TABLE_SEQ] = RSCACHE_DAT2_RS2_TABLE_SEQ,
+    [RSCACHE_DAT2_TABLE_SPOTANIM] = RSCACHE_DAT2_RS2_TABLE_SPOTANIM,
+    [RSCACHE_DAT2_TABLE_VARBIT] = RSCACHE_DAT2_RS2_TABLE_VARBIT,
+    [RSCACHE_DAT2_TABLE_MATERIALS] = RSCACHE_DAT2_RS2_TABLE_MATERIALS,
+    [RSCACHE_DAT2_TABLE_PARTICLES] = RSCACHE_DAT2_RS2_TABLE_PARTICLES,
+    [RSCACHE_DAT2_TABLE_DEFAULTS] = RSCACHE_DAT2_RS2_TABLE_DEFAULTS,
+};
+
+int
+RSCache_Dat2DiskTableForEpoch(
+    int epoch,
+    enum RSCache_Dat2Table table)
+{
+    if( table < 0 || table >= RSCACHE_DAT2_TABLE_COUNT )
+        return RSCACHE_DAT2_DISK_TABLE_ABSENT;
+
+    switch( epoch )
+    {
+    case RSCACHE_EPOCH_643:
+        return DAT2_TABLE_IDS_RS2[table];
+    case RSCACHE_EPOCH_OSRS:
+        return DAT2_TABLE_IDS_OSRS[table];
+    default:
+        /* dat1 has no dat2 tables; an unknown epoch has no ids to offer either. */
+        return RSCACHE_DAT2_DISK_TABLE_ABSENT;
+    }
+}
+
+void
+RSCache_Dat2DiskSetEpoch(
+    struct RSCache_Dat2Disk* disk,
+    int epoch)
+{
+    if( !disk )
+        return;
+    disk->epoch = epoch;
+}
+
+int
+RSCache_Dat2DiskTableId(
+    const struct RSCache_Dat2Disk* disk,
+    enum RSCache_Dat2Table table)
+{
+    return RSCache_Dat2DiskTableForEpoch(disk ? disk->epoch : RSCACHE_EPOCH_OSRS, table);
+}
+
+/*
+ * Which tables exist is a property of the CACHE, not of the library's table list.
+ *
+ * The id range is era-dependent and overlapping — 19 is OldSchool's worldmap and RS2's objs, 26
+ * is RS2's materials and nothing at all in OldSchool — so neither a name allow-list (which
+ * hides tables we have not named: D18/D21) nor a bare range walk (which probes tables the cache
+ * never had, and reports each as a failure) is right.
+ *
+ * The cache answers it directly: a table is present iff its `.idxN` file is. Absence is then
+ * silent, because a cache not shipping a table is ordinary — an OldSchool dump has no reason to
+ * carry RS2's 23..34. A table whose index *does* exist but whose reference table will not load
+ * is still reported, because that one is a real problem.
+ */
+static bool
+dat2disk_table_present(
+    struct RSCache_Dat2Disk* disk,
+    int table_id)
+{
+    FILE* index_file;
+
+    if( !disk || !disk->directory )
+        return false;
+    index_file = dat2disk_fopen_index(disk->directory, table_id);
+    if( !index_file )
+        return false;
+    fclose(index_file);
+    return true;
 }
 
 static void
 init_reference_tables(struct RSCache_Dat2Disk* disk)
 {
-    for( int i = 0; i < RSCACHE_DAT2_DISK_TABLE_COUNT; ++i )
+    for( int i = 0; i < RSCACHE_DAT2_DISK_TABLE_CAPACITY; ++i )
     {
         if( !RSCache_Dat2DiskIsValidTableId(i) )
+            continue;
+        if( !dat2disk_table_present(disk, i) )
             continue;
 
         struct RSCache_Dat2DiskArchive* table_archive =
@@ -619,6 +772,9 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory)
         return NULL;
 
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
+    /* Epoch 0 is dat1, which a dat2 disk can never be. State the default rather than
+     * inherit it from the memset. */
+    disk->epoch = RSCACHE_EPOCH_OSRS;
     disk->directory = strdup(directory);
     if( !disk->directory )
     {
@@ -648,6 +804,7 @@ RSCache_Dat2DiskNewUninitialized(void)
     if( !disk )
         return NULL;
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
+    disk->epoch = RSCACHE_EPOCH_OSRS;
     return disk;
 }
 
@@ -660,7 +817,7 @@ RSCache_Dat2DiskFree(struct RSCache_Dat2Disk* disk)
     if( disk->dat2_file )
         fclose(disk->dat2_file);
 
-    for( int i = 0; i < RSCACHE_DAT2_DISK_TABLE_COUNT; ++i )
+    for( int i = 0; i < RSCACHE_DAT2_DISK_TABLE_CAPACITY; ++i )
     {
         if( disk->tables[i] )
             RSCache_ReferenceTableFree(disk->tables[i]);

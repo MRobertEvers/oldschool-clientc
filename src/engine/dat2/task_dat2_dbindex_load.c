@@ -45,6 +45,15 @@ Task_Dat2DbTableIndexLoad_Run(
 
     PT_BEGIN(&task->pt);
 
+    /* Table 21 holds db indexes in OldSchool and spotanims in RS2, so a branch without
+     * the table has no index to find — the same answer as a table with no index archive. */
+    if( !RSCache_IO_ProfileHasDat2Table(
+            CacheProvider_Profile(&task->bc->base), RSCACHE_DAT2_TABLE_DBTABLE_INDEX) )
+    {
+        dbindex_add_empty(task);
+        PT_EXIT(&task->pt);
+    }
+
     RSCache_IO_Dat2DbTableIndexLoad(io, 0, task->table_id);
     PT_YIELD(&task->pt);
 

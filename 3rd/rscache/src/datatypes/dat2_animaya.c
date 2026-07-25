@@ -833,13 +833,17 @@ RSCache_Dat2AnimMayaNewFromCache(
     int archive_id = anim_maya_id >> 16;
     int file_id = anim_maya_id & 0xFFFF;
 
-    archive = RSCache_Dat2DiskArchiveNewLoad(
-        cache, RSCACHE_DAT2_DISK_TABLE_ANIMAYAS, archive_id);
+    /* Maya skeletal animation is an OldSchool table. A 643 cache puts varbits at that
+     * id, so there is nothing here to read rather than something that fails to decode. */
+    int animayas_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_ANIMAYAS);
+    if( animayas_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return NULL;
+
+    archive = RSCache_Dat2DiskArchiveNewLoad(cache, animayas_table, archive_id);
     if( !archive )
         return NULL;
 
-    struct RSCache_ReferenceTable* table =
-        cache->tables[RSCACHE_DAT2_DISK_TABLE_ANIMAYAS];
+    struct RSCache_ReferenceTable* table = cache->tables[animayas_table];
     maya = RSCache_Dat2AnimMayaNewFromArchive(table, archive, anim_maya_id);
     RSCache_Dat2DiskArchiveFree(archive);
     return maya;

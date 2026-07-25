@@ -96,7 +96,13 @@ dat2_map_archive_id(
 
     int name_hash = RSCache_ArchiveNameHashDat2(name);
 
-    struct RSCache_ReferenceTable* table = cache->tables[RSCACHE_DAT2_DISK_TABLE_MAPS];
+    int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
+    if( maps_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return -1;
+
+    struct RSCache_ReferenceTable* table = cache->tables[maps_table];
+    if( !table )
+        return -1;
 
     for( int i = 0; i < table->archive_count; i++ )
     {
@@ -143,7 +149,8 @@ RSCache_MapTerrainNewFromCache(
         return NULL;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id);
+    archive = RSCache_Dat2DiskArchiveNewLoad(
+        cache, RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS), archive_id);
     if( !archive )
     {
         printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_z);
@@ -178,7 +185,8 @@ RSCache_MapTerrainArchiveNewLoad(
         return NULL;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id);
+    archive = RSCache_Dat2DiskArchiveNewLoad(
+        cache, RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS), archive_id);
     if( !archive )
     {
         printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_z);
@@ -459,7 +467,8 @@ RSCache_MapLocsNewFromCache(
     int archive_id = dat2_map_loc_id(cache, map_x, map_z);
     struct RSCache_MapLocs* map_locs = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
-    uint32_t* xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id);
+    int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
+    uint32_t* xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
 
     if( !xtea_key )
     {
@@ -467,7 +476,8 @@ RSCache_MapLocsNewFromCache(
         goto error;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewLoadDecrypted(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id, xtea_key);
+    archive =
+        RSCache_Dat2DiskArchiveNewLoadDecrypted(cache, maps_table, archive_id, xtea_key);
     if( !archive )
     {
         printf("Failed to load map %d, %d\n", map_x, map_z);
@@ -593,14 +603,16 @@ RSCache_MapLocsArchiveNewLoad(
     struct RSCache_Dat2DiskArchive* archive = NULL;
 
     int archive_id = dat2_map_loc_id(cache, map_x, map_z);
-    xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id);
+    int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
+    xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
     if( !xtea_key )
     {
         printf("Failed to load xtea key for map %d, %d\n", map_x, map_z);
         goto error;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewLoadDecrypted(cache, RSCACHE_DAT2_DISK_TABLE_MAPS, archive_id, xtea_key);
+    archive =
+        RSCache_Dat2DiskArchiveNewLoadDecrypted(cache, maps_table, archive_id, xtea_key);
     if( !archive )
     {
         printf("Failed to load map %d, %d\n", map_x, map_z);

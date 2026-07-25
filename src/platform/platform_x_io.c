@@ -243,30 +243,33 @@ load_file_item(
     return 0;
 }
 
+/*
+ * Turn the logical table a caller queued into the on-disk id THIS cache uses.
+ *
+ * Queued dat2 items name a table by role (RSCACHE_DAT2_TABLE_*), not by number, and the
+ * number is settled here — the one place that holds the open cache and therefore knows its
+ * epoch. Ids are not portable between branches: 19 is OldSchool's worldmap and RS2's objs,
+ * 26 is RS2's materials and nothing in OldSchool. Resolving anywhere else means a caller has
+ * to know which cache is open in order to ask for a table.
+ *
+ * Returns RSCACHE_DAT2_DISK_TABLE_ABSENT when this cache's branch has no such table. That is
+ * a refusal to read, and deliberately so: the id a wrong-branch read would land on usually
+ * *exists* and decodes into something else entirely, which surfaces far from here.
+ *
+ * (This replaced an allow-list of named table ids, a shape that caused the same bug three
+ * times — D18, then the RS2 tables 16..22, then materials 26. An id missing from the list was
+ * refused before any read, so the caller reported "decode failed" or "no materials table"
+ * with nothing anywhere saying the read had been rejected. Resolution can still refuse, but
+ * only for a table the open cache genuinely does not have.)
+ */
 static int
-dat2_cache_table_supported(int table_id)
+dat2_resolve_table(
+    struct PlatformX_IO* px,
+    int logical_table)
 {
-    /*
-     * Is `table_id` a table this IO layer may read?
-     *
-     * This USED TO BE AN ALLOW-LIST OF NAMED TABLES, and that shape has now caused the same
-     * bug three separate times (D18, then again here for the RS2 tables 16..22, then again for
-     * the materials table 26). The failure is always the same and always expensive to find: an
-     * id absent from the list is refused *before* any read, so the caller sees an empty result
-     * and reports "decode failed" or "no materials table" — nothing anywhere says the read was
-     * rejected rather than the data being missing.
-     *
-     * Enumerating names cannot work, because table ids are era-dependent: 19 is OSRS's worldmap
-     * and RS2's objs, 26 is RS2's materials and nothing in OSRS. A name-keyed list conflates
-     * "unknown to us" with "not present in the cache".
-     *
-     * So this is now a RANGE check, matching RSCache_Dat2DiskIsValidTableId — which was
-     * converted for exactly this reason. Whether a table has any meaning is the profile's
-     * business (RSCache_RecordAddressFor and friends); whether it may be *read* is only a
-     * question of it being a legal index id. A table the cache does not ship still fails
-     * naturally, one layer down, with a real message.
-     */
-    return table_id >= 0 && table_id < RSCACHE_DAT2_DISK_TABLE_COUNT;
+    if( logical_table < 0 || logical_table >= RSCACHE_DAT2_TABLE_COUNT )
+        return RSCACHE_DAT2_DISK_TABLE_ABSENT;
+    return RSCache_Dat2DiskTableId(px->dat2_disk, (enum RSCache_Dat2Table)logical_table);
 }
 
 static int
@@ -274,14 +277,20 @@ load_cache_item_dat2(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    int table_id = item->u.cache.table_id;
+    int logical_table = item->u.cache.table_id;
+    int table_id = dat2_resolve_table(px, logical_table);
     int archive_id = item->u.cache.archive_id;
     struct RSCache_Dat2DiskArchive* archive = NULL;
 
     assert(px->dat2_disk);
 
-    if( !dat2_cache_table_supported(table_id) )
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
+        fprintf(
+            stderr,
+            "dat2: logical table %d has no table in this cache's branch (epoch %d)\n",
+            logical_table,
+            px->dat2_disk->epoch);
         item->error_code = -1;
         return -1;
     }
@@ -315,7 +324,7 @@ load_cache_item_dat2(
     {
         uint32_t* xtea_key = NULL;
         /* Loc (lX_Z) map archives are XTEA-encrypted; terrain (mX_Z) keys are null. */
-        if( table_id == RSCACHE_DAT2_DISK_TABLE_MAPS )
+        if( logical_table == RSCACHE_DAT2_TABLE_MAPS )
             xtea_key = RSCache_Dat2DiskArchiveXteaKey(px->dat2_disk, table_id, archive_id);
         archive = RSCache_Dat2DiskArchiveNewLoadDecrypted(
             px->dat2_disk, table_id, archive_id, xtea_key);
@@ -437,11 +446,17 @@ load_reference_table_item(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    int table_id = item->u.reference_table.table_id;
+    int table_id = dat2_resolve_table(px, item->u.reference_table.table_id);
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_ReferenceTable* table = NULL;
 
     assert(px->dat2_disk);
+
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+    {
+        item->error_code = -1;
+        return -1;
+    }
 
     archive = RSCache_Dat2DiskArchiveNewReferenceTableLoad(px->dat2_disk, table_id);
     if( !archive )

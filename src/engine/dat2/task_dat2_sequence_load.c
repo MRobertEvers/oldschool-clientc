@@ -192,7 +192,7 @@ Task_Dat2SequenceLoad_Run(
             continue;
 
         ToriRS_IO_QueueCache(
-            io, 0, 0, RSCACHE_DAT2_DISK_TABLE_ANIMATIONS, (self->cur_frame_id >> 16) & 0xFFFF,
+            io, 0, 0, RSCACHE_DAT2_TABLE_ANIMATIONS, (self->cur_frame_id >> 16) & 0xFFFF,
             TORIRS_IO_CACHE_DAT2);
         PT_YIELD(&self->pt);
         self->frame_archive = seq_take_archive(io, 0);
@@ -219,7 +219,7 @@ Task_Dat2SequenceLoad_Run(
         if( self->cur_framemap_id != self->loaded_framemap_id )
         {
             ToriRS_IO_QueueCache(
-                io, 1, 0, RSCACHE_DAT2_DISK_TABLE_SKELETONS, self->cur_framemap_id,
+                io, 1, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {

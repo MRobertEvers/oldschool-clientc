@@ -1,5 +1,7 @@
 #include "rscache_profile.h"
 
+#include "dat2disk.h"
+
 #include <assert.h>
 #include <string.h>
 
@@ -87,39 +89,40 @@ RSCache_RecordAddressFor(
     enum RSCache_Type type)
 {
     struct RSCache_RecordAddress addr = { 0 };
-    addr.table = RSCACHE_DAT2_DISK_TABLE_CONFIGS;
+    addr.table = RSCACHE_DAT2_TABLE_CONFIGS;
     addr.group = -1;
     addr.group_shift = 0;
     addr.file_mask = 0;
 
     if( cache && cache->epoch == RSCACHE_EPOCH_643 )
     {
-        /* Per void's Index.kt for the table, and each DefinitionDecoder subclass for the
-         * shard width. Only the types a world render needs are mapped so far. */
+        /* Which table each type lives in per void's Index.kt, and the shard width per its
+         * DefinitionDecoder subclasses. Only the types a world render needs are mapped so
+         * far. `table` stays logical — whoever holds the open cache turns it into an id. */
         switch( type )
         {
         case RSCACHE_TYPE_LOC:
-            addr.table = RSCACHE_DAT2_RS2_TABLE_LOC;
+            addr.table = RSCACHE_DAT2_TABLE_LOC;
             addr.group_shift = 8;
             addr.file_mask = 0xFF;
             return addr;
         case RSCACHE_TYPE_NPC:
-            addr.table = RSCACHE_DAT2_RS2_TABLE_NPC;
+            addr.table = RSCACHE_DAT2_TABLE_NPC;
             addr.group_shift = 7;
             addr.file_mask = 0x7F;
             return addr;
         case RSCACHE_TYPE_OBJ:
-            addr.table = RSCACHE_DAT2_RS2_TABLE_OBJ;
+            addr.table = RSCACHE_DAT2_TABLE_OBJ;
             addr.group_shift = 8;
             addr.file_mask = 0xFF;
             return addr;
         case RSCACHE_TYPE_SEQUENCE:
-            addr.table = RSCACHE_DAT2_RS2_TABLE_SEQ;
+            addr.table = RSCACHE_DAT2_TABLE_SEQ;
             addr.group_shift = 7;
             addr.file_mask = 0x7F;
             return addr;
         case RSCACHE_TYPE_SPOTANIM:
-            addr.table = RSCACHE_DAT2_RS2_TABLE_SPOTANIM;
+            addr.table = RSCACHE_DAT2_TABLE_SPOTANIM;
             addr.group_shift = 8;
             addr.file_mask = 0xFF;
             return addr;

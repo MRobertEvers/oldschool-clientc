@@ -1843,8 +1843,8 @@ RSCache_ModelNewFromCache(
     int model_id)
 {
     struct RSCache_Model* model = NULL;
-    struct RSCache_Dat2DiskArchive* archive =
-        RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_DISK_TABLE_MODELS, model_id);
+    struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(
+        cache, RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MODELS), model_id);
     if( !archive )
     {
         printf("Failed to load model %d\n", model_id);

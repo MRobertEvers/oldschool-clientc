@@ -309,7 +309,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
     CacheProvider_FreeEngineCaches(&dat2_buildcache->base);
 
-    for( table_id = 0; table_id < RSCACHE_DAT2_DISK_TABLE_COUNT; table_id++ )
+    for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )
         dat2_buildcache->reference_tables[table_id] = NULL;
 
     free(dat2_buildcache);
@@ -687,35 +687,35 @@ dat2_buildcache_clientscripts_cleanup(struct Dat2BuildCache* dat2_buildcache)
 void
 dat2_buildcache_reference_table_add(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id,
-    struct RSCache_ReferenceTable* table)
+    int table,
+    struct RSCache_ReferenceTable* reference_table)
 {
     assert(dat2_buildcache);
-    assert(table);
-    assert(RSCache_Dat2DiskIsValidTableId(table_id));
+    assert(reference_table);
+    assert(table >= 0 && table < RSCACHE_DAT2_TABLE_COUNT);
 
-    if( dat2_buildcache->reference_tables[table_id] )
-        RSCache_ReferenceTableFree(dat2_buildcache->reference_tables[table_id]);
-    dat2_buildcache->reference_tables[table_id] = table;
+    if( dat2_buildcache->reference_tables[table] )
+        RSCache_ReferenceTableFree(dat2_buildcache->reference_tables[table]);
+    dat2_buildcache->reference_tables[table] = reference_table;
 }
 
 struct RSCache_ReferenceTable*
 dat2_buildcache_reference_table_get(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id)
+    int table)
 {
     assert(dat2_buildcache);
-    if( !RSCache_Dat2DiskIsValidTableId(table_id) )
+    if( table < 0 || table >= RSCACHE_DAT2_TABLE_COUNT )
         return NULL;
-    return dat2_buildcache->reference_tables[table_id];
+    return dat2_buildcache->reference_tables[table];
 }
 
 bool
 dat2_buildcache_reference_table_has(
     struct Dat2BuildCache* dat2_buildcache,
-    int table_id)
+    int table)
 {
-    return dat2_buildcache_reference_table_get(dat2_buildcache, table_id) != NULL;
+    return dat2_buildcache_reference_table_get(dat2_buildcache, table) != NULL;
 }
 
 void
@@ -725,7 +725,7 @@ dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache)
 
     assert(dat2_buildcache);
 
-    for( table_id = 0; table_id < RSCACHE_DAT2_DISK_TABLE_COUNT; table_id++ )
+    for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )
     {
         if( dat2_buildcache->reference_tables[table_id] )
         {

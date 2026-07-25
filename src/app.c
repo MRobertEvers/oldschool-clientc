@@ -1381,6 +1381,12 @@ app_provider_set_cache_profile(
         profile.version,
         profile.quirks);
 
+    /* The disk resolves logical table names to ids, so it needs the same epoch the
+     * decoders got. Without this it answers as OldSchool, which on a 643 cache means
+     * reading objs where the world map should be — a wrong read, not a failed one. */
+    if( app->dat2_disk )
+        RSCache_Dat2DiskSetEpoch(app->dat2_disk, profile.epoch);
+
     CacheProvider_SetProfile(app->provider, &profile);
 }
 

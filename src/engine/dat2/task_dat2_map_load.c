@@ -58,9 +58,9 @@ Task_Dat2MapTerrainLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS) )
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_MAPS);
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
@@ -69,10 +69,10 @@ Task_Dat2MapTerrainLoad_Run(
             fprintf(stderr, "Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS, table);
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
     }
 
-    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
     assert(table);
 
     archive_id = task_dat2_map_resolve_archive_id(table, "m%d_%d", task->map_x, task->map_z);
@@ -127,9 +127,9 @@ Task_Dat2MapSceneryLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS) )
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_MAPS);
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
@@ -138,10 +138,10 @@ Task_Dat2MapSceneryLoad_Run(
             fprintf(stderr, "Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS, table);
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
     }
 
-    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_MAPS);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
     assert(table);
 
     archive_id = task_dat2_map_resolve_archive_id(table, "l%d_%d", task->map_x, task->map_z);

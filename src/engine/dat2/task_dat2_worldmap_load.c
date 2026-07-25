@@ -126,9 +126,18 @@ Task_Dat2WorldMapLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP) )
+    /* Table 19 is the world map only in OldSchool; the RS2 branch keeps objs there. Ask
+     * before loading, or a 643 cache renders obj configs as map areas. */
+    if( !RSCache_IO_ProfileHasDat2Table(
+            CacheProvider_Profile(&task->bc->base), RSCACHE_DAT2_TABLE_WORLDMAP) )
     {
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_WORLDMAP);
+        fprintf(stderr, "worldmap: this cache's branch has no world map table\n");
+        PT_EXIT(&task->pt);
+    }
+
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP) )
+    {
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_WORLDMAP);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
@@ -137,10 +146,10 @@ Task_Dat2WorldMapLoad_Run(
             fprintf(stderr, "worldmap: no reference table (cache has no world map)\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP, table);
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP, table);
     }
 
-    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP);
     assert(table);
 
     details_archive_id = task_dat2_worldmap_resolve_archive_id(table, "details");

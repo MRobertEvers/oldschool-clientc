@@ -203,12 +203,12 @@ dump_by_id(
 
     if( addr.group_shift == 0 )
     {
-        table = RSCACHE_DAT2_DISK_TABLE_CONFIGS;
+        table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
         archive_id = RSCACHE_DAT2_CONFIG_KIND_NPC;
     }
     else
     {
-        table = addr.table;
+        table = RSCache_Dat2DiskTableId(disk, addr.table);
         archive_id = npc_id >> addr.group_shift;
     }
 
@@ -258,7 +258,9 @@ dump_by_name(
     if( addr.group_shift == 0 )
     {
         struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(
-            disk, RSCACHE_DAT2_DISK_TABLE_CONFIGS, RSCACHE_DAT2_CONFIG_KIND_NPC);
+            disk,
+            RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS),
+            RSCACHE_DAT2_CONFIG_KIND_NPC);
         if( !archive )
         {
             fprintf(stderr, "Failed to load OSRS npc config group\n");
@@ -270,12 +272,14 @@ dump_by_name(
     }
     else
     {
-        struct RSCache_ReferenceTable* table = disk->tables[addr.table];
+        int table_id = RSCache_Dat2DiskTableId(disk, addr.table);
+        struct RSCache_ReferenceTable* table =
+            table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT ? NULL : disk->tables[table_id];
         int i;
 
         if( !table )
         {
-            fprintf(stderr, "Missing reference table %d for NPCs\n", addr.table);
+            fprintf(stderr, "Missing reference table %d for NPCs\n", table_id);
             return 1;
         }
 
@@ -283,7 +287,7 @@ dump_by_name(
         {
             int archive_id = table->ids[i];
             struct RSCache_Dat2DiskArchive* archive =
-                RSCache_Dat2DiskArchiveNewLoad(disk, addr.table, archive_id);
+                RSCache_Dat2DiskArchiveNewLoad(disk, table_id, archive_id);
             if( !archive )
                 continue;
             if( !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) || archive->file_count <= 0 )
@@ -383,6 +387,9 @@ main(int argc, char** argv)
         fprintf(stderr, "Failed to open cache: %s\n", cache_dir);
         return 1;
     }
+    /* Same epoch the profile resolved to, so the disk answers table lookups in the
+     * branch the records are actually laid out for. */
+    RSCache_Dat2DiskSetEpoch(disk, profile.epoch);
 
     printf(
         "# cache=%s rev=%s epoch=%d npc_layout=%s\n",

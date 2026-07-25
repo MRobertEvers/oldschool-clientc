@@ -236,7 +236,8 @@ RSCache_CodecVersionOr(
  *
  * OSRS keeps most types as one config group holding every record as a file, so the id *is*
  * the file id. RS2 promotes several types to their own table and shards them into groups, so
- * an id has to be split — and the shard width is per type, not uniform:
+ * an id has to be split — and the shard width is per type, not uniform (table ids below are
+ * the RS2 ones, for orientation; `table` itself is logical):
  *
  *   loc  table 16, 256 files per group -> archive = id >> 8, file = id & 0xFF
  *   npc  table 18, 128 files per group -> archive = id >> 7, file = id & 0x7F
@@ -251,7 +252,10 @@ RSCache_CodecVersionOr(
  */
 struct RSCache_RecordAddress
 {
-    /** Disk table the records live in. */
+    /** enum RSCache_Dat2Table — the table the records live in, by role. Logical, not an
+     *  on-disk id: the id differs between branches (locs are table 16 in RS2 and have no
+     *  table at all in OldSchool), so it is settled by whoever holds the open cache, via
+     *  RSCache_Dat2DiskTableId. */
     int table;
     /** Config-kind / group id when not sharded; ignored when `group_shift` is non-zero. */
     int group;

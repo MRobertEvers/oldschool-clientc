@@ -129,9 +129,9 @@ Task_Dat2SpriteLoadByName_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_SPRITES) )
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_SPRITES) )
     {
-        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_SPRITES);
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_SPRITES);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
@@ -140,10 +140,10 @@ Task_Dat2SpriteLoadByName_Run(
             fprintf(stderr, "Failed to load sprites reference table\n");
             PT_EXIT(&task->pt);
         }
-        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_SPRITES, table);
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_SPRITES, table);
     }
 
-    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_SPRITES);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_SPRITES);
     assert(table);
 
     task->sprite_id = dat2_resolve_sprite_archive_by_name(table, task->archive_name);
