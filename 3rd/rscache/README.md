@@ -587,6 +587,7 @@ same four flags (`--game/--epoch/--revision/--quirks`) or `--rev <name>`.
 | loc, and others | epoch dat1 | strings are newline- not NUL-terminated |
 | map terrain | not OldSchool | tile attributes / overlay ids stay u8 (OSRS widens at 209) |
 | map locs | OldSchool game ≥ 237 | archives stored plain; no keys shipped or applied |
+| map tables | OldSchool caches without archive identifiers | one multi-file archive per region id (`(x<<8)|z`); file 0 = terrain, file 1 = locs (named `mX_Z`/`lX_Z` lookup is preferred when identifiers exist) |
 | loc | quirk KRONOS | opcodes 78/79 omit a byte |
 
 Map XTEA cannot be answered from the key file. Pre-237 OldSchool caches ship keys;

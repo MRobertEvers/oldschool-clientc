@@ -6,6 +6,8 @@
 #include "asyncio.h"
 #include "cache/rscache_io.h"
 
+#include <rscache.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +45,26 @@ task_dat2_map_resolve_archive_id(
     return -1;
 }
 
+/** Named m/l lookup, else region-id archive used by modern nameless maps tables. */
+static int
+task_dat2_map_resolve(
+    struct RSCache_ReferenceTable* table,
+    int map_x,
+    int map_z,
+    int want_locs)
+{
+    int named = task_dat2_map_resolve_archive_id(
+        table, want_locs ? "l%d_%d" : "m%d_%d", map_x, map_z);
+    if( named >= 0 )
+        return named;
+
+    int region_id = RSCache_MapSquareId(map_x, map_z);
+    if( region_id >= 0 && region_id < table->archive_count &&
+        table->archives[region_id].index >= 0 )
+        return region_id;
+    return -1;
+}
+
 static int
 Task_Dat2MapTerrainLoad_Run(
     struct ToriRS_Task* task_base,
@@ -75,7 +97,7 @@ Task_Dat2MapTerrainLoad_Run(
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
     assert(table);
 
-    archive_id = task_dat2_map_resolve_archive_id(table, "m%d_%d", task->map_x, task->map_z);
+    archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 0);
     if( archive_id < 0 )
     {
         fprintf(stderr, "No terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
@@ -93,7 +115,8 @@ Task_Dat2MapTerrainLoad_Run(
     }
 
     /* Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209), so
-     * the profile picks them — not the container, which is dat2 for both widths. */
+     * the profile picks them — not the container, which is dat2 for both widths.
+     * Region-grouped archives are split inside MapTerrainNewFromArchiveProfile. */
     rscache_terrain = RSCache_MapTerrainNewFromArchiveProfile(
         archive, task->map_x, task->map_z, CacheProvider_Profile(&task->bc->base));
     RSCache_Dat2DiskArchiveFree(archive);
@@ -122,6 +145,9 @@ Task_Dat2MapSceneryLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_MapLocs* rscache_locs = NULL;
     struct ToriRS_MapLocs* torirs_locs = NULL;
+    struct RSCache_FileList* files = NULL;
+    char* data;
+    int size;
     int map_id = CacheProvider_MapId(task->map_x, task->map_z);
     int archive_id = -1;
 
@@ -144,7 +170,7 @@ Task_Dat2MapSceneryLoad_Run(
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_MAPS);
     assert(table);
 
-    archive_id = task_dat2_map_resolve_archive_id(table, "l%d_%d", task->map_x, task->map_z);
+    archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 1);
     if( archive_id < 0 )
     {
         fprintf(stderr, "No scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
@@ -161,7 +187,24 @@ Task_Dat2MapSceneryLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    rscache_locs = RSCache_MapLocsNewDecode(archive->data, archive->data_size);
+    data = archive->data;
+    size = archive->data_size;
+    if( archive->file_count >= 2 )
+    {
+        files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+        if( !files || files->file_count < 2 )
+        {
+            fprintf(stderr, "Failed to split scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+            RSCache_FileListFree(files);
+            RSCache_Dat2DiskArchiveFree(archive);
+            PT_EXIT(&task->pt);
+        }
+        data = files->files[1];
+        size = files->file_sizes[1];
+    }
+
+    rscache_locs = RSCache_MapLocsNewDecode(data, size);
+    RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
     if( !rscache_locs )
     {

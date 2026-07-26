@@ -2,9 +2,11 @@
 
 #include "../archive.h"
 #include "../dat2disk.h"
+#include "../filelist.h"
 #include "../reference_table.h"
 #include "../rsbuffer.h"
 #include "noise.h"
+#include "mapsquares.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -115,22 +117,91 @@ dat2_map_archive_id(
     return -1;
 }
 
-static int
-dat2_map_terrain_id(
+/** True when the maps table lists `archive_id` as a present archive. */
+static bool
+dat2_maps_has_archive(
     struct RSCache_Dat2Disk* cache,
-    int map_x,
-    int map_z)
+    int archive_id)
 {
-    return dat2_map_archive_id(cache, "m%d_%d", map_x, map_z);
+    int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
+    if( maps_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return false;
+    struct RSCache_ReferenceTable* table = cache->tables[maps_table];
+    if( !table || archive_id < 0 || archive_id >= table->archive_count )
+        return false;
+    return table->archives[archive_id].index >= 0;
 }
 
+/**
+ * Resolve the maps-table archive for a square.
+ *
+ * Classic (named) layout: separate `mX_Z` / `lX_Z` archives looked up by name
+ * hash. Modern OldSchool caches (seen at revision 239) drop archive identifiers
+ * and store one multi-file archive per region id (`(x<<8)|z`), with terrain in
+ * file 0 and locs in file 1. Prefer the named form when present so a cache that
+ * still has names — and may also list the numeric region id as a stub — keeps
+ * working.
+ *
+ * `*out_file_index` is -1 for "whole archive payload", or the child file index
+ * inside a region group.
+ */
 static int
-dat2_map_loc_id(
+dat2_map_resolve(
     struct RSCache_Dat2Disk* cache,
     int map_x,
-    int map_z)
+    int map_z,
+    bool want_locs,
+    int* out_file_index)
 {
-    return dat2_map_archive_id(cache, "l%d_%d", map_x, map_z);
+    assert(out_file_index);
+    *out_file_index = -1;
+
+    int named = dat2_map_archive_id(cache, want_locs ? "l%d_%d" : "m%d_%d", map_x, map_z);
+    if( named >= 0 )
+        return named;
+
+    int region_id = RSCache_MapSquareId(map_x, map_z);
+    if( dat2_maps_has_archive(cache, region_id) )
+    {
+        *out_file_index = want_locs ? 1 : 0;
+        return region_id;
+    }
+    return -1;
+}
+
+/** Borrow terrain/locs bytes from a loaded maps archive (named or region-grouped). */
+static bool
+dat2_map_payload(
+    struct RSCache_Dat2Disk* cache,
+    struct RSCache_Dat2DiskArchive* archive,
+    bool want_locs,
+    char** out_data,
+    int* out_size,
+    struct RSCache_FileList** out_files)
+{
+    assert(archive && out_data && out_size && out_files);
+    *out_files = NULL;
+    *out_data = archive->data;
+    *out_size = archive->data_size;
+
+    if( archive->file_count < 0 && cache )
+        RSCache_Dat2DiskArchiveInitMetadata(cache, archive);
+
+    if( archive->file_count < 2 )
+        return true;
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files || files->file_count < 2 )
+    {
+        RSCache_FileListFree(files);
+        return false;
+    }
+    int idx = want_locs ? 1 : 0;
+    *out_data = files->files[idx];
+    *out_size = files->file_sizes[idx];
+    *out_files = files;
+    return true;
 }
 
 struct RSCache_MapTerrain*
@@ -141,7 +212,11 @@ RSCache_MapTerrainNewFromCache(
 {
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_MapTerrain* map_terrain = NULL;
-    int archive_id = dat2_map_terrain_id(cache, map_x, map_z);
+    struct RSCache_FileList* files = NULL;
+    char* data;
+    int size;
+    int file_index;
+    int archive_id = dat2_map_resolve(cache, map_x, map_z, false, &file_index);
 
     if( archive_id == -1 )
     {
@@ -156,8 +231,17 @@ RSCache_MapTerrainNewFromCache(
         printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_z);
         return NULL;
     }
+    RSCache_Dat2DiskArchiveInitMetadata(cache, archive);
 
-    map_terrain = RSCache_MapTerrainNewDecode(archive->data, archive->data_size, map_x, map_z);
+    if( !dat2_map_payload(cache, archive, false, &data, &size, &files) )
+    {
+        printf("Failed to load map terrain %d, %d (grouped payload)\n", map_x, map_z);
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    map_terrain = RSCache_MapTerrainNewDecode(data, size, map_x, map_z);
+    RSCache_FileListFree(files);
     if( !map_terrain )
     {
         printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_z);
@@ -177,7 +261,8 @@ RSCache_MapTerrainArchiveNewLoad(
     int map_z)
 {
     struct RSCache_Dat2DiskArchive* archive = NULL;
-    int archive_id = dat2_map_terrain_id(cache, map_x, map_z);
+    int file_index;
+    int archive_id = dat2_map_resolve(cache, map_x, map_z, false, &file_index);
 
     if( archive_id == -1 )
     {
@@ -192,6 +277,7 @@ RSCache_MapTerrainArchiveNewLoad(
         printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_z);
         return NULL;
     }
+    RSCache_Dat2DiskArchiveInitMetadata(cache, archive);
 
     return archive;
 }
@@ -215,12 +301,22 @@ RSCache_MapTerrainNewFromArchiveProfile(
     int map_z,
     const struct RSCache* cache)
 {
+    char* data;
+    int size;
+    struct RSCache_FileList* files = NULL;
+    if( !dat2_map_payload(NULL, archive, false, &data, &size, &files) )
+    {
+        printf("Failed to load map terrain %d, %d (grouped payload)\n", map_x, map_z);
+        return NULL;
+    }
+
     struct RSCache_MapTerrain* map_terrain = RSCache_MapTerrainNewFromDecodeFlags(
-        archive->data,
-        archive->data_size,
+        data,
+        size,
         map_x,
         map_z,
         RSCache_MapTerrainFlags(cache));
+    RSCache_FileListFree(files);
     if( !map_terrain )
     {
         printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_z);
@@ -478,11 +574,21 @@ RSCache_MapLocsNewFromCache(
     const struct RSCache* profile = RSCache_Dat2DiskProfile(cache);
     assert(profile && "Dat2DiskSetProfile required before map loc load");
 
-    int archive_id = dat2_map_loc_id(cache, map_x, map_z);
+    int file_index;
+    int archive_id = dat2_map_resolve(cache, map_x, map_z, true, &file_index);
     struct RSCache_MapLocs* map_locs = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
+    struct RSCache_FileList* files = NULL;
     int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
     uint32_t* xtea_key = NULL;
+    char* data;
+    int size;
+
+    if( archive_id < 0 )
+    {
+        printf("Failed to load map %d, %d (archive_id)\n", map_x, map_z);
+        goto error;
+    }
 
     if( RSCache_MapLocsEncrypted(profile) )
     {
@@ -501,8 +607,17 @@ RSCache_MapLocsNewFromCache(
         printf("Failed to load map %d, %d\n", map_x, map_z);
         goto error;
     }
+    RSCache_Dat2DiskArchiveInitMetadata(cache, archive);
 
-    map_locs = RSCache_MapLocsNewDecode(archive->data, archive->data_size);
+    if( !dat2_map_payload(cache, archive, true, &data, &size, &files) )
+    {
+        printf("Failed to load map %d, %d (grouped payload)\n", map_x, map_z);
+        goto error;
+    }
+
+    map_locs = RSCache_MapLocsNewDecode(data, size);
+    RSCache_FileListFree(files);
+    files = NULL;
     if( !map_locs )
     {
         printf("Failed to load map %d, %d\n", map_x, map_z);
@@ -514,6 +629,7 @@ RSCache_MapLocsNewFromCache(
     return map_locs;
 
 error:
+    RSCache_FileListFree(files);
     RSCache_MapLocsFree(map_locs);
     RSCache_Dat2DiskArchiveFree(archive);
     return NULL;
@@ -624,8 +740,14 @@ RSCache_MapLocsArchiveNewLoad(
     uint32_t* xtea_key = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
 
-    int archive_id = dat2_map_loc_id(cache, map_x, map_z);
+    int file_index;
+    int archive_id = dat2_map_resolve(cache, map_x, map_z, true, &file_index);
     int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
+    if( archive_id < 0 )
+    {
+        printf("Failed to load map %d, %d (archive_id)\n", map_x, map_z);
+        goto error;
+    }
     if( RSCache_MapLocsEncrypted(profile) )
     {
         xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
@@ -643,6 +765,7 @@ RSCache_MapLocsArchiveNewLoad(
         printf("Failed to load map %d, %d\n", map_x, map_z);
         goto error;
     }
+    RSCache_Dat2DiskArchiveInitMetadata(cache, archive);
 
     return archive;
 

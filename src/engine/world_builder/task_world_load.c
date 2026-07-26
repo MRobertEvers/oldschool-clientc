@@ -211,7 +211,7 @@ Task_WorldLoad_Run(
                     self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1])) )
             fprintf(
                 stderr,
-                "world_load: map %d,%d unavailable (xtea/missing)\n",
+                "world_load: map %d,%d unavailable (missing archive)\n",
                 self->chunks_xz[self->c * 2],
                 self->chunks_xz[self->c * 2 + 1]);
     }
