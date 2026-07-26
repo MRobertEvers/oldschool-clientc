@@ -3986,6 +3986,14 @@ app_world_build_model(
     if( scale_xz != 128 || scale_y != 128 )
         ToriDraw_ModelScale(model, scale_xz, scale_xz, scale_y);
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate.
+     * Without this, every face whose material is HD-only keeps a texture id,
+     * lighting stores 0–127 lightness (not HSL16), and the software raster
+     * skips the face when the texture map has no entry. Steel titan (30469)
+     * is entirely HD-textured (materials 238/288/241, all valid=0). */
+    ToriDraw_ModelDropNonSdTextures(app->provider, model);
+    ToriDraw_ModelNoteTextureWants(model);
+
     /* TORIRS_FACE_DEBUG: dump alpha/info histograms for large NPC models. */
     if( getenv("TORIRS_FACE_DEBUG") && model->face_count >= 200 )
     {
@@ -4014,7 +4022,7 @@ app_world_build_model(
         }
         fprintf(
             stderr,
-            "face_dbg model faces=%d verts=%d alphas=%d infos=%d textured=%d\n",
+            "face_dbg model faces=%d verts=%d alphas=%d infos=%d textured=%d (post-SD-gate)\n",
             model->face_count,
             model->vertex_count,
             alpha_present,
@@ -4088,6 +4096,10 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
     /* Angle: rotate90 applied angle/90 times (0/90/180/270). */
     if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
+
+    /* HD-only textures off before lighting — same isSd gate as scenery/NPC. */
+    ToriDraw_ModelDropNonSdTextures(app->provider, model);
+    ToriDraw_ModelNoteTextureWants(model);
 
     {
         struct ToriDraw_ModelHandle hnd;

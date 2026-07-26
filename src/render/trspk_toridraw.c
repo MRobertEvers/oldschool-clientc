@@ -261,12 +261,21 @@ trspk_toridraw_bake_face(
     const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
     const uint32_t face_c = (uint32_t)model->face_indices_c[face_index];
 
+    /* Reference SceneBuffer.getModelFaces: face alpha applies only to
+     * untextured faces; textured faces are always opaque at the face level. */
+    int const tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
     uint8_t alpha;
-    if( model->face_alphas )
+    if( tex_id != -1 )
+        alpha = 0xFFu;
+    else if( model->face_alphas )
         alpha = invert_face_alpha ? (uint8_t)(0xFFu - model->face_alphas[face_index])
                                   : model->face_alphas[face_index];
     else
         alpha = 0xFFu;
+
+    /* Cull fully / near-fully transparent untextured faces (alpha === 0 || 1). */
+    if( tex_id == -1 && alpha <= 1u )
+        alpha = 0u;
 
     if( gl_face_dbg_enabled() )
     {
@@ -275,7 +284,7 @@ trspk_toridraw_bake_face(
             g_gl_face_dbg_hidden++;
         if( alpha <= 1 )
             g_gl_face_dbg_alpha0++;
-        if( model->face_textures && model->face_textures[face_index] != -1 )
+        if( tex_id != -1 )
             g_gl_face_dbg_textured++;
     }
 
@@ -288,7 +297,7 @@ trspk_toridraw_bake_face(
         out->color_b,
         out->color_c);
 
-    out->tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
+    out->tex_id = tex_id;
     struct ToriDraw_Texture* tex = NULL;
     out->uv_mode = 0.0f;
     out->is_animated = false;

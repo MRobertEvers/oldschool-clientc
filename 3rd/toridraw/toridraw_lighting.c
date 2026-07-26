@@ -277,11 +277,15 @@ ToriDraw_ApplyLighting(
         if( !face_infos )
             type = 0;
         else
-            type = face_infos[i] & 0x3;
+            type = face_infos[i];
 
+        /* Cache alphas are transparency bytes (0 opaque … 255 hidden). The
+         * reference stores them in an Int8Array, so raw 255/254 read back as
+         * -1/-2 and override the render type. Storage here is uint8_t, so
+         * re-interpret as signed before the special-case checks. */
         int alpha = 0;
         if( face_alphas )
-            alpha = face_alphas[i];
+            alpha = (int)(int8_t)face_alphas[i];
 
         int textureid = -1;
         if( face_textures )
@@ -367,6 +371,11 @@ ToriDraw_ApplyLighting(
                 face_colors_a_hsl16[i] = (hsl16_t)128;
                 face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
             }
+            else
+            {
+                /* Reference ModelData.light(): any other render type hides. */
+                face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
+            }
         }
         else
         {
@@ -426,6 +435,10 @@ ToriDraw_ApplyLighting(
                 face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
             }
             else if( type == 3 )
+            {
+                face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
+            }
+            else
             {
                 face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
             }

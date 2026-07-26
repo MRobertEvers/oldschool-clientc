@@ -415,7 +415,7 @@ ToriDraw_ModelNeedsFaceNormals(struct ToriDraw_Model* model)
     int fc = model->face_count;
     for( int i = 0; i < fc; i++ )
     {
-        if( (fi[i] & 0x3) == 1 )
+        if( (fi[i] == 1) )
             return 1;
     }
     return 0;

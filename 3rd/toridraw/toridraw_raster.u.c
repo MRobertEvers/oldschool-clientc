@@ -127,15 +127,16 @@ ToriDraw_RasterModelFace(
     if( face_dbg )
         g_face_dbg_faces++;
 
-    // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
-    enum FaceType type = ctx->face_infos ? (ctx->face_infos[face] & 0x3) : FACE_TYPE_GOURAUD;
-    if( type == 2 )
+    /* Render type is the raw byte (reference ModelData.light). 0=gouraud,
+     * 1=flat, 2=hidden, 3=black/hidden; any other value is also hidden. */
+    int raw_type = ctx->face_infos ? ctx->face_infos[face] : 0;
+    if( raw_type == 2 || raw_type < 0 || raw_type > 3 )
     {
         if( face_dbg )
             g_face_dbg_skip_type2++;
         return;
     }
-    assert(type >= 0 && type <= 3);
+    enum FaceType type = (enum FaceType)raw_type;
 
     int color_a = ctx->colors_a[face];
     int color_b = ctx->colors_b[face];
@@ -244,9 +245,14 @@ ToriDraw_RasterModelFace(
         // TORIDRAWHSL16_FLAT / TORIDRAWHSL16_HIDDEN are reserved. See lighting code.
         if( ctx->face_alphas_nullable )
             alpha = 0xFF - alpha;
-        if( face_dbg && alpha <= 1 )
-            g_face_dbg_skip_alpha0++;
-        else if( face_dbg )
+        /* Reference getModelFaces: skip fully/near-fully transparent faces. */
+        if( alpha <= 1 )
+        {
+            if( face_dbg )
+                g_face_dbg_skip_alpha0++;
+            return;
+        }
+        if( face_dbg )
             g_face_dbg_drawn++;
 
         if( color_c == TORIDRAWHSL16_FLAT )

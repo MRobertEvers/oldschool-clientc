@@ -68,6 +68,9 @@ struct TRSPK_ToriDrawBakeFaceVerts
     bool is_animated;
 };
 
+/** Bake one MODEL face into GPU verts. Hidden / fully-transparent faces are
+ * submitted with alpha 0 (same as TORIDRAWHSL16_HIDDEN), matching the soft
+ * raster's early-out and SceneBuffer.getModelFaces cull. */
 void
 trspk_toridraw_bake_face(
     struct ToriDraw_Model* model,
