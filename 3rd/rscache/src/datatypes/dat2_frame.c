@@ -2,12 +2,26 @@
 
 #include "../dat2disk.h"
 #include "../rsbuffer.h"
+#include "../rscache_profile.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+int
+RSCache_Dat2FrameCodecVersion(const struct RSCache* cache)
+{
+    assert(cache);
+    /* RS2 game rev 610 introduced the leading unused byte and the higher-precision
+     * transform stream (right-shifted on read). OSRS never took that change. */
+    int derived = RSCACHE_CODEC_FRAME_V1;
+    if( RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_FRAME, 610, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        derived = RSCACHE_CODEC_FRAME_V2;
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_FRAME, derived);
+}
 
 struct RSCache_Dat2Frame*
 RSCache_Dat2FrameNewFromCache(
@@ -23,8 +37,12 @@ RSCache_Dat2FrameNewFromCache(
         return NULL;
     }
 
-    struct RSCache_Dat2Frame* frame =
-        RSCache_Dat2FrameNewDecode2(frame_id, framemap, archive->data, archive->data_size);
+    struct RSCache_Dat2Frame* frame = RSCache_Dat2FrameNewDecodeProfile(
+        RSCache_Dat2DiskProfile(cache),
+        frame_id,
+        framemap,
+        archive->data,
+        archive->data_size);
 
     RSCache_Dat2DiskArchiveFree(archive);
 
@@ -35,7 +53,32 @@ static struct RSCache_Dat2Frame*
 frame_new_decode(
     int id,
     struct RSCache_Dat2Framemap* framemap,
-    struct RSCache_Buffer* buffer);
+    struct RSCache_Buffer* buffer,
+    int codec_version);
+
+struct RSCache_Dat2Frame*
+RSCache_Dat2FrameNewDecodeCodec(
+    int id,
+    struct RSCache_Dat2Framemap* framemap,
+    char* data,
+    int data_size,
+    int codec_version)
+{
+    struct RSCache_Buffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    return frame_new_decode(id, framemap, &buffer, codec_version);
+}
+
+struct RSCache_Dat2Frame*
+RSCache_Dat2FrameNewDecodeProfile(
+    const struct RSCache* cache,
+    int id,
+    struct RSCache_Dat2Framemap* framemap,
+    char* data,
+    int data_size)
+{
+    return RSCache_Dat2FrameNewDecodeCodec(
+        id, framemap, data, data_size, RSCache_Dat2FrameCodecVersion(cache));
+}
 
 struct RSCache_Dat2Frame*
 RSCache_Dat2FrameNewDecode2(
@@ -44,16 +87,21 @@ RSCache_Dat2FrameNewDecode2(
     char* data,
     int data_size)
 {
-    struct RSCache_Buffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    return frame_new_decode(id, framemap, &buffer);
+    return RSCache_Dat2FrameNewDecodeCodec(
+        id, framemap, data, data_size, RSCACHE_CODEC_FRAME_V1);
 }
 
 static struct RSCache_Dat2Frame*
 frame_new_decode(
     int id,
     struct RSCache_Dat2Framemap* framemap,
-    struct RSCache_Buffer* buffer)
+    struct RSCache_Buffer* buffer,
+    int codec_version)
 {
+    assert(framemap);
+    assert(
+        codec_version == RSCACHE_CODEC_FRAME_V1 || codec_version == RSCACHE_CODEC_FRAME_V2);
+
     // Initialize the frame definition
     struct RSCache_Dat2Frame* def = malloc(sizeof(struct RSCache_Dat2Frame));
     memset(def, 0, sizeof(struct RSCache_Dat2Frame));
@@ -63,14 +111,23 @@ frame_new_decode(
     def->_framemap = framemap;
     def->showing = false;
 
+    /* V2 (RS >= 610): leading unused byte before the framemap id. */
+    int header_size = 3;
+    if( codec_version == RSCACHE_CODEC_FRAME_V2 )
+    {
+        (void)g1(buffer);
+        header_size = 4;
+    }
+
     // Read the framemap archive index and length
     int framemap_archive_index = g2(buffer);
     assert(framemap_archive_index == framemap->id);
     int length = g1(buffer);
+    assert(length <= framemap->length && "frame flag count exceeds framemap length");
 
-    // Skip the framemap archive index and length in the data buffer
+    // Skip the header and flag stream in the transform-value buffer
     struct RSCache_Buffer data = *buffer;
-    data.position = 3 + length;
+    data.position = (uint32_t)header_size + (uint32_t)length;
 
     // Allocate temporary arrays for processing
     int* index_frame_ids = malloc(500 * sizeof(int));
@@ -123,7 +180,8 @@ frame_new_decode(
         // Set the frame ID
         index_frame_ids[index] = i;
         short var11 = 0;
-        if( framemap->types[i] == 3 )
+        /* SCALE (3) and TYPE_10 default to 128 when a component is absent. */
+        if( framemap->types[i] == 3 || framemap->types[i] == 10 )
         {
             var11 = 128;
         }
@@ -154,6 +212,25 @@ frame_new_decode(
         else
         {
             scratch_translator_z[index] = var11;
+        }
+
+        /* V2 stores transforms at higher precision; the client shifts them down
+         * when materialising the pose (Dat2SeqFrame.load, rev >= 610). */
+        if( codec_version == RSCACHE_CODEC_FRAME_V2 )
+        {
+            int type = framemap->types[i];
+            if( type == 0 || type == 1 )
+            {
+                scratch_translator_x[index] >>= 2;
+                scratch_translator_y[index] >>= 2;
+                scratch_translator_z[index] >>= 2;
+            }
+            else if( type == 2 )
+            {
+                scratch_translator_x[index] >>= 4;
+                scratch_translator_y[index] >>= 4;
+                scratch_translator_z[index] >>= 4;
+            }
         }
 
         last_i = i;
@@ -215,7 +292,8 @@ RSCache_Dat2FrameEncodeBound(const struct RSCache_Dat2Frame* def)
         return 0;
 
     /* Header, the flag stream, then up to three shortsmarts (2 bytes each) per
-     * entry. */
+     * entry. V1 header is 3 bytes; V2 encode is not implemented (would need the
+     * leading unused byte and un-shifted transform values). */
     return 3u + (uint32_t)def->flag_count + (uint32_t)def->translator_count * 6u + 16u;
 }
 
@@ -275,12 +353,38 @@ RSCache_Dat2FrameEncode(
 }
 
 int
+RSCache_Dat2FrameFramemapIdFromFileCodec(
+    char* data,
+    int data_size,
+    int codec_version)
+{
+    assert(data);
+    assert(
+        codec_version == RSCACHE_CODEC_FRAME_V1 || codec_version == RSCACHE_CODEC_FRAME_V2);
+    struct RSCache_Buffer buffer = {
+        .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0
+    };
+    if( codec_version == RSCACHE_CODEC_FRAME_V2 )
+        (void)g1(&buffer);
+    return g2(&buffer);
+}
+
+int
+RSCache_Dat2FrameFramemapIdFromFileProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size)
+{
+    return RSCache_Dat2FrameFramemapIdFromFileCodec(
+        data, data_size, RSCache_Dat2FrameCodecVersion(cache));
+}
+
+int
 RSCache_Dat2FrameFramemapIdFromFile(
     char* data,
     int data_size)
 {
-    struct RSCache_Buffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    return g2(&buffer);
+    return RSCache_Dat2FrameFramemapIdFromFileCodec(data, data_size, RSCACHE_CODEC_FRAME_V1);
 }
 
 void

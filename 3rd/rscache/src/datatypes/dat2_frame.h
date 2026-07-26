@@ -56,6 +56,26 @@ struct RSCache_Dat2Frame
     bool* synthesized;
 };
 
+/*
+ * Frame wire formats. Pin via cache->codec[RSCACHE_TYPE_FRAME], or leave AUTO and
+ * let RSCache_Dat2FrameCodecVersion derive from the profile:
+ *
+ *   V1 — OSRS / RS2 pre-610: [framemap u16][count u8][flags…][smarts…]
+ *   V2 — RS2 >= 610:         [unused u8][framemap u16][count u8]…, and after
+ *                            reading each transform the client right-shifts
+ *                            ORIGIN/TRANSLATE by 2 and ROTATE by 4 (higher
+ *                            internal precision on the wire). See rs-map-viewer
+ *                            Dat2SeqFrame.load.
+ */
+#define RSCACHE_CODEC_FRAME_V1 1
+#define RSCACHE_CODEC_FRAME_V2 2
+
+struct RSCache;
+
+/** Which frame codec this cache needs. */
+int
+RSCache_Dat2FrameCodecVersion(const struct RSCache* cache);
+
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2Frame*
 RSCache_Dat2FrameNewFromCache(
@@ -63,6 +83,26 @@ RSCache_Dat2FrameNewFromCache(
     int frame_id,
     struct RSCache_Dat2Framemap* framemap);
 
+/** Decode with an explicit codec version (RSCACHE_CODEC_FRAME_V1 / V2). */
+struct RSCache_Dat2Frame*
+RSCache_Dat2FrameNewDecodeCodec(
+    int frame_id,
+    struct RSCache_Dat2Framemap* framemap,
+    char* data,
+    int data_size,
+    int codec_version);
+
+/** Decode using the codec the profile selects. */
+struct RSCache_Dat2Frame*
+RSCache_Dat2FrameNewDecodeProfile(
+    const struct RSCache* cache,
+    int frame_id,
+    struct RSCache_Dat2Framemap* framemap,
+    char* data,
+    int data_size);
+
+/** Decode as V1. Prefer NewDecodeProfile / NewDecodeCodec at call sites that
+ *  know the cache identity. */
 struct RSCache_Dat2Frame*
 RSCache_Dat2FrameNewDecode2(
     int frame_id,
@@ -71,13 +111,22 @@ RSCache_Dat2FrameNewDecode2(
     int data_size);
 
 /**
- * The frame map is required to parse the frame,
- * the framemap id is the first short stored in the frame's buffer.
- *
- * @param data
- * @param data_size
- * @return int
+ * Framemap id embedded in a frame file, for the given codec. V2 skips the
+ * leading unused byte before the u16.
  */
+int
+RSCache_Dat2FrameFramemapIdFromFileCodec(
+    char* data,
+    int data_size,
+    int codec_version);
+
+int
+RSCache_Dat2FrameFramemapIdFromFileProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size);
+
+/** As FramemapIdFromFileCodec with V1. Prefer the Profile / Codec variants. */
 int
 RSCache_Dat2FrameFramemapIdFromFile(
     char* data,

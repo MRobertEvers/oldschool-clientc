@@ -261,7 +261,8 @@ Task_Dat2SequenceLoad_Run(
             seq_drop_frame_temporaries(self);
             continue;
         }
-        self->cur_framemap_id = RSCache_Dat2FrameFramemapIdFromFile(
+        self->cur_framemap_id = RSCache_Dat2FrameFramemapIdFromFileProfile(
+            CacheProvider_Profile(self->provider),
             self->frame_filelist->files[self->cur_file_pos],
             self->frame_filelist->file_sizes[self->cur_file_pos]);
 
@@ -291,7 +292,8 @@ Task_Dat2SequenceLoad_Run(
         }
 
         if( self->framemap )
-            self->frames[self->frame_i] = RSCache_Dat2FrameNewDecode2(
+            self->frames[self->frame_i] = RSCache_Dat2FrameNewDecodeProfile(
+                CacheProvider_Profile(self->provider),
                 self->cur_frame_id,
                 self->framemap,
                 self->frame_filelist->files[self->cur_file_pos],
