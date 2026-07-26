@@ -142,7 +142,7 @@ ToriDraw_RasterModelFace(
     if( texture_id != -1 )
     {
         // gamma 0.8 is the default in os1
-        texture = (texture_id >= 0 && texture_id < 256)
+        texture = (texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
                       ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
                       : NULL;
         // Texture not loaded (yet): skip the face. Textured faces store 0-127
@@ -151,9 +151,10 @@ ToriDraw_RasterModelFace(
         if( texture == NULL )
         {
             /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces. */
-            static int skip_tally[256];
+            static int skip_tally[TORIDRAW_TEXTURE_ID_CAPACITY];
             static int skip_total = 0;
-            if( texture_id >= 0 && texture_id < 256 && getenv("TORIRS_RASTER_TEX_DEBUG") )
+            if( texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY &&
+                getenv("TORIRS_RASTER_TEX_DEBUG") )
             {
                 skip_tally[texture_id]++;
                 if( ++skip_total % 500 == 1 )

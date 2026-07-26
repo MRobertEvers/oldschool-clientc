@@ -1061,14 +1061,14 @@ main(
          * ground truth for "this face renders untextured". */
         if( getenv("TORIRS_TEX_AUDIT") )
         {
-            int ids[256];
-            int n = UITreeSceneBridge_CollectMissingTextures(&app.bridge, ids, 256);
+            int ids[512];
+            int n = UITreeSceneBridge_CollectMissingTextures(&app.bridge, ids, 512);
             fprintf(stderr, "TEX_AUDIT: %d missing scene textures:", n);
             for( int i = 0; i < n; i++ )
                 fprintf(stderr, " %d", ids[i]);
             fprintf(stderr, "\n");
             fprintf(stderr, "TEX_AUDIT: failed:");
-            for( int i = 0; i < 256; i++ )
+            for( int i = 0; i < 2048; i++ )
                 if( app.bridge.texture_failed[i] )
                     fprintf(stderr, " %d", i);
             fprintf(stderr, "\n");

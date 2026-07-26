@@ -3,6 +3,8 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/dat2/task_dat2_sequence_load.h"
 
+#include "datatypes/dat2_proctexture.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -209,6 +211,29 @@ dat2_buildcache_prepare_hmap_insert(
         dat2_buildcache_maybe_grow_hmap(cache, map_out);
 }
 
+/*
+ * TextureLoader.isSd for the dat2 provider.
+ *
+ * Only the procedural (RS2 materials) system distinguishes SD from HD-only: the material's
+ * `valid` byte. The sprite-backed system answers true for everything, matching the
+ * reference's SpriteTextureLoader. UNPROBED means no texture has loaded yet, so there is
+ * nothing to say a texture is invalid — answer true rather than hide it; every caller that
+ * matters runs after Task_WorldLoad has loaded terrain textures, which probes the mode.
+ */
+static bool
+dat2_texture_is_sd(
+    struct CacheProvider* provider,
+    int texture_id)
+{
+    struct Dat2BuildCache* bc = (struct Dat2BuildCache*)provider;
+
+    if( bc->proctex_mode != DAT2_PROCTEX_PROCEDURAL )
+        return true;
+    if( !bc->materials || texture_id < 0 || texture_id >= bc->materials->count )
+        return true;
+    return bc->materials->materials[texture_id].valid;
+}
+
 static struct CacheProviderVTable dat2_vtable = {
     .Task_ModelLoad = CreateTask_Dat2ModelLoad,
     .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
@@ -236,6 +261,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ComponentLoad = CreateTask_Dat2ComponentLoad,
     .Task_WorldMapLoad = CreateTask_Dat2WorldMapLoad,
     .Task_MapElementLoad = CreateTask_Dat2MapElementLoad,
+    .TextureIsSd = dat2_texture_is_sd,
 };
 
 struct Dat2BuildCache*

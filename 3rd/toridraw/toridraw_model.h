@@ -168,7 +168,7 @@ ToriDraw_TextureMapSet(
     struct ToriDraw_Texture* texture)
 {
     assert(map);
-    if( id < 0 || id >= 256 )
+    if( id < 0 || id >= TORIDRAW_TEXTURE_ID_CAPACITY )
         return;
     if( map->textures[id] )
         ToriDraw_TextureFree(map->textures[id]);
@@ -182,7 +182,7 @@ ToriDraw_TextureMapGet(
     const struct ToriDraw_TextureMap* map,
     int id)
 {
-    assert(map && id >= 0 && id < 256 && "Invalid texture ID");
+    assert(map && id >= 0 && id < TORIDRAW_TEXTURE_ID_CAPACITY && "Invalid texture ID");
     return map->textures[id];
 }
 

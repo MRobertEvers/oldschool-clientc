@@ -1075,6 +1075,89 @@ The right image is my texture redner with overflow highlights.
 
 [tiling_proof](./res/measurement_texture_tiling.png)
 
+## RS2 (643) — HD-only textures and the 4x model scale
+
+Two bugs made whole 643 map squares render as a blanket of giant, glaring
+white gravel chunks — "most locs render as the same model". Both had the same
+shape, which is what makes them worth a section: **every decoder validated
+byte-exactly while the render was spectacularly wrong**, because the reference
+client applies rules at *use* time that no decoder can see. Fixed by walking
+each pipeline stage against rs-map-viewer until the divergence appeared; both
+rules live in the reference's loaders, not its decoders.
+
+### Was: every texture drew. Is: only SD-valid materials draw.
+
+643 does not have "textures" in the OSRS sense — it has *materials* (table 26),
+and each material carries a `valid` byte. That byte is rs-map-viewer's
+`TextureLoader.isSd`, and in cache.643 only **284 of 1164** materials have it
+set. The other 880 are HD-only: they exist for the HD client's shader pipeline,
+and the SD renderer **must not draw them**:
+
+- `ModelData.light()` nulls the face texture of any face whose material is not
+  SD. The face then lights from its **face colour** — which the loc's recolour
+  list has usually already darkened. 643's pebble/rubble ground decor is the
+  canonical case: an HD gravel material over a dark recoloured base. Draw the
+  texture anyway and the recolour is ignored — bright HD gravel everywhere.
+- `SceneBuilder` applies the same gate to terrain: an overlay naming a non-SD
+  texture falls back to the overlay's own HSL colour (the smooth brown desert
+  paths are this).
+
+We used to bake and draw all 1164. "All textures bake" was even celebrated as
+the milestone — but baking is not drawing, and the SD client's whole look
+depends on *refusing* most of them. The port is `CacheProvider_TextureIsSd`
+(a provider vtable slot; unset means always-true, which is the reference's
+`SpriteTextureLoader.isSd`, so OSRS and dat1 are untouched by construction)
+applied exactly where the reference applies it: after every recolour/retexture
+and before lighting (`ToriDraw_ModelDropNonSdTextures`), plus the terrain
+overlay site.
+
+Two corollaries fell out:
+
+- **Texture ids outgrew a byte.** 234 of the 284 SD materials have ids above
+  255, and the texture pipeline was 256-slot end to end (scene map, wants
+  registry, raster guard, failed-set, a `(uint8_t)` truncation in the overlay
+  map). Faces naming them were silently invisible — the raster skips faces
+  whose texture is absent. Now `TORIDRAW_TEXTURE_ID_CAPACITY` (2048)
+  throughout.
+- The visible signature of a missing *drop*-rule is **uniformity**: hundreds of
+  distinct loc configs converging on one look, because the same undropped
+  ingredient (a shared HD base texture) dominates all of them.
+
+### Was: models 4x too large. Is: version-13+ vertices shift down.
+
+`ModelData.decodeV1` ends with a line the port never had:
+
+```ts
+if (this.version >= 13) {
+    this.scaleDown(2);   // vertices >>= 2
+}
+```
+
+Version-13+ models — most of cache.643, via the optional version byte in the
+ob3 header — store their vertices at **4x precision**, and the reference
+shifts them down after decode. Our model decode round-trips all 65,014 records
+byte-exactly, which is precisely why this hid: byte-exactness proves the
+*encoder inverts the decoder*, not that the interpretation is right. A
+single-tile gravel scatter spanning three tiles was the tell.
+
+Settled by decoding model 1139 through rs-map-viewer's own loader headlessly
+(`npx tsx`, its `caches/rs2-643_2011-04-13` is the same cache) and comparing
+vertex-for-vertex: ours `(164, -34, -172)`, theirs `(41, -9, -43)` — exactly
+`>> 2`, arithmetic on negatives.
+
+The shift is deliberately **not** in the rscache decoder: it drops two bits,
+and byte-exact round-trip is that library's validation bar. The decoder records
+`RSCache_Model.format_version`; the engine's ToriRS adaptor applies the shift.
+Byte-fidelity and reference geometry live on opposite sides of the adaptor,
+each checked by its own harness. One trap inside the fix:
+`RSCache_ModelNewCopy`/`NewMerge` must carry `format_version`, because the
+dat2 model task adapts a *copy* — drop the field and everything silently
+un-scales again.
+
+Full write-ups: `3rd/rscache/EXCEPTIONS.md` B12 (scale) and B18 "The SD gate"
+(materials); `manifest_rs643.ini` carries the status and the debug tooling
+(`test_rs2_sweep <root> loc|model|spawns|materials`).
+
 ## Server
 
 ```

@@ -264,6 +264,8 @@ PlayerModel_BuildFromAppearance(
         }
     }
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(provider, merged);
     {
         struct ToriDraw_ModelHandle hnd;
         hnd.kind = TORIDRAWMK_MODEL;
@@ -369,6 +371,8 @@ PlayerHeadModel_BuildFromAppearance(
         }
     }
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(provider, merged);
     {
         struct ToriDraw_ModelHandle hnd;
         hnd.kind = TORIDRAWMK_MODEL;

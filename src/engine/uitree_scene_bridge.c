@@ -51,7 +51,7 @@ bridge_publish_model_textures(
         struct ToriRS_Texture* rs;
         struct ToriDraw_Texture* texture;
 
-        if( texture_id < 0 || texture_id >= 256 )
+        if( texture_id < 0 || texture_id >= 2048 )
             continue;
         if( tex_state->texture_map.textures[texture_id] )
             continue;
@@ -377,6 +377,8 @@ UITreeSceneBridge_EnsureModel(
     if( !model )
         return -1;
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
@@ -482,6 +484,8 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
     /* Snapshot the rest pose so sequence frames can be applied/reset each tick. */
     ToriDraw_ModelCaptureOriginalVertices(merged);
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, merged);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
@@ -553,6 +557,8 @@ UITreeSceneBridge_EnsureNpcHead(
     ToriDraw_ModelSetBoundsCylinder(merged);
     ToriDraw_ModelCaptureOriginalVertices(merged);
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, merged);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
@@ -681,11 +687,17 @@ bridge_rasterize_obj_icon(
     model = ToriDraw_ModelFromToriRS(rs_model);
     assert(model != NULL && "ModelFromToriRS failed");
 
+    /* ObjModelLoader resizes before recolouring; 128 == 1.0. */
+    if( obj->resize_x != 128 || obj->resize_y != 128 || obj->resize_z != 128 )
+        ToriDraw_ModelScale(model, obj->resize_x, obj->resize_z, obj->resize_y);
+
     for( i = 0; i < obj->recolor_count; i++ )
         ToriDraw_ModelRecolor(model, obj->recolors_from[i], obj->recolors_to[i]);
 
     ToriDraw_ModelSetBoundsCylinder(model);
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
@@ -885,12 +897,18 @@ UITreeSceneBridge_EnsureObjModel(
     if( !model )
         return -1;
 
+    /* ObjModelLoader resizes before recolouring; 128 == 1.0. */
+    if( obj->resize_x != 128 || obj->resize_y != 128 || obj->resize_z != 128 )
+        ToriDraw_ModelScale(model, obj->resize_x, obj->resize_z, obj->resize_y);
+
     for( int i = 0; i < obj->recolor_count; i++ )
         ToriDraw_ModelRecolor(model, obj->recolors_from[i], obj->recolors_to[i]);
 
     ToriDraw_ModelSetBoundsCylinder(model);
     ToriDraw_ModelCaptureOriginalVertices(model);
 
+    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
@@ -930,7 +948,7 @@ UITreeSceneBridge_TextureResident(
     struct ToriDraw_TextureState* tex_state;
 
     assert(bridge);
-    if( texture_id < 0 || texture_id >= 256 || !bridge->scene )
+    if( texture_id < 0 || texture_id >= 2048 || !bridge->scene )
         return 0;
     tex_state = ToriDraw_SceneTexState(bridge->scene);
     return tex_state && tex_state->texture_map.textures[texture_id] ? 1 : 0;
@@ -942,7 +960,7 @@ UITreeSceneBridge_CollectMissingTextures(
     int* out_ids,
     int max_ids)
 {
-    unsigned char seen[256] = { 0 };
+    unsigned char seen[2048] = { 0 };
     struct ToriDraw_TextureState* tex_state;
     int count = 0;
     int slot_count;
@@ -972,7 +990,7 @@ UITreeSceneBridge_CollectMissingTextures(
         for( int f = 0; f < model->face_count && count < max_ids; f++ )
         {
             int texture_id = (int)model->face_textures[f];
-            if( texture_id < 0 || texture_id >= 256 )
+            if( texture_id < 0 || texture_id >= 2048 )
                 continue;
             if( seen[texture_id] || bridge->texture_failed[texture_id] )
                 continue;
@@ -1032,7 +1050,7 @@ UITreeSceneBridge_PublishTextures(
         struct ToriRS_Texture* rs;
         struct ToriDraw_Texture* texture;
 
-        if( texture_id < 0 || texture_id >= 256 )
+        if( texture_id < 0 || texture_id >= 2048 )
             continue;
 
         rs = CacheProvider_TextureGet(bridge->provider, texture_id);

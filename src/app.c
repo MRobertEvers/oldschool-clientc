@@ -1272,7 +1272,7 @@ app_sync_textures(struct App* app)
     for( int i = 0; i < id_count; i++ )
     {
         int const id = ids[i];
-        if( id >= 0 && id < 256 && app->bridge.texture_failed[id] )
+        if( id >= 0 && id < 2048 && app->bridge.texture_failed[id] )
             continue;
         if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
             continue;
@@ -1291,7 +1291,7 @@ app_sync_textures(struct App* app)
                     seen = 1;
                     break;
                 }
-            if( !seen && app->tex_pending_count < 256 )
+            if( !seen && app->tex_pending_count < 512 )
                 app->tex_pending[app->tex_pending_count++] = id;
         }
     }
@@ -1314,7 +1314,7 @@ app_sync_textures_poll(struct App* app)
     for( int i = 0; i < app->tex_pending_count; i++ )
     {
         int id = app->tex_pending[i];
-        int failed = (id >= 0 && id < 256) ? app->bridge.texture_failed[id] : 1;
+        int failed = (id >= 0 && id < 2048) ? app->bridge.texture_failed[id] : 1;
         if( !CacheProvider_TextureHas(app->provider, id) && !failed )
             app->tex_pending[kept++] = id;
     }
@@ -3908,16 +3908,25 @@ struct AppModelRecolorSpec
     int retexture_count;
 };
 
-/* Convert + merge + recolor + light one drawable model from cache model ids.
+/* Convert + merge + recolor + scale + light one drawable model from cache model ids.
  * SYNCHRONOUS: the models must already be resident (callers await
  * CreateTask_ModelLoad first — the spawn tasks do). Returns an owned model
- * or NULL when any part is missing. */
+ * or NULL when any part is missing.
+ *
+ * scale_xz/scale_y are 128 == 1.0 (pass 128,128 for none). Applied before the
+ * rest-pose capture, because animation frames reset vertices from the capture —
+ * a scale applied after it would vanish on the first animated tick. The
+ * reference re-scales the animated copy every frame instead (NpcModelLoader);
+ * scaling the base is equivalent for rotation frames and off by the scale
+ * factor only on a frame's translate deltas, which nothing visible exercises. */
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
     const int* model_ids,
     int count,
-    const struct AppModelRecolorSpec* recolors)
+    const struct AppModelRecolorSpec* recolors,
+    int scale_xz,
+    int scale_y)
 {
     struct ToriDraw_Model* parts[16];
     struct ToriDraw_Model* model = NULL;
@@ -3958,6 +3967,9 @@ app_world_build_model(
         if( recolors->retexture_count > 0 )
             ToriDraw_ModelNoteTextureWants(model);
     }
+
+    if( scale_xz != 128 || scale_y != 128 )
+        ToriDraw_ModelScale(model, scale_xz, scale_xz, scale_y);
 
     {
         struct ToriDraw_ModelHandle hnd;
@@ -4141,7 +4153,13 @@ app_world_spawn_npc_now(
             .retextures_to = npctype->retextures_to,
             .retexture_count = npctype->retexture_count,
         };
-        model = app_world_build_model(app, npctype->models, npctype->models_count, &recolors);
+        model = app_world_build_model(
+            app,
+            npctype->models,
+            npctype->models_count,
+            &recolors,
+            npctype->width_scale,
+            npctype->height_scale);
     }
     if( !model )
     {
@@ -4235,7 +4253,7 @@ app_world_spawn_projectile_now(
     int element_id;
 
     model_ids[0] = model_id;
-    model = app_world_build_model(app, model_ids, 1, NULL);
+    model = app_world_build_model(app, model_ids, 1, NULL, 128, 128);
     if( !model )
     {
         fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
@@ -7748,7 +7766,7 @@ App_WorldObjStackAdd(
             .recolors_to = obj->recolors_to,
             .recolor_count = obj->recolor_count,
         };
-        model = app_world_build_model(app, model_ids, 1, &recolors);
+        model = app_world_build_model(app, model_ids, 1, &recolors, 128, 128);
     }
     if( !model )
         return -1;
@@ -7923,7 +7941,13 @@ App_WorldApplyNpcType(
             .retextures_to = npctype->retextures_to,
             .retexture_count = npctype->retexture_count,
         };
-        model = app_world_build_model(app, npctype->models, npctype->models_count, &recolors);
+        model = app_world_build_model(
+            app,
+            npctype->models,
+            npctype->models_count,
+            &recolors,
+            npctype->width_scale,
+            npctype->height_scale);
     }
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {

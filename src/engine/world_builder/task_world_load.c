@@ -290,14 +290,19 @@ Task_WorldLoad_Run(
 
     /* 4c. Textures referenced by the loaded loc models (face texture ids) and
      * by loc retextures — preload so scenery is textured at rebuild (v1
-     * preloads every texture; app_sync_textures remains the safety net). */
+     * preloads every texture; app_sync_textures remains the safety net).
+     * HD-only materials are skipped: the SD gate strips them from the faces
+     * before lighting, so a bake would go unused — 880 of 643's 1164. This
+     * filter is reliable here because step 3's texture loads already probed
+     * the materials table. */
     for( self->i = 0; self->i < self->models.count; self->i++ )
     {
         struct ToriRS_Model* model = CacheProvider_ModelGet(p, self->models.items[self->i]);
         if( !model || !model->face_textures )
             continue;
         for( int f = 0; f < model->face_count; f++ )
-            if( model->face_textures[f] != (gc_faceint_t)-1 )
+            if( model->face_textures[f] != (gc_faceint_t)-1 &&
+                CacheProvider_TextureIsSd(p, (int)model->face_textures[f]) )
                 idset_add(&self->textures, (int)model->face_textures[f]);
     }
     for( self->i = 0; self->i < self->locs.count; self->i++ )
@@ -306,7 +311,8 @@ Task_WorldLoad_Run(
         if( !loc )
             continue;
         for( int r = 0; r < loc->retexture_count; r++ )
-            if( loc->retextures_to[r] >= 0 )
+            if( loc->retextures_to[r] >= 0 &&
+                CacheProvider_TextureIsSd(p, loc->retextures_to[r]) )
                 idset_add(&self->textures, loc->retextures_to[r]);
     }
     for( self->i = 0; self->i < self->textures.count; self->i++ )

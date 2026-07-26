@@ -218,6 +218,28 @@ torirs_model_move_from_rscache(
         src->vertices_x = NULL;
         src->vertices_y = NULL;
         src->vertices_z = NULL;
+
+        /*
+         * Version-13+ ob3 models (the 643 era) store vertices at 4x precision;
+         * ModelData.decodeV1 ends with `if (version >= 13) scaleDown(2)`. The rscache
+         * decoder keeps the raw values so its byte-exact round-trip holds — the shift
+         * drops two bits — which makes this adaptor the reference's scaleDown site.
+         * Verified vertex-for-vertex against rs-map-viewer on model 1139: without the
+         * shift every such model lands 4x too large (single-tile gravel spanning three
+         * tiles). >> matches the reference's JS >>, arithmetic on negatives.
+         *
+         * The reference also shifts the complex-texture scale blocks; nothing downstream
+         * of ToriRS reads those, so there is no field to shift here.
+         */
+        if( src->format_version >= 13 )
+        {
+            for( int i = 0; i < count; i++ )
+            {
+                dst->vertices_x[i] >>= 2;
+                dst->vertices_y[i] >>= 2;
+                dst->vertices_z[i] >>= 2;
+            }
+        }
     }
 
     if( src->face_count > 0 && src->face_indices_a && src->face_indices_b && src->face_indices_c )

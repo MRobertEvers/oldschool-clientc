@@ -23,7 +23,11 @@
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_proctexture.h"
+#include "datatypes/maps.h"
+#include "datatypes/model.h"
 #include "filelist.h"
+#include "xtea_config.h"
 #include "reference_table.h"
 #include "revisions/revisions.h"
 #include "rscache_profile.h"
@@ -43,6 +47,14 @@ struct sweep
     int consumed_short;
     /* Opcode the decode stopped on, for records that did not consume exactly. */
     int stop_opcode[256];
+    /*
+     * False when the datatype has no `_consumed` field, so `consumed_exact` degrades to
+     * "the decoder returned something". Reported under a different word, because a number
+     * that reads as exact consumption and is not would be worse than no number: the obj
+     * decoder returns non-NULL for every 643 record while still logging ~150 buffer
+     * overruns, and a "100.0%" column would say the opposite.
+     */
+    bool measures_consumption;
 };
 
 static void
@@ -54,6 +66,16 @@ sweep_report(
     if( s->records == 0 )
     {
         printf("  %-10s %-14s (absent)\n", label, cache);
+        return;
+    }
+    if( !s->measures_consumption )
+    {
+        printf(
+            "  %-10s %-14s %6d records  returned %6d  (no _consumed: cannot check alignment)\n",
+            label,
+            cache,
+            s->records,
+            s->consumed_exact);
         return;
     }
     printf(
@@ -139,10 +161,11 @@ visit_obj(
 {
     /* obj has no profile overload and no _consumed field, so this can only report
      * "the decoder returned something" — enough to tell a hard failure from a
-     * silent misread, not enough to prove alignment. */
+     * silent misread, not enough to prove alignment. See `measures_consumption`. */
     (void)profile;
     struct RSCache_Dat2ConfigObj* obj = RSCache_Dat2ConfigObjNewDecode((char*)data, size);
     s->records++;
+    s->measures_consumption = false;
     if( !obj )
         note_stop(s, data, size, -1);
     else
@@ -229,10 +252,359 @@ sweep_table(
     RSCache_ReferenceTableFree(table);
 }
 
+/*
+ * Dump one loc record: raw bytes plus what the decoder made of them. For hand-checking a
+ * single id against LocType.decodeOpcode when a *rendered* loc looks wrong even though the
+ * whole corpus consumes exactly — exact consumption proves alignment, not interpretation.
+ *
+ *   test_rs2_sweep <root> loc <id>
+ */
+static int
+dump_loc(const char* root, int loc_id)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/cache.643", root);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("no cache at %s\n", path);
+        return 1;
+    }
+
+    struct RSCache profile;
+    if( !RSCache_ProfileByName("643", &profile) )
+        profile = RSCache_ProfileZero();
+    RSCache_Dat2DiskSetEpoch(disk, profile.epoch);
+
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&profile, RSCACHE_TYPE_LOC);
+    int table_id = RSCache_Dat2DiskTableId(disk, addr.table);
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(disk, table_id, loc_id >> addr.group_shift);
+    if( !archive )
+    {
+        printf("loc %d: group %d absent\n", loc_id, loc_id >> addr.group_shift);
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+
+    /* Sharded file ids are group-relative; the file list is positional and the archive's
+     * metadata carries the real ids, so match through archive->file_ids. */
+    int want_file = loc_id & addr.file_mask;
+    int found = 0;
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int file_id = archive->file_ids ? archive->file_ids[i] : i;
+        if( file_id != want_file || files->file_sizes[i] <= 0 )
+            continue;
+        found = 1;
+        const uint8_t* data = (const uint8_t*)files->files[i];
+        int size = files->file_sizes[i];
+
+        printf("loc %d: %d bytes\n", loc_id, size);
+        for( int off = 0; off < size; off += 16 )
+        {
+            printf("  %04x:", off);
+            for( int b = 0; b < 16 && off + b < size; b++ )
+                printf(" %02x", data[off + b]);
+            printf("\n");
+        }
+
+        struct RSCache_Dat2ConfigLoc loc;
+        memset(&loc, 0, sizeof(loc));
+        RSCache_Dat2ConfigLocDecodeInplace(
+            &loc, (char*)data, size, RSCache_Dat2ConfigLocFlags(&profile));
+        printf("  consumed %d/%d\n", loc._consumed, size);
+        printf("  name=%s size=%dx%d\n", loc.name ? loc.name : "(null)", loc.size_x, loc.size_z);
+        printf("  entries=%d (shapes %s)\n", loc.shapes_and_model_count, loc.shapes ? "yes" : "no");
+        for( int e = 0; e < loc.shapes_and_model_count; e++ )
+        {
+            printf("    shape %3d:", loc.shapes ? loc.shapes[e] : -1);
+            for( int m = 0; m < loc.lengths[e]; m++ )
+                printf(" %d", loc.models[e][m]);
+            printf("\n");
+        }
+        RSCache_Dat2ConfigLocFreeInplace(&loc);
+    }
+    if( !found )
+        printf("loc %d: file %d absent from group\n", loc_id, want_file);
+
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    RSCache_Dat2DiskFree(disk);
+    return 0;
+}
+
+/*
+ * Dump one model's interpreted geometry: vertices, faces, colours, textures, alpha. The
+ * companion to dump_loc — a byte-exact model round-trip still permits a wrong reading, and
+ * this is what a wrong reading looks like from the renderer's side.
+ *
+ *   test_rs2_sweep <root> model <id>
+ */
+static int
+dump_model(const char* root, int model_id)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/cache.643", root);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("no cache at %s\n", path);
+        return 1;
+    }
+    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
+
+    struct RSCache_Model* model = RSCache_ModelNewFromCache(disk, model_id);
+    if( !model )
+    {
+        printf("model %d: decode failed\n", model_id);
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+
+    printf(
+        "model %d: v=%d f=%d textured_faces=%d\n",
+        model_id,
+        model->vertex_count,
+        model->face_count,
+        model->textured_face_count);
+    for( int i = 0; i < model->vertex_count && i < 32; i++ )
+        printf(
+            "  v%-3d (%d, %d, %d)\n",
+            i,
+            model->vertices_x[i],
+            model->vertices_y[i],
+            model->vertices_z[i]);
+    for( int i = 0; i < model->face_count && i < 32; i++ )
+        printf(
+            "  f%-3d (%d,%d,%d) colour=%d info=%d alpha=%d tex=%d texcoord=%d\n",
+            i,
+            model->face_indices_a[i],
+            model->face_indices_b[i],
+            model->face_indices_c[i],
+            model->face_colors ? model->face_colors[i] : -1,
+            model->face_infos ? model->face_infos[i] : -1,
+            model->face_alphas ? model->face_alphas[i] : -1,
+            model->face_textures ? model->face_textures[i] : -1,
+            model->face_texture_coords ? model->face_texture_coords[i] : -1);
+
+    RSCache_ModelFree(model);
+    RSCache_Dat2DiskFree(disk);
+    return 0;
+}
+
+/*
+ * Tally one square's loc spawns by id, worst offenders first. When a render is dominated by
+ * one repeated wrong-looking model, this is what names the loc ids responsible — the client's
+ * scenery debug prints extents for the first sighting only, which hides who is prolific.
+ *
+ *   test_rs2_sweep <root> spawns <map_x> <map_z>
+ */
+static int
+dump_spawns(const char* root, int map_x, int map_z)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/cache.643", root);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("no cache at %s\n", path);
+        return 1;
+    }
+    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
+    snprintf(path, sizeof(path), "%s/cache.643/xteas.json", root);
+    RSCache_XteaConfigLoadKeys(path);
+
+    struct RSCache_MapLocs* locs = RSCache_MapLocsNewFromCache(disk, map_x, map_z);
+    if( !locs )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+
+    /* id -> (count, shape mask) over this square's spawns. */
+    struct
+    {
+        int loc_id;
+        int count;
+        int shapes[8];
+        int shape_count;
+    } tally[512];
+    int tally_count = 0;
+
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        const struct RSCache_MapLoc* spawn = &locs->locs[i];
+        int t;
+        for( t = 0; t < tally_count; t++ )
+            if( tally[t].loc_id == spawn->loc_id )
+                break;
+        if( t == tally_count )
+        {
+            if( tally_count == (int)(sizeof(tally) / sizeof(tally[0])) )
+                continue;
+            memset(&tally[t], 0, sizeof(tally[t]));
+            tally[t].loc_id = spawn->loc_id;
+            tally_count++;
+        }
+        tally[t].count++;
+        {
+            int seen = 0;
+            for( int u = 0; u < tally[t].shape_count; u++ )
+                if( tally[t].shapes[u] == spawn->shape_select )
+                    seen = 1;
+            if( !seen && tally[t].shape_count < 8 )
+                tally[t].shapes[tally[t].shape_count++] = spawn->shape_select;
+        }
+    }
+
+    printf("map %d,%d: %d spawns, %d unique ids\n", map_x, map_z, locs->locs_count, tally_count);
+    for( int rank = 0; rank < 24; rank++ )
+    {
+        int best = -1;
+        for( int t = 0; t < tally_count; t++ )
+            if( tally[t].count > 0 && (best < 0 || tally[t].count > tally[best].count) )
+                best = t;
+        if( best < 0 )
+            break;
+        printf("  loc %5d x%4d shapes[", tally[best].loc_id, tally[best].count);
+        for( int u = 0; u < tally[best].shape_count; u++ )
+            printf("%s%d", u ? "," : "", tally[best].shapes[u]);
+        printf("]\n");
+        tally[best].count = -tally[best].count;
+    }
+
+    RSCache_MapLocsFree(locs);
+    RSCache_Dat2DiskFree(disk);
+    return 0;
+}
+
+/*
+ * Print one material's flags, or with id -1 a summary of the whole table. `valid` is the one
+ * that matters for rendering: rs-map-viewer's isSd() is exactly this flag, and ModelData.light
+ * drops the texture from any face whose material is not valid — those are HD-only materials
+ * the SD renderer draws as plain coloured faces.
+ *
+ *   test_rs2_sweep <root> materials [id]
+ */
+static int
+dump_materials(const char* root, int want_id)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/cache.643", root);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("no cache at %s\n", path);
+        return 1;
+    }
+    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
+
+    struct RSCache profile;
+    if( !RSCache_ProfileByName("643", &profile) )
+        profile = RSCache_ProfileZero();
+
+    int table_id = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_MATERIALS);
+    struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(disk, table_id, 0);
+    if( !archive )
+    {
+        printf("materials table absent\n");
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+    struct RSCache_Dat2MaterialTable* table = RSCache_Dat2MaterialTableNewDecode(
+        archive->data, archive->data_size, RSCache_Dat2ProcTextureFlags(&profile));
+    RSCache_Dat2DiskArchiveFree(archive);
+    if( !table )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return 1;
+    }
+
+    if( want_id >= 0 && want_id < table->count )
+    {
+        const struct RSCache_Dat2Material* mat = &table->materials[want_id];
+        printf(
+            "material %d: exists=%d valid=%d alpha=%d small=%d disabled=%d brightness=%d "
+            "blanch=%d average_hsl=%d\n",
+            want_id,
+            mat->exists,
+            mat->valid,
+            mat->alpha,
+            mat->small,
+            mat->disabled,
+            mat->brightness,
+            mat->blanch,
+            mat->average_hsl);
+    }
+    else
+    {
+        int exists = 0;
+        int valid = 0;
+        int invalid_ids = 0;
+        for( int i = 0; i < table->count; i++ )
+        {
+            if( !table->materials[i].exists )
+                continue;
+            exists++;
+            if( table->materials[i].valid )
+                valid++;
+            else if( invalid_ids < 40 )
+            {
+                if( invalid_ids == 0 )
+                    printf("  not-SD ids:");
+                printf(" %d", i);
+                invalid_ids++;
+            }
+        }
+        if( invalid_ids )
+            printf("%s\n", invalid_ids == 40 ? " ..." : "");
+        printf("materials: %d, exists=%d, valid(SD)=%d, not-SD=%d\n",
+               table->count, exists, valid, exists - valid);
+        /* The engine's texture maps are 256-slot (scene map, texture_failed, the raster's
+         * id guard), so an SD id past 255 would silently never draw. Report the split. */
+        {
+            int sd_above_255 = 0;
+            int max_sd = -1;
+            for( int i = 0; i < table->count; i++ )
+                if( table->materials[i].exists && table->materials[i].valid )
+                {
+                    if( i > 255 )
+                        sd_above_255++;
+                    max_sd = i;
+                }
+            printf("  SD ids above 255: %d (highest SD id %d)\n", sd_above_255, max_sd);
+        }
+    }
+
+    RSCache_Dat2MaterialTableFree(table);
+    RSCache_Dat2DiskFree(disk);
+    return 0;
+}
+
 int
 main(int argc, char** argv)
 {
     const char* root = argc > 1 ? argv[1] : RSCACHE_TEST_REPO_ROOT;
+
+    if( argc > 3 && strcmp(argv[2], "loc") == 0 )
+        return dump_loc(root, atoi(argv[3]));
+    if( argc > 3 && strcmp(argv[2], "model") == 0 )
+        return dump_model(root, atoi(argv[3]));
+    if( argc > 4 && strcmp(argv[2], "spawns") == 0 )
+        return dump_spawns(root, atoi(argv[3]), atoi(argv[4]));
+    if( argc > 2 && strcmp(argv[2], "materials") == 0 )
+        return dump_materials(root, argc > 3 ? atoi(argv[3]) : -1);
 
     static const char* CACHES[] = { "cache.643", "cache.rs643" };
 
@@ -269,6 +641,8 @@ main(int argc, char** argv)
         {
             struct sweep s;
             memset(&s, 0, sizeof(s));
+            /* Visitors for datatypes without a `_consumed` field clear this. */
+            s.measures_consumption = true;
             sweep_table(disk, &profile, CASES[i].type, CASES[i].visit, &s);
             sweep_report(CASES[i].label, CACHES[c], &s);
         }

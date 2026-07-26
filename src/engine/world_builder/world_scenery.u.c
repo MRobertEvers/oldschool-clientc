@@ -458,6 +458,13 @@ scenery_load_model(
      * loses its recolour-driven texture and renders with the wrong texture. */
     apply_transforms(config_loc, model, rotation);
 
+    /* HD-only textures come OFF here, after the retexture and before lighting — the
+     * position ModelData.light() does it in. 643's ground decor is the visible case:
+     * pebble scatters carry an HD material over a dark recoloured base, and the SD
+     * client draws the dark base. Before the wants note, so those ids are never
+     * requested either. */
+    ToriDraw_ModelDropNonSdTextures(builder->cache, model);
+
     /* Retexturing rewrote face_textures to ids the source models never carried,
      * so the conversion-time report is stale — re-report from the final model. */
     ToriDraw_ModelNoteTextureWants(model);

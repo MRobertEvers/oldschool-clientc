@@ -1,5 +1,6 @@
 #include "toridraw_model_from_torirs.h"
 
+#include "cache_provider.h"
 #include "torirs_types.h"
 
 #include "toridraw_model.h"
@@ -17,9 +18,11 @@
          (src), (size_t)(count), sizeof(*(model)->field)))
 
 /* Texture ids wanted by models built since the host last drained them. One flag
- * per id (the raster's texture map is 256 slots), so repeats collapse and the
- * drain is a fixed 256-step walk regardless of how much geometry was built. */
-#define TORIDRAW_MODEL_TEXTURE_ID_MAX 256
+ * per id, so repeats collapse and the drain is a fixed-size walk regardless of
+ * how much geometry was built. Sized to TORIDRAW_TEXTURE_ID_CAPACITY: 643's SD
+ * materials number past 255, so the old 256 silently dropped their wants and the
+ * raster then skipped those faces forever. */
+#define TORIDRAW_MODEL_TEXTURE_ID_MAX 2048
 static unsigned char g_texture_wants[TORIDRAW_MODEL_TEXTURE_ID_MAX];
 
 static void
@@ -47,6 +50,25 @@ ToriDraw_ModelNoteTextureWants(const struct ToriDraw_Model* model)
         if( texture_id < 0 || texture_id >= TORIDRAW_MODEL_TEXTURE_ID_MAX )
             continue;
         g_texture_wants[texture_id] = 1;
+    }
+}
+
+void
+ToriDraw_ModelDropNonSdTextures(
+    struct CacheProvider* provider,
+    struct ToriDraw_Model* model)
+{
+    if( !provider || !model || !model->face_textures )
+        return;
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        int const texture_id = (int)model->face_textures[face];
+        if( texture_id < 0 )
+            continue;
+        if( !CacheProvider_TextureIsSd(provider, texture_id) )
+            model->face_textures[face] = (faceint_t)-1;
+        /* face_texture_coords stays: with the texture gone the raster never consults it,
+         * which is also the reference's arrangement (textureCoords outlives the null). */
     }
 }
 

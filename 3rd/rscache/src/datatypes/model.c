@@ -627,6 +627,9 @@ decode_ob3(
     int format_version = 1;
     if( (header_flags & 0x8) != 0 && inputLength >= 24 )
         format_version = inputData[inputLength - 24] & 0xff;
+    /* Recorded for the consumer: version >= 13 vertices are stored at 4x and the
+     * reference shifts them down after decode — see the field's comment in model.h. */
+    model->format_version = format_version;
 
     int model_priority = RSCache_BufferG1At(inputData, &headerOffset);
     int has_face_transparencies = RSCache_BufferG1At(inputData, &headerOffset);
@@ -2827,6 +2830,11 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
     struct RSCache_Model* copy = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
     memset(copy, 0, sizeof(struct RSCache_Model));
 
+    /* Not geometry, but load-bearing on it: the ToriRS adaptor keys the reference's
+     * version-13+ scaleDown on this, and the dat2 model task adapts a COPY — dropping it
+     * here silently un-scales every 643 model. */
+    copy->format_version = model->format_version;
+
     copy->vertex_count = model->vertex_count;
     copy->vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     copy->vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
@@ -3058,6 +3066,11 @@ RSCache_ModelNewMerge(
 {
     struct RSCache_Model* model = (struct RSCache_Model*)malloc(sizeof(struct RSCache_Model));
     memset(model, 0, sizeof(struct RSCache_Model));
+
+    /* All parts of a merge come from one era; carry the version so a later adaptation
+     * still applies the version-13+ scaleDown (see RSCache_ModelNewCopy). */
+    if( model_count > 0 && models[0] )
+        model->format_version = models[0]->format_version;
 
     int vertex_count = 0;
     int face_count = 0;

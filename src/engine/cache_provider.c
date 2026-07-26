@@ -2098,6 +2098,17 @@ CacheProvider_TextureHas(
     return CacheProvider_TextureGet(provider, texture_id) != NULL;
 }
 
+bool
+CacheProvider_TextureIsSd(
+    struct CacheProvider* provider,
+    int texture_id)
+{
+    assert(provider);
+    if( !provider->vtable->TextureIsSd )
+        return true;
+    return provider->vtable->TextureIsSd(provider, texture_id);
+}
+
 void
 CacheProvider_TexturesCleanup(struct CacheProvider* provider)
 {

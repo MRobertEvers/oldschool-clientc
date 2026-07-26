@@ -89,7 +89,7 @@ overlaymap_set_tile_texture(
     int x,
     int z,
     int level,
-    uint8_t texture_id,
+    int16_t texture_id,
     uint16_t texture_avg_hsl16)
 {
     int idx = overlaymap_coord_idx(overlaymap, x, z, level);

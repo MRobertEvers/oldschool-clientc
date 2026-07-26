@@ -127,6 +127,18 @@ struct RSCache_Model
 
     int rotated;
 
+    /*
+     * The ob3 header's optional version byte (header-flags bit 3), or 1 when absent. NOT
+     * cosmetic: rs-map-viewer's decodeV1 ends with `if (version >= 13) scaleDown(2)` —
+     * version-13+ models (the 643 era) store their vertices at 4x precision and the
+     * *reference* decode shifts them down. This decoder deliberately does not: the shift
+     * drops two bits, and byte-exact round-trip is this library's validation bar. The
+     * consumer that wants reference geometry applies the shift itself — the engine's
+     * ToriRS adaptor does — and this field is how it knows to. Skipping it renders every
+     * version-13+ model 4x too large, which blanketed whole 643 squares in giant gravel.
+     */
+    int format_version;
+
     /* Animaya (skeletal) per-vertex skin data.  Set only when the model was
      * decoded with hasAnimayaGroups == 1.  animaya_group_counts[i] is the
      * number of bone influences on vertex i; animaya_groups[i][j] and

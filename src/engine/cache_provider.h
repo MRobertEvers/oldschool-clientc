@@ -223,6 +223,23 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_MapElementLoad)(
         struct CacheProvider* provider,
         int element_id);
+    /**
+     * Is `texture_id` drawable by the SD renderer? rs-map-viewer's TextureLoader.isSd.
+     *
+     * The RS2 procedural system marks most materials HD-only — 880 of cache.643's 1164 —
+     * and the SD client draws faces and overlays that name one as PLAIN COLOUR, not as a
+     * missing texture: ModelData.light() nulls the face texture and SceneBuilder falls back
+     * to the overlay's own HSL. Skipping the face instead (our missing-texture behaviour)
+     * or texturing it anyway (what we did before this existed) are both visibly wrong, the
+     * second spectacularly: every pebble/rubble decor in 643 is an HD-only material over a
+     * dark recoloured base, so the whole desert rendered as glaring white gravel.
+     *
+     * NULL slot means every texture is SD (sprite-backed systems, dat1) — the reference's
+     * SpriteTextureLoader.isSd is a constant true.
+     */
+    bool (*TextureIsSd)(
+        struct CacheProvider* provider,
+        int texture_id);
 };
 
 void
@@ -687,6 +704,12 @@ CacheProvider_TextureGet(
 
 bool
 CacheProvider_TextureHas(
+    struct CacheProvider* provider,
+    int texture_id);
+
+/** TextureIsSd through the vtable; an unset slot answers true. See the slot's comment. */
+bool
+CacheProvider_TextureIsSd(
     struct CacheProvider* provider,
     int texture_id);
 

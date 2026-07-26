@@ -175,7 +175,12 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
                         omap_tile->secondary_rgb_color = overlay_flotype->secondary_rgb_color;
                     }
 
-                    if( overlay_flotype->texture != -1 )
+                    /* An overlay naming an HD-only texture falls back to its own colour —
+                     * SceneBuilder gates on textureLoader.isSd exactly here. Without the
+                     * gate the 643 desert path renders the HD rock texture instead of its
+                     * smooth brown. */
+                    if( overlay_flotype->texture != -1 &&
+                        CacheProvider_TextureIsSd(builder->cache, overlay_flotype->texture) )
                     {
                         int texture_avg_hsl16 = palette_rgb_to_hsl16(overlay_flotype->rgb_color);
                         struct ToriRS_Texture* gc_texture =
@@ -187,7 +192,7 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
                             offset_x,
                             offset_z,
                             level,
-                            (uint8_t)overlay_flotype->texture,
+                            (int16_t)overlay_flotype->texture,
                             (uint16_t)texture_avg_hsl16);
                     }
 

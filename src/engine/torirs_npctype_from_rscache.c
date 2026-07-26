@@ -152,6 +152,8 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->walkanim_r = src->walkanim_r;
     npctype->walkanim_l = src->walkanim_l;
     npctype->turn_speed = src->turnspeed;
+    npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
+    npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
     npctype->alwaysontop = src->alwaysontop;
 
     return npctype;
@@ -207,6 +209,10 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->walkanim_l = src->rotate_left_animation;
     /* dat2 npc configs carry no turnspeed field; the reference default is 32. */
     npctype->turn_speed = 32;
+    /* The dat2 decoder calloc's its struct, so an absent opcode 97/98 reads 0, not the
+     * 128 the reference defaults to — map it here or every unscaled npc collapses. */
+    npctype->width_scale = src->width_scale > 0 ? src->width_scale : 128;
+    npctype->height_scale = src->height_scale > 0 ? src->height_scale : 128;
     npctype->alwaysontop = src->has_render_priority;
 
     return npctype;

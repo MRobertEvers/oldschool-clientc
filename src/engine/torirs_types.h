@@ -263,6 +263,10 @@ struct ToriRS_Npctype
     /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
      *  turns — Client-TS entityFace returns immediately for those. */
     int turn_speed;
+    /** Model scale, 128 == 1.0 (reference widthScale/heightScale, dat1 resizeh/resizev,
+     *  dat2 opcodes 97/98). Applied as scale(width, height, width) — NpcModelLoader. */
+    int width_scale;
+    int height_scale;
     /** NpcType.alwaysontop (opcode 99). Drives the draw-order tier: the
      *  reference adds alwaysontop NPCs before other players/normal NPCs
      *  (Client.ts addNpcs), so they win the one-entity-per-tile dedup. */

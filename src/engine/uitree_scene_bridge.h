@@ -47,7 +47,7 @@ struct UITreeSceneBridge
     struct HMap* obj_model_map;
 
     /** Texture ids whose load already failed; never re-requested. */
-    unsigned char texture_failed[256];
+    unsigned char texture_failed[2048];
 };
 
 /* Reserved scene model id for the composited player avatar (out of cache range). */

@@ -405,6 +405,20 @@ all**, so any per-complex figure is correct, and their flag byte is only ever 0 
 That is the whole reason this sat as a gap — the corpus that validated everything else
 could not see it.
 
+**A third error surfaced later, and it is the exact trap this section warned about** ("a
+byte-exact model decode still permits a wrong interpretation"): `decodeV1` ends with
+`if (version >= 13) scaleDown(2)` — version-13+ models store their vertices at **4x** and the
+reference shifts them down after decode. All 65,014 records round-tripped byte-exactly while
+every version-13+ model rendered 4x too large; the visible symptom was single-tile gravel
+decor spanning three tiles, burying whole squares. The decoder deliberately does NOT apply
+the shift (it drops two bits, which would break the round-trip bar); it records
+`format_version` on the struct and the engine's ToriRS adaptor shifts — so byte-fidelity and
+reference geometry live on opposite sides of the adaptor, each checked by its own harness.
+`RSCache_ModelNewCopy`/`NewMerge` must carry the field: the dat2 model task adapts a *copy*,
+and a dropped version silently un-scales everything again. Settled by decoding model 1139
+through rs-map-viewer's own loader headlessly and comparing vertex-for-vertex: ours
+`(164, -34, -172)` vs theirs `(41, -9, -43)` — exactly `>> 2` (arithmetic, matching JS).
+
 The particle and billboard payloads still are not decoded, by rs-map-viewer either — it
 computes `particleEffectsOffset` and never reads it. They sit past every other section,
 so the opaque tail already carries them and round-trips them byte-exactly.
@@ -914,6 +928,47 @@ started from. Over eleven keyed map squares (40,55 · 51,53 · 47,51 · 42,54 ·
 49,54 · 50,54 · 52,50 · 48,48 · 47,48) requesting 1,014 distinct textures between them, refusals
 went **78 -> 0**.
 
+#### The SD gate — most materials must NOT be drawn *(the finding after "100% bake")*
+
+"Every texture bakes" turned out to be the wrong success criterion, and the failure it hid was
+spectacular: whole 643 squares rendered as a blanket of glaring white-tan chunks, every ground
+decor apparently "the same model". Nothing in the decode was wrong — spawns, configs, models
+and bakes all matched the reference byte for byte (each stage was verified independently,
+including baking texture 154 through rs-map-viewer's own loaders in node: identical pixels).
+
+The missing rule is a **selection** rule: the material's `valid` byte is rs-map-viewer's
+`TextureLoader.isSd`, and in `cache.643` only **284 of 1,164** materials are SD-drawable. The
+rest are HD-only, and the SD client *drops* them:
+
+- `ModelData.light()` nulls the face texture of any face whose material is not SD — the face
+  then lights from its **face colour**, which the loc's recolour list has usually already
+  darkened. 643's pebble/rubble decor is the visible case: an HD gravel material over a
+  recoloured dark-brown base. Drawing the texture anyway ignores the recolour and renders the
+  bright HD base — the white blanket.
+- `SceneBuilder` applies the same gate to terrain overlays: a non-SD overlay texture falls
+  back to the overlay's own HSL colour (the 643 desert path is this).
+
+Ported as `CacheProvider_TextureIsSd` (a vtable slot; unset = always true, which is the
+reference's `SpriteTextureLoader.isSd`, so OSRS and dat1 are untouched) applied where the
+reference applies it — after every recolour/retexture, before lighting
+(`ToriDraw_ModelDropNonSdTextures`), plus the terrain overlay site and the world-load texture
+preloads. Two rules of thumb out of it:
+
+- **"Decodes correctly" and "renders correctly" are separated by selection logic.** Every
+  record here decoded byte-faithfully; the defect was drawing data the reference deliberately
+  ignores. When a render is wrong but every decoder validates, diff the *filters*, not the
+  decoders.
+- The visible signature of a missing drop-rule is *uniformity*: many distinct configs
+  converge on the same look because the same undropped ingredient (here, a shared HD base
+  texture) dominates all of them.
+
+**Texture ids also outgrew the byte.** 234 of the 284 SD materials have ids above 255, and the
+engine's texture pipeline was 256-slot end to end — the wants registry, the scene texture map,
+the raster's id guard, the bridge's failed-set, and a `(uint8_t)` truncation in the overlay
+map setter. Faces naming them were silently skipped (the raster's missing-texture rule), i.e.
+invisible geometry. Widened to `TORIDRAW_TEXTURE_ID_CAPACITY` (2048) throughout; the model
+chain itself was already `int16_t` and needed nothing.
+
 `TORIRS_PROCTEX_DEBUG` names every refusal and its cause, and the causes are deliberately
 distinguishable: a `REFUSED` line is an unresolvable dependency, a `no evaluator` line is an
 unported operation, and there are separate lines for a graph with no output operation and for
@@ -974,6 +1029,15 @@ Two smaller points from the same work:
 
 All gates are conditional on flags only the 643 profile sets, so OldSchool and dat1 decode
 byte-for-byte as before; the full round-trip suite is green across all six OSRS caches.
+
+**Still open: `obj` cannot be measured.** `RSCache_Dat2ConfigObj` has no `_consumed` field, so
+the sweep can only report that the decoder returned non-NULL — which it does for all 20,711
+643 records while still logging ~150 buffer overruns per cache. The sweep prints that column
+under "returned" rather than "exact" so the number is not mistaken for consumption, but the
+real fix is to give the obj decoder a `_consumed` like loc and npc have, and then run the same
+comparison against `ObjType.decodeOpcode`. Obj records are ground/inventory items, so this does
+not affect a map render; it is listed because "100%" in an earlier version of that column meant
+nothing at all.
 
 ### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
 

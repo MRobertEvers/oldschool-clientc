@@ -219,9 +219,17 @@ struct ToriDraw_Texture
     int animation_speed;
 };
 
+/*
+ * Texture id capacity. 256 held for the sprite-backed eras, but the RS2 procedural
+ * materials number to 1163 in cache.643 — and 234 of its SD-drawable materials sit above
+ * 255, so a 256-slot map silently never draws them (the raster skips faces whose texture
+ * is absent). 2048 covers the era with headroom; the map is pointers, so the cost is 16KB.
+ */
+#define TORIDRAW_TEXTURE_ID_CAPACITY 2048
+
 struct ToriDraw_TextureMap
 {
-    struct ToriDraw_Texture* textures[256];
+    struct ToriDraw_Texture* textures[TORIDRAW_TEXTURE_ID_CAPACITY];
     int count;
 };
 

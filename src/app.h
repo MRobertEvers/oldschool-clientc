@@ -357,7 +357,7 @@ struct App
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
     int world_load_server_driven;
     /** Texture ids requested but not yet published into the scene. */
-    int tex_pending[256];
+    int tex_pending[512];
     int tex_pending_count;
     /** Element/seq bindings deferred until the sequence load lands. */
     struct AppSeqBindPending seq_bind_pending[64];
