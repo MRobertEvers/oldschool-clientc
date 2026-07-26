@@ -267,6 +267,8 @@ VarPManager_Free(struct VarPManager* mgr)
 
     mgr->change_fn = NULL;
     mgr->change_userdata = NULL;
+    mgr->server_update_fn = NULL;
+    mgr->server_update_userdata = NULL;
 }
 
 bool
@@ -464,6 +466,17 @@ VarPManager_SetChangeCallback(
 }
 
 void
+VarPManager_SetServerUpdateCallback(
+    struct VarPManager* mgr,
+    VarPManager_ServerUpdateFn fn,
+    void* userdata)
+{
+    assert(mgr);
+    mgr->server_update_fn = fn;
+    mgr->server_update_userdata = userdata;
+}
+
+void
 VarPManager_ApplySmall(
     struct VarPManager* mgr,
     int variable,
@@ -559,6 +572,11 @@ VarPManager_ResetAll(struct VarPManager* mgr)
             notify_change(mgr, i);
         }
     }
+
+    /* Reference: the reset handler advances the changed-varp counter by the ring
+     * size (`field1031 += 32`), which every widget reads as "more changes than I
+     * can enumerate" and fires unconditionally. -1 is our spelling of that. */
+    notify_server_update(mgr, -1);
 }
 
 int

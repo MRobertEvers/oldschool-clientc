@@ -1113,21 +1113,22 @@ instead of passing a bare archive revision or a flag constant written out at the
 site.
 
 - `struct CacheProvider` carries a `struct RSCache profile`, set by
-  `CacheProvider_SetProfile`. It defaults to `RSCache_ProfileZero()` — "OSRS dat2,
-  revision unknown" — so a provider whose profile was never set decodes exactly as it
-  did before profiles existed.
-- `app_provider_set_cache_profile` resolves it from the manifest's `client_version` and
-  `kind` through `RSCache_ProfileForContainerRevision`, which handles the exact match,
-  the nearest-lower fallback, and the revision-unset case itself. The boot log states
-  what it picked: `container=dat1 epoch=0 revision=254` and
-  `container=dat2 epoch=1 revision=230`.
+  `CacheProvider_SetProfile`. It starts UNSET (`RSCache_ProfileZero`);
+  `CacheProvider_Profile` asserts the identity is set, so a provider used before
+  `SetProfile` crashes instead of decoding as the wrong branch.
+- `app_provider_set_cache_profile` resolves it from the manifest's required
+  `[cache:boot]` identity (`epoch`/`game`/`revision`/`quirks`) through
+  `RSCache_ProfileForIdentity`. The boot log states what it picked by name:
+  `epoch=dat2 game=rs2 revision=643 quirks=none`. `[net:boot] client_version=`
+  is login-only and does not feed the cache.
 - Converted: the dat1 loc decode (was a literal `RSCACHE_CONFIG_LOC_DECODE_DAT`) and
   the dat2 loc decode (was `FlagsForRevision(archive->revision)`), the latter via a new
   `RSCache_Dat2ConfigLocNewDecodeProfile`. Both are equivalent on the caches the client
   boots, and both now additionally carry the container and the Kronos quirk, neither of
   which a revision number can imply.
 - Wiring this up is what exposed **D16** — the cross-lineage revision comparison that
-  would have added `OSRS_220` to every dat1 loc decode.
+  would have added `OSRS_220` to every dat1 loc decode. The later collapse of identity
+  onto four load-bearing fields is **D25**.
 
 **Left deliberately:** `spotanim` and `component` still take a bare revision.
 `RSCache_Dat2ConfigSpotanimNewDecode` `(void)`s its `revision` parameter outright, so

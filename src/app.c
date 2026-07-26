@@ -1321,19 +1321,27 @@ app_sync_textures_poll(struct App* app)
     app->tex_pending_count = kept;
 }
 
-/* Var-change callbacks: forward a varp (server) or varc (CS2) value change to the
- * CS2 host so it re-dispatches var-transmit hooks this tick. Userdata is the host. */
+/*
+ * Server varp update -> CS2 host, so the tick's var-transmit pump re-dispatches
+ * the hooks that list this varp as a trigger. Userdata is the host.
+ *
+ * Deliberately NOT wired to the plain value-change callback, and not wired to
+ * varcs at all. The reference feeds its changed-varp ring only from the
+ * VARP_SMALL / VARP_LARGE / VARP_RESET packet handlers: a script-side write
+ * (CS2 SETVARP, IF1 button, varbit set) updates the varp and notifies the
+ * server but never enters the ring, and `Varcs` writes touch nothing beyond
+ * their own map. Wiring either of those in makes the dispatch self-feeding —
+ * a hook whose script writes a var bumps the change serial, which re-triggers
+ * that same hook next tick, forever. That is what had rev230's gameframe
+ * rebuilding the popout strip, the world-hop list (601 dynamic children) and
+ * the 161|36 listener from scratch every ~8 frames, and it is why the hovered
+ * component id climbed without end: every rebuild hands the same three popout
+ * icons brand-new dynamic uids.
+ */
 static void
-app_varp_changed(void* userdata, int varp_id)
+app_varp_server_update(void* userdata, int varp_id)
 {
     RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varp_id);
-}
-
-static void
-app_varc_changed(void* userdata, int varc_id, bool is_string)
-{
-    (void)is_string;
-    RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varc_id);
 }
 
 /**
@@ -1523,11 +1531,11 @@ App_Init(
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
-    /* Close the reactive loop: a varp (server) or varc (CS2) value change flags a
+    /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
-     * and not only to unhide. Userdata is the CS2 host. */
-    VarPManager_SetChangeCallback(&app->varps, app_varp_changed, &app->host);
-    VarCManager_SetChangeCallback(&app->varcs, app_varc_changed, &app->host);
+     * and not only to unhide. Userdata is the CS2 host. See
+     * app_varp_server_update for why script-side writes and varcs stay out. */
+    VarPManager_SetServerUpdateCallback(&app->varps, app_varp_server_update, &app->host);
     RS_PlayerStats_Init(&app->stats);
     RS_CS1Host_Init(&app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
 
