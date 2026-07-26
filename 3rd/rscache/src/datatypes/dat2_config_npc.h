@@ -62,6 +62,11 @@ struct RSCache_Dat2ConfigNpc
     int height;
     int category;
     int stats[6]; // Stats for opcodes 74-79
+    /**
+     * Opcode 127 — BasType / render-animation id (RS2). -1 when absent.
+     * When set, idle/walk come from the BasType rather than opcodes 13/14.
+     */
+    int bas_type_id;
     struct RSCache_Params params;
 
     /** Bytes consumed by the last decode, set when the terminating opcode 0 is

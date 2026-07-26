@@ -51,6 +51,12 @@ struct MapEntry_ConfigNpctype
     struct RSCache_Dat2ConfigNpc* npc;
 };
 
+struct MapEntry_ConfigBas
+{
+    int id;
+    struct RSCache_Dat2ConfigBas* bas;
+};
+
 struct MapEntry_ConfigIdentkit
 {
     int id;
@@ -280,6 +286,8 @@ dat2_buildcache_new(void)
         dat2_buildcache, sizeof(struct MapEntry_ConfigObject), DAT2_CONFIG_MAP_CAPACITY);
     dat2_buildcache->npctype_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), DAT2_CONFIG_MAP_CAPACITY);
+    dat2_buildcache->bas_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_ConfigBas), DAT2_CONFIG_MAP_CAPACITY);
     dat2_buildcache->identkit_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ConfigIdentkit), DAT2_CONFIG_MAP_CAPACITY);
     dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(
@@ -317,6 +325,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);
+    dat2_buildcache_bas_cleanup(dat2_buildcache);
     dat2_buildcache_identkits_cleanup(dat2_buildcache);
     dat2_buildcache_clientscripts_cleanup(dat2_buildcache);
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);
@@ -325,6 +334,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->componentpacks_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->object_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->npctype_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->bas_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->identkit_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_terrain_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_scenery_hmap);
@@ -1028,6 +1038,103 @@ dat2_buildcache_npctypes_init_from_archive_based(
     RSCache_FileListFree(filelist);
 }
 
+static void
+dat2_buildcache_bas_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int bas_id,
+    struct RSCache_Dat2ConfigBas* bas)
+{
+    struct MapEntry_ConfigBas* entry;
+
+    assert(dat2_buildcache);
+    assert(bas);
+
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->bas_hmap);
+    entry = (struct MapEntry_ConfigBas*)hmap_search(
+        dat2_buildcache->bas_hmap, &bas_id, HMAP_INSERT);
+    assert(entry && "Bas must be inserted into hmap");
+
+    if( entry->bas )
+        RSCache_Dat2ConfigBasFree(entry->bas);
+
+    entry->id = bas_id;
+    entry->bas = bas;
+}
+
+struct RSCache_Dat2ConfigBas*
+dat2_buildcache_bas_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int bas_id)
+{
+    struct MapEntry_ConfigBas* entry;
+
+    assert(dat2_buildcache);
+
+    entry = (struct MapEntry_ConfigBas*)hmap_search(
+        dat2_buildcache->bas_hmap, &bas_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->bas;
+}
+
+void
+dat2_buildcache_bas_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigBas* entry;
+
+    assert(dat2_buildcache);
+    if( !dat2_buildcache->bas_hmap )
+        return;
+
+    iter = hmap_iter_new(dat2_buildcache->bas_hmap);
+    while( (entry = (struct MapEntry_ConfigBas*)hmap_iter_next(iter)) )
+    {
+        if( entry->bas )
+            RSCache_Dat2ConfigBasFree(entry->bas);
+    }
+    hmap_iter_free(iter);
+
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->bas_hmap,
+        sizeof(struct MapEntry_ConfigBas),
+        DAT2_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat2_buildcache_bas_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(dat2_buildcache);
+    assert(archive);
+
+    filelist = RSCache_FileListNewFromDecode(
+        archive->data, archive->data_size, archive->file_count);
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids ? archive->file_ids[i] : i;
+        struct RSCache_Dat2ConfigBas* bas;
+
+        if( dat2_buildcache_bas_get(dat2_buildcache, id) )
+            continue;
+
+        bas = RSCache_Dat2ConfigBasNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        if( !bas )
+            continue;
+
+        dat2_buildcache_bas_add(dat2_buildcache, id, bas);
+    }
+
+    RSCache_FileListFree(filelist);
+}
+
 void
 dat2_buildcache_identkit_add(
     struct Dat2BuildCache* dat2_buildcache,
@@ -1696,6 +1803,7 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);
+    dat2_buildcache_bas_cleanup(dat2_buildcache);
     dat2_buildcache_identkits_cleanup(dat2_buildcache);
     dat2_buildcache_clientscripts_cleanup(dat2_buildcache);
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);

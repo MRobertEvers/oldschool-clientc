@@ -31,6 +31,7 @@
 #include "src/datatypes/dat2_config_obj.c"
 #include "src/datatypes/dat2_config_idk.c"
 #include "src/datatypes/dat2_config_npc.c"
+#include "src/datatypes/dat2_config_bas.c"
 #include "src/datatypes/dat2_config_loc.c"
 #include "src/datatypes/dat2_config_flo.c"
 #include "src/datatypes/dat2_texture.c"

@@ -317,6 +317,8 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
         printf("RSCache_Dat2ConfigNpcNewDecode: Failed to allocate memory for NPCType\n");
         return NULL;
     }
+    /* calloc leaves 0; bas absent must be -1 so id 0 stays addressable. */
+    npc->bas_type_id = -1;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)(data), (uint32_t)(data_size));
@@ -844,10 +846,13 @@ decode_npc_type(
          * ignore. Consuming them keeps the stream aligned, which is what the rest of the
          * record depends on.
          *
-         * The one worth promoting later is 127, `basTypeId`: it redirects an npc's idle and
-         * walk sequences through a separate type, so a 643 npc animates from it rather than
-         * from opcodes 13/14. Nothing reads it yet, hence no field for it here.
+         * Opcode 127 (`basTypeId`) is stored: a 643 npc's idle/walk come from the
+         * BasType (config group 32) rather than opcodes 13/14. See dat2_config_bas.h.
          */
+        case 127:
+            npc->bas_type_id = g2(buffer);
+            break;
+
         case 44:
         case 45:
         case 137:  /* attack cursor */
@@ -856,7 +861,6 @@ decode_npc_type(
         case 142:  /* map function id */
         case 144:
         case 146:
-        case 127:  /* basTypeId — see note above */
         case 164:  /* two shorts */
         case 170:  /* 170..175 are all a single short */
         case 171:

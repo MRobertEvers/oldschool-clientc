@@ -202,11 +202,11 @@ ToriRS_NpctypeFromRSCacheDat2(
         src->retexture_to_replace,
         src->retexture_count);
 
-    npctype->readyanim = src->standing_animation;
-    npctype->walkanim = src->walking_animation;
-    npctype->walkanim_b = src->rotate180_animation;
-    npctype->walkanim_r = src->rotate_right_animation;
-    npctype->walkanim_l = src->rotate_left_animation;
+    npctype->readyanim = src->standing_animation > 0 ? src->standing_animation : -1;
+    npctype->walkanim = src->walking_animation > 0 ? src->walking_animation : -1;
+    npctype->walkanim_b = src->rotate180_animation > 0 ? src->rotate180_animation : -1;
+    npctype->walkanim_r = src->rotate_right_animation > 0 ? src->rotate_right_animation : -1;
+    npctype->walkanim_l = src->rotate_left_animation > 0 ? src->rotate_left_animation : -1;
     /* dat2 npc configs carry no turnspeed field; the reference default is 32. */
     npctype->turn_speed = 32;
     /* The dat2 decoder calloc's its struct, so an absent opcode 97/98 reads 0, not the

@@ -23,6 +23,7 @@ struct Task_Dat2SequenceLoad
     struct CacheProvider* provider;
     struct ToriDraw_Scene* scene;
     int seq_id;
+    struct RSCache_RecordAddress addr;
 
     struct RSCache_Dat2ConfigSequence* seq;
     struct RSCache_Dat2Framemap* framemap; /* shared rigging (all frames share one) */
@@ -153,23 +154,62 @@ Task_Dat2SequenceLoad_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* 1. Sequence config (CONFIGS table, Seq group). */
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
-    PT_YIELD(&self->pt);
+    /*
+     * Sequence config addressing is era-dependent (same story as loc/npc):
+     *   OSRS — config table group 12, file id == seq id
+     *   RS2  — table 20, sharded 128 per group
+     */
+    self->addr = RSCache_RecordAddressFor(
+        CacheProvider_Profile(self->provider), RSCACHE_TYPE_SEQUENCE);
+
     {
-        struct RSCache_Dat2DiskArchive* archive =
-            RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
+        struct RSCache_Dat2DiskArchive* archive = NULL;
+        if( self->addr.group_shift == 0 )
+        {
+            RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
+            PT_YIELD(&self->pt);
+            archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
+        }
+        else
+        {
+            RSCache_IO_Dat2RecordGroupLoad(
+                io, 0, self->addr.table, self->seq_id >> self->addr.group_shift);
+            PT_YIELD(&self->pt);
+            archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, self->addr.table);
+        }
+
         if( archive )
         {
             struct RSCache_FileList* fl = RSCache_FileListNewFromDecode(
                 archive->data, archive->data_size, archive->file_count);
-            if( fl && self->seq_id >= 0 && self->seq_id < fl->file_count &&
-                fl->files[self->seq_id] )
+            int want_file = self->addr.group_shift
+                                ? (self->seq_id & self->addr.file_mask)
+                                : self->seq_id;
+            int pos = -1;
+            if( fl )
+            {
+                if( archive->file_ids )
+                {
+                    for( int i = 0; i < archive->file_count; i++ )
+                    {
+                        if( archive->file_ids[i] == want_file )
+                        {
+                            pos = i;
+                            break;
+                        }
+                    }
+                }
+                else if( want_file >= 0 && want_file < fl->file_count )
+                {
+                    pos = want_file;
+                }
+            }
+            if( fl && pos >= 0 && pos < fl->file_count && fl->files[pos] )
             {
                 self->seq = RSCache_Dat2ConfigSequenceNewDecodeProfile(
                     CacheProvider_Profile(self->provider),
-                    fl->files[self->seq_id],
-                    fl->file_sizes[self->seq_id]);
+                    fl->files[pos],
+                    fl->file_sizes[pos]);
             }
             if( fl )
                 RSCache_FileListFree(fl);

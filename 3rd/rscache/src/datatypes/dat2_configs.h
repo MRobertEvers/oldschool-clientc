@@ -20,7 +20,14 @@ enum RSCache_Dat2ConfigKind
     RSCACHE_DAT2_CONFIG_KIND_VARCLIENT_STRING = 15,
     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER = 16,
     RSCACHE_DAT2_CONFIG_KIND_VARCLIENT = 19,
+    /**
+     * Group 32 is era-dependent:
+     *   OSRS — hitsplat
+     *   RS2  — BasType / render animations (rs-map-viewer ConfigType.RS2.bas)
+     * Same numeric id; the open cache decides which records live there.
+     */
     RSCACHE_DAT2_CONFIG_KIND_HITSPLAT = 32,
+    RSCACHE_DAT2_CONFIG_KIND_BAS = 32,
     RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR = 33,
     RSCACHE_DAT2_CONFIG_KIND_STRUCT = 34,
     /** "mapFunctions" / map element config — what the MEC_* scripts read. */

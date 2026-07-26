@@ -14,6 +14,8 @@ struct Dat2BuildCache
     struct HMap* componentpacks_hmap;
     struct HMap* object_hmap;
     struct HMap* npctype_hmap;
+    /** RS2 BasType / render-animation configs (config group 32). */
+    struct HMap* bas_hmap;
     struct HMap* identkit_hmap;
     struct HMap* map_terrain_hmap;
     struct HMap* map_scenery_hmap;
@@ -223,6 +225,20 @@ dat2_buildcache_npctypes_init_from_archive(
     struct RSCache_Dat2DiskArchive* archive,
     const int* wanted_ids,
     int wanted_count);
+
+struct RSCache_Dat2ConfigBas*
+dat2_buildcache_bas_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int bas_id);
+
+void
+dat2_buildcache_bas_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+/** Decode every BasType in config group 32 into the bas hmap (idempotent per id). */
+void
+dat2_buildcache_bas_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive);
 
 void
 dat2_buildcache_identkit_add(

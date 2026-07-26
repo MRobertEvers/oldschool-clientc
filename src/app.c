@@ -4591,6 +4591,30 @@ Task_AppSpawn_Run(
                 app->provider,
                 CacheProvider_NpctypeGet(app->provider, self->npc_id)->models[self->model_i]));
         }
+        /* Idle/walk(/turn) seqs — same set Task_ExecNpcInfo awaits.
+         * Re-fetch npctype each iteration: locals do not survive PT_YIELD. */
+        for( self->model_i = 0; self->model_i < 5; self->model_i++ )
+        {
+            int seq_id = -1;
+            {
+                struct ToriRS_Npctype* npctype =
+                    CacheProvider_NpctypeGet(app->provider, self->npc_id);
+                if( npctype )
+                {
+                    int seqs[5] = {
+                        npctype->readyanim,
+                        npctype->walkanim,
+                        npctype->walkanim_b,
+                        npctype->walkanim_r,
+                        npctype->walkanim_l,
+                    };
+                    seq_id = seqs[self->model_i];
+                }
+            }
+            if( seq_id >= 0 )
+                TASK_AWAITSELF_IF(
+                    CreateTask_SequenceLoad(app->provider, app->scene, seq_id));
+        }
         app_world_spawn_npc_now(app, self->npc_id, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_OBJ )
