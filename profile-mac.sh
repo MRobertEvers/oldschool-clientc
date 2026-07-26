@@ -72,11 +72,11 @@ else
     # dummy video keeps it off screen (TORIRS_PROFILE_WINDOWED=1 to see it).
     FRAMES=$(( (WARMUP + DURATION + 10) * 50 ))
     if [ -n "${TORIRS_PROFILE_WINDOWED:-}" ]; then
-        TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" \
+        TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" --offline --opengl3 \
             --user "${TORIRS_PROFILE_USER:-asdf}" --pass "${TORIRS_PROFILE_PASS:-a}" \
             > "$OUT.run.log" 2>&1 &
     else
-        SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" \
+        SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" --offline --opengl3 \
             --user "${TORIRS_PROFILE_USER:-asdf}" --pass "${TORIRS_PROFILE_PASS:-a}" \
             > "$OUT.run.log" 2>&1 &
     fi

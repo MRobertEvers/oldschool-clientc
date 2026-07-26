@@ -47,4 +47,4 @@ print(','.join(str(x) for x in struct.unpack('>%di' % (len(d) // 4), d)))
     export TORIRS_JAG_CRC
 fi
 
-exec src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS"
+exec src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" 

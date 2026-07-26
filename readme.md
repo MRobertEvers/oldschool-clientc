@@ -1081,13 +1081,13 @@ Two bugs made whole 643 map squares render as a blanket of giant, glaring
 white gravel chunks — "most locs render as the same model". Both had the same
 shape, which is what makes them worth a section: **every decoder validated
 byte-exactly while the render was spectacularly wrong**, because the reference
-client applies rules at *use* time that no decoder can see. Fixed by walking
+client applies rules at _use_ time that no decoder can see. Fixed by walking
 each pipeline stage against rs-map-viewer until the divergence appeared; both
 rules live in the reference's loaders, not its decoders.
 
 ### Was: every texture drew. Is: only SD-valid materials draw.
 
-643 does not have "textures" in the OSRS sense — it has *materials* (table 26),
+643 does not have "textures" in the OSRS sense — it has _materials_ (table 26),
 and each material carries a `valid` byte. That byte is rs-map-viewer's
 `TextureLoader.isSd`, and in cache.643 only **284 of 1164** materials have it
 set. The other 880 are HD-only: they exist for the HD client's shader pipeline,
@@ -1104,12 +1104,12 @@ and the SD renderer **must not draw them**:
 
 We used to bake and draw all 1164. "All textures bake" was even celebrated as
 the milestone — but baking is not drawing, and the SD client's whole look
-depends on *refusing* most of them. The port is `CacheProvider_TextureIsSd`
+depends on _refusing_ most of them. The port is `CacheProvider_TextureIsSd`
 (a provider vtable slot; unset means always-true, which is the reference's
 `SpriteTextureLoader.isSd`, so OSRS and dat1 are untouched by construction)
 applied exactly where the reference applies it: after every recolour/retexture
-and before lighting (`ToriDraw_ModelDropNonSdTextures`), plus the terrain
-overlay site.
+and before lighting (`ToriDraw_ModelDropNonSdTextures`) on scenery, player,
+NPC, and spotanim model builds, plus the terrain overlay site.
 
 Two corollaries fell out:
 
@@ -1119,9 +1119,40 @@ Two corollaries fell out:
   map). Faces naming them were silently invisible — the raster skips faces
   whose texture is absent. Now `TORIDRAW_TEXTURE_ID_CAPACITY` (2048)
   throughout.
-- The visible signature of a missing *drop*-rule is **uniformity**: hundreds of
+- The visible signature of a missing _drop_-rule is **uniformity**: hundreds of
   distinct loc configs converging on one look, because the same undropped
   ingredient (a shared HD base texture) dominates all of them.
+
+### Was: Steel titan invisible on soft3d (partial on GL3). Is: NPC builds drop HD materials before lighting.
+
+The SD gate above was wired for scenery and player kits first. NPC and spotanim
+builds (`app_world_build_model` / `app_world_build_spotanim_model`) skipped it:
+they kept HD texture ids on faces, lit those faces as textured (storing 0–127
+lightness in `face_colors_a/b/c` instead of HSL16), and then the software
+raster skipped every face whose material was not in the texture map — which
+HD-only materials never are.
+
+Steel titan (NPC 7343 / 7344, model **30469**) is the motivating case: all
+1000 faces name materials **238 / 288 / 241**, and every one of those has
+`valid=0` (HD-only). Soft3d therefore drew nothing. GL3 still submitted the
+geometry (so animation looked alive) but missing/wrong materials left holes.
+Alpha decode was a red herring here — every face alpha is 0 (opaque); the
+model never had a transparency problem.
+
+The fix is the same gate scenery already had: `ToriDraw_ModelDropNonSdTextures`
+before lighting on the NPC/spotanim paths, so those faces light from their
+face colour like `ModelData.light()`'s isSd rule. Alongside that, three
+render conventions were aligned with rs-map-viewer (they were wrong for any
+model, not just the titan):
+
+- Lighting treats cache alphas as signed (`(int8_t)`): raw 255 → hide, 254 →
+  black/hidden type (the old `alpha == -1/-2` checks were dead on `uint8_t`
+  storage).
+- Face render type is the unmasked byte; values other than 0/1/2/3 hide the
+  face (we used to `& 0x3` and draw geometry the reference culls).
+- GL3 applies face alpha only to untextured faces; textured faces stay opaque
+  at the face level (`SceneBuffer.getModelFaces`), and display alpha 0/1 is
+  culled on both paths.
 
 ### Was: models 4x too large. Is: version-13+ vertices shift down.
 
@@ -1129,24 +1160,24 @@ Two corollaries fell out:
 
 ```ts
 if (this.version >= 13) {
-    this.scaleDown(2);   // vertices >>= 2
+  this.scaleDown(2); // vertices >>= 2
 }
 ```
 
 Version-13+ models store their vertices at **4x precision**, and the reference
 shifts them down after decode. Our model decode round-trips all 65,014 records
 byte-exactly, which is precisely why this hid: byte-exactness proves the
-*encoder inverts the decoder*, not that the interpretation is right. A
+_encoder inverts the decoder_, not that the interpretation is right. A
 single-tile gravel scatter spanning three tiles was the tell.
 
 `version` is per model, not per cache, and cache.643 is a mix — census via
 `test_rs2_sweep <root> modelvers`:
 
-| version | models | scaleDown applies |
-|---|---|---|
-| 1 (no version byte) | 38,840 | no |
-| 14 | 1,955 | yes |
-| 15 | 24,219 | yes |
+| version             | models | scaleDown applies |
+| ------------------- | ------ | ----------------- |
+| 1 (no version byte) | 38,840 | no                |
+| 14                  | 1,955  | yes               |
+| 15                  | 24,219 | yes               |
 
 **26,174 of 65,014 (40.3%)** need the shift and the other 60% must be left
 alone, so this cannot be a blanket "643 models are 4x" rule — the header flag
@@ -1165,7 +1196,7 @@ and byte-exact round-trip is that library's validation bar. The decoder records
 Byte-fidelity and reference geometry live on opposite sides of the adaptor,
 each checked by its own harness. One trap inside the fix:
 `RSCache_ModelNewCopy`/`NewMerge` must carry `format_version`, because the
-dat2 model task adapts a *copy* — drop the field and everything silently
+dat2 model task adapts a _copy_ — drop the field and everything silently
 un-scales again.
 
 Full write-ups: `3rd/rscache/EXCEPTIONS.md` B12 (scale) and B18 "The SD gate"
@@ -2790,3 +2821,5 @@ tabIndex "161 child" group tab
 ### Steel Titan
 
 Steel Titan is at 7343/7344; the OSRS NPC codec doesn't match 643. I'll add an RS2 NPC codec (void's layout) and re-decode.
+
+### Cache Porting Plans
