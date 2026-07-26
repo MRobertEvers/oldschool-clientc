@@ -323,9 +323,10 @@ load_cache_item_dat2(
 
     {
         uint32_t* xtea_key = NULL;
-        /* Loc (lX_Z) map archives are XTEA-encrypted below OldSchool 237 (and
-         * always on RS2). Terrain (mX_Z) is never keyed. The identity gate —
-         * not the key file — decides; applying a key to plain data corrupts. */
+        /* Loc (lX_Z) map archives are XTEA-encrypted on OldSchool below 237 and
+         * on RS2 dat2 from 414. Terrain (mX_Z) is never keyed. The identity
+         * gate — not the key file — decides; applying a key to plain data
+         * corrupts. */
         if( logical_table == RSCACHE_DAT2_TABLE_MAPS )
         {
             const struct RSCache* profile = RSCache_Dat2DiskProfile(px->dat2_disk);

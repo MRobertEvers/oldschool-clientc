@@ -374,12 +374,30 @@ bool
 RSCache_MapLocsEncrypted(const struct RSCache* cache)
 {
     assert(cache);
-    /* Non-OSRS (RS2) always encrypts. OSRS encrypts only below 237.
-     * default_when_unknown=false keeps an unidentified OSRS cache on the keyed
-     * path, which is what every pre-237 cache needs. */
-    return !RSCache_IsOsrs(cache) ||
-           !RSCache_RevisionAtLeastOsrs(
-               cache, RSCACHE_TYPE_MAP_LOCS, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false);
+    /*
+     * Two independent lineage gates — do not share one constant with the
+     * component model-id widen at OldSchool 237.
+     *
+     * OldSchool: encrypted only below 237. default_when_unknown=false keeps an
+     * unidentified OSRS cache on the keyed path (every pre-237 corpus cache).
+     *
+     * RS2: encrypted from 414, which is also around when that lineage's dat2
+     * maps started using XTEA (dat2 itself lands post-~377). default true for
+     * unknown RS2 revision keeps 643-era unidentified profiles keyed.
+     *
+     * Dat1 / unset: no dat2 map table — not encrypted.
+     */
+    if( RSCache_IsOsrs(cache) )
+    {
+        return !RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_MAP_LOCS, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false);
+    }
+    if( RSCache_IsRs2Dat2(cache) )
+    {
+        return RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_MAP_LOCS, 414, RSCACHE_GROUP_REVISION_UNKNOWN, true);
+    }
+    return false;
 }
 
 struct RSCache_MapTerrain*

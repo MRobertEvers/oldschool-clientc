@@ -567,7 +567,7 @@ ever matters.
     (array form `{archive:5, group, key[4]}`), which `RSCache_XteaConfigLoadKeys`
     already reads and `FindKey(5, archiveId)` already matches — **and only when
     `RSCache_MapLocsEncrypted` says keys are required** (OldSchool below 237;
-    RS2 always). The correct cache is `cache.osrs230/` (has xteas.json), NOT the
+    RS2 dat2 from 414). The correct cache is `cache.osrs230/` (has xteas.json), NOT the
     xrsps keys.json cache — so REBUILD_NORMAL keys are only needed for instanced
     regions. `manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
     (`manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file

@@ -1435,8 +1435,8 @@ App_Init(
                 "317-era cache)\n",
                 cfg->cache_dir);
         assert(app->dat2_disk != NULL);
-        /* Map archives may be xtea-encrypted (OldSchool below 237, and RS2
-         * throughout). Keys load into the rscache global table the disk layer
+        /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
+         * from 414). Keys load into the rscache global table the disk layer
          * consults on archive fetch — only when the identity gate says so. */
         {
             struct RSCache probe = RSCache_ProfileForIdentity(
@@ -1451,8 +1451,7 @@ App_Init(
             }
             else
             {
-                printf(
-                    "app: map archives are unencrypted at this revision (OldSchool >= 237)\n");
+                printf("app: map archives are unencrypted at this revision\n");
             }
         }
         PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);

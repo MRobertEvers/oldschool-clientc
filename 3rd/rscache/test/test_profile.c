@@ -238,14 +238,21 @@ test_map_locs_encrypted(void)
     RSCACHE_CHECK(RSCache_ProfileByName("osrs233", &cache));
     RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
 
+    /* RS2 dat2 encrypts from 414; 643 is past the gate. */
     RSCACHE_CHECK(RSCache_ProfileByName("643", &cache));
+    RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
+
+    cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 413, 0);
+    RSCACHE_CHECK(!RSCache_MapLocsEncrypted(&cache));
+    cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 414, 0);
     RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
 
     RSCACHE_CHECK(RSCache_ProfileByName("kronos", &cache));
     RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
 
+    /* Dat1 has no dat2 map table — not encrypted. */
     RSCACHE_CHECK(RSCache_ProfileByName("lc254", &cache));
-    RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
+    RSCACHE_CHECK(!RSCache_MapLocsEncrypted(&cache));
 }
 
 static void

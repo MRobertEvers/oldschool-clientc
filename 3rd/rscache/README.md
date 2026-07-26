@@ -587,14 +587,15 @@ same four flags (`--game/--epoch/--revision/--quirks`) or `--rev <name>`.
 | loc, and others | epoch dat1 | strings are newline- not NUL-terminated |
 | map terrain | not OldSchool | tile attributes / overlay ids stay u8 (OSRS widens at 209) |
 | map locs | OldSchool game ≥ 237 | archives stored plain; no keys shipped or applied |
+| map locs | RS2 dat2 game ≥ 414 | archives XTEA-encrypted (dat2 itself from ~377; XTEA from 414) |
 | map tables | OldSchool caches without archive identifiers | one multi-file archive per region id (`(x<<8)|z`); file 0 = terrain, file 1 = locs (named `mX_Z`/`lX_Z` lookup is preferred when identifiers exist) |
 | loc | quirk KRONOS | opcodes 78/79 omit a byte |
 
 Map XTEA cannot be answered from the key file. Pre-237 OldSchool caches ship keys;
-`cache.osrs239` ships none because the archives are plain. Sniffing "is there a key
-for this square?" fails both ways: missing keys on an encrypted square yield zero
-locs, and applying a key to plain data corrupts silently. `RSCache_MapLocsEncrypted`
-is the gate; RS2 encrypts throughout.
+`cache.osrs239` ships none because the archives are plain. RS2 dat2 caches from 414
+(including 643) ship keys. Sniffing "is there a key for this square?" fails both
+ways: missing keys on an encrypted square yield zero locs, and applying a key to
+plain data corrupts silently. `RSCache_MapLocsEncrypted` is the gate.
 
 Model format is the exception: it is identified by a magic trailer in the last two
 bytes (`FF FF` ob3, `FF FE` OSRS extended, `FF FD` OSRS material, otherwise ob2)
