@@ -14,21 +14,23 @@
  * Unlike rsprot these modules are *thin*. rsprot copy-forwards a complete
  * ~800-file tree per revision, which is affordable on the JVM; duplicating
  * ~19k lines of C per revision is not. Here a revision module declares identity
- * — game, container, epoch, revision, quirks — plus the handful of codec
- * versions where the derivation rule in a datatype would get it wrong. The
- * codecs themselves are shared and versioned (`decode_x_v3`).
+ * — game, epoch, revision, quirks — plus the handful of codec versions where
+ * the derivation rule in a datatype would get it wrong. The codecs themselves
+ * are shared and versioned (`decode_x_v3`).
  *
  * ## Adding a revision
  *
- * 1. Add `rev_<container>_<name>.c` here with a single
- *    `RSCache_Profile<Name>(void)` starting from `RSCache_ProfileZero()`.
+ * 1. Add `rev_<epoch>_<name>.c` here with a single
+ *    `RSCache_Profile<Name>(void)` starting from `RSCache_ProfileZero()`, and
+ *    set all four identity fields (game, epoch, revision, quirks) plus any
+ *    codec pins.
  * 2. Declare it below and add it to the table in revisions.c.
  * 3. Add its `#include` to rscache_unity.c.
  *
  * Do not add per-revision field logic to a datatype's decoder. If a revision
  * needs a field the shared codec does not have, either extend the codec behind a
  * flag (RSCache_<Type>Flags) or add a new codec version — never branch on
- * `cache->version` inside a codec body, or the knowledge ends up spread across
+ * `cache->revision` inside a codec body, or the knowledge ends up spread across
  * every datatype instead of in one profile.
  */
 
@@ -44,8 +46,7 @@ RSCache_ProfileDat1Lc245_2(void);
 
 /* --- dat2 / js5 era ----------------------------------------------------- */
 
-/** The 643 / RS2 branch (`cache.643`). Its reference-table revisions overlap
- *  OSRS's small-integer range, so the epoch has to be stated, not detected. */
+/** The 643 / RS2 branch (`cache.643`). game=rs2 epoch=dat2 revision=643. */
 struct RSCache
 RSCache_ProfileDat2Rs643(void);
 
@@ -61,7 +62,7 @@ RSCache_ProfileDat2Osrs230(void);
 struct RSCache
 RSCache_ProfileDat2Osrs233(void);
 
-/** OSRS 239 (`cache.osrs239`). */
+/** OSRS 239 (`cache.osrs239`, manifest_osrs239.ini). */
 struct RSCache
 RSCache_ProfileDat2Osrs239(void);
 
@@ -78,22 +79,18 @@ RSCache_ProfileByName(
     struct RSCache* out);
 
 /**
- * Profile for a container kind and game revision, for callers that have those
- * two facts and no revision name — which is the common case at boot, since the
- * manifest supplies `kind=` and `client_version=`.
+ * Profile from a fully stated identity.
  *
- * Falls back to the nearest declared profile of the same container when the
- * revision is not one we declare, so an undeclared revision still gets the right
- * container, epoch and string terminator rather than nothing.
- *
- * The 643 / RS2 profile cannot be selected by bare revision number: its
- * `version` is left unknown so it never matches an OSRS threshold (OSRS and RS2
- * are independent lineages). Use RSCache_ProfileByName("643") or a manifest
- * `rev=` instead.
+ * The four fields are authoritative and returned verbatim. The revision registry
+ * is consulted only for `codec[]` pins on an exact (game, epoch, revision)
+ * match — there is no nearest-lower borrow and no guessing. Quirks from the
+ * caller override the registry row when both are present.
  */
 struct RSCache
-RSCache_ProfileForContainerRevision(
-    int container,
-    int game_revision);
+RSCache_ProfileForIdentity(
+    int game,
+    int epoch,
+    int revision,
+    uint32_t quirks);
 
 #endif

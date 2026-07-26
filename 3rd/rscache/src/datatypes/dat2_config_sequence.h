@@ -133,10 +133,10 @@ RSCache_Dat2ConfigSequenceDecodeProfile(
     int buffer_size);
 
 struct RSCache_Dat2ConfigSequence*
-RSCache_Dat2ConfigSequenceNewDecode(
-    int revision,
-    char* buffer,
-    int buffer_size);
+RSCache_Dat2ConfigSequenceNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size);
 
 struct RSCache_Dat1ConfigSequence
 {
@@ -189,12 +189,5 @@ void
 RSCache_Dat2ConfigSequenceFree(struct RSCache_Dat2ConfigSequence* sequence);
 void
 RSCache_Dat2ConfigSequenceFreeInplace(struct RSCache_Dat2ConfigSequence* sequence);
-
-void
-RSCache_Dat2ConfigSequenceDecodeInplace(
-    struct RSCache_Dat2ConfigSequence* sequence,
-    int revision,
-    char* buffer,
-    int buffer_size);
 
 #endif // RSCACHE_DATATYPES_DAT2_CONFIG_SEQUENCE_H

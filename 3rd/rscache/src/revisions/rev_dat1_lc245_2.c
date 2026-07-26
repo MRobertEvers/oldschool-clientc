@@ -16,10 +16,10 @@ RSCache_ProfileDat1Lc245_2(void)
 {
     struct RSCache cache = RSCache_ProfileZero();
 
-    cache.game = RSCACHE_GAME_OLDSCHOOL;
-    cache.container = RSCACHE_CONTAINER_DAT1;
-    cache.epoch = RSCACHE_EPOCH_DAT1_CLASSIC;
-    cache.version = 245;
+    cache.game = RSCACHE_GAME_RS2;
+    cache.epoch = RSCACHE_EPOCH_DAT1;
+    cache.revision = 245;
+    cache.quirks = RSCACHE_QUIRK_NONE;
 
     return cache;
 }

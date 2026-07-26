@@ -217,30 +217,17 @@ RSCache_Dat2ConfigLocCodecVersion(const struct RSCache* cache);
 
 /** Era payload flags for this cache. The canonical entry point: it is the only
  *  thing that can set RSCACHE_CONFIG_LOC_DECODE_KRONOS, since that quirk is a
- *  client-build difference no revision comparison implies. */
+ *  client-build difference no revision comparison implies. Prefer this to any
+ *  archive-revision-only form. */
 int
 RSCache_Dat2ConfigLocFlags(const struct RSCache* cache);
-
-/** Era payload flags from a loc config group's js5 archive revision alone.
- *  Equivalent to RSCache_Dat2ConfigLocFlags on a profile that knows nothing but
- *  that revision — so it cannot yield the KRONOS or DAT flags. */
-int
-RSCache_Dat2ConfigLocFlagsForRevision(int revision);
-
-/** revision is the js5 archive revision of the loc config group; it selects
- * era payload flags (mirrors RSCache_Dat2ConfigNpcNewDecode). */
-struct RSCache_Dat2ConfigLoc*
-RSCache_Dat2ConfigLocNewDecode(
-    int revision,
-    char* buffer,
-    int buffer_size);
 
 /**
  * Decode with the flags a cache profile selects.
  *
- * Prefer this to the `revision` form. A bare archive revision cannot express two
- * things the profile can: the container (a dat1 record has a different string
- * terminator and narrower ids) and a client quirk such as RSCACHE_QUIRK_KRONOS,
+ * Prefer this to any archive-revision-only form. A bare archive revision cannot
+ * express two things the profile can: the container (a dat1 record has a different
+ * string terminator and narrower ids) and a client quirk such as RSCACHE_QUIRK_KRONOS,
  * which no revision number implies because it is a build difference.
  */
 struct RSCache_Dat2ConfigLoc*
@@ -248,6 +235,7 @@ RSCache_Dat2ConfigLocNewDecodeProfile(
     const struct RSCache* cache,
     char* buffer,
     int buffer_size);
+
 /**
  * Encode a loc record for this cache.
  *

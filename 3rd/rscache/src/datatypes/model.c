@@ -2789,9 +2789,9 @@ RSCache_ModelCodecVersion(const struct RSCache* cache)
     if( cache->codec[RSCACHE_TYPE_MODEL] != RSCACHE_CODEC_AUTO )
         return cache->codec[RSCACHE_TYPE_MODEL] - 1;
 
-    if( cache->container == RSCACHE_CONTAINER_DAT1 )
+    if( RSCache_IsDat1(cache) )
         return RSCACHE_MODEL_FORMAT_OB2;
-    if( cache->epoch == RSCACHE_EPOCH_643 )
+    if( RSCache_IsRs2Dat2(cache) )
         return RSCACHE_MODEL_FORMAT_OB3;
 
     /*

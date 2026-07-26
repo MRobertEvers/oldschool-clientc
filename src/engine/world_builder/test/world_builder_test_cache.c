@@ -27,6 +27,25 @@
 #define MAP_X 50
 #define MAP_Z 50
 
+static const char*
+profile_name_for_cache_dir(const char* cache_dir)
+{
+    const char* base = strrchr(cache_dir, '/');
+    base = base ? base + 1 : cache_dir;
+
+    if( strcmp(base, "cache.kronos") == 0 )
+        return "kronos";
+    if( strcmp(base, "cache.osrs184") == 0 )
+        return "osrs184";
+    if( strcmp(base, "cache.osrs230") == 0 )
+        return "osrs230";
+    if( strcmp(base, "cache.osrs239") == 0 )
+        return "osrs239";
+    if( strcmp(base, "cache.643") == 0 || strcmp(base, "cache.rs643") == 0 )
+        return "643";
+    return NULL;
+}
+
 #define FB_W 512
 #define FB_H 384
 
@@ -269,6 +288,23 @@ test_world_builder_cache_render(void)
         dat2_buildcache_free(bc);
         return;
     }
+
+    struct RSCache profile;
+    const char* profile_name = profile_name_for_cache_dir(cache_dir);
+    if( !profile_name || !RSCache_ProfileByName(profile_name, &profile) )
+    {
+        printf(
+            "SKIP: cache dir %s has no labelled profile (set CACHE_DIR to cache.osrs230, etc.)\n",
+            cache_dir);
+        RSCache_Dat2DiskFree(disk);
+        ToriRS_TaskQueue_Free(queue);
+        ToriRS_IO_Free(io);
+        dat2_buildcache_free(bc);
+        return;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+
+    if( RSCache_MapLocsEncrypted(&profile) )
     {
         char xtea_path[1024];
         snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);

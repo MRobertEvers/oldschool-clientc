@@ -17,6 +17,18 @@ PlatformSDL2_Init(
     int height,
     char const* title);
 
+/** Create an SDL OpenGL window (no CPU pixel buffer / SDL_Renderer).
+ *  macOS: GL 3.2 core + forward-compatible; elsewhere: GL 3.3 core. */
+bool
+PlatformSDL2_InitForOpenGL3(
+    struct PlatformSDL2* platform,
+    int width,
+    int height,
+    char const* title);
+
+struct SDL_Window*
+PlatformSDL2_Window(struct PlatformSDL2* platform);
+
 void
 PlatformSDL2_Free(struct PlatformSDL2* platform);
 
@@ -58,6 +70,10 @@ PlatformSDL2_PollCommands(
 
 void
 PlatformSDL2_Present(struct PlatformSDL2* platform);
+
+/** Swap the GL backbuffer. Only valid after InitForOpenGL3. */
+void
+PlatformSDL2_PresentGL(struct PlatformSDL2* platform);
 
 uint64_t
 PlatformSDL2_Ticks64(void);

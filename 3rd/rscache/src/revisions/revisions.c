@@ -58,61 +58,34 @@ RSCache_ProfileByName(
 }
 
 struct RSCache
-RSCache_ProfileForContainerRevision(
-    int container,
-    int game_revision)
+RSCache_ProfileForIdentity(
+    int game,
+    int epoch,
+    int revision,
+    uint32_t quirks)
 {
-    /* Exact match on both axes first. */
-    for( int i = 0; i < REVISION_COUNT; i++ )
-    {
-        struct RSCache candidate = REVISIONS[i].profile();
-        if( candidate.container == container && candidate.version == game_revision )
-            return candidate;
-    }
+    struct RSCache profile = RSCache_ProfileZero();
+    profile.game = game;
+    profile.epoch = epoch;
+    profile.revision = revision;
+    profile.quirks = quirks;
 
-    /* No declared profile for this revision. Fall back to the closest declared
-     * one at or below it in the same container, so the caller still gets the
-     * right container, epoch and string terminator — the things that would
-     * corrupt a decode outright — and only loses the fine-grained field gates,
-     * which the revision itself can still drive. */
-    struct RSCache best = RSCache_ProfileZero();
-    bool found = false;
-    for( int i = 0; i < REVISION_COUNT; i++ )
+    /* Exact (game, epoch, revision) match borrows codec pins only. Identity
+     * fields and quirks stay as the caller stated them. */
+    if( revision != RSCACHE_REVISION_UNKNOWN )
     {
-        struct RSCache candidate = REVISIONS[i].profile();
-        if( candidate.container != container )
-            continue;
-        if( candidate.version == RSCACHE_REVISION_UNKNOWN )
-            continue;
-        if( candidate.version > game_revision )
-            continue;
-        if( !found || candidate.version > best.version )
+        for( int i = 0; i < REVISION_COUNT; i++ )
         {
-            best = candidate;
-            found = true;
+            struct RSCache candidate = REVISIONS[i].profile();
+            if( candidate.game == game && candidate.epoch == epoch &&
+                candidate.revision == revision )
+            {
+                for( int t = 0; t < RSCACHE_TYPE_COUNT; t++ )
+                    profile.codec[t] = candidate.codec[t];
+                break;
+            }
         }
     }
 
-    if( !found )
-    {
-        /* Newer than nothing we know, or a container with no declared profile.
-         * Start from zero and state what the caller told us. */
-        best = RSCache_ProfileZero();
-        best.container = container;
-        best.epoch = container == RSCACHE_CONTAINER_DAT1 ? RSCACHE_EPOCH_DAT1_CLASSIC
-                                                         : RSCACHE_EPOCH_OSRS;
-    }
-
-    /* Carry the caller's revision through even when it matched no row: it is
-     * more specific than the profile we borrowed, and every era gate keys off
-     * it. Drop codec pins from the borrowed profile, which were verified against
-     * that revision rather than this one. */
-    if( game_revision != RSCACHE_REVISION_UNKNOWN && best.version != game_revision )
-    {
-        best.version = game_revision;
-        for( int i = 0; i < RSCACHE_TYPE_COUNT; i++ )
-            best.codec[i] = RSCACHE_CODEC_AUTO;
-    }
-
-    return best;
+    return profile;
 }

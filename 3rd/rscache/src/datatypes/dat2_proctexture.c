@@ -12,31 +12,25 @@
 uint32_t
 RSCache_Dat2ProcTextureFlags(const struct RSCache* cache)
 {
+    assert(cache);
     uint32_t flags = 0u;
 
     /*
-     * These are RS2-lineage revisions, so they are NOT routed through
-     * RSCache_RevisionAtLeastOsrs — that function deliberately refuses to compare a non-OSRS
-     * epoch against an OldSchool threshold (D16), which is exactly right here: 537/555/582/629
-     * are RuneScape numbers and mean nothing on the OldSchool line.
-     *
-     * A 643 profile declares version = RSCACHE_REVISION_UNKNOWN on purpose, so there is no
-     * number to compare. Default to the full modern set, which is what 643 needs; a profile
-     * that declares a real RS2 revision gets it honoured.
+     * These are RS2-lineage revisions, routed through RSCache_RevisionAtLeastRs2
+     * so an OldSchool profile never satisfies them (D16). 537/555/582/629 are
+     * RuneScape numbers and mean nothing on the OldSchool line.
      */
-    int rev = cache ? cache->version : RSCACHE_REVISION_UNKNOWN;
-
-    if( rev == RSCACHE_REVISION_UNKNOWN )
-        return RSCACHE_PROCTEX_HAS_MOD_OP | RSCACHE_PROCTEX_MATERIAL_ANIM_WINS |
-               RSCACHE_PROCTEX_HAS_COMBINE_MODE | RSCACHE_PROCTEX_HAS_ALPHA_BLENDING;
-
-    if( rev >= 537 )
+    if( RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_TEXTURE, 537, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         flags |= RSCACHE_PROCTEX_HAS_MOD_OP;
-    if( rev >= 555 )
+    if( RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_TEXTURE, 555, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         flags |= RSCACHE_PROCTEX_MATERIAL_ANIM_WINS;
-    if( rev >= 582 )
+    if( RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_TEXTURE, 582, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         flags |= RSCACHE_PROCTEX_HAS_COMBINE_MODE;
-    if( rev >= 629 )
+    if( RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_TEXTURE, 629, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         flags |= RSCACHE_PROCTEX_HAS_ALPHA_BLENDING;
 
     return flags;
@@ -47,13 +41,12 @@ RSCache_Dat2UsesProcTextures(
     const struct RSCache* cache,
     bool materials_table_present)
 {
-    if( !cache )
-        return false;
+    assert(cache);
 
     /* OldSchool never uses this system, whatever its revision. */
-    if( cache->epoch == RSCACHE_EPOCH_OSRS )
+    if( RSCache_IsOsrs(cache) )
         return false;
-    if( cache->container == RSCACHE_CONTAINER_DAT1 )
+    if( RSCache_IsDat1(cache) )
         return false;
 
     /* The reference gates on the materials index existing, not on the revision alone. Keep
@@ -62,12 +55,13 @@ RSCache_Dat2UsesProcTextures(
     if( !materials_table_present )
         return false;
 
-    /* 643 declares no revision (see Flags above), so treat "RS2 epoch with a materials
-     * table" as procedural. Any declared revision below 474 predates the system. */
-    if( cache->version != RSCACHE_REVISION_UNKNOWN && cache->version < 474 )
+    /* Procedural textures arrive at RS2 revision 474. A declared revision below
+     * that predates the system; 643 clears it. */
+    if( !RSCache_RevisionAtLeastRs2(
+            cache, RSCACHE_TYPE_TEXTURE, 474, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
         return false;
 
-    return cache->epoch == RSCACHE_EPOCH_643;
+    return RSCache_IsRs2Dat2(cache);
 }
 
 /* --- operation signature table -------------------------------------------------------- */

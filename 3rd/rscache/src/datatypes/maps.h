@@ -243,6 +243,21 @@ RSCache_MapTerrainNewDecode(
 void
 RSCache_MapTerrainFree(struct RSCache_MapTerrain* map_terrain);
 
+/**
+ * Are this cache's map (lX_Z) archives XTEA-encrypted?
+ *
+ * OldSchool dropped map encryption at revision 237: from there on the archives
+ * are stored plain and the caches ship no keys at all. RS2 encrypts throughout.
+ * Dat1 has no dat2 map table to ask about — this predicate is only meaningful
+ * for a dat2 profile.
+ *
+ * Not answerable from the key file: an absent key on a keyed cache is a missing
+ * square; an absent key on an unencrypted cache is ordinary. Applying a key to
+ * plain data corrupts as thoroughly as omitting one from encrypted data.
+ */
+bool
+RSCache_MapLocsEncrypted(const struct RSCache* cache);
+
 struct RSCache_MapLocs*
 RSCache_MapLocsNewFromCache(
     struct RSCache_Dat2Disk* cache,

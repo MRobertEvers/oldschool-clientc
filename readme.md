@@ -1133,12 +1133,26 @@ if (this.version >= 13) {
 }
 ```
 
-Version-13+ models — most of cache.643, via the optional version byte in the
-ob3 header — store their vertices at **4x precision**, and the reference
+Version-13+ models store their vertices at **4x precision**, and the reference
 shifts them down after decode. Our model decode round-trips all 65,014 records
 byte-exactly, which is precisely why this hid: byte-exactness proves the
 *encoder inverts the decoder*, not that the interpretation is right. A
 single-tile gravel scatter spanning three tiles was the tell.
+
+`version` is per model, not per cache, and cache.643 is a mix — census via
+`test_rs2_sweep <root> modelvers`:
+
+| version | models | scaleDown applies |
+|---|---|---|
+| 1 (no version byte) | 38,840 | no |
+| 14 | 1,955 | yes |
+| 15 | 24,219 | yes |
+
+**26,174 of 65,014 (40.3%)** need the shift and the other 60% must be left
+alone, so this cannot be a blanket "643 models are 4x" rule — the header flag
+has to be read per model. No OldSchool model reaches this code path at all
+(they decode through the version2/version3 branches), which is why the shift is
+structurally unreachable outside RS2.
 
 Settled by decoding model 1139 through rs-map-viewer's own loader headlessly
 (`npx tsx`, its `caches/rs2-643_2011-04-13` is the same cache) and comparing

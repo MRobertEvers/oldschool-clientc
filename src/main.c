@@ -8,12 +8,15 @@
 #include "net/net.h"
 #include "platform/net_transport.h"
 #include "platform/platform_sdl2.h"
+#include "platform/platform_sdl2_renderer_gl3.h"
+#include "render/torirs_frame.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
 #include <bmp.h>
+#include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -291,6 +294,52 @@ sim_render_frame(struct App* app)
     App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
+/** Interactive present: Soft3D writes pixels then blits; GL3 drains the frame
+ * command stream and swaps. Headless/BMP paths keep using App_Render. */
+static void
+interactive_render_present(
+    struct App* app,
+    struct PlatformSDL2* sdl,
+    struct ToriRS_GL3* gl3)
+{
+    if( gl3 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        if( App_IsBooting(app, &progress) )
+        {
+            ToriRS_GL3_DrawBootBar(gl3, progress);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            ToriRS_GL3_RenderFrame(gl3, &frame);
+            if( getenv("TORIRS_FRAME_DEBUG") )
+                fprintf(
+                    stderr,
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+                App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+        }
+        PlatformSDL2_PresentGL(sdl);
+    }
+    else
+    {
+        App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        PlatformSDL2_Present(sdl);
+    }
+}
+
 int
 main(
     int argc,
@@ -313,6 +362,7 @@ main(
     int uncapped = 0;
     int offline = 0;
     int cli_connect = 0;
+    int use_opengl3 = 0;
     int positional = 0;
     int argi;
 
@@ -354,11 +404,13 @@ main(
         if( strcmp(argv[argi], "--dat1") == 0 )
         {
             cfg.cache_kind = APP_CACHE_DAT1;
+            cfg.cache_epoch = 1; /* RSCACHE_EPOCH_DAT1 — keep identity coherent */
             continue;
         }
         if( strcmp(argv[argi], "--dat2") == 0 )
         {
             cfg.cache_kind = APP_CACHE_DAT2;
+            cfg.cache_epoch = 2; /* RSCACHE_EPOCH_DAT2 */
             continue;
         }
         if( strcmp(argv[argi], "--revconfig") == 0 && argi + 1 < argc )
@@ -397,6 +449,11 @@ main(
             uncapped = 1;
             continue;
         }
+        if( strcmp(argv[argi], "--opengl3") == 0 )
+        {
+            use_opengl3 = 1;
+            continue;
+        }
         if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
@@ -419,7 +476,7 @@ main(
             "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
             "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
             "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped]\n",
+            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3]\n",
             argv[0]);
         return 1;
     }
@@ -428,6 +485,34 @@ main(
      * be reused for cache-only inspection. An explicit --connect still wins. */
     if( offline && !cli_connect )
         cfg.connect_target = NULL;
+
+    /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
+     * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
+    if( !cfg.cache_identity_set )
+    {
+        char const* rev = cfg.rev_name;
+        if( !rev || !rev[0] )
+            rev = getenv("TORIRS_REV");
+        struct RSCache named;
+        if( rev && rev[0] && RSCache_ProfileByName(rev, &named) )
+        {
+            cfg.cache_game = named.game;
+            cfg.cache_epoch = named.epoch;
+            cfg.cache_revision = named.revision;
+            cfg.cache_quirks = named.quirks;
+            cfg.cache_identity_set = 1;
+            cfg.cache_kind =
+                named.epoch == 1 /* DAT1 */ ? APP_CACHE_DAT1 : APP_CACHE_DAT2;
+        }
+        else
+        {
+            fprintf(
+                stderr,
+                "torirs: cache identity unset — pass --manifest <boot.ini> (with "
+                "epoch/game/revision/quirks) or --rev <name>\n");
+            return 1;
+        }
+    }
 
     /* Kind-specific defaults, applied only where the command line was silent.
      * A dat1 cache has no gameframe interface to open, so it always needs a
@@ -1129,9 +1214,37 @@ main(
         FILE* replay = NULL;
         uint64_t replay_now = 0;
         char title[64];
+        struct ToriRS_GL3* gl3 = NULL;
 
         snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
-        if( !sdl || !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+        if( !sdl )
+        {
+            fprintf(stderr, "SDL alloc failed\n");
+            App_Shutdown(&app);
+            return 1;
+        }
+        if( use_opengl3 )
+        {
+            if( !PlatformSDL2_InitForOpenGL3(
+                    sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            {
+                fprintf(stderr, "SDL OpenGL3 init failed\n");
+                PlatformSDL2_Free(sdl);
+                App_Shutdown(&app);
+                return 1;
+            }
+            gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            if( !gl3 ||
+                !ToriRS_GL3_Init(gl3, PlatformSDL2_Window(sdl), app.scene) )
+            {
+                fprintf(stderr, "GL3 renderer init failed\n");
+                ToriRS_GL3_Free(gl3);
+                PlatformSDL2_Free(sdl);
+                App_Shutdown(&app);
+                return 1;
+            }
+        }
+        else if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
             fprintf(stderr, "SDL init failed\n");
             PlatformSDL2_Free(sdl);
@@ -1165,8 +1278,7 @@ main(
 
         input = LibToriRS_Input_Init(&input_storage, PlatformSDL2_Ticks64());
 
-        App_Render(&app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        PlatformSDL2_Present(sdl);
+        interactive_render_present(&app, sdl, gl3);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
@@ -1273,11 +1385,13 @@ main(
             LibToriRS_Input_End(input);
 
             if( App_RunOnce(&app, now, input) )
-                App_Render(
-                    &app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+                interactive_render_present(&app, sdl, gl3);
+            else if( gl3 )
+                PlatformSDL2_PresentGL(sdl);
+            else
+                PlatformSDL2_Present(sdl);
 
             update_window_title(sdl, &app, cfg.interface_id);
-            PlatformSDL2_Present(sdl);
             if( !replay )
             {
                 if( uncapped )
@@ -1506,6 +1620,7 @@ main(
         CmdBus_RecordClose(&bus);
 
         NetTransport_Free(sock);
+        ToriRS_GL3_Free(gl3);
         PlatformSDL2_Free(sdl);
     }
 

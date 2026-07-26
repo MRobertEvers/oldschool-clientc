@@ -29,8 +29,61 @@
 #endif
 
 static const char* CACHE_DIRS[] = {
-    "cache", "cache.jan2026", "cache.kronos", "cache.osrs184", "cache.osrs230", "cache.osrs239",
+    "cache.kronos",
+    "cache.osrs184",
+    "cache.osrs230",
+    "cache.osrs239",
+    "cache.643",
+    "cache.rs643",
 };
+
+struct cache_profile_entry
+{
+    const char* cache_dir;
+    const char* profile_name;
+};
+
+static const struct cache_profile_entry CACHE_PROFILES[] = {
+    { "cache.kronos", "kronos" },
+    { "cache.osrs184", "osrs184" },
+    { "cache.osrs230", "osrs230" },
+    { "cache.osrs239", "osrs239" },
+    { "cache.643", "643" },
+    { "cache.rs643", "643" },
+};
+
+/** Revision name for a labelled cache directory, or NULL when unmapped. */
+static const char*
+profile_name_for_cache(const char* cache_dir)
+{
+    for( size_t i = 0; i < sizeof(CACHE_PROFILES) / sizeof(CACHE_PROFILES[0]); i++ )
+    {
+        if( strcmp(cache_dir, CACHE_PROFILES[i].cache_dir) == 0 )
+            return CACHE_PROFILES[i].profile_name;
+    }
+    return NULL;
+}
+
+static bool
+load_cache_profile(
+    const char* cache_dir,
+    struct RSCache_Dat2Disk* disk,
+    struct RSCache* profile)
+{
+    const char* revision_name = profile_name_for_cache(cache_dir);
+    if( !revision_name )
+    {
+        printf("   SKIP %s: no profile mapping (unlabelled cache directory)\n", cache_dir);
+        return false;
+    }
+    if( !RSCache_ProfileByName(revision_name, profile) )
+    {
+        printf("   SKIP %s: unknown profile %s\n", cache_dir, revision_name);
+        return false;
+    }
+    RSCache_Dat2DiskSetProfile(disk, profile);
+    return true;
+}
 
 struct tally
 {
@@ -77,11 +130,9 @@ note_bytes(
  * Caches whose records this library cannot yet fully decode, so exact consumption
  * is reported rather than asserted.
  *
- * `cache.osrs239` is the only entry: revision 239 changed record layouts that the
- * decoders do not implement, which shows up independently in npc (2462/16292
- * exact under either head-icon shape) and spotanim (0/4010). No manifest or
- * config references that cache — it is validation data — so nothing in the client
- * is affected. Listing it here keeps the suite green while making the gap
+ * `cache.osrs239` (OldSchool 239, also `manifest_osrs239.ini`) changed record
+ * layouts that several OSRS decoders do not implement yet — npc and spotanim
+ * dominate the gap. Listing it here keeps the suite green while making the gap
  * impossible to overlook: it prints on every run.
  *
  * Semantic round-trip is still asserted for these caches. An encoder must
@@ -91,6 +142,33 @@ static bool
 consumption_is_known_gap(const char* cache)
 {
     return strcmp(cache, "cache.osrs239") == 0;
+}
+
+/** Config-group round-trip only applies where the type still lives in the OSRS
+ *  config table with a shared layout. RS2 shards loc/npc/obj/seq into their own
+ *  tables (test_rs2_sweep covers those), and a few remaining config kinds diverge. */
+static bool
+config_roundtrip_applies(
+    const struct RSCache* profile,
+    enum RSCache_Type type)
+{
+    if( !RSCache_IsRs2Dat2(profile) )
+        return true;
+
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(profile, type);
+    if( addr.table != RSCACHE_DAT2_TABLE_CONFIGS || addr.group_shift != 0 )
+        return false;
+
+    switch( type )
+    {
+    case RSCACHE_TYPE_MAPELEMENT:
+    case RSCACHE_TYPE_VARCLIENT:
+    case RSCACHE_TYPE_HEALTHBAR:
+    case RSCACHE_TYPE_HITSPLAT:
+        return false;
+    default:
+        return true;
+    }
 }
 
 /*
@@ -226,22 +304,6 @@ tally_report(
     }
 }
 
-/** Revision name for a cache directory, or NULL when the directory does not
- *  identify one (`cache` and `cache.jan2026` are unlabelled snapshots). */
-static const char*
-profile_name_for_cache(const char* cache_dir)
-{
-    if( strcmp(cache_dir, "cache.kronos") == 0 )
-        return "kronos";
-    if( strcmp(cache_dir, "cache.osrs184") == 0 )
-        return "osrs184";
-    if( strcmp(cache_dir, "cache.osrs230") == 0 )
-        return "osrs230";
-    if( strcmp(cache_dir, "cache.osrs239") == 0 )
-        return "osrs239";
-    return NULL;
-}
-
 /* Load one config group and hand each member file to `visit`. */
 typedef void (*record_visitor)(
     const struct RSCache* profile,
@@ -274,20 +336,19 @@ scan_config_group(
     }
     RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
 
-    /*
-     * Use the declared profile when the cache directory names a revision we
-     * support, and fall back to the group's archive revision otherwise.
-     *
-     * This is not cosmetic. `cache.kronos` needs RSCACHE_QUIRK_KRONOS, which no
-     * archive revision can imply — it is a client-build difference. Scanning it
-     * without the quirk leaves 228 loc records misaligned on the ambient-sound
-     * retain byte, which is exactly the failure the quirk exists to prevent. A real
-     * caller knows its revision; the harness should too.
-     */
     struct RSCache profile;
-    const char* revision_name = profile_name_for_cache(cache_dir);
-    if( !revision_name || !RSCache_ProfileByName(revision_name, &profile) )
-        profile = RSCache_ProfileZero();
+    if( !load_cache_profile(cache_dir, disk, &profile) )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+    if( !config_roundtrip_applies(&profile, type) )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
     RSCache_ProfileSetGroupRevision(&profile, type, archive->revision);
 
     struct RSCache_FileList* files =
@@ -339,9 +400,11 @@ scan_table_archives(
     }
 
     struct RSCache profile;
-    const char* revision_name = profile_name_for_cache(cache_dir);
-    if( !revision_name || !RSCache_ProfileByName(revision_name, &profile) )
-        profile = RSCache_ProfileZero();
+    if( !load_cache_profile(cache_dir, disk, &profile) )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
     RSCache_ProfileSetGroupRevision(&profile, type, table->version);
 
     /* Cap the sweep: some of these tables hold tens of thousands of archives and
@@ -766,6 +829,20 @@ scan_frames(
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
     if( !disk )
         return;
+
+    struct RSCache profile;
+    if( !load_cache_profile(cache_dir, disk, &profile) )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+    /* Frame encode uses OldSchool shortsmart ranges; RS2 frames are out of scope. */
+    if( RSCache_IsRs2Dat2(&profile) )
+    {
+        printf("   SKIP %s: frame round-trip is OldSchool-only\n", cache_dir);
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
 
     struct RSCache_ReferenceTable* frames = disk->tables[RSCACHE_DAT2_OSRS_TABLE_ANIMATIONS];
     if( !frames )

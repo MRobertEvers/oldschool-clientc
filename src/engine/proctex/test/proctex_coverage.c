@@ -326,10 +326,72 @@ write_montages(const char* dir)
     free(sheet);
 }
 
+static void
+proctex_usage(const char* argv0)
+{
+    printf(
+        "Usage: %s [cache_dir]\n"
+        "       %s --rev NAME [cache_dir]\n"
+        "       %s --game G --epoch E --revision N [--quirks LIST] [cache_dir]\n"
+        "Defaults: cache.643 with identity rs2/dat2/643/none.\n",
+        argv0,
+        argv0,
+        argv0);
+}
+
 int
 main(int argc, char** argv)
 {
-    const char* dir = argc > 1 ? argv[1] : "cache.643";
+    const char* dir = "cache.643";
+    const char* rev_name = NULL;
+    const char* game_name = NULL;
+    const char* epoch_name = NULL;
+    const char* revision_text = NULL;
+    const char* quirks_list = NULL;
+    int positional = 0;
+
+    for( int i = 1; i < argc; i++ )
+    {
+        if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
+        {
+            proctex_usage(argv[0]);
+            return 0;
+        }
+        if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
+        {
+            rev_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--game") == 0 && i + 1 < argc )
+        {
+            game_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--epoch") == 0 && i + 1 < argc )
+        {
+            epoch_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--revision") == 0 && i + 1 < argc )
+        {
+            revision_text = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--quirks") == 0 && i + 1 < argc )
+        {
+            quirks_list = argv[++i];
+            continue;
+        }
+        if( argv[i][0] == '-' )
+        {
+            fprintf(stderr, "proctex_coverage: unknown flag %s\n", argv[i]);
+            proctex_usage(argv[0]);
+            return 1;
+        }
+        if( positional == 0 )
+            dir = argv[i];
+        positional++;
+    }
 
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(dir);
     if( !disk )
@@ -339,9 +401,53 @@ main(int argc, char** argv)
     }
 
     struct RSCache profile;
-    if( !RSCache_ProfileByName("643", &profile) )
-        profile = RSCache_ProfileZero();
-    RSCache_Dat2DiskSetEpoch(disk, profile.epoch);
+    if( rev_name )
+    {
+        if( game_name || epoch_name || revision_text )
+        {
+            fprintf(stderr, "proctex_coverage: use either --rev or --game/--epoch/--revision\n");
+            RSCache_Dat2DiskFree(disk);
+            return 1;
+        }
+        if( !RSCache_ProfileByName(rev_name, &profile) )
+        {
+            printf("proctex_coverage: unknown profile %s (skipping)\n", rev_name);
+            RSCache_Dat2DiskFree(disk);
+            return 0;
+        }
+    }
+    else if( game_name || epoch_name || revision_text )
+    {
+        if( !game_name || !epoch_name || !revision_text )
+        {
+            fprintf(stderr, "proctex_coverage: --game/--epoch/--revision are all required together\n");
+            RSCache_Dat2DiskFree(disk);
+            return 1;
+        }
+        int game = RSCache_GameFromName(game_name);
+        int epoch = RSCache_EpochFromName(epoch_name);
+        if( game == RSCACHE_GAME_UNSET || epoch == RSCACHE_EPOCH_UNSET )
+        {
+            fprintf(stderr, "proctex_coverage: bad game/epoch name\n");
+            RSCache_Dat2DiskFree(disk);
+            return 1;
+        }
+        uint32_t quirks = RSCACHE_QUIRK_NONE;
+        if( quirks_list && !RSCache_QuirksFromList(quirks_list, &quirks) )
+        {
+            fprintf(stderr, "proctex_coverage: bad quirks list\n");
+            RSCache_Dat2DiskFree(disk);
+            return 1;
+        }
+        profile = RSCache_ProfileForIdentity(game, epoch, atoi(revision_text), quirks);
+    }
+    else if( !RSCache_ProfileByName("643", &profile) )
+    {
+        printf("proctex_coverage: unknown profile 643 (skipping)\n");
+        RSCache_Dat2DiskFree(disk);
+        return 0;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
 
     int textures_table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_TEXTURES);
     if( textures_table < 0 )

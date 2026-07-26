@@ -1,10 +1,15 @@
 #include "dat2_config_flo.h"
 
+#include "../rscache_profile.h"
+
+#include <assert.h>
+
 int
 RSCache_Dat2ConfigFloCodecVersion(const struct RSCache* cache)
 {
+    assert(cache);
     int derived =
-        (cache && cache->epoch == RSCACHE_EPOCH_643) ? RSCACHE_CODEC_FLO_RS2 : RSCACHE_CODEC_FLO_OSRS;
+        RSCache_IsRs2Dat2(cache) ? RSCACHE_CODEC_FLO_RS2 : RSCACHE_CODEC_FLO_OSRS;
     /* Underlay and overlay always move together, so one slot speaks for both. */
     return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_OVERLAY, derived);
 }

@@ -601,6 +601,8 @@ RS_CS2Host_NotifyVarChanged(
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
     host->var_transmit_dirty = 1;
+    if( getenv("TORIRS_CC_DEBUG") )
+        fprintf(stderr, "VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
 
     /* Remember which id changed so the dispatch can skip hooks that do not list
      * it as a trigger. An unknown id (< 0) or a full set means "re-run
@@ -1999,6 +2001,18 @@ exec_cc_create(
     /* Leave size 0; scripts call CC_SETSIZE when needed. Soft3D uses native
      * sprite size when layout w/h are 0 — do not stretch 32x32 icons to the
      * parent slot (that thickens obj-icon outlines). */
+
+    if( getenv("TORIRS_CC_DEBUG") )
+        fprintf(
+            stderr,
+            "CC_CREATE parent=%d|%d sub=%d -> com=0x%08x script=%d\n",
+            (parent_id >> 16) & 0xffff,
+            parent_id & 0xffff,
+            request.child_index,
+            (unsigned)tree->components[child_idx].component_id,
+            vm && vm->frame_sp >= 0 && vm->frames[vm->frame_sp].script
+                ? vm->frames[vm->frame_sp].script->script_id
+                : -1);
 
 #if UITREE_CLICK_DEBUG
     fprintf(

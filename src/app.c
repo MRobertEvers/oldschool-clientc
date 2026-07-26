@@ -1344,19 +1344,10 @@ app_varc_changed(void* userdata, int varc_id, bool is_string)
  * whichever JS5 archive counter the record happened to come from — a per-archive value
  * whose units differ between eras — or as a flag constant spelled out at the call site.
  *
- * Order of preference:
- *
- *  1. A declared revision profile matching the manifest's `client_version` and
- *     container. This is authoritative: the manifest states the revision outright, and
- *     the profile carries the things no counter can imply (epoch, and quirks such as
- *     Kronos's omitted loc byte).
- *  2. Failing that, the container alone, with the revision left unknown. Every flag
- *     function then takes its documented default, which is the branch observed to
- *     decode the local caches — i.e. exactly the behaviour that predates profiles.
- *
- * Note `client_version` is a *protocol* revision and its numbering is per lineage:
- * 254 is a 2004-era dat1 client, 230 is OldSchool. It is only meaningful next to the
- * container, which is why both go into the lookup rather than the number alone.
+ * The manifest states all four identity fields (game, epoch, revision, quirks).
+ * RSCache_ProfileForIdentity returns them verbatim and borrows codec pins from the
+ * revision registry on an exact match. There is no nearest-lower fallback and no
+ * guessing from the container alone.
  */
 static void
 app_provider_set_cache_profile(
@@ -1365,27 +1356,25 @@ app_provider_set_cache_profile(
 {
     assert(app);
     assert(app->provider);
+    assert(cfg->cache_identity_set && "manifest must state [cache:boot] identity");
 
-    int container =
-        cfg->cache_kind == APP_CACHE_DAT1 ? RSCACHE_CONTAINER_DAT1 : RSCACHE_CONTAINER_DAT2;
+    struct RSCache profile = RSCache_ProfileForIdentity(
+        cfg->cache_game, cfg->cache_epoch, cfg->cache_revision, cfg->cache_quirks);
 
-    /* Handles both branches itself: an exact declared profile when the revision names
-     * one, the nearest lower one of the same container otherwise, and a bare
-     * container+epoch when the revision is unset (0 == RSCACHE_REVISION_UNKNOWN). */
-    struct RSCache profile = RSCache_ProfileForContainerRevision(container, cfg->client_version);
-
+    char quirks_buf[32];
+    RSCache_QuirksName(profile.quirks, quirks_buf, (int)sizeof(quirks_buf));
     printf(
-        "app: cache profile container=%s epoch=%d revision=%d quirks=0x%x\n",
-        container == RSCACHE_CONTAINER_DAT1 ? "dat1" : "dat2",
-        profile.epoch,
-        profile.version,
-        profile.quirks);
+        "app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
+        RSCache_EpochName(profile.epoch),
+        RSCache_GameName(profile.game),
+        profile.revision,
+        quirks_buf);
 
-    /* The disk resolves logical table names to ids, so it needs the same epoch the
-     * decoders got. Without this it answers as OldSchool, which on a 643 cache means
-     * reading objs where the world map should be — a wrong read, not a failed one. */
+    /* The disk resolves logical table names to ids and decides map XTEA, so it
+     * needs the same identity the decoders got. Without this it answers as
+     * unset, which on a 643 cache means every logical table is ABSENT. */
     if( app->dat2_disk )
-        RSCache_Dat2DiskSetEpoch(app->dat2_disk, profile.epoch);
+        RSCache_Dat2DiskSetProfile(app->dat2_disk, &profile);
 
     CacheProvider_SetProfile(app->provider, &profile);
 }
@@ -1438,13 +1427,25 @@ App_Init(
                 "317-era cache)\n",
                 cfg->cache_dir);
         assert(app->dat2_disk != NULL);
-        /* Map archives are xtea-encrypted; keys load into the rscache global
-         * table the disk layer consults on archive fetch. */
+        /* Map archives may be xtea-encrypted (OldSchool below 237, and RS2
+         * throughout). Keys load into the rscache global table the disk layer
+         * consults on archive fetch — only when the identity gate says so. */
         {
-            char xtea_path[1024];
-            snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
-            if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-                fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+            struct RSCache probe = RSCache_ProfileForIdentity(
+                cfg->cache_game, cfg->cache_epoch, cfg->cache_revision, cfg->cache_quirks);
+            if( RSCache_MapLocsEncrypted(&probe) )
+            {
+                char xtea_path[1024];
+                snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
+                if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
+                    fprintf(
+                        stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+            }
+            else
+            {
+                printf(
+                    "app: map archives are unencrypted at this revision (OldSchool >= 237)\n");
+            }
         }
         PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
     }
@@ -8109,6 +8110,62 @@ App_RefreshAfterTreeMutation(struct App* app)
     app->need_redraw = 1;
 }
 
+bool
+App_IsBooting(
+    struct App* app,
+    int* out_progress)
+{
+    assert(app);
+    if( out_progress )
+        *out_progress = app->boot_progress;
+    return app->app_state == APP_STATE_BOOTING;
+}
+
+bool
+App_BuildFrame(
+    struct App* app,
+    struct ToriRS_Frame* frame,
+    int width,
+    int height)
+{
+    assert(app);
+    assert(frame);
+
+    if( app->app_state == APP_STATE_BOOTING )
+        return false;
+
+    ToriRS_FrameInit(frame);
+    ToriRS_FrameSetScene(frame, app->scene);
+    ToriRS_FrameSetCanvas(frame, width, height);
+    ToriRS_FrameSetEmitBuffer(frame, &app->emit);
+
+    /* World pass: paint the visibility-ordered command list for the current
+     * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
+    if( app_world_drawable(app) )
+    {
+        app_world_paint(app);
+        ToriRS_FrameSetWorld(
+            frame,
+            app->world,
+            app->painter_buffer,
+            &app->world_camera,
+            app->world_camera_pos.x,
+            app->world_camera_pos.y,
+            app->world_camera_pos.z);
+    }
+    return true;
+}
+
+void
+App_PickFinish(
+    struct App* app,
+    struct ToriRS_PickHits const* hits)
+{
+    assert(app);
+    assert(hits);
+    app_world_pick_finish(app, hits);
+}
+
 void
 App_Render(
     struct App* app,
@@ -8122,7 +8179,7 @@ App_Render(
     assert(app);
     assert(pixels);
 
-    if( app->app_state == APP_STATE_BOOTING )
+    if( !App_BuildFrame(app, &frame, width, height) )
     {
         /* Font-free loading screen: dark clear + centered progress bar.
          * Deliberately independent of every asset pipeline (they are what is
@@ -8147,26 +8204,6 @@ App_Render(
         return;
     }
 
-    ToriRS_FrameInit(&frame);
-    ToriRS_FrameSetScene(&frame, app->scene);
-    ToriRS_FrameSetCanvas(&frame, width, height);
-    ToriRS_FrameSetEmitBuffer(&frame, &app->emit);
-
-    /* World pass: paint the visibility-ordered command list for the current
-     * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
-    if( app_world_drawable(app) )
-    {
-        app_world_paint(app);
-        ToriRS_FrameSetWorld(
-            &frame,
-            app->world,
-            app->painter_buffer,
-            &app->world_camera,
-            app->world_camera_pos.x,
-            app->world_camera_pos.y,
-            app->world_camera_pos.z);
-    }
-
     ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
 
     /* World hittest rides the render: each visible model is tested against
@@ -8188,7 +8225,7 @@ App_Render(
             frame.dbg_drop_no_model);
 
     if( soft.pick_enabled )
-        app_world_pick_finish(app, &soft.pick_hits);
+        App_PickFinish(app, &soft.pick_hits);
 }
 
 int

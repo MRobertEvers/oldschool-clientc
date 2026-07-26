@@ -3,6 +3,7 @@
 #include "dat2disk.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 struct RSCache
@@ -11,11 +12,10 @@ RSCache_ProfileZero(void)
     struct RSCache cache;
     memset(&cache, 0, sizeof(cache));
 
-    cache.game = RSCACHE_GAME_OLDSCHOOL;
-    cache.container = RSCACHE_CONTAINER_DAT2;
-    cache.epoch = RSCACHE_EPOCH_OSRS;
-    cache.version = RSCACHE_REVISION_UNKNOWN;
-    cache.quirks = 0u;
+    cache.game = RSCACHE_GAME_UNSET;
+    cache.epoch = RSCACHE_EPOCH_UNSET;
+    cache.revision = RSCACHE_REVISION_UNKNOWN;
+    cache.quirks = RSCACHE_QUIRK_NONE;
 
     for( int i = 0; i < RSCACHE_TYPE_COUNT; i++ )
     {
@@ -32,8 +32,7 @@ RSCache_ProfileSetGroupRevision(
     enum RSCache_Type type,
     int32_t archive_revision)
 {
-    if( !cache )
-        return;
+    assert(cache);
     assert(type >= 0 && type < RSCACHE_TYPE_COUNT);
     cache->group_revision[type] = archive_revision;
 }
@@ -43,10 +42,44 @@ RSCache_GroupRevision(
     const struct RSCache* cache,
     enum RSCache_Type type)
 {
-    if( !cache )
-        return RSCACHE_GROUP_REVISION_UNKNOWN;
+    assert(cache);
     assert(type >= 0 && type < RSCACHE_TYPE_COUNT);
     return cache->group_revision[type];
+}
+
+static bool
+revision_at_least_in_game(
+    const struct RSCache* cache,
+    enum RSCache_Type type,
+    int required_game,
+    int game_rev,
+    int32_t archive_rev_threshold,
+    bool default_when_unknown)
+{
+    assert(cache);
+
+    /*
+     * A declared game revision is the authoritative answer — it came from the
+     * manifest rather than from interpreting a counter — but only for a cache
+     * in the lineage `game_rev` is numbered in.
+     *
+     * The game test is load-bearing, not defensive. dat1 revisions run to 254
+     * in a 2004-era sequence; OldSchool restarted from 1 and is now in the
+     * 230s; RS2 is continuous past 643. Without the guard a dat1 rev-254
+     * profile satisfies *every* OldSchool threshold in this library — 210,
+     * 220, 226, 237 — and each one silently switches a decoder to a field
+     * layout that postdates it by nearly twenty years (D16).
+     */
+    if( cache->game == required_game && cache->revision != RSCACHE_REVISION_UNKNOWN )
+        return cache->revision >= game_rev;
+
+    /* Otherwise fall back to the reference client's own gate for this group. */
+    int32_t group_revision = RSCache_GroupRevision(cache, type);
+    if( group_revision != RSCACHE_GROUP_REVISION_UNKNOWN &&
+        archive_rev_threshold != RSCACHE_GROUP_REVISION_UNKNOWN )
+        return group_revision >= archive_rev_threshold;
+
+    return default_when_unknown;
 }
 
 bool
@@ -57,30 +90,22 @@ RSCache_RevisionAtLeastOsrs(
     int32_t archive_rev_threshold,
     bool default_when_unknown)
 {
-    if( !cache )
-        return default_when_unknown;
+    assert(cache);
+    return revision_at_least_in_game(
+        cache, type, RSCACHE_GAME_OLDSCHOOL, game_rev, archive_rev_threshold, default_when_unknown);
+}
 
-    /*
-     * A declared game revision is the authoritative answer — it came from the
-     * manifest or the handshake rather than from interpreting a counter — but only
-     * for a cache in the lineage `game_rev` is numbered in.
-     *
-     * The epoch test is load-bearing, not defensive. dat1 revisions run to 254 in a
-     * 2004-era sequence; OldSchool restarted from 1 and is now in the 230s. Without
-     * the guard a dat1 rev-254 profile satisfies *every* threshold in this library —
-     * 210, 220, 226, 237 — and each one silently switches a decoder to a field layout
-     * that postdates it by nearly twenty years.
-     */
-    if( cache->epoch == RSCACHE_EPOCH_OSRS && cache->version != RSCACHE_REVISION_UNKNOWN )
-        return cache->version >= game_rev;
-
-    /* Otherwise fall back to the reference client's own gate for this group. */
-    int32_t group_revision = RSCache_GroupRevision(cache, type);
-    if( group_revision != RSCACHE_GROUP_REVISION_UNKNOWN &&
-        archive_rev_threshold != RSCACHE_GROUP_REVISION_UNKNOWN )
-        return group_revision >= archive_rev_threshold;
-
-    return default_when_unknown;
+bool
+RSCache_RevisionAtLeastRs2(
+    const struct RSCache* cache,
+    enum RSCache_Type type,
+    int game_rev,
+    int32_t archive_rev_threshold,
+    bool default_when_unknown)
+{
+    assert(cache);
+    return revision_at_least_in_game(
+        cache, type, RSCACHE_GAME_RS2, game_rev, archive_rev_threshold, default_when_unknown);
 }
 
 struct RSCache_RecordAddress
@@ -94,7 +119,7 @@ RSCache_RecordAddressFor(
     addr.group_shift = 0;
     addr.file_mask = 0;
 
-    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
+    if( RSCache_IsRs2Dat2(cache) )
     {
         /* Which table each type lives in per void's Index.kt, and the shard width per its
          * DefinitionDecoder subclasses. Only the types a world render needs are mapped so
@@ -132,4 +157,115 @@ RSCache_RecordAddressFor(
     }
 
     return addr;
+}
+
+int
+RSCache_GameFromName(const char* name)
+{
+    if( !name )
+        return RSCACHE_GAME_UNSET;
+    if( strcmp(name, "oldschool") == 0 )
+        return RSCACHE_GAME_OLDSCHOOL;
+    if( strcmp(name, "rs2") == 0 )
+        return RSCACHE_GAME_RS2;
+    return RSCACHE_GAME_UNSET;
+}
+
+const char*
+RSCache_GameName(int game)
+{
+    switch( game )
+    {
+    case RSCACHE_GAME_OLDSCHOOL:
+        return "oldschool";
+    case RSCACHE_GAME_RS2:
+        return "rs2";
+    default:
+        return "unset";
+    }
+}
+
+int
+RSCache_EpochFromName(const char* name)
+{
+    if( !name )
+        return RSCACHE_EPOCH_UNSET;
+    if( strcmp(name, "dat1") == 0 )
+        return RSCACHE_EPOCH_DAT1;
+    if( strcmp(name, "dat2") == 0 )
+        return RSCACHE_EPOCH_DAT2;
+    return RSCACHE_EPOCH_UNSET;
+}
+
+const char*
+RSCache_EpochName(int epoch)
+{
+    switch( epoch )
+    {
+    case RSCACHE_EPOCH_DAT1:
+        return "dat1";
+    case RSCACHE_EPOCH_DAT2:
+        return "dat2";
+    default:
+        return "unset";
+    }
+}
+
+bool
+RSCache_QuirksFromList(
+    const char* list,
+    uint32_t* out_quirks)
+{
+    assert(out_quirks);
+    *out_quirks = RSCACHE_QUIRK_NONE;
+    if( !list || list[0] == '\0' )
+        return false;
+
+    if( strcmp(list, "none") == 0 )
+        return true;
+
+    const char* p = list;
+    while( *p )
+    {
+        while( *p == ' ' || *p == ',' )
+            p++;
+        if( *p == '\0' )
+            break;
+
+        const char* start = p;
+        while( *p && *p != ',' && *p != ' ' )
+            p++;
+        int len = (int)(p - start);
+
+        if( len == 4 && strncmp(start, "none", 4) == 0 )
+            continue;
+        if( len == 6 && strncmp(start, "kronos", 6) == 0 )
+        {
+            *out_quirks |= RSCACHE_QUIRK_KRONOS;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+void
+RSCache_QuirksName(
+    uint32_t quirks,
+    char* buf,
+    int buf_size)
+{
+    assert(buf);
+    assert(buf_size > 0);
+    if( quirks == RSCACHE_QUIRK_NONE )
+    {
+        snprintf(buf, (size_t)buf_size, "none");
+        return;
+    }
+    if( quirks == RSCACHE_QUIRK_KRONOS )
+    {
+        snprintf(buf, (size_t)buf_size, "kronos");
+        return;
+    }
+    snprintf(buf, (size_t)buf_size, "0x%x", quirks);
 }

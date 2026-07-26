@@ -40,6 +40,34 @@
 #define RSCACHE_TEST_REPO_ROOT "../.."
 #endif
 
+static bool
+open_cache_with_identity(
+    const char* path,
+    const struct RSCache* profile,
+    struct RSCache_Dat2Disk** out_disk,
+    struct RSCache* out_profile)
+{
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+        return false;
+    *out_profile = *profile;
+    RSCache_Dat2DiskSetProfile(disk, out_profile);
+    *out_disk = disk;
+    return true;
+}
+
+static bool
+open_643_cache(
+    const char* path,
+    struct RSCache_Dat2Disk** out_disk,
+    struct RSCache* out_profile)
+{
+    struct RSCache profile;
+    if( !RSCache_ProfileByName("643", &profile) )
+        return false;
+    return open_cache_with_identity(path, &profile, out_disk, out_profile);
+}
+
 struct sweep
 {
     int records;
@@ -264,17 +292,13 @@ dump_loc(const char* root, int loc_id)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/cache.643", root);
-    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
-    if( !disk )
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache profile;
+    if( !open_643_cache(path, &disk, &profile) )
     {
         printf("no cache at %s\n", path);
         return 1;
     }
-
-    struct RSCache profile;
-    if( !RSCache_ProfileByName("643", &profile) )
-        profile = RSCache_ProfileZero();
-    RSCache_Dat2DiskSetEpoch(disk, profile.epoch);
 
     struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&profile, RSCACHE_TYPE_LOC);
     int table_id = RSCache_Dat2DiskTableId(disk, addr.table);
@@ -356,13 +380,13 @@ dump_model(const char* root, int model_id)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/cache.643", root);
-    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
-    if( !disk )
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache profile;
+    if( !open_643_cache(path, &disk, &profile) )
     {
         printf("no cache at %s\n", path);
         return 1;
     }
-    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
 
     struct RSCache_Model* model = RSCache_ModelNewFromCache(disk, model_id);
     if( !model )
@@ -415,15 +439,18 @@ dump_spawns(const char* root, int map_x, int map_z)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/cache.643", root);
-    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
-    if( !disk )
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache profile;
+    if( !open_643_cache(path, &disk, &profile) )
     {
         printf("no cache at %s\n", path);
         return 1;
     }
-    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
-    snprintf(path, sizeof(path), "%s/cache.643/xteas.json", root);
-    RSCache_XteaConfigLoadKeys(path);
+    if( RSCache_MapLocsEncrypted(&profile) )
+    {
+        snprintf(path, sizeof(path), "%s/cache.643/xteas.json", root);
+        RSCache_XteaConfigLoadKeys(path);
+    }
 
     struct RSCache_MapLocs* locs = RSCache_MapLocsNewFromCache(disk, map_x, map_z);
     if( !locs )
@@ -502,17 +529,13 @@ dump_materials(const char* root, int want_id)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/cache.643", root);
-    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
-    if( !disk )
+    struct RSCache_Dat2Disk* disk;
+    struct RSCache profile;
+    if( !open_643_cache(path, &disk, &profile) )
     {
         printf("no cache at %s\n", path);
         return 1;
     }
-    RSCache_Dat2DiskSetEpoch(disk, RSCACHE_EPOCH_643);
-
-    struct RSCache profile;
-    if( !RSCache_ProfileByName("643", &profile) )
-        profile = RSCache_ProfileZero();
 
     int table_id = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_MATERIALS);
     struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoad(disk, table_id, 0);
@@ -592,19 +615,189 @@ dump_materials(const char* root, int want_id)
     return 0;
 }
 
+/*
+ * Census of ob3 `format_version` across a cache's models.
+ *
+ * The field decides whether the reference's `scaleDown(2)` applies (version >= 13 stores
+ * vertices at 4x), so "which models carry it" is the difference between correct geometry and
+ * everything rendering 4x too large. It is a *census* rather than an assertion because the
+ * answer is a property of the cache, not of this library — and because the claim it backs
+ * ("most of 643 is version 13+, no OldSchool model is") deserves a number rather than a
+ * recollection.
+ *
+ *   test_rs2_sweep <root> modelvers [cache-dir]
+ */
+static int
+dump_model_versions(const char* root, const char* cache_dir)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s", root, cache_dir);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("  %-14s (absent)\n", cache_dir);
+        return 0;
+    }
+
+    int table_id = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_MODELS);
+    struct RSCache_Dat2DiskArchive* ref =
+        RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, table_id);
+    if( !ref )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return 0;
+    }
+    struct RSCache_ReferenceTable* table =
+        RSCache_ReferenceTableNewDecode(ref->data, ref->data_size);
+    RSCache_Dat2DiskArchiveFree(ref);
+    if( !table )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return 0;
+    }
+
+    int versions[256];
+    memset(versions, 0, sizeof(versions));
+    int total = 0;
+    int scaled = 0;
+
+    for( int i = 0; i < table->id_count; i++ )
+    {
+        struct RSCache_Model* model = RSCache_ModelNewFromCache(disk, table->ids[i]);
+        if( !model )
+            continue;
+        total++;
+        if( model->format_version >= 0 && model->format_version < 256 )
+            versions[model->format_version]++;
+        if( model->format_version >= 13 )
+            scaled++;
+        RSCache_ModelFree(model);
+    }
+
+    printf(
+        "  %-14s %6d models, version >= 13 (scaleDown applies): %d (%.1f%%)\n",
+        cache_dir,
+        total,
+        scaled,
+        total ? 100.0 * scaled / total : 0.0);
+    printf("      versions:");
+    for( int v = 0; v < 256; v++ )
+        if( versions[v] )
+            printf(" %d x%d", v, versions[v]);
+    printf("\n");
+
+    RSCache_ReferenceTableFree(table);
+    RSCache_Dat2DiskFree(disk);
+    return 0;
+}
+
 int
 main(int argc, char** argv)
 {
-    const char* root = argc > 1 ? argv[1] : RSCACHE_TEST_REPO_ROOT;
+    const char* root = RSCACHE_TEST_REPO_ROOT;
+    const char* rev_name = NULL;
+    const char* game_name = NULL;
+    const char* epoch_name = NULL;
+    const char* revision_text = NULL;
+    const char* quirks_list = NULL;
+    int positional = 0;
+    const char* pos[4] = { NULL, NULL, NULL, NULL };
 
-    if( argc > 3 && strcmp(argv[2], "loc") == 0 )
-        return dump_loc(root, atoi(argv[3]));
-    if( argc > 3 && strcmp(argv[2], "model") == 0 )
-        return dump_model(root, atoi(argv[3]));
-    if( argc > 4 && strcmp(argv[2], "spawns") == 0 )
-        return dump_spawns(root, atoi(argv[3]), atoi(argv[4]));
-    if( argc > 2 && strcmp(argv[2], "materials") == 0 )
-        return dump_materials(root, argc > 3 ? atoi(argv[3]) : -1);
+    for( int i = 1; i < argc; i++ )
+    {
+        if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
+        {
+            rev_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--game") == 0 && i + 1 < argc )
+        {
+            game_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--epoch") == 0 && i + 1 < argc )
+        {
+            epoch_name = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--revision") == 0 && i + 1 < argc )
+        {
+            revision_text = argv[++i];
+            continue;
+        }
+        if( strcmp(argv[i], "--quirks") == 0 && i + 1 < argc )
+        {
+            quirks_list = argv[++i];
+            continue;
+        }
+        if( positional < 4 )
+            pos[positional++] = argv[i];
+    }
+
+    if( positional > 0 )
+        root = pos[0];
+
+    struct RSCache default_profile;
+    if( rev_name )
+    {
+        if( game_name || epoch_name || revision_text )
+        {
+            fprintf(stderr, "test_rs2_sweep: use either --rev or --game/--epoch/--revision\n");
+            return 1;
+        }
+        if( !RSCache_ProfileByName(rev_name, &default_profile) )
+        {
+            fprintf(stderr, "test_rs2_sweep: unknown profile %s\n", rev_name);
+            return 1;
+        }
+    }
+    else if( game_name || epoch_name || revision_text )
+    {
+        if( !game_name || !epoch_name || !revision_text )
+        {
+            fprintf(stderr, "test_rs2_sweep: --game/--epoch/--revision are all required together\n");
+            return 1;
+        }
+        int game = RSCache_GameFromName(game_name);
+        int epoch = RSCache_EpochFromName(epoch_name);
+        if( game == RSCACHE_GAME_UNSET || epoch == RSCACHE_EPOCH_UNSET )
+        {
+            fprintf(stderr, "test_rs2_sweep: bad game/epoch name\n");
+            return 1;
+        }
+        uint32_t quirks = RSCACHE_QUIRK_NONE;
+        if( quirks_list && !RSCache_QuirksFromList(quirks_list, &quirks) )
+        {
+            fprintf(stderr, "test_rs2_sweep: bad quirks list\n");
+            return 1;
+        }
+        default_profile = RSCache_ProfileForIdentity(game, epoch, atoi(revision_text), quirks);
+    }
+    else if( !RSCache_ProfileByName("643", &default_profile) )
+    {
+        fprintf(stderr, "test_rs2_sweep: unknown profile 643\n");
+        return 1;
+    }
+
+    if( positional > 1 && strcmp(pos[1], "modelvers") == 0 )
+    {
+        if( positional > 2 )
+            return dump_model_versions(root, pos[2]);
+        static const char* DIRS[] = { "cache.643", "cache.osrs230", "cache" };
+        printf("ob3 format_version census\n");
+        for( size_t i = 0; i < sizeof(DIRS) / sizeof(DIRS[0]); i++ )
+            dump_model_versions(root, DIRS[i]);
+        return 0;
+    }
+
+    if( positional > 2 && strcmp(pos[1], "loc") == 0 )
+        return dump_loc(root, atoi(pos[2]));
+    if( positional > 2 && strcmp(pos[1], "model") == 0 )
+        return dump_model(root, atoi(pos[2]));
+    if( positional > 3 && strcmp(pos[1], "spawns") == 0 )
+        return dump_spawns(root, atoi(pos[2]), atoi(pos[3]));
+    if( positional > 1 && strcmp(pos[1], "materials") == 0 )
+        return dump_materials(root, positional > 2 ? atoi(pos[2]) : -1);
 
     static const char* CACHES[] = { "cache.643", "cache.rs643" };
 
@@ -625,17 +818,13 @@ main(int argc, char** argv)
     {
         char path[1024];
         snprintf(path, sizeof(path), "%s/%s", root, CACHES[c]);
-        struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(path);
-        if( !disk )
+        struct RSCache_Dat2Disk* disk;
+        struct RSCache profile;
+        if( !open_cache_with_identity(path, &default_profile, &disk, &profile) )
         {
             printf("  (no cache at %s)\n", path);
             continue;
         }
-
-        struct RSCache profile;
-        if( !RSCache_ProfileByName("643", &profile) )
-            profile = RSCache_ProfileZero();
-        RSCache_Dat2DiskSetEpoch(disk, profile.epoch);
 
         for( size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++ )
         {

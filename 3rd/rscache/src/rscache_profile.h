@@ -1,6 +1,7 @@
 #ifndef RSCACHE_PROFILE_H
 #define RSCACHE_PROFILE_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -27,9 +28,30 @@
  *    timestamp happens to exceed every small-integer threshold.
  *
  * So an archive revision alone cannot answer "what layout is this". The game
- * revision can, and callers usually know it: it is in the boot manifest and in
- * the login handshake. This struct carries it, and keeps the per-group archive
- * revisions alongside for caches that arrive without one.
+ * revision can, and callers usually know it: it is in the boot manifest. This
+ * struct carries it, and keeps the per-group archive revisions alongside for
+ * caches that arrive without one.
+ *
+ * ## The four identity fields
+ *
+ * Every field is load-bearing. They are stated by whoever opens the cache
+ * (manifest, CLI, or a named revision module) and never detected from disk:
+ *
+ *   game      — which revision lineage `revision` is numbered in
+ *               (oldschool | rs2)
+ *   epoch     — on-disk container (dat1 jagfile | dat2 js5)
+ *   revision  — game revision in `game`'s lineage (230, 254, 643, ...)
+ *   quirks    — client-build differences no revision comparison can imply
+ *
+ * The three lineages are `(game, epoch)` pairs:
+ *
+ *   (rs2, dat1)       — 2004-era jagfile (~200–254)
+ *   (rs2, dat2)       — RS2/main continuous line (377 onward; 643 here)
+ *   (oldschool, dat2) — restarted at 1 in 2013 (184–239 in this corpus)
+ *
+ * `revision=643` is only meaningful next to `game=rs2`. Comparing it against an
+ * OldSchool threshold is the D16/D20 trap; the lineage predicates below prevent
+ * that.
  *
  * ## How a datatype consults it
  *
@@ -43,42 +65,32 @@
  * is for differences too large for that, where the era gets its own
  * `decode_<type>_vN` / `encode_<type>_vN` pair.
  *
- * Both should route era questions through RSCache_RevisionAtLeastOsrs rather than
- * comparing raw revisions, so the timestamp ambiguity is resolved in exactly one
- * place.
+ * Route OldSchool era questions through RSCache_RevisionAtLeastOsrs and RS2
+ * questions through RSCache_RevisionAtLeastRs2 — never bare `revision >= N`.
  */
 
 enum RSCache_Game
 {
-    RSCACHE_GAME_OLDSCHOOL = 0,
-    RSCACHE_GAME_RS2 = 1,
-};
-
-/** On-disk container family. */
-enum RSCache_Container
-{
-    /** JS5: main_file_cache.dat2 + .idx0..N, reference table 255. */
-    RSCACHE_CONTAINER_DAT2 = 0,
-    /** Jagfile era: main_file_cache.dat + .idx1..5, versionlist. */
-    RSCACHE_CONTAINER_DAT1 = 1,
+    /** Identity not stated. A memset-zeroed profile is honestly unidentified. */
+    RSCACHE_GAME_UNSET = 0,
+    RSCACHE_GAME_OLDSCHOOL = 1,
+    RSCACHE_GAME_RS2 = 2,
 };
 
 /**
- * Field-layout family.
+ * On-disk container family.
  *
- * Distinct from the revision because it is *not* derivable from one: 643-era
- * caches number their reference tables in the same small-integer range OSRS used
- * before it switched to timestamps, so the two families are indistinguishable by
- * revision alone. Whoever opens the cache has to say which it is.
+ * Stated, never detected: a dat1 cache and a dat2 cache are different files,
+ * but which lineage's field layouts they carry is not visible from the
+ * container alone (OSRS and RS2 both use dat2).
  */
 enum RSCache_Epoch
 {
-    /** Jagfile-era layouts (newline-terminated strings, narrow ids). */
-    RSCACHE_EPOCH_DAT1_CLASSIC = 0,
-    /** OldSchool RuneScape, 2013 onwards. */
-    RSCACHE_EPOCH_OSRS = 1,
-    /** The 643 / RuneScape-2 branch. */
-    RSCACHE_EPOCH_643 = 2,
+    RSCACHE_EPOCH_UNSET = 0,
+    /** Jagfile era: main_file_cache.dat + .idx1..5, versionlist. */
+    RSCACHE_EPOCH_DAT1 = 1,
+    /** JS5: main_file_cache.dat2 + .idx0..N, reference table 255. */
+    RSCACHE_EPOCH_DAT2 = 2,
 };
 
 /** Per-datatype slot for `codec[]` and `group_revision[]`. */
@@ -123,12 +135,14 @@ enum RSCache_Type
 
 /** Quirks that are client-build specific rather than revision ordered, so no
  *  revision comparison can imply them. */
+#define RSCACHE_QUIRK_NONE 0u
 /** Kronos client: loc opcodes 78/79 omit the ambient_sound_retain byte that
  *  stock clients of the same revision write. */
 #define RSCACHE_QUIRK_KRONOS 0x1u
 
 /** No game revision known. Datatype flag functions then fall back to their
- *  per-group archive-revision thresholds. */
+ *  per-group archive-revision thresholds. No shipped manifest reaches this:
+ *  identity is stated in full. */
 #define RSCACHE_REVISION_UNKNOWN 0
 
 /** No archive revision recorded for a group. */
@@ -139,33 +153,38 @@ enum RSCache_Type
 
 struct RSCache
 {
-    /** enum RSCache_Game */
+    /** enum RSCache_Game — which lineage `revision` is numbered in. */
     int game;
-    /** enum RSCache_Container */
-    int container;
-    /** enum RSCache_Epoch */
+    /** enum RSCache_Epoch — on-disk container (dat1 | dat2). */
     int epoch;
-    /** Game revision (230, 233, 254, ...), or RSCACHE_REVISION_UNKNOWN.
-     *  Authoritative when set: it comes from the boot manifest or the login
-     *  handshake, not from guessing at a counter. */
-    int version;
+    /** Game revision in `game`'s lineage (230, 254, 643, ...), or
+     *  RSCACHE_REVISION_UNKNOWN. Authoritative when set: it comes from the
+     *  boot manifest, not from guessing at a counter. */
+    int revision;
     /** RSCACHE_QUIRK_* bitmask. */
     uint32_t quirks;
     /** JS5 archive revision per datatype group, or
-     *  RSCACHE_GROUP_REVISION_UNKNOWN. Only consulted when `version` is unknown.
-     *  Filled in by the caller as archives are loaded, since each group's
-     *  revision only becomes known when its reference table is read. */
+     *  RSCACHE_GROUP_REVISION_UNKNOWN. Only consulted when `revision` is
+     *  unknown. Filled in by the caller as archives are loaded. */
     int32_t group_revision[RSCACHE_TYPE_COUNT];
     /** Explicit per-datatype codec version, or RSCACHE_CODEC_AUTO. A revision
      *  module sets only the slots where the derivation rule would be wrong. */
     int16_t codec[RSCACHE_TYPE_COUNT];
 };
 
-/** A profile with nothing known: OSRS dat2, unknown revision, no quirks, every
+/** A profile with nothing known: every identity field UNSET, no quirks, every
  *  group revision unknown and every codec on AUTO. Every revision module starts
- *  from this so a new field defaults sensibly everywhere at once. */
+ *  from this so a new field defaults sensibly everywhere at once. Unlike the
+ *  previous "OSRS dat2 by default", an unset profile is honestly unidentified. */
 struct RSCache
 RSCache_ProfileZero(void);
+
+/** True when game and epoch are both stated (revision may still be unknown). */
+static inline bool
+RSCache_ProfileIsIdentified(const struct RSCache* cache)
+{
+    return cache && cache->game != RSCACHE_GAME_UNSET && cache->epoch != RSCACHE_EPOCH_UNSET;
+}
 
 /** Record the JS5 archive revision for one datatype group. */
 void
@@ -185,35 +204,42 @@ RSCache_GroupRevision(
  * revision `game_rev` or later?
  *
  * This is the single place the "what does a revision number mean" ambiguity is
- * resolved, and the only era predicate datatypes should use:
+ * resolved for the OldSchool lineage:
  *
- *  1. If the cache is OSRS-epoch and carries a game revision, compare against it.
- *     Unambiguous.
+ *  1. If the cache is OldSchool and carries a game revision, compare against it.
  *  2. Otherwise compare the group's JS5 archive revision against
- *     `archive_rev_threshold` — the value the reference client gates the same
- *     field on. Pass RSCACHE_GROUP_REVISION_UNKNOWN when no such constant is
- *     known for the group.
- *  3. With neither available, answer `default_when_unknown`. Callers pick the
- *     branch that has been observed to decode the local caches, so behaviour on
- *     an unidentified cache is a deliberate choice rather than an accident.
+ *     `archive_rev_threshold`. Pass RSCACHE_GROUP_REVISION_UNKNOWN when no such
+ *     constant is known for the group.
+ *  3. With neither available, answer `default_when_unknown`.
  *
  * ## Why the name says Osrs
  *
- * Revision numbers are **not one sequence**. There are three independent game-revision
- * lineages: dat1 classic (~200–254), OldSchool (restarted from 1 in 2013, now in the
- * 230s), and RS2 / main (continuous; this library's profile is 643). The ranges overlap
- * and mean completely different things — OSRS rev N ≠ RS2 rev N ≠ dat1 rev N — so a bare
- * `version >= 220` is only meaningful once you know which lineage `version` is from.
- *
- * Every threshold in this library is an OldSchool revision, so a **dat1 or RS2 profile
- * must not satisfy any of them** — dat1 rev 254 is older than OSRS 220, not newer, and
- * RS2 643 is not "past" OSRS 209. This function enforces that by skipping step 1 for a
- * non-OSRS epoch, and the name carries the invariant so a future non-OSRS gate does not
- * reach for the wrong predicate. If one is ever needed, add a sibling rather than
- * widening this.
+ * Revision numbers are **not one sequence**. `(rs2, dat1)`, `(rs2, dat2)` and
+ * `(oldschool, dat2)` are independent lineages — OSRS rev N ≠ RS2 rev N — so a
+ * bare `revision >= 220` is only meaningful once you know which lineage
+ * `revision` is from. Every threshold routed through this function is an
+ * OldSchool revision; an RS2 profile must not satisfy any of them. The name
+ * carries the invariant so a future non-OSRS gate reaches for
+ * RSCache_RevisionAtLeastRs2 instead of widening this.
  */
 bool
 RSCache_RevisionAtLeastOsrs(
+    const struct RSCache* cache,
+    enum RSCache_Type type,
+    int game_rev,
+    int32_t archive_rev_threshold,
+    bool default_when_unknown);
+
+/**
+ * Does this cache's `type` records use the layout introduced at **RS2** game
+ * revision `game_rev` or later?
+ *
+ * Same three-step ladder as RSCache_RevisionAtLeastOsrs, but step 1 requires
+ * `game == RSCACHE_GAME_RS2`. Use for thresholds like 474/537/555/582/629 that
+ * are RuneScape numbers and mean nothing on the OldSchool line.
+ */
+bool
+RSCache_RevisionAtLeastRs2(
     const struct RSCache* cache,
     enum RSCache_Type type,
     int game_rev,
@@ -227,8 +253,7 @@ RSCache_CodecVersionOr(
     enum RSCache_Type type,
     int derived)
 {
-    if( !cache )
-        return derived;
+    assert(cache);
     int16_t explicit_version = cache->codec[type];
     return explicit_version == RSCACHE_CODEC_AUTO ? derived : (int)explicit_version;
 }
@@ -237,17 +262,15 @@ RSCache_CodecVersionOr(
  * Where a record type lives, and how a record id splits into an archive and a file.
  *
  * OSRS keeps most types as one config group holding every record as a file, so the id *is*
- * the file id. RS2 promotes several types to their own table and shards them into groups, so
- * an id has to be split — and the shard width is per type, not uniform (table ids below are
- * the RS2 ones, for orientation; `table` itself is logical):
+ * the file id. RS2 dat2 promotes several types to their own table and shards them into
+ * groups, so an id has to be split — and the shard width is per type, not uniform:
  *
  *   loc  table 16, 256 files per group -> archive = id >> 8, file = id & 0xFF
  *   npc  table 18, 128 files per group -> archive = id >> 7, file = id & 0x7F
  *   obj  table 19, 256 files per group -> archive = id >> 8, file = id & 0xFF
  *
- * Measured against cache.rs643 and matching void's DefinitionDecoder subclasses, which
- * declare exactly these overrides (`getArchive`/`getFile`). A single hardcoded `>> 8` would
- * silently mis-address every npc.
+ * Measured against cache.rs643 and matching void's DefinitionDecoder subclasses.
+ * A single hardcoded `>> 8` would silently mis-address every npc.
  *
  * `group_shift == 0` means "not sharded": the config-group layout, where `group` is the
  * config kind and the id indexes files directly.
@@ -279,7 +302,22 @@ RSCache_RecordAddressFor(
 static inline bool
 RSCache_IsDat1(const struct RSCache* cache)
 {
-    return cache && cache->container == RSCACHE_CONTAINER_DAT1;
+    return cache && cache->epoch == RSCACHE_EPOCH_DAT1;
+}
+
+static inline bool
+RSCache_IsOsrs(const struct RSCache* cache)
+{
+    return cache && cache->game == RSCACHE_GAME_OLDSCHOOL;
+}
+
+/** RS2 on the dat2 container — the layout family formerly called "epoch 643".
+ *  The `epoch == DAT2` conjunct is load-bearing: dat1 profiles are also
+ *  `game == RS2` and must not take the dat2 RS2 codecs. */
+static inline bool
+RSCache_IsRs2Dat2(const struct RSCache* cache)
+{
+    return cache && cache->game == RSCACHE_GAME_RS2 && cache->epoch == RSCACHE_EPOCH_DAT2;
 }
 
 static inline bool
@@ -289,5 +327,36 @@ RSCache_HasQuirk(
 {
     return cache && (cache->quirks & quirk) != 0u;
 }
+
+/* --- identity name parsing (shared by manifest, CLI, boot log, harnesses) --- */
+
+/** "oldschool" | "rs2" → enum, or RSCACHE_GAME_UNSET on unknown. */
+int
+RSCache_GameFromName(const char* name);
+
+/** enum → "oldschool" | "rs2" | "unset". */
+const char*
+RSCache_GameName(int game);
+
+/** "dat1" | "dat2" → enum, or RSCACHE_EPOCH_UNSET on unknown. */
+int
+RSCache_EpochFromName(const char* name);
+
+/** enum → "dat1" | "dat2" | "unset". */
+const char*
+RSCache_EpochName(int epoch);
+
+/** "none" | "kronos" (comma-separated) → quirks bitmask. Returns false on unknown token. */
+bool
+RSCache_QuirksFromList(
+    const char* list,
+    uint32_t* out_quirks);
+
+/** quirks bitmask → "none" | "kronos" (or comma-joined). Writes into `buf`. */
+void
+RSCache_QuirksName(
+    uint32_t quirks,
+    char* buf,
+    int buf_size);
 
 #endif

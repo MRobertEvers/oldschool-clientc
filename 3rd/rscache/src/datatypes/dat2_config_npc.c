@@ -19,34 +19,20 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
 {
     int flags = 0;
 
-    /* Default true when the cache is unidentified. Every dat2 cache the client
-     * ships is at or past this gate, and the modern shape is what the previous
-     * hardcoded `true` produced — so an unknown cache keeps decoding exactly as
-     * it did before this flag became reachable. */
-    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
-    {
-        /* RS2 never gets the head-icon bitfield: the reference gates it on the OldSchool
-         * lineage specifically, so returning early also keeps an RS2 archive revision from
-         * being compared against an OldSchool threshold — the D16 trap. */
+    /* The head-icon bitfield is an OldSchool-only addition. Non-OSRS (RS2 dat1,
+     * RS2 dat2) takes the RS2 opcode set and never reaches the OSRS threshold —
+     * comparing an RS2 revision against it would be the D16 trap. */
+    if( !RSCache_IsOsrs(cache) )
         return RSCACHE_CONFIG_NPC_DECODE_RS2;
-    }
 
+    /* Default true when the cache is unidentified. Every OSRS dat2 cache the
+     * client ships is at or past this gate, and the modern shape is what the
+     * previous hardcoded `true` produced. */
     if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_NPC, 210, RSCACHE_NPC_ARCHIVE_REV_210, true) )
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS;
 
     return flags;
-}
-
-struct RSCache_Dat2ConfigNpc*
-RSCache_Dat2ConfigNpcNewDecode(
-    int revision,
-    char* data,
-    int data_size)
-{
-    struct RSCache cache = RSCache_ProfileZero();
-    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_NPC, revision);
-    return RSCache_Dat2ConfigNpcNewDecodeProfile(&cache, data, data_size);
 }
 
 uint32_t

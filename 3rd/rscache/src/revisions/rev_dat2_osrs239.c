@@ -3,14 +3,15 @@
 #include "datatypes/dat2_config_sequence.h"
 
 /*
- * OSRS revision 239 (`cache.osrs239`).
+ * OSRS revision 239 (`cache.osrs239`, manifest_osrs239.ini).
  *
- * The first declared revision past the 237 interface change: type-6 component
- * model ids widened from u16 to i32 (if1 reads two of them, if3 one). That
- * follows from `version = 239` through
- * RSCache_Dat2ComponentDecodeRevFromProfile, so no override is needed here —
- * but it does mean this profile and 230's are *not* interchangeable, unlike
- * 230 and 233.
+ * Past two independent gates that land at OldSchool 237:
+ *   - type-6 component model ids widened from u16 to i32
+ *   - map (lX_Z) archives are stored plain; no xteas.json is shipped
+ *
+ * Those are separate constants on purpose — two unrelated layout changes in one
+ * revision is ordinary, but sharing a #define would let a correction to one
+ * silently move the other.
  */
 
 struct RSCache
@@ -19,9 +20,9 @@ RSCache_ProfileDat2Osrs239(void)
     struct RSCache cache = RSCache_ProfileZero();
 
     cache.game = RSCACHE_GAME_OLDSCHOOL;
-    cache.container = RSCACHE_CONTAINER_DAT2;
-    cache.epoch = RSCACHE_EPOCH_OSRS;
-    cache.version = 239;
+    cache.epoch = RSCACHE_EPOCH_DAT2;
+    cache.revision = 239;
+    cache.quirks = RSCACHE_QUIRK_NONE;
 
     cache.codec[RSCACHE_TYPE_SEQUENCE] = RSCACHE_CODEC_SEQUENCE_V3;
 

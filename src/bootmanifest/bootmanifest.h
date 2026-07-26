@@ -5,18 +5,22 @@
 
 /*
  * Boot manifest — one INI file collapsing the whole per-generation boot
- * parameterization (cache kind/dir, protocol rev, transport, host:port, login
- * RSA/CRCs/version, revconfig includes, ui logic). See manifest_rs254.ini /
- * manifest_xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
+ * parameterization (cache identity/dir, protocol rev, transport, host:port,
+ * login RSA/CRCs/version, revconfig includes, ui logic). See manifest_rs254.ini
+ * / manifest_xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
  *
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
- *   [cache:boot]  kind=dat1|dat2   dir=<path>   spawn=<x>,<z>
+ *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
+ *                 quirks=none|kronos  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *
+ * [cache:boot] epoch/game/revision/quirks are all required. A missing key fails
+ * the load with a stated reason (user input, not an internal invariant).
  *
  * Relative path values (dir, revconfig_ui, revconfig_cache) resolve against the
  * directory containing the manifest file; absolute paths pass through.
@@ -30,12 +34,18 @@ struct AppConfig; /* fwd; src/app.h */
 
 struct BootManifest
 {
-    /* [cache:boot] */
-    int cache_kind;      /* enum AppCacheKind; -1 = unset */
+    /* [cache:boot] — identity (all four required) */
+    int cache_game;      /* enum RSCache_Game; UNSET until parsed */
+    int cache_epoch;     /* enum RSCache_Epoch; UNSET until parsed */
+    int cache_revision;  /* game revision; -1 = unset */
+    uint32_t cache_quirks;
+    int cache_quirks_set; /* 1 when quirks= was present */
+    int cache_kind;      /* enum AppCacheKind derived from epoch; -1 = unset */
     char cache_dir[512]; /* resolved against manifest dir */
     /* Map square to spawn on, "x,z". Both -1 = unset (client default 50,50).
-     * Needed because the default is not universally loadable: a cache ships XTEA keys only for
-     * the squares it was dumped with, and cache.643 has no key for 50,50. */
+     * Needed because the default is not universally loadable: a keyed cache
+     * ships XTEA keys only for the squares it was dumped with, and cache.643
+     * has no key for 50,50. */
     int spawn_x;
     int spawn_z;
 
@@ -44,7 +54,7 @@ struct BootManifest
     char transport[16]; /* "tcp" | "ws"; "" = unset */
     char host[128];
     int port;           /* 0 = unset */
-    int client_version; /* 0 = unset */
+    int client_version; /* 0 = unset; login-block only, not cache identity */
     char rsa_exp[512];
     char rsa_mod[512];
     int32_t jag_crc[9];
@@ -59,8 +69,8 @@ struct BootManifest
 };
 
 /* Zero the manifest and load `path`. Relative paths resolve against
- * dirname(path). Returns 0 on success, <0 on read/parse failure (a stderr line
- * names the offending section/key). Unknown keys warn but do not fail. */
+ * dirname(path). Returns 0 on success, <0 on read/parse failure or a missing
+ * required [cache:boot] identity key (a stderr line names the problem). */
 int
 BootManifest_LoadFile(struct BootManifest* bm, char const* path);
 

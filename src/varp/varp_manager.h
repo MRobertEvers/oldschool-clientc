@@ -31,8 +31,27 @@ struct VarBitType
 
 #define VARP_MANAGER_READBIT_MAX 32
 
-/** Callback when a client-visible varp value changes. */
+/** Callback when a client-visible varp value changes (any source). */
 typedef void (*VarPManager_ChangeFn)(
+    void* userdata,
+    int varp_id);
+
+/**
+ * Callback when a **server** varp update lands: VARP_SMALL/VARP_LARGE/SYNC/RESET.
+ *
+ * Separate from VarPManager_ChangeFn because only this set may drive widget
+ * var-transmit hooks. The reference pushes the id into its changed-varp ring
+ * (`Client.field990[++field1031 - 1 & 31] = varp`) from exactly the three
+ * server-packet handlers; a script-side write (CS2 SETVARP, IF1 button, varbit
+ * set) updates `Varps_main` and notifies the server, but never touches the ring.
+ * Feeding script writes back into the transmit dispatch makes any hook that
+ * writes a var re-trigger itself forever.
+ *
+ * Fires per applied update even when the value did not change — the reference
+ * bumps the ring outside its equality check — and with `varp_id < 0` for a
+ * whole-cache reset (`field1031 += 32`, i.e. "assume every hook").
+ */
+typedef void (*VarPManager_ServerUpdateFn)(
     void* userdata,
     int varp_id);
 
@@ -54,6 +73,9 @@ struct VarPManager
 
     VarPManager_ChangeFn change_fn;
     void* change_userdata;
+
+    VarPManager_ServerUpdateFn server_update_fn;
+    void* server_update_userdata;
 };
 
 void
@@ -145,6 +167,12 @@ void
 VarPManager_SetChangeCallback(
     struct VarPManager* mgr,
     VarPManager_ChangeFn fn,
+    void* userdata);
+
+void
+VarPManager_SetServerUpdateCallback(
+    struct VarPManager* mgr,
+    VarPManager_ServerUpdateFn fn,
     void* userdata);
 
 /** Resolve a loc transform target id from transforms[] using varbit/varp state.

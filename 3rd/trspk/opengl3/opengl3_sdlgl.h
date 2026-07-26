@@ -1,0 +1,155 @@
+#ifndef TORIRS_PLATFORM_KIT_OPENGL3_GL_H
+#define TORIRS_PLATFORM_KIT_OPENGL3_GL_H
+
+#if defined(__APPLE__)
+#define GL_SILENCE_DEPRECATION 1
+#include <OpenGL/gl3.h>
+#ifndef PFNGLBUFFERSTORAGEPROC
+typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
+    GLenum target,
+    GLsizeiptr size,
+    const GLvoid* data,
+    GLbitfield flags);
+#endif
+#else
+#include <GL/glcorearb.h>
+#endif
+
+#include <stdbool.h>
+
+extern PFNGLCREATESHADERPROC trspk_glCreateShader;
+extern PFNGLSHADERSOURCEPROC trspk_glShaderSource;
+extern PFNGLCOMPILESHADERPROC trspk_glCompileShader;
+extern PFNGLGETSHADERIVPROC trspk_glGetShaderiv;
+extern PFNGLGETSHADERINFOLOGPROC trspk_glGetShaderInfoLog;
+extern PFNGLDELETESHADERPROC trspk_glDeleteShader;
+extern PFNGLCREATEPROGRAMPROC trspk_glCreateProgram;
+extern PFNGLATTACHSHADERPROC trspk_glAttachShader;
+extern PFNGLLINKPROGRAMPROC trspk_glLinkProgram;
+extern PFNGLGETPROGRAMIVPROC trspk_glGetProgramiv;
+extern PFNGLGETPROGRAMINFOLOGPROC trspk_glGetProgramInfoLog;
+extern PFNGLDELETEPROGRAMPROC trspk_glDeleteProgram;
+extern PFNGLUSEPROGRAMPROC trspk_glUseProgram;
+extern PFNGLGETATTRIBLOCATIONPROC trspk_glGetAttribLocation;
+extern PFNGLGETUNIFORMLOCATIONPROC trspk_glGetUniformLocation;
+extern PFNGLBINDATTRIBLOCATIONPROC trspk_glBindAttribLocation;
+extern PFNGLGENVERTEXARRAYSPROC trspk_glGenVertexArrays;
+extern PFNGLDELETEVERTEXARRAYSPROC trspk_glDeleteVertexArrays;
+extern PFNGLBINDVERTEXARRAYPROC trspk_glBindVertexArray;
+extern PFNGLGENBUFFERSPROC trspk_glGenBuffers;
+extern PFNGLDELETEBUFFERSPROC trspk_glDeleteBuffers;
+extern PFNGLBINDBUFFERPROC trspk_glBindBuffer;
+extern PFNGLBUFFERDATAPROC trspk_glBufferData;
+extern PFNGLBUFFERSUBDATAPROC trspk_glBufferSubData;
+extern PFNGLGETBUFFERPARAMETERIVPROC trspk_glGetBufferParameteriv;
+extern PFNGLENABLEVERTEXATTRIBARRAYPROC trspk_glEnableVertexAttribArray;
+extern PFNGLDISABLEVERTEXATTRIBARRAYPROC trspk_glDisableVertexAttribArray;
+extern PFNGLVERTEXATTRIBPOINTERPROC trspk_glVertexAttribPointer;
+extern PFNGLDRAWARRAYSPROC trspk_glDrawArrays;
+extern PFNGLDRAWELEMENTSPROC trspk_glDrawElements;
+extern PFNGLVIEWPORTPROC trspk_glViewport;
+extern PFNGLSCISSORPROC trspk_glScissor;
+extern PFNGLENABLEPROC trspk_glEnable;
+extern PFNGLDISABLEPROC trspk_glDisable;
+extern PFNGLDETACHSHADERPROC trspk_glDetachShader;
+extern PFNGLMAPBUFFERPROC trspk_glMapBuffer;
+extern PFNGLUNMAPBUFFERPROC trspk_glUnmapBuffer;
+extern PFNGLBLENDEQUATIONPROC trspk_glBlendEquation;
+extern PFNGLCLEARPROC trspk_glClear;
+extern PFNGLCLEARCOLORPROC trspk_glClearColor;
+extern PFNGLCLEARDEPTHFPROC trspk_glClearDepthf;
+extern PFNGLBLENDFUNCPROC trspk_glBlendFunc;
+extern PFNGLDEPTHFUNCPROC trspk_glDepthFunc;
+extern PFNGLDEPTHMASKPROC trspk_glDepthMask;
+extern PFNGLCULLFACEPROC trspk_glCullFace;
+extern PFNGLFRONTFACEPROC trspk_glFrontFace;
+extern PFNGLACTIVETEXTUREPROC trspk_glActiveTexture;
+extern PFNGLBINDTEXTUREPROC trspk_glBindTexture;
+extern PFNGLGENTEXTURESPROC trspk_glGenTextures;
+extern PFNGLDELETETEXTURESPROC trspk_glDeleteTextures;
+extern PFNGLTEXIMAGE2DPROC trspk_glTexImage2D;
+extern PFNGLTEXPARAMETERIPROC trspk_glTexParameteri;
+extern PFNGLUNIFORM1IPROC trspk_glUniform1i;
+extern PFNGLUNIFORM1FPROC trspk_glUniform1f;
+extern PFNGLUNIFORMMATRIX4FVPROC trspk_glUniformMatrix4fv;
+extern PFNGLBUFFERSTORAGEPROC trspk_glBufferStorage;
+extern PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
+extern PFNGLBINDBUFFERRANGEPROC trspk_glBindBufferRange;
+extern PFNGLGETUNIFORMBLOCKINDEXPROC trspk_glGetUniformBlockIndex;
+extern PFNGLUNIFORMBLOCKBINDINGPROC trspk_glUniformBlockBinding;
+extern PFNGLFENCESYNCPROC trspk_glFenceSync;
+extern PFNGLDELETESYNCPROC trspk_glDeleteSync;
+extern PFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
+extern PFNGLFLUSHPROC trspk_glFlush;
+
+bool
+trspk_sdlgl_init(void);
+
+#ifndef TRSPK_OPENGL3_NO_GL_ALIASES
+#define glCreateShader trspk_glCreateShader
+#define glShaderSource trspk_glShaderSource
+#define glCompileShader trspk_glCompileShader
+#define glGetShaderiv trspk_glGetShaderiv
+#define glGetShaderInfoLog trspk_glGetShaderInfoLog
+#define glDeleteShader trspk_glDeleteShader
+#define glCreateProgram trspk_glCreateProgram
+#define glAttachShader trspk_glAttachShader
+#define glLinkProgram trspk_glLinkProgram
+#define glGetProgramiv trspk_glGetProgramiv
+#define glGetProgramInfoLog trspk_glGetProgramInfoLog
+#define glDeleteProgram trspk_glDeleteProgram
+#define glUseProgram trspk_glUseProgram
+#define glGetAttribLocation trspk_glGetAttribLocation
+#define glGetUniformLocation trspk_glGetUniformLocation
+#define glBindAttribLocation trspk_glBindAttribLocation
+#define glGenVertexArrays trspk_glGenVertexArrays
+#define glDeleteVertexArrays trspk_glDeleteVertexArrays
+#define glBindVertexArray trspk_glBindVertexArray
+#define glGenBuffers trspk_glGenBuffers
+#define glDeleteBuffers trspk_glDeleteBuffers
+#define glBindBuffer trspk_glBindBuffer
+#define glBufferData trspk_glBufferData
+#define glBufferSubData trspk_glBufferSubData
+#define glGetBufferParameteriv trspk_glGetBufferParameteriv
+#define glEnableVertexAttribArray trspk_glEnableVertexAttribArray
+#define glDisableVertexAttribArray trspk_glDisableVertexAttribArray
+#define glVertexAttribPointer trspk_glVertexAttribPointer
+#define glDrawArrays trspk_glDrawArrays
+#define glDrawElements trspk_glDrawElements
+#define glViewport trspk_glViewport
+#define glScissor trspk_glScissor
+#define glEnable trspk_glEnable
+#define glDisable trspk_glDisable
+#define glDetachShader trspk_glDetachShader
+#define glMapBuffer trspk_glMapBuffer
+#define glUnmapBuffer trspk_glUnmapBuffer
+#define glBlendEquation trspk_glBlendEquation
+#define glClear trspk_glClear
+#define glClearColor trspk_glClearColor
+#define glClearDepthf trspk_glClearDepthf
+#define glBlendFunc trspk_glBlendFunc
+#define glDepthFunc trspk_glDepthFunc
+#define glDepthMask trspk_glDepthMask
+#define glCullFace trspk_glCullFace
+#define glFrontFace trspk_glFrontFace
+#define glActiveTexture trspk_glActiveTexture
+#define glBindTexture trspk_glBindTexture
+#define glGenTextures trspk_glGenTextures
+#define glDeleteTextures trspk_glDeleteTextures
+#define glTexImage2D trspk_glTexImage2D
+#define glTexParameteri trspk_glTexParameteri
+#define glUniform1i trspk_glUniform1i
+#define glUniform1f trspk_glUniform1f
+#define glUniformMatrix4fv trspk_glUniformMatrix4fv
+#define glBufferStorage trspk_glBufferStorage
+#define glMapBufferRange trspk_glMapBufferRange
+#define glBindBufferRange trspk_glBindBufferRange
+#define glGetUniformBlockIndex trspk_glGetUniformBlockIndex
+#define glUniformBlockBinding trspk_glUniformBlockBinding
+#define glFenceSync trspk_glFenceSync
+#define glDeleteSync trspk_glDeleteSync
+#define glClientWaitSync trspk_glClientWaitSync
+#define glFlush trspk_glFlush
+#endif
+
+#endif

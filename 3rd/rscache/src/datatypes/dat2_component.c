@@ -238,14 +238,14 @@ RSCache_Dat2ComponentDecodeRevFromProfile(
     const struct RSCache* cache,
     int32_t index_revision)
 {
+    assert(cache);
     struct RSCache_Dat2ComponentDecodeRev rev = {
-        /* The epoch is the only thing that can separate the two families: their
+        /* game+epoch is the only thing that can separate the two families: their
          * index revisions occupy the same numeric range. */
-        .era = (cache && cache->epoch == RSCACHE_EPOCH_643)
-                   ? RSCACHE_DAT2_COMPONENT_DECODE_ERA_643
-                   : RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS,
+        .era = RSCache_IsRs2Dat2(cache) ? RSCACHE_DAT2_COMPONENT_DECODE_ERA_643
+                                       : RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS,
         .index_revision = index_revision,
-        .game_revision = cache ? (int32_t)cache->version : RSCACHE_REVISION_UNKNOWN,
+        .game_revision = (int32_t)cache->revision,
     };
     return rev;
 }

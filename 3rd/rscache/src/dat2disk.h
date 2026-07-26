@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DAT2DISK_H
 #define RSCACHE_DAT2DISK_H
 
+#include "rscache_profile.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -35,7 +37,7 @@ struct RSCache_Dat2DiskArchive
 };
 
 /*
- * ## Tables are an epoch's property, not the container's
+ * ## Tables are a game's property, not the container's
  *
  * A dat2 cache addresses its contents by table id, but *what a table id means* is a
  * property of the branch the cache came from. The two branches this library reads
@@ -56,9 +58,9 @@ struct RSCache_Dat2DiskArchive
  *
  * So there are **three** enums here, and the split is deliberate:
  *
- *   RSCache_Dat2Table          — what a caller *wants* (a logical table), epoch-free.
+ *   RSCache_Dat2Table          — what a caller *wants* (a logical table), game-free.
  *   RSCache_Dat2OsrsDiskTable  — the on-disk ids an OldSchool cache uses.
- *   RSCache_Dat2Rs2DiskTable   — the on-disk ids a 643-era cache uses.
+ *   RSCache_Dat2Rs2DiskTable   — the on-disk ids an RS2 dat2 cache uses.
  *
  * Each disk enum is **complete and self-contained**: neither borrows a constant from
  * the other, even where the two happen to agree (the 0..15 block does, everywhere).
@@ -67,9 +69,9 @@ struct RSCache_Dat2DiskArchive
  * borrowed is one of the ones that diverge. Table 19 read through the wrong enum does
  * not fail; it decodes objs as worldmap data.
  *
- * Callers name a logical table and let RSCache_Dat2DiskTableForEpoch (or
- * RSCache_Dat2DiskTableId, which takes the epoch from the open disk) pick the id.
- * A logical table the epoch has no table for resolves to
+ * Callers name a logical table and let RSCache_Dat2DiskTableForGame (or
+ * RSCache_Dat2DiskTableId, which takes the game from the open disk's profile) pick
+ * the id. A logical table the game has no table for resolves to
  * RSCACHE_DAT2_DISK_TABLE_ABSENT, which is a load that must not be attempted rather
  * than one that fails.
  *
@@ -201,25 +203,25 @@ enum RSCache_Dat2Rs2DiskTable
 #define RSCACHE_DAT2_DISK_TABLE_ABSENT (-1)
 
 /**
- * One past the highest addressable table id, across every epoch — the bound for
+ * One past the highest addressable table id, across every game — the bound for
  * anything indexed by table id, and for RSCache_Dat2DiskIsValidTableId.
  *
- * Deliberately not a per-epoch count: it sizes arrays and validates ids, neither of
+ * Deliberately not a per-game count: it sizes arrays and validates ids, neither of
  * which should change with the cache that happens to be open. 36 is the highest idx
  * file any cache in-tree ships (cache.rs643's idx36).
  */
 #define RSCACHE_DAT2_DISK_TABLE_CAPACITY 37
 
 /**
- * The on-disk table id `table` has in `epoch` (an enum RSCache_Epoch), or
- * RSCACHE_DAT2_DISK_TABLE_ABSENT when that epoch has no such table.
+ * The on-disk table id `table` has for `game` (an enum RSCache_Game), or
+ * RSCACHE_DAT2_DISK_TABLE_ABSENT when that game has no such table.
  *
- * RSCACHE_EPOCH_DAT1_CLASSIC has no dat2 tables at all and resolves to ABSENT for
- * everything: a dat1 cache is a different container, read through dat1disk.h.
+ * RSCACHE_GAME_UNSET / anything other than OLDSCHOOL or RS2 resolves to ABSENT:
+ * a dat1 cache is a different container, read through dat1disk.h.
  */
 int
-RSCache_Dat2DiskTableForEpoch(
-    int epoch,
+RSCache_Dat2DiskTableForGame(
+    int game,
     enum RSCache_Dat2Table table);
 
 /**
@@ -265,33 +267,40 @@ struct RSCache_Dat2Disk
     char* directory;
     struct RSCache_ReferenceTable* tables[RSCACHE_DAT2_DISK_TABLE_CAPACITY];
     FILE* dat2_file;
-    /** enum RSCache_Epoch — which branch's table layout this cache uses.
-     *  RSCACHE_EPOCH_OSRS until a caller says otherwise; see
-     *  RSCache_Dat2DiskSetEpoch. */
-    int epoch;
+    /** Stated identity. game/revision drive table ids and the map XTEA gate.
+     *  Unset (ProfileZero) until RSCache_Dat2DiskSetProfile. */
+    struct RSCache profile;
+    int profile_set;
 };
 
 bool
 RSCache_Dat2DiskIsValidTableId(int table_id);
 
 /**
- * Declare which branch this cache came from, so table lookups through
- * RSCache_Dat2DiskTableId resolve to that branch's ids.
+ * Declare which cache this disk is reading, so table lookups through
+ * RSCache_Dat2DiskTableId resolve to that branch's ids and map loaders know
+ * whether lX_Z archives are XTEA-encrypted.
  *
- * Stated, never detected — the same rule as RSCache.epoch, and for the same reason:
- * 643 and early-OldSchool caches are indistinguishable by their reference-table
- * revisions. A disk opened without this call is treated as OldSchool.
+ * Stated, never detected — the same rule as RSCache identity, and for the same
+ * reason: RS2 and early-OldSchool caches are indistinguishable by their
+ * reference-table revisions. A disk opened without this call has no table ids
+ * to offer (ABSENT) and MapLocsEncrypted must not be asked.
  *
- * Only affects id *resolution*. Opening a cache reads whichever idx files are present
- * regardless of epoch, so this may be called at any point after the open.
+ * Only affects id *resolution* and XTEA. Opening a cache reads whichever idx
+ * files are present regardless of game, so this may be called at any point after
+ * the open.
  */
 void
-RSCache_Dat2DiskSetEpoch(
+RSCache_Dat2DiskSetProfile(
     struct RSCache_Dat2Disk* disk,
-    int epoch);
+    const struct RSCache* profile);
+
+/** The profile identity this disk was told, or NULL if SetProfile was never called. */
+const struct RSCache*
+RSCache_Dat2DiskProfile(const struct RSCache_Dat2Disk* disk);
 
 /** The on-disk id `table` has in this cache, or RSCACHE_DAT2_DISK_TABLE_ABSENT.
- *  A NULL disk answers as OldSchool. */
+ *  A NULL / unset disk answers ABSENT. */
 int
 RSCache_Dat2DiskTableId(
     const struct RSCache_Dat2Disk* disk,

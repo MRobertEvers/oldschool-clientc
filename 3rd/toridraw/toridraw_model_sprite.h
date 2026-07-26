@@ -10,6 +10,50 @@
 struct ToriDraw_Scene;
 struct ToriDraw_Sprite;
 
+/** Rigid transform + zoom used by interface model previews (inventory, IF). */
+struct ToriDraw_WidgetModelTransform
+{
+    int var2;
+    int var3;
+    int var5;
+    int var6;
+    int var7;
+    int var10;
+    int var11;
+    int var12;
+    int var13;
+    int var14;
+    int var15;
+    int var16;
+    int var17;
+    int zoom2d;
+    int zoom3d;
+    bool orthographic;
+};
+
+void
+ToriDraw_WidgetModelTransformInit(
+    struct ToriDraw_WidgetModelTransform* xf,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int orientation,
+    int model_offset,
+    int model_center_y,
+    bool orthographic,
+    bool fixed_zoom);
+
+/** Orthographic sprite extents + blit offsets; perspective path does not need them. */
+bool
+ToriDraw_WidgetModelBounds(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_WidgetModelTransform const* xf,
+    int* out_width,
+    int* out_height,
+    int* out_dx,
+    int* out_dy);
+
 /** Result of extents model raster: tight sprite plus center-relative blit origin. */
 struct ToriDraw_ModelExtentsRaster
 {

@@ -1046,26 +1046,10 @@ RSCache_Dat2ConfigSequenceEncode(
 }
 
 static void
-decode_sequence(
+decode_sequence_codec(
     struct RSCache_Dat2ConfigSequence* def,
-    int revision,
+    int codec_version,
     struct RSCache_Buffer* buffer);
-
-struct RSCache_Dat2ConfigSequence*
-RSCache_Dat2ConfigSequenceNewDecode(
-    int revision,
-    char* data,
-    int data_size)
-{
-    struct RSCache_Dat2ConfigSequence* def = malloc(sizeof(struct RSCache_Dat2ConfigSequence));
-    memset(def, 0, sizeof(struct RSCache_Dat2ConfigSequence));
-
-    struct RSCache_Buffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-
-    decode_sequence(def, revision, &buffer);
-
-    return def;
-}
 
 void
 RSCache_Dat2ConfigSequenceFree(struct RSCache_Dat2ConfigSequence* def)
@@ -1118,17 +1102,6 @@ RSCache_Dat2ConfigSequenceFreeInplace(struct RSCache_Dat2ConfigSequence* def)
     }
 }
 
-void
-RSCache_Dat2ConfigSequenceDecodeInplace(
-    struct RSCache_Dat2ConfigSequence* sequence,
-    int revision,
-    char* data,
-    int buffer_size)
-{
-    struct RSCache_Buffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(buffer_size), .position = 0 };
-    decode_sequence(sequence, revision, &buffer);
-}
-
 static void
 decode_sequence_codec(
     struct RSCache_Dat2ConfigSequence* def,
@@ -1152,6 +1125,7 @@ decode_sequence_codec(
 int
 RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache)
 {
+    assert(cache);
     /* Newest layout when nothing identifies the cache: every dat2 cache the
      * client ships decodes as v3, and a modern archive revision (a unix
      * timestamp) sits far above both thresholds anyway. */
@@ -1174,23 +1148,24 @@ RSCache_Dat2ConfigSequenceDecodeProfile(
     char* data,
     int buffer_size)
 {
+    assert(cache);
     struct RSCache_Buffer buffer = {
         .data = (uint8_t*)(data), .size = (uint32_t)(buffer_size), .position = 0
     };
     decode_sequence_codec(sequence, RSCache_Dat2ConfigSequenceCodecVersion(cache), &buffer);
 }
 
-/* Retained entry point: callers that only have the sequence group's JS5 archive
- * revision. Routes through the profile so the era ladder lives in one place. */
-static void
-decode_sequence(
-    struct RSCache_Dat2ConfigSequence* def,
-    int revision,
-    struct RSCache_Buffer* buffer)
+struct RSCache_Dat2ConfigSequence*
+RSCache_Dat2ConfigSequenceNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size)
 {
-    struct RSCache cache = RSCache_ProfileZero();
-    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_SEQUENCE, revision);
-    decode_sequence_codec(def, RSCache_Dat2ConfigSequenceCodecVersion(&cache), buffer);
+    assert(cache);
+    struct RSCache_Dat2ConfigSequence* def = malloc(sizeof(struct RSCache_Dat2ConfigSequence));
+    memset(def, 0, sizeof(struct RSCache_Dat2ConfigSequence));
+    RSCache_Dat2ConfigSequenceDecodeProfile(def, cache, data, data_size);
+    return def;
 }
 
 static void

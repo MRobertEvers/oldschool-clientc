@@ -1060,6 +1060,13 @@ task_cs2_run_new(
     }
 
     PT_INIT(&self->pt);
+    if( getenv("TORIRS_CC_DEBUG") )
+        fprintf(
+            stderr,
+            "CS2RUN script=%d com=%d|%d\n",
+            script_id,
+            (active_component_id >> 16) & 0xffff,
+            active_component_id & 0xffff);
     return &self->task;
 }
 

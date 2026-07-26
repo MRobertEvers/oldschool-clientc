@@ -32,6 +32,9 @@
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
 
+struct ToriRS_Frame;
+struct ToriRS_PickHits;
+
 #include <stdint.h>
 
 struct World;
@@ -90,14 +93,20 @@ struct AppConfig
     char const* script_dir;
     int interface_id;
     enum AppCacheKind cache_kind;
+    /** Cache identity from [cache:boot]. All four stated; used by
+     *  RSCache_ProfileForIdentity. cache_identity_set is 0 until ApplyToConfig. */
+    int cache_game;
+    int cache_epoch;
+    int cache_revision;
+    uint32_t cache_quirks;
+    int cache_identity_set;
     /** Map square to spawn on when nothing else selects one. Both -1 = use the client
      *  default (50,50). Set from the manifest `[cache:boot] spawn`; TORIRS_WORLD_MAP still
      *  overrides it, and a server REBUILD_NORMAL overrides both.
      *
-     *  This exists because 50,50 is not universally loadable: a cache carries XTEA keys only
-     *  for the squares it was dumped with, and an unkeyed square yields terrain (which is not
-     *  encrypted) with **zero locs** — ground and no scenery, which reads as a renderer bug
-     *  rather than missing data. */
+     *  This exists because 50,50 is not universally loadable: a keyed cache carries XTEA
+     *  keys only for the squares it was dumped with, and an unkeyed square on a keyed
+     *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
     /** RevConfig layout INI. When set, the tree is built from it instead of
@@ -745,6 +754,29 @@ App_Render(
     int* pixels,
     int width,
     int height);
+
+/**
+ * Build a ToriRS_Frame for the current emit/world state (no rasterization).
+ * Returns false when the app is still booting (caller should draw a boot bar).
+ */
+bool
+App_BuildFrame(
+    struct App* app,
+    struct ToriRS_Frame* frame,
+    int width,
+    int height);
+
+/** Classify render-time pick hits into the world pickset / hover tile. */
+void
+App_PickFinish(
+    struct App* app,
+    struct ToriRS_PickHits const* hits);
+
+/** True while APP_STATE_BOOTING; optionally returns boot_progress 0..100. */
+bool
+App_IsBooting(
+    struct App* app,
+    int* out_progress);
 
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int

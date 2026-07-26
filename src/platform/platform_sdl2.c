@@ -23,6 +23,7 @@ struct PlatformSDL2
      * interface), so it no longer quits by default. TORIRS_ESC_QUIT=1 restores
      * the old behaviour for headless and dev runs. */
     bool esc_quits;
+    bool use_opengl;
 };
 
 static enum LibToriRS_KeyCode
@@ -401,7 +402,75 @@ PlatformSDL2_Init(
     platform->width = width;
     platform->height = height;
     platform->quit = false;
+    platform->use_opengl = false;
     return true;
+}
+
+bool
+PlatformSDL2_InitForOpenGL3(
+    struct PlatformSDL2* platform,
+    int width,
+    int height,
+    char const* title)
+{
+    assert(platform);
+    assert(width > 0 && height > 0);
+
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
+
+#if defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    platform->window = SDL_CreateWindow(
+        title ? title : "torirs",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        width,
+        height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        fprintf(stderr, "SDL_CreateWindow (OpenGL) failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    /* No SDL_Renderer / streaming texture / CPU pixel buffer — GL draws directly. */
+    platform->renderer = NULL;
+    platform->texture = NULL;
+    platform->pixels = NULL;
+
+    SDL_StartTextInput();
+
+    platform->width = width;
+    platform->height = height;
+    platform->quit = false;
+    platform->use_opengl = true;
+    return true;
+}
+
+struct SDL_Window*
+PlatformSDL2_Window(struct PlatformSDL2* platform)
+{
+    assert(platform);
+    return platform->window;
 }
 
 void
@@ -667,6 +736,7 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
     int y;
 
     assert(platform);
+    assert(!platform->use_opengl);
     assert(platform->renderer);
     assert(platform->texture);
     assert(platform->pixels);
@@ -695,6 +765,15 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
     SDL_RenderClear(platform->renderer);
     SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dst);
     SDL_RenderPresent(platform->renderer);
+}
+
+void
+PlatformSDL2_PresentGL(struct PlatformSDL2* platform)
+{
+    assert(platform);
+    assert(platform->use_opengl);
+    assert(platform->window);
+    SDL_GL_SwapWindow(platform->window);
 }
 
 uint64_t

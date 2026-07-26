@@ -166,8 +166,10 @@ Task_Dat2SequenceLoad_Run(
             if( fl && self->seq_id >= 0 && self->seq_id < fl->file_count &&
                 fl->files[self->seq_id] )
             {
-                self->seq = RSCache_Dat2ConfigSequenceNewDecode(
-                    archive->revision, fl->files[self->seq_id], fl->file_sizes[self->seq_id]);
+                self->seq = RSCache_Dat2ConfigSequenceNewDecodeProfile(
+                    CacheProvider_Profile(self->provider),
+                    fl->files[self->seq_id],
+                    fl->file_sizes[self->seq_id]);
             }
             if( fl )
                 RSCache_FileListFree(fl);

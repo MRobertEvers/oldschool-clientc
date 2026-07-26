@@ -3,6 +3,7 @@
 #include "app.h"
 
 #include "3rd/ini/ini.h"
+#include "3rd/rscache/src/rscache_profile.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,14 +76,54 @@ bm_set_kv(
     switch( section )
     {
     case BM_SECTION_CACHE:
-        if( strcmp(key, "kind") == 0 )
+        if( strcmp(key, "epoch") == 0 )
         {
-            if( strcmp(value, "dat1") == 0 )
-                bm->cache_kind = APP_CACHE_DAT1;
-            else if( strcmp(value, "dat2") == 0 )
-                bm->cache_kind = APP_CACHE_DAT2;
-            else
-                fprintf(stderr, "bootmanifest: [cache] kind must be dat1|dat2, got '%s'\n", value);
+            int epoch = RSCache_EpochFromName(value);
+            if( epoch == RSCACHE_EPOCH_UNSET )
+            {
+                fprintf(stderr, "bootmanifest: [cache] epoch must be dat1|dat2, got '%s'\n", value);
+                return;
+            }
+            bm->cache_epoch = epoch;
+            bm->cache_kind = epoch == RSCACHE_EPOCH_DAT1 ? APP_CACHE_DAT1 : APP_CACHE_DAT2;
+            return;
+        }
+        if( strcmp(key, "game") == 0 )
+        {
+            int game = RSCache_GameFromName(value);
+            if( game == RSCACHE_GAME_UNSET )
+            {
+                fprintf(
+                    stderr, "bootmanifest: [cache] game must be rs2|oldschool, got '%s'\n", value);
+                return;
+            }
+            bm->cache_game = game;
+            return;
+        }
+        if( strcmp(key, "revision") == 0 )
+        {
+            int rev = atoi(value);
+            if( rev <= 0 )
+            {
+                fprintf(
+                    stderr, "bootmanifest: [cache] revision must be a positive int, got '%s'\n",
+                    value);
+                return;
+            }
+            bm->cache_revision = rev;
+            return;
+        }
+        if( strcmp(key, "quirks") == 0 )
+        {
+            uint32_t quirks = RSCACHE_QUIRK_NONE;
+            if( !RSCache_QuirksFromList(value, &quirks) )
+            {
+                fprintf(
+                    stderr, "bootmanifest: [cache] quirks must be none|kronos, got '%s'\n", value);
+                return;
+            }
+            bm->cache_quirks = quirks;
+            bm->cache_quirks_set = 1;
             return;
         }
         if( strcmp(key, "dir") == 0 )
@@ -221,7 +262,10 @@ int
 BootManifest_LoadFile(struct BootManifest* bm, char const* path)
 {
     memset(bm, 0, sizeof(*bm));
-    bm->cache_kind = -1; /* unset sentinel */
+    bm->cache_kind = -1;
+    bm->cache_game = RSCACHE_GAME_UNSET;
+    bm->cache_epoch = RSCACHE_EPOCH_UNSET;
+    bm->cache_revision = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
 
@@ -299,6 +343,30 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
             reader.offset);
         return -1;
     }
+
+    /* All four identity keys are required. Missing one is user input, not an
+     * assert — report and fail the load. */
+    if( bm->cache_epoch == RSCACHE_EPOCH_UNSET )
+    {
+        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] epoch=\n", path);
+        return -1;
+    }
+    if( bm->cache_game == RSCACHE_GAME_UNSET )
+    {
+        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] game=\n", path);
+        return -1;
+    }
+    if( bm->cache_revision < 0 )
+    {
+        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] revision=\n", path);
+        return -1;
+    }
+    if( !bm->cache_quirks_set )
+    {
+        fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] quirks=\n", path);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -309,6 +377,16 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->cache_kind = (enum AppCacheKind)bm->cache_kind;
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
+
+    if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
+        bm->cache_revision >= 0 )
+    {
+        cfg->cache_game = bm->cache_game;
+        cfg->cache_epoch = bm->cache_epoch;
+        cfg->cache_revision = bm->cache_revision;
+        cfg->cache_quirks = bm->cache_quirks;
+        cfg->cache_identity_set = 1;
+    }
 
     if( bm->rev_name[0] )
         cfg->rev_name = bm->rev_name;

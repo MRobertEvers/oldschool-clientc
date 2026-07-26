@@ -650,33 +650,43 @@ static const int DAT2_TABLE_IDS_RS2[RSCACHE_DAT2_TABLE_COUNT] = {
 };
 
 int
-RSCache_Dat2DiskTableForEpoch(
-    int epoch,
+RSCache_Dat2DiskTableForGame(
+    int game,
     enum RSCache_Dat2Table table)
 {
     if( table < 0 || table >= RSCACHE_DAT2_TABLE_COUNT )
         return RSCACHE_DAT2_DISK_TABLE_ABSENT;
 
-    switch( epoch )
+    switch( game )
     {
-    case RSCACHE_EPOCH_643:
+    case RSCACHE_GAME_RS2:
         return DAT2_TABLE_IDS_RS2[table];
-    case RSCACHE_EPOCH_OSRS:
+    case RSCACHE_GAME_OLDSCHOOL:
         return DAT2_TABLE_IDS_OSRS[table];
     default:
-        /* dat1 has no dat2 tables; an unknown epoch has no ids to offer either. */
+        /* Unset / dat1 has no dat2 tables. */
         return RSCACHE_DAT2_DISK_TABLE_ABSENT;
     }
 }
 
 void
-RSCache_Dat2DiskSetEpoch(
+RSCache_Dat2DiskSetProfile(
     struct RSCache_Dat2Disk* disk,
-    int epoch)
+    const struct RSCache* profile)
 {
-    if( !disk )
-        return;
-    disk->epoch = epoch;
+    assert(disk);
+    assert(profile);
+    assert(RSCache_ProfileIsIdentified(profile));
+    disk->profile = *profile;
+    disk->profile_set = 1;
+}
+
+const struct RSCache*
+RSCache_Dat2DiskProfile(const struct RSCache_Dat2Disk* disk)
+{
+    if( !disk || !disk->profile_set )
+        return NULL;
+    return &disk->profile;
 }
 
 int
@@ -684,7 +694,8 @@ RSCache_Dat2DiskTableId(
     const struct RSCache_Dat2Disk* disk,
     enum RSCache_Dat2Table table)
 {
-    return RSCache_Dat2DiskTableForEpoch(disk ? disk->epoch : RSCACHE_EPOCH_OSRS, table);
+    int game = disk && disk->profile_set ? disk->profile.game : RSCACHE_GAME_UNSET;
+    return RSCache_Dat2DiskTableForGame(game, table);
 }
 
 /*
@@ -772,9 +783,8 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory)
         return NULL;
 
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
-    /* Epoch 0 is dat1, which a dat2 disk can never be. State the default rather than
-     * inherit it from the memset. */
-    disk->epoch = RSCACHE_EPOCH_OSRS;
+    disk->profile = RSCache_ProfileZero();
+    disk->profile_set = 0;
     disk->directory = strdup(directory);
     if( !disk->directory )
     {
@@ -804,7 +814,8 @@ RSCache_Dat2DiskNewUninitialized(void)
     if( !disk )
         return NULL;
     memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
-    disk->epoch = RSCACHE_EPOCH_OSRS;
+    disk->profile = RSCache_ProfileZero();
+    disk->profile_set = 0;
     return disk;
 }
 

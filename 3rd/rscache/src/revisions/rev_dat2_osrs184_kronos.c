@@ -25,10 +25,9 @@ RSCache_ProfileDat2Osrs184Kronos(void)
     struct RSCache cache = RSCache_ProfileZero();
 
     cache.game = RSCACHE_GAME_OLDSCHOOL;
-    cache.container = RSCACHE_CONTAINER_DAT2;
-    cache.epoch = RSCACHE_EPOCH_OSRS;
-    cache.version = 184;
-    cache.quirks |= RSCACHE_QUIRK_KRONOS;
+    cache.epoch = RSCACHE_EPOCH_DAT2;
+    cache.revision = 184;
+    cache.quirks = RSCACHE_QUIRK_KRONOS;
 
     cache.codec[RSCACHE_TYPE_SEQUENCE] = RSCACHE_CODEC_SEQUENCE_V1;
 

@@ -244,12 +244,13 @@ read_decode(
 int
 RSCache_MapTerrainFlags(const struct RSCache* cache)
 {
+    assert(cache);
     /*
      * The tile attribute opcode and the overlay id widened from u8 to u16 at
      * **OldSchool revision 209** — rs-map-viewer's SceneBuilder gates on exactly
      * `game === "oldschool" && revision >= 209`.
      *
-     * It is an era difference, not a container one. This used to read
+     * It is a lineage difference, not a container one. This used to read
      * `IsDat1 ? U8 : U16`, which handed the wide layout to *every* dat2 cache. A
      * pre-209 dat2 square then desyncs on its very first tile — the u16 attribute
      * read swallows the following tile's opcode — and because the loop only ever
@@ -258,22 +259,31 @@ RSCache_MapTerrainFlags(const struct RSCache* cache)
      * underlay or overlay for 643, against 4,481 for a working OSRS square, so
      * both the 3D scene and the terrain-baked minimap came out blank.
      *
-     * 643 must take the narrow branch even though 643 > 209 numerically: it is not
-     * on the OldSchool revision line at all. That is the same cross-lineage trap as
-     * D16, which is why the epoch is tested first and RevisionAtLeastOsrs — whose
-     * name carries the invariant — is only reached for an OSRS-epoch cache.
+     * Non-OSRS (dat1 classic and RS2 dat2) must take the narrow branch even when
+     * their revision number clears 209: they are not on the OldSchool line.
+     * That is the D16/D20 trap; RevisionAtLeastOsrs is only reached for OSRS.
      */
-    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
-        return RSCACHE_MAP_TERRAIN_DECODE_U8;
-    if( RSCache_IsDat1(cache) )
+    if( !RSCache_IsOsrs(cache) )
         return RSCACHE_MAP_TERRAIN_DECODE_U8;
 
-    /* Default true for an unidentified dat2 cache: that preserves the previous
+    /* Default true for an unidentified OSRS cache: that preserves the previous
      * behaviour for the OSRS corpus, all of which is well past 209. */
     return RSCache_RevisionAtLeastOsrs(
                cache, RSCACHE_TYPE_MAP_TERRAIN, 209, RSCACHE_GROUP_REVISION_UNKNOWN, true)
                ? RSCACHE_MAP_TERRAIN_DECODE_U16
                : RSCACHE_MAP_TERRAIN_DECODE_U8;
+}
+
+bool
+RSCache_MapLocsEncrypted(const struct RSCache* cache)
+{
+    assert(cache);
+    /* Non-OSRS (RS2) always encrypts. OSRS encrypts only below 237.
+     * default_when_unknown=false keeps an unidentified OSRS cache on the keyed
+     * path, which is what every pre-237 cache needs. */
+    return !RSCache_IsOsrs(cache) ||
+           !RSCache_RevisionAtLeastOsrs(
+               cache, RSCACHE_TYPE_MAP_LOCS, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false);
 }
 
 struct RSCache_MapTerrain*
@@ -464,16 +474,24 @@ RSCache_MapLocsNewFromCache(
     int map_x,
     int map_z)
 {
+    assert(cache);
+    const struct RSCache* profile = RSCache_Dat2DiskProfile(cache);
+    assert(profile && "Dat2DiskSetProfile required before map loc load");
+
     int archive_id = dat2_map_loc_id(cache, map_x, map_z);
     struct RSCache_MapLocs* map_locs = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
     int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
-    uint32_t* xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
+    uint32_t* xtea_key = NULL;
 
-    if( !xtea_key )
+    if( RSCache_MapLocsEncrypted(profile) )
     {
-        printf("Failed to load xtea key for map %d, %d\n", map_x, map_z);
-        goto error;
+        xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
+        if( !xtea_key )
+        {
+            printf("Failed to load xtea key for map %d, %d\n", map_x, map_z);
+            goto error;
+        }
     }
 
     archive =
@@ -599,16 +617,23 @@ RSCache_MapLocsArchiveNewLoad(
     int map_x,
     int map_z)
 {
+    assert(cache);
+    const struct RSCache* profile = RSCache_Dat2DiskProfile(cache);
+    assert(profile && "Dat2DiskSetProfile required before map loc load");
+
     uint32_t* xtea_key = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
 
     int archive_id = dat2_map_loc_id(cache, map_x, map_z);
     int maps_table = RSCache_Dat2DiskTableId(cache, RSCACHE_DAT2_TABLE_MAPS);
-    xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
-    if( !xtea_key )
+    if( RSCache_MapLocsEncrypted(profile) )
     {
-        printf("Failed to load xtea key for map %d, %d\n", map_x, map_z);
-        goto error;
+        xtea_key = RSCache_Dat2DiskArchiveXteaKey(cache, maps_table, archive_id);
+        if( !xtea_key )
+        {
+            printf("Failed to load xtea key for map %d, %d\n", map_x, map_z);
+            goto error;
+        }
     }
 
     archive =

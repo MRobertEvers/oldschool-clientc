@@ -27,6 +27,11 @@ test_load_fields(void)
     CHECK(BootManifest_LoadFile(&bm, FIXTURE) == 0);
 
     CHECK(bm.cache_kind == APP_CACHE_DAT2);
+    CHECK(bm.cache_epoch == 2); /* RSCACHE_EPOCH_DAT2 */
+    CHECK(bm.cache_game == 1);  /* RSCACHE_GAME_OLDSCHOOL */
+    CHECK(bm.cache_revision == 233);
+    CHECK(bm.cache_quirks_set == 1);
+    CHECK(bm.cache_quirks == 0);
     CHECK(strcmp(bm.cache_dir, "bootmanifest/test/some/cache") == 0);
     CHECK(bm.spawn_x == 12);
     CHECK(bm.spawn_z == 34);
@@ -61,6 +66,8 @@ test_apply_to_config(void)
     BootManifest_ApplyToConfig(&bm, &cfg);
 
     CHECK(cfg.cache_kind == APP_CACHE_DAT2);
+    CHECK(cfg.cache_identity_set == 1);
+    CHECK(cfg.cache_revision == 233);
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "bootmanifest/test/some/cache") == 0);
     CHECK(cfg.rev_name && strcmp(cfg.rev_name, "xrsps233") == 0);
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
@@ -98,12 +105,20 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
 }
 
+static void
+test_required_identity_keys(void)
+{
+    struct BootManifest bm;
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_missing_epoch.ini") != 0);
+}
+
 int
 main(void)
 {
     test_load_fields();
     test_apply_to_config();
     test_partial_apply_preserves_unset();
+    test_required_identity_keys();
 
     if( g_fail )
     {

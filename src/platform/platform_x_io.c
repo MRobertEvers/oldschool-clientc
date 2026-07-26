@@ -288,9 +288,9 @@ load_cache_item_dat2(
     {
         fprintf(
             stderr,
-            "dat2: logical table %d has no table in this cache's branch (epoch %d)\n",
+            "dat2: logical table %d has no table in this cache's branch (game %s)\n",
             logical_table,
-            px->dat2_disk->epoch);
+            RSCache_GameName(px->dat2_disk->profile.game));
         item->error_code = -1;
         return -1;
     }
@@ -323,9 +323,16 @@ load_cache_item_dat2(
 
     {
         uint32_t* xtea_key = NULL;
-        /* Loc (lX_Z) map archives are XTEA-encrypted; terrain (mX_Z) keys are null. */
+        /* Loc (lX_Z) map archives are XTEA-encrypted below OldSchool 237 (and
+         * always on RS2). Terrain (mX_Z) is never keyed. The identity gate —
+         * not the key file — decides; applying a key to plain data corrupts. */
         if( logical_table == RSCACHE_DAT2_TABLE_MAPS )
-            xtea_key = RSCache_Dat2DiskArchiveXteaKey(px->dat2_disk, table_id, archive_id);
+        {
+            const struct RSCache* profile = RSCache_Dat2DiskProfile(px->dat2_disk);
+            assert(profile && "Dat2DiskSetProfile required before map archive IO");
+            if( RSCache_MapLocsEncrypted(profile) )
+                xtea_key = RSCache_Dat2DiskArchiveXteaKey(px->dat2_disk, table_id, archive_id);
+        }
         archive = RSCache_Dat2DiskArchiveNewLoadDecrypted(
             px->dat2_disk, table_id, archive_id, xtea_key);
     }

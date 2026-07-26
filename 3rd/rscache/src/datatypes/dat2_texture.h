@@ -77,13 +77,6 @@ RSCache_Dat2TextureNewDecodeProfile(
     char* data,
     int length);
 
-/** Retained entry point: decode knowing only the textures group's archive
- *  revision. */
-struct RSCache_Dat2Texture*
-RSCache_Dat2TextureNewDecode(
-    int revision,
-    char* data,
-    int length);
 void
 RSCache_Dat2TextureFree(struct RSCache_Dat2Texture* texture);
 void

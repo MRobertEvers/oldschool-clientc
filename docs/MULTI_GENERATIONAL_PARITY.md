@@ -523,7 +523,10 @@ ever matters.
     group id (resolve `l{rx}_{ry}` / `m{rx}_{ry}` via the dat2 reference table)
     so keys land under the `(5, groupId)` the loader looks up — or a
     region-keyed `FindKey` variant. This also fixes the offline "0 locs" gap
-    (app.c:1352 reads `xteas.json`, absent from the xrsps cache).
+    (app.c used to require `xteas.json`, absent from the xrsps cache). **Bound:**
+    OldSchool still encrypts map locs at revision 233; the plain-storage gate is
+    ≥ 237 (`RSCache_MapLocsEncrypted`). The region-keyed loader work item is
+    unaffected — rev 233 still needs those keys.
   - **Revised plan**: merge Phase 2 into Phase 3 as "world entry + entity sync":
     write the modern GPI/GNI readers (`xrsps_player_info.c`/`xrsps_npc_info.c`),
     derive the scene base from the GPI header (the `scene_base` slot is already
@@ -562,10 +565,13 @@ ever matters.
     energy/weight + a welcome MESSAGE_GAME — then idles.
   - **Map XTEA**: the client loads keys from the cache's own `xteas.json`
     (array form `{archive:5, group, key[4]}`), which `RSCache_XteaConfigLoadKeys`
-    already reads and `FindKey(5, archiveId)` already matches. The correct cache
-    is `cache.osrs230/` (has xteas.json), NOT the xrsps keys.json cache — so
-    REBUILD_NORMAL keys are only needed for instanced regions.
-    `manifest_osrs230.ini` points at `cache.osrs230`.
+    already reads and `FindKey(5, archiveId)` already matches — **and only when
+    `RSCache_MapLocsEncrypted` says keys are required** (OldSchool below 237;
+    RS2 always). The correct cache is `cache.osrs230/` (has xteas.json), NOT the
+    xrsps keys.json cache — so REBUILD_NORMAL keys are only needed for instanced
+    regions. `manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
+    (`manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file
+    is shipped or applied.
   - **Verified end-to-end**: `mock230` + `torirs --manifest manifest_osrs230.ini`
     → 230 login handshake (RSA/ISAAC) completes, client reaches GAME, parses
     REBUILD_NORMAL (zoneX=402 zoneZ=402), triggers the existing

@@ -59,6 +59,17 @@ notify_change(
         mgr->change_fn(mgr->change_userdata, varp_id);
 }
 
+/* Server-applied update. Distinct from notify_change: only these reach the
+ * widget var-transmit dispatch (see VarPManager_ServerUpdateFn). */
+static void
+notify_server_update(
+    struct VarPManager* mgr,
+    int varp_id)
+{
+    if( mgr->server_update_fn )
+        mgr->server_update_fn(mgr->server_update_userdata, varp_id);
+}
+
 static bool
 alloc_var_arrays(
     struct VarPManager* mgr,
@@ -147,6 +158,11 @@ apply_varp_value(
         mgr->var[variable] = value;
         notify_change(mgr, variable);
     }
+
+    /* Outside the equality check on purpose: the reference records the id in its
+     * changed-varp ring for every server update, so a redundant resend still
+     * re-runs the hooks that list it. */
+    notify_server_update(mgr, variable);
 }
 
 static void
@@ -524,6 +540,7 @@ VarPManager_ApplySync(struct VarPManager* mgr)
         {
             mgr->var[i] = mgr->var_serv[i];
             notify_change(mgr, i);
+            notify_server_update(mgr, i);
         }
     }
 }

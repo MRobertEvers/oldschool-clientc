@@ -122,17 +122,6 @@ RSCache_Dat2TextureNewDecodeProfile(
     return RSCache_Dat2TextureDecodeInplace(def, data, length);
 }
 
-struct RSCache_Dat2Texture*
-RSCache_Dat2TextureNewDecode(
-    int revision,
-    char* data,
-    int length)
-{
-    struct RSCache cache = RSCache_ProfileZero();
-    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_TEXTURE, revision);
-    return RSCache_Dat2TextureNewDecodeProfile(&cache, data, length);
-}
-
 void
 RSCache_Dat2TextureFree(struct RSCache_Dat2Texture* texture)
 {

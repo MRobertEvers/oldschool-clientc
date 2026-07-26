@@ -252,6 +252,7 @@ CacheProvider_SetProfile(
 {
     assert(provider);
     assert(profile);
+    assert(RSCache_ProfileIsIdentified(profile));
     provider->profile = *profile;
 }
 
@@ -260,9 +261,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
-    /* "OSRS dat2, revision unknown" until the boot path says otherwise. Every flag
-     * function treats an unknown revision as its documented default, so a provider
-     * whose profile was never set decodes exactly as it did before profiles existed. */
+    /* Unset until the boot path calls CacheProvider_SetProfile. Decoding through
+     * CacheProvider_Profile before that asserts. */
     provider->profile = RSCache_ProfileZero();
 
     provider->model_cache = cache_provider_hmap_new(

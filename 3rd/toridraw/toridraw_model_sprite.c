@@ -16,29 +16,9 @@
 #define WIDGET_MODEL_ZOOM3D 512
 #define WIDGET_MODEL_CLIP_X -5000
 
-struct WidgetModelTransform
-{
-    int var2;
-    int var3;
-    int var5;
-    int var6;
-    int var7;
-    int var10;
-    int var11;
-    int var12;
-    int var13;
-    int var14;
-    int var15;
-    int var16;
-    int var17;
-    int zoom2d;
-    int zoom3d;
-    bool orthographic;
-};
-
-static void
-widget_model_init_transform(
-    struct WidgetModelTransform* xf,
+void
+ToriDraw_WidgetModelTransformInit(
+    struct ToriDraw_WidgetModelTransform* xf,
     int zoom,
     int xan,
     int yan,
@@ -77,7 +57,7 @@ widget_model_init_transform(
 
 static void
 widget_model_transform_vertex(
-    const struct WidgetModelTransform* xf,
+    const struct ToriDraw_WidgetModelTransform* xf,
     int vx,
     int vy,
     int vz0,
@@ -118,10 +98,10 @@ widget_model_transform_vertex(
     *out_cz = vz0;
 }
 
-static bool
-widget_model_project_bounds(
+bool
+ToriDraw_WidgetModelBounds(
     struct ToriDraw_ModelHandle hnd,
-    const struct WidgetModelTransform* xf,
+    const struct ToriDraw_WidgetModelTransform* xf,
     int* out_width,
     int* out_height,
     int* out_dx,
@@ -205,7 +185,7 @@ static bool
 widget_model_project_vertices_objrender(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
-    const struct WidgetModelTransform* xf,
+    const struct ToriDraw_WidgetModelTransform* xf,
     int origin_x,
     int origin_y,
     int* out_min_x,
@@ -277,7 +257,7 @@ static bool
 widget_model_project_vertices(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
-    const struct WidgetModelTransform* xf,
+    const struct ToriDraw_WidgetModelTransform* xf,
     int sw,
     int sh,
     int dx,
@@ -380,8 +360,8 @@ ToriDraw_RenderModelExtentsAtWidget(
     if( zoom <= 0 )
         zoom = 2000;
 
-    struct WidgetModelTransform xf;
-    widget_model_init_transform(
+    struct ToriDraw_WidgetModelTransform xf;
+    ToriDraw_WidgetModelTransformInit(
         &xf,
         zoom,
         xan,
@@ -447,7 +427,7 @@ ToriDraw_RenderModelExtentsAtWidget(
     {
         int blit_offset_x = 0;
         int blit_offset_y = 0;
-        if( !widget_model_project_bounds(hnd, &xf, &sw, &sh, &blit_offset_x, &blit_offset_y) )
+        if( !ToriDraw_WidgetModelBounds(hnd, &xf, &sw, &sh, &blit_offset_x, &blit_offset_y) )
             return false;
 
         int bw = widget_w > 0 ? widget_w : sw;
@@ -600,15 +580,15 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     if( zoom <= 0 )
         zoom = 2000;
 
-    struct WidgetModelTransform xf;
-    widget_model_init_transform(
+    struct ToriDraw_WidgetModelTransform xf;
+    ToriDraw_WidgetModelTransformInit(
         &xf, zoom, xan, yan, zan, offset_x, offset_y, 0, orthographic, false);
 
     int width = 0;
     int height = 0;
     int blit_offset_x = 0;
     int blit_offset_y = 0;
-    if( !widget_model_project_bounds(hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
+    if( !ToriDraw_WidgetModelBounds(hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
         return result;
 
     scene->active_hnd = hnd;

@@ -990,8 +990,10 @@ dat2_buildcache_npctypes_init_from_filelist(
         if( dat2_buildcache_npctype_get(dat2_buildcache, id) )
             continue;
 
-        npc = RSCache_Dat2ConfigNpcNewDecode(
-            archive->revision, filelist->files[i], filelist->file_sizes[i]);
+        npc = RSCache_Dat2ConfigNpcNewDecodeProfile(
+            CacheProvider_Profile(&dat2_buildcache->base),
+            filelist->files[i],
+            filelist->file_sizes[i]);
         if( !npc )
             continue;
 
@@ -1268,7 +1270,7 @@ dat2_buildcache_locs_init_from_archive_based(
             "loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
             archive->revision,
             filelist->file_count,
-            RSCache_Dat2ConfigLocFlagsForRevision(archive->revision));
+            RSCache_Dat2ConfigLocFlags(CacheProvider_Profile(&dat2_buildcache->base)));
         for( size_t c = 0; c < sizeof(combos) / sizeof(combos[0]); c++ )
         {
             int exact = 0;
@@ -1410,11 +1412,8 @@ dat2_buildcache_underlays_init_from_archive(
     const int* wanted_ids,
     int wanted_count)
 {
-    /* RS2 (643) flo records conflict with the OSRS reading on opcode 3, so the era has to
-     * be stated rather than inferred from the opcodes present. */
-    int flo_flags = CacheProvider_Profile(&dat2_buildcache->base)->epoch == RSCACHE_EPOCH_643
-                        ? RSCACHE_CONFIG_FLO_DECODE_RS2
-                        : 0;
+    int flo_flags =
+        RSCache_Dat2ConfigFloFlags(CacheProvider_Profile(&dat2_buildcache->base));
     struct RSCache_FileList* filelist;
 
     assert(dat2_buildcache);
@@ -1528,11 +1527,8 @@ dat2_buildcache_overlays_init_from_archive(
     const int* wanted_ids,
     int wanted_count)
 {
-    /* RS2 (643) flo records conflict with the OSRS reading on opcode 3, so the era has to
-     * be stated rather than inferred from the opcodes present. */
-    int flo_flags = CacheProvider_Profile(&dat2_buildcache->base)->epoch == RSCACHE_EPOCH_643
-                        ? RSCACHE_CONFIG_FLO_DECODE_RS2
-                        : 0;
+    int flo_flags =
+        RSCache_Dat2ConfigFloFlags(CacheProvider_Profile(&dat2_buildcache->base));
     struct RSCache_FileList* filelist;
 
     assert(dat2_buildcache);
@@ -1667,8 +1663,10 @@ dat2_buildcache_textures_init_from_archive(
         if( dat2_buildcache_texture_get(dat2_buildcache, id) )
             continue;
 
-        texture = RSCache_Dat2TextureNewDecode(
-            archive->revision, filelist->files[i], filelist->file_sizes[i]);
+        texture = RSCache_Dat2TextureNewDecodeProfile(
+            CacheProvider_Profile(&dat2_buildcache->base),
+            filelist->files[i],
+            filelist->file_sizes[i]);
         if( !texture )
             continue;
 

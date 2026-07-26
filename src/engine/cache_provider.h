@@ -3,6 +3,7 @@
 
 #include "torirs_types.h"
 
+#include <assert.h>
 #include <hmap.h>
 #include <rscache.h>
 #include <stdbool.h>
@@ -64,8 +65,8 @@ struct CacheProvider
     struct HMap* dbindex_cache;
 
     /**
-     * Which cache this provider is reading: container, epoch, game revision and
-     * quirks, in the one value rscache's decoders take.
+     * Which cache this provider is reading: game, epoch, revision and quirks,
+     * in the one value rscache's decoders take.
      *
      * Set once at boot from the manifest (see CacheProvider_SetProfile) and read
      * wherever a decoder needs to know the era. Before this existed, era information
@@ -73,10 +74,9 @@ struct CacheProvider
      * record came from — a per-archive counter whose *units* changed between eras —
      * or as a raw flag constant written out at the call site.
      *
-     * Zeroed until set, which RSCache_ProfileZero defines as "OSRS dat2, revision
-     * unknown": every datatype's flag function then falls back to the branch observed
-     * to decode the local caches, so an unset profile degrades to today's behaviour
-     * rather than to nonsense.
+     * Unset until CacheProvider_SetProfile. CacheProvider_Profile asserts the
+     * identity is stated, so a provider used before SetProfile crashes instead of
+     * decoding as the wrong branch.
      */
     struct RSCache profile;
 };
@@ -87,10 +87,12 @@ CacheProvider_SetProfile(
     struct CacheProvider* provider,
     const struct RSCache* profile);
 
-/** The cache profile. Never NULL for a live provider. */
+/** The cache profile. Asserts identity is set. */
 static inline const struct RSCache*
 CacheProvider_Profile(const struct CacheProvider* provider)
 {
+    assert(provider);
+    assert(RSCache_ProfileIsIdentified(&provider->profile));
     return &provider->profile;
 }
 

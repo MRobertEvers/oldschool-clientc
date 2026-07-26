@@ -28,27 +28,17 @@ decode_loc(
 #define REV_LOC_OSRS_220_ARCHIVE_REV 2000
 
 int
-RSCache_Dat2ConfigLocFlagsForRevision(int revision)
-{
-    /* Retained entry point for callers holding only the loc group's archive
-     * revision. Routed through the profile so the era rule lives in one place. */
-    struct RSCache cache = RSCache_ProfileZero();
-    RSCache_ProfileSetGroupRevision(&cache, RSCACHE_TYPE_LOC, revision);
-    return RSCache_Dat2ConfigLocFlags(&cache);
-}
-
-int
 RSCache_Dat2ConfigLocCodecVersion(const struct RSCache* cache)
 {
     /* An explicit pin from the revision module wins — that is the point of the pin. */
-    int derived =
-        (cache && cache->epoch == RSCACHE_EPOCH_643) ? RSCACHE_CODEC_LOC_RS2 : RSCACHE_CODEC_LOC_OSRS;
+    int derived = RSCache_IsRs2Dat2(cache) ? RSCACHE_CODEC_LOC_RS2 : RSCACHE_CODEC_LOC_OSRS;
     return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_LOC, derived);
 }
 
 int
 RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
 {
+    assert(cache);
     int flags = RSCache_IsDat1(cache) ? RSCACHE_CONFIG_LOC_DECODE_DAT
                                       : RSCACHE_CONFIG_LOC_DECODE_DAT2;
 
@@ -81,26 +71,12 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
 }
 
 struct RSCache_Dat2ConfigLoc*
-RSCache_Dat2ConfigLocNewDecode(
-    int revision,
-    char* buffer,
-    int buffer_size)
-{
-    struct RSCache_Dat2ConfigLoc* loc = malloc(sizeof(struct RSCache_Dat2ConfigLoc));
-    assert(loc);
-    memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
-
-    decode_loc(loc, buffer, buffer_size, RSCache_Dat2ConfigLocFlagsForRevision(revision));
-
-    return loc;
-}
-
-struct RSCache_Dat2ConfigLoc*
 RSCache_Dat2ConfigLocNewDecodeProfile(
     const struct RSCache* cache,
     char* buffer,
     int buffer_size)
 {
+    assert(cache);
     struct RSCache_Dat2ConfigLoc* loc = malloc(sizeof(struct RSCache_Dat2ConfigLoc));
     assert(loc);
     memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));

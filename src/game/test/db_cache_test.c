@@ -96,6 +96,17 @@ main(void)
         printf("SKIP: could not open dat2 disk cache\n");
         return 0;
     }
+
+    struct RSCache profile;
+    if( !RSCache_ProfileByName("osrs230", &profile) )
+    {
+        printf("SKIP: osrs230 profile unavailable\n");
+        RSCache_Dat2DiskFree(disk);
+        return 0;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+
+    if( RSCache_MapLocsEncrypted(&profile) )
     {
         char xtea_path[1200];
         snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", CACHE_DIR);

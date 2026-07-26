@@ -185,9 +185,6 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     uint8_t* out,
     uint32_t out_capacity);
 
-/** Retained entry point: decode knowing only the npc group's archive revision. */
-struct RSCache_Dat2ConfigNpc*
-RSCache_Dat2ConfigNpcNewDecode(int revision, char* buffer, int buffer_size);
 void
 RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc);
 

@@ -490,20 +490,33 @@ the `.dat` size.
 ## The revision model
 
 Field layouts change between game revisions, and identifying "which layout" is the
-subtlest part of reading a cache.
+subtlest part of reading a cache. Identity is **stated, never detected**.
 
-### Game revision lineages are independent
+### Four load-bearing fields
 
-A manifest's `client_version` and the login handshake carry a **game revision**,
-but that number is **not one sequence**. There are three independent lineages; a
-bare comparison across them is meaningless (OSRS rev N ≠ RS2 rev N ≠ dat1 rev N —
-numerically larger does not mean “later layout”):
+`struct RSCache` ([rscache_profile.h](src/rscache_profile.h)) carries:
 
-| Lineage | Epoch | Example versions | Notes |
+| Field | Values | Meaning |
+|---|---|---|
+| `game` | `oldschool` \| `rs2` | Which revision lineage `revision` is numbered in |
+| `epoch` | `dat1` \| `dat2` | On-disk container (jagfile vs js5) |
+| `revision` | integer | Game revision within `game`'s lineage |
+| `quirks` | `none` \| `kronos` | Client-build overrides that no revision number implies |
+
+The three lineages this library cares about are `(game, epoch)` pairs:
+
+| Lineage | `(game, epoch)` | Example revisions | Notes |
 |---|---|---|---|
-| dat1 classic | `DAT1_CLASSIC` | ~200–254 | 2004-era sequence |
-| OldSchool | `OSRS` | ~184–239 in this corpus | Restarted at 1 in 2013 |
-| RS2 / main | `643` | continuous RS2 line | This library’s profile is **643**; its `version` is left unknown so it never passes OSRS gates |
+| dat1 classic | `(rs2, dat1)` | ~200–254 | 2004-era sequence; continuous with RS2 |
+| RS2 / main | `(rs2, dat2)` | 377 onward; **643** | Same lineage as dat1 across the container change |
+| OldSchool | `(oldschool, dat2)` | ~184–239 in this corpus | Restarted at 1 in 2013 |
+
+A bare numeric comparison across `game` values is meaningless (OSRS rev N ≠ RS2 rev N).
+That bug was D16 / D20 / D25 in [EXCEPTIONS.md](EXCEPTIONS.md).
+
+Boot manifests state all four under `[cache:boot]`; the client builds the profile with
+`RSCache_ProfileForIdentity`. `[net:boot] client_version=` is the login-block value only
+and does not select the cache profile.
 
 ### Archive revision is a different quantity
 
@@ -518,7 +531,6 @@ the game revision. It is treacherous for two reasons:
    | Cache | npc | loc | seq | obj |
    |---|---|---|---|---|
    | `cache` | 1691 | 1820 | 1368 | 1591 |
-   | `cache.jan2026` | 1767694599 | 1767694598 | 1767703645 | 1767694599 |
    | `cache.kronos` | 1362 | 1315 | 786 | 1969 |
    | `cache.osrs184` | 1203 | 1262 | 779 | 968 |
    | `cache.osrs230` | 1688 | 1815 | 1360 | 1583 |
@@ -530,54 +542,58 @@ the game revision. It is treacherous for two reasons:
 
 ### How the library resolves it
 
-`struct RSCache` ([rscache_profile.h](src/rscache_profile.h)) carries the game
-revision when known, the per-group archive revisions, the container, the layout
-epoch and any client-build quirks. One predicate resolves **OldSchool** era
-questions — every threshold in this library is an OSRS revision:
+Two lineage predicates replace every open-coded field test:
 
 ```c
 bool RSCache_RevisionAtLeastOsrs(cache, type, game_rev, archive_rev_threshold,
                                  default_when_unknown);
+bool RSCache_RevisionAtLeastRs2(cache, type, game_rev, archive_rev_threshold,
+                                default_when_unknown);
 ```
 
-It prefers the declared game revision when the cache is OSRS-epoch; falls back to
-the group's archive revision against the reference client's own threshold; and
-otherwise returns the caller's stated default, so behaviour on an unidentifiable
-cache is a deliberate choice per datatype rather than an accident. A dat1 or RS2
-profile never satisfies an OSRS threshold via the game-revision path.
+Each prefers the declared game revision when `game` matches; falls back to the
+group's archive revision against the reference client's own threshold; and
+otherwise returns the caller's stated default. An UNSET profile satisfies neither.
+Derived helpers: `RSCache_IsDat1`, `RSCache_IsOsrs`, `RSCache_IsRs2Dat2`.
 
 ### Supported named profiles
 
-| Name | Container | Epoch | `version` |
+| Name | game | epoch | revision |
 |---|---|---|---|
-| `lc254`, `lc245_2` | dat1 | classic | 254 / 245 |
-| `osrs184`, `kronos` | dat2 | OSRS | 184 (+ Kronos quirk) |
-| `osrs230`, `osrs233`, `xrsps233`, `osrs239` | dat2 | OSRS | 230 / 233 / 239 |
-| `643`, `rs643` | dat2 | 643 | unknown |
+| `lc254`, `lc245_2` | rs2 | dat1 | 254 / 245 |
+| `osrs184`, `kronos` | oldschool | dat2 | 184 (+ Kronos quirk) |
+| `osrs230`, `osrs233`, `xrsps233`, `osrs239` | oldschool | dat2 | 230 / 233 / 239 |
+| `643`, `rs643` | rs2 | dat2 | 643 |
 
-### Epoch is not derivable
+### Identity is stated, never detected
 
-`epoch` distinguishes the OSRS and 643 layout families, and it exists as a separate
-field because **the two cannot be told apart from any revision number**: 643-era
-caches number their reference tables in the same small-integer range OSRS used
-before it moved to timestamps. Game revisions are also independent sequences that
-must not be cross-compared — that bug was D16 (dat1 vs OSRS) and D20 (RS2 vs OSRS)
-in [EXCEPTIONS.md](EXCEPTIONS.md). Whoever opens the cache has to say which it is.
-`RSCache_ProfileDat2Rs643()` is how it says 643.
+`game`, `epoch`, `revision` and `quirks` cannot be recovered reliably from bytes on
+disk: 643-era caches number their reference tables in the same small-integer range
+OSRS used before timestamps, and revision numbers collide across lineages.
+Whoever opens the cache has to say which it is — via a named profile, via
+`RSCache_ProfileForIdentity`, or via required `[cache:boot]` keys. Tools take the
+same four flags (`--game/--epoch/--revision/--quirks`) or `--rev <name>`.
 
 ### Known era gates
 
 | Datatype | Gate | Effect |
 |---|---|---|
-| loc | game 220 / archive 2000 | opcode 93 becomes sound fades, 95/96 carry a byte |
-| npc | game 210 / archive 1493 | opcode 102 becomes a head-icon bitfield |
-| sequence | game 220 & 226 / archive 1141 & 1268 | three distinct frame-sound records |
-| texture | game 233 / archive 2000 | simplified 7-byte single-sprite record |
-| component | game 237 | type-6 model ids widen u16 → i32 |
-| component | epoch 643 | type-5 carries a colour int; flips reorder |
-| loc, and others | container dat1 | strings are newline- not NUL-terminated |
-| map terrain | container dat1 | tile attributes are u8 not u16 |
+| loc | OSRS game 220 / archive 2000 | opcode 93 becomes sound fades, 95/96 carry a byte |
+| npc | OSRS game 210 / archive 1493 | opcode 102 becomes a head-icon bitfield |
+| sequence | OSRS game 220 & 226 / archive 1141 & 1268 | three distinct frame-sound records |
+| texture | OSRS game 233 / archive 2000 | simplified 7-byte single-sprite record |
+| component | OSRS game 237 | type-6 model ids widen u16 → i32 |
+| component | RS2 dat2 | type-5 carries a colour int; flips reorder |
+| loc, and others | epoch dat1 | strings are newline- not NUL-terminated |
+| map terrain | not OldSchool | tile attributes / overlay ids stay u8 (OSRS widens at 209) |
+| map locs | OldSchool game ≥ 237 | archives stored plain; no keys shipped or applied |
 | loc | quirk KRONOS | opcodes 78/79 omit a byte |
+
+Map XTEA cannot be answered from the key file. Pre-237 OldSchool caches ship keys;
+`cache.osrs239` ships none because the archives are plain. Sniffing "is there a key
+for this square?" fails both ways: missing keys on an encrypted square yield zero
+locs, and applying a key to plain data corrupts silently. `RSCache_MapLocsEncrypted`
+is the gate; RS2 encrypts throughout.
 
 Model format is the exception: it is identified by a magic trailer in the last two
 bytes (`FF FF` ob3, `FF FE` OSRS extended, `FF FD` OSRS material, otherwise ob2)

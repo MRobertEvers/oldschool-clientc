@@ -18,12 +18,13 @@ REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
+TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 
 CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
-	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
+	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
 RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
@@ -56,14 +57,22 @@ endif
 CFLAGS += $(SDL_CFLAGS)
 LDFLAGS = -lm -Wl,-dead_strip $(SDL_LIBS)
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  LDFLAGS += -framework OpenGL
+else
+  LDFLAGS += -lGL
+endif
+
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
 SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
-	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
-	render/torirs_pick.c \
+	platform/platform_sdl2_renderer_soft3d.c platform/platform_sdl2_renderer_gl3.c \
+	render/torirs_frame.c render/torirs_pick.c \
+	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
@@ -166,6 +175,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
+TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
@@ -173,6 +183,7 @@ TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/trspk_unity.o $(OBJ_DIR)/opengl3_sdlgl.o \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o \
@@ -333,6 +344,12 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c
 
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC)
+	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c
+	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@
 
 $(OBJ_DIR)/toridraw_font.o: $(TORIDRAW_DIR)/toridraw_font.c
 	$(CC) $(TORIDRAW_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $(TORIDRAW_DIR)/toridraw_font.c -o $@
@@ -544,7 +561,10 @@ test-ws-frame: $(OBJ_DIR)
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
 		bootmanifest/bootmanifest.c $(INI_SRC) \
-		bootmanifest/test/bootmanifest_test.c
+		bootmanifest/test/bootmanifest_test.c \
+		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
+		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
+		$(RSCACHE_DIR)/build/xteas.o
 	./$(OBJ_DIR)/bootmanifest_test
 
 clean:
