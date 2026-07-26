@@ -12,12 +12,18 @@
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
- *                 quirks=none|kronos  dir=<path>  spawn=<x>,<z>
+ *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *   [spawn:hotkeys]  npc=<id>  obj=<id>  spotanim=<id>
+ *                    spotanim_height=<n>  spotanim_delay=<n>
+ *                    proj_model=<id>  proj_seq=<id>
+ *                 Optional; -1/absent = use the built-in default. Env
+ *                 TORIRS_SPAWN_* still overrides (same precedence as
+ *                 TORIRS_WORLD_MAP vs [cache:boot] spawn).
  *
  * [cache:boot] epoch/game/revision/quirks are all required. A missing key fails
  * the load with a stated reason (user input, not an internal invariant).
@@ -66,6 +72,16 @@ struct BootManifest
     char revconfig_ui[512];    /* resolved */
     char revconfig_cache[512]; /* resolved */
     int interface_id;          /* 0 = unset */
+
+    /* [spawn:hotkeys] — debug spawn-hotkey ids. -1 = unset (built-in default).
+     * TORIRS_SPAWN_* env vars still override. */
+    int spawn_npc_id;
+    int spawn_obj_id;
+    int spawn_spotanim_id;
+    int spawn_spotanim_height;
+    int spawn_spotanim_delay;
+    int spawn_proj_model_id;
+    int spawn_proj_seq_id;
 };
 
 /* Zero the manifest and load `path`. Relative paths resolve against

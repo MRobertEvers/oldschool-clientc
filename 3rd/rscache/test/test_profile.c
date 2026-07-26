@@ -135,13 +135,22 @@ test_name_parsers(void)
     RSCACHE_CHECK_EQ(quirks, RSCACHE_QUIRK_KRONOS);
     RSCACHE_CHECK(RSCache_QuirksFromList("kronos,none", &quirks));
     RSCACHE_CHECK_EQ(quirks, RSCACHE_QUIRK_KRONOS);
+    RSCACHE_CHECK(RSCache_QuirksFromList("void_rs634_no_xteas", &quirks));
+    RSCACHE_CHECK_EQ(quirks, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
+    RSCACHE_CHECK(RSCache_QuirksFromList("kronos,void_rs634_no_xteas", &quirks));
+    RSCACHE_CHECK_EQ(quirks, RSCACHE_QUIRK_KRONOS | RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
     RSCACHE_CHECK(!RSCache_QuirksFromList("wat", &quirks));
 
-    char buf[32];
+    char buf[64];
     RSCache_QuirksName(0, buf, sizeof(buf));
     RSCACHE_CHECK(strcmp(buf, "none") == 0);
     RSCache_QuirksName(RSCACHE_QUIRK_KRONOS, buf, sizeof(buf));
     RSCACHE_CHECK(strcmp(buf, "kronos") == 0);
+    RSCache_QuirksName(RSCACHE_QUIRK_VOID_RS634_NO_XTEAS, buf, sizeof(buf));
+    RSCACHE_CHECK(strcmp(buf, "void_rs634_no_xteas") == 0);
+    RSCache_QuirksName(
+        RSCACHE_QUIRK_KRONOS | RSCACHE_QUIRK_VOID_RS634_NO_XTEAS, buf, sizeof(buf));
+    RSCACHE_CHECK(strcmp(buf, "kronos,void_rs634_no_xteas") == 0);
 }
 
 static void
@@ -253,6 +262,14 @@ test_map_locs_encrypted(void)
     /* Dat1 has no dat2 map table — not encrypted. */
     RSCACHE_CHECK(RSCache_ProfileByName("lc254", &cache));
     RSCACHE_CHECK(!RSCache_MapLocsEncrypted(&cache));
+
+    /* Void 634 quirk forces plaintext even past the RS2 414 XTEA gate. */
+    cache = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 634, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
+    RSCACHE_CHECK(!RSCache_MapLocsEncrypted(&cache));
+    cache = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 634, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK(RSCache_MapLocsEncrypted(&cache));
 }
 
 static void

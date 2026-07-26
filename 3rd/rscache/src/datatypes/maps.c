@@ -374,6 +374,9 @@ bool
 RSCache_MapLocsEncrypted(const struct RSCache* cache)
 {
     assert(cache);
+    /* Void 634: map locs rewritten plain at cache-build time; no keys. */
+    if( RSCache_HasQuirk(cache, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS) )
+        return false;
     /*
      * Two independent lineage gates — do not share one constant with the
      * component model-id widen at OldSchool 237.

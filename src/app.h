@@ -109,6 +109,15 @@ struct AppConfig
      *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
+    /** Debug spawn-hotkey ids from `[spawn:hotkeys]`. -1 = built-in default;
+     *  TORIRS_SPAWN_* env vars still override (env > manifest > built-in). */
+    int spawn_npc_id;
+    int spawn_obj_id;
+    int spawn_spotanim_id;
+    int spawn_spotanim_height;
+    int spawn_spotanim_delay;
+    int spawn_proj_model_id;
+    int spawn_proj_seq_id;
     /** RevConfig layout INI. When set, the tree is built from it instead of
      * opening interface_id out of the cache (the only path a dat1 cache has:
      * its interfaces have no gameframe root). NULL/"" = open interface_id. */

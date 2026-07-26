@@ -5,6 +5,7 @@
 #include "3rd/ini/ini.h"
 #include "3rd/rscache/src/rscache_profile.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,13 +41,35 @@ bm_parse_crc_list(char const* value, int32_t out[9])
     return n == 9;
 }
 
-/* Section dispatch state for the pull-parse loop. */
+/* Parse a non-negative int for [spawn:hotkeys]. Returns 1 and writes *out on
+ * success; on failure prints a named stderr line and returns 0. */
+static int
+bm_parse_nonneg_int(char const* key, char const* value, int* out)
+{
+    char* end = NULL;
+    long v;
+
+    assert(key && value && out);
+    v = strtol(value, &end, 10);
+    if( end == value || *end != '\0' || v < 0 )
+    {
+        fprintf(
+            stderr,
+            "bootmanifest: [spawn:hotkeys] %s must be a non-negative int, got '%s'\n",
+            key,
+            value);
+        return 0;
+    }
+    *out = (int)v;
+    return 1;
+}
 enum bm_section
 {
     BM_SECTION_NONE = 0,
     BM_SECTION_CACHE,
     BM_SECTION_NET,
     BM_SECTION_UI,
+    BM_SECTION_SPAWN,
 };
 
 static enum bm_section
@@ -59,6 +82,8 @@ bm_section_of(char const* header)
         return BM_SECTION_NET;
     if( strncmp(header, "ui:", 3) == 0 )
         return BM_SECTION_UI;
+    if( strncmp(header, "spawn:", 6) == 0 )
+        return BM_SECTION_SPAWN;
     return BM_SECTION_NONE;
 }
 
@@ -119,7 +144,9 @@ bm_set_kv(
             if( !RSCache_QuirksFromList(value, &quirks) )
             {
                 fprintf(
-                    stderr, "bootmanifest: [cache] quirks must be none|kronos, got '%s'\n", value);
+                    stderr,
+                    "bootmanifest: [cache] quirks must be none|kronos|void_rs634_no_xteas, got '%s'\n",
+                    value);
                 return;
             }
             bm->cache_quirks = quirks;
@@ -233,6 +260,58 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_SPAWN:
+        if( strcmp(key, "npc") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_npc_id = v;
+            return;
+        }
+        if( strcmp(key, "obj") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_obj_id = v;
+            return;
+        }
+        if( strcmp(key, "spotanim") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_spotanim_id = v;
+            return;
+        }
+        if( strcmp(key, "spotanim_height") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_spotanim_height = v;
+            return;
+        }
+        if( strcmp(key, "spotanim_delay") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_spotanim_delay = v;
+            return;
+        }
+        if( strcmp(key, "proj_model") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_proj_model_id = v;
+            return;
+        }
+        if( strcmp(key, "proj_seq") == 0 )
+        {
+            int v;
+            if( bm_parse_nonneg_int(key, value, &v) )
+                bm->spawn_proj_seq_id = v;
+            return;
+        }
+        break;
+
     case BM_SECTION_NONE:
         return;
     }
@@ -268,6 +347,13 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->cache_revision = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
+    bm->spawn_npc_id = -1;
+    bm->spawn_obj_id = -1;
+    bm->spawn_spotanim_id = -1;
+    bm->spawn_spotanim_height = -1;
+    bm->spawn_spotanim_delay = -1;
+    bm->spawn_proj_model_id = -1;
+    bm->spawn_proj_seq_id = -1;
 
     FILE* f = fopen(path, "rb");
     if( !f )
@@ -419,4 +505,18 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_x = bm->spawn_x;
         cfg->spawn_z = bm->spawn_z;
     }
+    if( bm->spawn_npc_id >= 0 )
+        cfg->spawn_npc_id = bm->spawn_npc_id;
+    if( bm->spawn_obj_id >= 0 )
+        cfg->spawn_obj_id = bm->spawn_obj_id;
+    if( bm->spawn_spotanim_id >= 0 )
+        cfg->spawn_spotanim_id = bm->spawn_spotanim_id;
+    if( bm->spawn_spotanim_height >= 0 )
+        cfg->spawn_spotanim_height = bm->spawn_spotanim_height;
+    if( bm->spawn_spotanim_delay >= 0 )
+        cfg->spawn_spotanim_delay = bm->spawn_spotanim_delay;
+    if( bm->spawn_proj_model_id >= 0 )
+        cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
+    if( bm->spawn_proj_seq_id >= 0 )
+        cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
 }

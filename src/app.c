@@ -3254,19 +3254,21 @@ app_world_paint(struct App* app)
 }
 
 /* "Only hittest the world if the mouse is over the world element": inside the
- * world emit clip rect with no interactive UI hovered on top (the world node
- * itself is pass-through, so hover_com_id < 0 over bare world). */
+ * world emit clip rect with no *clickable* UI on top. Script-hover targets
+ * (layers with only on_mouse_repeat / on_mouse_over — e.g. iface 548 child 40
+ * on cache.643, which blankets the viewport and hammers a broken CS2) must NOT
+ * block world pick: they are pass-through for clicks. Use HitTestInteractive,
+ * not the CS2 hover walk (hover_com_id). */
 static int
 app_world_mouse_gate(
     struct App* app,
     int mouse_x,
-    int mouse_y,
-    int hover_com_id)
+    int mouse_y)
 {
     struct UITreeEmitClip const* clip;
     struct UITreeEmitDesc const* desc;
 
-    if( !app->world_active || !app->world_view_valid || hover_com_id >= 0 )
+    if( !app->world_active || !app->world_view_valid )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
@@ -3275,6 +3277,11 @@ app_world_mouse_gate(
      * and the mouse cannot hittest the scene through the gaps between the
      * modal's components (e.g. the empty space between a shop's item slots). */
     if( app->slots.main_modal_id != -1 )
+        return 0;
+    /* Clickable UI wins over the world; pass-through layers with hover scripts
+     * do not. */
+    if( app->tree &&
+        UITree_HitTestInteractive(app->tree, &app->ui_host, mouse_x, mouse_y) >= 0 )
         return 0;
     /* Gate on the world WIDGET rect, not just its clip: an unclipped world
      * node inherits a full-canvas clip, which let sidebar/chat clicks count
@@ -5126,6 +5133,19 @@ app_world_spawn_player(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+/* Spawn-hotkey id precedence: env TORIRS_SPAWN_* > manifest [spawn:hotkeys] > built-in. */
+static int
+app_spawn_id(int builtin, int cfg_value, char const* env_name)
+{
+    char const* env;
+    int value = cfg_value >= 0 ? cfg_value : builtin;
+    assert(env_name);
+    env = getenv(env_name);
+    if( env )
+        value = (int)strtol(env, NULL, 0);
+    return value;
+}
+
 static void
 app_world_spawn_npc(
     struct App* app,
@@ -5134,12 +5154,7 @@ app_world_spawn_npc(
     int level)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
-    task->npc_id = 3106; /* OSRS-era "Man" */
-    {
-        char const* env = getenv("TORIRS_SPAWN_NPC");
-        if( env )
-            task->npc_id = (int)strtol(env, NULL, 0);
-    }
+    task->npc_id = app_spawn_id(3106 /* OSRS-era "Man" */, app->cfg.spawn_npc_id, "TORIRS_SPAWN_NPC");
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
@@ -5154,12 +5169,8 @@ app_world_spawn_obj(
     int level)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
-    task->obj_id = 1265; /* bronze pickaxe: named, with ground ops */
-    {
-        char const* env = getenv("TORIRS_SPAWN_OBJ");
-        if( env )
-            task->obj_id = (int)strtol(env, NULL, 0);
-    }
+    task->obj_id =
+        app_spawn_id(1265 /* bronze pickaxe: named, with ground ops */, app->cfg.spawn_obj_id, "TORIRS_SPAWN_OBJ");
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
@@ -5257,18 +5268,10 @@ app_world_spawn_spotanim(
     int tile_z,
     int level)
 {
-    int spotanim_id = 74; /* a small, visible default effect */
-    int height = 92;
-    int delay = 0;
-    char const* env = getenv("TORIRS_SPAWN_SPOTANIM");
-    if( env )
-        spotanim_id = (int)strtol(env, NULL, 0);
-    env = getenv("TORIRS_SPAWN_SPOTANIM_HEIGHT");
-    if( env )
-        height = (int)strtol(env, NULL, 0);
-    env = getenv("TORIRS_SPAWN_SPOTANIM_DELAY");
-    if( env )
-        delay = (int)strtol(env, NULL, 0);
+    int spotanim_id =
+        app_spawn_id(74 /* a small, visible default effect */, app->cfg.spawn_spotanim_id, "TORIRS_SPAWN_SPOTANIM");
+    int height = app_spawn_id(92, app->cfg.spawn_spotanim_height, "TORIRS_SPAWN_SPOTANIM_HEIGHT");
+    int delay = app_spawn_id(0, app->cfg.spawn_spotanim_delay, "TORIRS_SPAWN_SPOTANIM_DELAY");
     App_WorldSpotanimSpawn(app, tile_x, tile_z, level, spotanim_id, height, delay);
 }
 
@@ -5300,16 +5303,12 @@ app_world_spawn_projectile(
     }
 
     task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
-    task->model_id = 3081; /* v1 spawn-test spotanim model */
-    task->seq_id = 659;    /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */
-    {
-        char const* env = getenv("TORIRS_SPAWN_PROJ_MODEL");
-        if( env )
-            task->model_id = (int)strtol(env, NULL, 0);
-        env = getenv("TORIRS_SPAWN_PROJ_SEQ");
-        if( env )
-            task->seq_id = (int)strtol(env, NULL, 0);
-    }
+    task->model_id = app_spawn_id(
+        3081 /* v1 spawn-test spotanim model */, app->cfg.spawn_proj_model_id, "TORIRS_SPAWN_PROJ_MODEL");
+    task->seq_id = app_spawn_id(
+        659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */,
+        app->cfg.spawn_proj_seq_id,
+        "TORIRS_SPAWN_PROJ_SEQ");
     task->src_tile_x = app->proj_src_tile_x;
     task->src_tile_z = app->proj_src_tile_z;
     task->src_level = app->proj_src_tile_level;
@@ -5360,18 +5359,10 @@ static void
 app_world_entity_spotanim_test(struct App* app)
 {
     struct World_EntityPool* pool;
-    int spotanim_id = 74;
-    int height = 92;
-    int delay = 0;
-    char const* env = getenv("TORIRS_SPAWN_SPOTANIM");
-    if( env )
-        spotanim_id = (int)strtol(env, NULL, 0);
-    env = getenv("TORIRS_SPAWN_SPOTANIM_HEIGHT");
-    if( env )
-        height = (int)strtol(env, NULL, 0);
-    env = getenv("TORIRS_SPAWN_SPOTANIM_DELAY");
-    if( env )
-        delay = (int)strtol(env, NULL, 0);
+    int spotanim_id =
+        app_spawn_id(74, app->cfg.spawn_spotanim_id, "TORIRS_SPAWN_SPOTANIM");
+    int height = app_spawn_id(92, app->cfg.spawn_spotanim_height, "TORIRS_SPAWN_SPOTANIM_HEIGHT");
+    int delay = app_spawn_id(0, app->cfg.spawn_spotanim_delay, "TORIRS_SPAWN_SPOTANIM_DELAY");
 
     if( !app->world )
         return;
@@ -5672,8 +5663,7 @@ static void
 app_hover_text_update(
     struct App* app,
     int mouse_x,
-    int mouse_y,
-    int hover_com_id)
+    int mouse_y)
 {
     struct UIMinimenu scratch;
     char prev[UITREE_HOVERTEXT_LEN];
@@ -5692,7 +5682,7 @@ app_hover_text_update(
     else
     {
         click_in_world =
-            app_world_mouse_gate(app, mouse_x, mouse_y, hover_com_id) && app_world_drawable(app);
+            app_world_mouse_gate(app, mouse_x, mouse_y) && app_world_drawable(app);
         {
             struct RS_MinimenuBuildCtx mctx = {
                 .tree = app->tree,
@@ -6669,7 +6659,7 @@ App_RunOnce(
     if( app->world_view_valid && !app->world_load_attempted && !app->net_enabled )
         app_world_load_begin(app, NULL, 0);
     app->world_mouse_in_viewport =
-        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
+        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
     app->world_mouse_x = input->curr.mouse_x;
     app->world_mouse_y = input->curr.mouse_y;
     if( !app->world_mouse_in_viewport )
@@ -6681,7 +6671,7 @@ App_RunOnce(
 
     /* Mouseover text before any click handling: the reference recomputes it
      * every cycle from the same menu the click paths build. */
-    app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
+    app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
 
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
@@ -6696,7 +6686,7 @@ App_RunOnce(
         /* The menu ctx reads app->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
         int click_in_world =
-            app_world_mouse_gate(app, out.right_click_x, out.right_click_y, out.hover_com_id);
+            app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
         if( !click_in_world || !app_world_drawable(app) )
             World_PickSetReset(&app->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
@@ -6800,14 +6790,13 @@ App_RunOnce(
             out.left_click_miss ? app_world_mouse_gate(
                                       app,
                                       out.left_click_miss_x,
-                                      out.left_click_miss_y,
-                                      out.hover_com_id)
+                                      out.left_click_miss_y)
                                 : -1,
             app_world_drawable(app),
             app->world_pickset.count);
     if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 &&
-        app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
+        app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
         app_world_drawable(app) )
     {
         struct RS_MinimenuBuildCtx mctx = {
@@ -6870,7 +6859,7 @@ App_RunOnce(
     if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 && (app->objsel.active || app->targetsel.active) &&
         !(app_world_mouse_gate(
-              app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
+              app, out.left_click_miss_x, out.left_click_miss_y) &&
           app_world_drawable(app)) )
     {
         app->objsel.active = 0;

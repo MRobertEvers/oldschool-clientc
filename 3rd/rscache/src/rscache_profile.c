@@ -3,6 +3,7 @@
 #include "dat2disk.h"
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -244,6 +245,11 @@ RSCache_QuirksFromList(
             *out_quirks |= RSCACHE_QUIRK_KRONOS;
             continue;
         }
+        if( len == 19 && strncmp(start, "void_rs634_no_xteas", 19) == 0 )
+        {
+            *out_quirks |= RSCACHE_QUIRK_VOID_RS634_NO_XTEAS;
+            continue;
+        }
         return false;
     }
     return true;
@@ -262,10 +268,37 @@ RSCache_QuirksName(
         snprintf(buf, (size_t)buf_size, "none");
         return;
     }
-    if( quirks == RSCACHE_QUIRK_KRONOS )
+
+    static const struct
     {
-        snprintf(buf, (size_t)buf_size, "kronos");
+        uint32_t bit;
+        const char* name;
+    } known[] = {
+        { RSCACHE_QUIRK_KRONOS, "kronos" },
+        { RSCACHE_QUIRK_VOID_RS634_NO_XTEAS, "void_rs634_no_xteas" },
+    };
+    const uint32_t known_mask =
+        RSCACHE_QUIRK_KRONOS | RSCACHE_QUIRK_VOID_RS634_NO_XTEAS;
+    if( (quirks & ~known_mask) != 0u )
+    {
+        snprintf(buf, (size_t)buf_size, "0x%x", quirks);
         return;
     }
-    snprintf(buf, (size_t)buf_size, "0x%x", quirks);
+
+    buf[0] = '\0';
+    size_t used = 0;
+    for( size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++ )
+    {
+        if( (quirks & known[i].bit) == 0u )
+            continue;
+        int n = snprintf(
+            buf + used,
+            (size_t)buf_size - used,
+            "%s%s",
+            used > 0 ? "," : "",
+            known[i].name);
+        if( n < 0 || (size_t)n >= (size_t)buf_size - used )
+            return;
+        used += (size_t)n;
+    }
 }

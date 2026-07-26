@@ -1646,6 +1646,31 @@ gl3_bake_font_atlas(
     slot->atlas_w = atlas_w;
     slot->atlas_h = atlas_h;
     slot->baked = true;
+    if( gl3_text_debug_enabled() )
+    {
+        size_t nonzero = 0u;
+        for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+        {
+            int const gw = font->glyph_width[i];
+            int const gh = font->glyph_height[i];
+            uint8_t const* src = font->glyph_alpha[i];
+            if( !src || gw <= 0 || gh <= 0 )
+                continue;
+            for( int p = 0; p < gw * gh; p++ )
+                if( src[p] )
+                    nonzero++;
+        }
+        fprintf(
+            stderr,
+            "gl3_bake_font_atlas: font_id=%d tex=%u atlas=%dx%d glyph_alpha_nz=%zu "
+            "line_height=%d\n",
+            font_id,
+            (unsigned)tex,
+            atlas_w,
+            atlas_h,
+            nonzero,
+            font->line_height);
+    }
     return true;
 }
 
@@ -4498,4 +4523,63 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     while( ToriRS_FrameNextCommand(frame, &command) )
         ToriRS_GL3_Execute(gl3, &command);
     ToriRS_FrameEnd(frame);
+
+    /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90). */
+    {
+        char const* path = getenv("TORIRS_GL3_READBACK");
+        static int done = 0;
+        long const want = getenv("TORIRS_GL3_READBACK_FRAME")
+                              ? atol(getenv("TORIRS_GL3_READBACK_FRAME"))
+                              : 90;
+        if( path && path[0] && !done && gl3->frame_clock >= (double)want )
+        {
+            int fb_w = 0;
+            int fb_h = 0;
+            int* fb;
+            done = 1;
+            SDL_GL_GetDrawableSize(gl3->window, &fb_w, &fb_h);
+            fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
+            if( fb )
+            {
+                int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
+                void bmp_write_file(const char* filename, int* px, int w, int h);
+                glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glReadBuffer(GL_BACK);
+                glReadPixels(0, 0, fb_w, fb_h, GL_BGRA, GL_UNSIGNED_BYTE, fb);
+                if( top )
+                {
+                    float const sx = (float)gl3->lb_w / (float)gl3->width;
+                    float const sy = (float)gl3->lb_h / (float)gl3->height;
+                    int resident = 0;
+                    for( int y = 0; y < gl3->height; y++ )
+                    {
+                        int src_y = gl3->lb_y + (int)((float)(gl3->height - 1 - y) * sy);
+                        if( src_y < 0 )
+                            src_y = 0;
+                        if( src_y >= fb_h )
+                            src_y = fb_h - 1;
+                        for( int x = 0; x < gl3->width; x++ )
+                        {
+                            int src_x = gl3->lb_x + (int)((float)x * sx);
+                            if( src_x < 0 )
+                                src_x = 0;
+                            if( src_x >= fb_w )
+                                src_x = fb_w - 1;
+                            top[y * gl3->width + x] = fb[src_y * fb_w + src_x];
+                        }
+                    }
+                    for( int i = 0; i < TRSPK_GL3_TEX_CAP; i++ )
+                        resident += gl3->tex_resident[i] ? 1 : 0;
+                    bmp_write_file(path, top, gl3->width, gl3->height);
+                    fprintf(
+                        stderr,
+                        "gl3_readback: wrote %s tex_resident=%d\n",
+                        path,
+                        resident);
+                    free(top);
+                }
+                free(fb);
+            }
+        }
+    }
 }

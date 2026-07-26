@@ -972,41 +972,24 @@ dat2_buildcache_npctypes_cleanup(struct Dat2BuildCache* dat2_buildcache)
         DAT2_CONFIG_MAP_CAPACITY);
 }
 
-static void
-dat2_buildcache_npctypes_init_from_filelist(
-    struct Dat2BuildCache* dat2_buildcache,
-    struct RSCache_FileList* filelist,
-    struct RSCache_Dat2DiskArchive* archive,
-    const int* wanted_ids,
-    int wanted_count)
-{
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        int id = archive->file_ids[i];
-        struct RSCache_Dat2ConfigNpc* npc;
-
-        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
-            continue;
-        if( dat2_buildcache_npctype_get(dat2_buildcache, id) )
-            continue;
-
-        npc = RSCache_Dat2ConfigNpcNewDecodeProfile(
-            CacheProvider_Profile(&dat2_buildcache->base),
-            filelist->files[i],
-            filelist->file_sizes[i]);
-        if( !npc )
-            continue;
-
-        dat2_buildcache_npctype_add(dat2_buildcache, id, npc);
-    }
-}
-
 void
 dat2_buildcache_npctypes_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCache_Dat2DiskArchive* archive,
     const int* wanted_ids,
     int wanted_count)
+{
+    dat2_buildcache_npctypes_init_from_archive_based(
+        dat2_buildcache, archive, wanted_ids, wanted_count, 0);
+}
+
+void
+dat2_buildcache_npctypes_init_from_archive_based(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count,
+    int base_id)
 {
     struct RSCache_FileList* filelist;
 
@@ -1019,8 +1002,29 @@ dat2_buildcache_npctypes_init_from_archive(
     if( !filelist )
         return;
 
-    dat2_buildcache_npctypes_init_from_filelist(
-        dat2_buildcache, filelist, archive, wanted_ids, wanted_count);
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids[i];
+        struct RSCache_Dat2ConfigNpc* npc;
+
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        /* Global id — same D19 trap as locs: sharded groups number files
+         * 0..mask locally, so testing `id` alone skips every later group once
+         * group 0 is resident. */
+        if( dat2_buildcache_npctype_get(dat2_buildcache, base_id + id) )
+            continue;
+
+        npc = RSCache_Dat2ConfigNpcNewDecodeProfile(
+            CacheProvider_Profile(&dat2_buildcache->base),
+            filelist->files[i],
+            filelist->file_sizes[i]);
+        if( !npc )
+            continue;
+
+        dat2_buildcache_npctype_add(dat2_buildcache, base_id + id, npc);
+    }
+
     RSCache_FileListFree(filelist);
 }
 

@@ -11,11 +11,15 @@ verified against a live LostCity server (`./run-live.sh`, cache
 
 Headless world-harness hotkeys (all act on the tile under the mouse, driven by
 `TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`): **9** player, **8** npc
-(`TORIRS_SPAWN_NPC`), **7** ground item (`TORIRS_SPAWN_OBJ`), **6** test
+(`[spawn:hotkeys] npc=` / `TORIRS_SPAWN_NPC`), **7** ground item
+(`[spawn:hotkeys] obj=` / `TORIRS_SPAWN_OBJ`), **6** test
 overheads on every entity (hitsplat + health bar + overhead chat + a headicon
-mask), **5** spotanim (`TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`), **4**
+mask), **5** spotanim (`[spawn:hotkeys] spotanim=` / `_height` / `_delay` or
+`TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`), **4**
 entity attached-graphic / `SPOTANIM` mask on every entity (same overrides as 5),
-**0** projectile (two-press latch).
+**0** projectile (two-press latch; `[spawn:hotkeys] proj_model=` / `proj_seq=`
+or `TORIRS_SPAWN_PROJ_MODEL` / `_SEQ`). Precedence is env > manifest >
+built-in default.
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
 (its `content/scripts/**/*.if` + `content/pack/interface.pack` are the ground

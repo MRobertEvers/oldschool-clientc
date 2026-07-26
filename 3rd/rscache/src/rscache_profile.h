@@ -139,6 +139,8 @@ enum RSCache_Type
 /** Kronos client: loc opcodes 78/79 omit the ambient_sound_retain byte that
  *  stock clients of the same revision write. */
 #define RSCACHE_QUIRK_KRONOS 0x1u
+/** Void RS 634: map locs were pre-decrypted (RemoveXteas); no xteas.json. */
+#define RSCACHE_QUIRK_VOID_RS634_NO_XTEAS 0x2u
 
 /** No game revision known. Datatype flag functions then fall back to their
  *  per-group archive-revision thresholds. No shipped manifest reaches this:
@@ -346,13 +348,15 @@ RSCache_EpochFromName(const char* name);
 const char*
 RSCache_EpochName(int epoch);
 
-/** "none" | "kronos" (comma-separated) → quirks bitmask. Returns false on unknown token. */
+/** "none" | "kronos" | "void_rs634_no_xteas" (comma-separated) → quirks bitmask.
+ *  Returns false on unknown token. */
 bool
 RSCache_QuirksFromList(
     const char* list,
     uint32_t* out_quirks);
 
-/** quirks bitmask → "none" | "kronos" (or comma-joined). Writes into `buf`. */
+/** quirks bitmask → "none" | "kronos" | "void_rs634_no_xteas" (or comma-joined).
+ *  Writes into `buf`. */
 void
 RSCache_QuirksName(
     uint32_t quirks,

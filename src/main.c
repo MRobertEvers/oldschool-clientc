@@ -3,6 +3,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
+#include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
 #include "net/net.h"
@@ -354,6 +355,14 @@ main(
         /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
         .spawn_x = -1,
         .spawn_z = -1,
+        /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
+        .spawn_npc_id = -1,
+        .spawn_obj_id = -1,
+        .spawn_spotanim_id = -1,
+        .spawn_spotanim_height = -1,
+        .spawn_spotanim_delay = -1,
+        .spawn_proj_model_id = -1,
+        .spawn_proj_seq_id = -1,
     };
     static struct App app;
     static char derived_cache_ini[512];
@@ -1277,6 +1286,27 @@ main(
         }
 
         input = LibToriRS_Input_Init(&input_storage, PlatformSDL2_Ticks64());
+
+        /* TORIRS_SEED_CHAT=N: inject N game chat lines (scroll-clipped) for
+         * Soft3D / GL3 smoke comparison. */
+        if( getenv("TORIRS_SEED_CHAT") )
+        {
+            long n = atol(getenv("TORIRS_SEED_CHAT"));
+            if( n < 1 )
+                n = 12;
+            if( n > 40 )
+                n = 40;
+            for( long i = 0; i < n; i++ )
+            {
+                char line[96];
+                snprintf(
+                    line,
+                    sizeof(line),
+                    "Seed chat line %ld — scroll container text check",
+                    i + 1);
+                RS_Chat_AddMessage(&app.chat, RS_CHAT_TYPE_GAME, NULL, line);
+            }
+        }
 
         interactive_render_present(&app, sdl, gl3);
 

@@ -53,6 +53,14 @@ test_load_fields(void)
     CHECK(strcmp(bm.revconfig_ui, "/abs/ui.ini") == 0);
     CHECK(strcmp(bm.revconfig_cache, "bootmanifest/test/rel/cache.ini") == 0);
     CHECK(bm.interface_id == 161);
+
+    CHECK(bm.spawn_npc_id == 7343);
+    CHECK(bm.spawn_obj_id == 1265);
+    CHECK(bm.spawn_spotanim_id == 74);
+    CHECK(bm.spawn_spotanim_height == 92);
+    CHECK(bm.spawn_spotanim_delay == 0);
+    CHECK(bm.spawn_proj_model_id == 3081);
+    CHECK(bm.spawn_proj_seq_id == 659);
 }
 
 static void
@@ -79,6 +87,13 @@ test_apply_to_config(void)
     CHECK(cfg.interface_id == 161);
     CHECK(cfg.spawn_x == 12);
     CHECK(cfg.spawn_z == 34);
+    CHECK(cfg.spawn_npc_id == 7343);
+    CHECK(cfg.spawn_obj_id == 1265);
+    CHECK(cfg.spawn_spotanim_id == 74);
+    CHECK(cfg.spawn_spotanim_height == 92);
+    CHECK(cfg.spawn_spotanim_delay == 0);
+    CHECK(cfg.spawn_proj_model_id == 3081);
+    CHECK(cfg.spawn_proj_seq_id == 659);
 }
 
 /* ApplyToConfig must only write fields the manifest actually set, so a
@@ -89,18 +104,30 @@ test_partial_apply_preserves_unset(void)
     struct BootManifest bm;
     memset(&bm, 0, sizeof(bm));
     bm.cache_kind = -1; /* unset */
+    /* Sentinel -1 matches BootManifest_LoadFile: unset means "do not write". */
+    bm.spawn_x = -1;
+    bm.spawn_z = -1;
+    bm.spawn_npc_id = -1;
+    bm.spawn_obj_id = -1;
+    bm.spawn_spotanim_id = -1;
+    bm.spawn_spotanim_height = -1;
+    bm.spawn_spotanim_delay = -1;
+    bm.spawn_proj_model_id = -1;
+    bm.spawn_proj_seq_id = -1;
     /* Only a host is provided; everything else stays unset. */
     snprintf(bm.host, sizeof(bm.host), "manifesthost");
 
     struct AppConfig cfg = { 0 };
     cfg.cache_dir = "cli_cache_dir";
     cfg.connect_user = "cli_user";
+    cfg.spawn_npc_id = -1;
     BootManifest_ApplyToConfig(&bm, &cfg);
 
     /* Untouched: manifest set neither. */
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "cli_cache_dir") == 0);
     CHECK(cfg.connect_user && strcmp(cfg.connect_user, "cli_user") == 0);
     CHECK(cfg.connect_port == 0);
+    CHECK(cfg.spawn_npc_id == -1);
     /* Set: host became the connect target. */
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
 }
