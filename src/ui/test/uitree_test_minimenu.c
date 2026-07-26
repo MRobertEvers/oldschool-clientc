@@ -24,16 +24,16 @@ pick_none(void)
     return pick;
 }
 
-/* Reference bottom-to-top layout math at the default line height. */
+/* Reference bottom-to-top layout math at the default bold-12 glyph line box. */
 static void
 test_minimenu_layout_math(void)
 {
-    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
-    TEST_ASSERT(layout.row_stride == 15, "row stride = lh + 1");
-    TEST_ASSERT(layout.header_bar_h == 16, "header bar = lh + 2");
-    TEST_ASSERT(layout.option_base_y == 31, "option base = 2lh + 3");
-    TEST_ASSERT(layout.chrome_h == 21, "chrome = lh + 7");
-    /* Reference: menuHeight = n * 15 + 22 (chrome 21 + 1 row-stride pad). */
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
+    TEST_ASSERT(layout.row_stride == 15, "row stride = box - 1");
+    TEST_ASSERT(layout.header_bar_h == 16, "header bar = box");
+    TEST_ASSERT(layout.option_base_y == 31, "option base = 2*box - 1");
+    TEST_ASSERT(layout.chrome_h == 21, "chrome = box + 5");
+    /* Reference: menuHeight = n * 15 + 21 (chrome 21 + row-stride pad). */
     TEST_ASSERT(UIMinimenu_Height(&layout, 3) == 3 * 15 + 21, "height formula");
 
     {
@@ -59,7 +59,7 @@ test_minimenu_layout_math(void)
 static void
 test_minimenu_clamping(void)
 {
-    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
     struct UIMinimenu menu;
     UIMinimenu_Reset(&menu);
     UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
@@ -105,7 +105,7 @@ test_minimenu_sort(void)
 static void
 test_minimenu_hit_and_hover(void)
 {
-    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
     struct UIMinimenu menu;
     UIMinimenu_Reset(&menu);
     UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
@@ -142,7 +142,7 @@ test_minimenu_emit(void)
     struct UITreeHost host;
     struct TestHostState host_state;
     struct UITreeEmitBuffer emit;
-    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
     struct UIMinimenu menu;
     int32_t node;
 
@@ -313,7 +313,7 @@ test_cross_action_policy(void)
 static void
 test_minimenu_release_swallow(void)
 {
-    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineBox(16);
     struct UITree* tree = UITree_New(8);
     struct UITreeHost host;
     struct TestHostState host_state;

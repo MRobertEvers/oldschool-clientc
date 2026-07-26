@@ -56,6 +56,7 @@
 #include "src/datatypes/dat1_pix8.c"
 #include "src/datatypes/dat1_pix32.c"
 #include "src/datatypes/dat1_pix_font.c"
+#include "src/datatypes/dat2_font_metrics.c"
 #include "src/datatypes/dat1_config_component.c"
 /* Revision modules last: they sit above the datatypes and name the codecs they
  * bind, so they must see every datatype header. */

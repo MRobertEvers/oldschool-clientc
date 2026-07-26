@@ -5,23 +5,25 @@
 #include <string.h>
 
 struct UIMinimenuLayout
-UIMinimenu_LayoutFromLineHeight(int line_height)
+UIMinimenu_LayoutFromLineBox(int line_box)
 {
-    int const h = line_height > 0 ? line_height : UITREE_MINIMENU_DEFAULT_LINE_HEIGHT;
+    int const box = line_box > 0 ? line_box : UITREE_MINIMENU_DEFAULT_LINE_BOX;
 
     struct UIMinimenuLayout layout;
-    layout.line_height = h;
-    layout.row_stride = h + 1;
-    layout.header_text_y = h;
-    layout.header_bar_h = h + 2;
-    layout.separator_y = h + 4;
-    layout.option_base_y = 2 * h + 3;
-    layout.chrome_h = h + 7;
-    layout.hover_above = h - 1;
+    /* box - 2 matches the historical "line height" the reference chrome was
+     * written against (b12 glyph line box 16 -> 14). */
+    layout.line_height = box - 2;
+    layout.row_stride = box - 1;
+    layout.header_text_y = box - 2;
+    layout.header_bar_h = box;
+    layout.separator_y = box + 2;
+    layout.option_base_y = 2 * box - 1;
+    layout.chrome_h = box + 5;
+    layout.hover_above = box - 3;
     layout.hover_below = 3;
     layout.width_pad = 8;
-    layout.click_y_bias = h - 3;
-    layout.border_inset = h + 5;
+    layout.click_y_bias = box - 5;
+    layout.border_inset = box + 3;
     return layout;
 }
 
@@ -91,7 +93,7 @@ UIMinimenu_SortPriorityActions(struct UIMinimenu* menu)
 bool
 UIMinimenu_PrepareShow(
     struct UIMinimenu const* menu,
-    int line_height,
+    int line_box,
     UIMinimenuMeasureFn measure,
     void* measure_ud,
     struct UIMinimenuLayout* out_layout,
@@ -101,7 +103,7 @@ UIMinimenu_PrepareShow(
     if( !out_layout || !out_content_width || menu->option_count <= 0 )
         return false;
 
-    *out_layout = UIMinimenu_LayoutFromLineHeight(line_height);
+    *out_layout = UIMinimenu_LayoutFromLineBox(line_box);
 
     int max_w = 0;
     if( measure )

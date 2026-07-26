@@ -78,6 +78,12 @@ ToriDraw2D_MeasureString(
     struct ToriDraw_Font* font,
     char const* text);
 
+/** Glyph line box height: max(offset_y + glyph_height) over drawable glyphs.
+ *  Falls back to line_height (ascent) when the font has no drawable glyphs.
+ *  Used by the minimenu to size rows independently of the metrics ascent. */
+int
+ToriDraw_FontLineBoxHeight(struct ToriDraw_Font const* font);
+
 /** Word-wrap at max_width pixels; return widest resulting line width. */
 int
 ToriDraw2D_WrapMaxLineWidth(

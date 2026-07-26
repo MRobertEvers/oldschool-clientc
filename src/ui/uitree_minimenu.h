@@ -8,14 +8,15 @@
  * data + layout math — population lives in the game layer (rs_minimenu_build)
  * and drawing in the emit walk (UIELEM_BUILTIN_MINIMENU expansion).
  *
- * Layout follows the reference: height = rows * 15 + 22 chrome at the default
- * bold-12 line height, menu horizontally centered on the click, rows drawn
- * bottom-to-top so the highest-priority (last after sort) entry is on top.
+ * Layout follows the reference: height = rows * 15 + 21 chrome at the default
+ * bold-12 glyph line box (16), menu horizontally centered on the click, rows
+ * drawn bottom-to-top so the highest-priority (last after sort) entry is on top.
  */
 
 #define UITREE_MINIMENU_MAX_OPTIONS 10
 #define UITREE_MINIMENU_OPTION_LEN 128
-#define UITREE_MINIMENU_DEFAULT_LINE_HEIGHT 14
+/** Default bold-12 glyph line box: max(offset_y + glyph_height) == 16. */
+#define UITREE_MINIMENU_DEFAULT_LINE_BOX 16
 /** Reference OPTIONS_MENU background/title color. */
 #define UITREE_MINIMENU_COLOR_BODY 0x5D5447
 
@@ -95,7 +96,7 @@ struct UIMinimenu
 typedef int (*UIMinimenuMeasureFn)(void* ud, int font_id, char const* text);
 
 struct UIMinimenuLayout
-UIMinimenu_LayoutFromLineHeight(int line_height);
+UIMinimenu_LayoutFromLineBox(int line_box);
 
 void
 UIMinimenu_Reset(struct UIMinimenu* menu);
@@ -123,12 +124,12 @@ UIMinimenu_ActionDeprioritize(int action)
     return action > 1000 ? action : action + 2000;
 }
 
-/** Compute layout + content width for the current rows. line_height <= 0 falls
- * back to the default; measure == NULL falls back to strlen * 6. */
+/** Compute layout + content width for the current rows. line_box <= 0 falls
+ * back to the default glyph line box; measure == NULL falls back to strlen * 6. */
 bool
 UIMinimenu_PrepareShow(
     struct UIMinimenu const* menu,
-    int line_height,
+    int line_box,
     UIMinimenuMeasureFn measure,
     void* measure_ud,
     struct UIMinimenuLayout* out_layout,

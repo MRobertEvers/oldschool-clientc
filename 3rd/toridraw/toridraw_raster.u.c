@@ -69,52 +69,6 @@ struct ToriDrawModelRasterContext
     bool allow_near_clip;
 };
 
-/* TORIRS_FACE_DEBUG=1: per-model tallies of software raster outcomes. Temporary. */
-static int g_face_dbg_on = -1;
-static int g_face_dbg_faces;
-static int g_face_dbg_skip_type2;
-static int g_face_dbg_skip_hidden;
-static int g_face_dbg_skip_tex_miss;
-static int g_face_dbg_skip_alpha0;
-static int g_face_dbg_drawn;
-static int g_face_dbg_models;
-
-static int
-face_dbg_enabled(void)
-{
-    if( g_face_dbg_on < 0 )
-        g_face_dbg_on = getenv("TORIRS_FACE_DEBUG") != NULL;
-    return g_face_dbg_on;
-}
-
-static void
-face_dbg_flush_model(void)
-{
-    if( !face_dbg_enabled() || g_face_dbg_faces <= 0 )
-        return;
-    /* Only print models large enough to be the steel titan / similar NPCs. */
-    if( g_face_dbg_faces >= 200 )
-    {
-        fprintf(
-            stderr,
-            "face_dbg soft model#%d faces=%d type2=%d hidden=%d tex_miss=%d alpha0=%d drawn=%d\n",
-            g_face_dbg_models,
-            g_face_dbg_faces,
-            g_face_dbg_skip_type2,
-            g_face_dbg_skip_hidden,
-            g_face_dbg_skip_tex_miss,
-            g_face_dbg_skip_alpha0,
-            g_face_dbg_drawn);
-    }
-    g_face_dbg_models++;
-    g_face_dbg_faces = 0;
-    g_face_dbg_skip_type2 = 0;
-    g_face_dbg_skip_hidden = 0;
-    g_face_dbg_skip_tex_miss = 0;
-    g_face_dbg_skip_alpha0 = 0;
-    g_face_dbg_drawn = 0;
-}
-
 static inline void
 ToriDraw_RasterModelFace(
     int face,
@@ -123,19 +77,12 @@ ToriDraw_RasterModelFace(
     assert(face >= 0 && face < ctx->num_faces);
 
     struct ToriDraw_Texture* texture = NULL;
-    int const face_dbg = face_dbg_enabled();
-    if( face_dbg )
-        g_face_dbg_faces++;
 
     /* Render type is the raw byte (reference ModelData.light). 0=gouraud,
      * 1=flat, 2=hidden, 3=black/hidden; any other value is also hidden. */
     int raw_type = ctx->face_infos ? ctx->face_infos[face] : 0;
     if( raw_type == 2 || raw_type < 0 || raw_type > 3 )
-    {
-        if( face_dbg )
-            g_face_dbg_skip_type2++;
         return;
-    }
     enum FaceType type = (enum FaceType)raw_type;
 
     int color_a = ctx->colors_a[face];
@@ -156,8 +103,6 @@ ToriDraw_RasterModelFace(
         // and
         // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
         // getModelFaces
-        if( face_dbg )
-            g_face_dbg_skip_hidden++;
         return;
         // color_c = 0;
     }
@@ -221,16 +166,12 @@ ToriDraw_RasterModelFace(
                         texture_id,
                         skip_tally[texture_id]);
             }
-            if( face_dbg )
-                g_face_dbg_skip_tex_miss++;
             return;
         }
 
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
-        if( face_dbg )
-            g_face_dbg_drawn++;
 
         if( color_c == TORIDRAWHSL16_FLAT )
             goto textured_flat;
@@ -247,13 +188,7 @@ ToriDraw_RasterModelFace(
             alpha = 0xFF - alpha;
         /* Reference getModelFaces: skip fully/near-fully transparent faces. */
         if( alpha <= 1 )
-        {
-            if( face_dbg )
-                g_face_dbg_skip_alpha0++;
             return;
-        }
-        if( face_dbg )
-            g_face_dbg_drawn++;
 
         if( color_c == TORIDRAWHSL16_FLAT )
         {
@@ -717,7 +652,6 @@ ToriDraw_RasterWithFaceIndices(
         int face = scene->tmp_face_order[i];
         ToriDraw_RasterModelFace(face, &ctx);
     }
-    face_dbg_flush_model();
 }
 
 static inline void

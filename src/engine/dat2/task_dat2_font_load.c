@@ -53,7 +53,11 @@ Task_Dat2FontLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    font = ToriRS_FontFromDat2Archives(task->font_archive, sprite_archive, task->font_id);
+    font = ToriRS_FontFromDat2Archives(
+        CacheProvider_Profile(&task->bc->base),
+        task->font_archive,
+        sprite_archive,
+        task->font_id);
     task->font_archive = NULL;
     if( !font )
     {

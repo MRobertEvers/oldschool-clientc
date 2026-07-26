@@ -33,7 +33,7 @@
 
 /** Line box height at the default bold-12 metrics (same box the minimenu rows
  *  draw into, so the baseline lands identically). */
-#define UITREE_HOVERTEXT_BOX_H (UITREE_MINIMENU_DEFAULT_LINE_HEIGHT + 2)
+#define UITREE_HOVERTEXT_BOX_H UITREE_MINIMENU_DEFAULT_LINE_BOX
 
 struct UIHoverText
 {

@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DAT2_FONT_METRICS_SIZE 257
 #define FONT_ADVANCE_ONLY_GLYPH TORIRS_FONT_GLYPH_COUNT
 
 static uint16_t const TORIRS_FONT_CHARSET[TORIRS_FONT_GLYPH_COUNT] = {
@@ -84,13 +83,14 @@ font_has_any_glyph(struct ToriRS_Font const* font)
 
 static struct ToriRS_Font*
 font_new_from_dat2_metrics_and_sprite_pack(
-    uint8_t const* metrics,
+    struct RSCache_Dat2FontMetrics const* metrics,
     struct RSCache_Dat2SpritePack const* pack)
 {
     struct ToriRS_Font* font;
     int gi;
 
-    if( !metrics || !pack || pack->count <= 0 )
+    assert(metrics);
+    if( !pack || pack->count <= 0 )
         return NULL;
 
     font = calloc(1, sizeof(*font));
@@ -98,7 +98,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
         return NULL;
 
     font_init_charcodeset(font);
-    font->line_height = metrics[256] & 0xFF;
+    font->line_height = metrics->ascent;
 
     for( gi = 0; gi < TORIRS_FONT_GLYPH_COUNT; gi++ )
     {
@@ -133,10 +133,13 @@ font_new_from_dat2_metrics_and_sprite_pack(
         font->glyph_height[gi] = gh;
         font->offset_x[gi] = sprite->offset_x;
         font->offset_y[gi] = sprite->offset_y;
-        font->advance[gi] = metrics[cp] & 0xFF;
+        font->advance[gi] = metrics->advance[cp];
         if( font->advance[gi] <= 0 )
             font->advance[gi] = gw > 0 ? gw + 2 : 4;
     }
+
+    if( metrics->advance[(unsigned char)' '] > 0 )
+        font->advance[FONT_ADVANCE_ONLY_GLYPH] = metrics->advance[(unsigned char)' '];
 
     if( font->line_height <= 0 )
     {
@@ -253,6 +256,7 @@ ToriRS_FontFromDat1Jagfile(
 
 struct ToriRS_Font*
 ToriRS_FontFromDat2Archives(
+    const struct RSCache* profile,
     struct RSCache_Dat2DiskArchive* font_archive,
     struct RSCache_Dat2DiskArchive* sprite_archive,
     int font_id)
@@ -260,7 +264,9 @@ ToriRS_FontFromDat2Archives(
     struct RSCache_FileList* fl;
     struct RSCache_Dat2SpritePack* pack;
     struct ToriRS_Font* font;
-    uint8_t metrics[DAT2_FONT_METRICS_SIZE];
+    struct RSCache_Dat2FontMetrics metrics;
+
+    assert(profile);
 
     if( !font_archive || !sprite_archive || font_id < 0 )
     {
@@ -274,14 +280,20 @@ ToriRS_FontFromDat2Archives(
     fl = RSCache_FileListNewFromDecode(
         font_archive->data, font_archive->data_size, font_archive->file_count);
     RSCache_Dat2DiskArchiveFree(font_archive);
-    if( !fl || fl->file_count <= 0 || fl->file_sizes[0] < DAT2_FONT_METRICS_SIZE )
+    if( !fl || fl->file_count <= 0 || !fl->files[0] )
     {
         RSCache_Dat2DiskArchiveFree(sprite_archive);
         RSCache_FileListFree(fl);
         return NULL;
     }
 
-    memcpy(metrics, fl->files[0], DAT2_FONT_METRICS_SIZE);
+    if( !RSCache_Dat2FontMetricsDecodeProfile(
+            profile, (uint8_t const*)fl->files[0], fl->file_sizes[0], &metrics) )
+    {
+        RSCache_Dat2DiskArchiveFree(sprite_archive);
+        RSCache_FileListFree(fl);
+        return NULL;
+    }
     RSCache_FileListFree(fl);
 
     pack = RSCache_Dat2SpritePackNewDecode(
@@ -292,7 +304,7 @@ ToriRS_FontFromDat2Archives(
     if( !pack )
         return NULL;
 
-    font = font_new_from_dat2_metrics_and_sprite_pack(metrics, pack);
+    font = font_new_from_dat2_metrics_and_sprite_pack(&metrics, pack);
     RSCache_Dat2SpritePackFree(pack);
     if( font )
         snprintf(font->name, sizeof(font->name), "fnt:%d", font_id);

@@ -11,48 +11,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-
-/* TORIRS_FACE_DEBUG=1: per-model bake tallies. Temporary. */
-static int g_gl_face_dbg_on = -1;
-static int g_gl_face_dbg_faces;
-static int g_gl_face_dbg_alpha0;
-static int g_gl_face_dbg_hidden;
-static int g_gl_face_dbg_textured;
-static int g_gl_face_dbg_models;
-
-static int
-gl_face_dbg_enabled(void)
-{
-    if( g_gl_face_dbg_on < 0 )
-        g_gl_face_dbg_on = getenv("TORIRS_FACE_DEBUG") != NULL;
-    return g_gl_face_dbg_on;
-}
-
-static void
-gl_face_dbg_flush_model(int face_count)
-{
-    if( !gl_face_dbg_enabled() || g_gl_face_dbg_faces <= 0 )
-        return;
-    if( face_count >= 200 || g_gl_face_dbg_faces >= 200 )
-    {
-        fprintf(
-            stderr,
-            "face_dbg gl3 model#%d baked=%d alpha0=%d hidden=%d textured=%d\n",
-            g_gl_face_dbg_models,
-            g_gl_face_dbg_faces,
-            g_gl_face_dbg_alpha0,
-            g_gl_face_dbg_hidden,
-            g_gl_face_dbg_textured);
-    }
-    g_gl_face_dbg_models++;
-    g_gl_face_dbg_faces = 0;
-    g_gl_face_dbg_alpha0 = 0;
-    g_gl_face_dbg_hidden = 0;
-    g_gl_face_dbg_textured = 0;
-}
 
 bool
 trspk_toridraw_texture_is_animated(
@@ -277,17 +236,6 @@ trspk_toridraw_bake_face(
     if( tex_id == -1 && alpha <= 1u )
         alpha = 0u;
 
-    if( gl_face_dbg_enabled() )
-    {
-        g_gl_face_dbg_faces++;
-        if( model->face_colors_c[face_index] == TORIDRAWHSL16_HIDDEN )
-            g_gl_face_dbg_hidden++;
-        if( alpha <= 1 )
-            g_gl_face_dbg_alpha0++;
-        if( tex_id != -1 )
-            g_gl_face_dbg_textured++;
-    }
-
     trspk_toridraw_face_colors(
         model->face_colors_a[face_index],
         model->face_colors_b[face_index],
@@ -339,9 +287,6 @@ trspk_toridraw_bake_face(
         &out->wx_c,
         &out->wy_c,
         &out->wz_c);
-
-    if( gl_face_dbg_enabled() && (int)face_index + 1 >= model->face_count )
-        gl_face_dbg_flush_model(model->face_count);
 }
 
 static void

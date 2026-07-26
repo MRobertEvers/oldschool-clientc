@@ -1171,6 +1171,39 @@ enum
     FONT_DRAW_BOX_MAX_LINES = 64,
 };
 
+/** Glyph line box: max(offset_y + glyph_height) over drawable glyphs.
+ *  Returns 0 when the font has no drawable glyphs. */
+static int
+font_line_box_height(struct ToriDraw_Font const* font)
+{
+    assert(font);
+
+    int max_bottom = 0;
+    bool any = false;
+
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        if( !font_glyph_drawable(font, i) )
+            continue;
+
+        int const bottom = font->offset_y[i] + font->glyph_height[i];
+        if( !any || bottom > max_bottom )
+            max_bottom = bottom;
+        any = true;
+    }
+    return any ? max_bottom : 0;
+}
+
+int
+ToriDraw_FontLineBoxHeight(struct ToriDraw_Font const* font)
+{
+    assert(font);
+    int const box = font_line_box_height(font);
+    if( box > 0 )
+        return box;
+    return font->line_height > 0 ? font->line_height : 1;
+}
+
 static void
 font_get_vertical_metrics(
     struct ToriDraw_Font const* font,

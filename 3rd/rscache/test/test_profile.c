@@ -311,6 +311,37 @@ test_loc_flags(void)
     RSCACHE_CHECK(!(RSCache_Dat2ConfigLocFlags(&by_archive) & RSCACHE_CONFIG_LOC_DECODE_OSRS_220));
 }
 
+static void
+test_font_metrics_codec_version(void)
+{
+    RSCACHE_TEST_GROUP("font metrics codec version");
+
+    struct RSCache rs643 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 643, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FontMetricsCodecVersion(&rs643), RSCACHE_CODEC_FONT_METRICS_V2);
+
+    struct RSCache rs634 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 634, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FontMetricsCodecVersion(&rs634), RSCACHE_CODEC_FONT_METRICS_V2);
+
+    struct RSCache osrs230 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 230, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FontMetricsCodecVersion(&osrs230), RSCACHE_CODEC_FONT_METRICS_V1);
+
+    struct RSCache osrs239 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 239, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FontMetricsCodecVersion(&osrs239), RSCACHE_CODEC_FONT_METRICS_V1);
+
+    struct RSCache kronos = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 184, RSCACHE_QUIRK_KRONOS);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FontMetricsCodecVersion(&kronos), RSCACHE_CODEC_FONT_METRICS_V1);
+}
+
 int
 main(void)
 {
@@ -323,5 +354,6 @@ main(void)
     test_revision_at_least_rs2();
     test_map_locs_encrypted();
     test_loc_flags();
+    test_font_metrics_codec_version();
     return rscache_test_report("profile");
 }

@@ -3994,52 +3994,6 @@ app_world_build_model(
     ToriDraw_ModelDropNonSdTextures(app->provider, model);
     ToriDraw_ModelNoteTextureWants(model);
 
-    /* TORIRS_FACE_DEBUG: dump alpha/info histograms for large NPC models. */
-    if( getenv("TORIRS_FACE_DEBUG") && model->face_count >= 200 )
-    {
-        int alpha_hist[256];
-        int info_hist[256];
-        int textured = 0;
-        int alpha_present = model->face_alphas != NULL;
-        int info_present = model->face_infos != NULL;
-        memset(alpha_hist, 0, sizeof(alpha_hist));
-        memset(info_hist, 0, sizeof(info_hist));
-        for( int f = 0; f < model->face_count; f++ )
-        {
-            if( model->face_alphas )
-                alpha_hist[model->face_alphas[f]]++;
-            if( model->face_infos )
-            {
-                int v = model->face_infos[f];
-                if( v < 0 )
-                    v = 0;
-                if( v > 255 )
-                    v = 255;
-                info_hist[v]++;
-            }
-            if( model->face_textures && model->face_textures[f] != -1 )
-                textured++;
-        }
-        fprintf(
-            stderr,
-            "face_dbg model faces=%d verts=%d alphas=%d infos=%d textured=%d (post-SD-gate)\n",
-            model->face_count,
-            model->vertex_count,
-            alpha_present,
-            info_present,
-            textured);
-        for( int i = 0; i < 256; i++ )
-        {
-            if( alpha_hist[i] )
-                fprintf(stderr, "face_dbg alpha[%d]=%d\n", i, alpha_hist[i]);
-        }
-        for( int i = 0; i < 256; i++ )
-        {
-            if( info_hist[i] )
-                fprintf(stderr, "face_dbg info[%d]=%d\n", i, info_hist[i]);
-        }
-    }
-
     {
         struct ToriDraw_ModelHandle hnd;
         memset(&hnd, 0, sizeof(hnd));
@@ -5831,7 +5785,7 @@ app_minimenu_open(
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
     int content_w = 0;
-    int line_height = 0;
+    int line_box = 0;
 
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
 
@@ -5875,9 +5829,9 @@ app_minimenu_open(
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
         if( font )
-            line_height = font->line_height;
+            line_box = ToriDraw_FontLineBoxHeight(font);
     }
-    if( UIMinimenu_PrepareShow(menu, line_height, app_measure_text_cb, app, &layout, &content_w) )
+    if( UIMinimenu_PrepareShow(menu, line_box, app_measure_text_cb, app, &layout, &content_w) )
     {
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);

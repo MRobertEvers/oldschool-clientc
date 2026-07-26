@@ -67,6 +67,7 @@
 #include "datatypes/dat1_pix8.h"
 #include "datatypes/dat1_pix32.h"
 #include "datatypes/dat1_pix_font.h"
+#include "datatypes/dat2_font_metrics.h"
 #include "datatypes/dat1_config_component.h"
 /* Above the datatypes: a revision module names the codecs it binds. */
 #include "revisions/revisions.h"
