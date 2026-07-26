@@ -24,6 +24,7 @@
 #include "reference_table.h"
 #include "xtea_config.h"
 #include "dat2disk.h"
+#include "cache_edit.h"
 #include "dat1disk.h"
 #include "filelist.h"
 #include "datatypes/model.h"
@@ -43,6 +44,7 @@
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_idk.h"
 #include "datatypes/dat2_config_npc.h"
+#include "datatypes/dat2_entity_ops.h"
 #include "datatypes/dat2_config_bas.h"
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_flo.h"
@@ -69,6 +71,7 @@
 #include "datatypes/dat1_pix_font.h"
 #include "datatypes/dat2_font_metrics.h"
 #include "datatypes/dat1_config_component.h"
+#include "datatypes/dat1_version_list.h"
 /* Above the datatypes: a revision module names the codecs it binds. */
 #include "revisions/revisions.h"
 // clang-format on

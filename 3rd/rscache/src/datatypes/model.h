@@ -147,6 +147,13 @@ struct RSCache_Model
     uint8_t* animaya_group_counts;
     uint8_t** animaya_groups;
     uint8_t** animaya_scales;
+
+    /**
+     * OSRS 232+ face Z offsets (V2/V3 only). Length is face_count when present;
+     * NULL when the stream's hasOffsets gate was zero or the format lacks the
+     * section (OB2/OB3).
+     */
+    int8_t* face_z_offsets;
 };
 
 /**

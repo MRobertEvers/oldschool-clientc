@@ -21,6 +21,7 @@ struct RSCache_Dat2ConfigInv
     int id;
     /** Slot count. 0 when the record named none, which no cache record does. */
     int size;
+    struct RSCache_Params params;
     /** Bytes consumed. Equal to the record size for a fully understood record. */
     int _consumed;
 };
@@ -39,6 +40,9 @@ RSCache_Dat2ConfigInvDecodeInplace(
     struct RSCache_Dat2ConfigInv* entry,
     const void* data,
     int data_size);
+
+void
+RSCache_Dat2ConfigInvFreeInplace(struct RSCache_Dat2ConfigInv* entry);
 
 /** Byte-exact on every record in the corpus. Returns bytes written, or 0. */
 uint32_t

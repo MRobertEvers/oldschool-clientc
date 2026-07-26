@@ -12,6 +12,8 @@
 #define RSCACHE_CS2_OP_RETURN 21
 #define RSCACHE_CS2_OP_POP_INT_DISCARD 38
 #define RSCACHE_CS2_OP_POP_STRING_DISCARD 39
+/* 51/52 (varc long) and 66-73 (long load/store/cmp) are INT32 in the
+ * generated operand-kind table — no special-case width handling needed. */
 #define RSCACHE_CS2_OP_PUSH_CONSTANT_LONG 61
 #define RSCACHE_CS2_OP_POP_LONG_DISCARD 62
 #define RSCACHE_CS2_OP_PUSH_NULL 63
@@ -51,10 +53,8 @@ cs2_script_read_operand(
 {
     if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
     {
-        int high = RSCache_BufferG4(body);
-        int low = RSCache_BufferG4(body);
-        script->int_operands[op_index] = low;
-        (void)high;
+        script->long_operands[op_index] = RSCache_BufferG8(body);
+        script->int_operands[op_index] = 0;
         return true;
     }
 
@@ -78,6 +78,7 @@ cs2_script_read_operand(
         break;
     case RSCACHE_CS2_OPERAND_INT32:
     default:
+        /* Long-stack ops 51/52/66-73 are INT32 in the operand-kind table. */
         script->int_operands[op_index] = RSCache_BufferG4(body);
         break;
     }
@@ -186,8 +187,10 @@ cs2_script_try_decode_footer(
 
     script->opcodes = calloc((size_t)op_count, sizeof(uint16_t));
     script->int_operands = calloc((size_t)op_count, sizeof(int));
+    script->long_operands = calloc((size_t)op_count, sizeof(int64_t));
     script->string_operands = calloc((size_t)op_count, sizeof(char*));
-    if( !script->opcodes || !script->int_operands || !script->string_operands )
+    if( !script->opcodes || !script->int_operands || !script->long_operands ||
+        !script->string_operands )
     {
         RSCache_ClientScriptFree(out);
         return NULL;
@@ -222,13 +225,8 @@ cs2_script_write_operand(
 {
     if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
     {
-        /* The decode reads two u32s and keeps only the low one, so the high half is
-         * already gone. Sign-extend from the low word, which reproduces the common
-         * case of a small constant; a genuinely 64-bit constant cannot be restored.
-         * Widening int_operands to int64_t is the real fix. */
-        int low = script->int_operands[op_index];
-        p4(body, low < 0 ? -1 : 0);
-        p4(body, low);
+        int64_t value = script->long_operands ? script->long_operands[op_index] : 0;
+        p8(body, value);
         return;
     }
     if( cs2_operand_uses_int8(opcode) )
@@ -358,8 +356,9 @@ RSCache_ClientScriptEncode(
 int
 RSCache_ClientScriptFlags(const struct RSCache* cache)
 {
-    (void)cache;
-    /* Unconditional by design — see the header. */
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_CLIENTSCRIPT, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        return RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_MODERN;
     return RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
 }
 

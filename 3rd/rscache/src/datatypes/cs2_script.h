@@ -32,6 +32,8 @@ struct RSCache_CS2_Script
     int op_count;
     uint16_t* opcodes;
     int* int_operands;
+    /** Parallel to opcodes; used by LCONST (61). Other ops leave entries zero. */
+    int64_t* long_operands;
     char** string_operands;
     int switch_table_count;
     struct RSCache_CS2_ScriptSwitch switch_tables[RSCACHE_CS2_SCRIPT_MAX_SWITCHES];

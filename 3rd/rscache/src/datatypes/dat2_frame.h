@@ -133,7 +133,7 @@ RSCache_Dat2FrameFramemapIdFromFile(
     int data_size);
 
 /**
- * Encode an animation frame.
+ * Encode an animation frame for an explicit codec (RSCACHE_CODEC_FRAME_V1 / V2).
  *
  * Exact, because the decode records what it would otherwise destroy — see the
  * provenance note on the struct. Specifically it replays the flag stream verbatim
@@ -145,6 +145,11 @@ RSCache_Dat2FrameFramemapIdFromFile(
  * apart from an authored value that happens to equal that default. Reproducing the
  * flag bytes sidesteps the question entirely.
  *
+ * V2 stores transforms at higher wire precision (decode right-shifts ORIGIN/TRANSLATE
+ * by 2 and ROTATE by 4). Encode must left-shift those back, which needs bone types
+ * from `framemap_nullable`. When codec is V2 and framemap is NULL, returns 0.
+ * V1 ignores framemap.
+ *
  * Requires a frame produced by this library's decoder. A hand-built frame must set
  * `flag_count`, `bone_flags` and `synthesized` consistently with the entries; the
  * encoder returns 0 rather than guessing if they are missing or a bone index falls
@@ -153,12 +158,27 @@ RSCache_Dat2FrameFramemapIdFromFile(
  * Returns bytes written, or 0 on failure.
  */
 uint32_t
+RSCache_Dat2FrameEncodeCodec(
+    const struct RSCache_Dat2Frame* def,
+    int codec_version,
+    const struct RSCache_Dat2Framemap* framemap_nullable,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Worst-case output size for RSCache_Dat2FrameEncodeCodec. */
+uint32_t
+RSCache_Dat2FrameEncodeBoundCodec(
+    const struct RSCache_Dat2Frame* def,
+    int codec_version);
+
+/** Encode as V1. Wrapper over EncodeCodec(..., V1, NULL, ...). */
+uint32_t
 RSCache_Dat2FrameEncode(
     const struct RSCache_Dat2Frame* def,
     uint8_t* out,
     uint32_t out_capacity);
 
-/** Worst-case output size for RSCache_Dat2FrameEncode. */
+/** Worst-case output size for RSCache_Dat2FrameEncode (V1). */
 uint32_t
 RSCache_Dat2FrameEncodeBound(const struct RSCache_Dat2Frame* def);
 

@@ -13,16 +13,10 @@
 /**
  * Trailer flag for this cache.
  *
- * Returns LEGACY for every declared profile, which is what the client already
- * hardcoded at its one call site (with the MODERN branch commented out above
- * it). This function exists to give that decision a single home rather than to
- * change it: no revision threshold for the trailer width has been verified
- * against a cache yet, and guessing one would silently break script decode for
- * whichever side of the guess is wrong.
- *
- * Note the decoder is a *try* — cs2_script_try_decode_footer validates the
- * footer and returns NULL on a mismatch — so when the threshold is established
- * it can be added here and checked against every cache in the corpus.
+ * OSRS >= 237 uses the modern 16-byte trailer (long locals/args). Everything
+ * else — including unidentified profiles — stays on the legacy 12-byte trailer.
+ * The decoder is a *try* that validates the footer, so a wrong guess still fails
+ * cleanly rather than silently misparsing the body.
  */
 int
 RSCache_ClientScriptFlags(const struct RSCache* cache);
@@ -60,11 +54,7 @@ RSCache_ClientScriptNewFromDecodeFlags(
  * cache.osrs230, with and without switch tables: S=0 gives 1, S=50 gives 51, S=92
  * gives 93, S=162 gives 163, S=192 gives 193, S=418 gives 419.
  *
- * One field cannot be reproduced: `PUSH_CONSTANT_LONG` carries two u32s and the
- * decode keeps only the low one, because `int_operands` is `int`. This sign-extends
- * from the low word, which restores any constant that fits in 32 bits; a genuinely
- * 64-bit constant is already lost by then. Widening `int_operands` to `int64_t` is
- * the real fix and would touch the CS2 VM.
+ * `PUSH_CONSTANT_LONG` (LCONST) is stored in `long_operands` as a full int64.
  *
  * Returns bytes written, or 0 on failure.
  */

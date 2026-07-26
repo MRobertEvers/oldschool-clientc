@@ -286,34 +286,56 @@ frame_new_decode(
 }
 
 uint32_t
-RSCache_Dat2FrameEncodeBound(const struct RSCache_Dat2Frame* def)
+RSCache_Dat2FrameEncodeBoundCodec(
+    const struct RSCache_Dat2Frame* def,
+    int codec_version)
 {
     if( !def )
         return 0;
+    assert(
+        codec_version == RSCACHE_CODEC_FRAME_V1 || codec_version == RSCACHE_CODEC_FRAME_V2);
 
     /* Header, the flag stream, then up to three shortsmarts (2 bytes each) per
-     * entry. V1 header is 3 bytes; V2 encode is not implemented (would need the
-     * leading unused byte and un-shifted transform values). */
-    return 3u + (uint32_t)def->flag_count + (uint32_t)def->translator_count * 6u + 16u;
+     * entry. V1 header is 3 bytes; V2 adds the leading unused byte. */
+    uint32_t header = codec_version == RSCACHE_CODEC_FRAME_V2 ? 4u : 3u;
+    return header + (uint32_t)def->flag_count + (uint32_t)def->translator_count * 6u + 16u;
 }
 
 uint32_t
-RSCache_Dat2FrameEncode(
+RSCache_Dat2FrameEncodeBound(const struct RSCache_Dat2Frame* def)
+{
+    return RSCache_Dat2FrameEncodeBoundCodec(def, RSCACHE_CODEC_FRAME_V1);
+}
+
+uint32_t
+RSCache_Dat2FrameEncodeCodec(
     const struct RSCache_Dat2Frame* def,
+    int codec_version,
+    const struct RSCache_Dat2Framemap* framemap_nullable,
     uint8_t* out,
     uint32_t out_capacity)
 {
+    assert(
+        codec_version == RSCACHE_CODEC_FRAME_V1 || codec_version == RSCACHE_CODEC_FRAME_V2);
+
     if( !def || !out )
         return 0;
     if( def->flag_count > 0 && !def->bone_flags )
         return 0;
     if( def->translator_count > 0 && !def->synthesized )
         return 0;
-    if( out_capacity < RSCache_Dat2FrameEncodeBound(def) )
+    /* V2 un-shift needs bone types; without a framemap encode cannot be safe. */
+    if( codec_version == RSCACHE_CODEC_FRAME_V2 && !framemap_nullable )
+        return 0;
+    if( out_capacity < RSCache_Dat2FrameEncodeBoundCodec(def, codec_version) )
         return 0;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /* V2 (RS >= 610): leading unused byte before the framemap id. */
+    if( codec_version == RSCACHE_CODEC_FRAME_V2 )
+        p1(&buffer, 0);
 
     p2(&buffer, def->framemap_id);
     p1(&buffer, def->flag_count);
@@ -330,6 +352,9 @@ RSCache_Dat2FrameEncode(
      * invented. Real entries appear in ascending bone order and a synthesized entry
      * always immediately precedes the real one that caused it, so walking the array
      * and skipping synthesized entries reproduces the source order exactly.
+     *
+     * V2: decode right-shifts ORIGIN/TRANSLATE (types 0/1) by 2 and ROTATE (type 2)
+     * by 4; write the un-shifted wire values.
      */
     for( int i = 0; i < def->translator_count; i++ )
     {
@@ -340,16 +365,39 @@ RSCache_Dat2FrameEncode(
         if( bone < 0 || bone >= def->flag_count )
             return 0;
 
+        int shift = 0;
+        if( codec_version == RSCACHE_CODEC_FRAME_V2 )
+        {
+            assert(framemap_nullable->types);
+            if( bone >= framemap_nullable->length )
+                return 0;
+            int type = framemap_nullable->types[bone];
+            if( type == 0 || type == 1 )
+                shift = 2;
+            else if( type == 2 )
+                shift = 4;
+        }
+
         int flags = def->bone_flags[bone];
         if( flags & 1 )
-            pshortsmart(&buffer, def->translator_arg_x[i]);
+            pshortsmart(&buffer, def->translator_arg_x[i] << shift);
         if( flags & 2 )
-            pshortsmart(&buffer, def->translator_arg_y[i]);
+            pshortsmart(&buffer, def->translator_arg_y[i] << shift);
         if( flags & 4 )
-            pshortsmart(&buffer, def->translator_arg_z[i]);
+            pshortsmart(&buffer, def->translator_arg_z[i] << shift);
     }
 
     return buffer.position;
+}
+
+uint32_t
+RSCache_Dat2FrameEncode(
+    const struct RSCache_Dat2Frame* def,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_Dat2FrameEncodeCodec(
+        def, RSCACHE_CODEC_FRAME_V1, NULL, out, out_capacity);
 }
 
 int

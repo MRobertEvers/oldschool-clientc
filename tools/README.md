@@ -166,3 +166,11 @@ make -C tools/interface161_test
   --fixture tools/interface161_test/fixtures/equipment_387.json \
   build/interface_387.bmp
 ```
+
+## Cache porting (`3rd/rscache/tools/`)
+
+Asset discovery and cross-revision NPC porting live next to the cache library,
+not under this top-level `tools/` tree:
+
+- [`3rd/rscache/tools/README.md`](../3rd/rscache/tools/README.md) — `find_anims`, `port_npc`
+- Build: `make -C 3rd/rscache tools`

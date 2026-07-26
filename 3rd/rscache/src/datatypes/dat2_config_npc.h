@@ -3,6 +3,7 @@
 
 #include "../rsbuffer.h"
 #include "../rscache_profile.h"
+#include "dat2_entity_ops.h"
 
 #include <stdbool.h>
 
@@ -37,6 +38,8 @@ struct RSCache_Dat2ConfigNpc
     int width_scale;
     int height_scale;
     bool has_render_priority;
+    /** Opcode 111 under rev233+ sets this to 2; opcode 99 sets it to 1. */
+    int render_priority;
     int ambient;
     int contrast;
     int* head_icon_archive_ids;
@@ -67,6 +70,22 @@ struct RSCache_Dat2ConfigNpc
      * When set, idle/walk come from the BasType rather than opcodes 13/14.
      */
     int bas_type_id;
+
+    /* --- rev 231+ --- */
+    /** Opcode 126. -1 means "unset" so the post-decode default can apply. */
+    int footprint_size;
+    /* --- rev 234+ --- */
+    bool unknown1; /* opcode 129 */
+    /* --- rev 235+ --- */
+    bool can_hide_for_overlap; /* opcode 145 */
+    int overlap_tint_hsl;      /* opcode 146; 0 when absent */
+    /* --- rev 236+ --- */
+    bool idle_anim_restart; /* opcode 130 */
+    bool zbuf;              /* default true; opcode 147 clears */
+
+    /** Rev 237+: sub-ops / conditional ops. Plain ops still live in `actions`. */
+    struct RSCache_EntityOps entity_ops;
+
     struct RSCache_Params params;
 
     /** Bytes consumed by the last decode, set when the terminating opcode 0 is
@@ -131,6 +150,22 @@ struct RSCache_Dat2ConfigNpc
  * addition and an RS2 archive revision says nothing about it.
  */
 #define RSCACHE_CONFIG_NPC_DECODE_RS2 2
+
+/** Rev 231+: opcode 126 footprintSize + post-decode default. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT 4
+/** Rev 234+: opcode 129 unknown1. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV234_FLAGS 8
+/** Rev 235+: opcodes 145/146 overlap fields (stored, not just consumed). */
+#define RSCACHE_CONFIG_NPC_DECODE_REV235_OVERLAP 16
+/** Rev 236+: opcodes 130 idleAnimRestart, 147 zbuf=false. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV236_FLAGS 32
+/** Rev 237+: opcodes 61/62 int model arrays. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS 64
+/** Rev 237+: opcodes 251/252/253 EntityOps. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS 128
+
+/** Rev 233+: opcode 111 means renderPriority=2 instead of isFollower. */
+#define RSCACHE_CONFIG_NPC_DECODE_REV233_OP111 256
 
 /** Archive revision at which the head-icon bitfield appeared (game rev 210).
  *  RuneLite's NpcLoader gates the same field on the same value. */

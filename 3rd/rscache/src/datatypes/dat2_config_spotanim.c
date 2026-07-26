@@ -2,6 +2,7 @@
 
 #include "../rsbuffer.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,8 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
             s->model = g2(buffer);
         else if( opcode == 2 )
             s->anim = g2(buffer);
+        else if( opcode == 3 )
+            s->model = g4(buffer);
         else if( opcode == 4 )
             s->resizeh = g2(buffer);
         else if( opcode == 5 )
@@ -79,6 +82,12 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
         {
             free(s->name);
             s->name = gcstring(buffer);
+        }
+        else if( opcode == 10 )
+        {
+            /* Payload-free flag. Not in RuneLite's SpotAnimLoader yet; verified
+             * against cache.osrs239 where 39 records are `... 0a 00`. */
+            s->unknown10 = true;
         }
         /* Recolour and retexture lists are **count-prefixed**: a u8 count, then
          * that many (from, to) u16 pairs. This is not the "one opcode per slot"
@@ -101,7 +110,8 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
 }
 
 uint32_t
-RSCache_Dat2ConfigSpotanimEncode(
+RSCache_Dat2ConfigSpotanimEncodeRevision(
+    int revision,
     const struct RSCache_Dat2ConfigSpotanim* spotanim,
     uint8_t* out,
     uint32_t out_capacity)
@@ -120,8 +130,18 @@ RSCache_Dat2ConfigSpotanimEncode(
 
     if( spotanim->model != defaults.model )
     {
-        p1(&buffer, 1);
-        p2(&buffer, spotanim->model);
+        /* OSRS >= 237 packs model ids with opcode 3 even when they fit in a
+         * u16; prefer that form so a re-encode keeps the same width. */
+        if( revision >= 237 || spotanim->model < 0 || spotanim->model > 0xFFFF )
+        {
+            p1(&buffer, 3);
+            p4(&buffer, spotanim->model);
+        }
+        else
+        {
+            p1(&buffer, 1);
+            p2(&buffer, spotanim->model);
+        }
     }
     if( spotanim->anim != defaults.anim )
     {
@@ -160,6 +180,8 @@ RSCache_Dat2ConfigSpotanimEncode(
         p1(&buffer, 9);
         pjstr(&buffer, spotanim->name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
+    if( spotanim->unknown10 )
+        p1(&buffer, 10);
 
     /* Count-prefixed lists, matching the decoder. */
     if( spotanim->recol_count > 0 )
@@ -185,6 +207,15 @@ RSCache_Dat2ConfigSpotanimEncode(
 
     p1(&buffer, 0);
     return buffer.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigSpotanimEncode(
+    const struct RSCache_Dat2ConfigSpotanim* spotanim,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_Dat2ConfigSpotanimEncodeRevision(0, spotanim, out, out_capacity);
 }
 
 struct RSCache_Dat2ConfigSpotanim*

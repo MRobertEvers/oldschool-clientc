@@ -15,6 +15,7 @@ RSCache_Dat2ConfigEnumDecodeInplace(
     int key_cap = 0;
     int* keys = NULL;
     int* int_values = NULL;
+    int64_t* long_values = NULL;
     char** string_values = NULL;
     int count = 0;
 
@@ -105,13 +106,28 @@ RSCache_Dat2ConfigEnumDecodeInplace(
             int size = g2(&buf);
             for( int i = 0; i < size; i++ )
             {
-                (void)g4(&buf);
-                (void)g8(&buf);
+                int key = g4(&buf);
+                int64_t value = g8(&buf);
+                if( count >= key_cap )
+                {
+                    int new_cap = key_cap < 8 ? 8 : key_cap * 2;
+                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
+                    int64_t* new_values =
+                        realloc(long_values, (size_t)new_cap * sizeof(int64_t));
+                    if( !new_keys || !new_values )
+                        goto decode_fail;
+                    keys = new_keys;
+                    long_values = new_values;
+                    key_cap = new_cap;
+                }
+                keys[count] = key;
+                long_values[count] = value;
+                count++;
             }
             break;
         }
         case 8:
-            (void)g8(&buf);
+            entry->default_long = g8(&buf);
             break;
         default:
             break;
@@ -120,6 +136,7 @@ RSCache_Dat2ConfigEnumDecodeInplace(
 
     entry->keys = keys;
     entry->int_values = int_values;
+    entry->long_values = long_values;
     entry->string_values = string_values;
     entry->count = count;
     return;
@@ -127,6 +144,7 @@ RSCache_Dat2ConfigEnumDecodeInplace(
 decode_fail:
     free(keys);
     free(int_values);
+    free(long_values);
     if( string_values )
     {
         for( int i = 0; i < count; i++ )
@@ -167,10 +185,15 @@ RSCache_Dat2ConfigEnumEncode(
         p1(&buf, 4);
         p4(&buf, entry->default_int);
     }
+    if( entry->default_long != 0 )
+    {
+        p1(&buf, 8);
+        p8(&buf, entry->default_long);
+    }
 
     if( entry->count > 0 )
     {
-        /* One block of the appropriate type. The decoder appends opcode 5 and 6
+        /* One block of the appropriate type. The decoder appends opcode 5/6/7
          * entries into the same arrays, so a record that used both cannot be
          * distinguished afterwards and re-encodes as a single block. */
         if( entry->output_is_string )
@@ -186,6 +209,16 @@ RSCache_Dat2ConfigEnumEncode(
                     RSCACHE_JSTR_TERMINATOR_NULL);
             }
         }
+        else if( entry->long_values )
+        {
+            p1(&buf, 7);
+            p2(&buf, entry->count);
+            for( int i = 0; i < entry->count; i++ )
+            {
+                p4(&buf, entry->keys[i]);
+                p8(&buf, entry->long_values[i]);
+            }
+        }
         else
         {
             p1(&buf, 6);
@@ -198,9 +231,9 @@ RSCache_Dat2ConfigEnumEncode(
         }
     }
 
-    /* Opcodes 1, 7 and 8 are consumed and discarded by the decoder, so they
-     * cannot be reproduced. A record carrying them round-trips semantically but
-     * not byte-exactly. */
+    /* Opcode 1 is consumed and discarded by the decoder, so it cannot be
+     * reproduced. A record carrying it round-trips semantically but not
+     * byte-exactly. */
 
     p1(&buf, 0);
     return buf.position;
@@ -217,6 +250,8 @@ RSCache_Dat2ConfigEnumFreeInplace(struct RSCache_Dat2ConfigEnum* entry)
     entry->keys = NULL;
     free(entry->int_values);
     entry->int_values = NULL;
+    free(entry->long_values);
+    entry->long_values = NULL;
     free(entry->default_string);
     entry->default_string = NULL;
     if( entry->string_values )

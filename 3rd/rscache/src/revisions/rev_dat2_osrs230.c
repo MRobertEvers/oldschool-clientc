@@ -14,6 +14,7 @@
  *   - npc  : >= 210 head icons (bitfield, not a single sprite index)
  *   - component: pre-237 field widths, so type-6 model ids stay u16
  *   - map locs: still XTEA-encrypted (gate is OldSchool >= 237)
+ *   - seq opcode 18 debugName / spotanim opcode 9 debugName (rev 230 ops)
  */
 
 struct RSCache

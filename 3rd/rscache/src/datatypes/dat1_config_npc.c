@@ -367,3 +367,211 @@ RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc)
         free(npc->op[i]);
     free(npc);
 }
+
+void
+RSCache_Dat1ConfigNpcListFree(struct RSCache_Dat1ConfigNpcList* list)
+{
+    if( !list )
+        return;
+    if( list->npcs )
+    {
+        for( int i = 0; i < list->npcs_count; i++ )
+            RSCache_Dat1ConfigNpcFree(list->npcs[i]);
+        free(list->npcs);
+    }
+    free(list);
+}
+
+uint32_t
+RSCache_Dat1ConfigNpcEncodeBound(const struct RSCache_Dat1ConfigNpc* npc)
+{
+    if( !npc )
+        return 0;
+
+    /* Generous upper bound: opcode + payload for every field, terminator. */
+    uint32_t bound = 1; /* terminator */
+    if( npc->models_count > 0 )
+        bound += 2u + (uint32_t)npc->models_count * 2u;
+    if( npc->name )
+        bound += 2u + (uint32_t)strlen(npc->name);
+    if( npc->desc )
+        bound += 2u + (uint32_t)strlen(npc->desc);
+    bound += 2; /* size */
+    bound += 3; /* readyanim */
+    bound += 3; /* walkanim */
+    bound += 9; /* walkanim set */
+    bound += 1; /* animHasAlpha */
+    for( int i = 0; i < 5; i++ )
+    {
+        if( npc->op[i] )
+            bound += 2u + (uint32_t)strlen(npc->op[i]);
+        else
+            bound += 2u + 6u; /* "hidden" */
+    }
+    if( npc->recol_count > 0 )
+        bound += 2u + (uint32_t)npc->recol_count * 4u;
+    if( npc->heads_count > 0 )
+        bound += 2u + (uint32_t)npc->heads_count * 2u;
+    bound += 3 * 3; /* resizex/y/z */
+    bound += 1;     /* minimap */
+    bound += 3;     /* vislevel */
+    bound += 3;     /* resizeh */
+    bound += 3;     /* resizev */
+    bound += 1;     /* alwaysontop */
+    bound += 2;     /* ambient */
+    bound += 2;     /* contrast */
+    bound += 3;     /* headicon */
+    bound += 3;     /* turnspeed */
+    return bound;
+}
+
+uint32_t
+RSCache_Dat1ConfigNpcEncode(
+    const struct RSCache_Dat1ConfigNpc* npc,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    assert(npc != NULL);
+    assert(out != NULL);
+
+    if( out_capacity < RSCache_Dat1ConfigNpcEncodeBound(npc) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    if( npc->models_count > 0 )
+    {
+        assert(npc->models != NULL);
+        p1(&buffer, 1);
+        p1(&buffer, npc->models_count);
+        for( int i = 0; i < npc->models_count; i++ )
+            p2(&buffer, npc->models[i]);
+    }
+    if( npc->name )
+    {
+        p1(&buffer, 2);
+        pjstr(&buffer, npc->name, RSCACHE_JSTR_TERMINATOR_NEWLINE);
+    }
+    if( npc->desc )
+    {
+        p1(&buffer, 3);
+        pjstr(&buffer, npc->desc, RSCACHE_JSTR_TERMINATOR_NEWLINE);
+    }
+    if( npc->size != 1 )
+    {
+        p1(&buffer, 12);
+        p1b(&buffer, npc->size);
+    }
+    if( npc->readyanim != -1 )
+    {
+        p1(&buffer, 13);
+        p2(&buffer, npc->readyanim);
+    }
+
+    /* Opcode 17 carries walk + turn variants; opcode 14 is walk alone. */
+    if( npc->walkanim_b != -1 || npc->walkanim_r != -1 || npc->walkanim_l != -1 )
+    {
+        p1(&buffer, 17);
+        p2(&buffer, npc->walkanim);
+        p2(&buffer, npc->walkanim_b);
+        p2(&buffer, npc->walkanim_r);
+        p2(&buffer, npc->walkanim_l);
+    }
+    else if( npc->walkanim != -1 )
+    {
+        p1(&buffer, 14);
+        p2(&buffer, npc->walkanim);
+    }
+
+    if( npc->animHasAlpha )
+        p1(&buffer, 16);
+
+    for( int i = 0; i < 5; i++ )
+    {
+        if( npc->op[i] )
+        {
+            p1(&buffer, 30 + i);
+            pjstr(&buffer, npc->op[i], RSCACHE_JSTR_TERMINATOR_NEWLINE);
+        }
+    }
+
+    if( npc->recol_count > 0 )
+    {
+        assert(npc->recol_s && npc->recol_d);
+        p1(&buffer, 40);
+        p1(&buffer, npc->recol_count);
+        for( int i = 0; i < npc->recol_count; i++ )
+        {
+            p2(&buffer, npc->recol_s[i]);
+            p2(&buffer, npc->recol_d[i]);
+        }
+    }
+
+    if( npc->heads_count > 0 )
+    {
+        assert(npc->heads != NULL);
+        p1(&buffer, 60);
+        p1(&buffer, npc->heads_count);
+        for( int i = 0; i < npc->heads_count; i++ )
+            p2(&buffer, npc->heads[i]);
+    }
+
+    if( npc->resizex != -1 )
+    {
+        p1(&buffer, 90);
+        p2(&buffer, npc->resizex);
+    }
+    if( npc->resizey != -1 )
+    {
+        p1(&buffer, 91);
+        p2(&buffer, npc->resizey);
+    }
+    if( npc->resizez != -1 )
+    {
+        p1(&buffer, 92);
+        p2(&buffer, npc->resizez);
+    }
+    if( !npc->minimap )
+        p1(&buffer, 93);
+    if( npc->vislevel != -1 )
+    {
+        p1(&buffer, 95);
+        p2(&buffer, npc->vislevel);
+    }
+    if( npc->resizeh != 128 )
+    {
+        p1(&buffer, 97);
+        p2(&buffer, npc->resizeh);
+    }
+    if( npc->resizev != 128 )
+    {
+        p1(&buffer, 98);
+        p2(&buffer, npc->resizev);
+    }
+    if( npc->alwaysontop )
+        p1(&buffer, 99);
+    if( npc->ambient != 0 )
+    {
+        p1(&buffer, 100);
+        p1b(&buffer, npc->ambient);
+    }
+    if( npc->contrast != 0 )
+    {
+        p1(&buffer, 101);
+        p1b(&buffer, npc->contrast / 5);
+    }
+    if( npc->headicon != -1 )
+    {
+        p1(&buffer, 102);
+        p2(&buffer, npc->headicon);
+    }
+    if( npc->turnspeed != 32 )
+    {
+        p1(&buffer, 103);
+        p2(&buffer, npc->turnspeed);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}

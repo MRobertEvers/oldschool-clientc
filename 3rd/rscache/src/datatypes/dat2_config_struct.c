@@ -63,19 +63,14 @@ RSCache_Dat2ConfigStructFreeInplace(struct RSCache_Dat2ConfigStruct* entry)
     if( entry->params.values )
     {
         for( i = 0; i < entry->params.count; i++ )
-        {
-            if( entry->params.is_string && entry->params.is_string[i] )
-                free(entry->params.values[i]);
-            else
-                free(entry->params.values[i]);
-        }
+            free(entry->params.values[i]);
         free(entry->params.values);
         entry->params.values = NULL;
     }
     free(entry->params.keys);
     entry->params.keys = NULL;
-    free(entry->params.is_string);
-    entry->params.is_string = NULL;
+    free(entry->params.kinds);
+    entry->params.kinds = NULL;
     entry->params.count = 0;
     entry->params.capacity = 0;
 }

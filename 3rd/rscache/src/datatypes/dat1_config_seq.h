@@ -56,4 +56,22 @@ RSCache_Dat1ConfigSeqDecodeInplace(
 void
 RSCache_Dat1ConfigSeqFreeInplace(struct RSCache_Dat1ConfigSeq* seq);
 
+uint32_t
+RSCache_Dat1ConfigSeqEncodeBound(const struct RSCache_Dat1ConfigSeq* seq);
+
+uint32_t
+RSCache_Dat1ConfigSeqEncode(
+    const struct RSCache_Dat1ConfigSeq* seq,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+uint32_t
+RSCache_Dat1ConfigSeqListEncodeBound(const struct RSCache_Dat1ConfigSeqList* list);
+
+uint32_t
+RSCache_Dat1ConfigSeqListEncode(
+    const struct RSCache_Dat1ConfigSeqList* list,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 #endif

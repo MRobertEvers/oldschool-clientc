@@ -1,13 +1,14 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /*
  * Spotanim (graphical effect) config from the dat2 config group (kind 13).
  * Mirrors Runelite's SpotAnimLoader / the OSRS SpotAnimType format, whose
  * core opcodes match the dat1 SpotType.decode:
- *   1: model g2        2: animation/seq g2
+ *   1: model g2        2: animation/seq g2   3: model g4 (rev237+)
  *   4: resizeh g2      5: resizev g2      6: rotation g2
  *   7: ambient g1      8: contrast g1
  *   40..49: recolor_to_find[code-40] g2   50..59: recolor_to_replace[code-50] g2
@@ -28,6 +29,8 @@ struct RSCache_Dat2ConfigSpotanim
     int angle;
     int ambient;
     int contrast;
+    /** Opcode 10 — payload-free flag (present on some osrs239 records). */
+    bool unknown10;
     int recol_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
     int recol_d[RSCACHE_SPOTANIM_COLOUR_SLOTS];
     int retex_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
@@ -52,6 +55,9 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size);
 /**
  * Encode a spotanim record.
  *
+ * `revision` selects whether model ids prefer the int opcode 3 (OSRS >= 237)
+ * or the u16 opcode 1. Pass the game revision, or 0 to pick by value width.
+ *
  * Emits opcodes in ascending order and omits any field still at its decode
  * default, which is what the packer does — so a record that was itself packed
  * that way round-trips byte-exactly, and one that was not still round-trips
@@ -61,6 +67,14 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size);
  */
 uint32_t
 RSCache_Dat2ConfigSpotanimEncode(
+    const struct RSCache_Dat2ConfigSpotanim* spotanim,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Like Encode, but prefer opcode 3 for models when `revision >= 237`. */
+uint32_t
+RSCache_Dat2ConfigSpotanimEncodeRevision(
+    int revision,
     const struct RSCache_Dat2ConfigSpotanim* spotanim,
     uint8_t* out,
     uint32_t out_capacity);

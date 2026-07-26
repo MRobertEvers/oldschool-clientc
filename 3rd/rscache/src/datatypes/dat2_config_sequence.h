@@ -49,6 +49,8 @@ struct RSCache_Dat2ConfigSequence
     int chat_frame_id_count;
     bool* anim_maya_masks;
     char* debug_name;
+    /** V3 opcode 19 — sounds audible across worlds. */
+    bool sounds_cross_world_view;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 
     /** Bytes consumed by the last decode, set on reaching the terminating opcode 0.

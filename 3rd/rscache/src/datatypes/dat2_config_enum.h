@@ -8,9 +8,11 @@ struct RSCache_Dat2ConfigEnum
     int id;
     int output_is_string; /* bool as int */
     int default_int;
+    int64_t default_long;
     char* default_string;
     int* keys;
     int* int_values;
+    int64_t* long_values;
     char** string_values;
     int count;
 };
@@ -24,9 +26,9 @@ RSCache_Dat2ConfigEnumDecodeInplace(
 /**
  * Encode an enum record.
  *
- * Not byte-exact for records carrying opcodes 1, 7 or 8 — the decoder consumes
- * those without keeping them, so the information is already gone. Semantically
- * exact in all cases.
+ * Not byte-exact for records carrying opcode 1 — the decoder consumes it without
+ * keeping the key type, so that information is already gone. Semantically exact
+ * otherwise (including long maps via opcodes 7/8).
  */
 uint32_t
 RSCache_Dat2ConfigEnumEncode(

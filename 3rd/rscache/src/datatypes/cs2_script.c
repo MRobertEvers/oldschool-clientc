@@ -19,6 +19,7 @@ RSCache_CS2_ScriptFree(struct RSCache_CS2_Script* script)
     free(script->signature);
     free(script->opcodes);
     free(script->int_operands);
+    free(script->long_operands);
     if( script->string_operands )
     {
         for( int i = 0; i < script->op_count; i++ )

@@ -2823,3 +2823,7 @@ tabIndex "161 child" group tab
 Steel Titan is at 7343/7344; the OSRS NPC codec doesn't match 643. I'll add an RS2 NPC codec (void's layout) and re-decode.
 
 ### Cache Porting Plans
+
+1. NPC -> Automatically port animations and models
+2. Likewise for objects
+3. Models directly.

@@ -2,6 +2,8 @@
 
 #include "../rsbuffer.h"
 
+#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -179,4 +181,162 @@ RSCache_Dat1ConfigSeqListFree(struct RSCache_Dat1ConfigSeqList* list)
         RSCache_Dat1ConfigSeqFreeInplace(&list->seqs[i]);
     free(list->seqs);
     free(list);
+}
+
+static int
+walkmerge_count(const struct RSCache_Dat1ConfigSeq* seq)
+{
+    if( !seq->walkmerge )
+        return 0;
+    int count = 0;
+    while( seq->walkmerge[count] != 9999999 )
+        count++;
+    return count;
+}
+
+uint32_t
+RSCache_Dat1ConfigSeqEncodeBound(const struct RSCache_Dat1ConfigSeq* seq)
+{
+    if( !seq )
+        return 0;
+    uint32_t bound = 1; /* terminator */
+    if( seq->frame_count > 0 )
+        bound += 2u + (uint32_t)seq->frame_count * 6u;
+    bound += 3; /* loops */
+    int wm = walkmerge_count(seq);
+    if( wm > 0 )
+        bound += 2u + (uint32_t)wm;
+    bound += 1; /* stretches */
+    bound += 2; /* priority */
+    bound += 3; /* replaceheldleft */
+    bound += 3; /* replaceheldright */
+    bound += 2; /* maxloops */
+    bound += 2; /* preanim_move */
+    bound += 2; /* postanim_move */
+    bound += 2; /* duplicate_behavior */
+    return bound;
+}
+
+uint32_t
+RSCache_Dat1ConfigSeqEncode(
+    const struct RSCache_Dat1ConfigSeq* seq,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    assert(seq != NULL);
+    assert(out != NULL);
+
+    if( out_capacity < RSCache_Dat1ConfigSeqEncodeBound(seq) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    if( seq->frame_count > 0 )
+    {
+        assert(seq->frames && seq->iframes && seq->delay);
+        p1(&buffer, 1);
+        p1(&buffer, seq->frame_count);
+        for( int i = 0; i < seq->frame_count; i++ )
+        {
+            p2(&buffer, seq->frames[i]);
+            p2(&buffer, seq->iframes[i] == -1 ? 65535 : seq->iframes[i]);
+            p2(&buffer, seq->delay[i]);
+        }
+    }
+    if( seq->loops != -1 )
+    {
+        p1(&buffer, 2);
+        p2(&buffer, seq->loops);
+    }
+    {
+        int wm = walkmerge_count(seq);
+        if( wm > 0 )
+        {
+            p1(&buffer, 3);
+            p1(&buffer, wm);
+            for( int i = 0; i < wm; i++ )
+                p1(&buffer, seq->walkmerge[i]);
+            /* Do not write the 9999999 sentinel the decoder appends. */
+        }
+    }
+    if( seq->stretches )
+        p1(&buffer, 4);
+    if( seq->priority != 5 )
+    {
+        p1(&buffer, 5);
+        p1(&buffer, seq->priority);
+    }
+    if( seq->replaceheldleft != -1 )
+    {
+        p1(&buffer, 6);
+        p2(&buffer, seq->replaceheldleft);
+    }
+    if( seq->replaceheldright != -1 )
+    {
+        p1(&buffer, 7);
+        p2(&buffer, seq->replaceheldright);
+    }
+    if( seq->maxloops != 99 )
+    {
+        p1(&buffer, 8);
+        p1(&buffer, seq->maxloops);
+    }
+    if( seq->preanim_move != -1 )
+    {
+        p1(&buffer, 9);
+        p1(&buffer, seq->preanim_move);
+    }
+    if( seq->postanim_move != -1 )
+    {
+        p1(&buffer, 10);
+        p1(&buffer, seq->postanim_move);
+    }
+    if( seq->duplicate_behavior != -1 )
+    {
+        p1(&buffer, 11);
+        p1(&buffer, seq->duplicate_behavior);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
+uint32_t
+RSCache_Dat1ConfigSeqListEncodeBound(const struct RSCache_Dat1ConfigSeqList* list)
+{
+    if( !list )
+        return 0;
+    uint32_t bound = 2;
+    for( int i = 0; i < list->seqs_count; i++ )
+        bound += RSCache_Dat1ConfigSeqEncodeBound(&list->seqs[i]);
+    return bound;
+}
+
+uint32_t
+RSCache_Dat1ConfigSeqListEncode(
+    const struct RSCache_Dat1ConfigSeqList* list,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    assert(list != NULL);
+    assert(out != NULL);
+
+    if( out_capacity < RSCache_Dat1ConfigSeqListEncodeBound(list) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+    p2(&buffer, list->seqs_count);
+    for( int i = 0; i < list->seqs_count; i++ )
+    {
+        uint32_t written = RSCache_Dat1ConfigSeqEncode(
+            &list->seqs[i],
+            out + buffer.position,
+            out_capacity - buffer.position);
+        if( written == 0 && RSCache_Dat1ConfigSeqEncodeBound(&list->seqs[i]) != 0 )
+            return 0;
+        buffer.position += written;
+    }
+    return buffer.position;
 }

@@ -100,8 +100,8 @@ test_profile_for_identity(void)
 
     /* No exact match: identity verbatim, codecs stay AUTO. */
     cache = RSCache_ProfileForIdentity(
-        RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 235, RSCACHE_QUIRK_NONE);
-    RSCACHE_CHECK_EQ(cache.revision, 235);
+        RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 250, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(cache.revision, 250);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_SEQUENCE], RSCACHE_CODEC_AUTO);
 
     /* RS2 dat2 exact match borrows loc codec pin. */

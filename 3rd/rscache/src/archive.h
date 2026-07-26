@@ -42,6 +42,8 @@ RSCache_ArchiveNameHashDat2(char* name);
  *   i32 compressed length  (payload bytes that follow the length fields)
  *   i32 uncompressed length — present only for compression != NONE
  *   payload
+ *   [optional] revision trailer — u32 if >=4 bytes remain, else u16 if >=2
+ *              (read on decompress; not written by this encoder)
  *
  * When `xtea_key_nullable` is given, everything from the uncompressed-length
  * field onward is encrypted, matching the decoder's `size + 4` span. XTEA works

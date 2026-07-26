@@ -13,6 +13,7 @@
 #include "src/reference_table.c"
 #include "src/xtea_config.c"
 #include "src/dat2disk.c"
+#include "src/cache_edit.c"
 #include "src/dat1disk.c"
 #include "src/filelist.c"
 #include "src/datatypes/mapsquares.c"
@@ -31,6 +32,7 @@
 #include "src/datatypes/dat2_config_obj.c"
 #include "src/datatypes/dat2_config_idk.c"
 #include "src/datatypes/dat2_config_npc.c"
+#include "src/datatypes/dat2_entity_ops.c"
 #include "src/datatypes/dat2_config_bas.c"
 #include "src/datatypes/dat2_config_loc.c"
 #include "src/datatypes/dat2_config_flo.c"
@@ -58,6 +60,7 @@
 #include "src/datatypes/dat1_pix_font.c"
 #include "src/datatypes/dat2_font_metrics.c"
 #include "src/datatypes/dat1_config_component.c"
+#include "src/datatypes/dat1_version_list.c"
 /* Revision modules last: they sit above the datatypes and name the codecs they
  * bind, so they must see every datatype header. */
 #include "src/revisions/revisions.c"
@@ -65,7 +68,14 @@
 #include "src/revisions/rev_dat1_lc254.c"
 #include "src/revisions/rev_dat2_osrs184_kronos.c"
 #include "src/revisions/rev_dat2_osrs230.c"
+#include "src/revisions/rev_dat2_osrs231.c"
+#include "src/revisions/rev_dat2_osrs232.c"
 #include "src/revisions/rev_dat2_osrs233.c"
+#include "src/revisions/rev_dat2_osrs234.c"
+#include "src/revisions/rev_dat2_osrs235.c"
+#include "src/revisions/rev_dat2_osrs236.c"
+#include "src/revisions/rev_dat2_osrs237.c"
+#include "src/revisions/rev_dat2_osrs238.c"
 #include "src/revisions/rev_dat2_osrs239.c"
 #include "src/revisions/rev_dat2_rs643.c"
 // clang-format on

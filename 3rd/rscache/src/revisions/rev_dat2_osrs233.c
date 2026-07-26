@@ -5,11 +5,10 @@
 /*
  * OSRS revision 233 — the xrsps target (manifest_xrsps.ini).
  *
- * Cache-side identical to 230 for every datatype currently decoded; the two
- * differ in the network protocol and transport (233 is served over a plaintext
- * WebSocket with no JS5 handshake). Declared separately so `revision=233`
- * resolves to a real profile, and so a cache-side difference has a home when one
- * surfaces. Map locs are still XTEA-encrypted (gate is OldSchool >= 237).
+ * Format-identical to 230 for every datatype this library decodes. Texture
+ * codec V2 is selected by RSCache_Dat2TextureCodecVersion at revision >= 233;
+ * map locs are still XTEA-encrypted (gate is OldSchool >= 237). Declared
+ * separately so `revision=233` resolves to a real profile.
  */
 
 struct RSCache

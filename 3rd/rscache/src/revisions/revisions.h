@@ -58,9 +58,38 @@ RSCache_ProfileDat2Osrs184Kronos(void);
 struct RSCache
 RSCache_ProfileDat2Osrs230(void);
 
-/** OSRS 233 (xrsps, manifest_xrsps.ini). */
+/** OSRS 231 — npc footprintSize. */
+struct RSCache
+RSCache_ProfileDat2Osrs231(void);
+
+/** OSRS 232 — model faceZOffsets, sprite alpha. */
+struct RSCache
+RSCache_ProfileDat2Osrs232(void);
+
+/** OSRS 233 (xrsps, manifest_xrsps.ini). Format-identical to 230 for every
+ *  datatype this library decodes; declared so revision=233 resolves. */
 struct RSCache
 RSCache_ProfileDat2Osrs233(void);
+
+/** OSRS 234 — npc/loc/seq flag opcodes. */
+struct RSCache
+RSCache_ProfileDat2Osrs234(void);
+
+/** OSRS 235 — npc overlap fields; 4-byte container revisions. */
+struct RSCache
+RSCache_ProfileDat2Osrs235(void);
+
+/** OSRS 236 — npc idleAnimRestart / zbuf. */
+struct RSCache
+RSCache_ProfileDat2Osrs236(void);
+
+/** OSRS 237 — EntityOps, int model ids, long params, CS2 longs. */
+struct RSCache
+RSCache_ProfileDat2Osrs237(void);
+
+/** OSRS 238 — obj untradeable; worldmap groupId/fileId removed. */
+struct RSCache
+RSCache_ProfileDat2Osrs238(void);
 
 /** OSRS 239 (`cache.osrs239`, manifest_osrs239.ini). */
 struct RSCache

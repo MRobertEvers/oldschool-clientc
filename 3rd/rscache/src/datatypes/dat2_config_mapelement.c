@@ -17,7 +17,7 @@ rscache_mapelement_skip_params(struct RSCache_Buffer* buffer)
     }
     free(params.values);
     free(params.keys);
-    free(params.is_string);
+    free(params.kinds);
 }
 
 void

@@ -1,12 +1,15 @@
 #include "dat2_config_inv.h"
 
+#include <assert.h>
+#include <stdlib.h>
+
 void
 RSCache_Dat2ConfigInvDecode(
     struct RSCache_Dat2ConfigInv* entry,
     struct RSCache_Buffer* buffer)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry);
+    assert(buffer);
 
     for( ;; )
     {
@@ -19,6 +22,8 @@ RSCache_Dat2ConfigInvDecode(
 
         if( opcode == 2 )
             entry->size = g2(buffer);
+        else if( opcode == 249 )
+            RSCache_BufferReadParams(buffer, &entry->params);
         else
             break; /* Stop rather than guess a width — see the header. */
     }
@@ -30,8 +35,7 @@ RSCache_Dat2ConfigInvDecodeInplace(
     const void* data,
     int data_size)
 {
-    if( !entry )
-        return;
+    assert(entry);
     if( !data || data_size <= 0 )
         return;
 
@@ -41,11 +45,31 @@ RSCache_Dat2ConfigInvDecodeInplace(
     entry->_consumed = (int)buffer.position;
 }
 
+void
+RSCache_Dat2ConfigInvFreeInplace(struct RSCache_Dat2ConfigInv* entry)
+{
+    int i;
+
+    if( !entry )
+        return;
+    for( i = 0; i < entry->params.count; i++ )
+        free(entry->params.values[i]);
+    free(entry->params.keys);
+    free(entry->params.values);
+    free(entry->params.kinds);
+    entry->params.keys = NULL;
+    entry->params.values = NULL;
+    entry->params.kinds = NULL;
+    entry->params.count = 0;
+    entry->params.capacity = 0;
+}
+
 uint32_t
 RSCache_Dat2ConfigInvEncodeBound(const struct RSCache_Dat2ConfigInv* entry)
 {
+    /* Size opcode (1+2) + terminator, plus a generous params allowance. */
     (void)entry;
-    return 4u;
+    return 4u + 4096u;
 }
 
 uint32_t
@@ -54,7 +78,7 @@ RSCache_Dat2ConfigInvEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out || out_capacity < 4u )
+    if( !entry || !out )
         return 0;
 
     struct RSCache_Buffer buffer;
@@ -67,6 +91,12 @@ RSCache_Dat2ConfigInvEncode(
     {
         p1(&buffer, 2);
         p2(&buffer, entry->size);
+    }
+
+    if( entry->params.count > 0 )
+    {
+        p1(&buffer, 249);
+        pparams(&buffer, &entry->params);
     }
 
     p1(&buffer, 0);

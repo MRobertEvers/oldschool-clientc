@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_WORLDMAP_H
 
 #include "../rsbuffer.h"
+#include "../rscache_profile.h"
 
 #include <stdbool.h>
 
@@ -24,6 +25,16 @@ enum RSCache_WorldMapSectionType
     /* One chunk -> one chunk. */
     RSCACHE_WORLDMAP_SECTION_CHUNK = 3,
 };
+
+/** OSRS >= 238: MapSquare/Zone records omit groupId/fileId BigSmarts. */
+#define RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE 1
+
+/**
+ * Worldmap decode flags for this cache. Returns
+ * RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE when OSRS >= 238.
+ */
+int
+RSCache_WorldMapFlags(const struct RSCache* cache);
 
 struct RSCache_WorldMapSection
 {
@@ -92,12 +103,14 @@ RSCache_WorldMapAreaDecodeInplace(
 /**
  * Attach the icons from the matching file of the "compositemap" archive. The
  * two archives list the same file ids, so the caller pairs them by id.
+ * `flags` is from RSCache_WorldMapFlags.
  */
 void
 RSCache_WorldMapAreaDecodeIconsInplace(
     struct RSCache_WorldMapArea* entry,
     const void* data,
-    int data_size);
+    int data_size,
+    int flags);
 
 void
 RSCache_WorldMapAreaFreeInplace(struct RSCache_WorldMapArea* entry);

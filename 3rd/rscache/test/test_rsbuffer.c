@@ -523,15 +523,25 @@ test_params(void)
     int int_values[] = { 42, -7, 0x00ABCDEF };
     char str_value[] = "param string";
 
+    int64_t long_value = 0x1122334455667788LL;
+
     struct RSCache_Params src = { 0 };
-    int keys[] = { 1, 0x00FFFFFF, 999, 12345 };
-    void* values[] = { &int_values[0], str_value, &int_values[1], &int_values[2] };
-    bool is_string[] = { false, true, false, false };
+    int keys[] = { 1, 0x00FFFFFF, 999, 12345, 77 };
+    void* values[] = {
+        &int_values[0], str_value, &int_values[1], &int_values[2], &long_value
+    };
+    uint8_t kinds[] = {
+        RSCACHE_PARAM_INT,
+        RSCACHE_PARAM_STRING,
+        RSCACHE_PARAM_INT,
+        RSCACHE_PARAM_INT,
+        RSCACHE_PARAM_LONG,
+    };
     src.keys = keys;
     src.values = values;
-    src.is_string = is_string;
-    src.count = 4;
-    src.capacity = 4;
+    src.kinds = kinds;
+    src.count = 5;
+    src.capacity = 5;
 
     struct RSCache_Buffer buf;
     RSCache_BufferInitAlloc(&buf, 0);
@@ -547,9 +557,11 @@ test_params(void)
         for( int i = 0; i < got.count; i++ )
         {
             RSCACHE_CHECK_EQ(got.keys[i], src.keys[i]);
-            RSCACHE_CHECK_EQ(got.is_string[i], src.is_string[i]);
-            if( src.is_string[i] )
+            RSCACHE_CHECK_EQ(got.kinds[i], src.kinds[i]);
+            if( src.kinds[i] == RSCACHE_PARAM_STRING )
                 RSCACHE_CHECK_STR_EQ((const char*)got.values[i], (const char*)src.values[i]);
+            else if( src.kinds[i] == RSCACHE_PARAM_LONG )
+                RSCACHE_CHECK_EQ(*(int64_t*)got.values[i], *(int64_t*)src.values[i]);
             else
                 RSCACHE_CHECK_EQ(*(int*)got.values[i], *(int*)src.values[i]);
         }
@@ -559,7 +571,7 @@ test_params(void)
         free(got.values[i]);
     free(got.keys);
     free(got.values);
-    free(got.is_string);
+    free(got.kinds);
     RSCache_BufferRelease(&buf);
 
     /* Empty param set is a single zero byte. */

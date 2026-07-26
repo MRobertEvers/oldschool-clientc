@@ -42,10 +42,13 @@ TEST_BINS := $(patsubst test/%.c,$(BUILD)/%,$(TEST_SRCS))
 # different set: make test CACHE_ROOT=/path/to/caches
 CACHE_ROOT ?= $(THIRD)/..
 
-.PHONY: all test clean
+.PHONY: all test clean tools
 .DEFAULT_GOAL := all
 
 all: $(UNITY_OBJ)
+
+tools: all
+	$(MAKE) -C tools
 
 $(BUILD):
 	mkdir -p $(BUILD)

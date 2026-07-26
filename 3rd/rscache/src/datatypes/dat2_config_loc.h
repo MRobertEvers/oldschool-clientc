@@ -4,6 +4,7 @@
 #include "../rsbuffer.h"
 #include "../rscache_profile.h"
 #include "dat2_configs.h"
+#include "dat2_entity_ops.h"
 
 #include <stdbool.h>
 
@@ -163,6 +164,19 @@ struct RSCache_Dat2ConfigLoc
     int* campaign_ids;
     int campaign_id_count;
 
+    /* --- OSRS >= 220 sound / raise fields (opcodes 91, 93, 95, 96) --- */
+    int sound_distance_fade_curve; /* opcode 91 */
+    int sound_fade_in_curve;       /* opcode 93 */
+    int sound_fade_in_duration;    /* opcode 93; default 300 */
+    int sound_fade_out_curve;      /* opcode 93 */
+    int sound_fade_out_duration;   /* opcode 93; default 300 */
+    bool unknown1;                 /* opcode 94 on OSRS (payload-free) */
+    int sound_visibility;          /* opcode 95; default 2 */
+    int raise;                     /* opcode 96 */
+
+    /** Rev 237+: sub-ops / conditional ops. Plain ops still live in `actions`. */
+    struct RSCache_EntityOps entity_ops;
+
     struct RSCache_Params params;
 
     /** Bytes consumed by the last decode (diagnostic: exact-consumption
@@ -195,6 +209,10 @@ struct RSCache_Dat2ConfigLoc
  * Per void's ObjectDecoder.kt (`skip`, called once for opcode 1 and twice for opcode 5).
  */
 #define RSCACHE_CONFIG_LOC_DECODE_RS2 16
+/** Rev 237+: opcodes 6/7 int model arrays (g4 instead of g2). */
+#define RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS 32
+/** Rev 237+: opcodes 100/101/102 EntityOps (102 is map_scene_id without this). */
+#define RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS 64
 
 /* --- codec versions -------------------------------------------------------- */
 /*

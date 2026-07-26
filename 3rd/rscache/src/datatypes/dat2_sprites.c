@@ -149,12 +149,16 @@ RSCache_Dat2SpritePackNewDecode(
                 }
             }
         }
-        else
+
+        /* OSRS 232+: every non-zero palette index is opaque, even when FLAG_ALPHA
+         * supplied per-pixel alphas. RuneLite removed the `else` so this always
+         * runs after any alpha payload. */
         {
             for( j = 0; j < dimension; j++ )
             {
                 int index = pixel_idx[j] & 0xFF;
-                pixel_alpha[j] = (uint8_t)(index != 0 ? 0xFF : 0);
+                if( index != 0 )
+                    pixel_alpha[j] = (uint8_t)0xFF;
             }
         }
 

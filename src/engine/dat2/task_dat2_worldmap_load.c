@@ -31,7 +31,8 @@ struct Task_Dat2WorldMapLoad
 static int
 task_dat2_worldmap_resolve_archive_id(
     struct RSCache_ReferenceTable* table,
-    char const* name)
+    char const* name,
+    int unnamed_fallback_id)
 {
     int name_hash;
 
@@ -43,13 +44,18 @@ task_dat2_worldmap_resolve_archive_id(
         if( table->archives[i].identifier == name_hash )
             return table->archives[i].index;
     }
+    /* OSRS 238+: details/compositemap may be unnamed; fall back to archive id. */
+    if( unnamed_fallback_id >= 0 && unnamed_fallback_id < table->archive_count &&
+        table->archives[unnamed_fallback_id].index >= 0 )
+        return table->archives[unnamed_fallback_id].index;
     return -1;
 }
 
 static struct ToriRS_WorldMapAreas*
 task_dat2_worldmap_decode(
     struct RSCache_Dat2DiskArchive* details,
-    struct RSCache_Dat2DiskArchive* composite)
+    struct RSCache_Dat2DiskArchive* composite,
+    int worldmap_flags)
 {
     struct RSCache_FileList* details_files = NULL;
     struct RSCache_FileList* composite_files = NULL;
@@ -96,7 +102,10 @@ task_dat2_worldmap_decode(
                 if( composite->file_ids[j] != file_id )
                     continue;
                 RSCache_WorldMapAreaDecodeIconsInplace(
-                    &entries[count], composite_files->files[j], composite_files->file_sizes[j]);
+                    &entries[count],
+                    composite_files->files[j],
+                    composite_files->file_sizes[j],
+                    worldmap_flags);
                 break;
             }
         }
@@ -152,13 +161,13 @@ Task_Dat2WorldMapLoad_Run(
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP);
     assert(table);
 
-    details_archive_id = task_dat2_worldmap_resolve_archive_id(table, "details");
+    details_archive_id = task_dat2_worldmap_resolve_archive_id(table, "details", 0);
     if( details_archive_id < 0 )
     {
         fprintf(stderr, "worldmap: no \"details\" archive in the world map table\n");
         PT_EXIT(&task->pt);
     }
-    task->composite_archive_id = task_dat2_worldmap_resolve_archive_id(table, "compositemap");
+    task->composite_archive_id = task_dat2_worldmap_resolve_archive_id(table, "compositemap", 1);
 
     RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, details_archive_id);
     PT_YIELD(&task->pt);
@@ -178,7 +187,10 @@ Task_Dat2WorldMapLoad_Run(
         composite = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
     }
 
-    areas = task_dat2_worldmap_decode(task->details, composite);
+    areas = task_dat2_worldmap_decode(
+        task->details,
+        composite,
+        RSCache_WorldMapFlags(CacheProvider_Profile(&task->bc->base)));
     RSCache_Dat2DiskArchiveFree(composite);
     RSCache_Dat2DiskArchiveFree(task->details);
     task->details = NULL;

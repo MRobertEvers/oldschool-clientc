@@ -4,11 +4,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/** Wire type byte for an embedded params map entry (opcode 249). */
+enum RSCache_ParamKind
+{
+    RSCACHE_PARAM_INT = 0,
+    RSCACHE_PARAM_STRING = 1,
+    /** Rev 237+: 8-byte value. Pre-237 caches never emit this. */
+    RSCACHE_PARAM_LONG = 2,
+};
+
 struct RSCache_Params
 {
     int* keys;
     void** values;
-    bool* is_string;
+    /** Per-entry `enum RSCache_ParamKind`. Replaces the old bool is_string. */
+    uint8_t* kinds;
     int count;
     int capacity;
 };

@@ -1125,7 +1125,7 @@ decode_version2__osrs_extended(
             prov_bytes(&prov->face_index_types, inputData, offsetOfFaceIndexTypes, face_count);
             if( has_face_render_types == 1 )
                 prov_bytes(&prov->face_info_bytes, inputData, offsetOfFaceRenderTypes, face_count);
-            prov_tail(prov, inputData, dataOffset + vertexZDataByteCount, inputLength - 23);
+            /* Tail is filled after faceZOffsets so that section is not double-stored. */
         }
     }
 
@@ -1386,6 +1386,25 @@ decode_version2__osrs_extended(
         model->textured_m_coordinate[i] = RSCache_BufferG2At(inputData, &offset);
         model->textured_n_coordinate[i] = RSCache_BufferG2At(inputData, &offset);
     }
+
+    /* OSRS 232+: faceZOffsets sits immediately after the vertex Z column. */
+    offset = dataOffset + vertexZDataByteCount;
+    if( offset < inputLength - 23 )
+    {
+        int hasOffsets = RSCache_BufferG1At(inputData, &offset);
+        if( hasOffsets == 1 )
+        {
+            model->face_z_offsets = (int8_t*)malloc((size_t)face_count);
+            for( int i = 0; i < face_count; ++i )
+            {
+                int8_t b = (int8_t)RSCache_BufferG1At(inputData, &offset);
+                if( model->face_z_offsets )
+                    model->face_z_offsets[i] = b;
+            }
+        }
+    }
+    if( prov )
+        prov_tail(prov, inputData, offset, inputLength - 23);
 
     if( model->face_texture_coords != NULL )
     {
@@ -1834,6 +1853,29 @@ decode_version3__osrs_material(
         RSCache_BufferG2At(inputData, &offset);
         RSCache_BufferG2At(inputData, &offset);
         RSCache_BufferG4At(inputData, &offset);
+    }
+
+    /* OSRS 232+: faceZOffsets after the trailingFlag block. */
+    if( offset < inputLength - 26 )
+    {
+        int hasOffsets = RSCache_BufferG1At(inputData, &offset);
+        if( hasOffsets == 1 )
+        {
+            model->face_z_offsets = (int8_t*)malloc((size_t)faceCount);
+            for( int i = 0; i < faceCount; ++i )
+            {
+                int8_t b = (int8_t)RSCache_BufferG1At(inputData, &offset);
+                if( model->face_z_offsets )
+                    model->face_z_offsets[i] = b;
+            }
+        }
+        /* Strip faceZOffsets from the provenance tail so encode does not double-emit. */
+        if( prov && prov->tail_size > 0 )
+        {
+            int face_z_bytes = (hasOffsets == 1) ? (1 + faceCount) : 1;
+            if( prov->tail_size >= face_z_bytes )
+                prov->tail_size -= face_z_bytes;
+        }
     }
 
     model_assert_texture_invariant(model);
@@ -2667,26 +2709,59 @@ RSCache_ModelEncodeFormat(
         }
     }
 
-    if( ok && prov && prov->tail && prov->tail_size > 0 )
+    if( ok && (format == RSCACHE_MODEL_FORMAT_V2) )
+    {
+        /* V2: faceZOffsets first, then any unexplained bytes after it. */
+        if( model->face_z_offsets )
+        {
+            p1(&sec[SEC_TAIL], 1);
+            for( int i = 0; i < model->face_count; i++ )
+                p1(&sec[SEC_TAIL], (uint8_t)model->face_z_offsets[i]);
+        }
+        else
+        {
+            p1(&sec[SEC_TAIL], 0);
+        }
+        if( prov && prov->tail && prov->tail_size > 0 )
+        {
+            for( int i = 0; i < prov->tail_size; i++ )
+                p1(&sec[SEC_TAIL], prov->tail[i]);
+        }
+    }
+    else if( ok && format == RSCACHE_MODEL_FORMAT_V3 )
+    {
+        /* V3: provenance/complex+trailingFlag, then faceZOffsets. */
+        if( prov && prov->tail && prov->tail_size > 0 )
+        {
+            for( int i = 0; i < prov->tail_size; i++ )
+                p1(&sec[SEC_TAIL], prov->tail[i]);
+        }
+        else if( !prov )
+        {
+            p1(&sec[SEC_TAIL], 0); /* trailingFlag */
+        }
+        if( model->face_z_offsets )
+        {
+            p1(&sec[SEC_TAIL], 1);
+            for( int i = 0; i < model->face_count; i++ )
+                p1(&sec[SEC_TAIL], (uint8_t)model->face_z_offsets[i]);
+        }
+        else
+        {
+            p1(&sec[SEC_TAIL], 0);
+        }
+    }
+    else if( ok && prov && prov->tail && prov->tail_size > 0 )
     {
         for( int i = 0; i < prov->tail_size; i++ )
             p1(&sec[SEC_TAIL], prov->tail[i]);
     }
-    else if( ok && !prov && format != RSCACHE_MODEL_FORMAT_OB2 )
+    else if( ok && !prov && format == RSCACHE_MODEL_FORMAT_OB3 )
     {
         /*
-         * With nothing recorded, write the minimal instance of the trailing
-         * structure rather than nothing at all: a zero gate byte and a zero flag
-         * byte. Measurement pinned the shape — treating the region as
-         * `gate (non-zero => one per-face block), flag (non-zero => 10 bytes)`
-         * accounts for the file exactly on every V2 model in four caches — and two
-         * zeros is that structure carrying no payload. A provenance that recorded an
-     * empty tail is respected as empty — only the absence of one synthesises.
-         *
-         * Not cosmetic: decode_ob3 and decode_version3 read a byte here without
-         * checking they are still inside the file, so a body that stopped at the
-         * trailer would have them read the vertex count as a flag and, if it were
-         * non-zero, ten bytes from beyond the end.
+         * Not cosmetic: decode_ob3 reads a byte here without checking it is still
+         * inside the file, so a body that stopped at the trailer would have it
+         * read the vertex count as a flag and, if non-zero, ten bytes past the end.
          */
         p1(&sec[SEC_TAIL], 0);
         p1(&sec[SEC_TAIL], 0);
@@ -2964,6 +3039,13 @@ RSCache_ModelNewCopy(struct RSCache_Model* model)
             copy->texture_render_types,
             model->texture_render_types,
             model->textured_face_count * sizeof(unsigned char));
+    }
+
+    if( model->face_z_offsets )
+    {
+        copy->face_z_offsets = (int8_t*)malloc((size_t)model->face_count);
+        if( copy->face_z_offsets )
+            memcpy(copy->face_z_offsets, model->face_z_offsets, (size_t)model->face_count);
     }
 
     copy->rotated = model->rotated;
@@ -3421,6 +3503,9 @@ RSCache_ModelFree(struct RSCache_Model* model)
         free(model->texture_render_types);
     if( model->face_textures )
         free(model->face_textures);
+
+    if( model->face_z_offsets )
+        free(model->face_z_offsets);
 
     if( model->animaya_groups )
     {

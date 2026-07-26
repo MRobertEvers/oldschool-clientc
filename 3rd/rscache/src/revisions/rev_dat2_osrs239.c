@@ -5,13 +5,10 @@
 /*
  * OSRS revision 239 (`cache.osrs239`, manifest_osrs239.ini).
  *
- * Past two independent gates that land at OldSchool 237:
- *   - type-6 component model ids widened from u16 to i32
- *   - map (lX_Z) archives are stored plain; no xteas.json is shipped
- *
- * Those are separate constants on purpose — two unrelated layout changes in one
- * revision is ordinary, but sharing a #define would let a correction to one
- * silently move the other.
+ * Past every gate from 231..238, plus:
+ *   - obj opcode 160 stackable = 2
+ *   - type-6 component model ids are i32 (gate 237)
+ *   - map (lX_Z) archives are stored plain; no xteas.json is shipped (gate 237)
  */
 
 struct RSCache

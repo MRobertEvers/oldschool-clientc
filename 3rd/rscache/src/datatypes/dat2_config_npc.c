@@ -1,5 +1,7 @@
 #include "dat2_config_npc.h"
 
+#include "dat2_entity_ops.h"
+
 #include "../rsbuffer.h"
 
 #include <assert.h>
@@ -32,6 +34,28 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
             cache, RSCACHE_TYPE_NPC, 210, RSCACHE_NPC_ARCHIVE_REV_210, true) )
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS;
 
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 231, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 233, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV233_OP111;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 234, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV234_FLAGS;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 235, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV235_OVERLAP;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 236, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV236_FLAGS;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_NPC, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+    {
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS;
+        flags |= RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS;
+    }
+
     return flags;
 }
 
@@ -54,10 +78,34 @@ RSCache_Dat2ConfigNpcEncodeProfile(
 
     if( npc->models_count > 0 )
     {
-        p1(&buffer, 1);
-        p1(&buffer, npc->models_count);
-        for( int i = 0; i < npc->models_count; i++ )
-            p2(&buffer, npc->models[i]);
+        bool use_int_ids =
+            (RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS) !=
+            0;
+        if( !use_int_ids )
+        {
+            for( int i = 0; i < npc->models_count; i++ )
+            {
+                if( npc->models[i] < 0 || npc->models[i] > 0xFFFF )
+                {
+                    use_int_ids = true;
+                    break;
+                }
+            }
+        }
+        if( use_int_ids )
+        {
+            p1(&buffer, 61);
+            p1(&buffer, npc->models_count);
+            for( int i = 0; i < npc->models_count; i++ )
+                p4(&buffer, npc->models[i]);
+        }
+        else
+        {
+            p1(&buffer, 1);
+            p1(&buffer, npc->models_count);
+            for( int i = 0; i < npc->models_count; i++ )
+                p2(&buffer, npc->models[i]);
+        }
     }
     /* Emit whenever the pointer is non-NULL, including for the empty string. The
      * decoder leaves `name` NULL when opcode 2 is absent, so "" and absent are
@@ -68,12 +116,12 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p1(&buffer, 2);
         pjstr(&buffer, npc->name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
-    if( npc->size != 0 )
+    if( npc->size != 1 )
     {
         p1(&buffer, 12);
         p1(&buffer, npc->size);
     }
-    if( npc->standing_animation != 0 )
+    if( npc->standing_animation != -1 )
     {
         p1(&buffer, 13);
         p2(&buffer, npc->standing_animation);
@@ -82,8 +130,8 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     /* Opcode 17 carries the walk animation plus its three turn variants; opcode 14
      * carries the walk animation alone. Use the compact form when the turn
      * animations are absent, which is what the packer does. */
-    if( npc->rotate180_animation != 0 || npc->rotate_left_animation != 0 ||
-        npc->rotate_right_animation != 0 )
+    if( npc->rotate180_animation != -1 || npc->rotate_left_animation != -1 ||
+        npc->rotate_right_animation != -1 )
     {
         p1(&buffer, 17);
         p2(&buffer, npc->walking_animation);
@@ -91,18 +139,18 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p2(&buffer, npc->rotate_left_animation);
         p2(&buffer, npc->rotate_right_animation);
     }
-    else if( npc->walking_animation != 0 )
+    else if( npc->walking_animation != -1 )
     {
         p1(&buffer, 14);
         p2(&buffer, npc->walking_animation);
     }
 
-    if( npc->idle_rotate_left_animation != 0 )
+    if( npc->idle_rotate_left_animation != -1 )
     {
         p1(&buffer, 15);
         p2(&buffer, npc->idle_rotate_left_animation);
     }
-    if( npc->idle_rotate_right_animation != 0 )
+    if( npc->idle_rotate_right_animation != -1 )
     {
         p1(&buffer, 16);
         p2(&buffer, npc->idle_rotate_right_animation);
@@ -146,44 +194,63 @@ RSCache_Dat2ConfigNpcEncodeProfile(
 
     if( npc->chathead_models_count > 0 )
     {
-        p1(&buffer, 60);
-        p1(&buffer, npc->chathead_models_count);
-        for( int i = 0; i < npc->chathead_models_count; i++ )
-            p2(&buffer, npc->chathead_models[i]);
+        bool use_int_ids =
+            (RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS) !=
+            0;
+        if( !use_int_ids )
+        {
+            for( int i = 0; i < npc->chathead_models_count; i++ )
+            {
+                if( npc->chathead_models[i] < 0 || npc->chathead_models[i] > 0xFFFF )
+                {
+                    use_int_ids = true;
+                    break;
+                }
+            }
+        }
+        if( use_int_ids )
+        {
+            p1(&buffer, 62);
+            p1(&buffer, npc->chathead_models_count);
+            for( int i = 0; i < npc->chathead_models_count; i++ )
+                p4(&buffer, npc->chathead_models[i]);
+        }
+        else
+        {
+            p1(&buffer, 60);
+            p1(&buffer, npc->chathead_models_count);
+            for( int i = 0; i < npc->chathead_models_count; i++ )
+                p2(&buffer, npc->chathead_models[i]);
+        }
     }
 
     for( int i = 0; i < 6; i++ )
     {
-        if( npc->stats[i] != 0 )
+        if( npc->stats[i] != 1 )
         {
             p1(&buffer, 74 + i);
             p2(&buffer, npc->stats[i]);
         }
     }
 
-    /* Opcodes 93, 107 and 109 *clear* flags the decoder never sets, because the
-     * struct is zeroed and no init assigns them true. is_minimap_visible,
-     * is_interactable and rotation_flag are therefore always false after a decode
-     * and their opcodes cannot be reproduced. Nothing in the client reads these
-     * three fields, so the gap is dormant — but it does mean an npc record that
-     * carried opcode 93/107/109 re-encodes shorter than the original. */
-
-    if( npc->combat_level != 0 )
+    if( !npc->is_minimap_visible )
+        p1(&buffer, 93);
+    if( npc->combat_level != -1 )
     {
         p1(&buffer, 95);
         p2(&buffer, npc->combat_level);
     }
-    if( npc->width_scale != 0 )
+    if( npc->width_scale != 128 )
     {
         p1(&buffer, 97);
         p2(&buffer, npc->width_scale);
     }
-    if( npc->height_scale != 0 )
+    if( npc->height_scale != 128 )
     {
         p1(&buffer, 98);
         p2(&buffer, npc->height_scale);
     }
-    if( npc->has_render_priority )
+    if( npc->render_priority == 1 || npc->has_render_priority )
         p1(&buffer, 99);
     if( npc->ambient != 0 )
     {
@@ -231,17 +298,29 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         }
     }
 
-    if( npc->rotation_speed != 0 )
+    if( npc->rotation_speed != 32 )
     {
         p1(&buffer, 103);
         p2(&buffer, npc->rotation_speed);
     }
-    if( npc->is_pet )
+    if( !npc->is_interactable )
+        p1(&buffer, 107);
+    if( !npc->rotation_flag )
+        p1(&buffer, 109);
+    /* Opcode 111 is overloaded: pre-233 it sets BOTH isFollower and
+     * lowPriorityFollowerOps; from 233 it sets renderPriority=2. Prefer the
+     * dedicated 122/123 opcodes when only one of the follower flags is set. */
+    if( npc->render_priority == 2 )
+        p1(&buffer, 111);
+    else if(
+        npc->is_pet && npc->low_priority_follower_ops &&
+        !(RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_REV233_OP111) &&
+        !(RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_RS2) )
         p1(&buffer, 111);
 
     /* 115 carries the run animation plus turn variants, 114 the run alone. */
-    if( npc->run_rotate180_animation != 0 || npc->run_rotate_left_animation != 0 ||
-        npc->run_rotate_right_animation != 0 )
+    if( npc->run_rotate180_animation != -1 || npc->run_rotate_left_animation != -1 ||
+        npc->run_rotate_right_animation != -1 )
     {
         p1(&buffer, 115);
         p2(&buffer, npc->run_animation);
@@ -249,14 +328,14 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p2(&buffer, npc->run_rotate_left_animation);
         p2(&buffer, npc->run_rotate_right_animation);
     }
-    else if( npc->run_animation != 0 )
+    else if( npc->run_animation != -1 )
     {
         p1(&buffer, 114);
         p2(&buffer, npc->run_animation);
     }
 
-    if( npc->crawl_rotate180_animation != 0 || npc->crawl_rotate_left_animation != 0 ||
-        npc->crawl_rotate_right_animation != 0 )
+    if( npc->crawl_rotate180_animation != -1 || npc->crawl_rotate_left_animation != -1 ||
+        npc->crawl_rotate_right_animation != -1 )
     {
         p1(&buffer, 117);
         p2(&buffer, npc->crawl_animation);
@@ -264,7 +343,7 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p2(&buffer, npc->crawl_rotate_left_animation);
         p2(&buffer, npc->crawl_rotate_right_animation);
     }
-    else if( npc->crawl_animation != 0 )
+    else if( npc->crawl_animation != -1 )
     {
         p1(&buffer, 116);
         p2(&buffer, npc->crawl_animation);
@@ -288,12 +367,46 @@ RSCache_Dat2ConfigNpcEncodeProfile(
             p2(&buffer, npc->configs[i] == -1 ? 0xFFFF : npc->configs[i]);
     }
 
-    if( npc->low_priority_follower_ops )
+    if( npc->low_priority_follower_ops &&
+        !(RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_RS2) )
         p1(&buffer, 123);
-    if( npc->height != 0 )
+    if( npc->is_pet && !(RSCache_Dat2ConfigNpcFlags(cache) & RSCACHE_CONFIG_NPC_DECODE_RS2) )
+        p1(&buffer, 122);
+    if( npc->height != -1 )
     {
         p1(&buffer, 124);
         p2(&buffer, npc->height);
+    }
+    if( npc->footprint_size != -1 )
+    {
+        /* Only emit when explicitly set (not the post-decode default alone).
+         * Records that omitted 126 and got the default will re-decode the same
+         * default, so omitting here is semantic-preserving. Detect "explicit"
+         * by comparing against the formula — if it matches the default, skip. */
+        int default_fp = (int)(0.4f * (float)(npc->size * 128));
+        if( npc->footprint_size != default_fp )
+        {
+            p1(&buffer, 126);
+            p2(&buffer, npc->footprint_size);
+        }
+    }
+    if( npc->unknown1 )
+        p1(&buffer, 129);
+    if( npc->idle_anim_restart )
+        p1(&buffer, 130);
+    if( npc->can_hide_for_overlap )
+        p1(&buffer, 145);
+    if( npc->overlap_tint_hsl != 39188 )
+    {
+        p1(&buffer, 146);
+        p2(&buffer, npc->overlap_tint_hsl);
+    }
+    if( !npc->zbuf )
+        p1(&buffer, 147);
+    if( npc->entity_ops.sub_ops_count > 0 || npc->entity_ops.cond_ops_count > 0 ||
+        npc->entity_ops.cond_sub_ops_count > 0 )
+    {
+        RSCache_EntityOpsEncode(&npc->entity_ops, &buffer, 30, 251, 252, 253);
     }
     if( npc->params.count > 0 )
     {
@@ -317,13 +430,51 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
         printf("RSCache_Dat2ConfigNpcNewDecode: Failed to allocate memory for NPCType\n");
         return NULL;
     }
-    /* calloc leaves 0; bas absent must be -1 so id 0 stays addressable. */
+    /* Match RuneLite NpcDefinition defaults so "absent" and "present at default"
+     * stay distinguishable, and so clear-opcodes 93/107/109 are reproducible. */
     npc->bas_type_id = -1;
+    npc->footprint_size = -1;
+    npc->zbuf = true;
+    npc->size = 1;
+    npc->standing_animation = -1;
+    npc->idle_rotate_left_animation = -1;
+    npc->idle_rotate_right_animation = -1;
+    npc->walking_animation = -1;
+    npc->rotate180_animation = -1;
+    npc->rotate_left_animation = -1;
+    npc->rotate_right_animation = -1;
+    npc->run_animation = -1;
+    npc->run_rotate180_animation = -1;
+    npc->run_rotate_left_animation = -1;
+    npc->run_rotate_right_animation = -1;
+    npc->crawl_animation = -1;
+    npc->crawl_rotate180_animation = -1;
+    npc->crawl_rotate_left_animation = -1;
+    npc->crawl_rotate_right_animation = -1;
+    npc->is_minimap_visible = true;
+    npc->combat_level = -1;
+    npc->width_scale = 128;
+    npc->height_scale = 128;
+    npc->rotation_speed = 32;
+    npc->is_interactable = true;
+    npc->rotation_flag = true;
+    npc->varbit_id = -1;
+    npc->varp_index = -1;
+    npc->height = -1;
+    npc->overlap_tint_hsl = 39188;
+    for( int i = 0; i < 6; i++ )
+        npc->stats[i] = 1;
+    RSCache_EntityOpsInit(&npc->entity_ops);
+
+    int flags = RSCache_Dat2ConfigNpcFlags(cache);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)(data), (uint32_t)(data_size));
 
-    decode_npc_type(npc, RSCache_Dat2ConfigNpcFlags(cache), &buffer);
+    decode_npc_type(npc, flags, &buffer);
+
+    if( (flags & RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT) && npc->footprint_size == -1 )
+        npc->footprint_size = (int)(0.4f * (float)(npc->size * 128));
 
     return npc;
 }
@@ -349,20 +500,12 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
     free(npc->actions[3]);
     free(npc->actions[4]);
     free(npc->configs);
+    RSCache_EntityOpsFreeInplace(&npc->entity_ops);
     for( int i = 0; i < npc->params.count; i++ )
-    {
-        if( npc->params.is_string[i] )
-        {
-            free(npc->params.values[i]);
-        }
-        else
-        {
-            free(npc->params.values[i]);
-        }
-    }
+        free(npc->params.values[i]);
     free(npc->params.keys);
     free(npc->params.values);
-    free(npc->params.is_string);
+    free(npc->params.kinds);
     free(npc);
 }
 
@@ -571,6 +714,37 @@ decode_npc_type(
             }
             break;
         }
+        case 61:
+        {
+            /* Rev 237+: int model ids (replaces / supplements opcode 1's u16). */
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS) )
+                goto unknown_opcode;
+            {
+                int length = g1(buffer);
+                free(npc->models);
+                npc->models = malloc((size_t)length * sizeof(int));
+                assert(npc->models);
+                npc->models_count = length;
+                for( int idx = 0; idx < length; ++idx )
+                    npc->models[idx] = g4(buffer);
+            }
+            break;
+        }
+        case 62:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV237_INT_MODEL_IDS) )
+                goto unknown_opcode;
+            {
+                int length = g1(buffer);
+                free(npc->chathead_models);
+                npc->chathead_models = malloc((size_t)length * sizeof(int));
+                assert(npc->chathead_models);
+                npc->chathead_models_count = length;
+                for( int idx = 0; idx < length; ++idx )
+                    npc->chathead_models[idx] = g4(buffer);
+            }
+            break;
+        }
         case 74:
         {
             npc->stats[0] = g2(buffer);
@@ -624,6 +798,7 @@ decode_npc_type(
         case 99:
         {
             npc->has_render_priority = true;
+            npc->render_priority = 1;
             break;
         }
         case 100:
@@ -727,7 +902,17 @@ decode_npc_type(
         }
         case 111:
         {
-            npc->is_pet = true;
+            /* Pre-233: isFollower + lowPriorityFollowerOps. From 233: renderPriority=2. */
+            if( flags & RSCACHE_CONFIG_NPC_DECODE_REV233_OP111 )
+            {
+                npc->render_priority = 2;
+                npc->has_render_priority = true;
+            }
+            else
+            {
+                npc->is_pet = true;
+                npc->low_priority_follower_ops = true;
+            }
             break;
         }
         case 114:
@@ -833,6 +1018,27 @@ decode_npc_type(
             npc->height = g2(buffer);
             break;
         }
+        case 126:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT) )
+                goto unknown_opcode;
+            npc->footprint_size = g2(buffer);
+            break;
+        }
+        case 129:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV234_FLAGS) )
+                goto unknown_opcode;
+            npc->unknown1 = true;
+            break;
+        }
+        case 130:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV236_FLAGS) )
+                goto unknown_opcode;
+            npc->idle_anim_restart = true;
+            break;
+        }
 
         /*
          * Opcodes this decoder consumes but does not store.
@@ -860,7 +1066,6 @@ decode_npc_type(
         case 139:  /* icon */
         case 142:  /* map function id */
         case 144:
-        case 146:
         case 164:  /* two shorts */
         case 170:  /* 170..175 are all a single short */
         case 171:
@@ -872,6 +1077,15 @@ decode_npc_type(
             if( opcode == 164 )
                 g2(buffer);
             break;
+
+        case 146:
+        {
+            if( flags & RSCACHE_CONFIG_NPC_DECODE_REV235_OVERLAP )
+                npc->overlap_tint_hsl = g2(buffer);
+            else
+                g2(buffer);
+            break;
+        }
 
         case 113: /* two shadow colours */
             g2(buffer);
@@ -892,12 +1106,25 @@ decode_npc_type(
         case 112:
         case 141:
         case 143:
-        case 145:
         case 158:
         case 159:
         case 161:
         case 162:
             break;
+
+        case 145:
+        {
+            if( flags & RSCACHE_CONFIG_NPC_DECODE_REV235_OVERLAP )
+                npc->can_hide_for_overlap = true;
+            break;
+        }
+        case 147:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV236_FLAGS) )
+                goto unknown_opcode;
+            npc->zbuf = false;
+            break;
+        }
 
         case 121:
         {
@@ -969,7 +1196,29 @@ decode_npc_type(
             gparams(buffer, &npc->params);
             break;
         }
+        case 251:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS) )
+                goto unknown_opcode;
+            RSCache_EntityOpsDecodeSubOp(&npc->entity_ops, buffer);
+            break;
+        }
+        case 252:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS) )
+                goto unknown_opcode;
+            RSCache_EntityOpsDecodeCondOp(&npc->entity_ops, buffer);
+            break;
+        }
+        case 253:
+        {
+            if( !(flags & RSCACHE_CONFIG_NPC_DECODE_REV237_ENTITY_OPS) )
+                goto unknown_opcode;
+            RSCache_EntityOpsDecodeCondSubOp(&npc->entity_ops, buffer);
+            break;
+        }
         default:
+        unknown_opcode:
         {
             /*
              * Stop, do not continue. An unknown opcode has an unknown payload length, so
@@ -1125,9 +1374,13 @@ RSCache_Dat2ConfigNpcPrint(const struct RSCache_Dat2ConfigNpc* npc)
     for( int i = 0; i < npc->params.count; i++ )
     {
         printf("  Key: %d, Value: ", npc->params.keys[i]);
-        if( npc->params.is_string[i] )
+        if( npc->params.kinds[i] == RSCACHE_PARAM_STRING )
         {
             printf("\"%s\" (string)\n", (char*)npc->params.values[i]);
+        }
+        else if( npc->params.kinds[i] == RSCACHE_PARAM_LONG )
+        {
+            printf("%lld (long)\n", (long long)*(int64_t*)npc->params.values[i]);
         }
         else
         {

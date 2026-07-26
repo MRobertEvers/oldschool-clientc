@@ -3,6 +3,7 @@
 #include "../rsbuffer.h"
 #include "dat2_configs.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,10 +57,29 @@ RSCache_Dat2ConfigIdkEncode(
 
     if( idk->model_ids_count > 0 )
     {
-        p1(&buffer, 2);
-        p1(&buffer, idk->model_ids_count);
+        bool use_int_ids = false;
         for( int i = 0; i < idk->model_ids_count; i++ )
-            p2(&buffer, idk->model_ids[i]);
+        {
+            if( idk->model_ids[i] < 0 || idk->model_ids[i] > 0xFFFF )
+            {
+                use_int_ids = true;
+                break;
+            }
+        }
+        if( use_int_ids )
+        {
+            p1(&buffer, 5);
+            p1(&buffer, idk->model_ids_count);
+            for( int i = 0; i < idk->model_ids_count; i++ )
+                p4(&buffer, idk->model_ids[i]);
+        }
+        else
+        {
+            p1(&buffer, 2);
+            p1(&buffer, idk->model_ids_count);
+            for( int i = 0; i < idk->model_ids_count; i++ )
+                p2(&buffer, idk->model_ids[i]);
+        }
     }
 
     if( idk->is_not_selectable )
@@ -91,8 +111,16 @@ RSCache_Dat2ConfigIdkEncode(
     {
         if( idk->if_model_ids[i] != -1 )
         {
-            p1(&buffer, 60 + i);
-            p2(&buffer, idk->if_model_ids[i]);
+            if( idk->if_model_ids[i] < 0 || idk->if_model_ids[i] > 0xFFFF )
+            {
+                p1(&buffer, 70 + i);
+                p4(&buffer, idk->if_model_ids[i]);
+            }
+            else
+            {
+                p1(&buffer, 60 + i);
+                p2(&buffer, idk->if_model_ids[i]);
+            }
         }
     }
 
@@ -142,6 +170,12 @@ RSCache_Dat2ConfigIdkDecodeInplace(
         case 3:
             idk->is_not_selectable = true;
             break;
+        case 5:
+            idk->model_ids_count = g1(&rsbuf);
+            idk->model_ids = malloc(idk->model_ids_count * sizeof(int));
+            for( int i = 0; i < idk->model_ids_count; i++ )
+                idk->model_ids[i] = g4(&rsbuf);
+            break;
         case 40:
             idk->recolor_count = g1(&rsbuf);
             idk->recolors_from = malloc(idk->recolor_count * sizeof(int));
@@ -174,6 +208,20 @@ RSCache_Dat2ConfigIdkDecodeInplace(
         case 69:
         {
             idk->if_model_ids[opcode - 60] = g2(&rsbuf);
+            break;
+        }
+        case 70:
+        case 71:
+        case 72:
+        case 73:
+        case 74:
+        case 75:
+        case 76:
+        case 77:
+        case 78:
+        case 79:
+        {
+            idk->if_model_ids[opcode - 70] = g4(&rsbuf);
             break;
         }
         }

@@ -1,92 +1,68 @@
 #include "dat2_config_obj.h"
 
+#include "dat2_entity_ops.h"
+
 #include "../rsbuffer.h"
 
-
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
-// public String name = "null";
-// public String examine;
-// public String unknown1;
-
-// public int resizeX = 128;
-// public int resizeY = 128;
-// public int resizeZ = 128;
-
-// public int xan2d = 0;
-// public int yan2d = 0;
-// public int zan2d = 0;
-
-// public int cost = 1;
-// public boolean isTradeable;
-// public int stackable = 0;
-// public int inventoryModel;
-
-// public int wearPos1 = -1;
-// public int wearPos2 = -1;
-// public int wearPos3 = -1;
-
-// public boolean members = false;
-
-// public short[] colorFind;
-// public short[] colorReplace;
-// public short[] textureFind;
-// public short[] textureReplace;
-
-// public int zoom2d = 2000;
-// public int xOffset2d = 0;
-// public int yOffset2d = 0;
-
-// public int ambient;
-// public int contrast;
-
-// public int[] countCo;
-// public int[] countObj;
-
-// public String[] options = new String[]{null, null, "Take", null, null};
-// public String[][] subops;
-
-// public String[] interfaceOptions = new String[]{null, null, null, null, "Drop"};
-
-// public int maleModel0 = -1;
-// public int maleModel1 = -1;
-// public int maleModel2 = -1;
-// public int maleOffset;
-// public int maleHeadModel = -1;
-// public int maleHeadModel2 = -1;
-
-// public int femaleModel0 = -1;
-// public int femaleModel1 = -1;
-// public int femaleModel2 = -1;
-// public int femaleOffset;
-// public int femaleHeadModel = -1;
-// public int femaleHeadModel2 = -1;
-
-// public int category;
-
-// public int notedID = -1;
-// public int notedTemplate = -1;
-
-// public int team;
-// public int weight;
-
-// public int shiftClickDropIndex = -2;
-
-// public int boughtId = -1;
-// public int boughtTemplateId = -1;
-
-// public int placeholderId = -1;
-// public int placeholderTemplateId = -1;
-
 static void
 init_object(struct RSCache_Dat2ConfigObj* object);
+
+int
+RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
+{
+    int flags = 0;
+
+    assert(cache);
+    if( !RSCache_IsOsrs(cache) )
+        return 0;
+
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_OBJ, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+    {
+        flags |= RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS;
+        flags |= RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS;
+    }
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_OBJ, 238, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE;
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_OBJ, 239, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2;
+
+    return flags;
+}
 
 uint32_t
 RSCache_Dat2ConfigObjEncode(
     const struct RSCache_Dat2ConfigObj* object,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    return RSCache_Dat2ConfigObjEncodeFlags(object, 0, out, out_capacity);
+}
+
+uint32_t
+RSCache_Dat2ConfigObjEncodeProfile(
+    const struct RSCache* cache,
+    const struct RSCache_Dat2ConfigObj* object,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    assert(cache);
+    return RSCache_Dat2ConfigObjEncodeFlags(
+        object, RSCache_Dat2ConfigObjFlags(cache), out, out_capacity);
+}
+
+uint32_t
+RSCache_Dat2ConfigObjEncodeFlags(
+    const struct RSCache_Dat2ConfigObj* object,
+    int flags,
     uint8_t* out,
     uint32_t out_capacity)
 {
@@ -112,10 +88,19 @@ RSCache_Dat2ConfigObjEncode(
         }                                                                                          \
     } while( 0 )
 
-    OBJ_P_IF(
-        object->inventory_model_id != defaults.inventory_model_id,
-        1,
-        p2(&buffer, object->inventory_model_id));
+    {
+        bool inv_int = object->inventory_model_id > 0xFFFF;
+        if( inv_int )
+        {
+            p1(&buffer, 44);
+            p4(&buffer, object->inventory_model_id);
+        }
+        else if( object->inventory_model_id != defaults.inventory_model_id )
+        {
+            p1(&buffer, 1);
+            p2(&buffer, object->inventory_model_id);
+        }
+    }
 
     /* The default name is the literal "null"; a record that carries that name is
      * indistinguishable from one that omitted opcode 2. */
@@ -141,125 +126,227 @@ RSCache_Dat2ConfigObjEncode(
     OBJ_P_IF(object->cost != defaults.cost, 12, p4(&buffer, object->cost));
     OBJ_P_IF(object->wearpos_1 != defaults.wearpos_1, 13, p1b(&buffer, object->wearpos_1));
     OBJ_P_IF(object->wearpos_2 != defaults.wearpos_2, 14, p1b(&buffer, object->wearpos_2));
+    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) && !object->tradeable )
+        p1(&buffer, 15);
     if( object->is_members )
         p1(&buffer, 16);
 
     /* Opcode 23 carries the model *and* its offset as one record, so it has to be
-     * emitted when either differs from the default. */
-    if( object->male_model_0 != defaults.male_model_0 ||
-        object->male_offset != defaults.male_offset )
+     * emitted when either differs from the default. Prefer int forms (45+) when
+     * any related model id exceeds u16. */
     {
-        p1(&buffer, 23);
-        p2(&buffer, object->male_model_0);
-        p1(&buffer, object->male_offset);
-    }
-    OBJ_P_IF(object->male_model_1 != defaults.male_model_1, 24, p2(&buffer, object->male_model_1));
-    if( object->female_model_0 != defaults.female_model_0 ||
-        object->female_offset != defaults.female_offset )
-    {
-        p1(&buffer, 25);
-        p2(&buffer, object->female_model_0);
-        p1(&buffer, object->female_offset);
-    }
-    OBJ_P_IF(
-        object->female_model_1 != defaults.female_model_1, 26, p2(&buffer, object->female_model_1));
-    OBJ_P_IF(object->wearpos_3 != defaults.wearpos_3, 27, p1(&buffer, object->wearpos_3));
+        bool male0_int = object->male_model_0 > 0xFFFF;
+        bool male1_int = object->male_model_1 > 0xFFFF;
+        bool male2_int = object->male_model_2 > 0xFFFF;
+        bool female0_int = object->female_model_0 > 0xFFFF;
+        bool female1_int = object->female_model_1 > 0xFFFF;
+        bool female2_int = object->female_model_2 > 0xFFFF;
+        bool mhead_int = object->male_head_model > 0xFFFF;
+        bool mhead2_int = object->male_head_model_2 > 0xFFFF;
+        bool fhead_int = object->female_head_model > 0xFFFF;
+        bool fhead2_int = object->female_head_model_2 > 0xFFFF;
 
-    /* A NULL action is either an absent opcode or the literal "Hidden", which the
-     * decoder normalises to NULL. Both re-encode as absent. */
-    for( int i = 0; i < 5; i++ )
-    {
-        if( object->actions[i] )
+        if( male0_int ||
+            (object->male_model_0 != defaults.male_model_0 ||
+             object->male_offset != defaults.male_offset) )
         {
-            p1(&buffer, 30 + i);
-            pjstr(&buffer, object->actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
+            if( male0_int )
+            {
+                p1(&buffer, 45);
+                p4(&buffer, object->male_model_0);
+                p1(&buffer, object->male_offset);
+            }
+            else
+            {
+                p1(&buffer, 23);
+                p2(&buffer, object->male_model_0);
+                p1(&buffer, object->male_offset);
+            }
         }
-    }
-    for( int i = 0; i < 5; i++ )
-    {
-        if( object->if_actions[i] )
+        if( male1_int || object->male_model_1 != defaults.male_model_1 )
         {
-            p1(&buffer, 35 + i);
-            pjstr(&buffer, object->if_actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
+            if( male1_int )
+            {
+                p1(&buffer, 46);
+                p4(&buffer, object->male_model_1);
+            }
+            else
+            {
+                p1(&buffer, 24);
+                p2(&buffer, object->male_model_1);
+            }
         }
-    }
-
-    if( object->recolor_count > 0 )
-    {
-        p1(&buffer, 40);
-        p1(&buffer, object->recolor_count);
-        for( int i = 0; i < object->recolor_count; i++ )
+        if( female0_int ||
+            (object->female_model_0 != defaults.female_model_0 ||
+             object->female_offset != defaults.female_offset) )
         {
-            p2(&buffer, object->recolors_from[i]);
-            p2(&buffer, object->recolors_to[i]);
+            if( female0_int )
+            {
+                p1(&buffer, 48);
+                p4(&buffer, object->female_model_0);
+                p1(&buffer, object->female_offset);
+            }
+            else
+            {
+                p1(&buffer, 25);
+                p2(&buffer, object->female_model_0);
+                p1(&buffer, object->female_offset);
+            }
         }
-    }
-    if( object->retexture_count > 0 )
-    {
-        p1(&buffer, 41);
-        p1(&buffer, object->retexture_count);
-        for( int i = 0; i < object->retexture_count; i++ )
+        if( female1_int || object->female_model_1 != defaults.female_model_1 )
         {
-            p2(&buffer, object->retextures_from[i]);
-            p2(&buffer, object->retextures_to[i]);
+            if( female1_int )
+            {
+                p1(&buffer, 49);
+                p4(&buffer, object->female_model_1);
+            }
+            else
+            {
+                p1(&buffer, 26);
+                p2(&buffer, object->female_model_1);
+            }
         }
-    }
+        OBJ_P_IF(object->wearpos_3 != defaults.wearpos_3, 27, p1(&buffer, object->wearpos_3));
 
-    OBJ_P_IF(
-        object->shift_click_drop_index != defaults.shift_click_drop_index,
-        42,
-        p1b(&buffer, object->shift_click_drop_index));
-
-    /* Opcode 43: sub-action lists, each terminated by a zero index. */
-    for( int action = 0; action < 5; action++ )
-    {
-        if( !object->sub_actions[action] )
-            continue;
-
-        int highest = -1;
-        for( int sub = 0; sub < 20; sub++ )
+        /* A NULL action is either an absent opcode or the literal "Hidden", which the
+         * decoder normalises to NULL. Both re-encode as absent. */
+        for( int i = 0; i < 5; i++ )
         {
-            if( object->sub_actions[action][sub] )
-                highest = sub;
+            if( object->actions[i] )
+            {
+                p1(&buffer, 30 + i);
+                pjstr(&buffer, object->actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
+            }
         }
-        if( highest < 0 )
-            continue;
-
-        p1(&buffer, 43);
-        p1(&buffer, action);
-        for( int sub = 0; sub <= highest; sub++ )
+        for( int i = 0; i < 5; i++ )
         {
-            if( !object->sub_actions[action][sub] )
+            if( object->if_actions[i] )
+            {
+                p1(&buffer, 35 + i);
+                pjstr(&buffer, object->if_actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
+            }
+        }
+
+        if( object->recolor_count > 0 )
+        {
+            p1(&buffer, 40);
+            p1(&buffer, object->recolor_count);
+            for( int i = 0; i < object->recolor_count; i++ )
+            {
+                p2(&buffer, object->recolors_from[i]);
+                p2(&buffer, object->recolors_to[i]);
+            }
+        }
+        if( object->retexture_count > 0 )
+        {
+            p1(&buffer, 41);
+            p1(&buffer, object->retexture_count);
+            for( int i = 0; i < object->retexture_count; i++ )
+            {
+                p2(&buffer, object->retextures_from[i]);
+                p2(&buffer, object->retextures_to[i]);
+            }
+        }
+
+        OBJ_P_IF(
+            object->shift_click_drop_index != defaults.shift_click_drop_index,
+            42,
+            p1b(&buffer, object->shift_click_drop_index));
+
+        /* Opcode 43: sub-action lists, each terminated by a zero index. */
+        for( int action = 0; action < 5; action++ )
+        {
+            if( !object->sub_actions[action] )
                 continue;
-            /* Indices are stored one-based; zero terminates the list. */
-            p1(&buffer, sub + 1);
-            pjstr(&buffer, object->sub_actions[action][sub], RSCACHE_JSTR_TERMINATOR_NULL);
+
+            int highest = -1;
+            for( int sub = 0; sub < 20; sub++ )
+            {
+                if( object->sub_actions[action][sub] )
+                    highest = sub;
+            }
+            if( highest < 0 )
+                continue;
+
+            p1(&buffer, 43);
+            p1(&buffer, action);
+            for( int sub = 0; sub <= highest; sub++ )
+            {
+                if( !object->sub_actions[action][sub] )
+                    continue;
+                /* Indices are stored one-based; zero terminates the list. */
+                p1(&buffer, sub + 1);
+                pjstr(&buffer, object->sub_actions[action][sub], RSCACHE_JSTR_TERMINATOR_NULL);
+            }
+            p1(&buffer, 0);
         }
-        p1(&buffer, 0);
+
+        /* Int model opcodes 47/50-54 when needed (45/46/48/49 already above). */
+        if( male2_int )
+        {
+            p1(&buffer, 47);
+            p4(&buffer, object->male_model_2);
+        }
+        if( female2_int )
+        {
+            p1(&buffer, 50);
+            p4(&buffer, object->female_model_2);
+        }
+        if( mhead_int )
+        {
+            p1(&buffer, 51);
+            p4(&buffer, object->male_head_model);
+        }
+        if( mhead2_int )
+        {
+            p1(&buffer, 52);
+            p4(&buffer, object->male_head_model_2);
+        }
+        if( fhead_int )
+        {
+            p1(&buffer, 53);
+            p4(&buffer, object->female_head_model);
+        }
+        if( fhead2_int )
+        {
+            p1(&buffer, 54);
+            p4(&buffer, object->female_head_model_2);
+        }
+
+        if( object->ge_tradeable )
+            p1(&buffer, 65);
+        OBJ_P_IF(object->weight != defaults.weight, 75, p2b(&buffer, object->weight));
+
+        if( !male2_int )
+            OBJ_P_IF(
+                object->male_model_2 != defaults.male_model_2, 78, p2(&buffer, object->male_model_2));
+        if( !female2_int )
+            OBJ_P_IF(
+                object->female_model_2 != defaults.female_model_2,
+                79,
+                p2(&buffer, object->female_model_2));
+        if( !mhead_int )
+            OBJ_P_IF(
+                object->male_head_model != defaults.male_head_model,
+                90,
+                p2(&buffer, object->male_head_model));
+        if( !fhead_int )
+            OBJ_P_IF(
+                object->female_head_model != defaults.female_head_model,
+                91,
+                p2(&buffer, object->female_head_model));
+        if( !mhead2_int )
+            OBJ_P_IF(
+                object->male_head_model_2 != defaults.male_head_model_2,
+                92,
+                p2(&buffer, object->male_head_model_2));
+        if( !fhead2_int )
+            OBJ_P_IF(
+                object->female_head_model_2 != defaults.female_head_model_2,
+                93,
+                p2(&buffer, object->female_head_model_2));
     }
 
-    if( object->tradeable )
-        p1(&buffer, 65);
-    OBJ_P_IF(object->weight != defaults.weight, 75, p2b(&buffer, object->weight));
-    OBJ_P_IF(object->male_model_2 != defaults.male_model_2, 78, p2(&buffer, object->male_model_2));
-    OBJ_P_IF(
-        object->female_model_2 != defaults.female_model_2, 79, p2(&buffer, object->female_model_2));
-    OBJ_P_IF(
-        object->male_head_model != defaults.male_head_model,
-        90,
-        p2(&buffer, object->male_head_model));
-    OBJ_P_IF(
-        object->female_head_model != defaults.female_head_model,
-        91,
-        p2(&buffer, object->female_head_model));
-    OBJ_P_IF(
-        object->male_head_model_2 != defaults.male_head_model_2,
-        92,
-        p2(&buffer, object->male_head_model_2));
-    OBJ_P_IF(
-        object->female_head_model_2 != defaults.female_head_model_2,
-        93,
-        p2(&buffer, object->female_head_model_2));
     OBJ_P_IF(object->category != defaults.category, 94, p2(&buffer, object->category));
     OBJ_P_IF(object->zan2d != defaults.zan2d, 95, p2(&buffer, object->zan2d));
     OBJ_P_IF(object->noted_id != defaults.noted_id, 97, p2(&buffer, object->noted_id));
@@ -295,6 +382,16 @@ RSCache_Dat2ConfigObjEncode(
         149,
         p2(&buffer, object->placeholder_template_id));
 
+    if( object->stacking_behaviour == 2 )
+        p1(&buffer, 160);
+
+    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) &&
+        (object->entity_ops.sub_ops_count > 0 || object->entity_ops.cond_ops_count > 0 ||
+         object->entity_ops.cond_sub_ops_count > 0) )
+    {
+        RSCache_EntityOpsEncode(&object->entity_ops, &buffer, 30, 200, 201, 202);
+    }
+
     if( object->params.count > 0 )
     {
         p1(&buffer, 249);
@@ -308,6 +405,7 @@ RSCache_Dat2ConfigObjEncode(
     /* init_object allocates the default name; release it rather than leak once per
      * encoded record. */
     free(defaults.name);
+    RSCache_EntityOpsFreeInplace(&defaults.entity_ops);
 
     return buffer.position;
 }
@@ -330,7 +428,8 @@ init_object(struct RSCache_Dat2ConfigObj* object)
     object->zan2d = 0;
     object->cost = 1;
 
-    object->tradeable = false;
+    object->tradeable = true;
+    object->ge_tradeable = false;
     object->stacking_behaviour = 0;
     object->inventory_model_id = 0;
     object->wearpos_1 = -1;
@@ -369,6 +468,8 @@ init_object(struct RSCache_Dat2ConfigObj* object)
     object->bought_template_id = -1;
     object->placeholder_id = -1;
     object->placeholder_template_id = -1;
+
+    RSCache_EntityOpsInit(&object->entity_ops);
 }
 
 struct RSCache_Dat2ConfigObj*
@@ -377,16 +478,60 @@ RSCache_Dat2ConfigObjNewDecode(
     int buffer_size)
 {
     struct RSCache_Dat2ConfigObj* object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
+    assert(object);
     init_object(object);
-    RSCache_Dat2ConfigObjDecodeInplace(object, buffer, buffer_size);
+    RSCache_Dat2ConfigObjDecodeInplaceFlags(object, buffer, buffer_size, 0);
+    return object;
+}
+
+struct RSCache_Dat2ConfigObj*
+RSCache_Dat2ConfigObjNewDecodeProfile(
+    const struct RSCache* cache,
+    char* buffer,
+    int buffer_size)
+{
+    struct RSCache_Dat2ConfigObj* object;
+
+    assert(cache);
+    object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
+    assert(object);
+    init_object(object);
+    RSCache_Dat2ConfigObjDecodeInplaceFlags(
+        object, buffer, buffer_size, RSCache_Dat2ConfigObjFlags(cache));
     return object;
 }
 
 void
 RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object)
 {
+    int i;
+
+    if( !object )
+        return;
+
     free(object->name);
     free(object->examine);
+    free(object->recolors_from);
+    free(object->recolors_to);
+    free(object->retextures_from);
+    free(object->retextures_to);
+    for( i = 0; i < 5; i++ )
+    {
+        free(object->actions[i]);
+        free(object->if_actions[i]);
+        if( object->sub_actions[i] )
+        {
+            for( int j = 0; j < 20; j++ )
+                free(object->sub_actions[i][j]);
+            free(object->sub_actions[i]);
+        }
+    }
+    RSCache_EntityOpsFreeInplace(&object->entity_ops);
+    for( i = 0; i < object->params.count; i++ )
+        free(object->params.values[i]);
+    free(object->params.keys);
+    free(object->params.values);
+    free(object->params.kinds);
     free(object);
 }
 
@@ -396,7 +541,19 @@ RSCache_Dat2ConfigObjDecodeInplace(
     char* data,
     int data_size)
 {
+    RSCache_Dat2ConfigObjDecodeInplaceFlags(object, data, data_size, 0);
+}
+
+void
+RSCache_Dat2ConfigObjDecodeInplaceFlags(
+    struct RSCache_Dat2ConfigObj* object,
+    char* data,
+    int data_size,
+    int flags)
+{
     struct RSCache_Buffer buffer;
+
+    assert(object);
     RSCache_BufferInit(&buffer, (uint8_t*)(data), (uint32_t)(data_size));
 
     init_object(object);
@@ -404,130 +561,93 @@ RSCache_Dat2ConfigObjDecodeInplace(
     while( true )
     {
         if( buffer.position >= buffer.size )
-        {
-            printf(
-                "RSCache_Dat2ConfigObjDecodeInplace: Buffer position %d exceeded data size %d\n",
-                buffer.position,
-                buffer.size);
             return;
-        }
 
         int opcode = g1(&buffer);
         if( opcode == 0 )
-        {
             return;
-        }
 
         switch( opcode )
         {
         case 1:
-        {
             object->inventory_model_id = g2(&buffer);
             break;
-        }
         case 2:
-        {
+            free(object->name);
             object->name = gcstring(&buffer);
             break;
-        }
         case 3:
-        {
+            free(object->examine);
             object->examine = gcstring(&buffer);
             break;
-        }
         case 4:
-        {
             object->zoom2d = g2(&buffer);
             break;
-        }
         case 5:
-        {
             object->xan2d = g2(&buffer);
             break;
-        }
         case 6:
-        {
             object->yan2d = g2(&buffer);
             break;
-        }
         case 7:
-        {
             object->offset_x2d = g2b(&buffer);
             break;
-        }
         case 8:
-        {
             object->offset_y2d = g2b(&buffer);
             break;
-        }
         case 9:
-        {
-            gcstring(&buffer);
+            free(gcstring(&buffer));
             break;
-        }
         case 11:
-        {
             object->stacking_behaviour = 1;
             break;
-        }
         case 12:
-        {
             object->cost = g4(&buffer);
             break;
-        }
         case 13:
-        {
             object->wearpos_1 = g1b(&buffer);
             break;
-        }
         case 14:
-        {
             object->wearpos_2 = g1b(&buffer);
             break;
-        }
+        case 15:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) )
+                return;
+            object->tradeable = false;
+            break;
         case 16:
-        {
             object->is_members = true;
             break;
-        }
         case 23:
-        {
             object->male_model_0 = g2(&buffer);
             object->male_offset = g1(&buffer);
             break;
-        }
         case 24:
-        {
             object->male_model_1 = g2(&buffer);
             break;
-        }
         case 25:
-        {
             object->female_model_0 = g2(&buffer);
             object->female_offset = g1(&buffer);
             break;
-        }
         case 26:
-        {
             object->female_model_1 = g2(&buffer);
             break;
-        }
         case 27:
-        {
             object->wearpos_3 = g1(&buffer);
             break;
-        }
         case 30:
         case 31:
         case 32:
         case 33:
         case 34:
         {
-            object->actions[opcode - 30] = gcstring(&buffer);
-            if( strcasecmp(object->actions[opcode - 30], "Hidden") == 0 )
+            int idx = opcode - 30;
+            free(object->actions[idx]);
+            object->actions[idx] = gcstring(&buffer);
+            if( object->actions[idx] && strcasecmp(object->actions[idx], "Hidden") == 0 )
             {
-                free(object->actions[opcode - 30]);
-                object->actions[opcode - 30] = NULL;
+                free(object->actions[idx]);
+                object->actions[idx] = NULL;
             }
             break;
         }
@@ -536,11 +656,9 @@ RSCache_Dat2ConfigObjDecodeInplace(
         case 37:
         case 38:
         case 39:
-        {
+            free(object->if_actions[opcode - 35]);
             object->if_actions[opcode - 35] = gcstring(&buffer);
-
             break;
-        }
         case 40:
         {
             int recolor_count = g1(&buffer);
@@ -568,10 +686,8 @@ RSCache_Dat2ConfigObjDecodeInplace(
             break;
         }
         case 42:
-        {
             object->shift_click_drop_index = g1b(&buffer);
             break;
-        }
         case 43:
         {
             int action_id = g1(&buffer);
@@ -586,81 +702,108 @@ RSCache_Dat2ConfigObjDecodeInplace(
             {
                 int sub_action_id = g1(&buffer) - 1;
                 if( sub_action_id == -1 )
-                {
                     break;
-                }
                 char* string = gcstring(&buffer);
                 if( valid && sub_action_id >= 0 && sub_action_id < 20 )
-                {
                     object->sub_actions[action_id][sub_action_id] = string;
-                }
                 else
-                {
                     free(string);
-                }
             }
             break;
         }
-        case 65:
-        {
-            object->tradeable = true;
+        case 44:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->inventory_model_id = g4(&buffer);
             break;
-        }
+        case 45:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->male_model_0 = g4(&buffer);
+            object->male_offset = g1(&buffer);
+            break;
+        case 46:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->male_model_1 = g4(&buffer);
+            break;
+        case 47:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->male_model_2 = g4(&buffer);
+            break;
+        case 48:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->female_model_0 = g4(&buffer);
+            object->female_offset = g1(&buffer);
+            break;
+        case 49:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->female_model_1 = g4(&buffer);
+            break;
+        case 50:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->female_model_2 = g4(&buffer);
+            break;
+        case 51:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->male_head_model = g4(&buffer);
+            break;
+        case 52:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->male_head_model_2 = g4(&buffer);
+            break;
+        case 53:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->female_head_model = g4(&buffer);
+            break;
+        case 54:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return;
+            object->female_head_model_2 = g4(&buffer);
+            break;
+        case 65:
+            object->ge_tradeable = true;
+            break;
         case 75:
-        {
             object->weight = g2b(&buffer);
             break;
-        }
         case 78:
-        {
             object->male_model_2 = g2(&buffer);
             break;
-        }
         case 79:
-        {
             object->female_model_2 = g2(&buffer);
             break;
-        }
         case 90:
-        {
             object->male_head_model = g2(&buffer);
             break;
-        }
         case 91:
-        {
             object->female_head_model = g2(&buffer);
             break;
-        }
         case 92:
-        {
             object->male_head_model_2 = g2(&buffer);
             break;
-        }
         case 93:
-        {
             object->female_head_model_2 = g2(&buffer);
             break;
-        }
         case 94:
-        {
             object->category = g2(&buffer);
             break;
-        }
         case 95:
-        {
             object->zan2d = g2(&buffer);
             break;
-        }
         case 97:
-        {
             object->noted_id = g2(&buffer);
             break;
-        }
         case 98:
-        {
             object->noted_template = g2(&buffer);
             break;
-        }
         case 100:
         case 101:
         case 102:
@@ -671,68 +814,65 @@ RSCache_Dat2ConfigObjDecodeInplace(
         case 107:
         case 108:
         case 109:
-        {
             object->count_obj[opcode - 100] = g2(&buffer);
             object->count_co[opcode - 100] = g2(&buffer);
             break;
-        }
         case 110:
-        {
             object->resize_x = g2(&buffer);
             break;
-        }
         case 111:
-        {
             object->resize_y = g2(&buffer);
             break;
-        }
         case 112:
-        {
             object->resize_z = g2(&buffer);
             break;
-        }
         case 113:
-        {
             object->ambient = g1b(&buffer);
             break;
-        }
         case 114:
-        {
             object->contrast = g1b(&buffer) * 5;
             break;
-        }
         case 115:
-        {
             object->team = g2(&buffer);
             break;
-        }
         case 139:
-        {
             object->bought_id = g2(&buffer);
             break;
-        }
         case 140:
-        {
             object->bought_template_id = g2(&buffer);
             break;
-        }
         case 148:
-        {
             object->placeholder_id = g2(&buffer);
             break;
-        }
         case 149:
-        {
             object->placeholder_template_id = g2(&buffer);
             break;
-        }
+        case 160:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2) )
+                return;
+            object->stacking_behaviour = 2;
+            break;
+        case 200:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return;
+            RSCache_EntityOpsDecodeSubOp(&object->entity_ops, &buffer);
+            break;
+        case 201:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return;
+            RSCache_EntityOpsDecodeCondOp(&object->entity_ops, &buffer);
+            break;
+        case 202:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return;
+            RSCache_EntityOpsDecodeCondSubOp(&object->entity_ops, &buffer);
+            break;
         case 249:
-        {
             RSCache_BufferReadParams(&buffer, &object->params);
             break;
-        }
         default:
-            break;
+            /* Unknown payload length: stop rather than misalign later fields. */
+            return;
         }
     }
 }

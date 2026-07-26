@@ -504,6 +504,9 @@ decode_sequence_v1(
         case 18:
             def->debug_name = gcstring(buffer);
             break;
+        case 19:
+            def->sounds_cross_world_view = true;
+            break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
             break;
@@ -638,6 +641,9 @@ decode_sequence_v2(
         case 18:
             def->debug_name = gcstring(buffer);
             break;
+        case 19:
+            def->sounds_cross_world_view = true;
+            break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
             break;
@@ -771,6 +777,9 @@ decode_sequence_v3(
         }
         case 18:
             def->debug_name = gcstring(buffer);
+            break;
+        case 19:
+            def->sounds_cross_world_view = true;
             break;
         case 100:
         {
@@ -1029,6 +1038,9 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         p1(&buffer, 18);
         pjstr(&buffer, def->debug_name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
+
+    if( is_v3 && def->sounds_cross_world_view )
+        p1(&buffer, 19);
 
     p1(&buffer, 0);
     return buffer.position;

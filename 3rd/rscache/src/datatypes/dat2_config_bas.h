@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_BAS_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_BAS_H
 
+#include <stdint.h>
+
 /**
  * Base Animation Set (BAS)
  * BasType / render-animation config (RS2 config group 32).
@@ -27,6 +29,17 @@ struct RSCache_Dat2ConfigBas*
 RSCache_Dat2ConfigBasNewDecode(
     char* data,
     int data_size);
+
+/** Encode the stored motion fields (opcodes 1, 40–42) plus terminator.
+ *  Returns bytes written, or 0 on failure. */
+uint32_t
+RSCache_Dat2ConfigBasEncode(
+    const struct RSCache_Dat2ConfigBas* bas,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+uint32_t
+RSCache_Dat2ConfigBasEncodeBound(const struct RSCache_Dat2ConfigBas* bas);
 
 void
 RSCache_Dat2ConfigBasFree(struct RSCache_Dat2ConfigBas* bas);

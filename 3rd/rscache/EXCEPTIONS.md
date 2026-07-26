@@ -69,13 +69,26 @@ Reordered deliberately. The README is one of the four explicit asks, and writing
 straight after the container work meant documenting formats I had just verified
 field by field. Phase 5 is ~33 encoders and would have deferred it a long way.
 
-### A5. No cross-cache porting layer
+### A5. Cross-cache porting *(Updated)*
 
-Not a deviation — scope was set explicitly: *"Do not worry about porting from one to
-the other in this. If you provide the tools to encode/decode each data type, a
-client of the library can implement."* The library therefore ships symmetric
-encode/decode and no porting code. Recorded here because the original brief asked
-for porting and someone reading that brief will wonder.
+The library itself still ships no automatic porting layer inside the codecs —
+decode with the source profile, encode with the destination's, and let the
+caller decide fields the destination added. What *has* been added is
+`3rd/rscache/tools/` (`find_anims`, `port_npc`) plus the write helpers those
+tools need (`RSCache_Dat2Edit*`, `RSCache_Dat1DiskWriteArchive`,
+`RSCache_Dat1Edit*`, dat1 npc/seq/anim encoders). See `tools/README.md`.
+
+Known lossy conversions the tools surface rather than hide:
+
+- **osrs239 NPC records** are refused — the decoder does not consume them
+  exactly under either head-icon shape.
+- **dat2 → dat1 models** re-encode to OB2; OB3/V2/V3 texture render types and
+  animaya skin data are dropped with a warning.
+- **dat2 framemap → dat1 AnimBase** drops `transform_actor`, `masks`, and
+  trailing skeletal blobs.
+- **retexture / texture ids** are cache-local and do not map across revisions
+  unless `--texture-map` is supplied.
+- **bzip2 jagfile repacks** are valid but not byte-identical to Jagex (A1).
 
 ---
 

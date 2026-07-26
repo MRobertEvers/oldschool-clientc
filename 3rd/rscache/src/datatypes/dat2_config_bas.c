@@ -166,6 +166,55 @@ RSCache_Dat2ConfigBasNewDecode(
     return bas;
 }
 
+uint32_t
+RSCache_Dat2ConfigBasEncodeBound(const struct RSCache_Dat2ConfigBas* bas)
+{
+    (void)bas;
+    /* opcode 1 (1+2+2), up to three direction opcodes (1+2 each), terminator. */
+    return 5u + 3u * 3u + 1u;
+}
+
+uint32_t
+RSCache_Dat2ConfigBasEncode(
+    const struct RSCache_Dat2ConfigBas* bas,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !bas || !out )
+        return 0;
+    if( out_capacity < RSCache_Dat2ConfigBasEncodeBound(bas) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    if( bas->idle_seq_id >= 0 || bas->walk_seq_id >= 0 )
+    {
+        p1(&buffer, 1);
+        p2(&buffer, bas->idle_seq_id >= 0 ? bas->idle_seq_id : 0xFFFF);
+        p2(&buffer, bas->walk_seq_id >= 0 ? bas->walk_seq_id : 0xFFFF);
+    }
+
+    if( bas->walk_back_seq_id >= 0 )
+    {
+        p1(&buffer, 40);
+        p2(&buffer, bas->walk_back_seq_id);
+    }
+    if( bas->walk_left_seq_id >= 0 )
+    {
+        p1(&buffer, 41);
+        p2(&buffer, bas->walk_left_seq_id);
+    }
+    if( bas->walk_right_seq_id >= 0 )
+    {
+        p1(&buffer, 42);
+        p2(&buffer, bas->walk_right_seq_id);
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
+}
+
 void
 RSCache_Dat2ConfigBasFree(struct RSCache_Dat2ConfigBas* bas)
 {

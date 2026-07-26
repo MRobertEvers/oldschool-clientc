@@ -760,6 +760,26 @@ RSCache_BufferReadto(
     return bytes_read;
 }
 
+static void
+params_cleanup_partial(struct RSCache_Params* params)
+{
+    if( !params )
+        return;
+    for( int j = 0; j < params->count; j++ )
+    {
+        if( params->values[j] )
+            free(params->values[j]);
+    }
+    free(params->keys);
+    free(params->values);
+    free(params->kinds);
+    params->keys = NULL;
+    params->values = NULL;
+    params->kinds = NULL;
+    params->count = 0;
+    params->capacity = 0;
+}
+
 void
 RSCache_BufferReadParams(
     struct RSCache_Buffer* buffer,
@@ -772,28 +792,25 @@ RSCache_BufferReadParams(
     }
     int length = RSCache_BufferG1(buffer) & 0xFF;
 
-    // Initialize params with next power of 2 size
     int capacity = 1;
     while( capacity < length )
-    {
         capacity <<= 1;
-    }
 
     params->keys = malloc(capacity * sizeof(int));
     params->values = malloc(capacity * sizeof(void*));
-    params->is_string = malloc(capacity * sizeof(bool));
+    params->kinds = malloc(capacity * sizeof(uint8_t));
 
-    if( !params->keys || !params->values || !params->is_string )
+    if( !params->keys || !params->values || !params->kinds )
     {
         printf(
             "RSCache_BufferReadParams: Failed to allocate params arrays of capacity %d\n",
             capacity);
-        if( params->keys )
-            free(params->keys);
-        if( params->values )
-            free(params->values);
-        if( params->is_string )
-            free(params->is_string);
+        free(params->keys);
+        free(params->values);
+        free(params->kinds);
+        params->keys = NULL;
+        params->values = NULL;
+        params->kinds = NULL;
         return;
     }
 
@@ -806,32 +823,18 @@ RSCache_BufferReadParams(
         {
             printf(
                 "RSCache_BufferReadParams: Buffer overflow while reading params at index %d\n", i);
-            // Cleanup on error
-            for( int j = 0; j < params->count; j++ )
-            {
-                if( params->values[j] )
-                {
-                    free(params->values[j]);
-                }
-            }
-            free(params->keys);
-            free(params->values);
-            free(params->is_string);
-            params->keys = NULL;
-            params->values = NULL;
-            params->is_string = NULL;
-            params->count = 0;
-            params->capacity = 0;
+            params_cleanup_partial(params);
             return;
         }
 
-        bool is_string = (RSCache_BufferG1(buffer) & 0xFF) == 1;
+        int type_byte = RSCache_BufferG1(buffer) & 0xFF;
         int key = RSCache_BufferG3(buffer);
         void* value;
+        uint8_t kind;
 
-        if( is_string )
+        if( type_byte == RSCACHE_PARAM_STRING )
         {
-            // Read string length first
+            kind = RSCACHE_PARAM_STRING;
             int str_len = 0;
             while( buffer->position + str_len < buffer->size &&
                    buffer->data[buffer->position + str_len] != '\0' )
@@ -842,28 +845,12 @@ RSCache_BufferReadParams(
             {
                 printf(
                     "RSCache_BufferReadParams: Buffer overflow while reading param string at "
-                    "index "
-                    "%d\n",
+                    "index %d\n",
                     i);
-                // Cleanup on error
-                for( int j = 0; j < params->count; j++ )
-                {
-                    if( params->values[j] )
-                    {
-                        free(params->values[j]);
-                    }
-                }
-                free(params->keys);
-                free(params->values);
-                free(params->is_string);
-                params->keys = NULL;
-                params->values = NULL;
-                params->is_string = NULL;
-                params->count = 0;
-                params->capacity = 0;
+                params_cleanup_partial(params);
                 return;
             }
-            value = malloc(str_len + 1);
+            value = malloc((size_t)str_len + 1);
             if( !value )
             {
                 printf(
@@ -871,72 +858,51 @@ RSCache_BufferReadParams(
                     "index %d\n",
                     str_len,
                     i);
-                // Cleanup on error
-                for( int j = 0; j < params->count; j++ )
-                {
-                    if( params->values[j] )
-                    {
-                        free(params->values[j]);
-                    }
-                }
-                free(params->keys);
-                free(params->values);
-                free(params->is_string);
-                params->keys = NULL;
-                params->values = NULL;
-                params->is_string = NULL;
-                params->count = 0;
-                params->capacity = 0;
+                params_cleanup_partial(params);
                 return;
             }
             RSCache_BufferReadto(buffer, value, str_len + 1, str_len + 1);
         }
+        else if( type_byte == RSCACHE_PARAM_LONG )
+        {
+            kind = RSCACHE_PARAM_LONG;
+            if( buffer->position + 7 >= buffer->size )
+            {
+                printf(
+                    "RSCache_BufferReadParams: Buffer overflow while reading param long at index "
+                    "%d\n",
+                    i);
+                params_cleanup_partial(params);
+                return;
+            }
+            value = malloc(sizeof(int64_t));
+            if( !value )
+            {
+                printf(
+                    "RSCache_BufferReadParams: Failed to allocate param long at index %d\n", i);
+                params_cleanup_partial(params);
+                return;
+            }
+            *(int64_t*)value = RSCache_BufferG8(buffer);
+        }
         else
         {
+            kind = RSCACHE_PARAM_INT;
             if( buffer->position + 3 >= buffer->size )
             {
                 printf(
                     "RSCache_BufferReadParams: Buffer overflow while reading param int at index "
                     "%d\n",
                     i);
-                // Cleanup on error
-                for( int j = 0; j < params->count; j++ )
-                {
-                    if( params->values[j] )
-                    {
-                        free(params->values[j]);
-                    }
-                }
-                free(params->keys);
-                free(params->values);
-                free(params->is_string);
-                params->keys = NULL;
-                params->values = NULL;
-                params->is_string = NULL;
-                params->count = 0;
-                params->capacity = 0;
+                params_cleanup_partial(params);
                 return;
             }
             value = malloc(sizeof(int));
             if( !value )
             {
-                printf("decode_npc_type: Failed to allocate param int at index %d\n", i);
-                // Cleanup on error
-                for( int j = 0; j < params->count; j++ )
-                {
-                    if( params->values[j] )
-                    {
-                        free(params->values[j]);
-                    }
-                }
-                free(params->keys);
-                free(params->values);
-                free(params->is_string);
-                params->keys = NULL;
-                params->values = NULL;
-                params->is_string = NULL;
-                params->count = 0;
-                params->capacity = 0;
+                printf(
+                    "RSCache_BufferReadParams: Failed to allocate param int at index %d\n", i);
+                params_cleanup_partial(params);
                 return;
             }
             *(int*)value = RSCache_BufferG4(buffer);
@@ -944,7 +910,7 @@ RSCache_BufferReadParams(
 
         params->keys[params->count] = key;
         params->values[params->count] = value;
-        params->is_string[params->count] = is_string;
+        params->kinds[params->count] = kind;
         params->count++;
     }
 }
@@ -961,13 +927,18 @@ RSCache_BufferWriteParams(
     RSCache_BufferP1(buffer, count);
     for( int i = 0; i < count; i++ )
     {
-        bool is_string = params->is_string[i];
-        RSCache_BufferP1(buffer, is_string ? 1 : 0);
+        uint8_t kind = params->kinds ? params->kinds[i] : (uint8_t)RSCACHE_PARAM_INT;
+        RSCache_BufferP1(buffer, kind);
         RSCache_BufferP3(buffer, params->keys[i]);
-        if( is_string )
+        if( kind == RSCACHE_PARAM_STRING )
         {
             const char* str = params->values[i] ? (const char*)params->values[i] : "";
             RSCache_BufferPjstr(buffer, str, RSCACHE_JSTR_TERMINATOR_NULL);
+        }
+        else if( kind == RSCACHE_PARAM_LONG )
+        {
+            int64_t v = params->values[i] ? *(const int64_t*)params->values[i] : 0;
+            RSCache_BufferP8(buffer, v);
         }
         else
         {

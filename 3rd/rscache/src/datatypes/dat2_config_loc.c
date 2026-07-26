@@ -1,5 +1,7 @@
 #include "dat2_config_loc.h"
 
+#include "dat2_entity_ops.h"
+
 #include "../rsbuffer.h"
 
 #include <assert.h>
@@ -61,6 +63,13 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
      * epoch here means a revision module can pin it explicitly. */
     if( RSCache_Dat2ConfigLocCodecVersion(cache) == RSCACHE_CODEC_LOC_RS2 )
         flags |= RSCACHE_CONFIG_LOC_DECODE_RS2;
+
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_LOC, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+    {
+        flags |= RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS;
+        flags |= RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS;
+    }
 
     /* LARGE_MODEL_IDS stays off for every profile: an exact-consumption scan of
      * the jan2026 OSRS cache (60601/60601 files) showed big-smart model ids
@@ -130,6 +139,8 @@ RSCache_Dat2ConfigLocFreeInplace(struct RSCache_Dat2ConfigLoc* loc)
     free(loc->random_seq_delays);
     free(loc->campaign_ids);
 
+    RSCache_EntityOpsFreeInplace(&loc->entity_ops);
+
     if( loc->params.values )
     {
         for( int i = 0; i < loc->params.count; i++ )
@@ -137,7 +148,7 @@ RSCache_Dat2ConfigLocFreeInplace(struct RSCache_Dat2ConfigLoc* loc)
         free(loc->params.values);
     }
     free(loc->params.keys);
-    free(loc->params.is_string);
+    free(loc->params.kinds);
 }
 
 void
@@ -206,6 +217,16 @@ init_loc(struct RSCache_Dat2ConfigLoc* loc)
     loc->campaign_id_count = 0;
     loc->campaign_ids = NULL;
     loc->mirrored = 0;
+
+    loc->sound_distance_fade_curve = 0;
+    loc->sound_fade_in_curve = 0;
+    loc->sound_fade_in_duration = 300;
+    loc->sound_fade_out_curve = 0;
+    loc->sound_fade_out_duration = 300;
+    loc->unknown1 = false;
+    loc->sound_visibility = 2;
+    loc->raise = 0;
+    RSCache_EntityOpsInit(&loc->entity_ops);
 }
 
 static inline char*
@@ -262,25 +283,51 @@ RSCache_Dat2ConfigLocEncodeFlags(
 
     /* Opcode 1 carries one model per shape; opcode 5 carries several models under a
      * single group and no shapes. The decoder distinguishes them by whether it
-     * allocated `shapes`, so that is what selects the form here. */
+     * allocated `shapes`, so that is what selects the form here. Rev 237+ uses
+     * opcodes 6/7 with g4 when any model id exceeds u16. */
     if( loc->shapes_and_model_count > 0 && loc->models )
     {
+        bool use_int_ids = false;
         if( loc->shapes )
         {
-            p1(&buffer, 1);
+            for( int i = 0; i < loc->shapes_and_model_count; i++ )
+            {
+                if( loc->models[i][0] < 0 || loc->models[i][0] > 0xFFFF )
+                {
+                    use_int_ids = true;
+                    break;
+                }
+            }
+            p1(&buffer, use_int_ids ? 6 : 1);
             p1(&buffer, loc->shapes_and_model_count);
             for( int i = 0; i < loc->shapes_and_model_count; i++ )
             {
-                LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[i][0]);
+                if( use_int_ids )
+                    p4(&buffer, loc->models[i][0]);
+                else
+                    LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[i][0]);
                 p1(&buffer, loc->shapes[i]);
             }
         }
         else
         {
-            p1(&buffer, 5);
+            for( int i = 0; i < loc->lengths[0]; i++ )
+            {
+                if( loc->models[0][i] < 0 || loc->models[0][i] > 0xFFFF )
+                {
+                    use_int_ids = true;
+                    break;
+                }
+            }
+            p1(&buffer, use_int_ids ? 7 : 5);
             p1(&buffer, loc->lengths[0]);
             for( int i = 0; i < loc->lengths[0]; i++ )
-                LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[0][i]);
+            {
+                if( use_int_ids )
+                    p4(&buffer, loc->models[0][i]);
+                else
+                    LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[0][i]);
+            }
         }
     }
 
@@ -347,7 +394,9 @@ RSCache_Dat2ConfigLocEncodeFlags(
         }
         break;
     case 4:
-        p1(&buffer, 94);
+        /* RS2: contour type. OSRS: opcode 94 is unknown1 (emitted below). */
+        if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            p1(&buffer, 94);
         break;
     case 5:
         if( !(flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) )
@@ -423,7 +472,8 @@ RSCache_Dat2ConfigLocEncodeFlags(
         }
     }
 
-    /* map_function_id is settable by 60, 82 and 107; map_scene_id by 68 and 102.
+    /* map_function_id is settable by 60, 82 and 107; map_scene_id by 68
+     * (and historically 102 before rev237 EntityOps reclaimed that opcode).
      * Emit the lowest opcode of each group. */
     if( loc->map_function_id != defaults.map_function_id )
     {
@@ -536,6 +586,49 @@ RSCache_Dat2ConfigLocEncodeFlags(
 
     if( !loc->seq_random_start )
         p1(&buffer, 89);
+
+    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
+        loc->sound_distance_fade_curve != defaults.sound_distance_fade_curve )
+    {
+        p1(&buffer, 91);
+        p1(&buffer, loc->sound_distance_fade_curve);
+    }
+
+    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
+        (loc->sound_fade_in_curve != defaults.sound_fade_in_curve ||
+         loc->sound_fade_in_duration != defaults.sound_fade_in_duration ||
+         loc->sound_fade_out_curve != defaults.sound_fade_out_curve ||
+         loc->sound_fade_out_duration != defaults.sound_fade_out_duration) )
+    {
+        p1(&buffer, 93);
+        p1(&buffer, loc->sound_fade_in_curve);
+        p2(&buffer, loc->sound_fade_in_duration);
+        p1(&buffer, loc->sound_fade_out_curve);
+        p2(&buffer, loc->sound_fade_out_duration);
+    }
+
+    if( loc->unknown1 && !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+        p1(&buffer, 94);
+
+    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
+        loc->sound_visibility != defaults.sound_visibility )
+    {
+        p1(&buffer, 95);
+        p1(&buffer, loc->sound_visibility);
+    }
+
+    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) && loc->raise != defaults.raise )
+    {
+        p1(&buffer, 96);
+        p1(&buffer, loc->raise);
+    }
+
+    if( (flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS) &&
+        (loc->entity_ops.sub_ops_count > 0 || loc->entity_ops.cond_ops_count > 0 ||
+         loc->entity_ops.cond_sub_ops_count > 0) )
+    {
+        RSCache_EntityOpsEncode(&loc->entity_ops, &buffer, 30, 100, 101, 102);
+    }
 
     if( loc->random_seq_id_count > 0 )
     {
@@ -749,6 +842,48 @@ decode_loc(
                 int model_id = LOC_READ_MODEL_ID(&buffer, flags);
                 loc->models[0][i] = model_id;
             }
+            break;
+        }
+        case 6:
+        {
+            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS) )
+                goto decode_done;
+            /* Like opcode 1, but model ids are g4. */
+            int count = g1(&buffer);
+            if( count == 0 )
+                break;
+
+            loc->shapes = (int*)malloc(count * sizeof(int));
+            loc->models = (int**)malloc(count * sizeof(int*));
+            loc->lengths = (int*)malloc(count * sizeof(int));
+            memset(loc->lengths, 0, count * sizeof(int));
+            loc->shapes_and_model_count = count;
+            for( int i = 0; i < count; i++ )
+            {
+                loc->models[i] = (int*)malloc(1 * sizeof(int));
+                loc->models[i][0] = g4(&buffer);
+                loc->shapes[i] = g1(&buffer);
+                loc->lengths[i] = 1;
+            }
+            break;
+        }
+        case 7:
+        {
+            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS) )
+                goto decode_done;
+            /* Like opcode 5, but model ids are g4. */
+            int count = g1(&buffer);
+            if( count == 0 )
+                break;
+
+            loc->shapes_and_model_count = 1;
+            loc->shapes = NULL;
+            loc->models = (int**)malloc(1 * sizeof(int*));
+            loc->models[0] = (int*)malloc(count * sizeof(int));
+            loc->lengths = (int*)malloc(1 * sizeof(int));
+            loc->lengths[0] = count;
+            for( int i = 0; i < count; i++ )
+                loc->models[0][i] = g4(&buffer);
             break;
         }
         case 14:
@@ -1022,17 +1157,21 @@ decode_loc(
              * OldSchool-only sound-distance-fade curve. Both readings are attested against
              * their own era, so this is gated rather than picked. */
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
-                g1(&buffer);
+            {
+                if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+                    loc->sound_distance_fade_curve = g1(&buffer);
+                else
+                    g1(&buffer);
+            }
             break;
         case 93:
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
             {
-                // OSRS >= 220: sound fade in/out curve + duration (LocType.ts:436-440)
-                g1(&buffer);
-                g2(&buffer);
-                g1(&buffer);
-                g2(&buffer);
+                loc->sound_fade_in_curve = g1(&buffer);
+                loc->sound_fade_in_duration = g2(&buffer);
+                loc->sound_fade_out_curve = g1(&buffer);
+                loc->sound_fade_out_duration = g2(&buffer);
             }
             else
             {
@@ -1042,30 +1181,29 @@ decode_loc(
             break;
         }
         case 94:
-            loc->contour_ground_type = 4;
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+                loc->contour_ground_type = 4;
+            else
+                loc->unknown1 = true;
             break;
         case 95:
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
             {
-                // OSRS: crossworldsound byte (LocType.ts:448-449) - skip
-                g1(&buffer);
+                loc->sound_visibility = g1(&buffer);
             }
             else
             {
                 loc->contour_ground_type = 5;
-                // TODO: Check cache info for contour_ground_param
                 g2(&buffer);
             }
             break;
         }
         case 96:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
-                g1(&buffer); // OSRS: thickness byte (LocType.ts:459-460) - skip
+                loc->raise = g1(&buffer);
             break;
         case 99:
-        case 100:
-        case 101:
         case 104:
         case 163:
         case 167:
@@ -1075,13 +1213,13 @@ decode_loc(
         case 178:
         case 190:
         case 191:
-            // Skip various data - just read the bytes
-            if( opcode == 99 || opcode == 100 )
+            /* Skip various data - just read the bytes */
+            if( opcode == 99 )
             {
                 g1(&buffer);
                 g2(&buffer);
             }
-            else if( opcode == 101 || opcode == 104 || opcode == 178 )
+            else if( opcode == 104 || opcode == 178 )
             {
                 g1(&buffer);
             }
@@ -1113,8 +1251,37 @@ decode_loc(
                     g1(&buffer);
             }
             break;
+        case 100:
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
+            {
+                RSCache_EntityOpsDecodeSubOp(&loc->entity_ops, &buffer);
+            }
+            else
+            {
+                /* RS2 / pre-237: skip payload (g1 + g2). */
+                g1(&buffer);
+                g2(&buffer);
+            }
+            break;
+        case 101:
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
+            {
+                RSCache_EntityOpsDecodeCondOp(&loc->entity_ops, &buffer);
+            }
+            else
+            {
+                g1(&buffer);
+            }
+            break;
         case 102:
-            loc->map_scene_id = g2(&buffer);
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
+            {
+                RSCache_EntityOpsDecodeCondSubOp(&loc->entity_ops, &buffer);
+            }
+            else
+            {
+                loc->map_scene_id = g2(&buffer);
+            }
             break;
         case 106:
         {

@@ -60,4 +60,21 @@ RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer);
 void
 RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc);
 
+void
+RSCache_Dat1ConfigNpcListFree(struct RSCache_Dat1ConfigNpcList* list);
+
+/** Byte count needed to encode `npc`, including the trailing opcode 0. */
+uint32_t
+RSCache_Dat1ConfigNpcEncodeBound(const struct RSCache_Dat1ConfigNpc* npc);
+
+/**
+ * Encode one NPC record. Strings are newline-terminated. Only non-default fields
+ * are written. Returns bytes written, or 0 on failure.
+ */
+uint32_t
+RSCache_Dat1ConfigNpcEncode(
+    const struct RSCache_Dat1ConfigNpc* npc,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 #endif

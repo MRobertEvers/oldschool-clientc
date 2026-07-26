@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define CACHE_FILE_NAME_ROOT "main_file_cache"
+#define DAT1_SECTOR_SIZE 520
 
 static FILE*
 dat1disk_fopen_dat(char const* cache_directory)
@@ -201,4 +202,69 @@ RSCache_Dat1DiskArchiveFree(struct RSCache_Dat1DiskArchive* archive)
         free(archive->data);
 
     free(archive);
+}
+
+int
+RSCache_Dat1DiskWriteArchive(
+    const char* directory,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int data_size)
+{
+    assert(directory != NULL);
+    assert(data != NULL);
+
+    if( data_size <= 0 || archive_id < 0 || table_id < 0 )
+        return -1;
+
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s.dat", directory, CACHE_FILE_NAME_ROOT);
+
+    /* "r+b" then fall back to "w+b": opening an existing cache for update must not
+     * truncate it, but a fresh one has to be created. */
+    FILE* dat_file = fopen(path, "r+b");
+    if( !dat_file )
+        dat_file = fopen(path, "w+b");
+    if( !dat_file )
+        return -1;
+
+    /* Reserve sector 0 on a fresh file. The index reader treats sector 0 as
+     * "absent", so an archive placed there would be invisible. */
+    fseek(dat_file, 0, SEEK_END);
+    if( ftell(dat_file) == 0 )
+    {
+        uint8_t reserved[DAT1_SECTOR_SIZE] = { 0 };
+        if( fwrite(reserved, 1, sizeof(reserved), dat_file) != sizeof(reserved) )
+        {
+            fclose(dat_file);
+            return -1;
+        }
+    }
+
+    /* Dat1 sector headers store index_id as table_id + 1 (see DatFileReadArchive). */
+    int sector = RSCache_Dat2DiskDat2FileAppendArchive(
+        dat_file, table_id + 1, archive_id, (uint8_t*)data, data_size);
+    fclose(dat_file);
+
+    if( sector <= 0 )
+        return -1;
+
+    snprintf(path, sizeof(path), "%s/%s.idx%d", directory, CACHE_FILE_NAME_ROOT, table_id);
+    FILE* index_file = fopen(path, "r+b");
+    if( !index_file )
+        index_file = fopen(path, "w+b");
+    if( !index_file )
+        return -1;
+
+    struct RSCache_Dat2DiskIndexRecord record = {
+        .idx_file_id = table_id,
+        .archive_idx = archive_id,
+        .sector = sector,
+        .length = data_size,
+    };
+
+    int result = RSCache_Dat2DiskIndexFileWriteRecord(index_file, archive_id, &record);
+    fclose(index_file);
+    return result == 0 ? 0 : -1;
 }

@@ -13,6 +13,20 @@
 
 #define NON_OSRS_PACKED_ARCHIVE_FORMAT 5
 
+/** Optional container trailer: revision after the compressed payload (RuneLite
+ *  Container.decompress). Prefer 4 bytes when enough remain (OSRS 235+), else 2. */
+static void
+archive_read_container_revision(
+    struct RSCache_Buffer* buffer,
+    struct RSCache_Dat2DiskArchive* archive)
+{
+    uint32_t remaining = RSCache_BufferRemaining(buffer);
+    if( remaining >= 4u )
+        archive->revision = RSCache_BufferG4(buffer);
+    else if( remaining >= 2u )
+        archive->revision = (int)RSCache_BufferG2(buffer);
+}
+
 static int
 hash_djb2(char* name)
 {
@@ -91,6 +105,7 @@ RSCache_ArchiveDecryptDecompress(
         free(archive->data);
         archive->data = data;
         archive->data_size = bytes_read;
+        archive_read_container_revision(&buffer, archive);
         break;
     }
     case 1:
@@ -117,6 +132,8 @@ RSCache_ArchiveDecryptDecompress(
 
         RSCache_CompressionBzipDecompress(
             (uint8_t*)decompressed_data, uncompressed_length, (uint8_t*)compressed_data, size);
+
+        archive_read_container_revision(&buffer, archive);
 
         free(archive->data);
         archive->data = decompressed_data;
@@ -147,6 +164,8 @@ RSCache_ArchiveDecryptDecompress(
 
         RSCache_CompressionGzipDecompress(
             (uint8_t*)decompressed_data, uncompressed_length, compressed_data, size, 0);
+
+        archive_read_container_revision(&buffer, archive);
 
         free(archive->data);
         archive->data = decompressed_data;

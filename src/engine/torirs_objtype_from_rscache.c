@@ -127,7 +127,7 @@ torirs_objtype_copy_params(
     for( i = 0; i < src->count; i++ )
     {
         dst->params[i].key = src->keys[i];
-        if( src->is_string && src->is_string[i] )
+        if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
         {
             char const* s = (char const*)src->values[i];
             dst->params[i].string_value = strdup(s ? s : "");
@@ -135,7 +135,10 @@ torirs_objtype_copy_params(
         }
         else if( src->values[i] )
         {
-            dst->params[i].int_value = *(int*)src->values[i];
+            if( src->kinds && src->kinds[i] == RSCACHE_PARAM_LONG )
+                dst->params[i].int_value = (int)*(int64_t*)src->values[i];
+            else
+                dst->params[i].int_value = *(int*)src->values[i];
         }
     }
 }

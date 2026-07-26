@@ -181,6 +181,23 @@ RSCache_Dat1DiskArchiveNewLoad(
 void
 RSCache_Dat1DiskArchiveFree(struct RSCache_Dat1DiskArchive* archive);
 
+/**
+ * Append `data` into `main_file_cache.dat` and point `main_file_cache.idx<table_id>`
+ * at the new sectors. Mirrors RSCache_Dat2DiskWriteArchive but uses the dat1
+ * filename and passes `table_id + 1` as the sector-header index id (dat1's
+ * off-by-one).
+ *
+ * For tables 1–4, `data` is typically raw gzip bytes (RSCACHE_GZIP_NO_FOOTER
+ * compatible); for table 0 it is plain jagfile bytes. Returns 0 on success.
+ */
+int
+RSCache_Dat1DiskWriteArchive(
+    const char* directory,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int data_size);
+
 // @ObfuscatedName("vb.a(Lyb;Lclient;)V")
 // public void unpack(Jagfile jag, Client app) {
 //     String[] version = new String[] { "model_version", "anim_version", "midi_version",

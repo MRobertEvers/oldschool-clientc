@@ -734,11 +734,24 @@ Two cautions:
 
 ### Cross-cache porting
 
-The library provides symmetric encode/decode per datatype and deliberately ships
-no porting layer. To move an asset between caches, decode it with the source
-profile and encode it with the destination's — the neutral struct in between is the
-seam. What the library will *not* do is guess at fields the destination revision
-added; that is a decision for the caller.
+Per-datatype encode/decode is the seam: decode with the source profile, encode
+with the destination's. The library will not invent fields the destination
+revision added — that is a caller decision.
+
+For NPCs (and their models, sequences, frames, framemaps, and BasType), the
+offline tools in [`tools/`](tools/README.md) implement that caller:
+
+```sh
+make -C 3rd/rscache tools
+./3rd/rscache/tools/find_anims/find_anims --rev osrs230 cache.osrs230 --npc 1
+./3rd/rscache/tools/port_npc/port_npc \
+  --from-rev osrs230 cache.osrs230 --to-rev rs643 cache.rs643 \
+  --npc 1 --out /tmp/cache.out   # dry-run; add --apply to write
+```
+
+Group-edit helpers used by those tools live in `cache_edit.h`
+(`RSCache_Dat2Edit*`, `RSCache_Dat1Edit*`). Dat1 destinations also need
+`RSCache_Dat1DiskWriteArchive` and the dat1 npc/seq/anim encoders.
 
 ---
 

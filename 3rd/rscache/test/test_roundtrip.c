@@ -126,24 +126,6 @@ note_bytes(
         tally->byte_exact++;
 }
 
-/*
- * Caches whose records this library cannot yet fully decode, so exact consumption
- * is reported rather than asserted.
- *
- * `cache.osrs239` (OldSchool 239, also `manifest_osrs239.ini`) changed record
- * layouts that several OSRS decoders do not implement yet — npc and spotanim
- * dominate the gap. Listing it here keeps the suite green while making the gap
- * impossible to overlook: it prints on every run.
- *
- * Semantic round-trip is still asserted for these caches. An encoder must
- * reproduce whatever the decoder managed to read, even when that is incomplete.
- */
-static bool
-consumption_is_known_gap(const char* cache)
-{
-    return strcmp(cache, "cache.osrs239") == 0;
-}
-
 /** Config-group round-trip only applies where the type still lives in the OSRS
  *  config table with a shared layout. RS2 shards loc/npc/obj/seq into their own
  *  tables (test_rs2_sweep covers those), and a few remaining config kinds diverge. */
@@ -172,8 +154,7 @@ config_roundtrip_applies(
 }
 
 /*
- * Individually accounted-for records that do not consume exactly, outside the
- * wholesale gap above.
+ * Individually accounted-for records that do not consume exactly.
  *
  * Stated as an exact allowance rather than a blanket skip, so a regression from one
  * bad record to two still fails. Each entry names what is actually wrong.
@@ -236,42 +217,29 @@ tally_report(
      * the record was misread — a decoder bug, not an encoder one. */
     if( tally->tracks_consumed && tally->consumed_exact != tally->records )
     {
-        if( consumption_is_known_gap(cache) )
+        int missed = tally->records - tally->consumed_exact;
+        int allowed = consumption_allowance_for(datatype, cache);
+
+        rscache_test_checks++;
+        if( missed > allowed )
         {
+            rscache_test_failures++;
             printf(
-                "   KNOWN GAP %s/%s: %d of %d records did not consume exactly "
-                "(revision not implemented)\n",
+                "   FAIL %s/%s: %d of %d records did not consume exactly (%d allowed)\n",
                 datatype,
                 cache,
-                tally->records - tally->consumed_exact,
-                tally->records);
+                missed,
+                tally->records,
+                allowed);
         }
         else
         {
-            int missed = tally->records - tally->consumed_exact;
-            int allowed = consumption_allowance_for(datatype, cache);
-
-            rscache_test_checks++;
-            if( missed > allowed )
-            {
-                rscache_test_failures++;
-                printf(
-                    "   FAIL %s/%s: %d of %d records did not consume exactly (%d allowed)\n",
-                    datatype,
-                    cache,
-                    missed,
-                    tally->records,
-                    allowed);
-            }
-            else
-            {
-                printf(
-                    "   ALLOWED %s/%s: %d of %d records did not consume exactly\n",
-                    datatype,
-                    cache,
-                    missed,
-                    tally->records);
-            }
+            printf(
+                "   ALLOWED %s/%s: %d of %d records did not consume exactly\n",
+                datatype,
+                cache,
+                missed,
+                tally->records);
         }
     }
     else if( tally->tracks_consumed )
@@ -996,7 +964,9 @@ visit_spotanim(
     tally->tracks_consumed = true;
 
     uint8_t encoded[4096];
-    uint32_t written = RSCache_Dat2ConfigSpotanimEncode(first, encoded, sizeof(encoded));
+    int rev = profile ? profile->revision : 0;
+    uint32_t written =
+        RSCache_Dat2ConfigSpotanimEncodeRevision(rev, first, encoded, sizeof(encoded));
     if( written == 0 )
     {
         tally->encode_failed++;
@@ -1019,6 +989,7 @@ visit_spotanim(
                      first->resizeh == second->resizeh && first->resizev == second->resizev &&
                      first->angle == second->angle && first->ambient == second->ambient &&
                      first->contrast == second->contrast &&
+                     first->unknown10 == second->unknown10 &&
                      first->recol_count == second->recol_count &&
                      first->retex_count == second->retex_count &&
                      !!first->name == !!second->name &&
@@ -1133,6 +1104,8 @@ enum_equal(
         return false;
     if( lhs->default_int != rhs->default_int )
         return false;
+    if( lhs->default_long != rhs->default_long )
+        return false;
     if( !!lhs->default_string != !!rhs->default_string )
         return false;
     if( lhs->default_string && strcmp(lhs->default_string, rhs->default_string) != 0 )
@@ -1150,6 +1123,13 @@ enum_equal(
             if( !!left != !!right )
                 return false;
             if( left && strcmp(left, right) != 0 )
+                return false;
+        }
+        else if( lhs->long_values || rhs->long_values )
+        {
+            int64_t left = lhs->long_values ? lhs->long_values[i] : 0;
+            int64_t right = rhs->long_values ? rhs->long_values[i] : 0;
+            if( left != right )
                 return false;
         }
         else
@@ -1400,6 +1380,8 @@ visit_inv(
     RSCache_Dat2ConfigInvDecodeInplace(&second, encoded, (int)written);
     if( first.size == second.size )
         tally->semantic_ok++;
+    RSCache_Dat2ConfigInvFreeInplace(&first);
+    RSCache_Dat2ConfigInvFreeInplace(&second);
     (void)profile;
 }
 
@@ -1520,13 +1502,15 @@ visit_struct(
     for( int i = 0; equal && i < first.params.count; i++ )
     {
         if( first.params.keys[i] != second.params.keys[i] ||
-            first.params.is_string[i] != second.params.is_string[i] )
+            first.params.kinds[i] != second.params.kinds[i] )
         {
             equal = false;
             break;
         }
-        if( first.params.is_string[i] )
+        if( first.params.kinds[i] == RSCACHE_PARAM_STRING )
             equal = strcmp((char*)first.params.values[i], (char*)second.params.values[i]) == 0;
+        else if( first.params.kinds[i] == RSCACHE_PARAM_LONG )
+            equal = *(int64_t*)first.params.values[i] == *(int64_t*)second.params.values[i];
         else
             equal = *(int*)first.params.values[i] == *(int*)second.params.values[i];
     }
@@ -1679,6 +1663,7 @@ obj_equal(
         lhs->offset_x2d != rhs->offset_x2d || lhs->offset_y2d != rhs->offset_y2d ||
         lhs->cost != rhs->cost || lhs->stacking_behaviour != rhs->stacking_behaviour ||
         lhs->is_members != rhs->is_members || lhs->tradeable != rhs->tradeable ||
+        lhs->ge_tradeable != rhs->ge_tradeable ||
         lhs->weight != rhs->weight || lhs->category != rhs->category ||
         lhs->team != rhs->team || lhs->ambient != rhs->ambient ||
         lhs->contrast != rhs->contrast || lhs->resize_x != rhs->resize_x ||
@@ -1750,11 +1735,16 @@ obj_equal(
     for( int i = 0; i < lhs->params.count; i++ )
     {
         if( lhs->params.keys[i] != rhs->params.keys[i] ||
-            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            lhs->params.kinds[i] != rhs->params.kinds[i] )
             return false;
-        if( lhs->params.is_string[i] )
+        if( lhs->params.kinds[i] == RSCACHE_PARAM_STRING )
         {
             if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( lhs->params.kinds[i] == RSCACHE_PARAM_LONG )
+        {
+            if( *(int64_t*)lhs->params.values[i] != *(int64_t*)rhs->params.values[i] )
                 return false;
         }
         else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
@@ -1771,7 +1761,9 @@ visit_obj(
     int size,
     struct tally* tally)
 {
-    struct RSCache_Dat2ConfigObj* first = RSCache_Dat2ConfigObjNewDecode((char*)data, size);
+    int flags = RSCache_Dat2ConfigObjFlags(profile);
+    struct RSCache_Dat2ConfigObj* first =
+        RSCache_Dat2ConfigObjNewDecodeProfile(profile, (char*)data, size);
     if( !first )
         return;
     tally->records++;
@@ -1784,7 +1776,7 @@ visit_obj(
         return;
     }
 
-    uint32_t written = RSCache_Dat2ConfigObjEncode(first, encoded, capacity);
+    uint32_t written = RSCache_Dat2ConfigObjEncodeFlags(first, flags, encoded, capacity);
     if( written == 0 )
     {
         tally->encode_failed++;
@@ -1795,7 +1787,7 @@ visit_obj(
     note_bytes(tally, encoded, written, data, size);
 
     struct RSCache_Dat2ConfigObj* second =
-        RSCache_Dat2ConfigObjNewDecode((char*)encoded, (int)written);
+        RSCache_Dat2ConfigObjNewDecodeProfile(profile, (char*)encoded, (int)written);
     if( second )
     {
         if( obj_equal(first, second) )
@@ -1805,7 +1797,6 @@ visit_obj(
 
     RSCache_Dat2ConfigObjFree(first);
     free(encoded);
-    (void)profile;
 }
 
 /* ------------------------------------------------------------------ npc --- */
@@ -1838,7 +1829,14 @@ npc_equal(
         lhs->crawl_rotate_left_animation != rhs->crawl_rotate_left_animation ||
         lhs->crawl_rotate_right_animation != rhs->crawl_rotate_right_animation ||
         lhs->low_priority_follower_ops != rhs->low_priority_follower_ops ||
-        lhs->height != rhs->height )
+        lhs->height != rhs->height || lhs->footprint_size != rhs->footprint_size ||
+        lhs->unknown1 != rhs->unknown1 ||
+        lhs->can_hide_for_overlap != rhs->can_hide_for_overlap ||
+        lhs->overlap_tint_hsl != rhs->overlap_tint_hsl ||
+        lhs->idle_anim_restart != rhs->idle_anim_restart || lhs->zbuf != rhs->zbuf ||
+        lhs->render_priority != rhs->render_priority ||
+        lhs->is_minimap_visible != rhs->is_minimap_visible ||
+        lhs->is_interactable != rhs->is_interactable || lhs->rotation_flag != rhs->rotation_flag )
         return false;
 
     if( lhs->models_count != rhs->models_count )
@@ -1904,11 +1902,16 @@ npc_equal(
     for( int i = 0; i < lhs->params.count; i++ )
     {
         if( lhs->params.keys[i] != rhs->params.keys[i] ||
-            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            lhs->params.kinds[i] != rhs->params.kinds[i] )
             return false;
-        if( lhs->params.is_string[i] )
+        if( lhs->params.kinds[i] == RSCACHE_PARAM_STRING )
         {
             if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( lhs->params.kinds[i] == RSCACHE_PARAM_LONG )
+        {
+            if( *(int64_t*)lhs->params.values[i] != *(int64_t*)rhs->params.values[i] )
                 return false;
         }
         else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
@@ -1992,7 +1995,14 @@ loc_equal(
         lhs->transform_varp != rhs->transform_varp ||
         lhs->contoured_ground != rhs->contoured_ground ||
         lhs->contour_ground_type != rhs->contour_ground_type ||
-        lhs->seq_random_start != rhs->seq_random_start )
+        lhs->seq_random_start != rhs->seq_random_start ||
+        lhs->sound_distance_fade_curve != rhs->sound_distance_fade_curve ||
+        lhs->sound_fade_in_curve != rhs->sound_fade_in_curve ||
+        lhs->sound_fade_in_duration != rhs->sound_fade_in_duration ||
+        lhs->sound_fade_out_curve != rhs->sound_fade_out_curve ||
+        lhs->sound_fade_out_duration != rhs->sound_fade_out_duration ||
+        lhs->unknown1 != rhs->unknown1 || lhs->sound_visibility != rhs->sound_visibility ||
+        lhs->raise != rhs->raise )
         return false;
 
     /* Ambient sound. The retain byte is only meaningful when a sound is present. */
@@ -2077,11 +2087,16 @@ loc_equal(
     for( int i = 0; i < lhs->params.count; i++ )
     {
         if( lhs->params.keys[i] != rhs->params.keys[i] ||
-            lhs->params.is_string[i] != rhs->params.is_string[i] )
+            lhs->params.kinds[i] != rhs->params.kinds[i] )
             return false;
-        if( lhs->params.is_string[i] )
+        if( lhs->params.kinds[i] == RSCACHE_PARAM_STRING )
         {
             if( strcmp((char*)lhs->params.values[i], (char*)rhs->params.values[i]) != 0 )
+                return false;
+        }
+        else if( lhs->params.kinds[i] == RSCACHE_PARAM_LONG )
+        {
+            if( *(int64_t*)lhs->params.values[i] != *(int64_t*)rhs->params.values[i] )
                 return false;
         }
         else if( *(int*)lhs->params.values[i] != *(int*)rhs->params.values[i] )
@@ -2156,6 +2171,7 @@ sequence_equal(
         lhs->anim_maya_start != rhs->anim_maya_start ||
         lhs->anim_maya_end != rhs->anim_maya_end ||
         lhs->vertical_offset != rhs->vertical_offset ||
+        lhs->sounds_cross_world_view != rhs->sounds_cross_world_view ||
         lhs->chat_frame_id_count != rhs->chat_frame_id_count )
         return false;
 
