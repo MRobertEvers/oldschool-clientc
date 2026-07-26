@@ -40,12 +40,17 @@ RSCache_ProfileDat2Rs643(void)
  *           TRANSLATE / ROTATE transforms stored at higher precision (>>2 / >>4 on
  *           read). Without this pin, idle frames fail to decode and NPCs stay in
  *           bind pose.
+ *   framemap — RS >= 481/530: transform_actor bytes and masks shorts sit between
+ *           the type list and the bone-group lengths. Without this pin every
+ *           bone group is read as empty and animation moves nothing.
  */
     cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2;
     cache.codec[RSCACHE_TYPE_OVERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.codec[RSCACHE_TYPE_UNDERLAY] = RSCACHE_CODEC_FLO_RS2;
     /* Animation frames: leading unused byte + higher-precision transforms (rev 610+). */
     cache.codec[RSCACHE_TYPE_FRAME] = RSCACHE_CODEC_FRAME_V2;
+    /* Skeletons / SeqBase: transform_actor + masks (rev 530+). */
+    cache.codec[RSCACHE_TYPE_FRAMEMAP] = RSCACHE_CODEC_FRAMEMAP_V3;
 
     return cache;
 }

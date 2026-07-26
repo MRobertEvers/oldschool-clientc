@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #define RSCACHE_BUFFER_DEFAULT_CAPACITY 256
 
@@ -467,12 +466,9 @@ read_string(
     struct RSCache_Buffer* buffer,
     int stop_char)
 {
-    static const wchar_t CHARACTERS[] = {
-        L'\u20ac', L'\0',     L'\u201a', L'\u0192', L'\u201e', L'\u2026', L'\u2020', L'\u2021',
-        L'\u02c6', L'\u2030', L'\u0160', L'\u2039', L'\u0152', L'\0',     L'\u017d', L'\0',
-        L'\0',     L'\u2018', L'\u2019', L'\u201c', L'\u201d', L'\u2022', L'\u2013', L'\u2014',
-        L'\u02dc', L'\u2122', L'\u0161', L'\u203a', L'\u0153', L'\0',     L'\u017e', L'\u0178'
-    };
+    /* Byte-transparent: wire bytes are windows-1252 and stay that way in
+     * memory. Unicode conversion is a consumer concern — see
+     * RSCache_Cp1252ToUtf8 / RSCache_Utf8ToCp1252. */
 
     // Count string length first. Stop at end-of-buffer too: G1 past the end
     // returns 0 without advancing, which would otherwise spin forever when
@@ -494,7 +490,6 @@ read_string(
     char* string = malloc(length + 1);
     int i = 0;
 
-    // Read string with character mapping
     while( buffer->position < buffer->size )
     {
         int ch = RSCache_BufferG1(buffer);
@@ -502,21 +497,166 @@ read_string(
         {
             break;
         }
-
-        if( ch >= 128 && ch < 160 )
-        {
-            wchar_t mapped = CHARACTERS[ch - 128];
-            if( mapped == 0 )
-            {
-                mapped = L'?';
-            }
-            ch = (char)mapped;
-        }
-
-        string[i++] = ch;
+        string[i++] = (char)ch;
     }
     string[length] = '\0';
     return string;
+}
+
+/* Windows-1252 specials for bytes 0x80..0x9F. Undefined slots are 0; those
+ * round-trip as U+0081 / U+008D / U+008F / U+0090 / U+009D (same numeric value
+ * as the source byte) so Cp1252ToUtf8 / Utf8ToCp1252 form a bijection. */
+static const uint16_t RSCACHE_CP1252_SPECIAL[32] = {
+    0x20AC, 0x0000, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+    0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x0000, 0x017D, 0x0000,
+    0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x0000, 0x017E, 0x0178
+};
+
+static uint16_t
+cp1252_byte_to_codepoint(uint8_t b)
+{
+    if( b < 128 || b >= 160 )
+        return (uint16_t)b;
+    uint16_t special = RSCACHE_CP1252_SPECIAL[b - 128];
+    return special != 0 ? special : (uint16_t)b;
+}
+
+static int
+utf8_encode_codepoint(
+    uint16_t cp,
+    char* dst,
+    int dst_cap)
+{
+    if( cp < 0x80 )
+    {
+        if( dst && dst_cap >= 1 )
+            dst[0] = (char)cp;
+        return 1;
+    }
+    if( cp < 0x800 )
+    {
+        if( dst && dst_cap >= 2 )
+        {
+            dst[0] = (char)(0xC0 | (cp >> 6));
+            dst[1] = (char)(0x80 | (cp & 0x3F));
+        }
+        return 2;
+    }
+    if( dst && dst_cap >= 3 )
+    {
+        dst[0] = (char)(0xE0 | (cp >> 12));
+        dst[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        dst[2] = (char)(0x80 | (cp & 0x3F));
+    }
+    return 3;
+}
+
+static int
+utf8_decode_codepoint(
+    const char* src,
+    int src_remaining,
+    uint16_t* out_cp)
+{
+    assert(src && out_cp && src_remaining > 0);
+    unsigned char b0 = (unsigned char)src[0];
+    if( b0 < 0x80 )
+    {
+        *out_cp = b0;
+        return 1;
+    }
+    if( (b0 & 0xE0) == 0xC0 && src_remaining >= 2 )
+    {
+        unsigned char b1 = (unsigned char)src[1];
+        if( (b1 & 0xC0) == 0x80 )
+        {
+            *out_cp = (uint16_t)(((b0 & 0x1F) << 6) | (b1 & 0x3F));
+            return 2;
+        }
+    }
+    if( (b0 & 0xF0) == 0xE0 && src_remaining >= 3 )
+    {
+        unsigned char b1 = (unsigned char)src[1];
+        unsigned char b2 = (unsigned char)src[2];
+        if( (b1 & 0xC0) == 0x80 && (b2 & 0xC0) == 0x80 )
+        {
+            *out_cp = (uint16_t)(((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F));
+            return 3;
+        }
+    }
+    /* Malformed: consume one byte as '?'. */
+    *out_cp = (uint16_t)'?';
+    return 1;
+}
+
+static uint8_t
+codepoint_to_cp1252(uint16_t cp)
+{
+    if( (cp > 0 && cp < 128) || (cp >= 160 && cp <= 255) )
+        return (uint8_t)cp;
+    /* Undefined C1 controls that we emit for undefined cp1252 slots. */
+    if( cp == 0x81 || cp == 0x8D || cp == 0x8F || cp == 0x90 || cp == 0x9D )
+        return (uint8_t)cp;
+    for( int i = 0; i < 32; i++ )
+    {
+        if( RSCACHE_CP1252_SPECIAL[i] == cp )
+            return (uint8_t)(128 + i);
+    }
+    return (uint8_t)'?';
+}
+
+int
+RSCache_Cp1252ToUtf8(
+    const char* src,
+    char* dst,
+    int dst_size)
+{
+    assert(src);
+    assert(dst || dst_size == 0);
+
+    int needed = 0;
+    int written = 0;
+    for( const unsigned char* p = (const unsigned char*)src; *p; p++ )
+    {
+        uint16_t cp = cp1252_byte_to_codepoint(*p);
+        int rem = dst_size > 0 ? dst_size - 1 - written : 0;
+        char* out = (dst && rem > 0) ? dst + written : NULL;
+        int n = utf8_encode_codepoint(cp, out, rem);
+        needed += n;
+        if( out && rem >= n )
+            written += n;
+    }
+    if( dst && dst_size > 0 )
+        dst[written] = '\0';
+    return needed;
+}
+
+int
+RSCache_Utf8ToCp1252(
+    const char* src,
+    char* dst,
+    int dst_size)
+{
+    assert(src);
+    assert(dst || dst_size == 0);
+
+    int needed = 0;
+    int written = 0;
+    int src_len = (int)strlen(src);
+    int i = 0;
+    while( i < src_len )
+    {
+        uint16_t cp;
+        int n = utf8_decode_codepoint(src + i, src_len - i, &cp);
+        i += n;
+        uint8_t b = codepoint_to_cp1252(cp);
+        needed++;
+        if( dst && dst_size > 0 && written < dst_size - 1 )
+            dst[written++] = (char)b;
+    }
+    if( dst && dst_size > 0 )
+        dst[written] = '\0';
+    return needed;
 }
 
 char*
@@ -842,12 +982,8 @@ RSCache_BufferPjstr(
     const char* str,
     int terminator)
 {
-    /* Byte-transparent on purpose. The matching reader maps input bytes
-     * 128..159 through a Unicode table and then truncates each result to
-     * (char), which is not invertible: the 32 truncated values collide with 14
-     * printable ASCII bytes (space ! " & 0 9 : R S ` a x } ~) and two source
-     * bytes (149, 153) both land on 0x22. Applying the inverse map here would
-     * corrupt any ordinary string containing a space or an 'a'. */
+    /* Byte-transparent: decoded strings are windows-1252 wire bytes and are
+     * written back unchanged. See RSCache_Cp1252ToUtf8 for Unicode. */
     if( str )
     {
         size_t len = strlen(str);

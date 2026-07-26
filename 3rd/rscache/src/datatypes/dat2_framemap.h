@@ -1,6 +1,7 @@
 #ifndef RSCACHE_DATATYPES_DAT2_FRAMEMAP_H
 #define RSCACHE_DATATYPES_DAT2_FRAMEMAP_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -49,17 +50,66 @@ struct RSCache_Dat2Framemap
     int** bone_groups;        // Set of bone groups
     int* bone_groups_lengths; // Length of each bone group
     int length;
+
+    /*
+     * Provenance for era-dependent arrays that sit between the type list and the
+     * bone-group lengths (rs-map-viewer Dat2SeqBase.load):
+     *
+     *   RS >= 481 — transform_actor[i] (u8, 1 = applies to actor)
+     *   RS >= 530 — masks[i] (u16)
+     *
+     * Recorded so encode can reproduce them; the animation apply path does not
+     * currently consume them.
+     */
+    bool has_transform_actor;
+    uint8_t* transform_actor;
+    bool has_masks;
+    uint16_t* masks;
+
+    /** Trailing skeletal-base blob (or modern OSRS unread pad). Captured
+     *  verbatim so encode stays byte-exact; not interpreted here. */
+    uint8_t* tail;
+    int tail_size;
 };
+
+/*
+ * Framemap wire formats. Pin via cache->codec[RSCACHE_TYPE_FRAMEMAP], or leave
+ * AUTO and let RSCache_Dat2FramemapCodecVersion derive from the profile:
+ *
+ *   V1 — OSRS / RS2 < 481:  [count][types…][group_lens…][bones…]
+ *   V2 — RS2 >= 481:        …types…[transform_actor…][group_lens…]…
+ *   V3 — RS2 >= 530:        …types…[transform_actor…][masks u16…][group_lens…]…
+ *
+ * See rs-map-viewer Dat2SeqBase.load.
+ */
+#define RSCACHE_CODEC_FRAMEMAP_V1 1
+#define RSCACHE_CODEC_FRAMEMAP_V2 2
+#define RSCACHE_CODEC_FRAMEMAP_V3 3
+
+struct RSCache;
+
+/** Which framemap codec this cache needs. */
+int
+RSCache_Dat2FramemapCodecVersion(const struct RSCache* cache);
 
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2DiskArchive;
 struct RSCache_ReferenceTable;
+
 struct RSCache_Dat2Framemap*
 RSCache_Dat2FramemapNewFromCache(
     struct RSCache_Dat2Disk* cache,
     int framemap_id);
+
+/** Decode as V1. Prefer NewFromArchiveProfile at call sites that know the cache. */
 struct RSCache_Dat2Framemap*
 RSCache_Dat2FramemapNewFromArchive(
+    struct RSCache_Dat2DiskArchive* archive,
+    int framemap_id);
+
+struct RSCache_Dat2Framemap*
+RSCache_Dat2FramemapNewFromArchiveProfile(
+    const struct RSCache* cache,
     struct RSCache_Dat2DiskArchive* archive,
     int framemap_id);
 
@@ -75,6 +125,23 @@ RSCache_Dat2FramemapIdFromFrameArchive(
     char* data,
     int data_size);
 
+/** Decode with an explicit codec version (RSCACHE_CODEC_FRAMEMAP_V1..V3). */
+struct RSCache_Dat2Framemap*
+RSCache_Dat2FramemapNewDecodeCodec(
+    int id,
+    char* data,
+    int data_size,
+    int codec_version);
+
+/** Decode using the codec the profile selects. */
+struct RSCache_Dat2Framemap*
+RSCache_Dat2FramemapNewDecodeProfile(
+    const struct RSCache* cache,
+    int id,
+    char* data,
+    int data_size);
+
+/** Decode as V1. Prefer NewDecodeProfile / NewDecodeCodec. */
 struct RSCache_Dat2Framemap*
 RSCache_Dat2FramemapNewDecode2(
     int id,
@@ -84,27 +151,13 @@ RSCache_Dat2FramemapNewDecode2(
 /**
  * Encode a framemap.
  *
- * A fixed layout rather than an opcode stream, and the decoder discards nothing it
- * reads. The `id` is *not* part of the payload — it comes from the archive/file id —
- * so it is not written.
+ * A fixed layout rather than an opcode stream. The `id` is *not* part of the
+ * payload — it comes from the archive/file id — so it is not written.
  *
- * ## Modern archives carry trailing bytes this decoder does not read
- *
- * Measured by comparing each archive's size against what the decode accounts for:
- *
- *   cache.kronos    1887 / 1887 archives  delta 0   (format 5, table version 0)
- *   cache.osrs230   2338 / 2429 archives  delta 2   (format 7, table version 67)
- *   cache.jan2026   2495 / 2613 archives  delta 2
- *
- * So on old caches the decode consumes the archive exactly and this encoder is
- * byte-exact. On modern ones there are two unread trailing bytes — observed as
- * `00 00` — and for ~4% of archives some other amount, so it is *not* simply a
- * two-zero-byte pad.
- *
- * Those bytes are neither decoded nor written back: their meaning has not been
- * established and is not guessed at. Consequence: a modern framemap round-trips
- * semantically but comes out 2 bytes short, which is why byte-exactness reads 0% for
- * modern caches and 100% for old ones.
+ * When `has_transform_actor` / `has_masks` are set the matching arrays are
+ * emitted between the type list and the group lengths (V2 / V3). Any trailing
+ * skeletal-base / unread pad captured in `tail` is appended verbatim, so a
+ * decode→encode round-trip is byte-exact for both OSRS and RS2 archives.
  *
  * Returns bytes written, or 0 on failure.
  */
@@ -117,6 +170,7 @@ RSCache_Dat2FramemapEncode(
 /** Exact output size for RSCache_Dat2FramemapEncode. */
 uint32_t
 RSCache_Dat2FramemapEncodeBound(const struct RSCache_Dat2Framemap* def);
+
 void
 RSCache_Dat2FramemapFree(struct RSCache_Dat2Framemap* framemap);
 

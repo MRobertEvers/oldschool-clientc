@@ -29,7 +29,14 @@ anim_base_from_framemap(struct RSCache_Dat2Framemap const* fm)
         int glen = fm->bone_groups_lengths ? fm->bone_groups_lengths[i] : 0;
         int j;
         if( base->types )
-            base->types[i] = (uint8_t)(fm->types ? fm->types[i] : 0);
+        {
+            /* Dat2SeqBase maps TYPE_6 to ROTATE for apply; keep the wire type
+             * raw on the framemap so encode stays exact. */
+            int type = fm->types ? fm->types[i] : 0;
+            if( type == 6 )
+                type = 2;
+            base->types[i] = (uint8_t)type;
+        }
         if( base->bone_group_lengths )
             base->bone_group_lengths[i] = (uint16_t)glen;
         if( base->bone_groups )

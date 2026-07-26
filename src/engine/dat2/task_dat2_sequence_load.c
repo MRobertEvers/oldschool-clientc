@@ -283,8 +283,10 @@ Task_Dat2SequenceLoad_Run(
                 {
                     if( self->framemap )
                         RSCache_Dat2FramemapFree(self->framemap);
-                    self->framemap =
-                        RSCache_Dat2FramemapNewFromArchive(fm_archive, self->cur_framemap_id);
+                    self->framemap = RSCache_Dat2FramemapNewFromArchiveProfile(
+                        CacheProvider_Profile(self->provider),
+                        fm_archive,
+                        self->cur_framemap_id);
                     self->loaded_framemap_id = self->cur_framemap_id;
                     RSCache_Dat2DiskArchiveFree(fm_archive);
                 }

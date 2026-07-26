@@ -447,7 +447,8 @@ visit_framemap(
     int size,
     struct tally* tally)
 {
-    struct RSCache_Dat2Framemap* first = RSCache_Dat2FramemapNewDecode2(0, (char*)data, size);
+    struct RSCache_Dat2Framemap* first =
+        RSCache_Dat2FramemapNewDecodeProfile(profile, 0, (char*)data, size);
     if( !first )
         return;
     tally->records++;
@@ -471,14 +472,31 @@ visit_framemap(
     note_bytes(tally, encoded, written, data, size);
 
     struct RSCache_Dat2Framemap* second =
-        RSCache_Dat2FramemapNewDecode2(0, (char*)encoded, (int)written);
+        RSCache_Dat2FramemapNewDecodeProfile(profile, 0, (char*)encoded, (int)written);
     if( second )
     {
-        bool equal = first->length == second->length;
+        bool equal = first->length == second->length &&
+                     first->has_transform_actor == second->has_transform_actor &&
+                     first->has_masks == second->has_masks &&
+                     first->tail_size == second->tail_size;
+        if( equal && first->tail_size > 0 &&
+            memcmp(first->tail, second->tail, (size_t)first->tail_size) != 0 )
+            equal = false;
         for( int i = 0; equal && i < first->length; i++ )
         {
             if( first->types[i] != second->types[i] ||
                 first->bone_groups_lengths[i] != second->bone_groups_lengths[i] )
+            {
+                equal = false;
+                break;
+            }
+            if( first->has_transform_actor &&
+                first->transform_actor[i] != second->transform_actor[i] )
+            {
+                equal = false;
+                break;
+            }
+            if( first->has_masks && first->masks[i] != second->masks[i] )
             {
                 equal = false;
                 break;
@@ -499,7 +517,6 @@ visit_framemap(
 
     RSCache_Dat2FramemapFree(first);
     free(encoded);
-    (void)profile;
 }
 
 /* ---------------------------------------------------------------- model --- */

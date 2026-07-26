@@ -237,21 +237,47 @@ RSCache_BufferReadto(
 /**
  * Write `str` followed by `terminator`.
  *
- * Deliberately byte-transparent: no cp1252 re-encoding is attempted. The
- * matching reader remaps input bytes 128..159 through a Unicode table and then
- * truncates each to `(char)`, which is *not* reversible — the 32 truncated
- * results collide with 14 printable ASCII bytes (space ! " & 0 9 : R S ` a x } ~)
- * and two source bytes (149 and 153) both land on 0x22. Applying the inverse
- * map here would therefore corrupt any ordinary string containing a space or an
- * 'a'. Consequence for round-trip tests: a string whose original bytes were in
- * 128..159 cannot be reproduced byte-exactly, because the decode already lost
- * that information.
+ * Byte-transparent: both this writer and the matching readers
+ * (`RSCache_BufferReadStringNullTerminated` /
+ * `RSCache_BufferReadStringNewlineTerminated`) treat cache strings as
+ * windows-1252 wire bytes and pass them through unchanged. Decode then encode
+ * reproduces every byte in 0x01..0xFF. Unicode is a consumer concern — use
+ * `RSCache_Cp1252ToUtf8` / `RSCache_Utf8ToCp1252` when a real Unicode string is
+ * needed (tools, logs, display outside the client's byte-indexed font).
  */
 void
 RSCache_BufferPjstr(
     struct RSCache_Buffer* buffer,
     const char* str,
     int terminator);
+
+/**
+ * Convert a NUL-terminated windows-1252 string to UTF-8.
+ *
+ * Returns the UTF-8 byte length needed excluding the NUL. Always NUL-terminates
+ * `dst` when `dst_size > 0` (truncating if necessary). The five bytes
+ * windows-1252 leaves undefined (0x81, 0x8D, 0x8F, 0x90, 0x9D) map to the C1
+ * controls U+0081..U+009D so this and `RSCache_Utf8ToCp1252` form a bijection
+ * over all 256 byte values.
+ */
+int
+RSCache_Cp1252ToUtf8(
+    const char* src,
+    char* dst,
+    int dst_size);
+
+/**
+ * Convert a NUL-terminated UTF-8 string to windows-1252.
+ *
+ * Returns the cp1252 byte length needed excluding the NUL. Always NUL-terminates
+ * `dst` when `dst_size > 0`. Codepoints that windows-1252 cannot represent (and
+ * malformed UTF-8) become `'?'`.
+ */
+int
+RSCache_Utf8ToCp1252(
+    const char* src,
+    char* dst,
+    int dst_size);
 
 void
 RSCache_BufferPwrite(

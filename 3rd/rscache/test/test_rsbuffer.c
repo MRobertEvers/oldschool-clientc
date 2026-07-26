@@ -378,9 +378,8 @@ test_strings(void)
         RSCache_BufferRelease(&buf);
     }
 
-    /* Byte transparency: pjstr must not remap anything, including the bytes the
-     * reader's cp1252 table covers. A reverse map here would corrupt ordinary
-     * ASCII, because the reader's (char) truncation collides with it. */
+    /* Byte transparency both ways: pjstr writes the bytes unchanged, and
+     * gcstring reads them back unchanged — including the 0x80..0x9F range. */
     {
         struct RSCache_Buffer buf;
         RSCache_BufferInitAlloc(&buf, 0);
@@ -388,6 +387,46 @@ test_strings(void)
         pjstr(&buf, high, RSCACHE_JSTR_TERMINATOR_NULL);
         static const unsigned char want[] = { 0x80, 0x95, 0x99, 'a', ' ', 0x00 };
         RSCACHE_CHECK_BYTES_EQ(buf.data, want, 6);
+        rewind_for_read(&buf);
+        char* got = gcstring(&buf);
+        RSCACHE_CHECK(got != NULL);
+        RSCACHE_CHECK_EQ(strlen(got), 5);
+        RSCACHE_CHECK_BYTES_EQ((const unsigned char*)got, want, 5);
+        free(got);
+        RSCache_BufferRelease(&buf);
+    }
+
+    /* Every non-NUL byte survives write-then-read for the null terminator. */
+    for( int b = 0x01; b <= 0xFF; b++ )
+    {
+        char one[2] = { (char)b, 0 };
+        struct RSCache_Buffer buf;
+        RSCache_BufferInitAlloc(&buf, 0);
+        pjstr(&buf, one, RSCACHE_JSTR_TERMINATOR_NULL);
+        rewind_for_read(&buf);
+        char* got = gcstring(&buf);
+        RSCACHE_CHECK(got != NULL);
+        RSCACHE_CHECK_EQ((unsigned char)got[0], b);
+        RSCACHE_CHECK_EQ(got[1], 0);
+        free(got);
+        RSCache_BufferRelease(&buf);
+    }
+
+    /* Same sweep for the newline terminator; skip 0x0A (it *is* the stop). */
+    for( int b = 0x01; b <= 0xFF; b++ )
+    {
+        if( b == 0x0A )
+            continue;
+        char one[2] = { (char)b, 0 };
+        struct RSCache_Buffer buf;
+        RSCache_BufferInitAlloc(&buf, 0);
+        pjstr(&buf, one, RSCACHE_JSTR_TERMINATOR_NEWLINE);
+        rewind_for_read(&buf);
+        char* got = gstringnewline(&buf);
+        RSCACHE_CHECK(got != NULL);
+        RSCACHE_CHECK_EQ((unsigned char)got[0], b);
+        RSCACHE_CHECK_EQ(got[1], 0);
+        free(got);
         RSCache_BufferRelease(&buf);
     }
 
@@ -405,6 +444,74 @@ test_strings(void)
         free(first);
         free(second);
         RSCache_BufferRelease(&buf);
+    }
+}
+
+static void
+test_cp1252(void)
+{
+    RSCACHE_TEST_GROUP("cp1252 <-> utf8");
+
+    /* All non-NUL byte values survive ToUtf8 then Utf8ToCp1252. */
+    {
+        /* Skip the embedded NUL: strlen would stop. Test 0x01..0xFF as a string. */
+        char mid[256];
+        for( int i = 0; i < 255; i++ )
+            mid[i] = (char)(i + 1);
+        mid[255] = 0;
+
+        char utf8[1024];
+        int n = RSCache_Cp1252ToUtf8(mid, utf8, (int)sizeof(utf8));
+        RSCACHE_CHECK(n > 0);
+        RSCACHE_CHECK_EQ(utf8[n], 0);
+
+        char back[256];
+        int m = RSCache_Utf8ToCp1252(utf8, back, (int)sizeof(back));
+        RSCACHE_CHECK_EQ(m, 255);
+        RSCACHE_CHECK_BYTES_EQ((const unsigned char*)back, (const unsigned char*)mid, 255);
+    }
+
+    /* Spot-check known mappings. */
+    {
+        char utf8[16];
+        int n;
+
+        n = RSCache_Cp1252ToUtf8("\x80", utf8, (int)sizeof(utf8));
+        RSCACHE_CHECK_EQ(n, 3);
+        RSCACHE_CHECK_BYTES_EQ(
+            (const unsigned char*)utf8, (const unsigned char*)"\xE2\x82\xAC", 3);
+
+        n = RSCache_Cp1252ToUtf8("\x93", utf8, (int)sizeof(utf8));
+        RSCACHE_CHECK_EQ(n, 3);
+        RSCACHE_CHECK_BYTES_EQ(
+            (const unsigned char*)utf8, (const unsigned char*)"\xE2\x80\x9C", 3);
+
+        n = RSCache_Cp1252ToUtf8("\xA3", utf8, (int)sizeof(utf8));
+        RSCACHE_CHECK_EQ(n, 2);
+        RSCACHE_CHECK_BYTES_EQ(
+            (const unsigned char*)utf8, (const unsigned char*)"\xC2\xA3", 2);
+
+        n = RSCache_Cp1252ToUtf8("ABC", utf8, (int)sizeof(utf8));
+        RSCACHE_CHECK_EQ(n, 3);
+        RSCACHE_CHECK_STR_EQ(utf8, "ABC");
+    }
+
+    /* Truncation: returns needed length without overrunning dst. */
+    {
+        char tiny[4];
+        memset(tiny, 0xAA, sizeof(tiny));
+        int n = RSCache_Cp1252ToUtf8("\x80\x80", tiny, 4);
+        RSCACHE_CHECK_EQ(n, 6); /* two 3-byte sequences */
+        RSCACHE_CHECK_EQ(tiny[3], 0); /* always NUL-terminated when dst_size > 0 */
+        /* Only the first codepoint fits (3 bytes + NUL). */
+        RSCACHE_CHECK_BYTES_EQ(
+            (const unsigned char*)tiny, (const unsigned char*)"\xE2\x82\xAC", 3);
+    }
+
+    /* dst_size == 0: measure only. */
+    {
+        int n = RSCache_Cp1252ToUtf8("\x80", NULL, 0);
+        RSCACHE_CHECK_EQ(n, 3);
     }
 }
 
@@ -622,6 +729,7 @@ main(void)
     test_uintsmartshortcompat();
     test_varint2();
     test_strings();
+    test_cp1252();
     test_params();
     test_ownership();
     test_mixed_record();

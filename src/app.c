@@ -3986,6 +3986,52 @@ app_world_build_model(
     if( scale_xz != 128 || scale_y != 128 )
         ToriDraw_ModelScale(model, scale_xz, scale_xz, scale_y);
 
+    /* TORIRS_FACE_DEBUG: dump alpha/info histograms for large NPC models. */
+    if( getenv("TORIRS_FACE_DEBUG") && model->face_count >= 200 )
+    {
+        int alpha_hist[256];
+        int info_hist[256];
+        int textured = 0;
+        int alpha_present = model->face_alphas != NULL;
+        int info_present = model->face_infos != NULL;
+        memset(alpha_hist, 0, sizeof(alpha_hist));
+        memset(info_hist, 0, sizeof(info_hist));
+        for( int f = 0; f < model->face_count; f++ )
+        {
+            if( model->face_alphas )
+                alpha_hist[model->face_alphas[f]]++;
+            if( model->face_infos )
+            {
+                int v = model->face_infos[f];
+                if( v < 0 )
+                    v = 0;
+                if( v > 255 )
+                    v = 255;
+                info_hist[v]++;
+            }
+            if( model->face_textures && model->face_textures[f] != -1 )
+                textured++;
+        }
+        fprintf(
+            stderr,
+            "face_dbg model faces=%d verts=%d alphas=%d infos=%d textured=%d\n",
+            model->face_count,
+            model->vertex_count,
+            alpha_present,
+            info_present,
+            textured);
+        for( int i = 0; i < 256; i++ )
+        {
+            if( alpha_hist[i] )
+                fprintf(stderr, "face_dbg alpha[%d]=%d\n", i, alpha_hist[i]);
+        }
+        for( int i = 0; i < 256; i++ )
+        {
+            if( info_hist[i] )
+                fprintf(stderr, "face_dbg info[%d]=%d\n", i, info_hist[i]);
+        }
+    }
+
     {
         struct ToriDraw_ModelHandle hnd;
         memset(&hnd, 0, sizeof(hnd));

@@ -41,23 +41,21 @@ Verified against the reference binary rather than only against our own decoder:
 CRCs) and `bzip2 -dc` over 9 inputs including 64 KB of urandom and real cache
 bytes.
 
-### A2. `pjstr` did **not** get a reverse cp1252 table *(Deviation)*
+### A2. `pjstr` / `gcstring` are byte-transparent over windows-1252 *(Resolved)*
 
-The plan called this a bug to fix. It is not fixable, and attempting it would have
-caused corruption.
+Earlier reasoning treated this as unfixable: the decoder mapped bytes 128–159
+through a Unicode table then truncated with `(char)`, which is not injective
+(bytes 149 and 153 both land on `0x22`, and the truncated results collide with
+ordinary ASCII). That argued correctly against inventing a *reverse* map on the
+encoder — but the defect was the map on the *decoder*. Two other read paths in
+the same library (`RSCache_BufferReadParams`, npc opcodes 2 / 30–34) already
+returned raw wire bytes.
 
-The reader maps input bytes 128–159 through a Unicode table then truncates each
-result with `(char)`. That truncation is **not injective** — bytes 149 and 153 both
-land on `0x22` — and its outputs collide with 14 printable ASCII bytes:
-`space ! " & 0 9 : R S ` a x } ~`. Applying the inverse would rewrite every space
-and every `'a'` in ordinary text.
-
-Byte-transparency — what the function already did by accident — is the only correct
-behaviour. What was actually wrong was the misleading dead if/else chain (four
-identical branches); that was removed and the reasoning documented in the header.
-
-Consequence: a string whose original bytes were in 128–159 cannot round-trip
-byte-exactly. The information is lost at *decode*, before any encoder runs.
+Both directions are now byte-transparent: decoded strings are windows-1252 wire
+bytes, and `encode(decode(x))` reproduces every byte in `0x01..0xFF`. Unicode is
+a consumer concern via `RSCache_Cp1252ToUtf8` / `RSCache_Utf8ToCp1252` (the five
+bytes windows-1252 leaves undefined map to U+0081..U+009D so the pair is a
+bijection).
 
 ### A3. `gbit`/`pbit` were not added *(Deviation)*
 

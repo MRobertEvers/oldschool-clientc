@@ -618,11 +618,9 @@ consumption over the corpus:
   so those records cannot re-encode byte-exactly: enum drops opcodes 1, 7 and 8;
   param does not record whether the type arrived via opcode 1 or 8; mapelement
   keeps only the fields the MEC_* scripts read. All still round-trip
-  *semantically*.
-- **Strings in the 128–159 byte range.** The decoder maps them through a Unicode
-  table and truncates to `char`, which is not reversible — see
-  `RSCache_BufferPjstr`. Affects byte-exactness only, for the rare record carrying
-  such a byte.
+  *semantically*. Cache strings are windows-1252 wire bytes end-to-end
+  (`gcstring` / `pjstr` are byte-transparent); use `RSCache_Cp1252ToUtf8` when a
+  Unicode form is needed.
 
 ### A worked example: how spotanim was wrong
 
