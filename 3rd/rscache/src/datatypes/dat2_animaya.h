@@ -9,12 +9,12 @@
  */
 struct RSCache_Dat2CurvePoint
 {
-    int16_t x;       /* tick                   */
-    float   y;       /* value                  */
-    float   field2;  /* tangent in  (prev side) */
-    float   field3;  /* tangent in  (prev side) */
-    float   field4;  /* tangent out (next side) */
-    float   field5;  /* tangent out (next side) */
+    int16_t x;    /* tick                   */
+    float y;      /* value                  */
+    float field2; /* tangent in  (prev side) */
+    float field3; /* tangent in  (prev side) */
+    float field4; /* tangent out (next side) */
+    float field5; /* tangent out (next side) */
 };
 
 /**
@@ -24,22 +24,22 @@ struct RSCache_Dat2CurvePoint
  */
 struct RSCache_Dat2Curve
 {
-    int     id;
-    int     type;
-    int     start_interp; /* 0-4 */
-    int     end_interp;   /* 0-4 */
-    int     bool_flag;
+    int id;
+    int type;
+    int start_interp; /* 0-4 */
+    int end_interp;   /* 0-4 */
+    int bool_flag;
 
     /* raw points (non-NULL only before Load() is called) */
     struct RSCache_Dat2CurvePoint* points;
     int point_count;
 
     /* sampled values (non-NULL after Load()) */
-    float*  values;     /* [endTick - startTick + 1] */
-    int     start_tick;
-    int     end_tick;
-    float   min_value;
-    float   max_value;
+    float* values; /* [endTick - startTick + 1] */
+    int start_tick;
+    int end_tick;
+    float min_value;
+    float max_value;
 };
 
 /**
@@ -64,7 +64,7 @@ struct RSCache_Dat2AnimMaya
 {
     int id;
     int version;
-    int base_id;  /* idx1 SeqBase / SkeletalBase archive id */
+    int base_id; /* idx1 SeqBase / SkeletalBase archive id */
     int pose_id;
 
     int bone_curve_count;
@@ -104,7 +104,9 @@ void
 RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* curve);
 
 float
-RSCache_Dat2AnimMayaCurveGetValue(const struct RSCache_Dat2Curve* curve, int t);
+RSCache_Dat2AnimMayaCurveGetValue(
+    const struct RSCache_Dat2Curve* curve,
+    int t);
 
 void
 RSCache_Dat2CurveFree(struct RSCache_Dat2Curve* curve);

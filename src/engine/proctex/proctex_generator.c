@@ -31,9 +31,8 @@ proctex_init_trig(void)
         for( int x = 0; x < 256; x++ )
             for( int y = 0; y <= x; y++ )
                 PROCTEX_INV_SQRT[i++] =
-                    (int8_t)(int)(255.0 /
-                                  sqrt((double)proctex_fround(
-                                      (double)(x * x + y * y + 65535) / 65535.0)));
+                    (int8_t)(int)(255.0 / sqrt((double)proctex_fround(
+                                              (double)(x * x + y * y + 65535) / 65535.0)));
     }
     proctex_tables_ready = true;
 }
@@ -240,10 +239,10 @@ proctex_setup(
 
     proctex_free_caches(gen);
     gen->cache_count = texture->operation_count;
-    gen->caches = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1),
-                         sizeof(*gen->caches));
-    gen->tables = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1),
-                         sizeof(*gen->tables));
+    gen->caches =
+        calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->caches));
+    gen->tables =
+        calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->tables));
     gen->visiting = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
     gen->aux = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
     if( !gen->caches || !gen->tables || !gen->visiting || !gen->aux )
@@ -1029,8 +1028,7 @@ ProcTexGenerator_Render(
             return false;
         if( texture->operations[texture->colour_op].is_monochrome )
         {
-            colour[0] = colour[1] = colour[2] =
-                gen->caches[texture->colour_op].plane[0] + offset;
+            colour[0] = colour[1] = colour[2] = gen->caches[texture->colour_op].plane[0] + offset;
         }
         else
         {

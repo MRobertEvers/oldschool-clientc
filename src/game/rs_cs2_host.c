@@ -5,8 +5,8 @@
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_db.h"
 #include "engine/torirs_types.h"
-#include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_worldmap_from_rscache.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
@@ -659,7 +659,9 @@ RS_CS2Host_Tick(struct RS_CS2Host* host)
  * ========================================================================= */
 
 static int
-rs_cs2_inv_size(struct RS_CS2Host* host, int inv_id)
+rs_cs2_inv_size(
+    struct RS_CS2Host* host,
+    int inv_id)
 {
     assert(host);
     assert(host->invs);
@@ -669,7 +671,10 @@ rs_cs2_inv_size(struct RS_CS2Host* host, int inv_id)
 }
 
 static int
-rs_cs2_inv_get_obj(struct RS_CS2Host* host, int inv_id, int slot)
+rs_cs2_inv_get_obj(
+    struct RS_CS2Host* host,
+    int inv_id,
+    int slot)
 {
     int obj;
     assert(host);
@@ -685,7 +690,10 @@ rs_cs2_inv_get_obj(struct RS_CS2Host* host, int inv_id, int slot)
 }
 
 static int
-rs_cs2_inv_get_num(struct RS_CS2Host* host, int inv_id, int slot)
+rs_cs2_inv_get_num(
+    struct RS_CS2Host* host,
+    int inv_id,
+    int slot)
 {
     assert(host);
     assert(host->invs);
@@ -695,7 +703,10 @@ rs_cs2_inv_get_num(struct RS_CS2Host* host, int inv_id, int slot)
 }
 
 static int
-rs_cs2_inv_total(struct RS_CS2Host* host, int inv_id, int item_id)
+rs_cs2_inv_total(
+    struct RS_CS2Host* host,
+    int inv_id,
+    int item_id)
 {
     assert(host);
     assert(host->invs);
@@ -736,7 +747,6 @@ exec_push_script(
     return CS2VM2_PushCallScript(thread, script);
 }
 
-
 static int
 exec_para_height(
     struct RS_CS2Host* host,
@@ -767,7 +777,6 @@ exec_para_height(
     return CS2VM2_PushInt(thread, result);
 }
 
-
 static int
 exec_vars_read_varp(
     struct RS_CS2Host* host,
@@ -779,7 +788,6 @@ exec_vars_read_varp(
         value = VarPManager_GetVarp(host->varps, varp_id);
     return CS2VM2_PushInt(thread, value);
 }
-
 
 static int
 exec_vars_read_varbit(
@@ -793,7 +801,6 @@ exec_vars_read_varbit(
     return CS2VM2_PushInt(thread, value);
 }
 
-
 static int
 exec_enum_lookup(
     struct RS_CS2Host* host,
@@ -801,8 +808,7 @@ exec_enum_lookup(
     struct CS2VM_HostRequest_EnumLookup request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
-    struct ToriRS_Enum* e =
-        provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
+    struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
     if( !e )
     {
         struct CS2VM_HostRequest req = { 0 };
@@ -922,9 +928,7 @@ exec_worldmap(
     case CS2_OP_WORLDMAP_GETCONFIGSIZE:
         area = RS_WorldMap_Area(map, request.arg0);
         return rs_cs2_push_pair(
-            thread,
-            ToriRS_WorldMapArea_WidthTiles(area),
-            ToriRS_WorldMapArea_HeightTiles(area));
+            thread, ToriRS_WorldMapArea_WidthTiles(area), ToriRS_WorldMapArea_HeightTiles(area));
 
     case CS2_OP_WORLDMAP_GETCONFIGBOUNDS:
     {
@@ -1004,8 +1008,7 @@ exec_worldmap(
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_WORLDMAP_GETNEARESTICON:
-        return CS2VM2_PushInt(
-            thread, RS_WorldMap_NearestIcon(map, request.arg0, request.arg1));
+        return CS2VM2_PushInt(thread, RS_WorldMap_NearestIcon(map, request.arg0, request.arg1));
 
     case CS2_OP_WORLDMAP_PERPETUALFLASH:
         RS_WorldMap_SetPerpetualFlash(map, request.arg0 == 1);
@@ -1383,8 +1386,7 @@ exec_enum_output_count(
     struct CS2VM_HostRequest_EnumGetOutputCount request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
-    struct ToriRS_Enum* e =
-        provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
+    struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
     if( !e )
     {
         struct CS2VM_HostRequest req = { 0 };
@@ -1397,7 +1399,6 @@ exec_enum_output_count(
     }
     return CS2VM2_PushInt(thread, e->count);
 }
-
 
 static int
 exec_struct_param(
@@ -1435,8 +1436,7 @@ exec_struct_param(
     {
         if( found && strval )
             return CS2VM2_PushStr(thread, strdup(strval));
-        return CS2VM2_PushStr(
-            thread, strdup(param->default_string ? param->default_string : ""));
+        return CS2VM2_PushStr(thread, strdup(param->default_string ? param->default_string : ""));
     }
     if( found && is_string )
         return CS2VM2_PushStr(thread, strdup(strval ? strval : ""));
@@ -1479,14 +1479,12 @@ exec_oc_param(
     {
         if( found && strval )
             return CS2VM2_PushStr(thread, strdup(strval));
-        return CS2VM2_PushStr(
-            thread, strdup(param->default_string ? param->default_string : ""));
+        return CS2VM2_PushStr(thread, strdup(param->default_string ? param->default_string : ""));
     }
     if( found )
         return CS2VM2_PushInt(thread, intval);
     return CS2VM2_PushInt(thread, param ? param->default_int : 0);
 }
-
 
 static int
 exec_oc_int_param(
@@ -1533,7 +1531,6 @@ exec_oc_int_param(
     return CS2VM2_PushInt(thread, value);
 }
 
-
 static int
 exec_oc_name(
     struct RS_CS2Host* host,
@@ -1563,7 +1560,6 @@ exec_oc_name(
         name = obj->name;
     return CS2VM2_PushStr(thread, strdup(name));
 }
-
 
 static int
 exec_oc_unplaceholder(
@@ -1608,8 +1604,8 @@ exec_oc_op(
     if( !obj )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = request.opcode == CS2_OP_OC_IOP ? CS2VM_HOST_REQUEST_OC_IOP
-                                                    : CS2VM_HOST_REQUEST_OC_OP;
+        req.kind =
+            request.opcode == CS2_OP_OC_IOP ? CS2VM_HOST_REQUEST_OC_IOP : CS2VM_HOST_REQUEST_OC_OP;
         req.u.oc_op = request;
         if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, &req, request.item_id, -1);
@@ -1620,9 +1616,8 @@ exec_oc_op(
     if( request.op_index < 0 || request.op_index >= TORIRS_MENU_ACTION_SLOTS )
         return CS2VM2_PushStr(thread, strdup(""));
 
-    char const* action = request.opcode == CS2_OP_OC_IOP
-                              ? obj->inv_actions[request.op_index]
-                              : obj->ground_actions[request.op_index];
+    char const* action = request.opcode == CS2_OP_OC_IOP ? obj->inv_actions[request.op_index]
+                                                         : obj->ground_actions[request.op_index];
     return CS2VM2_PushStr(thread, strdup(action ? action : ""));
 }
 
@@ -1798,7 +1793,6 @@ exec_oc_isubop(
     return CS2VM2_PushStr(thread, strdup(""));
 }
 
-
 static int
 exec_set_graphic(
     struct RS_CS2Host* host,
@@ -1837,7 +1831,6 @@ exec_set_graphic(
     }
     return CS2VM_EXECNO_OK;
 }
-
 
 static int
 exec_set_object(
@@ -1906,7 +1899,6 @@ exec_set_object(
     return CS2VM_EXECNO_OK;
 }
 
-
 static int
 exec_set_text_font(
     struct RS_CS2Host* host,
@@ -1935,7 +1927,6 @@ exec_set_text_font(
     }
     return CS2VM_EXECNO_OK;
 }
-
 
 /* CC_COPY clones an existing dynamic child into another slot. The bank tab
  * strip (script 505) builds tab 0 with CC_CREATE then copies it into slots
@@ -1966,8 +1957,7 @@ exec_cc_copy(
     if( parent_idx < 0 )
         return CS2VM_EXECNO_OK;
 
-    child_idx = UITree_CcCopy(
-        tree, parent_idx, parent_id, request.src_sub_id, request.dst_sub_id);
+    child_idx = UITree_CcCopy(tree, parent_idx, parent_id, request.src_sub_id, request.dst_sub_id);
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
@@ -2001,8 +1991,8 @@ exec_cc_create(
     if( parent_idx < 0 )
         return CS2VM_EXECNO_OK;
 
-    child_idx = UITree_CcCreate(
-        tree, parent_idx, parent_id, request.component_type, request.child_index);
+    child_idx =
+        UITree_CcCreate(tree, parent_idx, parent_id, request.component_type, request.child_index);
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
@@ -2049,11 +2039,12 @@ exec_cc_find(
         parent_idx = UITree_FindByComponentId(tree, request.parent_id);
         if( parent_idx >= 0 )
         {
-            int32_t child_idx = UITree_FindChildBySubid(
-                tree, parent_idx, request.parent_id, request.sub_id);
+            int32_t child_idx =
+                UITree_FindChildBySubid(tree, parent_idx, request.parent_id, request.sub_id);
             if( child_idx >= 0 )
             {
-                rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child_idx].component_id);
+                rs_cs2_set_cc_target(
+                    vm, request.dot_operand, tree->components[child_idx].component_id);
                 found = 1;
             }
         }
@@ -2125,11 +2116,7 @@ exec_children_find(
     if( tree )
     {
         vm->children_iter_count = UITree_CollectDynamicChildIndices(
-            tree,
-            parent_id,
-            start_index,
-            vm->children_iter_indices,
-            CS2VM2_CHILDREN_ITER_MAX);
+            tree, parent_id, start_index, vm->children_iter_indices, CS2VM2_CHILDREN_ITER_MAX);
 
         if( set_target_dot && UITree_FindByComponentId(tree, parent_id) >= 0 )
             rs_cs2_set_cc_target(vm, dot_operand, parent_id);
@@ -2201,8 +2188,9 @@ exec_widget_set_model_kind(
      * (reference IfType.getModel type 2 / NpcType.getHead). Best-effort: applies
      * once the npctype + its head models are resident; the compositor returns -1
      * (widget unchanged) until then. */
-    else if( request.model_kind == CS2VM_MODEL_KIND_NPC_HEAD && host->bridge && rs_cs2_tree(host) &&
-             request.model_id >= 0 )
+    else if(
+        request.model_kind == CS2VM_MODEL_KIND_NPC_HEAD && host->bridge && rs_cs2_tree(host) &&
+        request.model_id >= 0 )
     {
         int scene_model = UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
         if( scene_model >= 0 )
@@ -2210,10 +2198,11 @@ exec_widget_set_model_kind(
     }
     /* Player head/self/chathead (kinds 3/5/6): composite the local appearance
      * head (reference IfType.getModel type 3 / ClientPlayer.getHeadModel). */
-    else if( (request.model_kind == CS2VM_MODEL_KIND_PLAYER_HEAD ||
-              request.model_kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
-              request.model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) &&
-             host->bridge && rs_cs2_tree(host) )
+    else if(
+        (request.model_kind == CS2VM_MODEL_KIND_PLAYER_HEAD ||
+         request.model_kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
+         request.model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) &&
+        host->bridge && rs_cs2_tree(host) )
     {
         /* The CS2 host has no world handle, so it can only bind an already
          * composited player head (cache hit). The IF1 IF_SETPLAYERHEAD path
@@ -2287,8 +2276,7 @@ exec_widget_set_int(
         node->drag_dead_time = (uint8_t)request.value;
         break;
     case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
-        (void)UITree_ApplyModelTransparent(
-            rs_cs2_tree(host), request.component_id, request.value);
+        (void)UITree_ApplyModelTransparent(rs_cs2_tree(host), request.component_id, request.value);
         break;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
         /* Sequence id for a model widget. The client tick driver loads the
@@ -2325,11 +2313,7 @@ exec_widget_set_model_angle(
 {
     (void)vm;
     (void)UITree_ApplyModelAngle(
-        rs_cs2_tree(host),
-        request.component_id,
-        request.angle_x,
-        request.angle_y,
-        request.zoom);
+        rs_cs2_tree(host), request.component_id, request.angle_x, request.angle_y, request.zoom);
     return CS2VM_EXECNO_OK;
 }
 
@@ -2365,8 +2349,7 @@ rs_cs2_acquire_inv_transmit_hook(
         int w = 0;
         for( i = 0; i < host->inv_transmit_hook_count; i++ )
         {
-            if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) <
-                0 )
+            if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) < 0 )
                 continue;
             if( w != i )
                 host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
@@ -2408,8 +2391,7 @@ rs_cs2_acquire_var_transmit_hook(
         int w = 0;
         for( i = 0; i < host->var_transmit_hook_count; i++ )
         {
-            if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) <
-                0 )
+            if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) < 0 )
                 continue;
             if( w != i )
                 host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
@@ -2427,14 +2409,14 @@ rs_cs2_acquire_var_transmit_hook(
 
 /* Copy hook string args (mask + fixed buffers) from a SetOn request. Both
  * request and hook use the CS2VM_SETON_STR_ARG_* layout. */
-#define RS_CS2_COPY_HOOK_STR_ARGS(hook, request)                                 \
-    do                                                                           \
-    {                                                                            \
-        (hook)->str_arg_mask = (request)->str_arg_mask;                          \
-        (hook)->str_arg_count = (request)->str_arg_count;                        \
-        if( (hook)->str_arg_count > CS2VM_SETON_STR_ARG_MAX )                    \
-            (hook)->str_arg_count = CS2VM_SETON_STR_ARG_MAX;                     \
-        memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args)); \
+#define RS_CS2_COPY_HOOK_STR_ARGS(hook, request)                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        (hook)->str_arg_mask = (request)->str_arg_mask;                                            \
+        (hook)->str_arg_count = (request)->str_arg_count;                                          \
+        if( (hook)->str_arg_count > CS2VM_SETON_STR_ARG_MAX )                                      \
+            (hook)->str_arg_count = CS2VM_SETON_STR_ARG_MAX;                                       \
+        memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args));                   \
     } while( 0 )
 
 static int
@@ -2565,9 +2547,7 @@ exec_set_on_cc_transmit(
             hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
         if( request->trigger_ids && hook->trigger_count > 0 )
             memcpy(
-                hook->trigger_ids,
-                request->trigger_ids,
-                (size_t)hook->trigger_count * sizeof(int));
+                hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
         return CS2VM_EXECNO_OK;
     }
 
@@ -2589,9 +2569,7 @@ exec_set_on_cc_transmit(
             hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
         if( request->trigger_ids && hook->trigger_count > 0 )
             memcpy(
-                hook->trigger_ids,
-                request->trigger_ids,
-                (size_t)hook->trigger_count * sizeof(int));
+                hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
         return CS2VM_EXECNO_OK;
     }
 
@@ -3176,8 +3154,8 @@ exec_db(
         int column, table, col_id, tuple;
         struct ToriRS_DbTableIndex* idx;
         struct RSCache_DbIndexFile* file;
-        bool with_count = (opcode == CS2_OP_DB_FIND_WITH_COUNT ||
-                           opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
+        bool with_count =
+            (opcode == CS2_OP_DB_FIND_WITH_COUNT || opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
         bool value_is_string = false;
         int value_int = 0;
         char* value_str = NULL;
@@ -3280,14 +3258,12 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_obj(
-                host, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
+            rs_cs2_inv_get_obj(host, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
 
     case CS2VM_HOST_REQUEST_INVS_GET_NUM:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_num(
-                host, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
+            rs_cs2_inv_get_num(host, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
 
     case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
         return CS2VM2_PushInt(
@@ -3492,8 +3468,8 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_GETLAYER:
     {
-        int parent = tree ? rs_cs2_parent_component_id(tree, request->u.if_get_layer.component_id)
-                          : -1;
+        int parent =
+            tree ? rs_cs2_parent_component_id(tree, request->u.if_get_layer.component_id) : -1;
         return CS2VM2_PushInt(vm, parent >= 0 ? parent : -1);
     }
 
@@ -3532,7 +3508,10 @@ rs_cs2_host_exec_dispatch(
             fprintf(
                 stderr,
                 "hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
-                (unsigned)cid, (cid >> 16) & 0xffff, cid & 0xffff, has,
+                (unsigned)cid,
+                (cid >> 16) & 0xffff,
+                cid & 0xffff,
+                has,
                 tree ? tree->interface_parent_count : -1);
         return CS2VM2_PushInt(vm, has ? 1 : 0);
     }
@@ -3562,7 +3541,8 @@ rs_cs2_host_exec_dispatch(
             if( getenv("TORIRS_SETHIDE_DEBUG") )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
-                if( g == 149 || g == 320 || g == 218 || (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
+                if( g == 149 || g == 320 || g == 218 ||
+                    (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
                     fprintf(
                         stderr,
                         "sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
@@ -3570,7 +3550,9 @@ rs_cs2_host_exec_dispatch(
                         g,
                         request->u.if_set_hide.component_id & 0xffff,
                         request->u.if_set_hide.hidden ? 1 : 0,
-                        UITree_FindByComponentId(tree, request->u.if_set_hide.component_id) >= 0 ? 1 : 0);
+                        UITree_FindByComponentId(tree, request->u.if_set_hide.component_id) >= 0
+                            ? 1
+                            : 0);
             }
             hide_idx = UITree_FindByComponentId(tree, request->u.if_set_hide.component_id);
             if( hide_idx >= 0 )
@@ -3650,12 +3632,11 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_SETSCROLLSIZE:
     case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
-        if( tree &&
-            UITree_ApplyScrollSize(
-                tree,
-                request->u.if_set_scroll_size.component_id,
-                request->u.if_set_scroll_size.scroll_width,
-                request->u.if_set_scroll_size.scroll_height) )
+        if( tree && UITree_ApplyScrollSize(
+                        tree,
+                        request->u.if_set_scroll_size.component_id,
+                        request->u.if_set_scroll_size.scroll_width,
+                        request->u.if_set_scroll_size.scroll_height) )
         {
             /* Reference revalidateWidgetScroll: re-clamp scroll offsets after
              * the scroll area changes. */
@@ -3733,8 +3714,7 @@ rs_cs2_host_exec_dispatch(
         if( node && node->type == UIELEM_RS_RECT )
         {
             node->u.rs_rect.filled = request->u.cc_set_fill.filled ? 1 : 0;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
         }
         return CS2VM_EXECNO_OK;
 
@@ -3895,8 +3875,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
     {
         int parent =
-            tree ? rs_cs2_parent_component_id(tree, request->u.cc_resolve_parent.component_id)
-                 : -1;
+            tree ? rs_cs2_parent_component_id(tree, request->u.cc_resolve_parent.component_id) : -1;
         if( parent < 0 )
             return CS2VM_EXECNO_ERROR;
         return CS2VM2_PushInt(vm, parent);
@@ -4077,7 +4056,8 @@ rs_cs2_host_exec_dispatch(
         {
             node->draggable = 1;
             node->drag_active = 1;
-            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.widget_set_int.component_id));
+            UITree_MarkNodeDirty(
+                tree, rs_cs2_find_node(host, request->u.widget_set_int.component_id));
         }
         return CS2VM_EXECNO_OK;
 
@@ -4107,10 +4087,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     default:
-        fprintf(
-            stderr,
-            "RS_CS2Host_Exec: UNHANDLED request kind %d\n",
-            (int)request->kind);
+        fprintf(stderr, "RS_CS2Host_Exec: UNHANDLED request kind %d\n", (int)request->kind);
         return CS2VM_EXECNO_ERROR;
     }
 }

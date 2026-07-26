@@ -4,11 +4,12 @@
 #include "buildcache/dat1_buildcache_ui.h"
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
+#include "datatypes/dat2_component.h"
 #include "games/runescape.h"
+#include "instance_revconfig_context.h"
 #include "instance_revconfig_inv_bind.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "datatypes/dat2_component.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -20,7 +21,6 @@
 #include "ui/ui_inv_data_service.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
-#include "instance_revconfig_context.h"
 
 #include <assert.h>
 #include <stdio.h>

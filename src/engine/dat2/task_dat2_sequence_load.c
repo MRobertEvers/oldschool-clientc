@@ -1,13 +1,12 @@
 #include "engine/dat2/task_dat2_sequence_load.h"
 
-#include "engine/cache_provider.h"
-#include "engine/toridraw_animation_from_rscache.h"
-
 #include "asyncio.h"
 #include "cache/rscache_io.h"
 #include "datatypes/dat2_config_sequence.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
+#include "engine/cache_provider.h"
+#include "engine/toridraw_animation_from_rscache.h"
 #include "filelist.h"
 #include "rscache.h"
 #include "toridraw_animation.h"
@@ -48,7 +47,9 @@ struct Task_Dat2SequenceLoad
  * position's actual ID. Returns -1 if the ID is not present.
  */
 static int
-seq_file_pos_for_id(struct RSCache_Dat2DiskArchive const* archive, int file_id)
+seq_file_pos_for_id(
+    struct RSCache_Dat2DiskArchive const* archive,
+    int file_id)
 {
     if( !archive || !archive->file_ids )
         return -1;
@@ -92,8 +93,8 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     {
         int held_left = self->seq->left_hand_item;
         int held_right = self->seq->right_hand_item;
-        anim->replaceheldleft = ( held_left <= 0 || held_left == 65535 ) ? -1 : held_left;
-        anim->replaceheldright = ( held_right <= 0 || held_right == 65535 ) ? -1 : held_right;
+        anim->replaceheldleft = (held_left <= 0 || held_left == 65535) ? -1 : held_left;
+        anim->replaceheldright = (held_right <= 0 || held_right == 65535) ? -1 : held_right;
         /* Set directly for the same reason as the held-item fields above: a full
          * SetSeqMeta copy would clobber the constructor's priority/max_loops
          * defaults with the memset-0 config. Drives forward draw-padding
@@ -117,7 +118,9 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
 }
 
 static struct RSCache_Dat2DiskArchive*
-seq_take_archive(struct ToriRS_IO* io, int slot)
+seq_take_archive(
+    struct ToriRS_IO* io,
+    int slot)
 {
     struct ToriRS_IOItem* item = &io->io_slots[slot];
     struct RSCache_Dat2DiskArchive* archive = (struct RSCache_Dat2DiskArchive*)item->data;
@@ -192,14 +195,19 @@ Task_Dat2SequenceLoad_Run(
             continue;
 
         ToriRS_IO_QueueCache(
-            io, 0, 0, RSCACHE_DAT2_TABLE_ANIMATIONS, (self->cur_frame_id >> 16) & 0xFFFF,
+            io,
+            0,
+            0,
+            RSCACHE_DAT2_TABLE_ANIMATIONS,
+            (self->cur_frame_id >> 16) & 0xFFFF,
             TORIRS_IO_CACHE_DAT2);
         PT_YIELD(&self->pt);
         self->frame_archive = seq_take_archive(io, 0);
         if( !self->frame_archive )
             continue;
         self->frame_filelist = RSCache_FileListNewFromDecode(
-            self->frame_archive->data, self->frame_archive->data_size,
+            self->frame_archive->data,
+            self->frame_archive->data_size,
             self->frame_archive->file_count);
         self->cur_file_id = self->cur_frame_id & 0xFFFF;
         /* Frame file IDs are not 0-based/dense — resolve to the filelist position. */
@@ -219,7 +227,11 @@ Task_Dat2SequenceLoad_Run(
         if( self->cur_framemap_id != self->loaded_framemap_id )
         {
             ToriRS_IO_QueueCache(
-                io, 1, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
+                io,
+                1,
+                0,
+                RSCACHE_DAT2_TABLE_SKELETONS,
+                self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {
@@ -238,7 +250,8 @@ Task_Dat2SequenceLoad_Run(
 
         if( self->framemap )
             self->frames[self->frame_i] = RSCache_Dat2FrameNewDecode2(
-                self->cur_frame_id, self->framemap,
+                self->cur_frame_id,
+                self->framemap,
                 self->frame_filelist->files[self->cur_file_pos],
                 self->frame_filelist->file_sizes[self->cur_file_pos]);
 
