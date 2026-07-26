@@ -129,15 +129,28 @@ struct RSCache_ProcTexGradientStop
     int32_t b;
 };
 
-/** One rasteriser primitive. `kind` selects which fields are meaningful. */
+/**
+ * One rasteriser primitive. `kind` selects which of x/y are meaningful.
+ *
+ * Both colours are normalised to the reference's convention, where **-1 means "this half
+ * is not drawn"**: a line or bezier carries a single colour on the wire and the reference
+ * assigns it to the *outline*, leaving the fill absent. Storing that single colour as
+ * `fill_colour` instead would read naturally and draw the wrong thing — a stroke rendered
+ * as a fill — so the mapping is applied at decode and both consumers see one rule.
+ */
 struct RSCache_ProcTexShape
 {
     /** 0 = line, 1 = bezier, 2 = rectangle, 3 = ellipse. */
     uint8_t kind;
     uint8_t outline_width;
+    /** Points, in 12.4 of the texture's own size: 4096 is the full width/height. Lines use
+     *  0..1, beziers 0..3, and rectangles/ellipses use 0 as one corner/centre and 1 as the
+     *  other corner / the radii. */
     int32_t x[4];
     int32_t y[4];
+    /** -1 when the shape has no fill (always so for lines and beziers). */
     int32_t fill_colour;
+    /** -1 when the shape has no outline. */
     int32_t outline_colour;
 };
 
@@ -233,14 +246,26 @@ struct RSCache_ProcTexOperation
         } mirror;
         struct
         {
+            /** Field 0. */
             uint8_t mix_mode;
+            /** Field 1. */
             uint8_t interpolation_mode;
+            /** Field 3. */
             uint8_t steepness;
-            /** Fields 2, 4 and 5. Present in real records but absent from the reference
-             *  decode, so their meanings are unattested; kept so consumption stays exact. */
-            uint8_t field2;
-            uint8_t field4;
-            uint8_t field5;
+            /*
+             * Fields 2, 4, 5 and 6 carry NO PAYLOAD — they are bare flags, so there is
+             * nothing to store and `field_present` already records that they appeared.
+             *
+             * rs-map-viewer decodes only 0, 1 and 3 and silently desyncs on the rest (it
+             * never checks consumption, so it does not notice). The widths were settled here
+             * against a constraint the reference does not have: an operation record begins
+             * with its own **sequential id**, so the byte after the field block has to be the
+             * next id, and the two bytes after that a valid operation type and cache size.
+             * Only the payload-free reading puts all three where they belong, and it does so
+             * in both of the two 643 records that use these fields (textures 275 and 742),
+             * chaining correctly through the following operations to the end of the archive.
+             * Any width of 1 or more lands mid-operation and cannot be made to consume.
+             */
         } diagonal_gradient;
         struct
         {

@@ -290,6 +290,19 @@ test-cs2-string: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/string_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_string_ops_test
 
+# Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
+# names the unported operation blocking the most textures, which is the number to work
+# against while porting. Run from the repo root so the default cache path resolves.
+test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
+		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
+		$(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/proctex_coverage \
+		engine/proctex/test/proctex_coverage.c \
+		$(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bmp.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(LDFLAGS)
+	cd .. && ./src/$(OBJ_DIR)/proctex_coverage
+
 # DB_* opcode integration test: reuse the main link set minus main.o.
 DB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 test-db: $(OBJ_DIR) $(DB_TEST_OBJS)

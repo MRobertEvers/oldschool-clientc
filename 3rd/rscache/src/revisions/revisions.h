@@ -8,8 +8,8 @@
  *
  * Modelled on how rsprot organises protocol revisions: each revision is
  * declared in its own file, by name, rather than inferred. Looking up "what is
- * revision 230" is a matter of opening rev_dat2_osrs230.c, and a revision can
- * never be broken by an edit made for a different one.
+ * OSRS revision 230" is a matter of opening rev_dat2_osrs230.c, and a revision
+ * can never be broken by an edit made for a different one.
  *
  * Unlike rsprot these modules are *thin*. rsprot copy-forwards a complete
  * ~800-file tree per revision, which is affordable on the JVM; duplicating
@@ -85,6 +85,11 @@ RSCache_ProfileByName(
  * Falls back to the nearest declared profile of the same container when the
  * revision is not one we declare, so an undeclared revision still gets the right
  * container, epoch and string terminator rather than nothing.
+ *
+ * The 643 / RS2 profile cannot be selected by bare revision number: its
+ * `version` is left unknown so it never matches an OSRS threshold (OSRS and RS2
+ * are independent lineages). Use RSCache_ProfileByName("643") or a manifest
+ * `rev=` instead.
  */
 struct RSCache
 RSCache_ProfileForContainerRevision(

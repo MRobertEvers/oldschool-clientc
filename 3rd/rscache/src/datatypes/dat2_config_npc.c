@@ -23,6 +23,14 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
      * ships is at or past this gate, and the modern shape is what the previous
      * hardcoded `true` produced — so an unknown cache keeps decoding exactly as
      * it did before this flag became reachable. */
+    if( cache && cache->epoch == RSCACHE_EPOCH_643 )
+    {
+        /* RS2 never gets the head-icon bitfield: the reference gates it on the OldSchool
+         * lineage specifically, so returning early also keeps an RS2 archive revision from
+         * being compared against an OldSchool threshold — the D16 trap. */
+        return RSCACHE_CONFIG_NPC_DECODE_RS2;
+    }
+
     if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_NPC, 210, RSCACHE_NPC_ARCHIVE_REV_210, true) )
         flags |= RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS;
@@ -389,6 +397,7 @@ decode_npc_type(
     assert(buffer->data);
 
     bool rev210_head_icons = (flags & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
+    bool rs2 = (flags & RSCACHE_CONFIG_NPC_DECODE_RS2) != 0;
 
     int prev_opcode = -1;
     while( 1 )
@@ -735,15 +744,33 @@ decode_npc_type(
         }
         case 114:
         {
-            npc->run_animation = g2(buffer);
+            /* RS2 spends the same two bytes on a pair of shadow-colour modifiers. Nothing
+             * reads them, but the width matches so the stream stays aligned either way. */
+            if( rs2 )
+            {
+                g1(buffer);
+                g1(buffer);
+            }
+            else
+                npc->run_animation = g2(buffer);
             break;
         }
         case 115:
         {
-            npc->run_animation = g2(buffer);
-            npc->run_rotate180_animation = g2(buffer);
-            npc->run_rotate_left_animation = g2(buffer);
-            npc->run_rotate_right_animation = g2(buffer);
+            /* Two bytes in RS2 against four sequence ids in OldSchool — the six-byte
+             * difference that loses most of a 643 npc record. */
+            if( rs2 )
+            {
+                g1(buffer);
+                g1(buffer);
+            }
+            else
+            {
+                npc->run_animation = g2(buffer);
+                npc->run_rotate180_animation = g2(buffer);
+                npc->run_rotate_left_animation = g2(buffer);
+                npc->run_rotate_right_animation = g2(buffer);
+            }
             break;
         }
         case 116:
@@ -797,12 +824,20 @@ decode_npc_type(
         }
         case 122:
         {
-            npc->is_pet = true;
+            /* A flag in OldSchool, a hit-bar sprite id in RS2. */
+            if( rs2 )
+                g2(buffer);
+            else
+                npc->is_pet = true;
             break;
         }
         case 123:
         {
-            npc->low_priority_follower_ops = true;
+            /* A flag in OldSchool, an icon height in RS2. */
+            if( rs2 )
+                g2(buffer);
+            else
+                npc->low_priority_follower_ops = true;
             break;
         }
         case 124:
@@ -810,6 +845,135 @@ decode_npc_type(
             npc->height = g2(buffer);
             break;
         }
+
+        /*
+         * Opcodes this decoder consumes but does not store.
+         *
+         * Every 643 npc record uses at least one of them — before they were added, 13,636 of
+         * 13,636 stopped short — so they are not optional padding, they are the reason the
+         * type would not decode at all. Widths are NpcType.decodeOpcode's; the fields
+         * themselves (shadow colours, cursors, sound ids, login-screen props) have no
+         * consumer in this client, and inventing struct members for them would make the
+         * encoder lossy in a way the round-trip suite would then have to be taught to
+         * ignore. Consuming them keeps the stream aligned, which is what the rest of the
+         * record depends on.
+         *
+         * The one worth promoting later is 127, `basTypeId`: it redirects an npc's idle and
+         * walk sequences through a separate type, so a 643 npc animates from it rather than
+         * from opcodes 13/14. Nothing reads it yet, hence no field for it here.
+         */
+        case 44:
+        case 45:
+        case 137:  /* attack cursor */
+        case 138:  /* icon (u16 below the large-model-id era) */
+        case 139:  /* icon */
+        case 142:  /* map function id */
+        case 144:
+        case 146:
+        case 127:  /* basTypeId — see note above */
+        case 164:  /* two shorts */
+        case 170:  /* 170..175 are all a single short */
+        case 171:
+        case 172:
+        case 173:
+        case 174:
+        case 175:
+            g2(buffer);
+            if( opcode == 164 )
+                g2(buffer);
+            break;
+
+        case 113: /* two shadow colours */
+            g2(buffer);
+            g2(buffer);
+            break;
+
+        case 119: /* loginScreenProps */
+        case 125: /* spawnDirection */
+        case 128:
+        case 140: /* ambient sound volume */
+        case 163:
+        case 165:
+        case 168:
+            g1(buffer);
+            break;
+
+        /* Payload-free flags. */
+        case 112:
+        case 141:
+        case 143:
+        case 145:
+        case 158:
+        case 159:
+        case 161:
+        case 162:
+            break;
+
+        case 121:
+        {
+            /* Per-model translation: a count, then for each, the model index it applies to
+             * and a signed xyz offset. */
+            int count = g1(buffer);
+            for( int idx = 0; idx < count; idx++ )
+            {
+                g1(buffer);
+                g1b(buffer);
+                g1b(buffer);
+                g1b(buffer);
+            }
+            break;
+        }
+
+        case 134: /* idle / crawl / walk / run sound ids, then a radius */
+            g2(buffer);
+            g2(buffer);
+            g2(buffer);
+            g2(buffer);
+            g1(buffer);
+            break;
+
+        case 135: /* cursor op + cursor */
+        case 136:
+            g1(buffer);
+            g2(buffer);
+            break;
+
+        case 150:
+        case 151:
+        case 152:
+        case 153:
+        case 154:
+        {
+            /* Members-only actions. The reference reads the string and then discards it
+             * unless the account is a member, which this decoder has no notion of, so the
+             * action is dropped and only the bytes are consumed — a NUL-terminated string,
+             * scanned the same way the 30..34 actions above are. */
+            while( buffer->position < buffer->size && buffer->data[buffer->position] != '\0' )
+                buffer->position++;
+            if( buffer->position >= buffer->size )
+            {
+                npc->_consumed = (int)buffer->position;
+                return;
+            }
+            buffer->position++; /* the terminator */
+            break;
+        }
+
+        case 155: /* four signed bytes */
+            g1b(buffer);
+            g1b(buffer);
+            g1b(buffer);
+            g1b(buffer);
+            break;
+
+        case 160:
+        {
+            int count = g1(buffer);
+            for( int idx = 0; idx < count; idx++ )
+                g2(buffer);
+            break;
+        }
+
         case 249:
         {
             gparams(buffer, &npc->params);
@@ -817,8 +981,31 @@ decode_npc_type(
         }
         default:
         {
-            printf("decode_npc_type: Unknown opcode %d previous opcode %d\n", opcode, prev_opcode);
-            break;
+            /*
+             * Stop, do not continue. An unknown opcode has an unknown payload length, so
+             * every read after it comes from the middle of that payload — the decoder keeps
+             * going, "recognises" opcodes that are really payload bytes, and writes garbage
+             * into real fields before finally running off the end. Falling through here is
+             * what made 643's npc failures indistinguishable from each other: 12,762 of
+             * 13,636 records reported the same buffer-overrun, with the actual unknown
+             * opcode thousands of bytes and several bogus fields earlier.
+             *
+             * Leaving `_consumed` short is the signal the caller needs; the loc decoder has
+             * taken this position since it was written.
+             */
+            /* Named only on request. The always-on signal is the short `_consumed`, which
+             * every caller already checks; `cache.osrs239` alone hits this 13,784 times per
+             * corpus scan (its own recorded gap), and printing that unconditionally buries
+             * the rest of a test run. */
+            if( getenv("RSCACHE_NPC_DEBUG") )
+                fprintf(
+                    stderr,
+                    "decode_npc_type: unimplemented opcode %d (previous %d) at offset %d\n",
+                    opcode,
+                    prev_opcode,
+                    (int)buffer->position - 1);
+            npc->_consumed = (int)buffer->position;
+            return;
         }
         }
         prev_opcode = opcode;

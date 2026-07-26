@@ -54,11 +54,11 @@ primitives          rsbuffer, checksum, whirlpool, compression,
 ```
 
 The organising idea is borrowed from [rsprot](https://github.com/blurite/rsprot):
-a revision is *declared*, not inferred, so "what is revision 230" is answered by
-opening one file. It differs in one deliberate way — rsprot copy-forwards a
-complete tree per revision, which is affordable on the JVM; here a revision module
-is a thin declaration and the codecs are shared and versioned, because duplicating
-~19k lines of C per revision is not.
+a revision is *declared*, not inferred, so "what is **OSRS** revision 230" is
+answered by opening `rev_dat2_osrs230.c`. It differs in one deliberate way — rsprot
+copy-forwards a complete tree per revision, which is affordable on the JVM; here a
+revision module is a thin declaration and the codecs are shared and versioned,
+because duplicating ~19k lines of C per revision is not.
 
 `include/rscache.h` is the only public header; it pulls in everything else.
 `rscache_unity.c` is the single translation unit the build compiles.
@@ -148,6 +148,10 @@ xteas.json                 optional: XTEA keys for encrypted map archives
 | 10 | binary | **255** | **master index** |
 | 11 | music jingles | | |
 | 12 | clientscript | | |
+
+Ids 0–15 are shared between OSRS and RS2; **16+ mean different things** on each
+branch (e.g. 18 is worldmap geography on OSRS and npcs on RS2). See
+[dat2disk.h](src/dat2disk.h).
 
 Table 2 (configs) is itself subdivided: archive `k` within it holds all records of
 config kind `k`, one file per record id. The kinds are in
@@ -488,15 +492,24 @@ the `.dat` size.
 Field layouts change between game revisions, and identifying "which layout" is the
 subtlest part of reading a cache.
 
-### Two different numbers
+### Game revision lineages are independent
 
-- **Game revision** — 230, 233, 254. What a manifest's `client_version` and the
-  login handshake carry. Unambiguous.
-- **Archive revision** — the `version` field of a reference-table entry. A
-  **per-archive counter**, and the only era signal available when nobody told you
-  the game revision.
+A manifest's `client_version` and the login handshake carry a **game revision**,
+but that number is **not one sequence**. There are three independent lineages; a
+bare comparison across them is meaningless (OSRS rev N ≠ RS2 rev N ≠ dat1 rev N —
+numerically larger does not mean “later layout”):
 
-The archive revision is treacherous for two reasons:
+| Lineage | Epoch | Example versions | Notes |
+|---|---|---|---|
+| dat1 classic | `DAT1_CLASSIC` | ~200–254 | 2004-era sequence |
+| OldSchool | `OSRS` | ~184–239 in this corpus | Restarted at 1 in 2013 |
+| RS2 / main | `643` | continuous RS2 line | This library’s profile is **643**; its `version` is left unknown so it never passes OSRS gates |
+
+### Archive revision is a different quantity
+
+Separately, each reference-table entry has an **archive revision** — a
+**per-archive counter**, and the only era signal available when nobody told you
+the game revision. It is treacherous for two reasons:
 
 1. **It is per-archive, not per-cache.** The npc, sequence and loc config groups
    all live in table 2 yet carry unrelated counters, which is why the reference
@@ -519,24 +532,37 @@ The archive revision is treacherous for two reasons:
 
 `struct RSCache` ([rscache_profile.h](src/rscache_profile.h)) carries the game
 revision when known, the per-group archive revisions, the container, the layout
-epoch and any client-build quirks. One predicate resolves era questions:
+epoch and any client-build quirks. One predicate resolves **OldSchool** era
+questions — every threshold in this library is an OSRS revision:
 
 ```c
-bool RSCache_RevisionAtLeast(cache, type, game_rev, archive_rev_threshold,
-                             default_when_unknown);
+bool RSCache_RevisionAtLeastOsrs(cache, type, game_rev, archive_rev_threshold,
+                                 default_when_unknown);
 ```
 
-It prefers the declared game revision; falls back to the group's archive revision
-against the reference client's own threshold; and otherwise returns the caller's
-stated default, so behaviour on an unidentifiable cache is a deliberate choice per
-datatype rather than an accident.
+It prefers the declared game revision when the cache is OSRS-epoch; falls back to
+the group's archive revision against the reference client's own threshold; and
+otherwise returns the caller's stated default, so behaviour on an unidentifiable
+cache is a deliberate choice per datatype rather than an accident. A dat1 or RS2
+profile never satisfies an OSRS threshold via the game-revision path.
+
+### Supported named profiles
+
+| Name | Container | Epoch | `version` |
+|---|---|---|---|
+| `lc254`, `lc245_2` | dat1 | classic | 254 / 245 |
+| `osrs184`, `kronos` | dat2 | OSRS | 184 (+ Kronos quirk) |
+| `osrs230`, `osrs233`, `xrsps233`, `osrs239` | dat2 | OSRS | 230 / 233 / 239 |
+| `643`, `rs643` | dat2 | 643 | unknown |
 
 ### Epoch is not derivable
 
 `epoch` distinguishes the OSRS and 643 layout families, and it exists as a separate
 field because **the two cannot be told apart from any revision number**: 643-era
 caches number their reference tables in the same small-integer range OSRS used
-before it moved to timestamps. Whoever opens the cache has to say which it is.
+before it moved to timestamps. Game revisions are also independent sequences that
+must not be cross-compared — that bug was D16 (dat1 vs OSRS) and D20 (RS2 vs OSRS)
+in [EXCEPTIONS.md](EXCEPTIONS.md). Whoever opens the cache has to say which it is.
 `RSCache_ProfileDat2Rs643()` is how it says 643.
 
 ### Known era gates

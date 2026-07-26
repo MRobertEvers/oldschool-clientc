@@ -976,11 +976,18 @@ decode_loc(
             loc->transforms[count + 1] = var3;
             break;
         }
+        /*
+         * The ambient-sound `retain` byte is an OldSchool 220 addition, not a universal one.
+         * LocType.decodeOpcode gates it on `game === "oldschool" && revision >= 220`, so RS2
+         * writes neither opcode with it — reading it there costs a byte and desyncs the
+         * record from that point on.
+         */
         case 78:
         {
             loc->ambient_sound_id = g2(&buffer);
             loc->ambient_sound_distance = g1(&buffer);
-            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_KRONOS) )
+            if( !(flags &
+                  (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
                 loc->ambient_sound_retain = g1(&buffer);
             break;
         }
@@ -989,7 +996,8 @@ decode_loc(
             loc->ambient_sound_ticks_min = g2(&buffer);
             loc->ambient_sound_ticks_max = g2(&buffer);
             loc->ambient_sound_distance = g1(&buffer);
-            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_KRONOS) )
+            if( !(flags &
+                  (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
                 loc->ambient_sound_retain = g1(&buffer);
             int count = g1(&buffer);
             loc->ambient_sound_id_count = count;
@@ -1011,7 +1019,11 @@ decode_loc(
             break;
         }
         case 82:
-            loc->map_function_id = g2(&buffer);
+            /* OldSchool stores the map-function id here; RS2 uses the same opcode as a bare
+             * flag with no payload (LocType.decodeOpcode branches on `game === "oldschool"`
+             * and reads nothing otherwise). Its map function is opcode 60 or 107. */
+            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+                loc->map_function_id = g2(&buffer);
             break;
         case 88:
         case 90:
@@ -1030,8 +1042,11 @@ decode_loc(
             loc->seq_random_start = false;
             break;
         case 91:
-            // soundDistanceFadeCurve (LocType.ts:433) - skip
-            g1(&buffer);
+            /* A payload-free members flag in the RS2-era LocType; the byte read here is an
+             * OldSchool-only sound-distance-fade curve. Both readings are attested against
+             * their own era, so this is gated rather than picked. */
+            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+                g1(&buffer);
             break;
         case 93:
         {
@@ -1115,9 +1130,11 @@ decode_loc(
             }
             else if( opcode == 190 || opcode == 191 )
             {
-                // deferredAmbientSwap / resetAmbientOnLoopRestart bytes
-                // (LocType.ts:550-553) - skip
-                g1(&buffer);
+                /* deferredAmbientSwap / resetAmbientOnLoopRestart. Payload-free in the
+                 * RS2-era LocType (the reference notes both as "unknown starts 731", i.e.
+                 * after 643); a byte each in the OldSchool era. */
+                if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+                    g1(&buffer);
             }
             break;
         case 102:

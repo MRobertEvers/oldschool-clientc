@@ -85,19 +85,18 @@ ProcTexGenerator_SupportsOp(int op_type)
     case RSCACHE_PROCTEX_SPRITE_SOURCE:
     case RSCACHE_PROCTEX_TILING_SPRITE:
     case RSCACHE_PROCTEX_TEXTURE_SOURCE:
-        return true;
-    /*
-     * Still unported. Deliberately listed so the set is auditable rather than implied by a
-     * default: `bricks`/`irregular_bricks`/`line_noise`/`kaleidoscope`/`rasterizer` need their
-     * evaluators, and `sprite_source`/`texture_source` additionally need dependency resolution
-     * threaded through the async texture task before they can produce anything.
-     */
+    /* The pattern generators and the vector rasteriser. These three plus line_noise render
+     * the whole image at once rather than per scanline — see proctex_mark_all_done. */
     case RSCACHE_PROCTEX_BRICKS:
     case RSCACHE_PROCTEX_IRREGULAR_BRICKS:
     case RSCACHE_PROCTEX_LINE_NOISE:
     case RSCACHE_PROCTEX_KALEIDOSCOPE:
     case RSCACHE_PROCTEX_RASTERIZER:
+        return true;
     default:
+        /* Every operation the format defines now has an evaluator, so nothing should reach
+         * here. It stays because the type comes off the wire: a record naming an operation
+         * outside the enum must fall back and be counted, not be trusted. */
         return false;
     }
 }
@@ -456,6 +455,71 @@ proctex_curve_table(
     return table;
 }
 
+/*
+ * The six built-in gradient palettes.
+ *
+ * A gradient operation either carries its stops inline (`preset == 0`) or names one of these.
+ * They are constants in the client, not cache data, so they have to be transcribed — from
+ * rs-map-viewer's GradientOperation.setGradientPreset. Positions and channels are 12.4, and
+ * the channels are already pre-shifted the same way an inline stop is (`byte << 4`), so both
+ * paths feed the same interpolator.
+ *
+ * Order matters and is not sorted in the source: the reference assigns the four slots of each
+ * stop in a scrambled order but the *stops themselves* ascend by position, which is what the
+ * interpolator's linear scan relies on. They are written here in position order.
+ */
+static const struct RSCache_ProcTexGradientStop PROCTEX_GRADIENT_PRESETS[7][16] = {
+    /* [0] unused: presets are 1-based. */
+    { { 0, 0, 0, 0 } },
+    /* 1: black to white. Also the fallback when a record names no gradient at all. */
+    { { 0, 0, 0, 0 }, { 4096, 4096, 4096, 4096 } },
+    /* 2: browns — bark and dirt. */
+    { { 0, 2650, 2602, 2361 },
+      { 2867, 2313, 1799, 1558 },
+      { 3072, 2618, 1734, 1413 },
+      { 3276, 2296, 1220, 947 },
+      { 3481, 2072, 963, 722 },
+      { 3686, 2730, 2152, 1766 },
+      { 3891, 2232, 1060, 915 },
+      { 4096, 1686, 1413, 1140 } },
+    /* 3: full hue wheel. */
+    { { 0, 0, 0, 4096 },
+      { 663, 0, 4096, 4096 },
+      { 1363, 0, 4096, 0 },
+      { 2048, 4096, 4096, 0 },
+      { 2727, 4096, 0, 0 },
+      { 3411, 4096, 0, 4096 },
+      { 4096, 0, 0, 4096 } },
+    /* 4: fire — black through red and orange to white. */
+    { { 0, 0, 0, 0 },
+      { 1843, 0, 0, 1493 },
+      { 2457, 0, 0, 2939 },
+      { 2781, 0, 1124, 3565 },
+      { 3481, 546, 3084, 4031 },
+      { 4096, 4096, 4096, 4096 } },
+    /* 5: a 16-stop ramp through blues and greys. */
+    { { 0, 80, 192, 321 },
+      { 155, 321, 449, 562 },
+      { 389, 578, 690, 803 },
+      { 671, 947, 995, 1140 },
+      { 897, 1285, 1397, 1509 },
+      { 1175, 1525, 1429, 1413 },
+      { 1368, 1734, 1461, 1333 },
+      { 1507, 1413, 1525, 1702 },
+      { 1736, 1108, 1590, 2056 },
+      { 2088, 1766, 2056, 2666 },
+      { 2355, 2409, 2586, 3276 },
+      { 2691, 3116, 3148, 3228 },
+      { 3031, 3806, 3710, 3196 },
+      { 3522, 3437, 3421, 3019 },
+      { 3727, 3116, 3148, 3228 },
+      { 4096, 2377, 2505, 2746 } },
+    /* 6: cyan to yellow. */
+    { { 2048, 0, 4096, 0 }, { 2867, 4096, 4096, 0 }, { 3276, 4096, 4096, 0 }, { 4096, 4096, 0, 0 } },
+};
+
+static const int PROCTEX_GRADIENT_PRESET_COUNTS[7] = { 0, 2, 8, 7, 6, 16, 4 };
+
 static int32_t*
 proctex_gradient_table(
     struct ProcTexGenerator* gen,
@@ -474,20 +538,41 @@ proctex_gradient_table(
         return NULL;
 
     /*
-     * A non-zero `preset` names a built-in gradient we do not have the table for. Rather than
-     * invent one, fall back to a black-to-white ramp and count the operation as unsupported so
-     * the texture is refused — an invented palette would render confidently wrong.
+     * No inline stops. Three cases, and they do not collapse:
+     *
+     *   - the record has no gradient field at all -> the reference's init() substitutes
+     *     preset 1, black to white;
+     *   - the field is present, names preset 0 and then lists zero stops -> the reference
+     *     keeps its (empty) stop list, so init() does NOT substitute and fillTable leaves the
+     *     table black. Reproduced by leaving the calloc'd table alone;
+     *   - the field names a preset outside the six -> the reference throws. Nothing to
+     *     render, so it is counted unsupported and the texture is refused.
      */
     if( count <= 0 )
     {
-        gen->unsupported_count++;
-        for( int i = 0; i < 257; i++ )
+        int preset = op->u.gradient.preset;
+        bool field_present = (op->field_present & 1u) != 0;
+
+        if( preset == 0 && field_present )
         {
-            int v = proctex_clamp_i((i * 255) / 256, 0, 255);
-            table[i] = (v << 16) | (v << 8) | v;
+            gen->tables[op_index] = table;
+            return table;
         }
-        gen->tables[op_index] = table;
-        return table;
+        if( preset == 0 )
+            preset = 1;
+        if( preset > 6 )
+        {
+            gen->unsupported_count++;
+            for( int i = 0; i < 257; i++ )
+            {
+                int value = proctex_clamp_i((i * 255) / 256, 0, 255);
+                table[i] = (value << 16) | (value << 8) | value;
+            }
+            gen->tables[op_index] = table;
+            return table;
+        }
+        stops = PROCTEX_GRADIENT_PRESETS[preset];
+        count = PROCTEX_GRADIENT_PRESET_COUNTS[preset];
     }
 
     for( int i = 0; i < 257; i++ )
@@ -939,6 +1024,32 @@ proctex_eval(
         if( !proctex_op_op37(gen, op_index, line) )
             goto fail;
         break;
+    case RSCACHE_PROCTEX_KALEIDOSCOPE:
+        if( !proctex_op_kaleidoscope(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_BRICKS:
+        if( !proctex_op_bricks(gen, op_index, line) )
+            goto fail;
+        break;
+    /*
+     * Whole-image operations: they fill every scanline of their own cache on the first
+     * request and mark it all resident, because their output is not decomposable per line —
+     * line_noise strokes cross scanlines, an irregular brick's top depends on the row below
+     * it, and a rasterised shape spans whatever it spans.
+     */
+    case RSCACHE_PROCTEX_LINE_NOISE:
+        if( !proctex_op_line_noise(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_IRREGULAR_BRICKS:
+        if( !proctex_op_irregular_bricks(gen, op_index, line) )
+            goto fail;
+        break;
+    case RSCACHE_PROCTEX_RASTERIZER:
+        if( !proctex_op_rasterizer(gen, op_index, line) )
+            goto fail;
+        break;
     /*
      * These two reach outside the graph — to a sprite, or to another texture's program. The
      * host resolves both, having made the dependency closure resident before the bake started;
@@ -964,6 +1075,14 @@ proctex_eval(
          * the graph evaluable so the rest of the texture can be inspected, while the count
          * lets the caller refuse to publish the image. It is never a claim of correctness.
          */
+        if( gen->unsupported_count == 0 && getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(
+                stderr,
+                "  proctex %d: op %d type %d (%s) has no evaluator — flat grey\n",
+                gen->tex->id,
+                op_index,
+                op->type,
+                RSCache_ProcTexOpName(op->type));
         gen->unsupported_count++;
         for( int x = 0; x < width; x++ )
         {
@@ -1010,12 +1129,28 @@ ProcTexGenerator_Render(
     int* out_unsupported,
     bool* out_transparent)
 {
+    /* The refusals below are silent by default but each one means something different, and
+     * they are indistinguishable from the caller's `render failed`. Name them so a texture
+     * that will not bake can be diagnosed without a debugger. */
     if( !gen || !texture || !out_argb || size <= 0 )
         return false;
     if( texture->operation_count <= 0 || texture->colour_op < 0 )
+    {
+        if( getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(
+                stderr,
+                "  proctex %d: no output — %d operations, colour_op %d\n",
+                texture->id,
+                texture->operation_count,
+                texture->colour_op);
         return false;
+    }
     if( !proctex_setup(gen, texture, size, brightness) )
+    {
+        if( getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(stderr, "  proctex %d: setup failed at size %d\n", texture->id, size);
         return false;
+    }
 
     for( int line = 0; line < size; line++ )
     {
@@ -1065,7 +1200,14 @@ ProcTexGenerator_Render(
     }
 
     if( gen->cycle_detected )
+    {
+        /* An operation is wired, directly or through a chain, to its own output. The format
+         * cannot express that meaningfully and nothing in the cache validates it, so it is a
+         * property of the record rather than of this port. */
+        if( getenv("TORIRS_PROCTEX_DEBUG") )
+            fprintf(stderr, "  proctex %d: operation graph has a cycle\n", texture->id);
         return false;
+    }
 
     if( out_unsupported )
         *out_unsupported = gen->unsupported_count;

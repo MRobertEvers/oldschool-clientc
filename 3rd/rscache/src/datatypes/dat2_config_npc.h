@@ -106,6 +106,27 @@ struct RSCache_Dat2ConfigNpc
  */
 #define RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS 1
 
+/**
+ * The RS2 (643) branch, where four opcodes carry a different payload than in OldSchool.
+ *
+ * NpcType.decodeOpcode branches on `game === "oldschool"` for 114, 115, 122 and 123 — and the
+ * two lineages disagree on *length*, not just meaning, so decoding 643 with the OldSchool
+ * shape loses the record from the first one it meets:
+ *
+ *   | opcode | OldSchool                        | RS2                    | delta   |
+ *   |--------|----------------------------------|------------------------|---------|
+ *   | 114    | run seq (u16)                    | two shadow mods (2×u8) | 0 bytes |
+ *   | 115    | four run seqs (4×u16)            | two bytes              | 6 bytes |
+ *   | 122    | isFollower flag                  | hit-bar sprite (u16)   | 2 bytes |
+ *   | 123    | lowPriorityFollowerOps flag      | icon height (u16)      | 2 bytes |
+ *
+ * It also forces the *pre*-210 head-icon shape for opcode 102 (a bare u16) regardless of
+ * archive revision, because the reference gates that one on
+ * `(oldschool && revision < 210) || runescape` — the bitfield form is an OldSchool-only
+ * addition and an RS2 archive revision says nothing about it.
+ */
+#define RSCACHE_CONFIG_NPC_DECODE_RS2 2
+
 /** Archive revision at which the head-icon bitfield appeared (game rev 210).
  *  RuneLite's NpcLoader gates the same field on the same value. */
 #define RSCACHE_NPC_ARCHIVE_REV_210 1493

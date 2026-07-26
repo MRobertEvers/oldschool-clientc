@@ -377,7 +377,13 @@ Consequences, both bounded and deliberate:
 The fix is to decode the region properly, which is a decoder change and out of scope
 here. Until then the encoder is faithful without being complete.
 
-### B12. `cache.643` models — fixed; the rest of 643 is not *(Partly resolved)*
+### B12. `cache.643` models — fixed; the rest of 643 followed *(Resolved)*
+
+> **Later state.** The "rest of 643 is not fixed" framing below is the state this section was
+> written in and is kept for the traps it records. All three gaps it lists are resolved, and so
+> are the two that came after: textures (B18, 1164/1164 bake) and the loc/npc era gates
+> (B19, 57,282/57,282 and 13,636/13,636 exact). A 643 world renders with textured scenery.
+
 
 **Models decode.** `cache.643` went from 85.9% byte-exact to **65,014 / 65,014**, and the
 no-provenance path from 2,273 failures to zero. Two errors in `decode_ob3`, both found by
@@ -716,7 +722,18 @@ OSRS revision line — comparing across lineages is D16), so
 `0 == RSCACHE_REVISION_UNKNOWN` — a coincidence, not a mechanism. The fix is a
 cache-side `rev=` key resolving through `RSCache_ProfileByName("643")`.
 
-### B18. Procedural textures (RS2 / 643) — decode done, evaluator partial *(Partly resolved)*
+### B18. Procedural textures (RS2 / 643) — decode and evaluator complete *(Resolved)*
+
+**Current state: 1,164 / 1,164 textures in `cache.643` decode with exact consumption, are
+fully supported by the evaluator, and bake to pixels at 128x128.** Every operation the format
+defines has an evaluator. Measure it with `make -C src test-proctex-coverage`, which also
+reports which unported operation blocks the most textures should that ever regress.
+
+Across eleven keyed map squares (1,014 distinct textures requested by scenery), the client
+now refuses **0**; before the last round of work it refused 78. A refused texture is not a
+cosmetic loss: the raster skips faces whose texture is absent, so those faces simply do not
+draw.
+
 
 **Why this exists at all:** 643 does not use sprite-backed textures. Per rs-map-viewer's
 `Dat2CacheLoaderFactory.getTextureLoader` there are *three* texture systems, selected by era:
@@ -741,7 +758,7 @@ throughout this library:
 | Record | Result |
 |---|---|
 | materials (table 26, group 0) | **27,938 / 27,938 bytes — byte-exact** |
-| texture programs (table 9, one archive per id) | **1,162 / 1,164 exact (99.8%)**, 0 hard failures |
+| texture programs (table 9, one archive per id) | **1,164 / 1,164 exact (100%)**, 0 hard failures |
 
 Three findings worth keeping, each one a bug the obvious implementation has:
 
@@ -759,36 +776,81 @@ Three findings worth keeping, each one a bug the obvious implementation has:
   stored in fixed-size structs; clamping the *loop* rather than the *store* under-consumed 4
   bytes per surplus marker and mis-read the next operation's field id. That was the remaining 6.
 
-Two textures (275, 742 — 0.17%) still stop short. They carry `diagonal_gradient` fields 2, 4
-and 5, which **rs-map-viewer does not decode either** (its handler covers 0, 1 and 3 only, so
-the reference silently desyncs on them too and never notices, having no consumption check).
-u8 and u16 were both tried: each consumes plausibly, moves the failure a few operations along,
-and yields another in-range-looking field id — never exact consumption. That is the E1 trap, so
-**no width is asserted**; the decoder stops cleanly and the caller skips the texture. A wrong
-width would silently build a mis-wired graph and render confidently wrong pixels.
+- **`diagonal_gradient` fields 2, 4, 5 and 6 are payload-free flags** — and settling that took
+  a different kind of evidence, worth recording as a technique.
 
-Also recorded: **three trailing bytes** that the reference stops short of. Over all 1,158
-decodable textures, byte 0 is `0x22` in 1,151 (else 0x00/0x02/0x20 — a bitmask), byte 1 is a
-small count 0..13, byte 2 is 0 or 1. They are consumed but **not interpreted**, because nothing
-in reach reads them. The tail *before* them is confirmed: `anim_u`/`anim_v` match the
-independently-decoded materials table for all 26 textures whose material declares a non-zero
-animation, negative values included — which is what pins the alignment.
+  Two textures (275, 742) carry them, and **rs-map-viewer does not decode them either**: its
+  handler covers 0, 1 and 3 only, so the reference silently desyncs on these two records and
+  never notices, having no consumption check. An earlier pass here tried u8 and u16 and gave
+  up correctly — each width consumes plausibly, moves the failure a few operations along, and
+  yields another in-range-looking field id. That is the E1 trap: a guess that "progresses"
+  tells you nothing about which assumption was wrong, so no width was asserted.
 
-#### Evaluator — 35 of 36 operations ported, 82% of textures renderable
+  What broke it was **an anchor outside the field block**. An operation record starts with its
+  own `id`, and ids are *sequential* — so the byte after the field block must be
+  `previous id + 1`, and the two bytes after that a valid operation type and a plausible cache
+  size. That is three independent checks at a known offset, and only the zero-width reading
+  satisfies all three. It then chains correctly through every remaining operation to the end of
+  the archive, in both records, and the resulting textures render as clean diagonal patterns
+  rather than noise — which a mis-wired graph would not.
+
+  The general lesson: when a field's width is ambiguous *locally*, look for a structure the
+  format repeats at a known distance. Exact consumption is one such anchor and it was too far
+  away here (the failure and the end of the record are hundreds of bytes apart, with many
+  operations between them, so many wrong readings survive to the end). A sequential id three
+  bytes away is a much tighter one.
+
+Also recorded: **three trailing bytes** that the reference stops short of. Over all 1,164
+decodable textures, byte 0 is `0x22` in the overwhelming majority (else 0x00/0x02/0x20 — a
+bitmask), byte 1 is a small count 0..13, byte 2 is 0 or 1. They are consumed but **not
+interpreted**, because nothing in reach reads them. The tail *before* them is confirmed:
+`anim_u`/`anim_v` match the independently-decoded materials table for all 26 textures whose
+material declares a non-zero animation, negative values included — which is what pins the
+alignment.
+
+#### Evaluator — every operation ported, 100% of textures renderable
 
 `src/engine/proctex/` implements the evaluation model: pull-per-scanline, 12.4 fixed point,
 monochrome/colour conversion rules, full per-line caching (the reference's LRU is a memory
 optimisation that cannot affect output), Java `util.Random` and Jagex's `nextIntJagex` for the
 seeded noise operations, and cycle detection the format cannot express but nothing validates.
-Split into `proctex_generator.c` (model, lifecycle, the simple operations) and
-`proctex_ops.u.c` (the rest, unity-included, matching how `world_builder.c` is arranged).
+Split into `proctex_generator.c` (model, lifecycle, the simple operations), `proctex_ops.u.c`
+(the rest) and `proctex_raster.u.c` (the vector rasteriser), unity-included, matching how
+`world_builder.c` is arranged.
 
-Ported: every operation except `rasterizer`. That includes the seeded noise family
-(`perlin_noise`, `voronoi_noise`, `pseudo_random_noise`), the neighbourhood operations
-(`blur`, `emboss`, both edge detectors), the pattern generators (`bricks`,
-`irregular_bricks`, `weave`, `herringbone`, `square_waveform`, `line_noise`), the warps
-(`trig_warp`, `mirror`, `kaleidoscope`, `tiling`), `mixer`, `hsl`, `brightness`,
-`mandelbrot` and `op37`.
+**All 40 operations are ported.** The seeded noise family (`perlin_noise`, `voronoi_noise`,
+`pseudo_random_noise`, `line_noise`), the neighbourhood operations (`blur`, `emboss`, both
+edge detectors), the pattern generators (`bricks`, `irregular_bricks`, `weave`,
+`herringbone`, `square_waveform`), the warps (`trig_warp`, `mirror`, `kaleidoscope`,
+`tiling`), `mixer`, `hsl`, `brightness`, `mandelbrot`, `op37` and `rasterizer`.
+
+Four of them render the **whole image at once** rather than per scanline, because their output
+is not decomposable by line: `line_noise` strokes cross scanlines, an `irregular_bricks` brick's
+top depends on the row below it, `rasterizer` shapes span whatever they span. They fill their
+own cache and mark every line resident (`proctex_mark_all_done`), which is exactly what the
+reference's `imageCache.dirty` flag achieves — it is only ever true until the first `getAll()`.
+
+Three things about the reference are semantics rather than accidents, and are reproduced
+deliberately:
+
+- **`rasterizer` colours are packed 24-bit RGB**, not the 12.4 triples every other operation
+  deals in, and a *monochrome* rasterizer writes those packed values straight into its
+  monochrome plane. That is meaningless as a signal, but downstream operations were authored
+  against it.
+- **Out-of-range writes are dropped, not clipped.** The reference draws into JavaScript typed
+  arrays, where a store past either end is silently discarded, and its line clipper relies on
+  that: it re-solves x when it clamps y and never re-clamps the result. In C the same store is
+  memory corruption, so every raw write in `proctex_raster.u.c` is range-checked.
+- **`line_noise` writes transposed** in one of its two branches — `pixels[x][y]` where every
+  other operation writes `pixels[y][x]`. Harmless only because a texture is always square here.
+  "Correcting" it rotates half the strokes by 90 degrees.
+
+**Gradient presets are client constants, not cache data.** A `gradient` operation either
+carries its stops inline (`preset == 0`) or names one of six built-ins, which had to be
+transcribed from `GradientOperation.setGradientPreset`. Missing them was worth 2 textures on
+its own, and the distinction between "no gradient field at all" (defaults to preset 1) and
+"preset 0 with zero stops" (stays black) is load-bearing — the reference's `init()` only
+substitutes when the stop list is *absent*, and an empty array is not absent.
 
 **Dependency resolution is the part that is not just an operation port.** `texture_source`
 names another texture's program and `sprite_source` names a sprite, so baking is not
@@ -801,17 +863,30 @@ flattened-to-ARGB sprites are cached on the buildcache by id, and a nested textu
 on demand at **brightness 1.0** rather than the final 0.8, because it is an intermediate signal
 feeding more operations and gamma-correcting it twice would be wrong.
 
-Coverage, measured over all 1,164 textures in `cache.643`:
+Coverage, measured over all 1,164 textures in `cache.643` by
+`make -C src test-proctex-coverage`:
 
 | Ported set | Textures fully renderable |
 |---|---|
 | 14 operations, no dependency resolution | 39 (3%) |
 | 32 operations, no dependency resolution | 463 (39%) |
-| 35 operations + dependency closure | **961 (82%)** |
+| 35 operations + dependency closure | 961 (82%) |
+| **all 40 operations + gradient presets + diagonal_gradient decode** | **1,164 (100%)** |
 
-The gap to 100% is one operation, `rasterizer` — 1,721 lines of vector rasteriser (lines,
-cubic beziers, rectangles, ellipses, each with fill and outline). It blocks 48 textures
-directly and, through `texture_source` chains, the bulk of the remaining 203.
+**Measure coverage transitively, not per operation.** A texture is renderable only when every
+operation it names *and* every texture it pulls in through `texture_source` is renderable, so
+the operation blocking a texture is usually not one the texture names directly. Ranking
+unported operations by raw usage put `rasterizer` first (69 direct uses); ranking them by
+transitive blocking put `line_noise` first (53 direct uses, 101 textures blocked). The
+coverage tool computes the closure by fixpoint and reports both numbers side by side.
+
+**Static coverage is not proof the evaluator runs.** The same tool bakes every texture it
+calls renderable and reports the two counts apart; "renderable but failed to bake" is the
+interesting cell, and it is what caught the missing gradient presets. Beyond that, `PROCTEX_DUMP`
+writes every baked texture as a BMP and `PROCTEX_MONTAGE` writes one sheet per operation tiling
+the textures that use it — which is how the ports were actually checked, since a transposed
+index or a sign error yields a perfectly valid image of the wrong thing. Bricks have to look
+like bricks.
 
 An unported operation still yields flat mid-grey and increments a counter, and `proctex_bake`
 **refuses any texture with a non-zero count** — as does a texture whose dependency cannot be
@@ -831,13 +906,74 @@ exactly this reason), but it bit harder here because the corrupted value was a *
 rather than an index — a bad index would have tripped a bounds check, whereas a bad key just
 silently stored the program somewhere nobody looks. Both worklists now keep the in-flight id on
 the task, and the program pointer is re-read through the cache after the await instead of being
-carried across it. 12 failures went to 1, and that 1 is texture 275 — a decode gap already
-recorded above, not a render gap.
+carried across it. 12 failures went to 1, and that 1 was texture 275 — a decode gap, since
+resolved above.
 
-Real 643 scenery is now textured from this path: trees and boulders at map 40,55, from
-1,880 scene elements. 39 of the 40 textures the square needs bake successfully.
-`TORIRS_PROCTEX_DEBUG` reports refusals and names the operation responsible; a `REFUSED` line
-distinguishes an unresolvable dependency from an unported operation.
+Real 643 scenery is textured from this path across the world, not just at the one square this
+started from. Over eleven keyed map squares (40,55 · 51,53 · 47,51 · 42,54 · 44,54 · 48,54 ·
+49,54 · 50,54 · 52,50 · 48,48 · 47,48) requesting 1,014 distinct textures between them, refusals
+went **78 -> 0**.
+
+`TORIRS_PROCTEX_DEBUG` names every refusal and its cause, and the causes are deliberately
+distinguishable: a `REFUSED` line is an unresolvable dependency, a `no evaluator` line is an
+unported operation, and there are separate lines for a graph with no output operation and for
+one containing a cycle. They all reach the caller as the same `render failed`, so without
+these they are indistinguishable.
+
+### B19. RS2 loc and npc records — era gates, not new formats *(Resolved)*
+
+`cache.643` now decodes **57,282 / 57,282 loc** and **13,636 / 13,636 npc** records with exact
+consumption, up from 98.4% and 6.4%. Neither needed a new codec: both were the *same* class of
+defect, an OldSchool-only field read against an RS2 record.
+
+Run `make -C 3rd/rscache build/test_rs2_sweep && 3rd/rscache/build/test_rs2_sweep` to measure.
+The main round-trip suite cannot see these types — it scans config *groups* in table 2, and RS2
+promotes loc/npc/obj/seq/spotanim into their own sharded tables (see
+`RSCache_RecordAddressFor`), so they were invisible to it.
+
+**loc: four opcodes, four gates.** Each is stated outright in rs-map-viewer's
+`LocType.decodeOpcode`, and each cost bytes that the rest of the record then read from the
+wrong place:
+
+| Opcode | OldSchool | RS2 | our bug |
+|---|---|---|---|
+| 78 | ambient sound + distance + **retain byte** (rev >= 220) | no retain byte | read it |
+| 79 | same retain byte | no retain byte | read it |
+| 82 | map function id (u16) | bare flag | read a u16 |
+| 91 | sound-distance fade curve (u8) | bare members flag | read a byte |
+| 190, 191 | a byte each | bare flags | read a byte each |
+
+**npc: the same four-gate story, plus thirty opcodes that were simply absent.** 114, 115, 122
+and 123 all branch on `game === "oldschool"` in `NpcType.decodeOpcode`, and 115 differs by six
+bytes (four sequence ids against two). Opcode 102's head-icon *bitfield* is likewise an
+OldSchool-only addition, so RS2 takes the pre-210 bare-u16 shape regardless of archive
+revision — comparing an RS2 revision against an OldSchool threshold is the D16 trap.
+
+**The defect that hid all of it: an unknown npc opcode did not stop the decode.** The `default`
+arm logged and *continued*, so every read after it came out of the middle of an unknown
+payload; the decoder then "recognised" payload bytes as opcodes, wrote garbage into real
+fields, and finally ran off the end. All 12,762 failures therefore reported the same
+buffer-overrun, thousands of bytes and several bogus fields past the actual cause. Stopping
+instead — the position the loc decoder has always taken — turned one undifferentiated symptom
+into a ranked list of six missing opcodes (127, 159, 119, 125, 128, 163) in a single run.
+
+Worth stating as a rule: **a decoder that continues past an unknown opcode destroys the
+evidence needed to fix it.** The cost is not the garbage fields, which are at least suspicious;
+it is that the *reported* failure is no longer near the *actual* one.
+
+Two smaller points from the same work:
+
+- The npc `_consumed` field was only assigned on the opcode-0 path, so every other exit left it
+  at zero — indistinguishable from "read nothing". A partial decode has to report how far it
+  got or the diagnostic is worthless.
+- The thirty added opcodes are consumed but **not stored**. Inventing struct members for
+  fields nothing reads would make the encoder lossy, which the round-trip suite would then have
+  to be taught to ignore. The one worth promoting later is **127, `basTypeId`** — it redirects
+  an npc's idle and walk sequences through a separate type, so a 643 npc animates from it
+  rather than from opcodes 13/14.
+
+All gates are conditional on flags only the 643 profile sets, so OldSchool and dat1 decode
+byte-for-byte as before; the full round-trip suite is green across all six OSRS caches.
 
 ### B13. The seven undecoded config kinds — four now done, three blocked *(Gap)*
 

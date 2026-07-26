@@ -1651,3 +1651,877 @@ proctex_op_texture_source(struct ProcTexGenerator* gen, int op_index, int line)
     }
     return true;
 }
+
+/* --- fill helpers ----------------------------------------------------------------- */
+
+/*
+ * The reference fills spans through `Int32Array.prototype.fill(value, start, end)`, whose
+ * out-of-range behaviour is load-bearing rather than incidental: it CLAMPS both ends to the
+ * array and writes nothing when `end <= start`. Several call sites below rely on that —
+ * `local97 + local104` in the irregular-brick filler can exceed the row width, and the
+ * reference simply lets the clamp absorb it.
+ *
+ * A plain C loop would run past the row instead, so the clamp is reproduced here rather than
+ * left implicit. (JS also treats a negative index as relative to the end; no call site
+ * produces one, and clamping to zero is the reading that cannot corrupt memory.)
+ */
+static void
+proctex_fill_range(int32_t* row, int lo, int hi, int width, int32_t value)
+{
+    if( lo < 0 )
+        lo = 0;
+    if( hi > width )
+        hi = width;
+    for( int i = lo; i < hi; i++ )
+        row[i] = value;
+}
+
+static void
+proctex_fill_len(int32_t* row, int start, int len, int width, int32_t value)
+{
+    proctex_fill_range(row, start, start + len, width, value);
+}
+
+/* --- line noise ------------------------------------------------------------------- */
+
+/*
+ * `count` short strokes at random positions and angles, each a linear ramp along its own
+ * length. Whole-image: the reference renders every scanline on the first request (its cache is
+ * `dirty` only until the first `getAll`), so this fills the operation's cache in one pass and
+ * marks every line resident.
+ *
+ * The transposed write in the `!flag` branch is the reference's, not a slip. It indexes
+ * `pixels[x][y]` where every other operation indexes `pixels[y][x]`, which is only harmless
+ * because a texture is always square here — proctex_setup takes a single `size` for both
+ * dimensions. Straightening it would rotate half the strokes by 90 degrees.
+ */
+bool
+proctex_op_line_noise(struct ProcTexGenerator* gen, int op_index, int line)
+{
+    const struct RSCache_ProcTexOperation* op = &gen->tex->operations[op_index];
+    struct proctex_cache* cache = &gen->caches[op_index];
+    int width = gen->width;
+    int height = gen->height;
+    int32_t* pixels = cache->plane[0];
+    struct proctex_jrand rnd;
+    int mid_angle = op->u.line_noise.max_angle >> 1;
+
+    (void)line;
+    if( width <= 0 || height <= 0 )
+        return false;
+
+    proctex_jrand_seed(&rnd, op->u.line_noise.seed);
+    for( int i = 0; i < op->u.line_noise.count; i++ )
+    {
+        int angle;
+        int x0, y0, x1, y1;
+        int delta_x, delta_y;
+        bool steep;
+
+        if( op->u.line_noise.max_angle > 0 )
+            angle = op->u.line_noise.min_angle - mid_angle +
+                    proctex_next_int_jagex(&rnd, op->u.line_noise.max_angle);
+        else
+            angle = op->u.line_noise.min_angle;
+        angle = (angle >> 4) & 0xFF;
+
+        x0 = proctex_next_int_jagex(&rnd, width);
+        y0 = proctex_next_int_jagex(&rnd, height);
+        x1 = ((PROCTEX_COSINE[angle] * op->u.line_noise.length) >> 12) + x0;
+        y1 = ((PROCTEX_SINE[angle] * op->u.line_noise.length) >> 12) + y0;
+        delta_x = x1 - x0;
+        delta_y = y1 - y0;
+        if( delta_x == 0 && delta_y == 0 )
+            continue;
+
+        if( delta_x < 0 )
+            delta_x = -delta_x;
+        if( delta_y < 0 )
+            delta_y = -delta_y;
+
+        /* Walk along whichever axis the stroke is longer on, by swapping the roles of x
+         * and y. `steep` is carried to the write so the swap is undone there. */
+        steep = delta_x < delta_y;
+        if( steep )
+        {
+            int t = x0;
+            x0 = y0;
+            y0 = t;
+            t = x1;
+            x1 = y1;
+            y1 = t;
+        }
+        if( x0 > x1 )
+        {
+            int t = x0;
+            x0 = x1;
+            x1 = t;
+            t = y0;
+            y0 = y1;
+            y1 = t;
+        }
+
+        {
+            int span_x = x1 - x0;
+            int span_y = y1 - y0;
+            int cursor_y = y0;
+            int error;
+            int ramp;
+            int jitter;
+            int step;
+
+            if( span_y < 0 )
+                span_y = -span_y;
+            error = -span_x / 2;
+            ramp = 2048 / span_x;
+            jitter = 1024 - (proctex_next_int_jagex(&rnd, 4096) >> 2);
+            step = y1 <= y0 ? -1 : 1;
+
+            for( int x = x0; x < x1; x++ )
+            {
+                int value = ramp * (x - x0) + (1024 + jitter);
+                int row = cursor_y & gen->height_mask;
+                int col = x & gen->width_mask;
+                error += span_y;
+                if( error > 0 )
+                {
+                    cursor_y += step;
+                    error -= span_x;
+                }
+                if( steep )
+                    pixels[(size_t)row * (size_t)width + (size_t)col] = value;
+                else
+                    pixels[(size_t)col * (size_t)width + (size_t)row] = value;
+            }
+        }
+    }
+
+    proctex_mark_all_done(cache, height);
+    return true;
+}
+
+/* --- kaleidoscope ----------------------------------------------------------------- */
+
+/*
+ * Fold the input into one octant and mirror it eight ways: the angle of the pixel about the
+ * centre selects which of eight (x, y) remappings to sample through.
+ *
+ * `h_gradient` is indexed by y and `v_gradient` by x, which reads backwards and is the
+ * reference's. It is invisible for a square texture (the two tables are then identical — the
+ * reference literally aliases them), so it is kept literal rather than "corrected" on the
+ * strength of a case that cannot distinguish the two.
+ */
+static void
+proctex_kaleidoscope_pos(
+    struct ProcTexGenerator* gen,
+    int x,
+    int y,
+    int* out_x,
+    int* out_y)
+{
+    int h_grad = gen->h_gradient[y];
+    int v_grad = gen->v_gradient[x];
+    /* float32, then compared against double octant boundaries — the reference's
+     * Math.fround, which changes which octant a pixel on a boundary lands in. */
+    double angle = (double)proctex_fround(atan2((double)(h_grad - 2048), (double)(v_grad - 2048)));
+    int x0 = 0;
+    int y0 = 0;
+
+    if( angle >= -3.141592653589793 && angle <= -2.356194490192345 )
+    {
+        x0 = x;
+        y0 = y;
+    }
+    else if( angle <= -1.5707963267948966 && angle >= -2.356194490192345 )
+    {
+        y0 = x;
+        x0 = y;
+    }
+    else if( angle <= -0.7853981633974483 && angle >= -1.5707963267948966 )
+    {
+        x0 = gen->width - y;
+        y0 = x;
+    }
+    else if( angle <= 0.0 && angle >= -0.7853981633974483 )
+    {
+        y0 = gen->height - y;
+        x0 = x;
+    }
+    else if( angle >= 0.0 && angle <= 0.7853981633974483 )
+    {
+        x0 = gen->width - x;
+        y0 = gen->height - y;
+    }
+    else if( angle >= 0.7853981633974483 && angle <= 1.5707963267948966 )
+    {
+        x0 = gen->width - y;
+        y0 = gen->height - x;
+    }
+    else if( angle >= 1.5707963267948966 && angle <= 2.356194490192345 )
+    {
+        x0 = y;
+        y0 = gen->height - x;
+    }
+    else if( angle >= 2.356194490192345 && angle <= 3.141592653589793 )
+    {
+        y0 = y;
+        x0 = gen->width - x;
+    }
+
+    *out_x = x0 & gen->width_mask;
+    *out_y = y0 & gen->height_mask;
+}
+
+bool
+proctex_op_kaleidoscope(struct ProcTexGenerator* gen, int op_index, int line)
+{
+    const struct RSCache_ProcTexOperation* op = &gen->tex->operations[op_index];
+    struct proctex_cache* cache = &gen->caches[op_index];
+    int width = gen->width;
+    size_t offset = (size_t)line * (size_t)width;
+
+    if( op->is_monochrome )
+    {
+        int32_t* out0 = cache->plane[0] + offset;
+        for( int pixel = 0; pixel < width; pixel++ )
+        {
+            int src_x, src_y;
+            const int32_t* input;
+            proctex_kaleidoscope_pos(gen, pixel, line, &src_x, &src_y);
+            input = proctex_input_mono(gen, op, 0, src_y);
+            if( !input )
+                return false;
+            out0[pixel] = input[src_x];
+        }
+        return true;
+    }
+
+    {
+        int32_t* out_r = cache->plane[0] + offset;
+        int32_t* out_g = cache->plane[1] + offset;
+        int32_t* out_b = cache->plane[2] + offset;
+        for( int pixel = 0; pixel < width; pixel++ )
+        {
+            int src_x, src_y;
+            const int32_t* input[3];
+            proctex_kaleidoscope_pos(gen, pixel, line, &src_x, &src_y);
+            if( !proctex_input_colour(gen, op, 0, src_y, input) )
+                return false;
+            out_r[pixel] = input[0][src_x];
+            out_g[pixel] = input[1][src_x];
+            out_b[pixel] = input[2][src_x];
+        }
+    }
+    return true;
+}
+
+/* --- bricks ----------------------------------------------------------------------- */
+
+/*
+ * A regular running-bond brick grid with jittered joints.
+ *
+ * `seed` is both the RNG seed and the number of courses, and `field0` the bricks per course —
+ * the record reuses one field for both roles, which is why a zero there is a degenerate grid
+ * rather than a decode error. The reference reaches `table2[-1]` in that case and compares
+ * against `undefined`, i.e. every comparison is false and the output is blank; blank is
+ * reproduced directly here because C has no undefined to compare against.
+ *
+ * Three tables, built once per bake and held on the generator's per-op aux slot:
+ *   row_edges (table2)  course boundaries down the texture, cumulative
+ *   col_edges (table1)  brick boundaries across each course, cumulative, per course
+ *   shade     (table0)  the value each brick is filled with
+ */
+struct proctex_bricks_aux
+{
+    bool ready;
+    int courses; /* seed */
+    int columns; /* field0 */
+    int32_t* shade;     /* [courses][columns]     */
+    int32_t* col_edges; /* [courses][columns + 1] */
+    int32_t* row_edges; /* [courses + 1]          */
+    int32_t data[];
+};
+
+static struct proctex_bricks_aux*
+proctex_bricks_init(struct ProcTexGenerator* gen, int op_index)
+{
+    const struct RSCache_ProcTexOperation* op = &gen->tex->operations[op_index];
+    struct proctex_bricks_aux* aux = gen->aux[op_index];
+    int courses = op->u.bricks.seed;
+    int columns = op->u.bricks.field0;
+    struct proctex_jrand rnd;
+    int ratio_row, ratio_col, half_row, half_col;
+
+    if( aux )
+        return aux;
+
+    if( courses <= 0 || columns <= 0 )
+    {
+        aux = calloc(1, sizeof(*aux));
+        if( aux )
+            gen->aux[op_index] = aux;
+        return aux; /* courses/columns stay 0: the caller emits a blank line */
+    }
+
+    /* One allocation: the generator frees an aux slot with a single free(), so the three
+     * tables have to live inside it rather than hang off it. */
+    aux = calloc(
+        1,
+        sizeof(*aux) + (size_t)(courses * columns + courses * (columns + 1) + courses + 1) *
+                           sizeof(int32_t));
+    if( !aux )
+        return NULL;
+    aux->courses = courses;
+    aux->columns = columns;
+    aux->shade = aux->data;
+    aux->col_edges = aux->shade + (size_t)courses * (size_t)columns;
+    aux->row_edges = aux->col_edges + (size_t)courses * (size_t)(columns + 1);
+
+    proctex_jrand_seed(&rnd, op->u.bricks.seed);
+    ratio_col = PROCTEX_ONE / columns;
+    half_col = ratio_col / 2;
+    ratio_row = PROCTEX_ONE / courses;
+    half_row = ratio_row / 2;
+    aux->row_edges[0] = 0;
+
+    for( int row = 0; row < courses; row++ )
+    {
+        int32_t* col_edges = aux->col_edges + (size_t)row * (size_t)(columns + 1);
+        int32_t* shade = aux->shade + (size_t)row * (size_t)columns;
+
+        if( row > 0 )
+        {
+            int value = ratio_row;
+            int jitter = ((proctex_next_int_jagex(&rnd, PROCTEX_ONE) - 2048) * op->u.bricks.field3) >> 12;
+            value += (jitter * half_row) >> 12;
+            aux->row_edges[row] = value + aux->row_edges[row - 1];
+        }
+        col_edges[0] = 0;
+        for( int col = 0; col < columns; col++ )
+        {
+            if( col > 0 )
+            {
+                int value = ratio_col;
+                int jitter =
+                    ((proctex_next_int_jagex(&rnd, PROCTEX_ONE) - 2048) * op->u.bricks.field2) >> 12;
+                value += (jitter * half_col) >> 12;
+                col_edges[col] = col_edges[col - 1] + value;
+            }
+            shade[col] = op->u.bricks.field7 > 0
+                             ? PROCTEX_ONE - proctex_next_int_jagex(&rnd, op->u.bricks.field7)
+                             : PROCTEX_ONE;
+        }
+        col_edges[columns] = PROCTEX_ONE;
+    }
+    aux->row_edges[courses] = PROCTEX_ONE;
+
+    gen->aux[op_index] = aux;
+    return aux;
+}
+
+bool
+proctex_op_bricks(struct ProcTexGenerator* gen, int op_index, int line)
+{
+    const struct RSCache_ProcTexOperation* op = &gen->tex->operations[op_index];
+    struct proctex_cache* cache = &gen->caches[op_index];
+    struct proctex_bricks_aux* aux = proctex_bricks_init(gen, op_index);
+    int width = gen->width;
+    int32_t* out0 = cache->plane[0] + (size_t)line * (size_t)width;
+    int half_joint = op->u.bricks.field6 / 2;
+    int ratio_col;
+    int course = 0;
+    int value_y;
+    const int32_t* col_edges;
+
+    if( !aux )
+        return false;
+    if( aux->courses <= 0 || aux->columns <= 0 )
+    {
+        memset(out0, 0, (size_t)width * sizeof(int32_t));
+        return true;
+    }
+    ratio_col = PROCTEX_ONE / aux->columns;
+
+    value_y = op->u.bricks.field5 + gen->v_gradient[line];
+    while( value_y < 0 )
+        value_y += PROCTEX_ONE;
+    while( value_y > PROCTEX_ONE )
+        value_y -= PROCTEX_ONE;
+
+    /* row_edges[0] is 0 and value_y is non-negative, so this always advances at least once —
+     * which is what makes the `course - 1` indexing below safe. */
+    for( ; course < aux->courses; course++ )
+        if( value_y < aux->row_edges[course] )
+            break;
+
+    /* Inside the horizontal mortar joint: the whole scanline is background. */
+    if( !(value_y > half_joint + aux->row_edges[course - 1] &&
+          value_y < aux->row_edges[course] - half_joint) )
+    {
+        memset(out0, 0, (size_t)width * sizeof(int32_t));
+        return true;
+    }
+
+    col_edges = aux->col_edges + (size_t)(course - 1) * (size_t)(aux->columns + 1);
+    for( int pixel = 0; pixel < width; pixel++ )
+    {
+        /* Alternate courses shift by field4, which is what makes it a running bond. */
+        int offset = (course % 2) != 0 ? -op->u.bricks.field4 : op->u.bricks.field4;
+        int value_x = ((ratio_col * offset) >> 12) + gen->h_gradient[pixel];
+        int column = 0;
+
+        while( value_x < 0 )
+            value_x += PROCTEX_ONE;
+        while( value_x > PROCTEX_ONE )
+            value_x -= PROCTEX_ONE;
+
+        for( ; column < aux->columns; column++ )
+            if( value_x < col_edges[column] )
+                break;
+
+        if( col_edges[column - 1] + half_joint < value_x && value_x < col_edges[column] - half_joint )
+            out0[pixel] = aux->shade[(size_t)(course - 1) * (size_t)aux->columns + (size_t)(column - 1)];
+        else
+            out0[pixel] = 0;
+    }
+    return true;
+}
+
+/* --- irregular bricks --------------------------------------------------------------- */
+
+/*
+ * Stone-wall courses: bricks of random width and height laid left to right, each row starting
+ * at a random horizontal offset and each brick's top following whatever the row below left
+ * behind. Whole-image, and genuinely stateful — a brick's vertical start is read out of the
+ * previous row's span list, so lines cannot be produced independently.
+ *
+ * `method69` in the reference is the brick filler: it draws one brick with a bevelled edge,
+ * wrapping horizontally. Named `draw_brick` here; the parameter names are the reference's
+ * roles rather than its numbers.
+ */
+struct proctex_irregular_state
+{
+    struct ProcTexGenerator* gen;
+    const struct RSCache_ProcTexOperation* op;
+    int32_t* pixels;
+    struct proctex_jrand rnd;
+    int bevel; /* the reference's anInt79 */
+};
+
+static void
+proctex_irregular_draw_brick(
+    struct proctex_irregular_state* st,
+    int rows,
+    int cols,
+    int x,
+    int y)
+{
+    struct ProcTexGenerator* gen = st->gen;
+    int width = gen->width;
+    int height = gen->height;
+    int shade = st->op->u.irregular_bricks.field8 > 0
+                    ? PROCTEX_ONE -
+                          proctex_next_int_jagex(&st->rnd, st->op->u.irregular_bricks.field8)
+                    : PROCTEX_ONE;
+    int bevel_range = (st->bevel * st->op->u.irregular_bricks.field7) >> 12;
+    int bevel =
+        st->bevel - (bevel_range > 0 ? proctex_next_int_jagex(&st->rnd, bevel_range) : 0);
+
+    if( width <= x )
+        x -= width;
+
+    if( bevel <= 0 )
+    {
+        /* No bevel: a flat fill, split when the brick wraps the right edge. */
+        if( width >= cols + x )
+        {
+            for( int i = 0; i < rows; i++ )
+            {
+                int row = i + y;
+                if( row < 0 || row >= height )
+                    continue;
+                proctex_fill_len(st->pixels + (size_t)row * (size_t)width, x, cols, width, shade);
+            }
+        }
+        else
+        {
+            int head = width - x;
+            for( int i = 0; i < rows; i++ )
+            {
+                int row = i + y;
+                int32_t* dst;
+                if( row < 0 || row >= height )
+                    continue;
+                dst = st->pixels + (size_t)row * (size_t)width;
+                proctex_fill_len(dst, x, head, width, shade);
+                proctex_fill_len(dst, 0, cols - head, width, shade);
+            }
+        }
+        return;
+    }
+
+    if( rows <= 0 || cols <= 0 )
+        return;
+
+    {
+        /* The bevel cannot exceed half the brick in either axis, or the two ramps would
+         * cross; both are clamped independently. */
+        int bevel_x = (cols / 2) >= bevel ? bevel : (cols / 2);
+        int bevel_y = bevel > (rows / 2) ? (rows / 2) : bevel;
+        int inner_x = x + bevel_x;
+        int inner_w = cols - bevel_x * 2;
+
+        for( int i = 0; i < rows; i++ )
+        {
+            int row_index = i + y;
+            int32_t* row;
+            if( row_index < 0 || row_index >= height )
+                continue;
+            row = st->pixels + (size_t)row_index * (size_t)width;
+
+            if( bevel_y <= i )
+            {
+                int from_bottom = rows - i - 1;
+                if( bevel_y <= from_bottom )
+                {
+                    /* Middle band: full shade, left and right edges ramped. */
+                    for( int k = 0; k < bevel_x; k++ )
+                        row[gen->width_mask & (x + k)] = row[gen->width_mask & (cols + x - k - 1)] =
+                            (shade * k) / bevel_x;
+                    if( inner_x + inner_w <= width )
+                        proctex_fill_len(row, inner_x, inner_w, width, shade);
+                    else
+                    {
+                        int head = width - inner_x;
+                        proctex_fill_len(row, inner_x, head, width, shade);
+                        proctex_fill_len(row, 0, inner_w - head, width, shade);
+                    }
+                }
+                else
+                {
+                    /* Bottom bevel: the row's own ramp, combined with the edge ramp either
+                     * multiplicatively (field6 == 0) or by taking the darker of the two. */
+                    int row_shade = (from_bottom * shade) / bevel_y;
+                    if( st->op->u.irregular_bricks.field6 == 0 )
+                    {
+                        for( int k = 0; k < bevel_x; k++ )
+                        {
+                            int edge = (k * shade) / bevel_x;
+                            row[gen->width_mask & (x + k)] =
+                                row[(cols + x - k - 1) & gen->width_mask] = (row_shade * edge) >> 12;
+                        }
+                    }
+                    else
+                    {
+                        for( int k = 0; k < bevel_x; k++ )
+                        {
+                            int edge = (shade * k) / bevel_x;
+                            row[gen->width_mask & (k + x)] =
+                                row[gen->width_mask & (x + cols - k - 1)] =
+                                    row_shade > edge ? edge : row_shade;
+                        }
+                    }
+                    if( width < inner_w + inner_x )
+                    {
+                        int head = width - inner_x;
+                        proctex_fill_len(row, inner_x, head, width, row_shade);
+                        proctex_fill_len(row, 0, inner_w - head, width, row_shade);
+                    }
+                    else
+                        proctex_fill_len(row, inner_x, inner_w, width, row_shade);
+                }
+            }
+            else
+            {
+                /* Top bevel: mirror of the bottom case. */
+                int row_shade = (i * shade) / bevel_y;
+                if( st->op->u.irregular_bricks.field6 == 0 )
+                {
+                    for( int k = 0; k < bevel_x; k++ )
+                    {
+                        int edge = (shade * k) / bevel_x;
+                        row[gen->width_mask & (k + x)] =
+                            row[(x + cols - k - 1) & gen->width_mask] = (edge * row_shade) >> 12;
+                    }
+                }
+                else
+                {
+                    for( int k = 0; k < bevel_x; k++ )
+                    {
+                        int edge = (shade * k) / bevel_x;
+                        row[(k + x) & gen->width_mask] =
+                            row[(cols + x - k - 1) & gen->width_mask] =
+                                row_shade <= edge ? row_shade : edge;
+                    }
+                }
+
+                if( inner_x + inner_w > width )
+                {
+                    int head = width - inner_x;
+                    proctex_fill_len(row, inner_x, head, width, row_shade);
+                    proctex_fill_len(row, 0, inner_w - head, width, row_shade);
+                }
+                else
+                    proctex_fill_len(row, inner_x, inner_w, width, row_shade);
+            }
+        }
+    }
+}
+
+bool
+proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line)
+{
+    const struct RSCache_ProcTexOperation* op = &gen->tex->operations[op_index];
+    struct proctex_cache* cache = &gen->caches[op_index];
+    int width = gen->width;
+    int height = gen->height;
+    struct proctex_irregular_state st;
+
+    /* Span lists for the current and previous row: {x0, x1, bottom_y} each. */
+    int32_t (*cur_spans)[3] = NULL;
+    int32_t (*prev_spans)[3] = NULL;
+    int span_capacity;
+
+    int prev_offset_delta = 0; /* local23: this row's x offset minus the previous row's */
+    int row_offset = 0;        /* local30 */
+    int cursor_x = 0;          /* local32 */
+    int prev_row_offset = 0;   /* local34 */
+    int prev_span = 0;         /* local36 */
+    bool first_row = true;     /* local38 */
+    int prev_span_count = 0;   /* local40 */
+    bool row_fits = true;      /* local42 */
+    int cur_span_count = 0;    /* local51 */
+
+    int min_w = (op->u.irregular_bricks.field1 * width) >> 12;
+    int min_h = (op->u.irregular_bricks.field3 * height) >> 12;
+    int max_w = (width * op->u.irregular_bricks.field2) >> 12;
+    int max_h = (op->u.irregular_bricks.field4 * height) >> 12;
+
+    bool ok = true;
+    /* Rows laid before giving up. A malformed record can wire widths that never reach the
+     * right edge; the reference would spin forever, so this bounds it and refuses the
+     * texture instead. Never reached by any record in cache.643. */
+    int guard = 0;
+    const int GUARD_LIMIT = 1 << 20;
+
+    (void)line;
+
+    if( max_h <= 1 || min_w <= 0 || max_w <= min_w || max_h <= min_h )
+    {
+        /* The reference bails on max_h <= 1 and would throw out of nextIntJagex on the
+         * others (its bound must be positive). Blank is the honest result for a course
+         * height of one pixel; for the rest, refusing is. */
+        if( max_h <= 1 )
+        {
+            proctex_mark_all_done(cache, height);
+            return true;
+        }
+        return false;
+    }
+
+    span_capacity = width / min_w + 1;
+    cur_spans = calloc((size_t)span_capacity, sizeof(*cur_spans));
+    prev_spans = calloc((size_t)span_capacity, sizeof(*prev_spans));
+    if( !cur_spans || !prev_spans )
+    {
+        free(cur_spans);
+        free(prev_spans);
+        return false;
+    }
+
+    st.gen = gen;
+    st.op = op;
+    st.pixels = cache->plane[0];
+    st.bevel = ((width / 8) * op->u.irregular_bricks.field5) >> 12;
+    proctex_jrand_seed(&st.rnd, op->u.irregular_bricks.seed);
+
+    while( ok )
+    {
+        int brick_w = min_w + proctex_next_int_jagex(&st.rnd, max_w - min_w);
+        int brick_h = proctex_next_int_jagex(&st.rnd, max_h - min_h) + min_h;
+        int end_x = cursor_x + brick_w;
+        int top_y;
+
+        if( ++guard > GUARD_LIMIT )
+        {
+            ok = false;
+            break;
+        }
+
+        if( end_x > width )
+        {
+            brick_w = width - cursor_x;
+            end_x = width;
+        }
+
+        if( first_row )
+            top_y = 0;
+        else
+        {
+            /*
+             * This brick's top is the bottom of whatever the previous row left under it.
+             * Walk the previous row's spans from the last one used until one covers this
+             * brick's right edge; if that took more than one step, the spans skipped over
+             * are shorter than the tallest of them and the gaps above them are filled in
+             * before this brick is laid.
+             */
+            int span = prev_span;
+            int steps = 0;
+            int right_edge = prev_offset_delta + end_x;
+            bool found = false;
+
+            top_y = prev_spans[prev_span][2];
+            if( right_edge < 0 )
+                right_edge += width;
+            if( width < right_edge )
+                right_edge -= width;
+
+            for( int probe = 0; probe <= prev_span_count; probe++ )
+            {
+                if( prev_spans[span][0] <= right_edge && right_edge <= prev_spans[span][1] )
+                {
+                    found = true;
+                    break;
+                }
+                span++;
+                if( span >= prev_span_count )
+                    span = 0;
+                steps++;
+            }
+            if( !found )
+            {
+                /* No span in the previous row covers this edge — the row list is
+                 * inconsistent, which the reference would spin on. */
+                ok = false;
+                break;
+            }
+
+            if( span != prev_span )
+            {
+                int left_edge = cursor_x + prev_offset_delta;
+                if( left_edge < 0 )
+                    left_edge += width;
+                if( left_edge > width )
+                    left_edge -= width;
+
+                for( int i = 1; i <= steps; i++ )
+                {
+                    int bottom = prev_spans[(i + prev_span) % prev_span_count][2];
+                    if( bottom > top_y )
+                        top_y = bottom;
+                }
+                for( int i = 0; i <= steps; i++ )
+                {
+                    const int32_t* skipped = prev_spans[(i + prev_span) % prev_span_count];
+                    int bottom = skipped[2];
+                    int lo, hi;
+                    if( bottom == top_y )
+                        continue;
+                    if( left_edge < right_edge )
+                    {
+                        lo = left_edge > skipped[0] ? left_edge : skipped[0];
+                        hi = right_edge < skipped[1] ? right_edge : skipped[1];
+                    }
+                    else if( skipped[0] == 0 )
+                    {
+                        hi = right_edge < skipped[1] ? right_edge : skipped[1];
+                        lo = 0;
+                    }
+                    else
+                    {
+                        lo = left_edge > skipped[0] ? left_edge : skipped[0];
+                        hi = width;
+                    }
+                    proctex_irregular_draw_brick(
+                        &st, top_y - bottom, hi - lo, prev_row_offset + lo, bottom);
+                }
+            }
+            prev_span = span;
+        }
+
+        if( height < brick_h + top_y )
+            brick_h = height - top_y;
+        else
+            row_fits = false;
+
+        if( end_x == width )
+        {
+            proctex_irregular_draw_brick(&st, brick_h, brick_w, cursor_x + row_offset, top_y);
+            if( row_fits )
+                break; /* the row reached the bottom of the texture: done */
+
+            /* Close the row: publish its spans as the previous row, pick a new random
+             * horizontal offset, and find where the new row's origin falls in it. */
+            if( cur_span_count >= span_capacity )
+            {
+                ok = false;
+                break;
+            }
+            first_row = false;
+            row_fits = true;
+            cur_spans[cur_span_count][0] = cursor_x;
+            cur_spans[cur_span_count][1] = end_x;
+            cur_spans[cur_span_count][2] = brick_h + top_y;
+            prev_span_count = cur_span_count + 1;
+            prev_row_offset = row_offset;
+            row_offset = proctex_next_int_jagex(&st.rnd, width);
+            prev_span = 0;
+            prev_offset_delta = row_offset - prev_row_offset;
+
+            {
+                int32_t (*swap)[3] = prev_spans;
+                prev_spans = cur_spans;
+                cur_spans = swap;
+            }
+            cur_span_count = 0;
+
+            {
+                int origin = prev_offset_delta;
+                int probe;
+                if( origin < 0 )
+                    origin += width;
+                if( width < origin )
+                    origin -= width;
+                for( probe = 0; probe <= prev_span_count; probe++ )
+                {
+                    if( origin >= prev_spans[prev_span][0] && prev_spans[prev_span][1] >= origin )
+                        break;
+                    prev_span++;
+                    if( prev_span_count <= prev_span )
+                        prev_span = 0;
+                }
+                if( probe > prev_span_count )
+                {
+                    ok = false;
+                    break;
+                }
+                cursor_x = 0;
+            }
+        }
+        else
+        {
+            if( cur_span_count >= span_capacity )
+            {
+                ok = false;
+                break;
+            }
+            cur_spans[cur_span_count][0] = cursor_x;
+            cur_spans[cur_span_count][1] = end_x;
+            cur_spans[cur_span_count][2] = brick_h + top_y;
+            cur_span_count++;
+            proctex_irregular_draw_brick(&st, brick_h, brick_w, row_offset + cursor_x, top_y);
+            cursor_x = end_x;
+        }
+    }
+
+    free(cur_spans);
+    free(prev_spans);
+    if( !ok )
+        return false;
+
+    proctex_mark_all_done(cache, height);
+    return true;
+}
+
+/* The vector rasteriser is large enough to be its own unit. */
+#include "engine/proctex/proctex_raster.u.c"

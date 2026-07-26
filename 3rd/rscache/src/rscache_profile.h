@@ -199,16 +199,18 @@ RSCache_GroupRevision(
  *
  * ## Why the name says Osrs
  *
- * Revision numbers are **not one sequence**. dat1 caches are numbered in a 2004-era
- * lineage that reaches 254; OldSchool restarted from 1 in 2013 and is now in the 230s.
- * The two ranges overlap and mean completely different things, so a bare
+ * Revision numbers are **not one sequence**. There are three independent game-revision
+ * lineages: dat1 classic (~200–254), OldSchool (restarted from 1 in 2013, now in the
+ * 230s), and RS2 / main (continuous; this library's profile is 643). The ranges overlap
+ * and mean completely different things — OSRS rev N ≠ RS2 rev N ≠ dat1 rev N — so a bare
  * `version >= 220` is only meaningful once you know which lineage `version` is from.
  *
- * Every threshold in this library is an OldSchool revision, so a **dat1 profile must
- * not satisfy any of them** — rev 254 is older than OSRS 220, not newer. This function
- * enforces that by skipping step 1 for a non-OSRS epoch, and the name carries the
- * invariant so a future dat1-era gate does not reach for the wrong predicate. If one
- * is ever needed, add a sibling rather than widening this.
+ * Every threshold in this library is an OldSchool revision, so a **dat1 or RS2 profile
+ * must not satisfy any of them** — dat1 rev 254 is older than OSRS 220, not newer, and
+ * RS2 643 is not "past" OSRS 209. This function enforces that by skipping step 1 for a
+ * non-OSRS epoch, and the name carries the invariant so a future non-OSRS gate does not
+ * reach for the wrong predicate. If one is ever needed, add a sibling rather than
+ * widening this.
  */
 bool
 RSCache_RevisionAtLeastOsrs(

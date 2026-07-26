@@ -444,12 +444,18 @@ proctex_decode_rasterizer(
         shape->kind = (uint8_t)kind;
         switch( kind )
         {
+        /*
+         * A line and a bezier carry ONE colour, and it is the stroke: the reference builds
+         * them with `super(-1, color, outlineWidth)`, i.e. fill absent. Normalising here
+         * rather than at the draw site keeps -1 meaning "not drawn" for every shape.
+         */
         case 0: /* line: two points, colour, width */
             shape->x[0] = g2b(buffer);
             shape->y[0] = g2b(buffer);
             shape->x[1] = g2b(buffer);
             shape->y[1] = g2b(buffer);
-            shape->fill_colour = g3(buffer);
+            shape->fill_colour = -1;
+            shape->outline_colour = g3(buffer);
             shape->outline_width = (uint8_t)g1(buffer);
             break;
         case 1: /* cubic bezier: four points, colour, width */
@@ -461,7 +467,8 @@ proctex_decode_rasterizer(
             shape->y[2] = g2b(buffer);
             shape->x[3] = g2b(buffer);
             shape->y[3] = g2b(buffer);
-            shape->fill_colour = g3(buffer);
+            shape->fill_colour = -1;
+            shape->outline_colour = g3(buffer);
             shape->outline_width = (uint8_t)g1(buffer);
             break;
         case 2: /* rectangle: two corners, fill, outline, width */
@@ -731,24 +738,24 @@ proctex_decode_field(
             op->u.diagonal_gradient.interpolation_mode = (uint8_t)g1(buffer);
             return true;
         }
-        /*
-         * Fields 2, 4 and 5 appear in two real 643 records but not in the reference decode,
-         * and their widths are NOT determinable from two records. u8 and u16 were both tried:
-         * each one consumes plausibly, moves the failure a few operations along, and yields
-         * another in-range-looking field id — never exact consumption. That is precisely the
-         * E1 trap (a guess that "progresses" without resolving tells you nothing about which
-         * assumption was wrong), so no width is asserted here.
-         *
-         * Stopping is the safe failure: the caller sees a truncated operation_count and a
-         * short _consumed and can skip the texture, whereas a wrong width would silently
-         * build a mis-wired graph and render wrong pixels. Two textures of 1,164 (0.17%) are
-         * affected; see B18 in EXCEPTIONS.md.
-         */
         if( field == 3 )
         {
             op->u.diagonal_gradient.steepness = (uint8_t)g1(buffer);
             return true;
         }
+        /*
+         * Fields 2, 4, 5 and 6 are bare flags: they consume the field id and nothing else.
+         *
+         * The reference decodes 0, 1 and 3 only and desyncs on these — harmlessly for it,
+         * since it never checks consumption. The width was settled against the operation
+         * header instead: ids are sequential, so the byte following the field block must be
+         * `previous id + 1`, and the two after it a valid type and cache size. Zero-width is
+         * the only reading that satisfies all three, and it then chains correctly through
+         * every remaining operation to the end of the archive — in both records that carry
+         * these fields (textures 275 and 742). See B18 in EXCEPTIONS.md.
+         */
+        if( field == 2 || field == 4 || field == 5 || field == 6 )
+            return true;
         return false;
 
     case RSCACHE_PROCTEX_BRICKS:
