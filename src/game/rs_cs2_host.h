@@ -145,6 +145,15 @@ struct RS_CS2Host
      *  RS_CS2_PumpTransmits consumes it once per tick to re-dispatch var-transmit
      *  hooks, so interfaces react to value changes and not only to unhide. */
     int var_transmit_dirty;
+    /** Set when an inventory container's contents actually changed this tick
+     *  (via RS_CS2Host_NotifyInvChanged, wired to the UPDATE_INV_* handlers and
+     *  to local slot swaps). Consumed once per tick by RS_CS2_PumpTransmits. */
+    int inv_transmit_dirty;
+    /** Which container ids changed since the last dispatch, mirroring
+     *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
+    int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
+    int inv_changed_count;
+    int inv_changed_all;
     /** Which var ids changed since the last dispatch (TS changedVarps parity).
      *  A var-transmit hook re-runs only when the change touches one of its
      *  triggers: rev230's gameframe writes a clock varc every tick, and a
@@ -233,6 +242,18 @@ void
 RS_CS2Host_NotifyVarChanged(
     struct RS_CS2Host* host,
     int var_id);
+
+/** Signal that an inventory container changed: bumps inv_change_serial and
+ *  flags an inv-transmit re-dispatch for the tick. This is the container half
+ *  of the same reactive loop NotifyVarChanged drives — without it the CS2
+ *  scripts that paint an inventory only ever run at interface-build time, so a
+ *  container that arrives afterwards (which is always, for a server-driven
+ *  inventory) never reaches the screen. `container_id` < 0 means "unknown,
+ *  re-run every hook". */
+void
+RS_CS2Host_NotifyInvChanged(
+    struct RS_CS2Host* host,
+    int container_id);
 
 void
 RS_CS2Host_SetBridge(

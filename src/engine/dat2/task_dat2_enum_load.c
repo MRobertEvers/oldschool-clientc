@@ -17,6 +17,7 @@ struct Task_Dat2EnumLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int enum_id;
+    struct RSCache_RecordAddress addr;
 };
 
 static int
@@ -33,13 +34,29 @@ Task_Dat2EnumLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
-    PT_YIELD(&task->pt);
+    /* OSRS keeps every enum as a file in config group 8; RS2 promotes them to
+     * their own table, 256 per group (void's EnumDecoder: `id ushr 8`). Same
+     * split as locs — see Task_Dat2LocLoad_Run. */
+    task->addr = RSCache_RecordAddressFor(
+        CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_ENUM);
 
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
+    if( task->addr.group_shift == 0 )
+    {
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
+    }
+    else
+    {
+        RSCache_IO_Dat2RecordGroupLoad(
+            io, 0, task->addr.table, task->enum_id >> task->addr.group_shift);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, task->addr.table);
+    }
+
     if( !archive )
     {
-        fprintf(stderr, "Failed to decode dat2 enum config group for enum %d\n", task->enum_id);
+        fprintf(stderr, "Failed to decode dat2 enum group for enum %d\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
 
@@ -53,9 +70,11 @@ Task_Dat2EnumLoad_Run(
         PT_EXIT(&task->pt);
     }
 
+    /* Sharded file ids are group-relative, so match on the low bits. */
     for( int i = 0; i < filelist->file_count; i++ )
     {
-        if( archive->file_ids[i] != task->enum_id )
+        int want = task->addr.group_shift ? (task->enum_id & task->addr.file_mask) : task->enum_id;
+        if( archive->file_ids[i] != want )
             continue;
         entry.id = task->enum_id;
         RSCache_Dat2ConfigEnumDecodeInplace(

@@ -21,10 +21,11 @@ TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
+RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 
 CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
-	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
+	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR)
 
 RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
@@ -201,7 +202,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run mock230 bench-uitree test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
+.PHONY: all release clean run mock230 test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -330,6 +331,15 @@ test-db: $(OBJ_DIR) $(DB_TEST_OBJS)
 
 $(OBJ_DIR)/hmap.o: $(HMAP_DIR)/hmap.c
 	$(CC) $(CFLAGS) -c $(HMAP_DIR)/hmap.c -o $@
+
+$(OBJ_DIR)/rsareabuf.o: $(RSAREABUF_DIR)/rsareabuf.c
+	$(CC) $(CFLAGS) -c $(RSAREABUF_DIR)/rsareabuf.c -o $@
+
+# rsareabuf: byte/bit/alt-order round-trips + arena + psize back-patching.
+test-rsareabuf: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rsareabuf_test \
+		$(RSAREABUF_DIR)/rsareabuf.c $(RSAREABUF_DIR)/rsareabuf_test.c
+	./$(OBJ_DIR)/rsareabuf_test
 
 $(OBJ_DIR)/ini.o: $(INI_SRC)
 	$(CC) $(CFLAGS) -c $(INI_SRC) -o $@
@@ -548,14 +558,25 @@ test-revconfig: $(OBJ_DIR)
 		revconfig/test/revconfig_test_parse.c
 	./$(OBJ_DIR)/revconfig_test
 
-# Standalone TCP mock server for the OSRS rev-230 protocol (login + on-login
-# burst incl. REBUILD_NORMAL). Run: src/build/mock230 [port]
+# Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
+# on-login burst, and a 600 ms game tick driving movement, npcs, inventory and
+# equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
+MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
+	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
+	$(RSAREABUF_DIR)/rsareabuf.c
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 net/mock/mock230_main.c \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/mock230"
+
+# Mock server game logic with no socket: movement, scene rebuild, equipment
+# (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
+# Runs from the repo root so the default cache path (cache.osrs230) resolves —
+# the equipment checks need the cache's wearpos fields to mean anything.
+test-mock230: mock230
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)

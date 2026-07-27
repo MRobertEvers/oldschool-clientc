@@ -152,6 +152,18 @@ RSCache_RecordAddressFor(
             addr.group_shift = 8;
             addr.file_mask = 0xFF;
             return addr;
+        case RSCACHE_TYPE_ENUM:
+            addr.table = RSCACHE_DAT2_TABLE_ENUM;
+            addr.group_shift = 8;
+            addr.file_mask = 0xFF;
+            return addr;
+        case RSCACHE_TYPE_VARBIT:
+            /* The widest shard of the lot — 1024 files per group (void's
+             * VarBitDecoder: `id ushr 10` / `id and 0x3ff`). */
+            addr.table = RSCACHE_DAT2_TABLE_VARBIT;
+            addr.group_shift = 10;
+            addr.file_mask = 0x3FF;
+            return addr;
         default:
             break;
         }

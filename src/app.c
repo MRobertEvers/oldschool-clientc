@@ -1,5 +1,7 @@
 #include "app.h"
 
+#include "bootmanifest/bootmanifest.h"
+
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "engine/entity_model_build.h"
@@ -2504,6 +2506,37 @@ Task_AppBoot_Run(
     }
 
     app_push_builtin_overlay_nodes(app);
+
+    /*
+     * `[ui:gameframe]` — the login IF_OPENSUB burst, from the manifest.
+     *
+     * A gameframe root is a frame of empty slots; every panel in it (chat box,
+     * orbs, the sidebar tabs, the inventory) arrives as a separate IF_OPENSUB
+     * once the server has the player. Offline there is no server, so the frame
+     * renders as chrome around nothing. Listing the mounts in the manifest
+     * reproduces the burst without inventing a client-side default: the values
+     * are whatever the era's server actually sends (for rev 634 they are read
+     * off Void's `openGamframe` — see docs/RS2_634_CLIENT_REFERENCES.md).
+     *
+     * Skipped when networked: the server sends the real sequence, and mounting
+     * on top of it would fight whatever it opens.
+     */
+    if( app->cfg.gameframe_mount_count > 0 && !app->net_enabled )
+    {
+        for( int i = 0; i < app->cfg.gameframe_mount_count; i++ )
+        {
+            struct BootManifestGameframeMount const* mount = &app->cfg.gameframe_mounts[i];
+            App_OpenSubInterface(
+                app,
+                (app->boot_interface_id << 16) | (mount->component & 0xFFFF),
+                mount->interface_id,
+                0);
+        }
+        printf(
+            "gameframe: queued %d sub-interface mounts under iface %d\n",
+            app->cfg.gameframe_mount_count,
+            app->boot_interface_id);
+    }
 
     /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
      * selected= drive it; nothing here is hardcoded). */
@@ -6249,6 +6282,11 @@ app_inv_drag_tick(
         {
             InvManager_SwapSlots(
                 &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+            /* The swap is applied locally so the drag feels instant; the CS2
+             * paint script still has to be asked to repaint it. */
+            RS_CS2Host_NotifyInvChanged(
+                &app->host,
+                InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
             APP_NET_SEND(
                 app,
                 net_out_inv_buttond(

@@ -35,6 +35,8 @@ struct CacheProvider
     struct HMap* objtype_cache;
     struct HMap* npctype_cache;
     struct HMap* spotanimtype_cache;
+    /** Rendered sound effects (ToriRS_Sound) by effect id. */
+    struct HMap* sound_cache;
     struct HMap* idk_cache;
     struct HMap* map_terrain_cache;
     struct HMap* map_scenery_cache;
@@ -152,6 +154,18 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SpotanimLoad)(
         struct CacheProvider* provider,
         int spotanim_id);
+    /**
+     * Make sound effect `sound_id` resident as rendered PCM.
+     *
+     * dat1 ignores the id and decodes the whole `sounds.dat` bank in one pass —
+     * it is a single blob, so there is nothing cheaper to do, and the reference
+     * unpacks it at load time for the same reason. dat2 loads just that id's
+     * archive. Either way the caller awaits the task and then asks
+     * CacheProvider_SoundGet.
+     */
+    struct ToriRS_Task* (*Task_SoundLoad)(
+        struct CacheProvider* provider,
+        int sound_id);
     struct ToriRS_Task* (*Task_IdkLoad)(
         struct CacheProvider* provider,
         int idk_id);
@@ -580,6 +594,25 @@ void
 CacheProvider_SpotanimtypesCleanup(struct CacheProvider* provider);
 
 void
+CacheProvider_SoundAdd(
+    struct CacheProvider* provider,
+    int sound_id,
+    struct ToriRS_Sound* sound);
+
+struct ToriRS_Sound*
+CacheProvider_SoundGet(
+    struct CacheProvider* provider,
+    int sound_id);
+
+bool
+CacheProvider_SoundHas(
+    struct CacheProvider* provider,
+    int sound_id);
+
+void
+CacheProvider_SoundsCleanup(struct CacheProvider* provider);
+
+void
 CacheProvider_IdkAdd(
     struct CacheProvider* provider,
     int idk_id,
@@ -791,6 +824,16 @@ CreateTask_SpotanimLoad(
     if( !provider->vtable->Task_SpotanimLoad )
         return NULL;
     return provider->vtable->Task_SpotanimLoad(provider, spotanim_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_SoundLoad(
+    struct CacheProvider* provider,
+    int sound_id)
+{
+    if( !provider->vtable->Task_SoundLoad )
+        return NULL;
+    return provider->vtable->Task_SoundLoad(provider, sound_id);
 }
 
 static inline struct ToriRS_Task*

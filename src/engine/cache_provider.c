@@ -20,6 +20,7 @@
 #define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
 #define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
 #define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 1024
+#define CACHE_PROVIDER_SOUND_CAPACITY 1024
 #define CACHE_PROVIDER_IDK_CAPACITY 512
 #define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
 #define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
@@ -73,6 +74,12 @@ struct MapEntry_ProviderParamType
 {
     int id;
     struct ToriRS_ParamType* param;
+};
+
+struct MapEntry_ProviderSound
+{
+    int id;
+    struct ToriRS_Sound* sound;
 };
 
 struct MapEntry_ProviderMapElement
@@ -287,6 +294,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderNpctype), CACHE_PROVIDER_NPCTYPE_CAPACITY);
     provider->spotanimtype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSpotanimtype), CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY);
+    provider->sound_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSound), CACHE_PROVIDER_SOUND_CAPACITY);
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
     provider->map_terrain_cache = cache_provider_hmap_new(
@@ -330,6 +339,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_ObjtypesCleanup(provider);
     CacheProvider_NpctypesCleanup(provider);
     CacheProvider_SpotanimtypesCleanup(provider);
+    CacheProvider_SoundsCleanup(provider);
     CacheProvider_IdksCleanup(provider);
     CacheProvider_MapTerrainsCleanup(provider);
     CacheProvider_MapSceneryCleanup(provider);
@@ -366,6 +376,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->npctype_cache = NULL;
     cache_provider_hmap_free(provider->spotanimtype_cache);
     provider->spotanimtype_cache = NULL;
+    cache_provider_hmap_free(provider->sound_cache);
+    provider->sound_cache = NULL;
     cache_provider_hmap_free(provider->idk_cache);
     provider->idk_cache = NULL;
     cache_provider_hmap_free(provider->map_terrain_cache);
@@ -1654,6 +1666,80 @@ CacheProvider_SpotanimtypesCleanup(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderSpotanimtype), CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY);
 }
 
+/*
+ * Sounds are cached as rendered PCM, one entry per effect id.
+ *
+ * Both eras load them differently — dat1 decodes the whole bank in one pass and
+ * fills every id at once, dat2 loads one archive per id on demand — but both end
+ * up here, so the game only ever asks the provider for a sound id.
+ */
+void
+CacheProvider_SoundAdd(
+    struct CacheProvider* provider,
+    int sound_id,
+    struct ToriRS_Sound* sound)
+{
+    struct MapEntry_ProviderSound* entry;
+
+    assert(provider);
+    assert(sound);
+
+    cache_provider_hmap_prepare_insert(&provider->sound_cache);
+    entry =
+        (struct MapEntry_ProviderSound*)hmap_search(provider->sound_cache, &sound_id, HMAP_INSERT);
+    assert(entry && "Sound must be inserted into hmap");
+
+    entry->id = sound_id;
+    entry->sound = sound;
+}
+
+struct ToriRS_Sound*
+CacheProvider_SoundGet(
+    struct CacheProvider* provider,
+    int sound_id)
+{
+    struct MapEntry_ProviderSound* entry;
+
+    assert(provider);
+
+    entry =
+        (struct MapEntry_ProviderSound*)hmap_search(provider->sound_cache, &sound_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->sound;
+}
+
+bool
+CacheProvider_SoundHas(
+    struct CacheProvider* provider,
+    int sound_id)
+{
+    return CacheProvider_SoundGet(provider, sound_id) != NULL;
+}
+
+void
+CacheProvider_SoundsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderSound* entry;
+
+    assert(provider);
+    if( !provider->sound_cache )
+        return;
+
+    iter = hmap_iter_new(provider->sound_cache);
+    while( (entry = (struct MapEntry_ProviderSound*)hmap_iter_next(iter)) )
+    {
+        if( entry->sound )
+            ToriRS_SoundFree(entry->sound);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->sound_cache);
+    provider->sound_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSound), CACHE_PROVIDER_SOUND_CAPACITY);
+}
+
 void
 CacheProvider_IdkAdd(
     struct CacheProvider* provider,
@@ -1715,6 +1801,8 @@ CacheProvider_IdksCleanup(struct CacheProvider* provider)
     hmap_iter_free(iter);
 
     cache_provider_hmap_free(provider->idk_cache);
+    provider->sound_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSound), CACHE_PROVIDER_SOUND_CAPACITY);
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
 }

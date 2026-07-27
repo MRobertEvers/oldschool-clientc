@@ -35,7 +35,75 @@ struct Task_Dat2VarbitLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     struct VarPManager* varps;
+    /* RS2 shards varbits across a whole table, so the load walks groups. Both
+     * the walk state and the accumulator have to outlive a PT_YIELD. */
+    struct RSCache_RecordAddress addr;
+    struct RSCache_ReferenceTable* ref;
+    int group_index;
+    struct VarBitType* types;
+    int type_count;
+    int decoded;
 };
+
+/* Grow the id-indexed table so `id` fits, filling new slots with basevar -1
+ * ("absent"; a zeroed slot would read as varp 0). */
+static bool
+varbit_types_reserve(
+    struct Task_Dat2VarbitLoad* task,
+    int id)
+{
+    if( id < task->type_count )
+        return true;
+    int want = id + 1;
+    struct VarBitType* grown = realloc(task->types, (size_t)want * sizeof(*grown));
+    if( !grown )
+        return false;
+    for( int i = task->type_count; i < want; i++ )
+    {
+        memset(&grown[i], 0, sizeof(grown[i]));
+        grown[i].basevar = -1;
+    }
+    task->types = grown;
+    task->type_count = want;
+    return true;
+}
+
+static void
+varbit_decode_group(
+    struct Task_Dat2VarbitLoad* task,
+    struct RSCache_Dat2DiskArchive* archive,
+    struct RSCache_FileList* filelist,
+    int base_id)
+{
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = base_id + archive->file_ids[i];
+        if( id < 0 || filelist->file_sizes[i] <= 0 )
+            continue;
+        if( !varbit_types_reserve(task, id) )
+            return;
+
+        struct RSCache_Dat2ConfigVarbit entry;
+        memset(&entry, 0, sizeof(entry));
+        RSCache_Dat2ConfigVarbitDecodeInplace(
+            &entry, filelist->files[i], filelist->file_sizes[i]);
+
+        if( entry._consumed != filelist->file_sizes[i] )
+            fprintf(
+                stderr,
+                "varbit %d: decode consumed %d of %d bytes\n",
+                id,
+                entry._consumed,
+                filelist->file_sizes[i]);
+
+        task->types[id].basevar = entry.basevar;
+        task->types[id].startbit = entry.startbit;
+        task->types[id].endbit = entry.endbit;
+        task->decoded++;
+
+        RSCache_Dat2ConfigVarbitFreeInplace(&entry);
+    }
+}
 
 static int
 Task_Dat2VarbitLoad_Run(
@@ -50,6 +118,56 @@ Task_Dat2VarbitLoad_Run(
     int decoded = 0;
 
     PT_BEGIN(&task->pt);
+
+    /* OSRS packs every varbit into config group 14; RS2 gives them their own
+     * table, 1024 per group (void's VarBitDecoder: `id ushr 10`). The sharded
+     * form needs every group, not just one, so it walks the reference table. */
+    task->addr = RSCache_RecordAddressFor(
+        CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_VARBIT);
+
+    if( task->addr.group_shift != 0 )
+    {
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, task->addr.table);
+        PT_YIELD(&task->pt);
+        task->ref = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+        if( !task->ref )
+        {
+            fprintf(stderr, "varbit: table %d absent; varbits will read 0\n", task->addr.table);
+            PT_EXIT(&task->pt);
+        }
+
+        for( task->group_index = 0; task->group_index < task->ref->id_count; task->group_index++ )
+        {
+            RSCache_IO_Dat2RecordGroupLoad(
+                io, 0, task->addr.table, task->ref->ids[task->group_index]);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, task->addr.table);
+            if( !archive )
+                continue;
+            filelist = RSCache_FileListNewFromDecode(
+                archive->data, archive->data_size, archive->file_count);
+            if( filelist && archive->file_ids )
+                varbit_decode_group(
+                    task,
+                    archive,
+                    filelist,
+                    task->ref->ids[task->group_index] << task->addr.group_shift);
+            RSCache_FileListFree(filelist);
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+
+        RSCache_ReferenceTableFree(task->ref);
+        task->ref = NULL;
+
+        if( !VarPManager_SetVarbitTypes(task->varps, task->types, task->type_count) )
+            fprintf(stderr, "varbit: failed to install %d types\n", task->type_count);
+        else
+            printf("varbit load: %d types (%d records, ids 0..%d)\n", task->type_count,
+                   task->decoded, task->type_count - 1);
+        free(task->types);
+        task->types = NULL;
+        PT_EXIT(&task->pt);
+    }
 
     RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_VARBIT);
     PT_YIELD(&task->pt);

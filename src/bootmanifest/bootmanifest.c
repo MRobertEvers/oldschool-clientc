@@ -63,12 +63,42 @@ bm_parse_nonneg_int(char const* key, char const* value, int* out)
     *out = (int)v;
     return 1;
 }
+/* Like bm_parse_nonneg_int, but skips surrounding blanks and stops at a `;`/`#`
+ * so a value can carry a trailing comment. Only [ui:gameframe] uses it — see the
+ * note at its case in bm_set_kv. */
+static int
+bm_parse_padded_int(char const* key, char const* value, int* out)
+{
+    char* end = NULL;
+    long v;
+
+    assert(key && value && out);
+    while( *value == ' ' || *value == '\t' )
+        value++;
+    v = strtol(value, &end, 10);
+    if( end == value || v < 0 )
+    {
+        fprintf(stderr, "bootmanifest: '%s' must be a non-negative int, got '%s'\n", key, value);
+        return 0;
+    }
+    while( *end == ' ' || *end == '\t' )
+        end++;
+    if( *end != '\0' && *end != ';' && *end != '#' )
+    {
+        fprintf(stderr, "bootmanifest: trailing junk after '%s': '%s'\n", key, end);
+        return 0;
+    }
+    *out = (int)v;
+    return 1;
+}
+
 enum bm_section
 {
     BM_SECTION_NONE = 0,
     BM_SECTION_CACHE,
     BM_SECTION_NET,
     BM_SECTION_UI,
+    BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_SPAWN,
 };
 
@@ -80,6 +110,8 @@ bm_section_of(char const* header)
         return BM_SECTION_CACHE;
     if( strncmp(header, "net:", 4) == 0 )
         return BM_SECTION_NET;
+    if( strcmp(header, "ui:gameframe") == 0 )
+        return BM_SECTION_UI_GAMEFRAME;
     if( strncmp(header, "ui:", 3) == 0 )
         return BM_SECTION_UI;
     if( strncmp(header, "spawn:", 6) == 0 )
@@ -269,6 +301,35 @@ bm_set_kv(
             return;
         }
         break;
+
+    case BM_SECTION_UI_GAMEFRAME:
+    {
+        /* Free-form: every key is a component index on the root interface. Order
+         * is preserved because mounting order is the server's, and a later mount
+         * can depend on an earlier one being in place.
+         *
+         * Both sides are bare numbers, so this is the one section that tolerates
+         * surrounding spaces and a trailing `;`/`#` comment — two dozen numeric
+         * pairs are unreadable without a name beside each one. */
+        int component;
+        int iface;
+        if( !bm_parse_padded_int(key, key, &component) )
+            return;
+        if( !bm_parse_padded_int(key, value, &iface) )
+            return;
+        if( bm->gameframe_count >= BOOTMANIFEST_GAMEFRAME_MAX )
+        {
+            fprintf(
+                stderr,
+                "bootmanifest: [ui:gameframe] holds at most %d mounts; dropping %s=%s\n",
+                BOOTMANIFEST_GAMEFRAME_MAX, key, value);
+            return;
+        }
+        bm->gameframe[bm->gameframe_count].component = component;
+        bm->gameframe[bm->gameframe_count].interface_id = iface;
+        bm->gameframe_count++;
+        return;
+    }
 
     case BM_SECTION_SPAWN:
         if( strcmp(key, "npc") == 0 )
@@ -514,6 +575,11 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->revconfig_cache_ini = bm->revconfig_cache;
     if( bm->interface_id > 0 )
         cfg->interface_id = bm->interface_id;
+    if( bm->gameframe_count > 0 )
+    {
+        cfg->gameframe_mounts = bm->gameframe;
+        cfg->gameframe_mount_count = bm->gameframe_count;
+    }
     if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )
     {
         cfg->spawn_x = bm->spawn_x;

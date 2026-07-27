@@ -427,7 +427,8 @@ ToriRS_SpriteApplyTransform(
 struct ToriRS_Sprite*
 ToriRS_SpriteFromDat2Archive(
     struct RSCache_Dat2DiskArchive* archive,
-    int sprite_id)
+    int sprite_id,
+    const struct RSCache* profile)
 {
     struct RSCache_Dat2SpritePack* pack;
     struct ToriRS_Sprite* sprite;
@@ -442,7 +443,7 @@ ToriRS_SpriteFromDat2Archive(
     pack = RSCache_Dat2SpritePackNewDecode(
         (const unsigned char*)archive->data,
         archive->data_size,
-        RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
+        RSCACHE_SPRITELOAD_FLAG_NORMALIZE | RSCache_Dat2SpriteFlags(profile));
     RSCache_Dat2DiskArchiveFree(archive);
     if( !pack || pack->count <= 0 )
     {

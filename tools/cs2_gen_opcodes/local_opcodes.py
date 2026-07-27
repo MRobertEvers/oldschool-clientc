@@ -24,6 +24,13 @@ LOCAL_NAMES: dict[int, str] = {
     # packet-54 field, updated with membership). No authoritative English name;
     # scripts compare against 8388605 (0x7FFFFD). Offline default is 0.
     6910: "LOGIN_INT24",
+    # RS2-era (rev 634) widget param read: pop a param id, push the ParamType's
+    # value for the active widget. A version -1 widget carries no param table
+    # (the two id-keyed side tables in Class46.method433 are `version >= 0`
+    # only), so this always answers with the ParamType's own default — which is
+    # why it routes through STRUCT_PARAM with struct -1. Vendor placeholder
+    # _1613; nothing in the OldSchool numbering claims it.
+    1613: "CC_GETPARAM",
     1004: "CC_SETPINCH",  # not in vendor
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor

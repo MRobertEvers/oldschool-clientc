@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Byte cursor over a framed payload. Every reader clamps to `len` and sets
  * `over` on the first read past the end, so a layout that does not match the
@@ -238,6 +239,46 @@ osrs230_parse(
             return 0;
         }
         out->_update_inv_partial.count = written;
+        return 1;
+    }
+
+    /* MESSAGE_GAME (op 90, var-u8): p1 type then a NUL-terminated string. The
+     * shared lc254 parser reads a newline-terminated string over the whole
+     * payload and would swallow the type byte into the text. */
+    case PKT_NAME_MESSAGE_GAME:
+    {
+        int text_len;
+        if( len < 1 )
+            return 0;
+        text_len = len - 1;
+        out->_message_game.text = malloc((size_t)text_len + 1);
+        if( !out->_message_game.text )
+            return 0;
+        memcpy(out->_message_game.text, data + 1, (size_t)text_len);
+        out->_message_game.text[text_len] = '\0';
+        return 1;
+    }
+
+    /* UPDATE_STAT_V2 (op 114, 7 bytes): p1 stat, p1 base level, p4 xp, p1
+     * boosted level. The lc254 layout is 6 bytes in a different order, and its
+     * parser asserts the frame is fully consumed. */
+    case PKT_NAME_UPDATE_STAT:
+    {
+        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        out->_update_stat.stat = c_g1(&cur);
+        out->_update_stat.level = c_g1(&cur);
+        out->_update_stat.xp = c_g4(&cur);
+        (void)c_g1(&cur); /* boosted level: no client-side consumer yet */
+        return cur.over ? 0 : 1;
+    }
+
+    /* UPDATE_RUNENERGY (op 77, 2 bytes): p2 hundredths of a percent. lc254
+     * sends a single byte. */
+    case PKT_NAME_UPDATE_RUNENERGY:
+    {
+        if( len < 2 )
+            return 0;
+        out->_update_run_energy.run_energy = ((data[0] << 8) | data[1]) / 100;
         return 1;
     }
 

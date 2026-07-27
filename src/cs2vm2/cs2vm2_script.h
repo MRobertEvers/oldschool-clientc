@@ -25,6 +25,17 @@ struct CS2VM2_ScriptSwitch
 struct CS2VM2_Script
 {
     int script_id;
+    /* True when this script came from an RS2 (634/643) cache.
+     *
+     * Opcode *numbers* are normalised at copy time (cs2_opcode_dialect.h), but a
+     * handful of ids above 4000 mean different commands in the two eras and so
+     * carry different stack signatures — 6506 pushes 4 ints + 3 strings at 634
+     * and 4 + 2 at OldSchool 239, 4124 pops two ints at 634 and none at
+     * OldSchool. Renumbering those would need a private canonical id per
+     * divergence; carrying the era on the script and overlaying a small table is
+     * cheaper and keeps the canonical numbering as-is.
+     * See g_cs2vm2_opcode_stack_rs2 in cs2vm2.c. */
+    bool rs2_dialect;
     char* signature;
     int local_int_count;
     int local_string_count;

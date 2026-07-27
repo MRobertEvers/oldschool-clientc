@@ -5,6 +5,7 @@
 #include "engine/torirs_types.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 struct MapEntry_CacheModel
@@ -258,6 +259,12 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         RSCache_Dat1ConfigSpotanimListFree(dat1_buildcache->spotanim_list);
         dat1_buildcache->spotanim_list = NULL;
     }
+    if( dat1_buildcache->sound_bank )
+    {
+        RSCache_SoundBankFree(dat1_buildcache->sound_bank);
+        dat1_buildcache->sound_bank = NULL;
+    }
+    dat1_jagfile_set(&dat1_buildcache->sounds_jagfile, NULL);
 
     dat1_hmap_free(dat1_buildcache->animbaseframes_hmap);
     dat1_hmap_free(dat1_buildcache->models_hmap);
@@ -338,6 +345,53 @@ dat1_buildcache_get_textures_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
     assert(dat1_buildcache);
     return dat1_buildcache->textures_jagfile;
+}
+
+void
+dat1_buildcache_set_sounds_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_FileListDat* sounds_jagfile)
+{
+    assert(dat1_buildcache);
+    dat1_jagfile_set(&dat1_buildcache->sounds_jagfile, sounds_jagfile);
+}
+
+struct RSCache_SoundBank*
+dat1_buildcache_get_sound_bank(struct Dat1BuildCache* dat1_buildcache)
+{
+    int sounds_idx;
+
+    assert(dat1_buildcache);
+    if( dat1_buildcache->sound_bank )
+        return dat1_buildcache->sound_bank;
+    if( !dat1_buildcache->sounds_jagfile )
+        return NULL;
+
+    sounds_idx =
+        RSCache_FileListDatFindFileByName(dat1_buildcache->sounds_jagfile, "sounds.dat");
+    if( sounds_idx < 0 )
+        return NULL;
+
+    dat1_buildcache->sound_bank = RSCache_SoundBankNewDecode(
+        CacheProvider_Profile(&dat1_buildcache->base),
+        dat1_buildcache->sounds_jagfile->files[sounds_idx],
+        dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx]);
+    if( !dat1_buildcache->sound_bank )
+    {
+        fprintf(stderr, "dat1 sound: sounds.dat did not decode\n");
+        return NULL;
+    }
+    /* The stream is self-terminating, so a short read means a mis-framed record
+     * and every effect after it is suspect. Worth saying out loud — the sounds
+     * would still play, just the wrong ones. */
+    if( dat1_buildcache->sound_bank->_consumed !=
+        dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx] )
+        fprintf(
+            stderr,
+            "dat1 sound: sounds.dat consumed %d of %d bytes\n",
+            dat1_buildcache->sound_bank->_consumed,
+            dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx]);
+    return dat1_buildcache->sound_bank;
 }
 
 struct RSCache_FileListDatIndexed*

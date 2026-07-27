@@ -36,6 +36,13 @@ struct Dat1BuildCache
     struct RSCache_Dat1ConfigSeqList* seq_list;
     /** Whole decoded "spotanim.dat" table (sequentially addressable). */
     struct RSCache_Dat1ConfigSpotanimList* spotanim_list;
+    /** SOUND_EFFECTS jagfile, holding "sounds.dat". */
+    struct RSCache_FileListDat* sounds_jagfile;
+    /** Every sound effect in "sounds.dat", decoded once. The file is one chain
+     * of variable-length records with no index, so reaching effect N means
+     * decoding everything before it — the reference unpacks the whole bank at
+     * load time for the same reason. Rendering stays per-id and on demand. */
+    struct RSCache_SoundBank* sound_bank;
     /** Version-list "anim_version": one u16 per ANIMATIONS-table archive
      * (0 = absent). LostCity writes "anim_index" as zeros, so frame ids
      * cannot be mapped to archives directly — the reference client loads
@@ -126,6 +133,16 @@ dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache);
 
 struct RSCache_Dat1ConfigSpotanimList*
 dat1_buildcache_get_spotanim_list(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_set_sounds_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_FileListDat* sounds_jagfile);
+
+/** Decode (once) the whole sound bank from the sound-effects jagfile. NULL until
+ * that jagfile has been set, or when it carries no "sounds.dat". */
+struct RSCache_SoundBank*
+dat1_buildcache_get_sound_bank(struct Dat1BuildCache* dat1_buildcache);
 
 /** Decode (once) "anim_version" from the cached version-list jagfile: one
  * u16 per ANIMATIONS archive (0 = absent). NULL until the version-list

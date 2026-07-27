@@ -138,17 +138,28 @@ RS_CS2_PumpTransmits(
     assert(runner);
 
     /* Once per logic tick (TS processWidgetTransmits parity): re-dispatch the
-     * transmit hooks when a widget was unhidden (widgets_loaded_dirty) or a
-     * varp/varc value changed (var_transmit_dirty) this tick. The per-hook
-     * last_seen_serial gate inside the dispatch tasks keeps up-to-date hooks from
-     * re-firing, so a quiet tick runs zero scripts. */
-    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty )
+     * transmit hooks when a widget was unhidden (widgets_loaded_dirty), a
+     * varp/varc value changed (var_transmit_dirty), or a container changed
+     * (inv_transmit_dirty). The per-hook last_seen_serial gate inside the
+     * dispatch tasks keeps up-to-date hooks from re-firing, so a quiet tick
+     * runs zero scripts. */
+    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty && !host->inv_transmit_dirty )
         return;
 
-    /* Inv hooks re-run on unhide; var hooks re-run on unhide OR a value change. */
-    if( host->widgets_loaded_dirty )
+    /* Inv hooks re-run on unhide OR a container change. The container filter
+     * mirrors the var one: a plain UPDATE_INV only re-runs the hooks that list
+     * that container as a trigger, while an unhide (which says nothing about
+     * what changed) re-checks everything. Dispatching only on unhide was the
+     * bug that left a server-driven inventory permanently blank — the paint
+     * script ran once at build time against an empty container and nothing
+     * ever asked it to run again. */
+    if( host->widgets_loaded_dirty || host->inv_transmit_dirty )
     {
-        task = CreateTask_CS2InvTransmitDispatch(host, -1);
+        int container = -1;
+        if( !host->widgets_loaded_dirty && !host->inv_changed_all &&
+            host->inv_changed_count == 1 )
+            container = host->inv_changed_ids[0];
+        task = CreateTask_CS2InvTransmitDispatch(host, container);
         assert(task);
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
@@ -174,4 +185,7 @@ RS_CS2_PumpTransmits(
     host->var_transmit_dirty = 0;
     host->var_changed_count = 0;
     host->var_changed_all = 0;
+    host->inv_transmit_dirty = 0;
+    host->inv_changed_count = 0;
+    host->inv_changed_all = 0;
 }

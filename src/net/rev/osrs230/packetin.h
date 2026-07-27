@@ -14,6 +14,14 @@
  * packetin_code maps only the packets we decode to canonical names; the rest
  * frame cleanly (correct size) and drop. REBUILD_NORMAL is handled by the
  * osrs230 `parse` override (payload differs from the lc254 layout).
+ *
+ * ENTITY STREAMS ARE A DELIBERATE DEVIATION. Real rev-230 PLAYER_INFO (op 23)
+ * and NPC_INFO_SMALL (op 104) carry RSProt's v5 high/low-resolution streams,
+ * which this client has no decoder for. The names here bind those opcodes to
+ * the classic (lc254 / Kronos) bitstreams the client does decode, and
+ * src/net/mock encodes them to match. The pairing is self-consistent and
+ * exercises every downstream system; it is NOT wire-compatible with a real
+ * OldSchool 230 server. See docs/osrs230_mockserver.md.
  */
 
 #include "net/rev/pktnames.h"
@@ -35,16 +43,16 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 68, PKTIN_LENGTH_VARU16, PKT_NAME_REBUILD_NORMAL }, /* also carries REBUILD_LOGIN */
     { 59, PKTIN_LENGTH_VARU16, PKT_NAME_NONE }, /* REBUILD_REGION */
     { 23, PKTIN_LENGTH_VARU16, PKT_NAME_PLAYER_INFO }, /* GPI (classic/Kronos-style bitstream) */
-    { 104, PKTIN_LENGTH_VARU16, PKT_NAME_NONE }, /* NPC_INFO_SMALL_V5 */
+    { 104, PKTIN_LENGTH_VARU16, PKT_NAME_NPC_INFO }, /* NPC_INFO_SMALL_V5 (see note above) */
     { 12, PKTIN_LENGTH_VARU16, PKT_NAME_NONE }, /* NPC_INFO_LARGE_V5 */
     { 0, 2, PKT_NAME_NONE },   /* SET_NPC_UPDATE_ORIGIN */
-    { 35, 3, PKT_NAME_NONE },  /* VARP_SMALL */
-    { 82, 6, PKT_NAME_NONE },  /* VARP_LARGE */
+    { 35, 3, PKT_NAME_VARP_SMALL },  /* p2 id, p1 signed value — same as lc254 */
+    { 82, 6, PKT_NAME_VARP_LARGE },  /* p2 id, p4 value — same as lc254 */
     { 7, 0, PKT_NAME_NONE },   /* VARP_RESET */
-    { 88, 0, PKT_NAME_NONE },  /* VARP_SYNC */
-    { 77, 2, PKT_NAME_NONE },  /* UPDATE_RUNENERGY */
-    { 27, 2, PKT_NAME_NONE },  /* UPDATE_RUNWEIGHT */
-    { 114, 7, PKT_NAME_NONE }, /* UPDATE_STAT_V2 */
+    { 88, 0, PKT_NAME_RESET_CLIENT_VARCACHE }, /* VARP_SYNC */
+    { 77, 2, PKT_NAME_UPDATE_RUNENERGY }, /* p2 hundredths — osrs230_parse override */
+    { 27, 2, PKT_NAME_UPDATE_RUNWEIGHT }, /* p2 signed kg — same as lc254 */
+    { 114, 7, PKT_NAME_UPDATE_STAT }, /* V2 layout — osrs230_parse override */
     { 10, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_INV_FULL },
     { 37, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_INV_PARTIAL },
     { 80, 4, PKT_NAME_UPDATE_INV_STOP_TRANSMIT }, /* p4 combinedId */
@@ -55,9 +63,12 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 94, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_SETTEXT */
     { 47, 12, PKT_NAME_NONE }, /* IF_SETEVENTS */
     { 84, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* RUNCLIENTSCRIPT */
-    { 90, PKTIN_LENGTH_VARU8, PKT_NAME_NONE },   /* MESSAGE_GAME */
+    { 90, PKTIN_LENGTH_VARU8, PKT_NAME_MESSAGE_GAME }, /* osrs230_parse override */
     { 29, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* MESSAGE_PRIVATE */
-    { 2, 2, PKT_NAME_NONE },   /* SET_MAP_FLAG */
+    /* SET_MAP_FLAG carries (x, y) with 255,255 meaning "clear". The mock only
+     * ever sends the clear form, and the canonical UNSET_MAP_FLAG handler
+     * ignores its payload, so the 2-byte frame maps straight onto it. */
+    { 2, 2, PKT_NAME_UNSET_MAP_FLAG },
     { 75, PKTIN_LENGTH_VARU8, PKT_NAME_NONE },   /* SET_PLAYER_OP */
     { 76, 6, PKT_NAME_NONE },  /* HINT_ARROW */
     { 73, 1, PKT_NAME_NONE },  /* MINIMAP_TOGGLE */

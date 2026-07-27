@@ -51,7 +51,10 @@ Task_Dat2ComponentPackLoad_Run(
 
     table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_INTERFACES);
     rscache_pack = RSCache_IO_Dat2ComponentPackDecode(
-        io, 0, table ? table->version : RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN);
+        io,
+        0,
+        table ? table->version : RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN,
+        CacheProvider_Profile(&task->bc->base));
     if( !rscache_pack )
     {
         fprintf(stderr, "Failed to decode dat2 component pack %d\n", task->iface_id);

@@ -31,6 +31,7 @@ enum ToriRS_Kind
     TORIRS_KIND_CLIENTSCRIPT,
     TORIRS_KIND_OBJTYPE,
     TORIRS_KIND_SPOTANIMTYPE,
+    TORIRS_KIND_SOUND,
     TORIRS_KIND_COUNT,
 };
 
@@ -411,6 +412,36 @@ struct ToriRS_AnimayaSkin
     uint8_t* group_counts; /* [vertex_count] */
     uint8_t** groups;      /* [vertex_count][group_count] bone indices  */
     uint8_t** scales;      /* [vertex_count][group_count] bone weights  */
+};
+
+/**
+ * A sound effect, rendered.
+ *
+ * The cache stores sound effects as synthesiser programs, not recordings, so the
+ * neutral type is what came out of running one: 8-bit unsigned mono PCM, which
+ * is byte-for-byte a RIFF/WAVE payload and what every platform backend can take
+ * with at most an integer conversion. 128 is silence.
+ *
+ * `loop_start`/`loop_end` are the effect's loop span in samples. The server's
+ * SYNTH_SOUND carries a repeat count, so the span is kept rather than baked in:
+ * one render is cached per id and the repeats are stamped in at play time
+ * (ToriRS_SoundExpandLoops), which is what the reference client does too.
+ *
+ * `queue_delay` is the lead-in the render dropped, in client ticks. The server's
+ * play delay is relative to the effect's own start, so the game adds this back
+ * when queueing — otherwise an effect authored with a 600ms run-up plays 600ms
+ * early.
+ */
+struct ToriRS_Sound
+{
+    int id;
+    uint8_t* pcm;
+    int sample_count;
+    int sample_rate;
+    int channels;
+    int loop_start; /* -1 = the effect does not loop */
+    int loop_end;
+    int queue_delay;
 };
 
 #define TORIRS_SPRITE_REF_MAX 128
@@ -860,6 +891,9 @@ void
 ToriRS_FontFree(struct ToriRS_Font* font);
 
 void
+ToriRS_SoundFree(struct ToriRS_Sound* sound);
+
+void
 ToriRS_EnumFree(struct ToriRS_Enum* e);
 
 void
@@ -924,6 +958,9 @@ ToriRS_SpriteSizeOf(const struct ToriRS_Sprite* sprite);
 
 size_t
 ToriRS_FontSizeOf(const struct ToriRS_Font* font);
+
+size_t
+ToriRS_SoundSizeOf(const struct ToriRS_Sound* sound);
 
 size_t
 ToriRS_ComponentSizeOf(const struct ToriRS_Component* component);

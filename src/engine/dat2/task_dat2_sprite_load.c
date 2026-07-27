@@ -40,7 +40,8 @@ Task_Dat2SpriteLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    sprite = ToriRS_SpriteFromDat2Archive(archive, task->sprite_id);
+    sprite = ToriRS_SpriteFromDat2Archive(
+        archive, task->sprite_id, CacheProvider_Profile(&task->bc->base));
     if( !sprite )
     {
         fprintf(stderr, "Failed to convert dat2 sprite %d\n", task->sprite_id);
@@ -170,7 +171,8 @@ Task_Dat2SpriteLoadByName_Run(
             PT_EXIT(&task->pt);
         }
 
-        sprite = ToriRS_SpriteFromDat2Archive(archive, task->sprite_id);
+        sprite = ToriRS_SpriteFromDat2Archive(
+        archive, task->sprite_id, CacheProvider_Profile(&task->bc->base));
         if( !sprite )
         {
             fprintf(stderr, "Failed to convert dat2 sprite %d\n", task->sprite_id);

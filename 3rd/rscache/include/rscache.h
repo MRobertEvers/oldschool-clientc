@@ -49,6 +49,8 @@
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_flo.h"
 #include "datatypes/dat2_texture.h"
+#include "datatypes/sound_synth.h"
+#include "datatypes/sound_render.h"
 #include "datatypes/dat2_sprites.h"
 #include "datatypes/dat2_config_enum.h"
 #include "datatypes/dat2_config_struct.h"

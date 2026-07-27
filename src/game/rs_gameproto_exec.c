@@ -7,6 +7,7 @@
 #include "net/rev/revpacket.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
 #include "rs_player_stats.h"
 #include "rs_social.h"
@@ -56,6 +57,10 @@ exec_update_inv_full(
     if( InvManager_EnsureContainer(ctx->invs, container, p->size, "server-inv") < 0 )
         return;
     InvManager_ApplyFull(ctx->invs, container, p->obj_ids, p->obj_counts, p->size);
+    /* Containers arrive long after the interface that paints them was built,
+     * so the CS2 paint script has to be told to run again. */
+    if( ctx->app )
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
     if( getenv("TORIRS_INV_DEBUG") )
     {
         fprintf(
@@ -103,6 +108,8 @@ exec_update_inv_partial(
                 slot.obj_id,
                 slot.obj_count);
     }
+    if( ctx->app && p->count > 0 )
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
 }
 
 /* Zone sub-packet tile: base (scene-local, set by the FOLLOWS packets) +

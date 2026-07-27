@@ -10,7 +10,28 @@ enum RSCache_SpriteLoadFlags
 {
     RSCACHE_SPRITELOAD_FLAG_NONE = 0,
     RSCACHE_SPRITELOAD_FLAG_NORMALIZE = 1 << 0,
+    /**
+     * OldSchool 232+: after any FLAG_ALPHA payload, force every pixel whose
+     * palette index is non-zero to fully opaque.
+     *
+     * RuneLite dropped the `else` that used to make the two mutually exclusive, so
+     * from 232 the stored alpha channel only ever *reduces* to a mask. Older
+     * clients keep the channel verbatim — the rev-634 decoder
+     * (Class207.method1517) reads the plane, discards it only when every byte is
+     * 0xFF, and has no such override. Applying the newer rule to a 634 cache turns
+     * every soft-edged asset into a hard block: interface 548's tab-flash overlays
+     * (sprites 1840/1841) and the summoning orb glow (1796) all ship an alpha
+     * ramp, and drawing them opaque paints solid yellow over the tab strip.
+     */
+    RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX = 1 << 1,
 };
+
+struct RSCache;
+
+/** Decode flags for a cache, minus RSCACHE_SPRITELOAD_FLAG_NORMALIZE (a caller
+ *  choice, not an era one). */
+enum RSCache_SpriteLoadFlags
+RSCache_Dat2SpriteFlags(const struct RSCache* cache);
 
 struct RSCache_Dat2Sprite
 {

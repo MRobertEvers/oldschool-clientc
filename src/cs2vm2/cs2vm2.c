@@ -1333,10 +1333,16 @@ CS2VM2_Op_CC_Create(
     assert(vm);
     assert(frame);
 
-    int is_nested, child_index, type, parent_id;
+    int is_nested = 0, child_index, type, parent_id;
 
-    if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
+    /* RS2 (634) pushes only (parent, type, index) — Class66.method710 opcode 100
+     * pops three. The nested flag is a later OldSchool addition; popping it under
+     * RS2 steals the parent id and the create fails on a garbage uid. */
+    if( !(frame->script && frame->script->rs2_dialect) )
+    {
+        if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
     if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
@@ -5828,6 +5834,12 @@ CS2VM2_Op_StructParam(
     int operand);
 
 int
+CS2VM2_Op_CC_GetParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
 CS2VM2_Op_CC_GetText(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -6276,6 +6288,113 @@ CS2VM2_Op_SafeArea(
     return vm->vm->host_exec(vm, &request);
 }
 
+/*
+ * Stack signatures for RS2 (634/643) commands the OldSchool table does not carry,
+ * or carries with a different shape.
+ *
+ * Read off the rev-634 client's command dispatcher (`Class66`, and the classes it
+ * chains to; see docs/RS2_634_CLIENT_REFERENCES.md) by counting stack traffic:
+ * `anIntArray1149[--anInt1173]` pops an int, `anIntArray1149[anInt1173++] =` pushes
+ * one, `aStringArray1152` is the string stack, and `anInt1173 -= N` followed by
+ * indexed reads pops N at once.
+ *
+ * Only ids whose 634 signature is not already in the canonical table belong here.
+ * Two ids in this list demonstrably mean different commands in the two eras — 4124
+ * (634: two ints in, one string out; OldSchool 239 script 5031 calls it with an
+ * empty stack) and 6506 (634 pushes 4 ints + 3 strings; OldSchool 239 script 6918
+ * stores 4 ints + 2) — which is why this is an era overlay rather than more
+ * entries in gen_opcode_stack.py's MANUAL_STACK.
+ *
+ * These are stubs, not implementations: the counts keep the stack balanced so the
+ * rest of the script runs, and every pushed value is a zero/empty default.
+ */
+struct CS2VM2OpcodeStackRs2
+{
+    uint16_t opcode;
+    struct CS2VM2OpcodeStack meta;
+};
+
+static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
+    /* 202/203: remove a widget from its group array (Class66.method714/702).
+     * Canonical 202 is CC_FINDROOT, which pushes instead of popping. */
+    { 202, { 1, 0, 0, 0, 1 } },
+    /* 1122 / 2122: CC_/IF_ set of the type-5 flag bit 1 (Class46.aBoolean745).
+     * The IF_ form pops the component id first (Class66:2731 `i -= 1000`). */
+    { 1122, { 1, 0, 0, 0, 1 } },
+    { 2122, { 2, 0, 0, 0, 1 } },
+    /* 1311/2314 collide with CC_SETOPSUBMENU and IF_SETTARGETPRIORITY: at 634
+     * both are plain one-int widget setters (Class66 `class46.anInt713` /
+     * `anInt719`). */
+    { 1311, { 1, 0, 0, 0, 1 } },
+    { 2314, { 2, 0, 0, 0, 1 } },
+    /* 2703: count of a widget's dynamic children (Class46.aClass46Array798). */
+    { 2703, { 1, 0, 1, 0, 1 } },
+    { 3316, { 0, 0, 1, 0, 1 } }, /* STAFFMODLEVEL */
+    { 3323, { 0, 0, 1, 0, 1 } }, /* PLAYERMOD */
+    { 3329, { 0, 0, 1, 0, 1 } }, /* Class50_Sub2.aBoolean5233 */
+    { 3335, { 0, 0, 1, 0, 1 } }, /* language index (Class348_Sub33.anInt6967) */
+    { 3340, { 0, 0, 1, 0, 1 } }, /* Class175.aBoolean2329 */
+    { 3351, { 0, 0, 3, 0, 1 } }, /* three mouse-button booleans, one call */
+    /* 3609/3619 take a name string where the canonical pair takes an int. */
+    { 3609, { 0, 1, 1, 0, 1 } }, /* friend test by display name */
+    { 3619, { 0, 1, 0, 0, 1 } }, /* join clan chat by owner name */
+    { 4124, { 2, 0, 0, 1, 1 } }, /* (value, comma-group) -> formatted number */
+    { 4125, { 1, 1, 1, 0, 1 } }, /* (font, text) -> rendered width */
+    /*
+     * 5003..5024 are a friend/ignore-record accessor family at 634 — every one
+     * takes a list index and reads a field off the record
+     * (`Class147 = s.method3985(index)`). The canonical numbering puts the chat
+     * history family on the same ids, with no argument and a different result
+     * type, so these have to be overridden even where the two happen to agree on
+     * the count.
+     */
+    { 5003, { 1, 0, 0, 1, 1 } },
+    { 5004, { 1, 0, 1, 0, 1 } },
+    { 5010, { 1, 0, 0, 1, 1 } },
+    { 5011, { 1, 0, 0, 1, 1 } },
+    { 5012, { 1, 0, 1, 0, 1 } },
+    { 5019, { 1, 0, 0, 1, 1 } },
+    { 5024, { 1, 0, 1, 0, 1 } },
+    { 5056, { 1, 0, 1, 0, 1 } }, /* array length or 0 */
+    { 5102, { 0, 0, 1, 0, 1 } }, /* key-down test */
+    { 5420, { 0, 0, 1, 0, 1 } },
+    /* 5424: eleven ints — four chat/scroll geometry values, five sprite ids the
+     * client immediately preloads, then two more. Sets the chat scrollbar skin. */
+    { 5424, { 11, 0, 0, 0, 1 } },
+    { 5428, { 2, 0, 1, 0, 1 } },
+    { 5504, { 2, 0, 0, 0, 1 } }, /* CAM_FORCEANGLE */
+    { 5505, { 0, 0, 1, 0, 1 } }, /* CAM_GETANGLE_XA */
+    { 5506, { 0, 0, 1, 0, 1 } }, /* CAM_GETANGLE_YA */
+    { 5507, { 0, 0, 0, 0, 1 } },
+    { 5508, { 0, 0, 0, 0, 1 } },
+    { 5509, { 0, 0, 0, 0, 1 } },
+    { 5510, { 0, 0, 0, 0, 1 } },
+    { 5547, { 0, 0, 1, 0, 1 } },
+    /* 6506 WORLDLIST_SPECIFIC(world) -> id, name, loc-id, loc-name, flags,
+     * players, activity. Four ints and three strings, interleaved on the wire but
+     * split across the two stacks. */
+    { 6506, { 1, 0, 4, 3, 1 } },
+    { 6510, { 0, 0, 1, 0, 1 } },
+    { 6900, { 0, 0, 1, 0, 1 } },
+};
+
+static bool
+cs2vm2_opcode_stack_rs2_lookup(
+    int opcode,
+    struct CS2VM2OpcodeStack* out)
+{
+    for( size_t i = 0; i < sizeof(g_cs2vm2_opcode_stack_rs2) / sizeof(g_cs2vm2_opcode_stack_rs2[0]);
+         i++ )
+    {
+        if( g_cs2vm2_opcode_stack_rs2[i].opcode == (uint16_t)opcode )
+        {
+            *out = g_cs2vm2_opcode_stack_rs2[i].meta;
+            return true;
+        }
+    }
+    return false;
+}
+
 static int
 CS2VM2_Op_StackMetaStub(
     struct CS2VM2_Thread* vm,
@@ -6290,7 +6409,16 @@ CS2VM2_Op_StackMetaStub(
     if( opcode < 0 || opcode >= CS2VM2_OPCODE_STACK_MAX )
         return CS2VM_EXECNO_OK;
 
-    struct CS2VM2OpcodeStack const meta = g_cs2vm2_opcode_stack[opcode];
+    struct CS2VM2OpcodeStack meta = g_cs2vm2_opcode_stack[opcode];
+
+    /* The RS2 overlay wins where it has an entry: for the ids it names the
+     * canonical signature is either absent or a different command's. */
+    if( frame->script && frame->script->rs2_dialect )
+    {
+        struct CS2VM2OpcodeStack rs2;
+        if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
+            meta = rs2;
+    }
 
     /* Reaching the generic stub with an unknown signature means the opcode is
      * unimplemented: nobody has given it a real stack signature, so the pop/push
@@ -6301,6 +6429,33 @@ CS2VM2_Op_StackMetaStub(
      * falls back to its previous best-effort no-op behaviour. */
     if( !meta.known )
     {
+        /* TORIRS_CS2_SURVEY=1 downgrades the abort to one report per opcode.
+         * Bringing up a new era means walking a list of missing opcodes, and one
+         * abort per rebuild makes that list arrive one entry at a time. The run
+         * afterwards is not trustworthy — a no-op with the wrong arity corrupts
+         * the stack — so this is a survey tool, never a way to ship. */
+        static bool survey = false;
+        static bool survey_read = false;
+        if( !survey_read )
+        {
+            survey = getenv("TORIRS_CS2_SURVEY") != NULL;
+            survey_read = true;
+        }
+        if( survey )
+        {
+            static bool reported[CS2VM2_OPCODE_STACK_MAX];
+            if( !reported[opcode] )
+            {
+                reported[opcode] = true;
+                fprintf(
+                    stderr,
+                    "cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
+                    opcode,
+                    frame->script ? frame->script->script_id : -1,
+                    frame->pc);
+            }
+            return CS2VM_EXECNO_OK;
+        }
         CS2VM2_ReportUnimplementedOpcode(frame, opcode);
         assert(0 && "unimplemented CS2 opcode reached StackMetaStub");
     }
@@ -7202,6 +7357,23 @@ CS2VM2_RunOp(
     char* strpop_a;
     char* strpop_b;
 
+    /*
+     * An id in the RS2 overlay names a *different command* under RS2 than the
+     * canonical handler below implements, so the handler has to be skipped
+     * outright — not just given different pop counts. StackMetaStub with the
+     * overlay's signature is the honest result: the stack stays balanced and the
+     * command is a no-op, rather than the wrong command running.
+     *
+     * Only ids the overlay actually lists divert; everything RS2 shares with
+     * OldSchool falls through to its real handler as before.
+     */
+    if( frame->script && frame->script->rs2_dialect )
+    {
+        struct CS2VM2OpcodeStack rs2;
+        if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
+            return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
+    }
+
     switch( opcode )
     {
     case CS2_OP_PUSH_VAR:
@@ -7956,6 +8128,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_OC_IntParam(vm, frame, operand, CS2VM_OC_INT_ID);
     case CS2_OP_STRUCT_PARAM:
         return CS2VM2_Op_StructParam(vm, frame, operand);
+    case CS2_OP_CC_GETPARAM:
+        return CS2VM2_Op_CC_GetParam(vm, frame, operand);
     case CS2_OP_CLIENTCLOCK:
     {
         struct CS2VM_HostRequest request;
@@ -8592,6 +8766,40 @@ CS2VM2_Op_StructParam(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
     request.u.struct_param.struct_id = struct_id;
+    request.u.struct_param.param_id = param_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * CC_GETPARAM (RS2 wire 1613): read a param off the active widget.
+ *
+ * Type-polymorphic — the ParamType decides whether an int or a string comes
+ * back, which is why it cannot be a StackMetaStub entry. A rev-634 widget only
+ * carries its own param table when the file's leading version byte is >= 0, and
+ * no file in a 634-era cache is (they all lead with 255 = -1), so the answer is
+ * always the ParamType's default. STRUCT_PARAM with struct -1 already means
+ * exactly that — "no record, fall through to the param default" — so this
+ * forwards to it rather than duplicating the type dispatch.
+ */
+int
+CS2VM2_Op_CC_GetParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int param_id;
+    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
+    request.u.struct_param.struct_id = -1;
     request.u.struct_param.param_id = param_id;
 
     return vm->vm->host_exec(vm, &request);

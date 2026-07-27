@@ -24,6 +24,11 @@ CS2_OpcodeTranslate(
          * for GET_VARC_LONG. Translate so the VM never sees the collision. */
         if( wire_opcode == 51 )
             return (uint16_t)CS2_OP_SWITCH;
+        /* STRUCT_PARAM: 634 wire 4500, canonical 6516. Same stack shape — pop
+         * (struct, param), push int or string by the ParamType — so the existing
+         * handler is correct once the id lines up. */
+        if( wire_opcode == 4500 )
+            return (uint16_t)CS2_OP_STRUCT_PARAM;
     }
     return wire_opcode;
 }

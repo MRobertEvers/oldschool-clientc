@@ -45,6 +45,7 @@ CS2VM2_ScriptCopy(
 
     CS2VM2_ScriptInit(dst);
     dst->script_id = src->script_id;
+    dst->rs2_dialect = src->rs2_dialect;
     dst->local_int_count = src->local_int_count;
     dst->local_string_count = src->local_string_count;
     dst->local_long_count = src->local_long_count;

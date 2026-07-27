@@ -110,6 +110,7 @@ CS2VM2_ScriptCopyFromRSCache(
 
     CS2VM2_ScriptInit(dst);
     dst->script_id = src->script_id;
+    dst->rs2_dialect = dialect == CS2_OPCODE_DIALECT_RS2_DAT2;
     dst->signature = NULL;
     dst->local_int_count = src->local_int_count;
     dst->local_string_count = src->local_string_count;

@@ -1201,6 +1201,79 @@ loaded.
 prints "varbit load mismatch" for the same condition). It is silent on `cache254.lostcity`,
 which is how the 6-type count was confirmed as real rather than a misparse.
 
+### B20. Sound effects — one codec, two eras, and the samples that are not decoded *(Resolved, one gap)*
+
+Sound effects are an FM synthesiser program, not a recording, so "decoding" them has two
+halves: `sound_synth.c` reads the program and `sound_render.c` runs it. Both are here for
+the same reason `dat2_proctexture.c` is: the meaning of the format belongs next to the
+decoder, or every consumer re-derives it.
+
+The record layout is identical in both containers — the packaging is all that differs — so
+the files carry no `dat1_`/`dat2_` prefix:
+
+| Lineage | Packaging | Filter | Corpus result |
+|---|---|---|---|
+| rs2/dat1 254 | `sounds.dat` in config archive 8 | no | 4 caches, whole file byte-exact |
+| rs2/dat1 377 | same | yes | 2727 effects, 929467/929467 bytes, byte-exact |
+| oldschool/dat2 184–239 | one archive per id | yes | 4211 / 10279 / 12007 effects, all byte-exact |
+| rs2/dat2 634, 643 | one archive per id | yes | 10154 / 10232 effects, all byte-exact |
+
+**The era gate is measured, not guessed, but it cannot be detected.** The tone record grew
+a trailing `SynthFilter` + envelope when the engine was rewritten. The two flavours are
+indistinguishable byte-for-byte at record level — the only signal is that a whole container
+stops consuming exactly, which is a property of the *file*, not the record. Parse 254 with
+filters and it desyncs on the second record; parse 377 without and it desyncs immediately.
+So `RSCache_SoundCodecVersion` states the boundary from the profile, at RS2 revision 377.
+
+*Gap:* no cache in the corpus sits between 255 and 376, so the exact revision that
+introduced the filter is unmeasured. 377 is the earliest cache that has it and 254 the
+latest that does not. `test_sound.c` asserts the codec each cache resolves to, so a wrong
+gate fails loudly instead of decoding the other flavour.
+
+**Byte-exactness is 100%, and that is not a coincidence.** Unlike the config types (B2, B3),
+this format has no opcode ordering to reproduce and no field the decoder drops, so
+`encode(decode(x)) == x` is achievable and is *asserted*, not merely reported. Two things
+were needed for it:
+
+- **The dat1 bank preserves wire order.** `sounds.dat` records are not sorted by id —
+  `cache.rs377`'s first record is id 1278 — so `RSCache_SoundBank` carries an explicit
+  `order[]`. Encoding in id order was the first version and it failed at byte 0.
+- **The filter's envelope has non-zero defaults.** When the wire carries no filter stage
+  list, the reference's envelope keeps what its *constructor* set: a two-stage 0..65535
+  ramp. Leaving it empty decodes fine and round-trips fine, and silently freezes the filter
+  sweep at zero — audible, and invisible to every framing check. The decoder installs the
+  defaults; the encoder does not write them.
+
+*Gap: Jagex-compressed samples are identified, not decoded.* Modern OldSchool (239) also
+ships audio in a "BCV" container in the same table — 119 archives pair it with a synth
+record as group file 1, and 3 archives are sample-only. `RSCache_SoundSampleKindOf`
+recognises them so a caller skips them rather than decoding noise; the 119 paired ones still
+play their synth record. Decoding BCV means a Vorbis implementation plus the shared codebook
+file, and rt4's `VorbisSound` header layout does not even match these bytes, so there is no
+reference to port — it would be a codec re-derived from scratch. Left out deliberately;
+the effect is 3 of 12010 OldSchool-239 sound ids being silent.
+
+*Deviation: the noise table is always the seeded sequence.* Waveform 4 reads a table of
+±1 values. rt4 fills it from `new Random(0L)`; Client-TS and Client3 fill it from an
+unseeded RNG, so their table differs run to run. Both are white noise and neither client's
+exact sequence is meaningful, so the renderer always reproduces Java's seeded sequence
+(`java_random` in sound_render.c). That is what makes a render byte-stable, which is what
+lets the test compare two renders of the same effect at all.
+
+*Deviation: `loop_count == 0` plays once.* The reference's loop expansion computes
+`total = count + span * (loopCount - 1)`, so a zero loop count *shortens* the buffer by one
+span. `RSCache_SoundPcmExpandLoops` treats 0 and 1 alike (play once) rather than reproducing
+a negative adjustment, and renders the natural length always. For every `loopCount >= 1`
+the output is the reference's.
+
+*Deviation: the two mixing generations are kept apart.* Tone synthesis is identical in both
+eras; summing tones into the output is not. dat1 (Client-TS `Wave.generate`) starts the
+buffer at -128 and adds in **wrapping** 8-bit arithmetic — an overflowing sum wraps, which
+is audible and is part of how these effects sound. dat2 (rt4 `SynthSound.getSamples`) starts
+at 0 and **clamps**. Each era is matched to its own reference client rather than both being
+cleaned up to clamp. The gate is the same one the filter uses, on the argument that both
+changed with the same engine rewrite; that pairing is a judgement call, not a measurement.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*
@@ -1400,7 +1473,7 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1359 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1461 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
@@ -1410,16 +1483,19 @@ tree and was not touched by this work.
 | roundtrip | 331 |
 | compression | 99 |
 | config_var | 37 |
+| sound | 102 |
 | bzip2 interop | 9 |
 
 Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report
 unchanged asset counts (dat1 219 locs / 222 models, dat2 430 locs / 399 models).
 
-**Encoders: 26 — every datatype this library decodes.** The 19 config types (struct,
+**Encoders: 27 — every datatype this library decodes.** The 19 config types (struct,
 enum, param, idk, spotanim, obj, underlay, overlay, texture, mapelement, npc, loc,
-sequence, **varbit, varplayer, varclient, inv, healthbar, hitsplat**) plus framemap,
-sprites, map terrain, frame, clientscript and model.
+sequence, varbit, varplayer, varclient, inv, healthbar, hitsplat) plus framemap,
+sprites, map terrain, frame, clientscript, model and **sound effects** — the last of
+these being the only one whose byte-exactness is *asserted* at 100% rather than
+reported (B20).
 
 Semantic round-trip is asserted at 100% on all twenty-six, across every dat2 cache
 that carries the datatype.
@@ -1428,7 +1504,7 @@ Byte-exactness, which is reported rather than asserted (see E):
 
 | Band | Datatypes |
 |---|---|
-| 100% | **varbit, varplayer, varclient, inv, healthbar, hitsplat**, model, frame, clientscript, framemap (old caches), struct |
+| 100% | **sound effects (asserted, every cache)**, varbit, varplayer, varclient, inv, healthbar, hitsplat, model, frame, clientscript, framemap (old caches), struct |
 | ~99% | underlay |
 | ~36% | sequence |
 | ~25% | sprites — ordering only (B3b) |

@@ -704,6 +704,23 @@ ToriRS_FontFree(struct ToriRS_Font* font)
     free(font);
 }
 
+size_t
+ToriRS_SoundSizeOf(const struct ToriRS_Sound* sound)
+{
+    if( !sound )
+        return 0;
+    return sizeof(*sound) + (size_t)(sound->sample_count > 0 ? sound->sample_count : 0);
+}
+
+void
+ToriRS_SoundFree(struct ToriRS_Sound* sound)
+{
+    if( !sound )
+        return;
+    free(sound->pcm);
+    free(sound);
+}
+
 void
 ToriRS_EnumFree(struct ToriRS_Enum* e)
 {

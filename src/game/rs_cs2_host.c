@@ -624,6 +624,38 @@ RS_CS2Host_NotifyVarChanged(
 }
 
 void
+RS_CS2Host_NotifyInvChanged(
+    struct RS_CS2Host* host,
+    int container_id)
+{
+    if( !host )
+        return;
+    host->inv_change_serial++;
+    host->inv_transmit_dirty = 1;
+    if( getenv("TORIRS_CC_DEBUG") )
+        fprintf(
+            stderr,
+            "INV_CHANGED container=%d serial=%u\n",
+            container_id,
+            host->inv_change_serial);
+
+    if( host->inv_changed_all )
+        return;
+    if( container_id < 0 || host->inv_changed_count >= RS_CS2_HOST_VAR_CHANGED_MAX )
+    {
+        host->inv_changed_all = 1;
+        host->inv_changed_count = 0;
+        return;
+    }
+    for( int i = 0; i < host->inv_changed_count; i++ )
+    {
+        if( host->inv_changed_ids[i] == container_id )
+            return;
+    }
+    host->inv_changed_ids[host->inv_changed_count++] = container_id;
+}
+
+void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
     assert(host);

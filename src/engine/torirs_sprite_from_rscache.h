@@ -1,15 +1,18 @@
 #ifndef TORIRS_SPRITE_FROM_RSCACHE_H
 #define TORIRS_SPRITE_FROM_RSCACHE_H
 
+struct RSCache;
 struct RSCache_Dat2DiskArchive;
 struct RSCache_Dat2SpritePack;
 struct ToriRS_Sprite;
 
-/** Takes ownership of archive (frees it). */
+/** Takes ownership of archive (frees it). `profile` selects the era-gated decode
+ *  rules (the OldSchool 232+ opaque-index override); NULL keeps the older ones. */
 struct ToriRS_Sprite*
 ToriRS_SpriteFromDat2Archive(
     struct RSCache_Dat2DiskArchive* archive,
-    int sprite_id);
+    int sprite_id,
+    const struct RSCache* profile);
 
 /** Does not free pack. Builds ARGB frames for all sprites in the pack. */
 struct ToriRS_Sprite*

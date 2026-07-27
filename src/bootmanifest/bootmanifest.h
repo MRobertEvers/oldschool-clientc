@@ -18,6 +18,11 @@
  *                 jag_crc=<9 comma-separated int32>
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *   [ui:gameframe]  <component>=<interface_id>, one per line
+ *                 Sub-interfaces to mount into the root's component slots once
+ *                 the tree is up — the offline stand-in for the IF_OPENSUB burst
+ *                 a server sends at login. Ignored when a live connection is in
+ *                 play, since the server sends the real thing.
  *   [spawn:hotkeys]  npc=<id>  obj=<id>  spotanim=<id>
  *                    spotanim_height=<n>  spotanim_delay=<n>
  *                    proj_model=<id>  proj_seq=<id>
@@ -37,6 +42,17 @@
  */
 
 struct AppConfig; /* fwd; src/app.h */
+
+/* Void's rev-634 login opens 25 sub-interfaces; leave room to grow. */
+#define BOOTMANIFEST_GAMEFRAME_MAX 64
+
+/** One `[ui:gameframe]` entry: mount `interface_id` into the root interface's
+ *  component slot `component`. */
+struct BootManifestGameframeMount
+{
+    int component;
+    int interface_id;
+};
 
 struct BootManifest
 {
@@ -78,6 +94,10 @@ struct BootManifest
     char revconfig_ui[512];    /* resolved */
     char revconfig_cache[512]; /* resolved */
     int interface_id;          /* 0 = unset */
+
+    /* [ui:gameframe] — component slot -> interface id, in file order. */
+    struct BootManifestGameframeMount gameframe[BOOTMANIFEST_GAMEFRAME_MAX];
+    int gameframe_count;
 
     /* [spawn:hotkeys] — debug spawn-hotkey ids. -1 = unset (built-in default).
      * TORIRS_SPAWN_* env vars still override. */

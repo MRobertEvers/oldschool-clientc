@@ -1,10 +1,24 @@
 #include "dat2_sprites.h"
 
 #include "../rsbuffer.h"
+#include "../rscache_profile.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* No archive revision to fall back on: the sprites table is one group per sprite
+ * and carries no per-type revision the profile tracks. An unidentified cache
+ * therefore keeps the channel, which is the older and more conservative rule —
+ * it can only make a sprite more transparent than the override would. */
+enum RSCache_SpriteLoadFlags
+RSCache_Dat2SpriteFlags(const struct RSCache* cache)
+{
+    if( cache && cache->game == RSCACHE_GAME_OLDSCHOOL &&
+        cache->revision != RSCACHE_REVISION_UNKNOWN && cache->revision >= 232 )
+        return RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX;
+    return RSCACHE_SPRITELOAD_FLAG_NONE;
+}
 
 static void
 sprite_free_contents(struct RSCache_Dat2Sprite* sprite)
@@ -150,9 +164,10 @@ RSCache_Dat2SpritePackNewDecode(
             }
         }
 
-        /* OSRS 232+: every non-zero palette index is opaque, even when FLAG_ALPHA
-         * supplied per-pixel alphas. RuneLite removed the `else` so this always
-         * runs after any alpha payload. */
+        /* No alpha payload: derive the mask from the palette index, in both eras.
+         * With one, OldSchool 232+ overrides it back to a mask while every older
+         * client keeps it — see RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX. */
+        if( (flags & FLAG_ALPHA) == 0 || (decode_flags & RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX) )
         {
             for( j = 0; j < dimension; j++ )
             {

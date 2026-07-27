@@ -124,6 +124,15 @@ struct AppConfig
     char const* revconfig_ui_ini;
     /** Companion RevConfig sprite/font INI. NULL/"" = none. */
     char const* revconfig_cache_ini;
+    /** `[ui:gameframe]` — sub-interfaces to mount into the root's component
+     *  slots once the tree is built, in order.
+     *
+     *  A gameframe root is a set of empty holders: the panels that fill it arrive
+     *  as an IF_OPENSUB burst at login, so an offline client shows chrome with
+     *  nothing in it. This is that burst, stated in the manifest. Points into the
+     *  BootManifest, which must outlive the App. NULL/0 = none. */
+    struct BootManifestGameframeMount const* gameframe_mounts;
+    int gameframe_mount_count;
     /** --connect target "host[:port]". NULL/"" = offline (no networking). */
     char const* connect_target;
     char const* connect_user;
