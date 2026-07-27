@@ -10,8 +10,8 @@
  *   models/<name>.ob2          model geometry
  *   models/<name>.anim         animation frame archive (animset)
  *   maps/m<X>_<Z>.jm2          map square, text
- *   scripts/<area>/configs/*   .npc / .seq / .spotanim / .loc, text
- *   pack/*.pack                id registry, rewritten by lc_packs_write
+ *   scripts/<area>/configs/    .npc / .seq / .spotanim / .loc / .flo, text
+ *   pack/<type>.pack           id registry, rewritten by lc_packs_write
  *
  * Config text accumulates in memory and is written once at the end, because a
  * single `.npc` file holds every npc as a `[name]` section and the exporters
@@ -49,6 +49,7 @@ struct LC_Out
     struct LC_Str seq_cfg;
     struct LC_Str spotanim_cfg;
     struct LC_Str loc_cfg;
+    struct LC_Str flo_cfg;
 
     char** warnings;
     int warning_count;

@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 
 static const char* const pack_types[LC_PACK_COUNT] = {
-    "npc", "seq", "spotanim", "loc", "model", "anim", "animset", "map",
+    "npc", "seq", "spotanim", "loc", "model", "anim", "animset", "base", "map", "flo",
 };
 
 static char*

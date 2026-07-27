@@ -2,7 +2,7 @@
 #define RSCACHE_TOOLS_LC_PACK_H
 
 /*
- * LostCity `content/pack/*.pack` files: `id=name` per line, sparse, sorted by id
+ * LostCity `content/pack/<type>.pack` files: `id=name` per line, sparse, sorted by id
  * on write.
  *
  * These are the id authority for a LostCity build. Nothing in the content tree
@@ -34,7 +34,9 @@ enum LC_PackKind
     LC_PACK_MODEL,
     LC_PACK_ANIM,
     LC_PACK_ANIMSET,
+    LC_PACK_BASE,
     LC_PACK_MAP,
+    LC_PACK_FLO,
     LC_PACK_COUNT
 };
 

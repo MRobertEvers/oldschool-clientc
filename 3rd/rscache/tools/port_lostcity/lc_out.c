@@ -199,6 +199,8 @@ lc_out_flush_configs(struct LC_Out* out)
         return 0;
     if( !flush_one(out, &out->loc_cfg, "loc") )
         return 0;
+    if( !flush_one(out, &out->flo_cfg, "flo") )
+        return 0;
     return 1;
 }
 
@@ -211,6 +213,7 @@ lc_out_free(struct LC_Out* out)
     lc_str_free(&out->seq_cfg);
     lc_str_free(&out->spotanim_cfg);
     lc_str_free(&out->loc_cfg);
+    lc_str_free(&out->flo_cfg);
     for( int i = 0; i < out->warning_count; i++ )
         free(out->warnings[i]);
     free(out->warnings);
