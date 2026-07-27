@@ -1327,7 +1327,9 @@ app_sync_textures_poll(struct App* app)
 
 /*
  * Server varp update -> CS2 host, so the tick's var-transmit pump re-dispatches
- * the hooks that list this varp as a trigger. Userdata is the host.
+ * the hooks that list this varp as a trigger. Userdata is the app, not the host,
+ * because the same callback routes client-code varps (the sound volume setting)
+ * to their subsystems.
  *
  * Deliberately NOT wired to the plain value-change callback, and not wired to
  * varcs at all. The reference feeds its changed-varp ring only from the
@@ -1345,7 +1347,17 @@ app_sync_textures_poll(struct App* app)
 static void
 app_varp_server_update(void* userdata, int varp_id)
 {
-    RS_CS2Host_NotifyVarChanged((struct RS_CS2Host*)userdata, varp_id);
+    struct App* app = (struct App*)userdata;
+
+    RS_CS2Host_NotifyVarChanged(&app->host, varp_id);
+
+    /* Client-code varps are settings the client acts on rather than displays.
+     * Code 4 is the sound-effect volume slider (reference Client.updateVarp:
+     * 0..3 pick 128/96/64/32, 4 mutes) — the only one audio cares about, and the
+     * only reason the player's volume choice reaches the platform at all. */
+    if( VarPManager_GetClientcode(&app->varps, varp_id) == 4 )
+        RS_Audio_SetVolumeLevel(
+            &app->audio, VarPManager_GetVarp(&app->varps, varp_id), &app->audio_out);
 }
 
 /**
@@ -1521,6 +1533,17 @@ App_Init(
     seed_inv_defaults(&app->invs);
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
+    ToriRS_AudioQueue_Reset(&app->audio_out);
+    /* State the starting volume once, so a backend is never left guessing at a
+     * gain the game already has an opinion about (reference Client.waveVolume). */
+    {
+        struct ToriRS_AudioCommand volume_command;
+        memset(&volume_command, 0, sizeof(volume_command));
+        volume_command.kind = TORIRS_AUDIO_CMD_SET_VOLUME;
+        volume_command.sound_id = -1;
+        volume_command.volume = app->audio.volume;
+        ToriRS_AudioQueue_Push(&app->audio_out, &volume_command);
+    }
     app->cam_script.shake_axis = -1;
     app->inv_drag_com_id = -1;
     app->reboot_ticks = 0;
@@ -1536,9 +1559,9 @@ App_Init(
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
-     * and not only to unhide. Userdata is the CS2 host. See
-     * app_varp_server_update for why script-side writes and varcs stay out. */
-    VarPManager_SetServerUpdateCallback(&app->varps, app_varp_server_update, &app->host);
+     * and not only to unhide. See app_varp_server_update for why script-side
+     * writes and varcs stay out. */
+    VarPManager_SetServerUpdateCallback(&app->varps, app_varp_server_update, app);
     RS_PlayerStats_Init(&app->stats);
     RS_CS1Host_Init(&app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
 
@@ -1634,6 +1657,7 @@ App_Shutdown(struct App* app)
         free(app->painter_buffer->commands);
         free(app->painter_buffer);
     }
+    RS_Audio_Shutdown(&app->audio);
     RS_EntitySync_Free(&app->esync);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
@@ -2446,6 +2470,17 @@ Task_AppBoot_Run(
     else
         TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
+    /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
+     * Before the tree opens, because the root's onLoad scripts branch on them.
+     * Skipped when networked, for the same reason [ui:gameframe] is. */
+    if( app->cfg.varc_seed_count > 0 && !app->net_enabled )
+    {
+        for( int i = 0; i < app->cfg.varc_seed_count; i++ )
+            VarCManager_SetInt(
+                &app->varcs, app->cfg.varc_seeds[i].id, app->cfg.varc_seeds[i].value);
+        printf("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
+    }
+
     if( app->builder_active )
     {
         TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
@@ -2526,11 +2561,10 @@ Task_AppBoot_Run(
         for( int i = 0; i < app->cfg.gameframe_mount_count; i++ )
         {
             struct BootManifestGameframeMount const* mount = &app->cfg.gameframe_mounts[i];
+            int parent = mount->parent_interface_id > 0 ? mount->parent_interface_id
+                                                        : app->boot_interface_id;
             App_OpenSubInterface(
-                app,
-                (app->boot_interface_id << 16) | (mount->component & 0xFFFF),
-                mount->interface_id,
-                0);
+                app, (parent << 16) | (mount->component & 0xFFFF), mount->interface_id, 0);
         }
         printf(
             "gameframe: queued %d sub-interface mounts under iface %d\n",
@@ -2867,6 +2901,10 @@ app_logic_tick(struct App* app)
             }
         }
     }
+
+    /* Sound queue on the client tick: the server's play delays are in ticks and
+     * the reference runs its queue from the same clock (soundsDoQueue). */
+    RS_Audio_Tick(&app->audio, app->provider, &app->runner, &app->audio_out);
 
     RS_CS2Host_Tick(&app->host);
 
@@ -6702,6 +6740,27 @@ app_minimenu_use_option(
             app->need_redraw = 1;
     }
     return result;
+}
+
+void
+App_PlaySound(
+    struct App* app,
+    int sound_id,
+    int loops,
+    int delay)
+{
+    assert(app);
+    RS_Audio_Synth(&app->audio, sound_id, loops, delay);
+}
+
+int
+App_DrainAudio(
+    struct App* app,
+    struct ToriRS_AudioCommand* out,
+    int max)
+{
+    assert(app);
+    return ToriRS_AudioQueue_Drain(&app->audio_out, out, max);
 }
 
 void

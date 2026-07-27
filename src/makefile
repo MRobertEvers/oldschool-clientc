@@ -71,6 +71,7 @@ LDFLAGS += -fsanitize=address
 endif
 
 SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
+	platform/platform_audio_sdl2.c \
 	platform/platform_sdl2_renderer_soft3d.c platform/platform_sdl2_renderer_gl3.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
@@ -89,6 +90,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_component_from_rscache.c \
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
 	engine/torirs_spotanimtype_from_rscache.c \
+	engine/torirs_sound_from_rscache.c \
 	engine/torirs_idk_from_rscache.c \
 	engine/torirs_map_from_rscache.c engine/torirs_location_from_rscache.c \
 	engine/torirs_flotype_from_rscache.c \
@@ -100,7 +102,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
 	engine/dat1/task_dat1_obj_load.c engine/dat1/task_dat1_npc_load.c \
-	engine/dat1/task_dat1_spotanim_load.c \
+	engine/dat1/task_dat1_spotanim_load.c engine/dat1/task_dat1_sound_load.c \
 	engine/dat1/task_dat1_idk_load.c \
 	engine/dat1/task_dat1_component_load.c \
 	engine/dat1/task_dat1_sprite_load.c engine/dat1/task_dat1_font_load.c \
@@ -110,7 +112,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
-	engine/dat2/task_dat2_spotanim_load.c \
+	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
 	engine/dat2/task_dat2_idk_load.c \
 	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
@@ -202,7 +204,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run mock230 test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
+.PHONY: all release clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -321,6 +323,16 @@ test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rsca
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(LDFLAGS)
 	cd .. && ./src/$(OBJ_DIR)/proctex_coverage
+
+# Sound end-to-end test: cache -> synth render -> game queue -> platform.
+# Links the SILENT audio backend instead of the SDL2 one (they define the same
+# symbols), so this runs headless with no device.
+AUDIO_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_audio_sdl2.o,$(OBJS))
+test-sound: $(OBJ_DIR) $(AUDIO_TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_audio_test \
+		game/test/rs_audio_test.c platform/platform_audio_null.c \
+		$(AUDIO_TEST_OBJS) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_audio_test
 
 # DB_* opcode integration test: reuse the main link set minus main.o.
 DB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))

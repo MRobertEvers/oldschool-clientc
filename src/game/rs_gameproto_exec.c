@@ -794,11 +794,11 @@ RS_GameProto_Exec(
             RS_UISlots_OpenTut(ctx->app, packet->_tut_open.component_id);
         break;
 
-    /* ---- audio (stub sink) ---- */
+    /* ---- audio ---- */
     case PKT_NAME_SYNTH_SOUND:
         if( ctx->app )
-            RS_Audio_Synth(
-                &ctx->app->audio,
+            App_PlaySound(
+                ctx->app,
                 packet->_synth_sound.id,
                 packet->_synth_sound.loops,
                 packet->_synth_sound.delay);

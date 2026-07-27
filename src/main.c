@@ -9,6 +9,7 @@
 #include "input/torirs_input.h"
 #include "net/net.h"
 #include "platform/net_transport.h"
+#include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 #include "render/torirs_frame.h"
@@ -1225,6 +1226,12 @@ main(
         uint64_t replay_now = 0;
         char title[64];
         struct ToriRS_GL3* gl3 = NULL;
+        struct PlatformAudio* audio = NULL;
+        struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
+        int sim_sound_id = -1;
+        int sim_sound_loops = 1;
+        int sim_sound_every = 0;
+        long sim_sound_next = 0;
 
         snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
         if( !sdl )
@@ -1263,6 +1270,33 @@ main(
         }
 
         CmdBus_Init(&bus);
+
+        /* Audio backend. Opening a device is allowed to fail — a machine with no
+         * sound card, or a headless CI box, keeps running silently rather than
+         * refusing to start, which is the same courtesy the renderer gets. */
+        audio = PlatformAudio_New();
+        if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
+            fprintf(stderr, "audio: no device; running silent\n");
+
+        if( getenv("TORIRS_SIM_SOUND") )
+        {
+            int parsed_id = -1;
+            int parsed_loops = 1;
+            int parsed_every = 0;
+            int fields =
+                sscanf(getenv("TORIRS_SIM_SOUND"), "%d,%d,%d",
+                       &parsed_id, &parsed_loops, &parsed_every);
+            if( fields >= 1 && parsed_id >= 0 )
+            {
+                sim_sound_id = parsed_id;
+                sim_sound_loops = fields >= 2 && parsed_loops > 0 ? parsed_loops : 1;
+                sim_sound_every = fields >= 3 && parsed_every > 0 ? parsed_every : 0;
+            }
+            else
+            {
+                fprintf(stderr, "TORIRS_SIM_SOUND: expected id[,loops[,every_frames]]\n");
+            }
+        }
 
         /* TORIRS_CMD_RECORD=file: tee every pushed command to a replayable
          * .trscmd file. TORIRS_CMD_REPLAY=file: drive the loop from a prior
@@ -1345,6 +1379,24 @@ main(
                 fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
                 RS_UISlots_OpenMain(&app, sim_openmain);
                 sim_openmain_done = 1;
+            }
+
+            /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
+             * once the client is up, and again every `every_ticks` ticks. The
+             * only way to hear the audio path without a server, so it is the
+             * check that "the sound plays" means a speaker and not a counter. */
+            if( sim_sound_id >= 0 && app.app_state == APP_STATE_READY )
+            {
+                if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
+                {
+                    fprintf(
+                        stderr,
+                        "sim_sound: queueing effect %d loops=%d\n",
+                        sim_sound_id,
+                        sim_sound_loops);
+                    App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
+                    sim_sound_next = sim_sound_every > 0 ? frame_count + sim_sound_every : -1;
+                }
             }
 
             if( replay )
@@ -1436,6 +1488,14 @@ main(
                 PlatformSDL2_PresentGL(sdl);
             else
                 PlatformSDL2_Present(sdl);
+
+            /* The game asked; the platform plays. Once per frame, after the tick
+             * that queued the requests and before the next one recycles their
+             * PCM (App_DrainAudio lends it for exactly this long). */
+            PlatformAudio_SubmitAll(
+                audio,
+                audio_commands,
+                App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
 
             update_window_title(sdl, &app, cfg.interface_id);
             if( !replay )
@@ -1666,6 +1726,7 @@ main(
         CmdBus_RecordClose(&bus);
 
         NetTransport_Free(sock);
+        PlatformAudio_Free(audio);
         ToriRS_GL3_Free(gl3);
         PlatformSDL2_Free(sdl);
     }

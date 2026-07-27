@@ -37,6 +37,11 @@ CreateTask_Dat2SpotanimLoad(
     int spotanim_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2SoundLoad(
+    struct CacheProvider* provider,
+    int sound_id);
+
+struct ToriRS_Task*
 CreateTask_Dat2IdkLoad(
     struct CacheProvider* provider,
     int idk_id);

@@ -17,6 +17,7 @@ struct Task_Dat2StructLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int struct_id;
+    int group;
 };
 
 static int
@@ -33,10 +34,18 @@ Task_Dat2StructLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_STRUCT);
+    /* Which config group holds structs is era-dependent — OldSchool 34, RS2 26 —
+     * so the profile answers it (RSCache_RecordAddressFor). */
+    task->group = RSCache_RecordAddressFor(
+                      CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_STRUCT)
+                      .group;
+    if( task->group < 0 )
+        task->group = RSCACHE_DAT2_CONFIG_KIND_STRUCT;
+
+    RSCache_IO_Dat2ConfigGroupLoad(io, 0, task->group);
     PT_YIELD(&task->pt);
 
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_STRUCT);
+    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, task->group);
     if( !archive )
     {
         fprintf(

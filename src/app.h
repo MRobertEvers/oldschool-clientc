@@ -133,6 +133,14 @@ struct AppConfig
      *  BootManifest, which must outlive the App. NULL/0 = none. */
     struct BootManifestGameframeMount const* gameframe_mounts;
     int gameframe_mount_count;
+    /** `[ui:varc]` — client vars to seed before the root's scripts run.
+     *
+     *  The IF_OPENSUB burst arrives alongside var writes; the gameframe's own
+     *  scripts branch on them (which sidebar tab is selected, which chat filters
+     *  are lit), so mounting without them shows every panel hidden. Points into
+     *  the BootManifest. NULL/0 = none. */
+    struct BootManifestVarcSeed const* varc_seeds;
+    int varc_seed_count;
     /** --connect target "host[:port]". NULL/"" = offline (no networking). */
     char const* connect_target;
     char const* connect_user;
@@ -413,6 +421,8 @@ struct App
     /* ---- server-driven state (Part 5 packet coverage) ---- */
     /** Audio packet sink (no playback backend). */
     struct RS_Audio audio;
+    /** Outbound audio requests for the host to hand a backend (App_DrainAudio). */
+    struct ToriRS_AudioQueue audio_out;
     /** Camera scripting (CAM_* packets). shake_axis -1 = no shake. */
     struct
     {
@@ -746,6 +756,39 @@ App_DrainCommands(
     struct App* app,
     struct ToriRS_CmdBus* bus,
     struct LibToriRS_Input* input);
+
+/**
+ * Queue a sound effect for playback (reference SYNTH_SOUND).
+ *
+ * The one way in: the packet handler uses it, and so does the TORIRS_SIM_SOUND
+ * harness. `delay` is in client ticks and the effect's own lead-in is added to
+ * it, so callers pass what the server would have sent.
+ */
+void
+App_PlaySound(
+    struct App* app,
+    int sound_id,
+    int loops,
+    int delay);
+
+/**
+ * Take the audio requests the game produced since the last call.
+ *
+ * The outbound half of the audio interface: the game queues what should be heard
+ * (see game/rs_audio.h), the host drains it here once per frame and submits the
+ * batch to whichever backend it built. A host that never calls this simply gets
+ * no sound — nothing else changes, which is what keeps headless runs and tests
+ * free of an audio device.
+ *
+ * The PCM each command points at stays valid until the *next* call, which is one
+ * frame — long enough for a backend to copy or submit it. Returns how many
+ * commands were written.
+ */
+int
+App_DrainAudio(
+    struct App* app,
+    struct ToriRS_AudioCommand* out,
+    int max);
 
 /**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks

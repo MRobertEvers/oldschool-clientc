@@ -83,7 +83,9 @@ bm_parse_padded_int(char const* key, char const* value, int* out)
     }
     while( *end == ' ' || *end == '\t' )
         end++;
-    if( *end != '\0' && *end != ';' && *end != '#' )
+    /* ':' ends the parent id in a qualified [ui:gameframe] key; ';'/'#' start a
+     * trailing comment. */
+    if( *end != '\0' && *end != ';' && *end != '#' && *end != ':' )
     {
         fprintf(stderr, "bootmanifest: trailing junk after '%s': '%s'\n", key, end);
         return 0;
@@ -99,6 +101,7 @@ enum bm_section
     BM_SECTION_NET,
     BM_SECTION_UI,
     BM_SECTION_UI_GAMEFRAME,
+    BM_SECTION_UI_VARC,
     BM_SECTION_SPAWN,
 };
 
@@ -112,6 +115,8 @@ bm_section_of(char const* header)
         return BM_SECTION_NET;
     if( strcmp(header, "ui:gameframe") == 0 )
         return BM_SECTION_UI_GAMEFRAME;
+    if( strcmp(header, "ui:varc") == 0 )
+        return BM_SECTION_UI_VARC;
     if( strncmp(header, "ui:", 3) == 0 )
         return BM_SECTION_UI;
     if( strncmp(header, "spawn:", 6) == 0 )
@@ -313,7 +318,17 @@ bm_set_kv(
          * pairs are unreadable without a name beside each one. */
         int component;
         int iface;
-        if( !bm_parse_padded_int(key, key, &component) )
+        int parent = 0;
+        char const* component_text = strchr(key, ':');
+        if( component_text )
+        {
+            if( !bm_parse_padded_int(key, key, &parent) )
+                return;
+            component_text++;
+        }
+        else
+            component_text = key;
+        if( !bm_parse_padded_int(key, component_text, &component) )
             return;
         if( !bm_parse_padded_int(key, value, &iface) )
             return;
@@ -325,9 +340,33 @@ bm_set_kv(
                 BOOTMANIFEST_GAMEFRAME_MAX, key, value);
             return;
         }
+        bm->gameframe[bm->gameframe_count].parent_interface_id = parent;
         bm->gameframe[bm->gameframe_count].component = component;
         bm->gameframe[bm->gameframe_count].interface_id = iface;
         bm->gameframe_count++;
+        return;
+    }
+
+    case BM_SECTION_UI_VARC:
+    {
+        /* Same free-form shape as [ui:gameframe]: every key is a varc id. */
+        int varc_id;
+        int varc_value;
+        if( !bm_parse_padded_int(key, key, &varc_id) )
+            return;
+        if( !bm_parse_padded_int(key, value, &varc_value) )
+            return;
+        if( bm->varc_count >= BOOTMANIFEST_GAMEFRAME_MAX )
+        {
+            fprintf(
+                stderr,
+                "bootmanifest: [ui:varc] holds at most %d seeds; dropping %s=%s\n",
+                BOOTMANIFEST_GAMEFRAME_MAX, key, value);
+            return;
+        }
+        bm->varc[bm->varc_count].id = varc_id;
+        bm->varc[bm->varc_count].value = varc_value;
+        bm->varc_count++;
         return;
     }
 
@@ -579,6 +618,11 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     {
         cfg->gameframe_mounts = bm->gameframe;
         cfg->gameframe_mount_count = bm->gameframe_count;
+    }
+    if( bm->varc_count > 0 )
+    {
+        cfg->varc_seeds = bm->varc;
+        cfg->varc_seed_count = bm->varc_count;
     }
     if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )
     {

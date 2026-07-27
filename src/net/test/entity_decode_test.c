@@ -226,7 +226,10 @@ test_npc_add_change_type_spotanim(void)
 
     struct PktNpcInfoReader reader;
     struct PktNpcInfoOp ops[64];
-    int n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    int n;
+    /* 0, 0 = the classic widths this stream was written with. */
+    pkt_npc_info_reader_init(&reader, 0, 0);
+    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
 
     struct PktNpcInfoOp const* add = find_npc_op(ops, n, PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID);
     struct PktNpcInfoOp const* type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
@@ -238,6 +241,57 @@ test_npc_add_change_type_spotanim(void)
     assert(spot && spot->_spotanim.spotanim_id == 55);
     pkt_npc_info_ops_free(ops, n);
     printf("ok - npc add + CHANGE_TYPE + SPOTANIM\n");
+}
+
+/*
+ * The npc-type field width is revision state, and getting it wrong does not
+ * fail — it truncates into a different, usually valid, npc id. 3106 ("Man" in
+ * the OSRS caches) read as 11 bits is 388. Both widths are asserted here so a
+ * regression cannot hide behind an id that still resolves to something.
+ */
+static void
+test_npc_type_width(void)
+{
+    struct PktNpcInfoOp const* type;
+    struct PktNpcInfoReader reader;
+    struct PktNpcInfoOp ops[64];
+    struct BitWriter w = { 0 };
+    int n;
+
+    bw_bits(&w, 0, 8);     /* tracked count 0 */
+    bw_bits(&w, 3, 14);    /* slot 3 */
+    bw_bits(&w, 3106, 14); /* type — 14 bits wide */
+    bw_bits(&w, 2, 5);     /* dx */
+    bw_bits(&w, 0, 5);     /* dz */
+    bw_bits(&w, 0, 1);     /* no extended info */
+    bw_bits(&w, 16383, 14);
+    /* Pad past the reader's 21-bit loop-guard margin so the terminator is
+     * consumed rather than skipped. */
+    bw_bits(&w, 0, 32);
+
+    pkt_npc_info_reader_init(&reader, 14, 14);
+    assert(reader.slot_bits == 14 && reader.type_bits == 14);
+    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
+    assert(type && type->_bitvalue == 3106);
+    pkt_npc_info_ops_free(ops, n);
+
+    /* The same bytes through the classic 11-bit reader take the top 11 bits of
+     * the type field and read every later field off by three. That is what
+     * made this silent: the decode still succeeds, it just describes a
+     * different npc. */
+    pkt_npc_info_reader_init(&reader, 14, 11);
+    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
+    assert(type && type->_bitvalue == (3106 >> 3));
+    pkt_npc_info_ops_free(ops, n);
+
+    /* An unstated width falls back to classic, never to zero bits. */
+    pkt_npc_info_reader_init(&reader, 0, 0);
+    assert(reader.slot_bits == PKT_NPC_INFO_SLOT_BITS_CLASSIC);
+    assert(reader.type_bits == PKT_NPC_INFO_TYPE_BITS_CLASSIC);
+
+    printf("ok - npc type width is per-revision (3106 at 14 bits, %d at 11)\n", 3106 >> 3);
 }
 
 static void
@@ -294,6 +348,7 @@ main(void)
     test_player_new_walk_with_seq();
     test_player_exact_move_and_chat_skip();
     test_npc_add_change_type_spotanim();
+    test_npc_type_width();
     test_appearance_decode();
     printf("entity-decode: all tests passed\n");
     return 0;

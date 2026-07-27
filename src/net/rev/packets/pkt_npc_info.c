@@ -29,6 +29,18 @@ queue_extended(
         reader->extended_queue[reader->extended_count++] = (uint16_t)idx;
 }
 
+void
+pkt_npc_info_reader_init(
+    struct PktNpcInfoReader* reader,
+    int slot_bits,
+    int type_bits)
+{
+    assert(reader);
+    memset(reader, 0, sizeof(*reader));
+    reader->slot_bits = slot_bits > 0 ? slot_bits : PKT_NPC_INFO_SLOT_BITS_CLASSIC;
+    reader->type_bits = type_bits > 0 ? type_bits : PKT_NPC_INFO_TYPE_BITS_CLASSIC;
+}
+
 int
 pkt_npc_info_reader_read(
     struct PktNpcInfoReader* reader,
@@ -39,6 +51,17 @@ pkt_npc_info_reader_read(
 {
     struct Net_BitBuffer buf;
     struct RSCache_Buffer rsbuf;
+    int slot_bits;
+    int type_bits;
+    int terminator;
+
+    /* A zeroed reader would decode every field as 0 bits and invent entities
+     * out of nothing, so an un-armed reader stops here instead. */
+    assert(reader->slot_bits > 0 && reader->slot_bits <= PKT_NPC_INFO_BITS_MAX);
+    assert(reader->type_bits > 0 && reader->type_bits <= PKT_NPC_INFO_BITS_MAX);
+    slot_bits = reader->slot_bits;
+    type_bits = reader->type_bits;
+    terminator = (1 << slot_bits) - 1;
 
     reader->current_op = 0;
     reader->extended_count = 0;
@@ -134,14 +157,17 @@ pkt_npc_info_reader_read(
         }
     }
 
-    /* New NPCs: 14 (slot) + 11 (type) + 5 + 5 + 1 = 36 bits minimum; the
-     * reference loop guard checks for the 21-bit terminator margin
-     * (Client-TS getNpcPosNewVis: gBit(14), terminator 16383 — NOT the
-     * 13-bit/8191 layout of older revisions). */
+    /* New NPCs: slot + type + 5 + 5 + 1 bits per record, terminated by an
+     * all-ones slot. Both widths come from the revision (Client-TS
+     * getNpcPosNewVis reads gBit(14) with terminator 16383, NOT the 13-bit /
+     * 8191 layout of older revisions), while the 21-bit loop guard is the
+     * reference's own fixed margin and stays put: it is what decides whether
+     * the terminator is consumed before the byte-aligned extended-info
+     * section, so changing it would shift that alignment. */
     while( Net_BitBufferBitPos(&buf) + 21 < length * 8 )
     {
-        int npc_slot = Net_BitBufferGbits(&buf, 14);
-        if( npc_slot == 16383 )
+        int npc_slot = Net_BitBufferGbits(&buf, slot_bits);
+        if( npc_slot == terminator )
             break;
 
         {
@@ -150,7 +176,7 @@ pkt_npc_info_reader_read(
             op->_bitvalue = (uint64_t)npc_slot;
         }
 
-        int npc_type = Net_BitBufferGbits(&buf, 11);
+        int npc_type = Net_BitBufferGbits(&buf, type_bits);
         {
             struct PktNpcInfoOp* op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_NPC_INFO_OPBITS_NPCTYPE;

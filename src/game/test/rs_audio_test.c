@@ -1,0 +1,503 @@
+/*
+ * Sound, end to end: cache bytes -> synth render -> game queue -> platform.
+ *
+ * The parts each have their own tests (rscache's test_sound covers the codec and
+ * the renderer), so what is checked here is the wiring between them, which is
+ * where a sound system usually fails silently:
+ *
+ *   - a SYNTH_SOUND packet reaches the platform as *audible* PCM, from a real
+ *     cache, on both a dat1 (254) and a dat2 (230) boot. Audible is the point: a
+ *     buffer of pure silence would satisfy every other assertion here.
+ *   - the queue's timing is the reference's — the server's delay counts down on
+ *     client ticks, and the effect's own trim lead-in is added to it.
+ *   - the overlap rule drops a short sound landing under a long one, rather than
+ *     cutting it off.
+ *   - loop repeats lengthen the clip by whole loop spans.
+ *   - the volume varp maps to the levels the reference uses.
+ *
+ * The platform side is the silent backend, so this runs headless and asserts what
+ * the game *asked* to be played.
+ */
+
+#include "audio/torirs_audio.h"
+#include "engine/cache_provider.h"
+#include "engine/dat1/dat1_buildcache.h"
+#include "engine/dat2/dat2_buildcache.h"
+#include "engine/torirs_sound_from_rscache.h"
+#include "game/rs_audio.h"
+#include "platform/platform_audio_null.h"
+#include "platform/platform_x_io.h"
+#include "task_runner.h"
+
+#include <rscache.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+
+#define REPO_ROOT "/Users/matthewevers/Documents/git_repos/3draster"
+
+static int g_fail = 0;
+
+#define CHECK(cond, msg)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( cond )                                                                                 \
+            printf("  ok: %s\n", msg);                                                             \
+        else                                                                                       \
+        {                                                                                          \
+            printf("  FAIL: %s\n", msg);                                                           \
+            g_fail++;                                                                              \
+        }                                                                                          \
+    } while( 0 )
+
+/** One frame: tick the game's sound queue, pump async loads, hand the platform
+ *  whatever came out. Exactly the order main.c uses. */
+static void
+frame(
+    struct RS_Audio* audio,
+    struct CacheProvider* provider,
+    struct TaskRunner* runner,
+    struct ToriRS_AudioQueue* queue,
+    struct PlatformAudio* platform)
+{
+    struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+    int count;
+
+    RS_Audio_Tick(audio, provider, runner, queue);
+    /* Loads the tick queued must complete before the next tick can see them. */
+    if( runner )
+        TaskRunner_Drain(runner);
+    count = ToriRS_AudioQueue_Drain(queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+    PlatformAudio_SubmitAll(platform, commands, count);
+}
+
+/** Run frames until `audio->played` grows, or `limit` frames pass. */
+static bool
+frames_until_play(
+    struct RS_Audio* audio,
+    struct CacheProvider* provider,
+    struct TaskRunner* runner,
+    struct ToriRS_AudioQueue* queue,
+    struct PlatformAudio* platform,
+    int limit)
+{
+    int before = audio->played;
+    for( int i = 0; i < limit; i++ )
+    {
+        frame(audio, provider, runner, queue, platform);
+        if( audio->played > before )
+            return true;
+    }
+    return false;
+}
+
+/** Let whatever is playing finish, so the overlap rule does not reject the next
+ *  clip for reasons the caller did not intend to test. */
+static void
+frames_until_silent(
+    struct RS_Audio* audio,
+    struct CacheProvider* provider,
+    struct TaskRunner* runner,
+    struct ToriRS_AudioQueue* queue,
+    struct PlatformAudio* platform)
+{
+    while( audio->tick <= audio->last_play_tick + audio->last_play_length_ticks )
+        frame(audio, provider, runner, queue, platform);
+}
+
+/* --- queue behaviour, no cache ------------------------------------------- */
+
+static void
+test_queue_without_cache(void)
+{
+    struct RS_Audio audio;
+    struct ToriRS_AudioQueue queue;
+    struct PlatformAudio* platform = PlatformAudio_New();
+
+    printf("queue (no cache)\n");
+    PlatformAudio_Init(platform, TORIRS_AUDIO_SAMPLE_RATE);
+    RS_Audio_Init(&audio);
+    ToriRS_AudioQueue_Reset(&queue);
+
+    CHECK(audio.enabled, "sound starts enabled");
+    CHECK(audio.volume == RS_AUDIO_DEFAULT_VOLUME, "volume starts at the reference default");
+
+    /* An effect that will never become resident is dropped, not leaked. */
+    RS_Audio_Synth(&audio, 12345, 1, 0);
+    CHECK(audio.count == 1, "synth packet queued");
+    for( int i = 0; i < RS_AUDIO_LOAD_WAIT_TICKS + 2; i++ )
+        frame(&audio, NULL, NULL, &queue, platform);
+    CHECK(audio.count == 0, "entry dropped after the load wait");
+    CHECK(audio.dropped_absent == 1, "drop counted as absent");
+    CHECK(audio.played == 0, "nothing played");
+
+    /* Volume levels: the reference's 128/96/64/32/mute ladder. */
+    RS_Audio_SetVolumeLevel(&audio, 0, &queue);
+    CHECK(audio.volume == 128 && audio.enabled, "level 0 -> 128");
+    RS_Audio_SetVolumeLevel(&audio, 3, &queue);
+    CHECK(audio.volume == 32 && audio.enabled, "level 3 -> 32");
+    RS_Audio_SetVolumeLevel(&audio, 4, &queue);
+    CHECK(!audio.enabled, "level 4 -> muted");
+    RS_Audio_Synth(&audio, 0, 1, 0);
+    CHECK(audio.count == 0, "muted: packets are not queued at all");
+    RS_Audio_SetVolumeLevel(&audio, 2, &queue);
+    CHECK(audio.volume == 64 && audio.enabled, "level 2 -> 64, re-enabled");
+    RS_Audio_SetVolumeLevel(&audio, 9, &queue);
+    CHECK(audio.volume == 64, "unknown level ignored");
+
+    /* The volume commands reached the platform. */
+    {
+        struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+        int count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        PlatformAudio_SubmitAll(platform, commands, count);
+        /* Four: the unknown level pushed nothing. */
+        CHECK(count == 4, "one volume command per accepted level change");
+        CHECK(PlatformAudio_Stats(platform).volume == 64, "platform ended at volume 64");
+    }
+
+    /* Queue cap is the reference's 50. */
+    RS_Audio_Init(&audio);
+    for( int i = 0; i < RS_AUDIO_QUEUE_MAX + 5; i++ )
+        RS_Audio_Synth(&audio, i, 1, 0);
+    CHECK(audio.count == RS_AUDIO_QUEUE_MAX, "queue caps at RS_AUDIO_QUEUE_MAX");
+    CHECK(audio.dropped_queue_full == 5, "overflow counted");
+
+    RS_Audio_Shutdown(&audio);
+    PlatformAudio_Free(platform);
+}
+
+/* --- against a real cache ------------------------------------------------ */
+
+struct harness
+{
+    struct RS_Audio audio;
+    struct ToriRS_AudioQueue queue;
+    struct PlatformAudio* platform;
+    struct CacheProvider* provider;
+    struct TaskRunner runner;
+    struct ToriRS_IO* io;
+    struct ToriRS_TaskQueue* task_queue;
+    struct PlatformX_IO* px;
+    struct Dat1BuildCache* dat1_bc;
+    struct Dat2BuildCache* dat2_bc;
+    struct RSCache_Dat1Disk* dat1_disk;
+    struct RSCache_Dat2Disk* dat2_disk;
+};
+
+static void
+harness_free(struct harness* harness)
+{
+    RS_Audio_Shutdown(&harness->audio);
+    PlatformAudio_Free(harness->platform);
+    if( harness->task_queue )
+        ToriRS_TaskQueue_Free(harness->task_queue);
+    if( harness->io )
+        ToriRS_IO_Free(harness->io);
+    PlatformX_IO_Free(harness->px);
+    if( harness->dat1_bc )
+        dat1_buildcache_free(harness->dat1_bc);
+    if( harness->dat2_bc )
+        dat2_buildcache_free(harness->dat2_bc);
+    if( harness->dat1_disk )
+        RSCache_Dat1DiskFree(harness->dat1_disk);
+    if( harness->dat2_disk )
+        RSCache_Dat2DiskFree(harness->dat2_disk);
+    memset(harness, 0, sizeof(*harness));
+}
+
+static bool
+harness_init(
+    struct harness* harness,
+    const char* cache_dir,
+    bool dat1,
+    const struct RSCache* profile)
+{
+    struct stat info;
+
+    memset(harness, 0, sizeof(*harness));
+    if( stat(cache_dir, &info) != 0 )
+    {
+        printf("  SKIP: %s not present\n", cache_dir);
+        return false;
+    }
+
+    harness->platform = PlatformAudio_New();
+    PlatformAudio_Init(harness->platform, TORIRS_AUDIO_SAMPLE_RATE);
+    RS_Audio_Init(&harness->audio);
+    ToriRS_AudioQueue_Reset(&harness->queue);
+
+    harness->io = ToriRS_IO_New();
+    harness->task_queue = ToriRS_TaskQueue_New();
+    harness->px = PlatformX_IO_New();
+
+    if( dat1 )
+    {
+        harness->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cache_dir);
+        if( !harness->dat1_disk )
+        {
+            printf("  SKIP: could not open dat1 cache %s\n", cache_dir);
+            harness_free(harness);
+            return false;
+        }
+        PlatformX_IO_InitDat1Disk(harness->px, harness->dat1_disk);
+        harness->dat1_bc = dat1_buildcache_new();
+        harness->provider = dat1_buildcache_as_provider(harness->dat1_bc);
+    }
+    else
+    {
+        harness->dat2_disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+        if( !harness->dat2_disk )
+        {
+            printf("  SKIP: could not open dat2 cache %s\n", cache_dir);
+            harness_free(harness);
+            return false;
+        }
+        RSCache_Dat2DiskSetProfile(harness->dat2_disk, profile);
+        PlatformX_IO_InitDat2Disk(harness->px, harness->dat2_disk);
+        harness->dat2_bc = dat2_buildcache_new();
+        harness->provider = dat2_buildcache_as_provider(harness->dat2_bc);
+    }
+    CacheProvider_SetProfile(harness->provider, profile);
+
+    harness->runner.queue = harness->task_queue;
+    harness->runner.io = harness->io;
+    harness->runner.px = harness->px;
+    return true;
+}
+
+/**
+ * The core claim: a packet in, an audible clip out.
+ *
+ * Three effects are played one after another (waiting for each to finish) rather
+ * than one, because a single id that happened to be an empty program would make
+ * a broken pipeline look fine.
+ */
+static void
+test_cache_pipeline(
+    const char* label,
+    const char* cache_dir,
+    bool dat1,
+    const struct RSCache* profile)
+{
+    struct harness harness;
+    int played_ids[3] = { -1, -1, -1 };
+    int audible = 0;
+
+    printf("pipeline: %s\n", label);
+    if( !harness_init(&harness, cache_dir, dat1, profile) )
+        return;
+
+    for( int index = 0; index < 3; index++ )
+    {
+        int sound_id = index;
+        char message[96];
+
+        frames_until_silent(
+            &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
+        RS_Audio_Synth(&harness.audio, sound_id, 1, 0);
+
+        snprintf(message, sizeof(message), "%s: effect %d played", label, sound_id);
+        CHECK(
+            frames_until_play(
+                &harness.audio,
+                harness.provider,
+                &harness.runner,
+                &harness.queue,
+                harness.platform,
+                RS_AUDIO_LOAD_WAIT_TICKS),
+            message);
+
+        played_ids[index] = PlatformAudioNull_LastSoundId(harness.platform);
+        if( PlatformAudioNull_LastNonSilentSamples(harness.platform) > 0 )
+            audible++;
+    }
+
+    CHECK(played_ids[0] == 0 && played_ids[1] == 1 && played_ids[2] == 2,
+          "the platform saw each effect id in order");
+    CHECK(audible == 3, "every clip carried non-silent samples");
+    CHECK(PlatformAudio_Stats(harness.platform).played == 3, "three clips accepted");
+    CHECK(PlatformAudio_Stats(harness.platform).dropped == 0, "none dropped at the platform");
+
+    /* Delay: the server's tick count is honoured, plus the effect's own trim. */
+    {
+        struct ToriRS_Sound* sound;
+        int before;
+
+        frames_until_silent(
+            &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
+        sound = CacheProvider_SoundGet(harness.provider, 0);
+        CHECK(sound != NULL, "effect 0 is resident after playing");
+        RS_Audio_Synth(&harness.audio, 0, 1, 10);
+        before = harness.audio.tick;
+        CHECK(
+            frames_until_play(
+                &harness.audio,
+                harness.provider,
+                &harness.runner,
+                &harness.queue,
+                harness.platform,
+                200),
+            "delayed effect eventually played");
+        /* The reference's schedule exactly: a queue pass with delay > 0
+         * decrements and does nothing, so a delay of D plays on pass D + 1. */
+        CHECK(
+            harness.audio.tick - before == 10 + (sound ? sound->queue_delay : 0) + 1,
+            "played on pass delay + trim + 1");
+    }
+
+    /* Loop repeats: three passes of the loop span, on an effect that has one. */
+    {
+        struct ToriRS_Sound* looping = NULL;
+        for( int id = 0; id < 200 && !looping; id++ )
+        {
+            struct ToriRS_Sound* candidate;
+            struct ToriRS_Task* task = CreateTask_SoundLoad(harness.provider, id);
+            if( task )
+            {
+                ToriRS_TaskQueue_Add(harness.runner.queue, task);
+                TaskRunner_Drain(&harness.runner);
+            }
+            candidate = CacheProvider_SoundGet(harness.provider, id);
+            if( candidate && candidate->loop_start >= 0 &&
+                candidate->loop_end > candidate->loop_start )
+                looping = candidate;
+        }
+        if( !looping )
+        {
+            printf("  SKIP: %s has no looping effect in the first 200 ids\n", label);
+        }
+        else
+        {
+            int span = looping->loop_end - looping->loop_start;
+            int expanded = 0;
+            uint8_t* pcm = ToriRS_SoundExpandLoops(looping, 3, &expanded);
+            CHECK(pcm != NULL, "loop expansion produced a buffer");
+            CHECK(expanded == looping->sample_count + span * 2,
+                  "three plays of the loop span lengthen the clip by two spans");
+            free(pcm);
+        }
+    }
+
+    harness_free(&harness);
+}
+
+/**
+ * The overlap rule: a short clip arriving while a long one plays is dropped.
+ *
+ * Reference behaviour, and worth its own test because the alternative — cutting
+ * the long sound off — is what a naive queue does and sounds obviously wrong.
+ */
+static void
+test_overlap_rule(
+    const char* cache_dir,
+    const struct RSCache* profile)
+{
+    struct harness harness;
+    int longest_id = -1;
+    int shortest_id = -1;
+    int longest_samples = 0;
+    int shortest_samples = 1 << 30;
+
+    printf("overlap rule\n");
+    if( !harness_init(&harness, cache_dir, true, profile) )
+        return;
+
+    /* Find a long effect and a short one to collide. */
+    for( int id = 0; id < 60; id++ )
+    {
+        struct ToriRS_Sound* sound;
+        struct ToriRS_Task* task = CreateTask_SoundLoad(harness.provider, id);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(harness.runner.queue, task);
+            TaskRunner_Drain(&harness.runner);
+        }
+        sound = CacheProvider_SoundGet(harness.provider, id);
+        if( !sound )
+            continue;
+        if( sound->sample_count > longest_samples )
+        {
+            longest_samples = sound->sample_count;
+            longest_id = id;
+        }
+        if( sound->sample_count < shortest_samples )
+        {
+            shortest_samples = sound->sample_count;
+            shortest_id = id;
+        }
+    }
+
+    if( longest_id < 0 || shortest_id < 0 || longest_id == shortest_id )
+    {
+        printf("  SKIP: no long/short pair available\n");
+        harness_free(&harness);
+        return;
+    }
+
+    RS_Audio_Synth(&harness.audio, longest_id, 1, 0);
+    CHECK(
+        frames_until_play(
+            &harness.audio,
+            harness.provider,
+            &harness.runner,
+            &harness.queue,
+            harness.platform,
+            50),
+        "long effect played");
+
+    RS_Audio_Synth(&harness.audio, shortest_id, 1, 0);
+    frame(&harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
+    CHECK(harness.audio.dropped_overlap == 1, "short effect refused under the long one");
+    CHECK(PlatformAudioNull_LastSoundId(harness.platform) == longest_id,
+          "the platform still has the long clip");
+
+    /* Once it has finished, the short one is welcome. */
+    frames_until_silent(
+        &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
+    RS_Audio_Synth(&harness.audio, shortest_id, 1, 0);
+    CHECK(
+        frames_until_play(
+            &harness.audio,
+            harness.provider,
+            &harness.runner,
+            &harness.queue,
+            harness.platform,
+            50),
+        "short effect plays once the long one ends");
+    CHECK(PlatformAudioNull_LastSoundId(harness.platform) == shortest_id,
+          "the platform saw the short clip");
+
+    harness_free(&harness);
+}
+
+int
+main(void)
+{
+    struct RSCache dat1_profile;
+    struct RSCache dat2_profile;
+
+    test_queue_without_cache();
+
+    if( !RSCache_ProfileByName("lc254", &dat1_profile) )
+    {
+        printf("SKIP: lc254 profile unavailable\n");
+        return g_fail != 0;
+    }
+    if( !RSCache_ProfileByName("osrs230", &dat2_profile) )
+    {
+        printf("SKIP: osrs230 profile unavailable\n");
+        return g_fail != 0;
+    }
+
+    test_cache_pipeline("dat1 254", REPO_ROOT "/cache254.lostcity", true, &dat1_profile);
+    test_cache_pipeline("dat2 230", REPO_ROOT "/cache.osrs230", false, &dat2_profile);
+    test_overlap_rule(REPO_ROOT "/cache254.lostcity", &dat1_profile);
+
+    if( g_fail )
+        printf("rs_audio_test: %d FAILED\n", g_fail);
+    else
+        printf("rs_audio_test: all checks passed\n");
+    return g_fail != 0;
+}

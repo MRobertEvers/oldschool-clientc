@@ -513,6 +513,11 @@ RSCache_SoundEffectRender(
     int codec = RSCache_SoundCodecVersion(cache);
     int duration;
     int sample_count;
+    int reported_count;
+    int allocated_count;
+    int loop_start;
+    int loop_end;
+    bool loop_valid;
     int max_tone_samples = 0;
     int32_t* tone_samples;
     uint8_t* pcm;
@@ -531,6 +536,33 @@ RSCache_SoundEffectRender(
     if( duration <= 0 || sample_count <= 0 )
         return false;
 
+    loop_start = ms_to_samples(effect->loop_begin);
+    loop_end = ms_to_samples(effect->loop_end);
+    loop_valid =
+        loop_start >= 0 && loop_end >= 0 && loop_end <= sample_count && loop_start < loop_end;
+
+    /*
+     * The WAVE generation's output is not always the natural length.
+     *
+     * Its length is `sampleCount + span * (loopCount - 1)`, and an unusable loop
+     * range forces loopCount to 0 — which leaves `sampleCount - span`. So an
+     * effect whose loop end runs past its own duration comes out *shorter* than
+     * its tones (id 221 in cache254.lostcity loses 200ms of tail), and one whose
+     * loop bounds are reversed comes out *longer*, padded with silence (id 383
+     * gains 1.2s). Both are what the client plays, so both are reproduced: nine
+     * of the 696 effects in that cache depend on it, and skipping it means every
+     * one of the nine is a different length from the reference.
+     *
+     * The modern generation has no equivalent — it hands its loop points to the
+     * mixer and always returns the natural length.
+     */
+    reported_count = sample_count;
+    if( codec == RSCACHE_CODEC_SOUND_WAVE && !loop_valid )
+        reported_count = sample_count - (loop_end - loop_start);
+    if( reported_count <= 0 )
+        return false;
+    allocated_count = reported_count > sample_count ? reported_count : sample_count;
+
     sound_tables_init();
 
     for( int slot = 0; slot < RSCACHE_SOUND_TONES; slot++ )
@@ -543,7 +575,7 @@ RSCache_SoundEffectRender(
             max_tone_samples = need;
     }
 
-    pcm = malloc((size_t)sample_count);
+    pcm = malloc((size_t)allocated_count);
     tone_samples =
         max_tone_samples > 0 ? malloc((size_t)max_tone_samples * sizeof(int32_t)) : NULL;
     if( !pcm || (max_tone_samples > 0 && !tone_samples) )
@@ -555,7 +587,7 @@ RSCache_SoundEffectRender(
 
     /* Silence differs between the generations: WAVE mixes in a u8 buffer biased
      * by 128, SYNTH in a signed one. Both are normalised to u8 on the way out. */
-    memset(pcm, codec == RSCACHE_CODEC_SOUND_WAVE ? 0x80 : 0x00, (size_t)sample_count);
+    memset(pcm, codec == RSCACHE_CODEC_SOUND_WAVE ? 0x80 : 0x00, (size_t)allocated_count);
     memset(&filter_scratch, 0, sizeof(filter_scratch));
 
     for( int slot = 0; slot < RSCACHE_SOUND_TONES; slot++ )
@@ -600,23 +632,18 @@ RSCache_SoundEffectRender(
     }
 
     if( codec != RSCACHE_CODEC_SOUND_WAVE )
-        for( int sample = 0; sample < sample_count; sample++ )
+        for( int sample = 0; sample < allocated_count; sample++ )
             pcm[sample] = (uint8_t)(pcm[sample] ^ 0x80); /* signed -> unsigned bias */
 
     free(tone_samples);
 
     out->samples = pcm;
-    out->sample_count = sample_count;
+    out->sample_count = reported_count;
     out->sample_rate = RSCACHE_SOUND_SAMPLE_RATE;
-
+    if( loop_valid )
     {
-        int loop_start = ms_to_samples(effect->loop_begin);
-        int loop_end = ms_to_samples(effect->loop_end);
-        if( loop_start >= 0 && loop_end >= 0 && loop_end <= sample_count && loop_start < loop_end )
-        {
-            out->loop_start = loop_start;
-            out->loop_end = loop_end;
-        }
+        out->loop_start = loop_start;
+        out->loop_end = loop_end;
     }
     return true;
 }

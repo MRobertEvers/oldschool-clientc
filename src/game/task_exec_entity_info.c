@@ -5,6 +5,7 @@
 #include "engine/player_appearance.h"
 #include "game/rs_chat.h"
 #include "game/rs_entity_sync.h"
+#include "net/net.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/packets/pkt_player_info.h"
@@ -837,6 +838,13 @@ Task_ExecNpcInfo_Run(
 
     self->ops = calloc(ENTITY_INFO_OPS_MAX, sizeof(*self->ops));
     assert(self->ops);
+    /* The new-npc record's slot and type widths are revision state, not
+     * constants — see GameProtoRevTable.npc_type_bits. Zero widths (no net
+     * layer, as in the unit tests) take the classic defaults. */
+    pkt_npc_info_reader_init(
+        &self->reader,
+        app->net && app->net->rev ? app->net->rev->npc_slot_bits : 0,
+        app->net && app->net->rev ? app->net->rev->npc_type_bits : 0);
     self->op_count = pkt_npc_info_reader_read(
         &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
 

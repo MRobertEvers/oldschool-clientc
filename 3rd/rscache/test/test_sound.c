@@ -543,6 +543,182 @@ test_render_dat2(void)
     RSCACHE_CHECK(filtered > 0);
 }
 
+/*
+ * Golden renders.
+ *
+ * The render was checked against the reference implementation itself — Client3's
+ * src/sound/{envelope,tone,wave}.c, run over the same `sounds.dat` with its
+ * unseeded noise table replaced by the seeded one this renderer uses — and every
+ * effect in all four dat1 caches came out **byte-identical**: 696 in
+ * cache254.lostcity, 579 in cache254, 696 each in rs254_zuk and rs254_steeltitan.
+ *
+ * That comparison needs the reference's source next to ours, so it cannot live
+ * here. What lives here is its result: a CRC over every rendered sample, which
+ * fails the moment a change moves a byte. The constants below are that verified
+ * output, not merely what the code did when they were recorded.
+ */
+struct golden_dat1
+{
+    const char* dir;
+    int revision;
+    int rendered;
+    long samples;
+    uint32_t crc;
+};
+
+static const struct golden_dat1 GOLDEN_DAT1[] = {
+    /* Verified byte-identical against Client3's renderer. */
+    { "cache254.lostcity", 254, 696, 16473922, 0x61a619c4u },
+    { "cache254", 254, 579, 12951078, 0x5c22ca4fu },
+    /* 377 has no reference port to compare against (Client3 is a 254-era client),
+     * so this constant only pins the renderer against itself. Its *decode* is
+     * held to the same exact-consumption and byte-exact round-trip bar as the
+     * rest. */
+    { "cache.rs377", 377, 2727, 65735097, 0x89b8ac32u },
+};
+
+static void
+test_golden_dat1(const struct golden_dat1* golden)
+{
+    char path[512];
+    struct RSCache profile = RSCache_ProfileZero();
+    struct RSCache_Dat1Disk* disk;
+    struct RSCache_Dat1DiskArchive* archive;
+    struct RSCache_FileListDat* jagfile;
+    struct RSCache_SoundBank* bank;
+    int sounds_index;
+    uint32_t crc = 0;
+    long samples = 0;
+    int rendered = 0;
+
+    profile.game = RSCACHE_GAME_RS2;
+    profile.epoch = RSCACHE_EPOCH_DAT1;
+    profile.revision = golden->revision;
+
+    cache_path(path, sizeof(path), golden->dir);
+    disk = RSCache_Dat1DiskNewFromDirectory(path);
+    if( !disk )
+    {
+        printf("   SKIP golden %s: not present\n", golden->dir);
+        return;
+    }
+    archive = RSCache_Dat1DiskArchiveNewLoad(
+        disk, RSCACHE_DAT1_DISK_TABLE_CONFIGS, RSCACHE_DAT1_CONFIG_SOUND_EFFECTS);
+    jagfile = archive ? RSCache_FileListDatNewFromDecode(archive->data, archive->data_size) : NULL;
+    sounds_index = jagfile ? RSCache_FileListDatFindFileByName(jagfile, "sounds.dat") : -1;
+    bank = sounds_index >= 0 ? RSCache_SoundBankNewDecode(
+                                   &profile,
+                                   jagfile->files[sounds_index],
+                                   jagfile->file_sizes[sounds_index])
+                             : NULL;
+    RSCACHE_CHECK(bank != NULL);
+
+    for( int id = 0; bank && id < bank->count; id++ )
+    {
+        struct RSCache_SoundPcm pcm;
+        if( !bank->effects[id] )
+            continue;
+        RSCache_SoundEffectTrim(bank->effects[id]);
+        if( !RSCache_SoundEffectRender(&profile, bank->effects[id], &pcm) )
+            continue;
+        crc = RSCache_Crc32(crc, pcm.samples, (size_t)pcm.sample_count);
+        samples += pcm.sample_count;
+        rendered++;
+        RSCache_SoundPcmRelease(&pcm);
+    }
+
+    printf(
+        "   %-20s rendered=%4d samples=%9ld crc=0x%08x\n",
+        golden->dir,
+        rendered,
+        samples,
+        crc);
+    RSCACHE_CHECK_EQ(rendered, golden->rendered);
+    RSCACHE_CHECK_EQ(samples, golden->samples);
+    RSCACHE_CHECK_EQ(crc, golden->crc);
+
+    RSCache_SoundBankFree(bank);
+    RSCache_FileListDatFree(jagfile);
+    RSCache_Dat1DiskArchiveFree(archive);
+    RSCache_Dat1DiskFree(disk);
+}
+
+/** Same idea for the filtered generation, over the first 400 ids of a table. */
+struct golden_dat2
+{
+    const char* dir;
+    const char* profile_name;
+    int rendered;
+    long samples;
+    uint32_t crc;
+};
+
+static const struct golden_dat2 GOLDEN_DAT2[] = {
+    { "cache.osrs230", "osrs230", 400, 9528466, 0xa9e7bf81u },
+    { "cache.rs643", "643", 400, 9787004, 0x509ca709u },
+};
+
+#define GOLDEN_DAT2_IDS 400
+
+static void
+test_golden_dat2(const struct golden_dat2* golden)
+{
+    char path[512];
+    struct RSCache profile;
+    struct RSCache_Dat2Disk* disk;
+    int table;
+    uint32_t crc = 0;
+    long samples = 0;
+    int rendered = 0;
+
+    cache_path(path, sizeof(path), golden->dir);
+    disk = RSCache_Dat2DiskNewFromDirectory(path);
+    if( !disk || !RSCache_ProfileByName(golden->profile_name, &profile) )
+    {
+        printf("   SKIP golden %s: not present\n", golden->dir);
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_SOUND_EFFECTS);
+
+    for( int id = 0; id < GOLDEN_DAT2_IDS; id++ )
+    {
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(disk, table, id);
+        struct RSCache_SoundEffect* effect;
+        struct RSCache_SoundPcm pcm;
+
+        if( !archive )
+            continue;
+        effect = RSCache_SoundEffectNewDecode(&profile, archive->data, archive->data_size);
+        RSCache_Dat2DiskArchiveFree(archive);
+        if( !effect )
+            continue;
+        RSCache_SoundEffectTrim(effect);
+        if( RSCache_SoundEffectRender(&profile, effect, &pcm) )
+        {
+            crc = RSCache_Crc32(crc, pcm.samples, (size_t)pcm.sample_count);
+            samples += pcm.sample_count;
+            rendered++;
+            RSCache_SoundPcmRelease(&pcm);
+        }
+        RSCache_SoundEffectFree(effect);
+    }
+
+    printf(
+        "   %-20s rendered=%4d samples=%9ld crc=0x%08x\n",
+        golden->dir,
+        rendered,
+        samples,
+        crc);
+    RSCACHE_CHECK_EQ(rendered, golden->rendered);
+    RSCACHE_CHECK_EQ(samples, golden->samples);
+    RSCACHE_CHECK_EQ(crc, golden->crc);
+
+    RSCache_Dat2DiskFree(disk);
+}
+
 static void
 test_wav_header(void)
 {
@@ -577,6 +753,12 @@ main(void)
     RSCACHE_TEST_GROUP("render");
     test_render_dat1();
     test_render_dat2();
+
+    RSCACHE_TEST_GROUP("golden renders");
+    for( size_t i = 0; i < sizeof(GOLDEN_DAT1) / sizeof(GOLDEN_DAT1[0]); i++ )
+        test_golden_dat1(&GOLDEN_DAT1[i]);
+    for( size_t i = 0; i < sizeof(GOLDEN_DAT2) / sizeof(GOLDEN_DAT2[0]); i++ )
+        test_golden_dat2(&GOLDEN_DAT2[i]);
 
     RSCACHE_TEST_GROUP("wav framing");
     test_wav_header();

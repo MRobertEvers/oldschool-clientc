@@ -59,6 +59,11 @@ static struct GameProtoRevTable k_rev_osrs230 = {
     .transport_kind = NET_TRANSPORT_TCP,
     .opcode_plaintext = 0, /* ISAAC-scrambled opcodes */
     .server_tick_ms = 600,
+    /* OldSchool 230 has ~12000 npcs, which does not fit the classic 11-bit
+     * type field — 3106 ("Man") would arrive as 1058, a different npc, with no
+     * error anywhere. 14 bits matches the slot field and covers the id space. */
+    .npc_slot_bits = 14,
+    .npc_type_bits = 14,
     .login = &g_osrs230_login_vtable,
     .parse = osrs230_parse,
 };

@@ -21,10 +21,23 @@
 #define PKT_NPC_MASK_SPOTANIM 0x40
 #define PKT_NPC_MASK_FACE_COORD 0x80
 
+/*
+ * Wire widths of the new-npc record's slot and type fields.
+ *
+ * These are revision-dependent — the stream keeps its shape while individual
+ * fields widen with the game's id space — so a reader is initialised with the
+ * widths its revision states rather than reading a constant. A too-narrow
+ * width truncates silently into a different, usually valid, id.
+ */
+#define PKT_NPC_INFO_SLOT_BITS_CLASSIC 14
+#define PKT_NPC_INFO_TYPE_BITS_CLASSIC 11
+#define PKT_NPC_INFO_BITS_MAX 16
+
 enum PktNpcInfoOpKind
 {
     PKT_NPC_INFO_OP_NONE = 0,
-    PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID, /* 13-bit server npc slot */
+    /* Server npc slot; width is the reader's `slot_bits`. */
+    PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID,
     PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX,
     PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX,
     PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX,
@@ -32,7 +45,8 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OPBITS_INFO,
     PKT_NPC_INFO_OPBITS_WALKDIR,
     PKT_NPC_INFO_OPBITS_RUNDIR,
-    PKT_NPC_INFO_OPBITS_NPCTYPE, /* 11-bit npc config id */
+    /* Npc config id; width is the reader's `type_bits`. */
+    PKT_NPC_INFO_OPBITS_NPCTYPE,
     PKT_NPC_INFO_OP_DELTA_XZ,
     PKT_NPC_INFO_OP_SEQUENCE,
     PKT_NPC_INFO_OP_FACE_ENTITY,
@@ -114,9 +128,24 @@ struct PktNpcInfoReader
     uint16_t extended_queue[2048];
     int extended_count;
     int current_op;
+    /** Set by pkt_npc_info_reader_init from the revision table. Never read
+     *  these from a zeroed reader — pkt_npc_info_reader_read asserts they are
+     *  in range precisely so a forgotten init is loud rather than a bit width
+     *  of 0. */
+    int slot_bits;
+    int type_bits;
 };
 
-/** Decode the raw command stream into `ops`. Returns the op count. */
+/** Arm a reader for one revision's wire widths. Zeroes the reader; either
+ *  width may be 0 to take the classic default. */
+void
+pkt_npc_info_reader_init(
+    struct PktNpcInfoReader* reader,
+    int slot_bits,
+    int type_bits);
+
+/** Decode the raw command stream into `ops`. Returns the op count.
+ *  The reader must have been through pkt_npc_info_reader_init. */
 int
 pkt_npc_info_reader_read(
     struct PktNpcInfoReader* reader,

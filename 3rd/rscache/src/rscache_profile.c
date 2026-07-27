@@ -157,6 +157,15 @@ RSCache_RecordAddressFor(
             addr.group_shift = 8;
             addr.file_mask = 0xFF;
             return addr;
+        case RSCACHE_TYPE_STRUCT:
+            /* Still a config group, just a different one: the rev-634 client
+             * opens table 2 group 26 for its struct list (Class65's constructor,
+             * `method407(0, 26)`), where OldSchool uses 34. cache.void634's group
+             * 34 holds 100 files, so an OldSchool-numbered read finds nothing for
+             * any id past that and every param lookup falls back to a default. */
+            addr.table = RSCACHE_DAT2_TABLE_CONFIGS;
+            addr.group = 26;
+            return addr;
         case RSCACHE_TYPE_VARBIT:
             /* The widest shard of the lot — 1024 files per group (void's
              * VarBitDecoder: `id ushr 10` / `id and 0x3ff`). */

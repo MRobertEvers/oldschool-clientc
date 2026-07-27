@@ -79,6 +79,21 @@ struct GameProtoRevTable
     /** Server tick in ms (xrsps 600); 0 = revision has no explicit tick clock. */
     int server_tick_ms;
 
+    /* --- NPC_INFO new-entity field widths (0 = classic) ---------------------
+     * The classic npc stream keeps its shape across revisions but widens
+     * individual fields as the game's id space grows, and a width that is too
+     * narrow does not fail — it truncates. An OSRS-era npc id of 3106 written
+     * into an 11-bit field arrives as 1058, a perfectly valid *different* npc.
+     * Stating the widths per revision is what keeps that drift visible; see
+     * docs/osrs230_mockserver.md. */
+
+    /** Bits in the new-npc record's slot field. The all-ones value is the
+     *  section terminator, so this sets that too. 0 = classic 14. */
+    int npc_slot_bits;
+    /** Bits in the new-npc record's npc-type field. 0 = classic 11, i.e. a
+     *  maximum id of 2047 — far below the OSRS-era npc count. */
+    int npc_type_bits;
+
     /** Login handshake driver. NULL = the classic loginproto.c state machine. */
     struct NetLoginVTable const* login;
 
