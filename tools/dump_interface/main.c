@@ -175,6 +175,30 @@ print_component_details(
         fprintf(fp, "  name='%s'", c->name);
     fputc('\n', fp);
 
+    /* IF1 "active" scripts: comparator[k] + operand[k] vs the value script
+     * scripts[k] decides whether the widget draws its active variant
+     * (activeModel / activeText / activeColour). Reference getIfActive. */
+    if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
+    {
+        struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+        /* This struct does not keep the comparator count (it is decoded
+         * independently of scripts_count in the cache format); in practice the
+         * two match for the widgets that use them. */
+        for( int k = 0; src->scriptComparator && k < src->scripts_count; k++ )
+        {
+            fprintf(
+                fp,
+                "      if1script[%d] cmp=%d operand=%d code=",
+                k,
+                src->scriptComparator ? src->scriptComparator[k] : -1,
+                src->scriptOperand ? src->scriptOperand[k] : -1);
+            if( src->scripts && k < src->scripts_count && src->scripts[k] )
+                for( int o = 0; o < src->scripts_lengths[k]; o++ )
+                    fprintf(fp, "%d ", src->scripts[k][o]);
+            fputc('\n', fp);
+        }
+    }
+
     if( c->type == COMPONENT_TYPE_INV )
     {
         fprintf(
@@ -242,6 +266,14 @@ print_component_details(
             c->modelXAngle,
             c->modelYAngle,
             c->modelZAngle);
+        /* The active (if1script-selected) variant is not carried on the shared
+         * dump struct; read it off the dat1 source. */
+        if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
+            fprintf(
+                fp,
+                "      activeModelType=%d  activeModelId=%d\n",
+                li->dat1_src[i]->activeModelType,
+                li->dat1_src[i]->activeModel);
     }
     else if( c->type == COMPONENT_TYPE_RECT || (c->if3 && c->type == 3) )
     {

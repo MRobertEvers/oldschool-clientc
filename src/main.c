@@ -1367,6 +1367,22 @@ main(
                                : -1;
         int sim_openmain_done = 0;
 
+        /* TORIRS_SIM_OPENCHAT=<iface>: same, for the chatback dialog slot
+         * (reference IF_OPENCHAT / chatComId). Offline repro for the
+         * server-driven chat dialogs (option menus 2459.., npc/player chat). */
+        int sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
+                               ? (int)strtol(getenv("TORIRS_SIM_OPENCHAT"), NULL, 0)
+                               : -1;
+        int sim_openchat_done = 0;
+        char const* sim_sethide = getenv("TORIRS_SIM_SETHIDE");
+        int sim_sethide_done = 0;
+
+        /* TORIRS_SIM_SETTAB="tabno:iface": replay IF_SETTAB offline, so the
+         * sidebar panels the server assigns (combat tab 3796, stats, ...) can
+         * be inspected without a session. */
+        char const* sim_settab = getenv("TORIRS_SIM_SETTAB");
+        int sim_settab_done = 0;
+
         while( !PlatformSDL2_QuitRequested(sdl) )
         {
             uint64_t now;
@@ -1379,6 +1395,48 @@ main(
                 fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
                 RS_UISlots_OpenMain(&app, sim_openmain);
                 sim_openmain_done = 1;
+            }
+
+            if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
+            {
+                fprintf(stderr, "sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
+                RS_UISlots_OpenChat(&app, sim_openchat);
+                sim_openchat_done = 1;
+            }
+
+            if( sim_settab && !sim_settab_done && app.app_state == APP_STATE_READY )
+            {
+                char* tab_sep = NULL;
+                int tabno = (int)strtol(sim_settab, &tab_sep, 0);
+                int tab_iface =
+                    tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
+                fprintf(stderr, "sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
+                RS_UISlots_SetTab(&app, tabno, tab_iface);
+                RS_UISlots_SetSideTab(&app, tabno);
+                sim_settab_done = 1;
+            }
+
+            /* TORIRS_SIM_SETHIDE="com:0|1,...": replay IF_SETHIDE offline. The
+             * chat dialogs ship both a narrow and a wide decoration layer and
+             * the server picks one, so without this there is no way to see the
+             * unhidden variant without a live session. */
+            if( sim_sethide && !sim_sethide_done && app.app_state == APP_STATE_READY && app.tree &&
+                (sim_openchat <= 0 || sim_openchat_done) && (!sim_settab || sim_settab_done) )
+            {
+                char const* cur = sim_sethide;
+                while( *cur )
+                {
+                    char* sep = NULL;
+                    long com = strtol(cur, &sep, 0);
+                    int hide = sep && *sep == ':' ? (int)strtol(sep + 1, &sep, 0) : 1;
+                    fprintf(stderr, "sim_sethide: com=%ld hide=%d\n", com, hide);
+                    App_IfHideSet(&app, (int)com, hide);
+                    while( sep && *sep && *sep != ',' )
+                        sep++;
+                    cur = sep && *sep == ',' ? sep + 1 : "";
+                }
+                App_RefreshAfterTreeMutation(&app);
+                sim_sethide_done = 1;
             }
 
             /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
@@ -1413,13 +1471,17 @@ main(
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
 
-                /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1": press at (x0,y0), move
-                 * to (x1,y1) over 20 frames, release. The only way to exercise
-                 * a drag headlessly — SIM_CLICK_AT presses and releases in the
-                 * same place, which no drag handler reacts to. */
+                /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats]": press at
+                 * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
+                 * `repeats` times (default 1). The only way to exercise a drag
+                 * headlessly — SIM_CLICK_AT presses and releases in the same
+                 * place, which no drag handler reacts to — and the repeat is
+                 * what keeps a pan going long enough to show what a client does
+                 * when the view never settles. */
                 {
                     static long drag_frame = -2;
                     static long drag_x0, drag_y0, drag_x1, drag_y1;
+                    static long drag_repeats = 1;
                     if( drag_frame == -2 )
                     {
                         char const* spec = getenv("TORIRS_SIM_DRAG");
@@ -1427,18 +1489,19 @@ main(
                         if( spec && *spec )
                         {
                             char* end = NULL;
-                            long values[5];
+                            long values[6];
                             int count = 0;
                             values[count++] = strtol(spec, &end, 0);
-                            while( count < 5 && end && *end == ',' )
+                            while( count < 6 && end && *end == ',' )
                                 values[count++] = strtol(end + 1, &end, 0);
-                            if( count == 5 )
+                            if( count >= 5 )
                             {
                                 drag_frame = values[0];
                                 drag_x0 = values[1];
                                 drag_y0 = values[2];
                                 drag_x1 = values[3];
                                 drag_y1 = values[4];
+                                drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
                             }
                         }
                     }
@@ -1464,9 +1527,12 @@ main(
                                 &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, (int)drag_x1, (int)drag_y1);
                             fprintf(
                                 stderr,
-                                "sim_drag: %ld,%ld -> %ld,%ld\n",
-                                drag_x0, drag_y0, drag_x1, drag_y1);
-                            drag_frame = -1;
+                                "sim_drag: %ld,%ld -> %ld,%ld (%ld left)\n",
+                                drag_x0, drag_y0, drag_x1, drag_y1, drag_repeats - 1);
+                            if( --drag_repeats > 0 )
+                                drag_frame = frame_count + 2;
+                            else
+                                drag_frame = -1;
                         }
                     }
                 }

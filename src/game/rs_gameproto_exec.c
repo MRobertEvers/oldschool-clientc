@@ -333,7 +333,15 @@ RS_GameProto_Exec(
             UITree_ApplyText(ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
     case PKT_NAME_IF_SETHIDE:
-        UITree_ApplyHide(ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
+        /* Persisting setter, not a one-shot apply: IF_SETHIDE routinely lands
+         * before the interface it targets has finished mounting (the mount is
+         * an async task), and the reference keeps `hide` on IfType.list where
+         * it survives. */
+        if( ctx->app )
+            App_IfHideSet(ctx->app, packet->_if_sethide.component_id, packet->_if_sethide.hide);
+        else
+            UITree_ApplyHide(
+                ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         break;
     case PKT_NAME_IF_SETCOLOUR:
         UITree_ApplyColour(

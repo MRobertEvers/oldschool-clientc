@@ -2097,6 +2097,7 @@ App_Shutdown(struct App* app)
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
     free(app->if_heads);
+    free(app->if_hides);
 }
 
 /* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
@@ -7830,6 +7831,21 @@ App_RunOnce(
                         app->tree->generation);
             }
         }
+        if( app->if_hide_count > 0 && app->tree->generation != app->if_hide_applied_gen )
+        {
+            app->if_hide_applied_gen = app->tree->generation;
+            for( int i = 0; i < app->if_hide_count; i++ )
+            {
+                bool ok =
+                    UITree_ApplyHide(app->tree, app->if_hides[i].com_id, app->if_hides[i].hide);
+                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "if_sethide: reapply com=%d gen=%u missed\n",
+                        app->if_hides[i].com_id,
+                        app->tree->generation);
+            }
+        }
         /* Rebind chatheads onto their (possibly newly mounted) MODEL nodes. */
         app_if_head_poll(app);
         app_chat_build_view(app);
@@ -7891,6 +7907,38 @@ App_IfTextSet(
                 com_id,
                 text ? text : "",
                 (int)applied);
+    }
+    app->need_redraw = 1;
+}
+
+void
+App_IfHideSet(
+    struct App* app,
+    int com_id,
+    int hide)
+{
+    int i;
+    assert(app);
+    for( i = 0; i < app->if_hide_count; i++ )
+        if( app->if_hides[i].com_id == com_id )
+            break;
+    if( i == app->if_hide_count )
+    {
+        if( app->if_hide_count == app->if_hide_cap )
+        {
+            int cap = app->if_hide_cap ? app->if_hide_cap * 2 : 64;
+            app->if_hides = realloc(app->if_hides, (size_t)cap * sizeof(*app->if_hides));
+            assert(app->if_hides);
+            app->if_hide_cap = cap;
+        }
+        app->if_hides[i].com_id = com_id;
+        app->if_hide_count++;
+    }
+    app->if_hides[i].hide = hide ? 1 : 0;
+    {
+        bool applied = UITree_ApplyHide(app->tree, com_id, hide);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "if_sethide: com=%d hide=%d applied=%d\n", com_id, hide, (int)applied);
     }
     app->need_redraw = 1;
 }

@@ -3920,3 +3920,66 @@ Confirmed on every shipped manifest: `manifest_rs254` (dat1),
   `sounds.dat consumed 241248 of 929467 bytes` and plays nothing. Setting
   `revision=377` makes 377's sounds decode and play. Left alone here because that
   line also moves every other revision-gated decoder on that boot.
+
+## 52. `IF_SETHIDE` was a one-shot apply — the special attack bar and the wide chat sword decoration never appeared — ✅
+
+Two unrelated-looking reports, one cause.
+
+*Symptom A* — chat option dialogs (`2459`/`2469`/`2480`/`2492`) drew the swords
+as a short centred pair hugging the "Select an Option" title, instead of the
+wide pair in the top corners of the chatbox.
+
+*Symptom B* — the combat tab never showed the special attack bar, for any
+weapon.
+
+Both are cache layers the server unhides. Each option dialog ships *two*
+decoration layers and the server picks one by title width:
+
+```
+[01] id=2468  layer  x=2   y=1  w=476 h=13  hidden=1   <- wide,   swords at x=2 / x=421
+[04] id=2465  layer  x=126 y=1 w=229 h=13  hidden=0   <- narrow, swords at x=126 / x=298
+```
+
+and the 254 combat tab `3796` has exactly one hidden layer, which is the bar:
+
+```
+[01] id=7624  layer  x=17 y=231 w=158 h=24  hidden=1
+[02] id=7636  text   'S P E C I A L  A T T A C K'
+[03..13]      model  3475 x10 + 3476        <- the fill segments
+```
+
+`IF_SETHIDE` was executed as a bare `UITree_ApplyHide` in
+`rs_gameproto_exec.c`. That resolves against the *mounted* tree, but the mount
+is an async task (`Task_SlotMountRefresh` on the exec pipeline), so a hide that
+arrives with — or just after — the `IF_OPENCHAT` / `IF_SETTAB` that creates the
+nodes resolves to nothing and is dropped silently. Even when it did land, the
+next re-bake of that region rebuilt the nodes from the cache defaults and the
+layer went back to hidden.
+
+The reference has neither problem because `hide` lives on the process-wide
+`IfType.list` config (`Client.ts` `IF_SETHIDE`: `IfType.list[comId].hide =
+hide`), which nothing rebuilds.
+
+Fix: mirror the `if_texts` store from §"Interface packet before mount" —
+`App_IfHideSet` persists `(com_id, hide)` and applies immediately; the redraw
+path re-applies the whole store whenever `tree->generation` moves. Same
+lifetime as the reference's, so both the pre-mount and the post-rebake case are
+covered.
+
+Offline repro (no server needed), via three new harness knobs in `main.c` —
+`TORIRS_SIM_OPENCHAT=<iface>`, `TORIRS_SIM_SETTAB=<tabno>:<iface>` and
+`TORIRS_SIM_SETHIDE=<com>:<0|1>[,...]`, which fire in that order on the same
+frame and so reproduce exactly the pre-mount race:
+
+```
+TORIRS_SIM_OPENCHAT=2459 TORIRS_SIM_SETHIDE=2468:0,2465:1 \
+TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifest_rs254.ini --offline
+```
+
+`TORIRS_NET_DEBUG=1` prints `if_sethide: com=7624 hide=0 applied=0` — the
+packet-time miss — and the bar is on screen anyway, because the re-apply caught
+it.
+
+Not touched: the CS2 `IF_SETHIDE` host request (`rs_cs2_host.c`). Dat2 gameframes
+re-run their hide scripts on every var change, so there is nothing there to
+persist.

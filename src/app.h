@@ -305,6 +305,21 @@ struct App
     int if_text_cap;
     uint32_t if_text_applied_gen;
 
+    /* Persistent IF_SETHIDE store, same reasoning as if_texts (the reference
+     * keeps `hide` on the shared IfType.list, so a hide sent before the owning
+     * interface mounts still takes effect once it does). The chat option
+     * dialogs ship two sword-decoration layers — a narrow centred pair and a
+     * wide corner pair — and the server picks one with IF_SETHIDE right after
+     * IF_OPENCHAT; dropping it left the cache default (narrow) on screen. */
+    struct AppIfHide
+    {
+        int com_id;
+        int hide;
+    }* if_hides;
+    int if_hide_count;
+    int if_hide_cap;
+    uint32_t if_hide_applied_gen;
+
     /* Persistent IF_SETNPCHEAD / IF_SETPLAYERHEAD store (reference keeps
      * model1Type/model1Id on IfType.list and re-resolves getModel every draw):
      * the head packet arrives before the chat interface mounts, so the request
@@ -577,6 +592,13 @@ App_IfTextSet(
     struct App* app,
     int com_id,
     char const* text);
+
+/** IF_SETHIDE: persist (reference IfType.list semantics) + apply if mounted. */
+void
+App_IfHideSet(
+    struct App* app,
+    int com_id,
+    int hide);
 
 /** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
  *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —

@@ -535,6 +535,35 @@ ToriDraw_SceneSpriteAdd(
     td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_LOAD, element_id, sprites, count);
 }
 
+void
+ToriDraw_SceneSpriteRemove(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    assert(scene);
+
+    struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
+        scene->sprites_hmap, &element_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return;
+
+    /* Same teardown SceneSpriteAdd does when it replaces an entry — the unload
+     * event is what lets a renderer drop the GPU copy, so a caller that evicts
+     * without replacing (the world map's region pool) must go through here
+     * rather than leaving the entry behind. */
+    if( entry->sprites )
+    {
+        td_scene_emit_sprite(
+            scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
+        for( int i = 0; i < entry->count; i++ )
+            ToriDraw_SpriteFree(entry->sprites[i]);
+        free(entry->sprites);
+    }
+    entry->sprites = NULL;
+    entry->count = 0;
+    ToriDraw_MapSearch(scene->sprites_hmap, &element_id, TORIDRAW_MAP_REMOVE);
+}
+
 struct ToriDraw_Sprite**
 ToriDraw_SceneSpriteGet(
     struct ToriDraw_Scene* scene,

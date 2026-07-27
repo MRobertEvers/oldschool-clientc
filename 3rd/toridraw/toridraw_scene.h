@@ -89,6 +89,13 @@ ToriDraw_SceneSpriteAdd(
     struct ToriDraw_Sprite** sprites,
     int count);
 
+/** Drop a sprite entry: frees the sprites and emits the unload event. Adding
+ *  over an id already does this; this is for evicting without a replacement. */
+void
+ToriDraw_SceneSpriteRemove(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
 struct ToriDraw_Sprite**
 ToriDraw_SceneSpriteGet(
     struct ToriDraw_Scene* scene,

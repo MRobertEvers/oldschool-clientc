@@ -88,6 +88,11 @@ struct RS_WorldMapRender
     unsigned long clock;
     size_t baked_bytes;
     int bakes_this_frame;
+    int stat_bakes;
+    int stat_no_source;
+    int stat_no_geography;
+    int stat_waiting;
+    int stat_budget;
 };
 
 struct RS_WorldMapRender*
@@ -107,8 +112,20 @@ RS_WorldMapRender_New(void)
 void
 RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
 {
-    if( render )
-        render->bakes_this_frame = 0;
+    if( !render )
+        return;
+    render->bakes_this_frame = 0;
+    if( getenv("TORIRS_WORLDMAP_STATS") )
+    {
+        static int frame = 0;
+        if( ++frame % 300 == 0 )
+            fprintf(
+                stderr,
+                "worldmap stats: bakes=%d no_source=%d no_geography=%d waiting=%d budget=%d "
+                "bytes=%zu\n",
+                render->stat_bakes, render->stat_no_source, render->stat_no_geography,
+                render->stat_waiting, render->stat_budget, render->baked_bytes);
+    }
 }
 
 void
@@ -136,7 +153,7 @@ RS_WorldMapRender_Clear(
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
     {
         if( render->slots[i].key >= 0 && scene )
-            ToriDraw_SceneSpriteAdd(scene, WORLDMAP_REGION_SCENE_BASE | i, NULL, 0);
+            ToriDraw_SceneSpriteRemove(scene, WORLDMAP_REGION_SCENE_BASE | i);
         render->slots[i].key = -1;
     }
     render->baked_bytes = 0;
@@ -828,7 +845,7 @@ worldmap_slot_claim(
         render->baked_bytes -= worldmap_slot_bytes(&render->slots[victim]);
         render->slots[victim].key = -1;
         if( scene )
-            ToriDraw_SceneSpriteAdd(scene, WORLDMAP_REGION_SCENE_BASE | victim, NULL, 0);
+            ToriDraw_SceneSpriteRemove(scene, WORLDMAP_REGION_SCENE_BASE | victim);
     }
 
     return claimed;
@@ -947,10 +964,32 @@ worldmap_floors_ready(
     return ready;
 }
 
+/** Release a region's wait entry — it baked, so it is no longer waiting. */
+static void
+worldmap_pending_clear(
+    struct RS_WorldMapRender* render,
+    int key)
+{
+    for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
+    {
+        if( render->pending[i].key == key )
+        {
+            render->pending[i].key = -1;
+            return;
+        }
+    }
+}
+
 /**
  * Should this region keep waiting for its floors? Counts the waits per region
  * and gives up after WORLDMAP_FLOOR_WAIT_FRAMES, baking with whatever loaded —
  * the tiles whose floor never arrived draw as background.
+ *
+ * Entries are released by worldmap_pending_clear when the region bakes. Leaving
+ * them behind used to fill the list permanently — a region that became ready
+ * before its count ran out never cleared its entry — and once full, every new
+ * region was told to keep waiting forever: the map stopped loading new tiles
+ * after roughly this many regions had ever been panned over.
  */
 static bool
 worldmap_wait_for_floors(
@@ -973,11 +1012,14 @@ worldmap_wait_for_floors(
             free_slot = i;
     }
 
-    if( free_slot >= 0 )
-    {
-        render->pending[free_slot].key = key;
-        render->pending[free_slot].attempts = 1;
-    }
+    /* No room to track this one: bake now rather than wait on a counter that
+     * will never advance. A full list means something else is wrong, and an
+     * unwaited bake is merely less complete — it re-bakes when its assets land. */
+    if( free_slot < 0 )
+        return false;
+
+    render->pending[free_slot].key = key;
+    render->pending[free_slot].attempts = 1;
     return true;
 }
 
@@ -1083,7 +1125,10 @@ RS_WorldMapRender_RegionSprite(
         source_count = worldmap_region_sources(
             area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
         if( source_count == 0 )
+        {
+            render->stat_no_source++;
             return -1;
+        }
 
         geography = CacheProvider_WorldMapGeographyGet(provider, key);
         if( !geography )
@@ -1092,24 +1137,34 @@ RS_WorldMapRender_RegionSprite(
                 CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
             if( task && queue )
                 ToriRS_TaskQueue_Add(queue, task);
+            render->stat_no_geography++;
             return -1;
         }
 
         complete = worldmap_floors_ready(provider, queue, geography);
         if( !complete && worldmap_wait_for_floors(render, key) )
+        {
+            render->stat_waiting++;
             return -1;
+        }
 
         /* Zooming out asks for hundreds of regions at once. Baking them all in
          * one frame freezes the client for seconds, so only a few start per
          * frame and the rest come in over the next ones. */
         if( render->bakes_this_frame >= WORLDMAP_BAKES_PER_FRAME )
+        {
+            render->stat_budget++;
             return -1;
+        }
     }
     else
     {
         complete = true; /* the resident-slot path above only falls through when ready */
     }
     render->bakes_this_frame++;
+    worldmap_pending_clear(render, key);
+    if( getenv("TORIRS_WORLDMAP_STATS") )
+        render->stat_bakes++;
 
     size = WORLDMAP_TILES * pixels_per_tile;
     if( slot < 0 )
