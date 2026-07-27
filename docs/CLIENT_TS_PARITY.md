@@ -3797,3 +3797,126 @@ is wired on the wire side but has no caller. Implementing it needs the reference
 `idkDesignPart[7]` / `idkDesignColour[5]` / `idkDesignGender` store, the
 `validateIdkDesign` re-scan on gender switch, `ClientPlayer.recol1d`/`recol2d`,
 and a rebuild-on-change of the composite (`idkDesignRedraw`).
+
+
+---
+
+## 51. The client was mute — sound effects were decoded by nobody and played by nothing — ✅
+
+### Symptom
+
+`SYNTH_SOUND` arrived, was counted, and vanished. `src/game/rs_audio.c` was a
+sink whose whole job was to `fprintf` `"(no playback backend)"`; no cache era had
+a sound decoder, no ToriRS type carried audio, and no platform file mentioned an
+audio device. Every boot — dat1 254, OSRS 230/239, RS2 634/643 — was silent.
+
+### What the cache actually holds
+
+Sound effects are not recordings. Each one is a small FM synthesiser program: up
+to ten *tones*, each an oscillator bank (up to five harmonics) driven by
+breakpoint envelopes, with optional frequency/amplitude modulation, a gate that
+chops the tone into pulses, a reverb tap, and — from the second generation — a
+resonant filter that sweeps under its own envelope. Playing one means running it.
+
+Two eras, measured over the corpus by whether whole containers consume exactly:
+
+| Lineage | Packaging | Filter | Effects |
+|---|---|---|---|
+| rs2/dat1 ≤254 | `sounds.dat` in config archive 8, one chain of `u16 id` + record ending in 65535 | no | 579–696 per cache |
+| rs2/dat1 377 | same | **yes** | 2727 |
+| oldschool/dat2 184–239 | one archive per id in table 4 | yes | 4211 / 10279 / 12010 |
+| rs2/dat2 634, 643 | one archive per id in table 4 | yes | 10232 / 10154 |
+
+The record layout is otherwise identical across containers, so one codec covers
+both: `3rd/rscache/src/datatypes/sound_synth.c` reads the program,
+`sound_render.c` runs it. The two flavours are indistinguishable byte-for-byte at
+record level — only a whole *file* failing to end on its terminator tells them
+apart — so the gate is stated from the profile, not detected.
+
+### The renderer is byte-identical to the reference
+
+Client3's `src/sound/{envelope,tone,wave}.c` was run over the same `sounds.dat`
+(its unseeded noise table swapped for the seeded one) and compared sample by
+sample: **2667 effects across all four dat1 caches, 55 million samples, zero
+differing bytes.**
+
+Reaching that took one non-obvious behaviour. **An unusable loop range changes the
+output length.** The length is `sampleCount + span * (loopCount - 1)`, and the
+validity check forces `loopCount` to 0, leaving `sampleCount - span`. So an effect
+whose loop end runs past its own duration comes out *shorter than its own tones*
+(id 221 in cache254.lostcity loses 200ms of tail), and one whose loop bounds are
+reversed comes out *longer*, silence-padded (id 383 gains 1.2s). Nine of that
+cache's 696 effects depend on it; rendering the natural length instead is what
+stood between 687/696 and 696/696.
+
+### The platform seam
+
+The game does not own an audio device, for the same reason it does not own the
+framebuffer:
+
+```
+SYNTH_SOUND ─▶ RS_Audio queue ─(client tick)─▶ ToriRS_AudioQueue
+                                                    │
+                              App_DrainAudio ◀──────┘
+                                     │
+                    PlatformAudio_SubmitAll ─▶ sdl2 | null | wasm
+```
+
+`src/audio/torirs_audio.h` is the neutral interface (commands + queue, PCM
+borrowed until the next drain); `src/platform/platform_audio.h` is the backend
+API. Three backends: SDL2 (one queue-mode device, monophonic like the reference),
+null (headless and tests — records what was asked), and WebAudio under
+`__EMSCRIPTEN__`. The browser is what shaped the interface: playback cannot start
+before a user gesture and the heap can move, so a per-frame command drain with
+copy-at-submit is the only shape that survives the move to WebAssembly.
+
+The queue itself is the reference's `soundsDoQueue`: a 50-entry cap, per-tick
+countdown, the effect's own trim lead-in added to the server's delay, and the
+overlap rule that refuses a short clip landing under a longer one rather than
+cutting it off. One addition the reference does not need: effects load
+asynchronously here, so an entry waits (without counting down) until its effect is
+resident, because the trim the delay is relative to is not known until then.
+
+### Verification
+
+`make -C 3rd/rscache test` → `test_sound` 120 checks: exact consumption and
+**byte-exact round-trip on every effect in every cache** (2667 dat1 + 41,062
+dat2), plus golden CRCs of the reference-verified renders.
+`make -C src test-sound` → 44 checks driving cache → render → queue → platform on
+both a dat1 and a dat2 boot, asserting the platform received *audible* PCM.
+
+In the real client, `TORIRS_SIM_SOUND=<id>[,loops[,every_frames]]` queues an
+effect once the gameframe is up:
+
+```
+TORIRS_AUDIO_DEBUG=1 TORIRS_SIM_SOUND=41 TORIRS_MAX_FRAMES=200 \
+  ./src/torirs --manifest manifest_rs254.ini
+```
+
+```
+dat1 sound: effect 41 rendered, 26680 samples, delay 17 ticks
+rs_audio: play id=41 loops=1 samples=26680 (60 ticks)
+audio(sdl2): queued id=41 samples=26680 rate=22050 volume=64
+```
+
+Confirmed on every shipped manifest: `manifest_rs254` (dat1),
+`manifest_osrs230`, `manifest_osrs239`, `manifest_xrsps` and `manifest_void634`.
+
+### Still open
+
+- **Music.** `MIDI_SONG` / `MIDI_JINGLE` are recorded but not played: the song
+  archives (tables 6 and 11) hold Jagex-packed MIDI, and there is no decoder or
+  soundfont synth. The audio interface deliberately carries no music command
+  until there is something to put behind it.
+- **Jagex-compressed samples.** 122 of OldSchool 239's 12,010 sound ids are
+  "BCV" audio rather than synth programs (119 paired with a synth record, which is
+  what plays; 3 sample-only, which are silent). Decoding BCV means a Vorbis
+  implementation plus its shared codebook, and rt4's `VorbisSound` header layout
+  does not match these bytes — no reference to port.
+- **`manifest_rs377.ini` states `revision=254`** while pointing at
+  `cache.rs377`. It is a copy of the 254 manifest with only `dir=` changed (its
+  header comment still says "rev 254"), so the sound codec picks the pre-filter
+  flavour and the stream mis-frames — the loader reports
+  `sounds.dat consumed 241248 of 929467 bytes` and plays nothing. Setting
+  `revision=377` makes 377's sounds decode and play. Left alone here because that
+  line also moves every other revision-gated decoder on that boot.

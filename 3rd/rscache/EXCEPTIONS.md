@@ -1260,11 +1260,24 @@ exact sequence is meaningful, so the renderer always reproduces Java's seeded se
 (`java_random` in sound_render.c). That is what makes a render byte-stable, which is what
 lets the test compare two renders of the same effect at all.
 
-*Deviation: `loop_count == 0` plays once.* The reference's loop expansion computes
-`total = count + span * (loopCount - 1)`, so a zero loop count *shortens* the buffer by one
-span. `RSCache_SoundPcmExpandLoops` treats 0 and 1 alike (play once) rather than reproducing
-a negative adjustment, and renders the natural length always. For every `loopCount >= 1`
-the output is the reference's.
+**The render was checked against the reference implementation, not just against
+itself.** Client3's `src/sound/{envelope,tone,wave}.c` — a C port of the 2004 client's sound
+code, and what the dat1 path is written against — was run over the same `sounds.dat` with
+only its unseeded noise table replaced by the seeded one (see below), and compared byte for
+byte. **Every effect in all four dat1 caches is byte-identical**: 696 in cache254.lostcity,
+579 in cache254, 696 each in rs254_zuk and rs254_steeltitan; 2667 effects, 55 million
+samples, zero differing bytes. `test_sound.c` keeps a CRC of that verified output as a golden
+constant, since the comparison itself needs the reference's sources next to ours.
+
+Getting there took one non-obvious thing. **An unusable loop range changes the output
+length.** The WAVE generation's length is `sampleCount + span * (loopCount - 1)`, and the
+validity check forces `loopCount` to 0 — leaving `sampleCount - span`. So an effect whose
+loop end runs past its own duration comes out *shorter than its own tones* (id 221 loses
+200ms of tail) and one whose loop bounds are reversed comes out *longer*, silence-padded (id
+383 gains 1.2s). Nine of cache254.lostcity's 696 effects depend on it. Rendering the natural
+length instead was the first version, and it was the only thing standing between 687/696 and
+696/696. `RSCache_SoundPcmExpandLoops` handles the matching zero-repeat case for a *valid*
+span the same way.
 
 *Deviation: the two mixing generations are kept apart.* Tone synthesis is identical in both
 eras; summing tones into the output is not. dat1 (Client-TS `Wave.generate`) starts the
@@ -1473,7 +1486,7 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1461 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 1479 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
@@ -1483,7 +1496,7 @@ tree and was not touched by this work.
 | roundtrip | 331 |
 | compression | 99 |
 | config_var | 37 |
-| sound | 102 |
+| sound | 120 |
 | bzip2 interop | 9 |
 
 Client builds; `test-db`, `test-net-login`, `test-world-builder`,

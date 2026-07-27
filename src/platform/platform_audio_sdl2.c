@@ -28,6 +28,15 @@
 
 #define PLATFORM_AUDIO_MAX_CLIP_BYTES (4 * 1024 * 1024)
 
+static bool
+audio_trace(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_AUDIO_DEBUG") != NULL ? 1 : 0;
+    return enabled != 0;
+}
+
 struct PlatformAudio
 {
     SDL_AudioDeviceID device;
@@ -176,6 +185,14 @@ play_pcm(
         return;
     }
     audio->stats.played++;
+    if( audio_trace() )
+        fprintf(
+            stderr,
+            "audio(sdl2): queued id=%d samples=%d rate=%d volume=%d\n",
+            command->sound_id,
+            command->sample_count,
+            command->sample_rate,
+            audio->volume);
 }
 
 void

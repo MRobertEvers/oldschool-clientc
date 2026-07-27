@@ -116,36 +116,64 @@ compatible with a real OldSchool 230 server.** Everything else (`IF_OPENSUB`,
 `IF_SETEVENTS`, `UPDATE_INV_FULL`/`_PARTIAL`, `REBUILD_NORMAL`) uses the real
 RSProt layouts, alt byte orders and all.
 
-### 3.2 NPC type is an 11-bit field — ids above 2047 corrupt silently
+### 3.2 Field widths in the info streams are revision state
 
 The single sharpest edge here. The classic new-npc record is:
 
 ```
-14 bits  npc slot          (terminator 16383)
-11 bits  npc type          <-- 2047 maximum
- 5 bits  dx from the local player
- 5 bits  dz from the local player
- 1 bit   extended info follows
+slot bits  npc slot          (all-ones = section terminator)
+type bits  npc type
+   5 bits  dx from the local player
+   5 bits  dz from the local player
+   1 bit   extended info follows
 ```
 
-OSRS 230 has ~12,000 npcs. Spawning npc 3106 ("Man") writes `3106 & 0x7FF` =
-1058, and the client spawns whatever npc 1058 happens to be — or nothing at all,
-which is how this was found:
+Those two widths are **not constants**. The stream keeps its shape across
+revisions while individual fields widen with the game's id space, and a width
+that is too narrow does not fail — it truncates. OSRS 230 has ~12,000 npcs;
+writing npc 3106 ("Man") into the classic 11-bit type field keeps its low 11
+bits and produces 1058, so the client spawns whatever npc 1058 happens to be.
+
+That is how this was found — not from the wrong npcs, which look fine, but from
+the two that truncated onto *empty* ids:
 
 ```
 spawn_npc: npc 1063 unavailable      # 3111 "Woman" truncated to 1063
 spawn_npc: npc 1064 unavailable      # 3112 "Woman" truncated to 1064
 ```
 
-Five of the ten npcs in the first roster truncated to ids that *did* exist and
-spawned the wrong npc with no warning at all. `npc_spawn` now refuses anything
-over 2047, and the roster is drawn from low ids: 385 Man, 397/398 Guard, 305
-Jennifer, 542 Monk, 655 Goblin, 687 Bartender, 731 Sheep, 766 Banker, 1020 Rat.
+Five of the ten npcs in the first roster spawned as a different npc with no
+warning anywhere.
 
-Widening the field means widening `pkt_npc_info.c`, which is shared with the
-lc254 and lc245_2 revisions that really do use 11 bits — so it needs a
-per-revision seam (a `npc_type_bits` on `GameProtoRevTable`, threaded down to
-`pkt_npc_info_reader_read`) rather than an edit.
+The widths are now stated per revision rather than hard-coded:
+
+```c
+/* GameProtoRevTable — 0 means the classic width, so lc254 / lc245_2 need
+   no entry and are byte-for-byte unchanged. */
+int npc_slot_bits;   /* 0 = classic 14 */
+int npc_type_bits;   /* 0 = classic 11 (max id 2047) */
+```
+
+`osrs230` declares 14 for both. A reader is armed by
+`pkt_npc_info_reader_init(reader, slot_bits, type_bits)` before every decode,
+and `pkt_npc_info_reader_read` asserts the widths are in range — a forgotten
+init is loud rather than a bit width of zero that invents entities out of
+nothing. The terminator is derived from `slot_bits`, so it cannot drift out of
+step with the field it terminates. The mock writes the same two widths from
+`MOCK230_NPC_SLOT_BITS` / `MOCK230_NPC_TYPE_BITS`.
+
+The 21-bit loop guard deliberately did **not** become a parameter: it is the
+reference's own fixed margin and it decides whether the terminator is consumed
+before the byte-aligned extended-info section (§3.3), so changing it would shift
+that alignment.
+
+`test-entity-decode` covers both widths on the same bytes — 3106 at 14 bits, and
+the same stream read at 11 bits producing 388 — because the failure mode is a
+decode that still succeeds and simply describes a different npc.
+
+What this does *not* cover is a structural change. Real rev-230 `PLAYER_INFO`
+and `NPC_INFO` (§3.1) are a different format, not a rewidened one; that needs a
+second decoder, not a parameter.
 
 ### 3.3 The bit-section terminator is not optional, and the two streams disagree
 
@@ -317,7 +345,9 @@ Against the real client (`SDL_VIDEODRIVER=dummy`, `TORIRS_MAX_FRAMES`,
 - **Walking** — a world click produces `MOVE_GAMECLICK`; the mock routes,
   interpolates and steps one tile per tick (two running), and the player and
   camera follow.
-- **NPCs** — all ten spawn, render, appear as minimap dots and roam.
+- **NPCs** — all ten spawn, render, appear as minimap dots and roam, including
+  the OSRS-era ids (3105 Hans, 3106-3108 Man, 3111/3112 Woman, 3114 Farmer)
+  that the 11-bit type field used to silently redirect.
 - **Tab switching** — clicking a sidebar tab swaps the mounted panel
   (inventory → worn equipment, hovertext and tab highlight both follow).
 - **Inventory rendering** — all 14 items, including the ≥255 count escape
@@ -375,9 +405,15 @@ The mock also accepts `::` commands over `CLIENT_CHEAT` (`item <id> [count]`,
 
 1. **Inventory-slot association for CS2-created components** (§5) — unblocks
    equip and drag through the UI. Everything on both sides of it already works.
-2. **Per-revision `npc_type_bits`** (§3.2) — lets the roster use the whole npc
-   space instead of ids under 2048.
-3. **`IF_SETEVENTS`** (§3.6) — the client has no server-driven events mask, so
+2. **`IF_SETEVENTS`** (§3.6) — the client has no server-driven events mask, so
    op availability is currently whatever the interface definition says.
-4. **A real v5 `PLAYER_INFO`/`NPC_INFO` decoder** (§3.1) — the prerequisite for
-   ever pointing this client at a real OldSchool 230 server.
+3. **A real v5 `PLAYER_INFO`/`NPC_INFO` decoder** (§3.1) — the prerequisite for
+   ever pointing this client at a real OldSchool 230 server. The rev table has
+   three unused function-pointer slots (`player_info_read`, `npc_info_read`,
+   `appearance_decode`) reserved for exactly this; nothing assigns or calls them
+   yet.
+
+The player stream's 11-bit pid field is the same class of thing as §3.2 and has
+not been parameterised — it is 11 bits in every revision in the tree, so there
+is nothing yet to vary. If a revision widens it, it wants a `player_pid_bits`
+beside the two npc widths rather than an edit.

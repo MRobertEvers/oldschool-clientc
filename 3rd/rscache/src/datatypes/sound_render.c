@@ -660,10 +660,24 @@ RSCache_SoundPcmExpandLoops(
 
     if( !pcm || !pcm->samples )
         return false;
-    if( loop_count <= 1 || pcm->loop_start < 0 || pcm->loop_end <= pcm->loop_start )
-        return true;
+    if( pcm->loop_start < 0 || pcm->loop_end <= pcm->loop_start )
+        return true; /* no usable span; the render already accounted for it */
 
     span = pcm->loop_end - pcm->loop_start;
+
+    /* The reference's length is `count + span * (loopCount - 1)`, so a repeat
+     * count of zero *shortens* the clip by one span rather than playing it once.
+     * Servers send at least 1, but reproducing it costs nothing and removes the
+     * last place this differs from the reference by choice. */
+    if( loop_count <= 0 )
+    {
+        pcm->sample_count = pcm->sample_count - span;
+        if( pcm->sample_count < 0 )
+            pcm->sample_count = 0;
+        return true;
+    }
+    if( loop_count == 1 )
+        return true;
     total = pcm->sample_count + span * (loop_count - 1);
     grown = realloc(pcm->samples, (size_t)total);
     if( !grown )

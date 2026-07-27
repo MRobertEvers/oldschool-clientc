@@ -400,10 +400,12 @@ UITree_EmitFill(
         out->scene_id = UITree_Host(host, &req);
         if( out->scene_id <= 0 )
             return false;
-        /* That mask placeholder clips the over-filled map to its round window
-         * (inverted: map shows where the mask is transparent). */
+        /* That mask placeholder clips the over-filled map to its round window.
+         * Which side of the mask is the window is era art, not a widget
+         * property — see UITree.mask_keep_opaque. */
         out->mask_scene_id = component->u.minimap.mask_scene_id;
         out->mask_atlas_index = component->u.minimap.mask_atlas_index;
+        out->mask_keep_opaque = tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         /* Entity/flag overlay dots, computed by the host in center-relative
          * pixels (reference minimapDraw). */
@@ -448,6 +450,7 @@ UITree_EmitFill(
         /* The pack's placeholder graphic doubles as the circular clip. */
         out->mask_scene_id = component->u.sprite.mask_scene_id;
         out->mask_atlas_index = component->u.sprite.mask_atlas_index;
+        out->mask_keep_opaque = tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
 

@@ -355,11 +355,16 @@ npc_spawn(
     int z,
     int wander_radius)
 {
-    /* The wire field is 11 bits. A wider id would not fail loudly — it would
-     * truncate to a different, probably valid, npc. */
-    if( type < 0 || type > 2047 )
+    /* A wider id would not fail loudly — it would truncate to a different,
+     * probably valid, npc. rev 230 states 14 bits, which covers the whole
+     * OldSchool npc space; the guard exists for the day that changes. */
+    if( type < 0 || type > MOCK230_NPC_TYPE_MAX )
     {
-        fprintf(stderr, "mock230: npc type %d exceeds the 11-bit wire field; not spawned\n", type);
+        fprintf(
+            stderr,
+            "mock230: npc type %d exceeds the %d-bit wire field; not spawned\n",
+            type,
+            MOCK230_NPC_TYPE_BITS);
         return;
     }
 
@@ -868,12 +873,11 @@ mock230_world_init(
     }
 
     /* NPC roster around the spawn: humans that roam plus a stationary greeter.
-     *
-     * EVERY ID MUST BE UNDER 2048. The classic NPC_INFO stream carries the npc
-     * type in an 11-bit field, so 3106 ("Man") silently truncates to 1058 and
-     * the client spawns whatever that happens to be — or nothing, if the
-     * truncated id is empty. npc_spawn refuses anything wider. All ids below
-     * are verified present in cache.osrs230. */
+     * Ids verified present in cache.osrs230, and deliberately spanning both
+     * sides of 2047 — everything above it only survives because rev 230 states
+     * a 14-bit npc-type field (GameProtoRevTable.npc_type_bits). Written into
+     * the classic 11-bit field, 3106 ("Man") keeps its low 11 bits and lands on
+     * npc 1058 instead; neither end reports anything. */
     memset(srv->npcs, 0, sizeof(srv->npcs));
     srv->tracked_count = 0;
     {
@@ -884,16 +888,16 @@ mock230_world_init(
             int dz;
             int radius;
         } roster[] = {
-            { 385, 2,  1,  0 }, /* Man — stands still, the greeter */
-            { 397, -3, 2,  4 }, /* Guard */
-            { 398, 4,  -2, 4 }, /* Guard */
-            { 687, -2, -4, 3 }, /* Bartender */
-            { 766, 1,  5,  0 }, /* Banker */
-            { 305, -5, -1, 4 }, /* Jennifer */
-            { 542, 6,  3,  4 }, /* Monk */
-            { 655, -6, 4,  5 }, /* Goblin */
-            { 731, 5,  -6, 6 }, /* Sheep */
-            { 1020, -4, -7, 6 }, /* Rat */
+            { 3105, 2,  1,  0 }, /* Hans — stands still, the greeter */
+            { 3106, -3, 2,  4 }, /* Man */
+            { 3107, 4,  -2, 4 }, /* Man */
+            { 3108, -2, -4, 4 }, /* Man */
+            { 3111, 1,  5,  4 }, /* Woman */
+            { 3112, -5, -1, 4 }, /* Woman */
+            { 3114, 6,  3,  3 }, /* Farmer */
+            { 397,  -6, 4,  5 }, /* Guard */
+            { 655,  5,  -6, 5 }, /* Goblin */
+            { 2699, -4, -7, 6 }, /* Sheep */
         };
         for( size_t i = 0; i < sizeof(roster) / sizeof(roster[0]); i++ )
             npc_spawn(

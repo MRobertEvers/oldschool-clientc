@@ -144,12 +144,17 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int* pixel_buffer);
 
 /** BlitSpriteRotatedEx plus an axis-aligned mask sampled over the dest box
- *  (the mask never rotates with the content). Inverted polarity per the
- *  compass reference: content shows only where the mask is transparent. */
+ *  (the mask never rotates with the content).
+ *
+ *  `mask_keep_opaque` picks which side of the mask is the window: 0 = content
+ *  shows where the mask is transparent (an OldSchool corner cover, opaque
+ *  outside the hole), 1 = where it is opaque (a rev-634 stencil, opaque inside
+ *  the window). The two eras ship opposite art in the same widget field. */
 void
 ToriDraw2D_BlitSpriteRotatedMaskedEx(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_Sprite* mask_sprite,
+    int mask_keep_opaque,
     struct ToriDraw_ViewPort* view_port,
     int dst_x,
     int dst_y,

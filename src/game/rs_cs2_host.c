@@ -845,11 +845,20 @@ exec_enum_lookup(
     struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
     if( !e )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
-        req.u.enum_lookup = request;
-        if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
-            return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        /* A computed enum id can legitimately be negative — the world map's
+         * onload (1707) picks its layout enum through script 900, which maps
+         * IF_GETTOP to an enum id and returns -1 for a top-level interface it
+         * does not know (booting 595 on its own, with no gameframe, is exactly
+         * that). There is no archive to wait for, so answer the miss now:
+         * yielding would queue a load for a negative id, which asserts. */
+        if( request.enum_id >= 0 )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+            req.u.enum_lookup = request;
+            if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
+                return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        }
         /* Enum still missing after its load: answer like a key that misses. */
         if( request.output_type == (int)'s' )
             return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "null"));
@@ -1423,11 +1432,16 @@ exec_enum_output_count(
     struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
     if( !e )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT;
-        req.u.enum_get_output_count = request;
-        if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
-            return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        /* Same unloadable-id rule as exec_enum_lookup: a negative id has no
+         * archive to wait for. */
+        if( request.enum_id >= 0 )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT;
+            req.u.enum_get_output_count = request;
+            if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
+                return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        }
         /* Enum still missing after its load: an empty enum has no outputs. */
         return CS2VM2_PushInt(thread, 0);
     }

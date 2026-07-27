@@ -626,6 +626,22 @@ struct UITree
      *  scripts read computed dims immediately after if_setsize/if_setposition,
      *  e.g. dropdown scrollbar dragger sizing). */
     uint8_t layout_stale;
+    /** Minimap/compass mask polarity: 1 = the mask sprite's *opaque* pixels are
+     *  the window, 0 = its transparent ones are (the default).
+     *
+     *  The widget field holds a different kind of art in the two eras. OldSchool
+     *  ships a corner cover — opaque everywhere *outside* the round window, with
+     *  a transparent hole (sprite 1178 on interface 161) — which the reference
+     *  draws over the finished minimap and we apply as an inverted mask for the
+     *  same result in one pass. Rev 634 ships a stencil, opaque *inside* the
+     *  window (sprite 1185 on interface 548), and its client keeps the non-zero
+     *  span per row (Class46.method425). Same field, opposite sense: reading a
+     *  634 mask with the OldSchool rule draws the map everywhere except the
+     *  circle and leaves the minimap a dark disc.
+     *
+     *  Set once from the cache profile, because it is a property of the era's
+     *  art rather than of any one widget. */
+    uint8_t mask_keep_opaque;
 };
 
 struct UITreeNodeSpec

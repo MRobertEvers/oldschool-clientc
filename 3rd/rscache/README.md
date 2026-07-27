@@ -42,7 +42,7 @@ revisions/          rev_dat2_osrs230.c, rev_dat1_lc254.c, …
                     One explicit profile per supported revision, plus a registry.
                     Declares identity: game, container, epoch, revision, quirks.
 
-datatypes/          dat2_config_loc.c, model.c, dat2_component.c, …
+datatypes/          dat2_config_loc.c, model.c, dat2_component.c, sound_synth.c, …
                     Per-type codecs. Each owns its own
                       RSCache_<Type>Flags(cache)         — field-level era gates
                       RSCache_<Type>CodecVersion(cache)  — whole-codec selection
@@ -591,6 +591,7 @@ same four flags (`--game/--epoch/--revision/--quirks`) or `--rev <name>`.
 | map locs | quirk VOID_RS634_NO_XTEAS | Void 634 pre-stripped keys; treat locs as plain |
 | map tables | OldSchool caches without archive identifiers | one multi-file archive per region id (`(x<<8)|z`); file 0 = terrain, file 1 = locs (named `mX_Z`/`lX_Z` lookup is preferred when identifiers exist) |
 | loc | quirk KRONOS | opcodes 78/79 omit a byte |
+| sound | RS2 dat1 game 377 | tone records gain a trailing filter + its envelope; the mixer clamps instead of wrapping |
 
 Map XTEA cannot be answered from the key file. Pre-237 OldSchool caches ship keys;
 `cache.osrs239` ships none because the archives are plain. RS2 dat2 caches from 414
@@ -616,6 +617,14 @@ consumption over the corpus:
   crossed-out line rather than deleted because the numbers were cited elsewhere:
   `tools/port_npc` refused revision 239 outright on the strength of them, and now
   checks the individual record's consumed length instead.
+- **Jagex-compressed audio samples.** 122 of `cache.osrs239`'s 12,010
+  sound-effect archives hold "BCV" compressed audio rather than a synth program
+  (119 alongside one as group file 1, 3 on their own).
+  `RSCache_SoundSampleKindOf` identifies them so a caller skips rather than
+  decodes noise; the codec itself is not implemented — it needs a Vorbis
+  implementation plus its shared codebook, and rt4's `VorbisSound` header layout
+  does not match these bytes. Every synth program in every cache decodes and
+  re-encodes byte-exactly.
 - **Lossy config decoders.** Several decoders consume fields without storing them,
   so those records cannot re-encode byte-exactly: enum drops opcodes 1, 7 and 8;
   param does not record whether the type arrived via opcode 1 or 8; mapelement

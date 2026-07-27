@@ -171,6 +171,7 @@ soft3d_draw_sprite(
             ToriDraw2D_BlitSpriteRotatedMaskedEx(
                 spr,
                 mask_spr,
+                cmd->mask_keep_opaque,
                 &vp,
                 cmd->x,
                 cmd->y,

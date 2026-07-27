@@ -394,6 +394,7 @@ void
 ToriDraw2D_BlitSpriteRotatedMaskedEx(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_Sprite* mask_sprite,
+    int mask_keep_opaque,
     struct ToriDraw_ViewPort* view_port,
     int dst_x,
     int dst_y,
@@ -453,14 +454,17 @@ ToriDraw2D_BlitSpriteRotatedMaskedEx(
     {
         for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
         {
-            /* Mask samples axis-aligned over the dest box (never rotates);
-             * inverted: content shows only where the mask is transparent.
-             * Trimmed masks: pixels are ink-only placed at (crop_x, crop_y),
-             * outside the ink counts as transparent. */
+            /* Mask samples axis-aligned over the dest box (never rotates).
+             * Trimmed masks: pixels are ink-only placed at (crop_x, crop_y), so
+             * anything outside the ink is transparent — which under
+             * mask_keep_opaque means outside the ink is also outside the
+             * window. */
             int mask_bx = dst_x_abs - dst_x - mask_crop_x;
             int mask_by = dst_y_abs - dst_y - mask_crop_y;
-            if( mask_bx >= 0 && mask_bx < mask_ink_w && mask_by >= 0 && mask_by < mask_ink_h &&
-                mask_sprite->pixels_argb[mask_by * mask_ink_w + mask_bx] != 0 )
+            bool mask_opaque =
+                mask_bx >= 0 && mask_bx < mask_ink_w && mask_by >= 0 && mask_by < mask_ink_h &&
+                mask_sprite->pixels_argb[mask_by * mask_ink_w + mask_bx] != 0;
+            if( mask_keep_opaque ? !mask_opaque : mask_opaque )
                 continue;
 
             int rel_x = dst_x_abs - dst_x - dst_anchor_x;

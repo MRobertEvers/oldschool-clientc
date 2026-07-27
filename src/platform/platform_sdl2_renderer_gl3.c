@@ -1512,6 +1512,7 @@ gl3_sprite_ensure_rotated_masked(
     ToriDraw2D_BlitSpriteRotatedMaskedEx(
         sp,
         mask_sp,
+        cmd->mask_keep_opaque,
         &vp,
         0,
         0,

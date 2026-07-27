@@ -55,6 +55,14 @@ enum
     /* Wire sentinels in the classic info streams. */
     MOCK230_PLAYER_TERMINATOR = 2047,
     MOCK230_NPC_TERMINATOR = 16383,
+
+    /* New-npc record field widths. These MUST match what the rev-230 table
+     * declares (GameProtoRevTable.npc_slot_bits / .npc_type_bits) — the two
+     * ends of the same bitstream. A mismatch does not fail the decode, it
+     * shifts every field after the offending one. */
+    MOCK230_NPC_SLOT_BITS = 14,
+    MOCK230_NPC_TYPE_BITS = 14,
+    MOCK230_NPC_TYPE_MAX = (1 << MOCK230_NPC_TYPE_BITS) - 1,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn

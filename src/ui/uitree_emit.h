@@ -52,10 +52,13 @@ struct UITreeEmitDesc
     int scroll_content;
     int scene_id;
     int atlas_index;
-    /** COMPASS: inverted circular alpha mask (the pack's placeholder graphic);
+    /** COMPASS/MINIMAP: circular alpha mask (the pack's placeholder graphic);
      *  0 = draw unmasked. Sampled axis-aligned, never rotates with content. */
     int mask_scene_id;
     int mask_atlas_index;
+    /** Which of the mask's pixels are the window: 1 = the opaque ones,
+     *  0 = the transparent ones. See UITree.mask_keep_opaque. */
+    int mask_keep_opaque;
     int font_id;
     int color;
     int filled;

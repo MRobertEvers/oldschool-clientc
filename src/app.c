@@ -1497,6 +1497,10 @@ App_Init(
      * the bridge for icon rasterization). */
     app->tree = UITree_New(256);
     assert(app->tree);
+    /* Which side of a minimap/compass mask is the window is a property of the
+     * era's art, not of the widget — see UITree.mask_keep_opaque. RS2 (634)
+     * ships a stencil, OldSchool a corner cover. */
+    app->tree->mask_keep_opaque = RSCache_IsRs2Dat2(CacheProvider_Profile(app->provider)) ? 1 : 0;
     InvManager_Init(&app->invs);
     VarPManager_Init(&app->varps);
     VarCManager_Init(&app->varcs);

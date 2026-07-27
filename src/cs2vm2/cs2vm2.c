@@ -6293,7 +6293,8 @@ CS2VM2_Op_SafeArea(
  * or carries with a different shape.
  *
  * Read off the rev-634 client's command dispatcher (`Class66`, and the classes it
- * chains to; see docs/RS2_634_CLIENT_REFERENCES.md) by counting stack traffic:
+ * chains to; the full diff is docs/RS2_634_CLIENT_REFERENCES.md section 3) by
+ * counting stack traffic:
  * `anIntArray1149[--anInt1173]` pops an int, `anIntArray1149[anInt1173++] =` pushes
  * one, `aStringArray1152` is the string stack, and `anInt1173 -= N` followed by
  * indexed reads pops N at once.

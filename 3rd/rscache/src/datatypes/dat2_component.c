@@ -567,6 +567,9 @@ decode_if3_hook(
  * wins — Void mislabels the type-5 flag bits (it calls bit 1 "imageRepeat"; the
  * client's draw path tiles on bit 0).
  *
+ * Field-by-field diff and the source for each decision:
+ * docs/RS2_634_CLIENT_REFERENCES.md section 2.
+ *
  * Everything the OldSchool layout lacks:
  *
  *   - the leading byte is a *version*, not a bare 255 marker. 255 means -1, which

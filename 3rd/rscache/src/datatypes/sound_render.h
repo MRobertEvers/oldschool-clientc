@@ -80,8 +80,10 @@ RSCache_SoundEffectRender(
  * render produced (reference Wave.generate's loop expansion, which runs on the
  * rendered bytes and so composes with a render done once and cached).
  *
- * loop_count <= 1, or a loop span the effect does not have, leaves `pcm`
- * untouched and returns true. Reallocates pcm->samples on success.
+ * A loop span the effect does not have leaves `pcm` untouched (the render
+ * already accounted for it). loop_count 1 is a single play; 0 shortens the clip
+ * by one span, which is what the reference's length arithmetic does with a zero
+ * repeat count. Reallocates pcm->samples when it grows.
  */
 bool
 RSCache_SoundPcmExpandLoops(

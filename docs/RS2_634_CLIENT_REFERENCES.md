@@ -34,6 +34,8 @@ disagree, it wins.
 | Type-5 sprite build | `Class46.method443` | Meaning of outline / shadow / flip / colour, and that flag bit 1 is *not* a draw flag |
 | Sprite flip primitives | `Class207.method1514` (swaps rows) / `method1518` (swaps within a row) | First flip byte is **vertical**, second is **horizontal** |
 | Sprite pack decode | `Class207.method1517` | Per-pixel alpha is kept verbatim; there is no "non-zero index ⇒ opaque" step (§4) |
+| Minimap/compass mask build | `Class46.method425` — per row, the span of **non-zero** pixels | The mask's ink is the window, the inverse of OldSchool (§5) |
+| Minimap draw | `Class107.method1007`, reached from the clientCode dispatch in `Class348_Sub40_Sub7.method3064:129` (`anInt3717 = 1338`) | Mask feeds both the map blit and every dot |
 | Sprite archive load | `Class207.method1521(archive, id, 0)` | Sprites are one group per id in table 8, as in OldSchool |
 | Widget draw loop | `Class348_Sub40_Sub7.method3064` + the type dispatch around line 300 | Clip nesting; tiling is flag bit **0** (`aBoolean697`), which is what the draw path loops on |
 | Widget visibility predicate | `client.method111` | `hidden` is the only per-widget gate |
@@ -57,7 +59,7 @@ semantics — see the `imageRepeat` note in §2.
 | Interface type → slot | `data/entity/player/modal/interface_types.toml` (`fixedIndex`) | Which component of 548 each one mounts into |
 | How a slot resolves | `engine/…/data/definition/InterfaceDefinitions.kt` — `pack(parent, index)`, parent defaulting to `toplevel` | Bare entries target the root; `parent = "chat_box"` is why chat_background is qualified |
 | Cache index numbers | `cache/src/main/kotlin/world/gregs/voidps/cache/Index.kt` | Table ids for the promoted config types |
-| Shard widths | `cache/…/definition/decoder/*Decoder.kt` — `getArchive`/`getFile` | Files per group per type (§5) |
+| Shard widths | `cache/…/definition/decoder/*Decoder.kt` — `getArchive`/`getFile` | Files per group per type (§6) |
 | IF3 decode (cross-read) | `cache/…/definition/decoder/InterfaceDecoderFull.kt` | Confirms §2 field-for-field, apart from the type-5 flag-bit labels |
 | Selected-tab variable | `data/entity/player/modal/tab/tab.varcs.toml` (varc 168, list) + `content/…/modal/Tab.kt` | The tab list and its `Inventory` default |
 
@@ -208,7 +210,38 @@ The flag is now era-selected (`RSCache_Dat2SpriteFlags`) and threaded through
 
 ---
 
-## 5. Where config records live
+## 5. Minimap and compass: the mask polarity is inverted
+
+`UITree.mask_keep_opaque`, set once in `App_Init` from `RSCache_IsRs2Dat2`, carried
+on the emit descriptor and applied by `ToriDraw2D_BlitSpriteRotatedMaskedEx`.
+
+The minimap and compass widgets (clientCode 1338 / 1339) both carry a placeholder
+graphic that the client uses as the round window. **The two eras ship opposite art
+in that field:**
+
+| | OldSchool 230 (iface 161) | rev 634 (iface 548) |
+| --- | --- | --- |
+| minimap mask | sprite **1178** — transparent inside the circle, opaque outside | sprite **1185** — **opaque inside**, transparent outside |
+| compass mask | sprite 1179, same sense | sprite 1186, same sense |
+
+OldSchool's is a **corner cover**: opaque everywhere outside a transparent hole, and
+the reference draws it *over* the finished minimap to round off the square. Our
+renderer gets the same result in one pass by treating it as an inverted mask —
+"content shows where the mask is transparent".
+
+Rev 634's is a **stencil**, and its client keeps the opposite side:
+`Class46.method425` scans each row of the sprite for the span of **non-zero** palette
+indices and stores `(start, length)` per row, so the ink *is* the window. Reading a
+634 mask with the OldSchool rule draws the map everywhere except the circle — the
+minimap renders as a dark disc with map fragments leaking around it, and the compass
+(same masked blit) is erased entirely.
+
+Both symptoms are one flag. The polarity is a property of the era's art, not of any
+widget, which is why it lives on the tree rather than the component.
+
+---
+
+## 6. Where config records live
 
 `RSCache_RecordAddressFor`, `3rd/rscache/src/rscache_profile.c`. RS2 promotes
 several config types out of table 2 into their own sharded tables; ids come from
@@ -241,7 +274,7 @@ and **struct**:
 
 ---
 
-## 6. The client is not the whole frame
+## 7. The client is not the whole frame
 
 A gameframe root is a set of empty slots. Every panel in it — chat box, orbs, the
 sidebar tabs, the inventory — arrives from the server as a separate `IF_OPENSUB`

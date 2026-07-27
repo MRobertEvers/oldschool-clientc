@@ -183,6 +183,8 @@ struct ToriRS_RenderCommand_Sprite
      *  `rotated` is set. */
     int mask_scene_id;
     int mask_atlas_index;
+    /** 1 = the mask's opaque pixels are the window, 0 = its transparent ones. */
+    int mask_keep_opaque;
     /** IF3 component spriteAngle (65536 = full turn); ignored when `rotated`. */
     int sprite_angle_r2pi65536;
     int outline;

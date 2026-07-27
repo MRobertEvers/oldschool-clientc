@@ -684,8 +684,8 @@ mock230_send_npc_info(struct Mock230Server* srv)
         /* 14-bit slot, 11-bit type, 5-bit signed deltas from the local player,
          * 1-bit "extended info follows". No jump bit here — unlike the player
          * stream's new-entity record. */
-        rsab_pbit(&buf, 14, slot);
-        rsab_pbit(&buf, 11, npc->type);
+        rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
+        rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc->type);
         rsab_pbit(&buf, 5, dx & 0x1f);
         rsab_pbit(&buf, 5, dz & 0x1f);
         rsab_pbit(&buf, 1, npc_extended_pending(npc));
@@ -695,7 +695,7 @@ mock230_send_npc_info(struct Mock230Server* srv)
         kept[kept_count++] = slot;
     }
 
-    rsab_pbit(&buf, 14, MOCK230_NPC_TERMINATOR);
+    rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, MOCK230_NPC_TERMINATOR);
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
