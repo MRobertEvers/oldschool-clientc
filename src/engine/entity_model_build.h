@@ -28,6 +28,15 @@ PlayerModel_BuildFromAppearance(
     int gender);
 
 /*
+ * Palette size of a design colour slot (0 hair, 1 torso, 2 legs, 3 feet,
+ * 4 skin) — reference ClientPlayer.recol1d[part].length, which is what the
+ * design screen's colour arrows wrap around. Returns 0 for an out-of-range
+ * part.
+ */
+int
+PlayerModel_DesignColourCount(int part);
+
+/*
  * List the cache model ids the appearance references (idk part models +
  * worn-equipment models), so a task can await CreateTask_ModelLoad for each.
  * Configs (idk/obj) must already be loaded for the listing to be complete.

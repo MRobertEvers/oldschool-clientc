@@ -290,6 +290,10 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->height = src->baseHeight;
     dst->model_type = src->modelType;
     dst->model_id = src->modelId;
+    /* Dat2's IF1-format MODEL branch forces modelType 1 and encodes "none" as
+     * -1 (dat1 uses type 0 instead); the downstream gate accepts both. */
+    dst->active_model_type = src->activeModelId >= 0 ? src->modelType : 0;
+    dst->active_model_id = src->activeModelId;
     dst->model_seq_id = src->modelSeqId;
     dst->model_zoom = src->modelZoom;
     dst->model_xan = src->modelXAngle;
@@ -456,6 +460,8 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
 
     dst->model_type = src->modelType;
     dst->model_id = src->model;
+    dst->active_model_type = src->activeModelType;
+    dst->active_model_id = src->activeModel;
     dst->model_seq_id = src->anim;
     dst->model_zoom = src->zoom;
     dst->model_xan = src->xan;

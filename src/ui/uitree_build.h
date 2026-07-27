@@ -55,6 +55,9 @@ struct UIBuildComponent
     char const* text;
     char const* text_active;
     int model_id;
+    /** Model drawn instead of model_id while getIfActive() holds; -1 = none,
+     *  which the reference renders as "draw nothing" (see rs_model). */
+    int model_active_id;
     /** Cache-defined model sequence (dat2 modelSeqId); -1 = none, 0 is a valid seq. */
     int model_seq_id;
     int model_zoom;

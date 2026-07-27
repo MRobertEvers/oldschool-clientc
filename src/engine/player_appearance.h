@@ -44,15 +44,4 @@ PlayerAppearance_ResolveDefaultMale(
 struct ToriRS_Task*
 CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider);
 
-/*
- * Default-appearance body recolor pairs (colors[] all 0). Apply
- * `From(c) -> To(c)` with ToriDraw_ModelRecolor for each c where From(c) >= 0.
- */
-int
-PlayerAppearance_DefaultBodyRecolorCount(void);
-int
-PlayerAppearance_DefaultBodyRecolorFrom(int c);
-int
-PlayerAppearance_DefaultBodyRecolorTo(int c);
-
 #endif

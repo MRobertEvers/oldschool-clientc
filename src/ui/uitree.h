@@ -479,6 +479,12 @@ struct UITreeComponent
         struct
         {
             int gamecache_model_id;
+            /* Model drawn instead of gamecache_model_id while the widget is CS1-
+             * active (reference getTempModel: model2Type/model2Id). -1 = none,
+             * and none means draw nothing at all — the 254 special-attack bar
+             * is ten dark cover segments over a green bar, each cover dropping
+             * out as spec energy passes its threshold. */
+            int active_model_id;
             int zoom;
             int xan;
             int yan;
@@ -732,6 +738,12 @@ struct UITreeNodeSpec
         struct
         {
             int gamecache_model_id;
+            /* Model drawn instead of gamecache_model_id while the widget is CS1-
+             * active (reference getTempModel: model2Type/model2Id). -1 = none,
+             * and none means draw nothing at all — the 254 special-attack bar
+             * is ten dark cover segments over a green bar, each cover dropping
+             * out as spec energy passes its threshold. */
+            int active_model_id;
             int zoom;
             int xan;
             int yan;

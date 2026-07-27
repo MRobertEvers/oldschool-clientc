@@ -1377,6 +1377,12 @@ main(
         char const* sim_sethide = getenv("TORIRS_SIM_SETHIDE");
         int sim_sethide_done = 0;
 
+        /* TORIRS_SIM_SETVARP="id:value,...": drive the varps the IF1 "active"
+         * scripts read (spec energy 300/301, attack style, ...) without a
+         * server, so widgets whose whole behaviour is getIfActive can be seen
+         * offline. Applied every frame — a re-bake would otherwise reset them. */
+        char const* sim_setvarp = getenv("TORIRS_SIM_SETVARP");
+
         /* TORIRS_SIM_SETTAB="tabno:iface": replay IF_SETTAB offline, so the
          * sidebar panels the server assigns (combat tab 3796, stats, ...) can
          * be inspected without a session. */
@@ -1414,6 +1420,21 @@ main(
                 RS_UISlots_SetTab(&app, tabno, tab_iface);
                 RS_UISlots_SetSideTab(&app, tabno);
                 sim_settab_done = 1;
+            }
+
+            if( sim_setvarp && app.app_state == APP_STATE_READY )
+            {
+                char const* cur = sim_setvarp;
+                while( *cur )
+                {
+                    char* sep = NULL;
+                    long varp = strtol(cur, &sep, 0);
+                    long value = sep && *sep == ':' ? strtol(sep + 1, &sep, 0) : 0;
+                    VarPManager_SetVarpOptimistic(&app.varps, (int)varp, (int)value);
+                    while( sep && *sep && *sep != ',' )
+                        sep++;
+                    cur = sep && *sep == ',' ? sep + 1 : "";
+                }
             }
 
             /* TORIRS_SIM_SETHIDE="com:0|1,...": replay IF_SETHIDE offline. The
@@ -1530,7 +1551,19 @@ main(
                                 "sim_drag: %ld,%ld -> %ld,%ld (%ld left)\n",
                                 drag_x0, drag_y0, drag_x1, drag_y1, drag_repeats - 1);
                             if( --drag_repeats > 0 )
+                            {
+                                /* Alternate direction each repeat: panning one
+                                 * way clamps at the area edge after a couple of
+                                 * drags and the view stops moving, which is not
+                                 * the "never settles" case worth testing. */
+                                long swap_x = drag_x0;
+                                long swap_y = drag_y0;
+                                drag_x0 = drag_x1;
+                                drag_y0 = drag_y1;
+                                drag_x1 = swap_x;
+                                drag_y1 = swap_y;
                                 drag_frame = frame_count + 2;
+                            }
                             else
                                 drag_frame = -1;
                         }

@@ -9,19 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * OSRS PlayerComposition body-color recolors (hair, torso, legs, feet, skin).
- * For the default appearance every colors[] index is 0, and palette entry 0 is
- * the identity of the source color, so only the one non-identity secondary
- * recolor below has any visible effect. Kept explicit for future full support.
- */
-static const int PLAYER_BODY_RECOLOR_FROM_2[PLAYER_APPEARANCE_COLORS] = {
-    -10304, 9104, -1, -1, -1
-};
-static const int PLAYER_BODY_RECOLOR_TO_2_INDEX0[PLAYER_APPEARANCE_COLORS] = {
-    6554, 9104, 0, 0, 0
-};
-
 int
 PlayerAppearance_ResolveDefaultMale(
     struct CacheProvider* provider,
@@ -120,14 +107,21 @@ Task_PlayerAppearanceLoad_Run(
 
     PT_BEGIN(&self->pt);
 
-    /* Discover the first selectable kit for each body part, loading idk configs
-     * on demand and stopping as soon as all parts are found. */
-    for( self->scan_i = 0;
-         self->scan_i < PLAYER_IDK_SCAN_MAX && self->found < PLAYER_APPEARANCE_PARTS;
-         self->scan_i++ )
+    /* Load every identity kit and record the first selectable one per body
+     * part. The whole table is needed, not just the seven defaults: the design
+     * screen's arrows step kit ids one at a time over the full IdkType table
+     * (reference clientButton CC_CHANGE_*), so a kit that is not loaded is a
+     * kit the player cannot cycle onto.
+     *
+     * Kit ids are contiguous from 0, so the first id that fails to load is the
+     * end of the table — that miss is the terminator, and costs one "Failed to
+     * load idk" line. */
+    for( self->scan_i = 0; self->scan_i < PLAYER_IDK_SCAN_MAX; self->scan_i++ )
     {
         if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
             TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
+        if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
+            break;
         player_try_record_kit(self, self->scan_i);
     }
 
@@ -186,27 +180,4 @@ CreateTask_PlayerAppearanceLoad(struct CacheProvider* provider)
         task->kits[i] = -1;
     PT_INIT(&task->pt);
     return &task->task;
-}
-
-/* Expose the default secondary body recolor pairs for the compositor. */
-int
-PlayerAppearance_DefaultBodyRecolorCount(void)
-{
-    return PLAYER_APPEARANCE_COLORS;
-}
-
-int
-PlayerAppearance_DefaultBodyRecolorFrom(int c)
-{
-    if( c < 0 || c >= PLAYER_APPEARANCE_COLORS )
-        return -1;
-    return PLAYER_BODY_RECOLOR_FROM_2[c];
-}
-
-int
-PlayerAppearance_DefaultBodyRecolorTo(int c)
-{
-    if( c < 0 || c >= PLAYER_APPEARANCE_COLORS )
-        return 0;
-    return PLAYER_BODY_RECOLOR_TO_2_INDEX0[c];
 }

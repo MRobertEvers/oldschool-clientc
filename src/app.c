@@ -588,13 +588,22 @@ app_worldmap_build_icons(
 }
 
 /*
- * Drag to pan the world map (reference: press inside the surface and move —
- * the view follows the pointer 1:1, so the tile under the cursor stays there).
+ * Drag to pan the world map.
  *
- * The surface has no widget-level drag: it is a builtin, and the pan lives in
- * the CS2 world map state, not in the tree. So the press is picked up here from
- * the box the emit walk recorded, and the delta is converted from screen pixels
- * back to map tiles by the same zoom scale the blits use.
+ * Anchored, like the reference (OsrsClient.updateWorldMapDrag): the grab records
+ * where the view was, and every frame sets the view to that origin plus the
+ * *total* pointer delta converted to tiles. Accumulating per-frame deltas
+ * instead loses the sub-tile remainder on every step, so the map slides behind
+ * the pointer over a long drag.
+ *
+ * Unclamped, also like the reference: dragging past the edge of the map is
+ * allowed and dragging back brings it straight back. A clamp on the centre
+ * parks the view in a corner of the area, where most of the surface is legitimately
+ * off-map and the map appears to have stopped loading.
+ *
+ * The surface has no widget-level drag — it is a builtin, and the pan lives in
+ * the CS2 world map state — so the press is picked up here from the box the
+ * emit walk recorded.
  */
 static void
 app_worldmap_drag_tick(
@@ -615,9 +624,16 @@ app_worldmap_drag_tick(
         mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
         mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
     {
+        int display_x = 0;
+        int display_y = 0;
+        RS_WorldMap_DisplayPosition(app->host.worldmap, &display_x, &display_y);
+        if( display_x < 0 || display_y < 0 )
+            return;
         app->worldmap_drag_active = 1;
         app->worldmap_drag_x = mouse_x;
         app->worldmap_drag_y = mouse_y;
+        app->worldmap_drag_display_x = display_x;
+        app->worldmap_drag_display_y = display_y;
     }
 
     if( !app->worldmap_drag_active )
@@ -634,19 +650,23 @@ app_worldmap_drag_tick(
         int scale = RS_WorldMap_ZoomScale(app->host.worldmap);
         int dx = mouse_x - app->worldmap_drag_x;
         int dy = mouse_y - app->worldmap_drag_y;
-        int tiles_x = dx / (scale > 0 ? scale : 1);
-        int tiles_y = dy / (scale > 0 ? scale : 1);
+        int next_x;
+        int next_y;
+        int current_x = 0;
+        int current_y = 0;
 
-        if( tiles_x == 0 && tiles_y == 0 )
+        if( scale <= 0 )
+            scale = 1;
+        /* Screen y grows downward, map y northward, and the map moves opposite
+         * the pointer — the tile under the cursor stays under it. */
+        next_x = app->worldmap_drag_display_x - dx / scale;
+        next_y = app->worldmap_drag_display_y + dy / scale;
+
+        RS_WorldMap_DisplayPosition(app->host.worldmap, &current_x, &current_y);
+        if( next_x == current_x && next_y == current_y )
             return;
 
-        /* Screen y grows downward, map y northward. Dragging right moves the
-         * view west, so the pan is the negative of the pointer delta. */
-        RS_WorldMap_PanBy(app->host.worldmap, -tiles_x, tiles_y);
-        /* Keep the remainder: consuming only whole tiles here would drop the
-         * sub-tile part of every frame's motion and drift behind the pointer. */
-        app->worldmap_drag_x += tiles_x * scale;
-        app->worldmap_drag_y += tiles_y * scale;
+        RS_WorldMap_SetDisplayPosition(app->host.worldmap, next_x, next_y);
         app->need_redraw = 1;
     }
 }
@@ -1959,6 +1979,10 @@ App_Init(
     app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
     RS_Social_SeedDefaults(&app->social);
+    /* Reference reset path: idkDesignGender = male, then validateIdkDesign().
+     * The kit scan itself waits for the idk configs, so the clientCode tick
+     * resolves the parts the first time the preview asks for a rebuild. */
+    RS_IdkDesign_Init(&app->idk_design);
     RS_Chat_Init(&app->chat, "Player");
     /* No hardcoded welcome line: the server sends the real "Welcome to
      * RuneScape." MESSAGE_GAME packet on login (reference has no client-side
@@ -3326,7 +3350,7 @@ app_logic_tick(struct App* app)
      * runs inside the draw; ours is a tick pass so emit stays pure). This is an
      * old-gen (IF1/CS1) mechanism; modern UI drives the same state via CS2. */
     if( App_UiLogic(app) == APP_UI_LOGIC_CS1 &&
-        RS_ClientCode_Tick(app->tree, &app->social, app->logic_cycle) )
+        RS_ClientCode_Tick(app, app->tree, &app->social, app->logic_cycle) )
         redraw = 1;
 
     /* World map panning and element flashing advance on the client tick, the
@@ -7870,6 +7894,27 @@ App_RunOnce(
         return 1;
     }
     return 0;
+}
+
+void
+App_SendIdkDesign(
+    struct App* app,
+    int gender,
+    int const kits[RS_IDK_DESIGN_PARTS],
+    int const colours[RS_IDK_DESIGN_COLOURS])
+{
+    assert(app && kits && colours);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
+            gender,
+            kits[0], kits[1], kits[2], kits[3], kits[4], kits[5], kits[6],
+            colours[0], colours[1], colours[2], colours[3], colours[4]);
+    APP_NET_SEND(
+        app,
+        net_out_idk_savedesign(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), gender, kits, colours));
 }
 
 void

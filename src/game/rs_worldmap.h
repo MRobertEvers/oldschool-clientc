@@ -84,12 +84,14 @@ RS_WorldMap_CurrentMapId(struct RS_WorldMapState const* state);
 struct ToriRS_WorldMapArea const*
 RS_WorldMap_CurrentArea(struct RS_WorldMapState const* state);
 
-/** Move the view by whole map tiles, clamped to the area (drag-to-pan). */
+/** Centre the view on a map surface position, unclamped (reference
+ *  setDisplayPosition — dragging past the edge is allowed, and dragging back
+ *  brings the map straight back). */
 void
-RS_WorldMap_PanBy(
+RS_WorldMap_SetDisplayPosition(
     struct RS_WorldMapState* state,
-    int dx,
-    int dy);
+    int x,
+    int y);
 
 /** Pixels per map tile at the current zoom (reference getZoomScale). */
 int

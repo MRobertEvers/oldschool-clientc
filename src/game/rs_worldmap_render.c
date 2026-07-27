@@ -115,6 +115,9 @@ RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
     if( !render )
         return;
     render->bakes_this_frame = 0;
+    /* TORIRS_WORLDMAP_STATS=1: running totals of why regions did not draw.
+     * Counters that stop moving while the surface is blank say the pool has
+     * jammed; ones that keep moving say it is merely still loading. */
     if( getenv("TORIRS_WORLDMAP_STATS") )
     {
         static int frame = 0;
@@ -1163,8 +1166,7 @@ RS_WorldMapRender_RegionSprite(
     }
     render->bakes_this_frame++;
     worldmap_pending_clear(render, key);
-    if( getenv("TORIRS_WORLDMAP_STATS") )
-        render->stat_bakes++;
+    render->stat_bakes++;
 
     size = WORLDMAP_TILES * pixels_per_tile;
     if( slot < 0 )

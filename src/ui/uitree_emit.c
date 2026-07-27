@@ -346,10 +346,21 @@ UITree_EmitFill(
         return true;
 
     case UIELEM_RS_MODEL:
+    {
+        /* Reference getTempModel(active): the active variant replaces the base
+         * model outright, and a widget whose selected variant is "no model"
+         * draws nothing (getModel returns null). The 254 special-attack bar is
+         * built entirely out of that second half — ten dark cover segments sit
+         * over a green bar, each with an if1script comparing varp 300 (spec
+         * energy) against its threshold and no active model, so a cover
+         * vanishes once the energy passes it. */
+        int model_id = active ? component->u.rs_model.active_model_id
+                              : component->u.rs_model.gamecache_model_id;
+
         /* clientCode 328 = local player preview; cache often has modelId=-1. */
-        if( component->u.rs_model.gamecache_model_id < 0 )
+        if( model_id < 0 )
         {
-            if( component->behavior.client_code == 328 )
+            if( !active && component->behavior.client_code == 328 )
             {
                 /* Explicit stub until appearance compositing exists — visible fill
                  * so the preview slot is not silently dropped from the emit list. */
@@ -361,7 +372,7 @@ UITree_EmitFill(
             return false;
         }
         out->kind = UITREE_EMIT_MODEL;
-        out->model_id = component->u.rs_model.gamecache_model_id;
+        out->model_id = model_id;
         out->model_zoom = component->u.rs_model.zoom;
         out->model_xan = component->u.rs_model.xan;
         out->model_yan = component->u.rs_model.yan;
@@ -371,6 +382,7 @@ UITree_EmitFill(
         out->model_orthog = component->u.rs_model.orthog;
         out->model_fixed_zoom = component->u.rs_model.fixed_zoom;
         return true;
+    }
 
     case UIELEM_CC_OBJ:
         if( component->u.cc_obj.obj_id <= 0 )

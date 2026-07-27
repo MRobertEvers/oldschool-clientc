@@ -335,38 +335,12 @@ RS_WorldMap_Init(struct RS_WorldMapState* state)
 }
 
 void
-RS_WorldMap_PanBy(
+RS_WorldMap_SetDisplayPosition(
     struct RS_WorldMapState* state,
-    int dx,
-    int dy)
+    int x,
+    int y)
 {
-    struct ToriRS_WorldMapArea* area;
-    int min_x;
-    int min_y;
-    int max_x;
-    int max_y;
-    int x;
-    int y;
-
     assert(state);
-    area = state->current_area;
-    if( !area )
-        return;
-
-    x = state->display_x + dx;
-    y = state->display_y + dy;
-
-    /* Clamp to the area, so a drag cannot leave the map behind entirely. */
-    ToriRS_WorldMapArea_Bounds(area, &min_x, &min_y, &max_x, &max_y);
-    if( x < min_x )
-        x = min_x;
-    if( x > max_x )
-        x = max_x;
-    if( y < min_y )
-        y = min_y;
-    if( y > max_y )
-        y = max_y;
-
     set_display_position(state, x, y);
 }
 

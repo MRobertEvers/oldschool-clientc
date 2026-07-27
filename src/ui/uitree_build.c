@@ -114,6 +114,7 @@ UITree_PushBuildComponent(
     case UIBUILD_MODEL:
         spec.type = UIELEM_RS_MODEL;
         spec.u.rs_model.gamecache_model_id = comp->model_id;
+        spec.u.rs_model.active_model_id = comp->model_active_id;
         spec.u.rs_model.zoom = comp->model_zoom;
         spec.u.rs_model.xan = comp->model_xan;
         spec.u.rs_model.yan = comp->model_yan;

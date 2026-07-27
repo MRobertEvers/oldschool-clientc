@@ -390,17 +390,81 @@ UITreeSceneBridge_EnsureModel(
     return cache_model_id;
 }
 
-#define BRIDGE_PLAYER_PART_MODELS_MAX (PLAYER_APPEARANCE_PARTS * 8)
+/* The design's seven body parts as a PLAYER_INFO appearance: an identity kit
+ * is slot value 0x100+id, and the compositor merges in slot order — which is
+ * design part order, matching the reference's combineForAnim(models, count). */
+static void
+bridge_design_slots(
+    int const kits[PLAYER_APPEARANCE_PARTS],
+    int slots[12])
+{
+    for( int i = 0; i < 12; i++ )
+        slots[i] = 0;
+    for( int p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
+        slots[p] = (kits && kits[p] >= 0) ? 0x100 + kits[p] : 0;
+}
+
+int
+UITreeSceneBridge_CollectPlayerDesignModelIds(
+    struct UITreeSceneBridge* bridge,
+    int const kits[PLAYER_APPEARANCE_PARTS],
+    int gender,
+    int* out_ids,
+    int cap)
+{
+    int slots[12];
+    assert(bridge && bridge->provider);
+    bridge_design_slots(kits, slots);
+    return PlayerModel_CollectAppearanceModelIds(
+        bridge->provider, slots, gender, out_ids, cap);
+}
+
+int
+UITreeSceneBridge_BuildPlayerDesignModel(
+    struct UITreeSceneBridge* bridge,
+    int const kits[PLAYER_APPEARANCE_PARTS],
+    int const colours[PLAYER_APPEARANCE_COLORS],
+    int gender)
+{
+    int slots[12];
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(bridge && bridge->scene && bridge->provider);
+
+    bridge_design_slots(kits, slots);
+    merged = PlayerModel_BuildFromAppearance(bridge->provider, slots, colours, gender);
+    if( !merged )
+        return -1;
+
+    /* CC_DESIGN_PREVIEW lights the composite with its own parameters, not the
+     * widget-model defaults PlayerModel_BuildFromAppearance applies:
+     * calculateNormals(64, 850, -30, -50, -30, true). Re-lighting is safe —
+     * ApplyLighting always reads the unlit face_colors. */
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_LightModelParams(hnd, 64, 850, -30, -50, -30);
+
+    /* SceneModelAdd overwrites the slot without freeing what was there, so
+     * drop the superseded composite (a design edit rebuilds every change). */
+    {
+        struct ToriDraw_ModelHandle old =
+            ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID);
+        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model &&
+            old.u.model.model != merged )
+            ToriDraw_ModelFree(old.u.model.model);
+    }
+
+    ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
+    bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+    return bridge->player_scene_id;
+}
 
 int
 UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
 {
     struct PlayerAppearance app;
-    struct ToriDraw_Model* parts[BRIDGE_PLAYER_PART_MODELS_MAX];
-    struct ToriDraw_Model* merged;
-    struct ToriDraw_ModelHandle hnd;
-    int part_count = 0;
-    int p;
 
     assert(bridge && bridge->scene && bridge->provider);
 
@@ -422,79 +486,7 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
             return -1;
     }
 
-    /* Compose body parts 0..6: one merged, kit-recolored model per IdentityKit. */
-    for( p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
-    {
-        struct ToriRS_Idk* idk;
-        int m;
-        if( app.kits[p] < 0 )
-            continue;
-        idk = CacheProvider_IdkGet(bridge->provider, app.kits[p]);
-        if( !idk )
-            continue;
-        for( m = 0; m < idk->model_ids_count; m++ )
-        {
-            struct ToriRS_Model* rs;
-            struct ToriDraw_Model* model;
-            int mid = idk->model_ids[m];
-            int r;
-            if( mid < 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
-                continue;
-            rs = CacheProvider_ModelGet(bridge->provider, mid);
-            if( !rs )
-                continue;
-            model = ToriDraw_ModelFromToriRS(rs);
-            if( !model )
-                continue;
-            /* Kit recolors applied per part before merge (mirrors PlayerComposition). */
-            for( r = 0; r < 10; r++ )
-            {
-                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
-                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
-            }
-            if( part_count < BRIDGE_PLAYER_PART_MODELS_MAX )
-                parts[part_count++] = model;
-            else
-                ToriDraw_ModelFree(model);
-        }
-    }
-
-    if( part_count == 0 )
-        return -1;
-
-    /* ModelNewMerge copies geometry, so the part models must be freed after. */
-    merged = ToriDraw_ModelNewMerge(parts, part_count);
-    for( p = 0; p < part_count; p++ )
-        ToriDraw_ModelFree(parts[p]);
-    if( !merged )
-        return -1;
-
-    /* Default-appearance body recolors (colors all 0 → mostly identity). */
-    {
-        int c;
-        for( c = 0; c < PlayerAppearance_DefaultBodyRecolorCount(); c++ )
-        {
-            int from = PlayerAppearance_DefaultBodyRecolorFrom(c);
-            if( from != -1 )
-                ToriDraw_ModelRecolor(merged, from, PlayerAppearance_DefaultBodyRecolorTo(c));
-        }
-    }
-
-    ToriDraw_ModelSetBoundsCylinder(merged);
-    /* Snapshot the rest pose so sequence frames can be applied/reset each tick. */
-    ToriDraw_ModelCaptureOriginalVertices(merged);
-
-    /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
-    ToriDraw_ModelDropNonSdTextures(bridge->provider, merged);
-    memset(&hnd, 0, sizeof(hnd));
-    hnd.kind = TORIDRAWMK_MODEL;
-    hnd.u.model.model = merged;
-    /* CC_DESIGN_PREVIEW lights the composite with its own parameters, not the
-     * widget-model defaults: calculateNormals(64, 850, -30, -50, -30, true). */
-    ToriDraw_LightModelParams(hnd, 64, 850, -30, -50, -30);
-    ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
-    bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
-    return bridge->player_scene_id;
+    return UITreeSceneBridge_BuildPlayerDesignModel(bridge, app.kits, app.colors, app.gender);
 }
 
 #define BRIDGE_NPC_HEAD_PARTS_MAX 16

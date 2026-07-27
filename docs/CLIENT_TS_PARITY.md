@@ -3983,3 +3983,71 @@ it.
 Not touched: the CS2 `IF_SETHIDE` host request (`rs_cs2_host.c`). Dat2 gameframes
 re-run their hide scripts on every var change, so there is nothing there to
 persist.
+
+## 53. The special attack bar never moved — MODEL widgets ignored their active variant — ✅
+
+With §52 in place the bar is on screen, but it stayed uniformly dim no matter
+how much spec energy the player had.
+
+The 254 bar is not a fill rectangle. It is a red→green gradient model (`3476`)
+with ten dark **cover** segments (`3475`) laid over it, and each cover carries
+an IF1 "active" script:
+
+```
+[03] id=7635  model  x=149  if1script[0] cmp=3 operand=999  code=5 300 0
+[04] id=7634  model  x=135  if1script[0] cmp=3 operand=899  code=5 300 0
+...
+[12] id=7626  model  x=20   if1script[0] cmp=3 operand=99   code=5 300 0
+[13] id=7625  model  x=22   modelId=3476                       <- the gradient
+[02] id=7636  text   activeText='@yel@S P E C I A L  A T T A C K'
+                     if1script[0] cmp=3 operand=0    code=5 301 0
+```
+
+`code=5 300 0` is `PUSH_VARP 300; RETURN` and `cmp=3` is the reference's
+"greater" comparator, so a cover is *active* once spec energy passes its
+threshold. Every cover has `activeModelType=0 activeModelId=0` — dat1's
+spelling of "no model" — and the reference draws nothing at all in that case:
+
+```ts
+getTempModel(primaryFrame, secondaryFrame, active, localPlayer) {
+    if (active) model = this.getModel(this.model2Type, this.model2Id, ...);
+    else        model = this.getModel(this.model1Type, this.model1Id, ...);
+    if (!model) { return null; }      // <- "active + no model" = draw nothing
+```
+
+So the bar fills by *removing* covers from the left as energy rises. The
+`@yel@` title is the same mechanism on varp 301 (spec toggled on) via the
+already-working active-text path.
+
+Our `UIELEM_RS_MODEL` emit branch always took `gamecache_model_id` and never
+looked at `active` — the CS1 evaluation was running and cached on the node
+(`cs1_active`, used for text/colour/sprite), the MODEL case just never asked.
+The active model was in fact absent from the whole pipeline, so this needed
+plumbing at four layers: `active_model_type`/`active_model_id` on the ToriRS
+component (both dat1 and dat2 decode), `model_active_id` on the build spec,
+`active_model_id` on `rs_model` (**twice** — that struct is duplicated in
+`uitree.h`), and finally the selection in `uitree_emit.c`. The two spellings of
+"none" both collapse to -1 at the `uitree_from_component.c` gate: dat1's
+`modelType 0` and dat2's `activeModelId -1`.
+
+Verified offline with a new `TORIRS_SIM_SETVARP="id:value,..."` knob, which
+writes the varps the IF1 active scripts read (re-applied every frame, since a
+re-bake would otherwise clear them):
+
+```
+TORIRS_SIM_SETTAB=0:3796 TORIRS_SIM_SETHIDE=7624:0 \
+TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifest_rs254.ini --offline
+```
+
+Sampling one row across the bar shows the fill tracking varp 300 exactly —
+left half bright, right half covered at 50%:
+
+```
+varp300=   0   520c07 442306 3e2b06 362d05 2f3505 283d06 214306 1e4a07   (all dim)
+varp300= 500   9d1309 804107 745007 655505 2f3505 283d06 214306 1e4a07   (dim from midpoint)
+varp300=1000   9d1309 804107 745007 655505 576505 497407 3b8007 348f09   (all bright)
+```
+
+Note this changes MODEL rendering for *every* IF1 widget with an active model,
+not just the bar — which is the point, it is the reference's rule. Nothing else
+in the 254 gameframe regressed on a full-frame render.

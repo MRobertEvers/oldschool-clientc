@@ -42,6 +42,14 @@ static struct
     { k_recol_skin, (int)(sizeof(k_recol_skin) / sizeof(int)) },
 };
 
+int
+PlayerModel_DesignColourCount(int part)
+{
+    if( part < 0 || part >= (int)(sizeof(k_recol1d) / sizeof(k_recol1d[0])) )
+        return 0;
+    return k_recol1d[part].count;
+}
+
 static void
 obj_wear_models(
     struct ToriRS_Objtype const* obj,

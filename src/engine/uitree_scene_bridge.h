@@ -136,6 +136,37 @@ int
 UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge);
 
 /**
+ * (Re)build the player-design composite from an explicit kit/colour/gender set
+ * and register it under the same scene id as EnsurePlayerModel, replacing (and
+ * freeing) whatever composite was there. This is the design screen's rebuild
+ * path — the reference rebuilds on every idkDesignRedraw.
+ *
+ * `kits` is one IdentityKit id per design part (-1 = none) and `colours` is one
+ * palette index per design colour. Models that are not resident are skipped, so
+ * gate on UITreeSceneBridge_CollectPlayerDesignModelIds first (reference
+ * IdkType.checkModel) or the composite comes out missing limbs.
+ * Returns the scene model id, or -1 when nothing composited.
+ */
+int
+UITreeSceneBridge_BuildPlayerDesignModel(
+    struct UITreeSceneBridge* bridge,
+    int const kits[7],
+    int const colours[5],
+    int gender);
+
+/**
+ * List the cache model ids a design kit set references, so the caller can await
+ * the loads before rebuilding. Returns the count written (capped at cap).
+ */
+int
+UITreeSceneBridge_CollectPlayerDesignModelIds(
+    struct UITreeSceneBridge* bridge,
+    int const kits[7],
+    int gender,
+    int* out_ids,
+    int cap);
+
+/**
  * Composite an NPC's chathead (NpcType.heads merged + npc recolours) and register
  * it in the scene, keyed/memoized by npc_id. Requires the npctype + its head
  * models already in the provider. Returns the scene model id or -1.

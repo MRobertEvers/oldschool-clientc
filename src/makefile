@@ -83,6 +83,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
+	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \

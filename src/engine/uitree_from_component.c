@@ -180,6 +180,9 @@ UITree_FillBuildFromToriRS(
      * obj) are supplied at runtime by IF_SETNPCHEAD, IF_SETPLAYERHEAD and the
      * CS2 setmodel ops, never by the pack decode. */
     dst->model_id = src->model_type == 1 ? src->model_id : -1;
+    /* Same "no model" gate as above, applied to the active variant. Both
+     * spellings of none survive it: dat1's type 0 and dat2's id -1. */
+    dst->model_active_id = src->active_model_type == 1 ? src->active_model_id : -1;
     dst->model_seq_id = src->model_seq_id;
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;

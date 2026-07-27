@@ -1,6 +1,9 @@
 #include "rs_clientcode.h"
 
 #include "app.h"
+#include "engine/cache_provider.h"
+#include "engine/uitree_scene_bridge.h"
+#include "rs_idk_design.h"
 #include "rs_social.h"
 #include "ui/uitree.h"
 
@@ -168,14 +171,127 @@ ignores_row_tick(
     return changed;
 }
 
+/*
+ * Reference CC_DESIGN_PREVIEW's idkDesignRedraw block: rebuild the composite
+ * from the current kits/colours/gender. The reference first calls
+ * IdkType.checkModel() on all seven kits and returns (retrying next frame) if
+ * any model is still loading; here that gate is "every referenced model is
+ * resident", with the missing ones queued on the async pipeline.
+ *
+ * Returns nonzero once the composite has been rebuilt.
+ */
+static int
+design_preview_rebuild(struct App* app)
+{
+    struct RS_IdkDesign* design = &app->idk_design;
+    int model_ids[RS_IDK_DESIGN_LOAD_TRACK_MAX];
+    int model_count;
+    int missing = 0;
+
+    if( !app->provider )
+        return 0;
+
+    /* The kit table is only walkable once the idk configs are resident, and
+     * the preview mount is what prefetches them (PackAssetsLoad needs_player). */
+    if( design->kit_count <= 0 )
+    {
+        if( RS_IdkDesign_ResolveKitCount(design, app->provider) <= 0 )
+            return 0;
+        RS_IdkDesign_Validate(design, app->provider);
+    }
+
+    model_count = UITreeSceneBridge_CollectPlayerDesignModelIds(
+        &app->bridge,
+        design->parts,
+        design->gender,
+        model_ids,
+        (int)(sizeof(model_ids) / sizeof(model_ids[0])));
+
+    for( int i = 0; i < model_count; i++ )
+    {
+        if( CacheProvider_ModelHas(app->provider, model_ids[i]) )
+            continue;
+        missing = 1;
+        if( RS_IdkDesign_LoadRequestAdd(design, model_ids[i]) )
+        {
+            struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_ids[i]);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+    }
+    if( missing )
+        return 0; /* retry next tick, like the reference's checkModel() gate */
+
+    if( UITreeSceneBridge_BuildPlayerDesignModel(
+            &app->bridge, design->parts, design->colours, design->gender) < 0 )
+        return 0;
+
+    design->redraw = 0;
+    design->load_requested_count = 0;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
+            "colours=[%d,%d,%d,%d,%d]\n",
+            design->gender,
+            design->parts[0], design->parts[1], design->parts[2], design->parts[3],
+            design->parts[4], design->parts[5], design->parts[6],
+            design->colours[0], design->colours[1], design->colours[2],
+            design->colours[3], design->colours[4]);
+    return 1;
+}
+
+/*
+ * Reference CC_SWITCH_TO_MALE / CC_SWITCH_TO_FEMALE: both gender buttons carry
+ * two sprites, and the pair is swapped so the selected gender wears the first
+ * one. The reference captures graphic/graphic2 off whichever button it walks
+ * first and applies that pair to both.
+ */
+static int
+design_gender_button_tick(
+    struct App* app,
+    struct UITree* tree,
+    int32_t idx,
+    int client_code)
+{
+    struct UITreeComponent* c = &tree->components[idx];
+    struct RS_IdkDesign* design = &app->idk_design;
+    int want;
+
+    if( c->type != UIELEM_RS_GRAPHIC )
+        return 0;
+
+    if( !design->button_scene_valid )
+    {
+        design->button_scene_id[0] = c->u.rs_graphic.scene_id;
+        design->button_scene_id[1] = c->u.rs_graphic.scene_id_active;
+        design->button_scene_valid = 1;
+    }
+    /* A cache whose gender buttons carry no second sprite has nothing to swap;
+     * blanking the unselected button would be worse than leaving both alone. */
+    if( design->button_scene_id[0] < 0 || design->button_scene_id[1] < 0 )
+        return 0;
+
+    want = ((client_code == RS_CC_SWITCH_TO_MALE) == (design->gender == 0))
+               ? design->button_scene_id[0]
+               : design->button_scene_id[1];
+    if( c->u.rs_graphic.scene_id == want )
+        return 0;
+    c->u.rs_graphic.scene_id = want;
+    UITree_MarkNodeDirty(tree, idx);
+    return 1;
+}
+
 int
 RS_ClientCode_Tick(
+    struct App* app,
     struct UITree* tree,
     struct RS_Social const* social,
     uint64_t loop_cycle)
 {
     int changed = 0;
 
+    assert(app);
     assert(tree);
     assert(social);
 
@@ -215,7 +331,14 @@ RS_ClientCode_Tick(
                 UITree_MarkNodeDirty(tree, (int32_t)i);
                 changed = 1;
             }
+            if( app->idk_design.redraw && design_preview_rebuild(app) )
+            {
+                UITree_MarkNodeDirty(tree, (int32_t)i);
+                changed = 1;
+            }
         }
+        else if( cc == RS_CC_SWITCH_TO_MALE || cc == RS_CC_SWITCH_TO_FEMALE )
+            changed |= design_gender_button_tick(app, tree, (int32_t)i, cc);
         else if( cc == RS_CC_LAST_LOGIN_INFO || cc == RS_CC_LAST_LOGIN_INFO2 )
             changed |= set_node_text(
                 tree, (int32_t)i, "You last logged in @yel@earlier today@whi@.");
@@ -244,6 +367,14 @@ RS_ClientCode_Button(
         fprintf(stderr, "clientcode: logout requested\n");
         return 1;
     case RS_CC_ACCEPT_DESIGN:
+        /* Reference sends IDK_SAVEDESIGN and returns true, so the plain
+         * IF_BUTTON follows it — the server needs both (the design, and the
+         * button that advances the tutorial). */
+        App_SendIdkDesign(
+            app,
+            app->idk_design.gender,
+            app->idk_design.parts,
+            app->idk_design.colours);
         return 1;
     case RS_CC_ADD_FRIEND:
     case RS_CC_DEL_FRIEND:
@@ -290,8 +421,13 @@ RS_ClientCode_Button(
     default:
         if( cc >= RS_CC_CHANGE_HEAD_L && cc <= RS_CC_SWITCH_TO_FEMALE )
         {
-            /* Player-design part/colour cycling needs the idk design store. */
-            fprintf(stderr, "clientcode: design button %d (not implemented)\n", cc);
+            /* Part/colour cycling and the gender switch are purely local: the
+             * reference falls through to `return false`, so no IF_BUTTON goes
+             * out until Accept. The preview picks the change up on the next
+             * clientCode tick via idkDesignRedraw. */
+            if( app->provider )
+                RS_IdkDesign_Button(&app->idk_design, app->provider, cc);
+            app->need_redraw = 1;
             return 0;
         }
         return 0;

@@ -12,6 +12,7 @@
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_entity_sync.h"
+#include "game/rs_idk_design.h"
 #include "game/rs_if1_buttons.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
@@ -289,6 +290,10 @@ struct App
     int worldmap_drag_active;
     int worldmap_drag_x;
     int worldmap_drag_y;
+    /* View position when the drag started: the pan is anchored to it, not
+     * accumulated per frame. */
+    int worldmap_drag_display_x;
+    int worldmap_drag_display_y;
     /** Scene id of the hitmarks sprite pack, resolved once at boot. */
     int hitmarks_scene_id;
 
@@ -371,6 +376,9 @@ struct App
     struct RS_UISlots slots;
     /** Friends/ignores store feeding the clientCode row pass. */
     struct RS_Social social;
+    /** Character-design state behind the tutorial design screen's client
+     *  codes (parts/colours/gender + the preview's rebuild flag). */
+    struct RS_IdkDesign idk_design;
     /** Chat message ring + input state, and its per-frame flattened draw
      *  model (the host hands chat_view to the emit walk). */
     struct RS_Chat chat;
@@ -585,6 +593,17 @@ void
 App_CloseSubInterface(
     struct App* app,
     int target_uid);
+
+/**
+ * IDK_SAVEDESIGN: send the accepted character design (reference
+ * CC_ACCEPT_DESIGN). No-op when networking is not in the game state.
+ */
+void
+App_SendIdkDesign(
+    struct App* app,
+    int gender,
+    int const kits[RS_IDK_DESIGN_PARTS],
+    int const colours[RS_IDK_DESIGN_COLOURS]);
 
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void

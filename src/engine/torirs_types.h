@@ -731,6 +731,13 @@ struct ToriRS_Component
     int model_type;
     /** Widget/NPC/item model index when type==MODEL; meaning depends on model_type. */
     int model_id;
+    /** Client.ts model2Type/model2Id: the model drawn when getIfActive() holds,
+     *  the MODEL-widget twin of sprite_active_ref / active_text. Type 0 means
+     *  "no model", and the reference then draws *nothing* — that is how the 254
+     *  special-attack bar works: dark cover segments over a green bar, each
+     *  cover going away once spec energy passes its threshold. */
+    int active_model_type;
+    int active_model_id;
     /** MODEL cache sequence (dat2 modelSeqId); -1 = none. Reference widget.sequenceId. */
     int model_seq_id;
     /** MODEL preview camera: dat2 modelZoom / dat1 zoom. */
