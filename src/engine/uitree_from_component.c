@@ -170,7 +170,16 @@ UITree_FillBuildFromToriRS(
     dst->shadowed = src->shadowed;
     dst->text = src->text[0] ? src->text : NULL;
     dst->text_active = src->active_text[0] ? src->active_text : NULL;
-    dst->model_id = src->model_id;
+    /* Reference IfType.getModel(type, id) returns null for modelType 0 — only
+     * type 1 names a cache model. dat2 also encodes "unset" as modelId -1, but
+     * dat1 encodes it as modelType 0 with modelId 0, and downstream treats any
+     * id >= 0 as a real cache model. Without this gate the dat1 player-design
+     * preview (iface 3559 com 3650: modelType 0, clientCode 327) resolved to
+     * cache model 0 instead of falling through to the clientCode compositor,
+     * so the widget rendered nothing. Types 2/3/4 (npc head / player head /
+     * obj) are supplied at runtime by IF_SETNPCHEAD, IF_SETPLAYERHEAD and the
+     * CS2 setmodel ops, never by the pack decode. */
+    dst->model_id = src->model_type == 1 ? src->model_id : -1;
     dst->model_seq_id = src->model_seq_id;
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;

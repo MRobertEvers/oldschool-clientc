@@ -556,12 +556,351 @@ decode_if3_hook(
         self->hasHook = true;
 }
 
+/*
+ * RS2 (634/643) IF3 widget.
+ *
+ * A different *shape* from the OldSchool layout, not a field-width variation, so
+ * it is its own function rather than a gate inside the OSRS one. Ported from the
+ * 634 client (`Class46.method433`, ~/Documents/git_repos/634-client) and
+ * cross-read against Void's server-side decoder (`InterfaceDecoderFull.kt`,
+ * ~/Documents/git_repos/Void_RS2011Server). Where the two disagree the client
+ * wins — Void mislabels the type-5 flag bits (it calls bit 1 "imageRepeat"; the
+ * client's draw path tiles on bit 0).
+ *
+ * Everything the OldSchool layout lacks:
+ *
+ *   - the leading byte is a *version*, not a bare 255 marker. 255 means -1, which
+ *     is what every file in a 634-era cache carries; a non-negative version adds
+ *     fields in six places (marked `version >= 0` below) and is decoded here so
+ *     that a cache which does use it cannot silently desync.
+ *   - `type` bit 7 flags a trailing string.
+ *   - type 4 carries a transparency byte after its colour.
+ *   - type 6 is entirely different: a flag byte selects which of two viewport
+ *     blocks follows, and there is no orthographic/zoom-mode tail.
+ *   - a key-binding table sits between the click mask and the name.
+ *   - the byte before the ops is a nibble pair: op count low, cursor count high.
+ *   - an option-override string sits between the ops and the drag fields.
+ *   - three shorts follow the target verb whenever the click mask has any of the
+ *     seven "target" bits set. This is the block whose absence left every
+ *     type-0 widget in iface 548 six bytes short.
+ *   - 20 hooks and 5 trigger tables, against OldSchool's 18 and 3. The extra pairs
+ *     are varc and varcstr, appended after the OldSchool set.
+ */
+static void
+decode_if3_rs2(
+    struct RSCache_Dat2Component* self,
+    struct RSCache_Buffer* buf)
+{
+    self->if3 = true;
+
+    int32_t version = g1(buf);
+    if( version == 255 )
+        version = -1;
+
+    self->type = g1(buf);
+    if( (self->type & 0x80) != 0 )
+    {
+        self->type &= 0x7F;
+        /* Unused by the client beyond being stored; read to stay aligned. */
+        free(self->pauseText);
+        self->pauseText = read_jstring(buf);
+    }
+
+    self->clientCode = g2(buf);
+    self->baseX = g2b(buf);
+    self->baseY = g2b(buf);
+    self->baseWidth = g2(buf);
+    self->baseHeight = g2(buf);
+
+    self->widthMode = g1b(buf);
+    self->heightMode = g1b(buf);
+    self->xMode = g1b(buf);
+    self->yMode = g1b(buf);
+
+    self->layer = g2(buf);
+    if( self->layer == 65535 )
+        self->layer = -1;
+    else
+        self->layer += self->id & (int32_t)0xFFFF0000u;
+
+    {
+        int32_t flags = g1(buf);
+        if( version >= 0 )
+            self->noClickThrough = (flags & 0x2) != 0;
+        self->hidden = (flags & 0x1) != 0;
+    }
+
+    if( self->type == 0 )
+    {
+        self->scrollWidth = g2(buf);
+        self->scrollHeight = g2(buf);
+        if( version < 0 )
+            self->noClickThrough = (g1(buf) == 1);
+    }
+    if( self->type == 5 )
+    {
+        self->graphic = (int32_t)g4(buf);
+        self->angle = (int32_t)g2(buf);
+        {
+            uint8_t flags = (uint8_t)g1(buf);
+            self->tiled = (flags & 0x1) != 0;
+            self->alpha = (flags & 0x2) != 0;
+        }
+        self->transparency = g1(buf);
+        self->outline = g1(buf);
+        self->graphicShadow = (int32_t)g4(buf);
+        /* Row swap first, then the in-row swap: vertical, then horizontal
+         * (Class207.method1514 / method1518). */
+        self->verticalFlip = (g1(buf) == 1);
+        self->horizontalFlip = (g1(buf) == 1);
+        self->color = (int32_t)g4(buf);
+    }
+    if( self->type == 6 )
+    {
+        self->modelType = 1;
+        self->modelId = g2(buf);
+        if( self->modelId == 65535 )
+            self->modelId = -1;
+
+        int32_t model_flags = g1(buf);
+        bool has_viewport = (model_flags & 0x1) != 0;
+        bool has_centred_viewport = (model_flags & 0x2) != 0;
+        self->aBoolean411 = (model_flags & 0x4) != 0; /* animated */
+        self->modelOrthographic = (model_flags & 0x8) != 0; /* ignores the z-buffer */
+
+        if( has_viewport )
+        {
+            self->modelXOffset = g2b(buf);
+            self->modelYOffset = g2b(buf);
+            self->modelXAngle = g2(buf);
+            self->modelZAngle = g2(buf);
+            self->modelYAngle = g2(buf);
+            self->modelZoom = g2(buf);
+        }
+        else if( has_centred_viewport )
+        {
+            self->modelXOffset = g2b(buf);
+            self->modelYOffset = g2b(buf);
+            self->anInt5907 = g2b(buf); /* z offset */
+            self->modelXAngle = g2(buf);
+            self->modelZAngle = g2(buf);
+            self->modelYAngle = g2(buf);
+            self->modelZoom = g2b(buf);
+        }
+
+        self->modelSeqId = g2(buf);
+        if( self->modelSeqId == 65535 )
+            self->modelSeqId = -1;
+        if( self->widthMode != 0 )
+            self->anInt5957 = g2(buf);
+        if( self->heightMode != 0 )
+            self->anInt5920 = g2(buf);
+    }
+    if( self->type == 4 )
+    {
+        self->textFont = g2(buf);
+        if( self->textFont == 65535 )
+            self->textFont = -1;
+        free(self->text);
+        self->text = read_jstring(buf);
+        self->textLineHeight = g1(buf);
+        self->textHorizontalAlignment = g1(buf);
+        self->textVerticalAlignment = g1(buf);
+        self->textShadow = (g1(buf) == 1);
+        self->color = (int32_t)g4(buf);
+        self->transparency = g1(buf);
+        if( version >= 0 )
+            self->anInt5921 = g1(buf);
+    }
+    if( self->type == 3 )
+    {
+        self->color = (int32_t)g4(buf);
+        self->fill = (g1(buf) == 1);
+        self->transparency = g1(buf);
+    }
+    if( self->type == 9 )
+    {
+        self->lineWidth = g1(buf);
+        self->color = (int32_t)g4(buf);
+        self->lineDirection = (g1(buf) == 1);
+    }
+
+    self->clickMask = g3(buf);
+
+    /* Key bindings: a chain of (index nibble, 12-bit modifier, repeat, key code)
+     * records terminated by a zero lead byte. The lead byte doubles as the high
+     * nibble of the index and the high bits of the modifier, so the terminator
+     * check has to happen on the *next* lead byte, not on a count. */
+    {
+        int32_t lead = g1(buf);
+        if( lead != 0 )
+        {
+            for( ; lead != 0; lead = g1(buf) )
+            {
+                int32_t slot = (lead >> 4) - 1;
+                int32_t modifier = ((lead << 8) | g1(buf)) & 0xFFF;
+                if( modifier == 4095 )
+                    modifier = -1;
+                int8_t repeat = (int8_t)g1(buf);
+                int8_t code = (int8_t)g1(buf);
+                if( slot >= 0 && slot < 10 )
+                {
+                    self->if3SlotCursorOrKey[slot] = modifier;
+                    self->if3SlotPackedA[slot] = repeat;
+                    self->if3SlotPackedB[slot] = code;
+                }
+            }
+        }
+    }
+
+    free(self->name);
+    self->name = read_jstring(buf);
+
+    {
+        int32_t nibbles = g1(buf);
+        int32_t op_count = nibbles & 0xF;
+        int32_t cursor_count = nibbles >> 4;
+
+        if( op_count > 0 )
+        {
+            if( self->ops )
+            {
+                for( int32_t i = 0; i < self->opsLen; i++ )
+                    free(self->ops[i]);
+                free(self->ops);
+            }
+            self->opsLen = op_count;
+            self->ops = calloc((size_t)op_count, sizeof(char*));
+            for( int32_t i = 0; i < op_count; i++ )
+                self->ops[i] = read_jstring(buf);
+        }
+
+        /* Cursor overrides are stored sparsely: a slot index then the cursor id,
+         * at most twice, with every lower slot left at -1. */
+        if( cursor_count > 0 )
+        {
+            int32_t slot = g1(buf);
+            free(self->opCursors);
+            self->opCursorsLen = slot + 1;
+            self->opCursors = malloc(sizeof(int32_t) * (size_t)self->opCursorsLen);
+            for( int32_t i = 0; i < self->opCursorsLen; i++ )
+                self->opCursors[i] = -1;
+            self->opCursors[slot] = g2(buf);
+        }
+        if( cursor_count > 1 )
+        {
+            int32_t slot = g1(buf);
+            int32_t cursor = g2(buf);
+            if( self->opCursors && slot >= 0 && slot < self->opCursorsLen )
+                self->opCursors[slot] = cursor;
+        }
+    }
+
+    free(self->opBase);
+    self->opBase = read_jstring(buf);
+    if( self->opBase[0] == '\0' )
+    {
+        free(self->opBase);
+        self->opBase = NULL;
+    }
+
+    self->dragDeadZone = (uint8_t)g1(buf);
+    self->dragDeadTime = (uint8_t)g1(buf);
+    self->dragRender = (g1(buf) == 1);
+
+    free(self->targetVerb);
+    self->targetVerb = read_jstring(buf);
+
+    /* The seven target bits (clickMask >> 11 & 0x7F) gate a target-mask triplet.
+     * Missing it left every widget carrying one six bytes short of its file. */
+    if( ((self->clickMask >> 11) & 0x7F) != 0 )
+    {
+        int32_t target_mask = g2(buf);
+        if( target_mask == 65535 )
+            target_mask = -1;
+        self->serverActiveProperties.targetMask = target_mask;
+        self->anInt5930 = g2(buf);
+        if( self->anInt5930 == 65535 )
+            self->anInt5930 = -1;
+        self->anInt5890 = g2(buf);
+        if( self->anInt5890 == 65535 )
+            self->anInt5890 = -1;
+    }
+
+    if( version >= 0 )
+    {
+        self->anInt5909 = g2(buf);
+        if( self->anInt5909 == 65535 )
+            self->anInt5909 = -1;
+    }
+
+    self->serverActiveProperties.events = self->clickMask;
+
+    if( version >= 0 )
+    {
+        /* Two id-keyed side tables (int-valued, then string-valued) the client
+         * stashes in a hashmap. Nothing here consumes them; read to stay aligned. */
+        int32_t count = g1(buf);
+        for( int32_t i = 0; i < count; i++ )
+        {
+            g3(buf);
+            g4(buf);
+        }
+        count = g1(buf);
+        for( int32_t i = 0; i < count; i++ )
+        {
+            g3(buf);
+            free(read_jstring(buf));
+        }
+    }
+
+    decode_if3_hook(self, buf, &self->onLoad, &self->onLoadLen);
+    decode_if3_hook(self, buf, &self->onMouseOver, &self->onMouseOverLen);
+    decode_if3_hook(self, buf, &self->onMouseLeave, &self->onMouseLeaveLen);
+    decode_if3_hook(self, buf, &self->onTargetLeave, &self->onTargetLeaveLen);
+    decode_if3_hook(self, buf, &self->onTargetEnter, &self->onTargetEnterLen);
+    decode_if3_hook(self, buf, &self->onVarpTransmit, &self->onVarpTransmitLen);
+    decode_if3_hook(self, buf, &self->onInvTransmit, &self->onInvTransmitLen);
+    decode_if3_hook(self, buf, &self->onStatTransmit, &self->onStatTransmitLen);
+    decode_if3_hook(self, buf, &self->onTimer, &self->onTimerLen);
+    decode_if3_hook(self, buf, &self->onOp, &self->onOpLen);
+    if( version >= 0 )
+    {
+        struct RSCache_Dat2ComponentScriptVar* extra = NULL;
+        int32_t extra_len = 0;
+        decode_if3_hook(self, buf, &extra, &extra_len);
+        free_script_vars(extra, extra_len);
+    }
+    decode_if3_hook(self, buf, &self->onMouseRepeat, &self->onMouseRepeatLen);
+    decode_if3_hook(self, buf, &self->onClick, &self->onClickLen);
+    decode_if3_hook(self, buf, &self->onClickRepeat, &self->onClickRepeatLen);
+    decode_if3_hook(self, buf, &self->onRelease, &self->onReleaseLen);
+    decode_if3_hook(self, buf, &self->onHold, &self->onHoldLen);
+    decode_if3_hook(self, buf, &self->onDrag, &self->onDragLen);
+    decode_if3_hook(self, buf, &self->onDragComplete, &self->onDragCompleteLen);
+    decode_if3_hook(self, buf, &self->onScrollWheel, &self->onScrollWheelLen);
+    decode_if3_hook(self, buf, &self->onVarcTransmit, &self->onVarcTransmitLen);
+    decode_if3_hook(self, buf, &self->onVarcstrTransmit, &self->onVarcstrTransmitLen);
+
+    self->varpTriggers = read_triggers(buf, &self->varpTriggersLen);
+    self->inventoryTriggers = read_triggers(buf, &self->inventoryTriggersLen);
+    self->statTriggers = read_triggers(buf, &self->statTriggersLen);
+    self->varcTriggers = read_triggers(buf, &self->varcTriggersLen);
+    self->varcstrTriggers = read_triggers(buf, &self->varcstrTriggersLen);
+}
+
 void
 RSCache_Dat2ComponentDecodeIf3(
     struct RSCache_Dat2Component* self,
     struct RSCache_Buffer* buf,
     struct RSCache_Dat2ComponentDecodeRev rev)
 {
+    if( rev_is_643(rev) )
+    {
+        decode_if3_rs2(self, buf);
+        return;
+    }
+
     self->if3 = true;
     g1(buf); // Skips the 255 marker
 

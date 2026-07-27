@@ -489,7 +489,9 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    /* CC_DESIGN_PREVIEW lights the composite with its own parameters, not the
+     * widget-model defaults: calculateNormals(64, 850, -30, -50, -30, true). */
+    ToriDraw_LightModelParams(hnd, 64, 850, -30, -50, -30);
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
     bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
     return bridge->player_scene_id;

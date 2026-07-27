@@ -346,7 +346,10 @@ uitree_builder_bake_pack_under_owner(
             if( cache_id < 0 )
             {
                 /* Local-player preview (client_code 327/328): composite the
-                 * default avatar, idle via the standard human sequence. */
+                 * default avatar and pose it at readyanim frame 0. The
+                 * reference (CC_DESIGN_PREVIEW) poses the composite once at
+                 * SeqType.list[readyanim].frames[0] and never advances it —
+                 * only modelYAn spins — so hold the frame. */
                 if( node->behavior.client_code == 327 || node->behavior.client_code == 328 )
                 {
                     scene_id = UITreeSceneBridge_EnsurePlayerModel(builder->bridge);
@@ -354,7 +357,10 @@ uitree_builder_bake_pack_under_owner(
                     {
                         node->u.rs_model.gamecache_model_id = scene_id;
                         if( node->u.rs_model.anim_seq_id < 0 )
-                            node->u.rs_model.anim_seq_id = 808; /* human idle */
+                            node->u.rs_model.anim_seq_id = 808; /* human readyanim */
+                        node->u.rs_model.anim_frame = 0;
+                        node->u.rs_model.anim_frame_cycle = 0;
+                        node->u.rs_model.anim_hold = 1;
                     }
                 }
                 continue;

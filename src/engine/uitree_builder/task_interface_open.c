@@ -144,11 +144,16 @@ upload_model_nodes(
                 if( scene_id >= 0 )
                 {
                     c->u.rs_model.gamecache_model_id = scene_id;
-                    /* Idle the preview. The server appearance's readyanim is not
-                     * decoded here, so use the standard human idle sequence; the
-                     * tick driver loads it and disables gracefully if absent. */
+                    /* Pose the preview. The server appearance's readyanim is not
+                     * decoded here, so use the standard human ready sequence; the
+                     * tick driver loads it and disables gracefully if absent.
+                     * Held at frame 0 — the reference poses the design composite
+                     * once and only spins modelYAn after that. */
                     if( c->u.rs_model.anim_seq_id < 0 )
                         c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
+                    c->u.rs_model.anim_frame = 0;
+                    c->u.rs_model.anim_frame_cycle = 0;
+                    c->u.rs_model.anim_hold = 1;
                 }
             }
             continue;
@@ -184,6 +189,7 @@ reassert_player_idle_anim(struct UITree* tree)
         c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
         c->u.rs_model.anim_frame = 0;
         c->u.rs_model.anim_frame_cycle = 0;
+        c->u.rs_model.anim_hold = 1;
     }
 }
 

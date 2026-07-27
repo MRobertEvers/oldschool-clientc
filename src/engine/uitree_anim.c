@@ -101,23 +101,32 @@ UITreeAnim_Advance(
             if( fr < 0 || fr >= anim->frame_count )
                 fr = 0;
 
-            /* Advance frames while the accumulated cycles exceed the current
-             * frame's on-screen length. A non-positive delay is clamped to 1
-             * so the loop always terminates. */
-            while( 1 )
+            /* Held nodes stay on anim_frame — the reference poses the design
+             * preview once and only spins modelYAn afterwards. */
+            if( c->u.rs_model.anim_hold )
             {
-                int delay = anim->frames[fr].delay;
-                if( delay <= 0 )
-                    delay = 1;
-                if( cyc <= delay )
-                    break;
-                cyc -= delay;
-                fr++;
-                if( fr >= anim->frame_count )
+                cyc = 0;
+            }
+            else
+            {
+                /* Advance frames while the accumulated cycles exceed the current
+                 * frame's on-screen length. A non-positive delay is clamped to 1
+                 * so the loop always terminates. */
+                while( 1 )
                 {
-                    fr -= anim->frame_step;
-                    if( fr < 0 || fr >= anim->frame_count )
-                        fr = 0;
+                    int delay = anim->frames[fr].delay;
+                    if( delay <= 0 )
+                        delay = 1;
+                    if( cyc <= delay )
+                        break;
+                    cyc -= delay;
+                    fr++;
+                    if( fr >= anim->frame_count )
+                    {
+                        fr -= anim->frame_step;
+                        if( fr < 0 || fr >= anim->frame_count )
+                            fr = 0;
+                    }
                 }
             }
 

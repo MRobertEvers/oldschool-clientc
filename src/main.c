@@ -5,6 +5,7 @@
 #include "cmd/cmdbus.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "net/net.h"
 #include "platform/net_transport.h"
@@ -1324,12 +1325,27 @@ main(
                           cfg.connect_port > 0 ? cfg.connect_port : 43594)
                     : NULL;
 
+        /* TORIRS_SIM_OPENMAIN=<iface>: once the gameframe is up, mount an
+         * interface into the main-modal slot exactly as an IF_OPENMAIN packet
+         * would. Offline repro for server-driven modals (player design 3559). */
+        int sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
+                               ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
+                               : -1;
+        int sim_openmain_done = 0;
+
         while( !PlatformSDL2_QuitRequested(sdl) )
         {
             uint64_t now;
 
             if( max_frames > 0 && frame_count++ >= max_frames )
                 break;
+
+            if( sim_openmain > 0 && !sim_openmain_done && app.app_state == APP_STATE_READY )
+            {
+                fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
+                RS_UISlots_OpenMain(&app, sim_openmain);
+                sim_openmain_done = 1;
+            }
 
             if( replay )
             {

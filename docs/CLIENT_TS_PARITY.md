@@ -3678,3 +3678,122 @@ covers the player encoding (`-pid - 1`), an unsynced slot holding the previous
 aim, and `WORLD_PROJECTILE_TARGET_NONE` staying pinned while the NPC moves.
 `test-world` (unit + the 200-projectile barrage + mixed-churn sims) passes and
 the client builds clean.
+
+## 50. Player-design preview drew nothing — dat1 encodes "no model" as `modelType 0`, not `modelId -1` — ✅
+
+### Symptom
+
+The tutorial's character-design interface (dat1 iface **3559**, LostCity rev 254)
+rendered its whole chrome — the Design/Colour arrow columns, the Accept button,
+the Male/Female buttons — with an **empty rectangle where the player model
+belongs**. Nothing was drawn in the widget at all: no wrong model, no partial
+model, no flicker.
+
+With `TORIRS_ANIM_DEBUG=1` the mount printed the tell:
+
+```
+PackAssetsLoad: iface=3559 components=143 sprites=13 fonts=3 models=0 npcs=0 needs_player=1
+bake: model widget com=0xe42 cache_id=0 not loadable
+```
+
+`needs_player=1` — so the pack scan *did* recognise the preview widget and
+prefetched the identity kits. The bake then threw the result away.
+
+### Root cause — two cache epochs disagree on the "no model" sentinel
+
+`Client-TS` resolves a model widget through `IfType.getModel(type, id)`
+(`IfType.ts:396`), and the **type**, not the id, decides whether a cache model
+exists at all:
+
+```ts
+if (type === 1)      model = Model.load(id);
+else if (type === 2) model = NpcType.list(id).getHead();
+else if (type === 3) model = localPlayer.getHeadModel();
+else if (type === 4) model = ObjType.list(id).getModelUnlit(50);
+else if (type === 5) model = null;          // runtime-supplied (design preview)
+```
+
+Type 0 falls through every branch and yields `null` — the widget draws nothing
+until `CC_DESIGN_PREVIEW` composites a model and swaps the component to type 5.
+
+The dat1 IF1 decoder only ever emits type 0 or type 1
+(`3rd/rscache/src/datatypes/dat1_config_component.c:316`): a leading `0` byte
+means "unset", so the component keeps `modelType = 0` **and `model = 0`**. dat2
+instead defaults `modelId` to `-1` (`dat2_component.c:110`) and always writes
+`modelType = 1`.
+
+torirs collapsed both into one field and used `id < 0` as the "no model"
+predicate, so the two epochs silently disagreed:
+
+- **dat2** — unset is `-1`, the predicate holds, and the OSRS-era local-player
+  preview worked. That is why this never surfaced before.
+- **dat1** — unset is `0`, a perfectly valid cache model id. The
+  `cache_id < 0` branch in `uitree_builder_bake.c` (and its twin in
+  `task_interface_open.c`), which is what routes `client_code` 327/328 to
+  `UITreeSceneBridge_EnsurePlayerModel`, **never ran**. The bake instead asked
+  for cache model **0**, that Ensure failed, and the widget was left with no
+  scene model — hence a silently blank box rather than a wrong one.
+
+The dat1 design widget is exactly this shape:
+
+```
+[52] id=3650 type=model(6) x=190 y=155 w=136 h=168 clientCode=327
+     modelType=0  modelId=0  zoom=650  angles=(150,0,0)
+```
+
+143 of the 1054 model widgets in `cache.rs254_zuk` are `modelType=0` — every
+chathead and every `IF_SETMODEL` target — and all of them were resolving to
+cache model 0 before whatever packet supplies their real model arrived.
+
+### Fix
+
+1. **Gate on the type, like the reference** — `uitree_from_component.c` now maps
+   `model_id = (model_type == 1) ? model_id : -1`, the single point where a
+   decoded pack component becomes a tree node. Types 2/3/4 are supplied at
+   runtime by `IF_SETNPCHEAD` / `IF_SETPLAYERHEAD` / the CS2 setmodel ops, never
+   by the pack decode, so `-1` is right for them too. Type-1 widgets keep the
+   identical assignment, so nothing that already rendered changes.
+2. **The preview is posed, not played.** The reference builds the composite once
+   per `idkDesignRedraw` and applies a single frame —
+   `model.animate(SeqType.list[localPlayer.readyanim].frames[0])` — then caches
+   it as type 5; only `modelYAn` moves after that. torirs had been handing the
+   composite to the widget-animation tick driver, which loops seq 808. New
+   `rs_model.anim_hold` pins `anim_frame` and `UITreeAnim_Advance` skips the
+   frame walk for held nodes; the 327/328 wiring sets it alongside the seq.
+3. **Design-preview lighting.** The reference lights this composite with
+   `calculateNormals(64, 850, -30, -50, -30, true)`, not the widget-model default
+   `(64, 768, -50, -10, -50)` that `ToriDraw_LightModelDefaultPreScaled` bakes in.
+   Added `ToriDraw_LightModelParams` (the existing default helpers now delegate to
+   it, byte-identically) and `EnsurePlayerModel` passes the design parameters.
+
+### Verification
+
+`TORIRS_SIM_OPENMAIN=<iface>` (new, `main.c`) mounts an interface into the
+main-modal slot once the gameframe is up — the same `RS_UISlots_OpenMain` path an
+`IF_OPENMAIN` packet takes — so a server-driven modal can be reproduced offline:
+
+```
+SDL_VIDEODRIVER=dummy TORIRS_SIM_OPENMAIN=3559 TORIRS_MAX_FRAMES=250 \
+  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifest_rs254.ini --offline
+```
+
+The default male composites and renders (bald head + goatee, olive top, green
+legs — the first selectable kit per body part, matching `validateIdkDesign`),
+held at readyanim frame 0 while `RS_CC_DESIGN_PREVIEW` spins `modelYAn`.
+A 150-frame gameframe render is **byte-identical** (md5 `eb15094a…`) before and
+after the change, so neither the type gate nor the lighting refactor moved the
+world/UI path. `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`,
+`test-revconfig`, `test-cs1`, `test-inv`, `test-world` and `test-minimap` pass.
+(`test-ui-slots` aborts on a missing `[cache:boot]` manifest identity — it does
+so on a pristine tree too, unrelated.)
+
+### Still open — design *editing*
+
+Only the preview is fixed. `RS_ClientCode_Button` still logs
+`design button %d (not implemented)` for client codes 300–325, so the
+Design/Colour arrows and the Male/Female buttons do nothing, and `CC_ACCEPT_DESIGN`
+(326) sends a bare `IF_BUTTON` instead of `IDK_SAVEDESIGN` — `net_out_idk_savedesign`
+is wired on the wire side but has no caller. Implementing it needs the reference's
+`idkDesignPart[7]` / `idkDesignColour[5]` / `idkDesignGender` store, the
+`validateIdkDesign` re-scan on gender switch, `ClientPlayer.recol1d`/`recol2d`,
+and a rebuild-on-change of the composite (`idkDesignRedraw`).

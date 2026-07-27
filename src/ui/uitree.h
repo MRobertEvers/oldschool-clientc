@@ -489,6 +489,11 @@ struct UITreeComponent
             int anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
+            /* Hold anim_frame instead of advancing it. The player-design
+             * preview poses the composite once (reference: model.animate(
+             * SeqType.list[readyanim].frames[0]) inside the idkDesignRedraw
+             * rebuild) and never ticks it; only modelYAn spins. */
+            uint8_t anim_hold;
         } rs_model;
         struct
         {
@@ -721,6 +726,11 @@ struct UITreeNodeSpec
             int anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
+            /* Hold anim_frame instead of advancing it. The player-design
+             * preview poses the composite once (reference: model.animate(
+             * SeqType.list[readyanim].frames[0]) inside the idkDesignRedraw
+             * rebuild) and never ticks it; only modelYAn spins. */
+            uint8_t anim_hold;
         } rs_model;
         struct
         {

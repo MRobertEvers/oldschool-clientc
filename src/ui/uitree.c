@@ -1230,6 +1230,7 @@ UITree_Push(
         component->u.rs_model.anim_seq_id = spec->u.rs_model.anim_seq_id;
         component->u.rs_model.anim_frame = spec->u.rs_model.anim_frame;
         component->u.rs_model.anim_frame_cycle = 0;
+        component->u.rs_model.anim_hold = spec->u.rs_model.anim_hold;
         break;
 
     case UIELEM_RS_INV:
