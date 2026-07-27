@@ -40,4 +40,12 @@ int tool_dat2_seq_id_free(struct Tool_Dat2Cache* c, int id);
 int tool_dat2_npc_id_free(struct Tool_Dat2Cache* c, int id);
 int tool_dat2_bas_id_free(struct Tool_Dat2Cache* c, int id);
 
+/* Dat1 destination helpers for planning. */
+int tool_dat1_npc_count(struct Tool_Dat1Cache* c);
+int tool_dat1_seq_count(struct Tool_Dat1Cache* c);
+int tool_dat1_model_id_free(struct Tool_Dat1Cache* c, int id);
+int tool_dat1_anim_archive_id_free(struct Tool_Dat1Cache* c, int id);
+/** Highest global frame id across all ANIMATIONS archives, or -1 if none. */
+int tool_dat1_max_frame_id(struct Tool_Dat1Cache* c);
+
 #endif

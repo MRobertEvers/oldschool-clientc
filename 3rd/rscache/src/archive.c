@@ -299,8 +299,6 @@ RSCache_ArchiveEncode(
     return buffer.position;
 }
 
-static uint8_t decompress_buffer[65536];
-
 bool
 RSCache_ArchiveDecompressDat(
     struct RSCache_Dat2DiskArchive* archive,
@@ -312,21 +310,43 @@ RSCache_ArchiveDecompressDat(
     {
     case RSCACHE_ARCHIVE_FORMAT_DAT:
     {
-        int uncompressed_length = RSCache_CompressionGzipDecompress(
-            decompress_buffer,
-            sizeof(decompress_buffer),
-            (uint8_t*)archive->data,
-            archive->data_size,
-            RSCACHE_GZIP_NO_FOOTER);
+        /* Dat1 model/anim archives are whole-file gzip. Prefer the gzip ISIZE
+         * footer (mod 2^32) so archives larger than the old 64 KiB scratch
+         * buffer still decompress. When the footer is missing or unusable,
+         * fall back to a growing scratch allocation. */
+        uint32_t expect = 0;
+        if( archive->data_size >= 8 )
+            expect = RSCache_CompressionGzipUncompressedSize(
+                (uint8_t*)archive->data, archive->data_size);
 
-        void* decompressed_data = malloc((size_t)uncompressed_length);
-        if( !decompressed_data )
-            return false;
-        memcpy(decompressed_data, decompress_buffer, (size_t)uncompressed_length);
+        uint32_t capacity = expect > 0 ? expect : 65536u;
+        uint8_t* out = NULL;
+        uint32_t uncompressed_length = 0;
+        for( ;; )
+        {
+            free(out);
+            out = malloc(capacity ? capacity : 1);
+            if( !out )
+                return false;
+            uncompressed_length = RSCache_CompressionGzipDecompress(
+                out,
+                (int)capacity,
+                (uint8_t*)archive->data,
+                archive->data_size,
+                RSCACHE_GZIP_NO_FOOTER);
+            if( uncompressed_length > 0 )
+                break;
+            if( expect > 0 || capacity >= (1u << 26) )
+            {
+                free(out);
+                return false;
+            }
+            capacity *= 2;
+        }
 
         free(archive->data);
-        archive->data = decompressed_data;
-        archive->data_size = uncompressed_length;
+        archive->data = out;
+        archive->data_size = (int)uncompressed_length;
         return true;
     }
     case RSCACHE_ARCHIVE_FORMAT_DAT_MULTIFILE:

@@ -151,7 +151,8 @@ struct Tool_PortPlan
     struct Tool_IdMap chathead_map;
     struct Tool_IdMap seq_map;
     struct Tool_IdMap framemap_map;
-    struct Tool_IdMap frame_archive_map; /* animations archive ids */
+    struct Tool_IdMap frame_archive_map; /* animations archive ids (dat2) */
+    struct Tool_IdMap frame_id_map; /* dat2 (arch<<16)|file -> dat1 global u16 */
     struct Tool_IdMap bas_map;
 
     char** warnings;

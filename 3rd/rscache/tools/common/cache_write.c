@@ -296,6 +296,138 @@ tool_dat2_bas_id_free(struct Tool_Dat2Cache* c, int id)
 }
 
 static int
+dat1_archive_present(
+    struct Tool_Dat1Cache* c,
+    int table_id,
+    int archive_id)
+{
+    char path[1024];
+    snprintf(
+        path,
+        sizeof(path),
+        "%s/main_file_cache.idx%d",
+        c->disk->directory,
+        table_id);
+    FILE* f = fopen(path, "rb");
+    if( !f )
+        return 0;
+    if( fseek(f, (long)archive_id * 6, SEEK_SET) != 0 )
+    {
+        fclose(f);
+        return 0;
+    }
+    unsigned char rec[6];
+    if( fread(rec, 1, 6, f) != 6 )
+    {
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    int length = (rec[0] << 16) | (rec[1] << 8) | rec[2];
+    int sector = (rec[3] << 16) | (rec[4] << 8) | rec[5];
+    return length > 0 && sector > 0;
+}
+
+int
+tool_dat1_npc_count(struct Tool_Dat1Cache* c)
+{
+    assert(c && c->configs);
+    int data_idx = RSCache_FileListDatFindFileByName(c->configs, "npc.dat");
+    int index_idx = RSCache_FileListDatFindFileByName(c->configs, "npc.idx");
+    if( data_idx < 0 || index_idx < 0 )
+        return 0;
+    struct RSCache_FileListDatIndexed* indexed = RSCache_FileListDatIndexedNewFromDecode(
+        c->configs->files[index_idx],
+        c->configs->file_sizes[index_idx],
+        c->configs->files[data_idx],
+        c->configs->file_sizes[data_idx]);
+    if( !indexed )
+        return 0;
+    int count = indexed->offset_count;
+    RSCache_FileListDatIndexedFree(indexed);
+    return count;
+}
+
+int
+tool_dat1_seq_count(struct Tool_Dat1Cache* c)
+{
+    struct RSCache_Dat1ConfigSeqList* list = tool_dat1_seq_list_load(c);
+    if( !list )
+        return 0;
+    int count = list->seqs_count;
+    RSCache_Dat1ConfigSeqListFree(list);
+    return count;
+}
+
+int
+tool_dat1_model_id_free(struct Tool_Dat1Cache* c, int id)
+{
+    assert(c);
+    return !dat1_archive_present(c, RSCACHE_DAT1_DISK_TABLE_MODELS, id);
+}
+
+int
+tool_dat1_anim_archive_id_free(struct Tool_Dat1Cache* c, int id)
+{
+    assert(c);
+    return !dat1_archive_present(c, RSCACHE_DAT1_DISK_TABLE_ANIMATIONS, id);
+}
+
+int
+tool_dat1_max_frame_id(struct Tool_Dat1Cache* c)
+{
+    assert(c);
+    int max_id = -1;
+    int max_archives = 0;
+
+    struct RSCache_Dat1DiskArchive* vl_arch = RSCache_Dat1DiskArchiveNewLoad(
+        c->disk, RSCACHE_DAT1_DISK_TABLE_CONFIGS, RSCACHE_DAT1_CONFIG_VERSION_LIST);
+    if( vl_arch )
+    {
+        struct RSCache_FileListDat* vl_jag =
+            RSCache_FileListDatNewFromDecode(vl_arch->data, vl_arch->data_size);
+        if( vl_jag )
+        {
+            struct RSCache_Dat1VersionList* vl =
+                RSCache_Dat1VersionListNewFromJagfile(vl_jag);
+            if( vl )
+            {
+                max_archives = vl->anim_version_count;
+                if( vl->anim_index_count > max_archives )
+                    max_archives = vl->anim_index_count;
+                RSCache_Dat1VersionListFree(vl);
+            }
+            RSCache_FileListDatFree(vl_jag);
+        }
+        RSCache_Dat1DiskArchiveFree(vl_arch);
+    }
+    if( max_archives <= 0 )
+        max_archives = 2048;
+
+    for( int archive_id = 0; archive_id < max_archives; archive_id++ )
+    {
+        if( !dat1_archive_present(c, RSCACHE_DAT1_DISK_TABLE_ANIMATIONS, archive_id) )
+            continue;
+        struct RSCache_Dat1DiskArchive* archive = RSCache_Dat1DiskArchiveNewLoad(
+            c->disk, RSCACHE_DAT1_DISK_TABLE_ANIMATIONS, archive_id);
+        if( !archive )
+            continue;
+        struct RSCache_Dat1AnimBaseFrames* abf =
+            RSCache_Dat1AnimBaseFramesNewDecode(archive->data, archive->data_size);
+        RSCache_Dat1DiskArchiveFree(archive);
+        if( !abf )
+            continue;
+        for( int i = 0; i < abf->frame_count; i++ )
+        {
+            if( abf->frames[i].id > max_id )
+                max_id = abf->frames[i].id;
+        }
+        RSCache_Dat1AnimBaseFramesFree(abf);
+    }
+    return max_id;
+}
+
+static int
 put_config_record(
     struct RSCache_Dat2Edit* edit,
     struct Tool_Dat2Cache* dst,
@@ -743,44 +875,62 @@ tool_port_commit_dat1(
     if( !edit )
         return 1;
 
-    /* Models from dat2 source (cross-epoch) or skip if already dat1. */
     if( src_dat2 )
     {
-        for( int i = 0; i < plan->model_map.count; i++ )
+        /* Body + chathead models. Chatheads that share a body model id are
+         * already in model_map; write the rest from chathead_map. */
+        for( int pass = 0; pass < 2; pass++ )
         {
-            int src_id = plan->model_map.entries[i].source_id;
-            int dst_id = plan->model_map.entries[i].dest_id;
-            struct Tool_Bytes bytes;
-            int table = RSCache_Dat2DiskTableId(src_dat2->disk, RSCACHE_DAT2_TABLE_MODELS);
-            if( !tool_dat2_archive_bytes(src_dat2, table, src_id, &bytes) )
-                continue;
-            struct RSCache_ModelProvenance* prov = NULL;
-            struct RSCache_Model* model =
-                RSCache_ModelNewDecodeProvenance(bytes.data, bytes.size, &prov);
-            if( model )
+            struct Tool_IdMap* map = pass == 0 ? &plan->model_map : &plan->chathead_map;
+            for( int i = 0; i < map->count; i++ )
             {
-                uint32_t ob2_size = 0;
-                uint8_t* ob2 = tool_transcode_model_to_ob2(
-                    model, prov, &ob2_size, &plan->warnings, &plan->warning_count);
-                if( ob2 )
+                int src_id = map->entries[i].source_id;
+                int dst_id = map->entries[i].dest_id;
+                if( pass == 1 )
                 {
-                    RSCache_Dat1EditPutModel(edit, dst_id, ob2, ob2_size, false);
-                    free(ob2);
+                    int already;
+                    if( tool_id_map_lookup(&plan->model_map, src_id, &already) )
+                        continue;
                 }
-                RSCache_ModelFree(model);
+                struct Tool_Bytes bytes;
+                int table =
+                    RSCache_Dat2DiskTableId(src_dat2->disk, RSCACHE_DAT2_TABLE_MODELS);
+                if( !tool_dat2_archive_bytes(src_dat2, table, src_id, &bytes) )
+                    continue;
+                struct RSCache_ModelProvenance* prov = NULL;
+                struct RSCache_Model* model =
+                    RSCache_ModelNewDecodeProvenance(bytes.data, bytes.size, &prov);
+                if( model )
+                {
+                    uint32_t ob2_size = 0;
+                    uint8_t* ob2 = tool_transcode_model_to_ob2(
+                        model, prov, &ob2_size, &plan->warnings, &plan->warning_count);
+                    if( ob2 )
+                    {
+                        RSCache_Dat1EditPutModel(edit, dst_id, ob2, ob2_size, false);
+                        free(ob2);
+                    }
+                    RSCache_ModelFree(model);
+                }
+                RSCache_ModelProvenanceFree(prov);
+                tool_bytes_free(&bytes);
             }
-            RSCache_ModelProvenanceFree(prov);
-            tool_bytes_free(&bytes);
         }
 
-        /* Build one anim archive per framemap from sequences. */
-        for( int i = 0; i < plan->framemap_map.count; i++ )
+        int anim_table =
+            RSCache_Dat2DiskTableId(src_dat2->disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
+
+        /* One dat1 anim archive per source framemap, packed with all ported frames. */
+        for( int fi = 0; fi < plan->framemap_map.count; fi++ )
         {
-            int src_fm = plan->framemap_map.entries[i].source_id;
-            int dst_arch = plan->framemap_map.entries[i].dest_id;
+            int src_fm = plan->framemap_map.entries[fi].source_id;
+            int dst_arch = plan->framemap_map.entries[fi].dest_id;
             struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(src_dat2, src_fm);
             if( !fm )
+            {
+                tool_port_plan_add_warning(plan, "failed to load framemap %d", src_fm);
                 continue;
+            }
             struct RSCache_Dat1AnimBase* base = tool_transcode_framemap_to_animbase(
                 fm, &plan->warnings, &plan->warning_count);
             if( !base )
@@ -788,40 +938,271 @@ tool_port_commit_dat1(
                 RSCache_Dat2FramemapFree(fm);
                 continue;
             }
-            /* Minimal empty frames archive with just the base — sequences that
-             * reference frames need a fuller port; warn. */
-            struct RSCache_Dat1AnimBaseFrames abf;
-            memset(&abf, 0, sizeof(abf));
-            abf.base = base;
-            abf.frames = NULL;
-            abf.frame_count = 0;
-            uint32_t bound = 65536;
+
+            /* Collect unique (src composite, dest frame id) for this framemap. */
+            int* src_composites = NULL;
+            int* dst_frame_ids = NULL;
+            int nframes = 0;
+            int ncap = 0;
+            for( int si = 0; si < plan->seq_map.count; si++ )
+            {
+                int src_seq = plan->seq_map.entries[si].source_id;
+                struct RSCache_Dat2ConfigSequence* seq =
+                    tool_dat2_seq_load(src_dat2, src_seq);
+                if( !seq )
+                    continue;
+                int seq_fm = tool_dat2_seq_framemap_id(src_dat2, seq, 0);
+                if( seq_fm != src_fm || !seq->frame_ids )
+                {
+                    RSCache_Dat2ConfigSequenceFree(seq);
+                    continue;
+                }
+                for( int f = 0; f < seq->frame_count; f++ )
+                {
+                    int composite = seq->frame_ids[f];
+                    int dst_fid;
+                    if( !tool_id_map_lookup(&plan->frame_id_map, composite, &dst_fid) )
+                        continue;
+                    int dup = 0;
+                    for( int k = 0; k < nframes; k++ )
+                    {
+                        if( src_composites[k] == composite )
+                        {
+                            dup = 1;
+                            break;
+                        }
+                    }
+                    if( dup )
+                        continue;
+                    if( nframes >= ncap )
+                    {
+                        int nc = ncap == 0 ? 64 : ncap * 2;
+                        int* ns = realloc(src_composites, (size_t)nc * sizeof(int));
+                        int* nd = realloc(dst_frame_ids, (size_t)nc * sizeof(int));
+                        if( !ns || !nd )
+                        {
+                            free(ns);
+                            free(nd);
+                            break;
+                        }
+                        src_composites = ns;
+                        dst_frame_ids = nd;
+                        ncap = nc;
+                    }
+                    src_composites[nframes] = composite;
+                    dst_frame_ids[nframes] = dst_fid;
+                    nframes++;
+                }
+                RSCache_Dat2ConfigSequenceFree(seq);
+            }
+
+            struct RSCache_Dat1AnimBaseFrames* abf = calloc(1, sizeof(*abf));
+            if( !abf )
+            {
+                for( int bi = 0; bi < base->length; bi++ )
+                    free(base->labels[bi]);
+                free(base->types);
+                free(base->labels);
+                free(base->label_counts);
+                free(base);
+                free(src_composites);
+                free(dst_frame_ids);
+                RSCache_Dat2FramemapFree(fm);
+                continue;
+            }
+            abf->base = base;
+            if( nframes > 0 )
+            {
+                abf->frames = calloc((size_t)nframes, sizeof(*abf->frames));
+                if( !abf->frames )
+                {
+                    RSCache_Dat1AnimBaseFramesFree(abf);
+                    free(src_composites);
+                    free(dst_frame_ids);
+                    RSCache_Dat2FramemapFree(fm);
+                    continue;
+                }
+            }
+
+            for( int f = 0; f < nframes; f++ )
+            {
+                int composite = src_composites[f];
+                int arch = (composite >> 16) & 0xFFFF;
+                int file_id = composite & 0xFFFF;
+                struct RSCache_Dat2DiskArchive* archive =
+                    RSCache_Dat2DiskArchiveNewLoad(src_dat2->disk, anim_table, arch);
+                if( !archive ||
+                    !RSCache_Dat2DiskArchiveInitMetadata(src_dat2->disk, archive) )
+                {
+                    if( archive )
+                        RSCache_Dat2DiskArchiveFree(archive);
+                    tool_port_plan_add_warning(
+                        plan, "failed to load dat2 frame archive %d", arch);
+                    continue;
+                }
+                struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
+                    archive->data, archive->data_size, archive->file_count);
+                if( !files )
+                {
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    continue;
+                }
+                int pos = tool_archive_file_position(archive, file_id);
+                if( pos < 0 || pos >= files->file_count || files->file_sizes[pos] <= 0 )
+                {
+                    RSCache_FileListFree(files);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    tool_port_plan_add_warning(
+                        plan, "dat2 frame file %d missing in archive %d", file_id, arch);
+                    continue;
+                }
+                struct RSCache_Dat2Frame* frame = RSCache_Dat2FrameNewDecodeProfile(
+                    &src_dat2->profile,
+                    file_id,
+                    fm,
+                    files->files[pos],
+                    files->file_sizes[pos]);
+                RSCache_FileListFree(files);
+                RSCache_Dat2DiskArchiveFree(archive);
+                if( !frame )
+                {
+                    tool_port_plan_add_warning(
+                        plan, "failed to decode dat2 frame %d", composite);
+                    continue;
+                }
+                if( !tool_transcode_dat2_frame_to_dat1(
+                        frame,
+                        base,
+                        dst_frame_ids[f],
+                        0,
+                        &abf->frames[abf->frame_count],
+                        &plan->warnings,
+                        &plan->warning_count) )
+                {
+                    RSCache_Dat2FrameFree(frame);
+                    tool_port_plan_add_warning(
+                        plan, "failed to transcode frame %d", composite);
+                    continue;
+                }
+                abf->frame_count++;
+                RSCache_Dat2FrameFree(frame);
+            }
+            free(src_composites);
+            free(dst_frame_ids);
+
+            uint32_t bound = RSCache_Dat1AnimBaseFramesEncodeBound(abf);
+            if( bound == 0 )
+                bound = 64;
             uint8_t* enc = malloc(bound);
             if( enc )
             {
-                uint32_t n = RSCache_Dat1AnimBaseFramesEncode(&abf, enc, bound);
+                uint32_t n = RSCache_Dat1AnimBaseFramesEncode(abf, enc, bound);
                 if( n )
                     RSCache_Dat1EditPutAnimArchive(edit, dst_arch, enc, n, false);
                 else
                     tool_port_plan_add_warning(
-                        plan, "dat1 anim archive encode failed for framemap %d", src_fm);
+                        plan,
+                        "dat1 anim archive encode failed for framemap %d (%d frames); "
+                        "section lengths must fit in u16 — drop --include-related-anims "
+                        "or split across archives",
+                        src_fm,
+                        abf->frame_count);
                 free(enc);
             }
-            /* base is owned by abf conceptually; free manually. */
-            for( int bi = 0; bi < base->length; bi++ )
-                free(base->labels[bi]);
-            free(base->types);
-            free(base->labels);
-            free(base->label_counts);
-            free(base);
+            RSCache_Dat1AnimBaseFramesFree(abf);
             RSCache_Dat2FramemapFree(fm);
+        }
+
+        /* Sequences: remap frame composites to dat1 global ids. */
+        for( int i = 0; i < plan->seq_map.count; i++ )
+        {
+            int src_id = plan->seq_map.entries[i].source_id;
+            int dst_id = plan->seq_map.entries[i].dest_id;
+            struct RSCache_Dat2ConfigSequence* src_seq =
+                tool_dat2_seq_load(src_dat2, src_id);
+            if( !src_seq )
+            {
+                tool_port_plan_add_warning(plan, "failed to load source seq %d", src_id);
+                continue;
+            }
+
+            struct RSCache_Dat1ConfigSeq seq;
+            memset(&seq, 0, sizeof(seq));
+            seq.loops = -1;
+            seq.priority = 5;
+            seq.replaceheldleft = -1;
+            seq.replaceheldright = -1;
+            seq.maxloops = 99;
+            seq.preanim_move = -1;
+            seq.postanim_move = -1;
+            seq.duplicate_behavior = -1;
+            seq.stretches = src_seq->stretches;
+            if( src_seq->forced_priority > 0 )
+                seq.priority = src_seq->forced_priority;
+            else if( src_seq->priority > 0 )
+                seq.priority = src_seq->priority;
+            if( src_seq->max_loops > 0 )
+                seq.maxloops = src_seq->max_loops;
+
+            if( src_seq->frame_count > 0 && src_seq->frame_ids )
+            {
+                seq.frame_count = src_seq->frame_count;
+                seq.frames = calloc((size_t)seq.frame_count, sizeof(int));
+                seq.iframes = calloc((size_t)seq.frame_count, sizeof(int));
+                seq.delay = calloc((size_t)seq.frame_count, sizeof(int));
+                if( !seq.frames || !seq.iframes || !seq.delay )
+                {
+                    free(seq.frames);
+                    free(seq.iframes);
+                    free(seq.delay);
+                    RSCache_Dat2ConfigSequenceFree(src_seq);
+                    continue;
+                }
+                for( int f = 0; f < seq.frame_count; f++ )
+                {
+                    int dst_fid = 0;
+                    if( !tool_id_map_lookup(
+                            &plan->frame_id_map, src_seq->frame_ids[f], &dst_fid) )
+                    {
+                        tool_port_plan_add_warning(
+                            plan,
+                            "seq %d frame[%d] composite %d missing from frame_id_map",
+                            src_id,
+                            f,
+                            src_seq->frame_ids[f]);
+                    }
+                    seq.frames[f] = dst_fid;
+                    seq.iframes[f] = -1;
+                    seq.delay[f] =
+                        src_seq->frame_lengths ? src_seq->frame_lengths[f] : 0;
+                }
+            }
+
+            uint32_t bound = RSCache_Dat1ConfigSeqEncodeBound(&seq);
+            uint8_t* enc = malloc(bound ? bound : 16);
+            if( enc )
+            {
+                uint32_t n = RSCache_Dat1ConfigSeqEncode(&seq, enc, bound ? bound : 16);
+                if( n )
+                    RSCache_Dat1EditPutSeq(edit, dst_id, enc, n);
+                else
+                    tool_port_plan_add_warning(
+                        plan, "dat1 seq encode failed for src %d", src_id);
+                free(enc);
+            }
+            free(seq.frames);
+            free(seq.iframes);
+            free(seq.delay);
+            free(seq.walkmerge);
+            RSCache_Dat2ConfigSequenceFree(src_seq);
         }
     }
 
-    /* NPC */
+    /* NPC with remapped models / chatheads / animation slots. */
     {
         struct Tool_NeutralNpc remapped = plan->npc;
         int* models = NULL;
+        int* heads = NULL;
         if( remapped.models_count > 0 )
         {
             models = malloc((size_t)remapped.models_count * sizeof(int));
@@ -832,6 +1213,19 @@ tool_port_commit_dat1(
                 models[i] = d;
             }
             remapped.models = models;
+        }
+        if( remapped.chathead_models_count > 0 )
+        {
+            heads = malloc((size_t)remapped.chathead_models_count * sizeof(int));
+            for( int i = 0; i < remapped.chathead_models_count; i++ )
+            {
+                int d = remapped.chathead_models[i];
+                if( !tool_id_map_lookup(&plan->chathead_map, remapped.chathead_models[i], &d) )
+                    tool_id_map_lookup(
+                        &plan->model_map, remapped.chathead_models[i], &d);
+                heads[i] = d;
+            }
+            remapped.chathead_models = heads;
         }
         for( int s = 0; s < TOOL_ANIM_SLOT_COUNT; s++ )
         {
@@ -857,6 +1251,7 @@ tool_port_commit_dat1(
             RSCache_Dat1ConfigNpcFree(npc);
         }
         free(models);
+        free(heads);
     }
 
     bool ok = RSCache_Dat1EditCommit(edit, dst_directory);

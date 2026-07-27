@@ -135,6 +135,7 @@ build_dat2_plan(
     tool_id_map_init(&plan->seq_map);
     tool_id_map_init(&plan->framemap_map);
     tool_id_map_init(&plan->frame_archive_map);
+    tool_id_map_init(&plan->frame_id_map);
     tool_id_map_init(&plan->bas_map);
 
     struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(src, npc_id);
@@ -155,7 +156,7 @@ build_dat2_plan(
     int seq_cap = 0;
     for( int i = 0; i < TOOL_ANIM_SLOT_COUNT; i++ )
     {
-        if( plan->npc.anim_present[i] )
+        if( plan->npc.anim_present[i] && plan->npc.anim[i] >= 0 )
             add_unique_int(&seqs, &seq_count, &seq_cap, plan->npc.anim[i]);
     }
 
@@ -301,6 +302,248 @@ build_dat2_plan(
     else if( emit_bas )
     {
         tool_port_plan_add_warning(plan, "--emit-bas ignored: destination is not RS2 dat2");
+    }
+
+    if( plan->npc.retexture_count > 0 )
+        tool_port_plan_add_warning(
+            plan, "retexture ids are cache-local and may not map across revisions");
+
+    free(reserved);
+    return 0;
+}
+
+static int
+free_dat1_model_base(struct Tool_Dat1Cache* c, int id)
+{
+    return tool_dat1_model_id_free(c, id);
+}
+
+static int
+free_dat1_anim_base(struct Tool_Dat1Cache* c, int id)
+{
+    return tool_dat1_anim_archive_id_free(c, id);
+}
+
+struct alloc_ctx_dat1
+{
+    struct Tool_Dat1Cache* dst;
+    int (*base_free)(struct Tool_Dat1Cache* c, int id);
+    int* reserved;
+    int reserved_count;
+};
+
+static int
+alloc_free_dat1(int id, void* ud)
+{
+    struct alloc_ctx_dat1* ctx = ud;
+    for( int i = 0; i < ctx->reserved_count; i++ )
+    {
+        if( ctx->reserved[i] == id )
+            return 0;
+    }
+    return ctx->base_free(ctx->dst, id);
+}
+
+static int
+alloc_reserve_dat1(
+    struct alloc_ctx_dat1* ctx,
+    int source_id,
+    int** reserved,
+    int* reserved_count,
+    int* reserved_cap)
+{
+    ctx->reserved = *reserved;
+    ctx->reserved_count = *reserved_count;
+    int did = tool_alloc_id(source_id, alloc_free_dat1, ctx);
+    if( did < 0 )
+        return -1;
+    add_unique_int(reserved, reserved_count, reserved_cap, did);
+    return did;
+}
+
+static int
+build_dat1_plan(
+    struct Tool_Dat2Cache* src,
+    struct Tool_Dat1Cache* dst,
+    int npc_id,
+    int include_related,
+    struct Tool_PortPlan* plan)
+{
+    memset(plan, 0, sizeof(*plan));
+    tool_id_map_init(&plan->model_map);
+    tool_id_map_init(&plan->chathead_map);
+    tool_id_map_init(&plan->seq_map);
+    tool_id_map_init(&plan->framemap_map);
+    tool_id_map_init(&plan->frame_archive_map);
+    tool_id_map_init(&plan->frame_id_map);
+    tool_id_map_init(&plan->bas_map);
+
+    struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(src, npc_id);
+    if( !npc )
+    {
+        fprintf(stderr, "Source NPC %d not found\n", npc_id);
+        return 1;
+    }
+    if( !tool_neutral_npc_from_dat2(src, npc, npc_id, &plan->npc) )
+    {
+        RSCache_Dat2ConfigNpcFree(npc);
+        return 1;
+    }
+    RSCache_Dat2ConfigNpcFree(npc);
+
+    int* seqs = NULL;
+    int seq_count = 0;
+    int seq_cap = 0;
+    for( int i = 0; i < TOOL_ANIM_SLOT_COUNT; i++ )
+    {
+        if( plan->npc.anim_present[i] && plan->npc.anim[i] >= 0 )
+            add_unique_int(&seqs, &seq_count, &seq_cap, plan->npc.anim[i]);
+    }
+
+    if( include_related )
+    {
+        struct Tool_AnimSeeds seeds;
+        struct RSCache_Dat2ConfigNpc* n2 = tool_dat2_npc_load(src, npc_id);
+        if( n2 )
+        {
+            tool_dat2_npc_anim_seeds(src, n2, &seeds);
+            RSCache_Dat2ConfigNpcFree(n2);
+            int seed_fms[64];
+            int seed_fm_count = 0;
+            for( int i = 0; i < seeds.count && seed_fm_count < 64; i++ )
+            {
+                struct RSCache_Dat2ConfigSequence* s = tool_dat2_seq_load(src, seeds.seq_ids[i]);
+                if( !s )
+                    continue;
+                int fm = tool_dat2_seq_framemap_id(src, s, 0);
+                RSCache_Dat2ConfigSequenceFree(s);
+                if( fm < 0 )
+                    continue;
+                int dup = 0;
+                for( int j = 0; j < seed_fm_count; j++ )
+                    if( seed_fms[j] == fm )
+                        dup = 1;
+                if( !dup )
+                    seed_fms[seed_fm_count++] = fm;
+            }
+            struct Tool_FramemapIndex index;
+            if( tool_dat2_build_framemap_index(src, &index) )
+            {
+                int* cands = NULL;
+                int cand_count = 0;
+                tool_framemap_index_query(
+                    &index, seed_fms, seed_fm_count, &cands, &cand_count);
+                for( int i = 0; i < cand_count; i++ )
+                    add_unique_int(&seqs, &seq_count, &seq_cap, cands[i]);
+                free(cands);
+                tool_framemap_index_free(&index);
+            }
+            tool_anim_seeds_free(&seeds);
+        }
+    }
+
+    plan->related_seq_ids = seqs;
+    plan->related_seq_count = seq_count;
+
+    int* reserved = NULL;
+    int reserved_count = 0;
+    int reserved_cap = 0;
+
+    /* Dense npc.dat / seq.dat: always append at current count. */
+    int next_npc = tool_dat1_npc_count(dst);
+    int dest_npc = next_npc;
+    add_unique_int(&reserved, &reserved_count, &reserved_cap, dest_npc);
+    if( dest_npc != npc_id )
+        tool_port_plan_add_warning(plan, "npc id remapped %d -> %d (dat1 append)", npc_id, dest_npc);
+    plan->npc.source_id = dest_npc;
+
+    struct alloc_ctx_dat1 actx = { .dst = dst };
+    actx.base_free = free_dat1_model_base;
+    for( int i = 0; i < plan->npc.models_count; i++ )
+    {
+        int sid = plan->npc.models[i];
+        int did = alloc_reserve_dat1(&actx, sid, &reserved, &reserved_count, &reserved_cap);
+        if( did < 0 )
+            continue;
+        tool_id_map_put(&plan->model_map, sid, did);
+        if( did != sid )
+            tool_port_plan_add_warning(plan, "model id remapped %d -> %d", sid, did);
+    }
+    for( int i = 0; i < plan->npc.chathead_models_count; i++ )
+    {
+        int sid = plan->npc.chathead_models[i];
+        int existing;
+        if( tool_id_map_lookup(&plan->model_map, sid, &existing) )
+        {
+            tool_id_map_put(&plan->chathead_map, sid, existing);
+            continue;
+        }
+        int did = alloc_reserve_dat1(&actx, sid, &reserved, &reserved_count, &reserved_cap);
+        if( did < 0 )
+            continue;
+        tool_id_map_put(&plan->chathead_map, sid, did);
+        if( did != sid )
+            tool_port_plan_add_warning(plan, "chathead model id remapped %d -> %d", sid, did);
+    }
+
+    int next_seq = tool_dat1_seq_count(dst);
+    int next_frame = tool_dat1_max_frame_id(dst) + 1;
+    if( next_frame < 0 )
+        next_frame = 0;
+
+    for( int i = 0; i < seq_count; i++ )
+    {
+        int sid = seqs[i];
+        int did = next_seq++;
+        add_unique_int(&reserved, &reserved_count, &reserved_cap, did);
+        tool_id_map_put(&plan->seq_map, sid, did);
+        if( did != sid )
+            tool_port_plan_add_warning(plan, "seq id remapped %d -> %d (dat1 append)", sid, did);
+
+        struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(src, sid);
+        if( !seq )
+            continue;
+        int fm = tool_dat2_seq_framemap_id(src, seq, 0);
+        if( fm >= 0 )
+        {
+            int existing;
+            if( !tool_id_map_lookup(&plan->framemap_map, fm, &existing) )
+            {
+                /* Append at the first free anim-archive slot. Preferring the
+                 * source framemap id (often 1000+) pads anim_version and makes
+                 * the client sweep every prior archive before reaching ours. */
+                actx.base_free = free_dat1_anim_base;
+                int da = alloc_reserve_dat1(
+                    &actx, 0, &reserved, &reserved_count, &reserved_cap);
+                actx.base_free = free_dat1_model_base;
+                if( da >= 0 )
+                {
+                    tool_id_map_put(&plan->framemap_map, fm, da);
+                    if( da != fm )
+                        tool_port_plan_add_warning(
+                            plan, "anim archive id remapped framemap %d -> %d", fm, da);
+                }
+            }
+        }
+        if( seq->frame_ids && seq->frame_count > 0 )
+        {
+            for( int f = 0; f < seq->frame_count; f++ )
+            {
+                int composite = seq->frame_ids[f];
+                int existing;
+                if( tool_id_map_lookup(&plan->frame_id_map, composite, &existing) )
+                    continue;
+                if( next_frame > 65535 )
+                {
+                    tool_port_plan_add_warning(
+                        plan,
+                        "dat1 frame id space exhausted (>65535); remaining frames skipped");
+                    break;
+                }
+                tool_id_map_put(&plan->frame_id_map, composite, next_frame++);
+            }
+        }
+        RSCache_Dat2ConfigSequenceFree(seq);
     }
 
     if( plan->npc.retexture_count > 0 )
@@ -481,44 +724,12 @@ main(int argc, char** argv)
             return 1;
         }
 
-        /* Build a simplified plan against dat2 free-id checks on models only;
-         * for dat1 we keep source ids. */
         struct Tool_PortPlan plan;
-        memset(&plan, 0, sizeof(plan));
-        tool_id_map_init(&plan.model_map);
-        tool_id_map_init(&plan.chathead_map);
-        tool_id_map_init(&plan.seq_map);
-        tool_id_map_init(&plan.framemap_map);
-        tool_id_map_init(&plan.frame_archive_map);
-        tool_id_map_init(&plan.bas_map);
-
-        struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(&src, npc_id);
-        if( !npc )
+        if( build_dat1_plan(&src, &dst, npc_id, include_related, &plan) != 0 )
         {
-            fprintf(stderr, "Source NPC %d not found\n", npc_id);
             tool_dat2_close(&src);
             tool_dat1_close(&dst);
             return 1;
-        }
-        tool_neutral_npc_from_dat2(&src, npc, npc_id, &plan.npc);
-        RSCache_Dat2ConfigNpcFree(npc);
-        plan.npc.source_id = npc_id;
-
-        for( int i = 0; i < plan.npc.models_count; i++ )
-            tool_id_map_put(&plan.model_map, plan.npc.models[i], plan.npc.models[i]);
-        for( int i = 0; i < TOOL_ANIM_SLOT_COUNT; i++ )
-        {
-            if( !plan.npc.anim_present[i] )
-                continue;
-            int sid = plan.npc.anim[i];
-            tool_id_map_put(&plan.seq_map, sid, sid);
-            struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(&src, sid);
-            if( !seq )
-                continue;
-            int fm = tool_dat2_seq_framemap_id(&src, seq, 0);
-            if( fm >= 0 )
-                tool_id_map_put(&plan.framemap_map, fm, fm);
-            RSCache_Dat2ConfigSequenceFree(seq);
         }
 
         tool_port_plan_print(&plan);
@@ -527,7 +738,7 @@ main(int argc, char** argv)
 
         if( !apply )
         {
-            printf("# dry-run: pass --apply to write\n");
+            printf("# dry-run: pass --apply to write (prefer --out DIR)\n");
             tool_port_plan_free(&plan);
             tool_dat2_close(&src);
             tool_dat1_close(&dst);
@@ -539,6 +750,7 @@ main(int argc, char** argv)
         {
             if( tool_copy_cache_dir(dst_dir, out_dir) != 0 )
             {
+                fprintf(stderr, "Failed to copy cache to %s\n", out_dir);
                 tool_port_plan_free(&plan);
                 tool_dat2_close(&src);
                 tool_dat1_close(&dst);
@@ -556,7 +768,13 @@ main(int argc, char** argv)
 
         int rc = tool_port_commit_dat1(&src, NULL, &dst, write_dir, &plan);
         if( rc == 0 )
-            printf("Wrote NPC %d into dat1 cache %s\n", npc_id, write_dir);
+            printf(
+                "Wrote NPC %d -> %d into dat1 cache %s\n",
+                npc_id,
+                plan.npc.source_id,
+                write_dir);
+        else
+            fprintf(stderr, "Commit failed\n");
         tool_port_plan_free(&plan);
         tool_dat2_close(&src);
         tool_dat1_close(&dst);

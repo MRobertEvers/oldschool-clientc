@@ -130,56 +130,56 @@ tool_neutral_npc_from_dat2(
     for( int i = 0; i < 5; i++ )
         out->actions[i] = tool_strdup(npc->actions[i]);
 
-    /* Presence: dat2 calloc means 0 may mean absent OR sequence 0. We treat
-     * non-zero as present; zero as absent unless BasType overwrote it. */
-    set_anim(out, TOOL_ANIM_IDLE, npc->standing_animation, npc->standing_animation != 0);
-    set_anim(out, TOOL_ANIM_WALK, npc->walking_animation, npc->walking_animation != 0);
+    /* Presence: NewDecodeProfile defaults animations to -1, so "present" means
+     * >= 0. Zero is a real sequence id that can appear on the wire. */
+    set_anim(out, TOOL_ANIM_IDLE, npc->standing_animation, npc->standing_animation >= 0);
+    set_anim(out, TOOL_ANIM_WALK, npc->walking_animation, npc->walking_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_IDLE_ROTATE_LEFT,
         npc->idle_rotate_left_animation,
-        npc->idle_rotate_left_animation != 0);
+        npc->idle_rotate_left_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_IDLE_ROTATE_RIGHT,
         npc->idle_rotate_right_animation,
-        npc->idle_rotate_right_animation != 0);
-    set_anim(out, TOOL_ANIM_WALK_BACK, npc->rotate180_animation, npc->rotate180_animation != 0);
-    set_anim(out, TOOL_ANIM_WALK_LEFT, npc->rotate_left_animation, npc->rotate_left_animation != 0);
+        npc->idle_rotate_right_animation >= 0);
+    set_anim(out, TOOL_ANIM_WALK_BACK, npc->rotate180_animation, npc->rotate180_animation >= 0);
+    set_anim(out, TOOL_ANIM_WALK_LEFT, npc->rotate_left_animation, npc->rotate_left_animation >= 0);
     set_anim(
-        out, TOOL_ANIM_WALK_RIGHT, npc->rotate_right_animation, npc->rotate_right_animation != 0);
-    set_anim(out, TOOL_ANIM_RUN, npc->run_animation, npc->run_animation != 0);
+        out, TOOL_ANIM_WALK_RIGHT, npc->rotate_right_animation, npc->rotate_right_animation >= 0);
+    set_anim(out, TOOL_ANIM_RUN, npc->run_animation, npc->run_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_RUN_ROTATE180,
         npc->run_rotate180_animation,
-        npc->run_rotate180_animation != 0);
+        npc->run_rotate180_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_RUN_ROTATE_LEFT,
         npc->run_rotate_left_animation,
-        npc->run_rotate_left_animation != 0);
+        npc->run_rotate_left_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_RUN_ROTATE_RIGHT,
         npc->run_rotate_right_animation,
-        npc->run_rotate_right_animation != 0);
-    set_anim(out, TOOL_ANIM_CRAWL, npc->crawl_animation, npc->crawl_animation != 0);
+        npc->run_rotate_right_animation >= 0);
+    set_anim(out, TOOL_ANIM_CRAWL, npc->crawl_animation, npc->crawl_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_CRAWL_ROTATE180,
         npc->crawl_rotate180_animation,
-        npc->crawl_rotate180_animation != 0);
+        npc->crawl_rotate180_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_CRAWL_ROTATE_LEFT,
         npc->crawl_rotate_left_animation,
-        npc->crawl_rotate_left_animation != 0);
+        npc->crawl_rotate_left_animation >= 0);
     set_anim(
         out,
         TOOL_ANIM_CRAWL_ROTATE_RIGHT,
         npc->crawl_rotate_right_animation,
-        npc->crawl_rotate_right_animation != 0);
+        npc->crawl_rotate_right_animation >= 0);
 
     out->bas_type_id = npc->bas_type_id;
     out->bas_present = npc->bas_type_id >= 0;
@@ -188,15 +188,15 @@ tool_neutral_npc_from_dat2(
         struct RSCache_Dat2ConfigBas* bas = tool_dat2_bas_load(c, npc->bas_type_id);
         if( bas )
         {
-            if( bas->idle_seq_id >= 0 )
+            if( bas->idle_seq_id > 0 )
                 set_anim(out, TOOL_ANIM_IDLE, bas->idle_seq_id, true);
-            if( bas->walk_seq_id >= 0 )
+            if( bas->walk_seq_id > 0 )
                 set_anim(out, TOOL_ANIM_WALK, bas->walk_seq_id, true);
-            if( bas->walk_back_seq_id >= 0 )
+            if( bas->walk_back_seq_id > 0 )
                 set_anim(out, TOOL_ANIM_WALK_BACK, bas->walk_back_seq_id, true);
-            if( bas->walk_left_seq_id >= 0 )
+            if( bas->walk_left_seq_id > 0 )
                 set_anim(out, TOOL_ANIM_WALK_LEFT, bas->walk_left_seq_id, true);
-            if( bas->walk_right_seq_id >= 0 )
+            if( bas->walk_right_seq_id > 0 )
                 set_anim(out, TOOL_ANIM_WALK_RIGHT, bas->walk_right_seq_id, true);
             RSCache_Dat2ConfigBasFree(bas);
         }
@@ -607,6 +607,7 @@ tool_port_plan_free(struct Tool_PortPlan* p)
     tool_id_map_free(&p->seq_map);
     tool_id_map_free(&p->framemap_map);
     tool_id_map_free(&p->frame_archive_map);
+    tool_id_map_free(&p->frame_id_map);
     tool_id_map_free(&p->bas_map);
     for( int i = 0; i < p->warning_count; i++ )
         free(p->warnings[i]);
@@ -690,6 +691,7 @@ tool_port_plan_print(const struct Tool_PortPlan* p)
     print_id_map("sequences", &p->seq_map);
     print_id_map("framemaps", &p->framemap_map);
     print_id_map("frame_archives", &p->frame_archive_map);
+    print_id_map("frame_ids", &p->frame_id_map);
     print_id_map("bas", &p->bas_map);
     if( p->warning_count > 0 )
     {
@@ -734,6 +736,14 @@ tool_port_plan_write_json(
             i ? "," : "",
             p->framemap_map.entries[i].source_id,
             p->framemap_map.entries[i].dest_id);
+    fprintf(f, "],\n    \"frame_ids\": [");
+    for( int i = 0; i < p->frame_id_map.count; i++ )
+        fprintf(
+            f,
+            "%s{\"src\":%d,\"dst\":%d}",
+            i ? "," : "",
+            p->frame_id_map.entries[i].source_id,
+            p->frame_id_map.entries[i].dest_id);
     fprintf(f, "]\n  },\n  \"warnings\": [");
     for( int i = 0; i < p->warning_count; i++ )
         fprintf(f, "%s\"%s\"", i ? "," : "", p->warnings[i]);

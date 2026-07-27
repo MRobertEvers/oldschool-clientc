@@ -121,15 +121,15 @@ tool_dat2_npc_anim_seeds(
         struct RSCache_Dat2ConfigBas* bas = tool_dat2_bas_load(c, npc->bas_type_id);
         if( bas )
         {
-            if( bas->idle_seq_id >= 0 )
+            if( bas->idle_seq_id > 0 )
                 tool_anim_seeds_add(out, bas->idle_seq_id);
-            if( bas->walk_seq_id >= 0 )
+            if( bas->walk_seq_id > 0 )
                 tool_anim_seeds_add(out, bas->walk_seq_id);
-            if( bas->walk_back_seq_id >= 0 )
+            if( bas->walk_back_seq_id > 0 )
                 tool_anim_seeds_add(out, bas->walk_back_seq_id);
-            if( bas->walk_left_seq_id >= 0 )
+            if( bas->walk_left_seq_id > 0 )
                 tool_anim_seeds_add(out, bas->walk_left_seq_id);
-            if( bas->walk_right_seq_id >= 0 )
+            if( bas->walk_right_seq_id > 0 )
                 tool_anim_seeds_add(out, bas->walk_right_seq_id);
             RSCache_Dat2ConfigBasFree(bas);
         }

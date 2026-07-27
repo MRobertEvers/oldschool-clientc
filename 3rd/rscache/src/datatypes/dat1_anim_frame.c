@@ -543,6 +543,19 @@ RSCache_Dat1AnimBaseFramesEncode(
     uint32_t tran2_length = tran2_b.position;
     uint32_t del_length = del_b.position;
 
+    /* Trailer stores each section length as g2/p2. Oversized archives (e.g.
+     * hundreds of related frames in one file) silently truncated and decoded
+     * with a zeroed AnimBase — refuse instead. */
+    if( head_length > 0xFFFFu || tran1_length > 0xFFFFu || tran2_length > 0xFFFFu ||
+        del_length > 0xFFFFu )
+    {
+        free(head);
+        free(tran1);
+        free(tran2);
+        free(del);
+        return 0;
+    }
+
     uint32_t base_bound = RSCache_Dat1AnimBaseEncodeBound(abf->base);
     uint8_t* base_bytes = malloc(base_bound ? base_bound : 1);
     if( !base_bytes )
