@@ -152,6 +152,19 @@ RSCache_WorldMapGeographyDecodeInplace(
                     return false;
             }
         }
+        /* Exact consumption. The older files are framed by a marker and their
+         * own region coords, so a misread shows up immediately; a headerless
+         * file has no such check, and a tile layout this decoder reads wrongly
+         * would otherwise surface as plausible-looking floor ids drawn in the
+         * wrong places. Landing exactly on the end is the evidence that every
+         * tile was read the way the file wrote it. */
+        if( RSCache_BufferRemaining(&buffer) != 0 )
+        {
+            printf(
+                "RSCache_WorldMapGeographyDecodeInplace: headerless file left %u bytes\n",
+                RSCache_BufferRemaining(&buffer));
+            return false;
+        }
         return true;
     }
 

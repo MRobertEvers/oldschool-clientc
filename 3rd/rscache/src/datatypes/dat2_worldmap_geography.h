@@ -44,6 +44,12 @@ struct RSCache_WorldMapDecorList
 struct RSCache_WorldMapGeography
 {
     int planes; /* 1..4, from the record */
+    /* Ground colour per tile (0x00RRGGBB), from the matching group of the world
+     * map ground table (dat2 table 20) — a 64x64 image of the already-blended
+     * underlay colours. `has_ground` is false when the cache ships none, and the
+     * renderer then falls back to the underlay flo's flat colour. */
+    bool has_ground;
+    uint32_t ground[RSCACHE_WORLDMAP_TILE_AREA];
 
     /* Floor ids are stored +1 by the cache: 0 means "no floor here". */
     uint16_t underlay[RSCACHE_WORLDMAP_TILE_AREA];

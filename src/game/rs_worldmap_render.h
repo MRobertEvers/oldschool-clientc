@@ -55,4 +55,27 @@ RS_WorldMapRender_RegionSprite(
     int pixels_per_tile,
     int* out_size);
 
+/** One loc-derived icon inside a baked region (reference buildIcons): the map
+ *  element id and where it sits, in tiles from the region's south-west corner. */
+struct RS_WorldMapRegionIcon
+{
+    int element_id;
+    int tile_x;
+    int tile_y;
+};
+
+/**
+ * The icons a baked region carries. Most world map icons come from the locs on
+ * its tiles (a bank booth becomes the bank icon), not from the compositemap's
+ * own list, so they are collected during the bake and read back here.
+ *
+ * Returns the count and writes a borrowed pointer, valid until the slot is
+ * evicted. -1 count when the region is not baked.
+ */
+int
+RS_WorldMapRender_RegionIcons(
+    struct RS_WorldMapRender* render,
+    int scene_id,
+    struct RS_WorldMapRegionIcon const** out_icons);
+
 #endif /* RS_WORLDMAP_RENDER_H */

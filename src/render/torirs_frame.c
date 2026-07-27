@@ -892,11 +892,11 @@ translate_ui_cmd(
                 return false;
             out->kind = TORIRSRC_SPRITE;
             out->u.sprite.scene_id = tile->scene_id;
-            out->u.sprite.atlas_index = 0;
+            out->u.sprite.atlas_index = tile->atlas_index;
             out->u.sprite.x = tile->x;
             out->u.sprite.y = tile->y;
-            out->u.sprite.w = tile->size;
-            out->u.sprite.h = tile->size;
+            out->u.sprite.w = tile->w;
+            out->u.sprite.h = tile->h;
             out->u.sprite.scissor_x = desc->clip.x;
             out->u.sprite.scissor_y = desc->clip.y;
             out->u.sprite.scissor_w = desc->clip.w;

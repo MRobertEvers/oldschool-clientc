@@ -27,6 +27,7 @@
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
 #include "game/rs_worldmap.h"
+#include "engine/torirs_worldmap_from_rscache.h"
 #include "game/rs_worldmap_render.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
@@ -259,6 +260,84 @@ app_minimap_push_dot(
  * centre + (region_tile - display) * scale, with y flipped because map tiles
  * count north-up. Regions are baked at exactly that scale, so every blit is 1:1.
  */
+static void
+app_worldmap_build_icons(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area,
+    int centre_x,
+    int centre_y,
+    int display_x,
+    int display_y,
+    int scale);
+
+/*
+ * One map element icon at a screen position, loading its config and sprite on
+ * demand. Both loads are lazy, so an icon appears a frame or two after the
+ * region under it — the same order the reference fills a cold cache in.
+ *
+ * Returns false when it could not be drawn (yet), which the callers ignore: the
+ * next frame asks again.
+ */
+static bool
+app_worldmap_push_icon(
+    struct App* app,
+    int element_id,
+    int screen_x,
+    int screen_y)
+{
+    struct ToriRS_MapElement* element;
+    struct ToriRS_Sprite* sprite;
+    struct UITreeWorldMapTile* tile;
+    int scene_id;
+    int capacity = (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0]));
+
+    if( app->worldmap_tile_count >= capacity || element_id < 0 )
+        return false;
+
+    /* Off-surface icons are not worth a config load. */
+    if( screen_x < app->worldmap_box_x - 32 ||
+        screen_x > app->worldmap_box_x + app->worldmap_box_w + 32 ||
+        screen_y < app->worldmap_box_y - 32 ||
+        screen_y > app->worldmap_box_y + app->worldmap_box_h + 32 )
+        return false;
+
+    element = CacheProvider_MapElementGet(app->provider, element_id);
+    if( !element )
+    {
+        struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return false;
+    }
+    if( element->sprite_id < 0 )
+        return false; /* label-only element: drawn as text, not yet implemented */
+
+    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
+    if( !sprite || sprite->frame_count <= 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, element->sprite_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return false;
+    }
+
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
+    if( scene_id <= 0 )
+        return false;
+
+    tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+    tile->scene_id = scene_id;
+    tile->atlas_index = 0;
+    tile->w = sprite->frames[0].crop_width > 0 ? sprite->frames[0].crop_width
+                                               : sprite->frames[0].width;
+    tile->h = sprite->frames[0].crop_height > 0 ? sprite->frames[0].crop_height
+                                                : sprite->frames[0].height;
+    /* Centred on its tile, like every map icon in the reference. */
+    tile->x = screen_x - tile->w / 2;
+    tile->y = screen_y - tile->h / 2;
+    return true;
+}
+
 static int
 app_worldmap_build_tiles(
     struct App* app,
@@ -285,6 +364,13 @@ app_worldmap_build_tiles(
     int max_region_y;
 
     app->worldmap_tile_count = 0;
+    /* The drag handler needs the surface's box, and the emit walk is the only
+     * place that knows it — the widget is sized by the world map's own
+     * scripts, not by anything the app configures. */
+    app->worldmap_box_x = box_x;
+    app->worldmap_box_y = box_y;
+    app->worldmap_box_w = box_w;
+    app->worldmap_box_h = box_h;
     *req->u.get_worldmap_tiles.out_items = app->worldmap_tiles;
     if( req->u.get_worldmap_tiles.out_background_rgb )
         *req->u.get_worldmap_tiles.out_background_rgb = 0;
@@ -359,15 +445,159 @@ app_worldmap_build_tiles(
 
             tile = &app->worldmap_tiles[app->worldmap_tile_count++];
             tile->scene_id = scene_id;
+            tile->atlas_index = 0;
             tile->x = centre_x + (region_x * WORLD_MAP_TERRAIN_X - display_x) * scale;
             tile->y =
                 centre_y - ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
                                scale;
-            tile->size = size;
+            tile->w = size;
+            tile->h = size;
         }
     }
 
+    /* Icons in a second pass, so no later region paints over an earlier
+     * region's icons: everything in this list draws in order. */
+    for( int region_y = min_region_y; region_y <= max_region_y; region_y++ )
+    {
+        for( int region_x = min_region_x; region_x <= max_region_x; region_x++ )
+        {
+            struct RS_WorldMapRegionIcon const* icons = NULL;
+            int scene_id = RS_WorldMapRender_RegionSprite(
+                app->worldmap_render,
+                app->provider,
+                app->scene,
+                app->runner.queue,
+                area,
+                region_x,
+                region_y,
+                scale,
+                NULL);
+            int icon_count =
+                scene_id < 0 ? 0 : RS_WorldMapRender_RegionIcons(app->worldmap_render, scene_id, &icons);
+
+            for( int i = 0; i < icon_count; i++ )
+                app_worldmap_push_icon(
+                    app,
+                    icons[i].element_id,
+                    centre_x +
+                        (region_x * WORLD_MAP_TERRAIN_X + icons[i].tile_x - display_x) * scale,
+                    centre_y -
+                        (region_y * WORLD_MAP_TERRAIN_Z + icons[i].tile_y - display_y) * scale);
+        }
+    }
+
+    app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, scale);
+
     return app->worldmap_tile_count;
+}
+
+/*
+ * Map element icons over the surface (banks, altars, shops, ...).
+ *
+ * The compositemap gives each icon a *source* world coord and a map element id;
+ * the area converts the coord to a map surface position, and the element config
+ * (MEC, config group 35) gives the sprite. Both the config and the sprite load
+ * on demand, so an icon appears a frame or two after the region under it —
+ * exactly how the reference behaves on a cold cache.
+ */
+static void
+app_worldmap_build_icons(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area,
+    int centre_x,
+    int centre_y,
+    int display_x,
+    int display_y,
+    int scale)
+{
+    for( int i = 0; i < area->icon_count; i++ )
+    {
+        struct ToriRS_WorldMapIcon const* icon = &area->icons[i];
+        int plane;
+        int world_x;
+        int world_y;
+        int map_x;
+        int map_y;
+
+        if( icon->hidden )
+            continue;
+
+        /* The compositemap stores a *source* world coord; the area's sections
+         * say where that lands on the map surface. */
+        ToriRS_WorldMapUnpackCoord(icon->coord, &plane, &world_x, &world_y);
+        if( !ToriRS_WorldMapArea_Position(area, plane, world_x, world_y, &map_x, &map_y) )
+            continue;
+
+        app_worldmap_push_icon(
+            app,
+            icon->element,
+            centre_x + (map_x - display_x) * scale,
+            centre_y - (map_y - display_y) * scale);
+    }
+}
+
+/*
+ * Drag to pan the world map (reference: press inside the surface and move —
+ * the view follows the pointer 1:1, so the tile under the cursor stays there).
+ *
+ * The surface has no widget-level drag: it is a builtin, and the pan lives in
+ * the CS2 world map state, not in the tree. So the press is picked up here from
+ * the box the emit walk recorded, and the delta is converted from screen pixels
+ * back to map tiles by the same zoom scale the blits use.
+ */
+static void
+app_worldmap_drag_tick(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int mouse_x = input->curr.mouse_x;
+    int mouse_y = input->curr.mouse_y;
+
+    if( app->worldmap_box_w <= 0 || app->worldmap_box_h <= 0 || !app->host.worldmap )
+    {
+        app->worldmap_drag_active = 0;
+        return;
+    }
+
+    if( !app->worldmap_drag_active && !app->interact.minimenu.visible &&
+        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
+        mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
+    {
+        app->worldmap_drag_active = 1;
+        app->worldmap_drag_x = mouse_x;
+        app->worldmap_drag_y = mouse_y;
+    }
+
+    if( !app->worldmap_drag_active )
+        return;
+
+    if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
+        input->curr.mouse_button_up[TORIRSM_LEFT] )
+    {
+        app->worldmap_drag_active = 0;
+        return;
+    }
+
+    {
+        int scale = RS_WorldMap_ZoomScale(app->host.worldmap);
+        int dx = mouse_x - app->worldmap_drag_x;
+        int dy = mouse_y - app->worldmap_drag_y;
+        int tiles_x = dx / (scale > 0 ? scale : 1);
+        int tiles_y = dy / (scale > 0 ? scale : 1);
+
+        if( tiles_x == 0 && tiles_y == 0 )
+            return;
+
+        /* Screen y grows downward, map y northward. Dragging right moves the
+         * view west, so the pan is the negative of the pointer delta. */
+        RS_WorldMap_PanBy(app->host.worldmap, -tiles_x, tiles_y);
+        /* Keep the remainder: consuming only whole tiles here would drop the
+         * sub-tile part of every frame's motion and drift behind the pointer. */
+        app->worldmap_drag_x += tiles_x * scale;
+        app->worldmap_drag_y += tiles_y * scale;
+        app->need_redraw = 1;
+    }
 }
 
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
@@ -7505,6 +7735,7 @@ App_RunOnce(
     app_world_camera_keys(app, input, &out);
     app_world_hotkeys(app, input, &out);
     app_inv_drag_tick(app, input);
+    app_worldmap_drag_tick(app, input);
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
     if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||

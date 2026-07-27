@@ -30,17 +30,36 @@
 #define WORLDMAP_WALL_DARK 0xcc0000
 #define WORLDMAP_WALL_LIGHT 0xcccccc
 
+/* Icons per region. A dense region (a city) runs to a few dozen; the cap keeps
+ * the pool flat rather than growable, and overflow only drops icons that would
+ * have overlapped anyway. */
+#define WORLDMAP_REGION_ICON_MAX 96
+
 struct RS_WorldMapRegionSlot
 {
     int key;   /* CacheProvider_WorldMapGeographyKey, -1 when free */
     int scale; /* pixels per tile this was baked at */
     int size;  /* baked edge length in pixels */
     unsigned long stamp;
+    struct RS_WorldMapRegionIcon icons[WORLDMAP_REGION_ICON_MAX];
+    int icon_count;
 };
+
+/* A region whose floors are still loading. Bounded so a floor the cache cannot
+ * supply (or a tile stream this build misreads) costs a few frames of waiting
+ * rather than a load queued on every frame forever. */
+struct RS_WorldMapPending
+{
+    int key;
+    int attempts;
+};
+
+#define WORLDMAP_FLOOR_WAIT_FRAMES 30
 
 struct RS_WorldMapRender
 {
     struct RS_WorldMapRegionSlot slots[WORLDMAP_REGION_SLOTS];
+    struct RS_WorldMapPending pending[WORLDMAP_REGION_SLOTS];
     unsigned long clock;
 };
 
@@ -50,7 +69,10 @@ RS_WorldMapRender_New(void)
     struct RS_WorldMapRender* render = calloc(1, sizeof(*render));
     assert(render);
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
+    {
         render->slots[i].key = -1;
+        render->pending[i].key = -1;
+    }
     return render;
 }
 
@@ -183,14 +205,17 @@ worldmap_shape_pixel(
  * ========================================================================= */
 
 /*
- * Ground colour. The reference reads it from table 20's pre-baked 64x64 image
- * (one blended colour per tile, PNG or JPEG). This build has no image decoder,
- * so the underlay flo's own colour is used instead: same hue per terrain type,
- * without the neighbour blending that softens the boundaries between them.
+ * Ground colour, from table 20's pre-baked 64x64 image like the reference: one
+ * already-blended colour per tile, so terrain types fade into each other the way
+ * they do in game. The underlay flo's own flat colour is the fallback for a
+ * cache with no ground table (or a region missing from it).
  */
 static int
 worldmap_underlay_rgb(
     struct CacheProvider* provider,
+    struct RSCache_WorldMapGeography const* geography,
+    int tile_x,
+    int tile_y,
     int underlay_id,
     int background)
 {
@@ -198,6 +223,12 @@ worldmap_underlay_rgb(
 
     if( underlay_id < 0 )
         return background;
+    if( geography->has_ground )
+    {
+        uint32_t rgb = geography->ground[tile_y * RSCACHE_WORLDMAP_TILE_COUNT + tile_x];
+        if( rgb != 0 )
+            return (int)(rgb & 0xFFFFFF);
+    }
     underlay = CacheProvider_UnderlayGet(provider, underlay_id);
     if( !underlay )
         return background;
@@ -338,7 +369,8 @@ worldmap_bake_region(
     struct RSCache_WorldMapGeography const* geography,
     int background,
     int scale,
-    uint32_t* pixels)
+    uint32_t* pixels,
+    struct RS_WorldMapRegionSlot* slot)
 {
     int stride = WORLDMAP_TILES * scale;
     int planes = geography->planes > 0 ? geography->planes : 1;
@@ -368,9 +400,11 @@ worldmap_bake_region(
                 continue;
             }
 
-            int underlay_rgb = geography->underlay[index] == 0
-                                   ? background
-                                   : worldmap_underlay_rgb(provider, underlay_id, background);
+            int underlay_rgb =
+                geography->underlay[index] == 0
+                    ? background
+                    : worldmap_underlay_rgb(
+                          provider, geography, tile_x, tile_y, underlay_id, background);
             if( overlay_id == -1 )
             {
                 worldmap_fill_tile(pixels, stride, px, py, scale, underlay_rgb);
@@ -440,10 +474,38 @@ worldmap_bake_region(
                     struct ToriRS_Location* loc;
                     int rgb;
 
+                    /* Reference buildIcons: any loc on the tile can carry a map
+                     * element, whatever its shape — that is where nearly every
+                     * icon on the map comes from, the compositemap's own list
+                     * being only the handful with no loc behind them. */
+                    loc = CacheProvider_LocationGet(provider, decor->loc_id);
+                    if( loc && loc->map_function_id >= 0 && slot &&
+                        slot->icon_count < WORLDMAP_REGION_ICON_MAX )
+                    {
+                        struct RS_WorldMapRegionIcon* icon = &slot->icons[slot->icon_count];
+                        bool duplicate = false;
+                        for( int seen = 0; seen < slot->icon_count; seen++ )
+                        {
+                            if( slot->icons[seen].element_id == loc->map_function_id &&
+                                slot->icons[seen].tile_x == tile_x &&
+                                slot->icons[seen].tile_y == tile_y )
+                            {
+                                duplicate = true;
+                                break;
+                            }
+                        }
+                        if( !duplicate )
+                        {
+                            icon->element_id = loc->map_function_id;
+                            icon->tile_x = tile_x;
+                            icon->tile_y = tile_y;
+                            slot->icon_count++;
+                        }
+                    }
+
                     if( !((decor->shape >= 0 && decor->shape <= 3) || decor->shape == 9) )
                         continue;
 
-                    loc = CacheProvider_LocationGet(provider, decor->loc_id);
                     /* An unloaded loc still draws: the line is the wall, and the
                      * loc only decides light vs dark. Light is the common case. */
                     rgb = (loc && loc->is_interactive) ? WORLDMAP_WALL_DARK : WORLDMAP_WALL_LIGHT;
@@ -468,6 +530,23 @@ worldmap_bake_region(
 /* =========================================================================
  * Slots
  * ========================================================================= */
+
+int
+RS_WorldMapRender_RegionIcons(
+    struct RS_WorldMapRender* render,
+    int scene_id,
+    struct RS_WorldMapRegionIcon const** out_icons)
+{
+    int slot = scene_id & ~WORLDMAP_REGION_SCENE_BASE;
+
+    if( !render || (scene_id & WORLDMAP_REGION_SCENE_BASE) != WORLDMAP_REGION_SCENE_BASE )
+        return -1;
+    if( slot < 0 || slot >= WORLDMAP_REGION_SLOTS || render->slots[slot].key < 0 )
+        return -1;
+
+    *out_icons = render->slots[slot].icons;
+    return render->slots[slot].icon_count;
+}
 
 static int
 worldmap_slot_find(
@@ -512,6 +591,29 @@ worldmap_floors_ready(
     bool ready = true;
     int planes = geography->planes > 0 ? geography->planes : 1;
 
+    /* Locs too: they decide wall colour and carry the map element ids the icon
+     * pass reads back, and both are baked in — a loc that arrives after the bake
+     * would never show. */
+    for( int plane = 0; plane < planes; plane++ )
+    {
+        for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
+        {
+            struct RSCache_WorldMapDecorList const* list = &geography->decor[plane][i];
+            for( int item = 0; item < list->count; item++ )
+            {
+                int loc_id = list->items[item].loc_id;
+                if( loc_id < 0 || CacheProvider_LocationHas(provider, loc_id) )
+                    continue;
+                {
+                    struct ToriRS_Task* task = CreateTask_LocLoad(provider, loc_id);
+                    if( task && queue )
+                        ToriRS_TaskQueue_Add(queue, task);
+                }
+                ready = false;
+            }
+        }
+    }
+
     for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
     {
         int underlay_id = (int)geography->underlay[i] - 1;
@@ -542,6 +644,40 @@ worldmap_floors_ready(
     }
 
     return ready;
+}
+
+/**
+ * Should this region keep waiting for its floors? Counts the waits per region
+ * and gives up after WORLDMAP_FLOOR_WAIT_FRAMES, baking with whatever loaded —
+ * the tiles whose floor never arrived draw as background.
+ */
+static bool
+worldmap_wait_for_floors(
+    struct RS_WorldMapRender* render,
+    int key)
+{
+    int free_slot = -1;
+
+    for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
+    {
+        if( render->pending[i].key == key )
+        {
+            render->pending[i].attempts++;
+            if( render->pending[i].attempts < WORLDMAP_FLOOR_WAIT_FRAMES )
+                return true;
+            render->pending[i].key = -1;
+            return false;
+        }
+        if( free_slot < 0 && render->pending[i].key < 0 )
+            free_slot = i;
+    }
+
+    if( free_slot >= 0 )
+    {
+        render->pending[free_slot].key = key;
+        render->pending[free_slot].attempts = 1;
+    }
+    return true;
 }
 
 /** Every compositemap record that lands on this map surface region. */
@@ -624,14 +760,23 @@ RS_WorldMapRender_RegionSprite(
         return -1;
     }
 
-    if( !worldmap_floors_ready(provider, queue, geography) )
+    if( !worldmap_floors_ready(provider, queue, geography) &&
+        worldmap_wait_for_floors(render, key) )
         return -1;
+
+    slot = worldmap_slot_claim(render);
+    render->slots[slot].icon_count = 0;
 
     size = WORLDMAP_TILES * pixels_per_tile;
     pixels = calloc((size_t)size * size, sizeof(*pixels));
     assert(pixels);
     worldmap_bake_region(
-        provider, geography, area->background_colour & 0xFFFFFF, pixels_per_tile, pixels);
+        provider,
+        geography,
+        area->background_colour & 0xFFFFFF,
+        pixels_per_tile,
+        pixels,
+        &render->slots[slot]);
 
     /* The tiles have served their purpose; the baked image is what gets drawn,
      * and holding both would keep a quarter-megabyte per region alive. */
@@ -651,7 +796,6 @@ RS_WorldMapRender_RegionSprite(
     }
     sprite_list[0] = sprite;
 
-    slot = worldmap_slot_claim(render);
     /* SceneSpriteAdd frees whatever the slot held, so an evicted region needs no
      * separate teardown. */
     ToriDraw_SceneSpriteAdd(scene, WORLDMAP_REGION_SCENE_BASE | slot, sprite_list, 1);

@@ -56,16 +56,19 @@ struct UITreeEntityOverlay
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };
 
-/* One baked map-surface region of the world map, positioned by the host in
- * absolute screen pixels. Regions are baked at exactly the view's pixels-per-
- * tile, so the blit is 1:1 and ui/ needs no scaling — same division of labour
- * as UITreeEntityOverlay: the host does the projection, the draw layer draws. */
+/* One blit on the world map surface: a baked map region, or a map element icon
+ * over it. Both are positioned by the host in absolute screen pixels — regions
+ * are baked at exactly the view's pixels-per-tile, so nothing scales here — the
+ * same division of labour as UITreeEntityOverlay: the host projects, the draw
+ * layer draws, and ui/ knows nothing about map coordinates. */
 struct UITreeWorldMapTile
 {
     int scene_id;
+    int atlas_index;
     int x;
     int y;
-    int size;
+    int w;
+    int h;
 };
 
 enum UITreeHostRequestKind

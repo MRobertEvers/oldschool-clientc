@@ -1287,6 +1287,35 @@ at 0 and **clamps**. Each era is matched to its own reference client rather than
 cleaned up to clamp. The gate is the same one the filter uses, on the argument that both
 changed with the same engine rewrite; that pairing is a judgement call, not a measurement.
 
+### B21. World map geography — read for OSRS <= 237, addressed but not read for >= 238 *(Gap)*
+
+`dat2_worldmap_geography.c` decodes cache table 18 (the tiles the world map draws:
+floor ids, overlay shapes/rotations, and the locs that become wall lines and map
+scene icons). It is complete for the layout used up to OSRS 237, where the
+compositemap record names its geography group/file outright and the file repeats
+its own marker and region coords — verified by rendering `cache.osrs230`'s main
+area, which comes out as recognisable Gielinor.
+
+From OSRS 238 the compositemap drops the group/file pair
+(`RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE`) and the geography file drops its
+header. The addressing was worked out and is implemented: table 18 becomes a
+sparse array indexed by `(region_x << 8) | region_y`, one file per group —
+`cache.osrs239`'s 15938-slot table has 2101 populated groups, the first being
+3872 = region 15,32 and Lumbridge's 49,48 being 12592.
+
+**The tile record itself is not understood.** Reading those files as a headerless
+run of the <=237 tile format consumes the file *exactly* — 4096 tiles landing on
+the last byte, which is normally strong evidence — yet yields floor ids that no
+flo config has (3331, 1023, 255) and, when drawn anyway, terrain in the wrong
+places. So some field's width or meaning changed in a way that happens to
+preserve the total length. Swapping the tile iteration to y-major does not fix it
+either.
+
+Rather than draw wrong data, `task_dat2_worldmap_geography_load.c` refuses the
+records with no group/file pair, and the world map surface stays background on
+those caches. Deciding the format needs a reference client for 238+; the
+xrsps-typescript renderer this was ported from predates the change.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*

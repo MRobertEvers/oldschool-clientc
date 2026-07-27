@@ -1,6 +1,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/png_decode.h"
 #include "engine/torirs_types.h"
 
 #include "asyncio.h"
@@ -62,6 +63,9 @@ struct Task_Dat2WorldMapGeographyLoad
     int cursor;
     struct RSCache_WorldMapGeography* geography;
     int decoded;
+    /* The ground image is per group, so it is fetched once for the first record
+     * that names one — a chunk-assembled region shares its neighbours' image. */
+    int ground_group;
 };
 
 static int
@@ -83,6 +87,13 @@ Task_Dat2WorldMapGeographyLoad_Run(
     for( task->cursor = 0; task->cursor < task->source_count; task->cursor++ )
     {
         source = &task->sources[task->cursor];
+        /* OSRS >= 238 is addressed (see worldmap_geography_group) but not yet
+         * read: its headerless tile stream consumes exactly and still decodes to
+         * floor ids that do not exist, so the record layout differs in a way
+         * this decoder does not model. Drawing it would be drawing wrong data —
+         * the surface stays background until the layout is worked out. */
+        if( source->group_id < 0 )
+            continue;
 
         RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, worldmap_geography_group(source));
         PT_YIELD(&task->pt);
@@ -118,6 +129,8 @@ Task_Dat2WorldMapGeographyLoad_Run(
             /* A derived address has no record fields to check the file against,
              * and the file's own marker decides whether it is a region or a
              * chunk — see RSCache_WorldMapGeographyDecodeInplace. */
+            if( task->ground_group < 0 )
+                task->ground_group = worldmap_geography_group(source);
             if( RSCache_WorldMapGeographyDecodeInplace(
                     task->geography,
                     filelist->files[i],
@@ -134,6 +147,49 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
+    }
+
+    /* Ground colours (table 20): a 64x64 PNG of the blended underlay colours the
+     * cache pre-rendered. The reference reads exactly this; the flo's flat
+     * colour is only the fallback for a cache that ships no ground table. */
+    if( task->decoded > 0 && task->ground_group >= 0 )
+    {
+        RSCache_IO_Dat2WorldMapGroundLoad(io, 0, task->ground_group);
+        PT_YIELD(&task->pt);
+
+        archive = RSCache_IO_Dat2WorldMapGroundDecode(io, 0);
+        if( archive )
+        {
+            filelist = RSCache_FileListNewFromDecode(
+                archive->data, archive->data_size, archive->file_count);
+            if( filelist && filelist->file_count > 0 )
+            {
+                int png_width = 0;
+                int png_height = 0;
+                uint32_t* png_pixels = NULL;
+                if( PngDecode_Rgb(
+                        filelist->files[0], filelist->file_sizes[0], &png_width, &png_height,
+                        &png_pixels) )
+                {
+                    int copy_w = png_width < RSCACHE_WORLDMAP_TILE_COUNT
+                                     ? png_width
+                                     : RSCACHE_WORLDMAP_TILE_COUNT;
+                    int copy_h = png_height < RSCACHE_WORLDMAP_TILE_COUNT
+                                     ? png_height
+                                     : RSCACHE_WORLDMAP_TILE_COUNT;
+                    for( int row = 0; row < copy_h; row++ )
+                    {
+                        for( int col = 0; col < copy_w; col++ )
+                            task->geography->ground[row * RSCACHE_WORLDMAP_TILE_COUNT + col] =
+                                png_pixels[(size_t)row * png_width + col];
+                    }
+                    task->geography->has_ground = true;
+                    free(png_pixels);
+                }
+            }
+            RSCache_FileListFree(filelist);
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
     }
 
     if( task->decoded == 0 )
@@ -192,6 +248,7 @@ CreateTask_Dat2WorldMapGeographyLoad(
     strcpy(task->task.name, "Dat2WorldMapGeographyLoad");
     task->bc = (struct Dat2BuildCache*)provider;
     task->key = key;
+    task->ground_group = -1;
     task->sources = calloc((size_t)source_count, sizeof(*task->sources));
     assert(task->sources);
     memcpy(task->sources, sources, (size_t)source_count * sizeof(*task->sources));

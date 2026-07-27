@@ -1413,6 +1413,64 @@ main(
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
 
+                /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1": press at (x0,y0), move
+                 * to (x1,y1) over 20 frames, release. The only way to exercise
+                 * a drag headlessly — SIM_CLICK_AT presses and releases in the
+                 * same place, which no drag handler reacts to. */
+                {
+                    static long drag_frame = -2;
+                    static long drag_x0, drag_y0, drag_x1, drag_y1;
+                    if( drag_frame == -2 )
+                    {
+                        char const* spec = getenv("TORIRS_SIM_DRAG");
+                        drag_frame = -1;
+                        if( spec && *spec )
+                        {
+                            char* end = NULL;
+                            long values[5];
+                            int count = 0;
+                            values[count++] = strtol(spec, &end, 0);
+                            while( count < 5 && end && *end == ',' )
+                                values[count++] = strtol(end + 1, &end, 0);
+                            if( count == 5 )
+                            {
+                                drag_frame = values[0];
+                                drag_x0 = values[1];
+                                drag_y0 = values[2];
+                                drag_x1 = values[3];
+                                drag_y1 = values[4];
+                            }
+                        }
+                    }
+                    if( drag_frame >= 0 && frame_count >= drag_frame )
+                    {
+                        long step = frame_count - drag_frame;
+                        long const steps = 20;
+                        if( step == 0 )
+                            CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
+                        else if( step == 2 )
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, (int)drag_x0, (int)drag_y0);
+                        else if( step > 2 && step <= 2 + steps )
+                        {
+                            long i = step - 2;
+                            int x = (int)(drag_x0 + (drag_x1 - drag_x0) * i / steps);
+                            int y = (int)(drag_y0 + (drag_y1 - drag_y0) * i / steps);
+                            CmdBus_PushMouseMove(&bus, x, y);
+                        }
+                        else if( step == 3 + steps )
+                        {
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, (int)drag_x1, (int)drag_y1);
+                            fprintf(
+                                stderr,
+                                "sim_drag: %ld,%ld -> %ld,%ld\n",
+                                drag_x0, drag_y0, drag_x1, drag_y1);
+                            drag_frame = -1;
+                        }
+                    }
+                }
+
                 /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
                  * inject a mouse click at the given main-loop frame — the
                  * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
