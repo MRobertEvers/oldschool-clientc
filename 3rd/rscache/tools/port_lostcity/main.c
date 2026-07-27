@@ -141,7 +141,11 @@ main(int argc, char** argv)
         else if( strcmp(argv[i], "--texture") == 0 && i + 1 < argc )
             request_add(&textures, argv[++i]);
         else if( strcmp(argv[i], "--max-textures") == 0 && i + 1 < argc )
+        {
             max_textures = atoi(argv[++i]);
+            if( max_textures < 0 )
+                max_textures = 0;
+        }
         else if( strcmp(argv[i], "--no-textures") == 0 )
             max_textures = 0;
         else if( strcmp(argv[i], "--apply") == 0 )

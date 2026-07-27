@@ -114,10 +114,21 @@ Notes on what does and does not carry over:
     as the transparent entry, and the renderer skips any texel that is zero
     after `& 0xf8f8ff`. A source colour landing on either is nudged one step.
 
-  This needs a client whose texture table is not capped at the 50 the 2004 cache
-  shipped (nothing in the format imposes 50; the ceiling that binds is the flo
-  config's one-byte `texture` opcode). `--no-textures` restores the old
-  flatten-to-average behaviour for a client that is still capped.
+  **`--max-textures` decides how many actually land, and it defaults to 50** —
+  what a stock rev-254 Pix3D unpacks. Ids are appended at `pack->max`, so a
+  destination whose `texture.pack` already lists 0..49 has no room and every
+  material is refused at that default; the ceiling is a property of the client,
+  not the format (the widest field carrying a texture id is the flo config's
+  one-byte `texture` opcode). Raise it only against a client whose table is
+  wider, because an id past what the client unpacks is written and never read —
+  the face renders untextured *and* unlit rather than falling back to a colour.
+  `--no-textures` is the same as `--max-textures 0`.
+
+  **A refusal is not a failure.** Whatever does not fit flattens to that
+  texture's own `average_hsl`, straight out of the source record — the same
+  colour an unported face has always taken, and measurably the mean of the
+  material's own pixels. The refusal is memoised per texture id, so the warning
+  appears once rather than once per face.
 
   Faces still flatten when the source uses **texture render types 1-3** —
   cube, cylindrical and scrolling mappings, whose payloads OB2 has no section
