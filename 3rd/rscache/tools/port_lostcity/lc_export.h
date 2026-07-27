@@ -111,9 +111,27 @@ struct LC_Ctx
     int texture_count;
     /** Colour a textured face falls back to when its texture has no average. */
     int texture_fallback_hsl;
-    /** Port materials rather than flattening textured faces to flat colour. */
-    int port_textures;
+    /**
+     * How many texture ids the destination may hold. Zero ports none.
+     *
+     * The check is on the *id*, not on how many this run adds: `texture.pack` is
+     * appended to at `pack->max`, so a stock pack already listing 0..49 puts the
+     * first new material at 50 and nothing fits. Whatever does not fit falls
+     * back to the texture's own average HSL, exactly as an unported face does.
+     */
+    int max_textures;
 };
+
+/**
+ * Texture ids a stock rev-254 client will look at.
+ *
+ * Pix3D sizes its per-texture arrays to 50 and stops unpacking there, so an id
+ * at or past this is written but never read — the face would render untextured
+ * and unlit rather than falling back to a colour. Nothing in the *format* says
+ * 50 (the flo config's one-byte `texture` opcode is the real ceiling), so a
+ * client with a wider table can be targeted with `--max-textures`.
+ */
+#define LC_DEFAULT_MAX_TEXTURES 50
 
 int
 lc_ctx_init(

@@ -307,6 +307,22 @@ lc_texture_sprite(
     return pack;
 }
 
+/*
+ * Remember that a material will not be ported.
+ *
+ * Recorded in the same map a success goes into, because the caller asks once
+ * per *face*: without this a refused texture re-reads its sprite archive and
+ * re-emits its warning a few thousand times over a map square.
+ */
+static int
+lc_texture_refuse(
+    struct LC_Ctx* ctx,
+    int src_texture_id)
+{
+    lc_id_map_put(&ctx->texture_map, src_texture_id, -1);
+    return -1;
+}
+
 int
 lc_export_texture(
     struct LC_Ctx* ctx,
@@ -329,7 +345,25 @@ lc_export_texture(
         ctx->textures[src_texture_id].sprite_id < 0 )
     {
         lc_out_warn(ctx->out, "texture %d: not in source cache", src_texture_id);
-        return -1;
+        return lc_texture_refuse(ctx, src_texture_id);
+    }
+
+    /*
+     * Checked before the decode, not after: refusing late would leave the PNG on
+     * disk with no pack line naming it, which the LostCity packer treats as a
+     * hard error ("<name> is missing an ID line").
+     */
+    if( lc_pack_find(&ctx->packs->packs[LC_PACK_TEXTURE], name) < 0 &&
+        ctx->packs->packs[LC_PACK_TEXTURE].max >= ctx->max_textures )
+    {
+        lc_out_warn(
+            ctx->out,
+            "texture %d: next free texture id is %d and the limit is %d;"
+            " faces using it fall back to its average colour (--max-textures raises it)",
+            src_texture_id,
+            ctx->packs->packs[LC_PACK_TEXTURE].max,
+            ctx->max_textures);
+        return lc_texture_refuse(ctx, src_texture_id);
     }
 
     struct RSCache_Dat2SpritePack* pack =
@@ -343,7 +377,7 @@ lc_export_texture(
             "texture %d: sprite %d missing or undecodable",
             src_texture_id,
             ctx->textures[src_texture_id].sprite_id);
-        return -1;
+        return lc_texture_refuse(ctx, src_texture_id);
     }
 
     struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
@@ -357,7 +391,7 @@ lc_export_texture(
             sprite->crop_width,
             sprite->crop_height);
         RSCache_Dat2SpritePackFree(pack);
-        return -1;
+        return lc_texture_refuse(ctx, src_texture_id);
     }
 
     int pixel_count = size * size;
@@ -466,7 +500,7 @@ lc_export_texture(
     {
         free(png);
         lc_out_warn(ctx->out, "texture %d: PNG encode failed", src_texture_id);
-        return -1;
+        return lc_texture_refuse(ctx, src_texture_id);
     }
 
     int lc_id = lc_pack_alloc(&ctx->packs->packs[LC_PACK_TEXTURE], name);

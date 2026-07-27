@@ -367,7 +367,7 @@ port_textures(
         int render_type = (coord >= 0 && model->texture_render_types)
                               ? model->texture_render_types[coord]
                               : 0;
-        int lc_texture = ctx->port_textures
+        int lc_texture = ctx->max_textures > 0
                              ? lc_export_texture(ctx, model->face_textures[i], NULL)
                              : -1;
 

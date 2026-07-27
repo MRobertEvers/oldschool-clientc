@@ -6,8 +6,9 @@
  * from OSRS floor ids onto rev-254 ones, but a `.flo` record is little more than
  * a colour, and LostCity reads floors by name out of `flo.pack` — so emitting
  * new entries carrying the source colours costs the same and loses nothing.
- * The one thing that does not carry is the texture: OSRS material ids have no
- * rev-254 counterpart, so a textured floor exports as its flat colour.
+ * A textured floor also names its material, when one fits inside the
+ * destination client's texture table; when it does not, the tile falls back to
+ * the colour, which is what the reference does for an unloadable texture too.
  */
 
 #include "lc_export.h"
@@ -144,7 +145,7 @@ export_overlay(
      * is emitted alongside rather than instead: a material that fails to port
      * leaves the tile on its colour rather than on nothing. */
     int texture_id = -1;
-    if( over.texture >= 0 && ctx->port_textures )
+    if( over.texture >= 0 && ctx->max_textures > 0 )
         texture_id = lc_export_texture(ctx, over.texture, NULL);
 
     lc_str_addf(&ctx->out->flo_cfg, "[%s]\n", name);

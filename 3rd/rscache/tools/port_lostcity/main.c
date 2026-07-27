@@ -32,15 +32,18 @@ usage(const char* argv0)
         "     [--area DIR] [--prefix NAME]\n"
         "     [--npc ID[=name]]... [--seq ID[=name]]... [--spotanim ID[=name]]...\n"
         "     [--loc ID]... [--map X_Z]... [--texture ID[=name]]...\n"
-        "     [--no-textures] [--apply]\n"
+        "     [--max-textures N] [--no-textures] [--apply]\n"
         "\n"
-        "  --area         config subdirectory under scripts/ (default areas/area_ported)\n"
-        "  --prefix       basename for emitted configs and generated asset names\n"
-        "  --texture      port a material outright; models and floors pull in\n"
-        "                 whatever they reference without being asked\n"
-        "  --no-textures  flatten textured faces to flat colour, for a client still\n"
-        "                 capped at the 50 textures the 2004 cache shipped\n"
-        "  --apply        write; without it nothing touches disk\n",
+        "  --area           config subdirectory under scripts/ (default areas/area_ported)\n"
+        "  --prefix         basename for emitted configs and generated asset names\n"
+        "  --texture        port a material outright; models and floors pull in\n"
+        "                   whatever they reference without being asked\n"
+        "  --max-textures   highest texture id the destination client reads, exclusive\n"
+        "                   (default 50, what a stock rev-254 Pix3D unpacks). A\n"
+        "                   material that does not fit is not an error: faces using it\n"
+        "                   fall back to its average colour\n"
+        "  --no-textures    same as --max-textures 0\n"
+        "  --apply          write; without it nothing touches disk\n",
         argv0);
 }
 
@@ -106,11 +109,11 @@ main(int argc, char** argv)
     struct request_list maps = { 0 };
     struct request_list textures = { 0 };
     /*
-     * On by default: a textured face flattened to its average colour is a
-     * downgrade, and rev 254 can hold the material. `--no-textures` is for
-     * targeting a client still capped at the 50 textures the 2004 cache shipped.
+     * Defaults to what a stock rev-254 client will actually read. A material
+     * that does not fit is not an error: the face falls back to that texture's
+     * own average colour, which is what an unported face has always done.
      */
-    int port_textures = 1;
+    int max_textures = LC_DEFAULT_MAX_TEXTURES;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -137,8 +140,10 @@ main(int argc, char** argv)
             request_add(&maps, argv[++i]);
         else if( strcmp(argv[i], "--texture") == 0 && i + 1 < argc )
             request_add(&textures, argv[++i]);
+        else if( strcmp(argv[i], "--max-textures") == 0 && i + 1 < argc )
+            max_textures = atoi(argv[++i]);
         else if( strcmp(argv[i], "--no-textures") == 0 )
-            port_textures = 0;
+            max_textures = 0;
         else if( strcmp(argv[i], "--apply") == 0 )
             apply = 1;
         else if( strcmp(argv[i], "--help") == 0 )
@@ -186,7 +191,7 @@ main(int argc, char** argv)
 
     struct LC_Ctx ctx;
     lc_ctx_init(&ctx, &src, &packs, &out);
-    ctx.port_textures = port_textures;
+    ctx.max_textures = max_textures;
 
     int failures = 0;
 
