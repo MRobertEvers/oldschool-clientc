@@ -420,6 +420,13 @@ struct App
     /* Async lifecycle state (no blocking IO outside the platform pump). */
     int app_state;     /* enum AppState */
     int boot_progress; /* 0..100, drives the loading bar while BOOTING */
+    /* Boot pump accounting (TORIRS_BOOT_STATS): how many frames the boot took,
+     * how many scheduler steps ran in total, and how many of those frames hit
+     * the per-frame step budget — the last one is what says whether the boot is
+     * bound by work or by the frame loop handing it too few slices. */
+    int boot_frames;
+    long boot_steps;
+    int boot_frames_budget_capped;
     int boot_interface_id;
     /** Set when async work mutated the tree; App_RunOnce consumes it with a
      * relayout + CS1 re-eval request + redraw. */

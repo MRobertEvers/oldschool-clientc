@@ -3037,6 +3037,13 @@ Task_AppBoot_Run(
     app_update_world_viewport(app);
 
     app->boot_progress = 100;
+    if( getenv("TORIRS_BOOT_STATS") )
+        fprintf(
+            stderr,
+            "boot: frames=%d steps=%ld budget_capped_frames=%d\n",
+            app->boot_frames,
+            app->boot_steps,
+            app->boot_frames_budget_capped);
     app->app_state = APP_STATE_READY;
     app->pending_tree_refresh = 1;
     app->need_redraw = 1;
@@ -7251,13 +7258,23 @@ App_RunOnce(
      * BOOTING the budget is generous so a native boot converges in a few
      * frames; once READY a small budget keeps frame pacing. */
     {
-        int budget = app->app_state == APP_STATE_BOOTING ? 512 : 32;
+        int booting = app->app_state == APP_STATE_BOOTING;
+        int budget = booting ? 512 : 32;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+        int steps = 0;
         for( int i = 0; i < budget; i++ )
         {
             stat = TaskRunner_Step(&app->runner);
+            steps++;
             if( stat == TASK_RUNNER_IDLE )
                 break;
+        }
+        if( booting )
+        {
+            app->boot_frames++;
+            app->boot_steps += steps;
+            if( steps >= budget )
+                app->boot_frames_budget_capped++;
         }
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
         if( app->runner_had_work && stat == TASK_RUNNER_IDLE )

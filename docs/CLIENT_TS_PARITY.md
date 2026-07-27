@@ -3787,16 +3787,9 @@ world/UI path. `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`,
 (`test-ui-slots` aborts on a missing `[cache:boot]` manifest identity — it does
 so on a pristine tree too, unrelated.)
 
-### Still open — design *editing*
+### Follow-on
 
-Only the preview is fixed. `RS_ClientCode_Button` still logs
-`design button %d (not implemented)` for client codes 300–325, so the
-Design/Colour arrows and the Male/Female buttons do nothing, and `CC_ACCEPT_DESIGN`
-(326) sends a bare `IF_BUTTON` instead of `IDK_SAVEDESIGN` — `net_out_idk_savedesign`
-is wired on the wire side but has no caller. Implementing it needs the reference's
-`idkDesignPart[7]` / `idkDesignColour[5]` / `idkDesignGender` store, the
-`validateIdkDesign` re-scan on gender switch, `ClientPlayer.recol1d`/`recol2d`,
-and a rebuild-on-change of the composite (`idkDesignRedraw`).
+Design *editing* (client codes 300–326) landed separately — see §51.
 
 
 ---
@@ -4051,3 +4044,119 @@ varp300=1000   9d1309 804107 745007 655505 576505 497407 3b8007 348f09   (all br
 Note this changes MODEL rendering for *every* IF1 widget with an active model,
 not just the bar — which is the point, it is the reference's rule. Nothing else
 in the 254 gameframe regressed on a full-frame render.
+
+## 51. Character design was read-only — the arrows, gender and Accept did nothing — ✅
+
+### Symptom
+
+With §50's preview rendering, the design screen still could not be *used*. Every
+Design and Colour arrow, both gender buttons and Accept were inert; the only
+evidence anything happened was a log line per click:
+
+```
+clientcode: design button 301 (not implemented)
+```
+
+Accept sent a bare `IF_BUTTON`, so a server that waits for the design before
+advancing the tutorial never got one.
+
+### Root cause — no design store at all
+
+The whole screen is client-side until Accept. `Client-TS` keeps four fields
+(`idkDesignGender`, `idkDesignPart[7]`, `idkDesignColour[5]`, `idkDesignRedraw`)
+and drives them from `clientButton` (`Client.ts:11231`):
+
+- **300–313** — `part = (code-300)/2`, `direction = code & 1`. Step the kit id
+  one at a time, wrapping over the whole `IdkType` table, until one is
+  `!disable` and `part === part + (gender ? 0 : 7)`.
+- **314–323** — `part = (code-314)/2`. Step the colour index, wrapping over
+  `ClientPlayer.recol1d[part].length`.
+- **324/325** — set the gender and re-run `validateIdkDesign()`, which re-picks
+  the first selectable kit per part for the new gender.
+- **326** — send `IDK_SAVEDESIGN` (gender byte, 7 kit bytes, 5 colour bytes) and
+  return `true`, so the plain `IF_BUTTON` follows it.
+
+Every change sets `idkDesignRedraw`, and the `CC_DESIGN_PREVIEW` pass rebuilds
+the composite the next frame — gated on `IdkType.checkModel()` for all seven
+kits, retrying until the models are in.
+
+torirs had none of that state, so `RS_ClientCode_Button` could only log.
+
+### Fix
+
+1. **`src/game/rs_idk_design.{h,c}`** — the store plus the reference's cycling
+   rules (`RS_IdkDesign_Validate` is `validateIdkDesign`; `RS_IdkDesign_Button`
+   is the 300–325 arm of `clientButton`). The reference's kit walk is an
+   unbounded `while (true)` that relies on the part always having at least one
+   match; ours is bounded at one full lap so a cache that breaks that
+   assumption cannot hang the client.
+2. **All identity kits are now prefetched.** `Task_PlayerAppearanceLoad` used to
+   stop the moment it had one kit per body part (43 of 82 in
+   `cache.rs254_zuk`) — fine for a fixed default avatar, useless for cycling,
+   since a kit that is not resident is a kit the arrows cannot land on. It now
+   walks until the first id that fails to load, which is also where the kit
+   count comes from (ids are contiguous, so the miss is the terminator).
+3. **Rebuild path** — `UITreeSceneBridge_BuildPlayerDesignModel(kits, colours,
+   gender)` recomposites and *replaces* the scene model (`SceneModelAdd`
+   overwrites the slot without freeing, so the superseded composite is freed
+   explicitly). It routes through the existing
+   `PlayerModel_BuildFromAppearance`, which already implements the reference's
+   kit recolours and the `recol1d`/`recol2d` design recolours — the design's
+   seven parts are just an appearance with `0x100+kit` in the first seven slots.
+   `EnsurePlayerModel` now delegates to it, which also retires a stale
+   OSRS-era "default body recolor" table that recoloured at colour index 0
+   where the reference recolours nothing.
+4. **The rebuild is serviced from the `CC_DESIGN_PREVIEW` tick**, as in the
+   reference. The `checkModel()` gate becomes "every referenced model is
+   resident"; missing ones are queued on the async pipeline (deduped, so a
+   rebuild waiting on IO does not re-queue every tick) and the rebuild retries
+   next tick.
+5. **Gender button sprites.** Both buttons carry two sprites and the pair is
+   swapped so the selected gender wears the first. Ported exactly: male button
+   gets `graphic` when male is selected and `graphic2` otherwise, female button
+   inverted. Skipped when the cache gives a button only one sprite — blanking
+   the unselected button would be worse than leaving both alone.
+6. **`App_SendIdkDesign`** wires `CC_ACCEPT_DESIGN` to the already-present
+   `net_out_idk_savedesign` builder (`-1` kits go out as `255`, matching the
+   reference's `p1(-1)`), and Accept still notifies with `IF_BUTTON` after it.
+
+### Verification
+
+Driven through the real click path with `TORIRS_SIM_OPENMAIN=3559` +
+`TORIRS_SIM_CLICK_AT` (button screen positions read out of
+`TORIRS_DUMP_EMIT_EXIT`), with `TORIRS_ANIM_DEBUG=1` printing the store after
+each rebuild:
+
+```
+design_preview: rebuilt gender=0 kits=[0,10,18,26,33,36,42] colours=[0,0,0,0,0]   # default
+design_preview: rebuilt gender=0 kits=[1,10,18,26,33,36,42] colours=[0,0,0,0,0]   # Head →
+design_preview: rebuilt gender=1 kits=[45,-1,56,61,67,70,79] colours=[0,0,0,0,0]  # Female
+design_preview: rebuilt gender=1 kits=[45,-1,56,61,67,70,79] colours=[1,0,0,0,0]  # Hair →
+idk_savedesign: gender=1 kits=[45,-1,56,61,67,70,79] colours=[1,0,0,0,0]          # Accept
+```
+
+and confirmed in the rendered frames: cycling Head replaces bald-with-goatee
+with a haired kit, hair colour 2 turns the beard light grey
+(`recol1d[0][2] = HAIR_LIGHT_GREY`), torso colour 3 turns the shirt navy
+(`BODY_NAVY` plus the `recol2d` sleeve band), Female switches to the female body
+and flips both gender-button sprites. The female jaw slot resolving to `-1` is
+correct — there is no female jaw kit, and the reference leaves it `-1` too.
+A left-arrow on Legs wraps backwards across the whole table (36 → 40).
+
+A 150-frame gameframe render is still byte-identical (md5 `eb15094a…`) to a
+pristine build, so none of this moved the normal UI/world path. The suite
+(`test-uitree`, `test-uitree-builder{,-dat1}`, `test-revconfig`, `test-cs1`,
+`test-inv`, `test-world`, `test-minimap`, `test-entity-decode`, `test-varp`,
+`test-varc`) passes. The rebuild frees the superseded composite on every edit,
+so that path was also driven through a twelve-edit click sequence under
+`MallocScribble=1 MallocPreScribble=1` (freed memory poisoned) — twelve rebuilds,
+clean exit.
+
+### Not verified against a live server
+
+The LostCity dev server was not up for this work (it came up briefly mid-session
+to rebuild `cache.rs254_zuk`, which is what made the cache unreadable for a few
+minutes), so `IDK_SAVEDESIGN` has been verified only as far as the payload —
+`App_SendIdkDesign` logs it under `TORIRS_NET_DEBUG` before handing it to the
+builder. The byte layout is the pre-existing `net_out_idk_savedesign`, unchanged
+here.
