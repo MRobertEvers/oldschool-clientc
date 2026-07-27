@@ -153,79 +153,6 @@ lc_config_record(
     return found;
 }
 
-/* ---- texture average colours -------------------------------------------- */
-
-/*
- * OB2 can carry textures, but its texture ids index the destination cache's own
- * table, and rev 254 has ~50 textures against OSRS's ~90 materials — there is no
- * shared numbering to remap onto. So textured faces are downgraded to flat
- * colour, and the colour that keeps a model recognisable is the texture's own
- * average, which the dat2 texture record stores outright.
- */
-static void
-load_texture_hsl(struct LC_Ctx* ctx)
-{
-    int table = RSCache_Dat2DiskTableId(ctx->src->disk, RSCACHE_DAT2_TABLE_TEXTURES);
-    if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
-        return;
-    struct RSCache_Dat2DiskArchive* archive =
-        RSCache_Dat2DiskArchiveNewLoad(ctx->src->disk, table, 0);
-    if( !archive )
-        return;
-    if( !RSCache_Dat2DiskArchiveInitMetadata(ctx->src->disk, archive) ||
-        archive->file_count <= 0 )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return;
-    }
-
-    struct RSCache local = ctx->src->profile;
-    RSCache_ProfileSetGroupRevision(&local, RSCACHE_TYPE_TEXTURE, archive->revision);
-
-    struct RSCache_FileList* files =
-        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return;
-    }
-
-    int max_id = 0;
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        int file_id = archive->file_ids ? archive->file_ids[i] : i;
-        if( file_id > max_id )
-            max_id = file_id;
-    }
-    ctx->texture_hsl = calloc((size_t)max_id + 1, sizeof(int));
-    if( !ctx->texture_hsl )
-    {
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        return;
-    }
-    ctx->texture_hsl_count = max_id + 1;
-    for( int i = 0; i < ctx->texture_hsl_count; i++ )
-        ctx->texture_hsl[i] = -1;
-
-    for( int i = 0; i < files->file_count; i++ )
-    {
-        if( files->file_sizes[i] <= 0 )
-            continue;
-        int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
-        struct RSCache_Dat2Texture* tex = RSCache_Dat2TextureNewDecodeProfile(
-            &local, files->files[i], files->file_sizes[i]);
-        if( !tex )
-            continue;
-        if( file_id >= 0 && file_id < ctx->texture_hsl_count )
-            ctx->texture_hsl[file_id] = tex->average_hsl;
-        RSCache_Dat2TextureFree(tex);
-    }
-
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-}
-
 /* ---- context ------------------------------------------------------------ */
 
 int
@@ -245,7 +172,7 @@ lc_ctx_init(
      * rather than as a wrong colour. Only reached when a face names a texture
      * the source cache does not hold. */
     ctx->texture_fallback_hsl = 4675;
-    load_texture_hsl(ctx);
+    lc_textures_load(ctx);
     return 1;
 }
 
@@ -262,6 +189,7 @@ lc_ctx_free(struct LC_Ctx* ctx)
     lc_id_map_free(&ctx->frame_map);
     lc_id_map_free(&ctx->underlay_map);
     lc_id_map_free(&ctx->overlay_map);
+    lc_id_map_free(&ctx->texture_map);
     for( int i = 0; i < ctx->animset_count; i++ )
     {
         free(ctx->animsets[i].src_frames);
@@ -269,7 +197,7 @@ lc_ctx_free(struct LC_Ctx* ctx)
         free(ctx->animsets[i].delays);
     }
     free(ctx->animsets);
-    free(ctx->texture_hsl);
+    free(ctx->textures);
     memset(ctx, 0, sizeof(*ctx));
 }
 
@@ -289,47 +217,217 @@ lc_loc_shape_suffix(int shape)
 }
 
 /**
- * Drop every texture reference, replacing it with the texture's average colour.
+ * Flatten one textured face to its texture's average colour.
  *
  * Done on the decoded model rather than after encoding because OB2 expresses a
  * textured face as `info & 2` plus the texture id stored *in the colour slot*,
- * so the colour and the flag have to move together. Clearing `face_textures`
- * outright is what makes the encoder take the untextured branch for every face.
+ * so the colour and the flag have to move together. `face_textures[i] = -1` is
+ * what makes the encoder take the untextured branch for that face.
  */
 static void
-strip_textures(
+flatten_face(
     struct LC_Ctx* ctx,
     struct RSCache_Model* model,
-    int* out_dropped)
+    int face)
 {
-    int dropped = 0;
-    if( model->face_textures )
+    int hsl = lc_texture_average_hsl(ctx, model->face_textures[face]);
+    if( model->face_colors )
+        model->face_colors[face] = (uint16_t)hsl;
+    if( model->face_infos )
+        model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+    if( model->face_texture_coords )
+        model->face_texture_coords[face] = -1;
+    model->face_textures[face] = -1;
+}
+
+/**
+ * Which texture triangle a face maps through.
+ *
+ * OB2 and V2 rewrite the stored index to -1 when the face's own vertex indices
+ * already equal the triangle's p/m/n, so an absent index has to be recovered by
+ * searching for that match — the same inversion the model encoder does.
+ */
+static int
+face_texture_coord(
+    const struct RSCache_Model* model,
+    int face)
+{
+    if( model->face_texture_coords && model->face_texture_coords[face] >= 0 )
+        return model->face_texture_coords[face];
+    for( int k = 0; k < model->textured_face_count; k++ )
     {
+        if( model->face_indices_a[face] == (model->textured_p_coordinate[k] & 0xFFFF) &&
+            model->face_indices_b[face] == (model->textured_m_coordinate[k] & 0xFFFF) &&
+            model->face_indices_c[face] == (model->textured_n_coordinate[k] & 0xFFFF) )
+            return k;
+    }
+    return -1;
+}
+
+/**
+ * Carry a model's textures across to rev 254, flattening only what cannot go.
+ *
+ * OB2 does hold textures — `info & 2`, the texture id in the colour slot, and a
+ * per-face index into a list of texture *triangles* (p/m/n vertex indices), the
+ * same projector scheme the source uses for render type 0. What it cannot hold:
+ *
+ *   - **Render types 1-3.** Cube, cylindrical and scrolling mappings carry
+ *     mapping payloads OB2 has no section for. Re-encoding them as triangle
+ *     mapping would keep the face textured with UVs nobody authored, which
+ *     looks confidently wrong rather than plainly untextured — so those faces
+ *     flatten.
+ *   - **More than 64 triangles.** The per-face index lives in the top six bits
+ *     of the info byte. The list is therefore compacted to the triangles that
+ *     surviving faces actually reference, which is usually well under the cap
+ *     even when the source list is not; faces past it flatten.
+ *
+ * `out_ported` / `out_flattened` count faces, not triangles.
+ */
+static void
+port_textures(
+    struct LC_Ctx* ctx,
+    struct RSCache_Model* model,
+    int src_model_id,
+    int* out_ported,
+    int* out_flattened)
+{
+    int ported = 0;
+    int flattened = 0;
+
+    if( !model->face_textures )
+    {
+        model->textured_face_count = 0;
+        free(model->face_texture_coords);
+        model->face_texture_coords = NULL;
+        free(model->texture_render_types);
+        model->texture_render_types = NULL;
+        if( out_ported )
+            *out_ported = 0;
+        if( out_flattened )
+            *out_flattened = 0;
+        return;
+    }
+
+    /* Coordinate indices become explicit: compaction renumbers the triangles, so
+     * the "my p/m/n are my own vertices" shorthand no longer identifies one. */
+    if( !model->face_texture_coords && model->face_count > 0 )
+    {
+        model->face_texture_coords =
+            malloc((size_t)model->face_count * sizeof(*model->face_texture_coords));
+        if( !model->face_texture_coords )
+        {
+            for( int i = 0; i < model->face_count; i++ )
+            {
+                if( model->face_textures[i] != -1 )
+                {
+                    flatten_face(ctx, model, i);
+                    flattened++;
+                }
+            }
+            model->textured_face_count = 0;
+            goto done;
+        }
+        for( int i = 0; i < model->face_count; i++ )
+            model->face_texture_coords[i] = -1;
+    }
+
+    int old_count = model->textured_face_count;
+    uint16_t* new_p = old_count > 0 ? calloc((size_t)old_count, sizeof(uint16_t)) : NULL;
+    uint16_t* new_m = old_count > 0 ? calloc((size_t)old_count, sizeof(uint16_t)) : NULL;
+    uint16_t* new_n = old_count > 0 ? calloc((size_t)old_count, sizeof(uint16_t)) : NULL;
+    int* slot = old_count > 0 ? malloc((size_t)old_count * sizeof(int)) : NULL;
+    int new_count = 0;
+
+    if( old_count > 0 && (!new_p || !new_m || !new_n || !slot) )
+    {
+        free(new_p);
+        free(new_m);
+        free(new_n);
+        free(slot);
         for( int i = 0; i < model->face_count; i++ )
         {
-            if( model->face_textures[i] == -1 )
-                continue;
-            int tex = model->face_textures[i];
-            int hsl = ctx->texture_fallback_hsl;
-            if( tex >= 0 && tex < ctx->texture_hsl_count && ctx->texture_hsl[tex] >= 0 )
-                hsl = ctx->texture_hsl[tex];
-            if( model->face_colors )
-                model->face_colors[i] = (uint16_t)hsl;
-            if( model->face_infos )
-                model->face_infos[i] = (uint8_t)(model->face_infos[i] & 1);
-            dropped++;
+            if( model->face_textures[i] != -1 )
+            {
+                flatten_face(ctx, model, i);
+                flattened++;
+            }
         }
+        model->textured_face_count = 0;
+        goto done;
+    }
+    for( int i = 0; i < old_count; i++ )
+        slot[i] = -1;
+
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        if( model->face_textures[i] == -1 )
+            continue;
+
+        int coord = face_texture_coord(model, i);
+        int render_type = (coord >= 0 && model->texture_render_types)
+                              ? model->texture_render_types[coord]
+                              : 0;
+        int lc_texture = ctx->port_textures
+                             ? lc_export_texture(ctx, model->face_textures[i], NULL)
+                             : -1;
+
+        if( coord < 0 || render_type != 0 || lc_texture < 0 ||
+            (slot[coord] < 0 && new_count >= 64) )
+        {
+            flatten_face(ctx, model, i);
+            flattened++;
+            continue;
+        }
+
+        if( slot[coord] < 0 )
+        {
+            slot[coord] = new_count;
+            new_p[new_count] = model->textured_p_coordinate[coord];
+            new_m[new_count] = model->textured_m_coordinate[coord];
+            new_n[new_count] = model->textured_n_coordinate[coord];
+            new_count++;
+        }
+        model->face_texture_coords[i] = (int16_t)slot[coord];
+        model->face_textures[i] = (int16_t)lc_texture;
+        ported++;
+    }
+
+    if( new_count > 0 )
+    {
+        free(model->textured_p_coordinate);
+        free(model->textured_m_coordinate);
+        free(model->textured_n_coordinate);
+        model->textured_p_coordinate = new_p;
+        model->textured_m_coordinate = new_m;
+        model->textured_n_coordinate = new_n;
+        new_p = NULL;
+        new_m = NULL;
+        new_n = NULL;
+    }
+    model->textured_face_count = new_count;
+    free(new_p);
+    free(new_m);
+    free(new_n);
+    free(slot);
+
+done:
+    if( model->textured_face_count == 0 )
+    {
         free(model->face_textures);
         model->face_textures = NULL;
+        free(model->face_texture_coords);
+        model->face_texture_coords = NULL;
     }
-    free(model->face_texture_coords);
-    model->face_texture_coords = NULL;
+    /* OB2 has no render-type section; every triangle it holds is a type-0
+     * projector by construction, which is what the surviving faces are. */
     free(model->texture_render_types);
     model->texture_render_types = NULL;
-    model->textured_face_count = 0;
 
-    if( out_dropped )
-        *out_dropped = dropped;
+    (void)src_model_id;
+    if( out_ported )
+        *out_ported = ported;
+    if( out_flattened )
+        *out_flattened = flattened;
 }
 
 int
@@ -376,14 +474,17 @@ lc_export_model(
         return -1;
     }
 
-    int dropped = 0;
-    strip_textures(ctx, model, &dropped);
-    if( dropped > 0 )
+    int ported = 0;
+    int flattened = 0;
+    port_textures(ctx, model, src_model_id, &ported, &flattened);
+    if( flattened > 0 )
         lc_out_warn(
             ctx->out,
-            "model %d: %d textured faces flattened to their texture's average colour",
+            "model %d: %d textured faces flattened to their texture's average colour"
+            " (%d carried their texture)",
             src_model_id,
-            dropped);
+            flattened,
+            ported);
 
     /*
      * Encoded without provenance on purpose. Provenance mirrors the source's own

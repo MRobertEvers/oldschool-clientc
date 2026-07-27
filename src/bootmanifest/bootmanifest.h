@@ -65,6 +65,12 @@ struct BootManifest
     char rsa_mod[512];
     int32_t jag_crc[9];
     int jag_crc_set;
+    /* Login credentials. A dev server auto-creates the account, so carrying them
+     * here is what lets `--manifest <file>` be the whole invocation; without
+     * them the client falls back to "guest" with an empty password and the
+     * server answers "invalid username or password". --user/--pass still win. */
+    char user[64];
+    char pass[64];
 
     /* [ui:boot] */
     int ui_logic;  /* enum AppUiLogic; 0 = unset/default */

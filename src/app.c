@@ -3823,12 +3823,23 @@ app_world_scene_element_create(
         if( el )
         {
             el->dynamic = true;
-            /* Everything created here is an entity — player, npc, ground obj,
-             * projectile — and the reference sets Model.useAABBMouseCheck on
-             * exactly those (ObjType.getWorldModel:359, ClientPlayer:321/395,
-             * NpcType:227). Locs come from the world builder instead and keep
-             * the exact per-face test. */
-            el->pick_aabb = true;
+            /*
+             * Entities pick per-face, like locs do.
+             *
+             * The reference sets Model.useAABBMouseCheck on exactly these
+             * (ObjType.getWorldModel:359, ClientPlayer:321/395, NpcType:227),
+             * and this followed it — but a screen-space box around a large
+             * model is enormously bigger than the model. TzKal-Zuk is the case
+             * that made it untenable: his box swallows most of the arena, so
+             * clicking the floor near him hits him instead. The box is also
+             * built over *every* projected vertex, including geometry that is
+             * never drawn, which inflates it further.
+             *
+             * ToriDraw_ProjectedModelContainsPoint still uses the AABB as its
+             * cheap reject before walking faces, so this costs a triangle scan
+             * only on models the cursor is actually over.
+             */
+            el->pick_aabb = false;
         }
     }
     return element_id;

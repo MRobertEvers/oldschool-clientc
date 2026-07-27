@@ -57,7 +57,8 @@ LC_SRCS := \
 	$(TOOLS)/port_lostcity/lc_pack.c \
 	$(TOOLS)/port_lostcity/lc_out.c \
 	$(TOOLS)/port_lostcity/lc_export.c \
-	$(TOOLS)/port_lostcity/lc_map.c
+	$(TOOLS)/port_lostcity/lc_map.c \
+	$(TOOLS)/port_lostcity/lc_texture.c
 
 $(BUILD):
 	mkdir -p $(BUILD)

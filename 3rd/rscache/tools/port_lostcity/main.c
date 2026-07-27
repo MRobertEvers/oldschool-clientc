@@ -31,11 +31,16 @@ usage(const char* argv0)
         "  %s --rev REV <cache_dir> --content <content_dir>\n"
         "     [--area DIR] [--prefix NAME]\n"
         "     [--npc ID[=name]]... [--seq ID[=name]]... [--spotanim ID[=name]]...\n"
-        "     [--loc ID]... [--map X_Z]... [--apply]\n"
+        "     [--loc ID]... [--map X_Z]... [--texture ID[=name]]...\n"
+        "     [--no-textures] [--apply]\n"
         "\n"
-        "  --area    config subdirectory under scripts/ (default areas/area_ported)\n"
-        "  --prefix  basename for emitted configs and generated asset names\n"
-        "  --apply   write; without it nothing touches disk\n",
+        "  --area         config subdirectory under scripts/ (default areas/area_ported)\n"
+        "  --prefix       basename for emitted configs and generated asset names\n"
+        "  --texture      port a material outright; models and floors pull in\n"
+        "                 whatever they reference without being asked\n"
+        "  --no-textures  flatten textured faces to flat colour, for a client still\n"
+        "                 capped at the 50 textures the 2004 cache shipped\n"
+        "  --apply        write; without it nothing touches disk\n",
         argv0);
 }
 
@@ -99,6 +104,13 @@ main(int argc, char** argv)
     struct request_list spotanims = { 0 };
     struct request_list locs = { 0 };
     struct request_list maps = { 0 };
+    struct request_list textures = { 0 };
+    /*
+     * On by default: a textured face flattened to its average colour is a
+     * downgrade, and rev 254 can hold the material. `--no-textures` is for
+     * targeting a client still capped at the 50 textures the 2004 cache shipped.
+     */
+    int port_textures = 1;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -123,6 +135,10 @@ main(int argc, char** argv)
             request_add(&locs, argv[++i]);
         else if( strcmp(argv[i], "--map") == 0 && i + 1 < argc )
             request_add(&maps, argv[++i]);
+        else if( strcmp(argv[i], "--texture") == 0 && i + 1 < argc )
+            request_add(&textures, argv[++i]);
+        else if( strcmp(argv[i], "--no-textures") == 0 )
+            port_textures = 0;
         else if( strcmp(argv[i], "--apply") == 0 )
             apply = 1;
         else if( strcmp(argv[i], "--help") == 0 )
@@ -170,8 +186,21 @@ main(int argc, char** argv)
 
     struct LC_Ctx ctx;
     lc_ctx_init(&ctx, &src, &packs, &out);
+    ctx.port_textures = port_textures;
 
     int failures = 0;
+
+    /* Textures first, for the same reason sequences are: a material an explicit
+     * request named should keep that name, not whichever one the first model
+     * face to reach it generated. */
+    for( int i = 0; i < textures.count; i++ )
+    {
+        if( lc_export_texture(
+                &ctx,
+                textures.items[i].id,
+                textures.items[i].has_name ? textures.items[i].name : NULL) < 0 )
+            failures++;
+    }
 
     /*
      * Explicitly named sequences go first. An npc pulls in its own idle and walk

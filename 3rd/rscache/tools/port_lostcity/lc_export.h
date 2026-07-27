@@ -63,6 +63,21 @@ struct LC_AnimSet
     int frame_cap;
 };
 
+/**
+ * One source texture record, cached so the closure can ask about any id cheaply.
+ *
+ * The table is small (a few hundred seven-byte records) and every model export
+ * consults it, so it is decoded once at context init rather than per lookup.
+ */
+struct LC_TextureDef
+{
+    /** Sprite archive holding the pixels, or -1 when the record names none. */
+    int sprite_id;
+    /** Mean colour as HSL16, or -1 when the record has none. */
+    int average_hsl;
+    int opaque;
+};
+
 struct LC_Ctx
 {
     struct Tool_Dat2Cache* src;
@@ -81,6 +96,8 @@ struct LC_Ctx
     /** Source underlay / overlay floor id -> LostCity `flo.pack` id. */
     struct LC_IdMap underlay_map;
     struct LC_IdMap overlay_map;
+    /** Source texture id -> LostCity `texture.pack` id. */
+    struct LC_IdMap texture_map;
 
     struct LC_AnimSet* animsets;
     int animset_count;
@@ -89,11 +106,13 @@ struct LC_Ctx
     /** Highest npc `size` LostCity accepts; larger footprints are clamped. */
     int max_npc_size;
 
-    /** Texture id -> average HSL, for the texture-to-colour downgrade. */
-    int* texture_hsl;
-    int texture_hsl_count;
+    /** The source texture table, indexed by texture id. */
+    struct LC_TextureDef* textures;
+    int texture_count;
     /** Colour a textured face falls back to when its texture has no average. */
     int texture_fallback_hsl;
+    /** Port materials rather than flattening textured faces to flat colour. */
+    int port_textures;
 };
 
 int
@@ -160,6 +179,30 @@ lc_export_map(
 /** Encode every accumulated animset. Call once after the last sequence. */
 int
 lc_export_flush_animsets(struct LC_Ctx* ctx);
+
+/**
+ * Export a source material as `<content>/textures/<name>.png` plus its
+ * `texture.pack` line, and return the LostCity texture id (-1 on failure).
+ *
+ * `name` is generated when NULL. Idempotent by source id like every other
+ * exporter, so a material shared by a floor and twenty model faces is written
+ * once — and, as with sequences, whichever caller asks first decides the name.
+ */
+int
+lc_export_texture(
+    struct LC_Ctx* ctx,
+    int src_texture_id,
+    const char* name);
+
+/** Load the source texture table into the context. Called by lc_ctx_init. */
+void
+lc_textures_load(struct LC_Ctx* ctx);
+
+/** Average colour of a source texture as HSL16, for the flatten fallback. */
+int
+lc_texture_average_hsl(
+    const struct LC_Ctx* ctx,
+    int src_texture_id);
 
 /* ---- shared internals (lc_export.c <-> lc_map.c) ------------------------- */
 

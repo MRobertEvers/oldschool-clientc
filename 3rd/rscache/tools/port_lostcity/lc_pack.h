@@ -37,6 +37,7 @@ enum LC_PackKind
     LC_PACK_BASE,
     LC_PACK_MAP,
     LC_PACK_FLO,
+    LC_PACK_TEXTURE,
     LC_PACK_COUNT
 };
 

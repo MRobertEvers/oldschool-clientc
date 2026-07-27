@@ -201,6 +201,16 @@ bm_set_kv(
             bm->client_version = atoi(value);
             return;
         }
+        if( strcmp(key, "user") == 0 )
+        {
+            snprintf(bm->user, sizeof(bm->user), "%s", value);
+            return;
+        }
+        if( strcmp(key, "pass") == 0 )
+        {
+            snprintf(bm->pass, sizeof(bm->pass), "%s", value);
+            return;
+        }
         if( strcmp(key, "rsa_exp") == 0 )
         {
             snprintf(bm->rsa_exp, sizeof(bm->rsa_exp), "%s", value);
@@ -491,6 +501,10 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         memcpy(cfg->jag_crc, bm->jag_crc, sizeof(cfg->jag_crc));
         cfg->jag_crc_set = 1;
     }
+    if( bm->user[0] )
+        cfg->connect_user = bm->user;
+    if( bm->pass[0] )
+        cfg->connect_pass = bm->pass;
 
     if( bm->ui_logic )
         cfg->ui_logic = bm->ui_logic;

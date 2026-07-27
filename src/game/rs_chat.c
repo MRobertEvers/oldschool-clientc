@@ -525,8 +525,24 @@ RS_Chat_HandleKey(
         target[len - 1] = '\0';
         return 1;
     }
-    if( key_typed == -1 && key_pressed >= 32 && key_pressed <= 122 )
+    if( key_typed == -1 && key_pressed >= 32 )
     {
+        /*
+         * The reference caps typed characters at 122 ('z') everywhere except a
+         * line that already starts with "::", where it goes to 126:
+         *
+         *   key >= 32 && (key <= 122 || (chatTyped.startsWith('::') && key <= 126))
+         *
+         * That widening is the whole reason a client command can carry `~`
+         * (126), `{`, `|` or `}` — without it `::~zuk` is untypeable, because
+         * the tilde is silently dropped. Social and amount prompts keep the
+         * narrow range, as they do in the reference.
+         */
+        int max_char = 122;
+        if( target == chat->input && target[0] == ':' && target[1] == ':' )
+            max_char = 126;
+        if( key_pressed > max_char )
+            return 0;
         /* Amount input takes digits only (reference dialogInput). */
         if( chat->dialog_input_open && (key_pressed < '0' || key_pressed > '9') )
             return 0;

@@ -122,20 +122,43 @@ export_overlay(
         lc_out_warn(
             ctx->out, "overlay %s got flo id %d; a map tile cannot name it", name, lc_id);
 
-    /* 0xFF00FF is the reference client's "no colour of my own" sentinel — the
-     * tile draws from the texture or the secondary colour instead. Ported flat,
-     * it would paint the arena magenta. */
+    /*
+     * 0xFF00FF is the "I have no colour of my own" sentinel: the overlay is a
+     * *shape* marker and the tile draws from its texture, or from the underlay
+     * when there is no texture. The secondary colour is the blend edge, not a
+     * fill — substituting it paints every such tile as one flat quad, which is
+     * what turned the Inferno's lava into an orange grid.
+     *
+     * Rev 254 implements the same sentinel, in the same three-way order
+     * (Client-TS ClientBuild.ts: texture, then `flo.rgb === Colour.MAGENTA`,
+     * then colour), and its magenta branch sets the overlay colour to -2, which
+     * getOCol turns into the 12345678 "skip this face" value. So the sentinel
+     * has to be written through *verbatim*. Omitting `colour=` instead leaves
+     * FloType.rgb at 0, which is not the sentinel — it is the colour black, and
+     * the tile takes the third branch and paints a black quad over the hole the
+     * reference leaves. That is why the Inferno's lava moat exported black.
+     */
     int rgb = over.rgb_color & 0xFFFFFF;
-    if( (rgb == 0xFF00FF || rgb == 0) && over.secondary_rgb_color > 0 )
-        rgb = over.secondary_rgb_color & 0xFFFFFF;
+
+    /* The texture wins over the colour in both clients' three-way resolve, so it
+     * is emitted alongside rather than instead: a material that fails to port
+     * leaves the tile on its colour rather than on nothing. */
+    int texture_id = -1;
+    if( over.texture >= 0 && ctx->port_textures )
+        texture_id = lc_export_texture(ctx, over.texture, NULL);
 
     lc_str_addf(&ctx->out->flo_cfg, "[%s]\n", name);
     lc_str_addf(&ctx->out->flo_cfg, "overlay=yes\n");
     lc_str_addf(&ctx->out->flo_cfg, "colour=0x%06X\n", rgb);
+    if( texture_id >= 0 )
+        lc_str_addf(
+            &ctx->out->flo_cfg,
+            "texture=%s\n",
+            ctx->packs->packs[LC_PACK_TEXTURE].names[texture_id]);
     if( !over.hide_underlay )
         lc_str_addf(&ctx->out->flo_cfg, "occlude=no\n");
     lc_str_addf(&ctx->out->flo_cfg, "\n");
-    if( over.texture >= 0 )
+    if( over.texture >= 0 && texture_id < 0 )
         lc_out_warn(
             ctx->out,
             "overlay %d: texture %d dropped, exported as its flat colour",
