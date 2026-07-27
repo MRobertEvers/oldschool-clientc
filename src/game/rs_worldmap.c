@@ -265,7 +265,8 @@ RS_WorldMap_Sync(struct RS_WorldMapState* state)
     {
         fprintf(
             stderr,
-            "worldmap: %d areas, current=%d (%s) display=(%d,%d) zoom=%d size=%dx%d tiles\n",
+            "worldmap: %d areas, current=%d (%s) display=(%d,%d) zoom=%d size=%dx%d tiles "
+            "regions x=%d..%d y=%d..%d\n",
             areas->count,
             RS_WorldMap_CurrentMapId(state),
             state->current_area && state->current_area->internal_name
@@ -275,7 +276,11 @@ RS_WorldMap_Sync(struct RS_WorldMapState* state)
             state->display_y,
             state->zoom_percentage,
             state->display_width,
-            state->display_height);
+            state->display_height,
+            state->current_area ? state->current_area->region_low_x : -1,
+            state->current_area ? state->current_area->region_high_x : -1,
+            state->current_area ? state->current_area->region_low_y : -1,
+            state->current_area ? state->current_area->region_high_y : -1);
     }
     return state->current_area != NULL;
 }
@@ -374,6 +379,13 @@ RS_WorldMap_CurrentArea(struct RS_WorldMapState const* state)
 int
 RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state)
 {
+    /* TORIRS_WORLDMAP_ZOOM=<25|37|50|75|100|200>: force the zoom. The zoom
+     * buttons are CS2 ops on the surface chrome, so a headless run cannot press
+     * them, and the interface's own scripts reset the stored percentage — so the
+     * override belongs here, where the scale is read. */
+    char const* forced = getenv("TORIRS_WORLDMAP_ZOOM");
+    if( forced )
+        return zoom_scale_pixels_per_tile(normalize_zoom(atoi(forced)));
     return state ? zoom_scale_pixels_per_tile(state->zoom_percentage) : 4;
 }
 

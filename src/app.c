@@ -397,6 +397,12 @@ app_worldmap_build_tiles(
 
     centre_x = box_x + box_w / 2;
     centre_y = box_y + box_h / 2;
+    RS_WorldMapRender_BeginFrame(app->worldmap_render);
+    /* The mapscene pack lives in the bridge's static-sprite registry, which the
+     * renderer cannot reach; hand it over before any bake. */
+    RS_WorldMapRender_SetMapScenes(
+        app->worldmap_render,
+        UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE));
 
     /* One region of slack each way so a half-visible region at the edge is
      * still drawn (reference uses the same +/-64 tiles). */
@@ -487,6 +493,13 @@ app_worldmap_build_tiles(
     }
 
     app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, scale);
+
+    if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame++ % 300 == 0 )
+        fprintf(
+            stderr,
+            "worldmap frame: display=%d,%d scale=%d regions x=%d..%d y=%d..%d blits=%d\n",
+            display_x, display_y, scale, min_region_x, max_region_x, min_region_y, max_region_y,
+            app->worldmap_tile_count);
 
     return app->worldmap_tile_count;
 }

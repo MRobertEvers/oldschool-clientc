@@ -19,10 +19,26 @@
 #include "toridraw_sprite.h"
 
 #define WORLDMAP_TILES 64
-/* One baked region per slot. 32 covers a full screen of regions at any zoom
- * (the widest view is ~7x5 regions) with room for the ring the pan crosses
- * into, and caps the pool at a few MB. */
-#define WORLDMAP_REGION_SLOTS 32
+/*
+ * One baked region per slot.
+ *
+ * The pool has to hold every region on screen at once, or each frame evicts what
+ * the next one asks for and regions blink in and out. The widest case is the
+ * lowest zoom: a 765-pixel surface at 1 pixel per tile spans 12 regions across
+ * and 8 down, plus the ring a pan crosses into — so 128 slots, with a byte
+ * budget doing the real limiting since a slot costs 16 KB at that zoom and 1 MB
+ * at the highest.
+ */
+#define WORLDMAP_REGION_SLOTS 512
+/* The reference caps its rendered-region cache at 48 MB; same here. At the
+ * lowest zoom a region is 16 KB, so the whole world fits; at the highest a
+ * region is 1 MB and about 48 stay resident, which still covers a screen. */
+#define WORLDMAP_REGION_BUDGET_BYTES (48 * 1024 * 1024)
+/* Bakes started per frame. Zooming out makes hundreds of regions visible at
+ * once; baking them all in one frame stalls for seconds, and baking none of
+ * them (pool thrash) leaves the surface black. A few per frame fills the view
+ * in under a second while the frame stays interactive. */
+#define WORLDMAP_BAKES_PER_FRAME 6
 /* Reserved scene sprite id range: base | slot. Out of cache range, like the
  * other reserved ids in uitree_scene_bridge.h. */
 #define WORLDMAP_REGION_SCENE_BASE 0x60000000
@@ -41,6 +57,11 @@ struct RS_WorldMapRegionSlot
     int scale; /* pixels per tile this was baked at */
     int size;  /* baked edge length in pixels */
     unsigned long stamp;
+    /* False when the bake ran before every floor/loc it needed had loaded: the
+     * image is missing colours and the icons the locs carry. Such a region is
+     * re-baked, once, as soon as the assets arrive — without this the icons
+     * simply never appear, since they are collected at bake time. */
+    bool complete;
     struct RS_WorldMapRegionIcon icons[WORLDMAP_REGION_ICON_MAX];
     int icon_count;
 };
@@ -58,9 +79,15 @@ struct RS_WorldMapPending
 
 struct RS_WorldMapRender
 {
+    /* Scene id of the "mapscene" sprite pack (trees, rocks, altars, piers...),
+     * resolved by the app from the bridge — ui/ and this renderer cannot reach
+     * the static-sprite registry themselves. -1 until set. */
+    int mapscene_scene_id;
     struct RS_WorldMapRegionSlot slots[WORLDMAP_REGION_SLOTS];
     struct RS_WorldMapPending pending[WORLDMAP_REGION_SLOTS];
     unsigned long clock;
+    size_t baked_bytes;
+    int bakes_this_frame;
 };
 
 struct RS_WorldMapRender*
@@ -68,12 +95,29 @@ RS_WorldMapRender_New(void)
 {
     struct RS_WorldMapRender* render = calloc(1, sizeof(*render));
     assert(render);
+    render->mapscene_scene_id = -1;
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
     {
         render->slots[i].key = -1;
         render->pending[i].key = -1;
     }
     return render;
+}
+
+void
+RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
+{
+    if( render )
+        render->bakes_this_frame = 0;
+}
+
+void
+RS_WorldMapRender_SetMapScenes(
+    struct RS_WorldMapRender* render,
+    int mapscene_scene_id)
+{
+    if( render )
+        render->mapscene_scene_id = mapscene_scene_id;
 }
 
 void
@@ -95,80 +139,128 @@ RS_WorldMapRender_Clear(
             ToriDraw_SceneSpriteAdd(scene, WORLDMAP_REGION_SCENE_BASE | i, NULL, 0);
         render->slots[i].key = -1;
     }
+    render->baked_bytes = 0;
 }
 
 /* =========================================================================
  * Tile shapes
  *
- * The overlay shapes (1..8, plus 9/10/11 which are rotations of 1 and 8) are
- * masks over the tile square saying which pixels take the overlay colour and
- * which keep the underlay. The reference builds one mask set per zoom level by
- * walking the square in a row/column order chosen per rotation; the same is done
- * here, evaluated per pixel instead of cached, because a bake touches each tile
- * once and the mask is a comparison rather than a lookup.
+ * Shapes 1..8 (plus 9/10/11, which are 1 and 8 at a turned rotation) are masks
+ * over the tile square: which pixels take the overlay colour and which keep the
+ * underlay. They are what gives a road or a river bank its diagonal edge.
+ *
+ * Ported as a table because the reference's is one: each shape/rotation pairs
+ * its *own* predicate with its *own* row/column walk order, and rotation 0 is
+ * not the identity for most of them (shapes 2..5 start on a reversed row). An
+ * earlier version here applied one generic rotation transform to a per-shape
+ * predicate, which agrees with the reference only for shape 1 — every diagonal
+ * edge in the map came out as sawtooth.
+ *
+ * Reading a row: mask(r, c) = predicate(rows[r], cols[c]), where rows[r] is r
+ * ascending or size-1-r descending. Exactly the reference's makeWithOrder.
  * ========================================================================= */
 
+enum WorldMapShapePredicate
+{
+    WORLDMAP_PRED_COL_LE_ROW,      /* col <= row */
+    WORLDMAP_PRED_COL_GE_ROW,      /* col >= row */
+    WORLDMAP_PRED_COL_LE_HALFROW,  /* col <= row >> 1 */
+    WORLDMAP_PRED_COL_GE_DBLROW,   /* col >= row << 1 */
+    WORLDMAP_PRED_COL_GE_HALFROW,  /* col >= row >> 1 */
+    WORLDMAP_PRED_COL_LE_DBLROW,   /* col <= row << 1 */
+    WORLDMAP_PRED_COL_LE_HALF,     /* col <= size / 2 */
+    WORLDMAP_PRED_ROW_LE_HALF,     /* row <= size / 2 */
+    WORLDMAP_PRED_COL_GE_HALF,     /* col >= size / 2 */
+    WORLDMAP_PRED_ROW_GE_HALF,     /* row >= size / 2 */
+    WORLDMAP_PRED_COL_LE_ROW_HALF, /* col <= row - size / 2 */
+    WORLDMAP_PRED_COL_GE_ROW_HALF, /* col >= row - size / 2 */
+};
+
+struct WorldMapShapeSpec
+{
+    uint8_t row_desc;
+    uint8_t col_desc;
+    uint8_t predicate;
+};
+
+/* [shape - 1][rotation], transcribed from WorldMapScaleHandler.initTemplates. */
+static const struct WorldMapShapeSpec k_worldmap_shapes[8][4] = {
+    /* 1 */
+    { { 0, 0, WORLDMAP_PRED_COL_LE_ROW },
+      { 1, 0, WORLDMAP_PRED_COL_LE_ROW },
+      { 0, 0, WORLDMAP_PRED_COL_GE_ROW },
+      { 1, 0, WORLDMAP_PRED_COL_GE_ROW } },
+    /* 2 */
+    { { 1, 0, WORLDMAP_PRED_COL_LE_HALFROW },
+      { 0, 0, WORLDMAP_PRED_COL_GE_DBLROW },
+      { 0, 1, WORLDMAP_PRED_COL_LE_HALFROW },
+      { 1, 1, WORLDMAP_PRED_COL_GE_DBLROW } },
+    /* 3 */
+    { { 1, 1, WORLDMAP_PRED_COL_LE_HALFROW },
+      { 1, 0, WORLDMAP_PRED_COL_GE_DBLROW },
+      { 0, 0, WORLDMAP_PRED_COL_LE_HALFROW },
+      { 0, 1, WORLDMAP_PRED_COL_GE_DBLROW } },
+    /* 4 */
+    { { 1, 0, WORLDMAP_PRED_COL_GE_HALFROW },
+      { 0, 0, WORLDMAP_PRED_COL_LE_DBLROW },
+      { 0, 1, WORLDMAP_PRED_COL_GE_HALFROW },
+      { 1, 1, WORLDMAP_PRED_COL_LE_DBLROW } },
+    /* 5 */
+    { { 1, 1, WORLDMAP_PRED_COL_GE_HALFROW },
+      { 1, 0, WORLDMAP_PRED_COL_LE_DBLROW },
+      { 0, 0, WORLDMAP_PRED_COL_GE_HALFROW },
+      { 0, 1, WORLDMAP_PRED_COL_LE_DBLROW } },
+    /* 6 */
+    { { 0, 0, WORLDMAP_PRED_COL_LE_HALF },
+      { 0, 0, WORLDMAP_PRED_ROW_LE_HALF },
+      { 0, 0, WORLDMAP_PRED_COL_GE_HALF },
+      { 0, 0, WORLDMAP_PRED_ROW_GE_HALF } },
+    /* 7 */
+    { { 0, 0, WORLDMAP_PRED_COL_LE_ROW_HALF },
+      { 1, 0, WORLDMAP_PRED_COL_LE_ROW_HALF },
+      { 1, 1, WORLDMAP_PRED_COL_LE_ROW_HALF },
+      { 0, 1, WORLDMAP_PRED_COL_LE_ROW_HALF } },
+    /* 8 */
+    { { 0, 0, WORLDMAP_PRED_COL_GE_ROW_HALF },
+      { 1, 0, WORLDMAP_PRED_COL_GE_ROW_HALF },
+      { 1, 1, WORLDMAP_PRED_COL_GE_ROW_HALF },
+      { 0, 1, WORLDMAP_PRED_COL_GE_ROW_HALF } },
+};
+
 static bool
-worldmap_shape_fill(
-    int shape,
+worldmap_shape_predicate(
+    int predicate,
     int row,
     int col,
     int size)
 {
     int half = size / 2;
-    switch( shape )
+    switch( predicate )
     {
-    case 1:
+    case WORLDMAP_PRED_COL_LE_ROW:
         return col <= row;
-    case 2:
+    case WORLDMAP_PRED_COL_GE_ROW:
+        return col >= row;
+    case WORLDMAP_PRED_COL_LE_HALFROW:
         return col <= (row >> 1);
-    case 3:
-        return col <= (row >> 1);
-    case 4:
+    case WORLDMAP_PRED_COL_GE_DBLROW:
+        return col >= (row << 1);
+    case WORLDMAP_PRED_COL_GE_HALFROW:
         return col >= (row >> 1);
-    case 5:
-        return col >= (row >> 1);
-    case 6:
+    case WORLDMAP_PRED_COL_LE_DBLROW:
+        return col <= (row << 1);
+    case WORLDMAP_PRED_COL_LE_HALF:
         return col <= half;
-    case 7:
+    case WORLDMAP_PRED_ROW_LE_HALF:
+        return row <= half;
+    case WORLDMAP_PRED_COL_GE_HALF:
+        return col >= half;
+    case WORLDMAP_PRED_ROW_GE_HALF:
+        return row >= half;
+    case WORLDMAP_PRED_COL_LE_ROW_HALF:
         return col <= row - half;
-    case 8:
+    default:
         return col >= row - half;
-    default:
-        return true;
-    }
-}
-
-/* Rotation is applied by walking the source square in a different order, which
- * is what the reference's makeWithOrder does. */
-static void
-worldmap_shape_source(
-    int rotation,
-    int row,
-    int col,
-    int size,
-    int* out_row,
-    int* out_col)
-{
-    int last = size - 1;
-    switch( rotation & 3 )
-    {
-    case 1:
-        *out_row = last - row;
-        *out_col = col;
-        break;
-    case 2:
-        *out_row = last - row;
-        *out_col = last - col;
-        break;
-    case 3:
-        *out_row = row;
-        *out_col = last - col;
-        break;
-    default:
-        *out_row = row;
-        *out_col = col;
-        break;
     }
 }
 
@@ -180,8 +272,7 @@ worldmap_shape_pixel(
     int col,
     int size)
 {
-    int source_row = row;
-    int source_col = col;
+    struct WorldMapShapeSpec const* spec;
     int original = shape;
 
     /* Reference getTemplate: 9/10/11 are 1 and 8 at a turned rotation. */
@@ -196,8 +287,12 @@ worldmap_shape_pixel(
     if( shape < 1 || shape > 8 )
         return true;
 
-    worldmap_shape_source(rotation, row, col, size, &source_row, &source_col);
-    return worldmap_shape_fill(shape, source_row, source_col, size);
+    spec = &k_worldmap_shapes[shape - 1][rotation & 3];
+    return worldmap_shape_predicate(
+        spec->predicate,
+        spec->row_desc ? size - 1 - row : row,
+        spec->col_desc ? size - 1 - col : col,
+        size);
 }
 
 /* =========================================================================
@@ -252,15 +347,30 @@ worldmap_overlay_rgb(
         return background;
 
     if( overlay->secondary_rgb_color >= 0 )
+    {
         hsl = palette_rgb_to_hsl16(overlay->secondary_rgb_color & 0xFFFFFF);
+    }
     else if( overlay->texture >= 0 )
-        /* The reference averages the texture; the flo's own colour is the same
-         * value the terrain builder falls back to for an unloaded texture. */
-        hsl = palette_rgb_to_hsl16(overlay->rgb_color & 0xFFFFFF);
+    {
+        /* Textured overlays — bridges, piers, jetties, cave floors — carry no
+         * colour of their own: the flo names a texture and nothing else, so
+         * reading rgb_color here gives 0 and the tile bakes black. The reference
+         * takes the texture's average instead (getAverageHsl), which is the
+         * value the texture decode already computes for us. */
+        struct ToriRS_Texture* texture = CacheProvider_TextureGet(provider, overlay->texture);
+        if( texture )
+            hsl = texture->average_hsl;
+        else
+            hsl = palette_rgb_to_hsl16(overlay->rgb_color & 0xFFFFFF);
+    }
     else if( (overlay->rgb_color & 0xFFFFFF) == 0xFF00FF )
+    {
         return background;
+    }
     else
+    {
         hsl = palette_rgb_to_hsl16(overlay->rgb_color & 0xFFFFFF);
+    }
 
     return g_hsl16_to_rgb_table[terrain_adjust_lightness(hsl, 96) & 0xFFFF] & 0xFFFFFF;
 }
@@ -268,6 +378,50 @@ worldmap_overlay_rgb(
 /* =========================================================================
  * Bake
  * ========================================================================= */
+
+/*
+ * Nearest-neighbour blit of a map scene sprite into the region image, scaled to
+ * the box the reference gives it (2 tiles square, whatever the sprite's own
+ * size). Transparent pixels are skipped so the terrain shows through — these are
+ * cut-out icons, not tiles.
+ */
+static void
+worldmap_blit_scene_sprite(
+    uint32_t* pixels,
+    int stride,
+    struct ToriDraw_Sprite const* sprite,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h)
+{
+    int src_w = sprite->width;
+    int src_h = sprite->height;
+
+    if( src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 || !sprite->pixels_argb )
+        return;
+
+    for( int row = 0; row < dst_h; row++ )
+    {
+        int src_y = (row * src_h) / dst_h;
+        int dst_row = dst_y + row;
+        if( dst_row < 0 || dst_row >= stride )
+            continue;
+        for( int col = 0; col < dst_w; col++ )
+        {
+            int src_x = (col * src_w) / dst_w;
+            int dst_col = dst_x + col;
+            uint32_t texel;
+            if( dst_col < 0 || dst_col >= stride )
+                continue;
+            texel = sprite->pixels_argb[(size_t)src_y * src_w + src_x];
+            /* Cut-out icons: transparent pixels leave the terrain showing. */
+            if( (texel >> 24) == 0 )
+                continue;
+            pixels[(size_t)dst_row * stride + dst_col] = 0xFF000000u | (texel & 0xFFFFFF);
+        }
+    }
+}
 
 static void
 worldmap_fill_tile(
@@ -370,7 +524,9 @@ worldmap_bake_region(
     int background,
     int scale,
     uint32_t* pixels,
-    struct RS_WorldMapRegionSlot* slot)
+    struct RS_WorldMapRegionSlot* slot,
+    struct ToriDraw_Sprite** map_scenes,
+    int map_scene_count)
 {
     int stride = WORLDMAP_TILES * scale;
     int planes = geography->planes > 0 ? geography->planes : 1;
@@ -503,6 +659,36 @@ worldmap_bake_region(
                         }
                     }
 
+                    /* Map scene: a loc that stands for a landmark (tree, rock,
+                     * altar, pier head) draws its icon from the mapscene pack
+                     * instead of a wall line — reference drawMapScene, shapes
+                     * 10/11 (centrepiece) and 22 (ground decor). */
+                    if( (decor->shape >= 10 && decor->shape <= 11) || decor->shape == 22 )
+                    {
+                        int scene_index = loc ? loc->map_scene_id : -1;
+                        if( scene_index >= 0 && scene_index < map_scene_count &&
+                            map_scenes[scene_index] )
+                        {
+                            /* The icon is anchored at the loc's north edge, so a
+                             * multi-tile loc needs its own depth: the reference
+                             * takes sizeY, or sizeX when the rotation turns it. */
+                            int size_tiles =
+                                (decor->rotation != 1 && decor->rotation != 3) ? loc->size_z
+                                                                              : loc->size_x;
+                            if( size_tiles < 1 )
+                                size_tiles = 1;
+                            worldmap_blit_scene_sprite(
+                                pixels,
+                                stride,
+                                map_scenes[scene_index],
+                                tile_x * scale,
+                                (WORLDMAP_TILES - size_tiles - tile_y) * scale,
+                                scale * 2,
+                                scale * 2);
+                        }
+                        continue;
+                    }
+
                     if( !((decor->shape >= 0 && decor->shape <= 3) || decor->shape == 9) )
                         continue;
 
@@ -562,18 +748,67 @@ worldmap_slot_find(
     return -1;
 }
 
+static size_t
+worldmap_slot_bytes(struct RS_WorldMapRegionSlot const* slot)
+{
+    return (size_t)slot->size * slot->size * sizeof(uint32_t);
+}
+
+/*
+ * Claim a slot, evicting the least recently drawn one when full — and only when
+ * full. Evicting on a frame that still needs the victim is what makes regions
+ * flicker, so the pool is sized to hold a whole screen and the byte budget below
+ * is what actually reclaims, dropping the oldest until the total fits.
+ */
 static int
-worldmap_slot_claim(struct RS_WorldMapRender* render)
+worldmap_slot_claim(
+    struct RS_WorldMapRender* render,
+    struct ToriDraw_Scene* scene,
+    size_t incoming_bytes)
 {
     int oldest = 0;
+    int claimed = -1;
+
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
     {
         if( render->slots[i].key < 0 )
-            return i;
+        {
+            claimed = i;
+            break;
+        }
         if( render->slots[i].stamp < render->slots[oldest].stamp )
             oldest = i;
     }
-    return oldest;
+
+    if( claimed < 0 )
+    {
+        claimed = oldest;
+        render->baked_bytes -= worldmap_slot_bytes(&render->slots[claimed]);
+        render->slots[claimed].key = -1;
+    }
+
+    /* Budget eviction: never touch a slot drawn this frame (the caller stamps
+     * every visible region before any bake), so this can only reclaim regions
+     * that have scrolled away. */
+    while( render->baked_bytes + incoming_bytes > WORLDMAP_REGION_BUDGET_BYTES )
+    {
+        int victim = -1;
+        for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
+        {
+            if( i == claimed || render->slots[i].key < 0 )
+                continue;
+            if( victim < 0 || render->slots[i].stamp < render->slots[victim].stamp )
+                victim = i;
+        }
+        if( victim < 0 )
+            break;
+        render->baked_bytes -= worldmap_slot_bytes(&render->slots[victim]);
+        render->slots[victim].key = -1;
+        if( scene )
+            ToriDraw_SceneSpriteAdd(scene, WORLDMAP_REGION_SCENE_BASE | victim, NULL, 0);
+    }
+
+    return claimed;
 }
 
 /*
@@ -582,6 +817,15 @@ worldmap_slot_claim(struct RS_WorldMapRender* render)
  * a black region for as long as it stays in the pool. Queue whatever is missing
  * and report it; the caller retries next frame.
  */
+/* Loads started per region per frame.
+ *
+ * A region references a few hundred locs and a couple of dozen floors, and a
+ * load in flight is not yet "has" — so re-asking every frame queues the same
+ * work again and again. Thirty regions doing that buries the task runner in
+ * duplicates and nothing ever finishes: the surface stays black while the queue
+ * grows. Starting a few per region per frame keeps the queue draining. */
+#define WORLDMAP_LOADS_PER_REGION_FRAME 8
+
 static bool
 worldmap_floors_ready(
     struct CacheProvider* provider,
@@ -590,6 +834,7 @@ worldmap_floors_ready(
 {
     bool ready = true;
     int planes = geography->planes > 0 ? geography->planes : 1;
+    int queued = 0;
 
     /* Locs too: they decide wall colour and carry the map element ids the icon
      * pass reads back, and both are baked in — a loc that arrives after the bake
@@ -604,12 +849,16 @@ worldmap_floors_ready(
                 int loc_id = list->items[item].loc_id;
                 if( loc_id < 0 || CacheProvider_LocationHas(provider, loc_id) )
                     continue;
+                ready = false;
+                if( queued < WORLDMAP_LOADS_PER_REGION_FRAME )
                 {
                     struct ToriRS_Task* task = CreateTask_LocLoad(provider, loc_id);
                     if( task && queue )
+                    {
                         ToriRS_TaskQueue_Add(queue, task);
+                        queued++;
+                    }
                 }
-                ready = false;
             }
         }
     }
@@ -619,12 +868,16 @@ worldmap_floors_ready(
         int underlay_id = (int)geography->underlay[i] - 1;
         if( underlay_id < 0 || CacheProvider_UnderlayHas(provider, underlay_id) )
             continue;
+        ready = false;
+        if( queued < WORLDMAP_LOADS_PER_REGION_FRAME )
         {
             struct ToriRS_Task* task = CreateTask_UnderlayLoad(provider, underlay_id);
             if( task && queue )
+            {
                 ToriRS_TaskQueue_Add(queue, task);
+                queued++;
+            }
         }
-        ready = false;
     }
 
     for( int plane = 0; plane < planes; plane++ )
@@ -632,14 +885,39 @@ worldmap_floors_ready(
         for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
         {
             int overlay_id = (int)geography->overlay[plane][i] - 1;
-            if( overlay_id < 0 || CacheProvider_FlotypeHas(provider, overlay_id) )
+            struct ToriRS_Flotype* overlay;
+            if( overlay_id < 0 )
                 continue;
+            if( !CacheProvider_FlotypeHas(provider, overlay_id) )
             {
-                struct ToriRS_Task* task = CreateTask_FlotypeLoad(provider, overlay_id);
-                if( task && queue )
-                    ToriRS_TaskQueue_Add(queue, task);
+                ready = false;
+                if( queued < WORLDMAP_LOADS_PER_REGION_FRAME )
+                {
+                    struct ToriRS_Task* task = CreateTask_FlotypeLoad(provider, overlay_id);
+                    if( task && queue )
+                    {
+                        ToriRS_TaskQueue_Add(queue, task);
+                        queued++;
+                    }
+                }
+                continue;
             }
+            /* A textured overlay is coloured from its texture's average, so the
+             * texture has to be resident before the bake, same as the flo. */
+            overlay = CacheProvider_FlotypeGet(provider, overlay_id);
+            if( !overlay || overlay->texture < 0 ||
+                CacheProvider_TextureHas(provider, overlay->texture) )
+                continue;
             ready = false;
+            if( queued < WORLDMAP_LOADS_PER_REGION_FRAME )
+            {
+                struct ToriRS_Task* task = CreateTask_TextureLoad(provider, overlay->texture);
+                if( task && queue )
+                {
+                    ToriRS_TaskQueue_Add(queue, task);
+                    queued++;
+                }
+            }
         }
     }
 
@@ -715,10 +993,11 @@ RS_WorldMapRender_RegionSprite(
     struct RSCache_WorldMapGeography* geography;
     /* A region assembled from chunks has at most 8x8 records. */
     struct ToriRS_WorldMapRegionSource sources[64];
-    int source_count;
     int key;
     int slot;
     int size;
+    bool complete = false;
+    int source_count = 0;
     uint32_t* pixels;
     struct ToriDraw_Sprite* sprite;
     struct ToriDraw_Sprite** sprite_list;
@@ -742,45 +1021,93 @@ RS_WorldMapRender_RegionSprite(
         render->slots[slot].stamp = ++render->clock;
         if( out_size )
             *out_size = render->slots[slot].size;
-        return WORLDMAP_REGION_SCENE_BASE | slot;
+        /* Complete, or out of budget this frame: draw what is there. An
+         * incomplete region kept its tiles precisely so this can bake again
+         * without re-reading the cache — re-requesting them every frame would
+         * flood the queue and starve the regions a pan just exposed. */
+        if( render->slots[slot].complete ||
+            render->bakes_this_frame >= WORLDMAP_BAKES_PER_FRAME )
+            return WORLDMAP_REGION_SCENE_BASE | slot;
+        geography = CacheProvider_WorldMapGeographyGet(provider, key);
+        if( !geography )
+        {
+            /* Should not happen (an incomplete bake holds its tiles), but if the
+             * cache dropped them there is nothing to re-bake from: stop asking. */
+            render->slots[slot].complete = true;
+            return WORLDMAP_REGION_SCENE_BASE | slot;
+        }
+        if( !worldmap_floors_ready(provider, queue, geography) &&
+            worldmap_wait_for_floors(render, key) )
+            return WORLDMAP_REGION_SCENE_BASE | slot;
+        /* Assets are in (or the wait ran out): bake over the same slot. */
     }
 
-    source_count =
-        worldmap_region_sources(area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
-    if( source_count == 0 )
-        return -1;
-
-    geography = CacheProvider_WorldMapGeographyGet(provider, key);
-    if( !geography )
+    if( slot < 0 )
     {
-        struct ToriRS_Task* task =
-            CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
-        if( task && queue )
-            ToriRS_TaskQueue_Add(queue, task);
-        return -1;
+        source_count = worldmap_region_sources(
+            area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
+        if( source_count == 0 )
+            return -1;
+
+        geography = CacheProvider_WorldMapGeographyGet(provider, key);
+        if( !geography )
+        {
+            struct ToriRS_Task* task =
+                CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
+            if( task && queue )
+                ToriRS_TaskQueue_Add(queue, task);
+            return -1;
+        }
+
+        complete = worldmap_floors_ready(provider, queue, geography);
+        if( !complete && worldmap_wait_for_floors(render, key) )
+            return -1;
+
+        /* Zooming out asks for hundreds of regions at once. Baking them all in
+         * one frame freezes the client for seconds, so only a few start per
+         * frame and the rest come in over the next ones. */
+        if( render->bakes_this_frame >= WORLDMAP_BAKES_PER_FRAME )
+            return -1;
     }
-
-    if( !worldmap_floors_ready(provider, queue, geography) &&
-        worldmap_wait_for_floors(render, key) )
-        return -1;
-
-    slot = worldmap_slot_claim(render);
-    render->slots[slot].icon_count = 0;
+    else
+    {
+        complete = true; /* the resident-slot path above only falls through when ready */
+    }
+    render->bakes_this_frame++;
 
     size = WORLDMAP_TILES * pixels_per_tile;
+    if( slot < 0 )
+        slot = worldmap_slot_claim(render, scene, (size_t)size * size * sizeof(uint32_t));
+    else
+        render->baked_bytes -= worldmap_slot_bytes(&render->slots[slot]);
+    render->slots[slot].icon_count = 0;
+
     pixels = calloc((size_t)size * size, sizeof(*pixels));
     assert(pixels);
-    worldmap_bake_region(
-        provider,
-        geography,
-        area->background_colour & 0xFFFFFF,
-        pixels_per_tile,
-        pixels,
-        &render->slots[slot]);
+    {
+        struct ToriDraw_Sprite** map_scenes = NULL;
+        int map_scene_count = 0;
+        if( render->mapscene_scene_id > 0 )
+            map_scenes =
+                ToriDraw_SceneSpriteGet(scene, render->mapscene_scene_id, &map_scene_count);
+        worldmap_bake_region(
+            provider,
+            geography,
+            area->background_colour & 0xFFFFFF,
+            pixels_per_tile,
+            pixels,
+            &render->slots[slot],
+            map_scenes,
+            map_scenes ? map_scene_count : 0);
+    }
 
-    /* The tiles have served their purpose; the baked image is what gets drawn,
-     * and holding both would keep a quarter-megabyte per region alive. */
-    CacheProvider_WorldMapGeographyRelease(provider, key);
+    /* A complete bake has no further use for the tiles, and holding both would
+     * keep a quarter-megabyte per region alive. An incomplete one keeps them:
+     * it is going to bake again as soon as its floors and locs arrive, and a
+     * second trip through the cache for the same region is what made a pan
+     * starve. */
+    if( complete )
+        CacheProvider_WorldMapGeographyRelease(provider, key);
 
     sprite = ToriDraw_SpriteNewFromArgbOwned(pixels, size, size);
     if( !sprite )
@@ -803,6 +1130,8 @@ RS_WorldMapRender_RegionSprite(
     render->slots[slot].scale = pixels_per_tile;
     render->slots[slot].size = size;
     render->slots[slot].stamp = ++render->clock;
+    render->slots[slot].complete = complete;
+    render->baked_bytes += worldmap_slot_bytes(&render->slots[slot]);
 
     if( getenv("TORIRS_WORLDMAP_DEBUG") )
         fprintf(

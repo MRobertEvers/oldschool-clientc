@@ -30,6 +30,18 @@ RS_WorldMapRender_New(void);
 void
 RS_WorldMapRender_Free(struct RS_WorldMapRender* render);
 
+/** Call once per frame before any RegionSprite call: resets the per-frame bake
+ *  budget that keeps a zoom-out from stalling the client. */
+void
+RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render);
+
+/** Scene id of the "mapscene" sprite pack, from the app's bridge: the landmark
+ *  icons (trees, rocks, altars, piers) baked into each region. */
+void
+RS_WorldMapRender_SetMapScenes(
+    struct RS_WorldMapRender* render,
+    int mapscene_scene_id);
+
 /** Drop every baked region (area switch, or the tiles behind them changed). */
 void
 RS_WorldMapRender_Clear(

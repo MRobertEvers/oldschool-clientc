@@ -38,8 +38,8 @@ pack_grow(struct LC_Pack* pack, int needed)
     return 1;
 }
 
-static int
-pack_set(struct LC_Pack* pack, int id, const char* name)
+int
+lc_pack_set(struct LC_Pack* pack, int id, const char* name)
 {
     assert(pack && name);
     if( id < 0 )
@@ -55,13 +55,50 @@ pack_set(struct LC_Pack* pack, int id, const char* name)
     return 1;
 }
 
-static int
-pack_load_file(struct LC_Pack* pack, const char* path)
+int
+lc_pack_remove(struct LC_Pack* pack, int id)
 {
-    assert(pack && path);
+    assert(pack);
+    if( id < 0 || id >= pack->capacity || !pack->names[id] )
+        return 0;
+    free(pack->names[id]);
+    pack->names[id] = NULL;
+    /* The engine recomputes max from the file it reads, so dropping the top id
+     * has to lower it here too — otherwise the next allocation lands past the
+     * end of what gets written and leaves an id no line accounts for. */
+    if( id + 1 == pack->max )
+    {
+        int max = 0;
+        for( int i = id - 1; i >= 0; i-- )
+        {
+            if( pack->names[i] )
+            {
+                max = i + 1;
+                break;
+            }
+        }
+        pack->max = max;
+    }
+    pack->removed++;
+    return 1;
+}
+
+int
+lc_pack_load(
+    struct LC_Pack* pack,
+    const char* path,
+    const char* type,
+    int allow_missing)
+{
+    assert(pack && path && type);
+    memset(pack, 0, sizeof(*pack));
+    snprintf(pack->type, sizeof(pack->type), "%s", type);
+
     FILE* f = fopen(path, "rb");
     if( !f )
     {
+        if( allow_missing )
+            return 1;
         fprintf(stderr, "pack: cannot open %s\n", path);
         return 0;
     }
@@ -85,7 +122,7 @@ pack_load_file(struct LC_Pack* pack, const char* path)
         long id = strtol(line, &end, 10);
         if( end == line || *end != '\0' )
             continue;
-        if( !pack_set(pack, (int)id, name) )
+        if( !lc_pack_set(pack, (int)id, name) )
         {
             fclose(f);
             return 0;
@@ -97,36 +134,35 @@ pack_load_file(struct LC_Pack* pack, const char* path)
 }
 
 int
-lc_packs_load(
-    struct LC_Packs* packs,
-    const char* content_dir)
+lc_pack_save(
+    const struct LC_Pack* pack,
+    const char* path)
 {
-    assert(packs && content_dir);
-    memset(packs, 0, sizeof(*packs));
-    for( int i = 0; i < LC_PACK_COUNT; i++ )
+    assert(pack && path);
+    FILE* f = fopen(path, "wb");
+    if( !f )
     {
-        packs->packs[i].type = pack_types[i];
-        char path[1024];
-        snprintf(path, sizeof(path), "%s/pack/%s.pack", content_dir, pack_types[i]);
-        if( !pack_load_file(&packs->packs[i], path) )
-            return 0;
+        fprintf(stderr, "pack: cannot write %s\n", path);
+        return 0;
     }
+    for( int id = 0; id < pack->capacity; id++ )
+    {
+        if( pack->names[id] )
+            fprintf(f, "%d=%s\n", id, pack->names[id]);
+    }
+    fclose(f);
     return 1;
 }
 
 void
-lc_packs_free(struct LC_Packs* packs)
+lc_pack_free(struct LC_Pack* pack)
 {
-    if( !packs )
+    if( !pack )
         return;
-    for( int i = 0; i < LC_PACK_COUNT; i++ )
-    {
-        struct LC_Pack* pack = &packs->packs[i];
-        for( int id = 0; id < pack->capacity; id++ )
-            free(pack->names[id]);
-        free(pack->names);
-    }
-    memset(packs, 0, sizeof(*packs));
+    for( int id = 0; id < pack->capacity; id++ )
+        free(pack->names[id]);
+    free(pack->names);
+    memset(pack, 0, sizeof(*pack));
 }
 
 int
@@ -153,10 +189,37 @@ lc_pack_alloc(
     if( existing >= 0 )
         return existing;
     int id = pack->max;
-    if( !pack_set(pack, id, name) )
+    if( !lc_pack_set(pack, id, name) )
         return -1;
     pack->added++;
     return id;
+}
+
+int
+lc_packs_load(
+    struct LC_Packs* packs,
+    const char* content_dir)
+{
+    assert(packs && content_dir);
+    memset(packs, 0, sizeof(*packs));
+    for( int i = 0; i < LC_PACK_COUNT; i++ )
+    {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/pack/%s.pack", content_dir, pack_types[i]);
+        if( !lc_pack_load(&packs->packs[i], path, pack_types[i], 0) )
+            return 0;
+    }
+    return 1;
+}
+
+void
+lc_packs_free(struct LC_Packs* packs)
+{
+    if( !packs )
+        return;
+    for( int i = 0; i < LC_PACK_COUNT; i++ )
+        lc_pack_free(&packs->packs[i]);
+    memset(packs, 0, sizeof(*packs));
 }
 
 int
@@ -174,18 +237,8 @@ lc_packs_write(
         const struct LC_Pack* pack = &packs->packs[i];
         char path[1024];
         snprintf(path, sizeof(path), "%s/%s.pack", dir, pack->type);
-        FILE* f = fopen(path, "wb");
-        if( !f )
-        {
-            fprintf(stderr, "pack: cannot write %s\n", path);
+        if( !lc_pack_save(pack, path) )
             return 0;
-        }
-        for( int id = 0; id < pack->capacity; id++ )
-        {
-            if( pack->names[id] )
-                fprintf(f, "%d=%s\n", id, pack->names[id]);
-        }
-        fclose(f);
     }
     return 1;
 }
