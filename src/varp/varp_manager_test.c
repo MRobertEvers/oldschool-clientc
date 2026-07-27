@@ -372,6 +372,47 @@ test_resolve_transform(void)
     VarPManager_Free(&mgr);
 }
 
+/*
+ * Untyped mode — the dat1 boot, where varbit.dat loads but no varp type table ever
+ * does. The first server VARP grows the var arrays on demand, which moves
+ * `varp_count` well past zero while `varp_types` stays NULL. Every accessor bounded
+ * by `varp_count` must survive that; GetClientcode did not, and segfaulted on the
+ * first VARP packet of a rev-254 login.
+ */
+static void
+test_untyped_mode_accessors(void)
+{
+    printf("TEST: untyped mode accessors\n");
+
+    struct VarPManager mgr;
+    VarPManager_Init(&mgr);
+
+    TEST_ASSERT(mgr.varp_types == NULL, "no type table");
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 18) == 0, "clientcode before any growth");
+
+    VarPManager_ApplySmall(&mgr, 18, 7);
+    TEST_ASSERT(mgr.varp_types == NULL, "still no type table");
+    TEST_ASSERT(mgr.varp_count > 18, "var arrays grew past the id");
+    TEST_ASSERT(VarPManager_GetVarp(&mgr, 18) == 7, "value landed");
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 18) == 0, "clientcode inside grown capacity");
+
+    /* The whole grown range, not just the id that caused the growth. */
+    int nonzero = 0;
+    for( int i = 0; i < mgr.varp_count; i++ )
+        nonzero += VarPManager_GetClientcode(&mgr, i) != 0;
+    TEST_ASSERT(nonzero == 0, "clientcode across the whole capacity");
+
+    VarPManager_ApplyLarge(&mgr, 300, 1234);
+    TEST_ASSERT(VarPManager_GetVarp(&mgr, 300) == 1234, "second growth value");
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 300) == 0, "clientcode after second growth");
+
+    VarPManager_ApplySync(&mgr);
+    VarPManager_ResetAll(&mgr);
+    TEST_ASSERT(VarPManager_GetVarp(&mgr, 300) == 0, "reset clears");
+
+    VarPManager_Free(&mgr);
+}
+
 int
 main(void)
 {
@@ -385,6 +426,7 @@ main(void)
     test_load_varbit_dat();
     test_single_bit_varbit();
     test_resolve_transform();
+    test_untyped_mode_accessors();
 
     if( g_failures )
     {

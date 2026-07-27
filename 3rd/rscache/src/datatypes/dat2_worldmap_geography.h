@@ -68,6 +68,12 @@ RSCache_WorldMapTileIndex(int tile_x, int tile_y)
  * repeats them, and a mismatch means the compositemap pointed at the wrong file,
  * so the decode is refused rather than written into the wrong tiles.
  *
+ * `kind` < 0 means the OSRS >= 238 layout: a whole region with **no header at
+ * all**, tiles from byte 0. That release moved the addressing into the group id
+ * — table 18 is indexed by (region_x << 8) | region_y — and dropped both the
+ * marker and the region coords the older files repeat, along with the
+ * compositemap's group/file pair. `expect_*` are then unused.
+ *
  * Returns false on a marker/coord mismatch or a truncated file. Whatever was
  * written before the failure stays — partial tiles draw as background, which is
  * what a missing file does anyway.

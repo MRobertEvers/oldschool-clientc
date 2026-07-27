@@ -497,6 +497,53 @@ worldmap_slot_claim(struct RS_WorldMapRender* render)
     return oldest;
 }
 
+/*
+ * A region bakes once and is then blitted from, so it must not bake before the
+ * floor configs it colours with are resident — a bake that ran early would cache
+ * a black region for as long as it stays in the pool. Queue whatever is missing
+ * and report it; the caller retries next frame.
+ */
+static bool
+worldmap_floors_ready(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue,
+    struct RSCache_WorldMapGeography const* geography)
+{
+    bool ready = true;
+    int planes = geography->planes > 0 ? geography->planes : 1;
+
+    for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
+    {
+        int underlay_id = (int)geography->underlay[i] - 1;
+        if( underlay_id < 0 || CacheProvider_UnderlayHas(provider, underlay_id) )
+            continue;
+        {
+            struct ToriRS_Task* task = CreateTask_UnderlayLoad(provider, underlay_id);
+            if( task && queue )
+                ToriRS_TaskQueue_Add(queue, task);
+        }
+        ready = false;
+    }
+
+    for( int plane = 0; plane < planes; plane++ )
+    {
+        for( int i = 0; i < RSCACHE_WORLDMAP_TILE_AREA; i++ )
+        {
+            int overlay_id = (int)geography->overlay[plane][i] - 1;
+            if( overlay_id < 0 || CacheProvider_FlotypeHas(provider, overlay_id) )
+                continue;
+            {
+                struct ToriRS_Task* task = CreateTask_FlotypeLoad(provider, overlay_id);
+                if( task && queue )
+                    ToriRS_TaskQueue_Add(queue, task);
+            }
+            ready = false;
+        }
+    }
+
+    return ready;
+}
+
 /** Every compositemap record that lands on this map surface region. */
 static int
 worldmap_region_sources(
@@ -576,6 +623,9 @@ RS_WorldMapRender_RegionSprite(
             ToriRS_TaskQueue_Add(queue, task);
         return -1;
     }
+
+    if( !worldmap_floors_ready(provider, queue, geography) )
+        return -1;
 
     size = WORLDMAP_TILES * pixels_per_tile;
     pixels = calloc((size_t)size * size, sizeof(*pixels));

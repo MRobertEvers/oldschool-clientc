@@ -25,6 +25,31 @@
  * The whole region is one task rather than one task per file: the renderer
  * cannot draw a half-decoded region, and the caller has one thing to wait on.
  */
+/*
+ * Where a record's tiles live.
+ *
+ * Up to OSRS 237 the compositemap record names its geography group and file
+ * outright. From 238 the pair is gone (RSCache_WorldMapFlags), and the group is
+ * addressed by the source region instead: table 18 is a sparse array indexed by
+ * (region_x << 8) | region_y, one file per group. Verified against
+ * cache.osrs239, whose 15938-slot table has 2101 populated groups: the first is
+ * 3872 = region 15,32 and Lumbridge's 49,48 is 12592, both exactly that
+ * packing.
+ */
+static int
+worldmap_geography_group(struct ToriRS_WorldMapRegionSource const* source)
+{
+    if( source->group_id >= 0 )
+        return source->group_id;
+    return ((source->src_region_x & 0xFF) << 8) | (source->src_region_y & 0xFF);
+}
+
+static int
+worldmap_geography_file(struct ToriRS_WorldMapRegionSource const* source)
+{
+    return source->file_id >= 0 ? source->file_id : 0;
+}
+
 struct Task_Dat2WorldMapGeographyLoad
 {
     struct ToriRS_Task task;
@@ -58,15 +83,21 @@ Task_Dat2WorldMapGeographyLoad_Run(
     for( task->cursor = 0; task->cursor < task->source_count; task->cursor++ )
     {
         source = &task->sources[task->cursor];
-        if( source->group_id < 0 || source->file_id < 0 )
-            continue;
 
-        RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, source->group_id);
+        RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, worldmap_geography_group(source));
         PT_YIELD(&task->pt);
 
         /* Re-read after the yield: locals do not survive it. */
         source = &task->sources[task->cursor];
         archive = RSCache_IO_Dat2WorldMapGeographyDecode(io, 0);
+        if( getenv("TORIRS_WORLDMAP_DEBUG") )
+            fprintf(
+                stderr,
+                "worldmap geography: group=%d file=%d archive=%s files=%d\n",
+                worldmap_geography_group(source),
+                worldmap_geography_file(source),
+                archive ? "ok" : "MISSING",
+                archive ? archive->file_count : -1);
         if( !archive )
             continue;
 
@@ -81,18 +112,22 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
         for( int i = 0; i < filelist->file_count; i++ )
         {
-            if( archive->file_ids[i] != source->file_id )
+            bool derived = source->group_id < 0;
+            if( archive->file_ids[i] != worldmap_geography_file(source) )
                 continue;
+            /* A derived address has no record fields to check the file against,
+             * and the file's own marker decides whether it is a region or a
+             * chunk — see RSCache_WorldMapGeographyDecodeInplace. */
             if( RSCache_WorldMapGeographyDecodeInplace(
                     task->geography,
                     filelist->files[i],
                     filelist->file_sizes[i],
-                    source->kind,
+                    derived ? -1 : source->kind,
                     source->planes,
-                    source->dst_region_x,
-                    source->dst_region_y,
-                    source->kind == 1 ? source->dst_chunk_x : -1,
-                    source->kind == 1 ? source->dst_chunk_y : -1) )
+                    derived ? -1 : source->dst_region_x,
+                    derived ? -1 : source->dst_region_y,
+                    (!derived && source->kind == 1) ? source->dst_chunk_x : -1,
+                    (!derived && source->kind == 1) ? source->dst_chunk_y : -1) )
                 task->decoded++;
             break;
         }

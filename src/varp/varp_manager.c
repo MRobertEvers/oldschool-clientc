@@ -451,6 +451,16 @@ VarPManager_GetClientcode(
     assert(mgr);
     if( id < 0 || id >= mgr->varp_count )
         return 0;
+
+    /* `varp_count` is not the length of `varp_types` in untyped mode — it is the
+     * capacity of the var arrays, which ensure_untyped_var_capacity grows on the
+     * first server VARP with no type table loaded (the dat1 boot: only varbit.dat
+     * is read, there is no varp.dat load). An id inside that grown capacity then
+     * passes the bound check above while `varp_types` is still NULL. That is a
+     * null deref on every VARP packet the moment a dat1 client logs in. Untyped
+     * varps have no clientcode by definition, so report none. */
+    if( !mgr->varp_types )
+        return 0;
     return mgr->varp_types[id].clientcode;
 }
 

@@ -141,6 +141,20 @@ RSCache_WorldMapGeographyDecodeInplace(
 
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
+    if( kind < 0 )
+    {
+        /* Headerless (OSRS >= 238): straight into the region's tiles. */
+        for( int tile_x = 0; tile_x < RSCACHE_WORLDMAP_TILE_COUNT; tile_x++ )
+        {
+            for( int tile_y = 0; tile_y < RSCACHE_WORLDMAP_TILE_COUNT; tile_y++ )
+            {
+                if( !worldmap_read_tile(out, tile_x, tile_y, &buffer) )
+                    return false;
+            }
+        }
+        return true;
+    }
+
     marker = RSCache_BufferG1(&buffer);
     if( marker != kind )
     {
@@ -151,7 +165,8 @@ RSCache_WorldMapGeographyDecodeInplace(
 
     int region_x = RSCache_BufferG1(&buffer);
     int region_y = RSCache_BufferG1(&buffer);
-    if( region_x != (expect_region_x & 0xFF) || region_y != (expect_region_y & 0xFF) )
+    if( expect_region_x >= 0 &&
+        (region_x != (expect_region_x & 0xFF) || region_y != (expect_region_y & 0xFF)) )
     {
         printf(
             "RSCache_WorldMapGeographyDecodeInplace: region %d,%d, expected %d,%d\n",
@@ -180,7 +195,7 @@ RSCache_WorldMapGeographyDecodeInplace(
 
     int chunk_x = RSCache_BufferG1(&buffer);
     int chunk_y = RSCache_BufferG1(&buffer);
-    if( chunk_x != expect_chunk_x || chunk_y != expect_chunk_y )
+    if( expect_chunk_x >= 0 && (chunk_x != expect_chunk_x || chunk_y != expect_chunk_y) )
     {
         printf(
             "RSCache_WorldMapGeographyDecodeInplace: chunk %d,%d, expected %d,%d\n",
