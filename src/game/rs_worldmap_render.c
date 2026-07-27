@@ -748,6 +748,29 @@ worldmap_slot_find(
     return -1;
 }
 
+/* Any resident bake of this region, whatever zoom it was baked at. Zooming
+ * re-bakes every visible region, and a bake takes frames; drawing the old one
+ * stretched in the meantime is what makes the zoom a transition rather than a
+ * blink through black. The reference gets this for free — it hands the region
+ * texture to drawTexture with the destination size — so the fallback here is
+ * the same picture, just resampled by the blit instead of the GPU. */
+static int
+worldmap_slot_find_any_scale(
+    struct RS_WorldMapRender* render,
+    int key)
+{
+    int best = -1;
+    for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
+    {
+        if( render->slots[i].key != key )
+            continue;
+        /* Prefer the sharpest one available. */
+        if( best < 0 || render->slots[i].scale > render->slots[best].scale )
+            best = i;
+    }
+    return best;
+}
+
 static size_t
 worldmap_slot_bytes(struct RS_WorldMapRegionSlot const* slot)
 {
@@ -988,7 +1011,8 @@ RS_WorldMapRender_RegionSprite(
     int region_x,
     int region_y,
     int pixels_per_tile,
-    int* out_size)
+    int* out_size,
+    int* out_fallback_scene_id)
 {
     struct RSCache_WorldMapGeography* geography;
     /* A region assembled from chunks has at most 8x8 records. */
@@ -1016,6 +1040,18 @@ RS_WorldMapRender_RegionSprite(
 
     key = CacheProvider_WorldMapGeographyKey(area->id, region_x, region_y);
     slot = worldmap_slot_find(render, key, pixels_per_tile);
+    if( slot < 0 )
+    {
+        /* No bake at this zoom yet: report one at another zoom so the caller has
+         * something to stretch, and carry on to bake the right one below. */
+        int fallback = worldmap_slot_find_any_scale(render, key);
+        if( fallback >= 0 )
+        {
+            render->slots[fallback].stamp = ++render->clock;
+            if( out_fallback_scene_id )
+                *out_fallback_scene_id = WORLDMAP_REGION_SCENE_BASE | fallback;
+        }
+    }
     if( slot >= 0 )
     {
         render->slots[slot].stamp = ++render->clock;

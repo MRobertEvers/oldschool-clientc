@@ -69,6 +69,10 @@ struct UITreeWorldMapTile
     int y;
     int w;
     int h;
+    /** Stretch the sprite to w x h rather than blitting it at its own size.
+     *  Region tiles set this so a zoom change can keep drawing the bake it
+     *  already has, scaled, until the new-zoom bake replaces it. */
+    int scaled;
 };
 
 enum UITreeHostRequestKind

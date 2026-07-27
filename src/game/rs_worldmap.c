@@ -379,13 +379,6 @@ RS_WorldMap_CurrentArea(struct RS_WorldMapState const* state)
 int
 RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state)
 {
-    /* TORIRS_WORLDMAP_ZOOM=<25|37|50|75|100|200>: force the zoom. The zoom
-     * buttons are CS2 ops on the surface chrome, so a headless run cannot press
-     * them, and the interface's own scripts reset the stored percentage — so the
-     * override belongs here, where the scale is read. */
-    char const* forced = getenv("TORIRS_WORLDMAP_ZOOM");
-    if( forced )
-        return zoom_scale_pixels_per_tile(normalize_zoom(atoi(forced)));
     return state ? zoom_scale_pixels_per_tile(state->zoom_percentage) : 4;
 }
 

@@ -897,6 +897,9 @@ translate_ui_cmd(
             out->u.sprite.y = tile->y;
             out->u.sprite.w = tile->w;
             out->u.sprite.h = tile->h;
+            /* if3 is the renderers' "scale to the destination box" flag, in both
+             * the software and GL paths. */
+            out->u.sprite.if3 = (uint8_t)(tile->scaled ? 1 : 0);
             out->u.sprite.scissor_x = desc->clip.x;
             out->u.sprite.scissor_y = desc->clip.y;
             out->u.sprite.scissor_w = desc->clip.w;

@@ -11,7 +11,7 @@ THIRD   := $(abspath ../..)
 TOOLS   := $(abspath .)
 
 INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) \
-	-I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas \
+	-I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini \
 	-I$(TOOLS)/common
 
 CFLAGS  ?= -std=c11 -g -O0 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
@@ -41,24 +41,34 @@ LIB_OBJS := \
 	$(BUILD)/bzip.o \
 	$(BUILD)/bzip_encode.o \
 	$(BUILD)/miniz.o \
-	$(BUILD)/xteas.o
+	$(BUILD)/xteas.o \
+	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims port_npc port_lostcity
+.PHONY: all clean find_anims port_npc port_lostcity packfile
 .DEFAULT_GOAL := all
 
-all: find_anims port_npc port_lostcity
+all: find_anims port_npc port_lostcity packfile
 
 find_anims: $(TOOLS)/find_anims/find_anims
 port_npc: $(TOOLS)/port_npc/port_npc
 port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
+packfile: $(TOOLS)/packfile/packfile
 
 LC_SRCS := \
 	$(TOOLS)/port_lostcity/main.c \
 	$(TOOLS)/port_lostcity/lc_pack.c \
+	$(TOOLS)/port_lostcity/lc_manifest.c \
 	$(TOOLS)/port_lostcity/lc_out.c \
 	$(TOOLS)/port_lostcity/lc_export.c \
 	$(TOOLS)/port_lostcity/lc_map.c \
 	$(TOOLS)/port_lostcity/lc_texture.c
+
+# `packfile` patches the same `content/pack` files the exporter allocates ids in,
+# so it links that reader rather than growing a second one that could disagree
+# about what a pack line means.
+PACKFILE_SRCS := \
+	$(TOOLS)/packfile/main.c \
+	$(TOOLS)/port_lostcity/lc_pack.c
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -78,6 +88,9 @@ $(BUILD)/miniz.o: $(THIRD)/miniz/miniz.c | $(BUILD)
 $(BUILD)/xteas.o: $(THIRD)/xteas/xteas.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+$(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
 $(BUILD)/common_%.o: $(TOOLS)/common/%.c | $(BUILD)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
@@ -92,6 +105,11 @@ $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
 $(TOOLS)/port_lostcity/port_lostcity: $(LC_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^ -lm
 
+# No cache is opened here — pack files are text — so this links neither the
+# rscache unity nor the codecs.
+$(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
+	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^
+
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/port_npc/port_npc \
-		$(TOOLS)/port_lostcity/port_lostcity
+		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile

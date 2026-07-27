@@ -54,6 +54,11 @@ RS_WorldMapRender_Clear(
  * Returns -1 when the region's tiles are not resident yet, having queued the
  * load onto `queue` — the caller draws background for it and asks again next
  * frame. `pixels_per_tile` is clamped to 1..8 as in the reference.
+ *
+ * `out_fallback_scene_id` (optional) receives a bake of the same region at a
+ * *different* zoom when this zoom's is not ready. Drawing that one stretched to
+ * the destination box is what makes zooming a transition instead of a blink
+ * through the background; it is replaced as soon as the right bake lands.
  */
 int
 RS_WorldMapRender_RegionSprite(
@@ -65,7 +70,8 @@ RS_WorldMapRender_RegionSprite(
     int region_x,
     int region_y,
     int pixels_per_tile,
-    int* out_size);
+    int* out_size,
+    int* out_fallback_scene_id);
 
 /** One loc-derived icon inside a baked region (reference buildIcons): the map
  *  element id and where it sits, in tiles from the region's south-west corner. */

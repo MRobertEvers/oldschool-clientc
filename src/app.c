@@ -332,6 +332,7 @@ app_worldmap_push_icon(
                                                : sprite->frames[0].width;
     tile->h = sprite->frames[0].crop_height > 0 ? sprite->frames[0].crop_height
                                                 : sprite->frames[0].height;
+    tile->scaled = 0;
     /* Centred on its tile, like every map icon in the reference. */
     tile->x = screen_x - tile->w / 2;
     tile->y = screen_y - tile->h / 2;
@@ -390,6 +391,30 @@ app_worldmap_build_tiles(
     /* The widget owns the surface size; the scripts read it back through
      * WORLDMAP_GETSIZE, so it has to be told what it actually got. */
     RS_WorldMap_SetDisplayPixelSize(map, box_w, box_h);
+
+    /* TORIRS_WORLDMAP_ZOOM="z[,z2[,at_frame]]": force the zoom, optionally
+     * switching to z2 after at_frame frames (default 300). The zoom buttons are
+     * CS2 ops on the surface chrome, so a headless run cannot press them, and
+     * the transition between two zooms is the thing worth capturing. */
+    {
+        char const* forced = getenv("TORIRS_WORLDMAP_ZOOM");
+        if( forced )
+        {
+            char* end = NULL;
+            long first = strtol(forced, &end, 0);
+            long second = first;
+            long at_frame = 300;
+            if( end && *end == ',' )
+            {
+                second = strtol(end + 1, &end, 0);
+                if( end && *end == ',' )
+                    at_frame = strtol(end + 1, NULL, 0);
+            }
+            RS_WorldMap_SetZoom(
+                map, (int)(app->worldmap_debug_frame < at_frame ? first : second));
+        }
+    }
+
     scale = RS_WorldMap_ZoomScale(map);
     RS_WorldMap_DisplayPosition(map, &display_x, &display_y);
     if( display_x < 0 || display_y < 0 )
@@ -430,6 +455,7 @@ app_worldmap_build_tiles(
         {
             struct UITreeWorldMapTile* tile;
             int size = 0;
+            int fallback_scene_id = -1;
             int scene_id;
 
             if( app->worldmap_tile_count >=
@@ -445,7 +471,13 @@ app_worldmap_build_tiles(
                 region_x,
                 region_y,
                 scale,
-                &size);
+                &size,
+                &fallback_scene_id);
+            /* Mid-zoom the right bake may not exist yet; a bake of the same
+             * region at the previous zoom stands in, stretched, so the view
+             * scales continuously instead of blinking through the background. */
+            if( scene_id < 0 )
+                scene_id = fallback_scene_id;
             if( scene_id < 0 )
                 continue;
 
@@ -456,8 +488,12 @@ app_worldmap_build_tiles(
             tile->y =
                 centre_y - ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
                                scale;
-            tile->w = size;
-            tile->h = size;
+            /* The box is a region at the *current* zoom either way — that is
+             * what makes the stand-in line up with its neighbours. */
+            tile->w = WORLD_MAP_TERRAIN_X * scale;
+            tile->h = WORLD_MAP_TERRAIN_Z * scale;
+            tile->scaled = 1;
+            (void)size;
         }
     }
 
@@ -477,6 +513,7 @@ app_worldmap_build_tiles(
                 region_x,
                 region_y,
                 scale,
+                NULL,
                 NULL);
             int icon_count =
                 scene_id < 0 ? 0 : RS_WorldMapRender_RegionIcons(app->worldmap_render, scene_id, &icons);
@@ -494,7 +531,8 @@ app_worldmap_build_tiles(
 
     app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, scale);
 
-    if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame++ % 300 == 0 )
+    app->worldmap_debug_frame++;
+    if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
         fprintf(
             stderr,
             "worldmap frame: display=%d,%d scale=%d regions x=%d..%d y=%d..%d blits=%d\n",
