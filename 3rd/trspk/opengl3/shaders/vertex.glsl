@@ -3,7 +3,10 @@
 layout(std140) uniform TRSPK_UboWorld {
     mat4 u_modelViewMatrix;
     mat4 u_projectionMatrix;
-    vec4 u_clock_pad;
+    float uClock;
+    float uAtlasDim;
+    float uAtlasSlots;
+    float _pad;
 } ubo;
 
 in vec4 a_position;
@@ -25,4 +28,3 @@ void main() {
     v_tex_id = a_tex_id;
     v_uv_pack = a_uv_mode;
 }
-

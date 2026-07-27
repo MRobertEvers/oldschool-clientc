@@ -3,7 +3,10 @@
 layout(std140) uniform TRSPK_UboWorld {
     mat4 u_modelViewMatrix;
     mat4 u_projectionMatrix;
-    vec4 u_clock_pad;
+    float uClock;
+    float uAtlasDim;
+    float uAtlasSlots;
+    float _pad;
 } ubo;
 
 in vec4 v_color;
@@ -16,17 +19,18 @@ uniform sampler2D s_atlas;
 out vec4 frag_color;
 
 void main() {
+    int slots = int(floor(ubo.uAtlasSlots + 0.5));
     int raw = int(floor(v_tex_id + 0.5));
     int atlas_id;
     bool cutout;
-    if (raw >= 256) {
-        atlas_id = raw - 256;
+    if (raw >= slots) {
+        atlas_id = raw - slots;
         cutout = true;
     } else {
         atlas_id = raw;
         cutout = false;
     }
-    if (atlas_id < 0 || atlas_id >= 256) {
+    if (atlas_id < 0 || atlas_id >= slots) {
         frag_color = vec4(v_color.rgb, v_color.a);
         return;
     }
@@ -43,15 +47,15 @@ void main() {
         }
     }
     const float TEX_DIM = 128.0;
-    const float ATLAS_DIM = 2048.0;
-    const float cols = 16.0;
-    float du = TEX_DIM / ATLAS_DIM;
+    float atlas_dim = ubo.uAtlasDim;
+    float cols = atlas_dim / TEX_DIM;
+    float du = TEX_DIM / atlas_dim;
     float dv = du;
     float col = mod(float(atlas_id), cols);
     float row = floor(float(atlas_id) / cols);
     vec4 ta = vec4(col * du, row * dv, du, dv);
     vec2 local = v_texcoord;
-    float clk = ubo.u_clock_pad.x;
+    float clk = ubo.uClock;
     if (anim_u > 0.0) local.x += clk * anim_u;
     if (anim_v > 0.0) local.y -= clk * anim_v;
     local.x = clamp(local.x, 0.008, 0.992);

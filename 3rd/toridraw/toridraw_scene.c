@@ -388,7 +388,7 @@ td_scene_free_textures(struct ToriDraw_TextureMap* map)
     if( !map )
         return;
 
-    for( int i = 0; i < 256; i++ )
+    for( int i = 0; i < TORIDRAW_TEXTURE_ID_CAPACITY; i++ )
     {
         if( map->textures[i] )
             ToriDraw_TextureFree(map->textures[i]);
@@ -749,12 +749,22 @@ ToriDraw_SceneSetTexture(
     struct ToriDraw_Texture* texture)
 {
     assert(scene);
-    if( id < 0 || id >= 256 )
+    /* Cache data can name any id; out of range is a runtime reject, not an
+     * assert. PublishTextures hands ownership of `texture`, so free it here. */
+    if( id < 0 || id >= TORIDRAW_TEXTURE_ID_CAPACITY )
+    {
+        if( texture )
+            ToriDraw_TextureFree(texture);
         return;
+    }
 
     struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(scene);
     if( !tex_state )
+    {
+        if( texture )
+            ToriDraw_TextureFree(texture);
         return;
+    }
 
     struct ToriDraw_TextureMap* map = &tex_state->texture_map;
     struct ToriDraw_Texture* const old = map->textures[id];
@@ -1195,6 +1205,15 @@ ToriDraw_SceneElementApplyAnimation(
     if( element->is_skeletal )
     {
         struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
+        /* Skinning needs both halves: the palette and the model's per-vertex
+         * bone influences. A skeletal seq bound to a model with no animaya skin
+         * (a classic model, or one merged from parts that had none) has nothing
+         * to pose — hold the rest pose rather than fault on the missing arrays. */
+        if( !skeletal || skeletal->frame_count <= 0 || model->animaya_vertex_count <= 0 ||
+            !model->animaya_group_counts || !model->animaya_groups || !model->animaya_scales )
+            return;
+        if( frame < 0 || frame >= skeletal->frame_count )
+            frame = 0;
         ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
     }
     else

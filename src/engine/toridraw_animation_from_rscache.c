@@ -3,6 +3,7 @@
 #include "datatypes/dat1_anim_frame.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
+#include "datatypes/dat2_skeletalbase.h"
 #include "toridraw_animation.h"
 
 #include <stdint.h>
@@ -220,4 +221,40 @@ ToriDraw_AnimationFromRSCacheDat1(
         anim_frame_from_dat1(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 
     return anim;
+}
+
+struct ToriDraw_SkeletalAnim*
+ToriDraw_SkeletalAnimFromRSCache(
+    int seq_id,
+    struct RSCache_Dat2AnimMaya const* maya,
+    struct RSCache_Dat2SkeletalBase* base)
+{
+    struct ToriDraw_SkeletalAnim* skeletal;
+    float* palette;
+    int frame_count = 0;
+    int bone_count = 0;
+
+    if( !maya || !base )
+        return NULL;
+
+    palette = RSCache_Dat2SkeletalBaseBakePalette(maya, base, &frame_count, &bone_count);
+    if( !palette )
+        return NULL;
+    if( frame_count <= 0 || bone_count <= 0 )
+    {
+        free(palette);
+        return NULL;
+    }
+
+    skeletal = calloc(1, sizeof(*skeletal));
+    if( !skeletal )
+    {
+        free(palette);
+        return NULL;
+    }
+    skeletal->id = seq_id;
+    skeletal->bone_count = bone_count;
+    skeletal->frame_count = frame_count;
+    skeletal->matrices = palette;
+    return skeletal;
 }

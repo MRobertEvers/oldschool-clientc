@@ -41,18 +41,26 @@ typedef struct TRSPK_UboWorld
     float modelViewMatrix[16];
     float projectionMatrix[16];
     float uClock;
-    float _pad[3];
+    float uAtlasDim;
+    float uAtlasSlots;
+    float _pad;
 } TRSPK_UboWorld;
 
-#define TRSPK_GL3_ATLAS_DIM 2048u
-#define TRSPK_GL3_ATLAS_COLS 16u
+/* Preferred atlas: 4096^2 / 128 = 32x32 = 1024 slots. Falls back to 2048/16/256
+ * when GL_MAX_TEXTURE_SIZE cannot take 4096 (see gl3_init_texture_atlas). */
+#define TRSPK_GL3_ATLAS_DIM_PREF 4096u
+#define TRSPK_GL3_ATLAS_COLS_PREF 32u
+#define TRSPK_GL3_TEX_CAP_PREF 1024u
+#define TRSPK_GL3_ATLAS_DIM_FALLBACK 2048u
+#define TRSPK_GL3_ATLAS_COLS_FALLBACK 16u
+#define TRSPK_GL3_TEX_CAP_FALLBACK 256u
+#define TRSPK_GL3_TEX_CAP_MAX TRSPK_GL3_TEX_CAP_PREF
 #define TRSPK_GL3_DRAWRANGE_CAP 4096u
 #define TRSPK_GL3_VBO_PAGE (1u << 28)
 #define TRSPK_GL3_GPU_IBO_INIT 4096u
 #define TRSPK_GL3_GPU_VBO_INIT 4096u
 #define TRSPK_GL3_SPRITE_CAP 256
 #define TRSPK_GL3_FONT_CAP 32
-#define TRSPK_GL3_TEX_CAP 256
 #define TRSPK_GL3_2D_ATLAS_DIM 2048u
 #define GL3_2D_BATCH_MAX_VERTS 32768u
 
@@ -163,9 +171,15 @@ struct ToriRS_GL3
 
     struct TRSPK_Atlas atlas;
     GLuint atlas_texture;
-    /* trspk_atlas_grid_tile_for_slot is pure arithmetic and always succeeds for
-     * slots 0..255; track which tiles actually have decoded texels. */
-    uint8_t tex_resident[TRSPK_GL3_TEX_CAP];
+    uint32_t atlas_dim;
+    uint32_t atlas_cols;
+    uint32_t tex_cap;
+    /* Cache texture id -> atlas slot. Texture ids run past 255 in RS2 materials;
+     * the atlas is dense and indexed by allocated slot, not by id. */
+    int tex_slot_of_id[TORIDRAW_TEXTURE_ID_CAPACITY];
+    uint32_t tex_slot_next;
+    /* Track which atlas slots actually have decoded texels. */
+    uint8_t tex_resident[TRSPK_GL3_TEX_CAP_MAX];
 
     struct GL3ModelGroup groups[TRSPK_VBO_GROUP_COUNT];
     uint32_t gpu_ibo_capacity;
@@ -2710,6 +2724,8 @@ upload_world_ubo(
     memcpy(u.modelViewMatrix, view, sizeof(float) * 16u);
     memcpy(u.projectionMatrix, proj, sizeof(float) * 16u);
     u.uClock = (float)renderer->frame_clock;
+    u.uAtlasDim = (float)renderer->atlas_dim;
+    u.uAtlasSlots = (float)renderer->tex_cap;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -2931,6 +2947,39 @@ gl3_ev_model_unload(
     struct ToriRS_GL3* renderer,
     struct ToriRS_RenderCommand* command);
 
+/** Allocate or look up the atlas slot for a cache texture id. Returns -1 when
+ *  the id is out of range or the atlas is full. */
+static int
+gl3_texture_slot(
+    struct ToriRS_GL3* renderer,
+    int tex_id)
+{
+    int slot;
+
+    assert(renderer);
+    if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
+        return -1;
+    slot = renderer->tex_slot_of_id[tex_id];
+    if( slot >= 0 )
+        return slot;
+    if( renderer->tex_slot_next >= renderer->tex_cap )
+    {
+        static int warned;
+        if( !warned )
+        {
+            fprintf(
+                stderr,
+                "gl3: texture atlas full (%u slots); further textures dropped\n",
+                renderer->tex_cap);
+            warned = 1;
+        }
+        return -1;
+    }
+    slot = (int)renderer->tex_slot_next++;
+    renderer->tex_slot_of_id[tex_id] = slot;
+    return slot;
+}
+
 static void
 gl3_ev_tex_load(
     struct ToriRS_GL3* renderer,
@@ -2940,7 +2989,12 @@ gl3_ev_tex_load(
 
     int tex_id = command->u.tex_load.texture_id;
     struct ToriDraw_Texture* tex = command->u.tex_load.texture;
-    if( tex_id < 0 || tex_id >= TRSPK_GL3_TEX_CAP || !tex || !tex->texels )
+    int slot;
+
+    if( !tex || !tex->texels )
+        return;
+    slot = gl3_texture_slot(renderer, tex_id);
+    if( slot < 0 )
         return;
 
     static uint8_t rgba_scratch[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
@@ -2948,13 +3002,13 @@ gl3_ev_tex_load(
 
     trspk_atlas_grid_insert_at(
         &renderer->atlas,
-        (uint32_t)tex_id,
+        (uint32_t)slot,
         rgba_scratch,
         TRSPK_ATLAS_TILE * 4u,
         TRSPK_ATLAS_TILE,
         TRSPK_ATLAS_TILE,
         NULL);
-    renderer->tex_resident[tex_id] = 1u;
+    renderer->tex_resident[slot] = 1u;
 }
 
 static void
@@ -2965,11 +3019,16 @@ gl3_ev_tex_unload(
     assert(command->kind == TORIRSRC_TEX_UNLOAD);
 
     const int tex_id = command->u.tex_load.texture_id;
-    if( tex_id < 0 || tex_id >= TRSPK_GL3_TEX_CAP || !renderer->atlas.pixels )
+    int slot;
+
+    if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !renderer->atlas.pixels )
+        return;
+    slot = renderer->tex_slot_of_id[tex_id];
+    if( slot < 0 || (uint32_t)slot >= renderer->tex_cap )
         return;
 
     struct TRSPK_AtlasTile tile;
-    if( !trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)tex_id, &tile) )
+    if( !trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)slot, &tile) )
         return;
 
     const size_t row_bytes = (size_t)tile.w * renderer->atlas.channels;
@@ -2980,7 +3039,9 @@ gl3_ev_tex_unload(
         memset(dst, 0, row_bytes);
     }
     trspk_atlas_set_dirty(&renderer->atlas);
-    renderer->tex_resident[tex_id] = 0u;
+    renderer->tex_resident[slot] = 0u;
+    /* Keep the slot mapping so a re-load reuses the same tile; the encode
+     * already baked the slot into resident VBOs. */
 }
 
 static void
@@ -3116,34 +3177,39 @@ gl3_ev_model_unload(
    Must exceed the maximum number of frames any animation can have. */
 #define GL3_POSE_ARENA_TRACK_STRIDE 4096
 
-static bool
+/** Ensure `tex_id` is resident in the atlas. Returns the atlas slot, or -1. */
+static int
 gl3_ensure_texture(
     struct ToriRS_GL3* renderer,
     int tex_id)
 {
     struct ToriDraw_Texture* tex;
     static uint8_t rgba_scratch[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
+    int slot;
 
-    if( tex_id < 0 || tex_id >= TRSPK_GL3_TEX_CAP || !renderer->scene )
-        return false;
-    if( renderer->tex_resident[tex_id] )
-        return true;
+    if( tex_id < 0 || !renderer->scene )
+        return -1;
+    slot = gl3_texture_slot(renderer, tex_id);
+    if( slot < 0 )
+        return -1;
+    if( renderer->tex_resident[slot] )
+        return slot;
     tex = ToriDraw_TextureMapGet(
         &ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
     if( !tex || !tex->texels )
-        return false;
+        return -1;
     gl3_decode_texture_rgba(tex, TRSPK_ATLAS_TILE, rgba_scratch);
     if( !trspk_atlas_grid_insert_at(
             &renderer->atlas,
-            (uint32_t)tex_id,
+            (uint32_t)slot,
             rgba_scratch,
             TRSPK_ATLAS_TILE * 4u,
             TRSPK_ATLAS_TILE,
             TRSPK_ATLAS_TILE,
             NULL) )
-        return false;
-    renderer->tex_resident[tex_id] = 1u;
-    return true;
+        return -1;
+    renderer->tex_resident[slot] = 1u;
+    return slot;
 }
 
 static uint32_t
@@ -3196,7 +3262,11 @@ gl3_bake_into_arena(
         if( !trspk_toridraw_bake_face_handle(
                 model_handle, face_index, world_position, ctx, true, &face) )
             continue;
-        gl3_ensure_texture(renderer, face.tex_id);
+        {
+            int const slot = gl3_ensure_texture(renderer, face.tex_id);
+            face.tex_id_encoded = trspk_encode_vertex_tex_id(
+                slot, face.tex_cutout, (int)renderer->tex_cap);
+        }
 
         trspk_triangles_set(&g->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
@@ -3720,7 +3790,11 @@ gl3_bake_widget_model(
                     model_handle, face_index, NULL, ctx, true, &face) )
                 continue;
 
-            gl3_ensure_texture(renderer, face.tex_id);
+            {
+                int const slot = gl3_ensure_texture(renderer, face.tex_id);
+                face.tex_id_encoded = trspk_encode_vertex_tex_id(
+                    slot, face.tex_cutout, (int)renderer->tex_cap);
+            }
             trspk_triangles_set(&g->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
             {
@@ -3809,6 +3883,8 @@ gl3_upload_widget_ubo(
     memcpy(u.modelViewMatrix, model_view, sizeof(float) * 16u);
     memcpy(u.projectionMatrix, projection, sizeof(float) * 16u);
     u.uClock = (float)renderer->frame_clock;
+    u.uAtlasDim = (float)renderer->atlas_dim;
+    u.uAtlasSlots = (float)renderer->tex_cap;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -4071,10 +4147,24 @@ ToriRS_GL3_New(
     for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
         renderer->font_slots[i].font_id = -1;
 
+    for( int i = 0; i < TORIDRAW_TEXTURE_ID_CAPACITY; i++ )
+        renderer->tex_slot_of_id[i] = -1;
+    renderer->tex_slot_next = 0;
+    memset(renderer->tex_resident, 0, sizeof(renderer->tex_resident));
+
+    /* Prefer a 4096 atlas (1024 slots) so RS2 material ids past 255 fit; fall
+     * back when the driver cannot allocate that size. GL context may not exist
+     * yet here — probe later at GL bring-up, or use preferred and let
+     * glTexImage2D fail into the fallback path below if needed. Default to
+     * preferred; ToriRS_GL3_CreateGL overrides after querying MAX_TEXTURE_SIZE. */
+    renderer->atlas_dim = TRSPK_GL3_ATLAS_DIM_PREF;
+    renderer->atlas_cols = TRSPK_GL3_ATLAS_COLS_PREF;
+    renderer->tex_cap = TRSPK_GL3_TEX_CAP_PREF;
+
     if( !trspk_atlas_init_grid(
             &renderer->atlas,
-            TRSPK_GL3_ATLAS_DIM,
-            TRSPK_GL3_ATLAS_DIM,
+            renderer->atlas_dim,
+            renderer->atlas_dim,
             TRSPK_ATLAS_TILE,
             TRSPK_ATLAS_TILE,
             4u) )
@@ -4203,6 +4293,47 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
 
     SDL_GL_SetSwapInterval(0);
 
+    /* Prefer 4096 atlas; fall back if the driver cannot take it. */
+    {
+        GLint max_tex = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex);
+        uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_PREF;
+        uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_PREF;
+        uint32_t want_cap = TRSPK_GL3_TEX_CAP_PREF;
+        if( max_tex > 0 && (GLint)want_dim > max_tex )
+        {
+            want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
+            want_cols = TRSPK_GL3_ATLAS_COLS_FALLBACK;
+            want_cap = TRSPK_GL3_TEX_CAP_FALLBACK;
+            fprintf(
+                stderr,
+                "OpenGL3: GL_MAX_TEXTURE_SIZE=%d; using %ux%u atlas (%u slots)\n",
+                (int)max_tex,
+                want_dim,
+                want_dim,
+                want_cap);
+        }
+        if( gl3->atlas_dim != want_dim )
+        {
+            if( trspk_atlas_is_initialized(&gl3->atlas) )
+                trspk_atlas_free(&gl3->atlas);
+            gl3->atlas_dim = want_dim;
+            gl3->atlas_cols = want_cols;
+            gl3->tex_cap = want_cap;
+            if( !trspk_atlas_init_grid(
+                    &gl3->atlas,
+                    gl3->atlas_dim,
+                    gl3->atlas_dim,
+                    TRSPK_ATLAS_TILE,
+                    TRSPK_ATLAS_TILE,
+                    4u) )
+            {
+                fprintf(stderr, "OpenGL3: atlas init failed\n");
+                goto fail_gl;
+            }
+        }
+    }
+
     const char* vs_src = trspk_opengl3_vertex_shader;
     const char* fs_src = trspk_opengl3_fragment_shader;
     GLuint vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
@@ -4290,8 +4421,8 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
         GL_TEXTURE_2D,
         0,
         GL_RGBA8,
-        (GLsizei)TRSPK_GL3_ATLAS_DIM,
-        (GLsizei)TRSPK_GL3_ATLAS_DIM,
+        (GLsizei)gl3->atlas_dim,
+        (GLsizei)gl3->atlas_dim,
         0,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
@@ -4568,7 +4699,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
                             top[y * gl3->width + x] = fb[src_y * fb_w + src_x];
                         }
                     }
-                    for( int i = 0; i < TRSPK_GL3_TEX_CAP; i++ )
+                    for( int i = 0; i < (int)gl3->tex_cap; i++ )
                         resident += gl3->tex_resident[i] ? 1 : 0;
                     bmp_write_file(path, top, gl3->width, gl3->height);
                     fprintf(

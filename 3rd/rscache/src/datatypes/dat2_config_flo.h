@@ -47,6 +47,8 @@ struct RSCache_Dat2ConfigOverlay
     int rs2_water_colour;
     int rs2_water_scale;
     int rs2_water_intensity;
+    /** RS2 only: opcode 15, a u16 secondary texture id (-1 when the record said 65535). */
+    int rs2_secondary_texture;
     int _id;
 
     int rgb_color;

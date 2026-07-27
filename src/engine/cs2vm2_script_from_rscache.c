@@ -4,6 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+cs2vm2_script_translate_opcodes(
+    struct CS2VM2_Script* dst,
+    enum CS2_OpcodeDialect dialect)
+{
+    assert(dst);
+    assert(dst->opcodes || dst->op_count == 0);
+
+    for( int i = 0; i < dst->op_count; i++ )
+        dst->opcodes[i] = CS2_OpcodeTranslate(dialect, dst->opcodes[i]);
+}
+
 static bool
 cs2vm2_script_copy_heap_fields(
     const struct RSCache_CS2_Script* src,
@@ -50,7 +62,8 @@ cs2vm2_script_copy_heap_fields(
 bool
 CS2VM2_ScriptFromRSCache(
     struct RSCache_CS2_Script* src,
-    struct CS2VM2_Script* dst)
+    struct CS2VM2_Script* dst,
+    enum CS2_OpcodeDialect dialect)
 {
     assert(src);
     assert(dst);
@@ -76,6 +89,9 @@ CS2VM2_ScriptFromRSCache(
     dst->switch_table_count = src->switch_table_count;
     memcpy(dst->switch_tables, src->switch_tables, sizeof(dst->switch_tables));
 
+    /* Ownership transferred; rewrite wire opcodes in place under the chosen dialect. */
+    cs2vm2_script_translate_opcodes(dst, dialect);
+
     RSCache_CS2_ScriptInit(src);
     return true;
 }
@@ -83,7 +99,8 @@ CS2VM2_ScriptFromRSCache(
 bool
 CS2VM2_ScriptCopyFromRSCache(
     const struct RSCache_CS2_Script* src,
-    struct CS2VM2_Script* dst)
+    struct CS2VM2_Script* dst,
+    enum CS2_OpcodeDialect dialect)
 {
     assert(src);
     assert(dst);
@@ -109,5 +126,9 @@ CS2VM2_ScriptCopyFromRSCache(
     dst->switch_table_count = src->switch_table_count;
     memcpy(dst->switch_tables, src->switch_tables, sizeof(dst->switch_tables));
 
-    return cs2vm2_script_copy_heap_fields(src, dst);
+    if( !cs2vm2_script_copy_heap_fields(src, dst) )
+        return false;
+
+    cs2vm2_script_translate_opcodes(dst, dialect);
+    return true;
 }

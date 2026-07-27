@@ -2,10 +2,13 @@
 #define ENGINE_TORIDRAW_ANIMATION_FROM_RSCACHE_H
 
 struct ToriDraw_Animation;
+struct ToriDraw_SkeletalAnim;
 struct RSCache_Dat2Framemap;
 struct RSCache_Dat2Frame;
 struct RSCache_Dat1AnimBase;
 struct RSCache_Dat1AnimFrame;
+struct RSCache_Dat2AnimMaya;
+struct RSCache_Dat2SkeletalBase;
 
 /*
  * Assemble a render-ready classic ToriDraw_Animation from a decoded framemap
@@ -35,5 +38,18 @@ ToriDraw_AnimationFromRSCacheDat1(
     int const* delays,
     int frame_count,
     int frame_step);
+
+/*
+ * Bake an Animaya (skeletal) sequence into a render-ready ToriDraw_SkeletalAnim:
+ * one column-major 4x4 skinning matrix per (frame, bone). The maya curves supply
+ * the animated channels, the skeletal base the bind pose everything else falls
+ * back to. Owns its matrices; the RSCache inputs may be freed afterwards.
+ * Returns NULL on bad input.
+ */
+struct ToriDraw_SkeletalAnim*
+ToriDraw_SkeletalAnimFromRSCache(
+    int seq_id,
+    struct RSCache_Dat2AnimMaya const* maya,
+    struct RSCache_Dat2SkeletalBase* base);
 
 #endif

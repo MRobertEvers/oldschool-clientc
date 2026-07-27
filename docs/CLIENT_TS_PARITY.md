@@ -3491,3 +3491,101 @@ the span the painter uses to *order* the entity did. Verified with a new
 `test-world` assertion: a tile-centred size-1 entity facing south (yaw 1024)
 spans one extra tile in `+z` with the flag set and collapses to a single tile
 without it. Full `test-world`, `test-walkmerge`, and app build all clean.
+
+## 48. Modern OSRS NPCs stood frozen — skeletal (Animaya) sequences were never loaded — ✅
+
+### Symptom
+
+Spawning The Whisperer (npc `12204`) from `cache.osrs239` with the world spawn
+hotkey put a correctly built, correctly coloured model on the tile that never
+moved. `TORIRS_ANIM_DEBUG` showed the seq load completing and then refusing to
+bind:
+
+```
+seq_load: seq=10230 unavailable (config=0x… frame_count=0 framemap=0x0)
+seq_bind: element=9015 seq=10230 UNBINDABLE (anim=0x… frames=0)
+```
+
+The spawn path was fine — `app_world_spawn_npc_now` applies `npctype->readyanim`
+and `Task_AppSpawn` awaits the idle/walk seqs before it. The sequence itself
+carried no frames.
+
+### Root cause — the seq is skeletal, and only the classic path existed
+
+Sequence 10230 decodes to `frame_count=0`, `anim_maya_id=13893632`,
+`anim_maya_end=120`. Since roughly the Desert Treasure 2 era, OldSchool NPCs
+animate through the **Animaya** skeletal system instead of the classic
+frame/framemap animator: seq config opcode 13 names an idx22 (`ANIMAYAS`) curve
+set, opcode 15 its playback range, and the rig those curves drive is the
+**skeletal blob in the tail of the idx1 framemap** the curve set points at.
+
+Everything below and above that load was already in place:
+
+- `RSCache_Dat2AnimMaya` (idx22 curve decode + per-tick sampling) existed in
+  `3rd/rscache`.
+- `RSCache_Dat2Framemap` already captured the trailing skeletal blob verbatim
+  (`tail` / `tail_size`).
+- The model decoder, the ToriRS conversion, `ToriDraw_ModelFromToriRS` and
+  `ToriDraw_ModelMerge` all carry per-vertex animaya groups/scales.
+- `ToriDraw_ModelAnimateSkeletal`, `ToriDraw_SceneElement.is_skeletal` and the
+  skeletal branch of `app_world_tick_animations` were all ported from v1.
+
+What was missing was the middle: nothing decoded the bind pose, nothing baked
+the curve set against it, and nothing bound the result to an element. So
+`Task_Dat2SequenceLoad` fell through to its "config had no frames" exit and
+registered the empty sentinel, and `app_world_try_bind_seq` — which gated on
+`frames && base` — treated every skeletal seq as permanently unbindable.
+
+### Fix — decode the rig, bake the palette, bind it like any other seq
+
+1. **`3rd/rscache` `dat2_skeletalbase.{c,h}`** (new, ported from the v0 tree):
+   decodes `[u16 boneCount][u8 poseCount][bone…]` out of the framemap tail —
+   reading the *tail* rather than re-walking the header keeps the era-dependent
+   `transform_actor` / `masks` handling in the framemap decoder alone. Per bone
+   it derives the bind-pose local / model / inverted-model matrices and the
+   euler-rotation, translation and scaling defaults an animation falls back to
+   for any channel its curves do not drive. `RSCache_Dat2SkeletalBaseBakePalette`
+   walks every curve tick and emits one column-major 4x4 skinning matrix per
+   (frame, bone): `animModelMatrix * invertedModelMatrix(poseId)`.
+2. **`ToriDraw_SkeletalAnimFromRSCache`** (`toridraw_animation_from_rscache.c`)
+   wraps the bake into an owned `ToriDraw_SkeletalAnim`.
+3. **`Task_Dat2SequenceLoad`** grew a skeletal branch ahead of the classic one:
+   a seq with `frame_count == 0 && anim_maya_id > 0` loads the idx22 archive,
+   decodes the curve set, loads the idx1 framemap for `maya->base_id`, decodes
+   the rig from its tail, bakes, and registers the result.
+4. **One registry, one pointer.** `ToriDraw_Animation` gained an owned
+   `skeletal` field, so a skeletal sequence registers in the same scene
+   animation map under the same seq id and `frame_count` still bounds playback
+   (`animMayaEnd - animMayaStart` when the config gives a range, else the whole
+   bake). Every frame stepper — the world entity sim through
+   `World_SeqSource`, the scene tick, the renderer's per-draw apply — needs no
+   special case; only the pose call branches, in
+   `ToriDraw_SceneElementApplyAnimation`.
+5. **`app_anim_playable` / `app_element_set_anim`** (`app.c`) replace the
+   open-coded `frames && base` gates at the three bind sites, and set
+   `is_skeletal` / `skeletal_animation` / `skeletal_play_frames` alongside
+   `el->animation`. A skeletal primary never takes a secondary — the walkmerge
+   blend is a frame-animator operation.
+
+Two robustness notes: `ToriDraw_ModelAnimateSkeletal` asserts on the model's
+animaya arrays, so the scene apply now holds the rest pose when a skeletal seq
+lands on a model with no skin (rather than faulting), and clamps the frame index.
+`app_seq_frame_duration` guards `anim->frames` — skeletal seqs have no per-frame
+lengths and run one curve tick per client cycle (v1 parity).
+
+### Verification
+
+```
+TORIRS_ANIM_DEBUG=1 TORIRS_WORLD_MAP=50,50 TORIRS_SIM_WORLD_KEY=400,300,8 \
+  TORIRS_SIM_TICKS=20 TORIRS_WORLD_BMP=1 ./src/torirs --manifest manifest_osrs239.ini --offline
+
+seq_load: seq=10230 skeletal maya=13893632 bones=236 baked=125 play=120
+seq_bind: element=9015 seq=10230 frames=120 skeletal=1
+```
+
+Renders at 1 / 25 / 60 ticks differ — the tentacles move — and the model stays
+coherent. Classic sequences are untouched: npc 3106 in the same cache still
+binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254` spawn
+still binds seq 1191 (`frames=70 skeletal=0`). `test-world`, `test-walkmerge`,
+`test-uitree`, `test-world-builder`, `test-entity-decode` and `test-task-order`
+all pass.

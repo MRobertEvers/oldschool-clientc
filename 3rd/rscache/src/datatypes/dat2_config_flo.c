@@ -38,6 +38,7 @@ init_overlay(struct RSCache_Dat2ConfigOverlay* overlay)
     overlay->rgb_color = 0;
     overlay->texture = -1;
     overlay->secondary_rgb_color = -1;
+    overlay->rs2_secondary_texture = -1;
     overlay->hide_underlay = true;
 
     overlay->flotype_overlay = false;
@@ -147,6 +148,13 @@ RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
             case 14:
                 overlay->rs2_water_scale = g1(&buffer) << 2;
                 break;
+            case 15:
+            {
+                /* secondaryTextureId — must be consumed so later opcodes stay aligned. */
+                int texture = g2(&buffer);
+                overlay->rs2_secondary_texture = texture == 65535 ? -1 : texture;
+                break;
+            }
             case 16:
                 overlay->rs2_water_intensity = g1(&buffer);
                 break;

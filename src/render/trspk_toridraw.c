@@ -59,14 +59,15 @@ trspk_pack_gpu_uv_mode(
 
 float
 trspk_encode_vertex_tex_id(
-    int tex_id,
-    const struct ToriDraw_Texture* tex)
+    int atlas_slot,
+    bool cutout,
+    int slot_capacity)
 {
-    if( tex_id < 0 )
+    if( atlas_slot < 0 )
         return -1.0f;
-    if( tex && !tex->opaque )
-        return (float)(tex_id + 256);
-    return (float)tex_id;
+    if( cutout )
+        return (float)(atlas_slot + slot_capacity);
+    return (float)atlas_slot;
 }
 
 void
@@ -249,6 +250,8 @@ trspk_toridraw_bake_face(
     struct ToriDraw_Texture* tex = NULL;
     out->uv_mode = 0.0f;
     out->is_animated = false;
+    out->tex_cutout = false;
+    out->tex_id_encoded = -1.0f;
     if( out->tex_id >= 0 && ctx )
     {
         tex = ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(ctx)->texture_map, out->tex_id);
@@ -257,10 +260,10 @@ trspk_toridraw_bake_face(
             out->uv_mode = trspk_pack_gpu_uv_mode(tex->animation_direction, tex->animation_speed);
             out->is_animated =
                 tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
+            out->tex_cutout = !tex->opaque;
         }
     }
 
-    out->tex_id_encoded = trspk_encode_vertex_tex_id(out->tex_id, tex);
     trspk_toridraw_uv_pnm_face(&out->uv, model, face_index);
 
     trspk_toridraw_world_vertex(
@@ -314,6 +317,8 @@ trspk_toridraw_bake_face_ground(
     struct ToriDraw_Texture* tex = NULL;
     out->uv_mode = 0.0f;
     out->is_animated = false;
+    out->tex_cutout = false;
+    out->tex_id_encoded = -1.0f;
     if( out->tex_id >= 0 && ctx )
     {
         tex = ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(ctx)->texture_map, out->tex_id);
@@ -322,9 +327,9 @@ trspk_toridraw_bake_face_ground(
             out->uv_mode = trspk_pack_gpu_uv_mode(tex->animation_direction, tex->animation_speed);
             out->is_animated =
                 tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
+            out->tex_cutout = !tex->opaque;
         }
     }
-    out->tex_id_encoded = trspk_encode_vertex_tex_id(out->tex_id, tex);
 
     /* Ground has no textured_p/m/n — UV from face vertices. */
     uv_pnm_compute(

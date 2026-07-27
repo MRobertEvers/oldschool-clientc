@@ -43,7 +43,10 @@ Task_Dat2ClientScriptLoad_Run(
 
     vm_script = calloc(1, sizeof(*vm_script));
     assert(vm_script);
-    if( !CS2VM2_ScriptCopyFromRSCache(&rscache_script->script, vm_script) )
+    if( !CS2VM2_ScriptCopyFromRSCache(
+            &rscache_script->script,
+            vm_script,
+            CS2_OpcodeDialectForCache(CacheProvider_Profile(&task->bc->base)) ) )
     {
         fprintf(stderr, "Failed to convert dat2 clientscript %d\n", task->script_id);
         free(vm_script);

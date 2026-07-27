@@ -1841,7 +1841,9 @@ static int
 app_seq_frame_duration(void* userdata, int seq_id, int frame)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    if( !anim || frame < 0 || frame >= anim->frame_count )
+    /* Skeletal seqs carry no per-frame lengths — their curves are sampled one
+     * tick per client cycle, so every frame is a single cycle long. */
+    if( !anim || !anim->frames || frame < 0 || frame >= anim->frame_count )
         return 1;
     return anim->frames[frame].delay > 0 ? anim->frames[frame].delay : 1;
 }
@@ -3832,6 +3834,31 @@ app_world_scene_element_create(
     return element_id;
 }
 
+/* A registered animation that can actually pose a model: either a classic
+ * frame/framemap track or a skeletal (Animaya) matrix palette. Everything else
+ * is the empty sentinel a failed load leaves behind. */
+static int
+app_anim_playable(struct ToriDraw_Animation const* anim)
+{
+    if( !anim || anim->frame_count <= 0 )
+        return 0;
+    return (anim->frames && anim->base) || anim->skeletal != NULL;
+}
+
+/* Point a scene element at an animation, selecting the pose path. Skeletal
+ * sequences carry no bones, so the element has to be flagged for
+ * ToriDraw_ModelAnimateSkeletal instead of the frame animator. */
+static void
+app_element_set_anim(
+    struct ToriDraw_SceneElement* el,
+    struct ToriDraw_Animation* anim)
+{
+    el->animation = anim;
+    el->is_skeletal = anim && anim->skeletal != NULL;
+    el->skeletal_animation = anim ? anim->skeletal : NULL;
+    el->skeletal_play_frames = el->is_skeletal ? anim->frame_count : 0;
+}
+
 /* Try binding a loaded scene animation onto an element. Returns 1 when bound
  * OR permanently unbindable (failed/empty sentinel), 0 while still loading. */
 static int
@@ -3846,16 +3873,19 @@ app_world_try_bind_seq(
         return 0;
     /* Bind the resolved animation onto the element — the tick loop and
      * frame emitter read element->animation, which SetAnimationSeq alone
-     * leaves NULL. Skip the empty sentinel (failed / maya-only seqs). */
+     * leaves NULL. Skip the empty sentinel (failed seqs). */
     anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
-    if( anim && anim->frame_count > 0 && anim->frames && anim->base )
+    if( app_anim_playable(anim) )
     {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
         ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
         ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
+        if( el )
+            app_element_set_anim(el, anim);
         if( getenv("TORIRS_ANIM_DEBUG") )
             fprintf(
-                stderr, "seq_bind: element=%d seq=%d frames=%d\n", element_id, seq_id,
-                anim->frame_count);
+                stderr, "seq_bind: element=%d seq=%d frames=%d skeletal=%d\n", element_id, seq_id,
+                anim->frame_count, anim->skeletal ? 1 : 0);
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
@@ -7368,12 +7398,14 @@ app_world_apply_entity_anim_tracks(
     {
         struct ToriDraw_Animation* pa =
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
-        if( pa && pa->frame_count > 0 && pa->frames && pa->base )
+        if( app_anim_playable(pa) )
         {
-            el->animation = pa;
+            app_element_set_anim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
-            if( secondary_active && idle &&
+            /* The walkmerge blend is a frame-animator operation (it masks
+             * transform groups), so a skeletal primary never takes a secondary. */
+            if( !pa->skeletal && secondary_active && idle &&
                 anim->secondary.anim_id != (uint16_t)idle->readyanim )
             {
                 struct ToriDraw_Animation* sa =
@@ -7399,16 +7431,16 @@ app_world_apply_entity_anim_tracks(
     {
         struct ToriDraw_Animation* sa =
             ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
-        if( sa && sa->frame_count > 0 && sa->frames && sa->base )
+        if( app_anim_playable(sa) )
         {
-            el->animation = sa;
+            app_element_set_anim(el, sa);
             el->anim_seq_id = anim->secondary.anim_id;
             el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
             return;
         }
     }
 
-    el->animation = NULL;
+    app_element_set_anim(el, NULL);
     el->anim_seq_id = -1;
     el->anim_frame = 0;
 }

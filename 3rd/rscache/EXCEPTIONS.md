@@ -122,9 +122,10 @@ Handled by an **exact allowance** in the harness (`CONSUMPTION_ALLOWANCES`), not
 blanket skip: the count is pinned at 1, so a regression to 2 still fails. It prints
 as `ALLOWED` on every run.
 
-### B1c. Modern framemap archives carry trailing bytes the decoder ignores *(Gap)*
+### B1c. Modern framemap trailing bytes — the skeletal rig, now decoded *(Resolved, one outlier)*
 
-Measured by comparing each archive's size against what its decode accounts for:
+Originally measured by comparing each archive's size against what its decode accounts
+for:
 
 | Cache | Archives | delta 0 | delta 2 | other |
 |---|---|---|---|---|
@@ -132,14 +133,38 @@ Measured by comparing each archive's size against what its decode accounts for:
 | `cache.osrs230` (format 7, table ver 67) | 2429 | 0 | 2338 | 91 |
 | `cache.jan2026` | 2613 | 0 | 2495 | 118 |
 
-Old caches decode exactly; modern ones leave **2 unread trailing bytes**, observed as
-`00 00`, and ~4% leave some other amount — so it is *not* simply a two-zero-byte
-pad. The meaning has not been established and is not guessed at, so the bytes are
-neither decoded nor written back.
+The trailing region is the **SkeletalBase** (Animaya bind pose) that idx22 curve sets
+animate, appended after the classic transform-type / bone-group lists:
 
-Consequence: a modern framemap round-trips semantically but re-encodes 2 bytes short,
-which is why byte-exactness reads 100% on old caches and 0% on modern ones. Quantified
-in `dat2_framemap.h`.
+```
+u16 boneCount                       (0 == no rig; this is the "delta 2" 00 00)
+if boneCount > 0:
+  u8 poseCount
+  boneCount x: s16 parentId, poseCount x (16 f32 localMatrix + 3 f32 unused)
+```
+
+`dat2_skeletalbase.c` decodes it out of `RSCache_Dat2Framemap.tail`. Re-measured with
+that decoder, requiring the rig to consume the tail **exactly**
+(`3 + bones * (2 + poses * 19 * 4) == tail_size`):
+
+| Cache | Framemaps | no tail | `00 00` (no rig) | rigs | exact | unexplained |
+|---|---|---|---|---|---|---|
+| `cache.kronos` | 1887 | **1887** | 0 | 0 | — | 0 |
+| `cache.osrs230` | 2429 | 0 | 2338 | 90 | **90** | 1 |
+| `cache.osrs239` | 2674 | 0 | 2547 | 126 | **126** | 1 |
+
+Every rig consumes its tail to the byte, so the layout is established rather than
+guessed. The single outlier is archive **1941** in both OSRS caches: a 1538-byte tail
+beginning `00 03 00 03 00 03 01 05 …`, which reads as `boneCount=3, poseCount=0` and is
+rejected. The shape (2-byte pairs) looks like more *classic* group data, i.e. that one
+archive's header is under-consumed, not a malformed rig — untraced.
+
+Byte-exactness is unaffected either way: the encoder already appends `tail` verbatim,
+so a decode→encode round-trip is exact for old and modern caches alike. Quantified in
+`dat2_framemap.h`.
+
+The bake on top of the rig (`RSCache_Dat2SkeletalBaseBakePalette`) has no encoder —
+same decode-only footing as `dat2_animaya.c`, which it consumes.
 
 ### B2. Lossy decoders cap byte-exactness *(Gap)*
 
@@ -495,7 +520,8 @@ overlay   1 -> u24 rgb        2 -> u8 texture     3 -> u16 texture (65535 => -1)
           8 -> flag, no operand                   9 -> u16 scale << 2             NEW
          10 -> flag blockShadow=false     NEW    11 -> u8                         NEW
          12 -> flag underlayOverrides     NEW    13 -> u24 waterColour            NEW
-         14 -> u8 waterScale << 2         NEW    16 -> u8 waterIntensity          NEW
+         14 -> u8 waterScale << 2         NEW    15 -> u16 secondaryTexture (65535 => -1) NEW
+         16 -> u8 waterIntensity          NEW
 
 underlay  1 -> u24 rgb        2 -> u16 texture (65535 => -1)     3 -> u16 scale << 2
           4 -> flag blockShadow=false             5 -> flag

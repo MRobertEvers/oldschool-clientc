@@ -82,6 +82,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
+	engine/cs2_opcode_dialect.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \

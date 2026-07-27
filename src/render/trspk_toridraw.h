@@ -42,10 +42,13 @@ trspk_pack_gpu_uv_mode(
     int animation_direction,
     int animation_speed);
 
+/** Encode an atlas slot for the fragment shader. Cutout is packed as
+ *  `slot + slot_capacity` (was hardcoded 256 when ids were the slots). */
 float
 trspk_encode_vertex_tex_id(
-    int tex_id,
-    const struct ToriDraw_Texture* tex);
+    int atlas_slot,
+    bool cutout,
+    int slot_capacity);
 
 struct TRSPK_ToriDrawBakeFaceVerts
 {
@@ -63,6 +66,9 @@ struct TRSPK_ToriDrawBakeFaceVerts
     float wy_c;
     float wz_c;
     int tex_id;
+    /** True when the texture uses alpha cutout; the GL3 path encodes this with the atlas slot. */
+    bool tex_cutout;
+    /** Filled by the GL3 path after allocating an atlas slot; unused by soft3d. */
     float tex_id_encoded;
     float uv_mode;
     bool is_animated;

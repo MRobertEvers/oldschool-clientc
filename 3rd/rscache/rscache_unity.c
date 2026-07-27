@@ -53,6 +53,7 @@
 #include "src/datatypes/dat2_frame.c"
 #include "src/datatypes/dat2_config_sequence.c"
 #include "src/datatypes/dat2_animaya.c"
+#include "src/datatypes/dat2_skeletalbase.c"
 #include "src/datatypes/dat1_anim_frame.c"
 #include "src/datatypes/dat1_config_seq.c"
 #include "src/datatypes/dat1_pix8.c"

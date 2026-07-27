@@ -58,6 +58,11 @@ struct ToriDraw_Animation
      * i.e. the held item is hidden. -1 => leave the worn item as-is. */
     int replaceheldleft;
     int replaceheldright;
+    /** Set when this sequence is skeletal (Animaya) rather than classic
+     * frame/framemap: `base`/`frames` are then NULL and posing goes through
+     * ToriDraw_ModelAnimateSkeletal instead. `frame_count` still bounds
+     * playback so the frame steppers need no special case. Owned. */
+    struct ToriDraw_SkeletalAnim* skeletal;
 };
 
 /* Seq-config values to attach to an assembled animation. walkmerge (may be
