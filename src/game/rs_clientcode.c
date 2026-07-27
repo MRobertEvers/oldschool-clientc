@@ -193,12 +193,8 @@ design_preview_rebuild(struct App* app)
 
     /* The kit table is only walkable once the idk configs are resident, and
      * the preview mount is what prefetches them (PackAssetsLoad needs_player). */
-    if( design->kit_count <= 0 )
-    {
-        if( RS_IdkDesign_ResolveKitCount(design, app->provider) <= 0 )
-            return 0;
-        RS_IdkDesign_Validate(design, app->provider);
-    }
+    if( !RS_IdkDesign_EnsureResolved(design, app->provider) )
+        return 0;
 
     model_count = UITreeSceneBridge_CollectPlayerDesignModelIds(
         &app->bridge,
@@ -370,6 +366,8 @@ RS_ClientCode_Button(
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain
          * IF_BUTTON follows it — the server needs both (the design, and the
          * button that advances the tutorial). */
+        if( app->provider )
+            RS_IdkDesign_EnsureResolved(&app->idk_design, app->provider);
         App_SendIdkDesign(
             app,
             app->idk_design.gender,
