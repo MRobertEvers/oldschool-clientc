@@ -268,6 +268,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ComponentLoad = CreateTask_Dat2ComponentLoad,
     .Task_WorldMapLoad = CreateTask_Dat2WorldMapLoad,
     .Task_MapElementLoad = CreateTask_Dat2MapElementLoad,
+    .Task_WorldMapGeographyLoad = CreateTask_Dat2WorldMapGeographyLoad,
     .TextureIsSd = dat2_texture_is_sd,
 };
 

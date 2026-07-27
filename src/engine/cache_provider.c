@@ -32,6 +32,9 @@
 #define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
 #define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
 #define CACHE_PROVIDER_DBROW_CAPACITY 2048
+/* The renderer releases each region once baked, so only the in-flight ones sit
+ * here — a map surface never has hundreds resident. */
+#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
 #define CACHE_PROVIDER_DBINDEX_CAPACITY 256
 
 struct MapEntry_ProviderModel
@@ -86,6 +89,12 @@ struct MapEntry_ProviderMapElement
 {
     int id;
     struct ToriRS_MapElement* element;
+};
+
+struct MapEntry_ProviderWorldMapGeography
+{
+    int id;
+    struct RSCache_WorldMapGeography* geography;
 };
 
 struct MapEntry_ProviderComponentPack
@@ -321,6 +330,9 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderDbRow), CACHE_PROVIDER_DBROW_CAPACITY);
     provider->dbindex_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderDbIndex), CACHE_PROVIDER_DBINDEX_CAPACITY);
+    provider->worldmap_geography_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderWorldMapGeography),
+        CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY);
 }
 
 void
@@ -1013,6 +1025,73 @@ CacheProvider_WorldMapGet(struct CacheProvider* provider)
 {
     assert(provider);
     return provider->worldmap_areas;
+}
+
+void
+CacheProvider_WorldMapGeographyAdd(
+    struct CacheProvider* provider,
+    int key,
+    struct RSCache_WorldMapGeography* geography)
+{
+    struct MapEntry_ProviderWorldMapGeography* entry;
+
+    assert(provider);
+    assert(provider->worldmap_geography_cache);
+    assert(geography);
+
+    cache_provider_hmap_prepare_insert(&provider->worldmap_geography_cache);
+    entry = (struct MapEntry_ProviderWorldMapGeography*)hmap_search(
+        provider->worldmap_geography_cache, &key, HMAP_INSERT);
+    assert(entry && "World map geography must be inserted into hmap");
+
+    entry->id = key;
+    entry->geography = geography;
+}
+
+struct RSCache_WorldMapGeography*
+CacheProvider_WorldMapGeographyGet(
+    struct CacheProvider* provider,
+    int key)
+{
+    struct MapEntry_ProviderWorldMapGeography* entry;
+
+    assert(provider);
+    if( !provider->worldmap_geography_cache )
+        return NULL;
+
+    entry = (struct MapEntry_ProviderWorldMapGeography*)hmap_search(
+        provider->worldmap_geography_cache, &key, HMAP_FIND);
+    return entry ? entry->geography : NULL;
+}
+
+bool
+CacheProvider_WorldMapGeographyHas(
+    struct CacheProvider* provider,
+    int key)
+{
+    return CacheProvider_WorldMapGeographyGet(provider, key) != NULL;
+}
+
+void
+CacheProvider_WorldMapGeographyRelease(
+    struct CacheProvider* provider,
+    int key)
+{
+    struct MapEntry_ProviderWorldMapGeography* entry;
+
+    assert(provider);
+    if( !provider->worldmap_geography_cache )
+        return;
+
+    entry = (struct MapEntry_ProviderWorldMapGeography*)hmap_search(
+        provider->worldmap_geography_cache, &key, HMAP_FIND);
+    if( !entry )
+        return;
+
+    RSCache_WorldMapGeographyFreeInplace(entry->geography);
+    free(entry->geography);
+    entry->geography = NULL;
+    hmap_search(provider->worldmap_geography_cache, &key, HMAP_REMOVE);
 }
 
 void

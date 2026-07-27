@@ -128,51 +128,50 @@ RSCache_WorldMapAreaDecodeInplace(
 
 /*
  * A compositemap file starts with two blocks of records describing the map's
- * own geometry, then the icon list. Nothing here uses the first two blocks, but
- * skipping them exactly is what keeps the icon offsets right.
+ * own geometry, then the icon list. Each record's leading byte repeats its kind
+ * (0 for the region block, 1 for the chunk block), which is what the reference
+ * validates the stream against.
  *
  * OSRS >= 238 drops the trailing groupId/fileId BigSmart pair from each record.
  */
 static void
-rscache_worldmap_skip_data0(
+rscache_worldmap_read_data0(
     struct RSCache_Buffer* buffer,
-    bool has_group_file_ids)
+    bool has_group_file_ids,
+    struct RSCache_WorldMapRegion* out)
 {
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG2(buffer);
-    if( has_group_file_ids )
-    {
-        RSCache_BufferReadBigSmart(buffer);
-        RSCache_BufferReadBigSmart(buffer);
-    }
+    memset(out, 0, sizeof(*out));
+    out->kind = RSCache_BufferG1(buffer);
+    out->min_plane = RSCache_BufferG1(buffer);
+    out->planes = RSCache_BufferG1(buffer);
+    out->src_region_x = RSCache_BufferG2(buffer);
+    out->src_region_y = RSCache_BufferG2(buffer);
+    out->dst_region_x = RSCache_BufferG2(buffer);
+    out->dst_region_y = RSCache_BufferG2(buffer);
+    out->group_id = has_group_file_ids ? RSCache_BufferReadBigSmart(buffer) : -1;
+    out->file_id = has_group_file_ids ? RSCache_BufferReadBigSmart(buffer) : -1;
 }
 
 static void
-rscache_worldmap_skip_data1(
+rscache_worldmap_read_data1(
     struct RSCache_Buffer* buffer,
-    bool has_group_file_ids)
+    bool has_group_file_ids,
+    struct RSCache_WorldMapRegion* out)
 {
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG2(buffer);
-    RSCache_BufferG1(buffer);
-    RSCache_BufferG1(buffer);
-    if( has_group_file_ids )
-    {
-        RSCache_BufferReadBigSmart(buffer);
-        RSCache_BufferReadBigSmart(buffer);
-    }
+    memset(out, 0, sizeof(*out));
+    out->kind = RSCache_BufferG1(buffer);
+    out->min_plane = RSCache_BufferG1(buffer);
+    out->planes = RSCache_BufferG1(buffer);
+    out->src_region_x = RSCache_BufferG2(buffer);
+    out->src_region_y = RSCache_BufferG2(buffer);
+    out->src_chunk_x = RSCache_BufferG1(buffer);
+    out->src_chunk_y = RSCache_BufferG1(buffer);
+    out->dst_region_x = RSCache_BufferG2(buffer);
+    out->dst_region_y = RSCache_BufferG2(buffer);
+    out->dst_chunk_x = RSCache_BufferG1(buffer);
+    out->dst_chunk_y = RSCache_BufferG1(buffer);
+    out->group_id = has_group_file_ids ? RSCache_BufferReadBigSmart(buffer) : -1;
+    out->file_id = has_group_file_ids ? RSCache_BufferReadBigSmart(buffer) : -1;
 }
 
 void
@@ -184,6 +183,8 @@ RSCache_WorldMapAreaDecodeIconsInplace(
 {
     struct RSCache_Buffer buffer;
     int count;
+    int data0_count;
+    int data1_count;
     bool has_group_file_ids = (flags & RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE) == 0;
 
     if( !entry || !data || data_size <= 0 )
@@ -191,13 +192,37 @@ RSCache_WorldMapAreaDecodeIconsInplace(
 
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
-    count = RSCache_BufferG2(&buffer);
-    for( int i = 0; i < count; i++ )
-        rscache_worldmap_skip_data0(&buffer, has_group_file_ids);
+    data0_count = RSCache_BufferG2(&buffer);
+    entry->regions = NULL;
+    entry->region_count = 0;
 
-    count = RSCache_BufferG2(&buffer);
-    for( int i = 0; i < count; i++ )
-        rscache_worldmap_skip_data1(&buffer, has_group_file_ids);
+    /* Both blocks land in one array: they describe the same surface at two
+     * granularities, and every consumer wants "what covers this region". The
+     * allocation happens before the first block is read, so the second block's
+     * count has to wait — read data0 into the array, then grow for data1. */
+    if( data0_count > 0 )
+    {
+        entry->regions = calloc((size_t)data0_count, sizeof(*entry->regions));
+        if( !entry->regions )
+            return;
+        for( int i = 0; i < data0_count; i++ )
+            rscache_worldmap_read_data0(&buffer, has_group_file_ids, &entry->regions[i]);
+        entry->region_count = data0_count;
+    }
+
+    data1_count = RSCache_BufferG2(&buffer);
+    if( data1_count > 0 )
+    {
+        struct RSCache_WorldMapRegion* grown = (struct RSCache_WorldMapRegion*)realloc(
+            entry->regions, (size_t)(data0_count + data1_count) * sizeof(*entry->regions));
+        if( !grown )
+            return;
+        entry->regions = grown;
+        for( int i = 0; i < data1_count; i++ )
+            rscache_worldmap_read_data1(
+                &buffer, has_group_file_ids, &entry->regions[data0_count + i]);
+        entry->region_count = data0_count + data1_count;
+    }
 
     count = RSCache_BufferG2(&buffer);
     if( count <= 0 )
@@ -223,6 +248,7 @@ RSCache_WorldMapAreaFreeInplace(struct RSCache_WorldMapArea* entry)
         return;
     free(entry->internal_name);
     free(entry->external_name);
+    free(entry->regions);
     free(entry->sections);
     free(entry->icons);
     memset(entry, 0, sizeof(*entry));

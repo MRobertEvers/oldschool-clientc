@@ -18,6 +18,8 @@ struct ToriRS_Struct;
 struct ToriRS_ParamType;
 struct ToriRS_DbTableIndex;
 struct RSCache_Dat2ConfigDbRow;
+struct RSCache_WorldMapGeography;
+struct ToriRS_WorldMapRegionSource;
 
 struct CacheProvider
 {
@@ -65,6 +67,10 @@ struct CacheProvider
     /** DBTABLEINDEX (cache table 21) keyed by table id; one bundle of index
      *  files per table. Backs DB_FIND / DB_FINDALL. */
     struct HMap* dbindex_cache;
+    /** World map geography (cache table 18) keyed by
+     *  CacheProvider_WorldMapGeographyKey — the tiles of one map surface
+     *  region, decoded on demand and dropped once the renderer has baked it. */
+    struct HMap* worldmap_geography_cache;
 
     /**
      * Which cache this provider is reading: game, epoch, revision and quirks,
@@ -239,6 +245,16 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_MapElementLoad)(
         struct CacheProvider* provider,
         int element_id);
+    /**
+     * Decode one map surface region's geography into worldmap_geography_cache.
+     * `sources` are that region's compositemap records (one for a whole region,
+     * several for a chunk-assembled one); the task loads every file they name.
+     */
+    struct ToriRS_Task* (*Task_WorldMapGeographyLoad)(
+        struct CacheProvider* provider,
+        int key,
+        struct ToriRS_WorldMapRegionSource const* sources,
+        int source_count);
     /**
      * Is `texture_id` drawable by the SD renderer? rs-map-viewer's TextureLoader.isSd.
      *
@@ -443,6 +459,39 @@ CacheProvider_WorldMapSet(
 
 struct ToriRS_WorldMapAreas*
 CacheProvider_WorldMapGet(struct CacheProvider* provider);
+
+/** Cache key for one map surface region of one area. */
+static inline int
+CacheProvider_WorldMapGeographyKey(
+    int area_id,
+    int region_x,
+    int region_y)
+{
+    return ((area_id & 0xFF) << 24) | ((region_x & 0xFFF) << 12) | (region_y & 0xFFF);
+}
+
+void
+CacheProvider_WorldMapGeographyAdd(
+    struct CacheProvider* provider,
+    int key,
+    struct RSCache_WorldMapGeography* geography);
+
+struct RSCache_WorldMapGeography*
+CacheProvider_WorldMapGeographyGet(
+    struct CacheProvider* provider,
+    int key);
+
+bool
+CacheProvider_WorldMapGeographyHas(
+    struct CacheProvider* provider,
+    int key);
+
+/** Free the decoded tiles and drop the entry; the renderer calls this once it
+ *  has baked the region, so the tile arrays are not held for every region. */
+void
+CacheProvider_WorldMapGeographyRelease(
+    struct CacheProvider* provider,
+    int key);
 
 void
 CacheProvider_MapElementAdd(
@@ -1049,6 +1098,18 @@ CreateTask_MapElementLoad(
     if( !provider->vtable->Task_MapElementLoad )
         return NULL;
     return provider->vtable->Task_MapElementLoad(provider, element_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_WorldMapGeographyLoad(
+    struct CacheProvider* provider,
+    int key,
+    struct ToriRS_WorldMapRegionSource const* sources,
+    int source_count)
+{
+    if( !provider->vtable->Task_WorldMapGeographyLoad )
+        return NULL;
+    return provider->vtable->Task_WorldMapGeographyLoad(provider, key, sources, source_count);
 }
 
 #endif

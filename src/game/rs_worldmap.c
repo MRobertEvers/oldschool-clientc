@@ -329,6 +329,18 @@ RS_WorldMap_Init(struct RS_WorldMapState* state)
         select_area(state, &state->areas->areas[0]);
 }
 
+struct ToriRS_WorldMapArea const*
+RS_WorldMap_CurrentArea(struct RS_WorldMapState const* state)
+{
+    return state ? state->current_area : NULL;
+}
+
+int
+RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state)
+{
+    return state ? zoom_scale_pixels_per_tile(state->zoom_percentage) : 4;
+}
+
 int
 RS_WorldMap_Zoom(struct RS_WorldMapState const* state)
 {

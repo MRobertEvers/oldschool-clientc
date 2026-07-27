@@ -56,6 +56,18 @@ struct UITreeEntityOverlay
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };
 
+/* One baked map-surface region of the world map, positioned by the host in
+ * absolute screen pixels. Regions are baked at exactly the view's pixels-per-
+ * tile, so the blit is 1:1 and ui/ needs no scaling — same division of labour
+ * as UITreeEntityOverlay: the host does the projection, the draw layer draws. */
+struct UITreeWorldMapTile
+{
+    int scene_id;
+    int x;
+    int y;
+    int size;
+};
+
 enum UITreeHostRequestKind
 {
     UITREE_HOST_IS_ACTIVE = 0,
@@ -105,6 +117,14 @@ enum UITreeHostRequestKind
      * item count.
      */
     UITREE_HOST_GET_ENTITY_OVERLAYS,
+    /**
+     * Writes the host-owned world map tile array (the baked regions covering
+     * the map surface this frame, same-frame lifetime) to
+     * u.get_worldmap_tiles.out_items; returns the item count. The host also
+     * reports the surface's background colour, which shows wherever the area
+     * has no region or its tiles have not loaded yet.
+     */
+    UITREE_HOST_GET_WORLDMAP_TILES,
     /**
      * Returns nonzero when u.tab_enabled.tabno has an interface assigned
      * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
@@ -248,6 +268,16 @@ struct UITreeHostRequest
         {
             struct UITreeMinimapDot const** out_dots;
         } get_minimap_dots;
+        struct
+        {
+            struct UITreeWorldMapTile const** out_items;
+            /** Widget box, so the host can decide which regions are visible. */
+            int box_x;
+            int box_y;
+            int box_w;
+            int box_h;
+            int* out_background_rgb;
+        } get_worldmap_tiles;
         struct
         {
             struct UITreeEntityOverlay const** out_items;

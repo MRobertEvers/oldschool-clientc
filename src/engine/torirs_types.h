@@ -565,6 +565,29 @@ struct ToriRS_WorldMapIcon
     int hidden;
 };
 
+/**
+ * Where one piece of the map surface gets its tiles. `kind` 0 is a whole 64x64
+ * region, `kind` 1 one 8x8 chunk of one — a region assembled from chunks has
+ * several of these, all with the same dst_region_x/y.
+ */
+struct ToriRS_WorldMapRegionSource
+{
+    int kind;
+    int min_plane;
+    int planes;
+    int src_region_x;
+    int src_region_y;
+    int src_chunk_x;
+    int src_chunk_y;
+    int dst_region_x;
+    int dst_region_y;
+    int dst_chunk_x;
+    int dst_chunk_y;
+    /* Geography table group/file. -1 at OSRS >= 238, which drops the pair. */
+    int group_id;
+    int file_id;
+};
+
 struct ToriRS_WorldMapArea
 {
     int id;
@@ -578,6 +601,8 @@ struct ToriRS_WorldMapArea
     int section_count;
     struct ToriRS_WorldMapIcon* icons;
     int icon_count;
+    struct ToriRS_WorldMapRegionSource* region_sources;
+    int region_source_count;
     /* Display-side region bounds, filled from the sections at decode time. */
     int region_low_x;
     int region_high_x;

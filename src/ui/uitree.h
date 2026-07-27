@@ -54,6 +54,9 @@ enum UITreeComponentType
     /** Screen-space pass over the world viewport: health bars + hitsplats
      *  (reference drawEntities). Positions come from the host. */
     UIELEM_BUILTIN_ENTITY_OVERLAY = 24,
+    /** World map surface (clientCode 1400): the baked map regions, panned and
+     *  zoomed by the CS2 world map state. */
+    UIELEM_BUILTIN_WORLDMAP = 25,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -87,6 +90,7 @@ enum
     UITREE_CLIENT_CODE_CONTENT_WORLD = 1337,
     UITREE_CLIENT_CODE_CONTENT_MINIMAP = 1338,
     UITREE_CLIENT_CODE_CONTENT_COMPASS = 1339,
+    UITREE_CLIENT_CODE_CONTENT_WORLDMAP = 1400,
 };
 
 /**

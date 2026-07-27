@@ -26,6 +26,7 @@ enum UITreeEmitKind
     UITREE_EMIT_MINIMAP,
     UITREE_EMIT_COMPASS,
     UITREE_EMIT_ENTITY_OVERLAY,
+    UITREE_EMIT_WORLDMAP,
 };
 
 struct UITreeEmitClip
@@ -75,6 +76,11 @@ struct UITreeEmitDesc
      * Host-owned pointer, same-frame lifetime (like `minimap_dots`). */
     struct UITreeEntityOverlay const* entity_overlays;
     int entity_overlay_count;
+    /** WORLDMAP: the baked map-surface regions covering the widget this frame,
+     * already positioned in absolute screen pixels by the host. Host-owned
+     * pointer, same-frame lifetime (like `minimap_dots`). */
+    struct UITreeWorldMapTile const* worldmap_tiles;
+    int worldmap_tile_count;
     int model_id;
     int model_zoom;
     int model_xan;

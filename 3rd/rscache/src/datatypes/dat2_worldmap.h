@@ -71,6 +71,41 @@ struct RSCache_WorldMapIcon
     bool hidden;
 };
 
+/**
+ * One record of the "compositemap" archive's two leading blocks: where a piece
+ * of the real world lands on the map surface, and which geography file holds its
+ * tiles. `kind` 0 covers a whole region (64x64), `kind` 1 one 8x8 chunk of one.
+ *
+ * The renderer only needs the destination side plus the file pointer: the
+ * geography file is already laid out in the destination region's grid, so the
+ * source coords are for coord conversion, not for drawing.
+ *
+ * `group_id` / `file_id` are -1 at OSRS >= 238, which drops the pair
+ * (RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE).
+ */
+struct RSCache_WorldMapRegion
+{
+    int kind; /* 0 = region, 1 = chunk */
+    int min_plane;
+    int planes;
+
+    /* Source (real world) side. */
+    int src_region_x;
+    int src_region_y;
+    int src_chunk_x; /* kind 1 only */
+    int src_chunk_y; /* kind 1 only */
+
+    /* Destination (map surface) side. */
+    int dst_region_x;
+    int dst_region_y;
+    int dst_chunk_x; /* kind 1 only */
+    int dst_chunk_y; /* kind 1 only */
+
+    /* Geography table (dat2 table 18) group/file holding this record's tiles. */
+    int group_id;
+    int file_id;
+};
+
 struct RSCache_WorldMapArea
 {
     int id;
@@ -86,6 +121,10 @@ struct RSCache_WorldMapArea
 
     struct RSCache_WorldMapIcon* icons;
     int icon_count;
+
+    /* From "compositemap": the map surface's geography, region by region. */
+    struct RSCache_WorldMapRegion* regions;
+    int region_count;
 };
 
 /**

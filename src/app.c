@@ -27,6 +27,7 @@
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
 #include "game/rs_worldmap.h"
+#include "game/rs_worldmap_render.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
 #include "input/torirs_input_cmd.h"
@@ -246,6 +247,127 @@ app_minimap_push_dot(
     dot->scene_id = scene_id;
     dot->atlas_index = atlas_index;
     dot->color = 0;
+}
+
+/*
+ * World map surface: which baked regions cover the widget this frame, and where
+ * each one lands on screen.
+ *
+ * Ported from xrsps-typescript widgets-gl.ts (contentType 1400). The view is a
+ * centre point in map-surface tiles (display_x/display_y) at a fixed number of
+ * pixels per tile, so a region's top-left corner projects to
+ * centre + (region_tile - display) * scale, with y flipped because map tiles
+ * count north-up. Regions are baked at exactly that scale, so every blit is 1:1.
+ */
+static int
+app_worldmap_build_tiles(
+    struct App* app,
+    struct UITreeHostRequest* req)
+{
+    struct RS_WorldMapState* map = app->host.worldmap;
+    struct ToriRS_WorldMapArea const* area;
+    int box_x = req->u.get_worldmap_tiles.box_x;
+    int box_y = req->u.get_worldmap_tiles.box_y;
+    int box_w = req->u.get_worldmap_tiles.box_w;
+    int box_h = req->u.get_worldmap_tiles.box_h;
+    int scale;
+    int display_x;
+    int display_y;
+    int centre_x;
+    int centre_y;
+    int min_x;
+    int max_x;
+    int min_y;
+    int max_y;
+    int min_region_x;
+    int max_region_x;
+    int min_region_y;
+    int max_region_y;
+
+    app->worldmap_tile_count = 0;
+    *req->u.get_worldmap_tiles.out_items = app->worldmap_tiles;
+    if( req->u.get_worldmap_tiles.out_background_rgb )
+        *req->u.get_worldmap_tiles.out_background_rgb = 0;
+
+    if( !map || box_w <= 0 || box_h <= 0 )
+        return 0;
+    /* Adopts the areas once the load task has published them. */
+    if( !RS_WorldMap_Sync(map) )
+        return 0;
+    area = RS_WorldMap_CurrentArea(map);
+    if( !area )
+        return 0;
+
+    if( req->u.get_worldmap_tiles.out_background_rgb )
+        *req->u.get_worldmap_tiles.out_background_rgb = area->background_colour & 0xFFFFFF;
+
+    /* The widget owns the surface size; the scripts read it back through
+     * WORLDMAP_GETSIZE, so it has to be told what it actually got. */
+    RS_WorldMap_SetDisplayPixelSize(map, box_w, box_h);
+    scale = RS_WorldMap_ZoomScale(map);
+    RS_WorldMap_DisplayPosition(map, &display_x, &display_y);
+    if( display_x < 0 || display_y < 0 )
+        return 0;
+
+    centre_x = box_x + box_w / 2;
+    centre_y = box_y + box_h / 2;
+
+    /* One region of slack each way so a half-visible region at the edge is
+     * still drawn (reference uses the same +/-64 tiles). */
+    min_x = display_x - box_w / (2 * scale) - WORLD_MAP_TERRAIN_X;
+    max_x = display_x + box_w / (2 * scale) + WORLD_MAP_TERRAIN_X;
+    min_y = display_y - box_h / (2 * scale) - WORLD_MAP_TERRAIN_Z;
+    max_y = display_y + box_h / (2 * scale) + WORLD_MAP_TERRAIN_Z;
+
+    min_region_x = min_x / WORLD_MAP_TERRAIN_X;
+    max_region_x = max_x / WORLD_MAP_TERRAIN_X;
+    min_region_y = min_y / WORLD_MAP_TERRAIN_Z;
+    max_region_y = max_y / WORLD_MAP_TERRAIN_Z;
+    if( min_region_x < area->region_low_x )
+        min_region_x = area->region_low_x;
+    if( max_region_x > area->region_high_x )
+        max_region_x = area->region_high_x;
+    if( min_region_y < area->region_low_y )
+        min_region_y = area->region_low_y;
+    if( max_region_y > area->region_high_y )
+        max_region_y = area->region_high_y;
+
+    for( int region_y = min_region_y; region_y <= max_region_y; region_y++ )
+    {
+        for( int region_x = min_region_x; region_x <= max_region_x; region_x++ )
+        {
+            struct UITreeWorldMapTile* tile;
+            int size = 0;
+            int scene_id;
+
+            if( app->worldmap_tile_count >=
+                (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0])) )
+                break;
+
+            scene_id = RS_WorldMapRender_RegionSprite(
+                app->worldmap_render,
+                app->provider,
+                app->scene,
+                app->runner.queue,
+                area,
+                region_x,
+                region_y,
+                scale,
+                &size);
+            if( scene_id < 0 )
+                continue;
+
+            tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+            tile->scene_id = scene_id;
+            tile->x = centre_x + (region_x * WORLD_MAP_TERRAIN_X - display_x) * scale;
+            tile->y =
+                centre_y - ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
+                               scale;
+            tile->size = size;
+        }
+    }
+
+    return app->worldmap_tile_count;
 }
 
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
@@ -903,6 +1025,8 @@ app_host_request(
     }
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
+    case UITREE_HOST_GET_WORLDMAP_TILES:
+        return app_worldmap_build_tiles(app, req);
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         assert(req->u.get_inv_source_slot.out);
         if( !InvManager_GetSlot(
@@ -1525,6 +1649,7 @@ App_Init(
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
     app->world_map_scene_id = -1;
+    app->worldmap_render = RS_WorldMapRender_New();
     app->minimap_flag_x = -1;
     app->minimap_flag_z = -1;
     app->proj_src_tile_x = -1;
@@ -1655,6 +1780,8 @@ App_Shutdown(struct App* app)
         app->net = NULL;
     }
     UITree_EmitBufferFree(&app->emit);
+    RS_WorldMapRender_Free(app->worldmap_render);
+    app->worldmap_render = NULL;
     RS_CS2Host_Free(&app->host);
     if( app->painter_buffer )
     {

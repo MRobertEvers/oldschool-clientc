@@ -863,6 +863,48 @@ translate_ui_cmd(
         out->u.sprite.src_anchor_y = desc->src_anchor_y;
         return true;
 
+    case UITREE_EMIT_WORLDMAP:
+    {
+        /* Step 0 paints the surface background (what shows where a region is
+         * missing or still loading); steps 1..N blit the baked regions, each
+         * 1:1 because the host baked them at the view's pixels-per-tile. */
+        int step = frame->scrollbar_step;
+        if( step == 0 )
+        {
+            out->kind = TORIRSRC_FILL_RECT;
+            out->u.fill_rect.x = desc->x;
+            out->u.fill_rect.y = desc->y;
+            out->u.fill_rect.w = desc->w;
+            out->u.fill_rect.h = desc->h;
+            out->u.fill_rect.argb = emit_color_argb(desc->color, 0);
+            out->u.fill_rect.scissor_x = desc->clip.x;
+            out->u.fill_rect.scissor_y = desc->clip.y;
+            out->u.fill_rect.scissor_w = desc->clip.w;
+            out->u.fill_rect.scissor_h = desc->clip.h;
+            out->u.fill_rect.filled = 1;
+            return true;
+        }
+        if( !desc->worldmap_tiles || step - 1 >= desc->worldmap_tile_count )
+            return false;
+        {
+            struct UITreeWorldMapTile const* tile = &desc->worldmap_tiles[step - 1];
+            if( tile->scene_id <= 0 )
+                return false;
+            out->kind = TORIRSRC_SPRITE;
+            out->u.sprite.scene_id = tile->scene_id;
+            out->u.sprite.atlas_index = 0;
+            out->u.sprite.x = tile->x;
+            out->u.sprite.y = tile->y;
+            out->u.sprite.w = tile->size;
+            out->u.sprite.h = tile->size;
+            out->u.sprite.scissor_x = desc->clip.x;
+            out->u.sprite.scissor_y = desc->clip.y;
+            out->u.sprite.scissor_w = desc->clip.w;
+            out->u.sprite.scissor_h = desc->clip.h;
+            return true;
+        }
+    }
+
     case UITREE_EMIT_ENTITY_OVERLAY:
     {
         /* One primitive per multi-step (reference drawEntities emits a health
@@ -1282,6 +1324,12 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = desc->entity_overlay_count;
+        }
+        /* World map: step 0 is the background, then one blit per baked region. */
+        if( desc->kind == UITREE_EMIT_WORLDMAP )
+        {
+            is_scrollbar = 1;
+            sb_steps = 1 + desc->worldmap_tile_count;
         }
 
         if( desc->kind == UITREE_EMIT_WORLD )

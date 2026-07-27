@@ -365,6 +365,32 @@ area_from_rscache(
     }
     area_set_bounds(area);
 
+    if( entry->region_count > 0 )
+    {
+        area->region_sources =
+            calloc((size_t)entry->region_count, sizeof(*area->region_sources));
+        assert(area->region_sources);
+        for( int i = 0; i < entry->region_count; i++ )
+        {
+            struct RSCache_WorldMapRegion const* src = &entry->regions[i];
+            struct ToriRS_WorldMapRegionSource* dst = &area->region_sources[i];
+            dst->kind = src->kind;
+            dst->min_plane = src->min_plane;
+            dst->planes = src->planes;
+            dst->src_region_x = src->src_region_x;
+            dst->src_region_y = src->src_region_y;
+            dst->src_chunk_x = src->src_chunk_x;
+            dst->src_chunk_y = src->src_chunk_y;
+            dst->dst_region_x = src->dst_region_x;
+            dst->dst_region_y = src->dst_region_y;
+            dst->dst_chunk_x = src->dst_chunk_x;
+            dst->dst_chunk_y = src->dst_chunk_y;
+            dst->group_id = src->group_id;
+            dst->file_id = src->file_id;
+        }
+        area->region_source_count = entry->region_count;
+    }
+
     if( entry->icon_count > 0 )
     {
         area->icons = calloc((size_t)entry->icon_count, sizeof(*area->icons));
@@ -414,6 +440,7 @@ ToriRS_WorldMapAreasFree(struct ToriRS_WorldMapAreas* areas)
         free(areas->areas[i].external_name);
         free(areas->areas[i].sections);
         free(areas->areas[i].icons);
+        free(areas->areas[i].region_sources);
     }
     free(areas->areas);
     free(areas);

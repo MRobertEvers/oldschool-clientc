@@ -419,6 +419,27 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_WORLDMAP:
+    {
+        /* The host decides which regions are visible from the widget box plus
+         * its own pan/zoom, bakes what it needs, and hands back positioned
+         * blits. A zero count still emits: the background fill is the map
+         * surface until the regions load. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_WORLDMAP_TILES,
+            .u.get_worldmap_tiles.out_items = &out->worldmap_tiles,
+            .u.get_worldmap_tiles.box_x = out->x,
+            .u.get_worldmap_tiles.box_y = out->y,
+            .u.get_worldmap_tiles.box_w = out->w,
+            .u.get_worldmap_tiles.box_h = out->h,
+            .u.get_worldmap_tiles.out_background_rgb = &out->color,
+        };
+        out->kind = UITREE_EMIT_WORLDMAP;
+        out->worldmap_tile_count = UITree_Host(host, &req);
+        out->filled = 1;
+        return true;
+    }
+
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
     {
         /* Reference drawEntities runs inside the scene pass, so the overlay is

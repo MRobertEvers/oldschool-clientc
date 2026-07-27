@@ -211,6 +211,12 @@ UITree_PushBuildComponent(
         memset(&spec.u, 0, sizeof(spec.u));
         spec.u.sprite.mask_scene_id = scene_id > 0 ? scene_id : 0;
         break;
+    case UITREE_CLIENT_CODE_CONTENT_WORLDMAP:
+        /* The pack node is an empty layer sized by the world map's own scripts;
+         * the surface behind it is the host's baked regions. */
+        spec.type = UIELEM_BUILTIN_WORLDMAP;
+        memset(&spec.u, 0, sizeof(spec.u));
+        break;
     default:
         break;
     }

@@ -51,6 +51,7 @@
 #include "src/datatypes/dat2_config_hitsplat.c"
 #include "src/datatypes/dat2_config_mapelement.c"
 #include "src/datatypes/dat2_worldmap.c"
+#include "src/datatypes/dat2_worldmap_geography.c"
 #include "src/datatypes/dat2_framemap.c"
 #include "src/datatypes/dat2_frame.c"
 #include "src/datatypes/dat2_config_sequence.c"

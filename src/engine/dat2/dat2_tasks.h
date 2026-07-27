@@ -140,6 +140,13 @@ struct ToriRS_Task*
 CreateTask_Dat2WorldMapLoad(struct CacheProvider* provider);
 
 struct ToriRS_Task*
+CreateTask_Dat2WorldMapGeographyLoad(
+    struct CacheProvider* provider,
+    int key,
+    struct ToriRS_WorldMapRegionSource const* sources,
+    int source_count);
+
+struct ToriRS_Task*
 CreateTask_Dat2MapElementLoad(
     struct CacheProvider* provider,
     int element_id);

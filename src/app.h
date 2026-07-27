@@ -271,6 +271,13 @@ struct App
      * most 2 bar rects + 4 hitsplats x 3 primitives. */
     struct UITreeEntityOverlay entity_overlays[512];
     int entity_overlay_count;
+    /* Per-frame world map region blits, filled by the GET_WORLDMAP_TILES host
+     * request and consumed by the same frame's draw. A full-screen surface at
+     * the lowest zoom spans well under this many 64x64-tile regions. */
+    struct UITreeWorldMapTile worldmap_tiles[64];
+    int worldmap_tile_count;
+    /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
+    struct RS_WorldMapRender* worldmap_render;
     /** Scene id of the hitmarks sprite pack, resolved once at boot. */
     int hitmarks_scene_id;
 

@@ -80,6 +80,14 @@ RS_WorldMap_IsLoaded(struct RS_WorldMapState const* state);
 int
 RS_WorldMap_CurrentMapId(struct RS_WorldMapState const* state);
 
+/** The area being displayed, or NULL before the areas load. Borrowed. */
+struct ToriRS_WorldMapArea const*
+RS_WorldMap_CurrentArea(struct RS_WorldMapState const* state);
+
+/** Pixels per map tile at the current zoom (reference getZoomScale). */
+int
+RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state);
+
 struct ToriRS_WorldMapArea*
 RS_WorldMap_Area(
     struct RS_WorldMapState* state,

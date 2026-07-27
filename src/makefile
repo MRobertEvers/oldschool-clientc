@@ -84,6 +84,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
+	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
 	engine/cs2_opcode_dialect.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
@@ -126,6 +127,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/task_dat2_component_load.c \
 	engine/dat2/task_dat2_worldmap_load.c \
 	engine/dat2/task_dat2_mapelement_load.c \
+	engine/dat2/task_dat2_worldmap_geography_load.c \
 	engine/uitree_builder/uitree_builder.c \
 	engine/uitree_builder/uitree_builder_manifest.c \
 	engine/uitree_builder/uitree_builder_bake.c \
