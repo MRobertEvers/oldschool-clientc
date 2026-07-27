@@ -523,7 +523,8 @@ World_ProjectileSpawn(
     int t1,
     int t2,
     int angle,
-    int startpos)
+    int startpos,
+    int target)
 {
     assert(world);
     assert(element_id >= 0);
@@ -545,12 +546,16 @@ World_ProjectileSpawn(
         .t2 = t2,
         .angle = angle,
         .startpos = startpos,
+        .target = target,
         .dst_x = dst_x,
         .dst_z = dst_z,
         .cycle = 0,
         .launched = false,
     };
 
+    /* Reference MAP_PROJANIM aims at the destination tile once at spawn
+     * (before addProjectiles ever sees the projectile), even when a target
+     * entity is named — the wire destination is the target's cast-time tile. */
     World_ProjectileSetTarget(world, p, t1);
     return idx;
 }

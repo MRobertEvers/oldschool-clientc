@@ -4302,7 +4302,9 @@ app_world_spawn_npc_now(
 
 /* Hotkey 0 fire body: launch source -> destination. SYNCHRONOUS — the
  * projectile model must be resident (Task_AppSpawn awaits it). Arc math
- * lives in World_ProjectileSetTarget/Move (TS reference parity). */
+ * lives in World_ProjectileSetTarget/Move (TS reference parity). `target` is
+ * the wire target-entity id when a synced NPC sits on the destination tile,
+ * WORLD_PROJECTILE_TARGET_NONE for a plain tile shot. */
 static void
 app_world_spawn_projectile_now(
     struct App* app,
@@ -4312,7 +4314,8 @@ app_world_spawn_projectile_now(
     int src_tile_z,
     int src_level,
     int tile_x,
-    int tile_z)
+    int tile_z,
+    int target)
 {
     int model_ids[1];
     struct ToriDraw_Model* model;
@@ -4357,7 +4360,8 @@ app_world_spawn_projectile_now(
         0,
         t2,
         15, /* launch slope (1/2048 circle units) */
-        64);
+        64,
+        target);
     /* Bind the spotanim's sequence so the projectile model animates in flight
      * (v1 Task_*ProjectileAdd loads the seq, then ElementSetSequenceId). The
      * element is left non-external, so app_world_tick_animations advances the
@@ -4365,13 +4369,14 @@ app_world_spawn_projectile_now(
     app_world_apply_seq(app, element_id, seq_id);
     fprintf(
         stderr,
-        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d\n",
+        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
         element_id,
         src_tile_x,
         src_tile_z,
         tile_x,
         tile_z,
-        t2);
+        t2,
+        target);
     app_sync_textures(app);
     app->need_redraw = 1;
 }
@@ -4435,7 +4440,9 @@ app_world_spawn_projectile_spot_now(
         return;
 
     /* peak -> angle, arc -> startpos, end_height = dst_height*4 (World computes
-     * dst y as height_fn(dst) - end_height, matching getAvH(dst) - h2). */
+     * dst y as height_fn(dst) - end_height, matching getAvH(dst) - h2). `target`
+     * goes through in its wire encoding so World re-aims the arc at that
+     * entity's live position every cycle (reference addProjectiles). */
     World_ProjectileSpawn(
         app->world,
         element_id,
@@ -4449,7 +4456,8 @@ app_world_spawn_projectile_spot_now(
         start_delay,
         end_delay,
         peak,
-        arc);
+        arc,
+        target);
     app_world_apply_seq(app, element_id, spot->seq);
 
     if( getenv("TORIRS_NET_DEBUG") )
@@ -4840,7 +4848,8 @@ Task_AppSpawn_Run(
             self->src_tile_z,
             self->src_level,
             self->tile_x,
-            self->tile_z);
+            self->tile_z,
+            self->proj_target);
     }
 
     PT_END(&self->pt);
@@ -5352,8 +5361,40 @@ app_world_spawn_spotanim(
     App_WorldSpotanimSpawn(app, tile_x, tile_z, level, spotanim_id, height, delay);
 }
 
+/* Wire target-entity id (npc slot + 1) for a *synced* npc standing on a tile,
+ * WORLD_PROJECTILE_TARGET_NONE when there is none. Only server-synced npcs can
+ * be named: the wire encoding is the server's slot space, and offline spawns
+ * deliberately sit outside it with server_slot -1. */
+static int
+app_world_npc_target_at_tile(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct World_EntityPool* pool;
+
+    if( !app->world )
+        return WORLD_PROJECTILE_TARGET_NONE;
+
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( !npc || npc->server_slot < 0 )
+            continue;
+        if( npc->grid_position.x == tile_x && npc->grid_position.z == tile_z &&
+            npc->grid_position.level == level )
+            return npc->server_slot + 1;
+    }
+    return WORLD_PROJECTILE_TARGET_NONE;
+}
+
 /* Hotkey 0, two-press latch: first press marks the hovered tile as source,
- * second launches source -> hovered (same-tile press clears the latch). */
+ * second launches source -> hovered (same-tile press clears the latch). Firing
+ * onto a synced npc targets *that entity*, so the arc follows it as it walks —
+ * the tracking the MAP_PROJANIM target id drives against a live server. */
 static void
 app_world_spawn_projectile(
     struct App* app,
@@ -5389,6 +5430,7 @@ app_world_spawn_projectile(
     task->src_tile_x = app->proj_src_tile_x;
     task->src_tile_z = app->proj_src_tile_z;
     task->src_level = app->proj_src_tile_level;
+    task->proj_target = app_world_npc_target_at_tile(app, tile_x, tile_z, level);
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);

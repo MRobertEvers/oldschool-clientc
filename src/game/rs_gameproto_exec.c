@@ -237,9 +237,9 @@ exec_zone_sub_packet(
     {
         /* Projectile spawn from a spotanim config (reference MAP_PROJANIM ->
          * new ClientProj). The base tile is `pos` within the zone; the
-         * destination is offset by dx/dz. peak/arc are Client-TS angle/startpos.
-         * Live target-entity tracking (pkt->target) is a follow-on — spawned to
-         * the fixed destination tile (the target's cast-time position). */
+         * destination is offset by dx/dz (the target's cast-time position, which
+         * is also the initial aim point). peak/arc are Client-TS angle/startpos.
+         * pkt->target names the entity the arc then homes on each cycle. */
         struct PktMapProjAnim const* pkt = payload;
         int src_tx, src_tz, dst_tx, dst_tz;
         zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);

@@ -301,7 +301,8 @@ test_projectile(void)
     struct World* world = World_TestMakeReady(104);
 
     int idx = World_ProjectileSpawn(
-        world, 30, 0, 1000, 1000, 2000, 2000, 200, 50, 2, 20, 10, 64);
+        world, 30, 0, 1000, 1000, 2000, 2000, 200, 50, 2, 20, 10, 64,
+        WORLD_PROJECTILE_TARGET_NONE);
     struct WorldEntity_Projectile* p = World_EntityPoolGet(&world->entities.projectile, idx);
     TEST_ASSERT(p->element_id == 30 && !p->launched, "proj spawn");
     TEST_ASSERT(p->t1 == 2 && p->t2 == 20, "proj times");
@@ -320,11 +321,90 @@ test_projectile(void)
     World_EventsClear(world);
 
     /* Auto-despawn past t2 via cycle */
-    idx = World_ProjectileSpawn(world, 31, 0, 128, 128, 256, 256, 100, 0, 0, 3, 0, 0);
+    idx = World_ProjectileSpawn(
+        world, 31, 0, 128, 128, 256, 256, 100, 0, 0, 3, 0, 0, WORLD_PROJECTILE_TARGET_NONE);
     for( int t = 0; t < 10; t++ )
         World_Cycle(world, 1);
     TEST_ASSERT(world->entities.projectile.active_count == 0, "auto despawn t2");
     TEST_ASSERT(World_EventsCount(world) >= 1, "auto despawn event");
+
+    World_Free(world);
+}
+
+/* Reference addProjectiles (Client.ts:4593): a projectile with a target entity
+ * re-reads that entity's live position every cycle and re-aims, so the arc
+ * bends to follow a target that moved after the cast. Wire ids: npc slot + 1,
+ * player slot as -(slot) - 1, 0 = aim at the fixed destination tile. */
+void
+test_projectile_target(void)
+{
+    printf("TEST: projectile target tracking\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int ni = World_NpcSpawn(world, 2, 1, 0, 50, 50, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    npc->server_slot = 3;
+
+    int pi = World_PlayerSpawn(world, 1, 0, 20, 20, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    player->server_pid = 7;
+
+    /* Cast at the npc's tile — the wire destination is its position right now. */
+    int idx = World_ProjectileSpawn(
+        world, 40, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 40, 0, 40,
+        10, 0, /*target=*/3 + 1);
+    struct WorldEntity_Projectile* proj =
+        World_EntityPoolGet(&world->entities.projectile, idx);
+    TEST_ASSERT(proj->dst_x == 50 * 128 + 64, "initial aim is the cast-time tile");
+
+    /* The npc walks off 20 tiles east while the projectile is in flight. */
+    World_NpcPathJump(world, ni, true, 70, 50);
+    World_Cycle(world, 1);
+    TEST_ASSERT(proj->dst_x == (int)npc->draw_position.x, "dst re-aimed at the npc");
+    TEST_ASSERT(proj->dst_z == (int)npc->draw_position.z, "dst_z re-aimed at the npc");
+    TEST_ASSERT(proj->vx > 0.0, "velocity points east after the re-aim");
+
+    /* Flying it out lands on the npc, not on the cast-time tile. */
+    for( int t = 0; t < 40 && World_EntityPoolIsActive(&world->entities.projectile, idx); t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(fabs(proj->x - (double)npc->draw_position.x) < 1.0, "landed on the moved npc");
+
+    /* Player targets use the negative encoding, resolved by server pid — which
+     * is how the local player resolves too (its pid is world->local_pid). */
+    World_EventsClear(world);
+    idx = World_ProjectileSpawn(
+        world, 41, 0, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 100, 40, 0, 40,
+        10, 0, /*target=*/-7 - 1);
+    proj = World_EntityPoolGet(&world->entities.projectile, idx);
+    World_Cycle(world, 1);
+    TEST_ASSERT(proj->dst_x == (int)player->draw_position.x, "dst re-aimed at the player");
+    TEST_ASSERT(proj->dst_z == (int)player->draw_position.z, "dst_z re-aimed at the player");
+    World_ProjectileDespawn(world, idx);
+
+    /* An unknown slot leaves the aim point alone rather than snapping to 0,0. */
+    World_EventsClear(world);
+    idx = World_ProjectileSpawn(
+        world, 42, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 40, 0, 40,
+        10, 0, /*target=*/999 + 1);
+    proj = World_EntityPoolGet(&world->entities.projectile, idx);
+    World_Cycle(world, 1);
+    TEST_ASSERT(proj->dst_x == 30 * 128 + 64 && proj->dst_z == 30 * 128 + 64,
+                "unsynced target keeps the cast destination");
+    World_ProjectileDespawn(world, idx);
+
+    /* No target at all: the destination never moves. */
+    World_EventsClear(world);
+    idx = World_ProjectileSpawn(
+        world, 43, 0, 10 * 128 + 64, 10 * 128 + 64, 50 * 128 + 64, 50 * 128 + 64, 100, 40, 0, 40,
+        10, 0, WORLD_PROJECTILE_TARGET_NONE);
+    proj = World_EntityPoolGet(&world->entities.projectile, idx);
+    World_NpcPathJump(world, ni, true, 40, 40);
+    for( int t = 0; t < 5; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(proj->dst_x == 50 * 128 + 64 && proj->dst_z == 50 * 128 + 64,
+                "untargeted destination is pinned");
 
     World_Free(world);
 }
@@ -491,7 +571,8 @@ test_rebuild_shift(void)
     char actions[5][32] = { "Take", "", "", "", "" };
     int oi = World_ObjStackAdd(world, 4, 50, 50, 0, 995, 1, "Coins", actions);
     int far_oi = World_ObjStackAdd(world, 5, 2, 2, 0, 995, 1, "Coins", actions);
-    int pri = World_ProjectileSpawn(world, 6, 0, 40, 40, 44, 44, 100, 40, 0, 60, 45, 128);
+    int pri = World_ProjectileSpawn(
+        world, 6, 0, 40, 40, 44, 44, 100, 40, 0, 60, 45, 128, WORLD_PROJECTILE_TARGET_NONE);
     int si = World_SpotanimSpawn(world, 7, 0, 41 * 128, 41 * 128, 0, 0, 0, 100);
     TEST_ASSERT(pi >= 0 && ni >= 0 && near_ni >= 0 && oi >= 0 && far_oi >= 0 && pri >= 0 && si >= 0,
                 "spawns");

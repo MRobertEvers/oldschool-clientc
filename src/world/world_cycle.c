@@ -634,6 +634,49 @@ World_CycleUpdateNpcs(
     }
 }
 
+/* Re-aim a projectile at its target entity's *live* draw position (reference
+ * addProjectiles, which looks the entity up fresh every cycle and calls
+ * setTarget with the position it holds right now, so the arc bends to follow a
+ * target that walked after the cast). Positive wire ids are NPC slots + 1,
+ * negative are player slots as -(slot) - 1 — the local player included, since
+ * it sits in the player pool under its own server pid.
+ *
+ * A target that is not currently synced leaves the last aim point standing:
+ * that is what the reference's `if (npc)` / `if (player)` guards do, and it
+ * matters here because entity slots go briefly unresolved across a rebuild. */
+static void
+World_ProjectileTrackTarget(
+    struct World* world,
+    struct WorldEntity_Projectile* proj)
+{
+    struct WorldEntityFacet_DrawPosition const* dst = NULL;
+
+    if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
+        return;
+
+    if( proj->target > 0 )
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, proj->target - 1);
+        if( npc )
+            dst = &npc->draw_position;
+    }
+    else
+    {
+        struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -proj->target - 1);
+        if( player )
+            dst = &player->draw_position;
+    }
+
+    if( !dst )
+        return;
+
+    /* dst_level stays the projectile's own level: the reference samples the
+     * target's height with getAvH(npc.x, npc.z, *proj.level*), not the
+     * entity's level. */
+    proj->dst_x = (int)dst->x;
+    proj->dst_z = (int)dst->z;
+}
+
 static void
 World_CycleUpdateProjectiles(
     struct World* world,
@@ -663,6 +706,7 @@ World_CycleUpdateProjectiles(
 
         if( cycles_elapsed > 0 )
         {
+            World_ProjectileTrackTarget(world, p);
             World_ProjectileSetTarget(world, p, p->cycle);
             World_ProjectileMove(p, cycles_elapsed);
         }

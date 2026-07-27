@@ -3589,3 +3589,92 @@ binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254` spawn
 still binds seq 1191 (`frames=70 skeletal=0`). `test-world`, `test-walkmerge`,
 `test-uitree`, `test-world-builder`, `test-entity-decode` and `test-task-order`
 all pass.
+
+## 49. Projectiles flew to a fixed point — the target entity was never tracked — ✅
+
+### Symptom
+
+A `MAP_PROJANIM` projectile launched at a moving NPC/player always landed where
+the target *had been at cast time*. Step aside after a mage attacks and the
+spell sails past you into empty ground; walk while shooting a moving NPC and the
+arrow visibly misses. The arc was correct in shape (height, arc, timing) and
+just aimed at the wrong place.
+
+### Root cause — a fixed destination and no entity lookup
+
+`Client-TS` splits a projectile's aim into two parts. The wire destination is
+only the *initial* aim point, and every cycle `addProjectiles`
+(`Client.ts:4593`) re-resolves the target entity and re-aims at wherever it is
+now:
+
+```ts
+if (proj.target > 0) {                                  // npc slot + 1
+    const npc = this.npc[proj.target - 1];
+    if (npc) proj.setTarget(npc.x, this.getAvH(npc.x, npc.z, proj.level) - proj.h2, npc.z, this.loopCycle);
+}
+if (proj.target < 0) {                                  // -(player slot) - 1
+    const index = -proj.target - 1;
+    const player = index === this.selfSlot ? this.localPlayer : this.players[index];
+    if (player) proj.setTarget(player.x, this.getAvH(player.x, player.z, proj.level) - player.h2, player.z, this.loopCycle);
+}
+proj.move(this.worldUpdateNum);
+```
+
+`ClientProj.setTarget` is the re-aim: it recomputes `velocityX/Z` from the
+projectile's **current** position toward the new destination over the remaining
+`t2 + 1 - cycle` ticks, and re-derives `accelerationY` so the arc still lands on
+time. The `!mobile` branch (initial position and launch slope) only runs before
+the first `move`, so a re-aim mid-flight bends the path without teleporting it
+or resetting its pitch.
+
+torirs had the whole arc integrator (`World_ProjectileSetTarget` /
+`World_ProjectileMove`, already called every cycle) but no target: `dst_x`/`dst_z`
+were spawn-time constants and the wire `targetEntity` was decoded, threaded all
+the way down to `app_world_spawn_projectile_spot_now`, and then used only in a
+debug `fprintf` — an explicit follow-on comment in `rs_gameproto_exec.c` said as
+much. Re-running `SetTarget` against an unchanging destination is a mathematical
+no-op (the recomputed `vx`/`vz`/`ay` come out identical), so the projectile flew
+a correct arc to a stale point.
+
+### Fix
+
+1. **`WorldEntity_Projectile.target`** holds the wire id in its wire encoding
+   (`slot + 1` npc, `-(slot) - 1` player, `WORLD_PROJECTILE_TARGET_NONE`), so the
+   id space stays the server's; `World_ProjectileSpawn` takes it as a parameter.
+   `dst_x`/`dst_z` moved from the "immutable params" block to dynamic state.
+2. **`World_ProjectileTrackTarget`** (`world_cycle.c`) resolves the id through
+   the existing `World_NpcGetByServerSlot` / `World_PlayerGetByServerPid` walks —
+   the same lookups `faceEntity` uses — and copies the entity's live
+   `draw_position` into `dst_x`/`dst_z`. It runs immediately before
+   `World_ProjectileSetTarget` in `World_CycleUpdateProjectiles`, matching the
+   reference's order.
+
+   The local player needs no special case: unlike `Client-TS`, which keeps it
+   out of the `players` array and has to check `index === selfSlot`, torirs holds
+   it in the player pool under its own `server_pid` (`== world->local_pid`), so
+   the one pid lookup covers both.
+
+   `dst_level` deliberately stays the projectile's level — the reference samples
+   the target's height with `getAvH(npc.x, npc.z, *proj.level*)`, not the
+   entity's own level. An unresolved slot leaves the previous aim point standing,
+   which is the reference's `if (npc)` / `if (player)` guard and matters here
+   because slots go briefly unresolved across a scene rebuild.
+3. **Spawn still aims at the wire destination once** (`World_ProjectileSpawn`
+   calls `SetTarget` before any cycle sees the projectile), because the wire
+   destination *is* the target's cast-time tile — the reference does the same
+   `setTarget` at construction.
+4. **Hotkey 0** (`app_world_spawn_projectile`) now names a synced NPC standing on
+   the destination tile via `app_world_npc_target_at_tile`, so a live-server
+   session can fire a tracking projectile by hand. Offline spawns keep
+   `server_slot = -1` on purpose and fall through to the tile shot.
+
+### Verification
+
+`test_projectile_target` (new, `world_test_unit.c`) drives the real
+`World_Cycle` path: an NPC is cast at, teleports 20 tiles east mid-flight, and
+the projectile's `dst_x`/`dst_z` follow its `draw_position`, `vx` flips east, and
+`x` lands within one unit of the moved NPC rather than on the cast tile. It also
+covers the player encoding (`-pid - 1`), an unsynced slot holding the previous
+aim, and `WORLD_PROJECTILE_TARGET_NONE` staying pinned while the NPC moves.
+`test-world` (unit + the 200-projectile barrage + mixed-churn sims) passes and
+the client builds clean.

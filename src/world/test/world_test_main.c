@@ -13,6 +13,7 @@ main(void)
     test_terrain();
     test_player_npc();
     test_projectile();
+    test_projectile_target();
     test_spotanim();
     test_scenery();
     test_cycle_movers();

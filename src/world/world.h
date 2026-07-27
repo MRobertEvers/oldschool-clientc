@@ -354,6 +354,9 @@ World_NpcDespawn(
     struct World* world,
     int idx);
 
+/** `target` is the wire target-entity id (see WorldEntity_Projectile.target):
+ * non-zero makes the arc home on that entity's live position every cycle,
+ * WORLD_PROJECTILE_TARGET_NONE pins it to dst_x/dst_z. */
 int
 World_ProjectileSpawn(
     struct World* world,
@@ -368,7 +371,8 @@ World_ProjectileSpawn(
     int t1,
     int t2,
     int angle,
-    int startpos);
+    int startpos,
+    int target);
 
 void
 World_ProjectileDespawn(

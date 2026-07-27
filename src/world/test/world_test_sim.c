@@ -123,7 +123,8 @@ sim_projectile_barrage(void)
         int src = 128 + (i % 40) * 8;
         int dst = src + 64 + (i % 20) * 4;
         int idx = World_ProjectileSpawn(
-            world, 3000 + i, 0, src, src, dst, dst, 150, 20, t1, t2, 5 + (i % 15), 0);
+            world, 3000 + i, 0, src, src, dst, dst, 150, 20, t1, t2, 5 + (i % 15), 0,
+            WORLD_PROJECTILE_TARGET_NONE);
         TEST_ASSERT(idx >= 0, "proj spawn");
     }
 
@@ -219,7 +220,8 @@ sim_mixed_churn(void)
         if( (t % 20) == 0 )
         {
             World_ProjectileSpawn(
-                world, element++, 0, 200, 200, 400, 400, 100, 10, 0, 8, 8, 0);
+                world, element++, 0, 200, 200, 400, 400, 100, 10, 0, 8, 8, 0,
+                WORLD_PROJECTILE_TARGET_NONE);
         }
 
         if( (t % 50) == 0 )
@@ -270,7 +272,8 @@ sim_scene_reset_midflight(void)
     int pi = World_PlayerSpawn(world, 1, 0, 10, 10, idle);
     int ni = World_NpcSpawn(world, 2, 99, 0, 12, 12, 1, idle);
     World_TerrainSet(world, 111, 5, 5, 0);
-    World_ProjectileSpawn(world, 3, 0, 128, 128, 256, 256, 100, 0, 0, 50, 0, 0);
+    World_ProjectileSpawn(
+        world, 3, 0, 128, 128, 256, 256, 100, 0, 0, 50, 0, 0, WORLD_PROJECTILE_TARGET_NONE);
     World_SpotanimSpawn(world, 4, 0, 20 * 128, 20 * 128, 0, 0, 0, 100);
     World_SceneryRegister(world, 5, 50, 1, 1, 0, 1, 1, 0, 0, "Rock", NULL, 1);
     World_RegisterSceneryPick(world, 5, 50);

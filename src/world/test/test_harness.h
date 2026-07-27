@@ -73,6 +73,7 @@ void test_pickset(void);
 void test_terrain(void);
 void test_player_npc(void);
 void test_projectile(void);
+void test_projectile_target(void);
 void test_spotanim(void);
 void test_scenery(void);
 void test_cycle_movers(void);
