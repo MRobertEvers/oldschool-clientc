@@ -4,7 +4,9 @@
 #include "cs2_opcode.h"
 #include "cs2vm2_host.h"
 #include "cs2vm2_script.h"
+#include "cs2vm2_strpool.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #define CS2VM_SCRIPT_ARG_MOUSE_X -2147483647
@@ -279,6 +281,13 @@ struct CS2VM2_Thread
 
     struct CS2VM2_Array arrays[CS2VM2_MAX_ARRAYS];
 
+    /* Backing storage for every string this thread makes — stack strings, frame
+     * string locals, and the strings handed to host requests. Released as a unit
+     * when a script starts (CS2VM2_ResetRuntime), so no string on the stack or in
+     * a local is ever individually freed. Allocate through CS2VM2_StrDup and
+     * friends below, never strdup/malloc. */
+    struct CS2VM2_StrPool str_pool;
+
     /* Host-provided canvas size for GETCANVASSIZE / viewport ops. */
     int canvas_w;
     int canvas_h;
@@ -360,10 +369,55 @@ CS2VM2_PopStr(
     struct CS2VM2_Thread* thread,
     char** operand);
 
+/*
+ * Push a string the thread's pool allocated (CS2VM2_StrDup / _StrFmt / _StrAlloc
+ * below, or one that came off this thread's stack). Ownership stays with the
+ * pool: the push does not take it, and popping a string does not hand it over —
+ * a popped string must not be freed, and may be pushed again as-is. Everything
+ * the thread allocated dies together when the next script starts.
+ */
 int
 CS2VM2_PushStr(
     struct CS2VM2_Thread* thread,
     char* operand);
+
+/*
+ * Thread string allocation. Use these instead of strdup/malloc for any string
+ * that reaches the operand stack, a frame local, or a host request; see
+ * cs2vm2_strpool.h for the lifetime rules.
+ */
+
+/* Writable buffer for `len` characters, NUL-terminated at [len]; contents
+ * uninitialised (the caller fills them). */
+char*
+CS2VM2_StrAlloc(
+    struct CS2VM2_Thread* thread,
+    size_t len);
+
+/* Pool copy of `text`; NULL in, NULL out. */
+char*
+CS2VM2_StrDup(
+    struct CS2VM2_Thread* thread,
+    char const* text);
+
+/* Pool copy of exactly `len` bytes of `text`, then NUL. */
+char*
+CS2VM2_StrDupLen(
+    struct CS2VM2_Thread* thread,
+    char const* text,
+    size_t len);
+
+/* printf into the pool, sized to fit. */
+char*
+CS2VM2_StrFmt(
+    struct CS2VM2_Thread* thread,
+    char const* fmt,
+    ...);
+
+/* A fresh, writable "" (distinct storage per call — in-place opcodes such as
+ * UPPERCASE mean no two stack slots may alias). */
+char*
+CS2VM2_StrEmpty(struct CS2VM2_Thread* thread);
 
 int
 CS2VM2_PushCallScript(

@@ -166,8 +166,7 @@ main(void)
     call_db(t, CS2_OP_DB_GETFIELD);
     CS2VM2_PopStr(t, &sv);
     CHECK(sv && strcmp(sv, "Animal Magnetism") == 0, "DB_GETFIELD(row0,col1,0) == \"Animal Magnetism\"");
-    free(sv);
-    sv = NULL;
+    sv = NULL; /* pool-owned; released by CS2VM2_Free below */
 
     /* DB_GETFIELDCOUNT(row 0, col 23) -> 4 tuples (push row, col). */
     CS2VM2_PushInt(t, 0);
@@ -222,6 +221,7 @@ main(void)
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == -1, "DB_FINDNEXT (exhausted) -> -1");
 
+    CS2VM2_Free(&vm);
     RS_CS2Host_Free(&host);
     UITree_Free(tree);
     PlatformX_IO_Free(px);

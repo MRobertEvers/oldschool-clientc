@@ -17,10 +17,11 @@ CS2VM2_TriggerArgsParse(
     if( CS2VM2_PopStr(thread, &raw_signature) != CS2VM_EXECNO_OK || !raw_signature )
         return false;
 
+    /* Copied because the parse below rewrites the trailing 'Y'; the pool owns
+     * the popped string either way. */
     char signature_buf[64];
     strncpy(signature_buf, raw_signature, sizeof(signature_buf) - 1);
     signature_buf[sizeof(signature_buf) - 1] = '\0';
-    free(raw_signature);
     char* signature = signature_buf;
 
     int trigger_count = 0;
@@ -53,10 +54,10 @@ CS2VM2_TriggerArgsParse(
         }
         else
         {
+            /* String args are not used here, only consumed off the stack. */
             char* ignored = NULL;
             if( CS2VM2_PopStr(thread, &ignored) != CS2VM_EXECNO_OK )
                 return false;
-            free(ignored);
         }
     }
 

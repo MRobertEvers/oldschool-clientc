@@ -391,7 +391,7 @@ CS2VM2_SetStringCurrentFrameLocal(
     if( idx < 0 || idx >= CS2VM_MAX_LOCALS )
         return CS2VM_EXECNO_ERROR;
     frame = CS2VM_FRAME(vm);
-    frame->str_locals[idx] = value ? strdup(value) : NULL;
+    frame->str_locals[idx] = CS2VM2_StrDup(vm, value);
     return CS2VM_EXECNO_OK;
 }
 
@@ -416,6 +416,56 @@ CS2VM2_PushIntCurrentFrameLocal(
 
     struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
     return CS2VM2_PushIntFrameLocal(vm, frame, idx);
+}
+
+char*
+CS2VM2_StrAlloc(
+    struct CS2VM2_Thread* vm,
+    size_t len)
+{
+    assert(vm);
+    return CS2VM2_StrPool_Alloc(&vm->str_pool, len);
+}
+
+char*
+CS2VM2_StrDup(
+    struct CS2VM2_Thread* vm,
+    char const* text)
+{
+    assert(vm);
+    return CS2VM2_StrPool_Dup(&vm->str_pool, text);
+}
+
+char*
+CS2VM2_StrDupLen(
+    struct CS2VM2_Thread* vm,
+    char const* text,
+    size_t len)
+{
+    assert(vm);
+    return CS2VM2_StrPool_DupLen(&vm->str_pool, text, len);
+}
+
+char*
+CS2VM2_StrFmt(
+    struct CS2VM2_Thread* vm,
+    char const* fmt,
+    ...)
+{
+    assert(vm);
+
+    va_list args;
+    va_start(args, fmt);
+    char* out = CS2VM2_StrPool_VFmt(&vm->str_pool, fmt, args);
+    va_end(args);
+    return out;
+}
+
+char*
+CS2VM2_StrEmpty(struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+    return CS2VM2_StrPool_Empty(&vm->str_pool);
 }
 
 int
@@ -470,11 +520,10 @@ CS2VM2_PushStrFrameLocal(
     assert(vm);
     assert(frame);
 
-    /* Stack strings are owned by the stack (consumers free them); pushing the
-     * local's pointer directly lets a consumer free the local's storage and
-     * leave every alias dangling (e.g. IF_SETON* hook args). Push a copy. */
-    return CS2VM2_PushStr(
-        vm, frame->str_locals[idx] ? strdup(frame->str_locals[idx]) : NULL);
+    /* Push a copy, not the local's pointer: the in-place string opcodes
+     * (UPPERCASE / LOWERCASE) rewrite the buffer their operand points at, which
+     * would otherwise silently rewrite the local too. */
+    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, frame->str_locals[idx]));
 }
 
 int
@@ -648,10 +697,9 @@ CS2VM2_Op_PushConstantString(
 {
     assert(vm);
     (void)frame;
-    char* copy = value ? strdup(value) : strdup("");
-    assert(copy);
-
-    return CS2VM2_PushStr(vm, copy);
+    /* A copy, not the script's operand: the operand outlives this run and the
+     * in-place string opcodes would rewrite it for every later execution. */
+    return CS2VM2_PushStr(vm, value ? CS2VM2_StrDup(vm, value) : CS2VM2_StrEmpty(vm));
 }
 
 int
@@ -719,12 +767,7 @@ CS2VM2_Op_JoinString(
 
     int count = operand;
     if( count <= 0 )
-    {
-        char* empty = strdup("");
-        if( !empty )
-            return CS2VM_EXECNO_ERROR;
-        return CS2VM2_PushStr(vm, empty);
-    }
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
 
     if( count == 1 )
     {
@@ -746,16 +789,11 @@ CS2VM2_Op_JoinString(
         }
     }
 
-    size_t total = 1;
+    size_t total = 0;
     for( int i = 0; i < count; i++ )
         total += parts[i] ? strlen(parts[i]) : 0;
 
-    char* joined = malloc(total);
-    if( !joined )
-    {
-        free(parts);
-        return CS2VM_EXECNO_ERROR;
-    }
+    char* joined = CS2VM2_StrAlloc(vm, total);
 
     char* out = joined;
     for( int i = 0; i < count; i++ )
@@ -787,13 +825,7 @@ CS2VM2_Op_ToString(
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%d", value);
-
-    char* str = strdup(buf);
-    assert(str);
-
-    return CS2VM2_PushStr(vm, str);
+    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%d", value));
 }
 
 /*
@@ -822,8 +854,7 @@ CS2VM2_Op_Escape(
 
     /* Worst case every character is '<' or '>', each growing to four bytes. */
     size_t len = strlen(text);
-    char* out = malloc((len * 4u) + 1u);
-    assert(out);
+    char* out = CS2VM2_StrAlloc(vm, len * 4u);
 
     size_t out_len = 0;
     for( size_t i = 0; i < len; i++ )
@@ -845,7 +876,6 @@ CS2VM2_Op_Escape(
     }
     out[out_len] = '\0';
 
-    free(text);
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -923,7 +953,8 @@ CS2VM2_Op_Uppercase(
         if( *ch >= 'a' && *ch <= 'z' )
             *ch = (char)(*ch - 'a' + 'A');
     }
-    /* PopStr already transferred ownership, so the buffer can be pushed back. */
+    /* Rewritten in place: the popped buffer is pool memory nothing else aliases
+     * (every producer hands out a fresh copy), so it can be pushed straight back. */
     return CS2VM2_PushStr(vm, text);
 }
 
@@ -944,7 +975,7 @@ CS2VM2_Op_Lowercase(
         if( *ch >= 'A' && *ch <= 'Z' )
             *ch = (char)(*ch - 'A' + 'a');
     }
-    /* PopStr already transferred ownership, so the buffer can be pushed back. */
+    /* In place, as UPPERCASE above. */
     return CS2VM2_PushStr(vm, text);
 }
 
@@ -961,8 +992,7 @@ CS2VM2_Op_RemoveTags(
     assert(text);
 
     size_t len = strlen(text);
-    char* out = malloc(len + 1u);
-    assert(out);
+    char* out = CS2VM2_StrAlloc(vm, len);
 
     size_t out_len = 0;
     bool in_tag = false;
@@ -977,7 +1007,6 @@ CS2VM2_Op_RemoveTags(
     }
     out[out_len] = '\0';
 
-    free(text);
     return CS2VM2_PushStr(vm, out);
 }
 
@@ -997,13 +1026,10 @@ CS2VM2_Op_Append(
     if( CS2VM2_PopStr(vm, &dest) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char buf[512];
-    snprintf(buf, sizeof(buf), "%s%s", dest ? dest : "", src ? src : "");
-
-    char* result = strdup(buf);
-    assert(result);
-
-    return CS2VM2_PushStr(vm, result);
+    /* Sized to fit. These used to format into a char[512] and truncate, which
+     * quietly clipped long concatenations (the reference's StringBuilder has no
+     * such limit). */
+    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%s%s", dest ? dest : "", src ? src : ""));
 }
 
 int
@@ -1023,13 +1049,7 @@ CS2VM2_Op_AppendNum(
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char buf[512];
-    snprintf(buf, sizeof(buf), "%s%d", str ? str : "", num);
-
-    char* result = strdup(buf);
-    assert(result);
-
-    return CS2VM2_PushStr(vm, result);
+    return CS2VM2_PushStr(vm, CS2VM2_StrFmt(vm, "%s%d", str ? str : "", num));
 }
 
 int
@@ -1049,13 +1069,8 @@ CS2VM2_Op_AppendSignNum(
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char buf[512];
-    snprintf(buf, sizeof(buf), "%s%s%d", str ? str : "", num >= 0 ? "+" : "", num);
-
-    char* result = strdup(buf);
-    assert(result);
-
-    return CS2VM2_PushStr(vm, result);
+    return CS2VM2_PushStr(
+        vm, CS2VM2_StrFmt(vm, "%s%s%d", str ? str : "", num >= 0 ? "+" : "", num));
 }
 
 int
@@ -1075,17 +1090,11 @@ CS2VM2_Op_AppendChar(
     if( CS2VM2_PopStr(vm, &str) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    char buf[512];
     size_t len = str ? strlen(str) : 0;
-    if( len >= sizeof(buf) - 2 )
-        len = sizeof(buf) - 2;
-    if( str && len > 0 )
-        memcpy(buf, str, len);
-    buf[len] = (char)chr;
-    buf[len + 1] = '\0';
-
-    char* result = strdup(buf);
-    assert(result);
+    char* result = CS2VM2_StrAlloc(vm, len + 1u);
+    if( len > 0 )
+        memcpy(result, str, len);
+    result[len] = (char)chr;
 
     return CS2VM2_PushStr(vm, result);
 }
@@ -3296,11 +3305,10 @@ CS2VM2_Op_IF_SetOnEventHandler(
                     char* v = NULL;
                     if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                     {
-                        for( int k = 0; k < 32; k++ )
-                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
+                    /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
                     if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                     {
                         str_by_pos[i] = v;
@@ -3308,18 +3316,12 @@ CS2VM2_Op_IF_SetOnEventHandler(
                         if( i + 1 > int_arg_count )
                             int_arg_count = i + 1;
                     }
-                    else
-                    {
-                        free(v);
-                    }
                 }
                 else
                 {
                     int v = 0;
                     if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                     {
-                        for( int k = 0; k < 32; k++ )
-                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
@@ -3335,16 +3337,12 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
         if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
         {
-            for( int k = 0; k < 32; k++ )
-                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_ERROR;
         }
 
         if( script_id == -1 )
         {
-            for( int k = 0; k < 32; k++ )
-                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_OK;
         }
@@ -3373,8 +3371,6 @@ CS2VM2_Op_IF_SetOnEventHandler(
         }
         if( out_request->str_arg_count > CS2VM_SETON_STR_ARG_MAX )
             out_request->str_arg_count = CS2VM_SETON_STR_ARG_MAX;
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
     }
 
     {
@@ -3460,11 +3456,10 @@ CS2VM2_Op_CC_SetOnEventHandler(
                     char* v = NULL;
                     if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                     {
-                        for( int k = 0; k < 32; k++ )
-                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
+                    /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
                     if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                     {
                         str_by_pos[i] = v;
@@ -3472,18 +3467,12 @@ CS2VM2_Op_CC_SetOnEventHandler(
                         if( i + 1 > int_arg_count )
                             int_arg_count = i + 1;
                     }
-                    else
-                    {
-                        free(v);
-                    }
                 }
                 else
                 {
                     int v = 0;
                     if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                     {
-                        for( int k = 0; k < 32; k++ )
-                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
@@ -3499,8 +3488,6 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
         if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
         {
-            for( int k = 0; k < 32; k++ )
-                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_ERROR;
         }
@@ -3531,8 +3518,6 @@ CS2VM2_Op_CC_SetOnEventHandler(
         }
         if( out_request->str_arg_count > CS2VM_SETON_STR_ARG_MAX )
             out_request->str_arg_count = CS2VM_SETON_STR_ARG_MAX;
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
     }
 
     {
@@ -3873,11 +3858,10 @@ CS2VM2_Op_IF_SetOnVarTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    for( int k = 0; k < 32; k++ )
-                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
+                /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
@@ -3885,18 +3869,12 @@ CS2VM2_Op_IF_SetOnVarTransmit(
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;
                 }
-                else
-                {
-                    free(v);
-                }
             }
             else
             {
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    for( int k = 0; k < 32; k++ )
-                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
@@ -3912,16 +3890,12 @@ CS2VM2_Op_IF_SetOnVarTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
     if( script_id == -1 )
     {
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_OK;
     }
@@ -3955,8 +3929,6 @@ CS2VM2_Op_IF_SetOnVarTransmit(
     }
     if( request.u.if_set_on_var_transmit.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
         request.u.if_set_on_var_transmit.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
-    for( int k = 0; k < 32; k++ )
-        free(str_by_pos[k]);
 
     int result = vm->vm->host_exec(vm, &request);
     free(trigger_ids);
@@ -4023,11 +3995,10 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    for( int k = 0; k < 32; k++ )
-                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
+                /* Past str_by_pos' 32 slots the value is dropped; the pool owns it. */
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
@@ -4035,18 +4006,12 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;
                 }
-                else
-                {
-                    free(v);
-                }
             }
             else
             {
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
-                    for( int k = 0; k < 32; k++ )
-                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
@@ -4062,16 +4027,12 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
     if( script_id == -1 )
     {
-        for( int k = 0; k < 32; k++ )
-            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_OK;
     }
@@ -4105,8 +4066,6 @@ CS2VM2_Op_IF_SetOnInvTransmit(
     }
     if( request.u.if_set_on_inv_transmit.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
         request.u.if_set_on_inv_transmit.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
-    for( int k = 0; k < 32; k++ )
-        free(str_by_pos[k]);
 
     int result = vm->vm->host_exec(vm, &request);
     free(trigger_ids);
@@ -5783,13 +5742,7 @@ CS2VM2_Op_Substring(
         start = end;
 
     int out_len = end - start;
-    char* out = malloc((size_t)out_len + 1u);
-    assert(out);
-
-    if( out_len > 0 )
-        memcpy(out, text + start, (size_t)out_len);
-    out[out_len] = '\0';
-    return CS2VM2_PushStr(vm, out);
+    return CS2VM2_PushStr(vm, CS2VM2_StrDupLen(vm, text + start, (size_t)out_len));
 }
 
 int
@@ -6215,17 +6168,10 @@ CS2VM2_Op_LocalNotification(
         if( CS2VM2_PopStr(vm, &body) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopStr(vm, &title) != CS2VM_EXECNO_OK )
-        {
-            free(body);
             return CS2VM_EXECNO_ERROR;
-        }
         if( CS2VM2_PopInt(vm, &request.u.local_notification.delay_ms) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &request.u.local_notification.id) != CS2VM_EXECNO_OK )
-        {
-            free(body);
-            free(title);
             return CS2VM_EXECNO_ERROR;
-        }
         request.u.local_notification.title = title;
         request.u.local_notification.body = body;
         break;
@@ -6237,10 +6183,8 @@ CS2VM2_Op_LocalNotification(
         break;
     }
 
+    /* The host only borrows the strings; the pool keeps them alive. */
     result = vm->vm->host_exec(vm, &request);
-    /* The host only borrows the strings, so they are freed here regardless. */
-    free(title);
-    free(body);
     return result;
 }
 
@@ -6372,10 +6316,6 @@ CS2VM2_Op_StackMetaStub(
         char* discard;
         if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        /* PopStr transfers ownership and every string on the stack is heap
-         * allocated, so the stub owns the only reference to a value it is
-         * about to throw away. */
-        free(discard);
     }
     for( int i = 0; i < meta.int_out; i++ )
     {
@@ -6384,7 +6324,7 @@ CS2VM2_Op_StackMetaStub(
     }
     for( int i = 0; i < meta.str_out; i++ )
     {
-        if( CS2VM2_PushStr(vm, strdup("")) != CS2VM_EXECNO_OK )
+        if( CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     return CS2VM_EXECNO_OK;
@@ -6604,11 +6544,11 @@ CS2VM2_Op_OC_Placeholder(
  * CS2VM_HOST_REQUEST_OC_FIND). Only OC_FIND takes a stack argument — the query
  * string.
  *
- * OC_FIND may yield so the host can bulk-load the obj group. On a yield the VM
- * rolls the string stack back and re-executes this op, so the popped query must
- * stay valid and un-freed: it is left in place (PopStr does not clear the slot,
- * and the checkpoint restore re-exposes it) and passed to the host only as a
- * borrow. It is freed here only once the host completes. */
+ * OC_FIND may yield so the host can bulk-load the obj group; the VM then rolls
+ * the string stack back and re-executes this op. The popped query survives that
+ * (PopStr does not clear the slot, the checkpoint restore re-exposes it, and the
+ * pool holds the storage until the script ends), so the host gets a plain
+ * borrow. */
 static int
 CS2VM2_Op_OC_Find(
     struct CS2VM2_Thread* vm,
@@ -6629,13 +6569,7 @@ CS2VM2_Op_OC_Find(
     request.u.oc_find.opcode = opcode;
     request.u.oc_find.query = query; /* borrowed; NULL for FINDNEXT/FINDRESET */
 
-    int result = vm->vm->host_exec(vm, &request);
-
-    /* On yield, leave `query` on the (rolled-back) stack for the retry; free it
-     * only when the op is truly finished. */
-    if( result != CS2VM_EXECNO_YIELD )
-        free(query);
-    return result;
+    return vm->vm->host_exec(vm, &request);
 }
 
 /* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
@@ -8818,6 +8752,10 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
     vm->ints_stack_top = 0;
     vm->strs_stack_top = 0;
     vm->frame_sp = 0;
+    /* Dropping the stacks and frames drops the last references to every string
+     * the finished script made, so this is where the pool is reclaimed. Callers
+     * must therefore reset only between scripts, never mid-run. */
+    CS2VM2_StrPool_Reset(&vm->str_pool);
     CS2VM2_ClearYieldHalt(vm);
 }
 
@@ -8835,6 +8773,8 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  *   - undo_log, children_iter_indices — only read below their counters.
  *   - arrays[]  — every read is guarded by .defined && index < .size, and
  *                 defining an array memsets its own values[].
+ *   - str_pool  — zeroed by CS2VM2_StrPool_Init, which never reads the old
+ *                 state (the memory here may be uninitialised malloc'd bytes).
  *
  * So only the scalars and the per-array .defined/.size flags need clearing.
  * Values below match exactly what the old memset produced (note yield_halt_pc
@@ -8874,6 +8814,8 @@ cs2vm2_thread_init(
         thread->arrays[i].size = 0;
     }
 
+    CS2VM2_StrPool_Init(&thread->str_pool);
+
     thread->canvas_w = 0;
     thread->canvas_h = 0;
 }
@@ -8894,7 +8836,11 @@ CS2VM2_Free(struct CS2VM2* vm)
 {
     assert(vm);
     for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
+    {
         CS2VM2_ResetRuntime(&vm->threads[i]);
+        /* ResetRuntime keeps a block for reuse; nothing will reuse it now. */
+        CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
+    }
 }
 
 void

@@ -66,12 +66,16 @@ run_str_op(
 
     char* result = NULL;
     CS2VM2_PopStr(thread, &result);
+    /* The result lives in the thread's string pool, which CS2VM2_Free releases —
+     * so hand back a copy the caller owns. */
+    char* owned = result ? strdup(result) : NULL;
 
+    CS2VM2_Free(&vm);
     free(script.string_operands[0]);
     free(script.opcodes);
     free(script.int_operands);
     free(script.string_operands);
-    return result;
+    return owned;
 }
 
 static void
@@ -129,6 +133,7 @@ run_char_op(
     int result = 0;
     CS2VM2_PopInt(thread, &result);
 
+    CS2VM2_Free(&vm);
     free(script.opcodes);
     free(script.int_operands);
     free(script.string_operands);

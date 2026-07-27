@@ -76,6 +76,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
+	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \

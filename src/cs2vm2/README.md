@@ -18,6 +18,7 @@ is delegated to a single host callback (`CS2VM2_HostExec_Fn`).
 | `cs2vm2_host.h` | `CS2VM_HostRequest` union and `CS2VM2_HostExec_Fn` |
 | `cs2vm2_script.h` / `.c` | Decoded clientscript container (`CS2VM2_Script`) |
 | `cs2vm2_trigger_args.h` / `.c` | Parse SETON* hook stack layout (`CS2VM2_TriggerArgsParse`) |
+| `cs2vm2_strpool.h` / `.c` | Per-thread string pool backing every VM string (`CS2VM2_StrPool`) |
 | `cs2_opcode.h` | Generated opcode constants |
 | `cs2_opcode_meta.c` / `.h` | Operand kind and VM-vs-host dispatch metadata |
 | `cs2vm2_opcode_stack.gen.h` | Per-opcode int/str stack push/pop deltas |
@@ -61,6 +62,7 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 | `frames` / `frame_sp` | Call stack (`CS2VM_MAX_FRAMES` = 32) |
 | `active_component_id` / `dot_component_id` | IF/CC target resolution |
 | `arrays` | Script-defined int arrays (`CS2VM2_MAX_ARRAYS`) |
+| `str_pool` | Storage for every string the thread allocates (see below) |
 | `children_iter_*` | Iterator state for CC/IF children-find opcodes |
 | `canvas_w` / `canvas_h` | Host-provided canvas size for viewport ops |
 | `yield_halt_*` | Tracks cooperative yields per opcode site |
@@ -90,9 +92,28 @@ CS2 uses separate int and string operand stacks. The interpreter pops arguments
 before each opcode and pushes results after. Stack effects for every opcode are
 precomputed in `g_cs2vm2_opcode_stack[]` (from `gen_opcode_stack.py`).
 
-Strings on the string stack are heap-allocated; `CS2VM2_PopStr` transfers
-ownership to the caller (caller must `free`). `CS2VM2_PushStr` takes ownership
-of the pointer passed in.
+### String storage — the thread's pool
+
+Strings on the string stack, in a frame's `str_locals`, and in the host requests
+built from them all live in the thread's `str_pool` (`cs2vm2_strpool.h`). Nothing
+individually owns them:
+
+- allocate with `CS2VM2_StrDup` / `CS2VM2_StrFmt` / `CS2VM2_StrDupLen` /
+  `CS2VM2_StrAlloc` / `CS2VM2_StrEmpty` — never `strdup` or `malloc`;
+- **never `free`** a string that came off the string stack or out of a frame
+  local, and a popped string may be pushed straight back;
+- the whole pool is released when a script starts (`CS2VM2_ResetRuntime`, which
+  `CS2VM2_ThreadStart` calls) and when the VM is torn down (`CS2VM2_Free`) — so
+  reset only *between* scripts, never mid-run;
+- a host **borrows** a request's strings for the duration of the call. To keep
+  one past the script, copy it (`UITree_ApplyText`, `VarCManager_SetString` and
+  the SETON hook `str_args` buffers all do).
+
+Because the pool brackets a script's whole run, a string also survives the
+yield-and-replay of the opcode that produced it (see `CS2VM2_Op_OC_Find`).
+
+`TORIRS_CS2_STRPOOL_DEBUG=1` prints each finished script's string count and byte
+total.
 
 ### Opcode dispatch loop
 

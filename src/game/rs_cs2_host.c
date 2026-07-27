@@ -820,7 +820,7 @@ exec_enum_lookup(
             return rs_cs2_yield_load(host, &req, request.enum_id, -1);
         /* Enum still missing after its load: answer like a key that misses. */
         if( request.output_type == (int)'s' )
-            return CS2VM2_PushStr(thread, strdup("null"));
+            return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "null"));
         return CS2VM2_PushInt(thread, -1);
     }
 
@@ -828,7 +828,7 @@ exec_enum_lookup(
     if( request.output_type == (int)'s' || e->output_is_string )
     {
         char const* value = rs_cs2_enum_lookup_string(e, request.key);
-        return CS2VM2_PushStr(thread, strdup(value ? value : "null"));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, value ? value : "null"));
     }
 
     return CS2VM2_PushInt(thread, rs_cs2_enum_lookup_int(e, request.key));
@@ -887,7 +887,7 @@ exec_worldmap(
     case CS2_OP_WORLDMAP_GETMAPNAME:
         area = RS_WorldMap_Area(map, request.arg0);
         return CS2VM2_PushStr(
-            thread, strdup(area && area->external_name ? area->external_name : ""));
+            thread, CS2VM2_StrDup(thread, area && area->external_name ? area->external_name : ""));
 
     case CS2_OP_WORLDMAP_SETMAP:
         RS_WorldMap_SetCurrentMapId(map, request.arg0);
@@ -1100,7 +1100,7 @@ exec_mec(
         /* Still missing after its load: answer as the reference does for an
          * absent map element config. */
         if( request.opcode == CS2_OP_MEC_TEXT )
-            return CS2VM2_PushStr(thread, strdup(""));
+            return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
         if( request.opcode == CS2_OP_MEC_TEXTSIZE )
             return CS2VM2_PushInt(thread, 0);
         return CS2VM2_PushInt(thread, -1);
@@ -1109,7 +1109,7 @@ exec_mec(
     switch( request.opcode )
     {
     case CS2_OP_MEC_TEXT:
-        return CS2VM2_PushStr(thread, strdup(element->name ? element->name : ""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, element->name ? element->name : ""));
     case CS2_OP_MEC_TEXTSIZE:
         return CS2VM2_PushInt(thread, element->text_size);
     case CS2_OP_MEC_CATEGORY:
@@ -1144,10 +1144,10 @@ exec_minimenu(
     case CS2_OP_MINIMENU_ENTRY:
     {
         /* Two strings, option then target (reference push order). */
-        int result = CS2VM2_PushStr(thread, strdup(""));
+        int result = CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
         if( result != CS2VM_EXECNO_OK )
             return result;
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
     }
     case CS2_OP_MINIMENU_TYPE:
     case CS2_OP_MINIMENU_FINDNPC:
@@ -1437,11 +1437,12 @@ exec_struct_param(
     if( param && param->is_string )
     {
         if( found && strval )
-            return CS2VM2_PushStr(thread, strdup(strval));
-        return CS2VM2_PushStr(thread, strdup(param->default_string ? param->default_string : ""));
+            return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, strval));
+        return CS2VM2_PushStr(
+            thread, CS2VM2_StrDup(thread, param->default_string ? param->default_string : ""));
     }
     if( found && is_string )
-        return CS2VM2_PushStr(thread, strdup(strval ? strval : ""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, strval ? strval : ""));
     if( found )
         return CS2VM2_PushInt(thread, intval);
     return CS2VM2_PushInt(thread, param ? param->default_int : 0);
@@ -1480,8 +1481,9 @@ exec_oc_param(
     if( param && param->is_string )
     {
         if( found && strval )
-            return CS2VM2_PushStr(thread, strdup(strval));
-        return CS2VM2_PushStr(thread, strdup(param->default_string ? param->default_string : ""));
+            return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, strval));
+        return CS2VM2_PushStr(
+            thread, CS2VM2_StrDup(thread, param->default_string ? param->default_string : ""));
     }
     if( found )
         return CS2VM2_PushInt(thread, intval);
@@ -1545,7 +1547,7 @@ exec_oc_name(
     char const* name = "null";
 
     if( request.item_id < 0 )
-        return CS2VM2_PushStr(thread, strdup(name));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
 
     if( !obj )
     {
@@ -1555,12 +1557,12 @@ exec_oc_name(
         if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, &req, request.item_id, -1);
         /* Objtype still missing after its load: the reference "null" name. */
-        return CS2VM2_PushStr(thread, strdup(name));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
     }
 
     if( obj->name[0] != '\0' )
         name = obj->name;
-    return CS2VM2_PushStr(thread, strdup(name));
+    return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
 }
 
 static int
@@ -1601,7 +1603,7 @@ exec_oc_op(
         provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
 
     if( request.item_id < 0 )
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
     if( !obj )
     {
@@ -1612,15 +1614,15 @@ exec_oc_op(
         if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, &req, request.item_id, -1);
         /* Objtype still missing after its load: no action string to give. */
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
     }
 
     if( request.op_index < 0 || request.op_index >= TORIRS_MENU_ACTION_SLOTS )
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
     char const* action = request.opcode == CS2_OP_OC_IOP ? obj->inv_actions[request.op_index]
                                                          : obj->ground_actions[request.op_index];
-    return CS2VM2_PushStr(thread, strdup(action ? action : ""));
+    return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, action ? action : ""));
 }
 
 /* OC_EXAMINE: real data (ToriRS_Objtype.desc), following the OC_NAME shape. */
@@ -1635,7 +1637,7 @@ exec_oc_examine(
         provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
 
     if( request.item_id < 0 )
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
     if( !obj )
     {
@@ -1644,10 +1646,10 @@ exec_oc_examine(
         req.u.oc_examine = request;
         if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, &req, request.item_id, -1);
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
     }
 
-    return CS2VM2_PushStr(thread, strdup(obj->desc[0] != '\0' ? obj->desc : ""));
+    return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, obj->desc[0] != '\0' ? obj->desc : ""));
 }
 
 /* OC_PLACEHOLDER: identity passthrough, mirroring OC_UNPLACEHOLDER — no
@@ -1792,7 +1794,7 @@ exec_oc_isubop(
     struct CS2VM_HostRequest_OC_Isubop request)
 {
     (void)request;
-    return CS2VM2_PushStr(thread, strdup(""));
+    return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 }
 
 static int
@@ -2929,7 +2931,7 @@ db_push_default(
     int type)
 {
     if( RSCache_DbTypeIsString(type) )
-        return CS2VM2_PushStr(vm, strdup(""));
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
     return CS2VM2_PushInt(vm, 0);
 }
 
@@ -2979,7 +2981,8 @@ db_push_value(
     struct RSCache_DbValue const* value)
 {
     if( value->is_string )
-        return CS2VM2_PushStr(vm, strdup(value->string_value ? value->string_value : ""));
+        return CS2VM2_PushStr(
+            vm, CS2VM2_StrDup(vm, value->string_value ? value->string_value : ""));
     return CS2VM2_PushInt(vm, value->int_value);
 }
 
@@ -3200,7 +3203,6 @@ exec_db(
         }
 
         db_find_value(host, idx, col_id, tuple, value_is_string, value_int, value_str);
-        free(value_str);
         if( with_count )
             return CS2VM2_PushInt(vm, host->db_find_count);
         return CS2VM_EXECNO_OK;
@@ -3315,7 +3317,7 @@ rs_cs2_host_exec_dispatch(
     {
         int id = request->u.vars_read_varc_string.varc_id;
         char const* value = host->varcs ? VarCManager_GetString(host->varcs, id) : "";
-        return CS2VM2_PushStr(vm, strdup(value));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
     }
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
@@ -3549,7 +3551,7 @@ rs_cs2_host_exec_dispatch(
         buf[0] = '\0';
         if( tree )
             rs_cs2_get_text(tree, request->u.if_gettext.component_id, buf, (int)sizeof(buf));
-        return CS2VM2_PushStr(vm, strdup(buf));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
     /* ---- IF / CC mutators ---- */
@@ -3940,7 +3942,7 @@ rs_cs2_host_exec_dispatch(
         buf[0] = '\0';
         if( tree )
             rs_cs2_get_text(tree, request->u.cc_gettext.component_id, buf, (int)sizeof(buf));
-        return CS2VM2_PushStr(vm, strdup(buf));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
     case CS2VM_HOST_REQUEST_CC_GETTRANS:

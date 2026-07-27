@@ -183,7 +183,7 @@ DummyHostExec(
         return CS2VM2_PushInt(thread, 0);
 
     if( noop_host_pushes_str(request->kind) )
-        return CS2VM2_PushStr(thread, strdup(""));
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
     return CS2VM_EXECNO_OK;
 }
@@ -265,6 +265,9 @@ Task_CS2ScriptExec_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2ScriptExec* exec = (struct Task_CS2ScriptExec*)task;
     assert(exec);
+    /* Releases the threads' string pools. Safe even if Run never got as far as
+     * CS2VM2_Init: Task_CS2ScriptExec_New callocs, so the pools read as empty. */
+    CS2VM2_Free(&exec->vm);
     free(exec);
 }
 

@@ -70,18 +70,19 @@ stub_host_exec(
         char const* value = "";
         if( id >= 0 && id < 8 && host->slots[id] )
             value = host->slots[id];
-        return CS2VM2_PushStr(vm, strdup(value));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
     }
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
     {
         int id = request->u.vars_write_varc_string.varc_id;
         char* value = request->u.vars_write_varc_string.value;
+        /* The request's string is borrowed from the VM's pool, so a host that
+         * keeps it must copy (as the real VarCManager does). */
         if( id >= 0 && id < 8 )
         {
             free(host->slots[id]);
-            host->slots[id] = value ? strdup(value) : strdup("");
+            host->slots[id] = strdup(value ? value : "");
         }
-        free(value);
         return CS2VM_EXECNO_OK;
     }
     default:
@@ -316,11 +317,12 @@ test_varc_string_old(void)
     CS2VM2_PushCallScript(t, &script);
     CS2VM2_RunScript(t);
 
+    /* Pool-owned: read it, don't free it — CS2VM2_Free releases the pool. */
     char* result = NULL;
     CS2VM2_PopStr(t, &result);
     CHECK(result && strcmp(result, "hello") == 0, "varc string-old roundtrip");
-    free(result);
 
+    CS2VM2_Free(&vm);
     for( int i = 0; i < 8; i++ )
         free(host.slots[i]);
     free(script.opcodes);
