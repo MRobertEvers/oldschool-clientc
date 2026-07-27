@@ -3530,6 +3530,19 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, has ? 1 : 0);
     }
 
+    case CS2VM_HOST_REQUEST_IF_HASCHILD:
+    {
+        /* 2704/2705: widget has the given parent group mounted (rev 634 does
+         * not distinguish modal vs overlay on the type field). */
+        int cid = request->u.if_has_child.component_id;
+        int want = request->u.if_has_child.group_id;
+        int idx = tree ? UITree_InterfaceParentFind(tree, cid) : -1;
+        int has = 0;
+        if( idx >= 0 && tree->interface_parents[idx].group_id == want )
+            has = 1;
+        return CS2VM2_PushInt(vm, has);
+    }
+
     case CS2VM_HOST_REQUEST_IF_GETTEXT:
     {
         char buf[512];

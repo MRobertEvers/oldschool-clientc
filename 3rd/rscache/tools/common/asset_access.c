@@ -98,7 +98,18 @@ tool_dat2_npc_load(
     struct Tool_Dat2Cache* c,
     int npc_id)
 {
+    return tool_dat2_npc_load_checked(c, npc_id, NULL);
+}
+
+struct RSCache_Dat2ConfigNpc*
+tool_dat2_npc_load_checked(
+    struct Tool_Dat2Cache* c,
+    int npc_id,
+    int* out_exact)
+{
     assert(c && c->disk);
+    if( out_exact )
+        *out_exact = 0;
     struct RSCache_RecordAddress addr =
         RSCache_RecordAddressFor(&c->profile, RSCACHE_TYPE_NPC);
     int table;
@@ -147,6 +158,8 @@ tool_dat2_npc_load(
             continue;
         npc = RSCache_Dat2ConfigNpcNewDecodeProfile(
             &local, files->files[i], files->file_sizes[i]);
+        if( npc && out_exact )
+            *out_exact = npc->_consumed == files->file_sizes[i];
         break;
     }
 

@@ -27,10 +27,39 @@ usage(const char* argv0)
         argv0);
 }
 
-static int
-is_osrs239(const struct RSCache* p)
+/*
+ * Load the source NPC and refuse the port when its record did not decode
+ * byte-exactly.
+ *
+ * This replaces a blanket refusal of osrs239. A revision-wide gate is the wrong
+ * shape for a per-record property: osrs239 has records the decoder does not
+ * consume exactly, but the encounter NPCs (7700..7708) all decode exactly, and
+ * the blanket gate refused those too. A short `_consumed` is the decoder's own
+ * signal that it stopped on an unknown opcode, so ask the record.
+ */
+static struct RSCache_Dat2ConfigNpc*
+load_source_npc_exact(
+    struct Tool_Dat2Cache* src,
+    int npc_id)
 {
-    return p->game == RSCACHE_GAME_OLDSCHOOL && p->revision == 239;
+    int exact = 0;
+    struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load_checked(src, npc_id, &exact);
+    if( !npc )
+    {
+        fprintf(stderr, "Source NPC %d not found\n", npc_id);
+        return NULL;
+    }
+    if( !exact )
+    {
+        fprintf(
+            stderr,
+            "error: NPC %d does not decode exactly (unknown opcode); refuse to port.\n"
+            "Set RSCACHE_NPC_DEBUG=1 to name the opcode.\n",
+            npc_id);
+        RSCache_Dat2ConfigNpcFree(npc);
+        return NULL;
+    }
+    return npc;
 }
 
 static int
@@ -138,12 +167,9 @@ build_dat2_plan(
     tool_id_map_init(&plan->frame_id_map);
     tool_id_map_init(&plan->bas_map);
 
-    struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(src, npc_id);
+    struct RSCache_Dat2ConfigNpc* npc = load_source_npc_exact(src, npc_id);
     if( !npc )
-    {
-        fprintf(stderr, "Source NPC %d not found\n", npc_id);
         return 1;
-    }
     if( !tool_neutral_npc_from_dat2(src, npc, npc_id, &plan->npc) )
     {
         RSCache_Dat2ConfigNpcFree(npc);
@@ -378,12 +404,9 @@ build_dat1_plan(
     tool_id_map_init(&plan->frame_id_map);
     tool_id_map_init(&plan->bas_map);
 
-    struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(src, npc_id);
+    struct RSCache_Dat2ConfigNpc* npc = load_source_npc_exact(src, npc_id);
     if( !npc )
-    {
-        fprintf(stderr, "Source NPC %d not found\n", npc_id);
         return 1;
-    }
     if( !tool_neutral_npc_from_dat2(src, npc, npc_id, &plan->npc) )
     {
         RSCache_Dat2ConfigNpcFree(npc);
@@ -620,15 +643,6 @@ main(int argc, char** argv)
         return 1;
     if( !tool_resolve_profile(to_rev, NULL, NULL, NULL, NULL, &to_profile) )
         return 1;
-
-    if( is_osrs239(&from_profile) || is_osrs239(&to_profile) )
-    {
-        fprintf(
-            stderr,
-            "error: osrs239 NPC records do not decode exactly; refuse to port\n"
-            "(see 3rd/rscache/README.md known decode gaps)\n");
-        return 1;
-    }
 
     tool_print_profile(src_dir, &from_profile);
     tool_print_profile(dst_dir, &to_profile);

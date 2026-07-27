@@ -608,12 +608,14 @@ and ignores the revision entirely.
 Honest inventory of what the decoders do *not* handle, all found by exact
 consumption over the corpus:
 
-- **Revision 239 records.** `cache.osrs239` fails exact consumption for npc
-  (2462/16292 under either head-icon shape) and spotanim (0/4010). Revision 239
-  changed layouts that are not implemented. No manifest references that cache — it
-  is validation data — so the client is unaffected, but a port targeting 239 would
-  need this closed first. The round-trip suite prints it as a KNOWN GAP on every
-  run rather than asserting on it.
+- ~~**Revision 239 records.**~~ Closed. `cache.osrs239` now reaches exact
+  consumption for both types this entry named: npc 16292/16292 and spotanim
+  4010/4010. The layouts the entry called unimplemented are the ones the rev-237
+  opcode gates and the count-prefixed colour lists cover (opcodes 61/62 for int
+  model ids, 251–253 for entity ops, 40/41 for recolour/retexture). Kept as a
+  crossed-out line rather than deleted because the numbers were cited elsewhere:
+  `tools/port_npc` refused revision 239 outright on the strength of them, and now
+  checks the individual record's consumed length instead.
 - **Lossy config decoders.** Several decoders consume fields without storing them,
   so those records cannot re-encode byte-exactly: enum drops opcodes 1, 7 and 8;
   param does not record whether the type arrived via opcode 1 or 8; mapelement

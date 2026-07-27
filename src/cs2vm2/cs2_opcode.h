@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 7510
-#define CS2_OPCODE_COUNT 852
+#define CS2_OPCODE_COUNT 856
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -266,6 +266,16 @@
 #define CS2_OP_SWITCH 60
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
+/* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
+ * operand: branch offset
+ * int stack in:   value
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: pc += operand if value == 1. Free in the OSRS numbering
+ *        (nothing between 76 and 100); claimed here rather than
+ *        dialect-translated. See engine/cs2_opcode_dialect.h. */
+#define CS2_OP_BRANCH_IF_ONE 86
 /* CC_CREATE — Create dynamic child component.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   parent, type, child_index, is_nested  (is_nested = top)
@@ -1429,6 +1439,16 @@
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
+/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.
+ * operand: unused
+ * int stack in:   widget, parent  (parent = top)
+ * str stack in:   -
+ * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0
+ * str stack out:  -
+ * notes: identical handlers in Class66; names follow cs2-editor
+ *        (hasChildModal / hasChildOverlay). Sibling of IF_HASSUB. */
+#define CS2_OP_IF_HASCHILD_MODAL 2704
+#define CS2_OP_IF_HASCHILD_OVERLAY 2705
 /* IF_GETTOP — Get root component id.
  * int stack in:   -
  * str stack in:   -
@@ -2594,6 +2614,16 @@
 #define CS2_OP__6903 6903
 #define CS2_OP__6904 6904
 #define CS2_OP__6905 6905
+/* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
+ * operand: unused
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  value
+ * str stack out:  -
+ * notes: set at jagex-account login and by packet 54 (signed 24-bit
+ *        alongside the membership flag). Scripts probe 8388605
+ *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
+#define CS2_OP_LOGIN_INT24 6910
 #define CS2_OP__6950 6950
 #define CS2_OP__7000 7000
 #define CS2_OP_HIGHLIGHT_NPC_ON 7001

@@ -12,6 +12,10 @@ OUT = HERE / "cs2vm2_opcode_stack.gen.h"
 MAX_OPCODE = 7602
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
+    47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
+    48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
+    86: (1, 0, 0, 0),  # BRANCH_IF_ONE(value): branch if value == 1 (RS2-era)
+    6910: (0, 0, 1, 0),  # LOGIN_INT24 -> Class24.anInt359 (stub: 0)
     106: (2, 0, 0, 0),  # CC_CREATECHILD
     107: (2, 0, 0, 0),  # CC_CREATESIBLING
     202: (0, 0, 1, 0),  # CC_FINDROOT
@@ -126,6 +130,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3621: (0, 0, 1, 0),  # IGNORE_COUNT: no args -> ignore count
     3623: (0, 1, 1, 0),  # IGNORE_TEST(name) -> bool (string arg, not an index)
     2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
+    2704: (2, 0, 1, 0),  # IF_HASCHILD_MODAL(widget, parent) -> bool
+    2705: (2, 0, 1, 0),  # IF_HASCHILD_OVERLAY(widget, parent) -> bool
     # Sort-builder families for the friend / ignore / clan lists (3628..3657).
     # These build a sort spec imperatively: CLEAR, then one ADD_* per key (each
     # taking a single "descending?" flag), then APPLY. The panels that use them

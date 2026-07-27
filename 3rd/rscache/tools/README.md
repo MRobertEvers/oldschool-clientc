@@ -53,5 +53,8 @@ Ids are kept when free in the destination and remapped on collision. See the
 tool's `--help` for `--include-related-anims`, `--emit-bas`, `--strict-models`,
 and `--texture-map`.
 
-Revision 239 NPC records are refused: the decoder does not yet consume them
-exactly (see `3rd/rscache/README.md` known decode gaps).
+The port is refused when the source NPC record does not decode byte-exactly,
+which the decoder reports by consuming less than the whole record. This is a
+per-record check: revisions with known decode gaps (osrs239 among them, see
+`3rd/rscache/README.md`) still hold records that decode exactly, and those port
+fine. `RSCACHE_NPC_DEBUG=1` names the opcode that stopped a refused record.

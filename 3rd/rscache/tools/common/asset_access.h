@@ -59,6 +59,22 @@ tool_dat2_npc_load(
     struct Tool_Dat2Cache* c,
     int npc_id);
 
+/**
+ * Decode one dat2 NPC and report whether the record decoded byte-exactly.
+ *
+ * `out_exact` is 1 only when the decoder consumed the whole record. It is 0
+ * when the decoder stopped early on an opcode it does not know, which leaves
+ * every field after that opcode either unset or filled from payload bytes. A
+ * revision with a known decode gap still has records that decode exactly, so
+ * this is the per-record question worth asking; refusing a whole revision
+ * refuses those too.
+ */
+struct RSCache_Dat2ConfigNpc*
+tool_dat2_npc_load_checked(
+    struct Tool_Dat2Cache* c,
+    int npc_id,
+    int* out_exact);
+
 /** Decode one dat1 NPC. Caller frees with RSCache_Dat1ConfigNpcFree. */
 struct RSCache_Dat1ConfigNpc*
 tool_dat1_npc_load(

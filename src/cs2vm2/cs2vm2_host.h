@@ -87,6 +87,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT,
     CS2VM_HOST_REQUEST_IF_GETHIDE,
     CS2VM_HOST_REQUEST_IF_HASSUB,
+    /* IF_HASCHILD_MODAL/OVERLAY (2704/2705): widget has parent group mounted. */
+    CS2VM_HOST_REQUEST_IF_HASCHILD,
     CS2VM_HOST_REQUEST_IF_SETHIDE,
     CS2VM_HOST_REQUEST_IF_SETPOSITION,
     CS2VM_HOST_REQUEST_IF_SETSIZE,
@@ -428,6 +430,12 @@ struct CS2VM_HostRequest_CC_Find
 struct CS2VM_HostRequest_IF_GetWidth
 {
     int component_id;
+};
+
+struct CS2VM_HostRequest_IF_HasChild
+{
+    int component_id;
+    int group_id;
 };
 
 struct CS2VM_HostRequest_IF_GetHeight
@@ -1058,6 +1066,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_OC_Isubop oc_isubop;
         struct CS2VM_HostRequest_ParaHeight para_height;
         struct CS2VM_HostRequest_IF_GetWidth if_get_width;
+        struct CS2VM_HostRequest_IF_HasChild if_has_child;
         struct CS2VM_HostRequest_IF_GetHeight if_get_height;
         struct CS2VM_HostRequest_IF_GetLayer if_get_layer;
         struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_x;

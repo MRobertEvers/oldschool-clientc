@@ -10,6 +10,20 @@ from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # RS2-era (rev 634) BRANCH_IF_ONE: pop int, branch by operand if value == 1.
+    # Free in the OSRS numbering (nothing between 76 and 100), so claimed outright
+    # rather than dialect-translated. See engine/cs2_opcode_dialect.h.
+    86: "BRANCH_IF_ONE",
+    # Rev 634 Class66: same body for both — InterfaceParent lookup by widget,
+    # push 1 iff mounted group_id equals `parent`. cs2-editor names distinguish
+    # modal vs overlay; 634 does not check type. Free between IF_HASSUB (2702)
+    # and IF_GETTOP (2706) in the OSRS numbering.
+    2704: "IF_HASCHILD_MODAL",
+    2705: "IF_HASCHILD_OVERLAY",
+    # Rev 634 Class66.method704: push Class24.anInt359 (signed 24-bit login /
+    # packet-54 field, updated with membership). No authoritative English name;
+    # scripts compare against 8388605 (0x7FFFFD). Offline default is 0.
+    6910: "LOGIN_INT24",
     1004: "CC_SETPINCH",  # not in vendor
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor
@@ -206,12 +220,48 @@ DECODE_OPERAND_OVERRIDES: dict[int, str] = {
 
 # id -> handler kind, where the VM executes the opcode instead of the host.
 HANDLER_OVERRIDES: dict[int, str] = {
+    47: "CS2_HANDLER_VM",  # PUSH_VARC_STRING_OLD — same as 49
+    48: "CS2_HANDLER_VM",  # POP_VARC_STRING_OLD — same as 50
+    86: "CS2_HANDLER_VM",  # BRANCH_IF_ONE (RS2-era)
     4016: "CS2_HANDLER_VM",
     4017: "CS2_HANDLER_VM",
+    6910: "CS2_HANDLER_VM",  # LOGIN_INT24 — offline stub pushes 0
 }
 
 # Free-form banner comments emitted just above an opcode's #define.
 SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
+    86: (
+        "/* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.",
+        " * operand: branch offset",
+        " * int stack in:   value",
+        " * str stack in:   -",
+        " * int stack out:  -",
+        " * str stack out:  -",
+        " * notes: pc += operand if value == 1. Free in the OSRS numbering",
+        " *        (nothing between 76 and 100); claimed here rather than",
+        " *        dialect-translated. See engine/cs2_opcode_dialect.h. */",
+    ),
+    6910: (
+        "/* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).",
+        " * operand: unused",
+        " * int stack in:   -",
+        " * str stack in:   -",
+        " * int stack out:  value",
+        " * str stack out:  -",
+        " * notes: set at jagex-account login and by packet 54 (signed 24-bit",
+        " *        alongside the membership flag). Scripts probe 8388605",
+        " *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */",
+    ),
+    2704: (
+        "/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.",
+        " * operand: unused",
+        " * int stack in:   widget, parent  (parent = top)",
+        " * str stack in:   -",
+        " * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0",
+        " * str stack out:  -",
+        " * notes: identical handlers in Class66; names follow cs2-editor",
+        " *        (hasChildModal / hasChildOverlay). Sibling of IF_HASSUB. */",
+    ),
     1430: (
         "/* More SETON* listeners with no runtime model yet — signature-driven operand",
         " * counts, so they are dispatched to the parse-and-discard helper like the rest",

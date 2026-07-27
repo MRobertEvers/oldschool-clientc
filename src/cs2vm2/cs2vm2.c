@@ -2830,6 +2830,35 @@ CS2VM2_Op_IF_HasSub(
     return vm->vm->host_exec(vm, &request);
 }
 
+/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705): pop widget + parent group,
+ * push 1 iff InterfaceParent[widget] is mounted to that group. Rev 634 treats
+ * both opcodes identically (no modal/overlay type check). */
+static int
+CS2VM2_Op_IF_HasChild(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int group_id;
+    int component_id;
+    if( CS2VM2_PopInt(vm, &group_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_HASCHILD;
+    request.u.if_has_child.component_id = component_id;
+    request.u.if_has_child.group_id = group_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_GetY(
     struct CS2VM2_Thread* vm,
@@ -4978,6 +5007,21 @@ CS2VM2_Op_OnMobile(
     return CS2VM2_PushInt(vm, 0);
 }
 
+/* Rev 634 opcode 6910: push Class24.anInt359 (signed 24-bit login / packet-54
+ * field). No login session here, so push the static default of 0. */
+static int
+CS2VM2_Op_LoginInt24(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    return CS2VM2_PushInt(vm, 0);
+}
+
 int
 CS2VM2_Op_GetCanvasSize(
     struct CS2VM2_Thread* vm,
@@ -5307,6 +5351,26 @@ CS2VM2_Op_Branch(
     assert(vm);
     assert(frame);
     return CS2VM2_JumpRelative(vm, frame, operand);
+}
+
+/* RS2-era (rev 634) opcode 86: pop int, branch by operand if value == 1. */
+static int
+CS2VM2_Op_BranchIfOne(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( value == 1 )
+        return CS2VM2_JumpRelative(vm, frame, operand);
+
+    return CS2VM_EXECNO_OK;
 }
 
 int
@@ -7219,8 +7283,10 @@ CS2VM2_RunOp(
     case CS2_OP_POP_VARC_INT:
         return CS2VM2_Op_PopVarcInt(vm, frame, operand);
     case CS2_OP_PUSH_VARC_STRING:
+    case CS2_OP_PUSH_VARC_STRING_OLD:
         return CS2VM2_Op_PushVarcString(vm, frame, operand);
     case CS2_OP_POP_VARC_STRING:
+    case CS2_OP_POP_VARC_STRING_OLD:
         return CS2VM2_Op_PopVarcString(vm, frame, operand);
     case CS2_OP_PUSH_CONSTANT_STRING:
         return CS2VM2_Op_PushConstantString(vm, frame, str_operand);
@@ -7281,6 +7347,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IsMapMembers(vm, frame, operand);
     case CS2_OP_ON_MOBILE:
         return CS2VM2_Op_OnMobile(vm, frame, operand);
+    case CS2_OP_LOGIN_INT24:
+        return CS2VM2_Op_LoginInt24(vm, frame, operand);
     case CS2_OP_GETCANVASSIZE:
         return CS2VM2_Op_GetCanvasSize(vm, frame, operand);
     case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
@@ -7501,6 +7569,9 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetHide(vm, frame, operand);
     case CS2_OP_IF_HASSUB:
         return CS2VM2_Op_IF_HasSub(vm, frame, operand);
+    case CS2_OP_IF_HASCHILD_MODAL:
+    case CS2_OP_IF_HASCHILD_OVERLAY:
+        return CS2VM2_Op_IF_HasChild(vm, frame, operand);
     case CS2_OP_IF_SETHIDE:
         return CS2VM2_Op_IF_SetHide(vm, frame, operand);
     case CS2_OP_IF_SETPOSITION:
@@ -7579,6 +7650,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_BranchNotEquals(vm, frame, operand);
     case CS2_OP_BRANCH:
         return CS2VM2_Op_Branch(vm, frame, operand);
+    case CS2_OP_BRANCH_IF_ONE:
+        return CS2VM2_Op_BranchIfOne(vm, frame, operand);
     case CS2_OP_SWITCH:
         return CS2VM2_Op_Switch(vm, frame, operand);
     case CS2_OP_RETURN:
