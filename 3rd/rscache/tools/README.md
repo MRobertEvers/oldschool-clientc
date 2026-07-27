@@ -99,18 +99,48 @@ Notes on what does and does not carry over:
   section lengths as u16. The AnimBase is repeated in each part, which is what
   makes the split invisible: the client registers frames by the id embedded in
   the head, not by archive.
-- **Models export untextured.** OB2 can carry textures, but its ids index the
-  destination cache's own table and there is no shared numbering with OSRS
-  materials, so a textured face is flattened to that texture's average colour
-  (which the dat2 texture record stores outright).
+- **Materials port too.** A dat2 texture names a sprite, and that sprite is
+  already a palette plus a byte-per-pixel index buffer — the same shape rev 254
+  stores a texture in. So `--texture ID[=name]` (and any model face or floor
+  that references one) writes `content/textures/<name>.png` and a
+  `texture.pack` line, and the face keeps its texture instead of collapsing to
+  a flat colour. What the destination imposes:
+  - the canvas must be **128x128 or 64x64** — every osrs239 material already is;
+  - at most **128 palette entries, index 0 transparent**, because Pix8 reads its
+    pixel indices through an `Int8Array` and anything past 127 comes back
+    negative. Wider palettes are reduced by weighted nearest-pair merging, which
+    only 20 of osrs239's 210 materials need;
+  - **magenta and black are reserved** — LostCity's PNG packer takes `0xFF00FF`
+    as the transparent entry, and the renderer skips any texel that is zero
+    after `& 0xf8f8ff`. A source colour landing on either is nudged one step.
+
+  This needs a client whose texture table is not capped at the 50 the 2004 cache
+  shipped (nothing in the format imposes 50; the ceiling that binds is the flo
+  config's one-byte `texture` opcode). `--no-textures` restores the old
+  flatten-to-average behaviour for a client that is still capped.
+
+  Faces still flatten when the source uses **texture render types 1-3** —
+  cube, cylindrical and scrolling mappings, whose payloads OB2 has no section
+  for — and when a model needs more than the **64 texture triangles** the
+  per-face index can address, which is measured after compacting the list to
+  the triangles that surviving faces actually use.
 - **Floors are ported, not matched.** A `.flo` record is little more than a
-  colour and LostCity reads floors by name, so new entries carrying the source
-  colours cost the same as a nearest-colour table and lose nothing but the
-  texture. Note that a map tile stores its floor as *config id + 1*, 0 meaning
-  none — both reference clients do the `-1` on resolve, so the exporter has to
-  as well. Skipping it exports every tile with its neighbour's colour: still a
-  valid id, still a plausible map, just uniformly one record off, which is how
-  a lava arena came out grass green the first time.
+  colour and a texture, and LostCity reads floors by name, so new entries
+  carrying the source values cost the same as a nearest-colour table. Two
+  things bite here:
+  - A map tile stores its floor as *config id + 1*, 0 meaning none — both
+    reference clients do the `-1` on resolve, so the exporter has to as well.
+    Skipping it exports every tile with its neighbour's colour: still a valid
+    id, still a plausible map, just uniformly one record off, which is how a
+    lava arena came out grass green the first time.
+  - `0xFF00FF` is the "I have no colour of my own" sentinel, and it must be
+    written through **verbatim**. Rev 254 implements it in the same three-way
+    order OSRS does — texture, then magenta, then colour — and its magenta
+    branch resolves the overlay to the `12345678` skip-this-face value. Omitting
+    `colour=` instead leaves the record at rgb 0, which is not the sentinel but
+    the colour *black*, so the tile takes the third branch and paints a black
+    quad over the hole the reference leaves. That is what put black bands
+    between the Inferno's lava tiles.
 - **Loc models are named by shape.** LostCity recovers a loc model's shape from
   the file name suffix, so each (shape, model) pair becomes its own `modelN`
   entry; five is the limit and the rest are dropped with a warning.
@@ -121,3 +151,11 @@ Notes on what does and does not carry over:
 Assets whose gameplay fields LostCity needs (npc combat stats, hunt modes,
 params) are *not* emitted — those are authored beside the generated config and
 have to be merged back after a re-run.
+
+**A partial re-run rewrites whole config files.** Idempotence is per *id*, not
+per file: each `.npc` / `.seq` / `.loc` / `.flo` is written from what that
+invocation accumulated, so re-running with only `--map X_Z` to refresh a floor
+replaces the `.seq` with just the sequences that square's locs pulled in and
+drops every animation an earlier `--npc` run had put there. Re-run with the
+whole original argument list, or restore the files the run should not have
+touched.
