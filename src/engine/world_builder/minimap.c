@@ -1,6 +1,7 @@
 #include "minimap.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -436,26 +437,31 @@ minimap_fill_tile(
     int* rotation = g_minimap_tile_rotation_map[angle];
 
     int offset = x + y * stride;
-    if( foreground_rgb == 0 )
+
+    /* Which of the two colours a tile can even show is decided by its overlay
+     * shape, before any masking: World.setGround (World.ts:259/275/291) stores a
+     * PLAIN tile as a QuickGround carrying ONLY the underlay colour, a DIAGONAL
+     * (full-tile overlay) as a QuickGround carrying ONLY the overlay colour, and
+     * everything else as a Ground carrying both. The distinction is invisible
+     * while both colours are set — the shape masks are all-0 and all-1 — and
+     * decides the tile when one is 0. A 0xFF00FF overlay resolves to no colour
+     * and must leave the tile empty rather than fall through to the underlay,
+     * which is what buried the Inferno's lava under its own floor. */
+    if( shape == MINIMAP_TILE_SHAPE_PLAIN || shape == MINIMAP_TILE_SHAPE_DIAGONAL )
     {
-        if( background_rgb != 0 )
+        int const rgb = shape == MINIMAP_TILE_SHAPE_PLAIN ? background_rgb : foreground_rgb;
+        if( rgb == 0 )
+            return;
+        for( int i = 0; i < 4; i++ )
         {
-            for( int i = 0; i < 4; i++ )
+            int current_y = y + i;
+            if( current_y >= 0 && current_y < clip_height )
             {
-                int current_y = y + i;
-                if( current_y >= 0 && current_y < clip_height )
-                {
-                    if( x >= 0 && x < clip_width )
-                        pixel_buffer[offset] = (uint32_t)background_rgb;
-                    if( x + 1 >= 0 && x + 1 < clip_width )
-                        pixel_buffer[offset + 1] = (uint32_t)background_rgb;
-                    if( x + 2 >= 0 && x + 2 < clip_width )
-                        pixel_buffer[offset + 2] = (uint32_t)background_rgb;
-                    if( x + 3 >= 0 && x + 3 < clip_width )
-                        pixel_buffer[offset + 3] = (uint32_t)background_rgb;
-                }
-                offset += stride;
+                for( int px = 0; px < 4; px++ )
+                    if( x + px >= 0 && x + px < clip_width )
+                        pixel_buffer[offset + px] = (uint32_t)rgb;
             }
+            offset += stride;
         }
         return;
     }
@@ -657,24 +663,92 @@ minimap_bake_tile(
     int tile_y = (minimap->height - sz) * 4;
     int wall;
 
-    if( rgb_foreground == 0 && rgb_background == 0 )
-        return;
-
-    minimap_fill_tile(
-        pixels,
-        pw,
-        tile_x,
-        tile_y,
-        rgb_background,
-        rgb_foreground,
-        minimap_tile_rotation(minimap, sx, sz, level),
-        minimap_tile_shape(minimap, sx, sz, level),
-        pw,
-        ph);
+    /* Ground and detail are two independent passes in the reference
+     * (minimapBuildBuffer runs render2DGround over the square, then drawDetail
+     * over it again, Client.ts:5530/5551), and a tile can take part in the
+     * second without the first: World.setWall creates the Square itself, so a
+     * wall on a tile with no floor still draws its line. Bailing out of the
+     * whole tile when it has no colour dropped every such wall — the Inferno's
+     * outer arena wall stands on floorless tiles and vanished entirely. */
+    if( rgb_foreground != 0 || rgb_background != 0 )
+        minimap_fill_tile(
+            pixels,
+            pw,
+            tile_x,
+            tile_y,
+            rgb_background,
+            rgb_foreground,
+            minimap_tile_rotation(minimap, sx, sz, level),
+            minimap_tile_shape(minimap, sx, sz, level),
+            pw,
+            ph);
 
     wall = minimap_tile_wall(minimap, sx, sz, level);
     if( wall != 0 )
         minimap_draw_wall(pixels, pw, tile_x, tile_y, wall, pw, ph);
+}
+
+/* TORIRS_MINIMAP_DUMP=1: per-level tile counts, then the grid as one char per
+ * tile — ' ' nothing, '.' underlay only, 'O' overlay, 'W'/'D' a wall/door line
+ * (which wins the cell, since a wall is what a bare outline looks like).
+ * Separates "no colour reached the minimap" from "the colour is there and the
+ * bake or the blit drops it" — the two look identical on screen. */
+static void
+minimap_dump_level(
+    struct Minimap* minimap,
+    int level)
+{
+    int n_bg = 0;
+    int n_fg = 0;
+    int n_wall = 0;
+    uint32_t sample_bg = 0;
+    uint32_t sample_fg = 0;
+    for( int i = 0; i < minimap->width * minimap->height; i++ )
+    {
+        struct MinimapTile* tile =
+            &minimap->tiles[i + (level * minimap->width * minimap->height)];
+        if( tile->background_rgb )
+        {
+            n_bg++;
+            sample_bg = tile->background_rgb;
+        }
+        if( tile->foreground_rgb )
+        {
+            n_fg++;
+            sample_fg = tile->foreground_rgb;
+        }
+        if( tile->wall )
+            n_wall++;
+    }
+    fprintf(
+        stderr,
+        "minimap level=%d: bg=%d (e.g. %06X) fg=%d (e.g. %06X) wall=%d\n",
+        level,
+        n_bg,
+        sample_bg,
+        n_fg,
+        sample_fg,
+        n_wall);
+
+    fprintf(stderr, "minimap dump level=%d %dx%d\n", level, minimap->width, minimap->height);
+    for( int sz = minimap->height - 1; sz >= 0; sz-- )
+    {
+        fprintf(stderr, "%3d ", sz);
+        for( int sx = 0; sx < minimap->width; sx++ )
+        {
+            struct MinimapTile* tile =
+                &minimap->tiles[minimap_coord_idx(minimap, sx, sz, level)];
+            char cell = ' ';
+            if( tile->foreground_rgb )
+                cell = 'O';
+            else if( tile->background_rgb )
+                cell = '.';
+            if( tile->wall )
+                cell = (tile->wall >> MINIMAP_DOOR_SHIFT) ? 'D' : 'W';
+            fputc(cell, stderr);
+        }
+        fputc('\n', stderr);
+    }
 }
 
 uint32_t*
@@ -700,6 +774,9 @@ minimap_bake_argb(
         level = 0;
     if( level >= minimap->levels )
         level = minimap->levels - 1;
+
+    if( getenv("TORIRS_MINIMAP_DUMP") )
+        minimap_dump_level(minimap, level);
 
     const uint32_t black_argb = 0xFF000000u;
     for( int y = 0; y < ph; y++ )

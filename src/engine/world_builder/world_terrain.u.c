@@ -88,6 +88,103 @@ world_apply_shade(
     }
 }
 
+/* TORIRS_MAP_DUMP=1: the raw decoded square as three base36 grids (underlay id,
+ * overlay id, overlay shape) for level 0. This is the tile stream as stored,
+ * before any flotype lookup, so it separates "the map says nothing here" from
+ * "the flo lookup produced no colour". */
+static void
+map_terrain_dump(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapTerrain* map_terrain,
+    int mapx,
+    int mapz)
+{
+    static char const* digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char const* level_env = getenv("TORIRS_MAP_DUMP");
+
+    /* TORIRS_MAP_DUMP=2 additionally walks the whole loaded flo table, which is
+     * how a wrong colour gets pinned on the right record: the table decodes
+     * sequentially, so one mis-sized entry shifts every later one. */
+    if( level_env && atoi(level_env) >= 2 )
+    {
+        for( int flo_id = 0; flo_id < 512; flo_id++ )
+        {
+            struct ToriRS_Flotype* flo = CacheProvider_FlotypeGet(builder->cache, flo_id);
+            if( !flo )
+                continue;
+            fprintf(
+                stderr,
+                "flo[%d] rgb=%06X secondary=%d texture=%d hide_underlay=%d\n",
+                flo_id,
+                (unsigned)flo->rgb_color & 0xFFFFFFu,
+                flo->secondary_rgb_color,
+                flo->texture,
+                (int)flo->hide_underlay);
+        }
+    }
+
+    /* Distinct stored ids and what each resolves to, so a wrong colour can be
+     * blamed on the flo table rather than on the tile stream (or vice versa). */
+    for( int which = 0; which < 2; which++ )
+    {
+        int seen[256];
+        int seen_count = 0;
+        for( int i = 0; i < WORLD_MAP_TERRAIN_X * WORLD_MAP_TERRAIN_Z; i++ )
+        {
+            int tile_x = i % WORLD_MAP_TERRAIN_X;
+            int tile_z = i / WORLD_MAP_TERRAIN_X;
+            struct ToriRS_MapFloor* tile =
+                &map_terrain->tiles_xyz[World_MapTileCoord(tile_x, tile_z, 0)];
+            int stored = which == 0 ? tile->underlay_id : tile->overlay_id;
+            int dup = 0;
+            if( stored <= 0 )
+                continue;
+            for( int s = 0; s < seen_count; s++ )
+                dup |= seen[s] == stored;
+            if( dup || seen_count >= 256 )
+                continue;
+            seen[seen_count++] = stored;
+
+            struct ToriRS_Flotype* flo =
+                which == 0 ? CacheProvider_UnderlayGet(builder->cache, stored - 1)
+                           : CacheProvider_FlotypeGet(builder->cache, stored - 1);
+            fprintf(
+                stderr,
+                "%s stored=%d id=%d %s rgb=%06X secondary=%d texture=%d hide_underlay=%d\n",
+                which == 0 ? "underlay" : "overlay",
+                stored,
+                stored - 1,
+                flo ? "ok" : "MISSING",
+                flo ? (unsigned)flo->rgb_color & 0xFFFFFFu : 0,
+                flo ? flo->secondary_rgb_color : 0,
+                flo ? flo->texture : 0,
+                flo ? (int)flo->hide_underlay : 0);
+        }
+    }
+
+    for( int which = 0; which < 3; which++ )
+    {
+        fprintf(
+            stderr,
+            "map %d,%d level 0 %s\n",
+            mapx,
+            mapz,
+            which == 0 ? "underlay_id" : which == 1 ? "overlay_id" : "shape");
+        for( int tile_z = WORLD_MAP_TERRAIN_Z - 1; tile_z >= 0; tile_z-- )
+        {
+            fprintf(stderr, "%3d ", tile_z);
+            for( int tile_x = 0; tile_x < WORLD_MAP_TERRAIN_X; tile_x++ )
+            {
+                struct ToriRS_MapFloor* t =
+                    &map_terrain->tiles_xyz[World_MapTileCoord(tile_x, tile_z, 0)];
+                int v = which == 0 ? t->underlay_id : which == 1 ? t->overlay_id : t->shape;
+                fputc(v == 0 ? '.' : (v > 0 && v < 36 ? digits[v] : '?'), stderr);
+            }
+            fputc('\n', stderr);
+        }
+    }
+}
+
 void
 WorldBuilder_RebuildCenterzoneChunkTerrain(
     struct WorldBuilder* builder,
@@ -103,6 +200,9 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
      * is zeroed on scene reset) rather than aborting the whole rebuild. */
     if( !map_terrain )
         return;
+
+    if( getenv("TORIRS_MAP_DUMP") )
+        map_terrain_dump(builder, map_terrain, mapx, mapz);
 
     int scene_size = world->_scene_size;
 

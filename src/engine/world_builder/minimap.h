@@ -64,6 +64,12 @@ enum MinimapTileFlag
 /** Terrain levels stored per tile (matches WORLD_MAP_TERRAIN_LEVELS). */
 #define MINIMAP_LEVELS 4
 
+/** The two overlay shapes the reference stores as a single-colour QuickGround
+ * rather than a two-colour Ground (Client-TS TerrainOverlayShape / setGround).
+ * A tile's shape is 0 with no overlay, else the map's stored shape + 1. */
+#define MINIMAP_TILE_SHAPE_PLAIN 0
+#define MINIMAP_TILE_SHAPE_DIAGONAL 1
+
 struct Minimap
 {
     int width;

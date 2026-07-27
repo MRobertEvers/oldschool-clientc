@@ -37,6 +37,8 @@
 #include "ui/uitree_layout.h"
 #include "world/world.h"
 
+#include "bmp.h"
+
 #include <assert.h>
 #include <rscache.h>
 #include <stdio.h>
@@ -2036,6 +2038,21 @@ app_rebuild_world_map(struct App* app, int level)
     /* Reference drawDetail plots loc mapscene sprites (trees, rocks, altars, …)
      * into the same minimap image as the tiles/walls. */
     app_bake_mapscenes(app, argb, pixel_w, pixel_h, level);
+
+    /* TORIRS_MINIMAP_BMP=path: the baked map straight to disk. The on-screen
+     * minimap is a rotated, camera-anchored crop of this and needs a local
+     * player to center on, so offline runs can only inspect the bake here. */
+    if( getenv("TORIRS_MINIMAP_BMP") )
+    {
+        bmp_write_file(getenv("TORIRS_MINIMAP_BMP"), (int*)argb, pixel_w, pixel_h);
+        fprintf(
+            stderr,
+            "minimap: wrote %s (%dx%d level=%d)\n",
+            getenv("TORIRS_MINIMAP_BMP"),
+            pixel_w,
+            pixel_h,
+            level);
+    }
 
     sprite = ToriDraw_SpriteNewFromArgbOwned(argb, pixel_w, pixel_h);
     if( !sprite )
