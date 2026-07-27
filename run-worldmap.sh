@@ -15,19 +15,22 @@
 #   build/worldmap/<rev>/dump.txt   BOUNDS / EMIT_EXIT / HOOKDUMP + script errors
 #   build/worldmap/<rev>/wm.bmp     final frame (also .png where sips exists)
 #
-# --show runs windowed instead of headless. TORIRS_MAX_FRAMES/TORIRS_SIM_HOVER
-# and the other harness vars from src/main.c still apply.
+# Windowed by default: you get a real client to click around in, and the dumps
+# are written when you close the window (main.c writes them after the frame
+# loop). --headless runs it under the SDL dummy driver with a frame cap instead,
+# so the dumps land in a few seconds without a window. TORIRS_MAX_FRAMES /
+# TORIRS_SIM_HOVER and the other harness vars from src/main.c still apply.
 set -eu
 
 cd "$(dirname "$0")"
 
-SHOW=0
+HEADLESS=0
 MANIFEST=manifest_osrs239_worldmap.ini
 for a in "$@"; do
     case "$a" in
-    --show) SHOW=1 ;;
+    --headless) HEADLESS=1 ;;
     -*)
-        echo "usage: run-worldmap.sh [manifest.ini] [--show]" >&2
+        echo "usage: run-worldmap.sh [manifest.ini] [--headless]" >&2
         exit 1
         ;;
     *) MANIFEST="$a" ;;
@@ -56,7 +59,7 @@ fi
 
 mkdir -p "$OUT"
 
-if [ "$SHOW" = 0 ]; then
+if [ "$HEADLESS" = 1 ]; then
     SDL_VIDEODRIVER=dummy
     export SDL_VIDEODRIVER
     : "${TORIRS_MAX_FRAMES:=300}"
@@ -64,6 +67,9 @@ if [ "$SHOW" = 0 ]; then
 fi
 
 echo "run-worldmap.sh: iface=$IFACE cache=$CACHE rev=$REVISION -> $OUT" >&2
+if [ "$HEADLESS" = 0 ]; then
+    echo "run-worldmap.sh: windowed — close the window to write the dumps" >&2
+fi
 
 TORIRS_DUMP_TREE_EXIT=1 \
 TORIRS_DUMP_HOOKS_EXIT=1 \

@@ -1389,16 +1389,26 @@ UITree_FindChildBySubid(
             return -1;
     }
 
+    /* Dynamic children win over cache-baked ones. The reference's cc_find only
+     * ever sees the dynamic array (`component.children[sub]`, filled by
+     * cc_create) — a static subcomponent is addressed as group<<16|index by the
+     * if_* ops instead, so the two namespaces never collide there. They share a
+     * child list here, so a static child whose low uid equals `sub_id` would
+     * shadow the dynamic child the script actually built: the world map's
+     * cc_find(595|2, 4/5) matched the static 595|4/595|5 — the map frame — and
+     * the grip sizing that followed collapsed it to 6x6, leaving a grey screen.
+     * The static match stays as a fallback for the trees that rely on it. */
+    int32_t static_match = -1;
     for( int32_t child = tree->components[parent_index].first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {
         struct UITreeComponent const* c = &tree->components[child];
         if( c->dynamic && c->dynamic_child_index == sub_id )
             return child;
-        if( !c->dynamic && (c->component_id & 0xFFFF) == (sub_id & 0xFFFF) )
-            return child;
+        if( !c->dynamic && static_match < 0 && (c->component_id & 0xFFFF) == (sub_id & 0xFFFF) )
+            static_match = child;
     }
-    return -1;
+    return static_match;
 }
 
 int32_t

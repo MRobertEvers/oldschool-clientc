@@ -3658,6 +3658,26 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETSIZE:
         if( tree )
         {
+            /* TORIRS_DUMP_SETSIZE=<group>: every size write a script makes to
+             * that interface, in order. The BOUNDS dump only shows where the
+             * layout ended up; when a panel resolves to a few pixels this is
+             * the only way to see which call did it and what it asked for. */
+            if( getenv("TORIRS_DUMP_SETSIZE") )
+            {
+                int want = (int)strtol(getenv("TORIRS_DUMP_SETSIZE"), NULL, 0);
+                int group = (request->u.cc_set_size.component_id >> 16) & 0xffff;
+                if( group == want )
+                    fprintf(
+                        stderr,
+                        "SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
+                        (unsigned)request->u.cc_set_size.component_id,
+                        group,
+                        request->u.cc_set_size.component_id & 0xffff,
+                        request->u.cc_set_size.width,
+                        request->u.cc_set_size.height,
+                        request->u.cc_set_size.wmode,
+                        request->u.cc_set_size.hmode);
+            }
 #if UITREE_CLICK_DEBUG
             fprintf(
                 stderr,
