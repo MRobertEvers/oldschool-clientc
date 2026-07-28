@@ -499,17 +499,29 @@ gameproto_parse(
     }
     case PKT_NAME_CAM_LOOKAT:
     {
-        packet->_cam_lookat.local_x = g2(&buffer);
-        packet->_cam_lookat.local_z = g2(&buffer);
+        /* p1 x, p1 z, p2 height, p1 rate, p1 rate2 — six bytes, but not three
+         * u16s. Read as u16 the whole thing slides: x and z fuse into one
+         * number, height lands in z, and the two rates fuse into height, which
+         * puts the camera somewhere off the map and leaves the shot unchanged. */
+        packet->_cam_lookat.local_x = g1(&buffer);
+        packet->_cam_lookat.local_z = g1(&buffer);
         packet->_cam_lookat.height = g2(&buffer);
+        packet->_cam_lookat.rate = g1(&buffer);
+        packet->_cam_lookat.rate2 = g1(&buffer);
         assert(buffer.position == data_size);
         return 1;
     }
     case PKT_NAME_CAM_MOVETO:
     {
-        packet->_cam_moveto.local_x = g2(&buffer);
-        packet->_cam_moveto.local_z = g2(&buffer);
+        /* p1 x, p1 z, p2 height, p1 rate, p1 rate2 — six bytes, but not three
+         * u16s. Read as u16 the whole thing slides: x and z fuse into one
+         * number, height lands in z, and the two rates fuse into height, which
+         * puts the camera somewhere off the map and leaves the shot unchanged. */
+        packet->_cam_moveto.local_x = g1(&buffer);
+        packet->_cam_moveto.local_z = g1(&buffer);
         packet->_cam_moveto.height = g2(&buffer);
+        packet->_cam_moveto.rate = g1(&buffer);
+        packet->_cam_moveto.rate2 = g1(&buffer);
         assert(buffer.position == data_size);
         return 1;
     }

@@ -489,14 +489,28 @@ struct App
     struct RS_Audio audio;
     /** Outbound audio requests for the host to hand a backend (App_DrainAudio). */
     struct ToriRS_AudioQueue audio_out;
-    /** Camera scripting (CAM_* packets). shake_axis -1 = no shake. */
+    /**
+     * Camera scripting (CAM_* packets).
+     *
+     * The camera keeps easing toward its target every frame for as long as the
+     * script is up, so the packets set a destination rather than a position;
+     * only a rate2 of 100 or more snaps straight there. Heights are measured
+     * up from the ground under the tile, not in world space.
+     *
+     * Shake is per axis and all five can run at once — the encounter scripts
+     * fire one call per axis and expect them to compound, so a single slot
+     * would keep only whichever arrived last.
+     */
     struct
     {
         int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
-        int shake_axis;
-        int shake_amplitude;
-        int shake_frequency;
-        int shake_speed;
+        int move_lx, move_lz, move_height, move_rate, move_rate2;
+        int look_lx, look_lz, look_height, look_rate, look_rate2;
+        int shake[5];
+        int shake_jitter[5];    /* random spread either side of the sine */
+        int shake_amplitude[5]; /* sine amplitude */
+        int shake_speed[5];     /* sine rate, hundredths */
+        int shake_cycle[5];
     } cam_script;
     /** HINT_ARROW state (drawing is a flagged follow-on). type 0 = none. */
     struct

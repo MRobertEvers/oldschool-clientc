@@ -81,11 +81,22 @@ struct Task_CS2Run
     int yield_obj_count;
     int started;
 
-    /* Last member on purpose: this is ~2.9 MB and needs no zeroing here —
-     * CS2VM2_Init sets up the little of it that is load-bearing. Keeping it at
-     * the tail lets task_cs2_run_new zero everything before it with one small
-     * memset instead of calloc'ing the whole struct on every script run. */
-    struct CS2VM2 vm;
+    /*
+     * ~2.9 MB, and deliberately not inline.
+     *
+     * A queued task is a task that has not started: it is waiting behind the
+     * head of a serial pipeline, and until it runs there is nothing for a VM to
+     * hold. Inline, every one of those cost 2.9 MB while doing nothing, which
+     * is invisible when the pipeline drains inside a frame and fatal when it
+     * does not — the browser host takes a network round trip per cache read,
+     * and a boot that queues a thousand hook scripts behind that ran a 250 MB
+     * native footprint past a 4 GB wasm heap.
+     *
+     * So it is allocated on the first Run and released with the task. Still no
+     * zeroing: CS2VM2_Init sets up the little of it that is load-bearing, which
+     * is why this is malloc and not calloc.
+     */
+    struct CS2VM2* vm;
 };
 
 static int
@@ -757,9 +768,11 @@ Task_CS2Run_Run(
 
     if( !self->started )
     {
-        CS2VM2_Init(&self->vm);
-        CS2VM2_BindHost(&self->vm, self->host, RS_CS2Host_Exec);
-        thread = CS2VM2_ThreadMain(&self->vm);
+        self->vm = malloc(sizeof(*self->vm));
+        assert(self->vm);
+        CS2VM2_Init(self->vm);
+        CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
+        thread = CS2VM2_ThreadMain(self->vm);
         CS2VM2_ThreadSetCanvas(
             thread,
             self->host->viewport_w > 0 ? self->host->viewport_w : 765,
@@ -830,7 +843,7 @@ Task_CS2Run_Run(
 
     for( ;; )
     {
-        thread = CS2VM2_ThreadMain(&self->vm);
+        thread = CS2VM2_ThreadMain(self->vm);
         status = CS2VM2_ThreadRun(thread, &err);
         if( status == CS2VM2_THREAD_DONE || status == 0 )
             break;
@@ -903,7 +916,7 @@ Task_CS2Run_Run(
 
         if( self->yield_plan == TASK_CS2_YIELD_ABORT )
         {
-            CS2VM2_ResetRuntime(CS2VM2_ThreadMain(&self->vm));
+            CS2VM2_ResetRuntime(CS2VM2_ThreadMain(self->vm));
             PT_EXIT(&self->pt);
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
@@ -956,7 +969,7 @@ Task_CS2Run_Run(
             task_cs2_bake_pack(self);
             if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
             {
-                CS2VM2_ResetRuntime(CS2VM2_ThreadMain(&self->vm));
+                CS2VM2_ResetRuntime(CS2VM2_ThreadMain(self->vm));
                 PT_EXIT(&self->pt);
             }
         }
@@ -996,7 +1009,12 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
 {
     struct Task_CS2Run* self = (struct Task_CS2Run*)task;
     assert(self);
-    CS2VM2_Free(&self->vm);
+    /* NULL when the task was dropped before it ever ran (queue teardown). */
+    if( self->vm )
+    {
+        CS2VM2_Free(self->vm);
+        free(self->vm);
+    }
     free(self);
 }
 
@@ -1023,12 +1041,8 @@ task_cs2_run_new(
     assert(host);
     assert(host->provider);
 
-    /* Zero everything up to `vm` only; the VM tail is initialised by
-     * CS2VM2_Init in Task_CS2Run_Run before anything reads it, and zeroing it
-     * here would cost a ~2.9 MB memset per script invocation. */
-    self = malloc(sizeof(*self));
+    self = calloc(1, sizeof(*self));
     assert(self);
-    memset(self, 0, offsetof(struct Task_CS2Run, vm));
 
     self->task.vtable = &Task_CS2Run_VTable;
     strcpy(self->task.name, "CS2Run");

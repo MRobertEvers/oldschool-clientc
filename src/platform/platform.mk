@@ -38,7 +38,13 @@ ifeq ($(PLATFORM),native)
     SDL_LIBS   := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
   endif
 
-  PLATFORM_CFLAGS  := $(SDL_CFLAGS)
+  # Flags every translation unit needs, third-party units included.
+  PLATFORM_BASE_CFLAGS :=
+  # The desktop-GL frame renderer exists only here; main.c compiles its GL
+  # paths out rather than stubbing them, so --opengl3 is refused instead of
+  # silently ignored on a host that cannot do it.
+  PLATFORM_CFLAGS_EXTRA := -DTORIRS_HAVE_GL3=1
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) $(PLATFORM_CFLAGS_EXTRA) $(SDL_CFLAGS)
   PLATFORM_LDFLAGS := -lm -Wl,-dead_strip $(SDL_LIBS)
 
   UNAME_S := $(shell uname -s)
@@ -62,18 +68,38 @@ else ifeq ($(PLATFORM),web)
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it
   # is what puts the SDL2 port's headers on the include path.
-  PLATFORM_CFLAGS  := -DTORIRS_PLATFORM_WEB=1 -sUSE_SDL=2 \
+  #
+  # _GNU_SOURCE: the tree uses strdup/strtok_r/strcasecmp, which are POSIX, not
+  # ISO C. Apple libc declares them under -std=c11 anyway; emscripten's musl
+  # headers correctly do not, and an undeclared strdup compiles to a call
+  # returning int — a truncated pointer, and a crash far from the call.
+  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
                       -Wno-unknown-warning-option
 
   # Preload set: everything the client reads through fopen rather than through
-  # the IO queue (boot manifests, RevConfig INIs). The cache itself is NOT here
-  # — it is served request-by-request by the IO server.
+  # the IO queue — boot manifests and RevConfig INIs, a few hundred KB in all.
+  # The cache itself is NOT here: it is served request-by-request by the IO
+  # server, which is the whole point of the web IO backend.
+  #
+  # Add a manifest here to make it selectable from the page's ?args=.
   WEB_PRELOAD ?= --preload-file $(REPO_ROOT)/manifest_rs254.ini@/manifest_rs254.ini \
+                 --preload-file $(REPO_ROOT)/manifest_osrs230.ini@/manifest_osrs230.ini \
+                 --preload-file $(REPO_ROOT)/manifest_rs377.ini@/manifest_rs377.ini \
                  --preload-file $(REPO_ROOT)/v0/osrs/revconfig/configs/rev_245_2@/v0/osrs/revconfig/configs/rev_245_2
 
+  # Memory. The client allocates and frees multi-megabyte archives for the whole
+  # boot (a dat2 config group is a couple of MB) interleaved with small
+  # long-lived ones. A wasm heap never shrinks, so that pattern is exactly what
+  # fragments dlmalloc — the same osrs230 boot that peaks at 250MB natively ran
+  # the default allocator past the 2GB ceiling. mimalloc handles the mixed-size
+  # churn, and the 4GB maximum is the wasm32 limit, i.e. headroom rather than a
+  # reservation (growth is on demand).
   PLATFORM_LDFLAGS := -lm -sUSE_SDL=2 \
+                      -sMALLOC=mimalloc \
                       -sALLOW_MEMORY_GROWTH=1 \
                       -sINITIAL_MEMORY=268435456 \
+                      -sMAXIMUM_MEMORY=4294967296 \
                       -sSTACK_SIZE=8388608 \
                       -sFORCE_FILESYSTEM=1 \
                       -sEXIT_RUNTIME=0 \

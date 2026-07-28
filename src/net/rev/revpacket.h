@@ -309,16 +309,20 @@ struct PktUpdateZoneEnclosed
 
 struct PktCamLookAt
 {
-    int local_x; /* g2 */
-    int local_z; /* g2 */
+    int local_x; /* g1 */
+    int local_z; /* g1 */
     int height;  /* g2 */
+    int rate;    /* g1 */
+    int rate2;   /* g1 */
 };
 
 struct PktCamMoveTo
 {
-    int local_x; /* g2 */
-    int local_z; /* g2 */
+    int local_x; /* g1 */
+    int local_z; /* g1 */
     int height;  /* g2 */
+    int rate;    /* g1 */
+    int rate2;   /* g1 */
 };
 
 struct PktCamShake

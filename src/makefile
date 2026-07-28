@@ -34,7 +34,8 @@ HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 
 CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
-	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
+	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
+	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz
 
@@ -55,8 +56,13 @@ TORIDRAW_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
-# Toolchain, SDL and link flags come from the selected platform block.
+# Toolchain, SDL and link flags come from the selected platform block. The
+# base subset also reaches the vendored units: a platform whose libc hides
+# strdup behind a feature macro hides it from 3rd/ too.
 CFLAGS += $(PLATFORM_CFLAGS)
+RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
+COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
+TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
@@ -208,7 +214,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
+.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -269,10 +275,10 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/io_wire_test \
-		platform/io_wire.c platform/test/io_wire_test.c \
+		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	./$(OBJ_DIR)/io_wire_test
+	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
@@ -445,6 +451,45 @@ test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test varc/varc_manager.c varc/varc_manager_test.c
 	./$(OBJ_DIR)/varc_manager_test
+
+# ---------------------------------------------------------------------------
+# ServerScript (LostCity RuneScript) reader / compiler / VM.
+#
+# Engine-agnostic by construction: libc plus 3rd/rsareabuf and nothing else, so
+# it links into the standalone mock230 server without dragging in SDL, the task
+# queue or the client's UI tree. Every target here links only the subsystem's
+# own sources. See docs/serverscript.md.
+#
+# The generated tables (ss_opcode.h, ss_trigger.h, ss_meta.gen.h) are checked
+# in. Regenerate them from the reference server with:
+#     python3 serverscript/gen_opcode_meta.py [path-to-LostCity_Server]
+# ---------------------------------------------------------------------------
+SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
+	serverscript/ssvm_provider.c $(RSAREABUF_DIR)/rsareabuf.c
+
+# Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
+# relation, and the 64-bit lookup key that a rev-230 component uid overflows.
+test-ss-meta: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_meta_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_meta_test \
+		$(SS_SRCS) serverscript/test/ss_meta_test.c
+	./$(OBJ_DIR)/ss_meta_test
+
+# Reader + container against LostCity's real 5MB compiled corpus: exact byte
+# consumption, names against script.pack, branch/switch deltas, index integrity.
+# SKIPs when the reference server is not checked out beside this repo.
+SS_CORPUS ?= $(REPO_ROOT)/../LostCity_Server
+test-ss-corpus: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_corpus_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_corpus_test \
+		$(SS_SRCS) serverscript/test/ss_corpus_test.c
+	./$(OBJ_DIR)/ss_corpus_test $(SS_CORPUS)
+
+# decode -> encode -> memcmp over the whole corpus. A decoder can pass every
+# structural check and still drop or normalise a field; reproducing the original
+# bytes exactly is the only evidence it did not.
+test-ss-roundtrip: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_roundtrip_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_roundtrip_test \
+		$(SS_SRCS) serverscript/test/ss_roundtrip_test.c
+	./$(OBJ_DIR)/ss_roundtrip_test $(SS_CORPUS)
 
 # CS1 VM core is engine-agnostic, so the suite links only the VM sources.
 test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c
@@ -657,8 +702,12 @@ test-bootmanifest: $(OBJ_DIR)
 	./$(OBJ_DIR)/bootmanifest_test
 
 clean:
-	rm -rf build build_opt build_web build_web_opt torirs \
-		$(REPO_ROOT)/build-web .last_flavor
+	rm -rf build build_opt build_web build_web_opt torirs .last_flavor
+	# Only our own outputs: build-web/ is a plain output directory that other
+	# experiments have also written into.
+	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \
+		$(REPO_ROOT)/build-web/torirs.data $(REPO_ROOT)/build-web/torirs.wasm.map \
+		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read

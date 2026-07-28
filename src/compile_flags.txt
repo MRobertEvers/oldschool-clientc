@@ -2,6 +2,7 @@
 -I.
 -I..
 -Ics2vm2
+-Iserverscript
 -I../3rd/hmap
 -I../3rd/bmp
 -I../3rd/rsareabuf

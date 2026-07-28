@@ -578,44 +578,71 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            /* Wire coords are classic-scene local tiles. */
-            app->world_camera_pos.x = (app->scene_off_x + packet->_cam_moveto.local_x) * 128 + 64;
-            app->world_camera_pos.z = (app->scene_off_z + packet->_cam_moveto.local_z) * 128 + 64;
-            app->world_camera_pos.y = -packet->_cam_moveto.height;
+            /* Wire coords are classic-scene local tiles. These only record
+             * where the camera is headed; App_CinemaCamera walks it there. */
+            app->cam_script.move_lx = packet->_cam_moveto.local_x;
+            app->cam_script.move_lz = packet->_cam_moveto.local_z;
+            app->cam_script.move_height = packet->_cam_moveto.height;
+            app->cam_script.move_rate = packet->_cam_moveto.rate;
+            app->cam_script.move_rate2 = packet->_cam_moveto.rate2;
+            if( !app->cam_script.scripted )
+            {
+                /* First op of a cutscene: aim at where we already are, so the
+                 * unset half of the pair does not swing the shot to tile 0. */
+                app->cam_script.look_lx = packet->_cam_moveto.local_x;
+                app->cam_script.look_lz = packet->_cam_moveto.local_z;
+            }
             app->cam_script.scripted = 1;
+            if( packet->_cam_moveto.rate2 >= 100 )
+                App_CinemaCameraSnapPosition(app);
             app->need_redraw = 1;
         }
         break;
     case PKT_NAME_CAM_LOOKAT:
         if( ctx->app )
         {
-            /* Point the camera at the target tile (yaw from atan2, reference
-             * orbit math approximated with the 2048-unit circle). */
             struct App* app = ctx->app;
-            int tx = (app->scene_off_x + packet->_cam_lookat.local_x) * 128 + 64;
-            int tz = (app->scene_off_z + packet->_cam_lookat.local_z) * 128 + 64;
-            int dx = tx - app->world_camera_pos.x;
-            int dz = tz - app->world_camera_pos.z;
-            app->world_camera.yaw = (int)(atan2((double)dx, (double)dz) * 325.949) & 0x7ff;
+            app->cam_script.look_lx = packet->_cam_lookat.local_x;
+            app->cam_script.look_lz = packet->_cam_lookat.local_z;
+            app->cam_script.look_height = packet->_cam_lookat.height;
+            app->cam_script.look_rate = packet->_cam_lookat.rate;
+            app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
+            if( !app->cam_script.scripted )
+            {
+                app->cam_script.move_lx = app->world_camera_pos.x / 128 - app->scene_off_x;
+                app->cam_script.move_lz = app->world_camera_pos.z / 128 - app->scene_off_z;
+            }
             app->cam_script.scripted = 1;
+            if( packet->_cam_lookat.rate2 >= 100 )
+                App_CinemaCameraSnapAngle(app);
             app->need_redraw = 1;
         }
         break;
     case PKT_NAME_CAM_SHAKE:
         if( ctx->app )
         {
-            ctx->app->cam_script.shake_axis = packet->_cam_shake.axis;
-            ctx->app->cam_script.shake_amplitude = packet->_cam_shake.amplitude;
-            ctx->app->cam_script.shake_frequency = packet->_cam_shake.frequency;
-            ctx->app->cam_script.shake_speed = packet->_cam_shake.speed;
+            /* The wire order is axis, spread, amplitude, rate — the packet's
+             * field names predate knowing which was which. */
+            int axis = packet->_cam_shake.axis;
+            if( axis >= 0 && axis < 5 )
+            {
+                struct App* app = ctx->app;
+                app->cam_script.shake[axis] = 1;
+                app->cam_script.shake_jitter[axis] = packet->_cam_shake.amplitude;
+                app->cam_script.shake_amplitude[axis] = packet->_cam_shake.frequency;
+                app->cam_script.shake_speed[axis] = packet->_cam_shake.speed;
+                app->cam_script.shake_cycle[axis] = 0;
+            }
         }
         break;
     case PKT_NAME_CAM_RESET:
         if( ctx->app )
         {
-            ctx->app->cam_script.scripted = 0;
-            ctx->app->cam_script.shake_axis = -1;
-            ctx->app->need_redraw = 1;
+            struct App* app = ctx->app;
+            app->cam_script.scripted = 0;
+            for( int i = 0; i < 5; i++ )
+                app->cam_script.shake[i] = 0;
+            app->need_redraw = 1;
         }
         break;
 

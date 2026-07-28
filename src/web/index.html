@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>torirs (web)</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: #14100c;
+    color: #c8bda4;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #3a2f22;
+  }
+  header h1 { font-size: 13px; margin: 0; font-weight: 600; color: #e0d5b8; }
+  #status { color: #8f8367; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; }
+  #stage { padding: 0.75rem; }
+  /* The client renders at a fixed 765x503; scale it up without smoothing so
+     the software rasterizer's pixels stay the pixels it drew. */
+  canvas#canvas {
+    display: block;
+    background: #000;
+    border: 1px solid #3a2f22;
+    image-rendering: pixelated;
+    width: 765px;
+    height: 503px;
+  }
+  #log {
+    flex: 1;
+    min-width: 320px;
+    margin: 0.75rem 0.75rem 0.75rem 0;
+    padding: 0.5rem;
+    background: #0d0a07;
+    border: 1px solid #3a2f22;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    color: #93876a;
+    max-height: 503px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>torirs — wasm</h1>
+  <span id="status">loading…</span>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="canvas" width="765" height="503" tabindex="-1"
+            oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+  <pre id="log"></pre>
+</main>
+
+<!-- Order matters: the harness defines Module, which the runtime reads on load. -->
+<script src="torirs_host.js"></script>
+<script src="torirs.js"></script>
+</body>
+</html>

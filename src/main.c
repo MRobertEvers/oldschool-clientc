@@ -11,7 +11,9 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
+#if defined(TORIRS_HAVE_GL3)
 #include "platform/platform_sdl2_renderer_gl3.h"
+#endif
 #include "render/torirs_frame.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
@@ -312,6 +314,7 @@ interactive_render_present(
     struct PlatformSDL2* sdl,
     struct ToriRS_GL3* gl3)
 {
+#if defined(TORIRS_HAVE_GL3)
     if( gl3 )
     {
         struct ToriRS_Frame frame;
@@ -344,6 +347,9 @@ interactive_render_present(
         PlatformSDL2_PresentGL(sdl);
     }
     else
+#else
+    (void)gl3;
+#endif
     {
         App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         PlatformSDL2_Present(sdl);
@@ -390,6 +396,7 @@ static struct LibToriRS_Input* input;
 static struct ToriRS_CmdBus bus;
 static FILE* replay;
 static uint64_t replay_now;
+/* NULL unless the desktop-GL renderer was built AND --opengl3 was passed. */
 static struct ToriRS_GL3* gl3;
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
@@ -423,6 +430,30 @@ frame_loop_step(void)
      * of whatever came back. Nothing else in the process runs every frame, and
      * a request nobody carries parks the task queue forever. */
     PlatformXIO_Web_Pump();
+
+    /* Pace the loop by what it is waiting for.
+     *
+     * A task pipeline is serial: it issues one read, parks, and cannot resume
+     * until the answer lands, so a frame consumes at most one round trip per
+     * pipeline. At display rate that caps the client at ~120 archives a second
+     * while its 20ms logic ticks keep queueing more work — and on a boot that
+     * reads several hundred archives the queue grows faster than it drains.
+     *
+     * Logic ticks are driven by the wall clock, not by the loop, so running the
+     * loop from the event loop instead of the display drains the backlog
+     * without producing more of it. Back to requestAnimationFrame the moment
+     * nothing is outstanding, so a settled client renders on frame boundaries
+     * like any other page. */
+    {
+        static int io_paced = -1;
+        int waiting = PlatformXIO_Web_PendingTotal() > 0;
+        if( waiting != io_paced )
+        {
+            io_paced = waiting;
+            emscripten_set_main_loop_timing(
+                waiting ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF, waiting ? 0 : 1);
+        }
+    }
 #endif
     if( PlatformSDL2_QuitRequested(sdl) )
         return 0;
@@ -696,8 +727,10 @@ frame_loop_step(void)
 
     if( App_RunOnce(&app, now, input) )
         interactive_render_present(&app, sdl, gl3);
+#if defined(TORIRS_HAVE_GL3)
     else if( gl3 )
         PlatformSDL2_PresentGL(sdl);
+#endif
     else
         PlatformSDL2_Present(sdl);
 
@@ -950,11 +983,9 @@ frame_loop_teardown(void)
 
     NetTransport_Free(sock);
     PlatformAudio_Free(audio);
+#if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
-    PlatformSDL2_Free(sdl);
-    NetTransport_Free(sock);
-    PlatformAudio_Free(audio);
-    ToriRS_GL3_Free(gl3);
+#endif
     PlatformSDL2_Free(sdl);
 }
 
@@ -1072,8 +1103,13 @@ main(
         }
         if( strcmp(argv[argi], "--opengl3") == 0 )
         {
+#if defined(TORIRS_HAVE_GL3)
             use_opengl3 = 1;
             continue;
+#else
+            fprintf(stderr, "torirs: --opengl3 is not available in this build\n");
+            return 1;
+#endif
         }
         if( positional == 0 && argv[argi][0] != '-' )
         {
@@ -1838,6 +1874,7 @@ main(
             App_Shutdown(&app);
             return 1;
         }
+#if defined(TORIRS_HAVE_GL3)
         if( use_opengl3 )
         {
             if( !PlatformSDL2_InitForOpenGL3(
@@ -1859,7 +1896,13 @@ main(
                 return 1;
             }
         }
-        else if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+        else
+#else
+        /* No desktop-GL renderer in this build; --opengl3 was rejected during
+         * argument parsing, so this is unreachable rather than ignored. */
+        (void)use_opengl3;
+#endif
+        if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
             fprintf(stderr, "SDL init failed\n");
             PlatformSDL2_Free(sdl);

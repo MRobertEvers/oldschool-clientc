@@ -59,10 +59,11 @@
 #define WEB_IO_MAX_PENDING (TORIRS_IO_MAX_ITEMS * 2)
 
 #define WEB_IO_CACHE_SLOTS 1024
-/* Bytes of decoded archive kept resident. Generous: this is what stands
- * between a boot and a few hundred extra round trips, and a browser tab that
- * is already holding a scene graph will not notice 64MB. */
-#define WEB_IO_CACHE_BUDGET (64 * 1024 * 1024)
+/* Bytes of encoded response kept resident. Enough to hold the group archives a
+ * boot re-reads (the obj config group alone was requested 219 times in one
+ * native boot, and each of those is a round trip here), and small enough that
+ * it is not itself a reason the heap grows. */
+#define WEB_IO_CACHE_BUDGET (32 * 1024 * 1024)
 
 struct WebCacheKey
 {
@@ -134,6 +135,12 @@ void
 PlatformXIO_Web_Pump(void)
 {
     torirs_web_io_pump_js();
+}
+
+int
+PlatformXIO_Web_PendingTotal(void)
+{
+    return g_web_io ? g_web_io->pending_count : 0;
 }
 
 struct PlatformX_IO*

@@ -22,4 +22,16 @@
 void
 PlatformXIO_Web_Pump(void);
 
+/**
+ * How many reads the client is currently waiting on.
+ *
+ * The host uses this to pace the frame loop. A frame can only consume the IO
+ * that has arrived, so while reads are outstanding the loop wants to run at
+ * event-loop rate, not display rate — the game's logic ticks are driven by the
+ * wall clock and so do not speed up with it, which makes a faster loop pure
+ * drain and no extra production.
+ */
+int
+PlatformXIO_Web_PendingTotal(void);
+
 #endif
