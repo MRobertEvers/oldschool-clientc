@@ -44,6 +44,7 @@
 #include "bmp.h"
 
 #include <assert.h>
+#include <math.h>
 #include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2048,7 +2049,6 @@ App_Init(
         volume_command.volume = app->audio.volume;
         ToriRS_AudioQueue_Push(&app->audio_out, &volume_command);
     }
-    app->cam_script.shake_axis = -1;
     app->inv_drag_com_id = -1;
     app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
@@ -3799,34 +3799,76 @@ app_world_paint(struct App* app)
     /* Roof hiding: the per-frame camera->player roofCheck caps the top drawn
      * level; config (RevConfig levels=) can still restrict further. */
     level_mask &= (uint8_t)((1u << (app_world_roof_check(app) + 1)) - 1);
-    /* CAM_SHAKE jitter (reference cutscene shake, per-axis sine). */
-    if( app->cam_script.shake_axis >= 0 )
+    /* CAM_SHAKE jitter (reference Client-TS 4448): each axis is a sine plus a
+     * random spread, and all five compound. It displaces the camera for this
+     * frame's draw only — the base position is restored below, or the y axis
+     * would ratchet the eye away a little more every frame. */
+    int shake_x = app->world_camera_pos.x;
+    int shake_y = app->world_camera_pos.y;
+    int shake_z = app->world_camera_pos.z;
+    int shake_pitch = app->world_camera.pitch;
+    int shake_yaw = app->world_camera.yaw;
+    for( int axis = 0; axis < 5; axis++ )
     {
-        int jitter = (app->cam_script.shake_amplitude *
-                      ToriDraw_Sin((int)(app->logic_cycle * app->cam_script.shake_speed) & 0x7ff)) >>
-                     16;
-        switch( app->cam_script.shake_axis )
+        int spread, jitter;
+        if( !app->cam_script.shake[axis] )
+            continue;
+        spread = app->cam_script.shake_jitter[axis];
+        jitter = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (spread * 2 + 1)) - spread;
+        jitter += (int)(sin(
+                            (double)app->cam_script.shake_cycle[axis] *
+                            ((double)app->cam_script.shake_speed[axis] / 100.0)) *
+                        app->cam_script.shake_amplitude[axis]);
+        switch( axis )
         {
         case 0:
-            cam_sx += jitter >> 7;
+            app->world_camera_pos.x += jitter;
+            cam_sx = app->world_camera_pos.x >> 7;
             break;
         case 1:
             app->world_camera_pos.y += jitter;
             break;
         case 2:
-            cam_sz += jitter >> 7;
+            app->world_camera_pos.z += jitter;
+            cam_sz = app->world_camera_pos.z >> 7;
             break;
         case 3:
             app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
             break;
+        case 4:
+            app->world_camera.pitch += jitter;
+            if( app->world_camera.pitch < 128 )
+                app->world_camera.pitch = 128;
+            if( app->world_camera.pitch > 383 )
+                app->world_camera.pitch = 383;
+            break;
         default:
             break;
         }
+        app->cam_script.shake_cycle[axis]++;
+    }
+    if( app->world )
+    {
+        int max_tile = app->world->_scene_size - 1;
+        if( cam_sx < 0 )
+            cam_sx = 0;
+        if( cam_sx > max_tile )
+            cam_sx = max_tile;
+        if( cam_sz < 0 )
+            cam_sz = 0;
+        if( cam_sz > max_tile )
+            cam_sz = max_tile;
     }
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
 
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+
+    app->world_camera_pos.x = shake_x;
+    app->world_camera_pos.y = shake_y;
+    app->world_camera_pos.z = shake_z;
+    app->world_camera.pitch = shake_pitch;
+    app->world_camera.yaw = shake_yaw;
 
     /* TORIRS_PAINT_DEBUG: what the painter actually emitted this frame, by kind.
      * Scene elements existing is not the same as being painted — the bucket
@@ -6143,6 +6185,200 @@ app_world_hotkeys(
  * position sync, animation ticks. Runs every frame (cycles may be 0) so the
  * painter dynamic set stays fresh, and forces a redraw while active — but only
  * while a viewport is actually on screen; an unshown world does not tick. */
+/* The level cutscene heights are measured against (reference minusedlevel). */
+static int
+app_cinema_level(struct App* app)
+{
+    int world_idx;
+    struct WorldEntity_Player* player;
+
+    if( !RS_EntitySync_FindPlayer(
+            &app->esync,
+            app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
+            &world_idx,
+            NULL) )
+        return 0;
+    player = World_EntityPoolGet(&app->world->entities.player, world_idx);
+    return player ? player->grid_position.level : 0;
+}
+
+/* Scene-space position of a cutscene target. `height` is measured up from the
+ * ground under the tile, and up is -y. */
+static void
+app_cinema_point(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int* out_x,
+    int* out_y,
+    int* out_z)
+{
+    int x = (app->scene_off_x + local_x) * 128 + 64;
+    int z = (app->scene_off_z + local_z) * 128 + 64;
+    *out_x = x;
+    *out_z = z;
+    *out_y = app_world_height(app, x, z, app_cinema_level(app)) - height;
+}
+
+/* Pitch/yaw that point the eye at the look-at target. Reference cinemaCamera
+ * (Client-TS 3542): note the yaw multiplier is *negative* 325.949 — the scene
+ * turns the opposite way to the mathematical angle. */
+static void
+app_cinema_angles(
+    struct App* app,
+    int* out_pitch,
+    int* out_yaw)
+{
+    int tx, ty, tz, dx, dy, dz, distance, pitch;
+
+    app_cinema_point(
+        app,
+        app->cam_script.look_lx,
+        app->cam_script.look_lz,
+        app->cam_script.look_height,
+        &tx,
+        &ty,
+        &tz);
+
+    dx = tx - app->world_camera_pos.x;
+    dy = ty - app->world_camera_pos.y;
+    dz = tz - app->world_camera_pos.z;
+    distance = (int)sqrt((double)dx * dx + (double)dz * dz);
+
+    pitch = (int)(atan2((double)dy, (double)distance) * 325.949) & 0x7ff;
+    if( pitch < 128 )
+        pitch = 128;
+    else if( pitch > 383 )
+        pitch = 383;
+
+    *out_pitch = pitch;
+    *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
+}
+
+void
+App_CinemaCameraSnapPosition(struct App* app)
+{
+    app_cinema_point(
+        app,
+        app->cam_script.move_lx,
+        app->cam_script.move_lz,
+        app->cam_script.move_height,
+        &app->world_camera_pos.x,
+        &app->world_camera_pos.y,
+        &app->world_camera_pos.z);
+}
+
+void
+App_CinemaCameraSnapAngle(struct App* app)
+{
+    app_cinema_angles(app, &app->world_camera.pitch, &app->world_camera.yaw);
+}
+
+/* Ease one axis toward its target: a flat `rate` plus `rate2`/1000 of what is
+ * left, never overshooting. */
+static int
+app_cinema_ease(
+    int current,
+    int target,
+    int rate,
+    int rate2)
+{
+    if( current < target )
+    {
+        current += rate + (target - current) * rate2 / 1000;
+        if( current > target )
+            current = target;
+    }
+    else if( current > target )
+    {
+        current -= rate + (current - target) * rate2 / 1000;
+        if( current < target )
+            current = target;
+    }
+    return current;
+}
+
+/* Reference cinemaCamera (Client-TS 3542). Runs every frame the script is up:
+ * the camera walks toward the move-to point and turns toward the look-at
+ * point, so a rate2 under 100 glides instead of cutting. */
+static void
+app_world_camera_cinema(struct App* app)
+{
+    int tx, ty, tz, pitch, yaw, delta;
+    int rate = app->cam_script.move_rate;
+    int rate2 = app->cam_script.move_rate2;
+
+    if( !app->cam_script.scripted || !app->world )
+        return;
+
+    app_cinema_point(
+        app,
+        app->cam_script.move_lx,
+        app->cam_script.move_lz,
+        app->cam_script.move_height,
+        &tx,
+        &ty,
+        &tz);
+
+    app->world_camera_pos.x = app_cinema_ease(app->world_camera_pos.x, tx, rate, rate2);
+    app->world_camera_pos.y = app_cinema_ease(app->world_camera_pos.y, ty, rate, rate2);
+    app->world_camera_pos.z = app_cinema_ease(app->world_camera_pos.z, tz, rate, rate2);
+
+    app_cinema_angles(app, &pitch, &yaw);
+    rate = app->cam_script.look_rate;
+    rate2 = app->cam_script.look_rate2;
+    app->world_camera.pitch = app_cinema_ease(app->world_camera.pitch, pitch, rate, rate2);
+
+    /* Yaw wraps, so ease along the short way round and stop when the sign of
+     * the remaining turn flips — the linear helper cannot see past the seam. */
+    delta = yaw - app->world_camera.yaw;
+    if( delta > 1024 )
+        delta -= 2048;
+    else if( delta < -1024 )
+        delta += 2048;
+
+    if( delta > 0 )
+        app->world_camera.yaw = (app->world_camera.yaw + rate + delta * rate2 / 1000) & 0x7ff;
+    else if( delta < 0 )
+        app->world_camera.yaw = (app->world_camera.yaw - rate - -delta * rate2 / 1000) & 0x7ff;
+
+    if( delta != 0 )
+    {
+        int remaining = yaw - app->world_camera.yaw;
+        if( remaining > 1024 )
+            remaining -= 2048;
+        else if( remaining < -1024 )
+            remaining += 2048;
+        if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
+            app->world_camera.yaw = yaw;
+    }
+
+    /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
+    if( getenv("TORIRS_CAM_DEBUG") )
+        printf(
+            "cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
+            "shake=%d%d%d%d%d\n",
+            app->world_camera_pos.x,
+            app->world_camera_pos.y,
+            app->world_camera_pos.z,
+            app->world_camera.pitch,
+            app->world_camera.yaw,
+            app->cam_script.move_lx,
+            app->cam_script.move_lz,
+            app->cam_script.move_height,
+            app->cam_script.look_lx,
+            app->cam_script.look_lz,
+            app->cam_script.look_height,
+            app->cam_script.shake[0],
+            app->cam_script.shake[1],
+            app->cam_script.shake[2],
+            app->cam_script.shake[3],
+            app->cam_script.shake[4]);
+
+    app->need_redraw = 1;
+}
+
 /* Reference followCamera + camFollow (Client-TS 3459/4669): a 1/16-eased
  * orbit anchor trails the player, arrow keys accumulate yaw/pitch velocity,
  * a terrain scan raises pitch so the eye stays above nearby ground, then the
@@ -6316,6 +6552,9 @@ app_world_frame(
     }
 
     app_world_sync_positions(app);
+    /* Exactly one of these does anything: the follow cam returns early while a
+     * cutscene is up, and the cinema cam returns early when one is not. */
+    app_world_camera_cinema(app);
     app_world_camera_follow(app);
     app_world_sync_entity_animations(app);
     app_world_sync_entity_spotanims(app);

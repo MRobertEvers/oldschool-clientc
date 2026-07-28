@@ -78,10 +78,21 @@
       var len = Module._torirs_io_request_len();
       if (len <= 0) { return; }
 
-      var ptr = Module._torirs_io_request_ptr();
-      // Copy before releasing: the wasm buffer is reused for the next batch.
-      var batch = Module.HEAPU8.slice(ptr, ptr + len);
-      Module._torirs_io_request_taken();
+      var batch;
+      try {
+        var ptr = Module._torirs_io_request_ptr();
+        // Copy before releasing: the wasm buffer is reused for the next batch.
+        batch = Module.HEAPU8.slice(ptr, ptr + len);
+        Module._torirs_io_request_taken();
+      } catch (err) {
+        // The pump is called from inside a wasm frame, so an exception here
+        // would surface as a trap in the client rather than as this message.
+        // The batch is left queued (nothing was consumed), so the next pump
+        // retries it.
+        this.failures++;
+        log('io: could not read the request batch: ' + err.message, true);
+        return;
+      }
 
       var self = this;
       this.inflight++;
@@ -116,15 +127,23 @@
     },
 
     deliver: function (bytes) {
-      var ptr = Module._torirs_io_response_alloc(bytes.length);
-      if (!ptr) {
-        log('io: out of wasm memory for a ' + bytes.length + ' byte response', true);
+      var ptr = 0;
+      try {
+        ptr = Module._torirs_io_response_alloc(bytes.length);
+        if (!ptr) {
+          log('io: out of wasm memory for a ' + bytes.length + ' byte response', true);
+          Module._torirs_io_fail_pending();
+          return;
+        }
+        // Fetch the view AFTER the allocation: growing the heap replaces it.
+        Module.HEAPU8.set(bytes, ptr);
+        Module._torirs_io_response_submit(ptr, bytes.length);
+      } catch (err) {
+        this.failures++;
+        log('io: could not deliver a ' + bytes.length + ' byte response: ' + err.message, true);
         Module._torirs_io_fail_pending();
         return;
       }
-      // Fetch the view AFTER the allocation: it may have grown the heap.
-      Module.HEAPU8.set(bytes, ptr);
-      Module._torirs_io_response_submit(ptr, bytes.length);
       this.records++;
       this.bytesIn += bytes.length;
     },

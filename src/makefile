@@ -214,7 +214,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip
+.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -465,7 +465,8 @@ test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 #     python3 serverscript/gen_opcode_meta.py [path-to-LostCity_Server]
 # ---------------------------------------------------------------------------
 SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
-	serverscript/ssvm_provider.c $(RSAREABUF_DIR)/rsareabuf.c
+	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
+	$(RSAREABUF_DIR)/rsareabuf.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
 # relation, and the 64-bit lookup key that a rev-230 component uid overflows.
@@ -490,6 +491,22 @@ test-ss-roundtrip: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_roundtrip_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_roundtrip_test \
 		$(SS_SRCS) serverscript/test/ss_roundtrip_test.c
 	./$(OBJ_DIR)/ss_roundtrip_test $(SS_CORPUS)
+
+# The VM: core language, arithmetic, strings, frames, limits, suspend/resume.
+# Scripts are assembled in memory and loaded through the real container, so
+# these cases cover the encoder and reader on the way past. No corpus needed.
+test-ss-vm: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_vm_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_vm_test \
+		$(SS_SRCS) serverscript/test/ss_vm_test.c
+	./$(OBJ_DIR)/ss_vm_test
+
+# Static stack verifier: a CFG walk over every corpus instruction. Proves the
+# generated arity table agrees with real compiled code, and turns the VM's stack
+# size constants into measurements instead of guesses.
+test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_verify_test \
+		$(SS_SRCS) serverscript/test/ss_verify_test.c
+	./$(OBJ_DIR)/ss_verify_test $(SS_CORPUS)
 
 # CS1 VM core is engine-agnostic, so the suite links only the VM sources.
 test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c

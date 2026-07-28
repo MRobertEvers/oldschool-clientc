@@ -110,7 +110,11 @@ else ifeq ($(PLATFORM),web)
                       $(WEB_PRELOAD)
 
   ifeq ($(OPT),1)
-    PLATFORM_LDFLAGS += -O3
+    # -g0 discards the DWARF the shared CFLAGS' -g put in the objects. Without
+    # it emcc keeps the debug info and, to keep it valid, runs only a subset of
+    # the binaryen optimizations — a release build that is both larger and
+    # slower than asked for.
+    PLATFORM_LDFLAGS += -O3 -g0
   else
     PLATFORM_LDFLAGS += -sASSERTIONS=1
   endif

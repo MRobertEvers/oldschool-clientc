@@ -4160,3 +4160,65 @@ minutes), so `IDK_SAVEDESIGN` has been verified only as far as the payload —
 `App_SendIdkDesign` logs it under `TORIRS_NET_DEBUG` before handing it to the
 builder. The byte layout is the pre-existing `net_out_idk_savedesign`, unchanged
 here.
+
+## 54. Cutscene cameras never moved — CAM_MOVETO and CAM_LOOKAT were parsed as three u16s — ✅
+
+The TzKal-Zuk opening in the LostCity dev server sends the usual four camera
+ops; the dialogue appeared and the camera did not budge. `TORIRS_NET_DEBUG`
+reported nothing unhandled, and all four packets were mapped and had real
+handlers — the payload was simply being read wrong:
+
+```
+CAMDBG moveto local=15405,1000 height=2660
+```
+
+Every field is garbage, and instructively so. `15405` is `0x3C2D`, which is
+tiles 60 and 45 fused into one number. `1000` is the *height*, sitting in the z
+slot. `2660` is `0x0A64` — rates 10 and 100, fused. The parser read three `g2`s
+where the wire is
+
+```
+p1 x, p1 z, p2 height, p1 rate, p1 rate2
+```
+
+Both are six bytes, so `assert(buffer.position == data_size)` passed and the
+fields just slid down one slot each. The camera was told to fly to tile 15405
+and did exactly that, off the edge of the scene, every time.
+
+Three further gaps behind it, all against `Client.ts` (handlers 6549/6600,
+`cinemaCamera` 3542, shake application 4448):
+
+- **Height is ground-relative.** `camY = getAvH(x, z, level) - height`, not
+  `-height`. The scripted-camera roof check already assumed this — it tests
+  `ground_y - cam_y >= 800` — so the two halves disagreed.
+- **`CAM_LOOKAT` set yaw but never pitch.** Pitch is
+  `atan2(dy, hypot(dx,dz)) * 325.949` clamped to `[128, 383]`, and the yaw
+  multiplier is *negative* 325.949 — the scene turns opposite to the
+  mathematical angle. With no pitch the eye kept whatever the follow cam left.
+- **`CAM_SHAKE` kept one axis.** The reference holds five independent axes with
+  their own cycle counters; scripts fire one call per axis and expect them to
+  compound, so a single slot kept only whichever arrived last. The packet parse
+  already read all four fields — only the storage was too narrow. (The field
+  names in `PktCamShake` predate knowing which was which: the wire order is
+  axis, random spread, sine amplitude, sine rate.)
+
+The camera also now eases. The packets set a *destination*; `rate` is a flat
+step and `rate2` is a fraction of the remainder per frame, with only
+`rate2 >= 100` snapping. `app_world_camera_cinema` runs every frame the script
+is up, next to `app_world_camera_follow` — exactly one of the two does anything,
+since each returns early in the other's case.
+
+One latent bug fell out of the shake rewrite: the old code applied the y jitter
+straight onto `world_camera_pos.y` and never put it back, so any y-axis shake
+ratcheted the eye a little further every frame. The reference captures the five
+camera fields before the draw and restores them after; ours now does too.
+
+Verified against the live LostCity server on `::~zuk`, with `TORIRS_CAM_DEBUG=1`
+tracing the scripted camera. The eye lands on scene tile (100, 101) — world
+(2276, 5349) — at ground−1000, aims at (95, 117) = world (2271, 5365), pitch
+clamps to 128, yaw resolves to 98, and shake axes 0–2 are live: Kronos'
+`moveCameraToLocation(2276, 5349, 1000, 10, 100)` /
+`turnCameraToLocation(2271, 5365, 1000, 10, 100)` / `shakeCamera(0..2, 10)`
+reproduced exactly. The trace starts and stops well inside the run, so
+`cam_reset` hands the view back to the follow camera; the frame after the
+cutscene is an ordinary orbit shot.

@@ -220,12 +220,29 @@ def parse_engine_rs2(path: Path) -> dict[str, dict]:
         r"(?:\(([^)]*)\))?"
         r"(?:\(([^)]*)\))?"
     )
+    # A bare `[command,x]` normally means genuinely zero-arity (cam_reset,
+    # if_close, p_pausebutton...). But at least one entry parks its real
+    # signature in a trailing comment:
+    #
+    #     [command,enum] // (type $input, type $output, enum $enum, dynamic $key)(dynamic)
+    #
+    # Reading that as zero-arity is not a harmless approximation: `enum` pops
+    # four values and pushes one, so the stack silently slides by five for
+    # everything after it. Recovering the signature from the comment keeps this
+    # self-maintaining — if upstream un-comments it, nothing here changes.
+    commented = re.compile(r"//\s*\(([^)]*)\)\s*(?:\(([^)]*)\))?")
+
     out: dict[str, dict] = {}
     for line in path.read_text(encoding="utf-8").split("\n"):
         m = decl.match(line.strip())
         if not m:
             continue
         dot, name, star, args_s, rets_s = m.groups()
+
+        if args_s is None:
+            recovered = commented.search(line)
+            if recovered:
+                args_s, rets_s = recovered.group(1), recovered.group(2)
         args = split_params(args_s or "")
         rets = split_params(rets_s or "")
 

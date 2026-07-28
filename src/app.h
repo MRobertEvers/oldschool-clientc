@@ -802,6 +802,15 @@ App_WorldSpotanimSpawn(
     int height,
     int delay);
 
+/* Jump the scripted camera straight to its move-to / look-at target rather
+ * than easing there. CAM_MOVETO and CAM_LOOKAT call these when the rate2 they
+ * carry is 100 or more, which is what makes a cutscene cut rather than glide. */
+void
+App_CinemaCameraSnapPosition(struct App* app);
+
+void
+App_CinemaCameraSnapAngle(struct App* app);
+
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
  * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
  * its model/seq before building the world entity. Coordinates are scene tiles;
