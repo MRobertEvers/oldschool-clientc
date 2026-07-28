@@ -488,10 +488,20 @@ pg_upload_entity_model(
     float* group_normals = NULL;
     int vertex_index = 0;
     int normal_index = 0;
+    /* Reuse the buffers when the topology is unchanged. This runs every frame an
+     * animation plays — the vertices move but the face list does not — and
+     * recreating a VAO and two VBOs sixty times a second is churn the driver
+     * charges for. */
+    bool reuse = out->vao != 0 && out->vbo_count == 2 &&
+                 out->vertex_count == def->face_count * 3;
 
-    pg_gl_model_free(out);
+    if( !reuse )
+        pg_gl_model_free(out);
     if( !def || def->face_count <= 0 )
+    {
+        pg_gl_model_free(out);
         return;
+    }
 
     positions = malloc((size_t)def->face_count * 3 * 4 * sizeof(int));
     normals = malloc((size_t)def->face_count * 3 * 3 * sizeof(int));
@@ -566,10 +576,17 @@ pg_upload_entity_model(
         }
     }
 
-    pg_glGenVertexArrays(1, &out->vao);
-    pg_glBindVertexArray(out->vao);
-    pg_glGenBuffers(2, out->vbo);
-    out->vbo_count = 2;
+    if( !reuse )
+    {
+        pg_glGenVertexArrays(1, &out->vao);
+        pg_glBindVertexArray(out->vao);
+        pg_glGenBuffers(2, out->vbo);
+        out->vbo_count = 2;
+    }
+    else
+    {
+        pg_glBindVertexArray(out->vao);
+    }
 
     pg_glBindBuffer(GL_ARRAY_BUFFER, out->vbo[0]);
     pg_glBufferData(
@@ -990,8 +1007,11 @@ pg_camera_pan(
     struct PG_Vec2 delta,
     float camera_multiplier)
 {
-    struct PG_Vec3 right = pg_vec3_mul(pg_vec3(view.m[0], view.m[1], view.m[2]), delta.x);
-    struct PG_Vec3 up = pg_vec3_mul(pg_vec3(view.m[4], view.m[5], view.m[6]), delta.y);
+    /* The view matrix's first two *rows* — its right and up axes expressed in
+     * world space, which is what a screen-space drag has to move along. Reading
+     * the columns instead pans along the world axes and feels sheared. */
+    struct PG_Vec3 right = pg_vec3_mul(pg_vec3(view.m[0], view.m[4], view.m[8]), delta.x);
+    struct PG_Vec3 up = pg_vec3_mul(pg_vec3(view.m[1], view.m[5], view.m[9]), delta.y);
     struct PG_Vec3 move = pg_vec3_mul(pg_vec3_add(right, up), camera_multiplier * 2.0f);
     camera->centre = pg_vec3_sub(camera->centre, move);
 }

@@ -239,6 +239,21 @@ set_port_key(
         snprintf(manifest->area, sizeof(manifest->area), "%s", value);
     else if( strcmp(key, "prefix") == 0 )
         snprintf(manifest->prefix, sizeof(manifest->prefix), "%s", value);
+    else if( strcmp(key, "rig_framemaps") == 0 )
+    {
+        const char* p = value;
+        while( *p && manifest->rig_framemap_count < 64 )
+        {
+            int v = 0;
+            while( *p == ' ' || *p == ',' )
+                p++;
+            if( *p < '0' || *p > '9' )
+                break;
+            while( *p >= '0' && *p <= '9' )
+                v = v * 10 + (*p++ - '0');
+            manifest->rig_framemaps[manifest->rig_framemap_count++] = v;
+        }
+    }
     else if( strcmp(key, "rig_inert") == 0 )
         manifest->rig_inert = atoi(value);
     else if( strcmp(key, "max_textures") == 0 )

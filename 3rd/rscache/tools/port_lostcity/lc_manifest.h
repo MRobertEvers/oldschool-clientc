@@ -99,6 +99,9 @@ struct LC_Manifest
     int rig_map_count;
     /** Joint number used for 'no counterpart'; never treated as drivable. */
     int rig_inert;
+    /** Source framemap ids the rig map applies to (`rig_framemaps`). */
+    int rig_framemaps[64];
+    int rig_framemap_count;
 
     /**
      * Verbatim config lines to append to a named block, from `[extra:<name>]`.

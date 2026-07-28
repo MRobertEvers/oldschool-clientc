@@ -18,6 +18,9 @@
  *                --b-models <content>/models/human/man --b-anim <...>.anim
  *                --out /tmp/cmp [flags]
  *
+ *   --a-model ID       pose this model instead of the player body, and
+ *   --b-model FILE     the matching `.ob2` — for animations that are not player
+ *                      animations, such as a spotanim rigged to its own framemap
  *   --frames LO-HI     only this frame range
  *   --size WxH         per-panel pixel size (default 320x400)
  *   --yaw N            turntable angle, 0..2047 (default 0, facing the camera)
@@ -608,7 +611,8 @@ load_side_dat2(
     struct Rig* rig,
     const char* rev,
     const char* dir,
-    int seq_id)
+    int seq_id,
+    int model_id)
 {
     struct RSCache profile;
     struct Tool_Dat2Cache cache;
@@ -639,8 +643,21 @@ load_side_dat2(
         return 0;
     }
 
-    /* The body: every identikit model, which between them cover the whole rig. */
-    if( tool_dat2_idk_models(&cache, &ids, &count) )
+    /* An explicit model when the animation is not a player one — a spotanim is
+     * rigged to its own framemap and its own mesh, and posing the player body
+     * with it would compare two unrelated things. */
+    if( model_id >= 0 )
+    {
+        struct RSCache_Model* m = tool_dat2_model_load(&cache, model_id);
+        if( !m )
+        {
+            fprintf(stderr, "anim_compare: model %d absent\n", model_id);
+            return 0;
+        }
+        rig_add_model(rig, m);
+        RSCache_ModelFree(m);
+    }
+    else if( tool_dat2_idk_models(&cache, &ids, &count) )
     {
         for( int i = 0; i < count; i++ )
         {
@@ -816,6 +833,7 @@ static int
 load_side_dat1(
     struct Rig* rig,
     const char* models_dir,
+    const char* model_file,
     const char* anim_path)
 {
     long size;
@@ -835,7 +853,23 @@ load_side_dat1(
         return 0;
     }
 
-    add_ob2_tree(rig, models_dir);
+    if( model_file )
+    {
+        long msize;
+        char* mbytes = slurp(model_file, &msize);
+        struct RSCache_Model* m = mbytes ? RSCache_ModelNewDecode(mbytes, (int)msize) : NULL;
+        if( !m )
+        {
+            fprintf(stderr, "anim_compare: cannot read model %s\n", model_file);
+            free(mbytes);
+            return 0;
+        }
+        rig_add_model(rig, m);
+        RSCache_ModelFree(m);
+        free(mbytes);
+    }
+    else
+        add_ob2_tree(rig, models_dir);
     rig_finish_geometry(rig);
 
     rig->transform_count = abf->base->length;
@@ -960,6 +994,8 @@ main(int argc, char** argv)
     const char* b_models = NULL;
     const char* b_anim = NULL;
     const char* out = "anim_compare_out";
+    const char* b_model = NULL;
+    int a_model = -1;
     int a_seq = -1, lo = 0, hi = -1, pw = 320, ph = 400, yaw = 0, scale = 0;
     int by_label = 0, sheet = 0, report = 0;
     struct Rig ra, rb;
@@ -978,6 +1014,10 @@ main(int argc, char** argv)
             a_seq = atoi(argv[++i]);
         else if( strcmp(argv[i], "--b-models") == 0 && i + 1 < argc )
             b_models = argv[++i];
+        else if( strcmp(argv[i], "--a-model") == 0 && i + 1 < argc )
+            a_model = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--b-model") == 0 && i + 1 < argc )
+            b_model = argv[++i];
         else if( strcmp(argv[i], "--b-anim") == 0 && i + 1 < argc )
             b_anim = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
@@ -1002,19 +1042,20 @@ main(int argc, char** argv)
             return 2;
         }
     }
-    if( !a_rev || !a_cache || a_seq < 0 || !b_models || !b_anim )
+    if( !a_rev || !a_cache || a_seq < 0 || (!b_models && !b_model) || !b_anim )
     {
         fprintf(stderr,
                 "Usage: anim_compare --a-rev REV --a-cache DIR --a-seq ID\n"
-                "                    --b-models DIR --b-anim FILE.anim\n"
+                "                    --b-models DIR | --b-model FILE.ob2  --b-anim FILE.anim\n"
+                "                    [--a-model ID   compare one model, not the player body]\n"
                 "                    [--out DIR] [--frames LO-HI] [--size WxH]\n"
                 "                    [--yaw N] [--scale N] [--by-label] [--sheet]\n");
         return 2;
     }
 
-    if( !load_side_dat2(&ra, a_rev, a_cache, a_seq) )
+    if( !load_side_dat2(&ra, a_rev, a_cache, a_seq, a_model) )
         return 1;
-    if( !load_side_dat1(&rb, b_models, b_anim) )
+    if( !load_side_dat1(&rb, b_models, b_model, b_anim) )
         return 1;
 
     printf("A %-28s verts=%6d faces=%6d transforms=%3d frames=%d\n",

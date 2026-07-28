@@ -148,6 +148,19 @@ struct LC_Ctx
     /** Which destination joints the map can actually drive — the set of its
      *  targets. Everything else is inert once the map has run. */
     unsigned char rig_live[256];
+    /**
+     * Source framemap ids the rig map applies to. Empty means every framemap,
+     * which is almost never what you want.
+     *
+     * A rig map describes one skeleton's joints in terms of another's, so it is
+     * only meaningful for framemaps built on that skeleton. An export usually
+     * carries others too — a spotanim is rigged to its own framemap, which
+     * travels with its own model and is already self-consistent — and running a
+     * player correspondence over one of those renumbers its joints into
+     * player joints it does not have.
+     */
+    int rig_framemaps[64];
+    int rig_framemap_count;
 
     /**
      * Hand-authored config lines, keyed by config name (manifest `[extra:...]`).

@@ -184,6 +184,7 @@ lc_ctx_init(
         ctx->rig_map[i] = i;
     ctx->has_rig_map = 0;
     memset(ctx->rig_live, 0, sizeof(ctx->rig_live));
+    ctx->rig_framemap_count = 0;
     /* A mid grey: visible, and neutral enough that it reads as "untextured"
      * rather than as a wrong colour. Only reached when a face names a texture
      * the source cache does not hold. */
@@ -706,6 +707,15 @@ lc_apply_rig_map(
 
     if( !ctx->has_rig_map || !fm )
         return;
+    if( ctx->rig_framemap_count > 0 )
+    {
+        int wanted = 0;
+        for( int i = 0; i < ctx->rig_framemap_count; i++ )
+            if( ctx->rig_framemaps[i] == fm->id )
+                wanted = 1;
+        if( !wanted )
+            return;
+    }
     for( int i = 0; i < fm->length; i++ )
         for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
             fm->bone_groups[i][j] = ctx->rig_map[fm->bone_groups[i][j] & 0xff];

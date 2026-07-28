@@ -230,6 +230,9 @@ main(int argc, char** argv)
             ctx.rig_live[manifest.rig_map_to[i] & 0xff] = 1;
         ctx.has_rig_map = 1;
     }
+    for( int i = 0; i < manifest.rig_framemap_count; i++ )
+        ctx.rig_framemaps[i] = manifest.rig_framemaps[i];
+    ctx.rig_framemap_count = manifest.rig_framemap_count;
     ctx.extras = manifest.extras;
     ctx.extra_count = manifest.extra_count;
     for( int i = 0; i < manifest.label_map_count; i++ )
