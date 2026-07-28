@@ -69,6 +69,19 @@ a single record is instant:
 ./find_named/find_named --rev osrs230 cache.osrs230 --scan-spotanim-model 50027
 ```
 
+Rig inspection, for porting animations across eras — a framemap is the rig an
+animation is authored against, and the two dumps below are what show whether two
+eras number their joints the same way (they do not; see `RIGGING_OSRS_RS2.md`):
+
+```sh
+./find_named/find_named --rev osrs239 cache.osrs239 --framemap 0     # dat2 rig
+./find_named/find_named --dat1-anim <content>/models/anim_80.anim    # dat1 rig
+./find_named/find_named --rev osrs239 cache.osrs239 --idk-centroids  # joint positions
+```
+
+`--idk-centroids` walks the identikit body models and prints each label's vertex
+centroid, which is how the joint correspondence between two rigs is derived.
+
 Sequence dumps report duration in **both** client cycles and server ticks, which
 is the number a script actually needs — 30 client cycles is one server tick.
 
@@ -166,11 +179,19 @@ rune claws  (native)   label  16   x = +34.5      dragon claws (OSRS)  label  50
 
 Same sides, same heights, so `161 = 16` and `50 = 17`.
 
-**Animations cannot be remapped this way.** The label map fixes a *model*; a
-player animation authored against a 245-transform OSRS rig has no correspondence
-into a rev-254 one, because they are different skeletons and not merely
-differently numbered. Use a native animation for the body and keep the ported
-spotanim, which travels with its own framemap and works untouched.
+**Animations need the other map.** `--label-map` fixes a *model*; an animation
+needs `[export:rig_map]`, which renumbers every exported framemap's label sets
+from the source rig into the destination's. The frame data is untouched — frames
+address transforms by index — so only the labels move.
+
+Derive that correspondence by matching per-label vertex centroids of each era's
+identikit body models (`find_named --idk-centroids` for the dat2 side). Park
+every source label with no counterpart on a number the destination never uses:
+leaving them is worse than dropping them, because OSRS label 50 is not rev-254
+joint 50 and identity quietly bends a thigh with a cape transform.
+
+The full method, the measured OSRS -> rev-254 joint table, and the verification
+procedure are in `RIGGING_OSRS_RS2.md` at the repo root.
 
 What it deliberately does **not** derive is the combat block: bonuses live in the
 source item's params table against param ids this revision does not share, and
