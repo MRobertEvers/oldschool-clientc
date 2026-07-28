@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <rscache/rscache.h>
+#include <rscache.h>
 
 /*
  * Slots are scanned linearly. Groups are read at task granularity — a few

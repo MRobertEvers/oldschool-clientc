@@ -243,22 +243,39 @@ read_number(struct SSC_Lexer* lexer, struct SSC_Token* token)
     }
 }
 
+/**
+ * Read a string literal, including any `<...>` it carries.
+ *
+ * Angle brackets are content rather than syntax at this level: `<$name>` and
+ * `<tostring($level)>` are interpolations the parser expands later, `<br>` and
+ * `<p,happy>` are markup the client renders. Both pass through untouched.
+ *
+ * The catch is that an interpolation can contain a *quoted string of its own* —
+ * `<text_gender("man", "woman")>` — so a bare `"` only ends the literal at
+ * bracket depth zero. Terminating on the first quote regardless truncates the
+ * literal mid-interpolation and then lexes the remainder as code.
+ */
 static void
 read_string(struct SSC_Lexer* lexer, struct SSC_Token* token)
 {
     size_t out = 0;
+    int depth = 0;
 
     lexer->pos++; /* opening quote */
-    while( lexer->pos < lexer->length && lexer->source[lexer->pos] != '"' )
+    while( lexer->pos < lexer->length )
     {
         char c = lexer->source[lexer->pos];
+
+        if( c == '"' && depth == 0 )
+            break;
+        if( c == '<' )
+            depth++;
+        else if( c == '>' && depth > 0 )
+            depth--;
 
         if( c == '\n' )
             lexer->line++;
 
-        /* Angle brackets are content, not syntax: `<$name>` marks an
-         * interpolation the parser expands later, and `<br>` / `<col=...>` are
-         * markup the client renders. Both pass through untouched. */
         if( out + 1 < sizeof(token->text) )
             token->text[out++] = c;
         lexer->pos++;

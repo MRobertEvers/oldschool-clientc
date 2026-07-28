@@ -155,7 +155,8 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	engine/dat1/task_dat1_map_load.c engine/dat1/task_dat1_loc_load.c \
 	engine/dat1/task_dat1_flotype_load.c engine/dat1/task_dat1_texture_load.c \
 	engine/dat1/task_dat1_sequence_load.c \
-	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
+	engine/dat2/dat2_buildcache.c engine/dat2/dat2_group_cache.c \
+	engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \

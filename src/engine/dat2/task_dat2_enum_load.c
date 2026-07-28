@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 #include "engine/torirs_enum_from_rscache.h"
 
 #include "asyncio.h"
@@ -18,6 +19,10 @@ struct Task_Dat2EnumLoad
     struct Dat2BuildCache* bc;
     int enum_id;
     struct RSCache_RecordAddress addr;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
+    int group_table;
+    int group_id;
 };
 
 static int
@@ -26,11 +31,9 @@ Task_Dat2EnumLoad_Run(
     struct ToriRS_IO* io)
 {
     struct Task_Dat2EnumLoad* task = (struct Task_Dat2EnumLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_FileList* filelist = NULL;
     struct RSCache_Dat2ConfigEnum entry = { 0 };
     struct ToriRS_Enum* torirs = NULL;
-    int found = 0;
+    int pos;
 
     PT_BEGIN(&task->pt);
 
@@ -40,57 +43,37 @@ Task_Dat2EnumLoad_Run(
     task->addr = RSCache_RecordAddressFor(
         CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_ENUM);
 
-    if( task->addr.group_shift == 0 )
-    {
-        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
-        PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_ENUM);
-    }
-    else
-    {
-        RSCache_IO_Dat2RecordGroupLoad(
-            io, 0, task->addr.table, task->enum_id >> task->addr.group_shift);
-        PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, task->addr.table);
-    }
+    task->group_table = task->addr.group_shift ? task->addr.table
+                                               : RSCACHE_DAT2_TABLE_CONFIGS;
+    task->group_id = task->addr.group_shift
+                         ? (task->enum_id >> task->addr.group_shift)
+                         : RSCACHE_DAT2_CONFIG_KIND_ENUM;
+    DAT2_GROUP_AWAIT(
+        &task->pt, io, 0, task->bc->group_cache,
+        task->group_table, task->group_id, task->group);
 
-    if( !archive )
+    if( !task->group )
     {
         fprintf(stderr, "Failed to decode dat2 enum group for enum %d\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
 
-    filelist = RSCache_FileListNewFromDecode(
-        archive->data, archive->data_size, archive->file_count);
-    if( !filelist || !archive->file_ids )
-    {
-        fprintf(stderr, "Failed to filelist dat2 enum group for enum %d\n", task->enum_id);
-        RSCache_FileListFree(filelist);
-        RSCache_Dat2DiskArchiveFree(archive);
-        PT_EXIT(&task->pt);
-    }
-
     /* Sharded file ids are group-relative, so match on the low bits. */
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        int want = task->addr.group_shift ? (task->enum_id & task->addr.file_mask) : task->enum_id;
-        if( archive->file_ids[i] != want )
-            continue;
-        entry.id = task->enum_id;
-        RSCache_Dat2ConfigEnumDecodeInplace(
-            &entry, filelist->files[i], filelist->file_sizes[i]);
-        found = 1;
-        break;
-    }
-
-    RSCache_FileListFree(filelist);
-    RSCache_Dat2DiskArchiveFree(archive);
-
-    if( !found )
+    pos = Dat2Group_IndexOf(
+        task->group,
+        task->addr.group_shift ? (task->enum_id & task->addr.file_mask)
+                               : task->enum_id);
+    if( pos < 0 )
     {
         fprintf(stderr, "Failed to find dat2 enum %d in config group\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
+
+    entry.id = task->enum_id;
+    RSCache_Dat2ConfigEnumDecodeInplace(
+        &entry,
+        task->group->filelist->files[pos],
+        task->group->filelist->file_sizes[pos]);
 
     torirs = ToriRS_EnumFromRSCacheDat2(task->enum_id, &entry);
     RSCache_Dat2ConfigEnumFreeInplace(&entry);

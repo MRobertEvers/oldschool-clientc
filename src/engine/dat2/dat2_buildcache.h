@@ -2,6 +2,7 @@
 #define DAT2_BUILDCACHE_H
 
 #include "engine/cache_provider.h"
+#include "engine/dat2/dat2_group_cache.h"
 
 #include <rscache.h>
 #include <stdbool.h>
@@ -57,6 +58,13 @@ struct Dat2BuildCache
     struct Dat2ProcTexSprite* proctex_sprites;
     int proctex_sprite_count;
     int proctex_sprite_capacity;
+
+    /*
+     * Split config/record groups, LRU by bytes. This is what makes reading one
+     * record out of a group cheap enough to do lazily — see dat2_group_cache.h.
+     * Pure derived data: clearing it costs a re-split, never correctness.
+     */
+    struct Dat2GroupCache* group_cache;
 };
 
 /** A sprite dependency, decoded once to ARGB for the generator to sample. */

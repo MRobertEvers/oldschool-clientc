@@ -405,88 +405,145 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     return 1;
 }
 
+/*
+ * Is the text between a `<` and its `>` an interpolation, or markup?
+ *
+ * Both live in string literals and only the first is compiled:
+ *
+ *   interpolation   <$name>  <%varp>  <displayname>  <.displayname>
+ *                   <tostring($level)>  <lowercase(oc_name($ingredient))>
+ *   markup          <br>  <col=ff0000>  <p,happy>  <lt>
+ *
+ * A leading sigil settles it immediately. Otherwise the leading identifier has
+ * to name a command *and* be followed by `(` or nothing else — that second half
+ * matters: `<p,happy>` would slip through on the name test alone if a command
+ * were ever called `p`, and the corpus has 6,577 of those.
+ */
+static int
+is_interpolation(const char* inner, size_t length)
+{
+    size_t i = 0;
+    char name[64];
+    size_t name_length = 0;
+
+    while( i < length && (inner[i] == ' ' || inner[i] == '\t') )
+        i++;
+    if( i >= length )
+        return 0;
+
+    if( inner[i] == '$' || inner[i] == '%' )
+        return 1;
+
+    if( inner[i] == '.' )
+        i++;
+    while( i < length && name_length + 1 < sizeof(name) &&
+           ((inner[i] >= 'a' && inner[i] <= 'z') || (inner[i] >= 'A' && inner[i] <= 'Z') ||
+            (inner[i] >= '0' && inner[i] <= '9') || inner[i] == '_') )
+        name[name_length++] = inner[i++];
+    name[name_length] = '\0';
+    if( name_length == 0 )
+        return 0;
+
+    while( i < length && (inner[i] == ' ' || inner[i] == '\t') )
+        i++;
+    if( i < length && inner[i] != '(' )
+        return 0;
+
+    return SSVM_OpcodeFromName(name) >= 0;
+}
+
+/** Compile `inner` as an expression and leave a STRING on the stack. */
+static int
+compile_interpolation(
+    struct SSC_Compiler* compiler,
+    const char* inner,
+    size_t length)
+{
+    struct SSC_Lexer saved = compiler->lexer;
+    struct SSC_Lexer nested;
+    int is_string = 0;
+    int ok;
+
+    SSC_LexInit(&nested, inner, length, saved.file);
+    nested.line = saved.current.line;
+    compiler->lexer = nested;
+    SSC_LexNext(&compiler->lexer);
+
+    ok = parse_expression(compiler, &is_string);
+    if( ok && !is_string )
+    {
+        /* `<tostring($n)>` converts explicitly, but `<$n>` on an int local and
+         * any int-returning command do not — they still have to become text
+         * before JOIN_STRING sees them. */
+        emit(compiler, SS_OP_TOSTRING, 0);
+    }
+
+    compiler->lexer = saved;
+    return ok;
+}
+
 /**
- * A string literal, expanding `<$local>` interpolation.
+ * A string literal, expanding its interpolations.
  *
  * `"you have <$count> coins"` compiles to three pushes and a JOIN_STRING, the
- * same shape the reference emits. Markup that is not an interpolation (`<br>`,
- * `<col=ff0000>`) stays in the literal — the client renders it.
+ * same shape the reference emits. Markup stays inside the literal chunk around
+ * it, so `"<p,happy>Hello, <$name>!"` is two literals and one expression rather
+ * than four pieces.
  */
 static int
 parse_string_literal(struct SSC_Compiler* compiler, const char* text)
 {
-    char chunk[512];
+    char chunk[1024];
     size_t chunk_length = 0;
     int parts = 0;
     const char* cursor = text;
 
-    for( ;; )
+    while( *cursor )
     {
-        const char* open = strstr(cursor, "<$");
-        const char* close = open ? strchr(open, '>') : NULL;
-
-        if( !open || !close )
+        if( *cursor == '<' )
         {
-            size_t remaining = strlen(cursor);
+            const char* scan = cursor + 1;
+            int depth = 1;
 
-            if( remaining || parts == 0 )
+            while( *scan && depth > 0 )
             {
-                if( chunk_length + remaining < sizeof(chunk) )
+                if( *scan == '<' )
+                    depth++;
+                else if( *scan == '>' )
+                    depth--;
+                if( depth > 0 )
+                    scan++;
+            }
+
+            if( depth == 0 && is_interpolation(cursor + 1, (size_t)(scan - cursor - 1)) )
+            {
+                if( chunk_length )
                 {
-                    memcpy(chunk + chunk_length, cursor, remaining);
-                    chunk_length += remaining;
+                    chunk[chunk_length] = '\0';
+                    emit_string(compiler, chunk);
+                    parts++;
+                    chunk_length = 0;
                 }
-                chunk[chunk_length] = '\0';
-                emit_string(compiler, chunk);
+                if( !compile_interpolation(compiler, cursor + 1, (size_t)(scan - cursor - 1)) )
+                    return 0;
                 parts++;
-            }
-            break;
-        }
-
-        /* Text before the interpolation. */
-        {
-            size_t length = (size_t)(open - cursor);
-
-            if( length )
-            {
-                if( length >= sizeof(chunk) )
-                    length = sizeof(chunk) - 1;
-                memcpy(chunk, cursor, length);
-                chunk[length] = '\0';
-                emit_string(compiler, chunk);
-                parts++;
+                cursor = scan + 1;
+                continue;
             }
         }
 
-        {
-            char local_name[64];
-            size_t length = (size_t)(close - open - 2);
-            struct SSC_Local* local;
+        if( chunk_length + 1 < sizeof(chunk) )
+            chunk[chunk_length++] = *cursor;
+        cursor++;
+    }
 
-            if( length >= sizeof(local_name) )
-                length = sizeof(local_name) - 1;
-            memcpy(local_name, open + 2, length);
-            local_name[length] = '\0';
-
-            local = find_local(compiler, local_name);
-            if( !local )
-                return fail(compiler, "'<$%s>' names no local in scope", local_name);
-
-            if( local->is_string )
-            {
-                emit(compiler, SS_OP_PUSH_STRING_LOCAL, local->slot);
-            }
-            else
-            {
-                /* An int has to become text before it can be joined. */
-                emit(compiler, SS_OP_PUSH_INT_LOCAL, local->slot);
-                emit(compiler, SS_OP_TOSTRING, 0);
-            }
-            parts++;
-        }
-
-        chunk_length = 0;
-        cursor = close + 1;
+    /* A literal with no interpolations still has to push something, and so does
+     * the empty string. */
+    if( chunk_length || parts == 0 )
+    {
+        chunk[chunk_length] = '\0';
+        emit_string(compiler, chunk);
+        parts++;
     }
 
     if( parts > 1 )

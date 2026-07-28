@@ -8,6 +8,8 @@
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/dat2_skeletalbase.h"
 #include "engine/cache_provider.h"
+#include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 #include "engine/toridraw_animation_from_rscache.h"
 #include "filelist.h"
 #include "rscache.h"
@@ -26,6 +28,12 @@ struct Task_Dat2SequenceLoad
     struct ToriDraw_Scene* scene;
     int seq_id;
     struct RSCache_RecordAddress addr;
+
+    /* Split config group holding this sequence. Owned by the buildcache's LRU,
+     * borrowed here for the length of the decode below — never freed by us. */
+    struct Dat2Group const* group;
+    int group_table;
+    int group_id;
 
     struct RSCache_Dat2ConfigSequence* seq;
     struct RSCache_Dat2Framemap* framemap; /* shared rigging (all frames share one) */
@@ -211,58 +219,36 @@ Task_Dat2SequenceLoad_Run(
     self->addr = RSCache_RecordAddressFor(
         CacheProvider_Profile(self->provider), RSCACHE_TYPE_SEQUENCE);
 
-    {
-        struct RSCache_Dat2DiskArchive* archive = NULL;
-        if( self->addr.group_shift == 0 )
-        {
-            RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
-            PT_YIELD(&self->pt);
-            archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
-        }
-        else
-        {
-            RSCache_IO_Dat2RecordGroupLoad(
-                io, 0, self->addr.table, self->seq_id >> self->addr.group_shift);
-            PT_YIELD(&self->pt);
-            archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, self->addr.table);
-        }
+    /* The group stays split in the LRU, so a run of sequence loads out of the
+     * same group pays the split once instead of once per id — which for the
+     * OSRS layout (every sequence in one group) was a malloc per sequence in
+     * the cache, per lookup. */
+    self->group_table = self->addr.group_shift ? self->addr.table
+                                               : RSCACHE_DAT2_TABLE_CONFIGS;
+    self->group_id = self->addr.group_shift
+                         ? (self->seq_id >> self->addr.group_shift)
+                         : RSCACHE_DAT2_CONFIG_KIND_SEQUENCE;
+    DAT2_GROUP_AWAIT(
+        &self->pt,
+        io,
+        0,
+        ((struct Dat2BuildCache*)self->provider)->group_cache,
+        self->group_table,
+        self->group_id,
+        self->group);
 
-        if( archive )
+    if( self->group )
+    {
+        int want_file = self->addr.group_shift
+                            ? (self->seq_id & self->addr.file_mask)
+                            : self->seq_id;
+        int pos = Dat2Group_IndexOf(self->group, want_file);
+        if( pos >= 0 && self->group->filelist->files[pos] )
         {
-            struct RSCache_FileList* fl = RSCache_FileListNewFromDecode(
-                archive->data, archive->data_size, archive->file_count);
-            int want_file = self->addr.group_shift
-                                ? (self->seq_id & self->addr.file_mask)
-                                : self->seq_id;
-            int pos = -1;
-            if( fl )
-            {
-                if( archive->file_ids )
-                {
-                    for( int i = 0; i < archive->file_count; i++ )
-                    {
-                        if( archive->file_ids[i] == want_file )
-                        {
-                            pos = i;
-                            break;
-                        }
-                    }
-                }
-                else if( want_file >= 0 && want_file < fl->file_count )
-                {
-                    pos = want_file;
-                }
-            }
-            if( fl && pos >= 0 && pos < fl->file_count && fl->files[pos] )
-            {
-                self->seq = RSCache_Dat2ConfigSequenceNewDecodeProfile(
-                    CacheProvider_Profile(self->provider),
-                    fl->files[pos],
-                    fl->file_sizes[pos]);
-            }
-            if( fl )
-                RSCache_FileListFree(fl);
-            RSCache_Dat2DiskArchiveFree(archive);
+            self->seq = RSCache_Dat2ConfigSequenceNewDecodeProfile(
+                CacheProvider_Profile(self->provider),
+                self->group->filelist->files[pos],
+                self->group->filelist->file_sizes[pos]);
         }
     }
     /* 1b. Skeletal (Animaya) sequence — no classic frames at all. Modern

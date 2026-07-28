@@ -92,6 +92,10 @@ struct MapEntry_Texture
 #define DAT2_INTERFACE_MAP_CAPACITY 512
 #define DAT2_CLIENTSCRIPT_MAP_CAPACITY 4096
 #define DAT2_CONFIG_MAP_CAPACITY 4096
+/* Split-group LRU budget. The loc group is the largest single entry (a few MB
+ * on an osrs230 cache), so this holds it plus the other config groups a boot
+ * interleaves with it, and evicts rather than accumulating all of them. */
+#define DAT2_GROUP_CACHE_BUDGET ((size_t)24 * 1024 * 1024)
 
 static size_t
 dat2_hmap_buffer_bytes(
@@ -280,6 +284,10 @@ dat2_buildcache_new(void)
 
     dat2_buildcache->base.vtable = &dat2_vtable;
     CacheProvider_InitEngineCaches(&dat2_buildcache->base);
+    /* Enough for the handful of config groups a boot reads back to back (the
+     * loc group alone is several MB) without letting every table stay resident
+     * for the whole session. */
+    dat2_buildcache->group_cache = Dat2GroupCache_New(DAT2_GROUP_CACHE_BUDGET);
     dat2_buildcache->models_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_CacheModel), DAT2_MODEL_MAP_CAPACITY);
     dat2_buildcache->componentpacks_hmap = dat2_buildcache_map_new(
@@ -345,6 +353,8 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->overlay_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->texture_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
+    Dat2GroupCache_Free(dat2_buildcache->group_cache);
+    dat2_buildcache->group_cache = NULL;
     CacheProvider_FreeEngineCaches(&dat2_buildcache->base);
 
     for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )

@@ -1204,6 +1204,42 @@ gl3_scale_pixel_alpha(
     }
 }
 
+/*
+ * ToriDraw sprite pixels -> what GL uploads.
+ *
+ * Two conversions, and skipping either is invisible in a software rasterizer
+ * and fatal here. A ToriDraw pixel is an ARGB int, which little-endian memory
+ * lays out as B,G,R,A — GL_RGBA wants R,G,B,A, so the channels swap. And the
+ * alpha is a *convention*, not a value: much of what the client bakes (the
+ * minimap pixmap among it) carries alpha 0 throughout, because Soft3D writes
+ * into an opaque framebuffer and never reads it back. An explicit alpha wins;
+ * a pixel with none is opaque unless it is fully black, which is the
+ * transparent key.
+ *
+ * Uploading such a buffer raw gives a texture that is entirely transparent and
+ * has red and blue swapped — which is exactly what the minimap did: its ground
+ * vanished under the 2D shader's alpha discard while the overlay dots, which
+ * come through the path below that does convert, kept drawing.
+ *
+ * Safe in place (src == dst).
+ */
+static void
+gl3_argb_to_rgba(
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count)
+{
+    for( size_t i = 0; i < count; i++ )
+    {
+        uint32_t const pix = src[i];
+        uint8_t const a_hi = (uint8_t)((pix >> 24) & 0xFFu);
+        uint32_t const rgb = pix & 0x00FFFFFFu;
+        uint8_t const a = (a_hi != 0u) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
+        dst[i] = (uint32_t)((pix >> 16) & 0xFFu) | ((uint32_t)((pix >> 8) & 0xFFu) << 8) |
+                 ((uint32_t)(pix & 0xFFu) << 16) | ((uint32_t)a << 24);
+    }
+}
+
 static uint32_t*
 gl3_clamp_to_nominal(
     uint32_t const* src,
@@ -1394,17 +1430,8 @@ gl3_sprite_ensure_base(
         float uv[4];
         if( !rgba )
             return false;
-        for( int p = 0; p < sp->width * sp->height; p++ )
-        {
-            uint32_t pix = sp->pixels_argb[p];
-            uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
-            uint32_t rgb = pix & 0x00FFFFFFu;
-            uint8_t a = (a_hi != 0) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
-            uint8_t r = (uint8_t)((pix >> 16) & 0xFFu);
-            uint8_t g = (uint8_t)((pix >> 8) & 0xFFu);
-            uint8_t b = (uint8_t)(pix & 0xFFu);
-            rgba[p] = (uint32_t)r | ((uint32_t)g << 8) | ((uint32_t)b << 16) | ((uint32_t)a << 24);
-        }
+        gl3_argb_to_rgba(
+            (uint32_t const*)sp->pixels_argb, rgba, (size_t)sp->width * (size_t)sp->height);
         if( sp->crop_width > 0 &&
             (sp->crop_width < sp->width || sp->crop_height < sp->height) )
         {
@@ -1710,6 +1737,10 @@ gl3_sprite_ensure_rotated_masked(
         cmd->src_anchor_y,
         cmd->rotation_r2pi2048,
         (int*)scratch);
+    /* The blit leaves ToriDraw ARGB in the scratch, so it needs the same
+     * conversion every other upload gets. Without it the minimap's ground is
+     * transparent and its colours are channel-swapped. */
+    gl3_argb_to_rgba(scratch, scratch, (size_t)dst_w * (size_t)dst_h);
     if( !gl3_sprite_upload_rgba(
             renderer, (uint8_t const*)scratch, (uint32_t)dst_w * 4u, dst_w, dst_h, uv) )
     {
