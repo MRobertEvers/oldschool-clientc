@@ -768,9 +768,8 @@ Task_CS2Run_Run(
 
     if( !self->started )
     {
-        self->vm = malloc(sizeof(*self->vm));
+        self->vm = CS2VM2_Acquire();
         assert(self->vm);
-        CS2VM2_Init(self->vm);
         CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
         thread = CS2VM2_ThreadMain(self->vm);
         CS2VM2_ThreadSetCanvas(
@@ -1010,11 +1009,7 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
     struct Task_CS2Run* self = (struct Task_CS2Run*)task;
     assert(self);
     /* NULL when the task was dropped before it ever ran (queue teardown). */
-    if( self->vm )
-    {
-        CS2VM2_Free(self->vm);
-        free(self->vm);
-    }
+    CS2VM2_Release(self->vm);
     free(self);
 }
 

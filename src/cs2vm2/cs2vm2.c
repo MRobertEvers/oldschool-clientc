@@ -9052,6 +9052,51 @@ CS2VM2_Free(struct CS2VM2* vm)
     }
 }
 
+/* --- VM block pool ------------------------------------------------------- */
+/* Scripts nest (a script awaits a load and another starts), so this is a small
+ * free list rather than a singleton. The cap bounds what the pool retains when
+ * a burst of nesting unwinds; past it, blocks go back to the allocator. */
+#define CS2VM2_POOL_MAX 4
+
+static struct CS2VM2* g_vm_pool[CS2VM2_POOL_MAX];
+static int g_vm_pool_count;
+
+struct CS2VM2*
+CS2VM2_Acquire(void)
+{
+    struct CS2VM2* vm;
+
+    if( g_vm_pool_count > 0 )
+        vm = g_vm_pool[--g_vm_pool_count];
+    else
+        vm = (struct CS2VM2*)malloc(sizeof(*vm));
+    if( !vm )
+        return NULL;
+
+    CS2VM2_Init(vm);
+    return vm;
+}
+
+void
+CS2VM2_Release(struct CS2VM2* vm)
+{
+    if( !vm )
+        return;
+
+    CS2VM2_Free(vm);
+    if( g_vm_pool_count < CS2VM2_POOL_MAX )
+        g_vm_pool[g_vm_pool_count++] = vm;
+    else
+        free(vm);
+}
+
+void
+CS2VM2_PoolDrain(void)
+{
+    while( g_vm_pool_count > 0 )
+        free(g_vm_pool[--g_vm_pool_count]);
+}
+
 void
 CS2VM2_Run(struct CS2VM2* vm)
 {

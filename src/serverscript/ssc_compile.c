@@ -792,18 +792,50 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     return 1;
 }
 
+static int
+parse_condition(struct SSC_Compiler* compiler, struct SSC_Condition* cond);
+
+static void
+patch_condition_true(struct SSC_Compiler* compiler, struct SSC_Condition const* cond);
+
 /** `a & b & c`: every term must hold, so each failure jumps straight out. */
 static int
 parse_and_terms(struct SSC_Compiler* compiler, struct SSC_Condition* cond)
 {
     for( ;; )
     {
-        int branch;
+        if( SSC_LexIsPunct(&compiler->lexer, "(") )
+        {
+            struct SSC_Condition inner;
 
-        if( !parse_comparison(compiler, &branch) )
-            return 0;
-        if( !cond_push(compiler, cond->false_list, &cond->false_count, branch) )
-            return 0;
+            SSC_LexNext(&compiler->lexer);
+            if( !parse_condition(compiler, &inner) )
+                return 0;
+            if( !SSC_LexIsPunct(&compiler->lexer, ")") )
+                return fail(compiler, "expected ')' to close a grouped condition");
+            SSC_LexNext(&compiler->lexer);
+
+            /* The group holding means "carry on with the rest of this & chain",
+             * not "enter the block" — so its true branches land here rather
+             * than escaping to the caller. Its failures do escape: one failed
+             * term fails the whole conjunction. */
+            patch_condition_true(compiler, &inner);
+            for( int i = 0; i < inner.false_count; i++ )
+            {
+                if( !cond_push(compiler, cond->false_list, &cond->false_count,
+                               inner.false_list[i]) )
+                    return 0;
+            }
+        }
+        else
+        {
+            int branch;
+
+            if( !parse_comparison(compiler, &branch) )
+                return 0;
+            if( !cond_push(compiler, cond->false_list, &cond->false_count, branch) )
+                return 0;
+        }
 
         if( !SSC_LexIsPunct(&compiler->lexer, "&") )
             return 1;
@@ -860,13 +892,19 @@ patch_condition_false(struct SSC_Compiler* compiler, struct SSC_Condition const*
 /* Statements                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The body of an if / else / while.
+ *
+ * Braces are optional around a single statement — `if (random(4) ! 0) return;`
+ * is idiomatic and common in the corpus.
+ */
 static int
 parse_block(struct SSC_Compiler* compiler)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
 
     if( !SSC_LexIsPunct(lexer, "{") )
-        return fail(compiler, "expected '{'");
+        return parse_statement(compiler);
     SSC_LexNext(lexer);
 
     while( !SSC_LexIsPunct(lexer, "}") && lexer->current.kind != SSC_TOK_EOF )
@@ -1289,6 +1327,11 @@ parse_statement(struct SSC_Compiler* compiler)
         SSC_LexNext(lexer);
         return 1;
     }
+
+    if( SSC_LexIsPunct(lexer, "*") )
+        return fail(compiler,
+                    "the vararg form (queue*/strongqueue*/weakqueue*/longqueue*) "
+                    "is not supported; it packs a type string the compiler does not build");
 
     return fail(compiler, "unexpected '%s' at the start of a statement", text);
 }

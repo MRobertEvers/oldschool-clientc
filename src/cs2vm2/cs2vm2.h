@@ -326,6 +326,25 @@ CS2VM2_Init(struct CS2VM2* vm);
 void
 CS2VM2_Free(struct CS2VM2* vm);
 
+/* Heap-allocated VMs come from a free list rather than malloc: struct CS2VM2 is
+ * ~2.9 MB (frames[50] x 12 KB plus arrays[128]), and the client starts a script
+ * often enough that malloc/free of that block was the single largest source of
+ * allocator traffic in a boot — a gigabyte of it, interleaved with the small
+ * long-lived allocations that fragment a wasm heap.
+ *
+ * Acquire returns an Init'd VM; Release runs the same CS2VM2_Free teardown and
+ * parks the block. Recycling a block is exactly as safe as a fresh malloc:
+ * cs2vm2_thread_init is written against uninitialised memory (see its comment).
+ * Drain releases the parked blocks — call it at shutdown or when trimming. */
+struct CS2VM2*
+CS2VM2_Acquire(void);
+
+void
+CS2VM2_Release(struct CS2VM2* vm);
+
+void
+CS2VM2_PoolDrain(void);
+
 void
 CS2VM2_BindHost(
     struct CS2VM2* vm,

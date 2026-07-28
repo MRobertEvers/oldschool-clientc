@@ -2270,6 +2270,8 @@ App_Shutdown(struct App* app)
     ToriRS_IO_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
+    /* After the queues: freeing a task releases its VM back into the pool. */
+    CS2VM2_PoolDrain();
     free(app->if_heads);
     free(app->if_hides);
 }

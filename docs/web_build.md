@@ -211,32 +211,48 @@ chunk and draws. The split is a scan, not a sort: a range's indices come from
 faces walked in painter order over one baked model, so they are already
 clustered and a chunk usually swallows a whole range.
 
-### Known defect: the minimap base
+### Known defect: the minimap base (GPU renderer, both backends)
 
-The minimap's terrain layer does not render under `--webgl1`: the path
+The minimap's terrain layer does not render through the GPU renderer: the path
 outlines, trees and dots draw correctly over a flat two-tone wash where the
 green/water/building fill should be. The compass reads wrong for the same
 reason — it sits on that base.
 
-What is established:
+**This is not a WebGL1 defect.** It reproduces identically on native
+`--opengl3`, and it is older than the WebGL1 backend. Measured over the minimap
+disc on osrs230:
 
-- **It is this renderer, not the data.** The same wasm build with `--soft3d`
-  produces a minimap identical to native (175 distinct colours over the disc,
-  matching top-3 counts); with `--webgl1` it is 461 and the wrong ones.
-- **It is not the GPU renderer generally.** Native `--opengl3` and native
-  Soft3D sample pixel-identical over that region.
-- **WebGL rejects nothing.** Chrome reports no `INVALID_OPERATION` and no
-  context loss for the whole frame, so no draw or upload is being dropped.
-- **Not the canvas.** `getContextAttributes()` reports `alpha: false`, so
-  premultiplied-alpha compositing cannot be misreading it.
-- **Not the atlas cap below.** Rebuilt with the desktop 4096 atlas: byte-identical
-  wrong output.
+| | distinct colours | dominant |
+|---|---|---|
+| Soft3D (native and web) | 175 | grey path, blue water, green terrain |
+| native `--opengl3` | 456 | `54 43 14`, `45 37 11`, white |
+| web `--webgl1` | 461 | `54 43 14`, `45 37 11`, white |
+
+The two GPU backends agree with each other and disagree with Soft3D, which is
+what says the fault is in the shared renderer rather than in either backend.
+
+**Measure it with `TORIRS_GL3_READBACK=<path>`, not `TORIRS_EXIT_BMP`.** That is
+the trap this defect hid behind: `TORIRS_EXIT_BMP` writes what `App_Render`
+draws, which is the *software* rasterizer, so it reports a correct minimap no
+matter what the GPU path put on screen. `TORIRS_GL3_READBACK` reads the actual
+framebuffer (`TORIRS_GL3_READBACK_FRAME=<n>` picks the frame).
+
+Ruled out so far:
+
+- **The cache data.** The same wasm build with `--soft3d` matches native exactly.
+- **WebGL rejecting work.** Chrome reports no `INVALID_OPERATION` and no context
+  loss for the whole frame; nothing is being dropped.
+- **Canvas compositing.** `getContextAttributes()` reports `alpha: false`.
+- **The web atlas cap below.** Rebuilt with the desktop 4096 atlas:
+  byte-identical wrong output.
+- **The rotated+masked sprite path.** `TORIRS_GL_SPRITE_DEBUG=1` shows the
+  osrs230 minimap never reaches `gl3_ev_sprite` at all, so
+  `gl3_sprite_ensure_rotated_masked` and its `uv_clamp` are not involved —
+  finding which command actually draws it is the next step.
 
 A flat wash rather than black is what a textured quad gives when it falls back
-to the 1×1 white texture (`tex * v_color` leaves the vertex colour), or when it
-samples a degenerate UV range. The minimap is the only sprite that goes through
-`gl3_sprite_ensure_rotated_masked` with `uv_clamp` on, so its UVs and the
-`u_uv_bounds` discard in the 2D fragment shader are where to look next.
+to the 1×1 white texture (`tex * v_color` leaves the vertex colour) or samples a
+degenerate UV range.
 
 ### Atlas size
 
