@@ -69,9 +69,12 @@ struct SSVM_OpcodeMeta
      *  are the whole set. Callers must not use int_in/str_in for these. */
     uint8_t variadic;
 
-    /** Returns `any` — the pushed type is decided at run time (enum,
-     *  struct_param, oc_param, npc_param, loc_param, db_getfield). The handler
-     *  pushes; the counts describe the common int case. */
+    /** Returns `any`: the data decides what comes back. enum, db_getfield and
+     *  the *_param family all read a type out of the cache — a param declared
+     *  as a string pushes onto the string stack where an int-typed one pushes
+     *  an int, and db_getfield pushes one value per column, so even the count
+     *  varies. int_out/str_out describe only the common int case; the handler
+     *  is what actually decides. Static analysis cannot model these at all. */
     uint8_t runtime_typed;
 
     /** A `.name` secondary-pointer variant exists, so this opcode's operand is

@@ -116,6 +116,16 @@ NON_DOT_OPERAND = {
 # JOIN_STRING and GOSUB/JUMP_WITH_PARAMS pop a count the table cannot express.
 STRUCTURAL_VARIADIC = {"JOIN_STRING", "GOSUB_WITH_PARAMS", "JUMP_WITH_PARAMS"}
 
+# Var access is runtime-typed for the same reason the *_param family is: the
+# variable's declared type decides which stack it touches. CoreOps.ts branches
+# on `varpType.type === ScriptVarType.STRING` and pushes a string or an int
+# accordingly. Most varps are ints, so MANUAL_META describes that case, but the
+# flag has to say the type is not statically known — otherwise a static model
+# silently mis-tracks every string varp.
+RUNTIME_TYPED_VARS = {
+    "PUSH_VARP", "POP_VARP", "PUSH_VARN", "POP_VARN", "PUSH_VARS", "POP_VARS",
+}
+
 # ScriptPointer enum order, from engine/src/engine/script/ScriptPointer.ts.
 # The names on the left are what ScriptOpcodePointers.ts writes.
 POINTER_BITS = {
@@ -134,7 +144,11 @@ POINTER_BITS = {
 # ScriptVarType: every type except `string` lives on the int stack. `any` means
 # the command decides at run time what it pushes.
 STRING_TYPES = {"string"}
-RUNTIME_TYPES = {"any"}
+# Return types meaning "the data decides". `any` is what the declared commands
+# use; `dynamic` only shows up in the commented-out `enum` signature, and
+# missing it there costs the whole runtime_typed flag for the one command whose
+# return type varies most.
+RUNTIME_TYPES = {"any", "dynamic"}
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +431,7 @@ def emit_meta_gen_h(
         known += is_known
 
         variadic = 1 if name in STRUCTURAL_VARIADIC else (sig["variadic"] if sig else 0)
-        runtime_typed = sig["runtime_typed"] if sig else 0
+        runtime_typed = 1 if name in RUNTIME_TYPED_VARS else (sig["runtime_typed"] if sig else 0)
         has_dot = sig["has_dot"] if sig else 0
         req, req2 = pointers.get(name, (0, 0))
 

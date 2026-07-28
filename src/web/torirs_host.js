@@ -15,10 +15,16 @@
 //
 // Load this BEFORE torirs.js: it defines the Module object the runtime reads.
 //
-// Query string:
-//   ?args=--manifest,manifest_rs254.ini,--offline   argv after argv[0]
-//   ?env=TORIRS_TASK_LOG=1;TORIRS_NET_DEBUG=1       environment variables
-//   ?io=http://host:port/io                         IO endpoint (default /io)
+// Query string — the page's command line:
+//   ?arg=--manifest&arg=manifest_rs254.ini&arg=--offline   one arg per param
+//   ?args=--manifest,manifest_rs254.ini,--offline          same, comma-joined
+//   ?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1          environment
+//   ?io=http://host:port/io                                IO endpoint (/io)
+//
+// Repeated `arg=` is the form run-live.sh generates and the one to prefer:
+// each value is percent-encoded on its own, so an argument may contain a comma,
+// a space or an `&` — a password, a TORIRS_NET_CHEAT string. The comma-joined
+// `args=` form stays because it is far easier to type by hand.
 
 (function () {
   'use strict';
@@ -26,10 +32,30 @@
   var params = new URLSearchParams(window.location.search);
 
   var DEFAULT_ARGS = ['--manifest', 'manifest_rs254.ini', '--offline'];
-  var args = params.has('args')
-    ? params.get('args').split(',').filter(function (s) { return s.length > 0; })
-    : DEFAULT_ARGS;
 
+  function readArgs() {
+    var repeated = params.getAll('arg');
+    if (repeated.length > 0) { return repeated; }
+    if (params.has('args')) {
+      return params.get('args').split(',').filter(function (s) { return s.length > 0; });
+    }
+    return DEFAULT_ARGS;
+  }
+
+  // Accepts both `env=A=1&env=B=2` and the single `env=A=1;B=2` form. Splitting
+  // on the FIRST `=` only, so a value may itself contain one.
+  function readEnv() {
+    var out = [];
+    params.getAll('env').forEach(function (group) {
+      group.split(';').forEach(function (pair) {
+        var eq = pair.indexOf('=');
+        if (eq > 0) { out.push([pair.substring(0, eq), pair.substring(eq + 1)]); }
+      });
+    });
+    return out;
+  }
+
+  var args = readArgs();
   var ioUrl = params.get('io') || '/io';
 
   var logEl = null;
@@ -205,15 +231,7 @@
     printErr: function (text) { log(text, true); },
 
     preRun: [function () {
-      var env = params.get('env');
-      if (env) {
-        env.split(';').forEach(function (pair) {
-          var eq = pair.indexOf('=');
-          if (eq > 0) {
-            ENV[pair.substring(0, eq)] = pair.substring(eq + 1);
-          }
-        });
-      }
+      readEnv().forEach(function (pair) { ENV[pair[0]] = pair[1]; });
     }],
 
     onRuntimeInitialized: function () {
