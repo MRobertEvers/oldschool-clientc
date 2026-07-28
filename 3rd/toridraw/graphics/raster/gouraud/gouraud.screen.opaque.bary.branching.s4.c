@@ -181,14 +181,15 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     int step_edge_x_BC_ish16;
 
     /**
-     * Attention! This relies on the reciprocol table, and that triangles that
-     * are too big are already clipped away.
+     * Attention! The commented-out reciprocal-table form below was measured on
+     * an M4 (2026-07-28): it is both SLOWER than the divide and not
+     * bit-identical to it. g_reciprocal16 is 16 KB and the dy index is
+     * effectively random per triangle, so the load misses more than the divide
+     * costs; the truncated reciprocal also shifted ~3% of drawn pixels. Keep
+     * the divides.
      */
     if( dy_AC > 0 )
     {
-        // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-
-        // assert(dy_AC < 4096);
         // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     }
@@ -197,7 +198,6 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
     if( dy_AB > 0 )
     {
-        // assert(dy_AB < 4096);
         // step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
         step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     }
@@ -206,40 +206,11 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
     if( y2 != y1 )
     {
-        // assert(y2 - y1 < 4096);
         // step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
         step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     }
     else
         step_edge_x_BC_ish16 = 0;
-    // if( dy_AC > 0 )
-    // {
-    //     // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-
-    //     // assert(dy_AC < 4096);
-    //     // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-    //     step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
-    // }
-    // else
-    //     step_edge_x_AC_ish16 = 0;
-
-    // if( dy_AB > 0 )
-    // {
-    //     // assert(dy_AB < 4096);
-    //     //  step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
-    //     step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
-    // }
-    // else
-    //     step_edge_x_AB_ish16 = 0;
-
-    // if( y2 != y1 )
-    // {
-    //     // assert(y2 - y1 < 4096);
-    //     // step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
-    //     step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
-    // }
-    // else
-    //     step_edge_x_BC_ish16 = 0;
 
     /*
      *          /\      y0 (A)

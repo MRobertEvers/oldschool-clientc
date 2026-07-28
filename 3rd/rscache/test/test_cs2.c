@@ -14,7 +14,7 @@
  *
  * The figures are pinned rather than merely printed, so a regression fails
  * instead of quietly reporting a smaller number. Two known divergences are
- * allowed by exact count; see EXCEPTIONS.md C1.
+ * allowed by exact count; see EXCEPTIONS.md G1.
  */
 
 #include "cs2/cs2_compile.h"
@@ -343,7 +343,7 @@ main(int argc, char** argv)
     /* Allowed by exact count, not blanket-skipped: a third divergence fails. */
     RSCACHE_CHECK(different <= CS2_EXPECT_MAX_DIFFERENT);
     if( different > 0 && different <= CS2_EXPECT_MAX_DIFFERENT )
-        printf("   ALLOWED %d divergence(s) — see EXCEPTIONS.md C1\n", different);
+        printf("   ALLOWED %d divergence(s) — see EXCEPTIONS.md G1\n", different);
 
     free(ids);
     for( int i = 0; i < fixture.count; i++ )

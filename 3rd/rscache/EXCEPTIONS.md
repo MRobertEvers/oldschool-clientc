@@ -1506,6 +1506,160 @@ for when consumption leaves a tie.
 
 ---
 
+## G. The CS2 language layer
+
+`src/cs2/` decompiles a clientscript to CS2 source and compiles it back. The
+decompiler is a port of [RuneStar/cs2](https://github.com/RuneStar/cs2) (Kotlin,
+at 2a8b8fc); the compiler has no upstream and is new.
+
+### G1. Two scripts decompile differently from the reference, by coin flip *(Gap)*
+
+Measured by `test_cs2`, which decompiles all 7,884 scripts in RuneStar's `input/`
+dump and compares byte for byte against the output its own implementation
+produced:
+
+| | |
+|---|---|
+| scripts in the dump | 7,884 |
+| decompiled by this port | 7,366 |
+| the reference also produced | 6,491 |
+| **byte-identical** | **6,489** |
+| different | 2 |
+
+The two are `[clientscript,build_makeover_feet]` and
+`[clientscript,makeover_feet_select]`, and the difference is one identifier:
+`$settextalignv6` against `$settextalignh6`.
+
+Both are correct. The value is passed to `cc_settextalign` as *both* its
+horizontal and its vertical argument, so the identifier solver is choosing
+between two prototypes that are equally strong. Upstream picks by iterating a
+`HashSet<Prototype?>` and taking the first match — Java's hash order. There is no
+right answer to reproduce, only a specific JVM's iteration order, so this is
+allowed by exact count rather than chased: `test_cs2` fails on a third
+divergence.
+
+Everything else about those two scripts matches, and an identifier is a naming
+hint with no effect on what the script does.
+
+### G2. The compiler round-trips 32% of scripts byte-exactly *(Gap)*
+
+`cs2 roundtrip --raw` decompiles each script, compiles the result, and compares
+against the original bytes:
+
+| | |
+|---|---|
+| decompiled | 7,366 |
+| compiled | 6,522 (89%) |
+| same length | 2,954 |
+| **byte-exact** | **2,358** |
+
+Read that the way the other round-trip suites are read: high same-length with low
+exact means a re-encoding, low both means a loss. Here it is neither — it is
+**information the decompiler discards**, and there are two distinct causes.
+
+**The `else` branch is not recoverable.** Control-flow reconstruction collapses
+an `if`/`else` whose taken branch never rejoins:
+
+```
+if ($a < $b) { return($a); } else { return($b); }     what Jagex compiled
+if ($a < $b) { return($a); } return($b);              what the source says
+```
+
+Both mean the same thing and both run identically, but they compile to different
+jump targets — the `else` form jumps to the script epilogue, the collapsed form
+to the next statement. `[proc,min]` is the smallest example: 11 opcodes, one
+operand different. Recovering it would mean the decompiler emitting an `else` it
+has deliberately simplified away, which would make every listing worse to read in
+order to make a round-trip figure better.
+
+**Jagex's own codegen is not fully reproduced.** The epilogue (one default push
+per return type, then a return) *is* reconstructed — it has to be, since it is
+where the decoder reads the return types back from. Other placement choices are
+not.
+
+Byte-exactness was never the bar for this half; producing bytecode that decompiles
+back to the same source is. What the figure does buy is a regression signal: 2,358
+scripts currently reproduce to the byte, and that number should not fall.
+
+### G3. Hook argument descriptors are inferred, not read *(Gap)*
+
+610 of the 844 compile failures are one thing. A hook registration carries a
+descriptor naming each callback argument's *type*:
+
+```
+if_setonop("ignore_op(event_opindex, $string1, $string0)", $component0);
+```
+
+The descriptor (`iss`) is not written in the source — the decompiler drops it
+because the argument list already implies it. Compiling back therefore has to
+re-derive one letter per argument, and does so from the argument expression: a
+local's declared type, a command's result type, an `event_*` value's fixed type,
+or a name only one table claims.
+
+Three cases defeat that, and all three are refused rather than guessed:
+
+- `null`, which is `-1` for every type;
+- a name like `coins_995`, which the decompiler prints identically for `obj`,
+  `loc`, `npc`, `model`, `struct` and `seq`;
+- a `~proc` call, whose return types live in the callee.
+
+All three are answerable from the **callee's** signature, which a compiler
+processing a whole directory of sources has and this one does not yet consult.
+That is the fix, and it is plumbing rather than research: a pre-pass over the
+source set building script id → argument types, threaded through
+`RSCache_CS2_CompileOptions`. Not done here.
+
+A wrong letter does not fail loudly — it changes how the *callee* reads its own
+arguments — which is why inference stops rather than picking the likeliest.
+
+### G4. 331 of OSRS 230's scripts do not decompile *(Gap)*
+
+Against `cache.osrs230` (7,884 scripts), 7,553 decompile and 331 do not:
+
+| Cause | Scripts |
+|---|---|
+| opcode with no recorded arity anywhere | 189 |
+| `enum` names a type descriptor byte not in `Type.kt` | 26 |
+| operand-stack shape disagreements (underflow, leftovers, wrong stack type) | 74 |
+| type or identifier contradictions | 17 |
+| hook descriptor bytes not in `Type.kt` | 5 |
+| other | 20 |
+
+The first row is the substantive one: 74 distinct opcodes that neither RuneStar's
+2021 `Command.kt` nor this repo's own CS2 VM knows the pop/push counts of.
+Layering the VM's stack table over the vendored one (see `tools/README.md`) took
+this from 1,250 failures to 331; the remainder needs those opcodes identified in a
+client, which is research, not porting.
+
+An unknown arity is refused rather than guessed for the reason stated throughout
+this file: a wrong pop count does not fail, it desynchronises the operand stack
+and yields a confident, readable decompile **of a different program**.
+
+### G5. Name tables are optional, and four types make them mandatory *(Gap)*
+
+Ids are what a cache stores; names are community-recovered and ship in RuneStar's
+`*-names.tsv`. They are loaded at run time and not vendored — 2.1 MB of data that
+belongs to a corpus, not to a codec — so a decompile without them is correct but
+reads `obj_995` rather than `coins_995`.
+
+The exception is `boolean`, `stat`, `maparea` and `fontmetrics`, which have no
+numeric spelling in the language at all. An id those four tables do not name
+cannot be printed, and the script is refused.
+
+Two further departures from upstream, both strictly more capable:
+
+- **A stale script name degrades instead of failing.** When the name table says a
+  script is a `clientscript` but the bytecode calls it as a proc, upstream throws;
+  this writes `script<id>`, which is exact. That single change took the RuneStar
+  dump from 6,634 to 7,345 decompiled, and it is upstream's largest failure class.
+- **`newvar`, `spotanim` and `player_uid` print as numbers.** Upstream has no
+  spelling for them and throws. They are plain ints with no name table, and the
+  number compiles back.
+
+Neither changes any of the 6,489 outputs that match the reference.
+
+---
+
 ## F. Not ours
 
 `src/engine/uitree_builder/task_interface_open.c` shows as modified in the working
@@ -1515,18 +1669,27 @@ tree and was not touched by this work.
 
 ## Current state
 
-`make -C 3rd/rscache test` → 1479 checks plus 9 bzip2-interop checks.
+`make -C 3rd/rscache test` → 3035 checks plus 9 bzip2-interop checks.
 
 | Suite | Checks |
 |---|---|
-| rsbuffer | 267 |
+| rsbuffer | 1816 |
 | container | 505 |
-| profile | 120 |
-| roundtrip | 331 |
-| compression | 99 |
-| config_var | 37 |
+| roundtrip | 246 |
+| profile | 121 |
 | sound | 120 |
+| compression | 99 |
+| dat1_write | 46 |
+| config_var | 37 |
+| cache_edit | 22 |
+| font_metrics | 20 |
+| cs2 | 3 |
 | bzip2 interop | 9 |
+
+`test_cs2`'s three checks are worth more than the count suggests: each one is a
+threshold over 7,884 scripts decompiled and compared against another
+implementation's output (G1). It skips when the reference checkout is absent —
+set `CS2_REFERENCE`, or clone it beside this repository.
 
 Client builds; `test-db`, `test-net-login`, `test-world-builder`,
 `test-uitree-builder-dat1` and `test-ui-slots` pass; both offline boots report

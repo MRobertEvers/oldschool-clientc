@@ -1,6 +1,7 @@
 #include "toridraw_sprite.h"
 
 #include "bmp.h"
+#include "graphics/dash_restrict.h"
 #include "toridraw_math.h"
 
 #include <assert.h>
@@ -200,9 +201,14 @@ sprite_blend_pixel(
 
     int const blend = alpha;
     int const inv = 255 - blend;
-    int const r = (src_r * blend + dst_r * inv) / 255;
-    int const g = (src_g * blend + dst_g * inv) / 255;
-    int const b = (src_b * blend + dst_b * inv) / 255;
+    /* (v + (v>>8) + 1) >> 8 is exactly v/255 over 0..255*255 - same pixels as
+     * the division it replaces, without three idiv per blended pixel. */
+    int const rn = (src_r * blend) + (dst_r * inv);
+    int const gn = (src_g * blend) + (dst_g * inv);
+    int const bn = (src_b * blend) + (dst_b * inv);
+    int const r = (rn + (rn >> 8) + 1) >> 8;
+    int const g = (gn + (gn >> 8) + 1) >> 8;
+    int const b = (bn + (bn >> 8) + 1) >> 8;
     *dst = (int)(0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
 }
 
@@ -238,23 +244,36 @@ ToriDraw2D_BlitSpriteAlpha(
     int const cb = view_port->clip_bottom;
     int const stride = view_port->stride;
 
-    for( int y = 0; y < src_h; y++ )
-    {
-        int const dst_y = y + y_offset;
-        if( dst_y < ct || dst_y >= cb )
-            continue;
-        for( int x = 0; x < src_w; x++ )
-        {
-            int const dst_x = x + x_offset;
-            if( dst_x < cl || dst_x >= cr )
-                continue;
+    /* Clamp the iteration range once instead of per-pixel clip rejection. */
+    int x_begin = 0;
+    int x_stop = src_w;
+    if( x_offset < cl )
+        x_begin = cl - x_offset;
+    if( x_offset + x_stop > cr )
+        x_stop = cr - x_offset;
 
-            uint32_t const pixel = sprite->pixels_argb[x + y * src_w];
+    int y_begin = 0;
+    int y_stop = src_h;
+    if( y_offset < ct )
+        y_begin = ct - y_offset;
+    if( y_offset + y_stop > cb )
+        y_stop = cb - y_offset;
+
+    if( x_begin >= x_stop || y_begin >= y_stop )
+        return;
+
+    for( int y = y_begin; y < y_stop; y++ )
+    {
+        uint32_t const* RESTRICT srow = sprite->pixels_argb + (size_t)y * src_w;
+        int* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
+
+        for( int x = x_begin; x < x_stop; x++ )
+        {
+            uint32_t const pixel = srow[x];
             if( pixel == 0 )
                 continue;
 
-            int* const dst = &pixel_buffer[dst_y * stride + dst_x];
-            sprite_blend_pixel(dst, pixel, alpha);
+            sprite_blend_pixel(&drow[x], pixel, alpha);
         }
     }
 }
@@ -290,25 +309,37 @@ ToriDraw2D_BlitSprite_subrect(
     int stride = view_port->stride;
     int sw = sprite->width;
 
-    for( int y = 0; y < src_h; y++ )
-    {
-        int dst_y = y + y_offset;
-        if( dst_y < ct || dst_y >= cb )
-            continue;
-        for( int x = 0; x < src_w; x++ )
-        {
-            int dst_x = x + x_offset;
-            if( dst_x < cl || dst_x >= cr )
-                continue;
+    /* Clamp the iteration range once instead of testing four clip edges on
+     * every pixel - offscreen rows and columns then cost nothing at all. */
+    int x_begin = 0;
+    int x_stop = src_w;
+    if( x_offset < cl )
+        x_begin = cl - x_offset;
+    if( x_offset + x_stop > cr )
+        x_stop = cr - x_offset;
 
-            int pixel_buffer_index = dst_y * stride + dst_x;
-            int sx = src_x + x;
-            int sy = src_y + y;
-            uint32_t pixel = sprite->pixels_argb[sx + sy * sw];
+    int y_begin = 0;
+    int y_stop = src_h;
+    if( y_offset < ct )
+        y_begin = ct - y_offset;
+    if( y_offset + y_stop > cb )
+        y_stop = cb - y_offset;
+
+    if( x_begin >= x_stop || y_begin >= y_stop )
+        return;
+
+    for( int y = y_begin; y < y_stop; y++ )
+    {
+        uint32_t const* RESTRICT srow = sprite->pixels_argb + (size_t)(src_y + y) * sw + src_x;
+        int* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
+
+        for( int x = x_begin; x < x_stop; x++ )
+        {
+            uint32_t pixel = srow[x];
             if( pixel == 0 )
                 continue;
 
-            pixel_buffer[pixel_buffer_index] = (int)pixel;
+            drow[x] = (int)pixel;
         }
     }
 }

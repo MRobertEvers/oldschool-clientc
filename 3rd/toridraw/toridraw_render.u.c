@@ -260,13 +260,22 @@ bucket_sort_by_average_depth(
             if( (unsigned int)depth_avg < 1500 )
             {
                 const int count = face_depth_bucket_counts[depth_avg];
-                face_depth_bucket_counts[depth_avg] = count + 1;
-                face_depth_buckets[(depth_avg << 9) + count] = (faceint_t)f;
+                /* The << 9 fixes bucket capacity at 512 faces per depth level.
+                 * Nothing bounded `count` before, so a model with more than
+                 * 512 front-facing triangles at one quantized depth (a large
+                 * flat wall seen edge-on, a terrain patch) wrote into the next
+                 * depth's bucket and silently corrupted the draw order. Drop
+                 * the overflow instead. */
+                if( count < 512 )
+                {
+                    face_depth_bucket_counts[depth_avg] = count + 1;
+                    face_depth_buckets[(depth_avg << 9) + count] = (faceint_t)f;
 
-                if( depth_avg < min_d )
-                    min_d = depth_avg;
-                if( depth_avg > max_d )
-                    max_d = depth_avg;
+                    if( depth_avg < min_d )
+                        min_d = depth_avg;
+                    if( depth_avg > max_d )
+                        max_d = depth_avg;
+                }
             }
         }
     }
@@ -276,18 +285,30 @@ bucket_sort_by_average_depth(
     return (min_d) | (max_d << 16);
 }
 
+/**
+ * One traversal of the depth buckets that does everything the old
+ * parition_faces_by_priority() + the accumulation half of
+ * sort_face_draw_order() did between them: fills the per-priority face
+ * buckets, sums the per-priority depths, and lays out the two flexible-priority
+ * arrays. Both old loops visited the same faces in the same order and unpacked
+ * the same priority nibble, so folding them is order-preserving; the running
+ * index they each used (face_priority_bucket_counts[prio] and counts[prio])
+ * was always the same number.
+ */
 static inline void
-parition_faces_by_priority(
+partition_and_accumulate_faces_by_priority(
     faceint_t* face_priority_buckets,
     faceint_t* face_priority_bucket_counts,
+    faceint_t* priority_depths,
+    int* flex_prio11_face_to_depth,
+    int* flex_prio12_face_to_depth,
+    int* counts,
     faceint_t* face_depth_buckets,
     faceint_t* face_depth_bucket_counts,
-    int num_faces,
     const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    (void)num_faces;
     if( depth_upper_bound >= 1500 )
         depth_upper_bound = 1499;
 
@@ -302,60 +323,43 @@ parition_faces_by_priority(
         {
             faceint_t face_idx = faces[i];
             int prio = faceprio_unpack(face_priorities, face_idx);
-            int priority_face_count = face_priority_bucket_counts[prio]++;
-            face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
+            int n = counts[prio];
+
+            face_priority_buckets[prio * 2000 + n] = face_idx;
+
+            if( prio < 10 )
+            {
+                priority_depths[prio] += (faceint_t)depth;
+            }
+            else if( prio == 10 )
+            {
+                flex_prio11_face_to_depth[n] = depth | (face_idx << 16);
+            }
+            else
+            {
+                flex_prio12_face_to_depth[n] = depth | (face_idx << 16);
+            }
+
+            counts[prio] = n + 1;
+            face_priority_bucket_counts[prio] = (faceint_t)(n + 1);
         }
     }
 }
 
+/**
+ * Emission half of the old sort_face_draw_order(): interleaves the flexible
+ * priorities with the fixed priority runs. Takes the counts and depth sums that
+ * partition_and_accumulate_faces_by_priority() already produced.
+ */
 static inline int
 sort_face_draw_order(
     faceint_t* priority_depths,
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* face_draw_order,
-    faceint_t* face_depth_buckets,
-    faceint_t* face_depth_bucket_counts,
     faceint_t* face_priority_buckets,
-    faceint_t* face_priority_bucket_counts,
-    int num_faces,
-    const uint8_t* face_priorities,
-    int depth_lower_bound,
-    int depth_upper_bound)
+    int* counts)
 {
-    (void)num_faces;
-    int counts[12] = { 0 };
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
-    {
-        int n = (int)face_depth_bucket_counts[depth];
-        if( n == 0 )
-            continue;
-
-        faceint_t* faces = &face_depth_buckets[depth << 9];
-        for( int i = 0; i < n; i++ )
-        {
-            faceint_t face_idx = faces[i];
-            int prio = faceprio_unpack(face_priorities, face_idx);
-
-            int face_count = counts[prio];
-
-            if( prio < 10 )
-            {
-                priority_depths[prio] += depth;
-            }
-            else if( prio == 10 )
-            {
-                flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
-            }
-            else if( prio == 11 )
-            {
-                flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
-            }
-
-            counts[prio]++;
-        }
-    }
-
     int average_depth1_2 = 0;
     int count1_2 = counts[1] + counts[2];
     if( count1_2 > 0 )
@@ -505,12 +509,17 @@ ToriDraw_ComputeProjectedFaceOrder(
     memset(scene->tmp_priority_depth_sum, 0, 12 * sizeof(faceint_t));
     memset(scene->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
 
-    parition_faces_by_priority(
+    int counts[12] = { 0 };
+
+    partition_and_accumulate_faces_by_priority(
         scene->tmp_priority_faces,
         scene->tmp_priority_face_count,
+        scene->tmp_priority_depth_sum,
+        scene->tmp_flex_prio11_face_to_depth,
+        scene->tmp_flex_prio12_face_to_depth,
+        counts,
         scene->tmp_depth_faces,
         scene->tmp_depth_face_count,
-        face_count,
         face_priorities,
         model_min_depth,
         model_max_depth);
@@ -520,14 +529,8 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->tmp_flex_prio11_face_to_depth,
         scene->tmp_flex_prio12_face_to_depth,
         scene->tmp_face_order,
-        scene->tmp_depth_faces,
-        scene->tmp_depth_face_count,
         scene->tmp_priority_faces,
-        scene->tmp_priority_face_count,
-        face_count,
-        face_priorities,
-        model_min_depth,
-        model_max_depth);
+        counts);
 }
 
 static inline int
@@ -606,10 +609,16 @@ bucket_sort_by_average_depth_small(
     return (min_d) | (max_d << 16);
 }
 
+/**
+ * Small-scene twin of partition_and_accumulate_faces_by_priority(): the same
+ * fold of the old parition_faces_by_priority_small() and the accumulation half
+ * of sort_face_draw_order_small() into one traversal.
+ */
 static inline void
-parition_faces_by_priority_small(
+partition_and_accumulate_faces_by_priority_small(
     struct ToriDraw_Scene* scene,
-    int num_faces,
+    faceint_t* priority_depths,
+    int* counts,
     const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
@@ -630,39 +639,9 @@ parition_faces_by_priority_small(
         {
             faceint_t face_idx = scene->sm_faces_by_depth[i];
             int prio = faceprio_unpack(face_priorities, face_idx);
-            int priority_face_count = scene->sm_prio_count[prio]++;
-            scene->sm_prio_faces[prio * max_faces + priority_face_count] = face_idx;
-        }
-    }
-    (void)num_faces;
-}
+            int n = counts[prio];
 
-static inline int
-sort_face_draw_order_small(
-    struct ToriDraw_Scene* scene,
-    int* face_draw_order,
-    int num_faces,
-    const uint8_t* face_priorities,
-    int depth_lower_bound,
-    int depth_upper_bound)
-{
-    const int depth_levels = scene->depth_levels;
-    const int max_faces = scene->max_faces;
-    faceint_t priority_depths[12] = { 0 };
-
-    if( depth_upper_bound >= depth_levels )
-        depth_upper_bound = depth_levels - 1;
-
-    int counts[12] = { 0 };
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
-    {
-        int start = scene->sm_depth_offset[depth];
-        int end = scene->sm_depth_offset[depth + 1];
-        for( int i = start; i < end; i++ )
-        {
-            faceint_t face_idx = scene->sm_faces_by_depth[i];
-            int prio = faceprio_unpack(face_priorities, face_idx);
-            int face_count = counts[prio];
+            scene->sm_prio_faces[prio * max_faces + n] = face_idx;
 
             if( prio < 10 )
             {
@@ -670,16 +649,27 @@ sort_face_draw_order_small(
             }
             else if( prio == 10 )
             {
-                scene->sm_flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
+                scene->sm_flex_prio11_face_to_depth[n] = depth | (face_idx << 16);
             }
-            else if( prio == 11 )
+            else
             {
-                scene->sm_flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
+                scene->sm_flex_prio12_face_to_depth[n] = depth | (face_idx << 16);
             }
 
-            counts[prio]++;
+            counts[prio] = n + 1;
+            scene->sm_prio_count[prio] = n + 1;
         }
     }
+}
+
+static inline int
+sort_face_draw_order_small(
+    struct ToriDraw_Scene* scene,
+    int* face_draw_order,
+    faceint_t* priority_depths,
+    int* counts)
+{
+    const int max_faces = scene->max_faces;
 
     int average_depth1_2 = 0;
     int count1_2 = counts[1] + counts[2];
@@ -759,7 +749,6 @@ sort_face_draw_order_small(
         flexible_face_index++;
     }
 
-    (void)num_faces;
     return order_index;
 }
 
@@ -829,16 +818,14 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         return;
     }
 
-    parition_faces_by_priority_small(
-        scene, face_count, face_priorities, model_min_depth, model_max_depth);
+    faceint_t priority_depths[12] = { 0 };
+    int counts[12] = { 0 };
 
-    scene->tmp_face_order_count = sort_face_draw_order_small(
-        scene,
-        scene->tmp_face_order,
-        face_count,
-        face_priorities,
-        model_min_depth,
-        model_max_depth);
+    partition_and_accumulate_faces_by_priority_small(
+        scene, priority_depths, counts, face_priorities, model_min_depth, model_max_depth);
+
+    scene->tmp_face_order_count =
+        sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
 }
 
 static inline int
@@ -964,6 +951,12 @@ ToriDraw_Project(
     return TORIDRAW_CULL_VISIBLE;
 }
 
+/**
+ * Sign-only barycentric containment. Dividing all three coordinates by the
+ * same `denominator` cannot change which of them are negative, so folding the
+ * denominator's sign in and comparing the raw numerators against zero gives
+ * the same answer with no divides and no float at all.
+ */
 static inline bool
 toridraw_triangle_contains_point(
     int x1,
@@ -976,14 +969,21 @@ toridraw_triangle_contains_point(
     int y)
 {
     int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-    if( denominator != 0 )
+    if( denominator == 0 )
+        return false;
+
+    int a_num = (y2 - y3) * (x - x3) + (x3 - x2) * (y - y3);
+    int b_num = (y3 - y1) * (x - x3) + (x1 - x3) * (y - y3);
+    int c_num = denominator - a_num - b_num; /* c = 1 - a - b, unnormalized */
+
+    if( denominator < 0 )
     {
-        float a = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) / (float)denominator;
-        float b = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) / (float)denominator;
-        float c = 1 - a - b;
-        return (a >= 0 && b >= 0 && c >= 0);
+        a_num = -a_num;
+        b_num = -b_num;
+        c_num = -c_num;
     }
-    return false;
+
+    return a_num >= 0 && b_num >= 0 && c_num >= 0;
 }
 
 bool

@@ -699,7 +699,9 @@ main(int argc, char** argv)
     int* ids = options.ids;
     int id_count = options.id_count;
     int* owned_ids = NULL;
-    if( id_count == 0 )
+    /* `compile` works from source files, so it needs no id list at all. */
+    bool needs_ids = strcmp(options.mode, "compile") != 0;
+    if( id_count == 0 && needs_ids )
     {
         if( store.raw_directory )
             owned_ids = list_raw_ids(store.raw_directory, &id_count);

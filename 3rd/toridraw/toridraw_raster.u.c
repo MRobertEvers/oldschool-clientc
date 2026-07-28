@@ -67,6 +67,16 @@ struct ToriDrawModelRasterContext
     struct ToriDraw_TextureMap* texture_map;
     int flags;
     bool allow_near_clip;
+
+    /* Last texture resolved through texture_map, memoized. A model's faces are
+     * drawn depth-bucketed but almost always share one or two texture ids, so
+     * this turns the bounds check plus four dependent loads into one compare.
+     * Lives for a single model's raster pass (the context is a stack local
+     * rebuilt per model), so a texture swap between models is always seen. */
+    int cache_texture_id;
+    const int* cache_texels;
+    int cache_texture_size;
+    int cache_texture_opaque;
 };
 
 static inline void
@@ -142,6 +152,18 @@ ToriDraw_RasterModelFace(
 
     if( texture_id != -1 )
     {
+        if( texture_id == ctx->cache_texture_id )
+        {
+            texels = ctx->cache_texels;
+            texture_size = ctx->cache_texture_size;
+            texture_opaque = ctx->cache_texture_opaque;
+
+            if( color_c == TORIDRAWHSL16_FLAT )
+                goto textured_flat;
+            else
+                goto textured;
+        }
+
         // gamma 0.8 is the default in os1
         texture = (texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
                       ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
@@ -151,11 +173,17 @@ ToriDraw_RasterModelFace(
         // draw garbage; the reference skips the face too.
         if( texture == NULL )
         {
-            /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces. */
+            /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces.
+             * Resolve the env var once - getenv() walks environ with a strncmp
+             * per entry, and this branch is the steady state for every face of
+             * every model whose textures have not streamed in yet. */
             static int skip_tally[TORIDRAW_TEXTURE_ID_CAPACITY];
             static int skip_total = 0;
-            if( texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY &&
-                getenv("TORIRS_RASTER_TEX_DEBUG") )
+            static int debug_enabled = -1;
+            if( debug_enabled < 0 )
+                debug_enabled = getenv("TORIRS_RASTER_TEX_DEBUG") ? 1 : 0;
+
+            if( debug_enabled && texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY )
             {
                 skip_tally[texture_id]++;
                 if( ++skip_total % 500 == 1 )
@@ -172,6 +200,11 @@ ToriDraw_RasterModelFace(
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
+
+        ctx->cache_texture_id = texture_id;
+        ctx->cache_texels = texels;
+        ctx->cache_texture_size = texture_size;
+        ctx->cache_texture_opaque = texture_opaque;
 
         if( color_c == TORIDRAWHSL16_FLAT )
             goto textured_flat;
@@ -616,6 +649,10 @@ context_from_handle(
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_fov = camera->fov_rpi2048;
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
+        ctx->cache_texture_id = -1;
+        ctx->cache_texels = NULL;
+        ctx->cache_texture_size = 0;
+        ctx->cache_texture_opaque = 0;
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;

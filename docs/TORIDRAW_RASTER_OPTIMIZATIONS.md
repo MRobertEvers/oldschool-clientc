@@ -5,31 +5,85 @@ Analysis date: 2026-07-28. Scope: `3rd/toridraw/` — the triangle rasterizers
 (`toridraw_render.u.c`, `toridraw_raster.u.c`), and the 2D/sprite/font blitters
 (`toridraw_2d.c`, `toridraw_sprite.c`, `toridraw_font.c`).
 
-**Nothing in the tree was modified.** Every proposal below is a *copy* of the
-current code with the edit applied inline, so it can be dropped in (and
-benchmarked) later. Original line references are given for each.
+> **Status: implemented 2026-07-28.** Items 1–7 and 10–12 plus both Appendix A
+> defects are in the tree and verified byte-identical. Items 8 and 9 were
+> implemented, measured, and **reverted** — see
+> [Measured results](#measured-results) for why. The code blocks below are the
+> original proposals and are kept as the rationale for each change; where the
+> shipped code diverges from the proposal it is called out inline.
+
+---
+
+## Measured results
+
+Verified with two deterministic references, both compared byte-for-byte against
+a baseline binary built from `a8caf7fe`:
+
+- `make OPT=1 scanline-compare` + `TORIRS_SCANLINE_HEADLESS=16` on model 148
+  (1004 faces, 48 textured, 420 alpha) across 16 yaw steps × 4 alpha modes.
+- `torirs --offline --manifest ../manifest_rs254.ini` with
+  `TORIRS_WORLD_MAP=50,50 TORIRS_WORLD_BMP=1` — a full client frame, world plus
+  the whole interface tree, which is what covers items 4–7.
+
+**Every shipped item is pixel-identical on both.** `make test-scanline` and
+`make test-rotate-blit` pass, and a debug build (asserts enabled) produces the
+same frame.
+
+World draw (project + sort + raster), interleaved A/B over 8 pairs to cancel
+machine drift:
+
+| | baseline | optimized |
+|---|---|---|
+| mean | 1.2328 ms | 1.1468 ms |
+| median | 1.2056 ms | 1.1470 ms |
+| min | 1.1975 ms | 1.1261 ms |
+
+**~5–7% faster, 8/8 pairwise wins.** The model-only raster loop
+(`scanline_compare` model mode) moved 2–4%; it is a small model dominated by
+per-triangle setup, so it shows less.
+
+The machine was under concurrent load from other work during these runs, which
+is why the numbers are interleaved rather than batched — single-batch runs
+drifted by more than the effect size.
 
 ---
 
 ## Ranked summary
 
-| # | Where | Finding | Rough cost today | Risk |
-|---|-------|---------|------------------|------|
-| 1 | `gouraud.screen.opaque.bary.branching.s4.c` | Gouraud scanline has no `noclip` fast path; flat already has one | 6 branches + 2 clamps per scanline | none (behavior-identical) |
-| 2 | `tex.span.neon.u.c` (and avx/sse41/sse2 twins) | Every 8-px block computes the *next* block's `1/w`, `u`, `v` — then the next iteration computes them again | 2 float divides + 4 cvt per block instead of 1 + 2 | none |
-| 3 | `toridraw_render.u.c` | `parition_faces_by_priority` and `sort_face_draw_order` walk the identical depth-bucket set twice, unpacking the same nibble | 2× the priority pass, per model, per frame | low |
-| 4 | `toridraw_2d.c` | `ToriDraw2D_FillRect` calls `ToriDraw2D_BlendArgbPixel` per pixel, which re-clips and recomputes `y*stride+x` | ~8 ops/px of pure overhead on every UI rect | none |
-| 5 | `toridraw_2d.c` | Scaled/tiled/masked blits do 1–4 integer divides *or* two `%` per pixel | 20–80 cycles/px on the divide | none |
-| 6 | `toridraw_sprite.c`, `toridraw_2d.c` | Alpha blend uses three `/255`; `graphics/alpha.h` already has the mul-shift trick | 3 divides/px → 2 multiplies | none (±1 LSB) |
-| 7 | `toridraw_sprite.c`, `toridraw_font.c` | Per-pixel clip rejection instead of clamping the row/column range once | 2 compares/px + full-width iteration on offscreen rows | none |
-| 8 | edge setup (flat/gouraud/texture) | 3 `idiv` per triangle for edge slopes; `g_reciprocal16` exists and is already used by the clipper | ~60–90 cycles per triangle | medium (precision) |
-| 9 | `gouraud_barycentric_steps.h` | Two divides by the *same* `sarea` per triangle | 1 divide + 1 multiply instead of 2 divides | low |
-| 10 | `toridraw_raster.u.c:158` | `getenv()` in the per-face texture-miss path | `strcmp` over `environ`, per face, per frame | none |
-| 11 | `toridraw_raster.u.c:146` | Texture map lookup repeated per face; faces are already grouped by texture | 1 load + 1 compare instead of a bounds-checked indirect | none |
-| 12 | `toridraw_render.u.c:1034` | Pick test does 2 float divides per face | integer edge functions instead | none |
+| # | Where | Finding | Outcome |
+|---|-------|---------|---------|
+| 1 | `gouraud.screen.opaque.bary.branching.s4.c` | Gouraud scanline has no `noclip` fast path; flat already has one | **shipped**, identical |
+| 2 | `tex.span.neon.u.c`, `tex.span.scalar.u.c` | Every 8-px block computes the *next* block's `1/w`, `u`, `v` — then the next iteration computes them again | **shipped**, identical |
+| 3 | `toridraw_render.u.c` | `parition_faces_by_priority` and `sort_face_draw_order` walk the identical depth-bucket set twice, unpacking the same nibble | **shipped**, identical |
+| 4 | `toridraw_2d.c` | `ToriDraw2D_FillRect` calls `ToriDraw2D_BlendArgbPixel` per pixel, which re-clips and recomputes `y*stride+x` | **shipped**, identical |
+| 5 | `toridraw_2d.c` | Scaled/tiled/masked blits do 1–4 integer divides *or* two `%` per pixel | **shipped**, identical |
+| 6 | `toridraw_sprite.c`, `toridraw_2d.c` | Alpha blend uses three `/255` | **shipped**, identical (exact form, not the ±1 LSB one — see below) |
+| 7 | `toridraw_sprite.c`, `toridraw_font.c` | Per-pixel clip rejection instead of clamping the row/column range once | **shipped**, identical |
+| 8 | edge setup (flat/gouraud/texture) | 3 `idiv` per triangle for edge slopes; `g_reciprocal16` exists and is already used by the clipper | **reverted** — measurably slower *and* changes pixels |
+| 9 | `gouraud_barycentric_steps.h` | Two divides by the *same* `sarea` per triangle | **reverted** — an exact shared reciprocal costs more than it saves |
+| 10 | `toridraw_raster.u.c` | `getenv()` in the per-face texture-miss path | **shipped**, identical |
+| 11 | `toridraw_raster.u.c` | Texture map lookup repeated per face; faces are already grouped by texture | **shipped**, identical |
+| 12 | `toridraw_render.u.c` | Pick test does 2 float divides per face | **shipped**, identical |
 
-Two correctness notes that fell out of the reading are in
-[Appendix A](#appendix-a--non-performance-observations).
+Both correctness defects in
+[Appendix A](#appendix-a--non-performance-observations) are also fixed.
+
+### Where the shipped code differs from the proposal
+
+- **#5, #6** — the proposal used a 16.16 DDA for the scaled blits and the
+  `>> 8` packed blend for alpha. Both are *approximations*: the truncated DDA
+  step drifts one unit low wherever `dst_w` divides `x * src_w`, and the packed
+  blend divides by 256 rather than 255. Since this client is under active
+  pixel-parity work against reference clients, both shipped as **exact**
+  variants instead — a remainder-carrying accumulator for the DDA, and
+  `(v + (v>>8) + 1) >> 8` for the division, which is bit-identical to `v / 255`
+  across the whole `0 .. 255*255` range a channel blend can produce (verified
+  exhaustively). The divides still go away; the pixels do not move.
+- **#2** — shipped for the scalar fallback as well as NEON, because fixing
+  Appendix A2 in that file required restructuring the same loop. The AVX and
+  SSE variants still carry the original double-divide; they are not built on
+  this target and were left alone rather than changed blind.
+- **#8, #9** — see below.
 
 ---
 
@@ -1052,7 +1106,39 @@ font path.
 
 ---
 
-## 8. Integer division for the edge slopes
+## 8. Integer division for the edge slopes — TRIED, REVERTED
+
+> **Measured 2026-07-28: this is slower than the divide it replaces, and it
+> changes pixels. Do not re-attempt without new evidence.**
+>
+> Implemented exactly as written below (reciprocal table with a `dy < 4096`
+> gate and a 64-bit fallback), applied to the flat, gouraud and all six texture
+> rasterizers. Results:
+>
+> - **World draw got slower**: 1.1911 ms mean vs 1.1468 ms with the same change
+>   absent (5 samples each). `g_reciprocal16` is 16 KB and the `dy` index is
+>   effectively random per triangle, so the table load misses cache more often
+>   than the `sdiv` it replaces costs. A 32-bit integer divide on an M4 is
+>   simply not slow enough for a 4096-entry lookup to beat.
+> - **It changes output**: 2577–2626 differing pixels out of ~77 000 drawn
+>   (~3.4%) on the model sweep, and 3961 differing bytes in the client frame.
+>   That is an order of magnitude more than the "sub-pixel, invisible" estimate
+>   below — the drift is per-scanline and accumulates down a tall edge.
+> - It also broke the `scanline_compare` harness's standing invariant that a
+>   textures-stripped model must render identically under both raster families
+>   (1928–1986 differing pixels), because only the branching family was changed.
+>
+> The commented-out reciprocal lines in
+> `gouraud.screen.opaque.bary.branching.s4.c` were left in place with a note
+> recording this result, so the next reader does not have to rediscover it.
+>
+> The one part worth keeping from this section is the **overflow observation**:
+> `dx << 16` is undefined once `|dx| >= 32768`. That is a latent issue in the
+> current code independent of the reciprocal question, and is not fixed.
+
+The original analysis follows.
+
+
 
 **Files:** `flat.screen.opaque.branching.s4.c:145-158`,
 `gouraud.screen.opaque.bary.branching.s4.c:126-153`,
@@ -1136,7 +1222,20 @@ not bound screen-space `dx` it is worth an assert either way.
 
 ---
 
-## 9. Two divides by the same denominator in the gouraud setup
+## 9. Two divides by the same denominator in the gouraud setup — REVERTED
+
+> **Not worth it.** The result of these two divides indexes
+> `g_hsl16_to_rgb_table`, so it has to match the division exactly or the
+> gouraud gradient lands on a different palette entry. The float reciprocal
+> proposed below is not exact — `numerator << 8` routinely exceeds 2^24, past a
+> float mantissa. Making it exact needs a 64-bit divide for the reciprocal plus
+> a multiply-back correction per gradient, which is *more* work than the two
+> 32-bit divides it was meant to replace.
+>
+> `gouraud_barycentric_steps.h` now carries a comment recording this so the
+> idea does not get picked up again. The original analysis follows.
+
+
 
 **File:** `graphics/raster/gouraud/gouraud_barycentric_steps.h` +
 `gouraud.screen.opaque.bary.branching.s4.c:113-116`

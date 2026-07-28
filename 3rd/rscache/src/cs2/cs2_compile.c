@@ -205,7 +205,7 @@ cs2_cc_emit(struct cs2_cc_compiler* cc, int opcode, int operand)
 {
     if( !cs2_cc_ops_reserve(&cc->ops, cc->ops.count + 1) )
     {
-        cs2_fail(cc, "out of memory");
+        cs2_cc_fail(cc, "out of memory");
         return 0;
     }
     int index = cc->ops.count++;
@@ -224,11 +224,34 @@ cs2_cc_emit_string(struct cs2_cc_compiler* cc, const char* text)
     char* copy = (char*)malloc(length + 1);
     if( !copy )
     {
-        cs2_fail(cc, "out of memory");
+        cs2_cc_fail(cc, "out of memory");
         return;
     }
     memcpy(copy, text ? text : "", length + 1);
     cc->ops.string_operands[index] = copy;
+}
+
+/**
+ * Discard everything emitted since `mark`.
+ *
+ * Only used for the one place the grammar needs a speculative parse — telling
+ * string interpolation from the game's markup — so it has no jump fixups to
+ * undo: a `<...>` fragment is a single expression and cannot branch.
+ */
+static void
+cs2_cc_rollback(struct cs2_cc_compiler* cc, int mark)
+{
+    for( int i = mark; i < cc->ops.count; i++ )
+    {
+        free(cc->ops.string_operands[i]);
+        cc->ops.string_operands[i] = NULL;
+        cc->ops.opcodes[i] = 0;
+        cc->ops.int_operands[i] = 0;
+    }
+    cc->ops.count = mark;
+    cc->failed = false;
+    if( cc->error && cc->error_capacity > 0 )
+        cc->error[0] = '\0';
 }
 
 /** Branch operands count from the instruction after the branch. */
@@ -250,7 +273,7 @@ cs2_cc_jumps_add(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* jumps, int ind
 {
     if( jumps->count == CS2_CC_MAX_JUMPS )
     {
-        cs2_fail(cc, "condition or switch is too large");
+        cs2_cc_fail(cc, "condition or switch is too large");
         return;
     }
     jumps->items[jumps->count++] = index;
@@ -443,7 +466,7 @@ cs2_cc_expect_punct(struct cs2_cc_compiler* cc, char punct)
 {
     if( cs2_cc_accept_punct(cc, punct) )
         return true;
-    cs2_fail(cc, "expected '%c'", punct);
+    cs2_cc_fail(cc, "expected '%c'", punct);
     return false;
 }
 
@@ -543,7 +566,7 @@ cs2_cc_declare_local(
         return existing;
     if( cc->local_count == CS2_CC_MAX_LOCALS )
     {
-        cs2_fail(cc, "too many local variables");
+        cs2_cc_fail(cc, "too many local variables");
         return -1;
     }
 
@@ -551,7 +574,7 @@ cs2_cc_declare_local(
     bool is_array = false;
     if( !cs2_cc_split_local_name(name, &slot, &is_array) )
     {
-        cs2_fail(cc, "local '$%s' carries no slot number", name);
+        cs2_cc_fail(cc, "local '$%s' carries no slot number", name);
         return -1;
     }
 
@@ -870,10 +893,17 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
         }
         if( body[index] != '>' )
         {
-            cs2_fail(cc, "unterminated <...> in a string literal");
+            cs2_cc_fail(cc, "unterminated <...> in a string literal");
             return;
         }
 
+        /* `<...>` is ambiguous in this language: it is string interpolation,
+         * and it is also the game's own markup — `"Level <tostring($lvl)>"` and
+         * `"red<col=ff0000>"` are both ordinary strings. The decompiler writes
+         * markup through verbatim, so the only way to tell them apart is to try
+         * the interpolation reading and fall back to literal text when it does
+         * not parse. The attempt is rolled back so nothing it emitted survives. */
+        int mark = cc->ops.count;
         struct cs2_cc_lexer_state saved;
         cs2_cc_enter_fragment(
             cc,
@@ -881,10 +911,21 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
                 &cc->arena, body + expression_start, (size_t)(index - expression_start)),
             &saved);
         cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+        bool parsed = !cc->failed && cc->token.kind == CS2_CC_TOK_END;
         cs2_cc_leave_fragment(cc, &saved);
-        if( cc->failed )
-            return;
-        parts++;
+
+        if( parsed )
+        {
+            parts++;
+        }
+        else
+        {
+            cs2_cc_rollback(cc, mark);
+            /* Markup: the tag and its brackets are part of the text. The run
+             * continues through it, so `start` is left where it was. */
+            index++;
+            continue;
+        }
 
         index++;
         start = index;
@@ -952,7 +993,7 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
 {
     if( cc->token.kind != CS2_CC_TOK_IDENT )
     {
-        cs2_fail(cc, "expected a procedure name after '~'");
+        cs2_cc_fail(cc, "expected a procedure name after '~'");
         return;
     }
     const char* name = cc->token.text;
@@ -961,7 +1002,7 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
     int callee_id = -1;
     if( !cs2_cc_resolve_script(cc, name, &callee_id) )
     {
-        cs2_fail(cc, "no script id known for '~%s'", name);
+        cs2_cc_fail(cc, "no script id known for '~%s'", name);
         return;
     }
 
@@ -1002,6 +1043,53 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
     {
         int index = cs2_cc_find_local(cc, text);
         return index >= 0 ? cc->locals[index].type : RSCACHE_CS2_TYPE_NONE;
+    }
+    case CS2_CC_TOK_IDENT:
+    {
+        /* A command answers with what it pushes. */
+        int opcode = RSCache_CS2_CommandOfName(text);
+        const struct RSCache_CS2_CommandInfo* info =
+            opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
+        if( info && info->kind == RSCACHE_CS2_CMD_BASIC && info->def_count > 0 )
+            return RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, 0))->type;
+
+        /* An `event_*` value has a fixed type. */
+        for( int i = 0; i < RSCACHE_CS2_EVENT_COUNT; i++ )
+        {
+            if( strcmp(text, RSCache_CS2_EventPropertyLiteral(
+                                 (enum RSCache_CS2_EventProperty)i)) == 0 )
+                return RSCache_CS2_ProtoGet(
+                           RSCache_CS2_EventPropertyProto((enum RSCache_CS2_EventProperty)i))
+                    ->type;
+        }
+
+        /* Otherwise a named constant, if one of the tables whose names identify
+         * a single record claims it. The non-unique types (obj, loc, npc, …)
+         * are deliberately not searched: they all print as `<name>_<id>` and
+         * would answer for each other. */
+        static const struct
+        {
+            enum RSCache_CS2_NameTable table;
+            enum RSCache_CS2_Type type;
+        } unique[] = {
+            { RSCACHE_CS2_NAMES_BOOLEAN, RSCACHE_CS2_TYPE_BOOLEAN },
+            { RSCACHE_CS2_NAMES_STAT, RSCACHE_CS2_TYPE_STAT },
+            { RSCACHE_CS2_NAMES_FONTMETRICS, RSCACHE_CS2_TYPE_FONTMETRICS },
+            { RSCACHE_CS2_NAMES_MAPAREA, RSCACHE_CS2_TYPE_MAPAREA },
+            { RSCACHE_CS2_NAMES_INV, RSCACHE_CS2_TYPE_INV },
+            { RSCACHE_CS2_NAMES_SYNTH, RSCACHE_CS2_TYPE_SYNTH },
+            { RSCACHE_CS2_NAMES_PARAM, RSCACHE_CS2_TYPE_PARAM },
+        };
+        int unused = 0;
+        for( size_t i = 0; i < sizeof(unique) / sizeof(unique[0]); i++ )
+        {
+            if( RSCache_CS2_NamesLookupId(cs2_cc_names(cc), unique[i].table, text, &unused) )
+                return unique[i].type;
+        }
+        int coord = 0;
+        if( cs2_cc_parse_coord(text, &coord) )
+            return RSCACHE_CS2_TYPE_COORD;
+        return RSCACHE_CS2_TYPE_NONE;
     }
     case CS2_CC_TOK_GLOBAL:
     {
@@ -1083,7 +1171,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
     {
         if( cc->token.kind != CS2_CC_TOK_STRING )
         {
-            cs2_fail(cc, "expected a quoted callback");
+            cs2_cc_fail(cc, "expected a quoted callback");
             return;
         }
         char* callback = RSCache_CS2_ArenaStrDup(&cc->arena, cc->token.text);
@@ -1099,7 +1187,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
             char* brace_end = strrchr(callback, '}');
             if( !brace_end || brace_end < brace )
             {
-                cs2_fail(cc, "unterminated '{' in a callback");
+                cs2_cc_fail(cc, "unterminated '{' in a callback");
                 return;
             }
             *brace = '\0';
@@ -1112,7 +1200,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
             char* paren_end = strrchr(callback, ')');
             if( !paren_end || paren_end < paren )
             {
-                cs2_fail(cc, "unterminated '(' in a callback");
+                cs2_cc_fail(cc, "unterminated '(' in a callback");
                 return;
             }
             *paren = '\0';
@@ -1123,7 +1211,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
         int callee_id = -1;
         if( !cs2_cc_resolve_script(cc, callback, &callee_id) )
         {
-            cs2_fail(cc, "no script id known for callback '%s'", callback);
+            cs2_cc_fail(cc, "no script id known for callback '%s'", callback);
             return;
         }
         cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, callee_id);
@@ -1161,7 +1249,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
                 if( type == RSCACHE_CS2_TYPE_NONE ||
                     RSCache_CS2_TypeDesc(type) == 0 )
                 {
-                    cs2_fail(
+                    cs2_cc_fail(
                         cc,
                         "cannot determine the type of a callback argument; a hook's "
                         "descriptor needs one letter per argument");
@@ -1170,7 +1258,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
                 }
                 if( descriptor_length >= (int)sizeof(descriptor) - 2 )
                 {
-                    cs2_fail(cc, "callback takes too many arguments");
+                    cs2_cc_fail(cc, "callback takes too many arguments");
                     cs2_cc_leave_fragment(cc, &saved);
                     return;
                 }
@@ -1246,7 +1334,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
     if( !info )
     {
-        cs2_fail(cc, "unknown command '%s'", name);
+        cs2_cc_fail(cc, "unknown command '%s'", name);
         return;
     }
 
@@ -1283,7 +1371,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
     }
     if( info->kind != RSCACHE_CS2_CMD_BASIC )
     {
-        cs2_fail(cc, "'%s' cannot be written as a call", name);
+        cs2_cc_fail(cc, "'%s' cannot be written as a call", name);
         return;
     }
 
@@ -1382,7 +1470,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
                 cs2_cc_next(cc);
                 return;
             }
-            cs2_fail(cc, "no graphic id known for \"%s\"", body);
+            cs2_cc_fail(cc, "no graphic id known for \"%s\"", body);
             return;
         }
         cs2_cc_next(cc);
@@ -1395,7 +1483,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         int value = 0;
         if( !cs2_cc_resolve_caret(cc, cc->token.text, &value) )
         {
-            cs2_fail(cc, "unknown constant '^%s'", cc->token.text);
+            cs2_cc_fail(cc, "unknown constant '^%s'", cc->token.text);
             return;
         }
         cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, value);
@@ -1409,7 +1497,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         int index = cs2_cc_find_local(cc, name);
         if( index < 0 )
         {
-            cs2_fail(cc, "'$%s' is used before it is defined", name);
+            cs2_cc_fail(cc, "'$%s' is used before it is defined", name);
             return;
         }
         cs2_cc_next(cc);
@@ -1436,7 +1524,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         int id = 0;
         if( !cs2_cc_global_kind(cc->token.text, &push, &pop, &id) )
         {
-            cs2_fail(cc, "unknown global '%%%s'", cc->token.text);
+            cs2_cc_fail(cc, "unknown global '%%%s'", cc->token.text);
             return;
         }
         cs2_cc_next(cc);
@@ -1456,7 +1544,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             cs2_cc_next(cc);
             if( cc->token.kind != CS2_CC_TOK_IDENT )
             {
-                cs2_fail(cc, "expected a command after '.'");
+                cs2_cc_fail(cc, "expected a command after '.'");
                 return;
             }
             const char* name = cc->token.text;
@@ -1464,7 +1552,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             cs2_cc_command(cc, name, true);
             return;
         }
-        cs2_fail(cc, "unexpected '%c'", cc->token.punct);
+        cs2_cc_fail(cc, "unexpected '%c'", cc->token.punct);
         return;
 
     case CS2_CC_TOK_IDENT:
@@ -1506,14 +1594,14 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
                     cs2_cc_names(cc), RSCACHE_CS2_NAMES_INTERFACE, name, &interface_id) &&
                 !cs2_cc_parse_id_suffixed(name, &interface_id) )
             {
-                cs2_fail(cc, "'%s' is not a known interface", name);
+                cs2_cc_fail(cc, "'%s' is not a known interface", name);
                 return;
             }
             cs2_cc_next(cc);
             cs2_cc_next(cc);
             if( cc->token.kind != CS2_CC_TOK_INT )
             {
-                cs2_fail(cc, "expected a component index after ':'");
+                cs2_cc_fail(cc, "expected a component index after ':'");
                 return;
             }
             cs2_cc_emit(
@@ -1542,12 +1630,12 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             cs2_cc_next(cc);
             return;
         }
-        cs2_fail(cc, "'%s' is neither a command nor a resolvable constant", name);
+        cs2_cc_fail(cc, "'%s' is neither a command nor a resolvable constant", name);
         return;
     }
 
     default:
-        cs2_fail(cc, "expected an expression");
+        cs2_cc_fail(cc, "expected an expression");
         return;
     }
 }
@@ -1572,7 +1660,7 @@ cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
 
     if( cc->token.kind != CS2_CC_TOK_PUNCT )
     {
-        cs2_fail(cc, "expected a comparison operator");
+        cs2_cc_fail(cc, "expected a comparison operator");
         return;
     }
     int opcode;
@@ -1593,7 +1681,7 @@ cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
                                     : RSCACHE_CS2_OP_BRANCH_GREATER_THAN;
         break;
     default:
-        cs2_fail(cc, "'%c' is not a comparison", cc->token.punct);
+        cs2_cc_fail(cc, "'%c' is not a comparison", cc->token.punct);
         return;
     }
     cs2_cc_next(cc);
@@ -1718,7 +1806,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
 {
     if( cc->switch_count == CS2_CC_MAX_SWITCHES )
     {
-        cs2_fail(cc, "too many switch statements");
+        cs2_cc_fail(cc, "too many switch statements");
         return;
     }
     int table = cc->switch_count++;
@@ -1756,7 +1844,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
         {
             if( case_count == (int)(sizeof(cases) / sizeof(cases[0])) )
             {
-                cs2_fail(cc, "too many switch cases");
+                cs2_cc_fail(cc, "too many switch cases");
                 return;
             }
             entry = &cases[case_count++];
@@ -1804,7 +1892,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                 }
                 if( !ok )
                 {
-                    cs2_fail(cc, "case label is not a resolvable constant");
+                    cs2_cc_fail(cc, "case label is not a resolvable constant");
                     return;
                 }
                 if( entry->key_count < (int)(sizeof(entry->keys) / sizeof(entry->keys[0])) )
@@ -1909,7 +1997,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                     (int*)realloc(entries->targets, (size_t)capacity * sizeof(int));
                 if( !entries->keys || !entries->targets )
                 {
-                    cs2_fail(cc, "out of memory");
+                    cs2_cc_fail(cc, "out of memory");
                     return;
                 }
                 entries->capacity = capacity;
@@ -1960,7 +2048,7 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
         int index = cs2_cc_find_local(cc, target->text);
         if( index < 0 )
         {
-            cs2_fail(cc, "'$%s' is assigned before it is defined", target->text);
+            cs2_cc_fail(cc, "'$%s' is assigned before it is defined", target->text);
             return;
         }
         cs2_cc_emit(
@@ -1976,7 +2064,7 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
     int id = 0;
     if( !cs2_cc_global_kind(target->text, &push, &pop, &id) || pop < 0 )
     {
-        cs2_fail(cc, "'%%%s' cannot be assigned", target->text);
+        cs2_cc_fail(cc, "'%%%s' cannot be assigned", target->text);
         return;
     }
     cs2_cc_emit(cc, pop, id);
@@ -2015,7 +2103,7 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         enum RSCache_CS2_Type subject = RSCache_CS2_TypeOfLiteral(cc->token.text + 7);
         if( subject == RSCACHE_CS2_TYPE_NONE )
         {
-            cs2_fail(cc, "'%s' does not name a type", cc->token.text);
+            cs2_cc_fail(cc, "'%s' does not name a type", cc->token.text);
             return;
         }
         cs2_cc_next(cc);
@@ -2029,13 +2117,13 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         enum RSCache_CS2_Type type = RSCache_CS2_TypeOfLiteral(cc->token.text + 4);
         if( type == RSCACHE_CS2_TYPE_NONE )
         {
-            cs2_fail(cc, "'%s' does not name a type", cc->token.text);
+            cs2_cc_fail(cc, "'%s' does not name a type", cc->token.text);
             return;
         }
         cs2_cc_next(cc);
         if( cc->token.kind != CS2_CC_TOK_LOCAL )
         {
-            cs2_fail(cc, "expected a local after def_");
+            cs2_cc_fail(cc, "expected a local after def_");
             return;
         }
         const char* name = cc->token.text;
@@ -2080,12 +2168,12 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         {
             if( cc->token.kind != CS2_CC_TOK_LOCAL && cc->token.kind != CS2_CC_TOK_GLOBAL )
             {
-                cs2_fail(cc, "expected an assignment target");
+                cs2_cc_fail(cc, "expected an assignment target");
                 return;
             }
             if( target_count == (int)(sizeof(targets) / sizeof(targets[0])) )
             {
-                cs2_fail(cc, "too many assignment targets");
+                cs2_cc_fail(cc, "too many assignment targets");
                 return;
             }
             targets[target_count++] = cc->token;
@@ -2106,7 +2194,7 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
             int index = cs2_cc_find_local(cc, targets[0].text);
             if( index < 0 || !cc->locals[index].is_array )
             {
-                cs2_fail(cc, "'$%s' is not an array", targets[0].text);
+                cs2_cc_fail(cc, "'$%s' is not an array", targets[0].text);
                 return;
             }
             cs2_cc_next(cc);
@@ -2121,7 +2209,14 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
 
         if( !cs2_cc_expect_punct(cc, '=') )
             return;
-        cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+        /* The right-hand side is itself a list: `$a, $b = $c, $d` is as legal as
+         * `$a, $b = ~two_results`, and one expression may fill several slots. */
+        for( ;; )
+        {
+            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+            if( cc->failed || !cs2_cc_accept_punct(cc, ',') )
+                break;
+        }
         /* Values come off the stack top-first, so the last target stores first. */
         for( int i = target_count - 1; i >= 0 && !cc->failed; i-- )
             cs2_cc_emit_store(cc, &targets[i]);
@@ -2190,12 +2285,12 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
         return;
     if( cc->token.kind != CS2_CC_TOK_IDENT )
     {
-        cs2_fail(cc, "expected a trigger name");
+        cs2_cc_fail(cc, "expected a trigger name");
         return;
     }
     if( RSCache_CS2_TriggerOfName(cc->token.text) == RSCACHE_CS2_TRIGGER_NONE )
     {
-        cs2_fail(cc, "'%s' is not a trigger", cc->token.text);
+        cs2_cc_fail(cc, "'%s' is not a trigger", cc->token.text);
         return;
     }
     cs2_cc_next(cc);
@@ -2213,7 +2308,7 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
         {
             if( cc->token.kind != CS2_CC_TOK_IDENT )
             {
-                cs2_fail(cc, "expected an argument type");
+                cs2_cc_fail(cc, "expected an argument type");
                 return;
             }
             /* An array argument's type is written `intarray`, not `int`. */
@@ -2224,7 +2319,7 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
                 type_length -= 5;
             if( type_length >= sizeof(base) )
             {
-                cs2_fail(cc, "argument type name is too long");
+                cs2_cc_fail(cc, "argument type name is too long");
                 return;
             }
             memcpy(base, type_text, type_length);
@@ -2233,13 +2328,13 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
             enum RSCache_CS2_Type type = RSCache_CS2_TypeOfLiteral(base);
             if( type == RSCACHE_CS2_TYPE_NONE )
             {
-                cs2_fail(cc, "'%s' does not name a type", base);
+                cs2_cc_fail(cc, "'%s' does not name a type", base);
                 return;
             }
             cs2_cc_next(cc);
             if( cc->token.kind != CS2_CC_TOK_LOCAL )
             {
-                cs2_fail(cc, "expected an argument name");
+                cs2_cc_fail(cc, "expected an argument name");
                 return;
             }
             if( cs2_cc_declare_local(cc, cc->token.text, type, true) < 0 )
@@ -2258,13 +2353,13 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
         {
             if( cc->token.kind != CS2_CC_TOK_IDENT )
             {
-                cs2_fail(cc, "expected a return type");
+                cs2_cc_fail(cc, "expected a return type");
                 return;
             }
             enum RSCache_CS2_Type type = RSCache_CS2_TypeOfLiteral(cc->token.text);
             if( type == RSCACHE_CS2_TYPE_NONE )
             {
-                cs2_fail(cc, "'%s' does not name a type", cc->token.text);
+                cs2_cc_fail(cc, "'%s' does not name a type", cc->token.text);
                 return;
             }
             if( cc->return_type_count <

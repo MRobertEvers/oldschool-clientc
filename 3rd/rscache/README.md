@@ -28,6 +28,7 @@ comparing. Where a field's meaning is inferred rather than confirmed, it says so
 - [dat1 — the jagfile container](#dat1--the-jagfile-container)
 - [The revision model](#the-revision-model)
 - [Model stream layouts](#model-stream-layouts)
+- [CS2 — the clientscript language](#cs2--the-clientscript-language)
 - [Writing a cache](#writing-a-cache)
 - [Building and testing](#building-and-testing)
 
@@ -697,6 +698,56 @@ Three things about the encoding are worth knowing before touching it:
   also keep their complex and cube texture mapping payloads there. See B11 in
   `EXCEPTIONS.md`.
 
+## CS2 — the clientscript language
+
+Table 12 holds ClientScript2 bytecode: the language OldSchool interfaces are
+scripted in. `src/cs2/` is a decompiler and a compiler for it, sitting on top of
+the `clientscript` codec that reads and writes the container.
+
+```
+cs2_command.gen.h   opcode <-> name, and each one's signature (generated)
+cs2_types.c         the type system: types, stack types, triggers, prototypes
+cs2_interp.c        bytecode -> IR, by simulating the operand stack
+cs2_dfa.c           nine data-flow passes: inlining, type and identifier solving
+cs2_cfa.c           IR -> if/while/switch, via a dominator tree
+cs2_gen.c           structured IR -> source text
+cs2_compile.c       source text -> bytecode
+cs2_names.c         id -> name tables, loaded at run time
+```
+
+The decompiler is a port of [RuneStar/cs2](https://github.com/RuneStar/cs2) and
+is checked the only way that means anything: against that implementation's own
+output. `test_cs2` decompiles all 7,884 scripts in its dump and compares byte for
+byte — **6,489 of the 6,491 the reference also produced are identical**, and the
+two that differ are one identifier chosen by Java hash order (EXCEPTIONS.md G1).
+
+The compiler has no upstream. It is checked by `cs2 roundtrip`, which compiles
+the decompiled source and compares against the cache's own bytes.
+
+Three things are worth knowing before using either half.
+
+**An unknown opcode arity is fatal, on purpose.** The bytecode does not say how
+many values an opcode pops. Get it wrong and nothing fails — the operand stack
+shifts by one and every later argument belongs to a different call, producing a
+readable decompile of a program that is not the one in the cache. So an opcode
+with no recorded signature refuses the script. Arities come from RuneStar's
+`Command.kt`, from this repo's own CS2 VM (`src/cs2vm2`, which knows opcodes the
+2021 sources predate), and from `tools/cs2/local_commands.py` for anything
+established here. 833 opcodes are signed; 7,553 of OSRS 230's 7,884 scripts
+decompile, and EXCEPTIONS.md G4 accounts for the rest.
+
+**Names are not in the cache.** Ids are; `coins_995` and `^iftype_rectangle` come
+from community-recovered tables loaded at run time from a directory. Without them
+a decompile is correct but reads `obj_995`. Four types — `boolean`, `stat`,
+`maparea`, `fontmetrics` — have no numeric spelling in the language at all, so
+they are the one case where a missing table refuses the script.
+
+**Source is UTF-8; the cache is windows-1252.** String constants are converted on
+the way out and back on the way in, through the bijection in `rsbuffer.h`. This
+is the one place the library treats cache strings as text rather than as bytes
+(A2), because a `.cs2` file is text: a `0xA0` in a message is a non-breaking
+space, and emitting it raw makes the listing invalid UTF-8.
+
 ## Writing a cache
 
 The write path mirrors the read path stage for stage.
@@ -790,6 +841,7 @@ Tests:
 | `test_compression` | CRC vectors, XTEA, gzip and bzip2 round trips, Whirlpool test vectors |
 | `test_container` | archive, group, jagfile, `.idx`, reference table round trips; and a synthetic cache written to disk and reopened |
 | `test_roundtrip` | per-datatype encode/decode over every cache in the corpus |
+| `test_cs2` | the CS2 decompiler against RuneStar/cs2's own output, script by script |
 | `test_bzip_interop.sh` | our bzip2 streams verified by the reference `bzip2 -t` and `-dc` |
 
 `test_roundtrip` takes the corpus location as its argument; `make test` passes the

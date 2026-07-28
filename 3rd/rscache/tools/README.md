@@ -36,6 +36,42 @@ that references the same framemap.
 Flags: `--npc ID`, `--model ID`, `--seq ID` (exactly one), `--strict` (drop
 candidates whose framemap does not cover the model's bone labels), `--json`.
 
+## `find_named`
+
+Locate records by **name**, and dump what they reference. Every other tool here
+takes an id and works outward; that is the wrong end when the only thing you
+know about an asset is what the wiki calls it.
+
+```sh
+./find_named/find_named --rev osrs230 cache.osrs230 --name "tormented"
+./find_named/find_named --rev osrs230 cache.osrs230 --name undead_demon
+./find_named/find_named --rev osrs239 cache.osrs239 --name "dragon claws" --type obj
+```
+
+`--type` narrows to `npc`, `obj`, `seq`, `spotanim` or `all` (default).
+
+Sequences and spotanims carry the content team's own debug names in these
+revisions — `luc2_undead_demon_melee`, `zuk_attack` — and that name is the only
+handle on an asset nothing points at. An npc record names its idle and its walk
+and nothing else, so attack, death and spawn animations cannot be reached by
+walking ids; `find_anims` finds them by framemap, this finds them by name, and
+projectiles usually need this one because they share no framemap with anything.
+
+Note that `--name` over `obj` or `spotanim` walks every record in the group and
+is slow (minutes on a full OSRS cache) — it reloads the archive per id. Dumping
+a single record is instant:
+
+```sh
+./find_named/find_named --rev osrs230 cache.osrs230 --npc 13599
+./find_named/find_named --rev osrs239 cache.osrs239 --obj 13652
+./find_named/find_named --rev osrs230 cache.osrs230 --seq 11392
+./find_named/find_named --rev osrs230 cache.osrs230 --spotanim 2853
+./find_named/find_named --rev osrs230 cache.osrs230 --scan-spotanim-model 50027
+```
+
+Sequence dumps report duration in **both** client cycles and server ticks, which
+is the number a script actually needs — 30 client cycles is one server tick.
+
 ## `port_npc`
 
 Port an NPC and its asset closure (models, sequences, frames, framemaps, and
@@ -78,6 +114,19 @@ make -C 3rd/rscache/tools port_lostcity
   --npc 7706=zuk --seq 7566=zuk_attack --spotanim 1375=zuk_proj \
   --loc 30356 --map 35_83 --apply
 ```
+
+`--obj ID[=name]` (manifest section `[export:obj]`) exports an item: the `.obj`
+config, the model the inventory icon is rendered from, and the male and female
+wield models. LostCity resolves `manwear`/`womanwear` by model *name*, so there
+is no naming convention to satisfy — whatever the model exporter called them is
+what the config references.
+
+What it deliberately does **not** write is the combat block: bonuses live in the
+source item's params table against param ids this revision does not share, and
+`category` is an id into a table that is not ported either, so writing them
+through would emit lines naming nothing. Bonuses, category, attack anims and the
+spec params are hand-authored. See `content/scripts/skill_combat/configs/dclaws.obj`
+for a worked example.
 
 Dry run by default; `--apply` writes. It writes into the server's content tree
 directly rather than staging elsewhere, because the pack files are the id
@@ -170,3 +219,68 @@ replaces the `.seq` with just the sequences that square's locs pulled in and
 drops every animation an earlier `--npc` run had put there. Re-run with the
 whole original argument list, or restore the files the run should not have
 touched.
+
+---
+
+## `cs2` — decompile and compile clientscripts
+
+```sh
+cs2 decompile (--cache DIR --rev NAME | --raw DIR) [--names DIR] [--out DIR] [id …]
+cs2 compile   --src (DIR) [--names DIR] [--out DIR]
+cs2 roundtrip (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
+```
+
+Turns a cache's table 12 into CS2 source and back. The language layer itself
+lives in the library (`src/cs2/`); this is the front end.
+
+Two script sources, because they answer different questions:
+
+- `--cache` reads a real cache, which is what the tool is *for*. It also reads
+  the cache's param config, which is the only reliable answer to "does
+  `oc_param` push an int or a string" — a stack-shape question, not a cosmetic
+  one.
+- `--raw` reads a directory of bare script files named by id. That is the shape
+  [RuneStar/cs2](https://github.com/RuneStar/cs2)'s `input/` dump uses, and it
+  is what makes the decompiler checkable against a corpus of known-good output
+  produced by the implementation this was ported from. `test/test_cs2.c` is that
+  check.
+
+`--names` points at a directory of RuneStar's `*-names.tsv` files. They are
+optional and purely legibility — without them a decompile is still correct, just
+`obj_995` instead of `coins_995`. Four types are the exception: `boolean`,
+`stat`, `maparea` and `fontmetrics` have no numeric spelling in the language at
+all, so a script using an id those tables do not name cannot be printed.
+
+`roundtrip` is the standing gate on the compiler: decompile, compile the result,
+and compare against the bytes the cache held. It reports the same
+exact/same-length shape as the library's other round-trip suites, for the same
+reason — high same-length with low exact means a re-encoding, low both means a
+loss. See EXCEPTIONS.md G2 for what the current figures are and why.
+
+### Regenerating the command table
+
+```sh
+python3 3rd/rscache/tools/cs2/gen_cs2_tables.py
+```
+
+Reads three things and writes `src/cs2/cs2_command.gen.h`:
+
+| Source | Supplies |
+|---|---|
+| `tools/cs2_gen_opcodes/vendor/Opcodes.kt` | opcode id ↔ name, shared with the client's CS2 VM so there is one answer to "what is opcode 105" |
+| `tools/cs2/vendor/Command.kt` | per-opcode signatures — how many values, and each one's type and identifier hint |
+| `src/cs2vm2/cs2vm2_opcode_stack.gen.h` | pop/push counts for the opcodes the 2021 Command.kt predates |
+
+The last one is what makes a modern cache decompile at all. An opcode with no
+recorded arity does not fail quietly: it desynchronises the operand stack, so
+the decompiler refuses the whole script rather than emit a confident reading of
+a different program. Layering the client's own stack table over the vendored one
+took OSRS 230 from 6,634 to 7,553 scripts. The stack table records *how many*
+ints and strings, not what they mean, so those opcodes get plain `int`/`string`
+prototypes — that costs identifier quality (`$int3` rather than `$width3`),
+never correctness.
+
+Anything this repo knows that neither source does goes in `local_commands.py`,
+so regenerating keeps it. Additions there must be **established, not guessed**:
+a wrong pop count is the one error that produces a plausible decompile of the
+wrong program.

@@ -698,20 +698,36 @@ font_draw_glyph_pixels(
     int const gw = font->glyph_width[gi];
     int const gh = font->glyph_height[gi];
 
-    for( int row = 0; row < gh; row++ )
+    /* Clamp the glyph's row/column range once. Glyphs are 5-12 px wide and
+     * text is drawn thousands of times a frame, so the two clip compares this
+     * removes from every pixel were a large share of the per-glyph work. */
+    int col_begin = 0;
+    int col_stop = gw;
+    if( gx < cl )
+        col_begin = cl - gx;
+    if( gx + col_stop > cr )
+        col_stop = cr - gx;
+
+    int row_begin = 0;
+    int row_stop = gh;
+    if( gy < ct )
+        row_begin = ct - gy;
+    if( gy + row_stop > cb )
+        row_stop = cb - gy;
+
+    if( col_begin >= col_stop || row_begin >= row_stop )
+        return 0;
+
+    for( int row = row_begin; row < row_stop; row++ )
     {
-        int const dst_y = gy + row;
-        if( dst_y < ct || dst_y >= cb )
-            continue;
-        for( int col = 0; col < gw; col++ )
+        uint8_t const* arow = font->glyph_alpha[gi] + (size_t)row * gw;
+        int* drow = pixel_buffer + (size_t)(gy + row) * stride + gx;
+
+        for( int col = col_begin; col < col_stop; col++ )
         {
-            int const dst_x = gx + col;
-            if( dst_x < cl || dst_x >= cr )
+            if( arow[col] == 0 )
                 continue;
-            uint8_t const a = font->glyph_alpha[gi][col + row * gw];
-            if( a == 0 )
-                continue;
-            pixel_buffer[dst_y * stride + dst_x] = color;
+            drow[col] = color;
             pixels_written++;
         }
     }
