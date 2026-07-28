@@ -1,0 +1,562 @@
+#include "cs2_names.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct cs2_name_file
+{
+    enum RSCache_CS2_NameTable table;
+    const char* file_name;
+};
+
+static const struct cs2_name_file cs2_name_files[] = {
+    { RSCACHE_CS2_NAMES_BOOLEAN, "boolean-names.tsv" },
+    { RSCACHE_CS2_NAMES_FONTMETRICS, "fontmetrics-names.tsv" },
+    { RSCACHE_CS2_NAMES_GRAPHIC, "graphic-names.tsv" },
+    { RSCACHE_CS2_NAMES_INTERFACE, "interface-names.tsv" },
+    { RSCACHE_CS2_NAMES_INV, "inv-names.tsv" },
+    { RSCACHE_CS2_NAMES_LOC, "loc-names.tsv" },
+    { RSCACHE_CS2_NAMES_MAPAREA, "maparea-names.tsv" },
+    { RSCACHE_CS2_NAMES_MODEL, "model-names.tsv" },
+    { RSCACHE_CS2_NAMES_NPC, "npc-names.tsv" },
+    { RSCACHE_CS2_NAMES_OBJ, "obj-names.tsv" },
+    { RSCACHE_CS2_NAMES_PARAM, "param-names.tsv" },
+    { RSCACHE_CS2_NAMES_SEQ, "seq-names.tsv" },
+    { RSCACHE_CS2_NAMES_STAT, "stat-names.tsv" },
+    { RSCACHE_CS2_NAMES_STRUCT, "struct-names.tsv" },
+    { RSCACHE_CS2_NAMES_SYNTH, "synth-names.tsv" },
+    { RSCACHE_CS2_NAMES_CHATFILTER, "chatfilter-names.tsv" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, "chattype-names.tsv" },
+    { RSCACHE_CS2_NAMES_CLIENTTYPE, "clienttype-names.tsv" },
+    { RSCACHE_CS2_NAMES_IFTYPE, "iftype-names.tsv" },
+    { RSCACHE_CS2_NAMES_KEY, "key-names.tsv" },
+    { RSCACHE_CS2_NAMES_SETPOSH, "setposh-names.tsv" },
+    { RSCACHE_CS2_NAMES_SETPOSV, "setposv-names.tsv" },
+    { RSCACHE_CS2_NAMES_SETSIZE, "setsize-names.tsv" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNH, "settextalignh-names.tsv" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNV, "settextalignv-names.tsv" },
+    { RSCACHE_CS2_NAMES_WINDOWMODE, "windowmode-names.tsv" },
+};
+
+#define CS2_NAME_FILE_COUNT ((int)(sizeof(cs2_name_files) / sizeof(cs2_name_files[0])))
+
+void
+RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
+{
+    memset(names, 0, sizeof(*names));
+    RSCache_CS2_ArenaInit(&names->arena);
+    for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
+        RSCache_CS2_IntMapInit(&names->tables[i]);
+    RSCache_CS2_IntMapInit(&names->script_names);
+    RSCache_CS2_IntMapInit(&names->param_types);
+}
+
+void
+RSCache_CS2_NamesFree(struct RSCache_CS2_Names* names)
+{
+    if( !names )
+        return;
+    for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
+        RSCache_CS2_IntMapFree(&names->tables[i]);
+    RSCache_CS2_IntMapFree(&names->script_names);
+    RSCache_CS2_IntMapFree(&names->param_types);
+    RSCache_CS2_ArenaFree(&names->arena);
+}
+
+/**
+ * Read a two-column `id<TAB>value` file, one record per line.
+ *
+ * `on_row` decides what the value means, so the same reader serves the plain
+ * name tables, the script-name table and the param-type table.
+ */
+static int
+cs2_read_tsv(
+    struct RSCache_CS2_Names* names,
+    const char* path,
+    void (*on_row)(struct RSCache_CS2_Names*, void*, int, const char*),
+    void* context)
+{
+    FILE* file = fopen(path, "rb");
+    if( !file )
+        return 0;
+
+    /* A hand-rolled line reader rather than getline: this library builds for
+     * mingw, Emscripten and NXDK, and getline is POSIX-only. */
+    char line[4096];
+    while( fgets(line, (int)sizeof(line), file) )
+    {
+        int length = (int)strlen(line);
+        while( length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r') )
+            line[--length] = '\0';
+        if( length == 0 )
+            continue;
+
+        char* tab = strchr(line, '\t');
+        if( !tab )
+            continue;
+        *tab = '\0';
+        char* end = NULL;
+        long id = strtol(line, &end, 10);
+        if( end == line || *end != '\0' )
+            continue;
+        on_row(names, context, (int)id, tab + 1);
+    }
+    fclose(file);
+    return 1;
+}
+
+static void
+cs2_row_name(struct RSCache_CS2_Names* names, void* context, int id, const char* value)
+{
+    struct RSCache_CS2_IntMap* table = (struct RSCache_CS2_IntMap*)context;
+    RSCache_CS2_IntMapPut(table, id, RSCache_CS2_ArenaStrDup(&names->arena, value));
+}
+
+static void
+cs2_row_param_type(struct RSCache_CS2_Names* names, void* context, int id, const char* value)
+{
+    (void)context;
+    /* The file stores the wire descriptor byte as a decimal number; 0 means the
+     * param is a plain int, matching the config default. */
+    char* end = NULL;
+    long desc = strtol(value, &end, 10);
+    if( end == value )
+        return;
+    enum RSCache_CS2_Type type = RSCache_CS2_TypeOfDescAuto((uint8_t)desc);
+    if( type == RSCACHE_CS2_TYPE_NONE )
+        return;
+    RSCache_CS2_IntMapPut(&names->param_types, id, (void*)(intptr_t)(type + 1));
+}
+
+int
+RSCache_CS2_NamesLoadDirectory(struct RSCache_CS2_Names* names, const char* directory)
+{
+    if( !directory || !*directory )
+        return 0;
+
+    char path[1024];
+    int loaded = 0;
+    for( int i = 0; i < CS2_NAME_FILE_COUNT; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/%s", directory, cs2_name_files[i].file_name);
+        FILE* probe = fopen(path, "rb");
+        if( !probe )
+            continue;
+        fclose(probe);
+        loaded += cs2_read_tsv(names, path, cs2_row_name, &names->tables[cs2_name_files[i].table]);
+    }
+
+    snprintf(path, sizeof(path), "%s/script-names.tsv", directory);
+    FILE* probe = fopen(path, "rb");
+    if( probe )
+    {
+        fclose(probe);
+        loaded += cs2_read_tsv(names, path, cs2_row_name, &names->script_names);
+    }
+
+    snprintf(path, sizeof(path), "%s/param-types.tsv", directory);
+    probe = fopen(path, "rb");
+    if( probe )
+    {
+        fclose(probe);
+        loaded += cs2_read_tsv(names, path, cs2_row_param_type, NULL);
+    }
+    return loaded;
+}
+
+const char*
+RSCache_CS2_NamesLookup(
+    const struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    int id)
+{
+    if( !names || table < 0 || table >= RSCACHE_CS2_NAMES_TABLE_COUNT )
+        return NULL;
+    return (const char*)RSCache_CS2_IntMapGet(&names->tables[table], id);
+}
+
+const char*
+RSCache_CS2_NamesScript(const struct RSCache_CS2_Names* names, int script_id)
+{
+    if( !names )
+        return NULL;
+    return (const char*)RSCache_CS2_IntMapGet(&names->script_names, script_id);
+}
+
+enum RSCache_CS2_Type
+RSCache_CS2_NamesParamType(const struct RSCache_CS2_Names* names, int param_id)
+{
+    if( !names )
+        return RSCACHE_CS2_TYPE_NONE;
+    intptr_t stored = (intptr_t)RSCache_CS2_IntMapGet(&names->param_types, param_id);
+    if( stored == 0 )
+        return RSCACHE_CS2_TYPE_NONE;
+    return (enum RSCache_CS2_Type)(stored - 1);
+}
+
+void
+RSCache_CS2_NamesSetParamType(
+    struct RSCache_CS2_Names* names,
+    int param_id,
+    enum RSCache_CS2_Type type)
+{
+    if( !names || type == RSCACHE_CS2_TYPE_NONE )
+        return;
+    RSCache_CS2_IntMapPut(&names->param_types, param_id, (void*)(intptr_t)(type + 1));
+}
+
+/* -------------------------------------------------------------------------
+ * Constant formatting
+ * ---------------------------------------------------------------------- */
+
+struct cs2_colour_constant
+{
+    int value;
+    const char* name;
+};
+
+static const struct cs2_colour_constant cs2_colour_constants[] = {
+    { 0xFF0000, "^red" },   { 0x00FF00, "^green" },   { 0x0000FF, "^blue" },
+    { 0xFFFF00, "^yellow" }, { 0xFF00FF, "^magenta" }, { 0x00FFFF, "^cyan" },
+    { 0xFFFFFF, "^white" }, { 0x000000, "^black" },
+};
+
+/** `name_<id>` — the fallback spelling for a type whose ids are not unique. */
+static void
+cs2_write_id_suffixed(const char* name, int id, char* out, int capacity)
+{
+    snprintf(out, (size_t)capacity, "%s_%d", name, id);
+}
+
+/** A constant prefixed with `^`, as the language writes its named constants. */
+static bool
+cs2_write_prefixed_constant(
+    const struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    const char* prefix,
+    int value,
+    char* out,
+    int capacity,
+    bool fall_back_to_number)
+{
+    const char* name = RSCache_CS2_NamesLookup(names, table, value);
+    if( name )
+    {
+        snprintf(out, (size_t)capacity, "^%s_%s", prefix, name);
+        return true;
+    }
+    if( value == -1 )
+    {
+        snprintf(out, (size_t)capacity, "null");
+        return true;
+    }
+    if( !fall_back_to_number )
+        return false;
+    snprintf(out, (size_t)capacity, "%d", value);
+    return true;
+}
+
+/** The `interface:component` spelling, resolving the interface half by name. */
+static bool
+cs2_write_component(
+    const struct RSCache_CS2_Names* names,
+    int value,
+    char* out,
+    int capacity)
+{
+    int interface_id = value >> 16;
+    const char* name = RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_INTERFACE, interface_id);
+    char interface_text[256];
+    if( name )
+    {
+        snprintf(interface_text, sizeof(interface_text), "%s", name);
+    }
+    else if( interface_id == -1 )
+    {
+        snprintf(interface_text, sizeof(interface_text), "null");
+    }
+    else
+    {
+        cs2_write_id_suffixed("interface", interface_id, interface_text, sizeof(interface_text));
+    }
+    snprintf(out, (size_t)capacity, "%s:%d", interface_text, value & 0xFFFF);
+    return true;
+}
+
+bool
+RSCache_CS2_NamesFormatInt(
+    const struct RSCache_CS2_Names* names,
+    int value,
+    enum RSCache_CS2_Type type,
+    const char* identifier,
+    char* out,
+    int out_capacity)
+{
+    const char* literal = RSCache_CS2_TypeLiteral(type);
+    bool named = identifier && strcmp(identifier, literal) != 0;
+
+    /* Identifier-specific spellings come first: these are ints whose *name*,
+     * not their type, says how to print them. */
+    if( named )
+    {
+        struct
+        {
+            const char* identifier;
+            enum RSCache_CS2_NameTable table;
+            const char* prefix;
+        } static const constants[] = {
+            { "key", RSCACHE_CS2_NAMES_KEY, "key" },
+            { "iftype", RSCACHE_CS2_NAMES_IFTYPE, "iftype" },
+            { "setsize", RSCACHE_CS2_NAMES_SETSIZE, "setsize" },
+            { "setposh", RSCACHE_CS2_NAMES_SETPOSH, "setpos" },
+            { "setposv", RSCACHE_CS2_NAMES_SETPOSV, "setpos" },
+            { "settextalignh", RSCACHE_CS2_NAMES_SETTEXTALIGNH, "settextalign" },
+            { "settextalignv", RSCACHE_CS2_NAMES_SETTEXTALIGNV, "settextalign" },
+            { "chattype", RSCACHE_CS2_NAMES_CHATTYPE, "chattype" },
+            { "windowmode", RSCACHE_CS2_NAMES_WINDOWMODE, "windowmode" },
+            { "clienttype", RSCACHE_CS2_NAMES_CLIENTTYPE, "clienttype" },
+            { "chatfilter", RSCACHE_CS2_NAMES_CHATFILTER, "chatfilter" },
+        };
+        for( size_t i = 0; i < sizeof(constants) / sizeof(constants[0]); i++ )
+        {
+            if( strcmp(identifier, constants[i].identifier) == 0 )
+                return cs2_write_prefixed_constant(
+                    names, constants[i].table, constants[i].prefix, value, out, out_capacity,
+                    true);
+        }
+
+        if( strcmp(identifier, "colour") == 0 )
+        {
+            if( value == -1 )
+            {
+                snprintf(out, (size_t)out_capacity, "null");
+                return true;
+            }
+            for( size_t i = 0;
+                 i < sizeof(cs2_colour_constants) / sizeof(cs2_colour_constants[0]);
+                 i++ )
+            {
+                if( cs2_colour_constants[i].value == value )
+                {
+                    snprintf(out, (size_t)out_capacity, "%s", cs2_colour_constants[i].name);
+                    return true;
+                }
+            }
+            /* A colour is 24 bits; anything above them is not a colour, and
+             * printing it as one would silently lose the high byte. */
+            if( (value >> 24) != 0 )
+                return false;
+            snprintf(out, (size_t)out_capacity, "0x%06x", value);
+            return true;
+        }
+
+        if( strcmp(identifier, "bool") == 0 )
+        {
+            const char* name = RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_BOOLEAN, value);
+            if( name )
+            {
+                snprintf(out, (size_t)out_capacity, "^%s", name);
+                return true;
+            }
+            if( value == -1 )
+            {
+                snprintf(out, (size_t)out_capacity, "null");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    switch( type )
+    {
+    case RSCACHE_CS2_TYPE_INT:
+        if( value == 2147483647 )
+            snprintf(out, (size_t)out_capacity, "^max_32bit_int");
+        else if( value == (-2147483647 - 1) )
+            snprintf(out, (size_t)out_capacity, "^min_32bit_int");
+        else
+            snprintf(out, (size_t)out_capacity, "%d", value);
+        return true;
+
+    case RSCACHE_CS2_TYPE_NPC_UID:
+        snprintf(out, (size_t)out_capacity, "%d", value);
+        return true;
+
+    case RSCACHE_CS2_TYPE_COORD:
+        if( value == -1 )
+        {
+            snprintf(out, (size_t)out_capacity, "null");
+            return true;
+        }
+        else
+        {
+            int plane = (int)((unsigned)value >> 28);
+            int x = (int)(((unsigned)value >> 14) & 0x3FFF);
+            int z = value & 0x3FFF;
+            snprintf(
+                out, (size_t)out_capacity, "%d_%d_%d_%d_%d", plane, x / 64, z / 64, x & 0x3F,
+                z & 0x3F);
+            return true;
+        }
+
+    case RSCACHE_CS2_TYPE_COMPONENT:
+        if( value == -1 )
+        {
+            snprintf(out, (size_t)out_capacity, "null");
+            return true;
+        }
+        return cs2_write_component(names, value, out, out_capacity);
+
+    case RSCACHE_CS2_TYPE_TYPE:
+    {
+        enum RSCache_CS2_Type referenced = RSCache_CS2_TypeOfDesc((uint8_t)value);
+        if( referenced == RSCACHE_CS2_TYPE_NONE )
+            return false;
+        snprintf(out, (size_t)out_capacity, "%s", RSCache_CS2_TypeLiteral(referenced));
+        return true;
+    }
+
+    case RSCACHE_CS2_TYPE_GRAPHIC:
+        if( value == -1 )
+        {
+            snprintf(out, (size_t)out_capacity, "null");
+            return true;
+        }
+        else
+        {
+            const char* name =
+                RSCache_CS2_NamesLookup(names, RSCACHE_CS2_NAMES_GRAPHIC, value);
+            if( name )
+                snprintf(out, (size_t)out_capacity, "\"%s\"", name);
+            else
+                snprintf(out, (size_t)out_capacity, "\"graphic_%d\"", value);
+            return true;
+        }
+
+    /* Ids that are unique but unnamed still have a spelling. */
+    case RSCACHE_CS2_TYPE_ENUM:
+    case RSCACHE_CS2_TYPE_CATEGORY:
+        if( value == -1 )
+            snprintf(out, (size_t)out_capacity, "null");
+        else
+            cs2_write_id_suffixed(literal, value, out, out_capacity);
+        return true;
+
+    /* No spelling at all beyond null: the language has no literal for these. */
+    case RSCACHE_CS2_TYPE_CHAR:
+    case RSCACHE_CS2_TYPE_AREA:
+    case RSCACHE_CS2_TYPE_MAPELEMENT:
+        if( value != -1 )
+            return false;
+        snprintf(out, (size_t)out_capacity, "null");
+        return true;
+
+    /* Exhaustively named: a missing id means the table is incomplete, and
+     * there is no fallback spelling that would compile back. */
+    case RSCACHE_CS2_TYPE_BOOLEAN:
+    case RSCACHE_CS2_TYPE_STAT:
+    case RSCACHE_CS2_TYPE_MAPAREA:
+    case RSCACHE_CS2_TYPE_FONTMETRICS:
+    {
+        enum RSCache_CS2_NameTable table = type == RSCACHE_CS2_TYPE_BOOLEAN
+                                               ? RSCACHE_CS2_NAMES_BOOLEAN
+                                               : type == RSCACHE_CS2_TYPE_STAT
+                                                     ? RSCACHE_CS2_NAMES_STAT
+                                                     : type == RSCACHE_CS2_TYPE_MAPAREA
+                                                           ? RSCACHE_CS2_NAMES_MAPAREA
+                                                           : RSCACHE_CS2_NAMES_FONTMETRICS;
+        const char* name = RSCache_CS2_NamesLookup(names, table, value);
+        if( name )
+        {
+            snprintf(out, (size_t)out_capacity, "%s", name);
+            return true;
+        }
+        if( value == -1 )
+        {
+            snprintf(out, (size_t)out_capacity, "null");
+            return true;
+        }
+        return false;
+    }
+
+    /* Unique ids: named if known, otherwise `<type>_<id>`. */
+    case RSCACHE_CS2_TYPE_INV:
+    case RSCACHE_CS2_TYPE_SYNTH:
+    case RSCACHE_CS2_TYPE_PARAM:
+    case RSCACHE_CS2_TYPE_INTERFACE:
+    {
+        enum RSCache_CS2_NameTable table = type == RSCACHE_CS2_TYPE_INV
+                                               ? RSCACHE_CS2_NAMES_INV
+                                               : type == RSCACHE_CS2_TYPE_SYNTH
+                                                     ? RSCACHE_CS2_NAMES_SYNTH
+                                                     : type == RSCACHE_CS2_TYPE_PARAM
+                                                           ? RSCACHE_CS2_NAMES_PARAM
+                                                           : RSCACHE_CS2_NAMES_INTERFACE;
+        const char* name = RSCache_CS2_NamesLookup(names, table, value);
+        if( name )
+            snprintf(out, (size_t)out_capacity, "%s", name);
+        else if( value == -1 )
+            snprintf(out, (size_t)out_capacity, "null");
+        else
+            cs2_write_id_suffixed(literal, value, out, out_capacity);
+        return true;
+    }
+
+    /* Non-unique names: the id is always appended, so `coins_995`. */
+    case RSCACHE_CS2_TYPE_OBJ:
+    case RSCACHE_CS2_TYPE_NAMEDOBJ:
+    case RSCACHE_CS2_TYPE_LOC:
+    case RSCACHE_CS2_TYPE_MODEL:
+    case RSCACHE_CS2_TYPE_STRUCT:
+    case RSCACHE_CS2_TYPE_NPC:
+    case RSCACHE_CS2_TYPE_SEQ:
+    {
+        if( value == -1 )
+        {
+            snprintf(out, (size_t)out_capacity, "null");
+            return true;
+        }
+        enum RSCache_CS2_NameTable table;
+        const char* fallback;
+        switch( type )
+        {
+        case RSCACHE_CS2_TYPE_OBJ:
+        case RSCACHE_CS2_TYPE_NAMEDOBJ:
+            table = RSCACHE_CS2_NAMES_OBJ;
+            /* namedobj shares obj's table *and* its fallback spelling. */
+            fallback = "obj";
+            break;
+        case RSCACHE_CS2_TYPE_LOC:
+            table = RSCACHE_CS2_NAMES_LOC;
+            fallback = "loc";
+            break;
+        case RSCACHE_CS2_TYPE_MODEL:
+            table = RSCACHE_CS2_NAMES_MODEL;
+            fallback = "model";
+            break;
+        case RSCACHE_CS2_TYPE_STRUCT:
+            table = RSCACHE_CS2_NAMES_STRUCT;
+            fallback = "struct";
+            break;
+        case RSCACHE_CS2_TYPE_NPC:
+            table = RSCACHE_CS2_NAMES_NPC;
+            fallback = "npc";
+            break;
+        default:
+            table = RSCACHE_CS2_NAMES_SEQ;
+            fallback = "seq";
+            break;
+        }
+        const char* name = RSCache_CS2_NamesLookup(names, table, value);
+        cs2_write_id_suffixed(name ? name : fallback, value, out, out_capacity);
+        return true;
+    }
+
+    default:
+        /* spotanim, newvar and player_uid reach here: upstream has no entry for
+         * them either, and inventing one would produce uncompilable source. */
+        return false;
+    }
+}

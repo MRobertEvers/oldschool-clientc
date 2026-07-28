@@ -5,6 +5,7 @@ build_opt/
 cache/
 cache254/
 cacheosrs/
+memtrace*
 cache245_2/
 cachers2
 cache.*/

@@ -11,6 +11,19 @@
 
 #define CACHE_PROVIDER_MODEL_CAPACITY 8192
 #define CACHE_PROVIDER_SPRITE_CAPACITY 4096
+/*
+ * How much of each derived cache survives a trim (see
+ * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
+ * capacities: the trim runs between builds, so a single build may hold far more
+ * than this while it is preloading, and gets cut back before the next one.
+ *
+ * Sized well above what one scene needs — an osrs230 square preloads ~400
+ * models — so that walking back and forth across a border keeps hitting the
+ * cache instead of reloading, which is the same reason Client-TS gives
+ * LocType.mc1 a capacity of 500 rather than a handful.
+ */
+#define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
+#define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
 #define CACHE_PROVIDER_FONT_CAPACITY 256
 #define CACHE_PROVIDER_ENUM_CAPACITY 2048
 #define CACHE_PROVIDER_STRUCT_CAPACITY 2048
@@ -487,6 +500,14 @@ CacheProvider_ModelHas(
  * cache measured in thousands of entries and run once per world build, so the
  * two passes are cheaper than maintaining an intrusive list on every get.
  */
+static int
+cache_provider_cmp_u64(const void* lhs, const void* rhs)
+{
+    const uint64_t a = *(const uint64_t*)lhs;
+    const uint64_t b = *(const uint64_t*)rhs;
+    return (a > b) - (a < b);
+}
+
 static uint64_t
 cache_provider_lru_threshold(
     struct HMap* map,
@@ -519,23 +540,8 @@ cache_provider_lru_threshold(
         return 0;
     }
 
-    /* Partial selection: the (count - keep)th smallest stamp is the cutoff.
-     * count is in the thousands, so an insertion-free O(n * k) scan would be
-     * worse than just sorting; qsort is fine and this runs once per build. */
-    {
-        size_t i;
-        for( i = 1; i < count; i++ )
-        {
-            uint64_t key = stamps[i];
-            size_t j = i;
-            while( j > 0 && stamps[j - 1] > key )
-            {
-                stamps[j] = stamps[j - 1];
-                j--;
-            }
-            stamps[j] = key;
-        }
-    }
+    /* The (count - keep)th smallest stamp is the cutoff. */
+    qsort(stamps, count, sizeof(*stamps), cache_provider_cmp_u64);
     threshold = stamps[count - keep - 1];
     free(stamps);
     return threshold;

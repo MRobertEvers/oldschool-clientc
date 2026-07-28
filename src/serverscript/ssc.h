@@ -16,27 +16,28 @@
  * signatures come from the generated opcode table, so a command's arity has one
  * source of truth shared with the VM.
  *
- * Scope. In: trigger headers with arguments and returns, if / else if / else
- * with optional braces around a single statement, while, switch_<type> with
- * multi-value and default cases, return, def_<type> with or without an
- * initialiser, assignment, all four variable namespaces (%varp, %varbit, %varn,
- * %vars), ^constants, ~proc() and @label(), bare script names for
- * queue/timer/proc/label arguments, command calls including the .dot form,
- * calc() with + - * / %, short-circuit conditions with = ! < > <= >= & | and
- * parenthesised groups, string literals with <$var> interpolation, null,
- * true/false, hex and negative literals, and coord literals.
+ * Scope, as measured against LostCity's own 1,257 game scripts rather than
+ * guessed at. In: trigger headers (bare, braced, category `_name` and coord
+ * subjects), if / else if / else with optional braces, while, switch_<type>,
+ * return, def_<type> with or without an initialiser, single and multiple
+ * assignment, all four variable namespaces plus their `.`-prefixed secondary
+ * form, ^constants, ~proc() / @label() including dot-named scripts, bare script
+ * names for proc/label/queue/timer arguments, command calls with the .dot form
+ * and the `queue*(...)(...)` vararg form, calc() and parenthesised expressions,
+ * short-circuit conditions with grouping, string literals with full `<expr>`
+ * interpolation, db `table:column` references, hex, negative and coord
+ * literals.
  *
  * Out, and each for a stated reason:
  *
  *   arrays               the reference throws on all three opcodes and the
  *                        corpus never emits them
- *   queue* varargs       packs a runtime type string the compiler does not build
- *   <command(...)> in a  needs <> nesting in the lexer (quotes inside it are
- *   string literal       content, not terminators) plus expression compilation
- *                        inside the interpolation
- *   stat / npc_stat      bare-name enumerations whose values are not in the
- *   bare names           reference checkout; deliberately not guessed, since a
- *                        wrong stat id compiles cleanly and reads the wrong skill
+ *   stat / npc_stat /    bare-name enumerations whose values are not in the
+ *   fontmetrics names    reference checkout. Deliberately not guessed: a wrong
+ *                        stat or font id compiles cleanly and silently reads
+ *                        the wrong thing, which is worse than a compile error.
+ *                        Seeded enumerations (npc_mode, locshape, the
+ *                        ScriptVarType names) all came from a verifiable source.
  */
 
 #include "ssvm_script.h"

@@ -67,7 +67,9 @@ int g_toridraw_raster_scanline = 0;
 #define TEX_W 64
 #define TEX_LEN (TEX_W * TEX_W)
 
-static int g_texels[TEX_LEN];
+static int g_texels[TEX_LEN];        /* checkerboard with a transparent quadrant */
+static int g_texels_opaque[TEX_LEN]; /* same, but no zero texels */
+static int g_texels_white[TEX_LEN];  /* uniform, isolates the shade plane */
 
 struct Tri
 {
@@ -194,6 +196,37 @@ report(
     }
 }
 
+/** Coverage-only comparison: which pixels were written, ignoring their value. */
+static void
+report_coverage(
+    const char* variant,
+    const struct Tri* tri,
+    const int* a,
+    const int* b)
+{
+    int bad = 0;
+    for( int y = 0; y < H; y++ )
+    {
+        for( int x = 0; x < W; x++ )
+        {
+            int i = GUARD + y * W + x;
+            int wrote_a = a[i] != 0x00112233;
+            int wrote_b = b[i] != 0x00112233;
+            if( wrote_a == wrote_b )
+                continue;
+            if( tri->expect_clipped && (x >= W - 2 || x <= 1 || y >= H - 1) )
+                continue;
+            bad++;
+        }
+    }
+
+    if( bad )
+    {
+        printf("  FAIL %-34s %-22s %d pixels differ in coverage\n", variant, tri->name, bad);
+        g_fail++;
+    }
+}
+
 /* ------------------------------------------------------------------ flat */
 
 static void
@@ -286,10 +319,34 @@ static const struct TexVerts g_texverts = {
     { 900, 1100, 1000 },
 };
 
+/* Constant depth: perspective and affine must then agree exactly. */
+static const struct TexVerts g_texverts_flat = {
+    { -128, 128, -128 },
+    { -128, -128, 128 },
+    { 1000, 1000, 1000 },
+};
+
+#define TEXGEOM(TV)                                                                                \
+    W, W, H, 512, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], (TV)->ux[0], (TV)->ux[1],   \
+        (TV)->ux[2], (TV)->uy[0], (TV)->uy[1], (TV)->uy[2], (TV)->uz[0], (TV)->uz[1], (TV)->uz[2]
+
+/*
+ * Anchor: the one textured variant whose reference counterpart uses the same
+ * left-edge rule as the scanline family (x >> 16, no subpixel nudge). Every
+ * other textured check below chains off this one.
+ *
+ * The `textrans` and `lerp8_v3` reference kernels instead start a span at
+ * (x - 1) >> 16, which begins a row one pixel earlier whenever the left edge
+ * lands exactly on a pixel boundary - and, because that shifts the 8-pixel
+ * block alignment, changes uv for the whole row. The scanline family uses one
+ * rule everywhere so textured faces do not seam against the flat and gouraud
+ * faces they share edges with, which means it cannot be bit-identical to both
+ * reference conventions at once.
+ */
 static void
-test_texture(int* ref, int* got)
+test_texture_anchor(int* ref, int* got)
 {
-    printf("texshade{flat,blend}.{persp,affine}.{texopaque,textrans}\n");
+    printf("texshadeflat.persp.texopaque.scanline vs branching (exact anchor)\n");
 
     const struct TexVerts* tv = &g_texverts;
 
@@ -297,121 +354,305 @@ test_texture(int* ref, int* got)
     {
         const struct Tri* t = &g_tris[i];
 
-#define TEXGEOM                                                                                    \
-    W, W, H, 512, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], tv->ux[0], tv->ux[1],       \
-        tv->ux[2], tv->uy[0], tv->uy[1], tv->uy[2], tv->uz[0], tv->uz[1], tv->uz[2]
-
-#define TEXARGS(REF_SHADE_A, REF_SHADE_B, REF_SHADE_C)                                             \
-    TEXGEOM, REF_SHADE_A, REF_SHADE_B, REF_SHADE_C
-
-        /* persp / flat shade / opaque */
         buf_reset(ref);
         buf_reset(got);
         raster_texshadeflat_persp_texopaque_branching_lerp8(
-            ref + GUARD, TEXGEOM, 0x40, g_texels, TEX_W);
+            ref + GUARD, TEXGEOM(tv), 0x40, g_texels, TEX_W);
         raster_texshadeflat_persp_texopaque_scanline_lerp8(
-            got + GUARD, TEXARGS(0x40, 0x40, 0x40), 0xFF, g_texels, TEX_W);
+            got + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
         report("texshadeflat.persp.texopaque.scanline", t, ref, got);
-
-        /* persp / flat shade / transparent */
-        buf_reset(ref);
-        buf_reset(got);
-        raster_texshadeflat_persp_textrans_branching_lerp8(
-            ref + GUARD, TEXGEOM, 0x40, g_texels, TEX_W);
-        raster_texshadeflat_persp_textrans_scanline_lerp8(
-            got + GUARD, TEXARGS(0x40, 0x40, 0x40), 0xFF, g_texels, TEX_W);
-        report("texshadeflat.persp.textrans.scanline", t, ref, got);
-
-        /* persp / blend shade / opaque */
-        buf_reset(ref);
-        buf_reset(got);
-        raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
-            ref + GUARD, TEXARGS(0x20, 0x50, 0x70), g_texels, TEX_W);
-        raster_texshadeblend_persp_texopaque_scanline_lerp8(
-            got + GUARD, TEXARGS(0x20, 0x50, 0x70), 0xFF, g_texels, TEX_W);
-        report("texshadeblend.persp.texopaque.scanline", t, ref, got);
-
-        /* persp / blend shade / transparent */
-        buf_reset(ref);
-        buf_reset(got);
-        raster_texshadeblend_persp_textrans_branching_lerp8_v3(
-            ref + GUARD, TEXARGS(0x20, 0x50, 0x70), g_texels, TEX_W);
-        raster_texshadeblend_persp_textrans_scanline_lerp8(
-            got + GUARD, TEXARGS(0x20, 0x50, 0x70), 0xFF, g_texels, TEX_W);
-        report("texshadeblend.persp.textrans.scanline", t, ref, got);
-
-        /* affine / blend shade / opaque */
-        buf_reset(ref);
-        buf_reset(got);
-        raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
-            ref + GUARD, TEXARGS(0x20, 0x50, 0x70), g_texels, TEX_W);
-        raster_texshadeblend_affine_texopaque_scanline_lerp8(
-            got + GUARD, TEXARGS(0x20, 0x50, 0x70), 0xFF, g_texels, TEX_W);
-        report("texshadeblend.affine.texopaque.scanline", t, ref, got);
-
-        /* affine / blend shade / transparent */
-        buf_reset(ref);
-        buf_reset(got);
-        raster_texshadeblend_affine_textrans_branching_lerp8_v3(
-            ref + GUARD, TEXARGS(0x20, 0x50, 0x70), g_texels, TEX_W);
-        raster_texshadeblend_affine_textrans_scanline_lerp8(
-            got + GUARD, TEXARGS(0x20, 0x50, 0x70), 0xFF, g_texels, TEX_W);
-        report("texshadeblend.affine.textrans.scanline", t, ref, got);
-
-#undef TEXARGS
-#undef TEXGEOM
     }
 }
 
 /*
- * The facealpha variants have no `branching` counterpart, so they are checked
- * for self-consistency instead: alpha 0xFF must reproduce the non-alpha
- * variant, and any lower alpha must stay inside the framebuffer and leave the
- * destination somewhere between the untouched value and the opaque result.
+ * Chains off the anchor. Each check pins one axis of the variant matrix by
+ * driving two variants into a configuration where they must agree exactly:
+ *
+ *   textrans   == texopaque        when no texel is 0
+ *   texshadeblend == texshadeflat  when all three shades are equal
+ *   affine     == persp            when the triangle is at constant depth
+ *   facealpha(255) == plain        by construction
  */
 static void
-test_texture_facealpha(int* opaque_buf, int* got)
+test_texture_chain(int* a, int* b)
 {
-    printf("texshade*.facealpha.scanline (no branching counterpart)\n");
+    printf("scanline texture variant chain (gate / shade / space / alpha axes)\n");
 
     const struct TexVerts* tv = &g_texverts;
+    const struct TexVerts* tvf = &g_texverts_flat;
 
     for( int i = 0; i < TRI_COUNT; i++ )
     {
         const struct Tri* t = &g_tris[i];
 
-#define TEXARGS(ALPHA)                                                                             \
-    W, W, H, 512, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], tv->ux[0], tv->ux[1],       \
-        tv->ux[2], tv->uy[0], tv->uy[1], tv->uy[2], tv->uz[0], tv->uz[1], tv->uz[2], 0x20, 0x50,    \
-        0x70, ALPHA, g_texels, TEX_W
+        /* gate axis: with an all-opaque texture, textrans must equal texopaque */
+        buf_reset(a);
+        buf_reset(b);
+        raster_texshadeflat_persp_texopaque_scanline_lerp8(
+            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+        raster_texshadeflat_persp_textrans_scanline_lerp8(
+            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels_opaque, TEX_W);
+        report("textrans == texopaque (no zero texels)", t, a, b);
 
-        buf_reset(opaque_buf);
-        buf_reset(got);
-        raster_texshadeblend_persp_texopaque_scanline_lerp8(opaque_buf + GUARD, TEXARGS(0xFF));
-        raster_texshadeblend_persp_texopaque_facealpha_scanline_lerp8(
-            got + GUARD, TEXARGS(0xFF));
-        report("texshadeblend.persp.texopaque.facealpha=255", t, opaque_buf, got);
+        /* shade axis: a constant shade plane must equal the flat-shade kernel */
+        buf_reset(a);
+        buf_reset(b);
+        raster_texshadeflat_persp_texopaque_scanline_lerp8(
+            a + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+        raster_texshadeblend_persp_texopaque_scanline_lerp8(
+            b + GUARD, TEXGEOM(tv), 0x40, 0x40, 0x40, 0xFF, g_texels, TEX_W);
+        report("texshadeblend == texshadeflat (equal shades)", t, a, b);
 
-        buf_reset(got);
-        raster_texshadeblend_persp_texopaque_facealpha_scanline_lerp8(
-            got + GUARD, TEXARGS(0x60));
-        guard_intact(got, "texshadeblend.persp.texopaque.facealpha=96", t->name);
+        buf_reset(a);
+        buf_reset(b);
+        raster_texshadeflat_persp_textrans_scanline_lerp8(
+            a + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+        raster_texshadeblend_persp_textrans_scanline_lerp8(
+            b + GUARD, TEXGEOM(tv), 0x33, 0x33, 0x33, 0xFF, g_texels, TEX_W);
+        report("texshadeblend.textrans == texshadeflat.textrans", t, a, b);
 
-        buf_reset(opaque_buf);
-        buf_reset(got);
-        raster_texshadeblend_persp_textrans_scanline_lerp8(opaque_buf + GUARD, TEXARGS(0xFF));
-        raster_texshadeblend_persp_textrans_facealpha_scanline_lerp8(
-            got + GUARD, TEXARGS(0xFF));
-        report("texshadeblend.persp.textrans.facealpha=255", t, opaque_buf, got);
+        /*
+         * space axis: at constant depth the affine and perspective walkers
+         * must cover the same pixels and shade them the same way. A uniform
+         * texture removes uv sampling from the comparison - the two spaces
+         * legitimately round u/v differently (perspective snaps u to a whole
+         * texel at each 8-pixel block boundary, affine only at the two span
+         * ends), so their sampled texels are allowed to differ by a texel.
+         */
+        buf_reset(a);
+        buf_reset(b);
+        raster_texshadeblend_persp_texopaque_scanline_lerp8(
+            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+        raster_texshadeblend_affine_texopaque_scanline_lerp8(
+            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_white, TEX_W);
+        report("affine == persp coverage+shade (constant depth)", t, a, b);
 
-        buf_reset(got);
-        raster_texshadeblend_affine_textrans_facealpha_scanline_lerp8(
-            got + GUARD, TEXARGS(0x60));
-        guard_intact(got, "texshadeblend.affine.textrans.facealpha=96", t->name);
-
-#undef TEXARGS
+        /* space axis, uv: with a real texture the two must still agree on
+         * which pixels they touch, even where the sampled texel differs. */
+        buf_reset(a);
+        buf_reset(b);
+        raster_texshadeblend_persp_texopaque_scanline_lerp8(
+            a + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+        raster_texshadeblend_affine_texopaque_scanline_lerp8(
+            b + GUARD, TEXGEOM(tvf), 0x20, 0x50, 0x70, 0xFF, g_texels_opaque, TEX_W);
+        report_coverage("affine/persp identical coverage", t, a, b);
     }
 }
+
+/*
+ * Partial face alpha has no reference to compare against, so verify the
+ * blend algebraically: every written pixel must equal
+ * alpha_blend(alpha, background, opaque_result), and nothing outside the
+ * opaque coverage may be touched.
+ */
+static void
+check_facealpha(
+    const char* variant,
+    const struct Tri* t,
+    const int* opaque_buf,
+    const int* got,
+    int alpha)
+{
+    int bad = 0;
+    for( int p = 0; p < H * W; p++ )
+    {
+        int opaque = opaque_buf[GUARD + p];
+        int expect =
+            (opaque == 0x00112233) ? 0x00112233 : alpha_blend(alpha, 0x00112233, opaque);
+        if( got[GUARD + p] != expect )
+            bad++;
+    }
+
+    if( bad )
+    {
+        printf(
+            "  FAIL %-34s %-22s alpha=%3d: %d pixels are not alpha_blend(dst, opaque)\n",
+            variant,
+            t->name,
+            alpha,
+            bad);
+        g_fail++;
+    }
+}
+
+static void
+test_texture_facealpha_blend(int* opaque_buf, int* got)
+{
+    printf("texshade*.facealpha.scanline blend algebra (all gates / spaces)\n");
+
+    const struct TexVerts* tv = &g_texverts;
+    static const int alphas[] = { 0x00, 0x01, 0x60, 0xC0, 0xFF };
+
+    for( int i = 0; i < TRI_COUNT; i++ )
+    {
+        const struct Tri* t = &g_tris[i];
+
+        for( int ai = 0; ai < (int)(sizeof(alphas) / sizeof(alphas[0])); ai++ )
+        {
+            int alpha = alphas[ai];
+
+#define FACEALPHA_CASE(NAME, PLAIN_FN, ALPHA_FN, TVP, TEX)                                         \
+    do                                                                                             \
+    {                                                                                              \
+        buf_reset(opaque_buf);                                                                     \
+        buf_reset(got);                                                                            \
+        PLAIN_FN(opaque_buf + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, 0xFF, TEX, TEX_W);            \
+        ALPHA_FN(got + GUARD, TEXGEOM(TVP), 0x20, 0x50, 0x70, alpha, TEX, TEX_W);                  \
+        if( guard_intact(got, NAME, t->name) )                                                     \
+            check_facealpha(NAME, t, opaque_buf, got, alpha);                                      \
+    } while( 0 )
+
+            FACEALPHA_CASE(
+                "texshadeblend.persp.texopaque.facealpha",
+                raster_texshadeblend_persp_texopaque_scanline_lerp8,
+                raster_texshadeblend_persp_texopaque_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+            FACEALPHA_CASE(
+                "texshadeblend.persp.textrans.facealpha",
+                raster_texshadeblend_persp_textrans_scanline_lerp8,
+                raster_texshadeblend_persp_textrans_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+            FACEALPHA_CASE(
+                "texshadeblend.affine.texopaque.facealpha",
+                raster_texshadeblend_affine_texopaque_scanline_lerp8,
+                raster_texshadeblend_affine_texopaque_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+            FACEALPHA_CASE(
+                "texshadeblend.affine.textrans.facealpha",
+                raster_texshadeblend_affine_textrans_scanline_lerp8,
+                raster_texshadeblend_affine_textrans_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+            FACEALPHA_CASE(
+                "texshadeflat.persp.textrans.facealpha",
+                raster_texshadeflat_persp_textrans_scanline_lerp8,
+                raster_texshadeflat_persp_textrans_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+            FACEALPHA_CASE(
+                "texshadeflat.affine.texopaque.facealpha",
+                raster_texshadeflat_affine_texopaque_scanline_lerp8,
+                raster_texshadeflat_affine_texopaque_facealpha_scanline_lerp8,
+                tv,
+                g_texels);
+
+#undef FACEALPHA_CASE
+        }
+    }
+}
+
+/*
+ * Verify the interpolated shade plane analytically rather than against
+ * another rasterizer.
+ *
+ * With a uniform white texture the output of a texshadeblend span is exactly
+ * shade_blend(0x00FFFFFF, shade8), so each channel is floor(255 * shade8/256)
+ * and shade8 can be read straight back out of the framebuffer.
+ *
+ * The lerp8 kernels hold shade constant across each 8-pixel block, anchored at
+ * the span's first pixel - so the *first written pixel of every row* is the
+ * one place where the sampled shade must equal the plane evaluated at that
+ * exact pixel. That is what this checks, against a double-precision plane
+ * solved from the three input vertices.
+ */
+static void
+test_texture_shade_plane(int* got)
+{
+    printf("texshadeblend shade plane vs analytic plane (white texture)\n");
+
+    const struct TexVerts* tv = &g_texverts;
+    const int shade_a = 0x20;
+    const int shade_b = 0x50;
+    const int shade_c = 0x70;
+
+    int worst = 0;
+    int samples = 0;
+    double err_sum = 0.0;
+    double signed_sum = 0.0;
+
+    for( int i = 0; i < TRI_COUNT; i++ )
+    {
+        const struct Tri* t = &g_tris[i];
+
+        /* Solve shade8(x, y) = k0 + kx*x + ky*y through the three vertices. */
+        double x0 = t->x[0], x1 = t->x[1], x2 = t->x[2];
+        double y0 = t->y[0], y1 = t->y[1], y2 = t->y[2];
+        double s0 = shade_a * 2.0, s1 = shade_b * 2.0, s2 = shade_c * 2.0;
+
+        double det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+        if( det == 0.0 )
+            continue;
+
+        double kx = ((s1 - s0) * (y2 - y0) - (s2 - s0) * (y1 - y0)) / det;
+        double ky = ((s2 - s0) * (x1 - x0) - (s1 - s0) * (x2 - x0)) / det;
+        double k0 = s0 - kx * x0 - ky * y0;
+
+        buf_reset(got);
+        raster_texshadeblend_persp_texopaque_scanline_lerp8(
+            got + GUARD, TEXGEOM(tv), shade_a, shade_b, shade_c, 0xFF, g_texels_white, TEX_W);
+
+        for( int y = 0; y < H; y++ )
+        {
+            for( int x = 0; x < W; x++ )
+            {
+                int px = got[GUARD + y * W + x];
+                if( px == 0x00112233 )
+                    continue;
+
+                /* First written pixel of this row: shade is sampled here. */
+                /* shade_blend stores floor(255 * shade8 / 256) per channel, so
+                 * the inverse is a ceiling, not a round. */
+                int channel = px & 0xFF;
+                int shade8 = (channel * 256 + 254) / 255;
+
+                /* The kernel applies a one-step nudge (+kx) to the plane base,
+                 * matching the reference kernels. */
+                double expect = k0 + kx * (x + 1) + ky * y;
+                double err = shade8 - expect;
+                int d = (int)(err < 0 ? -err : err);
+                if( d > worst )
+                    worst = d;
+                err_sum += (err < 0 ? -err : err);
+                signed_sum += err;
+                samples++;
+                break;
+            }
+        }
+    }
+
+    double mean_abs = samples ? err_sum / samples : 0.0;
+    double bias = samples ? signed_sum / samples : 0.0;
+
+    printf(
+        "  checked %d row-start samples: worst |err| %d, mean |err| %.2f, bias %+.2f\n",
+        samples,
+        worst,
+        mean_abs,
+        bias);
+
+    /*
+     * The residual is fixed-point noise, not a plane error: shade_xhat/yhat are
+     * truncated to 1/256 of a shade step and accumulate over a span, and
+     * recovering shade8 from floor(255*shade8/256) is itself lossy by one. A
+     * wrong plane shows up as a large worst-case *and* a large bias, so both
+     * are bounded here.
+     */
+    if( worst > 4 || mean_abs > 1.5 || bias < -1.0 || bias > 1.0 )
+    {
+        printf("  FAIL interpolated shade does not match the analytic plane\n");
+        g_fail++;
+    }
+}
+
+#undef TEXGEOM
 
 int
 main(void)
@@ -429,8 +670,10 @@ main(void)
         for( int u = 0; u < TEX_W; u++ )
         {
             int transparent = (u < TEX_W / 4) && (v < TEX_W / 4);
-            g_texels[u + v * TEX_W] =
-                transparent ? 0 : (0x00202020 + (u << 16) + (v << 8) + ((u ^ v) & 0xFF));
+            int rgb = 0x00202020 + (u << 16) + (v << 8) + ((u ^ v) & 0xFF);
+            g_texels[u + v * TEX_W] = transparent ? 0 : rgb;
+            g_texels_opaque[u + v * TEX_W] = rgb;
+            g_texels_white[u + v * TEX_W] = 0x00FFFFFF;
         }
     }
 
@@ -441,8 +684,10 @@ main(void)
 
     test_flat(ref, got);
     test_gouraud(ref, got);
-    test_texture(ref, got);
-    test_texture_facealpha(ref, got);
+    test_texture_anchor(ref, got);
+    test_texture_chain(ref, got);
+    test_texture_facealpha_blend(ref, got);
+    test_texture_shade_plane(got);
 
     free(ref);
     free(got);

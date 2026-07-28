@@ -1134,6 +1134,90 @@ mock230_script_command(
         SSVM_PushInt(state, player->last_com);
         return 1;
 
+    /* ---- combat ---------------------------------------------------- */
+
+    case SS_OP_P_OPNPC:
+    {
+        int32_t op_num;
+        int slot = (int)state->host_tag - 1;
+
+        if( !SSVM_PopInt(state, &op_num) )
+            return 1;
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "p_opnpc with no active npc");
+            return 1;
+        }
+        /* Op 2 is Attack on every combat npc in this cache. Anything else is a
+         * non-combat interaction the mock has no model for yet, so it walks
+         * over and stops rather than pretending. */
+        if( op_num == 2 )
+            mock230_combat_engage(srv, slot);
+        else
+            mock230_world_walk_beside(srv, srv->npcs[slot].x, srv->npcs[slot].z);
+        return 1;
+    }
+
+    case SS_OP_NPC_DAMAGE:
+    {
+        int32_t values[2];
+        int slot = (int)state->host_tag - 1;
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_damage with no active npc");
+            return 1;
+        }
+        mock230_combat_hit_npc(srv, slot, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_DAMAGE:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        /* values[0] is the player uid, which the single-player mock ignores. */
+        mock230_combat_hit_player(srv, values[1], values[2]);
+        return 1;
+    }
+
+    case SS_OP_HEALENERGY:
+    {
+        int32_t amount;
+
+        if( !SSVM_PopInt(state, &amount) )
+            return 1;
+        player->hitpoints += amount;
+        if( player->hitpoints > player->max_hitpoints )
+            player->hitpoints = player->max_hitpoints;
+        return 1;
+    }
+
+    case SS_OP_UID:
+        /* One player, so the uid is a constant. Content only ever passes it
+         * straight back into `damage`. */
+        SSVM_PushInt(state, 1);
+        return 1;
+
+    case SS_OP_NPC_FINDHERO:
+        /* Whoever has been hitting this npc — always the one player here. */
+        SSVM_PushInt(state, 1);
+        return 1;
+
+    case SS_OP_NPC_ATTACKRANGE:
+        SSVM_PushInt(state, MOCK230_ATTACK_RANGE);
+        return 1;
+
     /* ---- waiting -------------------------------------------------- */
 
     case SS_OP_P_DELAY:

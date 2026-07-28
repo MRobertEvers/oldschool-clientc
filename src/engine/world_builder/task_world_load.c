@@ -198,6 +198,19 @@ Task_WorldLoad_Run(
 
     PT_BEGIN(&self->pt);
 
+    /*
+     * 0. Reclaim before preloading, not after.
+     *
+     * Everything below adds to the derived caches, and by the time the build
+     * runs they also hold the *previous* scene's models and sprites — which is
+     * how a session that walks across a few map squares ends up holding every
+     * model it has ever seen. This is the one point where dropping them is
+     * safe: the last build has finished consuming its preload, and this one has
+     * not started. Client-TS reclaims at the same point (Client.mapBuild calls
+     * clearCaches before building, and clears LocType.mc1 again after).
+     */
+    CacheProvider_TrimDerivedCaches(p);
+
     /* 1. Map terrain + scenery per chunk. */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {

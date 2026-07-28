@@ -7,7 +7,3 @@
 [login,_]
 mes("Welcome to the rev-230 mock server.");
 mes("Scripts are live: try talking to Hans.");
-
-// A goblin's idle chatter, driven by its own timer rather than by the tick.
-[opnpc1,goblin]
-npc_say("Grrr!");

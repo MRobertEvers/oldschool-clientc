@@ -271,7 +271,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts
+.PHONY: test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -452,6 +452,14 @@ test-sound: $(OBJ_DIR) $(AUDIO_TEST_OBJS)
 		game/test/rs_audio_test.c platform/platform_audio_null.c \
 		$(AUDIO_TEST_OBJS) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_audio_test
+
+# Derived-cache LRU eviction. Never fires during a boot (one scene is well under
+# the keep threshold), so it needs a test of its own or it ships unexercised.
+CACHE_TRIM_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+test-cache-trim: $(OBJ_DIR) $(CACHE_TRIM_TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cache_trim_test \
+		engine/test/cache_trim_test.c $(CACHE_TRIM_TEST_OBJS) $(LDFLAGS)
+	./$(OBJ_DIR)/cache_trim_test
 
 # DB_* opcode integration test: reuse the main link set minus main.o.
 DB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
@@ -726,6 +734,25 @@ test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		world/test/walkmerge_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/walkmerge_test
 
+# Parity of the `scanline` raster family against the shipping `branching`
+# kernels: every flat / gouraud / textured variant over a triangle set covering
+# interior, clipped, degenerate and inverted-winding cases. Standalone TU, no
+# cache or disk.
+test-scanline: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_test \
+		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
+	./$(OBJ_DIR)/scanline_parity_test
+
+# Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
+# rendered with both raster families plus an amplified difference pane.
+# Run: ./build/scanline_compare ../cache254 [model_id]
+scanline-compare: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/scanline_compare \
+		render/test/scanline_compare_sdl.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	@echo "built $(OBJ_DIR)/scanline_compare — run: $(OBJ_DIR)/scanline_compare $(DAT1_CACHE)"
+
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
 test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/rotate_blit_test \
@@ -770,7 +797,7 @@ test-revconfig: $(OBJ_DIR)
 # equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
 MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
-	net/mock/mock230_npcinfo.c \
+	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c \
 	net/mock/mock230_scripts.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o

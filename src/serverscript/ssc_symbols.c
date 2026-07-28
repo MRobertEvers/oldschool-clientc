@@ -286,6 +286,7 @@ kind_for_pack(const char* filename)
         { "vars.pack", SSC_SYM_VARS },
         { "enum.pack", SSC_SYM_ENUM },
         { "struct.pack", SSC_SYM_STRUCT },
+        { "dbtable.pack", SSC_SYM_DBTABLE },
         { "param.pack", SSC_SYM_PARAM },
         { "category.pack", SSC_SYM_CATEGORY },
         { "synth.pack", SSC_SYM_SYNTH },

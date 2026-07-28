@@ -707,6 +707,19 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         SSC_LexNext(lexer);
     }
 
+    /* A parenthesised expression, which content uses outside calc() too:
+     * `$value = (calc(random(1) + 9));`. */
+    if( SSC_LexIsPunct(lexer, "(") )
+    {
+        SSC_LexNext(lexer);
+        if( !parse_expression(compiler, is_string) )
+            return 0;
+        if( !SSC_LexIsPunct(lexer, ")") )
+            return fail(compiler, "expected ')' to close a parenthesised expression");
+        SSC_LexNext(lexer);
+        return 1;
+    }
+
     snprintf(text, sizeof(text), "%s", token->text);
 
     switch( token->kind )
@@ -1564,9 +1577,24 @@ parse_header(
     }
     SSC_LexNext(lexer);
 
+    /* `[command,queue*]` declares the vararg form; the star is part of the
+     * declaration's name, not syntax we need past this point. */
+    if( SSC_LexIsPunct(lexer, "*") )
+        SSC_LexNext(lexer);
+
     if( !SSC_LexIsPunct(lexer, "]") )
         return fail(compiler, "expected ']' to close the script header");
     SSC_LexNext(lexer);
+
+    /* engine.rs2 declares the language's commands with `[command,name](sig)`.
+     * Those are signatures, not scripts — the generated opcode table already
+     * carries them — so the file is walked and skipped rather than compiled. */
+    if( strcmp(trigger_name, "command") == 0 )
+    {
+        snprintf(out_name, name_capacity, "[command,%s]", subject);
+        *out_lookup_key = -1;
+        return 2;
+    }
 
     trigger = SSVM_TriggerFromName(trigger_name);
     if( trigger < 0 )
@@ -1817,6 +1845,10 @@ SSC_Declare(
             snprintf(subject, sizeof(subject), "%s", lexer.current.text);
             SSC_LexNext(&lexer);
 
+            /* Command declarations are not scripts and must not take ids. */
+            if( strcmp(trigger, "command") == 0 )
+                continue;
+
             if( compiler->name_count < compiler->name_capacity )
             {
                 snprintf(compiler->names[compiler->name_count], SSC_MAX_NAME, "[%s,%s]",
@@ -1943,17 +1975,48 @@ SSC_CompileFile(
         memset(&compiler->build, 0, sizeof(compiler->build));
         compiler->build.last_line = -1;
 
-        if( !parse_header(compiler, compiler->build.name, sizeof(compiler->build.name),
-                          &compiler->build.lookup_key) )
-            break;
+        {
+            int header = parse_header(compiler, compiler->build.name,
+                                      sizeof(compiler->build.name),
+                                      &compiler->build.lookup_key);
+
+            if( !header )
+                break;
+            if( header == 2 )
+            {
+                /* A command declaration: step over its signature and move on. */
+                while( compiler->lexer.current.kind != SSC_TOK_EOF &&
+                       !SSC_LexIsPunct(&compiler->lexer, "[") )
+                    SSC_LexNext(&compiler->lexer);
+                continue;
+            }
+        }
         if( !parse_header_lists(compiler) )
             break;
 
-        while( compiler->lexer.current.kind != SSC_TOK_EOF &&
-               !SSC_LexIsPunct(&compiler->lexer, "[") && !compiler->failed )
+        /* A script body may be wrapped in braces — `[label,foo](int $x) { ... }`
+         * — or run bare until the next header. Both forms appear in the same
+         * file, so the shape is decided per script rather than per file. */
+        if( SSC_LexIsPunct(&compiler->lexer, "{") )
         {
-            if( !parse_statement(compiler) )
-                break;
+            SSC_LexNext(&compiler->lexer);
+            while( compiler->lexer.current.kind != SSC_TOK_EOF &&
+                   !SSC_LexIsPunct(&compiler->lexer, "}") && !compiler->failed )
+            {
+                if( !parse_statement(compiler) )
+                    break;
+            }
+            if( !compiler->failed && SSC_LexIsPunct(&compiler->lexer, "}") )
+                SSC_LexNext(&compiler->lexer);
+        }
+        else
+        {
+            while( compiler->lexer.current.kind != SSC_TOK_EOF &&
+                   !SSC_LexIsPunct(&compiler->lexer, "[") && !compiler->failed )
+            {
+                if( !parse_statement(compiler) )
+                    break;
+            }
         }
         if( compiler->failed )
             break;

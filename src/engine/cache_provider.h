@@ -304,6 +304,20 @@ CacheProvider_ModelHas(
 void
 CacheProvider_ModelsCleanup(struct CacheProvider* provider);
 
+/*
+ * Drop the least recently used models and sprites, keeping a working set.
+ *
+ * Both caches are derived and nothing retains what it gets out of them — every
+ * reader converts into its own object — so an eviction costs a reload and
+ * nothing else. What is *not* safe is evicting at an arbitrary moment: a world
+ * build preloads its models and then consumes them synchronously, so this must
+ * be called between builds rather than from the insert path. Task_WorldLoad
+ * calls it before it starts preloading, which is where Client-TS clears its
+ * model/sprite LruCaches too (Client.mapBuild -> clearCaches).
+ */
+void
+CacheProvider_TrimDerivedCaches(struct CacheProvider* provider);
+
 void
 CacheProvider_SpriteAdd(
     struct CacheProvider* provider,

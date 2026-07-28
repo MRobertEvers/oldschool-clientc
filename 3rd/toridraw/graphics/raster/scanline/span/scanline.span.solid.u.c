@@ -13,9 +13,15 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/shared_tables.h"
 
-#ifndef TORIDRAW_PIXEL16
-#include "graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c"
-#endif
+/*
+ * Blending uses the scalar alpha_blend() rather than the 4-wide
+ * raster_linear_alpha_s4(): the SIMD kernel computes
+ * (dst*ainv + src*a) >> 8 with a single truncation, whereas alpha_blend()
+ * truncates each term separately. That is a one-ulp difference on every
+ * blended pixel, which would make the scanline family impossible to diff
+ * against the shipping `branching` output. The straight loops below are
+ * 32-bit-lane arithmetic that vectorises on its own.
+ */
 
 /* ------------------------------------------------------------------ flat */
 
@@ -53,17 +59,7 @@ scanline_span_flat_alpha(
     int rgb_color,
     int alpha)
 {
-    int i = 0;
-
-#ifndef TORIDRAW_PIXEL16
-    for( ; i + 4 <= count; i += 4 )
-    {
-        raster_linear_alpha_s4((uint32_t*)pixel_buffer, offset, rgb_color, alpha);
-        offset += 4;
-    }
-#endif
-
-    for( ; i < count; i++ )
+    for( int i = 0; i < count; i++ )
     {
         pixel_buffer[offset] = (toripixel_t)alpha_blend(alpha, pixel_buffer[offset], rgb_color);
         offset += 1;
@@ -149,16 +145,11 @@ scanline_span_gouraud_alpha(
     {
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
 
-#ifndef TORIDRAW_PIXEL16
-        raster_linear_alpha_s4((uint32_t*)pixel_buffer, offset, rgb_color, alpha);
-        offset += 4;
-#else
         for( int i = 0; i < 4; i++ )
         {
             pixel_buffer[offset] = (toripixel_t)alpha_blend(alpha, pixel_buffer[offset], rgb_color);
             offset += 1;
         }
-#endif
 
         color_hsl16_ish8 += step4;
     }

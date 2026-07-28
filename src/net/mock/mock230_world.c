@@ -53,6 +53,15 @@ random_range(
     return lo + (int)(next_random(srv) % (uint32_t)(hi - lo + 1));
 }
 
+int
+mock230_random(
+    struct Mock230Server* srv,
+    int lo,
+    int hi)
+{
+    return random_range(srv, lo, hi);
+}
+
 static int
 sign_of(int value)
 {
@@ -274,6 +283,26 @@ steps_walk_to(
     }
 }
 
+/*
+ * Queue a walk to a tile beside (x, z) rather than onto it.
+ *
+ * Every "click a thing" op wants this: standing on top of an npc or a door is
+ * wrong, and the adjacent tile is the one an interaction happens from.
+ */
+void
+mock230_world_walk_beside(
+    struct Mock230Server* srv,
+    int x,
+    int z)
+{
+    struct Mock230Player* player = &srv->player;
+
+    steps_clear(player);
+    player->dest_x = x - sign_of(x - player->x);
+    player->dest_z = z - sign_of(z - player->z);
+    steps_walk_to(player, player->dest_x, player->dest_z);
+}
+
 /* Consume up to `max_tiles` queued steps, recording the direction of each so
  * PLAYER_INFO can spell them out. */
 static void
@@ -387,6 +416,19 @@ npc_spawn(
         npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
         npc->step_dir = -1;
         npc->face_entity = -1;
+
+        /* Combat. Hitpoints scale off the cache's combat level so a goblin and
+         * a guard are not equally tough; the formula is the mock's own, since
+         * rev-230 npc configs carry no server-side hitpoints field. */
+        npc->base_hitpoints = mock230_npcinfo(type)->combat_level > 0
+                                  ? mock230_npcinfo(type)->combat_level * 2
+                                  : 5;
+        npc->hitpoints = npc->base_hitpoints;
+        npc->max_hitpoints = npc->base_hitpoints;
+        npc->combat_target = -1;
+        npc->death_tick = -1;
+        npc->respawn_tick = -1;
+        npc->timer_script = -1;
         return;
     }
 }
@@ -405,7 +447,11 @@ advance_npcs(struct Mock230Server* srv)
 
         if( !npc->active )
             continue;
-        npc->step_dir = -1;
+        /* Combat and death own the npc's movement. Roaming used to clear
+         * step_dir here, which also wiped the step the combat mover had just
+         * produced — phase 11 does that clear, once, at the right time. */
+        if( npc->combat_target >= 0 || npc->death_tick >= 0 )
+            continue;
         if( npc->wander_radius <= 0 || srv->tick < npc->next_roam_tick )
             continue;
 
@@ -724,6 +770,17 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "fight", 5) == 0 )
+    {
+        /* `::fight <slot>` engages an npc without needing a right-click, so
+         * combat is drivable from a headless session. */
+        int slot = 0;
+
+        (void)sscanf(text, "fight %d", &slot);
+        mock230_combat_engage(srv, slot);
+        return;
+    }
+
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
@@ -889,6 +946,9 @@ mock230_world_init(
     /* Start in the middle of the scene. */
     player->x = mock230_scene_origin(zone_x) + MOCK230_SCENE_TILES / 2;
     player->z = mock230_scene_origin(zone_z) + MOCK230_SCENE_TILES / 2;
+    player->hitpoints = MOCK230_PLAYER_MAX_HP;
+    player->max_hitpoints = MOCK230_PLAYER_MAX_HP;
+    player->combat_target = -1;
     player->level = 0;
     player->dest_x = -1;
     player->dest_z = -1;
@@ -1089,6 +1149,7 @@ static void
 phase_world(struct Mock230Server* srv)
 {
     mock230_scripts_resume_world(srv);
+    mock230_combat_respawn_tick(srv);
 }
 
 /**
@@ -1125,6 +1186,7 @@ phase_npcs(struct Mock230Server* srv)
         mock230_scripts_resume_npc(srv, slot);
         if( !srv->npcs[slot].active_script )
             mock230_scripts_process_npc_timer(srv, slot);
+        mock230_combat_npc_tick(srv, slot);
     }
     advance_npcs(srv);
 }
@@ -1140,9 +1202,11 @@ phase_players(struct Mock230Server* srv)
     mock230_scripts_process_timers(srv);
 
     /* Movement is the tail of the interaction step in the reference, between
-     * the pre-move and post-move interaction attempts. It sits alone here until
-     * there is an interaction model to bracket it. */
+     * the pre-move and post-move interaction attempts. Combat brackets it the
+     * same way: step first, then swing, so a player who arrives this tick
+     * attacks on it rather than a tick later. */
     advance_player(srv);
+    mock230_combat_player_tick(srv);
 }
 
 /** 6. Logouts, which run the [logout] trigger before dropping the player. */
@@ -1544,6 +1608,87 @@ mock230_world_selftest(void)
                            "and drop its resume buttons");
 
             mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: combat\n");
+    {
+        static struct Mock230Capture capture;
+        int goblin = -1;
+
+        /* The goblin roster entry, whatever slot it landed in. */
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( srv.npcs[i].active && srv.npcs[i].type == 655 )
+                goblin = i;
+        }
+        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+
+        if( goblin >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[goblin];
+            int start_hp = npc->hitpoints;
+            int ticks = 0;
+
+            SELFTEST_CHECK(start_hp > 0, "an npc spawns with hitpoints, got %d", start_hp);
+            SELFTEST_CHECK(npc->max_hitpoints == start_hp,
+                           "and at full health");
+
+            /* Stand next to it so the fight starts immediately. */
+            player->x = npc->x + 1;
+            player->z = npc->z;
+            steps_clear(player);
+            player->hitpoints = player->max_hitpoints;
+
+            mock230_combat_engage(&srv, goblin);
+            SELFTEST_CHECK(player->combat_target == goblin, "engaging sets the target");
+
+            /* Fight to the death. The cap is generous but finite: a combat loop
+             * that never resolves is the failure worth catching here. */
+            mock230_capture_begin(&srv, &capture);
+            while( npc->hitpoints > 0 && ticks < 200 )
+            {
+                mock230_world_tick(&srv);
+                ticks++;
+            }
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(ticks < 200, "the fight should end, took %d ticks", ticks);
+            SELFTEST_CHECK(npc->hitpoints == 0, "the goblin should die, hp %d",
+                           npc->hitpoints);
+            SELFTEST_CHECK(npc->death_tick >= 0,
+                           "and stay visible for its death animation");
+            SELFTEST_CHECK(player->combat_target == -1,
+                           "the player should stop attacking a corpse");
+
+            /* Damage reached the client: NPC_INFO carries the hitsplat and the
+             * health bar in one mask. */
+            SELFTEST_CHECK(mock230_capture_find(&capture, 104 /* NPC_INFO */, 0) >= 0,
+                           "NPC_INFO should have been sent during the fight");
+
+            /* It retaliated rather than standing there. */
+            SELFTEST_CHECK(player->hitpoints < player->max_hitpoints,
+                           "the goblin should have hit back, player hp %d/%d",
+                           player->hitpoints, player->max_hitpoints);
+
+            /* Corpse despawns, then respawns at its spawn tile at full health. */
+            for( int i = 0; i < MOCK230_DEATH_TICKS + 2 && npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(!npc->active, "the corpse should despawn");
+
+            for( int i = 0; i < MOCK230_RESPAWN_TICKS + 4 && !npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(npc->active, "the goblin should respawn");
+            SELFTEST_CHECK(npc->hitpoints == start_hp,
+                           "at full health, got %d of %d", npc->hitpoints, start_hp);
+            SELFTEST_CHECK(npc->x == npc->spawn_x && npc->z == npc->spawn_z,
+                           "at its spawn tile");
+            /* Respawn clears `tracked` so the next NPC_INFO adds it as a new
+             * entity rather than as a move of one the client already has —
+             * which by now it has done, so the observable end state is that the
+             * client has been told about it again. */
+            SELFTEST_CHECK(npc->tracked,
+                           "and re-added to the client's npc list");
         }
     }
 

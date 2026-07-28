@@ -62,6 +62,20 @@ enum
     MOCK230_TIMER_MAX = 8,
     MOCK230_WORLD_QUEUE_MAX = 16,
     MOCK230_RESUME_BUTTON_MAX = 8,
+
+    /* Combat. Four ticks is the standard melee interval; the rest are the
+     * mock's own tuning, not values read from anywhere. */
+    MOCK230_ATTACK_SPEED = 4,
+    MOCK230_ATTACK_RANGE = 1,
+    /* Ticks the corpse stays up after the death animation starts. */
+    MOCK230_DEATH_TICKS = 3,
+    /* Ticks from despawn to respawn at the spawn tile. */
+    MOCK230_RESPAWN_TICKS = 25,
+    MOCK230_PLAYER_MAX_HP = 30,
+
+    /* Hitsplat types the client's hitmark renderer knows. */
+    MOCK230_HIT_DAMAGE = 0,
+    MOCK230_HIT_BLOCK = 1,
     /* IF_SETEVENTS bit 0: the component accepts a plain click, answered with
      * IF_BUTTON. Mirrors RS_MINIMENU_EVENT_CLICK on the client. */
     MOCK230_EVENT_CLICK = 0x1,
@@ -341,6 +355,20 @@ struct Mock230Npc
     int timer_script;
     int timer_interval;
     int timer_clock;
+
+    /* Combat. `hitpoints` / `max_hitpoints` are shared with the DAMAGE mask,
+     * which carries the health bar the client draws above the hitsplat. */
+    int base_hitpoints;
+    /** 0 = fighting the player, -1 = not in combat. Single-player mock, so
+     *  there is nothing else to target. */
+    int combat_target;
+    int attack_clock;
+    /** Tick the death animation started; -1 while alive. The npc stays visible
+     *  until it expires, which is what makes a death read as a death rather
+     *  than as the npc vanishing. */
+    int death_tick;
+    /** Tick to respawn at the spawn tile; -1 when not waiting. */
+    int respawn_tick;
 };
 
 struct Mock230Player
@@ -415,6 +443,12 @@ struct Mock230Player
     int resume_button_count;
     /** The component that released the last wait — what `last_com` returns. */
     int last_com;
+
+    /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
+     * above, since the mask is what carries them to the client. */
+    /** Npc slot being fought, or -1. */
+    int combat_target;
+    int attack_clock;
 };
 
 struct Mock230Server
@@ -525,6 +559,58 @@ int
 mock230_step_direction(
     int dx,
     int dz);
+
+/* ------------------------------------------------------------------ */
+/* Combat (mock230_combat.c)                                           */
+/* ------------------------------------------------------------------ */
+
+/** Engage an npc in melee: face it, walk beside it, and start swinging. */
+void
+mock230_combat_engage(
+    struct Mock230Server* srv,
+    int slot);
+
+/** Apply damage and the hitsplat that carries it. A zero amount is a block
+ *  splat, not nothing — otherwise a miss looks like a dropped swing. */
+void
+mock230_combat_hit_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int type,
+    int amount);
+void
+mock230_combat_hit_player(
+    struct Mock230Server* srv,
+    int type,
+    int amount);
+
+/** Called from tick phases 5, 4 and 1 respectively. */
+void
+mock230_combat_player_tick(struct Mock230Server* srv);
+void
+mock230_combat_npc_tick(
+    struct Mock230Server* srv,
+    int slot);
+void
+mock230_combat_respawn_tick(struct Mock230Server* srv);
+
+/* ------------------------------------------------------------------ */
+/* Shared world helpers (mock230_world.c)                              */
+/* ------------------------------------------------------------------ */
+
+/** Deterministic roll in [lo, hi]. */
+int
+mock230_random(
+    struct Mock230Server* srv,
+    int lo,
+    int hi);
+
+/** Queue a walk to a tile adjacent to (x, z) rather than onto it. */
+void
+mock230_world_walk_beside(
+    struct Mock230Server* srv,
+    int x,
+    int z);
 
 /* ------------------------------------------------------------------ */
 /* Scripts (mock230_scripts.c)                                         */

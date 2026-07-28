@@ -1,0 +1,300 @@
+/*
+ * Baseline melee combat.
+ *
+ * The split follows the rest of the mock: the engine owns the mechanics that
+ * have to be consistent — hitpoints, hitsplats, death, respawn, swing timing —
+ * and content decides policy, engaging a target with `p_opnpc(2)` and landing
+ * scripted hits with `npc_damage` / `damage`.
+ *
+ * Everything visible here already existed as a wire feature. The DAMAGE mask
+ * carries the hitsplat *and* the health bar above it (damage, type, health,
+ * total_health), so a hit is one mask write rather than a packet of its own,
+ * and an npc dying is the ordinary NPC_INFO remove path.
+ */
+
+#include "mock230.h"
+
+#include <stdio.h>
+#include <string.h>
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+static int
+abs_of(int value)
+{
+    return value < 0 ? -value : value;
+}
+
+/** Chebyshev distance: a diagonal step costs the same as a straight one. */
+static int
+tile_distance(int ax, int az, int bx, int bz)
+{
+    int dx = abs_of(ax - bx);
+    int dz = abs_of(az - bz);
+
+    return dx > dz ? dx : dz;
+}
+
+static int
+in_attack_range(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc)
+{
+    return tile_distance(player->x, player->z, npc->x, npc->z) <= MOCK230_ATTACK_RANGE;
+}
+
+/* Deterministic roll, so a session replays identically. */
+static int
+roll_damage(
+    struct Mock230Server* srv,
+    int maximum)
+{
+    if( maximum <= 0 )
+        return 0;
+    return mock230_random(srv, 0, maximum);
+}
+
+/* ------------------------------------------------------------------ */
+/* Applying damage                                                     */
+/* ------------------------------------------------------------------ */
+
+void
+mock230_combat_hit_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int type,
+    int amount)
+{
+    struct Mock230Npc* npc;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+
+    if( amount > npc->hitpoints )
+        amount = npc->hitpoints;
+    npc->hitpoints -= amount;
+
+    /* One mask carries the splat and the bar. A zero-damage hit is a *block*
+     * splat rather than nothing — the reference shows those, and without them a
+     * miss is indistinguishable from the server having ignored the swing. */
+    npc->damage = amount;
+    npc->damage_type = amount > 0 ? type : MOCK230_HIT_BLOCK;
+    npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
+    npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
+    npc->masks |= MOCK230_NMASK_DAMAGE;
+
+    /* Retaliate. An npc that is hit fights back, which is the whole reason a
+     * baseline needs npc-side combat at all. */
+    if( npc->combat_target < 0 )
+    {
+        npc->combat_target = 0;
+        npc->attack_clock = MOCK230_ATTACK_SPEED;
+    }
+    npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+
+    if( npc->hitpoints == 0 )
+    {
+        npc->death_tick = srv->tick + MOCK230_DEATH_TICKS;
+        npc->combat_target = -1;
+        /* Stop roaming and stop being a valid target the moment it dies. */
+        npc->next_roam_tick = srv->tick + MOCK230_RESPAWN_TICKS;
+        if( srv->player.combat_target == slot )
+            srv->player.combat_target = -1;
+    }
+}
+
+void
+mock230_combat_hit_player(
+    struct Mock230Server* srv,
+    int type,
+    int amount)
+{
+    struct Mock230Player* player = &srv->player;
+
+    if( amount > player->hitpoints )
+        amount = player->hitpoints;
+    player->hitpoints -= amount;
+
+    player->damage = amount;
+    player->damage_type = amount > 0 ? type : MOCK230_HIT_BLOCK;
+    player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
+    player->max_hitpoints = player->max_hitpoints > 0 ? player->max_hitpoints
+                                                      : MOCK230_PLAYER_MAX_HP;
+    player->masks |= MOCK230_PMASK_DAMAGE;
+
+    if( player->hitpoints == 0 )
+    {
+        /* No death mechanic beyond a reset: the mock has no respawn point, no
+         * item loss and no death interface, and inventing them would be a lot
+         * of behaviour nothing asked for. */
+        mock230_send_message(srv, "Oh dear, you are dead! (healed to full)");
+        player->hitpoints = player->max_hitpoints;
+        player->combat_target = -1;
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( srv->npcs[i].combat_target == 0 )
+                srv->npcs[i].combat_target = -1;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Engagement                                                          */
+/* ------------------------------------------------------------------ */
+
+void
+mock230_combat_engage(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Player* player = &srv->player;
+    struct Mock230Npc* npc;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+
+    player->combat_target = slot;
+    /* Swing on the tick the player arrives rather than after a full interval:
+     * an opening delay reads as the click having been dropped. */
+    player->attack_clock = 0;
+
+    /* Walk to a tile beside it, the way every other op does. */
+    mock230_world_walk_beside(srv, npc->x, npc->z);
+}
+
+/* ------------------------------------------------------------------ */
+/* The tick                                                            */
+/* ------------------------------------------------------------------ */
+
+void
+mock230_combat_player_tick(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+    struct Mock230Npc* npc;
+
+    if( player->combat_target < 0 )
+        return;
+
+    npc = &srv->npcs[player->combat_target];
+    if( !npc->active || npc->death_tick >= 0 )
+    {
+        player->combat_target = -1;
+        return;
+    }
+
+    /* Keep following: an npc that roams mid-fight would otherwise walk out of
+     * range and the fight would silently stall. */
+    if( !in_attack_range(player, npc) )
+    {
+        if( player->step_head >= player->step_count )
+            mock230_world_walk_beside(srv, npc->x, npc->z);
+        return;
+    }
+
+    /* Face-entity ids below 32768 are npc slots; the player's own index would
+     * be 32768 + slot. */
+    player->face_entity = player->combat_target;
+    player->masks |= MOCK230_PMASK_FACE_ENTITY;
+
+    if( player->attack_clock > 0 )
+    {
+        player->attack_clock--;
+        return;
+    }
+    player->attack_clock = MOCK230_ATTACK_SPEED;
+
+    /* No animation from the engine. The attack sequence ids are not verifiable
+     * from this cache without decoding the weapon's bas type, and a wrong seq
+     * id at rev 230 is a silent no-op at best. Content can add one with `anim`;
+     * the hitsplat and health bar are what carry the fight visually. */
+    mock230_combat_hit_npc(srv, player->combat_target, MOCK230_HIT_DAMAGE,
+                           roll_damage(srv, 4));
+}
+
+void
+mock230_combat_npc_tick(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Player* player = &srv->player;
+    struct Mock230Npc* npc = &srv->npcs[slot];
+
+    /* Death first: a dead npc neither swings nor roams, and its corpse has to
+     * outlive the killing blow long enough for the animation to play. */
+    if( npc->death_tick >= 0 )
+    {
+        if( srv->tick >= npc->death_tick )
+        {
+            npc->active = 0;
+            npc->death_tick = -1;
+            npc->respawn_tick = srv->tick + MOCK230_RESPAWN_TICKS;
+        }
+        return;
+    }
+
+    if( npc->combat_target < 0 )
+        return;
+
+    if( !in_attack_range(player, npc) )
+    {
+        /* Walk toward the player rather than giving up, so a fight the player
+         * backs away from resumes instead of quietly ending. */
+        int step_x = npc->x + (player->x > npc->x ? 1 : (player->x < npc->x ? -1 : 0));
+        int step_z = npc->z + (player->z > npc->z ? 1 : (player->z < npc->z ? -1 : 0));
+
+        npc->step_dir = mock230_step_direction(step_x - npc->x, step_z - npc->z);
+        if( npc->step_dir >= 0 )
+        {
+            npc->x = step_x;
+            npc->z = step_z;
+        }
+        return;
+    }
+
+    npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+
+    if( npc->attack_clock > 0 )
+    {
+        npc->attack_clock--;
+        return;
+    }
+    npc->attack_clock = MOCK230_ATTACK_SPEED;
+    mock230_combat_hit_player(srv, MOCK230_HIT_DAMAGE, roll_damage(srv, 3));
+}
+
+void
+mock230_combat_respawn_tick(struct Mock230Server* srv)
+{
+    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    {
+        struct Mock230Npc* npc = &srv->npcs[slot];
+
+        if( npc->active || npc->respawn_tick < 0 || srv->tick < npc->respawn_tick )
+            continue;
+
+        npc->active = 1;
+        npc->respawn_tick = -1;
+        npc->death_tick = -1;
+        npc->x = npc->spawn_x;
+        npc->z = npc->spawn_z;
+        npc->hitpoints = npc->base_hitpoints;
+        npc->combat_target = -1;
+        npc->attack_clock = 0;
+        npc->step_dir = -1;
+        npc->masks = 0;
+        /* `tracked` stays clear, so the next NPC_INFO adds it as a new entity —
+         * which is what a respawn is from the client's side. */
+        npc->tracked = 0;
+        npc->next_roam_tick = srv->tick + MOCK230_ATTACK_SPEED;
+    }
+}

@@ -38,6 +38,7 @@ main(int argc, char** argv)
     struct SSC_Diag diag;
     int symbol_count = 0;
     int constant_count = 0;
+    int dbcolumn_count = 0;
     int i;
     int status = 0;
 
@@ -75,7 +76,7 @@ main(int argc, char** argv)
     SSC_SymbolsInit(&symbols);
     symbol_count = SSC_SymbolsLoadPackDir(&symbols, pack);
     constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
-    SSC_SymbolsLoadDbTableDir(&symbols, constants);
+    dbcolumn_count = SSC_SymbolsLoadDbTableDir(&symbols, constants);
     SSC_SymbolsSeedBuiltins(&symbols);
 
     if( symbol_count < 0 )
@@ -84,8 +85,8 @@ main(int argc, char** argv)
         SSC_SymbolsFree(&symbols);
         return 1;
     }
-    printf("symbols: %d from packs, %d constants\n", symbol_count,
-           constant_count < 0 ? 0 : constant_count);
+    printf("symbols: %d from packs, %d constants, %d db columns\n", symbol_count,
+           constant_count < 0 ? 0 : constant_count, dbcolumn_count < 0 ? 0 : dbcolumn_count);
 
     compiler = SSC_New(&symbols);
     if( !compiler )

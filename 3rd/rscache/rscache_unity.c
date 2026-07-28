@@ -24,6 +24,18 @@
 #include "src/datatypes/cs2_opcode_decode.c"
 #include "src/datatypes/cs2_script.c"
 #include "src/datatypes/clientscript.c"
+/* The CS2 language layer sits on top of the clientscript codec: it turns the
+ * decoded bytecode into source and back. */
+#include "src/cs2/cs2_support.c"
+#include "src/cs2/cs2_types.c"
+#include "src/cs2/cs2_command.c"
+#include "src/cs2/cs2_ir.c"
+#include "src/cs2/cs2_names.c"
+#include "src/cs2/cs2_interp.c"
+#include "src/cs2/cs2_dfa.c"
+#include "src/cs2/cs2_cfa.c"
+#include "src/cs2/cs2_gen.c"
+#include "src/cs2/cs2_decompile.c"
 #include "src/datatypes/dat1_config_obj.c"
 #include "src/datatypes/dat1_config_idk.c"
 #include "src/datatypes/dat1_config_npc.c"
