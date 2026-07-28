@@ -53,6 +53,7 @@ usage(const char* argv0)
         "  --area DIR       config subdirectory under scripts/ (default areas/area_ported)\n"
         "  --prefix NAME    basename for emitted configs and generated asset names\n"
         "  --npc ID[=name] / --obj / --seq / --spotanim / --texture / --loc ID / --map X_Z\n"
+        "  --maploc X_Z,level,x,z,locid,shape,angle   extra static placement in the jm2\n"
   "  --label-map FROM=TO   retag a rigged model's vertex labels (repeatable);\n"
   "                 needed whenever the source and destination rigs\n"
   "                 number their joints differently\n"
@@ -131,6 +132,11 @@ main(int argc, char** argv)
             lc_request_add(&manifest.locs, argv[++i]);
         else if( strcmp(argv[i], "--map") == 0 && i + 1 < argc )
             lc_request_add(&manifest.maps, argv[++i]);
+        else if( strcmp(argv[i], "--maploc") == 0 && i + 1 < argc )
+        {
+            if( !lc_manifest_add_maploc(&manifest, argv[++i]) )
+                return 2;
+        }
         else if( strcmp(argv[i], "--texture") == 0 && i + 1 < argc )
             lc_request_add(&manifest.textures, argv[++i]);
         else if( strcmp(argv[i], "--max-textures") == 0 && i + 1 < argc )
@@ -300,7 +306,7 @@ main(int argc, char** argv)
             failures++;
             continue;
         }
-        if( !lc_export_map(&ctx, map_x, map_z) )
+        if( !lc_export_map(&ctx, map_x, map_z, manifest.maplocs, manifest.maploc_count) )
             failures++;
     }
 

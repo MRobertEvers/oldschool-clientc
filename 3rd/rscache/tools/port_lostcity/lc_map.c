@@ -12,6 +12,7 @@
  */
 
 #include "lc_export.h"
+#include "lc_manifest.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -382,7 +383,9 @@ int
 lc_export_map(
     struct LC_Ctx* ctx,
     int map_x,
-    int map_z)
+    int map_z,
+    const struct LC_MapLocAdd* extra,
+    int extra_count)
 {
     assert(ctx);
 
@@ -459,10 +462,14 @@ lc_export_map(
 
     int loc_count = 0;
     int loc_dropped = 0;
-    if( locs && locs->locs_count > 0 )
+    int extra_here = 0;
+    for( int i = 0; i < extra_count; i++ )
+        if( extra[i].map_x == map_x && extra[i].map_z == map_z )
+            extra_here++;
+    if( (locs && locs->locs_count > 0) || extra_here > 0 )
     {
         lc_str_addf(&body, "==== LOC ====\n");
-        for( int i = 0; i < locs->locs_count; i++ )
+        for( int i = 0; locs && i < locs->locs_count; i++ )
         {
             const struct RSCache_MapLoc* loc = &locs->locs[i];
             int lc_id = lc_export_loc(ctx, loc->loc_id);
@@ -480,6 +487,31 @@ lc_export_map(
                 lc_id,
                 loc->shape_select,
                 loc->orientation);
+            loc_count++;
+        }
+
+        /* Placements the square does not carry. Same treatment as the source
+         * ones: the loc is exported first, and a failure drops the placement
+         * rather than writing an id that names nothing. */
+        for( int i = 0; i < extra_count; i++ )
+        {
+            if( extra[i].map_x != map_x || extra[i].map_z != map_z )
+                continue;
+            int lc_id = lc_export_loc(ctx, extra[i].src_loc);
+            if( lc_id < 0 )
+            {
+                loc_dropped++;
+                continue;
+            }
+            lc_str_addf(
+                &body,
+                "%d %d %d: %d %d %d\n",
+                extra[i].level,
+                extra[i].x,
+                extra[i].z,
+                lc_id,
+                extra[i].shape,
+                extra[i].angle);
             loc_count++;
         }
     }

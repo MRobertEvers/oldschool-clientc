@@ -1592,6 +1592,65 @@ screen-space min/max the sort pass already touches:
 
 ---
 
+## x86 span variants
+
+`tex.span.sse2.u.c`, `tex.span.sse41.u.c` and `tex.span.avx.u.c` carried both
+defects — the double-divide per 8-pixel block (#2) and the
+`continue`-skips-advance bug (Appendix A2) — in four functions each:
+`draw_texture_scanline_{opaque,transparent}_blend_branching_lerp8{,_v3}_ordered`.
+
+They are not compiled on this Apple-silicon target, so rather than edit them
+blind:
+
+1. **Transplanted, not retyped.** The 12 regions were replaced by script
+   (`port_fix.py` in the session scratchpad), which refuses to touch a region
+   unless it is byte-for-byte identical to the corresponding region in the
+   a8caf7fe baseline of the already-fixed NEON/scalar donor. All 12 matched
+   (modulo two comment-only lines), so the x86 copies were verified to be
+   literal duplicates before anything was changed.
+2. **Built and run under Rosetta.** `cc -arch x86_64` plus Rosetta 2 executes
+   SSE2, SSE4.1 *and* AVX2 on this machine, so these are actually tested, not
+   just compiled. A probe harness drives all four entry points over 3200
+   deterministic span geometries per ISA (both texture sizes, guard bands
+   around the destination) and hashes the result.
+
+Results — baseline vs fixed, per ISA:
+
+| sweep | SSE2 | SSE4.1 | AVX2 |
+|---|---|---|---|
+| normal (`w` never 0) | **hash identical** | **hash identical** | **hash identical** |
+| degenerate (`w` crosses 0) | differs, 355 792 px drawn vs 352 515 | same | same |
+
+The normal sweep being bit-identical is the point: the carry-forward refactor
+changes nothing about ordinary spans. The degenerate sweep differing *is the
+bug fix* — the old code skipped the `offset += 8` when a block's `w` was zero,
+so every later block in that span landed 8 pixels left of where it belonged and
+the span's tail was dropped. Note the guard bands were never touched in either
+build: this was misplaced and dropped pixels, **not** a buffer overrun.
+
+All three ISAs also agree with each other exactly, and a full
+`toridraw_unity.c` builds warning-clean for x86_64 under each of `-msse2`,
+`-msse4.1` and `-mavx2`.
+
+### A pre-existing divergence this turned up
+
+The probe also shows something that was already true and is worth recording:
+**the scalar span does not agree with the SIMD spans**, even on ordinary spans,
+at baseline as well as after the fix. NEON, SSE2, SSE4.1 and AVX2 all produce
+one hash; scalar produces a different one for the same inputs.
+
+The cause is that the scalar `_v3` path computes `au / w` with an integer
+divide, while every SIMD path multiplies by a `float` reciprocal `1.0f / w` —
+different rounding, so texels differ by one along some spans. The degenerate
+sweep is a three-way split (NEON / scalar / x86) for the same reason plus the
+undefined `(int)` of a division by zero.
+
+This is not introduced here and is not fixed here. It matters because the web
+build is the one most likely to select the scalar path: if wasm output ever has
+to match native pixel-for-pixel, this is where the difference comes from.
+
+---
+
 ## Appendix A — non-performance observations
 
 These came out of reading the same code. Neither is a speed issue; recording
@@ -1649,10 +1708,14 @@ will disagree with its own allocation.
 The `continue` skips the `au += step_au_dx` / `offset += 8` at the bottom of
 the loop, so a single `w == 0` block leaves the span misaligned for every
 block after it, and `cw` never changes so the condition stays true for the
-rest of the span. The NEON path (line 654) got this right — it guards only the
-draw and always advances. Since the scalar file is the fallback for platforms
-without NEON/SSE2 it is probably unexercised on the current targets, but the
-web build should be checked.
+rest of the span. The NEON `_v3` path got this right — it guards only the draw
+and always advances.
+
+**Fixed** in the scalar file and in all three x86 variants, which carried the
+identical code. Measured effect in the probe harness: on spans where `w`
+crosses zero the old code drew 352 515 pixels and the fixed code draws
+355 792 — the difference is span content that was being silently dropped and
+misplaced. Guard bands were clean in both, so this was never a buffer overrun.
 
 ---
 

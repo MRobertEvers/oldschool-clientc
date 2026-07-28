@@ -236,12 +236,20 @@ lc_export_loc(
 /**
  * Export a map square as `<content>/maps/m<X>_<Z>.jm2`, porting every loc it
  * references. Emits the `map.pack` lines for both the land and loc archives.
+ *
+ * `extra` / `extra_count` are additional placements (from `--maploc`) appended
+ * after the source ones; entries for other squares are ignored, so the whole
+ * manifest list can be passed for every square.
  */
+struct LC_MapLocAdd;
+
 int
 lc_export_map(
     struct LC_Ctx* ctx,
     int map_x,
-    int map_z);
+    int map_z,
+    const struct LC_MapLocAdd* extra,
+    int extra_count);
 
 /** Encode every accumulated animset. Call once after the last sequence. */
 int
