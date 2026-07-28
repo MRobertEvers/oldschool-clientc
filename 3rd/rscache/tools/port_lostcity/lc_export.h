@@ -2,6 +2,7 @@
 #define RSCACHE_TOOLS_LC_EXPORT_H
 
 #include "asset_access.h"
+#include "lc_manifest.h"
 #include "lc_out.h"
 #include "lc_pack.h"
 
@@ -106,6 +107,39 @@ struct LC_Ctx
 
     /** Highest npc `size` LostCity accepts; larger footprints are clamped. */
     int max_npc_size;
+
+    /**
+     * Vertex/face label remap, applied to every exported model that carries
+     * labels. Identity by default.
+     *
+     * A rigged model does not name the joints it bends at — it tags each vertex
+     * with a *label*, and the animation's framemap says which labels each
+     * transform moves. Both sides are era-specific: an OSRS player rig runs to
+     * 245 transforms addressing labels up to 217, a rev-254 one stops around 72.
+     * So a wield model ported across keeps labels that mean something else in
+     * the destination, or nothing at all — and a label nothing addresses is a
+     * part of the model that never moves. This is the correspondence, and it
+     * has to be supplied per port because nothing in either cache states it.
+     */
+    int label_map[256];
+    int has_label_map;
+    /**
+     * Whether the remap applies to the model being exported right now.
+     *
+     * Only models merged into the *player* need it. A spotanim's model carries
+     * labels too, but they are rigged to the spotanim's own framemap, which
+     * ports alongside it and stays self-consistent — retagging that pair would
+     * break an animation that currently works. So this is raised only around
+     * the wield models in lc_export_obj.
+     */
+    int label_map_active;
+
+    /**
+     * Hand-authored config lines, keyed by config name (manifest `[extra:...]`).
+     * Appended to the generated block so a re-export cannot drop them.
+     */
+    const struct LC_ExtraLine* extras;
+    int extra_count;
 
     /** The source texture table, indexed by texture id. */
     struct LC_TextureDef* textures;

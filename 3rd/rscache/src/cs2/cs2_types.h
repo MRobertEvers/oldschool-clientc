@@ -68,6 +68,10 @@ enum RSCache_CS2_Type
     RSCACHE_CS2_TYPE_NPC_UID,
     RSCACHE_CS2_TYPE_PLAYER_UID,
     RSCACHE_CS2_TYPE_TYPE,
+    /* Added after RuneStar's Type.kt was written: the client-side database
+     * arrived with the DB_* opcodes. Descriptor 0xD0, per the ScriptVarType
+     * table this repo already carries in src/serverscript/ssc_symbols.c. */
+    RSCACHE_CS2_TYPE_DBROW,
 
     RSCACHE_CS2_TYPE_COUNT,
     RSCACHE_CS2_TYPE_NONE = -1,
@@ -219,6 +223,7 @@ enum RSCache_CS2_ProtoId
     RSCACHE_CS2_PROTO_NPC_UID,
     RSCACHE_CS2_PROTO_PLAYER_UID,
     RSCACHE_CS2_PROTO_SPOTANIM,
+    RSCACHE_CS2_PROTO_DBROW,
 
     /* Named prototypes: a type plus an identifier hint. */
     RSCACHE_CS2_PROTO_OPBASE,

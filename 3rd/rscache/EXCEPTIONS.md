@@ -1526,6 +1526,10 @@ produced:
 | **byte-identical** | **6,489** |
 | different | 2 |
 
+That 6,489/2 split held unchanged through every later change — the client's
+opcode table, 41 inferred arities, a new type, three relaxations of upstream's
+strictness. It is the regression signal for all of it.
+
 The two are `[clientscript,build_makeover_feet]` and
 `[clientscript,makeover_feet_select]`, and the difference is one identifier:
 `$settextalignv6` against `$settextalignh6`.
@@ -1548,10 +1552,10 @@ against the original bytes:
 
 | | |
 |---|---|
-| decompiled | 7,366 |
-| compiled | 6,522 (89%) |
-| same length | 2,954 |
-| **byte-exact** | **2,358** |
+| decompiled | 7,467 |
+| compiled | 6,614 (89%) |
+| same length | 3,017 |
+| **byte-exact** | **2,406** |
 
 Read that the way the other round-trip suites are read: high same-length with low
 exact means a re-encoding, low both means a loss. Here it is neither — it is
@@ -1583,7 +1587,7 @@ scripts currently reproduce to the byte, and that number should not fall.
 
 ### G3. Hook argument descriptors are inferred, not read *(Gap)*
 
-610 of the 844 compile failures are one thing. A hook registration carries a
+The largest single class of compile failure is one thing. A hook registration carries a
 descriptor naming each callback argument's *type*:
 
 ```
@@ -1612,28 +1616,77 @@ source set building script id → argument types, threaded through
 A wrong letter does not fail loudly — it changes how the *callee* reads its own
 arguments — which is why inference stops rather than picking the likeliest.
 
-### G4. 331 of OSRS 230's scripts do not decompile *(Gap)*
+### G4. 227 of OSRS 230's scripts do not decompile, and the arities were solved from the corpus *(Gap)*
 
-Against `cache.osrs230` (7,884 scripts), 7,553 decompile and 331 do not:
+Against `cache.osrs230` (7,884 scripts), **7,657 decompile and 227 do not** — up
+from 6,634 when this section was first written. Two things closed the gap, and
+the second is a method worth recording.
+
+**Layering the client's stack table** (`src/cs2vm2`) over RuneStar's 2021
+`Command.kt` supplied arities for opcodes the vendored sources predate: 6,634 to
+7,553. See `tools/README.md`.
+
+**Solving the rest from the corpus.** An opcode's pop/push counts are not in the
+bytecode, but they are *implied* by it: a script only interprets to the end if
+every arity keeps the operand stack balanced. `cs2 infer-arity` searches for
+them:
+
+1. Take the scripts where the opcode is the only unknown, so nothing else can
+   absorb a wrong answer.
+2. Try every plausible (int in, str in, int out, str out) and keep those under
+   which the script interprets.
+3. Intersect across all such scripts, and iterate — each solved opcode turns
+   more two-unknown scripts into one-unknown ones.
+
+Two refinements did most of the work:
+
+- **Judge on interpretation alone, not on a full decompile.** A script can
+  interpret cleanly and still fail later on an unnamed constant or an unrelated
+  type contradiction. Grading arities on the whole pipeline reported "no arity
+  works" for opcodes whose arity was in fact pinned.
+- **Require every `return` to match the arity the script's own epilogue
+  declares.** The language has no varying-arity return, so a mismatch is not a
+  property of that statement — it is evidence that something above popped the
+  wrong number of values. This one constraint took the solver from 15 opcodes to
+  31, and is now enforced during ordinary decompiles too, where it converts a
+  class of silent mis-decompiles into refusals.
+
+A third phase solves **pairs**: an opcode that never appears alone is still
+constrained jointly, since most (X, Y) combinations do not balance. That found
+nine more.
+
+41 opcodes were solved this way and are recorded in `local_commands.py` with
+their witness counts, because the evidence differs: opcode 4124 agrees across 30
+scripts, several others across one. Where survivors produced *identical source*
+the smallest was taken and marked `output-equivalent` — an opcode whose results
+nobody consumes decompiles the same however many it is said to push.
+
+**This is inference, and it is labelled as such.** The prototypes are plain
+`int`/`string`, because the method establishes counts and not meanings: a value
+that should print as `$width3` prints as `$int3`. What makes it safe rather than
+guessing is the check that it changed nothing: the reference comparison (G1)
+stayed at exactly 6,489 identical and 2 different across every round, so no
+inferred signature altered a single output that the RuneStar implementation also
+produced.
+
+What remains:
 
 | Cause | Scripts |
 |---|---|
-| opcode with no recorded arity anywhere | 189 |
-| `enum` names a type descriptor byte not in `Type.kt` | 26 |
-| operand-stack shape disagreements (underflow, leftovers, wrong stack type) | 74 |
-| type or identifier contradictions | 17 |
-| hook descriptor bytes not in `Type.kt` | 5 |
-| other | 20 |
+| opcode with no arity — appears only alongside other unknowns | 104 |
+| operand-stack shape disagreements | 62 |
+| type or identifier contradictions | 16 |
+| `gosub` argument stack-type mismatches | 10 |
+| return arity or type disagreements | 11 |
+| other (one unknown descriptor byte 0xB8, one absent callee, one unnamed maparea) | 3 |
 
-The first row is the substantive one: 74 distinct opcodes that neither RuneStar's
-2021 `Command.kt` nor this repo's own CS2 VM knows the pop/push counts of.
-Layering the VM's stack table over the vendored one (see `tools/README.md`) took
-this from 1,250 failures to 331; the remainder needs those opcodes identified in a
-client, which is research, not porting.
-
-An unknown arity is refused rather than guessed for the reason stated throughout
-this file: a wrong pop count does not fail, it desynchronises the operand stack
-and yields a confident, readable decompile **of a different program**.
+The first row needs 39 opcodes that occur only in scripts with three or more
+unknowns; the search is combinatorial past pairs, so those need identifying in a
+client rather than solving. The stack-shape rows are the interesting residue:
+they name `pop_int_local` and `pop_string_local` as the point of failure, which
+means some *known* opcode's recorded signature has drifted from what revision
+230 actually does. The same solver could be pointed at signed opcodes to find
+which — not done here.
 
 ### G5. Name tables are optional, and four types make them mandatory *(Gap)*
 
@@ -1650,8 +1703,8 @@ Two further departures from upstream, both strictly more capable:
 
 - **A stale script name degrades instead of failing.** When the name table says a
   script is a `clientscript` but the bytecode calls it as a proc, upstream throws;
-  this writes `script<id>`, which is exact. That single change took the RuneStar
-  dump from 6,634 to 7,345 decompiled, and it is upstream's largest failure class.
+  this writes `script<id>`, which is exact. It is upstream's largest failure
+  class, and dropping it recovered roughly 700 scripts.
 - **`newvar`, `spotanim` and `player_uid` print as numbers.** Upstream has no
   spelling for them and throws. They are plain ints with no name table, and the
   number compiles back.

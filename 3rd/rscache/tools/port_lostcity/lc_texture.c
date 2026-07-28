@@ -134,6 +134,27 @@ lc_texture_average_hsl(
     assert(ctx);
     if( src_texture_id < 0 || src_texture_id >= ctx->texture_count )
         return ctx->texture_fallback_hsl;
+    if( getenv("LC_TEX_DEBUG") )
+    {
+        static int seen[4096];
+        if( src_texture_id < 4096 && !seen[src_texture_id] )
+        {
+            int v = ctx->textures[src_texture_id].average_hsl;
+            seen[src_texture_id] = 1;
+            fprintf(
+                stderr,
+                "TEXDBG id=%d raw=%d (0x%04x) as-hsl: hue=%d sat=%d light=%d | as-rgb15: r=%d g=%d b=%d\n",
+                src_texture_id,
+                v,
+                v < 0 ? 0 : v,
+                (v >> 10) & 0x3f,
+                (v >> 7) & 0x7,
+                v & 0x7f,
+                (v >> 10) & 0x1f,
+                (v >> 5) & 0x1f,
+                v & 0x1f);
+        }
+    }
     if( ctx->textures[src_texture_id].average_hsl < 0 )
         return ctx->texture_fallback_hsl;
     return ctx->textures[src_texture_id].average_hsl;

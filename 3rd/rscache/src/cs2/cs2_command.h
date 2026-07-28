@@ -121,6 +121,32 @@ const struct RSCache_CS2_CommandInfo*
 RSCache_CS2_CommandGet(int opcode);
 
 /**
+ * Install a signature for one opcode at run time, ahead of the generated table.
+ *
+ * The generated table holds what two published sources happen to know, and a
+ * cache can contain opcodes neither describes. Rather than force a regeneration
+ * to try an arity, a caller can supply one — which is what `cs2 infer-arity`
+ * does while solving an unknown opcode against a corpus, and what a caller with
+ * era-specific knowledge can do without touching the library.
+ *
+ * `args` and `defs` are copied. `arg_count < 0` removes any override for that
+ * opcode. Returns false only when the override table is full.
+ */
+bool
+RSCache_CS2_CommandOverride(
+    int opcode,
+    const char* name,
+    const enum RSCache_CS2_ProtoId* args,
+    int arg_count,
+    const enum RSCache_CS2_ProtoId* defs,
+    int def_count,
+    bool dot_capable);
+
+/** Drop every override installed so far. */
+void
+RSCache_CS2_CommandClearOverrides(void);
+
+/**
  * Lowercase source spelling. NULL when unnamed — the caller decides whether
  * that is fatal (the compiler) or printable as a bare id (a raw disassembly).
  */

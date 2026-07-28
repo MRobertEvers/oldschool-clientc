@@ -17,6 +17,8 @@
  * counts in the same shape as the library's other round-trip suites.
  */
 
+#include "cs2/cs2_command.h"
+#include "cs2/cs2_interp.h"
 #include "cs2/cs2_compile.h"
 #include "cs2/cs2_decompile.h"
 #include "datatypes/clientscript.h"
@@ -504,6 +506,449 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     return failed == 0 ? 0 : 1;
 }
 
+/* -------------------------------------------------------------------------
+ * Arity inference
+ *
+ * A cache can contain opcodes no published table describes. Their pop/push
+ * counts are not in the bytecode either — but they are *implied* by it: a
+ * script only interprets to the end if every opcode's arity keeps the operand
+ * stack balanced. So the counts can be solved for rather than guessed at.
+ *
+ * The method, and why it is evidence:
+ *
+ *   1. Take the scripts where exactly one opcode is unknown, so nothing else
+ *      can absorb a wrong answer.
+ *   2. Try every plausible (int in, str in, int out, str out) and keep the ones
+ *      under which the script interprets cleanly.
+ *   3. Intersect across all such scripts.
+ *
+ * One candidate surviving dozens of independent scripts is not a guess; several
+ * surviving is under-determined and is reported as such rather than resolved by
+ * picking the first. This is the same exact-consumption reasoning the rest of
+ * the library uses to establish record layouts.
+ * ---------------------------------------------------------------------- */
+
+#define CS2_INFER_MAX_INT_IN 6
+#define CS2_INFER_MAX_STR_IN 3
+#define CS2_INFER_MAX_INT_OUT 3
+#define CS2_INFER_MAX_STR_OUT 2
+
+struct cs2_candidate
+{
+    int int_in;
+    int str_in;
+    int int_out;
+    int str_out;
+};
+
+static char*
+cs2_try_arity(
+    struct script_store* store,
+    const struct RSCache_CS2_DecompileOptions* options,
+    int opcode,
+    const struct cs2_candidate* candidate,
+    int script_id)
+{
+    enum RSCache_CS2_ProtoId args[CS2_INFER_MAX_INT_IN + CS2_INFER_MAX_STR_IN];
+    enum RSCache_CS2_ProtoId defs[CS2_INFER_MAX_INT_OUT + CS2_INFER_MAX_STR_OUT];
+    int arg_count = 0;
+    int def_count = 0;
+    for( int i = 0; i < candidate->int_in; i++ )
+        args[arg_count++] = RSCACHE_CS2_PROTO_INT;
+    for( int i = 0; i < candidate->str_in; i++ )
+        args[arg_count++] = RSCACHE_CS2_PROTO_STRING;
+    for( int i = 0; i < candidate->int_out; i++ )
+        defs[def_count++] = RSCACHE_CS2_PROTO_INT;
+    for( int i = 0; i < candidate->str_out; i++ )
+        defs[def_count++] = RSCACHE_CS2_PROTO_STRING;
+
+    (void)store;
+    if( !RSCache_CS2_CommandOverride(opcode, NULL, args, arg_count, defs, def_count, false) )
+        return NULL;
+
+    /* Only the *interpretation* is evidence about an arity: it is the stage
+     * that pops and pushes. A script can interpret cleanly and still fail to
+     * decompile — an unnamed constant, a type contradiction elsewhere — and
+     * judging arities on the whole pipeline reports "no arity works" for
+     * opcodes whose arity is in fact pinned. */
+    struct RSCache_CS2_FunctionSet fs;
+    RSCache_CS2_FunctionSetInit(&fs);
+    char error[256] = { 0 };
+    bool ok = RSCache_CS2_Interpret(&fs, &script_id, 1, options, error, (int)sizeof(error));
+    RSCache_CS2_FunctionSetFree(&fs);
+    if( !ok )
+        return NULL;
+    /* A non-NULL token: callers only test for success, except the
+     * output-equivalence check, which decompiles separately. */
+    return strdup("ok");
+}
+
+/** Full source under a trial arity, for comparing candidates that all interpret. */
+static char*
+cs2_try_arity_source(
+    const struct RSCache_CS2_DecompileOptions* options,
+    int opcode,
+    const struct cs2_candidate* candidate,
+    int script_id)
+{
+    enum RSCache_CS2_ProtoId args[CS2_INFER_MAX_INT_IN + CS2_INFER_MAX_STR_IN];
+    enum RSCache_CS2_ProtoId defs[CS2_INFER_MAX_INT_OUT + CS2_INFER_MAX_STR_OUT];
+    int arg_count = 0;
+    int def_count = 0;
+    for( int i = 0; i < candidate->int_in; i++ )
+        args[arg_count++] = RSCACHE_CS2_PROTO_INT;
+    for( int i = 0; i < candidate->str_in; i++ )
+        args[arg_count++] = RSCACHE_CS2_PROTO_STRING;
+    for( int i = 0; i < candidate->int_out; i++ )
+        defs[def_count++] = RSCACHE_CS2_PROTO_INT;
+    for( int i = 0; i < candidate->str_out; i++ )
+        defs[def_count++] = RSCACHE_CS2_PROTO_STRING;
+    if( !RSCache_CS2_CommandOverride(opcode, NULL, args, arg_count, defs, def_count, false) )
+        return NULL;
+    char error[256] = { 0 };
+    char* name = NULL;
+    char* source = RSCache_CS2_Decompile(script_id, options, &name, error, (int)sizeof(error));
+    free(name);
+    return source;
+}
+
+/** Every opcode in a script that currently has no signature. */
+static int
+cs2_unsigned_opcodes(const struct RSCache_CS2_Script* script, int* out, int capacity)
+{
+    int count = 0;
+    for( int i = 0; i < script->op_count; i++ )
+    {
+        int opcode = script->opcodes[i];
+        const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+        if( info && info->kind != RSCACHE_CS2_CMD_UNKNOWN )
+            continue;
+        bool seen = false;
+        for( int j = 0; j < count; j++ )
+            seen = seen || out[j] == opcode;
+        if( !seen && count < capacity )
+            out[count++] = opcode;
+    }
+    return count;
+}
+
+static int
+run_infer(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    struct RSCache_CS2_Names names;
+    RSCache_CS2_NamesInit(&names);
+    if( options->names_directory )
+        RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
+    if( store->have_cache )
+        load_param_types_from_cache(store, &names);
+
+    struct param_source param_source = { &names };
+    struct RSCache_CS2_DecompileOptions decompile_options;
+    memset(&decompile_options, 0, sizeof(decompile_options));
+    decompile_options.scripts.user = store;
+    decompile_options.scripts.load = store_load;
+    decompile_options.param_types.user = &param_source;
+    decompile_options.param_types.load = param_type_load;
+    decompile_options.names = &names;
+
+    /* Bucket each script by the single unknown opcode it uses, if there is
+     * exactly one. Scripts with two are unusable: a wrong arity for one can be
+     * cancelled by a wrong arity for the other. */
+    struct
+    {
+        int opcode;
+        struct cs2_candidate candidate;
+        int witnesses;
+        bool unique;
+    } solutions[256];
+    int solution_count = 0;
+
+    int* opcodes = NULL;
+    int opcode_count = 0;
+    int** witnesses = NULL;
+    int* witness_counts = NULL;
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        const struct RSCache_CS2_Script* script = store_load(store, ids[i]);
+        if( !script )
+            continue;
+        int unknown[8];
+        int count = cs2_unsigned_opcodes(script, unknown, 8);
+        if( count != 1 )
+            continue;
+
+        int index = -1;
+        for( int j = 0; j < opcode_count; j++ )
+        {
+            if( opcodes[j] == unknown[0] )
+                index = j;
+        }
+        if( index < 0 )
+        {
+            index = opcode_count++;
+            opcodes = (int*)realloc(opcodes, (size_t)opcode_count * sizeof(int));
+            witnesses = (int**)realloc(witnesses, (size_t)opcode_count * sizeof(int*));
+            witness_counts = (int*)realloc(witness_counts, (size_t)opcode_count * sizeof(int));
+            opcodes[index] = unknown[0];
+            witnesses[index] = NULL;
+            witness_counts[index] = 0;
+        }
+        witnesses[index] =
+            (int*)realloc(witnesses[index], (size_t)(witness_counts[index] + 1) * sizeof(int));
+        witnesses[index][witness_counts[index]++] = ids[i];
+    }
+
+    /* Phase 2 material: scripts with exactly two unknowns. An opcode that never
+     * appears alone is still constrained, just jointly — the pair (X, Y) has to
+     * balance the stack together, and most pairings do not. */
+    struct
+    {
+        int script_id;
+        int a;
+        int b;
+    } pairs[512];
+    int pair_count = 0;
+    for( int i = 0; i < id_count && pair_count < 512; i++ )
+    {
+        const struct RSCache_CS2_Script* script = store_load(store, ids[i]);
+        if( !script )
+            continue;
+        int unknown[8];
+        if( cs2_unsigned_opcodes(script, unknown, 8) != 2 )
+            continue;
+        pairs[pair_count].script_id = ids[i];
+        pairs[pair_count].a = unknown[0];
+        pairs[pair_count].b = unknown[1];
+        pair_count++;
+    }
+
+    printf("opcode  witnesses  solution            evidence\n");
+    int solved = 0;
+    int ambiguous = 0;
+    for( int i = 0; i < opcode_count; i++ )
+    {
+        struct cs2_candidate surviving[512];
+        int surviving_count = 0;
+
+        int tried = witness_counts[i] < 12 ? witness_counts[i] : 12;
+        for( int a = 0; a <= CS2_INFER_MAX_INT_IN; a++ )
+        for( int b = 0; b <= CS2_INFER_MAX_STR_IN; b++ )
+        for( int c = 0; c <= CS2_INFER_MAX_INT_OUT; c++ )
+        for( int d = 0; d <= CS2_INFER_MAX_STR_OUT; d++ )
+        {
+            struct cs2_candidate candidate = { a, b, c, d };
+            bool all = true;
+            for( int w = 0; w < tried && all; w++ )
+            {
+                char* source = cs2_try_arity(store, &decompile_options, opcodes[i], &candidate,
+                                             witnesses[i][w]);
+                all = source != NULL;
+                free(source);
+            }
+            if( all && surviving_count < 512 )
+                surviving[surviving_count++] = candidate;
+        }
+
+        const char* evidence = "";
+        char solution[64] = "-";
+        int chosen = -1;
+
+        if( surviving_count == 1 )
+        {
+            chosen = 0;
+            evidence = "unique";
+        }
+        else if( surviving_count > 1 )
+        {
+            /* Several arities let the script interpret. That is only a real
+             * ambiguity if they disagree about the *source*: an opcode whose
+             * results nobody consumes decompiles identically however many it is
+             * said to push. Compare the output, and where it is the same across
+             * every survivor take the smallest — the choice is unobservable. */
+            bool equivalent = true;
+            for( int w = 0; w < tried && equivalent; w++ )
+            {
+                char* first = cs2_try_arity_source(&decompile_options, opcodes[i],
+                                                   &surviving[0], witnesses[i][w]);
+                for( int k = 1; k < surviving_count && equivalent; k++ )
+                {
+                    char* other = cs2_try_arity_source(&decompile_options, opcodes[i],
+                                                       &surviving[k], witnesses[i][w]);
+                    equivalent = first && other && strcmp(first, other) == 0;
+                    free(other);
+                }
+                free(first);
+            }
+            if( equivalent )
+            {
+                chosen = 0;
+                for( int k = 1; k < surviving_count; k++ )
+                {
+                    int best = surviving[chosen].int_in + surviving[chosen].str_in +
+                               surviving[chosen].int_out + surviving[chosen].str_out;
+                    int here = surviving[k].int_in + surviving[k].str_in +
+                               surviving[k].int_out + surviving[k].str_out;
+                    if( here < best )
+                        chosen = k;
+                }
+                evidence = "output-equivalent";
+            }
+            else
+            {
+                snprintf(solution, sizeof(solution), "%d candidates", surviving_count);
+                evidence = "under-determined";
+                ambiguous++;
+            }
+        }
+        else
+        {
+            evidence = "no arity works; the signature is not the only problem";
+        }
+
+        if( chosen >= 0 )
+        {
+            snprintf(
+                solution, sizeof(solution), "in %d/%d out %d/%d", surviving[chosen].int_in,
+                surviving[chosen].str_in, surviving[chosen].int_out, surviving[chosen].str_out);
+            solutions[solution_count].opcode = opcodes[i];
+            solutions[solution_count].candidate = surviving[chosen];
+            solutions[solution_count].witnesses = witness_counts[i];
+            solutions[solution_count].unique = surviving_count == 1;
+            solution_count++;
+            solved++;
+        }
+        else
+        {
+            RSCache_CS2_CommandOverride(opcodes[i], NULL, NULL, -1, NULL, 0, false);
+        }
+        printf("%6d  %9d  %-19s %s\n", opcodes[i], witness_counts[i], solution, evidence);
+        free(witnesses[i]);
+    }
+
+    /* Phase 2. For each still-unknown opcode, take the two-unknown scripts it
+     * appears in and keep the candidates for which *some* candidate for the
+     * partner also works. Intersecting that across several scripts — usually
+     * with different partners — is what narrows it. */
+    int paired_solved = 0;
+    for( int p = 0; p < pair_count; p++ )
+    {
+        for( int side = 0; side < 2; side++ )
+        {
+            int target = side == 0 ? pairs[p].a : pairs[p].b;
+            int partner = side == 0 ? pairs[p].b : pairs[p].a;
+            if( RSCache_CS2_CommandGet(target) )
+                continue;
+
+            struct cs2_candidate surviving[512];
+            int surviving_count = 0;
+            for( int a = 0; a <= CS2_INFER_MAX_INT_IN; a++ )
+            for( int b = 0; b <= CS2_INFER_MAX_STR_IN; b++ )
+            for( int c = 0; c <= CS2_INFER_MAX_INT_OUT; c++ )
+            for( int d = 0; d <= CS2_INFER_MAX_STR_OUT; d++ )
+            {
+                struct cs2_candidate candidate = { a, b, c, d };
+                bool any = false;
+                for( int e = 0; e <= CS2_INFER_MAX_INT_IN && !any; e++ )
+                for( int f = 0; f <= CS2_INFER_MAX_STR_IN && !any; f++ )
+                for( int g = 0; g <= CS2_INFER_MAX_INT_OUT && !any; g++ )
+                for( int h = 0; h <= CS2_INFER_MAX_STR_OUT && !any; h++ )
+                {
+                    struct cs2_candidate other = { e, f, g, h };
+                    enum RSCache_CS2_ProtoId oa[CS2_INFER_MAX_INT_IN + CS2_INFER_MAX_STR_IN];
+                    enum RSCache_CS2_ProtoId od[CS2_INFER_MAX_INT_OUT + CS2_INFER_MAX_STR_OUT];
+                    int oac = 0;
+                    int odc = 0;
+                    for( int k = 0; k < other.int_in; k++ )
+                        oa[oac++] = RSCACHE_CS2_PROTO_INT;
+                    for( int k = 0; k < other.str_in; k++ )
+                        oa[oac++] = RSCACHE_CS2_PROTO_STRING;
+                    for( int k = 0; k < other.int_out; k++ )
+                        od[odc++] = RSCACHE_CS2_PROTO_INT;
+                    for( int k = 0; k < other.str_out; k++ )
+                        od[odc++] = RSCACHE_CS2_PROTO_STRING;
+                    RSCache_CS2_CommandOverride(partner, NULL, oa, oac, od, odc, false);
+                    char* ok = cs2_try_arity(store, &decompile_options, target, &candidate,
+                                             pairs[p].script_id);
+                    any = ok != NULL;
+                    free(ok);
+                }
+                RSCache_CS2_CommandOverride(partner, NULL, NULL, -1, NULL, 0, false);
+                RSCache_CS2_CommandOverride(target, NULL, NULL, -1, NULL, 0, false);
+                if( any && surviving_count < 512 )
+                    surviving[surviving_count++] = candidate;
+            }
+
+            if( surviving_count == 1 && solution_count < 256 )
+            {
+                enum RSCache_CS2_ProtoId args[CS2_INFER_MAX_INT_IN + CS2_INFER_MAX_STR_IN];
+                enum RSCache_CS2_ProtoId defs[CS2_INFER_MAX_INT_OUT + CS2_INFER_MAX_STR_OUT];
+                int ac = 0;
+                int dc = 0;
+                for( int k = 0; k < surviving[0].int_in; k++ )
+                    args[ac++] = RSCACHE_CS2_PROTO_INT;
+                for( int k = 0; k < surviving[0].str_in; k++ )
+                    args[ac++] = RSCACHE_CS2_PROTO_STRING;
+                for( int k = 0; k < surviving[0].int_out; k++ )
+                    defs[dc++] = RSCACHE_CS2_PROTO_INT;
+                for( int k = 0; k < surviving[0].str_out; k++ )
+                    defs[dc++] = RSCACHE_CS2_PROTO_STRING;
+                RSCache_CS2_CommandOverride(target, NULL, args, ac, defs, dc, false);
+                solutions[solution_count].opcode = target;
+                solutions[solution_count].candidate = surviving[0];
+                solutions[solution_count].witnesses = 1;
+                solutions[solution_count].unique = true;
+                solution_count++;
+                paired_solved++;
+                printf(
+                    "%6d  %9s  in %d/%d out %d/%d       paired with %d\n", target, "pair",
+                    surviving[0].int_in, surviving[0].str_in, surviving[0].int_out,
+                    surviving[0].str_out, partner);
+            }
+        }
+    }
+
+    printf("\n%d solved (%d from pairs), %d under-determined, %d examined\n", solved + paired_solved,
+           paired_solved, ambiguous, opcode_count);
+    if( solution_count )
+    {
+        /* Names are read from the generated table, so the solved overrides come
+         * off first: an installed override answers with its own name and would
+         * report each opcode under whichever one is still installed. */
+        RSCache_CS2_CommandClearOverrides();
+        printf("\nPaste into tools/cs2/local_commands.py (LOCAL_BASIC):\n");
+        for( int i = 0; i < solution_count; i++ )
+        {
+            const char* name = RSCache_CS2_CommandName(solutions[i].opcode);
+            char buffer[64];
+            if( !name )
+            {
+                snprintf(buffer, sizeof(buffer), "_%d", solutions[i].opcode);
+                name = buffer;
+            }
+            printf("    # opcode %d, solved against %d script(s), %s\n", solutions[i].opcode,
+                   solutions[i].witnesses, solutions[i].unique ? "unique" : "output-equivalent");
+            printf("    \"%s\": ([", name);
+            for( int k = 0; k < solutions[i].candidate.int_in; k++ )
+                printf("\"INT\", ");
+            for( int k = 0; k < solutions[i].candidate.str_in; k++ )
+                printf("\"STRING\", ");
+            printf("], [");
+            for( int k = 0; k < solutions[i].candidate.int_out; k++ )
+                printf("\"INT\", ");
+            for( int k = 0; k < solutions[i].candidate.str_out; k++ )
+                printf("\"STRING\", ");
+            printf("], False),\n");
+        }
+    }
+
+    free(opcodes);
+    free(witnesses);
+    free(witness_counts);
+    RSCache_CS2_NamesFree(&names);
+    return 0;
+}
+
 static int
 run_roundtrip(struct options* options, struct script_store* store, int* ids, int id_count)
 {
@@ -722,6 +1167,8 @@ main(int argc, char** argv)
         status = run_decompile(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "compile") == 0 )
         status = run_compile(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "infer-arity") == 0 )
+        status = run_infer(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "roundtrip") == 0 )
         status = run_roundtrip(&options, &store, ids, id_count);
     else

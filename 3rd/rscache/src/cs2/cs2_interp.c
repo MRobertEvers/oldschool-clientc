@@ -145,9 +145,10 @@ cs2_pop(struct cs2_interp* interp, enum RSCache_CS2_StackType stack_type)
     {
         cs2_fail(
             interp,
-            "script %d pc %d: operand stack underflow",
+            "script %d pc %d: opcode %d underflowed the operand stack",
             interp->script_id,
-            interp->pc);
+            interp->pc,
+            cs2_opcode(interp));
         return RSCache_CS2_ExprConstantInt(cs2_arena(interp), 0);
     }
     struct RSCache_CS2_Expr* top =
@@ -155,9 +156,10 @@ cs2_pop(struct cs2_interp* interp, enum RSCache_CS2_StackType stack_type)
     if( RSCache_CS2_VarStackType(top->variable->kind) != stack_type )
         cs2_fail(
             interp,
-            "script %d pc %d: expected a %s on the operand stack",
+            "script %d pc %d: opcode %d expected a %s on the operand stack",
             interp->script_id,
             interp->pc,
+            cs2_opcode(interp),
             stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string");
     return top;
 }
@@ -172,9 +174,10 @@ cs2_pop_many(struct cs2_interp* interp, int count, struct RSCache_CS2_Expr** out
         {
             cs2_fail(
                 interp,
-                "script %d pc %d: operand stack underflow",
+                "script %d pc %d: opcode %d underflowed the operand stack",
                 interp->script_id,
-                interp->pc);
+                interp->pc,
+                cs2_opcode(interp));
             out[i] = RSCache_CS2_ExprConstantInt(cs2_arena(interp), 0);
             continue;
         }
@@ -420,7 +423,18 @@ cs2_translate_basic(
     struct RSCache_CS2_TypingList* operation_typing =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation);
     for( int i = 0; i < info->def_count; i++ )
-        RSCache_CS2_TypingFreezeProto(operation_typing->items[i], def_protos[i]);
+    {
+        if( RSCache_CS2_TypingFreezeProto(operation_typing->items[i], def_protos[i]) )
+            continue;
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d result %d does not match its recorded type",
+            interp->script_id,
+            interp->pc,
+            opcode,
+            i);
+        return NULL;
+    }
 
     struct RSCache_CS2_Expr* pushed[64];
     cs2_push_types(interp, def_stack_types, info->def_count, pushed);
@@ -518,12 +532,27 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
     struct cs2_hook_desc desc;
     if( !cs2_parse_hook_desc(desc_value->string_value, &desc) )
     {
-        cs2_fail(
-            interp,
-            "script %d pc %d: unrecognised hook argument descriptor \"%s\"",
-            interp->script_id,
-            interp->pc,
-            desc_value->string_value);
+        {
+            /* Name the byte, not the rendering of it: the descriptors are
+             * windows-1252 and a terminal shows several of them identically. */
+            const char* text = desc_value->string_value;
+            int bad = 0;
+            for( int i = 0; text[i]; i++ )
+            {
+                if( RSCache_CS2_TypeOfDesc((uint8_t)text[i]) == RSCACHE_CS2_TYPE_NONE &&
+                    !(text[i + 1] == '\0' && text[i] == 'Y') )
+                {
+                    bad = (uint8_t)text[i];
+                    break;
+                }
+            }
+            cs2_fail(
+                interp,
+                "script %d pc %d: hook descriptor byte 0x%02x is not a known type",
+                interp->script_id,
+                interp->pc,
+                bad);
+        }
         return NULL;
     }
     cs2_pop(interp, RSCACHE_CS2_STACK_STRING);
@@ -663,7 +692,18 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
         return NULL;
     }
     for( int i = 0; i < desc.count; i++ )
-        RSCache_CS2_TypingFreezeType(args_typing->items[i], desc.types[i]);
+    {
+        if( RSCache_CS2_TypingFreezeType(args_typing->items[i], desc.types[i]) )
+            continue;
+        cs2_fail(
+            interp,
+            "script %d pc %d: hook argument %d disagrees with script %d's own signature",
+            interp->script_id,
+            interp->pc,
+            i,
+            hook_script_id);
+        return NULL;
+    }
 
     struct RSCache_CS2_TypingList* from =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), args_expr);
@@ -732,7 +772,16 @@ cs2_translate_param(struct cs2_interp* interp, int opcode, enum RSCache_CS2_Prot
         RSCache_CS2_ExprOperation(arena, &stack_type, 1, opcode, arguments, false);
     struct RSCache_CS2_Typing* operation_typing =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0];
-    RSCache_CS2_TypingFreezeType(operation_typing, param_type);
+    if( !RSCache_CS2_TypingFreezeType(operation_typing, param_type) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: param %d's type does not match the stack slot",
+            interp->script_id,
+            interp->pc,
+            param_id);
+        return NULL;
+    }
 
     struct RSCache_CS2_Expr* definition = cs2_push(interp, stack_type, NULL);
     RSCache_CS2_TypingAssign(
@@ -778,9 +827,11 @@ cs2_translate_enum(struct cs2_interp* interp)
     {
         cs2_fail(
             interp,
-            "script %d pc %d: enum names an unknown type descriptor",
+            "script %d pc %d: enum type descriptor 0x%02x / 0x%02x is not known",
             interp->script_id,
-            interp->pc);
+            interp->pc,
+            (unsigned)(key_desc->int_value & 0xFF),
+            (unsigned)(value_desc->int_value & 0xFF));
         return NULL;
     }
     enum RSCache_CS2_ProtoId key_proto = RSCache_CS2_ProtoForType(key_type);
@@ -798,7 +849,15 @@ cs2_translate_enum(struct cs2_interp* interp)
         arena, &stack_type, 1, RSCACHE_CS2_OP_ENUM, arguments, false);
     struct RSCache_CS2_Typing* operation_typing =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0];
-    RSCache_CS2_TypingFreezeType(operation_typing, value_type);
+    if( !RSCache_CS2_TypingFreezeType(operation_typing, value_type) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: enum value type does not match the stack slot",
+            interp->script_id,
+            interp->pc);
+        return NULL;
+    }
     RSCache_CS2_TypingAssign(
         operation_typing, RSCache_CS2_TypingsOfElement(cs2_typings(interp), value));
     return RSCache_CS2_InsnAssignment(arena, value, operation);
@@ -950,6 +1009,38 @@ cs2_translate(struct cs2_interp* interp)
                 arena, (size_t)(stack_count > 0 ? stack_count : 1) * sizeof(*stack_types));
         for( int i = 0; i < stack_count; i++ )
             stack_types[i] = RSCache_CS2_ExprStackTypeAt(expression, i);
+        /* A script returns exactly what its epilogue declares, at every return
+         * — the language has no varying-arity return. So a mismatch here is not
+         * a property of this statement, it is evidence that some opcode above
+         * popped the wrong number of values. Checking it turns a whole class of
+         * silent mis-decompiles into refusals, and is what lets `infer-arity`
+         * pin an unknown opcode's pop count. */
+        if( stack_count != interp->return_type_count )
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: return leaves %d values, the script declares %d",
+                interp->script_id,
+                interp->pc,
+                stack_count,
+                interp->return_type_count);
+            return NULL;
+        }
+        for( int i = 0; i < stack_count; i++ )
+        {
+            if( stack_types[i] == interp->return_types[i] )
+                continue;
+            cs2_fail(
+                interp,
+                "script %d pc %d: return value %d is a %s, the script declares a %s",
+                interp->script_id,
+                interp->pc,
+                i,
+                stack_types[i] == RSCACHE_CS2_STACK_INT ? "int" : "string",
+                interp->return_types[i] == RSCACHE_CS2_STACK_INT ? "int" : "string");
+            return NULL;
+        }
+
         struct RSCache_CS2_TypingList* returns = RSCache_CS2_TypingsReturns(
             cs2_typings(interp), interp->script_id, stack_types, stack_count);
         struct RSCache_CS2_TypingList* from =
@@ -1070,8 +1161,16 @@ cs2_translate(struct cs2_interp* interp)
             return NULL;
         }
         cs2_assign_element_to_proto(interp, length, RSCACHE_CS2_PROTO_LENGTH);
-        RSCache_CS2_TypingFreezeType(
-            RSCache_CS2_TypingsOfElement(cs2_typings(interp), array), element_type);
+        if( !RSCache_CS2_TypingFreezeType(
+                RSCache_CS2_TypingsOfElement(cs2_typings(interp), array), element_type) )
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: array element type does not match the stack slot",
+                interp->script_id,
+                interp->pc);
+            return NULL;
+        }
         struct RSCache_CS2_Expr* pair[2] = { array, length };
         return RSCache_CS2_InsnAssignment(
             arena,

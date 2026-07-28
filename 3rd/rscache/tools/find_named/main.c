@@ -488,6 +488,137 @@ dump_obj(
     RSCache_Dat2ConfigObjFree(obj);
 }
 
+
+/*
+ * Dump a framemap: the rig an animation is authored against.
+ *
+ * A frame does not move vertices, it moves *label groups* — each transform in
+ * the framemap names a set of labels, and the client applies it to whichever of
+ * the model's vertices carry them. So a model and an animation only agree if
+ * they were built against the same numbering, and this is what shows whether
+ * two eras did.
+ */
+static void
+dump_framemap(
+    struct Tool_Dat2Cache* c,
+    int id)
+{
+    static const char* kind[] = { "origin", "translate", "rotate", "scale", "?4", "alpha" };
+    struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(c, id);
+    int max_label = -1;
+    if( !fm )
+    {
+        printf("framemap %d: <absent>\n", id);
+        return;
+    }
+    printf("framemap %d  transforms=%d\n", id, fm->length);
+    for( int i = 0; i < fm->length; i++ )
+    {
+        int t = fm->types[i];
+        printf(
+            "  [%3d] %-9s labels:",
+            i,
+            (t >= 0 && t < 6) ? kind[t] : "?");
+        for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
+        {
+            printf(" %d", fm->bone_groups[i][j]);
+            if( fm->bone_groups[i][j] > max_label )
+                max_label = fm->bone_groups[i][j];
+        }
+        printf("\n");
+    }
+    printf("  highest label referenced: %d\n", max_label);
+    RSCache_Dat2FramemapFree(fm);
+}
+
+
+/* Load and decode one loc record. Returns NULL when absent. */
+static struct RSCache_Dat2ConfigLoc*
+load_loc(
+    struct Tool_Dat2Cache* c,
+    int id)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&c->profile, RSCACHE_TYPE_LOC);
+    int table;
+    int archive_id;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_FileList* files;
+    struct RSCache_Dat2ConfigLoc* out = NULL;
+
+    if( addr.group_shift == 0 )
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+        archive_id = RSCACHE_DAT2_CONFIG_KIND_LOCS;
+    }
+    else
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, addr.table);
+        archive_id = id >> addr.group_shift;
+    }
+
+    archive = RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
+    if( !archive )
+        return NULL;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int file_id = archive->file_ids ? archive->file_ids[i] : i;
+        int global = addr.group_shift == 0
+                         ? file_id
+                         : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
+        if( global != id || files->file_sizes[i] <= 0 )
+            continue;
+        out = RSCache_Dat2ConfigLocNewDecodeProfile(
+            &c->profile, files->files[i], files->file_sizes[i]);
+        break;
+    }
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return out;
+}
+
+static void
+dump_loc(
+    struct Tool_Dat2Cache* c,
+    int id)
+{
+    struct RSCache_Dat2ConfigLoc* loc = load_loc(c, id);
+    if( !loc )
+    {
+        printf("loc %d: <absent>\n", id);
+        return;
+    }
+    printf("loc %d  \"%s\"\n", id, loc->name ? loc->name : "(null)");
+    printf("  %-22s%d x %d\n", "width x length", loc->size_x, loc->size_z);
+    for( int i = 0; i < loc->shapes_and_model_count; i++ )
+    {
+        printf("  %-22sshape %d:", "models", loc->shapes ? loc->shapes[i] : -1);
+        for( int j = 0; j < (loc->lengths ? loc->lengths[i] : 0); j++ )
+            printf(" %d", loc->models[i][j]);
+        printf("\n");
+    }
+    printf("  %-22s%d\n", "transform_varbit", loc->transform_varbit);
+    printf("  %-22s%d\n", "transform_varp", loc->transform_varp);
+    if( loc->transform_count > 0 )
+    {
+        printf("  %-22s", "transforms");
+        for( int i = 0; i < loc->transform_count; i++ )
+            printf("%s%d", i ? ", " : "", loc->transforms[i]);
+        printf("\n");
+    }
+    RSCache_Dat2ConfigLocFree(loc);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -497,6 +628,8 @@ main(int argc, char** argv)
     const char* type_filter = "all";
     int dump_npc_id = -1;
     int dump_obj_id = -1;
+    int dump_loc_id = -1;
+    int dump_framemap_id = -1;
     int dump_seq_id = -1;
     int dump_spotanim_id = -1;
     int scan_spotanim_model = -1;
@@ -515,6 +648,10 @@ main(int argc, char** argv)
             dump_npc_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
             dump_obj_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--loc") == 0 && i + 1 < argc )
+            dump_loc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--framemap") == 0 && i + 1 < argc )
+            dump_framemap_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             dump_seq_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -547,6 +684,10 @@ main(int argc, char** argv)
         dump_npc(&cache, dump_npc_id);
     if( dump_obj_id >= 0 )
         dump_obj(&cache, dump_obj_id);
+    if( dump_loc_id >= 0 )
+        dump_loc(&cache, dump_loc_id);
+    if( dump_framemap_id >= 0 )
+        dump_framemap(&cache, dump_framemap_id);
     if( dump_seq_id >= 0 )
         dump_seq(&cache, dump_seq_id);
     if( dump_spotanim_id >= 0 )

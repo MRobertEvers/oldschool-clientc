@@ -121,12 +121,73 @@ wield models. LostCity resolves `manwear`/`womanwear` by model *name*, so there
 is no naming convention to satisfy — whatever the model exporter called them is
 what the config references.
 
-What it deliberately does **not** write is the combat block: bonuses live in the
+### Rigged models need their labels remapped
+
+A rigged model does not name the joints it bends at. Each vertex carries a
+one-byte **label**, and an animation's framemap says which labels each transform
+moves. Both halves are era-specific, and they do not agree across a port:
+
+```
+rev 254 player rig     labels 0..72          (measured over 236 stock equipment models)
+OSRS framemap 0        245 transforms, labels up to 217
+```
+
+So a wield model ported straight across is tagged for a skeleton the destination
+client does not have. Two symptoms, both silent:
+
+- **Equipment that never moves.** A label the destination rig never addresses is
+  skipped — `label < labelVertices.length` in `Model.animate2` — so those
+  vertices sit still while the arm they belong to swings.
+- **A model that stretches.** The ORIGIN transform averages the position of its
+  labelled vertices to find a pivot. Match nothing and it falls back to using
+  the raw frame value as an absolute pivot, so the following rotate spins the
+  mesh around a point in space instead of a joint.
+
+`--label-map FROM=TO`, or an `[export:label_map]` manifest section, retags the
+model on the way out. It applies only to models merged into the *player* — a
+spotanim's model carries labels too, but they are rigged to the spotanim's own
+framemap, which ports alongside it and stays self-consistent.
+
+Work the correspondence out from geometry rather than guessing. Per-label
+centroids of a native model beside the ported one line the joints up:
+
+```
+rune claws  (native)   label  16   x = +34.5      dragon claws (OSRS)  label  50   x = -35.3
+                       label  17   x = -34.5                           label 161   x = +35.3
+```
+
+Same sides, same heights, so `161 = 16` and `50 = 17`.
+
+**Animations cannot be remapped this way.** The label map fixes a *model*; a
+player animation authored against a 245-transform OSRS rig has no correspondence
+into a rev-254 one, because they are different skeletons and not merely
+differently numbered. Use a native animation for the body and keep the ported
+spotanim, which travels with its own framemap and works untouched.
+
+What it deliberately does **not** derive is the combat block: bonuses live in the
 source item's params table against param ids this revision does not share, and
 `category` is an id into a table that is not ported either, so writing them
-through would emit lines naming nothing. Bonuses, category, attack anims and the
-spec params are hand-authored. See `content/scripts/skill_combat/configs/dclaws.obj`
-for a worked example.
+through would emit lines naming nothing.
+
+Put those in the manifest, **not** in the emitted config:
+
+```ini
+[extra:dragon_claws]
+category = weapon_claws
+param = attackrate,4
+param = specwep,^true
+param = sa_energy,500
+```
+
+Every line of an `[extra:<config name>]` section is appended verbatim to that
+config's generated block. This is not a style preference. **The exporter owns
+the file it writes** — append a combat block to the `.obj` by hand, re-run the
+export, and the whole block is gone with no error. Losing `category` alone is
+enough to break the combat tab outright: `switch_category` falls through to
+`case default`, which installs the *unarmed* interface, so the tab shows
+Punch/Kick/Block under the correct weapon name and the spec bar disappears.
+Keeping the lines in the manifest makes a re-export reproduce the file byte for
+byte instead of destroying it.
 
 Dry run by default; `--apply` writes. It writes into the server's content tree
 directly rather than staging elsewhere, because the pack files are the id
@@ -275,7 +336,8 @@ The last one is what makes a modern cache decompile at all. An opcode with no
 recorded arity does not fail quietly: it desynchronises the operand stack, so
 the decompiler refuses the whole script rather than emit a confident reading of
 a different program. Layering the client's own stack table over the vendored one
-took OSRS 230 from 6,634 to 7,553 scripts. The stack table records *how many*
+took OSRS 230 from 6,634 to 7,553 scripts, and solving the remainder from the
+corpus (`cs2 infer-arity`, below) took it to 7,657. The stack table records *how many*
 ints and strings, not what they mean, so those opcodes get plain `int`/`string`
 prototypes — that costs identifier quality (`$int3` rather than `$width3`),
 never correctness.
@@ -284,3 +346,32 @@ Anything this repo knows that neither source does goes in `local_commands.py`,
 so regenerating keeps it. Additions there must be **established, not guessed**:
 a wrong pop count is the one error that produces a plausible decompile of the
 wrong program.
+
+### Solving an unknown opcode's arity
+
+```sh
+cs2 infer-arity --cache DIR --rev NAME [--names DIR]
+```
+
+An opcode's pop/push counts are not in the bytecode, but they are implied by it:
+a script only interprets to the end if every arity keeps the operand stack
+balanced. For each unknown opcode the tool takes the scripts where it is the
+*only* unknown, tries every plausible (int in, str in, int out, str out), keeps
+the ones that interpret, and intersects across scripts. A third phase solves
+pairs, for opcodes that never appear alone.
+
+It prints a block ready to paste into `local_commands.py`, annotated with the
+number of scripts each solution was established against — thirty is not one, and
+the file says which. Re-run after pasting: every solved opcode turns
+two-unknown scripts into one-unknown ones, so it converges over a few rounds.
+
+Two things make this evidence rather than guesswork:
+
+- Arities are judged on **interpretation alone**, not on a full decompile, so an
+  unrelated later failure cannot make a correct arity look wrong.
+- The reference comparison (`test_cs2`) is the control. It stayed at exactly
+  6,489 identical / 2 different through every round, so no inferred signature
+  changed an output the RuneStar implementation also produced.
+
+What it cannot do is name things. The prototypes are plain `int`/`string`,
+because the method establishes counts, not meanings.

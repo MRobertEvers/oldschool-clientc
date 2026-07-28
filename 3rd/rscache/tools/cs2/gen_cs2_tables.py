@@ -274,10 +274,26 @@ def main() -> int:
     # opcode id -> (kind, args, defs, dot, extra)
     commands: dict[int, tuple[str, list[str], list[str], bool, str]] = {}
 
+    lowered = {n.lower(): v for n, v in by_name.items()}
+
+    def resolve(name: str) -> int:
+        if name in by_name:
+            return by_name[name]
+        if name.lower() in lowered:
+            return lowered[name.lower()]
+        # `_1152` is how an unidentified opcode is spelled, here and upstream.
+        if re.fullmatch(r"_\d+", name):
+            opcode = int(name[1:])
+            # Register the spelling too: a signature without a name decompiles
+            # to nothing printable, and the id *is* the name for these.
+            by_id.setdefault(opcode, name)
+            by_name.setdefault(name, opcode)
+            lowered.setdefault(name, opcode)
+            return opcode
+        raise ValueError(f"{name} has no opcode id")
+
     def put(name: str, kind: str, args=(), defs=(), dot=False, extra="0"):
-        if name not in by_name:
-            raise ValueError(f"{name} has no opcode id")
-        commands[by_name[name]] = (kind, list(args), list(defs), dot, extra)
+        commands[resolve(name)] = (kind, list(args), list(defs), dot, extra)
 
     put("SWITCH", "SWITCH")
     put("BRANCH", "BRANCH")
@@ -306,6 +322,17 @@ def main() -> int:
     # Layer the client's stack table over anything still unsigned. Ordering
     # matters: an explicit Command.kt or local signature always wins, because it
     # carries prototypes and this carries only counts.
+    # The hook families take a *dynamic* number of arguments: the count is in
+    # the descriptor string the call itself pushes, not in any table. Anything
+    # in their id ranges is therefore a CLIENTSCRIPT, whatever else is known
+    # about it -- giving one a fixed arity would be right for whichever script
+    # was measured and wrong for the next.
+    for opcode in list(by_id):
+        if opcode in commands:
+            continue
+        if 1400 <= opcode < 1500 or 2400 <= opcode < 2500:
+            commands[opcode] = ("CLIENTSCRIPT", [], [], False, "0")
+
     stack = parse_stack_table(REPO_STACK)
     meta_names = parse_opcode_meta(REPO_OPCODE_META)
     from_stack = 0

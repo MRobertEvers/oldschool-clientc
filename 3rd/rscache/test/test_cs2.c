@@ -37,7 +37,7 @@
  * port is faithful; `decompiled` only says it is not *less* capable. */
 #define CS2_EXPECT_MIN_IDENTICAL 6489
 #define CS2_EXPECT_MAX_DIFFERENT 2
-#define CS2_EXPECT_MIN_DECOMPILED 7366
+#define CS2_EXPECT_MIN_DECOMPILED 7467
 
 struct cs2_entry
 {

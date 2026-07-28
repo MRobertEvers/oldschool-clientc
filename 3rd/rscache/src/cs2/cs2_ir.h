@@ -341,13 +341,23 @@ RSCache_CS2_TypingsFree(struct RSCache_CS2_Typings* typings);
 struct RSCache_CS2_Typing*
 RSCache_CS2_TypingNew(struct RSCache_CS2_Typings* typings, enum RSCache_CS2_StackType stack_type);
 
-void
+/**
+ * Pin a typing's type.
+ *
+ * Returns false when the type disagrees with the slot's stack type — an `int`
+ * pinned onto a string slot, say. That means a command signature and the
+ * bytecode describe different things, which is not recoverable, but it is
+ * reported rather than asserted: a corpus contains scripts that reach it, and
+ * one script's inconsistency should not take down a batch run.
+ */
+bool
 RSCache_CS2_TypingFreezeType(struct RSCache_CS2_Typing* typing, enum RSCache_CS2_Type type);
 
 void
 RSCache_CS2_TypingFreezeIdentifier(struct RSCache_CS2_Typing* typing, const char* identifier);
 
-void
+/** As RSCache_CS2_TypingFreezeType, for a prototype's type and identifier. */
+bool
 RSCache_CS2_TypingFreezeProto(struct RSCache_CS2_Typing* typing, enum RSCache_CS2_ProtoId proto);
 
 /**

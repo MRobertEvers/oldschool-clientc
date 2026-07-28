@@ -53,6 +53,9 @@ usage(const char* argv0)
         "  --area DIR       config subdirectory under scripts/ (default areas/area_ported)\n"
         "  --prefix NAME    basename for emitted configs and generated asset names\n"
         "  --npc ID[=name] / --obj / --seq / --spotanim / --texture / --loc ID / --map X_Z\n"
+  "  --label-map FROM=TO   retag a rigged model's vertex labels (repeatable);\n"
+  "                 needed whenever the source and destination rigs\n"
+  "                 number their joints differently\n"
         "  --texture        port a material outright; models and floors pull in\n"
         "                   whatever they reference without being asked\n"
         "  --max-textures N highest texture id the destination client reads, exclusive\n"
@@ -107,6 +110,19 @@ main(int argc, char** argv)
             lc_request_add(&manifest.npcs, argv[++i]);
         else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
             lc_request_add(&manifest.objs, argv[++i]);
+        else if( strcmp(argv[i], "--label-map") == 0 && i + 1 < argc )
+        {
+            const char* pair = argv[++i];
+            const char* eq = strchr(pair, '=');
+            if( !eq || manifest.label_map_count >= 256 )
+            {
+                fprintf(stderr, "--label-map wants FROM=TO\n");
+                return 2;
+            }
+            manifest.label_map_from[manifest.label_map_count] = atoi(pair);
+            manifest.label_map_to[manifest.label_map_count] = atoi(eq + 1);
+            manifest.label_map_count++;
+        }
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             lc_request_add(&manifest.seqs, argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -198,6 +214,13 @@ main(int argc, char** argv)
     struct LC_Ctx ctx;
     lc_ctx_init(&ctx, &src, &packs, &out);
     ctx.max_textures = manifest.max_textures;
+    ctx.extras = manifest.extras;
+    ctx.extra_count = manifest.extra_count;
+    for( int i = 0; i < manifest.label_map_count; i++ )
+    {
+        ctx.label_map[manifest.label_map_from[i]] = manifest.label_map_to[i];
+        ctx.has_label_map = 1;
+    }
 
     int failures = 0;
 

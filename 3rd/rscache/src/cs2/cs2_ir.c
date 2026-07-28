@@ -634,12 +634,14 @@ RSCache_CS2_TypingNew(struct RSCache_CS2_Typings* typings, enum RSCache_CS2_Stac
     return typing;
 }
 
-void
+bool
 RSCache_CS2_TypingFreezeType(struct RSCache_CS2_Typing* typing, enum RSCache_CS2_Type type)
 {
-    assert(RSCache_CS2_TypeStackType(type) == typing->stack_type);
+    if( RSCache_CS2_TypeStackType(type) != typing->stack_type )
+        return false;
     typing->freeze_type = true;
     typing->type = type;
+    return true;
 }
 
 void
@@ -649,12 +651,14 @@ RSCache_CS2_TypingFreezeIdentifier(struct RSCache_CS2_Typing* typing, const char
     typing->identifier = identifier;
 }
 
-void
+bool
 RSCache_CS2_TypingFreezeProto(struct RSCache_CS2_Typing* typing, enum RSCache_CS2_ProtoId proto)
 {
     const struct RSCache_CS2_Prototype* prototype = RSCache_CS2_ProtoGet(proto);
-    RSCache_CS2_TypingFreezeType(typing, prototype->type);
+    if( !RSCache_CS2_TypingFreezeType(typing, prototype->type) )
+        return false;
     RSCache_CS2_TypingFreezeIdentifier(typing, prototype->identifier);
+    return true;
 }
 
 bool

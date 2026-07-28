@@ -733,8 +733,10 @@ readable decompile of a program that is not the one in the cache. So an opcode
 with no recorded signature refuses the script. Arities come from RuneStar's
 `Command.kt`, from this repo's own CS2 VM (`src/cs2vm2`, which knows opcodes the
 2021 sources predate), and from `tools/cs2/local_commands.py` for anything
-established here. 833 opcodes are signed; 7,553 of OSRS 230's 7,884 scripts
-decompile, and EXCEPTIONS.md G4 accounts for the rest.
+established here. 890 opcodes are signed — 41 of them *solved from the corpus* by `cs2
+infer-arity`, which searches for the counts that keep the operand stack balanced
+across every script using the opcode. 7,657 of OSRS 230's 7,884 scripts
+decompile; EXCEPTIONS.md G4 describes the method and accounts for the rest.
 
 **Names are not in the cache.** Ids are; `coins_995` and `^iftype_rectangle` come
 from community-recovered tables loaded at run time from a directory. Without them

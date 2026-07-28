@@ -109,6 +109,9 @@ enum manifest_section
     SECTION_LOC,
     SECTION_MAP,
     SECTION_TEXTURE,
+    SECTION_LABEL_MAP,
+    SECTION_EXTRA,
+    SECTION_MAPLOC,
 };
 
 static enum manifest_section
@@ -130,6 +133,12 @@ section_of(const char* header)
         return SECTION_MAP;
     if( strcmp(header, "export:texture") == 0 )
         return SECTION_TEXTURE;
+    if( strcmp(header, "export:label_map") == 0 )
+        return SECTION_LABEL_MAP;
+    if( strncmp(header, "extra:", 6) == 0 && header[6] != '\0' )
+        return SECTION_EXTRA;
+    if( strcmp(header, "export:maploc") == 0 )
+        return SECTION_MAPLOC;
     return SECTION_NONE;
 }
 
@@ -275,6 +284,61 @@ handle_element(
         return set_port_key(
             parse->manifest, parse->manifest_dir, element->_keyval.name, element->_keyval.value);
 
+    if( parse->section == SECTION_EXTRA )
+    {
+        struct LC_Manifest* m = parse->manifest;
+        if( m->extra_count == m->extra_cap )
+        {
+            int next = m->extra_cap ? m->extra_cap * 2 : 32;
+            void* grown = realloc(m->extras, (size_t)next * sizeof(*m->extras));
+            if( !grown )
+                return 0;
+            m->extras = grown;
+            m->extra_cap = next;
+        }
+        snprintf(
+            m->extras[m->extra_count].config,
+            sizeof(m->extras[m->extra_count].config),
+            "%s",
+            parse->section_name + 6);
+        snprintf(
+            m->extras[m->extra_count].line,
+            sizeof(m->extras[m->extra_count].line),
+            "%s=%s",
+            element->_keyval.name,
+            element->_keyval.value);
+        m->extra_count++;
+        return 1;
+    }
+
+    if( parse->section == SECTION_MAPLOC )
+    {
+        /* Written `place = 35_83,1,28,52,30346,10,3`; the key is decoration. */
+        return lc_manifest_add_maploc(parse->manifest, element->_keyval.value);
+    }
+
+    if( parse->section == SECTION_LABEL_MAP )
+    {
+        struct LC_Manifest* m = parse->manifest;
+        int from = atoi(element->_keyval.name);
+        int to = atoi(element->_keyval.value);
+        if( from < 0 || from > 255 || to < 0 || to > 255 )
+        {
+            fprintf(
+                stderr,
+                "manifest: label_map %s=%s out of range; labels are a single byte\n",
+                element->_keyval.name,
+                element->_keyval.value);
+            return 0;
+        }
+        if( m->label_map_count >= 256 )
+            return 0;
+        m->label_map_from[m->label_map_count] = from;
+        m->label_map_to[m->label_map_count] = to;
+        m->label_map_count++;
+        return 1;
+    }
+
     struct LC_RequestList* list = list_for_section(parse->manifest, parse->section);
     if( !list )
     {
@@ -386,9 +450,47 @@ lc_manifest_load(
     return 1;
 }
 
+int
+lc_manifest_add_maploc(
+    struct LC_Manifest* manifest,
+    const char* text)
+{
+    struct LC_MapLocAdd add;
+    if( sscanf(
+            text,
+            "%d_%d,%d,%d,%d,%d,%d,%d",
+            &add.map_x,
+            &add.map_z,
+            &add.level,
+            &add.x,
+            &add.z,
+            &add.src_loc,
+            &add.shape,
+            &add.angle) != 8 )
+    {
+        fprintf(
+            stderr,
+            "maploc wants MAPX_MAPZ,level,x,z,locid,shape,angle (got %s)\n",
+            text);
+        return 0;
+    }
+    if( manifest->maploc_count == manifest->maploc_cap )
+    {
+        int next = manifest->maploc_cap ? manifest->maploc_cap * 2 : 8;
+        void* grown = realloc(manifest->maplocs, (size_t)next * sizeof(*manifest->maplocs));
+        if( !grown )
+            return 0;
+        manifest->maplocs = grown;
+        manifest->maploc_cap = next;
+    }
+    manifest->maplocs[manifest->maploc_count++] = add;
+    return 1;
+}
+
 void
 lc_manifest_free(struct LC_Manifest* manifest)
 {
+    free(manifest->maplocs);
     if( !manifest )
         return;
     lc_request_list_free(&manifest->npcs);

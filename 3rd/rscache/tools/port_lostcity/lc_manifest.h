@@ -88,6 +88,46 @@ struct LC_Manifest
 
     struct LC_RequestList npcs;
     struct LC_RequestList objs;
+    /** Vertex-label remap pairs, `from` -> `to`. */
+    int label_map_from[256];
+    int label_map_to[256];
+    int label_map_count;
+
+    /**
+     * Verbatim config lines to append to a named block, from `[extra:<name>]`.
+     *
+     * A ported record only carries what the source cache states. Everything a
+     * LostCity config needs beyond that — combat bonuses, `category`, attack
+     * animations, spec params — is authored by hand, and the exporter owns the
+     * file it would otherwise be written into. Keeping those lines in the
+     * manifest is what makes a re-export idempotent instead of destructive.
+     */
+    struct LC_ExtraLine
+    {
+        char config[64];
+        char line[192];
+    }* extras;
+    int extra_count;
+    int extra_cap;
+    /**
+     * Extra map placements, from `[export:maploc]` / `--maploc`, written into
+     * the square's jm2 after the source placements.
+     *
+     * Some arena dressing is not in any square's static data — Kronos builds
+     * the Zuk alcove's flanking crags with dynamic spawns on level 1 — and a
+     * rev-254 zone update cannot express a level the player is not on, so the
+     * only faithful home for such a loc is the map file itself. Recording the
+     * placement here keeps the export reproducible.
+     */
+    struct LC_MapLocAdd
+    {
+        int map_x, map_z;
+        int level, x, z;
+        int src_loc;
+        int shape, angle;
+    }* maplocs;
+    int maploc_count;
+    int maploc_cap;
     struct LC_RequestList seqs;
     struct LC_RequestList spotanims;
     struct LC_RequestList locs;
@@ -111,5 +151,11 @@ lc_manifest_load(
 
 void
 lc_manifest_free(struct LC_Manifest* manifest);
+
+/** Append one `35_83,level,x,z,locid,shape,angle` placement. */
+int
+lc_manifest_add_maploc(
+    struct LC_Manifest* manifest,
+    const char* text);
 
 #endif

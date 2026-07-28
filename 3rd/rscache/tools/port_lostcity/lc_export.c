@@ -18,6 +18,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+lc_emit_extras(
+    struct LC_Ctx* ctx,
+    struct LC_Str* cfg,
+    const char* name);
+
 /* ---- id map ------------------------------------------------------------- */
 
 int
@@ -168,6 +174,12 @@ lc_ctx_init(
     ctx->packs = packs;
     ctx->out = out;
     ctx->max_npc_size = 5;
+    for( int i = 0; i < 256; i++ )
+        ctx->label_map[i] = i;
+    ctx->has_label_map = 0;
+    ctx->label_map_active = 0;
+    ctx->extras = NULL;
+    ctx->extra_count = 0;
     /* A mid grey: visible, and neutral enough that it reads as "untextured"
      * rather than as a wrong colour. Only reached when a face names a texture
      * the source cache does not hold. */
@@ -473,6 +485,19 @@ lc_export_model(
     {
         lc_out_warn(ctx->out, "model %d: decode failed", src_model_id);
         return -1;
+    }
+
+    /* Retag before anything else looks at the model: the encoder writes these
+     * straight through, and a stale label is invisible until the model is in a
+     * client refusing to animate it. */
+    if( ctx->has_label_map && ctx->label_map_active )
+    {
+        if( model->vertex_bone_map )
+            for( int i = 0; i < model->vertex_count; i++ )
+                model->vertex_bone_map[i] = (uint8_t)ctx->label_map[model->vertex_bone_map[i]];
+        if( model->face_bone_map )
+            for( int i = 0; i < model->face_count; i++ )
+                model->face_bone_map[i] = (uint8_t)ctx->label_map[model->face_bone_map[i]];
     }
 
     int ported = 0;
@@ -1009,6 +1034,7 @@ lc_export_npc(
         if( npc->actions[i] && npc->actions[i][0] )
             lc_str_addf(cfg, "op%d=%s\n", i + 1, npc->actions[i]);
     }
+    lc_emit_extras(ctx, cfg, name);
     lc_str_addf(cfg, "\n");
 
     RSCache_Dat2ConfigNpcFree(npc);
@@ -1077,6 +1103,19 @@ lc_hsl16_to_rgb15(int hsl)
  * the cache and ObjType.getWearPosId agree — so this is a rename, not a
  * mapping, and an id with no name is one LostCity has no slot for.
  */
+
+/* Append the manifest's hand-authored lines for `name`, if any. */
+static void
+lc_emit_extras(
+    struct LC_Ctx* ctx,
+    struct LC_Str* cfg,
+    const char* name)
+{
+    for( int i = 0; i < ctx->extra_count; i++ )
+        if( strcmp(ctx->extras[i].config, name) == 0 )
+            lc_str_addf(cfg, "%s\n", ctx->extras[i].line);
+}
+
 static const char*
 lc_wearpos_name(int wearpos)
 {
@@ -1183,6 +1222,7 @@ lc_export_obj(
      * naming convention, so whatever lc_export_model called them is what goes
      * in — the offset beside each is the vertical fit-up, straight from the
      * record. */
+    ctx->label_map_active = 1;
     if( obj->male_model_0 > 0 &&
         lc_export_model(ctx, obj->male_model_0, -1, base, sizeof(base)) >= 0 )
         lc_str_addf(cfg, "manwear=%s,%d\n", base, obj->male_offset);
@@ -1201,6 +1241,7 @@ lc_export_obj(
     if( obj->female_head_model > 0 &&
         lc_export_model(ctx, obj->female_head_model, -1, base, sizeof(base)) >= 0 )
         lc_str_addf(cfg, "womanhead=%s\n", base);
+    ctx->label_map_active = 0;
 
     for( int i = 0; i < obj->recolor_count && i < 6; i++ )
     {
@@ -1223,6 +1264,7 @@ lc_export_obj(
      * that is not ported either — writing them through would produce lines that
      * name nothing. They are hand-authored, and the README says so.
      */
+    lc_emit_extras(ctx, cfg, name);
     lc_str_addf(cfg, "\n");
     RSCache_Dat2ConfigObjFree(obj);
     return lc_id;

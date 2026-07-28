@@ -625,6 +625,7 @@ RSCache_CS2_NamesFormatInt(
     }
 
     case RSCACHE_CS2_TYPE_NEWVAR:
+    case RSCACHE_CS2_TYPE_DBROW:
     case RSCACHE_CS2_TYPE_SPOTANIM:
     case RSCACHE_CS2_TYPE_PLAYER_UID:
         /* Upstream has no spelling for these and throws. They are plain ints on

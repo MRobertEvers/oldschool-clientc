@@ -50,6 +50,7 @@ static const struct cs2_type_info cs2_types[RSCACHE_CS2_TYPE_COUNT] = {
     [RSCACHE_CS2_TYPE_NPC_UID] = { "npc_uid", 'u' },
     [RSCACHE_CS2_TYPE_PLAYER_UID] = { "player_uid", 'p' },
     [RSCACHE_CS2_TYPE_TYPE] = { "type", 0 },
+    [RSCACHE_CS2_TYPE_DBROW] = { "dbrow", 0xD0 },
 };
 
 const char*
@@ -349,6 +350,7 @@ static struct RSCache_CS2_Prototype cs2_prototypes[RSCACHE_CS2_PROTO_COUNT_] = {
     [RSCACHE_CS2_PROTO_NPC_UID] = CS2_PLAIN(NPC_UID),
     [RSCACHE_CS2_PROTO_PLAYER_UID] = CS2_PLAIN(PLAYER_UID),
     [RSCACHE_CS2_PROTO_SPOTANIM] = CS2_PLAIN(SPOTANIM),
+    [RSCACHE_CS2_PROTO_DBROW] = CS2_PLAIN(DBROW),
 
     [RSCACHE_CS2_PROTO_OPBASE] = CS2_NAMED(STRING, "opbase"),
     [RSCACHE_CS2_PROTO_MOUSEX] = CS2_NAMED(INT, "mousex"),

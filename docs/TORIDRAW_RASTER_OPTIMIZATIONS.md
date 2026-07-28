@@ -79,10 +79,9 @@ Both correctness defects in
   `(v + (v>>8) + 1) >> 8` for the division, which is bit-identical to `v / 255`
   across the whole `0 .. 255*255` range a channel blend can produce (verified
   exhaustively). The divides still go away; the pixels do not move.
-- **#2** — shipped for the scalar fallback as well as NEON, because fixing
-  Appendix A2 in that file required restructuring the same loop. The AVX and
-  SSE variants still carry the original double-divide; they are not built on
-  this target and were left alone rather than changed blind.
+- **#2** — shipped for all five span implementations: NEON, scalar, SSE2,
+  SSE4.1 and AVX2. See [x86 span variants](#x86-span-variants) for how the
+  non-native ones were verified.
 - **#8, #9** — see below.
 
 ---
@@ -1671,7 +1670,17 @@ folded-stack workflow exists. For per-item attribution the useful split is:
 - **#12** — pick cost. `TORIRS_SIM_MOUSE_CLICK` / `SIM_HOVER` drive it
   deterministically.
 
-Items #1, #4, #5, #7, #10, #11 are behavior-preserving and can go in without a
-pixel diff. Items #2, #6, #8, #9 change output bits (bounded, sub-LSB or
-sub-pixel) and want a screenshot comparison against the current build first.
-Item #12 changes only degenerate-boundary behavior.
+### What actually happened
+
+The prediction that #2, #6, #8 and #9 would "change output bits" was right
+about the risk and wrong about which items. #2 and #6 turned out to be
+implementable exactly (the `w_n == 0` degenerate block never arises in
+practice, and `/255` has an exact shift form), so they ship bit-identical. #8
+and #9 were the ones that genuinely could not be — and #8 was also the only
+item on the list that turned out to be a *pessimization*.
+
+The lesson worth carrying: on this target, a 32-bit integer divide is cheap
+enough that table-lookup reciprocals lose to it once the table is big enough to
+miss cache. The wins here all came from removing *work* — redundant traversals,
+re-clipping, recomputed reciprocals, per-pixel function calls — not from
+replacing arithmetic with cleverer arithmetic.
