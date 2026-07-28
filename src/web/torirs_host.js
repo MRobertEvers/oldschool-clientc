@@ -516,8 +516,47 @@
         if (match) { log('torirs: io server has ' + match[1] + ' open'); }
       })
       .catch(function () { /* older server, or none: not worth a message */ });
+    installMemtraceButton();
     window.requestAnimationFrame(hostFrame);
   };
+
+  // MEMTRACE=1 builds only: the page has no exit for the tracer to flush on, so
+  // the button is the flush. It closes the trace for good — recording does not
+  // resume afterwards — which is why it is a deliberate click rather than
+  // something that happens on unload.
+  function installMemtraceButton() {
+    if (typeof Module._torirs_memtrace_web_flush !== 'function') { return; }
+    var header = document.querySelector('header');
+    if (!header) { return; }
+    var button = document.createElement('button');
+    button.textContent = 'download memtrace.bin';
+    button.title = 'Flush and download the heap trace. Ends recording for this session.';
+    button.onclick = function () {
+      button.disabled = true;
+      Module._torirs_memtrace_web_flush();
+      // UTF8ToString is not in EXPORTED_RUNTIME_METHODS; HEAPU8 is, and the
+      // path is plain ASCII, so read the C string out of the heap directly.
+      var addr = Module._torirs_memtrace_web_path();
+      var path = '';
+      while (Module.HEAPU8[addr]) { path += String.fromCharCode(Module.HEAPU8[addr++]); }
+      var bytes;
+      try {
+        bytes = Module.FS.readFile(path);
+      } catch (e) {
+        log('memtrace: cannot read ' + path + ' — ' + e, true);
+        return;
+      }
+      var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = 'memtrace.bin';
+      link.click();
+      URL.revokeObjectURL(url);
+      log('memtrace: wrote ' + bytes.length + ' bytes — analyse with ' +
+          'tools/memtrace/summarize.py, or open memtrace_viewer.html');
+    };
+    header.appendChild(button);
+  }
 
   Module.setStatus = function (text) { if (text) { setStatus(text); } };
 })();

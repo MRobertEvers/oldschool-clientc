@@ -283,6 +283,7 @@ kind_for_pack(const char* filename)
         { "varp.pack", SSC_SYM_VARP },
         { "varbit.pack", SSC_SYM_VARBIT },
         { "varn.pack", SSC_SYM_VARN },
+        { "vars.pack", SSC_SYM_VARS },
         { "enum.pack", SSC_SYM_ENUM },
         { "struct.pack", SSC_SYM_STRUCT },
         { "param.pack", SSC_SYM_PARAM },
@@ -379,4 +380,124 @@ SSC_SymbolsLoadConstantDir(
     }
     closedir(handle);
     return loaded;
+}
+
+/* ------------------------------------------------------------------ */
+/* Built-in enumerations                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A few argument types are language-level enumerations with no `.pack` file:
+ * content writes `npc_setmode(wander)` with no sigil and no symbol table entry.
+ * Those names have to come from somewhere, so they are seeded here.
+ *
+ * Only npc_mode is seeded, because it is the only one whose values are
+ * recoverable from the reference tree (engine/src/engine/entity/NpcMode.ts).
+ * `stat`, `npc_stat` and `locshape` are also bare-name enumerations, and their
+ * value lists are not in the checkout — deliberately NOT guessed. A wrong stat
+ * id compiles cleanly and silently reads the wrong skill, which is worse than
+ * the compile error content gets today.
+ */
+void
+SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
+{
+    static const struct
+    {
+        const char* name;
+        int32_t value;
+    } k_npc_mode[] = {
+        { "null", -1 },          { "none", 0 },
+        { "wander", 1 },         { "patrol", 2 },
+        { "playerescape", 3 },   { "playerfollow", 4 },
+        { "playerface", 5 },     { "playerfaceclose", 6 },
+        { "opplayer1", 7 },      { "opplayer2", 8 },
+        { "opplayer3", 9 },      { "opplayer4", 10 },
+        { "opplayer5", 11 },     { "applayer1", 12 },
+        { "applayer2", 13 },     { "applayer3", 14 },
+        { "applayer4", 15 },     { "applayer5", 16 },
+        { "oploc1", 17 },        { "oploc2", 18 },
+        { "oploc3", 19 },        { "oploc4", 20 },
+        { "oploc5", 21 },        { "aploc1", 22 },
+        { "aploc2", 23 },        { "aploc3", 24 },
+        { "aploc4", 25 },        { "aploc5", 26 },
+        { "opobj1", 27 },        { "opobj2", 28 },
+        { "opobj3", 29 },        { "opobj4", 30 },
+        { "opobj5", 31 },        { "apobj1", 32 },
+        { "apobj2", 33 },        { "apobj3", 34 },
+        { "apobj4", 35 },        { "apobj5", 36 },
+        { "opnpc1", 37 },        { "opnpc2", 38 },
+        { "opnpc3", 39 },        { "opnpc4", 40 },
+        { "opnpc5", 41 },        { "apnpc1", 42 },
+        { "apnpc2", 43 },        { "apnpc3", 44 },
+        { "apnpc4", 45 },        { "apnpc5", 46 },
+    };
+    size_t i;
+
+    /* RuneScript's locshape names, in the order the cache's loc `shape` field
+     * uses. Cross-checked against RSCACHE_LOC_SHAPE_* in
+     * 3rd/rscache/src/datatypes/dat2_config_loc.h — the same 0..22 numbering
+     * the collision map already relies on. */
+    static const char* const k_locshape[] = {
+        "wall_straight",
+        "wall_diagonalcorner",
+        "wall_l",
+        "wall_squarecorner",
+        "walldecor_straight_nooffset",
+        "walldecor_straight_offset",
+        "walldecor_diagonal_offset",
+        "walldecor_diagonal_nooffset",
+        "walldecor_diagonal_both",
+        "wall_diagonal",
+        "centrepiece_straight",
+        "centrepiece_diagonal",
+        "roof_straight",
+        "roof_diagonal_with_roofedge",
+        "roof_diagonal",
+        "roof_l_concave",
+        "roof_l_convex",
+        "roof_flat",
+        "roofedge_straight",
+        "roofedge_diagonalcorner",
+        "roofedge_l",
+        "roofedge_squarecorner",
+        "grounddecor",
+    };
+
+    /* ScriptVarType char codes. A `type`-typed argument is the type itself:
+     * `enum(int, string, my_enum, $key)` passes 105 and 115. Values are the
+     * char codes from ScriptVarType.getTypeChar in the reference. */
+    static const struct
+    {
+        const char* name;
+        int32_t value;
+    } k_types[] = {
+        { "int", 105 },        { "string", 115 },     { "enum", 103 },
+        { "obj", 111 },        { "loc", 108 },        { "component", 73 },
+        { "namedobj", 79 },    { "struct", 74 },      { "boolean", 49 },
+        { "coord", 99 },       { "category", 121 },   { "spotanim", 116 },
+        { "npc", 110 },        { "inv", 118 },        { "synth", 80 },
+        { "seq", 65 },         { "stat", 83 },        { "varp", 86 },
+        { "player_uid", 112 }, { "npc_uid", 78 },     { "interface", 97 },
+        { "npc_stat", 254 },   { "idkit", 75 },       { "dbrow", 208 },
+        { "midi", 77 },        { "autoint", 255 },
+    };
+
+    /* `null` already means -1 in the expression parser, so seeding it here is
+     * harmless duplication rather than a conflict. */
+    for( i = 0; i < sizeof(k_npc_mode) / sizeof(k_npc_mode[0]); i++ )
+    {
+        if( !SSC_SymbolsFind(symbols, k_npc_mode[i].name, SSC_SYM_UNKNOWN) )
+            SSC_SymbolsAdd(symbols, k_npc_mode[i].name, k_npc_mode[i].value,
+                           SSC_SYM_NPC_MODE, NULL);
+    }
+    for( i = 0; i < sizeof(k_locshape) / sizeof(k_locshape[0]); i++ )
+    {
+        if( !SSC_SymbolsFind(symbols, k_locshape[i], SSC_SYM_UNKNOWN) )
+            SSC_SymbolsAdd(symbols, k_locshape[i], (int32_t)i, SSC_SYM_LOCSHAPE, NULL);
+    }
+    for( i = 0; i < sizeof(k_types) / sizeof(k_types[0]); i++ )
+    {
+        if( !SSC_SymbolsFind(symbols, k_types[i].name, SSC_SYM_UNKNOWN) )
+            SSC_SymbolsAdd(symbols, k_types[i].name, k_types[i].value, SSC_SYM_TYPE, NULL);
+    }
 }

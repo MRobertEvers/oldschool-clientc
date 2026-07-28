@@ -16,12 +16,10 @@
  * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
 #include "platform/platform_sdl2_renderer_gl3.h"
 #endif
-/* Which renderer a plain run gets. Soft3D natively (the GPU path is opt-in via
- * --opengl3); the GPU path on the web, where software rasterizing into a canvas
- * costs far more than handing the same triangles to WebGL. */
-#if !defined(TORIRS_GPU_DEFAULT)
+/* The GPU renderer is opt-in on every host: --opengl3 natively, --webgl1 in
+ * the browser. Soft3D is what a plain run gets, so a rendering difference is
+ * always attributable to a flag someone passed. */
 #define TORIRS_GPU_DEFAULT 0
-#endif
 #include "render/torirs_frame.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
@@ -1109,18 +1107,35 @@ main(
             uncapped = 1;
             continue;
         }
+        /* Two spellings for one renderer, because they are not the same
+         * renderer to the person passing them: --opengl3 is desktop GL 3.2,
+         * --webgl1 is GLES2 in a browser. Each build accepts only the one it
+         * can actually do, so a flag that would silently do nothing is an
+         * error with the right alternative named instead. */
         if( strcmp(argv[argi], "--opengl3") == 0 )
         {
-#if defined(TORIRS_HAVE_GL3)
+#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
             use_opengl3 = 1;
             continue;
+#elif defined(TORIRS_GL_ES2)
+            fprintf(stderr, "torirs: this build renders through WebGL1 — use --webgl1\n");
+            return 1;
 #else
             fprintf(stderr, "torirs: --opengl3 is not available in this build\n");
             return 1;
 #endif
         }
-        /* The other direction, for a host where the GPU renderer is the
-         * default: fall back to the software rasterizer. */
+        if( strcmp(argv[argi], "--webgl1") == 0 )
+        {
+#if defined(TORIRS_GL_ES2)
+            use_opengl3 = 1;
+            continue;
+#else
+            fprintf(stderr, "torirs: --webgl1 is the browser build's flag — use --opengl3\n");
+            return 1;
+#endif
+        }
+        /* Explicit software rasterizer, for a host where the GPU path is on. */
         if( strcmp(argv[argi], "--soft3d") == 0 )
         {
             use_opengl3 = 0;
@@ -1148,7 +1163,7 @@ main(
             "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
             "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
             "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3|--soft3d]\n",
+            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3|--webgl1|--soft3d]\n",
             argv[0]);
         return 1;
     }

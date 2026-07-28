@@ -46,7 +46,7 @@ What the web block swaps:
 |---|---|---|
 | IO | `platform_x_io.c` (reads the cache) | `platform_x_io_web.c` (asks the IO server) |
 | audio | `platform_audio_sdl2.c` | `platform_audio_wasm.c` (WebAudio) |
-| 3D | Soft3D, or `--opengl3` for GL 3.2 | WebGL1 by default, `--soft3d` to opt out |
+| 3D | Soft3D, or `--opengl3` for GL 3.2 | Soft3D, or `--webgl1` for WebGL1 |
 | frame loop | `while (frame_loop_step())` | `emscripten_set_main_loop` |
 
 ## Running it
@@ -156,9 +156,12 @@ and the 2D batcher are the same code on both, so a fix to any of them lands on
 both. `TORIRS_GL_ES2` selects what genuinely differs, and the WebGL1 pieces
 live in [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/).
 
-It is the default on the web: software rasterizing 765×503 into a canvas costs
-far more in wasm than handing the same triangles to the browser. `--soft3d`
-falls back. On startup the client says which context it got, because a renderer
+It is opt-in on both hosts — `--opengl3` natively, `--webgl1` in the browser
+(so `…&arg=--webgl1` in the page's query string). Each build accepts only the
+spelling it can honour, and names the other rather than silently ignoring the
+flag. A plain run is Soft3D on both, so a rendering difference is always
+attributable to a flag someone passed. On startup the client says which context
+it got, because a renderer
 running on something other than what it was written for is worth seeing on line
 one rather than deducing from a black screen:
 
@@ -207,6 +210,33 @@ lacks, with the base folded into the `glVertexAttribPointer` offsets instead.
 chunk and draws. The split is a scan, not a sort: a range's indices come from
 faces walked in painter order over one baked model, so they are already
 clustered and a chunk usually swallows a whole range.
+
+### Known defect: the minimap base
+
+The minimap's terrain layer does not render under `--webgl1`: the path
+outlines, trees and dots draw correctly over a flat two-tone wash where the
+green/water/building fill should be. The compass reads wrong for the same
+reason — it sits on that base.
+
+What is established:
+
+- **It is this renderer, not the data.** The same wasm build with `--soft3d`
+  produces a minimap identical to native (175 distinct colours over the disc,
+  matching top-3 counts); with `--webgl1` it is 461 and the wrong ones.
+- **It is not the GPU renderer generally.** Native `--opengl3` and native
+  Soft3D sample pixel-identical over that region.
+- **WebGL rejects nothing.** Chrome reports no `INVALID_OPERATION` and no
+  context loss for the whole frame, so no draw or upload is being dropped.
+- **Not the canvas.** `getContextAttributes()` reports `alpha: false`, so
+  premultiplied-alpha compositing cannot be misreading it.
+- **Not the atlas cap below.** Rebuilt with the desktop 4096 atlas: byte-identical
+  wrong output.
+
+A flat wash rather than black is what a textured quad gives when it falls back
+to the 1×1 white texture (`tex * v_color` leaves the vertex colour), or when it
+samples a degenerate UV range. The minimap is the only sprite that goes through
+`gl3_sprite_ensure_rotated_masked` with `uv_clamp` on, so its UVs and the
+`u_uv_bounds` discard in the 2D fragment shader are where to look next.
 
 ### Atlas size
 

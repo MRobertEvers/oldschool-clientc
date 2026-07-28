@@ -431,32 +431,61 @@ if( group_hosts_a_mount(self->tree, group) )
 caused it — that print is what found this, and "which root did the tree just
 hide" is invisible from anywhere else, so it stayed.
 
-### Still open: clicking "continue" does not advance the page
+### Making the continue button live: IF_SETEVENTS
 
-The dialogue renders — chathead, name, body, continue prompt — and the server
-side is complete and self-tested. What does not work yet is advancing it from
-the client.
-
-A click lands on the right component:
+At rev 230 nothing is clickable by default. A component the server never
+enabled produces no menu row however clickable it looks, so the first version of
+this rendered a perfect dialogue that swallowed every click:
 
 ```
 click: miss=0 (0,0) com=0xe70005 gate=-1 drawable=1 picks=0
 ```
 
-`0xe70005` is 231:5, and `picks=0` is the problem: the component produced no
-menu option, so nothing dispatched. `RS_Minimenu_IfButtonActionForType` derives
-the action from a component's `button_type`, which is an IF1 concept; 231:5 is
-IF3 and carries `button=0` with `clickMask=0x1`. At rev 230 a component becomes
-clickable because the server said so via **IF_SETEVENTS**, which this client
-still drops (docs 3.6) — so `if_addresumebutton` has no way to make the button
-live.
+`0xe70005` is 231:5 — the hit was right, `picks=0` was the problem.
+`RS_Minimenu_IfButtonActionForType` derives a row from `button_type`, an IF1
+concept; 231:5 is IF3 with `button=0` and `clickMask=0x1`.
 
-That is the same follow-up already on the list, now with a concrete consumer:
-honour IF_SETEVENTS, and send IF_BUTTON for a component whose events bit is set.
-The mock already tracks the registered buttons and matches them by full uid;
-`mock230_scripts_resume_button` is driven directly by the selftest, which covers
-the whole multi-page flow including rejecting a click on another interface's
-component 5.
+IF_SETEVENTS (op 47) is now wired end to end:
+
+- parsed in `osrs230_parse.c`. It packs four different byte orders into twelve
+  bytes — p4Alt3 uid, p2Alt2 start, p4Alt1 events, p2 end — which is why it
+  cannot go through the shared parser;
+- persisted by `App_IfEventsSet`, like IF_SETHIDE, because the server enables a
+  component before the interface holding it has mounted;
+- consulted by `add_component_rows` through a callback on
+  `RS_MinimenuBuildCtx`, so the minimenu still knows nothing about the App. A
+  component with the click bit set gets a row labelled with its own text, which
+  is the string the player is already reading.
+
+Server side, `if_addresumebutton` now sends IF_SETEVENTS as well as recording
+the uid — registering the button without enabling it is exactly the
+looks-right-does-nothing case above. Inbound, IF_BUTTON is tried as a resume
+first: rev 230 has no separate resume opcode in practice, and a click matching
+no registered button falls through, which keeps sidebar tabs (switched
+client-side on a varc) a no-op.
+
+The whole loop then works: `~chatnpc` opens the dialogue and suspends, the
+player clicks, IF_BUTTON arrives, `mock230_scripts_resume_button` matches it by
+full uid, and the script continues to the next page.
+
+### NPC speech has no overhead text in this client
+
+`npc_say` originally set the NPC_INFO SAY mask. That decodes correctly and
+reaches `World_NpcSetChat` — but **nothing reads `entity->chat` back**;
+`world.c` is the only file that touches it. Overhead bubbles are not
+implemented, so npc speech rendered nowhere while looking correct at every other
+level: the mask was set, the payload grew, the client parsed it.
+
+The mock now sends npc speech to the chatbox as `"<name>: <text>"`. That is
+visible, and it keeps `npc_say`'s fire-and-forget semantics — routing it through
+a modal dialogue would have made a non-blocking command blocking. Content is
+unchanged; scripts still write `npc_say`.
+
+The speaker's name comes from `mock230_npcinfo.c`, which decodes the npc config
+table the same way `mock230_objinfo.c` decodes objs (14,205 records). It also
+backs `npc_name`.
+
+Facing the player is kept on the SAY path, because FACE_ENTITY does render.
 
 ## 4. Client fix this work required: the inv half of the transmit loop
 

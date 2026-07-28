@@ -75,12 +75,10 @@ else ifeq ($(PLATFORM),web)
   # returning int — a truncated pointer, and a crash far from the call.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE
   # TORIRS_GL_ES2 builds the GPU renderer against WebGL1 (GLES2, no
-  # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all, and
-  # TORIRS_GPU_DEFAULT makes it the one a plain run uses — Soft3D in wasm is
-  # far slower than the browser's own rasterizer, so --soft3d is the opt-out
-  # here rather than the other way round.
+  # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all. It is
+  # opt-in, like the desktop one: pass --webgl1 (in the page's query string).
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
-                      -DTORIRS_GL_ES2=1 -DTORIRS_HAVE_GL3=1 -DTORIRS_GPU_DEFAULT=1 \
+                      -DTORIRS_GL_ES2=1 -DTORIRS_HAVE_GL3=1 \
                       -Wno-unknown-warning-option
 
   # Nothing is baked into the module. The files the client opens by name — the

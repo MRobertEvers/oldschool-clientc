@@ -22,6 +22,37 @@ is_digit(int c)
     return c >= '0' && c <= '9';
 }
 
+static int
+is_letter(int c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+/**
+ * Does the run starting at `pos` spell a name rather than a number?
+ *
+ * Names may begin with digits — `3dose1strength`, `2_handedsign` — and some
+ * begin with something a coord literal is indistinguishable from:
+ * `0_41_53_compofishspot` opens exactly like `0_41_53_9_20`. Consuming digits
+ * and underscores and then looking for a letter is what tells them apart, and
+ * it has to scan the whole run: stopping at the first underscore would read
+ * `0_41_53` as a coord and leave a stray identifier behind.
+ */
+static int
+looks_like_identifier(const struct SSC_Lexer* lexer, size_t pos)
+{
+    /* Hex literals open with a digit followed by a letter, which is exactly the
+     * shape this function otherwise calls a name — so 0x has to be settled
+     * first or `0xFFFFFFFF` lexes as an identifier. */
+    if( pos + 1 < lexer->length && lexer->source[pos] == '0' &&
+        (lexer->source[pos + 1] == 'x' || lexer->source[pos + 1] == 'X') )
+        return 0;
+
+    while( pos < lexer->length && (is_digit(lexer->source[pos]) || lexer->source[pos] == '_') )
+        pos++;
+    return pos < lexer->length && is_letter(lexer->source[pos]);
+}
+
 void
 SSC_LexInit(
     struct SSC_Lexer* lexer,
@@ -80,15 +111,37 @@ skip_trivia(struct SSC_Lexer* lexer)
     }
 }
 
-/** Read a name, allowing the `interface:component` qualified form. */
+/**
+ * Read a name, allowing the `interface:component` qualified form.
+ *
+ * Names may also contain `+` and `-`: 21 obj names look like
+ * `premade_cheese+tom_batta`, and one midi is `music_Jolly-R`. Those are the
+ * same characters `calc()` uses as operators, so the two are told apart by
+ * spacing — a sign continues a name only when it is tight against a letter on
+ * the far side. That is safe because no calc() expression in the whole corpus
+ * writes an operator without surrounding whitespace, and a `$local` or a digit
+ * after the sign never merges either way.
+ */
 static void
 read_ident(struct SSC_Lexer* lexer, struct SSC_Token* token)
 {
     size_t start = lexer->pos;
     size_t length;
 
-    while( lexer->pos < lexer->length && is_ident_char(lexer->source[lexer->pos]) )
-        lexer->pos++;
+    for( ;; )
+    {
+        while( lexer->pos < lexer->length && is_ident_char(lexer->source[lexer->pos]) )
+            lexer->pos++;
+
+        if( lexer->pos + 1 < lexer->length &&
+            (lexer->source[lexer->pos] == '+' || lexer->source[lexer->pos] == '-') &&
+            is_ident_start(lexer->source[lexer->pos + 1]) )
+        {
+            lexer->pos++;
+            continue;
+        }
+        break;
+    }
 
     /* A single colon joins two halves of one name (`multi2:com_1`). A colon
      * followed by anything else is punctuation — switch cases end with one. */
@@ -241,6 +294,20 @@ scan(struct SSC_Lexer* lexer, struct SSC_Token* token)
     }
 
     if( is_digit(c) )
+    {
+        if( looks_like_identifier(lexer, lexer->pos) )
+        {
+            read_ident(lexer, token);
+            token->kind = SSC_TOK_IDENT;
+            return;
+        }
+        read_number(lexer, token);
+        return;
+    }
+
+    /* A minus tight against a digit is a negative literal, not the operator —
+     * content writes `queue(script, 3, -1)`. read_number consumes the sign. */
+    if( c == '-' && lexer->pos + 1 < lexer->length && is_digit(lexer->source[lexer->pos + 1]) )
     {
         read_number(lexer, token);
         return;

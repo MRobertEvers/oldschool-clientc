@@ -111,6 +111,15 @@ static _Atomic int g_closed;
 static struct TorIRS_MemTrace_EventRecord g_ring[TORIRS_MEMTRACE_RING_CAP];
 static uint32_t g_ring_count;
 
+/* 324 bytes land on disk per event and a client boot allocates millions of
+ * times, so an unbounded trace is measured in gigabytes. TORIRS_MEMTRACE_MAX
+ * caps the number of *recorded* events; live-byte accounting keeps running
+ * past the cap, so the totals stay right even once the stream stops. */
+static uint64_t g_max_events;
+static _Atomic uint64_t g_event_count;
+static _Atomic uint64_t g_recorded_count;
+static _Atomic uint64_t g_peak_bytes;
+
 static __thread int tls_in_hook;
 
 #if defined(__EMSCRIPTEN__)
@@ -382,8 +391,12 @@ torirs_memtrace_record_event(
 {
     if( tls_in_hook || !atomic_load(&g_initialized) || atomic_load(&g_closed) )
         return;
+    const uint64_t seq = atomic_fetch_add(&g_event_count, 1ull);
+    if( g_max_events && seq >= g_max_events )
+        return;
 
     tls_in_hook = 1;
+    atomic_fetch_add(&g_recorded_count, 1ull);
 
     struct TorIRS_MemTrace_EventRecord rec;
     memset(&rec, 0, sizeof(rec));
@@ -409,7 +422,12 @@ torirs_memtrace_account_alloc(void* ptr, size_t req_size)
         return;
     const size_t usable = torirs_memtrace_usable_size(ptr);
     (void)req_size;
-    atomic_fetch_add(&g_live_bytes, (uint64_t)usable);
+    const uint64_t live =
+        atomic_fetch_add(&g_live_bytes, (uint64_t)usable) + (uint64_t)usable;
+    uint64_t peak = atomic_load(&g_peak_bytes);
+    while( live > peak
+           && !atomic_compare_exchange_weak(&g_peak_bytes, &peak, live) )
+        ;
 }
 
 static void
@@ -734,6 +752,10 @@ torirs_memtrace_init_once(void)
 
     torirs_memtrace_resolve_real();
 
+    const char* max_events = getenv("TORIRS_MEMTRACE_MAX");
+    if( max_events && max_events[0] )
+        g_max_events = strtoull(max_events, NULL, 0);
+
     const char* path = getenv("TORIRS_MEMTRACE_OUT");
     if( !path || !path[0] )
         path = TORIRS_MEMTRACE_DEFAULT_PATH;
@@ -775,6 +797,22 @@ torirs_memtrace_flush(void)
 
     close(g_trace_fd);
     g_trace_fd = -1;
+
+    /* The totals stay correct past TORIRS_MEMTRACE_MAX (only the recording
+     * stops), so this line answers "how big is the heap, and did it come
+     * back down" without decoding the trace at all. */
+    const int prev_hook = tls_in_hook;
+    tls_in_hook = 1;
+    fprintf(
+        stderr,
+        "memtrace: %llu events (%llu recorded), peak live %.1f MB, "
+        "still live at exit %.1f MB -> %s\n",
+        (unsigned long long)atomic_load(&g_event_count),
+        (unsigned long long)atomic_load(&g_recorded_count),
+        (double)atomic_load(&g_peak_bytes) / (1024.0 * 1024.0),
+        (double)atomic_load(&g_live_bytes) / (1024.0 * 1024.0),
+        g_trace_path);
+    tls_in_hook = prev_hook;
 }
 
 static void
@@ -995,16 +1033,18 @@ __wrap_strdup(const char* s)
 #endif
 
 #if defined(__EMSCRIPTEN__)
+/* The page has no exit to flush on: it calls these to close the trace and find
+ * it in MEMFS. Flushing ends recording for the rest of the session. */
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_MemtraceFlush(void)
+torirs_memtrace_web_flush(void)
 {
     torirs_memtrace_flush();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char*
-LibToriPlatformEmscripten_JSHost_MemtracePath(void)
+torirs_memtrace_web_path(void)
 {
     return g_trace_path;
 }

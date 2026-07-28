@@ -287,14 +287,21 @@ $(TARGET): $(OBJS)
 # `make -C src web` builds the emscripten flavor and copies the JS host
 # harness next to the module, so build-web/ is a complete servable directory.
 # The IO server (below) serves it, and answers the client's cache reads.
+#
+# With MEMTRACE=1 the standalone trace viewer is copied in beside them, so the
+# .bin the page downloads can be opened without leaving build-web/.
+WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js
+ifeq ($(MEMTRACE),1)
+WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
+endif
 web:
-	$(MAKE) PLATFORM=web OPT=1 all
-	@cp $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js $(REPO_ROOT)/build-web/
+	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
 	@echo "built $(REPO_ROOT)/build-web/torirs.js — serve with: make -C src io-server && ./src/build/io_server <cache_dir>"
 
 web-debug:
-	$(MAKE) PLATFORM=web OPT=0 all
-	@cp $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js $(REPO_ROOT)/build-web/
+	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
 
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
@@ -796,11 +803,13 @@ test-bootmanifest: $(OBJ_DIR)
 
 clean:
 	rm -rf build build_opt build_web build_web_opt torirs .last_flavor
+	rm -rf build_mt build_opt_mt build_web_mt build_web_opt_mt
 	# Only our own outputs: build-web/ is a plain output directory that other
 	# experiments have also written into.
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \
 		$(REPO_ROOT)/build-web/torirs.data $(REPO_ROOT)/build-web/torirs.wasm.map \
-		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js
+		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js \
+		$(REPO_ROOT)/build-web/viewer.html
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read

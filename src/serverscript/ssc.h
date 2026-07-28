@@ -32,7 +32,11 @@
 
 enum
 {
-    SSC_MAX_SCRIPTS = 4096,
+    /* LostCity's own content is 9,334 scripts, so this is not a theoretical
+     * bound. It was 4096, and the declare pass silently dropped every name past
+     * it — which surfaced as "no proc named update_all" for a proc that plainly
+     * exists, in a file the compiler had already read. */
+    SSC_MAX_SCRIPTS = 16384,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
     SSC_MAX_SWITCH_TABLES = 32,
@@ -71,6 +75,10 @@ enum SSC_SymbolKind
     SSC_SYM_VARP,
     SSC_SYM_VARBIT,
     SSC_SYM_VARN,
+    SSC_SYM_VARS,
+    SSC_SYM_NPC_MODE,
+    SSC_SYM_LOCSHAPE,
+    SSC_SYM_TYPE,
     SSC_SYM_ENUM,
     SSC_SYM_STRUCT,
     SSC_SYM_PARAM,
@@ -133,6 +141,15 @@ int
 SSC_SymbolsLoadPackDir(
     struct SSC_Symbols* symbols,
     const char* dir);
+
+/**
+ * Seed language-level enumerations that have no `.pack` file.
+ *
+ * Content writes `npc_setmode(wander)` bare, so those names must exist before
+ * anything compiles. Call after the packs, so real content wins a collision.
+ */
+void
+SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols);
 
 /** Loads every `*.constant` under a directory tree. */
 int

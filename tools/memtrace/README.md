@@ -2,9 +2,10 @@
 
 Memtrace records every heap allocation and free with call stacks, sizes, and running live-heap totals. Traces are written to a compact binary file (`memtrace.bin` by default) and can be explored in a self-contained HTML viewer.
 
-**Source:** [`src2/platforms/torirs_memtrace.c`](../../src2/platforms/torirs_memtrace.c)  
+**Source:** [`src/platform/torirs_memtrace.c`](../../src/platform/torirs_memtrace.c) (v1's copy is at `v1/platforms/`)  
 **Viewer:** [`viewer.html`](viewer.html)  
-**Offline decoder:** [`decode_memtrace.py`](decode_memtrace.py)
+**Site summary:** [`summarize.py`](summarize.py) — start here for a large trace  
+**Offline decoder:** [`decode_memtrace.py`](decode_memtrace.py) — per-event JSONL
 
 ---
 
@@ -48,48 +49,73 @@ On **WASM** builds, stacks are captured via `emscripten_get_callstack` and store
 ### Runtime behavior
 
 - Events are buffered in a ring (4096 records) and flushed to disk periodically and on exit.
-- Default output path: `memtrace.bin` in the process working directory.
-- Override with the `TORIRS_MEMTRACE_OUT` environment variable.
-- WASM writes into Emscripten MEMFS; the browser integration reads it via `FS_readFile`.
+- Default output path: `memtrace.bin` in the process working directory. **A tracked `memtrace.bin` already sits at the repo root** — set `TORIRS_MEMTRACE_OUT` rather than overwriting it.
+- `TORIRS_MEMTRACE_MAX=<n>` stops recording after *n* events. Live-byte accounting keeps running past the cap, so the exit summary stays accurate while the file stays small — a client boot is ~2.7M events, and every event is 324 bytes on disk.
+- On close the tracer prints one line to stderr: event count, peak live bytes, still-live bytes. That alone answers "how big does the heap get" with no decoding step.
+- WASM writes into Emscripten MEMFS; the page reads it via `FS_readFile`.
 
 ---
 
 ## Building
 
+`MEMTRACE=1` is a build flavor with its own object directory (`build_mt`, `build_opt_mt`, `build_web_mt`, `build_web_opt_mt`) — the `-fno-builtin-*` flags it needs reach every translation unit, so its objects must not mix with a plain build's. Note that all native flavors link the same `src/torirs`, so a plain `make -C src` in another terminal silently replaces the traced binary.
+
+### Native
+
+```bash
+make -C src MEMTRACE=1
+TORIRS_MEMTRACE_OUT=/tmp/boot.bin ./src/torirs --manifest manifest_osrs230.ini --offline
+```
+
+Headless capture of a boot (no window, exits after N frames):
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+TORIRS_MEMTRACE_OUT=/tmp/boot.bin TORIRS_MEMTRACE_MAX=3000000 \
+TORIRS_EXIT_BMP=/tmp/boot.bmp TORIRS_MAX_FRAMES=60 \
+./src/torirs --manifest manifest_osrs230.ini --offline --soft3d
+```
+
 ### Browser / WASM
 
 ```bash
-make -C src2/programs/browser MEMTRACE=1 clean all
+make -C src MEMTRACE=1 web
+make -C src io-server
+./src/build/io_server --manifest manifest_osrs230.ini --root build-web --port 8088
 ```
 
-This links `torirs_memtrace.c`, exports `FS` / `FS_readFile`, copies [`viewer.html`](viewer.html) to `dist/memtrace_viewer.html`, and shows a **Memtrace** button in the shell when instrumentation is available.
-
-Serve `dist/`:
-
-```bash
-python3 -m http.server -d src2/programs/browser/dist 8080
-```
-
-Open http://localhost:8080/ — the **Memtrace** button appears in the header after the WASM module loads.
-
-### Native (SDL2)
-
-```bash
-make -C src2/programs/sdl2 MEMTRACE=1
-```
-
-Run the binary as usual. On exit (or flush), `memtrace.bin` is written to the current directory (or `TORIRS_MEMTRACE_OUT`). For local tooling, copy or set output under `tools/memtrace/bins/`.
+The page grows a **download memtrace.bin** button in its header once the module is up. Clicking it flushes and downloads the trace — and *ends* recording for that session, since the tracer closes the file. [`viewer.html`](viewer.html) is copied to `build-web/` by the same build, so the downloaded file can be dropped straight into it.
 
 ### Smoke test
 
 ```bash
 # macOS
-cc -DTORIRS_MEMTRACE=1 -I../../src2 -I../.. \
-  ../../src2/platforms/torirs_memtrace.c memtrace_smoke.c -ldl -o memtrace_smoke
+cc -DTORIRS_MEMTRACE=1 -I../../src -I../.. \
+  ../../src/platform/torirs_memtrace.c memtrace_smoke.c -ldl -o memtrace_smoke
 ./memtrace_smoke   # writes memtrace.bin (use TORIRS_MEMTRACE_OUT=bins/memtrace.bin to keep output in bins/)
 ```
 
 See [`memtrace_smoke.c`](memtrace_smoke.c) for the Linux `--wrap` link line.
+
+---
+
+## Summarizing a trace
+
+For anything larger than a toy trace, start with the site summary rather than the viewer or the JSONL decoder:
+
+```bash
+python3 tools/memtrace/summarize.py /tmp/boot.bin --top 20 --depth 8
+```
+
+It streams the records twice — once for the running live total, once to replay the live set up to the peak — and groups by allocation stack, giving three ranked sections:
+
+| Section | Answers |
+|---------|---------|
+| `PEAK` | what was holding the heap at its largest moment |
+| `STILL LIVE AT EXIT` | what never came back — leaks and permanently resident caches |
+| `CHURN` | total bytes ever allocated per site — reallocation pressure and pooling candidates |
+
+Symbolization is batched into one `atos`/`addr2line` call per module, so an 877 MB / 2.7 M-event trace summarizes in about five seconds. `decode_memtrace.py` symbolizes one address per subprocess and is only practical for small traces.
 
 ---
 

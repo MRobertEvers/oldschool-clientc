@@ -2631,6 +2631,26 @@ gl3_ev_sprite(
         return;
     if( spr_cmd->scene_id <= 0 )
         return;
+    /* TORIRS_GL_SPRITE_DEBUG=1: every sprite the frame draws, with the flags
+     * that pick its path. Which path a given widget takes is not obvious from
+     * the command, and it is the first thing to establish when one backend
+     * draws it and another does not. */
+    {
+        static int dbg = -1;
+        static int printed = 0;
+        if( dbg < 0 )
+            dbg = getenv("TORIRS_GL_SPRITE_DEBUG") != NULL;
+        if( dbg && printed < 40 )
+        {
+            printed++;
+            fprintf(
+                stderr,
+                "SPRITE scene=%d idx=%d at=%d,%d wh=%dx%d rot=%d mask=%d tiled=%d if3=%d\n",
+                spr_cmd->scene_id, spr_cmd->atlas_index, spr_cmd->x, spr_cmd->y,
+                spr_cmd->w, spr_cmd->h, spr_cmd->rotated ? spr_cmd->rotation_r2pi2048 : -1,
+                spr_cmd->mask_scene_id, spr_cmd->tiled ? 1 : 0, spr_cmd->if3 ? 1 : 0);
+        }
+    }
     gl3_set_draw_scissor(renderer, spr_cmd->scissor_x, spr_cmd->scissor_y, spr_cmd->scissor_w, spr_cmd->scissor_h);
     alpha = (float)(255 - spr_cmd->trans) / 255.0f;
     if( alpha < 0.0f ) alpha = 0.0f;
@@ -2648,6 +2668,30 @@ gl3_ev_sprite(
         dst_h = spr_cmd->h > 0 ? spr_cmd->h : sp->height;
         if( !gl3_sprite_ensure_rotated_masked(renderer, spr_cmd, sp, mask_uv) )
             return;
+        /* TORIRS_GL_SPRITE_DEBUG=1: the rotated+masked path is the minimap and
+         * the compass, and it is the only 2D draw that carries uv_clamp. When
+         * one backend renders it and another does not, these are the numbers
+         * that differ. */
+        {
+            static int dbg = -1;
+            static int printed = 0;
+            if( dbg < 0 )
+                dbg = getenv("TORIRS_GL_SPRITE_DEBUG") != NULL;
+            if( dbg && printed < 12 )
+            {
+                printed++;
+                fprintf(
+                    stderr,
+                    "SPRITE rotmask scene=%d idx=%d mask=%d/%d rot=%d dst=%dx%d "
+                    "src=%dx%d uv=%.6f,%.6f..%.6f,%.6f at %d,%d\n",
+                    spr_cmd->scene_id, spr_cmd->atlas_index,
+                    spr_cmd->mask_scene_id, spr_cmd->mask_atlas_index,
+                    spr_cmd->rotation_r2pi2048, dst_w, dst_h,
+                    sp ? sp->width : -1, sp ? sp->height : -1,
+                    mask_uv[0], mask_uv[1], mask_uv[2], mask_uv[3],
+                    spr_cmd->x, spr_cmd->y);
+            }
+        }
         gl3_flush_2d_batch(renderer);
         gl3_draw_textured_quad(
             renderer,
@@ -4594,9 +4638,27 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     {
         GLint max_tex = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex);
+#if defined(TORIRS_GL_ES2)
+        /*
+         * 2048 on the web, whatever GL_MAX_TEXTURE_SIZE claims.
+         *
+         * The preferred 4096 atlas is a single 64MB RGBA allocation. Chrome's
+         * software rasterizer drops the whole WebGL context rather than failing
+         * that upload, which surfaces as every later call reporting "object
+         * does not belong to this context" and nothing saying why. A real GPU
+         * takes it fine, so this is a software-GL memory limit rather than a
+         * WebGL1 one — but 2048 is 16MB for 256 slots, the same fallback the
+         * desktop path takes on a small-texture driver, and no cache we ship
+         * needs more.
+         */
+        uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
+        uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_FALLBACK;
+        uint32_t want_cap = TRSPK_GL3_TEX_CAP_FALLBACK;
+#else
         uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_PREF;
         uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_PREF;
         uint32_t want_cap = TRSPK_GL3_TEX_CAP_PREF;
+#endif
         if( max_tex > 0 && (GLint)want_dim > max_tex )
         {
             want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;

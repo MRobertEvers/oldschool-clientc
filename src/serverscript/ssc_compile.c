@@ -239,21 +239,67 @@ script_id_for_name(struct SSC_Compiler* compiler, const char* name)
     return -1;
 }
 
+/*
+ * Resolve a `%name` to the opcodes that read and write it.
+ *
+ * Four namespaces share the sigil — player vars, varbits, npc vars and shared
+ * world vars — and each has its own opcode pair. Which one a name belongs to is
+ * only knowable from the symbol tables, so resolution happens here rather than
+ * at each of the (read, write) call sites.
+ */
+static int
+resolve_variable(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    int* out_push,
+    int* out_pop,
+    int32_t* out_id)
+{
+    static const struct
+    {
+        enum SSC_SymbolKind kind;
+        int push;
+        int pop;
+    } k_kinds[] = {
+        { SSC_SYM_VARP, SS_OP_PUSH_VARP, SS_OP_POP_VARP },
+        { SSC_SYM_VARBIT, SS_OP_PUSH_VARBIT, SS_OP_POP_VARBIT },
+        { SSC_SYM_VARN, SS_OP_PUSH_VARN, SS_OP_POP_VARN },
+        { SSC_SYM_VARS, SS_OP_PUSH_VARS, SS_OP_POP_VARS },
+    };
+    size_t i;
+
+    for( i = 0; i < sizeof(k_kinds) / sizeof(k_kinds[0]); i++ )
+    {
+        const struct SSC_Symbol* symbol =
+            SSC_SymbolsFind(compiler->symbols, name, k_kinds[i].kind);
+
+        if( !symbol )
+            continue;
+        *out_push = k_kinds[i].push;
+        *out_pop = k_kinds[i].pop;
+        *out_id = symbol->value;
+        return 1;
+    }
+    return 0;
+}
+
 /**
  * Resolve a bare name that refers to a script rather than to a value.
  *
- * `queue(my_handler, 3, 0)` names `[queue,my_handler]`, and `settimer(tick_me,
- * 10)` names `[timer,tick_me]` — the argument's declared type is what picks the
- * trigger. Rather than thread the parameter type down here, try each
- * name-addressed trigger in turn: the four namespaces do not overlap in
- * practice, and a name in none of them falls through to the normal error.
+ * `queue(my_handler, 3, 0)` names `[queue,my_handler]`, `settimer(tick_me, 10)`
+ * names `[timer,tick_me]`, and `gosub(helper)` names `[proc,helper]` — the
+ * argument's declared type is what picks the trigger. Rather than thread the
+ * parameter type down here, try each name-addressed trigger in turn: the
+ * namespaces do not overlap in practice, and a name in none of them falls
+ * through to the normal error.
  *
  * Returns the script id, or -1.
  */
 static int
 script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name)
 {
-    static const char* const k_triggers[] = { "queue", "timer", "softtimer", "walktrigger" };
+    static const char* const k_triggers[] = { "proc",      "label", "queue",
+                                              "softtimer", "timer", "walktrigger" };
     size_t i;
 
     for( i = 0; i < sizeof(k_triggers) / sizeof(k_triggers[0]); i++ )
@@ -552,14 +598,13 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 
     case SSC_TOK_VAR:
     {
-        const struct SSC_Symbol* varp = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_VARP);
-        const struct SSC_Symbol* varbit =
-            varp ? NULL : SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_VARBIT);
+        int push;
+        int pop;
+        int32_t id;
 
-        if( !varp && !varbit )
+        if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
-        emit(compiler, varp ? SS_OP_PUSH_VARP : SS_OP_PUSH_VARBIT,
-             varp ? varp->value : varbit->value);
+        emit(compiler, push, id);
         SSC_LexNext(lexer);
         return 1;
     }
@@ -666,14 +711,47 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 /* Conditions                                                          */
 /* ------------------------------------------------------------------ */
 
-/**
- * Compile a condition and emit a branch taken when it is FALSE.
+/*
+ * Conditions.
  *
- * Returning the branch's index lets the caller patch it to whatever follows the
- * guarded block — which is the whole of if/else and while.
+ * `if (a = b & c = d | e = f)` short-circuits, so a condition does not evaluate
+ * to a value on the stack — it compiles to branches. Two lists come out:
+ *
+ *   false_list  branches taken when the condition does not hold; the caller
+ *               patches them past the guarded block
+ *   true_list   branches taken when an alternative already decided the answer
+ *               is yes; the caller patches them to the block's first
+ *               instruction
+ *
+ * Precedence is the usual one: `&` binds tighter than `|`.
  */
+
+#define SSC_MAX_COND_BRANCHES 32
+
+struct SSC_Condition
+{
+    int true_list[SSC_MAX_COND_BRANCHES];
+    int true_count;
+    int false_list[SSC_MAX_COND_BRANCHES];
+    int false_count;
+};
+
 static int
-parse_condition_branch_if_false(struct SSC_Compiler* compiler, int* out_branch)
+cond_push(
+    struct SSC_Compiler* compiler,
+    int* list,
+    int* count,
+    int index)
+{
+    if( *count >= SSC_MAX_COND_BRANCHES )
+        return fail(compiler, "condition has more than %d terms", SSC_MAX_COND_BRANCHES);
+    list[(*count)++] = index;
+    return 1;
+}
+
+/** One comparison. Emits the branch taken when it does NOT hold. */
+static int
+parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
     int left_is_string = 0;
@@ -714,6 +792,70 @@ parse_condition_branch_if_false(struct SSC_Compiler* compiler, int* out_branch)
     return 1;
 }
 
+/** `a & b & c`: every term must hold, so each failure jumps straight out. */
+static int
+parse_and_terms(struct SSC_Compiler* compiler, struct SSC_Condition* cond)
+{
+    for( ;; )
+    {
+        int branch;
+
+        if( !parse_comparison(compiler, &branch) )
+            return 0;
+        if( !cond_push(compiler, cond->false_list, &cond->false_count, branch) )
+            return 0;
+
+        if( !SSC_LexIsPunct(&compiler->lexer, "&") )
+            return 1;
+        SSC_LexNext(&compiler->lexer);
+    }
+}
+
+static int
+parse_condition(struct SSC_Compiler* compiler, struct SSC_Condition* cond)
+{
+    memset(cond, 0, sizeof(*cond));
+
+    for( ;; )
+    {
+        int before = cond->false_count;
+
+        if( !parse_and_terms(compiler, cond) )
+            return 0;
+
+        if( !SSC_LexIsPunct(&compiler->lexer, "|") )
+            return 1;
+        SSC_LexNext(&compiler->lexer);
+
+        /* This alternative held, so the whole condition holds: jump to the
+         * block. The failures it collected only mean "try the next
+         * alternative", so they land here rather than escaping. */
+        {
+            int taken = emit(compiler, SS_OP_BRANCH, 0);
+
+            if( !cond_push(compiler, cond->true_list, &cond->true_count, taken) )
+                return 0;
+            for( int i = before; i < cond->false_count; i++ )
+                patch_to_here(compiler, cond->false_list[i]);
+            cond->false_count = before;
+        }
+    }
+}
+
+static void
+patch_condition_true(struct SSC_Compiler* compiler, struct SSC_Condition const* cond)
+{
+    for( int i = 0; i < cond->true_count; i++ )
+        patch_to_here(compiler, cond->true_list[i]);
+}
+
+static void
+patch_condition_false(struct SSC_Compiler* compiler, struct SSC_Condition const* cond)
+{
+    for( int i = 0; i < cond->false_count; i++ )
+        patch_to_here(compiler, cond->false_list[i]);
+}
+
 /* ------------------------------------------------------------------ */
 /* Statements                                                          */
 /* ------------------------------------------------------------------ */
@@ -742,7 +884,7 @@ static int
 parse_if(struct SSC_Compiler* compiler)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
-    int skip_block;
+    struct SSC_Condition cond;
     int skip_else = -1;
 
     SSC_LexNext(lexer); /* 'if' */
@@ -750,20 +892,21 @@ parse_if(struct SSC_Compiler* compiler)
         return fail(compiler, "expected '(' after if");
     SSC_LexNext(lexer);
 
-    if( !parse_condition_branch_if_false(compiler, &skip_block) )
+    if( !parse_condition(compiler, &cond) )
         return 0;
 
     if( !SSC_LexIsPunct(lexer, ")") )
         return fail(compiler, "expected ')' to close the condition");
     SSC_LexNext(lexer);
 
+    patch_condition_true(compiler, &cond);
     if( !parse_block(compiler) )
         return 0;
 
     if( lexer->current.kind == SSC_TOK_IDENT && strcmp(lexer->current.text, "else") == 0 )
     {
         skip_else = emit(compiler, SS_OP_BRANCH, 0);
-        patch_to_here(compiler, skip_block);
+        patch_condition_false(compiler, &cond);
         SSC_LexNext(lexer);
 
         if( lexer->current.kind == SSC_TOK_IDENT && strcmp(lexer->current.text, "if") == 0 )
@@ -779,7 +922,7 @@ parse_if(struct SSC_Compiler* compiler)
     }
     else
     {
-        patch_to_here(compiler, skip_block);
+        patch_condition_false(compiler, &cond);
     }
     return 1;
 }
@@ -788,8 +931,8 @@ static int
 parse_while(struct SSC_Compiler* compiler)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
+    struct SSC_Condition cond;
     int loop_top;
-    int skip_block;
     int back;
 
     SSC_LexNext(lexer); /* 'while' */
@@ -798,19 +941,20 @@ parse_while(struct SSC_Compiler* compiler)
     SSC_LexNext(lexer);
 
     loop_top = compiler->build.op_count;
-    if( !parse_condition_branch_if_false(compiler, &skip_block) )
+    if( !parse_condition(compiler, &cond) )
         return 0;
 
     if( !SSC_LexIsPunct(lexer, ")") )
         return fail(compiler, "expected ')' to close the condition");
     SSC_LexNext(lexer);
 
+    patch_condition_true(compiler, &cond);
     if( !parse_block(compiler) )
         return 0;
 
     back = emit(compiler, SS_OP_BRANCH, 0);
     compiler->build.int_operands[back] = loop_top - back - 1;
-    patch_to_here(compiler, skip_block);
+    patch_condition_false(compiler, &cond);
     return 1;
 }
 
@@ -1050,8 +1194,16 @@ parse_statement(struct SSC_Compiler* compiler)
             snprintf(local_name, sizeof(local_name), "%s", lexer->current.text);
             SSC_LexNext(lexer);
 
+            /* `def_string $name;` with no initialiser just reserves the slot.
+             * The VM zeroes locals on entry, so there is nothing to emit. */
             if( !SSC_LexIsPunct(lexer, "=") )
-                return fail(compiler, "expected '=' in a def_ declaration");
+            {
+                if( !declare_local(compiler, local_name, is_string_type) )
+                    return 0;
+                if( SSC_LexIsPunct(lexer, ";") )
+                    SSC_LexNext(lexer);
+                return 1;
+            }
             SSC_LexNext(lexer);
 
             if( !parse_expression(compiler, &value_is_string) )
@@ -1112,12 +1264,12 @@ parse_statement(struct SSC_Compiler* compiler)
 
     if( lexer->current.kind == SSC_TOK_VAR )
     {
-        const struct SSC_Symbol* varp = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_VARP);
-        const struct SSC_Symbol* varbit =
-            varp ? NULL : SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_VARBIT);
         int value_is_string = 0;
+        int push;
+        int pop;
+        int32_t id;
 
-        if( !varp && !varbit )
+        if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
         SSC_LexNext(lexer);
         if( !SSC_LexIsPunct(lexer, "=") )
@@ -1126,8 +1278,7 @@ parse_statement(struct SSC_Compiler* compiler)
 
         if( !parse_expression(compiler, &value_is_string) )
             return 0;
-        emit(compiler, varp ? SS_OP_POP_VARP : SS_OP_POP_VARBIT,
-             varp ? varp->value : varbit->value);
+        emit(compiler, pop, id);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
@@ -1423,6 +1574,15 @@ SSC_Declare(
                 snprintf(compiler->names[compiler->name_count], SSC_MAX_NAME, "[%s,%s]",
                          trigger, subject);
                 compiler->name_count++;
+            }
+            else
+            {
+                /* Never drop a name quietly: the symptom is a later file
+                 * failing to resolve a proc that visibly exists, which reads as
+                 * a parser bug rather than a capacity one. */
+                free(source);
+                return fail(compiler, "more than %d scripts; raise SSC_MAX_SCRIPTS",
+                            SSC_MAX_SCRIPTS);
             }
         }
         SSC_LexNext(&lexer);
