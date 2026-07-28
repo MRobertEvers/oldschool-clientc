@@ -195,6 +195,23 @@ xform 30 rotate  before dedup: 17 11 15 15 15 10     <- joint 15 rotated 3x
 `[export:rig_map]` is present. `anim_compare --report` is what surfaces them:
 it prints the live destination labels per transform, and a repeat is obvious.
 
+**Scope the map to the framemaps it describes.** A rig map states one skeleton's
+joints in terms of another's, so it is meaningful only for framemaps built on
+that skeleton — and an export usually carries others. A spotanim is rigged to
+its *own* framemap, which travels with its own model and is already
+self-consistent; running a player correspondence over it renumbers its joints
+into player joints its model does not have:
+
+```
+source framemap 369  [0] origin labels: 1 2 3 4 5 6 7 8 9 10   (spotanim's joints)
+unscoped export      [0] origin labels: 35 1 41 37 20 254 2    (player joints)
+```
+
+The claws' spec graphic is a 120-vertex model carrying labels 1..18, so after
+that it was being posed by transforms addressing 35, 41, 37 and 20 — joints it
+does not have — and the streaks flew off on their own. Declare
+`rig_framemaps = 0` and only the player rig is touched.
+
 **Every source label needs an entry, including the ones with no counterpart.**
 Park those on a number no destination model uses (254 works; rev 254 tops out at
 72 with 255 as the no-group sentinel). Leaving them alone is worse than dropping
@@ -222,6 +239,15 @@ Left is a dat2 cache and a sequence id; right is the `.ob2` body models and the
 exported animset carries its sequence's frames in order. `--sheet` writes one
 contact sheet of the whole run so only the frames that diverge need opening.
 
+`--a-model ID` with `--b-model FILE.ob2` compares a single model instead of the
+player body — needed for anything that is not a player animation, such as a
+spotanim rigged to its own framemap. When both sides share a model and a rig the
+panels should be pixel-identical, which makes that pairing a hard pass/fail
+rather than a judgement call.
+
+`--report` prints which transforms the animation actually drives and their live
+destination labels. That is what surfaces duplicate collapsed joints.
+
 **`--by-label` is the mode that finds rig bugs.** It colours faces by vertex
 label instead of by material, so a joint that has been mapped to the wrong
 counterpart shows up as a limb in the wrong colour or in the wrong place, rather
@@ -242,16 +268,24 @@ another one:
 
 ## Verifying
 
-Three things had to be true together before the claws animation played
-correctly, and each alone left it visibly wrong:
+Four things had to be true together before the claws animation played correctly,
+and each alone left it visibly wrong:
 
 1. `[export:rig_map]` renumbering source joints into destination joints
-2. duplicate collapsed joints removed within each transform
-3. dead ORIGIN pivots re-pointed at what their dependents move
+2. `rig_framemaps` scoping that map to the player rig, so other framemaps that
+   travel with their own models are left alone
+3. duplicate collapsed joints removed within each transform
+4. dead ORIGIN pivots re-pointed at what their dependents move
 
-Missing (1) bends the wrong parts. Missing (2) over-rotates by the collapse
-factor. Missing (3) flings a limb from an absolute pivot. All three are applied
-by `port_lostcity` when a rig map is declared.
+Missing (1) bends the wrong parts. Missing (2) scrambles every *other* rig in
+the export — for the claws, the spec graphic. Missing (3) over-rotates by the
+collapse factor. Missing (4) flings a limb from an absolute pivot. All four are
+applied by `port_lostcity` when a rig map is declared.
+
+The spotanim is the check that the whole chain is right: source and port use the
+same model and, once scoped, the same rig, so `anim_compare --a-model 29207
+--b-model <...>.ob2` should come out **pixel-identical**. It does — 0.0%
+silhouette mismatch across all 32 frames.
 
 Structural check first — the retargeted animset should read as anatomy:
 

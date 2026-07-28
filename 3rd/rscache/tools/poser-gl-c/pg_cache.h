@@ -186,6 +186,14 @@ struct PG_PackFrame
     int* delta_z;
 };
 
+/**
+ * The archive id a pack would allocate: one past the highest the animations
+ * table lists. Callers need it up front because a sequence's frame ids embed the
+ * archive id, so the sequence record has to be built before the write.
+ */
+int
+pg_cache_next_anim_archive_id(struct PG_Cache* c);
+
 int
 pg_cache_pack_animation(
     struct PG_Cache* c,

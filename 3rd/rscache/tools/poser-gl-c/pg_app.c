@@ -1324,6 +1324,20 @@ pg_app_free(struct PG_App* app)
         pg_animation_free(app->animations[i]);
     free(app->animations);
     free(app->node_indices);
+    for( int i = 0; i < app->owned_framemap_count; i++ )
+    {
+        struct PG_FrameMapDef* framemap = app->owned_framemaps[i];
+        if( framemap->maps )
+        {
+            for( int j = 0; j < framemap->length; j++ )
+                free(framemap->maps[j]);
+            free(framemap->maps);
+        }
+        free(framemap->types);
+        free(framemap->map_lengths);
+        free(framemap);
+    }
+    free(app->owned_framemaps);
     for( int i = 0; i < PG_LIST_COUNT; i++ )
         free(app->lists[i].indices);
     entity_release(&app->entity);

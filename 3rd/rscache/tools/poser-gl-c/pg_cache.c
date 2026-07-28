@@ -937,8 +937,8 @@ frame_flags_for(int type, int dx, int dy, int dz)
 }
 
 /** Lowest animation archive id that the reference table does not already list. */
-static int
-free_anim_archive_id(struct PG_Cache* c)
+int
+pg_cache_next_anim_archive_id(struct PG_Cache* c)
 {
     int table = RSCache_Dat2DiskTableId(c->dat2.disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
     struct RSCache_ReferenceTable* rt =
@@ -978,7 +978,7 @@ pg_cache_pack_animation(
     if( !c || !framemap || !frames || !sequence || frame_count <= 0 )
         return 1;
 
-    archive_id = free_anim_archive_id(c);
+    archive_id = pg_cache_next_anim_archive_id(c);
     if( archive_id < 0 )
     {
         fprintf(stderr, "poser-gl: cache has no animations table to pack into\n");

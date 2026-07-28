@@ -100,7 +100,13 @@ refining a cross-era joint correspondence.
 
 Flags: `--frames LO-HI`, `--size WxH`, `--yaw N` (0..2047), `--scale N`,
 `--by-label` (colour by joint rather than material — the mode that finds rig
-bugs), `--sheet` (contact sheet of the whole run).
+bugs), `--sheet` (contact sheet of the whole run), `--report` (which transforms
+the animation drives, and their live destination labels).
+
+`--a-model ID` with `--b-model FILE.ob2` poses a single model instead of the
+player body, for animations that are not player animations — a spotanim rigged
+to its own framemap, say. When both sides share a model and a rig the two panels
+should come out pixel-identical, which turns the comparison into a pass/fail.
 
 Its animation kernel is a line-for-line port of the client's `Model.animate2`,
 including the ORIGIN fallback that causes stretching, so what it draws is what

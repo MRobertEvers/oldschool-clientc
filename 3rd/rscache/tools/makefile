@@ -44,9 +44,12 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 poser-gl
 .DEFAULT_GOAL := all
 
+# poser-gl is not in `all`: it needs SDL2 and an OpenGL 3.3 context, which the
+# other tools do not, and a machine without SDL2 should still build the rest.
+# `make poser-gl` builds it.
 all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2
 
 find_anims: $(TOOLS)/find_anims/find_anims
@@ -120,7 +123,8 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
-		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2
+		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
+		$(TOOLS)/poser-gl-c/poser-gl
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the
 # language layer lives inside the unity TU.
@@ -128,3 +132,34 @@ cs2: $(TOOLS)/cs2/cs2
 
 $(TOOLS)/cs2/cs2: $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
+
+# poser-gl — the animation editor. SDL2 + OpenGL 3.3 core.
+#
+# GL entry points are resolved at runtime through SDL_GL_GetProcAddress, so
+# nothing links against a GL library here; on macOS the framework still has to be
+# named for SDL's own use.
+SDL2_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
+SDL2_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
+
+POSER_SRCS := \
+	$(TOOLS)/poser-gl-c/main.c \
+	$(TOOLS)/poser-gl-c/pg_math.c \
+	$(TOOLS)/poser-gl-c/pg_gl.c \
+	$(TOOLS)/poser-gl-c/pg_font.c \
+	$(TOOLS)/poser-gl-c/pg_model.c \
+	$(TOOLS)/poser-gl-c/pg_cache.c \
+	$(TOOLS)/poser-gl-c/pg_anim.c \
+	$(TOOLS)/poser-gl-c/pg_render.c \
+	$(TOOLS)/poser-gl-c/pg_gizmo.c \
+	$(TOOLS)/poser-gl-c/pg_gui.c \
+	$(TOOLS)/poser-gl-c/pg_app.c \
+	$(TOOLS)/poser-gl-c/pg_ui.c \
+	$(TOOLS)/poser-gl-c/pg_transfer.c
+
+poser-gl: $(TOOLS)/poser-gl-c/poser-gl
+
+$(TOOLS)/poser-gl-c/poser-gl: $(POSER_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
+ifeq ($(strip $(SDL2_LIBS)),)
+	@echo "poser-gl: sdl2-config not found — install SDL2 and retry" >&2; exit 1
+endif
+	$(CC) $(CFLAGS) $(SDL2_CFLAGS) -I$(TOOLS)/poser-gl-c -o $@ $^ $(SDL2_LIBS) -lm
