@@ -873,10 +873,18 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
             index++;
             continue;
         }
+        /* Marked before the pending literal run, not after: if the `<...>`
+         * turns out to be markup rather than interpolation, the run has to be
+         * unwound too and re-emitted later as part of a longer one. Rolling
+         * back only the expression left the run emitted twice, which is how
+         * `"<col=ff9040>Tutors</col>"` came back with its text duplicated. */
+        int mark = cc->ops.count;
+        int emitted_run = 0;
         if( index > start )
         {
             cs2_cc_emit_string(cc, cs2_cc_decode_string(cc, body + start, index - start));
             parts++;
+            emitted_run = 1;
         }
         if( ch == '\0' )
             break;
@@ -903,7 +911,6 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
          * markup through verbatim, so the only way to tell them apart is to try
          * the interpolation reading and fall back to literal text when it does
          * not parse. The attempt is rolled back so nothing it emitted survives. */
-        int mark = cc->ops.count;
         struct cs2_cc_lexer_state saved;
         cs2_cc_enter_fragment(
             cc,
@@ -921,8 +928,9 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
         else
         {
             cs2_cc_rollback(cc, mark);
-            /* Markup: the tag and its brackets are part of the text. The run
-             * continues through it, so `start` is left where it was. */
+            parts -= emitted_run;
+            /* Markup: the tag and its brackets are part of the text, so the run
+             * continues through it and `start` stays where it was. */
             index++;
             continue;
         }
@@ -976,16 +984,25 @@ cs2_cc_global_kind(const char* name, int* out_push, int* out_pop, int* out_id)
     return false;
 }
 
-/** A script name at a call site: `min`, or `script1046` for an unnamed one. */
+/**
+ * A script name at a call site: `min`, or `script1046` for an unnamed one.
+ *
+ * `required` matters: names repeat across triggers, so a proc call and a hook
+ * callback spelled the same are different scripts.
+ */
 static bool
-cs2_cc_resolve_script(struct cs2_cc_compiler* cc, const char* name, int* out_id)
+cs2_cc_resolve_script(
+    struct cs2_cc_compiler* cc,
+    const char* name,
+    enum RSCache_CS2_Trigger required,
+    int* out_id)
 {
     if( strncmp(name, "script", 6) == 0 && isdigit((unsigned char)name[6]) )
     {
         *out_id = atoi(name + 6);
         return true;
     }
-    return RSCache_CS2_NamesScriptId(cs2_cc_names(cc), name, out_id);
+    return RSCache_CS2_NamesScriptId(cs2_cc_names(cc), name, required, out_id);
 }
 
 static void
@@ -1000,9 +1017,9 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
     cs2_cc_next(cc);
 
     int callee_id = -1;
-    if( !cs2_cc_resolve_script(cc, name, &callee_id) )
+    if( !cs2_cc_resolve_script(cc, name, RSCACHE_CS2_TRIGGER_PROC, &callee_id) )
     {
-        cs2_cc_fail(cc, "no script id known for '~%s'", name);
+        cs2_cc_fail(cc, "no proc with the name '%s'", name);
         return;
     }
 
@@ -1209,9 +1226,10 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
         }
 
         int callee_id = -1;
-        if( !cs2_cc_resolve_script(cc, callback, &callee_id) )
+        if( !cs2_cc_resolve_script(
+                cc, callback, RSCACHE_CS2_TRIGGER_CLIENTSCRIPT, &callee_id) )
         {
-            cs2_cc_fail(cc, "no script id known for callback '%s'", callback);
+            cs2_cc_fail(cc, "no clientscript with the name '%s'", callback);
             return;
         }
         cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, callee_id);
@@ -1703,24 +1721,66 @@ cs2_cc_condition_term(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, str
     cs2_cc_comparison(cc, pass);
 }
 
+/**
+ * A run of `&`-joined terms. Passes only if every term does.
+ *
+ * Each term's pass jump is patched to the next term, so falling through is
+ * failure; a jump to the shared fail follows each. That is the shape the
+ * decompiler's short-circuit pass recognises as `&` — a branch over a branch.
+ */
+static void
+cs2_cc_condition_and(
+    struct cs2_cc_compiler* cc,
+    struct cs2_cc_jumps* pass,
+    struct cs2_cc_jumps* fail)
+{
+    for( ;; )
+    {
+        struct cs2_cc_jumps term_pass = { { 0 }, 0 };
+        cs2_cc_condition_term(cc, &term_pass, fail);
+        if( cc->failed )
+            return;
+        if( !cs2_cc_at_punct(cc, '&') )
+        {
+            /* Last term: its pass is the whole group's pass. */
+            for( int i = 0; i < term_pass.count; i++ )
+                cs2_cc_jumps_add(cc, pass, term_pass.items[i]);
+            return;
+        }
+        cs2_cc_next(cc);
+        /* Passing only means "test the next term", so land there and make the
+         * fall-through — failure — jump out. */
+        cs2_cc_jumps_patch(cc, &term_pass, cc->ops.count + 1);
+        cs2_cc_jumps_add(cc, fail, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
+    }
+}
+
+/**
+ * A run of `|`-joined groups. Passes if any does.
+ *
+ * `&` binds tighter, so each alternative is a whole and-group. Getting this
+ * precedence wrong does not fail to compile — it silently changes when the
+ * branch is taken, which is how `a & b | c & d` came back as `a & (b | c) & d`.
+ */
 static void
 cs2_cc_condition(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, struct cs2_cc_jumps* fail)
 {
-    cs2_cc_condition_term(cc, pass, fail);
-
-    while( !cc->failed && cc->token.kind == CS2_CC_TOK_PUNCT &&
-           (cc->token.punct == '&' || cc->token.punct == '|') )
+    for( ;; )
     {
-        bool is_and = cc->token.punct == '&';
-        cs2_cc_next(cc);
-        if( is_and )
+        struct cs2_cc_jumps group_fail = { { 0 }, 0 };
+        cs2_cc_condition_and(cc, pass, &group_fail);
+        if( cc->failed )
+            return;
+        if( !cs2_cc_at_punct(cc, '|') )
         {
-            /* The left side passing only means "test the right side", so its
-             * pass jumps land here and a fail jump is emitted for the whole. */
-            cs2_cc_jumps_patch(cc, pass, cc->ops.count + 1);
-            cs2_cc_jumps_add(cc, fail, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
+            /* Last alternative: its failure is the whole condition's. */
+            for( int i = 0; i < group_fail.count; i++ )
+                cs2_cc_jumps_add(cc, fail, group_fail.items[i]);
+            return;
         }
-        cs2_cc_condition_term(cc, pass, fail);
+        cs2_cc_next(cc);
+        /* This alternative failing just means "try the next one". */
+        cs2_cc_jumps_patch(cc, &group_fail, cc->ops.count);
     }
 }
 

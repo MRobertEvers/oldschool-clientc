@@ -1545,45 +1545,58 @@ divergence.
 Everything else about those two scripts matches, and an identifier is a naming
 hint with no effect on what the script does.
 
-### G2. The compiler round-trips 32% of scripts byte-exactly *(Gap)*
+### G2. The compiler reaches a source fixed point on 99.2% of what it compiles *(Gap)*
 
-`cs2 roundtrip --raw` decompiles each script, compiles the result, and compares
-against the original bytes:
+Two different questions, and they answer differently.
+
+**Does compiling the source reproduce the cache's bytes?** `cs2 roundtrip`:
 
 | | |
 |---|---|
 | decompiled | 7,467 |
 | compiled | 6,614 (89%) |
-| same length | 3,017 |
-| **byte-exact** | **2,406** |
+| same length | 3,036 |
+| **byte-exact** | **2,877** |
 
-Read that the way the other round-trip suites are read: high same-length with low
-exact means a re-encoding, low both means a loss. Here it is neither — it is
-**information the decompiler discards**, and there are two distinct causes.
+**Does compiling and decompiling again reproduce the source?** Decompile the
+cache, compile that, decompile the result, compare source to source:
 
-**The `else` branch is not recoverable.** Control-flow reconstruction collapses
-an `if`/`else` whose taken branch never rejoins:
+| | |
+|---|---|
+| compared | 6,995 |
+| **fixed point** | **6,939 (99.2%)** |
+| changed | 56 |
 
-```
-if ($a < $b) { return($a); } else { return($b); }     what Jagex compiled
-if ($a < $b) { return($a); } return($b);              what the source says
-```
+The second is the real bar for a compiler and the first is capped by design, so
+they are reported separately. Byte-exactness is limited by **information the
+decompiler deliberately discards**: control-flow reconstruction collapses an
+`if`/`else` whose taken branch never rejoins into a plain `if` followed by the
+next statement. Both mean the same thing, both run identically, and they compile
+to different jump targets. `[proc,min]` is the smallest example — 11 opcodes, one
+operand different. Recovering it would mean emitting an `else` the decompiler
+went out of its way to simplify away, making every listing worse to read in order
+to improve a number.
 
-Both mean the same thing and both run identically, but they compile to different
-jump targets — the `else` form jumps to the script epilogue, the collapsed form
-to the next statement. `[proc,min]` is the smallest example: 11 opcodes, one
-operand different. Recovering it would mean the decompiler emitting an `else` it
-has deliberately simplified away, which would make every listing worse to read in
-order to make a round-trip figure better.
+The fixed point has no such excuse, and chasing it found three real bugs that the
+byte comparison had not isolated:
 
-**Jagex's own codegen is not fully reproduced.** The epilogue (one default push
-per return type, then a return) *is* reconstructed — it has to be, since it is
-where the decoder reads the return types back from. Other placement choices are
-not.
+1. **Script names are unique only per trigger.** `1v1arena_hud_toggle` is
+   clientscript 2716 *and* proc 2717, and there are hundreds of such pairs. The
+   name lookup matched the bare name and returned whichever came first, so
+   `~1v1arena_hud_toggle` compiled to a call to the wrong script — valid
+   bytecode, different program. `RSCache_CS2_NamesScriptId` now requires the
+   trigger. Fixed point 5,816 -> 6,604.
+2. **`&` binds tighter than `|`.** The condition parser applied them
+   left-to-right, so `a & b | c & d` compiled as `a & (b | c) & d`. Also silent:
+   it compiles, and changes when the branch is taken. Fixed point 6,604 -> 6,939.
+3. **Markup rollback emitted the preceding text twice.** `<...>` is both string
+   interpolation and the game's own markup, told apart by trying to parse it;
+   the rollback unwound the expression but not the literal run before it, so
+   `"<col=ff9040>Tutors</col>"` came back with its text duplicated.
 
-Byte-exactness was never the bar for this half; producing bytecode that decompiles
-back to the same source is. What the figure does buy is a regression signal: 2,358
-scripts currently reproduce to the byte, and that number should not fall.
+The remaining 56 are two shapes: a `.`-form hook losing its active-component
+flag, and an `else if` chain compiling to a jump structure that reconstructs as
+two separate `if`s. Both run identically to the original; neither is diagnosed.
 
 ### G3. Hook argument descriptors are inferred, not read *(Gap)*
 

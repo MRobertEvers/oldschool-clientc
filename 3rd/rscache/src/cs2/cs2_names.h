@@ -109,11 +109,23 @@ RSCache_CS2_NamesLookupId(
     const char* name,
     int* out_id);
 
-/** Script name (`[proc,min]` or just `min`) -> script id. */
+/**
+ * Script name -> script id, under a required trigger.
+ *
+ * The trigger is not optional. A bare name identifies a script only *within* a
+ * trigger — `1v1arena_hud_toggle` is clientscript 2716 and proc 2717, and there
+ * are hundreds of such pairs. Resolving without it compiles `~name` to whichever
+ * happened to be found first, which produces valid bytecode that calls the wrong
+ * script. Pass RSCACHE_CS2_TRIGGER_NONE only when the caller genuinely does not
+ * care which.
+ *
+ * A fully bracketed name (`[proc,min]`) matches exactly and ignores the hint.
+ */
 bool
 RSCache_CS2_NamesScriptId(
     const struct RSCache_CS2_Names* names,
     const char* name,
+    enum RSCache_CS2_Trigger required,
     int* out_id);
 
 /** The cache name string for a script, e.g. `[proc,min]`, or NULL. */

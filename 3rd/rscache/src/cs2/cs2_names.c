@@ -216,33 +216,44 @@ bool
 RSCache_CS2_NamesScriptId(
     const struct RSCache_CS2_Names* names,
     const char* name,
+    enum RSCache_CS2_Trigger required,
     int* out_id)
 {
     if( !names || !name )
         return false;
-    /* Accepts both the bracketed cache spelling and the bare name a call site
-     * writes, so `~min` and `[proc,min]` resolve alike. */
     for( int i = 0; i < names->script_names.capacity; i++ )
     {
         if( !names->script_names.entries[i].occupied )
             continue;
         const char* stored = (const char*)names->script_names.entries[i].value;
+        /* An exact bracketed match already names its trigger. */
         if( strcmp(stored, name) == 0 )
         {
             *out_id = names->script_names.entries[i].key;
             return true;
         }
-        const char* comma = strchr(stored, ',');
+
         size_t length = strlen(stored);
-        if( comma && length >= 3 && stored[0] == '[' && stored[length - 1] == ']' )
+        const char* comma = strchr(stored, ',');
+        if( !comma || length < 3 || stored[0] != '[' || stored[length - 1] != ']' )
+            continue;
+        size_t bare_length = (size_t)(stored + length - 1 - comma - 1);
+        if( strlen(name) != bare_length || strncmp(comma + 1, name, bare_length) != 0 )
+            continue;
+
+        if( required != RSCACHE_CS2_TRIGGER_NONE )
         {
-            size_t bare_length = (size_t)(stored + length - 1 - comma - 1);
-            if( strlen(name) == bare_length && strncmp(comma + 1, name, bare_length) == 0 )
-            {
-                *out_id = names->script_names.entries[i].key;
-                return true;
-            }
+            char trigger[64];
+            size_t trigger_length = (size_t)(comma - stored - 1);
+            if( trigger_length >= sizeof(trigger) )
+                continue;
+            memcpy(trigger, stored + 1, trigger_length);
+            trigger[trigger_length] = '\0';
+            if( RSCache_CS2_TriggerOfName(trigger) != required )
+                continue;
         }
+        *out_id = names->script_names.entries[i].key;
+        return true;
     }
     return false;
 }

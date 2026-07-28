@@ -316,7 +316,22 @@ all, so a script using an id those tables do not name cannot be printed.
 and compare against the bytes the cache held. It reports the same
 exact/same-length shape as the library's other round-trip suites, for the same
 reason — high same-length with low exact means a re-encoding, low both means a
-loss. See EXCEPTIONS.md G2 for what the current figures are and why.
+loss.
+
+Byte-exactness is capped by design, though, because the decompiler discards an
+`else` it can prove unnecessary. The sharper check is the **source fixed point**:
+
+```sh
+cs2 decompile --cache DIR --rev NAME --names N --out A
+cp original_bytes/* B/            # so callees still resolve
+cs2 compile --src A --names N --out B
+cs2 decompile --raw B --names N --out C
+diff -r A C                       # A == C is the bar
+```
+
+That is what found the three compiler bugs recorded in EXCEPTIONS.md G2 — a
+call resolving to the wrong script, `&`/`|` precedence, and duplicated string
+text — none of which the byte comparison had isolated.
 
 ### Regenerating the command table
 
