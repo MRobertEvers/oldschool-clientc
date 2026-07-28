@@ -141,6 +141,7 @@ struct LC_Ctx
     const struct LC_ExtraLine* extras;
     int extra_count;
 
+
     /** The source texture table, indexed by texture id. */
     struct LC_TextureDef* textures;
     int texture_count;

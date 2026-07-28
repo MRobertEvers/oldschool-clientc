@@ -115,6 +115,14 @@ make -C 3rd/rscache/tools port_lostcity
   --loc 30356 --map 35_83 --apply
 ```
 
+`--maploc X_Z,level,x,z,locid,shape,angle` (manifest section `[export:maploc]`,
+lines written `place = 35_83,1,28,52,30346,10,3`) appends a static placement to
+the square's `.jm2` after the source ones. For arena dressing that is not in any
+square's static data — content the original places with dynamic spawns on a
+plane the player is not standing on, which a rev-254 zone update cannot express.
+The loc is exported like any `--loc`, and a failed export drops the placement
+rather than writing an id that names nothing.
+
 `--obj ID[=name]` (manifest section `[export:obj]`) exports an item: the `.obj`
 config, the model the inventory icon is rendered from, and the male and female
 wield models. LostCity resolves `manwear`/`womanwear` by model *name*, so there

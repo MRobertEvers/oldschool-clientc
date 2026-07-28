@@ -619,6 +619,62 @@ dump_loc(
     RSCache_Dat2ConfigLocFree(loc);
 }
 
+
+/*
+ * Dump the AnimBase inside a LostCity `.anim` archive — the destination rig,
+ * for comparing against a source framemap.
+ */
+static void
+dump_dat1_animbase(const char* path)
+{
+    FILE* f = fopen(path, "rb");
+    long size;
+    char* data;
+    struct RSCache_Dat1AnimBaseFrames* abf;
+    int max_label = -1;
+
+    if( !f )
+    {
+        printf("%s: cannot open\n", path);
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    data = malloc((size_t)size);
+    if( !data || fread(data, 1, (size_t)size, f) != (size_t)size )
+    {
+        fclose(f);
+        free(data);
+        printf("%s: read failed\n", path);
+        return;
+    }
+    fclose(f);
+
+    abf = RSCache_Dat1AnimBaseFramesNewDecode(data, (int)size);
+    if( !abf || !abf->base )
+    {
+        printf("%s: decode failed\n", path);
+        free(data);
+        return;
+    }
+    printf("%s\n  frames=%d  transforms=%d\n", path, abf->frame_count, abf->base->length);
+    for( int i = 0; i < abf->base->length; i++ )
+        for( int j = 0; j < abf->base->label_counts[i]; j++ )
+            if( abf->base->labels[i][j] > max_label )
+                max_label = abf->base->labels[i][j];
+    printf("  highest label referenced: %d\n", max_label);
+    for( int i = 0; i < abf->base->length && i < 24; i++ )
+    {
+        printf("  [%3d] type %d labels:", i, abf->base->types[i]);
+        for( int j = 0; j < abf->base->label_counts[i]; j++ )
+            printf(" %d", abf->base->labels[i][j]);
+        printf("\n");
+    }
+    RSCache_Dat1AnimBaseFramesFree(abf);
+    free(data);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -630,6 +686,7 @@ main(int argc, char** argv)
     int dump_obj_id = -1;
     int dump_loc_id = -1;
     int dump_framemap_id = -1;
+    const char* dat1_anim = NULL;
     int dump_seq_id = -1;
     int dump_spotanim_id = -1;
     int scan_spotanim_model = -1;
@@ -652,6 +709,8 @@ main(int argc, char** argv)
             dump_loc_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--framemap") == 0 && i + 1 < argc )
             dump_framemap_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--dat1-anim") == 0 && i + 1 < argc )
+            dat1_anim = argv[++i];
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             dump_seq_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -667,6 +726,11 @@ main(int argc, char** argv)
         }
     }
 
+    if( dat1_anim )
+    {
+        dump_dat1_animbase(dat1_anim);
+        return 0;
+    }
     if( !cache_dir || !rev )
     {
         usage(argv[0]);

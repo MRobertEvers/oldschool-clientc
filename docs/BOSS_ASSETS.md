@@ -266,9 +266,14 @@ rocks flanking Zuk), 30356 (the multiloc marker Kronos removes). Map square
 `35_83`.
 
 The flanking rocks 30345/30346 are **not in the map square's loc data** — Kronos
-spawns them when it builds the arena, on level 1. They go down on level 0 in the
-port: the alcove's level-1 tiles are the bridged kind, and a loc placed literally
-on level 1 there renders as a flat dark quad. See the inferno README.
+spawns them when it builds the arena, on level 1. The port injects them into
+`m35_83.jm2` as *static* level-1 locs (`--maploc` in the export command). An
+earlier attempt placed them dynamically — that cannot work on this revision
+(zone updates carry no plane, so a level-1 `loc_add` lands on the player's own
+level), and moving them to level 0 instead silently broke the seal-collapse
+animation, because their rotated 2x5 footprints cover the standing rocks' own
+tiles and the add replaced them. Static level-1 locs render fine — the pit's rim
+ring is 113 of them. See the inferno README.
 
 ## Re-running the export
 
