@@ -201,11 +201,14 @@ struct PG_App
     char dialog_title[64];
     char dialog_message[192];
     char path_buffer[512];
+    /** The last export, so cmd+E can repeat it without reopening the dialog. */
     char last_export[512];
-    int last_export_format;
+    int last_export_format; /* 0 = pgl, 1 = dat */
 
+    /* All in points; `dpi` converts to the device pixels glViewport wants. */
     int view_x, view_y, view_w, view_h;
     int window_w, window_h;
+    float dpi;
     char status[256];
     bool running;
 };
@@ -215,9 +218,20 @@ pg_app_init(struct PG_App* app, const char* cache_dir, const char* rev);
 void
 pg_app_free(struct PG_App* app);
 
-/** One editor step: playback, camera, picking and the whole draw. */
+/**
+ * One editor step: playback, camera, picking and the whole draw.
+ *
+ * `window_w`/`window_h` are the window's logical size in points and `dpi` the
+ * device pixels per point, which on a retina display is 2. Laying out in points
+ * is what keeps the UI the same physical size on both kinds of display.
+ */
 void
-pg_app_frame(struct PG_App* app, const struct PG_GuiInput* input, int window_w, int window_h);
+pg_app_frame(
+    struct PG_App* app,
+    const struct PG_GuiInput* input,
+    int window_w,
+    int window_h,
+    float dpi);
 
 /* ---- entity ------------------------------------------------------------------- */
 
@@ -290,6 +304,9 @@ pg_import_pgl(struct PG_App* app, const char* path);
 /** The 317 frame/framemap pair poser-gl's DAT export writes. */
 bool
 pg_export_dat(struct PG_App* app, const char* path);
+/** Repeat the last export to the same path and format. */
+void
+pg_export_redo(struct PG_App* app);
 /** Write the current animation back into a copy of the cache. */
 bool
 pg_pack_animation(struct PG_App* app, const char* out_directory);

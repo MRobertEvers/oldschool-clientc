@@ -291,7 +291,21 @@ pg_create_projection_matrix(int width, int height)
 
     memset(m.m, 0, sizeof(m.m));
     m.m[0] = x_scale;
-    m.m[5] = y_scale;
+    /*
+     * Negated, which the reference does not do.
+     *
+     * Cache models are authored with -y up — feet at zero, head at about -200 —
+     * and nothing between the decoder and the screen puts that right: the entity
+     * shader flips only x, and the camera's own up axis comes out pointing at
+     * model-down, so a faithful port draws every character standing on its head.
+     * Flipping the projection instead of the geometry is what keeps it a display
+     * concern: the frame deltas, the joint pivots, the pick rays and the gizmo
+     * axes all stay in the model's own coordinate system, and the unprojection
+     * inverts this matrix so picking follows the flip for free. The one knock-on
+     * is winding, which is why the entity draw culls back faces where the
+     * reference culls front.
+     */
+    m.m[5] = -y_scale;
     m.m[10] = -((PG_FAR_PLANE + PG_NEAR_PLANE) / frustum);
     m.m[11] = -1.0f;
     m.m[14] = -((2.0f * PG_NEAR_PLANE * PG_FAR_PLANE) / frustum);
@@ -847,6 +861,10 @@ pg_render_entity(
 {
     if( !model || !model->vao || model->vertex_count <= 0 )
         return;
+    /* Culling is scoped to the entity: the grid, the joint quads and the gizmos
+     * are drawn from both sides and would vanish under it. */
+    pg_glEnable(GL_CULL_FACE);
+    pg_glCullFace(GL_BACK);
     pg_glUseProgram(r->entity_shader.program);
     pg_glBindVertexArray(model->vao);
     set_float(r->entity_shader.program, "useShading", shading_type != PG_SHADING_NONE ? 1.0f : 0.0f);
@@ -859,6 +877,7 @@ pg_render_entity(
     pg_glDrawArrays(GL_TRIANGLES, 0, model->vertex_count);
     pg_glBindVertexArray(0);
     pg_glUseProgram(0);
+    pg_glDisable(GL_CULL_FACE);
 }
 
 static void

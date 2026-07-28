@@ -112,6 +112,30 @@ Its animation kernel is a line-for-line port of the client's `Model.animate2`,
 including the ORIGIN fallback that causes stretching, so what it draws is what
 the client would draw. See `RIGGING_OSRS_RS2.md` at the repo root.
 
+## `poser-gl`
+
+An animation editor: load a cache, pick an entity and a sequence, watch it play,
+drag its joints, and write the result back.
+
+```sh
+make -C 3rd/rscache/tools poser-gl
+
+./poser-gl-c/poser-gl --rev osrs230 ../../cache.osrs230
+```
+
+A C port of [fglass/poser-gl](https://github.com/fglass/poser-gl), reading
+through rscache where the original reads through a per-revision JAR plugin, and
+drawing through SDL2 and OpenGL 3.3 where the original uses LWJGL and LEGUI. It
+exports poser-gl's own `.pgl` files byte-for-byte, so the two editors interchange.
+
+Not part of `all`: it is the only tool here that needs SDL2, and a machine
+without it should still build the rest.
+
+Every other tool in this directory answers a question about a cache; this one is
+the only one that lets you *author* into it. `--self-test`, `--shot` and the rest
+of its harness flags are documented in `poser-gl-c/README.md`, along with the two
+places it deliberately departs from the reference's behaviour.
+
 ## `port_npc`
 
 Port an NPC and its asset closure (models, sequences, frames, framemaps, and

@@ -236,9 +236,15 @@ pg_export_pgl(struct PG_App* app, const char* path)
     ok = !out.failed && write_file(path, out.data, out.size);
     free(out.data);
     if( ok )
+    {
+        snprintf(app->last_export, sizeof(app->last_export), "%s", path);
+        app->last_export_format = 0;
         pg_app_status(app, "Exported %d bytes to %s", out.size, path);
+    }
     else
+    {
         pg_app_message(app, "Export Failed", "Could not write the file");
+    }
     return ok;
 }
 
@@ -559,10 +565,27 @@ pg_export_dat(struct PG_App* app, const char* path)
     ok = !out.failed && write_file(path, out.data, out.size);
     free(out.data);
     if( ok )
+    {
+        snprintf(app->last_export, sizeof(app->last_export), "%s", path);
+        app->last_export_format = 1;
         pg_app_status(app, "Exported %d bytes to %s", out.size, path);
+    }
     else
+    {
         pg_app_message(app, "Export Failed", "Could not write the file");
+    }
     return ok;
+}
+
+void
+pg_export_redo(struct PG_App* app)
+{
+    if( app->last_export[0] == '\0' )
+        return;
+    if( app->last_export_format == 1 )
+        pg_export_dat(app, app->last_export);
+    else
+        pg_export_pgl(app, app->last_export);
 }
 
 /* ---- pack ------------------------------------------------------------------------- */

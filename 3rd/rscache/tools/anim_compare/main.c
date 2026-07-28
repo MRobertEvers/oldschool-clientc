@@ -961,6 +961,62 @@ report_used(
     }
 }
 
+
+/*
+ * How far each joint actually travels, per side.
+ *
+ * Eyeballing two different meshes only goes so far: the bodies differ, so a
+ * pose can look wrong when it is right and right when it is wrong. What is
+ * comparable is *motion* — how far a joint's vertices move from the rest pose,
+ * averaged over the animation, expressed as a fraction of body height so the
+ * two meshes' scales cancel.
+ *
+ * Read it against the rig map: a joint that travels in the source but barely
+ * moves in the port is underdriven (its counterpart is unmapped or mapped to a
+ * stub); one that travels much further is overdriven (several source joints
+ * collapsed onto it without deduplication).
+ */
+static void
+report_motion(
+    struct Rig* r,
+    const char* tag)
+{
+    double sum[256] = { 0 };
+    long long n[256] = { 0 };
+    int lo = 0, hi = 0;
+
+    for( int i = 0; i < r->vertex_count; i++ )
+    {
+        if( r->oy[i] < lo )
+            lo = r->oy[i];
+        if( r->oy[i] > hi )
+            hi = r->oy[i];
+    }
+    double height = (hi - lo) > 0 ? (double)(hi - lo) : 1.0;
+
+    for( int f = 0; f < r->frame_count; f++ )
+    {
+        rig_pose(r, f);
+        for( int i = 0; i < r->vertex_count; i++ )
+        {
+            int l = r->vlabel[i];
+            double dx, dy, dz;
+            if( l == 255 )
+                continue;
+            dx = r->vx[i] - r->ox[i];
+            dy = r->vy[i] - r->oy[i];
+            dz = r->vz[i] - r->oz[i];
+            sum[l] += sqrt(dx * dx + dy * dy + dz * dz);
+            n[l]++;
+        }
+    }
+    printf("\n%s — mean joint travel, %% of body height\n", tag);
+    for( int l = 0; l < 256; l++ )
+        if( n[l] )
+            printf("  joint %3d  n=%-6lld  %5.1f%%\n", l, n[l] / (long long)r->frame_count,
+                   100.0 * (sum[l] / (double)n[l]) / height);
+}
+
 /* ---- fit --------------------------------------------------------------- */
 
 /* Scale so the rest pose fills the panel, computed once from both rigs so the
@@ -997,7 +1053,7 @@ main(int argc, char** argv)
     const char* b_model = NULL;
     int a_model = -1;
     int a_seq = -1, lo = 0, hi = -1, pw = 320, ph = 400, yaw = 0, scale = 0;
-    int by_label = 0, sheet = 0, report = 0;
+    int by_label = 0, sheet = 0, report = 0, motion = 0;
     struct Rig ra, rb;
 
     trig_init();
@@ -1036,6 +1092,8 @@ main(int argc, char** argv)
             sheet = 1;
         else if( strcmp(argv[i], "--report") == 0 )
             report = 1;
+        else if( strcmp(argv[i], "--motion") == 0 )
+            motion = 1;
         else
         {
             fprintf(stderr, "anim_compare: unknown option %s\n", argv[i]);
@@ -1063,6 +1121,12 @@ main(int argc, char** argv)
     printf("B %-28s verts=%6d faces=%6d transforms=%3d frames=%d\n",
            rb.name, rb.vertex_count, rb.face_count, rb.transform_count, rb.frame_count);
 
+    if( motion )
+    {
+        report_motion(&ra, "SOURCE");
+        report_motion(&rb, "PORT");
+        return 0;
+    }
     if( report )
     {
         report_used(&ra, &rb);

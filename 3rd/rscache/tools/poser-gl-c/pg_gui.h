@@ -78,8 +78,15 @@ struct PG_Gui
 {
     struct PG_Renderer* renderer;
     struct PG_GuiInput input;
+    /** Logical size, in points. Every widget rectangle is authored in these. */
     float width;
     float height;
+    /**
+     * Device pixels per point. Layout and hit tests stay in points so the UI is
+     * the same physical size on a retina display as on any other; only glScissor,
+     * which speaks device pixels, multiplies by this.
+     */
+    float dpi;
 
     struct PG_GuiVertex* vertices;
     int vertex_count;
@@ -109,7 +116,12 @@ void
 pg_gui_free(struct PG_Gui* gui);
 
 void
-pg_gui_begin(struct PG_Gui* gui, float width, float height, const struct PG_GuiInput* input);
+pg_gui_begin(
+    struct PG_Gui* gui,
+    float width,
+    float height,
+    float dpi,
+    const struct PG_GuiInput* input);
 void
 pg_gui_end(struct PG_Gui* gui);
 

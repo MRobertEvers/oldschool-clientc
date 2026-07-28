@@ -468,7 +468,7 @@ pg_app_select_animation(struct PG_App* app, int index)
     app->frame_counter = 0;
     app->timer = 0;
     pg_app_set_playing(app, true);
-    pg_app_status(app, "Sequence %d — %d keyframes", anim->id, anim->keyframe_count);
+    pg_app_status(app, "Sequence %d, %d keyframes", anim->id, anim->keyframe_count);
 }
 
 /* ---- undo history ---------------------------------------------------------------- */
@@ -999,10 +999,16 @@ draw_scene(struct PG_App* app)
 
     {
         uint32_t background = pg_colour_rgba(app->settings.background);
-        pg_glViewport(app->view_x, app->window_h - app->view_y - app->view_h, app->view_w, app->view_h);
+        /* The viewport is the one place the scene leaves point space: GL wants
+         * device pixels, so every edge of the view rectangle is scaled here. */
+        int px = (int)((float)app->view_x * app->dpi);
+        int py = (int)((float)(app->window_h - app->view_y - app->view_h) * app->dpi);
+        int pw = (int)((float)app->view_w * app->dpi);
+        int ph = (int)((float)app->view_h * app->dpi);
+
+        pg_glViewport(px, py, pw, ph);
         pg_glEnable(GL_SCISSOR_TEST);
-        pg_glScissor(
-            app->view_x, app->window_h - app->view_y - app->view_h, app->view_w, app->view_h);
+        pg_glScissor(px, py, pw, ph);
         pg_glClearColor(
             (float)((background >> 24) & 0xFF) / 255.0f,
             (float)((background >> 16) & 0xFF) / 255.0f,
@@ -1216,17 +1222,23 @@ draw_scene(struct PG_App* app)
 }
 
 void
-pg_app_frame(struct PG_App* app, const struct PG_GuiInput* input, int window_w, int window_h)
+pg_app_frame(
+    struct PG_App* app,
+    const struct PG_GuiInput* input,
+    int window_w,
+    int window_h,
+    float dpi)
 {
     app->window_w = window_w;
     app->window_h = window_h;
+    app->dpi = dpi > 0.0f ? dpi : 1.0f;
 
-    pg_glViewport(0, 0, window_w, window_h);
+    pg_glViewport(0, 0, (int)((float)window_w * app->dpi), (int)((float)window_h * app->dpi));
     pg_glDisable(GL_SCISSOR_TEST);
     pg_glClearColor(33.0f / 255.0f, 33.0f / 255.0f, 33.0f / 255.0f, 1.0f);
     pg_glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    pg_gui_begin(&app->gui, (float)window_w, (float)window_h, input);
+    pg_gui_begin(&app->gui, (float)window_w, (float)window_h, app->dpi, input);
     /* The UI runs first so it can claim the cursor before the 3D view sees it —
      * otherwise a click on a panel over the viewport would also pick a joint. */
     pg_ui_draw(app);
@@ -1240,7 +1252,7 @@ pg_app_frame(struct PG_App* app, const struct PG_GuiInput* input, int window_w, 
 
     draw_scene(app);
 
-    pg_glViewport(0, 0, window_w, window_h);
+    pg_glViewport(0, 0, (int)((float)window_w * app->dpi), (int)((float)window_h * app->dpi));
     pg_glDisable(GL_DEPTH_TEST);
     pg_gui_end(&app->gui);
 }

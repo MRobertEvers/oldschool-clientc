@@ -1,0 +1,17 @@
+-std=c11
+-I.
+-I../common
+-I../../include
+-I../../src
+-I../..
+-I../../../bzip
+-I../../../miniz
+-I../../../xteas
+-I../../../ini
+-I/opt/homebrew/include/SDL2
+-I/usr/local/include/SDL2
+-I/usr/include/SDL2
+-D_THREAD_SAFE
+-Wall
+-Wextra
+-Wno-unused-parameter

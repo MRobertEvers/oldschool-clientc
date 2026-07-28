@@ -139,10 +139,16 @@ push_quad(
 }
 
 void
-pg_gui_begin(struct PG_Gui* gui, float width, float height, const struct PG_GuiInput* input)
+pg_gui_begin(
+    struct PG_Gui* gui,
+    float width,
+    float height,
+    float dpi,
+    const struct PG_GuiInput* input)
 {
     gui->width = width;
     gui->height = height;
+    gui->dpi = dpi > 0.0f ? dpi : 1.0f;
     gui->input = *input;
     gui->vertex_count = 0;
     gui->hot = 0;
@@ -176,12 +182,12 @@ pg_gui_push_clip(struct PG_Gui* gui, float x, float y, float w, float h)
     gui->clip[3] = (int)(h < 0 ? 0 : h);
     gui->clipping = true;
     pg_glEnable(GL_SCISSOR_TEST);
-    /* Scissor is bottom-up; the UI is top-down. */
+    /* Scissor is bottom-up and in device pixels; the UI is top-down and in points. */
     pg_glScissor(
-        gui->clip[0],
-        (int)gui->height - gui->clip[1] - gui->clip[3],
-        gui->clip[2],
-        gui->clip[3]);
+        (int)((float)gui->clip[0] * gui->dpi),
+        (int)((gui->height - (float)(gui->clip[1] + gui->clip[3])) * gui->dpi),
+        (int)((float)gui->clip[2] * gui->dpi),
+        (int)((float)gui->clip[3] * gui->dpi));
 }
 
 void

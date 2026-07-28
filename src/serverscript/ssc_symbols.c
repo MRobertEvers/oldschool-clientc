@@ -13,12 +13,12 @@
  */
 
 #include "ssc.h"
+#include <sys/stat.h>
 
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 /* ------------------------------------------------------------------ */
 
@@ -86,7 +86,9 @@ SSC_SymbolsAdd(
 static struct SSC_Symbols* g_sort_symbols;
 
 static int
-cmp_order(const void* a, const void* b)
+cmp_order(
+    const void* a,
+    const void* b)
 {
     const struct SSC_Symbol* x = &g_sort_symbols->entries[*(const int32_t*)a];
     const struct SSC_Symbol* y = &g_sort_symbols->entries[*(const int32_t*)b];
@@ -108,8 +110,7 @@ ensure_sorted(struct SSC_Symbols* symbols)
     if( symbols->sorted || symbols->count == 0 )
         return;
 
-    symbols->order =
-        (int32_t*)realloc(symbols->order, (size_t)symbols->count * sizeof(int32_t));
+    symbols->order = (int32_t*)realloc(symbols->order, (size_t)symbols->count * sizeof(int32_t));
     if( !symbols->order )
         return;
     for( i = 0; i < symbols->count; i++ )
@@ -272,26 +273,26 @@ kind_for_pack(const char* filename)
         const char* file;
         enum SSC_SymbolKind kind;
     } k_map[] = {
-        { "npc.pack", SSC_SYM_NPC },
-        { "obj.pack", SSC_SYM_OBJ },
-        { "loc.pack", SSC_SYM_LOC },
-        { "inv.pack", SSC_SYM_INV },
-        { "seq.pack", SSC_SYM_SEQ },
-        { "spotanim.pack", SSC_SYM_SPOTANIM },
+        { "npc.pack",       SSC_SYM_NPC       },
+        { "obj.pack",       SSC_SYM_OBJ       },
+        { "loc.pack",       SSC_SYM_LOC       },
+        { "inv.pack",       SSC_SYM_INV       },
+        { "seq.pack",       SSC_SYM_SEQ       },
+        { "spotanim.pack",  SSC_SYM_SPOTANIM  },
         { "interface.pack", SSC_SYM_INTERFACE },
         { "component.pack", SSC_SYM_COMPONENT },
-        { "varp.pack", SSC_SYM_VARP },
-        { "varbit.pack", SSC_SYM_VARBIT },
-        { "varn.pack", SSC_SYM_VARN },
-        { "vars.pack", SSC_SYM_VARS },
-        { "enum.pack", SSC_SYM_ENUM },
-        { "struct.pack", SSC_SYM_STRUCT },
-        { "dbtable.pack", SSC_SYM_DBTABLE },
-        { "param.pack", SSC_SYM_PARAM },
-        { "category.pack", SSC_SYM_CATEGORY },
-        { "synth.pack", SSC_SYM_SYNTH },
-        { "stat.pack", SSC_SYM_STAT },
-        { "script.pack", SSC_SYM_SCRIPT },
+        { "varp.pack",      SSC_SYM_VARP      },
+        { "varbit.pack",    SSC_SYM_VARBIT    },
+        { "varn.pack",      SSC_SYM_VARN      },
+        { "vars.pack",      SSC_SYM_VARS      },
+        { "enum.pack",      SSC_SYM_ENUM      },
+        { "struct.pack",    SSC_SYM_STRUCT    },
+        { "dbtable.pack",   SSC_SYM_DBTABLE   },
+        { "param.pack",     SSC_SYM_PARAM     },
+        { "category.pack",  SSC_SYM_CATEGORY  },
+        { "synth.pack",     SSC_SYM_SYNTH     },
+        { "stat.pack",      SSC_SYM_STAT      },
+        { "script.pack",    SSC_SYM_SCRIPT    },
     };
     size_t i;
 
@@ -304,13 +305,14 @@ kind_for_pack(const char* filename)
 }
 
 static int
-has_suffix(const char* name, const char* suffix)
+has_suffix(
+    const char* name,
+    const char* suffix)
 {
     size_t name_length = strlen(name);
     size_t suffix_length = strlen(suffix);
 
-    return name_length >= suffix_length &&
-           strcmp(name + name_length - suffix_length, suffix) == 0;
+    return name_length >= suffix_length && strcmp(name + name_length - suffix_length, suffix) == 0;
 }
 
 int
@@ -399,7 +401,9 @@ SSC_SymbolsLoadConstantDir(
  * use. The table id comes from dbtable.pack, so that has to be loaded first.
  */
 static int
-load_dbtable_file(struct SSC_Symbols* symbols, const char* path)
+load_dbtable_file(
+    struct SSC_Symbols* symbols,
+    const char* path)
 {
     FILE* file = fopen(path, "rb");
     char line[512];
@@ -448,8 +452,11 @@ load_dbtable_file(struct SSC_Symbols* symbols, const char* path)
             {
                 snprintf(qualified, sizeof(qualified), "%s:%s", table_name, name);
                 if( SSC_SymbolsAdd(
-                        symbols, qualified, (table_id << 12) | (column_index << 4),
-                        SSC_SYM_DBCOLUMN, NULL) )
+                        symbols,
+                        qualified,
+                        (table_id << 12) | (column_index << 4),
+                        SSC_SYM_DBCOLUMN,
+                        NULL) )
                     loaded++;
             }
             column_index++;
@@ -522,30 +529,54 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
         const char* name;
         int32_t value;
     } k_npc_mode[] = {
-        { "null", -1 },          { "none", 0 },
-        { "wander", 1 },         { "patrol", 2 },
-        { "playerescape", 3 },   { "playerfollow", 4 },
-        { "playerface", 5 },     { "playerfaceclose", 6 },
-        { "opplayer1", 7 },      { "opplayer2", 8 },
-        { "opplayer3", 9 },      { "opplayer4", 10 },
-        { "opplayer5", 11 },     { "applayer1", 12 },
-        { "applayer2", 13 },     { "applayer3", 14 },
-        { "applayer4", 15 },     { "applayer5", 16 },
-        { "oploc1", 17 },        { "oploc2", 18 },
-        { "oploc3", 19 },        { "oploc4", 20 },
-        { "oploc5", 21 },        { "aploc1", 22 },
-        { "aploc2", 23 },        { "aploc3", 24 },
-        { "aploc4", 25 },        { "aploc5", 26 },
-        { "opobj1", 27 },        { "opobj2", 28 },
-        { "opobj3", 29 },        { "opobj4", 30 },
-        { "opobj5", 31 },        { "apobj1", 32 },
-        { "apobj2", 33 },        { "apobj3", 34 },
-        { "apobj4", 35 },        { "apobj5", 36 },
-        { "opnpc1", 37 },        { "opnpc2", 38 },
-        { "opnpc3", 39 },        { "opnpc4", 40 },
-        { "opnpc5", 41 },        { "apnpc1", 42 },
-        { "apnpc2", 43 },        { "apnpc3", 44 },
-        { "apnpc4", 45 },        { "apnpc5", 46 },
+        { "null",            -1 },
+        { "none",            0  },
+        { "wander",          1  },
+        { "patrol",          2  },
+        { "playerescape",    3  },
+        { "playerfollow",    4  },
+        { "playerface",      5  },
+        { "playerfaceclose", 6  },
+        { "opplayer1",       7  },
+        { "opplayer2",       8  },
+        { "opplayer3",       9  },
+        { "opplayer4",       10 },
+        { "opplayer5",       11 },
+        { "applayer1",       12 },
+        { "applayer2",       13 },
+        { "applayer3",       14 },
+        { "applayer4",       15 },
+        { "applayer5",       16 },
+        { "oploc1",          17 },
+        { "oploc2",          18 },
+        { "oploc3",          19 },
+        { "oploc4",          20 },
+        { "oploc5",          21 },
+        { "aploc1",          22 },
+        { "aploc2",          23 },
+        { "aploc3",          24 },
+        { "aploc4",          25 },
+        { "aploc5",          26 },
+        { "opobj1",          27 },
+        { "opobj2",          28 },
+        { "opobj3",          29 },
+        { "opobj4",          30 },
+        { "opobj5",          31 },
+        { "apobj1",          32 },
+        { "apobj2",          33 },
+        { "apobj3",          34 },
+        { "apobj4",          35 },
+        { "apobj5",          36 },
+        { "opnpc1",          37 },
+        { "opnpc2",          38 },
+        { "opnpc3",          39 },
+        { "opnpc4",          40 },
+        { "opnpc5",          41 },
+        { "apnpc1",          42 },
+        { "apnpc2",          43 },
+        { "apnpc3",          44 },
+        { "apnpc4",          45 },
+        { "apnpc5",          46 },
     };
     size_t i;
 
@@ -587,15 +618,32 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
         const char* name;
         int32_t value;
     } k_types[] = {
-        { "int", 105 },        { "string", 115 },     { "enum", 103 },
-        { "obj", 111 },        { "loc", 108 },        { "component", 73 },
-        { "namedobj", 79 },    { "struct", 74 },      { "boolean", 49 },
-        { "coord", 99 },       { "category", 121 },   { "spotanim", 116 },
-        { "npc", 110 },        { "inv", 118 },        { "synth", 80 },
-        { "seq", 65 },         { "stat", 83 },        { "varp", 86 },
-        { "player_uid", 112 }, { "npc_uid", 78 },     { "interface", 97 },
-        { "npc_stat", 254 },   { "idkit", 75 },       { "dbrow", 208 },
-        { "midi", 77 },        { "autoint", 255 },
+        { "int",        105 },
+        { "string",     115 },
+        { "enum",       103 },
+        { "obj",        111 },
+        { "loc",        108 },
+        { "component",  73  },
+        { "namedobj",   79  },
+        { "struct",     74  },
+        { "boolean",    49  },
+        { "coord",      99  },
+        { "category",   121 },
+        { "spotanim",   116 },
+        { "npc",        110 },
+        { "inv",        118 },
+        { "synth",      80  },
+        { "seq",        65  },
+        { "stat",       83  },
+        { "varp",       86  },
+        { "player_uid", 112 },
+        { "npc_uid",    78  },
+        { "interface",  97  },
+        { "npc_stat",   254 },
+        { "idkit",      75  },
+        { "dbrow",      208 },
+        { "midi",       77  },
+        { "autoint",    255 },
     };
 
     /* `null` already means -1 in the expression parser, so seeding it here is
@@ -603,8 +651,8 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
     for( i = 0; i < sizeof(k_npc_mode) / sizeof(k_npc_mode[0]); i++ )
     {
         if( !SSC_SymbolsFind(symbols, k_npc_mode[i].name, SSC_SYM_UNKNOWN) )
-            SSC_SymbolsAdd(symbols, k_npc_mode[i].name, k_npc_mode[i].value,
-                           SSC_SYM_NPC_MODE, NULL);
+            SSC_SymbolsAdd(
+                symbols, k_npc_mode[i].name, k_npc_mode[i].value, SSC_SYM_NPC_MODE, NULL);
     }
     for( i = 0; i < sizeof(k_locshape) / sizeof(k_locshape[0]); i++ )
     {

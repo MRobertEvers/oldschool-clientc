@@ -405,9 +405,10 @@ draw_editor_panel(struct PG_App* app, float x, float y, float w, float h)
     if( anim && anim->keyframe_count > 0 )
         keyframe = &anim->keyframes[pg_animation_frame_index(anim, app->frame_counter)];
 
-    snprintf(label, sizeof(label), "Selected: %s", keyframe ? "" : "N/A");
     if( keyframe )
         snprintf(label, sizeof(label), "Selected: %d", keyframe->id);
+    else
+        snprintf(label, sizeof(label), "Selected: N/A");
     pg_gui_text_centred(gui, x, y + 22.0f, w, label, PG_COL_TEXT);
 
     pg_gui_text(gui, x + 8.0f, y + 42.0f, "Length", PG_COL_TEXT);

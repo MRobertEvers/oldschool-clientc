@@ -100,8 +100,24 @@ For the RS2 side, read the `.ob2` vertex labels and positions out of
   require `sign(x)` to agree whenever both labels are meaningfully lateral
   (`|x| > 6`). Without this the mirror-symmetric limbs pair at random.
 
-Then nearest-centroid, and read the result as anatomy — an arm label landing
-among the legs means the match is wrong, not that the rig is strange.
+Then nearest-centroid — but nearest alone is not enough, and both of the extra
+rules below were learned from artefacts that only showed up in a **side
+profile**. Check profiles as well as front views: an error in depth is invisible
+head-on.
+
+- **Break near-ties by destination vertex count, not by distance.** Joints that
+  sit in the same place are a tie the distance metric cannot settle sensibly.
+  OSRS joint 3 is 2.2 units from rev-254 joint 41 and 2.4 from joint 36 — and 41
+  carries 2 vertices where 36 carries 70. Letting 0.2 units decide handed the
+  back of the head to a stub and left its 70 vertices with nothing to move them.
+- **Every destination joint with real geometry needs a driver.** A joint nothing
+  maps to is a patch of the body that stays put while everything around it
+  moves. After the greedy pass, walk the undriven joints and give each the
+  nearest source that can spare one — a source whose current target already has
+  another driver. That recovered rev-254 joint 40 (head) and joint 18 (pelvis).
+
+Read the result as anatomy — an arm label landing among the legs means the match
+is wrong, not that the rig is strange.
 
 ## The measured correspondence
 
@@ -247,6 +263,25 @@ rather than a judgement call.
 
 `--report` prints which transforms the animation actually drives and their live
 destination labels. That is what surfaces duplicate collapsed joints.
+
+`--motion` is the numeric check, and the one to reach for when two different
+meshes make eyeballing unreliable. It reports how far each joint's vertices
+travel from the rest pose, averaged over the animation and expressed as a
+percentage of body height so the two meshes' scales cancel. Read it against the
+map: a joint that travels in the source but barely moves in the port is
+underdriven; one that travels much further is overdriven. On the finished claws
+retarget seven of the eight substantial joint pairs agree within 1.6 points:
+
+```
+OSRS  28 -> rev254  16   source  26.1%   port  26.3%     (right hand)
+OSRS  27 -> rev254  17   source  24.6%   port  24.5%     (left hand)
+OSRS   1 -> rev254  35   source  15.7%   port  16.0%     (head)
+OSRS  38 -> rev254  26   source  20.6%   port  24.6%     (shin, +4.0)
+```
+
+The shin is the 245 → 71 collapse showing: two source joints drive it through
+separate transforms, so it travels further than the original. That is the
+residual cost of retargeting a finer rig onto a coarser one.
 
 **`--by-label` is the mode that finds rig bugs.** It colours faces by vertex
 label instead of by material, so a joint that has been mapped to the wrong
