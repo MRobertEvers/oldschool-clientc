@@ -46,7 +46,7 @@ What the web block swaps:
 |---|---|---|
 | IO | `platform_x_io.c` (reads the cache) | `platform_x_io_web.c` (asks the IO server) |
 | audio | `platform_audio_sdl2.c` | `platform_audio_wasm.c` (WebAudio) |
-| 3D | Soft3D or `--opengl3` | Soft3D only (`TORIRS_HAVE_GL3` is native-only) |
+| 3D | Soft3D, or `--opengl3` for GL 3.2 | WebGL1 by default, `--soft3d` to opt out |
 | frame loop | `while (frame_loop_step())` | `emscripten_set_main_loop` |
 
 ## Running it
@@ -125,6 +125,76 @@ both halves:
 torirs: dat2 cache=cache.osrs230 iface=161
 torirs: io server has cache.osrs230 (dat2 oldschool rev 230 quirks none) open
 ```
+
+## The WebGL1 renderer
+
+The GPU renderer is one file — [`platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
+— built against desktop GL 3.2 natively and WebGL1 in the browser. Not two
+renderers: the draw order, the texture atlas, the sprite variants, the picking
+and the 2D batcher are the same code on both, so a fix to any of them lands on
+both. `TORIRS_GL_ES2` selects what genuinely differs, and the WebGL1 pieces
+live in [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/).
+
+It is the default on the web: software rasterizing 765×503 into a canvas costs
+far more in wasm than handing the same triangles to the browser. `--soft3d`
+falls back. On startup the client says which context it got, because a renderer
+running on something other than what it was written for is worth seeing on line
+one rather than deducing from a black screen:
+
+```
+WebGL1: OpenGL ES 2.0 (WebGL 1.0 (OpenGL ES 2.0 Chromium)) | GLSL OpenGL ES GLSL ES 1.00 | max texture 8192
+OpenGL3: 4.1 Metal - 90.5 | GLSL 4.10 | Apple M4 Max | max texture 16384
+```
+
+### No extensions
+
+Not an aspiration — the build enforces it. `-sMIN_WEBGL_VERSION=1
+-sMAX_WEBGL_VERSION=1` stops the runtime handing the client a WebGL2 context,
+and `-sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0` stops emscripten quietly
+enabling every extension the browser offers. A GLES3-only or extension-only
+call therefore fails here rather than in someone else's browser.
+
+What that rules out, and what the renderer does instead:
+
+| unavailable | instead |
+|---|---|
+| `OES_vertex_array_object` | no VAOs; attribute state is re-established per draw (`gl3_bind_group_attribs`) |
+| `OES_element_index_uint` | 16-bit indices, split into base-vertex chunks — see below |
+| uniform blocks (GL3 core) | the world matrices, clock and atlas dims are plain uniforms |
+| `GL_RGBA8` / `GL_R8` sized formats | internalformat equals format; the font atlas is `GL_LUMINANCE` and the shader still reads `.r` |
+| `GL_BGRA` | `glReadPixels` takes `GL_RGBA` on the pick path |
+| `layout(location=)` | attribute locations bound before linking |
+| `ANGLE_instanced_arrays`, `EXT_frag_depth`, `OES_standard_derivatives`, `EXT_shader_texture_lod`, `WEBGL_depth_texture`, `OES_texture_float` | never used by either backend |
+
+The shaders are GLSL ES 1.00 ports of the GL3 ones, same maths and same names
+([`webgl1_shaders.h`](../3rd/trspk/webgl1/webgl1_shaders.h)). A fragment shader
+has no default float precision in ES, and `mediump` only carries integers
+exactly to 2^10 while a texture id runs to twice the atlas slot count — so they
+ask for `highp` where `GL_FRAGMENT_PRECISION_HIGH` says it exists.
+
+### 16-bit indices
+
+This is the one thing the constraint really costs. A scene's vertex arena runs
+to hundreds of thousands of vertices and WebGL1 indexes with 16 bits.
+
+An index is only read relative to wherever the attribute pointers were left, so
+a draw whose vertices all lie inside one 65536-vertex window can be expressed
+as (window base, 16-bit offsets) — `glDrawElementsBaseVertex`, which WebGL1 also
+lacks, with the base folded into the `glVertexAttribPointer` offsets instead.
+[`trspk_webgl1_split16`](../3rd/trspk/webgl1/webgl1_index16.c) rewrites the
+32-bit draw ranges into those chunks; the renderer re-points the attributes per
+chunk and draws. The split is a scan, not a sort: a range's indices come from
+faces walked in painter order over one baked model, so they are already
+clustered and a chunk usually swallows a whole range.
+
+### Atlas size
+
+The web path pins the texture atlas to 2048² (256 slots) rather than the
+desktop 4096² (1024), whatever `GL_MAX_TEXTURE_SIZE` reports. 4096² RGBA is a
+single 64MB allocation; a WebGL1 implementation may refuse it, and Chrome's
+software rasterizer drops the whole context instead of failing the upload —
+which surfaces as every later call reporting "object does not belong to this
+context", with nothing saying why.
 
 ## How cache reads work
 
@@ -253,9 +323,6 @@ does not natively. Two things this forced:
 
 ## Not ported
 
-- **`--opengl3`.** The GL3 frame renderer is written against desktop GL 3.3
-  core. The web host renders through Soft3D; `--opengl3` is refused rather than
-  silently ignored, and the GL paths are compiled out via `TORIRS_HAVE_GL3`.
 - **Live server connections.** `--connect` compiles (emscripten emulates BSD
   sockets over WebSockets) but is untested from the browser; the web default is
   `--offline`. A page that needs it wants the `NET_TRANSPORT_WS` path and a

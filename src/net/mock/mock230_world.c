@@ -705,6 +705,25 @@ handle_cheat(
      * leading "::". */
     rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
 
+    if( strncmp(text, "talk", 4) == 0 )
+    {
+        /* `::talk <slot> [op]` fires [opnpc<op>] on an npc without needing a
+         * right-click, so every trigger is drivable from a headless session. */
+        int slot = 0;
+        int op_num = 1;
+
+        (void)sscanf(text, "talk %d %d", &slot, &op_num);
+        if( op_num < 1 || op_num > 5 )
+            op_num = 1;
+        if( slot >= 0 && slot < MOCK230_NPC_MAX && srv->npcs[slot].active )
+        {
+            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1),
+                                             srv->npcs[slot].type, -1, slot) )
+                say(srv, "npc %d has no [opnpc%d] script.", srv->npcs[slot].type, op_num);
+        }
+        return;
+    }
+
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
@@ -799,6 +818,24 @@ mock230_world_handle(
     case PKTOUT_NAME_OPOBJ5:
         handle_op_at_tile(srv, "obj", payload, len);
         break;
+
+    /* The client sends the packed (interface << 16) | child uid at full width
+     * (GameProtoRevTable.component_id_bytes); truncating it would make every
+     * interface's component 5 look alike. */
+    case PKTOUT_NAME_RESUME_PAUSEBUTTON:
+    {
+        struct RSAreaBuf resume;
+        int uid;
+
+        rsab_wrap(&resume, (void*)payload, (size_t)len);
+        uid = rsab_g4(&resume);
+        if( !rsab_ok(&resume) )
+            break;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+        mock230_scripts_resume_button(srv, uid);
+        break;
+    }
 
     case PKTOUT_NAME_CLIENT_CHEAT:
         handle_cheat(srv, payload, len);
@@ -1414,6 +1451,83 @@ mock230_world_selftest(void)
                                "the queued script should run on tick +4, varp is %d",
                                player->varps[2]);
             }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: npc chat dialogue\n");
+    {
+        static struct Mock230Capture capture;
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /* IF_SETNPCHEAD, IF_SETANIM, three IF_SETTEXTs, IF_SETHIDE(unhide),
+             * IF_OPENSUB. The unhide matters as much as the mount: 162:559
+             * ships hidden, so without it the dialogue is built and never
+             * drawn. */
+            static const int k_dialogue[] = { 95, 97, 94, 98, 6 };
+            uint8_t payload[2] = { 0, 0 }; /* npc slot 0 is Hans */
+            uint8_t resume[4];
+            int continue_uid = (231 << 16) | 5;
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, payload, 2);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 5),
+                           "a dialogue should set the head, anim, text, unhide and mount");
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "p_pausebutton should park the script");
+            SELFTEST_CHECK(player->resume_button_count == 1,
+                           "the continue button should be registered, got %d",
+                           player->resume_button_count);
+
+            /* A click on some other interface's component 5 must NOT release
+             * the wait. This is what the 4-byte uid buys: at 2 bytes every
+             * interface's component 5 looks identical on the wire. */
+            resume[0] = (uint8_t)(((217 << 16) | 5) >> 24);
+            resume[1] = (uint8_t)(((217 << 16) | 5) >> 16);
+            resume[2] = (uint8_t)(((217 << 16) | 5) >> 8);
+            resume[3] = (uint8_t)((217 << 16) | 5);
+            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "an unregistered button must leave the script parked");
+
+            /* The registered one advances to page 2. */
+            resume[0] = (uint8_t)(continue_uid >> 24);
+            resume[1] = (uint8_t)(continue_uid >> 16);
+            resume[2] = (uint8_t)(continue_uid >> 8);
+            resume[3] = (uint8_t)continue_uid;
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
+                           "clicking continue should draw the next page");
+            SELFTEST_CHECK(player->active_script != NULL, "and park again on page 2");
+            SELFTEST_CHECK(player->last_com == continue_uid,
+                           "last_com should name the button that resumed it");
+
+            /* Page 3, then the script finishes and closes the dialogue. */
+            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "the script should finish after the last page");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+                           "if_close should close the dialogue");
+            SELFTEST_CHECK(player->resume_button_count == 0,
+                           "and drop its resume buttons");
 
             mock230_scripts_free(&srv);
         }

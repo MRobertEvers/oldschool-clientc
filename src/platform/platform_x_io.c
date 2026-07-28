@@ -84,6 +84,24 @@ PlatformX_IO_InitScriptPath(
     px->script_dir = strdup(script_path);
 }
 
+/* Nothing to record: this backend was given the open disk itself. */
+void
+PlatformX_IO_InitCacheId(
+    struct PlatformX_IO* px,
+    int epoch,
+    int game,
+    int revision,
+    unsigned int quirks,
+    const char* dir)
+{
+    (void)px;
+    (void)epoch;
+    (void)game;
+    (void)revision;
+    (void)quirks;
+    (void)dir;
+}
+
 void
 PlatformX_IO_Free(struct PlatformX_IO* px)
 {

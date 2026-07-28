@@ -424,7 +424,14 @@ PlatformSDL2_InitForOpenGL3(
 
     platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
 
-#if defined(__APPLE__)
+#if defined(TORIRS_GL_ES2)
+    /* WebGL1 is GLES 2.0. Asking for exactly that (and nothing above it) is
+     * what keeps the renderer honest about the extension-free feature set it
+     * was written against — a WebGL2 context would quietly accept more. */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(__APPLE__)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);

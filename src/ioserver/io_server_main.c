@@ -36,26 +36,163 @@
 #define IO_SERVER_DEFAULT_PORT 8088
 #define IO_SERVER_DEFAULT_ROOT "build-web"
 
-struct IoServer
+/*
+ * One open cache.
+ *
+ * Each carries its own PlatformX_IO, which is what makes the per-cache
+ * decompressed-archive LRU inside it correct rather than a hazard: a group
+ * archive cached for one cache must never answer a read against another.
+ */
+struct CacheSlot
 {
+    char dir[IOWIRE_CACHE_DIR_MAX];
+    struct RSCache profile;
     struct PlatformX_IO* px;
     struct RSCache_Dat1Disk* dat1_disk;
     struct RSCache_Dat2Disk* dat2_disk;
+    char describe[192];
+    int failed_open; /* remember a refusal so it is reported once, not per read */
+};
+
+#define IO_SERVER_MAX_CACHES 8
+
+struct IoServer
+{
+    /*
+     * Caches are opened on demand, because which one a client wants is the
+     * client's business: the page's command line is its query string, so the
+     * manifest can change without restarting anything. Every batch names its
+     * cache (see IOWireCache), and the first request for one opens it.
+     */
+    struct CacheSlot caches[IO_SERVER_MAX_CACHES];
+    int cache_count;
     char root[512];
-    /* Where GET /boot/<path> reads from: the tree the manifests live in. */
+    /* Where GET /boot/<path> reads from: the tree the manifests live in, and
+     * the root the caches themselves are resolved against. */
     char boot_root[512];
-    /* What this process is serving, reported on /stats. The page's command
-     * line is its query string, so the client's manifest can be changed
-     * without restarting the server — and then the two disagree about which
-     * cache is open, which otherwise shows up as a boot that fails to decode
-     * anything with no hint as to why. */
-    char serving[256];
+    char config_dir[256];
+    char script_dir[256];
     int verbose;
 
     long served;
     long failed;
     long bytes_out;
 };
+
+/* Resolve a client-named cache directory under the server's root. The name
+ * arrives from another process, so it is input: no absolute paths, no
+ * traversal, no escaping the tree the server was pointed at. */
+static int
+cache_dir_is_safe(char const* dir)
+{
+    if( !dir || !dir[0] )
+        return 0;
+    if( dir[0] == '/' )
+        return 0;
+    if( strstr(dir, "..") )
+        return 0;
+    return 1;
+}
+
+static struct CacheSlot*
+io_server_cache_for(
+    struct IoServer* server,
+    struct IOWireCache const* want)
+{
+    struct CacheSlot* slot = NULL;
+    char path[1024];
+    char quirks[32];
+
+    for( int i = 0; i < server->cache_count; i++ )
+    {
+        if( strcmp(server->caches[i].dir, want->dir) == 0 )
+            return server->caches[i].failed_open ? NULL : &server->caches[i];
+    }
+
+    if( !cache_dir_is_safe(want->dir) )
+    {
+        fprintf(stderr, "io_server: refusing cache directory '%s'\n", want->dir);
+        return NULL;
+    }
+    if( server->cache_count >= IO_SERVER_MAX_CACHES )
+    {
+        fprintf(stderr, "io_server: no room for another cache (%d open)\n", server->cache_count);
+        return NULL;
+    }
+
+    slot = &server->caches[server->cache_count++];
+    memset(slot, 0, sizeof(*slot));
+    snprintf(slot->dir, sizeof(slot->dir), "%s", want->dir);
+    slot->profile = RSCache_ProfileForIdentity(
+        (enum RSCache_Game)want->game,
+        (enum RSCache_Epoch)want->epoch,
+        want->revision,
+        want->quirks);
+
+    RSCache_QuirksName(slot->profile.quirks, quirks, (int)sizeof(quirks));
+    snprintf(
+        slot->describe,
+        sizeof(slot->describe),
+        "%s (%s %s rev %d quirks %s)",
+        slot->dir,
+        RSCache_EpochName(slot->profile.epoch),
+        RSCache_GameName(slot->profile.game),
+        slot->profile.revision,
+        quirks);
+
+    snprintf(path, sizeof(path), "%s/%s", server->boot_root, slot->dir);
+
+    slot->px = PlatformX_IO_New();
+    if( !slot->px )
+    {
+        slot->failed_open = 1;
+        return NULL;
+    }
+
+    if( slot->profile.epoch == RSCACHE_EPOCH_DAT1 )
+    {
+        slot->dat1_disk = RSCache_Dat1DiskNewFromDirectory(path);
+        if( !slot->dat1_disk )
+        {
+            fprintf(stderr, "io_server: no dat1 cache at %s\n", path);
+            slot->failed_open = 1;
+            return NULL;
+        }
+        PlatformX_IO_InitDat1Disk(slot->px, slot->dat1_disk);
+    }
+    else
+    {
+        slot->dat2_disk = RSCache_Dat2DiskNewFromDirectory(path);
+        if( !slot->dat2_disk )
+        {
+            fprintf(stderr, "io_server: no dat2 cache at %s\n", path);
+            slot->failed_open = 1;
+            return NULL;
+        }
+        /* Table ids and the map XTEA gate are properties of the identity, not
+         * of the container; without this every logical table is ABSENT. */
+        RSCache_Dat2DiskSetProfile(slot->dat2_disk, &slot->profile);
+        if( RSCache_MapLocsEncrypted(&slot->profile) )
+        {
+            char xtea_path[1152];
+            snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", path);
+            /* rscache keeps XTEA keys in one global table, so two open caches
+             * that both need keys share it. Fine for the caches we ship (only
+             * one era is keyed at a time); worth knowing before adding a
+             * second keyed cache to a single session. */
+            if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
+                fprintf(stderr, "io_server: no xtea keys at %s (world maps may fail)\n",
+                        xtea_path);
+        }
+        PlatformX_IO_InitDat2Disk(slot->px, slot->dat2_disk);
+    }
+
+    PlatformX_IO_InitConfigPath(slot->px, server->config_dir);
+    PlatformX_IO_InitScriptPath(slot->px, server->script_dir);
+    printf("io_server: opened %s\n", slot->describe);
+    fflush(stdout);
+    return slot;
+}
 
 /* ------------------------------------------------------------------ cache */
 
@@ -75,11 +212,6 @@ load_reference_table_raw(
     int table_id;
     struct RSCache_Dat2DiskArchive* archive;
 
-    if( !server->dat2_disk )
-    {
-        item->error_code = -1;
-        return;
-    }
     if( logical < 0 || logical >= RSCACHE_DAT2_TABLE_COUNT )
     {
         item->error_code = -1;
@@ -107,6 +239,54 @@ load_reference_table_raw(
     RSCache_Dat2DiskArchiveFree(archive);
 }
 
+/*
+ * Can this server answer this request at all?
+ *
+ * What a request asks for is input — it arrived from another process — not an
+ * invariant. PlatformX_IO_LoadItem is entitled to assert that the disk it needs
+ * is open, because in the native client App_Init opened it two calls earlier;
+ * here the client is a browser tab that may be booting an entirely different
+ * generation, and an assert would take the whole server down mid-session. It
+ * did: a dat1 cache with a dat2 client aborted on the first archive read, and
+ * every later request in that tab failed at the transport with nothing saying
+ * why.
+ *
+ * So the mismatch is refused, once loudly and then quietly.
+ */
+static int
+io_server_can_serve(
+    struct IoServer* server,
+    struct ToriRS_IOItem const* item)
+{
+    static int warned = 0;
+    int wants_dat1;
+
+    if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
+        return server->dat2_disk != NULL;
+    if( item->kind != TORIRS_IOK_CACHE )
+        return 1;
+
+    wants_dat1 = item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
+                 item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
+                 item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY;
+
+    if( wants_dat1 ? (server->dat1_disk != NULL) : (server->dat2_disk != NULL) )
+        return 1;
+
+    if( !warned )
+    {
+        warned = 1;
+        fprintf(
+            stderr,
+            "io_server: this client wants %s archives, but the open cache is %s.\n"
+            "  Start the server with the manifest the client is booting:\n"
+            "    ./run-live.sh web <manifest.ini>\n",
+            wants_dat1 ? "dat1" : "dat2",
+            server->serving);
+    }
+    return 0;
+}
+
 static void
 io_server_load(
     struct IoServer* server,
@@ -115,6 +295,12 @@ io_server_load(
     item->data = NULL;
     item->data_size = 0;
     item->error_code = 0;
+
+    if( !io_server_can_serve(server, item) )
+    {
+        item->error_code = -1;
+        return;
+    }
 
     if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
         load_reference_table_raw(server, item);

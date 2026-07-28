@@ -27,6 +27,24 @@ PlatformX_IO_InitScriptPath(
     struct PlatformX_IO* px,
     const char* script_path);
 
+/**
+ * Name the cache this client reads from: the identity a boot manifest states,
+ * plus the directory it lives in.
+ *
+ * A synchronous backend does not need telling — it was handed the open disk.
+ * A remote one does: its requests are only meaningful against a particular
+ * cache, and the server has to know which to open. Calling this on a local
+ * backend is harmless and records nothing.
+ */
+void
+PlatformX_IO_InitCacheId(
+    struct PlatformX_IO* px,
+    int epoch,
+    int game,
+    int revision,
+    unsigned int quirks,
+    const char* dir);
+
 void
 PlatformX_IO_Free(struct PlatformX_IO* px);
 

@@ -100,6 +100,10 @@ struct PlatformX_IO
     char* config_dir;
     char* script_dir;
 
+    /* Which cache these requests are about. Sent in every batch header so one
+     * server can answer clients booting different generations. */
+    struct IOWireCache cache;
+
     struct IOWireBuf out;
     int out_count;
 
@@ -189,6 +193,23 @@ PlatformX_IO_InitDat1Disk(
 {
     (void)px;
     (void)disk;
+}
+
+void
+PlatformX_IO_InitCacheId(
+    struct PlatformX_IO* px,
+    int epoch,
+    int game,
+    int revision,
+    unsigned int quirks,
+    const char* dir)
+{
+    assert(px);
+    px->cache.epoch = (int32_t)epoch;
+    px->cache.game = (int32_t)game;
+    px->cache.revision = (int32_t)revision;
+    px->cache.quirks = (uint32_t)quirks;
+    snprintf(px->cache.dir, sizeof(px->cache.dir), "%s", dir ? dir : "");
 }
 
 void
@@ -452,7 +473,7 @@ PlatformX_IO_Process(
         }
 
         if( px->out_count == 0 )
-            IOWire_BatchBegin(&px->out);
+            IOWire_BatchBegin(&px->out, &px->cache);
 
         pending->in_use = 1;
         pending->req_id = px->next_req_id++;
@@ -554,7 +575,7 @@ torirs_io_response_submit(
     }
 
     IOWireReader_Init(&reader, data, size);
-    count = IOWire_BatchRead(&reader);
+    count = IOWire_BatchRead(&reader, NULL);
     if( count < 0 )
     {
         fprintf(stderr, "web io: malformed response batch (%d bytes)\n", size);

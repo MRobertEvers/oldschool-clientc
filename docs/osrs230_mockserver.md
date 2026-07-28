@@ -367,6 +367,81 @@ There is one parking slot per player, matching the reference. A second script
 suspending while one waits is refused rather than queued — two parked scripts
 would interleave writes to the same player.
 
+## 3.11 NPC chat dialogue, and the one thing that does not work yet
+
+Content: `scripts/chat.rs2`'s `~chatnpc` opens interface **231** into the chatbox
+and blocks on `p_pausebutton`, so a multi-page conversation is just sequential
+statements. `hans.rs2`'s `[opnpc3,hans]` is a three-page example.
+
+rev-230 ids, all verified with `tools/dump_interface` rather than assumed:
+
+| what | uid |
+|---|---|
+| npcchat group | `231` (root 506x129) |
+| chathead model | `231:2` |
+| speaker name | `231:4` |
+| body text | `231:6` (67px, about four lines) |
+| "Click here to continue" | `231:5` (`clickMask=0x1`) |
+| chat container | `162:559` — **ships `hidden=1`** |
+| mount slot | `162:561` (506x129, exactly 231's root size) |
+
+**A genuine port decision.** LostCity picks between four groups
+(`npcchat1..npcchat4`) by line count, because each of its chat interfaces has a
+fixed number of text components. rev 230 has one group with a single multi-line
+body, so the page/line machinery collapses to "open 231, set the body".
+Anything here that reads like a missing feature is that difference.
+
+**Opening the dialogue is two packets, not one.** `162:559` is hidden, so
+mounting into `162:561` alone builds a dialogue that is never drawn — which
+looks exactly like the mount having failed.
+
+### Not working: the client renders a blank frame after the mount
+
+The protocol half is done and verified. The packets go out, the client parses
+them with the right uids, `IF_SETHIDE` applies, and `IF_OPENSUB` mounts
+interface 231 under `162:561`:
+
+```
+if_settext: com=15138820 text='Hans'                    (231:4)
+if_settext: com=15138822 text='Let me think...'         (231:6)
+if_sethide: com=10617391 hide=0 applied=1               (162:559)
+if-opensub: mount iface=231 under uid=0x00a20231 (162<<16|561) type=0
+```
+
+But the frame after that mount is a single flat colour, where the same run
+without the dialogue renders normally. Bisected precisely:
+
+| variant | result |
+|---|---|
+| `IF_SETTEXT` only | renders (1335 distinct colours) |
+| `IF_SETHIDE` only, no mount | renders (1334) |
+| mount only, no unhide | **blank (1)** |
+| `type=0` vs `type=1` | blank either way |
+| 400 vs 1500 frames | blank either way, so not a mid-mount race |
+| chathead `if_setanim` removed | still blank, so not the guessed seq id |
+
+So it is the mount itself, not the unhide, not the `type`, not timing, and not
+the chathead animation. `Task_OpenSubRefresh_Run` requests it and no second
+`InterfaceOpen done` line ever appears. The `Dat2SpriteLoadByName` warnings in
+that log are a red herring — the baseline run emits 51 of them too.
+
+Repro:
+
+```
+src/build/mock230 43600 &
+SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 TORIRS_NET_CHEAT="talk 0" \
+  TORIRS_EXIT_BMP=/tmp/dialogue.bmp TORIRS_NET_DEBUG=1 \
+  src/torirs --manifest manifest_osrs230.ini --user test --pass test \
+  --connect 127.0.0.1:43600
+```
+
+`::talk <npcSlot>` fires `[opnpc3]` on that npc without needing a right-click.
+
+Next place to look is `CreateTask_InterfaceOpenSub` and
+`App_RefreshAfterTreeMutation`: whether mounting a second interface *pack* after
+boot leaves the tree consistent, and whether this reproduces for any group or
+only for 231.
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —

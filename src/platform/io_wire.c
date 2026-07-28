@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Batch header is magic(4) + version(4) + count(4); the count is patched in
- * place as records are appended. */
+/* Batch header is magic(4) + version(4) + count(4) + the cache descriptor; the
+ * count is patched in place as records are appended, so its offset is fixed. */
 #define IOWIRE_HEADER_SIZE 12
 #define IOWIRE_COUNT_OFFSET 8
 
@@ -157,13 +157,28 @@ get_blob(
 }
 
 void
-IOWire_BatchBegin(struct IOWireBuf* buf)
+IOWire_BatchBegin(
+    struct IOWireBuf* buf,
+    struct IOWireCache const* cache)
 {
     uint8_t magic[4] = { IOWIRE_MAGIC0, IOWIRE_MAGIC1, IOWIRE_MAGIC2, IOWIRE_MAGIC3 };
+    struct IOWireCache none;
+
     IOWireBuf_Reset(buf);
     IOWireBuf_Append(buf, magic, 4);
     put_u32(buf, IOWIRE_VERSION);
     put_u32(buf, 0);
+
+    if( !cache )
+    {
+        memset(&none, 0, sizeof(none));
+        cache = &none;
+    }
+    put_i32(buf, cache->epoch);
+    put_i32(buf, cache->game);
+    put_i32(buf, cache->revision);
+    put_u32(buf, cache->quirks);
+    put_blob(buf, cache->dir, (int)strlen(cache->dir));
 }
 
 static void
@@ -184,12 +199,19 @@ batch_bump(struct IOWireBuf* buf)
 }
 
 int
-IOWire_BatchRead(struct IOWireReader* r)
+IOWire_BatchRead(
+    struct IOWireReader* r,
+    struct IOWireCache* out_cache)
 {
     uint32_t version;
     uint32_t count;
+    struct IOWireCache cache;
+    uint8_t const* dir;
+    int32_t dir_len = 0;
 
     assert(r);
+    if( out_cache )
+        memset(out_cache, 0, sizeof(*out_cache));
     if( r->len < IOWIRE_HEADER_SIZE )
         return -1;
     if( r->data[0] != IOWIRE_MAGIC0 || r->data[1] != IOWIRE_MAGIC1 ||
@@ -200,6 +222,20 @@ IOWire_BatchRead(struct IOWireReader* r)
     count = get_u32(r);
     if( r->error || version != IOWIRE_VERSION )
         return -1;
+
+    memset(&cache, 0, sizeof(cache));
+    cache.epoch = get_i32(r);
+    cache.game = get_i32(r);
+    cache.revision = get_i32(r);
+    cache.quirks = get_u32(r);
+    dir = get_blob(r, &dir_len);
+    if( r->error || dir_len >= IOWIRE_CACHE_DIR_MAX )
+        return -1;
+    if( dir_len > 0 )
+        memcpy(cache.dir, dir, (size_t)dir_len);
+    cache.dir[dir_len] = '\0';
+    if( out_cache )
+        *out_cache = cache;
     /* A count larger than the buffer could hold is a truncated or hostile
      * batch; refuse before allocating anything per record. */
     if( count > (uint32_t)r->len )

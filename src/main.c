@@ -12,7 +12,15 @@
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
 #if defined(TORIRS_HAVE_GL3)
+/* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
+ * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
 #include "platform/platform_sdl2_renderer_gl3.h"
+#endif
+/* Which renderer a plain run gets. Soft3D natively (the GPU path is opt-in via
+ * --opengl3); the GPU path on the web, where software rasterizing into a canvas
+ * costs far more than handing the same triangles to WebGL. */
+#if !defined(TORIRS_GPU_DEFAULT)
+#define TORIRS_GPU_DEFAULT 0
 #endif
 #include "render/torirs_frame.h"
 #include "toridraw_math.h"
@@ -1014,7 +1022,7 @@ main(
     int write_bmp = 0;
     int offline = 0;
     int cli_connect = 0;
-    int use_opengl3 = 0;
+    int use_opengl3 = TORIRS_GPU_DEFAULT;
     int positional = 0;
     int argi;
 
@@ -1111,6 +1119,13 @@ main(
             return 1;
 #endif
         }
+        /* The other direction, for a host where the GPU renderer is the
+         * default: fall back to the software rasterizer. */
+        if( strcmp(argv[argi], "--soft3d") == 0 )
+        {
+            use_opengl3 = 0;
+            continue;
+        }
         if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
@@ -1133,7 +1148,7 @@ main(
             "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
             "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
             "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3]\n",
+            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3|--soft3d]\n",
             argv[0]);
         return 1;
     }

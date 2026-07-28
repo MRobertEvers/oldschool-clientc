@@ -191,14 +191,17 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
 # against) links into the app; $(sort) dedupes objects shared with WB_OBJS.
-# The desktop-GL binding is native-only: the web host renders through Soft3D.
+# The desktop-GL binding is native-only; the web build gets the WebGL1 pieces
+# the renderer needs instead (index splitting — see webgl1_index16.h).
 ifeq ($(PLATFORM),native)
 GL_OBJS = $(OBJ_DIR)/opengl3_sdlgl.o
+else
+WEBGL1_OBJS = $(OBJ_DIR)/webgl1_index16.o
 endif
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
-	$(OBJ_DIR)/trspk_unity.o $(GL_OBJS) \
+	$(OBJ_DIR)/trspk_unity.o $(GL_OBJS) $(WEBGL1_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o \
@@ -431,6 +434,9 @@ $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
 
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c
 	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@

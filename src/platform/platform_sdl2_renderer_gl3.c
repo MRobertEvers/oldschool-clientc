@@ -8,9 +8,13 @@
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
+#if defined(TORIRS_GL_ES2)
+#include "webgl1/trspk_webgl1.h"
+#else
 #include "opengl3/opengl3_2d_shaders.h"
 #include "opengl3/opengl3_sdlgl.h"
 #include "opengl3/trspk_opengl3.h"
+#endif
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/trspk_sprite.h"
@@ -35,6 +39,48 @@
 #include <string.h>
 
 #define TORIRS_GL3_BG 0xFF202428
+
+/*
+ * Two GPU backends, one renderer.
+ *
+ * Natively this is desktop GL 3.2 core; on the web it is WebGL1 (GLES2) with no
+ * extensions — see 3rd/trspk/webgl1/trspk_webgl1.h for what that rules out.
+ * Everything above the handful of definitions below is written once: the draw
+ * order, the atlas, the sprite variants, the picking and the 2D batcher do not
+ * know which context they are running on, and a fix to any of them lands on
+ * both. What genuinely differs is named here.
+ */
+#if defined(TORIRS_GL_ES2)
+/* GLES2 has no sized internal formats: internalformat must equal format. */
+#define TORIRS_GL_TEX_RGBA GL_RGBA
+/* ...and no single-channel red. LUMINANCE replicates into rgb, so the shaders
+ * still read coverage from .r. */
+#define TORIRS_GL_TEX_R GL_LUMINANCE
+#define TORIRS_GL_TEX_R_FORMAT GL_LUMINANCE
+/* No GL_BGRA at all, glReadPixels included; the pick path swizzles instead. */
+#define TORIRS_GL_READ_FORMAT GL_RGBA
+#define TORIRS_GL_BACKEND_NAME "WebGL1"
+/* Index element width the GPU buffer is sized in. */
+#define TORIRS_GL_INDEX_SIZE sizeof(uint16_t)
+#else
+#define TORIRS_GL_TEX_RGBA GL_RGBA8
+#define TORIRS_GL_TEX_R GL_R8
+#define TORIRS_GL_TEX_R_FORMAT GL_RED
+#define TORIRS_GL_READ_FORMAT GL_BGRA
+#define TORIRS_GL_BACKEND_NAME "OpenGL3"
+#define TORIRS_GL_INDEX_SIZE sizeof(uint32_t)
+#endif
+
+/*
+ * The two vertex layouts are the same 48 bytes in the same order (see
+ * webgl1_vertex.h and opengl3_vertex.h). The CPU-side arena is built on the
+ * OpenGL3 one on both paths because trspk_modelarena's compaction moves
+ * vertices through that member; declaring a second identical format would only
+ * give the two a chance to drift apart.
+ */
+_Static_assert(
+    sizeof(struct TRSPK_VertexWebGL1) == sizeof(struct TRSPK_VertexOpenGl3),
+    "WebGL1 and OpenGL3 vertices must stay layout-compatible");
 
 typedef struct TRSPK_UboWorld
 {
@@ -202,6 +248,20 @@ struct ToriRS_GL3
 
     GLuint ubo;
     GLuint ebo;
+    /* Mirror of the world uniform block, pushed per program bind on GLES2. */
+    TRSPK_UboWorld ubo_cpu;
+    GLint u_model_view;
+    GLint u_projection;
+    GLint u_clock;
+    GLint u_atlas_dim;
+    GLint u_atlas_slots;
+#if defined(TORIRS_GL_ES2)
+    /* 16-bit index staging, and the draw chunks it was split into. */
+    uint16_t* idx16;
+    uint32_t idx16_capacity;
+    struct TRSPK_WebGL1Chunk* chunks;
+    uint32_t chunk_capacity;
+#endif
 
     float view[16];
     float proj[16];
@@ -241,17 +301,28 @@ struct ToriRS_GL3
  * Helpers
  * ----------------------------------------------------------------------- */
 
+/*
+ * Point the world attributes at `vbo_gpu`, `base_vertex` vertices in.
+ *
+ * The base is how WebGL1 draws past index 65535 without
+ * OES_element_index_uint: shifting every attribute pointer by whole vertices
+ * makes 16-bit indices read from a window starting there, which is
+ * glDrawElementsBaseVertex expressed in the only terms GLES2 has. The GL3 path
+ * always passes 0 — it indexes the whole arena directly with 32-bit indices.
+ */
 static void
 bind_vbo_attribs(
     struct ToriRS_GL3* renderer,
-    GLuint vbo_gpu)
+    GLuint vbo_gpu,
+    uint32_t base_vertex)
 {
     const GLsizei stride = (GLsizei)sizeof(struct TRSPK_VertexOpenGl3);
-    const uintptr_t offset_position = offsetof(struct TRSPK_VertexOpenGl3, position);
-    const uintptr_t offset_color = offsetof(struct TRSPK_VertexOpenGl3, color);
-    const uintptr_t offset_texcoord = offsetof(struct TRSPK_VertexOpenGl3, texcoord);
-    const uintptr_t offset_tex_id = offsetof(struct TRSPK_VertexOpenGl3, tex_id);
-    const uintptr_t offset_uv_mode = offsetof(struct TRSPK_VertexOpenGl3, uv_mode);
+    const uintptr_t base = (uintptr_t)base_vertex * sizeof(struct TRSPK_VertexOpenGl3);
+    const uintptr_t offset_position = base + offsetof(struct TRSPK_VertexOpenGl3, position);
+    const uintptr_t offset_color = base + offsetof(struct TRSPK_VertexOpenGl3, color);
+    const uintptr_t offset_texcoord = base + offsetof(struct TRSPK_VertexOpenGl3, texcoord);
+    const uintptr_t offset_tex_id = base + offsetof(struct TRSPK_VertexOpenGl3, tex_id);
+    const uintptr_t offset_uv_mode = base + offsetof(struct TRSPK_VertexOpenGl3, uv_mode);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_gpu);
     if( renderer->a_position >= 0 )
     {
@@ -298,6 +369,109 @@ bind_vbo_attribs(
             stride,
             (const void*)offset_uv_mode);
     }
+}
+
+/*
+ * Vertex-array objects, or the lack of them.
+ *
+ * WebGL1 has no VAOs — OES_vertex_array_object is an extension — so the
+ * attribute state a VAO would have captured is simply re-established at every
+ * bind. These three calls stand in for glBindVertexArray everywhere so the
+ * renderer never has to know which it is doing.
+ */
+static void
+gl3_bind_group_attribs(
+    struct ToriRS_GL3* renderer,
+    struct GL3ModelGroup* group,
+    uint32_t base_vertex)
+{
+#if defined(TORIRS_GL_ES2)
+    bind_vbo_attribs(renderer, group->vbo_gpu, base_vertex);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+#else
+    (void)base_vertex; /* GL3 indexes the arena directly with 32-bit indices. */
+    (void)renderer;
+    glBindVertexArray(group->vao);
+#endif
+}
+
+static void
+gl3_bind_quad_attribs(struct ToriRS_GL3* renderer)
+{
+#if defined(TORIRS_GL_ES2)
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(
+        2, 4, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(4 * sizeof(float)));
+#else
+    glBindVertexArray(renderer->quad_vao);
+#endif
+}
+
+static void
+gl3_unbind_attribs(struct ToriRS_GL3* renderer)
+{
+#if defined(TORIRS_GL_ES2)
+    (void)renderer;
+    /* Attribute arrays are global state here; leaving them enabled would make
+     * the next program read whatever buffer happened to be bound. */
+    for( GLuint i = 0u; i < 5u; ++i )
+        glDisableVertexAttribArray(i);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+#else
+    (void)renderer;
+    glBindVertexArray(0);
+#endif
+}
+
+/*
+ * World uniforms.
+ *
+ * GL3 keeps them in a std140 uniform block; GLES2 has no uniform blocks, so
+ * they are plain uniforms pushed while the program is current. Both paths
+ * write the same CPU-side struct and both push it from the same place, which
+ * is what keeps a matrix change from landing on one backend only.
+ */
+static void
+gl3_set_world_uniforms(
+    struct ToriRS_GL3* renderer,
+    const TRSPK_UboWorld* u)
+{
+    renderer->ubo_cpu = *u;
+#if !defined(TORIRS_GL_ES2)
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), u);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+#endif
+}
+
+/** Make the current world uniforms visible to program3d (must be current). */
+static void
+gl3_push_world_uniforms(struct ToriRS_GL3* renderer)
+{
+#if defined(TORIRS_GL_ES2)
+    if( renderer->u_model_view >= 0 )
+        glUniformMatrix4fv(
+            renderer->u_model_view, 1, GL_FALSE, renderer->ubo_cpu.modelViewMatrix);
+    if( renderer->u_projection >= 0 )
+        glUniformMatrix4fv(
+            renderer->u_projection, 1, GL_FALSE, renderer->ubo_cpu.projectionMatrix);
+    if( renderer->u_clock >= 0 )
+        glUniform1f(renderer->u_clock, renderer->ubo_cpu.uClock);
+    if( renderer->u_atlas_dim >= 0 )
+        glUniform1f(renderer->u_atlas_dim, renderer->ubo_cpu.uAtlasDim);
+    if( renderer->u_atlas_slots >= 0 )
+        glUniform1f(renderer->u_atlas_slots, renderer->ubo_cpu.uAtlasSlots);
+#else
+    glBindBufferRange(
+        GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+#endif
 }
 
 static bool
@@ -350,11 +524,21 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
         glDeleteBuffers(1, &renderer->ubo);
     if( renderer->ebo )
         glDeleteBuffers(1, &renderer->ebo);
+#if defined(TORIRS_GL_ES2)
+    free(renderer->idx16);
+    renderer->idx16 = NULL;
+    renderer->idx16_capacity = 0u;
+    free(renderer->chunks);
+    renderer->chunks = NULL;
+    renderer->chunk_capacity = 0u;
+#endif
     for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
     {
         struct GL3ModelGroup* g = &renderer->groups[gi];
         if( g->vao )
+#if !defined(TORIRS_GL_ES2)
             glDeleteVertexArrays(1, &g->vao);
+#endif
         if( g->vbo_gpu )
             glDeleteBuffers(1, &g->vbo_gpu);
         g->vao = 0u;
@@ -370,7 +554,9 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
     if( renderer->quad_vao )
+#if !defined(TORIRS_GL_ES2)
         glDeleteVertexArrays(1, &renderer->quad_vao);
+#endif
     if( renderer->quad_vbo )
         glDeleteBuffers(1, &renderer->quad_vbo);
     for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
@@ -414,7 +600,7 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
-            GL_RGBA8,
+            TORIRS_GL_TEX_RGBA,
             (GLsizei)renderer->sprite_atlas.width,
             (GLsizei)renderer->sprite_atlas.height,
             0,
@@ -801,7 +987,7 @@ gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
     glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
-    glBindVertexArray(renderer->quad_vao);
+    gl3_bind_quad_attribs(renderer);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, b->texture);
     glUniform1i(renderer->u2d_texture, 0);
@@ -1628,11 +1814,11 @@ gl3_bake_font_atlas(
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
-            GL_R8,
+            TORIRS_GL_TEX_R,
             atlas_w,
             atlas_h,
             0,
-            GL_RED,
+            TORIRS_GL_TEX_R_FORMAT,
             GL_UNSIGNED_BYTE,
             alpha);
         glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
@@ -2303,7 +2489,7 @@ gl3_ev_begin_2d(
         glUniform1i(renderer->u2d_text_mode, 0);
     if( renderer->u2d_uv_clamp >= 0 )
         glUniform1i(renderer->u2d_uv_clamp, 0);
-    glBindVertexArray(renderer->quad_vao);
+    gl3_bind_quad_attribs(renderer);
     gl3_batch2d_reset(renderer);
     renderer->draw_scissor_x = 0;
     renderer->draw_scissor_y = 0;
@@ -2318,7 +2504,7 @@ gl3_ev_end_2d(
 {
     (void)command;
     gl3_flush_2d_batch(renderer);
-    glBindVertexArray(0);
+    gl3_unbind_attribs(renderer);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_STENCIL_TEST);
     renderer->in2d = false;
@@ -2727,10 +2913,7 @@ upload_world_ubo(
     u.uClock = (float)renderer->frame_clock;
     u.uAtlasDim = (float)renderer->atlas_dim;
     u.uAtlasSlots = (float)renderer->tex_cap;
-    glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+    gl3_set_world_uniforms(renderer, &u);
 }
 
 static void
@@ -2746,11 +2929,11 @@ gl3_upload_atlas_texture(struct ToriRS_GL3* renderer)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    /* GL_RGBA8 (sized internal format) is required on Core Profile / Metal-backed GL. */
+    /* TORIRS_GL_TEX_RGBA (sized internal format) is required on Core Profile / Metal-backed GL. */
     glTexImage2D(
         GL_TEXTURE_2D,
         0,
-        GL_RGBA8,
+        TORIRS_GL_TEX_RGBA,
         (GLsizei)renderer->atlas.width,
         (GLsizei)renderer->atlas.height,
         0,
@@ -2764,7 +2947,7 @@ static void
 gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
 {
     glUseProgram(renderer->program3d);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+    gl3_push_world_uniforms(renderer);
     if( renderer->s_atlas >= 0 )
     {
         glUniform1i(renderer->s_atlas, 0);
@@ -2787,16 +2970,18 @@ gl3_release_gpu_mesh_buffers(struct ToriRS_GL3* renderer)
         {
             glDeleteBuffers(1, &g->vbo_gpu);
             glGenBuffers(1, &g->vbo_gpu);
-            glBindVertexArray(g->vao);
+#if !defined(TORIRS_GL_ES2)
+            gl3_bind_group_attribs(renderer, g, 0u);
+#endif
             glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
             glBufferData(
                 GL_ARRAY_BUFFER,
                 TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
                 NULL,
                 GL_DYNAMIC_DRAW);
-            bind_vbo_attribs(renderer, g->vbo_gpu);
+            bind_vbo_attribs(renderer, g->vbo_gpu, 0u);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-            glBindVertexArray(0);
+            gl3_unbind_attribs(renderer);
             g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
         }
     }
@@ -2808,7 +2993,7 @@ gl3_release_gpu_mesh_buffers(struct ToriRS_GL3* renderer)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
         glBufferData(
             GL_ELEMENT_ARRAY_BUFFER,
-            TRSPK_GL3_GPU_IBO_INIT * sizeof(uint32_t),
+            TRSPK_GL3_GPU_IBO_INIT * TORIRS_GL_INDEX_SIZE,
             NULL,
             GL_DYNAMIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -2863,6 +3048,50 @@ gl3_upload_group(struct GL3ModelGroup* g)
     return true;
 }
 
+#if defined(TORIRS_GL_ES2)
+/* Staging for the 16-bit index stream and the chunk table it is split into.
+ * Both grow with the frame and are never shrunk: a scene's worst frame is the
+ * size that matters, and re-allocating per frame would churn the wasm heap. */
+static bool
+gl3_ensure_index16(
+    struct ToriRS_GL3* renderer,
+    uint32_t index_count)
+{
+    if( index_count > renderer->idx16_capacity )
+    {
+        uint32_t cap = renderer->idx16_capacity ? renderer->idx16_capacity : 4096u;
+        uint16_t* grown;
+        while( cap < index_count )
+            cap *= 2u;
+        grown = (uint16_t*)realloc(renderer->idx16, (size_t)cap * sizeof(uint16_t));
+        if( !grown )
+            return false;
+        renderer->idx16 = grown;
+        renderer->idx16_capacity = cap;
+    }
+    {
+        /* Worst case is one chunk per triangle; in practice a chunk covers a
+         * whole range, so track the range count and grow if a frame proves
+         * otherwise. */
+        const uint32_t want = (index_count / 3u) + 64u;
+        if( want > renderer->chunk_capacity )
+        {
+            uint32_t cap = renderer->chunk_capacity ? renderer->chunk_capacity : 1024u;
+            struct TRSPK_WebGL1Chunk* grown;
+            while( cap < want )
+                cap *= 2u;
+            grown = (struct TRSPK_WebGL1Chunk*)realloc(
+                renderer->chunks, (size_t)cap * sizeof(struct TRSPK_WebGL1Chunk));
+            if( !grown )
+                return false;
+            renderer->chunks = grown;
+            renderer->chunk_capacity = cap;
+        }
+    }
+    return true;
+}
+#endif
+
 static bool
 gl3_ensure_gpu_ibo(
     struct ToriRS_GL3* renderer,
@@ -2880,7 +3109,7 @@ gl3_ensure_gpu_ibo(
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(cap * sizeof(uint32_t)), NULL, GL_DYNAMIC_DRAW);
+        GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(cap * TORIRS_GL_INDEX_SIZE), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     renderer->gpu_ibo_capacity = cap;
@@ -3549,6 +3778,55 @@ gl3_ev_end_3d(
     assert(built == total_indices);
     (void)built;
 
+#if defined(TORIRS_GL_ES2)
+    /*
+     * WebGL1 indexes with 16 bits and nothing else, so the absolute indices
+     * built above are re-expressed as (base vertex, local index) chunks and the
+     * base is folded into the attribute pointers — see webgl1_index16.h. The
+     * index buffer is uploaded once per frame, as on GL3; only the width and
+     * the per-chunk rebind differ.
+     */
+    if( !gl3_ensure_index16(renderer, total_indices) )
+        goto done;
+    {
+        uint32_t chunk_count = 0u;
+        int overflow = 0;
+        const uint32_t written = trspk_webgl1_split16(
+            renderer->draw_ranges,
+            staging,
+            renderer->idx16,
+            renderer->chunks,
+            renderer->chunk_capacity,
+            &chunk_count,
+            &overflow);
+
+        if( overflow )
+            fprintf(
+                stderr,
+                "WebGL1: draw-chunk table full at %u; dropping the rest of the frame\n",
+                renderer->chunk_capacity);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(written * sizeof(uint16_t)),
+            renderer->idx16);
+
+        for( uint32_t ci = 0u; ci < chunk_count; ++ci )
+        {
+            const struct TRSPK_WebGL1Chunk* chunk = &renderer->chunks[ci];
+            if( chunk->index_count < 3u )
+                continue;
+            /* Attributes are re-pointed per chunk: that IS the base vertex. */
+            gl3_bind_group_attribs(
+                renderer, &renderer->groups[chunk->group], chunk->base_vertex);
+            glDrawElements(
+                GL_TRIANGLES,
+                (GLsizei)chunk->index_count,
+                GL_UNSIGNED_SHORT,
+                (const void*)(uintptr_t)(chunk->index_start * sizeof(uint16_t)));
+        }
+    }
+#else
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(total_indices * sizeof(uint32_t)), staging);
@@ -3578,8 +3856,9 @@ gl3_ev_end_3d(
 
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }
+#endif
 
-    glBindVertexArray(0);
+    gl3_unbind_attribs(renderer);
 
 done:
     renderer->has_3d = false;
@@ -3886,10 +4165,7 @@ gl3_upload_widget_ubo(
     u.uClock = (float)renderer->frame_clock;
     u.uAtlasDim = (float)renderer->atlas_dim;
     u.uAtlasSlots = (float)renderer->tex_cap;
-    glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+    gl3_set_world_uniforms(renderer, &u);
 }
 
 static void
@@ -3965,15 +4241,15 @@ gl3_ev_model_widget(
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
-    glBindVertexArray(g->vao);
+    gl3_bind_group_attribs(renderer, g, 0u);
     glDrawArrays(GL_TRIANGLES, (GLint)vertex_base, (GLsizei)(face_count * 3));
-    glBindVertexArray(0);
+    gl3_unbind_attribs(renderer);
     glDisable(GL_DEPTH_TEST);
     glDepthFunc(GL_ALWAYS);
     glDepthMask(GL_FALSE);
     glDisable(GL_SCISSOR_TEST);
     glUseProgram(renderer->program2d);
-    glBindVertexArray(renderer->quad_vao);
+    gl3_bind_quad_attribs(renderer);
 }
 
 static void
@@ -4284,6 +4560,9 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
         return false;
     }
 
+#if !defined(TORIRS_GL_ES2)
+    /* Desktop GL needs its entry points resolved; emscripten links the GLES2
+     * ones straight into the module. */
     if( !trspk_sdlgl_init() )
     {
         fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
@@ -4291,16 +4570,49 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
         gl3->gl_context = NULL;
         return false;
     }
+#endif
 
     SDL_GL_SetSwapInterval(0);
+
+    /* Say what we actually got. The renderer is written against one feature
+     * set; if the context is not the one it expects, that is worth seeing on
+     * line one rather than deducing from a black screen. */
+    {
+        GLint max_tex = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex);
+        fprintf(
+            stderr,
+            "%s: %s | GLSL %s | %s | max texture %d\n",
+            TORIRS_GL_BACKEND_NAME,
+            (const char*)glGetString(GL_VERSION),
+            (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION),
+            (const char*)glGetString(GL_RENDERER),
+            (int)max_tex);
+    }
 
     /* Prefer 4096 atlas; fall back if the driver cannot take it. */
     {
         GLint max_tex = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex);
+#if defined(TORIRS_GL_ES2)
+        /*
+         * 2048 on the web, whatever GL_MAX_TEXTURE_SIZE claims.
+         *
+         * The preferred 4096 atlas is a single 64MB RGBA allocation. A WebGL1
+         * implementation is entitled to refuse that — and Chrome's software
+         * rasterizer drops the whole context rather than failing the upload,
+         * which surfaces as every later call reporting "object does not belong
+         * to this context" and no clue as to why. 2048 is 16MB for 256 slots,
+         * the same fallback the desktop path takes on a small-texture driver.
+         */
+        uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
+        uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_FALLBACK;
+        uint32_t want_cap = TRSPK_GL3_TEX_CAP_FALLBACK;
+#else
         uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_PREF;
         uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_PREF;
         uint32_t want_cap = TRSPK_GL3_TEX_CAP_PREF;
+#endif
         if( max_tex > 0 && (GLint)want_dim > max_tex )
         {
             want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
@@ -4335,8 +4647,13 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
         }
     }
 
+#if defined(TORIRS_GL_ES2)
+    const char* vs_src = trspk_webgl1_vertex_shader;
+    const char* fs_src = trspk_webgl1_fragment_shader;
+#else
     const char* vs_src = trspk_opengl3_vertex_shader;
     const char* fs_src = trspk_opengl3_fragment_shader;
+#endif
     GLuint vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
     GLuint fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
     if( vertexShader == 0u || fragmentShader == 0u )
@@ -4371,6 +4688,19 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     if( !gl3_check_error("link program") )
         goto fail_gl;
 
+#if defined(TORIRS_GL_ES2)
+    /* No uniform blocks in GLES2: the same values, one uniform each. */
+    gl3->u_model_view = glGetUniformLocation(gl3->program3d, "u_modelViewMatrix");
+    gl3->u_projection = glGetUniformLocation(gl3->program3d, "u_projectionMatrix");
+    gl3->u_clock = glGetUniformLocation(gl3->program3d, "uClock");
+    gl3->u_atlas_dim = glGetUniformLocation(gl3->program3d, "uAtlasDim");
+    gl3->u_atlas_slots = glGetUniformLocation(gl3->program3d, "uAtlasSlots");
+    if( gl3->u_model_view < 0 || gl3->u_projection < 0 )
+    {
+        fprintf(stderr, "WebGL1: program3d is missing its matrix uniforms\n");
+        goto fail_gl;
+    }
+#else
     const GLuint block_ix = glGetUniformBlockIndex(gl3->program3d, "TRSPK_UboWorld");
     if( block_ix != GL_INVALID_INDEX )
         glUniformBlockBinding(gl3->program3d, block_ix, 0u);
@@ -4379,6 +4709,7 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     glBindBuffer(GL_UNIFORM_BUFFER, gl3->ubo);
     glBufferData(GL_UNIFORM_BUFFER, (GLsizeiptr)sizeof(TRSPK_UboWorld), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+#endif
 
     gl3->a_position = glGetAttribLocation(gl3->program3d, "a_position");
     gl3->a_color = glGetAttribLocation(gl3->program3d, "a_color");
@@ -4393,35 +4724,37 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     {
         struct GL3ModelGroup* g = &gl3->groups[gi];
         glGenBuffers(1, &g->vbo_gpu);
+#if !defined(TORIRS_GL_ES2)
         glGenVertexArrays(1, &g->vao);
         glBindVertexArray(g->vao);
+#endif
         glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
         glBufferData(
             GL_ARRAY_BUFFER,
             TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
             NULL,
             GL_DYNAMIC_DRAW);
-        bind_vbo_attribs(gl3, g->vbo_gpu);
+        bind_vbo_attribs(gl3, g->vbo_gpu, 0u);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl3->ebo);
-        glBindVertexArray(0);
+        gl3_unbind_attribs(gl3);
         g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gl3->ebo);
     glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER, TRSPK_GL3_GPU_IBO_INIT * sizeof(uint32_t), NULL, GL_DYNAMIC_DRAW);
+        GL_ELEMENT_ARRAY_BUFFER, TRSPK_GL3_GPU_IBO_INIT * TORIRS_GL_INDEX_SIZE, NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     gl3->gpu_ibo_capacity = TRSPK_GL3_GPU_IBO_INIT;
 
     glGenTextures(1, &gl3->atlas_texture);
     glBindTexture(GL_TEXTURE_2D, gl3->atlas_texture);
-    /* GL_RGBA8 (sized internal format) is required on Core Profile / Metal-backed GL. */
+    /* TORIRS_GL_TEX_RGBA (sized internal format) is required on Core Profile / Metal-backed GL. */
     glTexImage2D(
         GL_TEXTURE_2D,
         0,
-        GL_RGBA8,
+        TORIRS_GL_TEX_RGBA,
         (GLsizei)gl3->atlas_dim,
         (GLsizei)gl3->atlas_dim,
         0,
@@ -4441,8 +4774,13 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     }
 
     {
+#if defined(TORIRS_GL_ES2)
+        GLuint vs2d = gl3_compile_shader(GL_VERTEX_SHADER, trspk_webgl1_2d_vertex_shader);
+        GLuint fs2d = gl3_compile_shader(GL_FRAGMENT_SHADER, trspk_webgl1_2d_fragment_shader);
+#else
         GLuint vs2d = gl3_compile_shader(GL_VERTEX_SHADER, trspk_opengl3_2d_vertex_shader);
         GLuint fs2d = gl3_compile_shader(GL_FRAGMENT_SHADER, trspk_opengl3_2d_fragment_shader);
+#endif
         if( vs2d && fs2d )
         {
             gl3->program2d = glCreateProgram();
@@ -4491,9 +4829,11 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
             fprintf(stderr, "OpenGL3: failed to create 2D program\n");
             goto fail_gl;
         }
+#if !defined(TORIRS_GL_ES2)
         glGenVertexArrays(1, &gl3->quad_vao);
+        gl3_bind_quad_attribs(gl3);
+#endif
         glGenBuffers(1, &gl3->quad_vbo);
-        glBindVertexArray(gl3->quad_vao);
         glBindBuffer(GL_ARRAY_BUFFER, gl3->quad_vbo);
         glBufferData(
             GL_ARRAY_BUFFER,
@@ -4508,7 +4848,7 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(
             2, 4, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(4 * sizeof(float)));
-        glBindVertexArray(0);
+        gl3_unbind_attribs(gl3);
 
         {
             uint32_t const white_pixel = 0xFFFFFFFFu;
@@ -4519,7 +4859,7 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexImage2D(
-                GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
+                GL_TEXTURE_2D, 0, TORIRS_GL_TEX_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
             glBindTexture(GL_TEXTURE_2D, 0);
         }
     }
@@ -4594,7 +4934,7 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
     glViewport(gl3->lb_x, gl3->lb_y, gl3->lb_w, gl3->lb_h);
     trspk_mat4_ortho2d_top_left(gl3->proj2d, 0.0f, (float)gl3->width, (float)gl3->height, 0.0f);
     glUniformMatrix4fv(gl3->u2d_projection, 1, GL_FALSE, gl3->proj2d);
-    glBindVertexArray(gl3->quad_vao);
+    gl3_bind_quad_attribs(gl3);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl3->white_texture);
     glUniform1i(gl3->u2d_texture, 0);
@@ -4618,7 +4958,7 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
     gl3_draw_textured_quad_immediate(gl3, (float)bar_x, (float)bar_y, (float)(bar_x + fill_w), (float)(bar_y + bar_h), 0, 0, 1, 1, fill_rgba);
     if( fill_w < bar_w )
         gl3_draw_textured_quad_immediate(gl3, (float)(bar_x + fill_w), (float)bar_y, (float)(bar_x + bar_w), (float)(bar_y + bar_h), 0, 0, 1, 1, empty_rgba);
-    glBindVertexArray(0);
+    gl3_unbind_attribs(gl3);
 }
 
 void
@@ -4676,8 +5016,10 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
                 int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
                 void bmp_write_file(const char* filename, int* px, int w, int h);
                 glPixelStorei(GL_PACK_ALIGNMENT, 1);
+#if !defined(TORIRS_GL_ES2)
                 glReadBuffer(GL_BACK);
-                glReadPixels(0, 0, fb_w, fb_h, GL_BGRA, GL_UNSIGNED_BYTE, fb);
+#endif
+                glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
                 if( top )
                 {
                     float const sx = (float)gl3->lb_w / (float)gl3->width;

@@ -58,12 +58,12 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_OBJ_BASE := build_web
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # No GL3 renderer (the frame command stream is desktop-GL): the web host
-  # runs Soft3D into an SDL texture, which emscripten's SDL2 port backs with a
-  # canvas. IO is asynchronous and audio is WebAudio.
+  # The GPU renderer builds here too, against WebGL1 rather than desktop GL —
+  # same file, see TORIRS_GL_ES2 below. IO is asynchronous, audio is WebAudio.
   PLATFORM_SRCS     := platform/platform_x_io_web.c \
                        platform/io_wire.c \
-                       platform/platform_audio_wasm.c
+                       platform/platform_audio_wasm.c \
+                       platform/platform_sdl2_renderer_gl3.c
 
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it
@@ -74,7 +74,13 @@ else ifeq ($(PLATFORM),web)
   # headers correctly do not, and an undeclared strdup compiles to a call
   # returning int — a truncated pointer, and a crash far from the call.
   PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE
+  # TORIRS_GL_ES2 builds the GPU renderer against WebGL1 (GLES2, no
+  # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all, and
+  # TORIRS_GPU_DEFAULT makes it the one a plain run uses — Soft3D in wasm is
+  # far slower than the browser's own rasterizer, so --soft3d is the opt-out
+  # here rather than the other way round.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
+                      -DTORIRS_GL_ES2=1 -DTORIRS_HAVE_GL3=1 -DTORIRS_GPU_DEFAULT=1 \
                       -Wno-unknown-warning-option
 
   # Nothing is baked into the module. The files the client opens by name — the
@@ -91,7 +97,16 @@ else ifeq ($(PLATFORM),web)
   # the default allocator past the 2GB ceiling. mimalloc handles the mixed-size
   # churn, and the 4GB maximum is the wasm32 limit, i.e. headroom rather than a
   # reservation (growth is on demand).
+  # This is what makes "WebGL1, no extensions" a guarantee rather than an
+  # intention. MIN/MAX_WEBGL_VERSION=1 stops the runtime handing the client a
+  # WebGL2 context, so a GLES3-only call fails here instead of in someone
+  # else's browser; GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 stops emscripten
+  # quietly enabling every extension the browser offers, so a renderer that
+  # reached for one would fail here too.
   PLATFORM_LDFLAGS := -lm -sUSE_SDL=2 \
+                      -sMIN_WEBGL_VERSION=1 \
+                      -sMAX_WEBGL_VERSION=1 \
+                      -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
                       -sMALLOC=mimalloc \
                       -sALLOW_MEMORY_GROWTH=1 \
                       -sINITIAL_MEMORY=268435456 \

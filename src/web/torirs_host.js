@@ -234,6 +234,10 @@
     slowestFrameMs: 0,
     entries: [],
     entriesDirty: false,
+    // A dead server produces one failure per request for as long as the client
+    // keeps trying, which buries the one line that matters. Say it once, then
+    // count.
+    transportDown: 0,
 
     // Take whatever the client queued and put it on the wire.
     //
@@ -267,25 +271,43 @@
       if (!batch) { return true; }
 
       var started = performance.now();
-      var reply;
+      var reply = null;
+      var failure = null;
       try {
         reply = xhrSyncBytes('POST', this.endpoint, batch);
+        if (!reply) { failure = 'the server answered with an error status'; }
       } catch (err) {
-        reply = null;
-        log('io: synchronous request failed: ' + err.message, true);
+        failure = err.message;
       }
       var elapsed = performance.now() - started;
 
       if (!reply) {
         this.failures++;
+        this.reportTransportFailure(failure);
         Module._torirs_io_fail_pending();
         this.record(elapsed, 0, 0, true);
         return true;
       }
+      this.transportDown = 0;
       this.batches++;
       this.deliver(reply);
       this.record(elapsed, reply.length, 0, false);
       return true;
+    },
+
+    // The request never reached the server, or the server never answered. That
+    // is one condition, not one per archive: name it on the first failure with
+    // what it usually means, then keep a count rather than repeating it.
+    reportTransportFailure: function (message) {
+      this.transportDown++;
+      if (this.transportDown === 1) {
+        log('io: cannot reach the IO server at ' + this.endpoint + ' — ' + message, true);
+        log('io: it was serving until now, so it has most likely stopped. Every ' +
+            'cache read will fail until it is back; check the terminal it was ' +
+            'started in.', true);
+      } else if (this.transportDown % 100 === 0) {
+        log('io: still unreachable (' + this.transportDown + ' failed reads)', true);
+      }
     },
 
     // Frame-gated fallback: does not block, but a frame satisfies one read.
@@ -314,6 +336,7 @@
         })
         .then(function (buffer) {
           self.inflight--;
+          self.transportDown = 0;
           var bytes = new Uint8Array(buffer);
           self.deliver(bytes);
           self.record(performance.now() - started, bytes.length,
@@ -322,7 +345,7 @@
         .catch(function (err) {
           self.inflight--;
           self.failures++;
-          log('io: request failed: ' + err.message, true);
+          self.reportTransportFailure(err.message);
           // Failing the outstanding reads is deliberate. A dropped request
           // leaves the task queue parked forever with nothing to show for it;
           // an errored slot makes the waiting task take its own failure path,

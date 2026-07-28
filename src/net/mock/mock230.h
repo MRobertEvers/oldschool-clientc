@@ -61,6 +61,14 @@ enum
     MOCK230_QUEUE_MAX = 16,
     MOCK230_TIMER_MAX = 8,
     MOCK230_WORLD_QUEUE_MAX = 16,
+    MOCK230_RESUME_BUTTON_MAX = 8,
+
+    /* rev-230 dialogue interfaces, verified with tools/dump_interface.
+     * 162:559 is the chat container and ships hidden=1, so opening a dialogue
+     * has to unhide it as well as mount into 162:561 — a 506x129 layer, which
+     * is exactly interface 231's root size. */
+    MOCK230_CHAT_CONTAINER_UID = (162 << 16) | 559,
+    MOCK230_CHAT_SLOT_UID = (162 << 16) | 561,
 
     /* Wire sentinels in the classic info streams. */
     MOCK230_PLAYER_TERMINATOR = 2047,
@@ -374,6 +382,13 @@ struct Mock230Player
 
     struct Mock230Queued queue[MOCK230_QUEUE_MAX];
     struct Mock230Timer timers[MOCK230_TIMER_MAX];
+
+    /** Component uids that will release a p_pausebutton wait. Cleared whenever
+     *  a script finishes, so a stale button cannot resume the next one. */
+    int resume_buttons[MOCK230_RESUME_BUTTON_MAX];
+    int resume_button_count;
+    /** The component that released the last wait — what `last_com` returns. */
+    int last_com;
 };
 
 struct Mock230Server
@@ -542,6 +557,17 @@ void
 mock230_scripts_process_npc_timer(
     struct Mock230Server* srv,
     int slot);
+
+/**
+ * Release a p_pausebutton wait.
+ *
+ * Returns 1 when the click matched a registered resume button and the script
+ * continued, 0 otherwise — an unmatched click must leave the script parked.
+ */
+int
+mock230_scripts_resume_button(
+    struct Mock230Server* srv,
+    int component_uid);
 
 /** Start a script by id on behalf of the player. For the selftest and for
  *  anything the engine reaches by id rather than by trigger. Returns 1 when a

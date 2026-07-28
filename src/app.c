@@ -1972,6 +1972,15 @@ App_Init(
         PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
     }
 #endif
+    /* What the boot manifest said about the cache. A local backend ignores it
+     * (it has the disk); a remote one needs it to know what to open. */
+    PlatformX_IO_InitCacheId(
+        app->runner.px,
+        cfg->cache_epoch,
+        cfg->cache_game,
+        cfg->cache_revision,
+        cfg->cache_quirks,
+        cfg->cache_dir);
     PlatformX_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     PlatformX_IO_InitScriptPath(app->runner.px, cfg->script_dir);
 

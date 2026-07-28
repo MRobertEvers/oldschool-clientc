@@ -24,10 +24,19 @@
  *
  * Batch framing (both directions):
  *
- *   'T' 'R' 'I' 'O' | u32 version | u32 count | record * count
+ *   'T' 'R' 'I' 'O' | u32 version | u32 count | cache | record * count
  *
  * A batch is how the browser pays for one round trip per frame instead of one
  * per archive: everything a task queued before it yielded goes out together.
+ *
+ * The `cache` header says which cache the batch is about — its identity and its
+ * directory, exactly what the native client resolves from its boot manifest.
+ * A request is only meaningful against a particular cache: the same table id
+ * means different things on different branches, and a dat2 read against a dat1
+ * cache is not a smaller answer but a different question. Naming it per batch
+ * (rather than per record, which would repeat it, or once at connect, which
+ * would make the server stateful) is what lets one server answer any client:
+ * it opens what it is asked for and keeps it open.
  */
 
 #include "asyncio.h"
@@ -38,7 +47,27 @@
 #define IOWIRE_MAGIC1 'R'
 #define IOWIRE_MAGIC2 'I'
 #define IOWIRE_MAGIC3 'O'
-#define IOWIRE_VERSION 1u
+/* 2: the batch header gained the cache descriptor. */
+#define IOWIRE_VERSION 2u
+
+#define IOWIRE_CACHE_DIR_MAX 256
+
+/**
+ * Which cache a batch is about.
+ *
+ * The four identity fields are the ones a boot manifest states ([cache:boot]
+ * epoch/game/revision/quirks); `dir` is where it lives, relative to the
+ * server's cache root. Together they are everything RSCache needs to open it
+ * and answer in the same terms the native client would.
+ */
+struct IOWireCache
+{
+    int32_t epoch;    /* enum RSCache_Epoch */
+    int32_t game;     /* enum RSCache_Game */
+    int32_t revision;
+    uint32_t quirks;
+    char dir[IOWIRE_CACHE_DIR_MAX];
+};
 
 /** Growable output buffer. Zero-initialize (or IOWireBuf_Init) before use. */
 struct IOWireBuf
@@ -85,14 +114,26 @@ IOWireReader_Init(
 
 /* --- Batch framing ------------------------------------------------------ */
 
-/** Write the batch header with count 0; every Write*Request/Response below
- * bumps the count in place, so the caller never tracks it. */
+/**
+ * Write the batch header with count 0; every Write*Request/Response below
+ * bumps the count in place, so the caller never tracks it.
+ *
+ * `cache` may be NULL for a response batch, which is about whatever cache the
+ * request batch already named.
+ */
 void
-IOWire_BatchBegin(struct IOWireBuf* buf);
+IOWire_BatchBegin(
+    struct IOWireBuf* buf,
+    struct IOWireCache const* cache);
 
-/** Read and validate the header. Returns the record count, or -1. */
+/**
+ * Read and validate the header. Returns the record count, or -1.
+ * `out_cache` may be NULL when the caller does not care which cache it names.
+ */
 int
-IOWire_BatchRead(struct IOWireReader* r);
+IOWire_BatchRead(
+    struct IOWireReader* r,
+    struct IOWireCache* out_cache);
 
 /* --- Requests ----------------------------------------------------------- */
 

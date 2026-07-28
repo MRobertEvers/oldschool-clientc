@@ -1,0 +1,20 @@
+// NPC chat dialogue, ported from LostCity's chat.rs2 to rev-230 interfaces.
+//
+// One genuine port decision, not a transcription: LostCity has four groups
+// (npcchat1..npcchat4) chosen by line count, because its chat interfaces have a
+// fixed number of text components each. rev 230 has ONE group with a single
+// multi-line body component (231:6, 67px, about four lines), so the page/line
+// machinery collapses to "open 231, set the body". Anything that reads like a
+// missing feature here is that difference.
+//
+// Component uids are packed (interface << 16) | child — see scripts/pack.
+
+[proc,chatnpc](int $npc_id, string $name, string $text)
+if_setnpchead(chat_head, $npc_id);
+if_setanim(chat_head, seq_chathead_talk);
+if_settext(chat_name, $name);
+if_settext(chat_body, $text);
+if_settext(chat_continue, "Click here to continue");
+if_openchat(npcchat);
+if_addresumebutton(chat_continue);
+p_pausebutton;

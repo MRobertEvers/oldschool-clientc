@@ -386,6 +386,33 @@ mock230_scripts_process_npc_timer(
 }
 
 int
+mock230_scripts_resume_button(
+    struct Mock230Server* srv,
+    int component_uid)
+{
+    struct Mock230Player* player = &srv->player;
+    struct SSVM_State* state = player->active_script;
+
+    if( !srv->scripts_ok || !state )
+        return 0;
+    if( state->execution != SSVM_PAUSEBUTTON )
+        return 0;
+
+    /* Only a button the script registered may release it. Anything else is a
+     * click on some other interface and must leave the script parked — which is
+     * also why the uid has to survive the wire at full width. */
+    for( int i = 0; i < player->resume_button_count; i++ )
+    {
+        if( player->resume_buttons[i] != component_uid )
+            continue;
+        player->last_com = component_uid;
+        player->resume_button_count = 0;
+        return run_or_park(srv, state);
+    }
+    return 0;
+}
+
+int
 mock230_scripts_run_script(
     struct Mock230Server* srv,
     int script_id)
@@ -969,6 +996,112 @@ mock230_script_command(
         npc->masks |= MOCK230_NMASK_CHANGE_TYPE;
         return 1;
     }
+
+    /* ---- interfaces ----------------------------------------------- */
+
+    case SS_OP_IF_SETTEXT:
+    {
+        const char* text;
+        int32_t uid;
+
+        if( !SSVM_PopStr(state, &text) )
+            return 1;
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        mock230_send_if_settext(srv, uid, text);
+        return 1;
+    }
+
+    case SS_OP_IF_SETNPCHEAD:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setnpchead(srv, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETPLAYERHEAD:
+    {
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        mock230_send_if_setplayerhead(srv, uid);
+        return 1;
+    }
+
+    case SS_OP_IF_SETANIM:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setanim(srv, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETHIDE:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_sethide(srv, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_IF_OPENCHAT:
+    {
+        int32_t group;
+
+        if( !SSVM_PopInt(state, &group) )
+            return 1;
+        /* Two packets, not one. 162:559 ships hidden=1, so mounting into
+         * 162:561 alone produces a dialogue that is built correctly and never
+         * drawn — which looks exactly like the mount having failed. */
+        mock230_send_if_sethide(srv, MOCK230_CHAT_CONTAINER_UID, 0);
+        mock230_send_if_opensub(srv, MOCK230_CHAT_SLOT_UID >> 16,
+                                MOCK230_CHAT_SLOT_UID & 0xffff, group, 0);
+        return 1;
+    }
+
+    case SS_OP_IF_CLOSE:
+        mock230_send_if_closesub(srv, MOCK230_CHAT_SLOT_UID);
+        mock230_send_if_sethide(srv, MOCK230_CHAT_CONTAINER_UID, 1);
+        player->resume_button_count = 0;
+        return 1;
+
+    case SS_OP_IF_ADDRESUMEBUTTON:
+    {
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        if( player->resume_button_count < MOCK230_RESUME_BUTTON_MAX )
+            player->resume_buttons[player->resume_button_count++] = uid;
+        return 1;
+    }
+
+    case SS_OP_P_PAUSEBUTTON:
+        /* Waits for client input, not for the clock — so nothing in the tick
+         * resumes it. mock230_scripts_resume_button does, on a matching click. */
+        SSVM_Suspend(state, SSVM_PAUSEBUTTON);
+        return 1;
+
+    case SS_OP_LAST_COM:
+        SSVM_PushInt(state, player->last_com);
+        return 1;
 
     /* ---- waiting -------------------------------------------------- */
 
