@@ -116,7 +116,7 @@ else ifeq ($(PLATFORM),web)
                       -sEXIT_RUNTIME=0 \
                       -sENVIRONMENT=web \
                       -sMODULARIZE=0 \
-                      -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS"]' \
+                      -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"]' \
                       -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"]'
 
   ifeq ($(OPT),1)

@@ -125,12 +125,19 @@ mock230_npcinfo_load(const char* cache_dir)
         RSCache_Dat2ConfigNpcFree(npc);
     }
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    /* Read the count before the free, not after: the archive owns it. The
+     * first version of this printed "0 records" from freed memory while the
+     * table itself was fine. */
+    {
+        int loaded = archive->file_count;
 
-    fprintf(stderr, "mock230: npc metadata loaded (%d records from %s)\n", archive->file_count,
-            cache_dir);
+        RSCache_FileListFree(files);
+        RSCache_Dat2DiskArchiveFree(archive);
+        RSCache_Dat2DiskFree(disk);
+
+        fprintf(stderr, "mock230: npc metadata loaded (%d records from %s)\n", loaded,
+                cache_dir);
+    }
     return 1;
 }
 

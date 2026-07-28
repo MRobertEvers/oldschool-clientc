@@ -573,10 +573,27 @@ mock230_script_command(
             SSVM_Abort(state, "npc_say with no active npc");
             return 1;
         }
+        /*
+         * Overhead text does not exist in this client.
+         *
+         * The NPC_INFO SAY mask decodes fine and reaches World_NpcSetChat — but
+         * nothing ever reads that field back, so an npc's speech would render
+         * nowhere. Sending the mask anyway would look correct at every level
+         * except the one that matters.
+         *
+         * So npc speech goes to the chatbox as "<name>: <text>", which is
+         * visible, keeps npc_say's fire-and-forget semantics (unlike routing it
+         * through a modal dialogue), and needs only the speaker's name. Content
+         * is unchanged — scripts still write npc_say.
+         */
         snprintf(npc->say, sizeof(npc->say), "%s", text);
-        npc->masks |= MOCK230_NMASK_SAY;
-        /* Face the player while speaking, the way the reference's
-         * playerfaceclose mode would. */
+        {
+            char line[192];
+
+            snprintf(line, sizeof(line), "%s: %s", mock230_npcinfo(npc->type)->name, text);
+            mock230_send_message(srv, line);
+        }
+        /* Facing the player is real and does render, so keep it. */
         npc->face_entity = MOCK230_PLAYER_TERMINATOR;
         npc->masks |= MOCK230_NMASK_FACE_ENTITY;
         return 1;
@@ -592,6 +609,14 @@ mock230_script_command(
             return 1;
         }
         SSVM_PushInt(state, coord_pack(npc->level, npc->x, npc->z));
+        return 1;
+    }
+
+    case SS_OP_NPC_NAME:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        SSVM_PushStr(state, npc ? mock230_npcinfo(npc->type)->name : "");
         return 1;
     }
 

@@ -11,6 +11,14 @@
 # Every (PLATFORM, OPT) pair owns its own OBJ_DIR, so flavors never share .o's.
 
 OPT ?= 0
+# MEMTRACE=1 links platform/torirs_memtrace.c, which interposes the C heap and
+# writes every alloc/free with a call stack to memtrace.bin. It is a third build
+# flavor with its own OBJ_DIR (the interpose needs -fno-builtin-* on every unit,
+# so its objects must never mix with a plain build's).
+#   make -C src MEMTRACE=1              native, traced   -> src/torirs
+#   make -C src MEMTRACE=1 web          web, traced      -> build-web/torirs.js
+# See tools/memtrace/README.md.
+MEMTRACE ?= 0
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
@@ -18,11 +26,16 @@ SRC_DIR      := $(REPO_ROOT)/src
 include $(SRC_DIR)/platform/platform.mk
 
 CC := $(PLATFORM_CC)
+ifeq ($(MEMTRACE),1)
+MEMTRACE_SUFFIX = _mt
+else
+MEMTRACE_SUFFIX =
+endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)
 O_LEVEL = -O0
 endif
 TARGET = $(PLATFORM_TARGET)
@@ -68,6 +81,34 @@ LDFLAGS = $(PLATFORM_LDFLAGS)
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
+endif
+
+# --- Heap instrumentation (MEMTRACE=1) -----------------------------------
+# -fno-builtin-* has to reach every translation unit, not just the tracer: the
+# compiler is otherwise free to fold a malloc/free pair away or lower calloc to
+# its own inline sequence, and those allocations then never reach the hooks.
+# On macOS the tracer defines malloc/free as strong symbols and finds the real
+# ones through dlsym(RTLD_NEXT); everywhere else the linker's --wrap does it.
+# ASan hooks the same functions, so the two cannot be combined.
+ifeq ($(MEMTRACE),1)
+ifeq ($(ENABLE_ASAN),1)
+$(error MEMTRACE=1 and ENABLE_ASAN=1 both hook malloc — pick one)
+endif
+MEMTRACE_CFLAGS := -DTORIRS_MEMTRACE=1 \
+	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+CFLAGS          += $(MEMTRACE_CFLAGS)
+RSCACHE_CFLAGS  += $(MEMTRACE_CFLAGS)
+COMPRESS_CFLAGS += $(MEMTRACE_CFLAGS)
+TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
+ifeq ($(PLATFORM),web)
+# emscripten's musl only routes these four through --wrap; reallocf and
+# posix_memalign are not separate symbols there, and strdup is inlined to a
+# malloc it already sees.
+LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free
+else ifneq ($(shell uname -s),Darwin)
+LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+	-Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
+endif
 endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
@@ -183,6 +224,9 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
 	painters/painters.c
+ifeq ($(MEMTRACE),1)
+SRCS += platform/torirs_memtrace.c
+endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
@@ -709,6 +753,7 @@ test-revconfig: $(OBJ_DIR)
 # equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
 MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
+	net/mock/mock230_npcinfo.c \
 	net/mock/mock230_scripts.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o

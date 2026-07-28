@@ -177,6 +177,29 @@ const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
 /* ------------------------------------------------------------------ */
+/* NPC metadata (mock230_npcinfo.c)                                    */
+/* ------------------------------------------------------------------ */
+
+struct Mock230NpcInfo
+{
+    /** Never NULL from mock230_npcinfo(); unknown ids report a placeholder. */
+    const char* name;
+    int combat_level;
+    int size;
+};
+
+/** Decode the npc config table once. Returns 0 when the cache is absent, in
+ *  which case every lookup reports a placeholder name and the mock still runs. */
+int
+mock230_npcinfo_load(const char* cache_dir);
+
+void
+mock230_npcinfo_free(void);
+
+const struct Mock230NpcInfo*
+mock230_npcinfo(int npc_id);
+
+/* ------------------------------------------------------------------ */
 /* Packet capture (selftest only)                                      */
 /* ------------------------------------------------------------------ */
 

@@ -4594,25 +4594,9 @@ ToriRS_GL3_Init(struct ToriRS_GL3* gl3, SDL_Window* window, struct ToriDraw_Scen
     {
         GLint max_tex = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex);
-#if defined(TORIRS_GL_ES2)
-        /*
-         * 2048 on the web, whatever GL_MAX_TEXTURE_SIZE claims.
-         *
-         * The preferred 4096 atlas is a single 64MB RGBA allocation. A WebGL1
-         * implementation is entitled to refuse that — and Chrome's software
-         * rasterizer drops the whole context rather than failing the upload,
-         * which surfaces as every later call reporting "object does not belong
-         * to this context" and no clue as to why. 2048 is 16MB for 256 slots,
-         * the same fallback the desktop path takes on a small-texture driver.
-         */
-        uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
-        uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_FALLBACK;
-        uint32_t want_cap = TRSPK_GL3_TEX_CAP_FALLBACK;
-#else
         uint32_t want_dim = TRSPK_GL3_ATLAS_DIM_PREF;
         uint32_t want_cols = TRSPK_GL3_ATLAS_COLS_PREF;
         uint32_t want_cap = TRSPK_GL3_TEX_CAP_PREF;
-#endif
         if( max_tex > 0 && (GLint)want_dim > max_tex )
         {
             want_dim = TRSPK_GL3_ATLAS_DIM_FALLBACK;
