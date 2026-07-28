@@ -315,9 +315,13 @@ ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
     free(scene);
 }
 
+/* Raster family selector; see graphics/raster/scanline/scanline_select.h. */
+int g_toridraw_raster_scanline = 0;
+
 // clang-format off
 #include "triangles/toridraw_triangle_clip.u.c"
 #include "triangles/toridraw_triangle_face_alpha.u.c"
+#include "graphics/raster/scanline/scanline.u.c"
 #include "triangles/toridraw_triangle_flat.u.c"
 #include "triangles/toridraw_triangle_gouraud.u.c"
 #ifndef TORIDRAW_PIXEL16
@@ -334,6 +338,22 @@ ToriDraw_Init(void)
 {
     ToriDraw_InitMath();
     ToriDraw_InitHsl16();
+
+    const char* scanline_env = getenv("TORIDRAW_RASTER_SCANLINE");
+    if( scanline_env )
+        g_toridraw_raster_scanline = (scanline_env[0] != '0' && scanline_env[0] != '\0');
+}
+
+void
+ToriDraw_RasterSetScanline(bool enabled)
+{
+    g_toridraw_raster_scanline = enabled ? 1 : 0;
+}
+
+bool
+ToriDraw_RasterGetScanline(void)
+{
+    return g_toridraw_raster_scanline != 0;
 }
 
 void

@@ -35,6 +35,46 @@ ToriDraw_TriangleGouraud(
     int color_c,
     int alpha)
 {
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        if( alpha == 0xFF )
+        {
+            raster_gouraud_screen_opaque_bary_scanline_s4(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                color_a,
+                color_b,
+                color_c);
+        }
+        else
+        {
+            raster_gouraud_screen_alpha_bary_scanline_s4(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                color_a,
+                color_b,
+                color_c,
+                alpha);
+        }
+        return;
+    }
+
     if( alpha == 0xFF )
     {
         // raster_gouraud_screen_opaque_edge_sort_s4(
@@ -90,6 +130,26 @@ ToriDraw_TriangleGouraudS1(
     int color_c,
     int alpha)
 {
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleGouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    }
+
     if( alpha == 0xFF )
     {
         raster_gouraud_screen_opaque_bary_sort_s1(

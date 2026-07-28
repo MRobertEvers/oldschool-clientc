@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 #include "engine/torirs_objtype_from_rscache.h"
 
 #include "asyncio.h"
@@ -18,7 +19,39 @@ struct Task_Dat2ObjLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int obj_id;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
 };
+
+/*
+ * Decode one member of the objtype group and hand the adapted objtype to the
+ * provider. The raw record is freed immediately: ToriRS_ObjtypeFromRSCacheDat2
+ * deep-copies, so keeping it only meant storing every objtype twice.
+ */
+static int
+obj_adapt_member(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct Dat2Group const* group,
+    int pos,
+    int obj_id)
+{
+    struct RSCache_Dat2ConfigObj* rscache_obj;
+    struct ToriRS_Objtype* torirs_obj;
+
+    rscache_obj = RSCache_Dat2ConfigObjNewDecode(
+        group->filelist->files[pos], group->filelist->file_sizes[pos]);
+    if( !rscache_obj )
+        return 0;
+    rscache_obj->_id = obj_id;
+
+    torirs_obj = ToriRS_ObjtypeFromRSCacheDat2(obj_id, rscache_obj);
+    RSCache_Dat2ConfigObjFree(rscache_obj);
+    if( !torirs_obj )
+        return 0;
+
+    CacheProvider_ObjtypeAdd(&dat2_buildcache->base, obj_id, torirs_obj);
+    return 1;
+}
 
 static int
 Task_Dat2ObjLoad_Run(
@@ -26,46 +59,29 @@ Task_Dat2ObjLoad_Run(
     struct ToriRS_IO* io)
 {
     struct Task_Dat2ObjLoad* task = (struct Task_Dat2ObjLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_Dat2ConfigObj* rscache_obj = NULL;
-    struct ToriRS_Objtype* torirs_obj = NULL;
+    int pos;
 
     PT_BEGIN(&task->pt);
 
-    /* The whole group decodes on first touch; later tasks skip the archive
-     * load entirely instead of re-decompressing it per id. */
-    if( !dat2_buildcache_object_get(task->bc, task->obj_id) )
+    /* One record, not the group's 30,891 — see the note in task_dat2_loc_load.c.
+     * The group stays split in the LRU, so the next id is an array index. */
+    DAT2_GROUP_AWAIT(
+        &task->pt, io, 0, task->bc->group_cache,
+        RSCACHE_DAT2_TABLE_CONFIGS, RSCACHE_DAT2_CONFIG_KIND_OBJECT, task->group);
+
+    if( !task->group )
     {
-        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-        PT_YIELD(&task->pt);
-
-        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-        if( !archive )
-        {
-            fprintf(
-                stderr, "Failed to decode dat2 object config group for obj %d\n", task->obj_id);
-            PT_EXIT(&task->pt);
-        }
-
-        dat2_buildcache_objects_init_from_archive(task->bc, archive, NULL, 0);
-        RSCache_Dat2DiskArchiveFree(archive);
+        fprintf(
+            stderr, "Failed to decode dat2 object config group for obj %d\n", task->obj_id);
+        PT_EXIT(&task->pt);
     }
 
-    rscache_obj = dat2_buildcache_object_get(task->bc, task->obj_id);
-    if( !rscache_obj )
+    pos = Dat2Group_IndexOf(task->group, task->obj_id);
+    if( pos < 0 || !obj_adapt_member(task->bc, task->group, pos, task->obj_id) )
     {
         fprintf(stderr, "Failed to load dat2 obj %d\n", task->obj_id);
         PT_EXIT(&task->pt);
     }
-
-    torirs_obj = ToriRS_ObjtypeFromRSCacheDat2(task->obj_id, rscache_obj);
-    if( !torirs_obj )
-    {
-        fprintf(stderr, "Failed to convert dat2 obj %d\n", task->obj_id);
-        PT_EXIT(&task->pt);
-    }
-
-    CacheProvider_ObjtypeAdd(&task->bc->base, task->obj_id, torirs_obj);
 
     PT_END(&task->pt);
 }
@@ -114,6 +130,8 @@ struct Task_Dat2ObjLoadAll
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
 };
 
 static int
@@ -122,42 +140,32 @@ Task_Dat2ObjLoadAll_Run(
     struct ToriRS_IO* cache_io)
 {
     struct Task_Dat2ObjLoadAll* task = (struct Task_Dat2ObjLoadAll*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
     int idx;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(cache_io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-    PT_YIELD(&task->pt);
+    DAT2_GROUP_AWAIT(
+        &task->pt, cache_io, 0, task->bc->group_cache,
+        RSCACHE_DAT2_TABLE_CONFIGS, RSCACHE_DAT2_CONFIG_KIND_OBJECT, task->group);
 
-    archive = RSCache_IO_Dat2ConfigGroupDecode(cache_io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-    if( !archive )
+    if( !task->group )
     {
         fprintf(stderr, "Failed to decode dat2 object config group for load-all\n");
         PT_EXIT(&task->pt);
     }
 
-    /* wanted_ids == NULL decodes the whole group into the buildcache. */
-    dat2_buildcache_objects_init_from_archive(task->bc, archive, NULL, 0);
-
-    for( idx = 0; idx < archive->file_count; idx++ )
+    /* This one really does want every record — OC_FIND searches names — but it
+     * wants the *adapted* objtypes. Decoding and releasing each raw record in
+     * turn keeps one of them live at a time instead of all 30,891. */
+    for( idx = 0; idx < task->group->filelist->file_count; idx++ )
     {
-        int obj_id = archive->file_ids[idx];
-        struct RSCache_Dat2ConfigObj* rscache_obj;
-        struct ToriRS_Objtype* torirs_obj;
+        int obj_id = task->group->file_ids ? task->group->file_ids[idx] : idx;
 
         if( CacheProvider_ObjtypeHas(&task->bc->base, obj_id) )
             continue;
-        rscache_obj = dat2_buildcache_object_get(task->bc, obj_id);
-        if( !rscache_obj )
-            continue;
-        torirs_obj = ToriRS_ObjtypeFromRSCacheDat2(obj_id, rscache_obj);
-        if( !torirs_obj )
-            continue;
-        CacheProvider_ObjtypeAdd(&task->bc->base, obj_id, torirs_obj);
+        (void)obj_adapt_member(task->bc, task->group, idx, obj_id);
     }
 
-    RSCache_Dat2DiskArchiveFree(archive);
     task->bc->base.objtypes_all_loaded = true;
 
     PT_END(&task->pt);

@@ -26,6 +26,11 @@ struct CacheProvider
     // This MUST be the very first member of the struct.
     struct CacheProviderVTable* vtable;
 
+    /** Recency counter behind CacheProvider_TrimDerivedCaches. Bumped by every
+     *  get/add on model_cache and sprite_cache, which are the two that grow for
+     *  as long as a session runs. */
+    uint64_t derived_clock;
+
     struct HMap* model_cache;
     struct HMap* sprite_cache;
     struct HMap* font_cache;

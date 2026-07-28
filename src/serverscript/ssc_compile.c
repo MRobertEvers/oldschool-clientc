@@ -361,9 +361,31 @@ parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
 static int
 parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
 {
-    int opcode = SSVM_OpcodeFromName(name);
+    int opcode;
     const struct SSVM_OpcodeMeta* meta;
     int dot = (name[0] == '.');
+    int variadic = 0;
+
+    /*
+     * `queue*(script, delay)(args...)` is a different opcode from `queue`, not a
+     * modifier on it — QUEUEVARARG rather than QUEUE. The trailing `*` lexes as
+     * its own token, so it is still the current one here.
+     */
+    if( SSC_LexIsPunct(&compiler->lexer, "*") )
+    {
+        char vararg_name[80];
+
+        SSC_LexNext(&compiler->lexer);
+        snprintf(vararg_name, sizeof(vararg_name), "%svararg", name);
+        opcode = SSVM_OpcodeFromName(vararg_name);
+        if( opcode < 0 )
+            return fail(compiler, "'%s' has no vararg form", name);
+        variadic = 1;
+    }
+    else
+    {
+        opcode = SSVM_OpcodeFromName(name);
+    }
 
     if( opcode < 0 )
         return fail(compiler, "unknown command '%s'", name);
@@ -395,6 +417,52 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         if( !SSC_LexIsPunct(&compiler->lexer, ")") )
             return fail(compiler, "expected ')' after arguments to '%s'", name);
         SSC_LexNext(&compiler->lexer);
+    }
+
+    /*
+     * The vararg block, and the type string that describes it.
+     *
+     * popScriptArgs reads a type string off the top of the stack and uses its
+     * characters to decide what to pop next, so the runtime layout is
+     *   declared args, vararg values, type string
+     * with the type string last. 'i' covers every ScriptVarType except string.
+     */
+    if( variadic )
+    {
+        char types[SSC_MAX_VARARG_TYPES + 1];
+        int type_count = 0;
+
+        if( !SSC_LexIsPunct(&compiler->lexer, "(") )
+            return fail(compiler, "expected '(' for the vararg list of '%s'", name);
+        SSC_LexNext(&compiler->lexer);
+
+        if( !SSC_LexIsPunct(&compiler->lexer, ")") )
+        {
+            for( ;; )
+            {
+                int arg_is_string = 0;
+
+                if( type_count >= SSC_MAX_VARARG_TYPES )
+                    return fail(compiler, "more than %d vararg values",
+                                SSC_MAX_VARARG_TYPES);
+                if( !parse_expression(compiler, &arg_is_string) )
+                    return 0;
+                types[type_count++] = arg_is_string ? 's' : 'i';
+
+                if( SSC_LexIsPunct(&compiler->lexer, ",") )
+                {
+                    SSC_LexNext(&compiler->lexer);
+                    continue;
+                }
+                break;
+            }
+        }
+        if( !SSC_LexIsPunct(&compiler->lexer, ")") )
+            return fail(compiler, "expected ')' to close the vararg list");
+        SSC_LexNext(&compiler->lexer);
+
+        types[type_count] = '\0';
+        emit_string(compiler, types);
     }
 
     /* Commands carry a one-byte operand that is the dot flag, never an id. */
@@ -624,8 +692,21 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
     struct SSC_Lexer* lexer = &compiler->lexer;
     const struct SSC_Token* token = &lexer->current;
     char text[512];
+    int32_t secondary = 0;
 
     *is_string = 0;
+
+    /* `.%inferno_glyph_dir` reads the variable off the SECONDARY pointer. The
+     * lexer leaves the dot as punctuation here (it only glues a dot onto a
+     * following identifier, and `%` is not one), so the parser takes it. Var
+     * ops carry the flag in bit 16 of the operand, not in the dot byte
+     * commands use. */
+    if( SSC_LexIsPunct(lexer, ".") && SSC_LexPeek(lexer)->kind == SSC_TOK_VAR )
+    {
+        secondary = 1 << 16;
+        SSC_LexNext(lexer);
+    }
+
     snprintf(text, sizeof(text), "%s", token->text);
 
     switch( token->kind )
@@ -661,7 +742,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 
         if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
-        emit(compiler, push, id);
+        emit(compiler, push, id | secondary);
         SSC_LexNext(lexer);
         return 1;
     }
@@ -1338,31 +1419,66 @@ parse_statement(struct SSC_Compiler* compiler)
 
     if( lexer->current.kind == SSC_TOK_LOCAL )
     {
-        struct SSC_Local* local = find_local(compiler, text);
+        /* `$x, $z = ~door_open(...)` — a proc can return several values, and
+         * they come off the stack last-first, so the targets are popped in
+         * reverse of how they were written. */
+        struct SSC_Local* targets[SSC_MAX_ASSIGN_TARGETS];
+        int target_count = 0;
         int value_is_string = 0;
 
-        if( !local )
-            return fail(compiler, "'$%s' names no local in scope", text);
-        SSC_LexNext(lexer);
+        for( ;; )
+        {
+            struct SSC_Local* local;
+
+            if( lexer->current.kind != SSC_TOK_LOCAL )
+                return fail(compiler, "expected a $local in the assignment list");
+            local = find_local(compiler, lexer->current.text);
+            if( !local )
+                return fail(compiler, "'$%s' names no local in scope", lexer->current.text);
+            if( target_count >= SSC_MAX_ASSIGN_TARGETS )
+                return fail(compiler, "more than %d assignment targets",
+                            SSC_MAX_ASSIGN_TARGETS);
+            targets[target_count++] = local;
+            SSC_LexNext(lexer);
+
+            if( !SSC_LexIsPunct(lexer, ",") )
+                break;
+            SSC_LexNext(lexer);
+        }
+
         if( !SSC_LexIsPunct(lexer, "=") )
-            return fail(compiler, "expected '=' after $%s", text);
+            return fail(compiler, "expected '=' after the assignment target");
         SSC_LexNext(lexer);
 
         if( !parse_expression(compiler, &value_is_string) )
             return 0;
-        emit(compiler, local->is_string ? SS_OP_POP_STRING_LOCAL : SS_OP_POP_INT_LOCAL,
-             local->slot);
+
+        for( int i = target_count - 1; i >= 0; i-- )
+        {
+            emit(compiler,
+                 targets[i]->is_string ? SS_OP_POP_STRING_LOCAL : SS_OP_POP_INT_LOCAL,
+                 targets[i]->slot);
+        }
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
     }
 
-    if( lexer->current.kind == SSC_TOK_VAR )
+    if( lexer->current.kind == SSC_TOK_VAR ||
+        (SSC_LexIsPunct(lexer, ".") && SSC_LexPeek(lexer)->kind == SSC_TOK_VAR) )
     {
         int value_is_string = 0;
         int push;
         int pop;
         int32_t id;
+        int32_t secondary = 0;
+
+        if( SSC_LexIsPunct(lexer, ".") )
+        {
+            secondary = 1 << 16;
+            SSC_LexNext(lexer);
+            snprintf(text, sizeof(text), "%s", lexer->current.text);
+        }
 
         if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
@@ -1373,7 +1489,7 @@ parse_statement(struct SSC_Compiler* compiler)
 
         if( !parse_expression(compiler, &value_is_string) )
             return 0;
-        emit(compiler, pop, id);
+        emit(compiler, pop, id | secondary);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
@@ -1414,6 +1530,8 @@ parse_header(
     char trigger_name[64];
     char subject[SSC_MAX_NAME];
     int trigger;
+    int subject_is_coord = 0;
+    int32_t subject_value = 0;
 
     if( !SSC_LexIsPunct(lexer, "[") )
         return fail(compiler, "expected '[' to start a script header");
@@ -1428,12 +1546,22 @@ parse_header(
         return fail(compiler, "expected ',' after the trigger name");
     SSC_LexNext(lexer);
 
-    if( lexer->current.kind == SSC_TOK_IDENT )
+    /* mapzone/zone subjects are coords — `[mapzoneexit,0_49_46]` — which lex as
+     * a number rather than a name. */
+    if( lexer->current.kind == SSC_TOK_IDENT || lexer->current.kind == SSC_TOK_INT )
+    {
         snprintf(subject, sizeof(subject), "%s", lexer->current.text);
+        subject_is_coord = lexer->current.kind == SSC_TOK_INT;
+        subject_value = lexer->current.value;
+    }
     else if( SSC_LexIsPunct(lexer, "_") )
+    {
         snprintf(subject, sizeof(subject), "_");
+    }
     else
+    {
         return fail(compiler, "expected a subject after the trigger");
+    }
     SSC_LexNext(lexer);
 
     if( !SSC_LexIsPunct(lexer, "]") )
@@ -1459,14 +1587,32 @@ parse_header(
     {
         *out_lookup_key = (int32_t)SSVM_LookupKey(trigger, SS_LOOKUP_GLOBAL, 0);
     }
+    else if( subject_is_coord )
+    {
+        /* A three-part coord lexes to its first component, which is exactly
+         * what the reference's parseInt("0_49_46") yields — and why all 118 of
+         * its mapzone/zone scripts collapse onto one key. Reproduced rather
+         * than fixed: the compiled key has to match what the reader expects,
+         * and the reference never dispatches these triggers anyway.
+         * test-ss-corpus reports the collision count. */
+        *out_lookup_key =
+            (int32_t)SSVM_LookupKey(trigger, SS_LOOKUP_TYPE, subject_value);
+    }
     else
     {
-        const struct SSC_Symbol* symbol =
-            SSC_SymbolsFind(compiler->symbols, subject, SSC_SYM_UNKNOWN);
+        /* A subject spelled `_name` is a CATEGORY, not a type — the underscore
+         * is the source syntax for it, and 310 scripts use the form. The
+         * compiled name keeps the underscore (`[oploc1,_outpost_gate]`), so
+         * only the lookup strips it. */
+        int is_category = subject[0] == '_' && subject[1] != '\0';
+        const struct SSC_Symbol* symbol = SSC_SymbolsFind(
+            compiler->symbols,
+            is_category ? subject + 1 : subject,
+            is_category ? SSC_SYM_CATEGORY : SSC_SYM_UNKNOWN);
 
         if( !symbol )
-            return fail(compiler, "unknown subject '%s' for trigger '%s'", subject,
-                        trigger_name);
+            return fail(compiler, "unknown %s subject '%s' for trigger '%s'",
+                        is_category ? "category" : "type", subject, trigger_name);
 
         /* The on-disk key is an i32 with the subject at bit 10, so anything
          * above 2^21 cannot be represented. Refusing here is the difference
@@ -1477,7 +1623,9 @@ parse_header(
                         subject, symbol->value);
 
         *out_lookup_key = (int32_t)SSVM_LookupKey(
-            trigger, symbol->kind == SSC_SYM_CATEGORY ? SS_LOOKUP_CATEGORY : SS_LOOKUP_TYPE,
+            trigger,
+            (is_category || symbol->kind == SSC_SYM_CATEGORY) ? SS_LOOKUP_CATEGORY
+                                                              : SS_LOOKUP_TYPE,
             symbol->value);
     }
     return 1;

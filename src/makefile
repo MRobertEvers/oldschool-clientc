@@ -38,7 +38,16 @@ else
 OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)
 O_LEVEL = -O0
 endif
+# Debug and release deliberately share ./torirs, but a traced binary must not
+# join them: MEMTRACE is a long-running capture, and a plain `make -C src` in
+# another terminal would silently replace it mid-session — the symptom being a
+# run that writes no trace at all. The web target keeps its name, which the
+# page's <script src> is written against.
+ifeq ($(MEMTRACE)$(PLATFORM),1native)
+TARGET = $(PLATFORM_TARGET)_mt
+else
 TARGET = $(PLATFORM_TARGET)
+endif
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
@@ -804,7 +813,7 @@ test-bootmanifest: $(OBJ_DIR)
 
 clean:
 	rm -rf build build_opt build_web build_web_opt torirs .last_flavor
-	rm -rf build_mt build_opt_mt build_web_mt build_web_opt_mt
+	rm -rf build_mt build_opt_mt build_web_mt build_web_opt_mt torirs_mt
 	# Only our own outputs: build-web/ is a plain output directory that other
 	# experiments have also written into.
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \

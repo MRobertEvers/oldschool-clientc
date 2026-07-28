@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 #include "engine/torirs_location_from_rscache.h"
 
 #include "asyncio.h"
@@ -18,6 +19,10 @@ struct Task_Dat2LocLoad
     struct Dat2BuildCache* bc;
     int loc_id;
     struct RSCache_RecordAddress addr;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
+    int group_table;
+    int group_id;
 };
 
 static int
@@ -26,9 +31,9 @@ Task_Dat2LocLoad_Run(
     struct ToriRS_IO* io)
 {
     struct Task_Dat2LocLoad* task = (struct Task_Dat2LocLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigLoc* rscache_loc = NULL;
     struct ToriRS_Location* torirs_loc = NULL;
+    int pos;
 
     PT_BEGIN(&task->pt);
 
@@ -38,64 +43,66 @@ Task_Dat2LocLoad_Run(
      *
      * OSRS keeps every loc as a file in config group 6, so one load covers all of them.
      * RS2 (643) promotes locs to table 16 and shards them 256 per group, so a load covers
-     * only the requested id's group — which is why the whole-group memo below is keyed on
-     * having *this* id rather than on having loaded anything at all.
+     * only the requested id's group.
      */
     task->addr = RSCache_RecordAddressFor(
         CacheProvider_Profile(&task->bc->base), RSCACHE_TYPE_LOC);
 
-    /* The whole group decodes on first touch; later tasks skip the archive
-     * load entirely instead of re-decompressing it per id. */
-    if( !dat2_buildcache_loc_get(task->bc, task->loc_id) )
+    /*
+     * Only this loc's record is decoded, not the group's.
+     *
+     * This used to decode every record in the group and keep them all in
+     * bc->loc_hmap, because re-reading the group per id meant re-running bzip2
+     * on it. It no longer does: the archive is cached decompressed by the IO
+     * layer and split by the group LRU, so reaching one record is an array
+     * index. Decoding all of them cost 34 MB resident on an osrs230 boot —
+     * 56,376 records — to serve the few hundred a scene actually names, and
+     * every one of them was dead the moment ToriRS_LocationFromRSCacheDat2
+     * (which deep-copies) had run.
+     */
+    task->group_table = task->addr.group_shift ? task->addr.table
+                                               : RSCACHE_DAT2_TABLE_CONFIGS;
+    task->group_id = task->addr.group_shift
+                         ? (task->loc_id >> task->addr.group_shift)
+                         : RSCACHE_DAT2_CONFIG_KIND_LOCS;
+    DAT2_GROUP_AWAIT(
+        &task->pt, io, 0, task->bc->group_cache,
+        task->group_table, task->group_id, task->group);
+
+    if( !task->group )
     {
-        if( task->addr.group_shift == 0 )
-        {
-            RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-            PT_YIELD(&task->pt);
-            archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-        }
-        else
-        {
-            RSCache_IO_Dat2RecordGroupLoad(
-                io, 0, task->addr.table, task->loc_id >> task->addr.group_shift);
-            PT_YIELD(&task->pt);
-            archive = RSCache_IO_Dat2RecordGroupDecode(io, 0, task->addr.table);
-        }
-
-        if( !archive )
-        {
-            fprintf(stderr, "Failed to decode dat2 loc group for loc %d\n", task->loc_id);
-            PT_EXIT(&task->pt);
-        }
-
-        /*
-         * Sharded groups number their files 0..255 within the group, so the ids the
-         * archive reports are group-relative. Pass the group's base id so the records land
-         * under their global loc id.
-         */
-        int base_id = task->addr.group_shift
-                          ? ((task->loc_id >> task->addr.group_shift) << task->addr.group_shift)
-                          : 0;
-        dat2_buildcache_locs_init_from_archive_based(task->bc, archive, NULL, 0, base_id);
-        if( getenv("TORIRS_LOC_MODEL_DEBUG") )
-            fprintf(
-                stderr,
-                "locgroup: loc %d -> table %d group %d base %d files %d file_ids=%s -> get=%s\n",
-                task->loc_id, task->addr.table,
-                task->loc_id >> task->addr.group_shift, base_id, archive->file_count,
-                archive->file_ids ? "yes" : "NULL",
-                dat2_buildcache_loc_get(task->bc, task->loc_id) ? "hit" : "MISS");
-        RSCache_Dat2DiskArchiveFree(archive);
+        fprintf(stderr, "Failed to decode dat2 loc group for loc %d\n", task->loc_id);
+        PT_EXIT(&task->pt);
     }
 
-    rscache_loc = dat2_buildcache_loc_get(task->bc, task->loc_id);
+    /* Sharded groups number their files 0..255 within the group, so the id to
+     * look up is group-relative; the OSRS layout's file id is the loc id. */
+    pos = Dat2Group_IndexOf(
+        task->group,
+        task->addr.group_shift ? (task->loc_id & task->addr.file_mask)
+                               : task->loc_id);
+    if( getenv("TORIRS_LOC_MODEL_DEBUG") )
+        fprintf(
+            stderr,
+            "locgroup: loc %d -> table %d group %d files %d -> pos %d\n",
+            task->loc_id, task->group_table, task->group_id,
+            task->group->file_count, pos);
+    if( pos >= 0 )
+        rscache_loc = RSCache_Dat2ConfigLocNewDecodeProfile(
+            CacheProvider_Profile(&task->bc->base),
+            task->group->filelist->files[pos],
+            task->group->filelist->file_sizes[pos]);
     if( !rscache_loc )
     {
         fprintf(stderr, "Failed to load dat2 loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }
+    rscache_loc->_id = task->loc_id;
 
     torirs_loc = ToriRS_LocationFromRSCacheDat2(task->loc_id, rscache_loc);
+    /* The adaptor deep-copies (torirs_location_from_rscache.c dups every array
+     * and string), so the source record has no reader after this point. */
+    RSCache_Dat2ConfigLocFree(rscache_loc);
     if( !torirs_loc )
     {
         fprintf(stderr, "Failed to convert dat2 loc %d\n", task->loc_id);

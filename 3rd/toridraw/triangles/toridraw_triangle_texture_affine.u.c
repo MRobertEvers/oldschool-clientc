@@ -18,6 +18,92 @@
 #include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"
 // clang-format on
 
+/**
+ * Affine textured triangle on the `scanline` family.
+ *
+ * Shared by all four affine dispatchers: the flat-shade ones pass the same
+ * shade three times, exactly as they do for the `branching` kernels. A
+ * face_alpha below 0xFF selects the blending variants, which the `branching`
+ * family has no equivalent for.
+ */
+static inline void
+ToriDraw_TriangleTextureScanlineAffine(
+    int* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
+    int shade_a,
+    int shade_b,
+    int shade_c,
+    int face_alpha,
+    int* RESTRICT texels,
+    int texture_size,
+    int texture_opaque)
+{
+#define TORIDRAW_SCANLINE_AFFINE_CALL(fn)                                                          \
+    fn(pixel_buffer,                                                                               \
+       stride,                                                                                     \
+       screen_width,                                                                               \
+       screen_height,                                                                              \
+       camera_fov,                                                                                 \
+       screen_x0,                                                                                  \
+       screen_x1,                                                                                  \
+       screen_x2,                                                                                  \
+       screen_y0,                                                                                  \
+       screen_y1,                                                                                  \
+       screen_y2,                                                                                  \
+       orthographic_x0,                                                                            \
+       orthographic_x1,                                                                            \
+       orthographic_x2,                                                                            \
+       orthographic_y0,                                                                            \
+       orthographic_y1,                                                                            \
+       orthographic_y2,                                                                            \
+       orthographic_z0,                                                                            \
+       orthographic_z1,                                                                            \
+       orthographic_z2,                                                                            \
+       shade_a,                                                                                    \
+       shade_b,                                                                                    \
+       shade_c,                                                                                    \
+       face_alpha,                                                                                 \
+       texels,                                                                                     \
+       texture_size)
+
+    if( face_alpha >= 0xFF )
+    {
+        if( texture_opaque )
+            TORIDRAW_SCANLINE_AFFINE_CALL(raster_texshadeblend_affine_texopaque_scanline_lerp8);
+        else
+            TORIDRAW_SCANLINE_AFFINE_CALL(raster_texshadeblend_affine_textrans_scanline_lerp8);
+    }
+    else
+    {
+        if( texture_opaque )
+            TORIDRAW_SCANLINE_AFFINE_CALL(
+                raster_texshadeblend_affine_texopaque_facealpha_scanline_lerp8);
+        else
+            TORIDRAW_SCANLINE_AFFINE_CALL(
+                raster_texshadeblend_affine_textrans_facealpha_scanline_lerp8);
+    }
+
+#undef TORIDRAW_SCANLINE_AFFINE_CALL
+}
+
 static inline void
 ToriDraw_TriangleTextureBlendAffineV3(
     int* RESTRICT pixel_buffer,
@@ -50,6 +136,39 @@ ToriDraw_TriangleTextureBlendAffineV3(
     int offset_x,
     int offset_y)
 {
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureScanlineAffine(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            0xFF,
+            texels,
+            texture_size,
+            texture_opaque);
+        return;
+    }
+
     if( texture_opaque )
     {
         raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
@@ -142,6 +261,39 @@ ToriDraw_TriangleTextureBlendAffine(
     int offset_x,
     int offset_y)
 {
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureScanlineAffine(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            0xFF,
+            texels,
+            texture_size,
+            texture_opaque);
+        return;
+    }
+
     if( texture_opaque )
     {
         raster_texshadeblend_affine_texopaque_branching_lerp8(
@@ -236,6 +388,39 @@ ToriDraw_TriangleTextureFlatAffineV3(
     (void)offset_x;
     (void)offset_y;
 
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureScanlineAffine(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            shade,
+            shade,
+            0xFF,
+            texels,
+            texture_size,
+            texture_opaque);
+        return;
+    }
+
     if( texture_opaque )
     {
         raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
@@ -329,6 +514,39 @@ ToriDraw_TriangleTextureFlatAffine(
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
+
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleTextureScanlineAffine(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            shade,
+            shade,
+            0xFF,
+            texels,
+            texture_size,
+            texture_opaque);
+        return;
+    }
 
     if( texture_opaque )
     {

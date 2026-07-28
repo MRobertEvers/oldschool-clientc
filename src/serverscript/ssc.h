@@ -57,6 +57,10 @@ enum
     SSC_MAX_SWITCH_CASES = 256,
     SSC_MAX_SYMBOLS = 65536,
     SSC_MAX_NAME = 128,
+    /* `$a, $b, $c = ~proc()` — a proc may return several values at once. */
+    SSC_MAX_ASSIGN_TARGETS = 8,
+    /* Values in a `queue*(...)(a, b, c)` vararg block. */
+    SSC_MAX_VARARG_TYPES = 16,
 };
 
 /* ------------------------------------------------------------------ */
@@ -93,6 +97,8 @@ enum SSC_SymbolKind
     SSC_SYM_NPC_MODE,
     SSC_SYM_LOCSHAPE,
     SSC_SYM_TYPE,
+    SSC_SYM_DBTABLE,
+    SSC_SYM_DBCOLUMN,
     SSC_SYM_ENUM,
     SSC_SYM_STRUCT,
     SSC_SYM_PARAM,
@@ -153,6 +159,13 @@ SSC_SymbolsLoadConstants(
 /** Loads every `*.pack` in a directory, mapping the filename to a kind. */
 int
 SSC_SymbolsLoadPackDir(
+    struct SSC_Symbols* symbols,
+    const char* dir);
+
+/** Loads every `*.dbtable` under a directory tree, adding `table:column`
+ *  symbols. Requires dbtable.pack to be loaded first. */
+int
+SSC_SymbolsLoadDbTableDir(
     struct SSC_Symbols* symbols,
     const char* dir);
 

@@ -232,6 +232,7 @@ cs2_expr_new(struct RSCache_CS2_Arena* arena, enum RSCache_CS2_ExprKind kind)
         (struct RSCache_CS2_Expr*)RSCache_CS2_ArenaAlloc(arena, sizeof(*expr));
     expr->kind = kind;
     RSCache_CS2_VecInit(&expr->children);
+    RSCache_CS2_ArenaTrackVec(arena, &expr->children);
     return expr;
 }
 
@@ -604,13 +605,9 @@ RSCache_CS2_TypingsInit(struct RSCache_CS2_Typings* typings, struct RSCache_CS2_
 void
 RSCache_CS2_TypingsFree(struct RSCache_CS2_Typings* typings)
 {
-    for( int i = 0; i < typings->all.count; i++ )
-    {
-        struct RSCache_CS2_Typing* typing = (struct RSCache_CS2_Typing*)typings->all.items[i];
-        RSCache_CS2_VecFree(&typing->from);
-        RSCache_CS2_VecFree(&typing->to);
-        RSCache_CS2_VecFree(&typing->compare);
-    }
+    /* Each typing's three edge sets are arena-tracked, so they are released
+     * with the arena rather than walked here — `all` no longer lists typings
+     * that were removed mid-pass, and walking it would miss theirs. */
     RSCache_CS2_MapFree(&typings->constants);
     RSCache_CS2_MapFree(&typings->variables);
     RSCache_CS2_MapFree(&typings->operations);
@@ -630,6 +627,9 @@ RSCache_CS2_TypingNew(struct RSCache_CS2_Typings* typings, enum RSCache_CS2_Stac
     RSCache_CS2_VecInit(&typing->from);
     RSCache_CS2_VecInit(&typing->to);
     RSCache_CS2_VecInit(&typing->compare);
+    RSCache_CS2_ArenaTrackVec(typings->arena, &typing->from);
+    RSCache_CS2_ArenaTrackVec(typings->arena, &typing->to);
+    RSCache_CS2_ArenaTrackVec(typings->arena, &typing->compare);
     RSCache_CS2_VecPush(&typings->all, typing);
     return typing;
 }
@@ -1022,21 +1022,8 @@ RSCache_CS2_FunctionSetFree(struct RSCache_CS2_FunctionSet* fs)
 {
     if( !fs )
         return;
-    for( int i = 0; i < fs->function_ids.count; i++ )
-    {
-        struct RSCache_CS2_Function* function =
-            (struct RSCache_CS2_Function*)RSCache_CS2_IntMapGet(
-                &fs->functions, fs->function_ids.items[i]);
-        if( function )
-            RSCache_CS2_VecFree(&function->arguments);
-    }
-    /* Compound children are the only heap allocation inside an expression. */
-    for( int i = 0; i < fs->expr_registry.count; i++ )
-    {
-        struct RSCache_CS2_Expr* expr = (struct RSCache_CS2_Expr*)fs->expr_registry.items[i];
-        RSCache_CS2_VecFree(&expr->children);
-    }
-    RSCache_CS2_VecFree(&fs->expr_registry);
+    /* Expression children, function arguments and typing edge sets are all
+     * registered with the arena, so freeing it releases them too. */
     RSCache_CS2_TypingsFree(&fs->typings);
     RSCache_CS2_IntMapFree(&fs->functions);
     RSCache_CS2_IntVecFree(&fs->function_ids);

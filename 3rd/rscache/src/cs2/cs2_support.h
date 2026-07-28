@@ -24,15 +24,27 @@
  * ---------------------------------------------------------------------- */
 
 struct RSCache_CS2_ArenaBlock;
+struct RSCache_CS2_Vec;
 
 struct RSCache_CS2_Arena
 {
     struct RSCache_CS2_ArenaBlock* head;
     size_t bytes_allocated;
+
+    /* Vectors embedded in arena-allocated nodes. Their backing arrays grow, so
+     * they cannot live in the arena themselves; registering them here keeps the
+     * arena the single place a decompile's memory is released. */
+    struct RSCache_CS2_Vec** tracked_vecs;
+    int tracked_count;
+    int tracked_capacity;
 };
 
 void
 RSCache_CS2_ArenaInit(struct RSCache_CS2_Arena* arena);
+
+/** Free `vec` when the arena is freed. */
+void
+RSCache_CS2_ArenaTrackVec(struct RSCache_CS2_Arena* arena, struct RSCache_CS2_Vec* vec);
 
 /** Never returns NULL: an exhausted arena aborts, as a failed GC would. */
 void*

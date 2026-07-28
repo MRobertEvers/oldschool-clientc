@@ -211,48 +211,41 @@ chunk and draws. The split is a scan, not a sort: a range's indices come from
 faces walked in painter order over one baked model, so they are already
 clustered and a chunk usually swallows a whole range.
 
-### Known defect: the minimap base (GPU renderer, both backends)
+### Sprite pixels are ARGB; GL wants RGBA
 
-The minimap's terrain layer does not render through the GPU renderer: the path
-outlines, trees and dots draw correctly over a flat two-tone wash where the
-green/water/building fill should be. The compass reads wrong for the same
-reason — it sits on that base.
+Two conversions stand between a ToriDraw sprite and a GL texture, and skipping
+either is invisible in a software rasterizer:
 
-**This is not a WebGL1 defect.** It reproduces identically on native
-`--opengl3`, and it is older than the WebGL1 backend. Measured over the minimap
-disc on osrs230:
+- **Channel order.** A ToriDraw pixel is an ARGB int, which little-endian
+  memory lays out as B,G,R,A. `GL_RGBA` wants R,G,B,A.
+- **Alpha is a convention, not a value.** Much of what the client bakes — the
+  minimap pixmap among it — carries alpha 0 throughout, because Soft3D writes
+  into an opaque framebuffer and never reads alpha back. An explicit alpha
+  wins; a pixel with none is opaque unless it is fully black, which is the
+  transparent key.
 
-| | distinct colours | dominant |
+`gl3_argb_to_rgba` does both, and every upload goes through it. The rotated +
+masked path (the minimap and the compass) used to upload its blit scratch raw,
+which gave a texture that was entirely transparent and channel-swapped: the
+minimap's ground vanished under the 2D shader's alpha discard while its overlay
+dots, which come through the path that did convert, kept drawing.
+
+That bug was in the shared GPU renderer, so it showed on native `--opengl3` too
+— it just had never been looked at, because **`TORIRS_EXIT_BMP` writes what
+`App_Render` draws, which is the software rasterizer**. It reports a correct
+frame no matter what the GPU path put on screen. To measure a GPU backend use
+`TORIRS_GL3_READBACK=<path>` (with `TORIRS_GL3_READBACK_FRAME=<n>`), which reads
+the real framebuffer. Over the osrs230 minimap disc:
+
+| | distinct colours | dominant three |
 |---|---|---|
-| Soft3D (native and web) | 175 | grey path, blue water, green terrain |
-| native `--opengl3` | 456 | `54 43 14`, `45 37 11`, white |
-| web `--webgl1` | 461 | `54 43 14`, `45 37 11`, white |
+| Soft3D (reference) | 175 | `53 4B 4B`, `68 7D AA`, `79 80 14` |
+| GPU backends, before | ~460 | `54 43 14`, `45 37 11`, white |
+| native `--opengl3`, after | 209 | matches Soft3D |
+| web `--webgl1`, after | 207 | matches Soft3D |
 
-The two GPU backends agree with each other and disagree with Soft3D, which is
-what says the fault is in the shared renderer rather than in either backend.
-
-**Measure it with `TORIRS_GL3_READBACK=<path>`, not `TORIRS_EXIT_BMP`.** That is
-the trap this defect hid behind: `TORIRS_EXIT_BMP` writes what `App_Render`
-draws, which is the *software* rasterizer, so it reports a correct minimap no
-matter what the GPU path put on screen. `TORIRS_GL3_READBACK` reads the actual
-framebuffer (`TORIRS_GL3_READBACK_FRAME=<n>` picks the frame).
-
-Ruled out so far:
-
-- **The cache data.** The same wasm build with `--soft3d` matches native exactly.
-- **WebGL rejecting work.** Chrome reports no `INVALID_OPERATION` and no context
-  loss for the whole frame; nothing is being dropped.
-- **Canvas compositing.** `getContextAttributes()` reports `alpha: false`.
-- **The web atlas cap below.** Rebuilt with the desktop 4096 atlas:
-  byte-identical wrong output.
-- **The rotated+masked sprite path.** `TORIRS_GL_SPRITE_DEBUG=1` shows the
-  osrs230 minimap never reaches `gl3_ev_sprite` at all, so
-  `gl3_sprite_ensure_rotated_masked` and its `uv_clamp` are not involved —
-  finding which command actually draws it is the next step.
-
-A flat wash rather than black is what a textured quad gives when it falls back
-to the 1×1 white texture (`tex * v_color` leaves the vertex colour) or samples a
-degenerate UV range.
+`TORIRS_GL_SPRITE_DEBUG=1` logs every sprite the frame draws with the flags that
+pick its path, which is what identified the one that was not converting.
 
 ### Atlas size
 

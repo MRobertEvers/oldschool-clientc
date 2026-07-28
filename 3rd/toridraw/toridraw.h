@@ -27,6 +27,17 @@
 void
 ToriDraw_Init(void);
 
+/**
+ * Select the `scanline` raster family instead of the default `branching` /
+ * `sort` kernels. Off by default; ToriDraw_Init() also honours
+ * TORIDRAW_RASTER_SCANLINE=1 in the environment.
+ */
+void
+ToriDraw_RasterSetScanline(bool enabled);
+
+bool
+ToriDraw_RasterGetScanline(void);
+
 void
 ToriDraw_RenderModel(
     struct ToriDraw_ModelHandle hnd,

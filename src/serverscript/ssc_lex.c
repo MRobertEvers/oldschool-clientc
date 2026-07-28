@@ -341,9 +341,23 @@ scan(struct SSC_Lexer* lexer, struct SSC_Token* token)
             { '~', SSC_TOK_PROC },  { '@', SSC_TOK_LABEL },
         };
         size_t i;
+        int dotted = 0;
 
         lexer->pos++;
+        /* `~.chatnpc` is not a dot-modified call — it names the script
+         * `[proc,.chatnpc]`, one of 47 whose name genuinely starts with a dot.
+         * The dot is part of the name and has to survive into the token. */
+        if( lexer->pos < lexer->length && lexer->source[lexer->pos] == '.' )
+        {
+            dotted = 1;
+            lexer->pos++;
+        }
         read_ident(lexer, token);
+        if( dotted )
+        {
+            memmove(token->text + 1, token->text, strlen(token->text) + 1);
+            token->text[0] = '.';
+        }
         token->kind = SSC_TOK_IDENT;
         for( i = 0; i < sizeof(k_sigils) / sizeof(k_sigils[0]); i++ )
         {

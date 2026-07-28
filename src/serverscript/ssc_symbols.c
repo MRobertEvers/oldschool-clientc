@@ -383,6 +383,121 @@ SSC_SymbolsLoadConstantDir(
 }
 
 /* ------------------------------------------------------------------ */
+/* Database columns                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `.dbtable` configs, which are the only source of column indices.
+ *
+ *   [magic_spell_table]
+ *   column=spell,int,INDEXED,REQUIRED
+ *   column=spellcom,component
+ *
+ * A `table:column` reference compiles to (table << 12) | (column << 4), matching
+ * how DbOps.ts unpacks it; the low nibble is a tuple index the corpus does not
+ * use. The table id comes from dbtable.pack, so that has to be loaded first.
+ */
+static int
+load_dbtable_file(struct SSC_Symbols* symbols, const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char line[512];
+    char table_name[SSC_MAX_NAME] = "";
+    int32_t table_id = -1;
+    int column_index = 0;
+    int loaded = 0;
+
+    if( !file )
+        return 0;
+
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* cursor = line;
+
+        while( *cursor == ' ' || *cursor == '\t' )
+            cursor++;
+        strip_eol(cursor);
+
+        if( *cursor == '[' )
+        {
+            char* close = strchr(cursor, ']');
+            const struct SSC_Symbol* table;
+
+            if( !close )
+                continue;
+            *close = '\0';
+            snprintf(table_name, sizeof(table_name), "%s", cursor + 1);
+            table = SSC_SymbolsFind(symbols, table_name, SSC_SYM_DBTABLE);
+            table_id = table ? table->value : -1;
+            column_index = 0;
+            continue;
+        }
+
+        if( strncmp(cursor, "column=", 7) != 0 )
+            continue;
+
+        {
+            char* name = cursor + 7;
+            char* comma = strchr(name, ',');
+            char qualified[SSC_MAX_NAME];
+
+            if( comma )
+                *comma = '\0';
+            if( table_id >= 0 && *name )
+            {
+                snprintf(qualified, sizeof(qualified), "%s:%s", table_name, name);
+                if( SSC_SymbolsAdd(
+                        symbols, qualified, (table_id << 12) | (column_index << 4),
+                        SSC_SYM_DBCOLUMN, NULL) )
+                    loaded++;
+            }
+            column_index++;
+        }
+    }
+    fclose(file);
+    return loaded;
+}
+
+int
+SSC_SymbolsLoadDbTableDir(
+    struct SSC_Symbols* symbols,
+    const char* dir)
+{
+    DIR* handle = opendir(dir);
+    struct dirent* entry;
+    int loaded = 0;
+
+    if( !handle )
+        return -1;
+
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char path[1024];
+        struct stat info;
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+        if( stat(path, &info) != 0 )
+            continue;
+
+        if( S_ISDIR(info.st_mode) )
+        {
+            int count = SSC_SymbolsLoadDbTableDir(symbols, path);
+
+            if( count > 0 )
+                loaded += count;
+        }
+        else if( has_suffix(entry->d_name, ".dbtable") )
+        {
+            loaded += load_dbtable_file(symbols, path);
+        }
+    }
+    closedir(handle);
+    return loaded;
+}
+
+/* ------------------------------------------------------------------ */
 /* Built-in enumerations                                               */
 /* ------------------------------------------------------------------ */
 

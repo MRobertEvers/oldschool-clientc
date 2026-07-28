@@ -75,6 +75,7 @@ main(int argc, char** argv)
     SSC_SymbolsInit(&symbols);
     symbol_count = SSC_SymbolsLoadPackDir(&symbols, pack);
     constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
+    SSC_SymbolsLoadDbTableDir(&symbols, constants);
     SSC_SymbolsSeedBuiltins(&symbols);
 
     if( symbol_count < 0 )

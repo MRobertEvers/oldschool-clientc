@@ -53,6 +53,39 @@ ToriDraw_TriangleTextureBlendTransparent(
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
+
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        raster_texshadeblend_persp_textrans_scanline_lerp8(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            0xFF,
+            texels,
+            texture_size);
+        return;
+    }
+
     raster_texshadeblend_persp_textrans_branching_lerp8_v3(
         pixel_buffer,
         stride,
@@ -113,6 +146,39 @@ ToriDraw_TriangleTextureFlatTransparent(
     (void)near_plane_z;
     (void)offset_x;
     (void)offset_y;
+
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        raster_texshadeflat_persp_textrans_scanline_lerp8(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            shade,
+            shade,
+            0xFF,
+            texels,
+            texture_size);
+        return;
+    }
+
     raster_texshadeflat_persp_textrans_branching_lerp8(
         pixel_buffer,
         stride,

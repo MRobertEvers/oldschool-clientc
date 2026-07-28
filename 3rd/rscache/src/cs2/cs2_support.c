@@ -24,8 +24,26 @@ void
 RSCache_CS2_ArenaInit(struct RSCache_CS2_Arena* arena)
 {
     assert(arena);
-    arena->head = NULL;
-    arena->bytes_allocated = 0;
+    memset(arena, 0, sizeof(*arena));
+}
+
+void
+RSCache_CS2_ArenaTrackVec(struct RSCache_CS2_Arena* arena, struct RSCache_CS2_Vec* vec)
+{
+    if( arena->tracked_count + 1 > arena->tracked_capacity )
+    {
+        int capacity = arena->tracked_capacity ? arena->tracked_capacity * 2 : 64;
+        struct RSCache_CS2_Vec** tracked = (struct RSCache_CS2_Vec**)realloc(
+            arena->tracked_vecs, (size_t)capacity * sizeof(*tracked));
+        if( !tracked )
+        {
+            fprintf(stderr, "rscache cs2: arena tracking out of memory\n");
+            abort();
+        }
+        arena->tracked_vecs = tracked;
+        arena->tracked_capacity = capacity;
+    }
+    arena->tracked_vecs[arena->tracked_count++] = vec;
 }
 
 static struct RSCache_CS2_ArenaBlock*
@@ -94,6 +112,10 @@ RSCache_CS2_ArenaFree(struct RSCache_CS2_Arena* arena)
 {
     if( !arena )
         return;
+    for( int i = 0; i < arena->tracked_count; i++ )
+        RSCache_CS2_VecFree(arena->tracked_vecs[i]);
+    free(arena->tracked_vecs);
+
     struct RSCache_CS2_ArenaBlock* block = arena->head;
     while( block )
     {
@@ -101,8 +123,7 @@ RSCache_CS2_ArenaFree(struct RSCache_CS2_Arena* arena)
         free(block);
         block = next;
     }
-    arena->head = NULL;
-    arena->bytes_allocated = 0;
+    memset(arena, 0, sizeof(*arena));
 }
 
 /* -------------------------------------------------------------------------

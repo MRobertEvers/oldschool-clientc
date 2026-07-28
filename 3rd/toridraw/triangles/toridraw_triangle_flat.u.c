@@ -32,6 +32,32 @@ ToriDraw_TriangleFlat(
     int color,
     int alpha)
 {
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        if( alpha == 0xFF )
+        {
+            raster_flat_screen_opaque_scanline_s8(
+                pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
+        }
+        else
+        {
+            raster_flat_screen_alpha_scanline_s8(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                color,
+                alpha);
+        }
+        return;
+    }
+
     if( alpha == 0xFF )
     {
         raster_flat_screen_opaque_branching_s4(

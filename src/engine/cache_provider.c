@@ -37,16 +37,32 @@
 #define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
 #define CACHE_PROVIDER_DBINDEX_CAPACITY 256
 
+/*
+ * `last_used` is the LRU clock for the two caches that grow without bound over
+ * a session: models and sprites. Both are *derived* — every reader converts
+ * what it gets (ToriDraw_ModelFromToriRS and friends copy) and none of them
+ * retain the pointer — so dropping an entry costs a reload, never a dangling
+ * reference.
+ *
+ * Eviction is not triggered by the insert, though. A world build preloads its
+ * whole model set and then consumes it synchronously, so a capacity trigger
+ * during the preload would evict the models the build is about to read and the
+ * scenery would silently go missing. Trimming therefore happens at one explicit
+ * seam — the start of the next build, see CacheProvider_TrimDerivedCaches —
+ * which is the same place Client-TS clears its LruCaches (Client.mapBuild).
+ */
 struct MapEntry_ProviderModel
 {
     int id;
     struct ToriRS_Model* model;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderSprite
 {
     int id;
     struct ToriRS_Sprite* sprite;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderSpriteName
@@ -434,6 +450,7 @@ CacheProvider_ModelAdd(
 
     entry->id = model_id;
     entry->model = model;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_Model*
@@ -449,6 +466,7 @@ CacheProvider_ModelGet(
         provider->model_cache, &model_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->model;
 }
 
@@ -458,6 +476,163 @@ CacheProvider_ModelHas(
     int model_id)
 {
     return CacheProvider_ModelGet(provider, model_id) != NULL;
+}
+
+/*
+ * Evict the least recently used entries of one cache until `keep` remain.
+ *
+ * hmap has no ordered iteration, so this is a select-the-k-oldest pass: walk
+ * once to find the last_used threshold that leaves `keep` entries above it,
+ * then walk again removing everything at or below it. Both walks are over a
+ * cache measured in thousands of entries and run once per world build, so the
+ * two passes are cheaper than maintaining an intrusive list on every get.
+ */
+static uint64_t
+cache_provider_lru_threshold(
+    struct HMap* map,
+    size_t entry_size,
+    size_t last_used_offset,
+    size_t keep)
+{
+    struct HMapIter* iter;
+    void* raw;
+    uint64_t* stamps;
+    size_t count = 0;
+    uint64_t threshold;
+
+    (void)entry_size;
+    if( map->size <= keep )
+        return 0;
+
+    stamps = malloc((size_t)map->size * sizeof(*stamps));
+    if( !stamps )
+        return 0;
+
+    iter = hmap_iter_new(map);
+    while( (raw = hmap_iter_next(iter)) && count < (size_t)map->size )
+        stamps[count++] = *(uint64_t*)((char*)raw + last_used_offset);
+    hmap_iter_free(iter);
+
+    if( count <= keep )
+    {
+        free(stamps);
+        return 0;
+    }
+
+    /* Partial selection: the (count - keep)th smallest stamp is the cutoff.
+     * count is in the thousands, so an insertion-free O(n * k) scan would be
+     * worse than just sorting; qsort is fine and this runs once per build. */
+    {
+        size_t i;
+        for( i = 1; i < count; i++ )
+        {
+            uint64_t key = stamps[i];
+            size_t j = i;
+            while( j > 0 && stamps[j - 1] > key )
+            {
+                stamps[j] = stamps[j - 1];
+                j--;
+            }
+            stamps[j] = key;
+        }
+    }
+    threshold = stamps[count - keep - 1];
+    free(stamps);
+    return threshold;
+}
+
+static void
+cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderModel* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->model_cache || (size_t)provider->model_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->model_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderModel, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    /* Removing during iteration would disturb the probe sequence, so collect
+     * the keys first and delete afterwards. */
+    doomed = malloc((size_t)provider->model_cache->size * sizeof(*doomed));
+    if( !doomed )
+        return;
+
+    iter = hmap_iter_new(provider->model_cache);
+    while( (entry = (struct MapEntry_ProviderModel*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderModel*)hmap_search(
+            provider->model_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->model )
+            ToriRS_ModelFree(entry->model);
+    }
+    free(doomed);
+}
+
+static void
+cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderSprite* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->sprite_cache || (size_t)provider->sprite_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->sprite_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderSprite, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->sprite_cache->size * sizeof(*doomed));
+    if( !doomed )
+        return;
+
+    iter = hmap_iter_new(provider->sprite_cache);
+    while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderSprite*)hmap_search(
+            provider->sprite_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->sprite )
+            ToriRS_SpriteFree(entry->sprite);
+    }
+    free(doomed);
+}
+
+void
+CacheProvider_TrimDerivedCaches(struct CacheProvider* provider)
+{
+    assert(provider);
+    cache_provider_trim_models(provider, CACHE_PROVIDER_MODEL_KEEP);
+    cache_provider_trim_sprites(provider, CACHE_PROVIDER_SPRITE_KEEP);
 }
 
 void
@@ -501,6 +676,7 @@ CacheProvider_SpriteAdd(
 
     entry->id = sprite_id;
     entry->sprite = sprite;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_Sprite*
@@ -516,6 +692,7 @@ CacheProvider_SpriteGet(
         provider->sprite_cache, &sprite_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->sprite;
 }
 
