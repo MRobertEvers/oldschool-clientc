@@ -6,6 +6,7 @@
  * translation units.
  *
  *   mock230_main.c     socket, RSA/ISAAC login handshake, the 600 ms tick loop
+ *   mock230_ws.c       the byte stream — raw TCP or WebSocket, sniffed per client
  *   mock230_world.c    game state — movement, NPCs, containers, equipment
  *   mock230_encode.c   every server->client packet
  *   mock230_objinfo.c  obj metadata (name / wearpos / stackable) from the cache
@@ -23,6 +24,8 @@
 #include "net/isaac.h"
 
 #include <stdint.h>
+
+struct Mock230Conn;
 
 /* ------------------------------------------------------------------ */
 /* Limits                                                              */
@@ -457,7 +460,11 @@ struct Mock230Player
 
 struct Mock230Server
 {
+    /** Liveness only: -1 means "write nothing" (the selftest runs with no
+     *  socket at all). The bytes themselves go through `conn`, which knows
+     *  whether this client is raw TCP or a WebSocket. */
     int fd;
+    struct Mock230Conn* conn;
     struct Isaac* cipher_out; /* server -> client opcode scramble */
     struct Isaac* cipher_in;  /* client -> server opcode descramble */
     int tick;

@@ -93,6 +93,11 @@ struct LC_Manifest
     int label_map_to[256];
     int label_map_count;
 
+    /** Source rig joint -> destination rig joint, from `[export:rig_map]`. */
+    int rig_map_from[256];
+    int rig_map_to[256];
+    int rig_map_count;
+
     /**
      * Verbatim config lines to append to a named block, from `[extra:<name>]`.
      *

@@ -5,9 +5,8 @@
 #define WS_FRAME_MAX_PAYLOAD (16 * 1024 * 1024)
 
 int
-ws_frame_encode(
+ws_frame_encode_header(
     int opcode,
-    uint8_t const* payload,
     int payload_len,
     uint8_t const mask[4],
     uint8_t* out,
@@ -27,24 +26,26 @@ ws_frame_encode(
     else
         header = 10;
 
-    int total = header + 4 /* mask key */ + payload_len;
-    if( total > out_cap )
+    /* A server frame carries no masking key, so it is 4 bytes shorter. */
+    int mask_bytes = mask ? 4 : 0;
+    int mask_bit = mask ? 0x80 : 0x00;
+    if( header + mask_bytes > out_cap )
         return -1;
 
     out[0] = (uint8_t)(0x80 | (opcode & 0x0f));
     if( payload_len < 126 )
     {
-        out[1] = (uint8_t)(0x80 | payload_len);
+        out[1] = (uint8_t)(mask_bit | payload_len);
     }
     else if( payload_len < 65536 )
     {
-        out[1] = (uint8_t)(0x80 | 126);
+        out[1] = (uint8_t)(mask_bit | 126);
         out[2] = (uint8_t)((payload_len >> 8) & 0xff);
         out[3] = (uint8_t)(payload_len & 0xff);
     }
     else
     {
-        out[1] = (uint8_t)(0x80 | 127);
+        out[1] = (uint8_t)(mask_bit | 127);
         /* 64-bit BE length; our cap keeps the high 32 bits zero. */
         out[2] = out[3] = out[4] = out[5] = 0;
         out[6] = (uint8_t)((payload_len >> 24) & 0xff);
@@ -53,13 +54,34 @@ ws_frame_encode(
         out[9] = (uint8_t)(payload_len & 0xff);
     }
 
-    for( i = 0; i < 4; i++ )
+    for( i = 0; i < mask_bytes; i++ )
         out[header + i] = mask[i];
 
-    for( i = 0; i < payload_len; i++ )
-        out[header + 4 + i] = (uint8_t)(payload[i] ^ mask[i & 3]);
+    return header + mask_bytes;
+}
 
-    return total;
+int
+ws_frame_encode(
+    int opcode,
+    uint8_t const* payload,
+    int payload_len,
+    uint8_t const mask[4],
+    uint8_t* out,
+    int out_cap)
+{
+    int header = ws_frame_encode_header(opcode, payload_len, mask, out, out_cap);
+    int i;
+
+    if( header < 0 || header + payload_len > out_cap )
+        return -1;
+
+    for( i = 0; i < payload_len; i++ )
+    {
+        uint8_t byte = payload[i];
+        out[header + i] = mask ? (uint8_t)(byte ^ mask[i & 3]) : byte;
+    }
+
+    return header + payload_len;
 }
 
 enum WsDecodeStatus

@@ -220,6 +220,11 @@ main(int argc, char** argv)
     struct LC_Ctx ctx;
     lc_ctx_init(&ctx, &src, &packs, &out);
     ctx.max_textures = manifest.max_textures;
+    for( int i = 0; i < manifest.rig_map_count; i++ )
+    {
+        ctx.rig_map[manifest.rig_map_from[i]] = manifest.rig_map_to[i];
+        ctx.has_rig_map = 1;
+    }
     ctx.extras = manifest.extras;
     ctx.extra_count = manifest.extra_count;
     for( int i = 0; i < manifest.label_map_count; i++ )

@@ -180,6 +180,9 @@ lc_ctx_init(
     ctx->label_map_active = 0;
     ctx->extras = NULL;
     ctx->extra_count = 0;
+    for( int i = 0; i < 256; i++ )
+        ctx->rig_map[i] = i;
+    ctx->has_rig_map = 0;
     /* A mid grey: visible, and neutral enough that it reads as "untextured"
      * rather than as a wrong colour. Only reached when a face names a texture
      * the source cache does not hold. */
@@ -680,6 +683,31 @@ frame_name(
     return pack->names[lc_frame_id];
 }
 
+/*
+ * Renumber a framemap's joints into the destination rig.
+ *
+ * The frame data is untouched: a frame addresses transforms by index, and the
+ * transform list keeps its shape. Only the label sets move, which is all that
+ * has to, because a label is the one part of an animation that means something
+ * outside the animation.
+ *
+ * Labels with no counterpart are parked on a number no destination model uses,
+ * rather than left alone. Leaving them is the trap: a source label of 50 that
+ * means "cape" would otherwise land on the destination's joint 50 and bend a
+ * thigh. Inert is correct; identity is actively wrong.
+ */
+static void
+lc_apply_rig_map(
+    struct LC_Ctx* ctx,
+    struct RSCache_Dat2Framemap* fm)
+{
+    if( !ctx->has_rig_map || !fm )
+        return;
+    for( int i = 0; i < fm->length; i++ )
+        for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
+            fm->bone_groups[i][j] = ctx->rig_map[fm->bone_groups[i][j] & 0xff];
+}
+
 int
 lc_export_flush_animsets(struct LC_Ctx* ctx)
 {
@@ -701,6 +729,7 @@ lc_export_flush_animsets(struct LC_Ctx* ctx)
             ok = 0;
             continue;
         }
+        lc_apply_rig_map(ctx, fm);
         struct RSCache_Dat1AnimBase* base = tool_transcode_framemap_to_animbase(
             fm, &ctx->out->warnings, &ctx->out->warning_count);
         if( !base )

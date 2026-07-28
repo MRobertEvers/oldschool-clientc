@@ -16,6 +16,8 @@
  */
 #include "mock230.h"
 
+#include "mock230_ws.h"
+
 #include <rsareabuf.h>
 
 #include <stdio.h>
@@ -161,7 +163,7 @@ mock230_send(
         fprintf(stderr, "mock230: frame overflow for op %d (%d bytes)\n", opcode, len);
         return;
     }
-    if( write(srv->fd, frame, rsab_len(&buf)) < 0 )
+    if( mock230_conn_send(srv->conn, frame, (int)rsab_len(&buf)) < 0 )
         srv->fd = -1;
 
     if( srv->verbose )

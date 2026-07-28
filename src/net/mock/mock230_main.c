@@ -22,6 +22,7 @@
  */
 #include "mock230.h"
 
+#include "mock230_ws.h"
 #include "net/isaac.h"
 #include "net/rev/osrs230/packetout.h"
 #include "net/rsa.h"
@@ -87,11 +88,11 @@ read_available(
     int got;
     if( space <= 0 )
         return 1;
-    got = (int)read(srv->fd, reader->buf + reader->len, (size_t)space);
-    if( got == 0 )
-        return 0;
+    got = mock230_conn_recv(srv->conn, reader->buf + reader->len, space);
     if( got < 0 )
-        return (errno == EAGAIN || errno == EWOULDBLOCK) ? 1 : 0;
+        return 0;
+    /* 0 is not "closed" here: on a WebSocket client a readable socket can
+     * deliver less than one whole frame, which is no application bytes yet. */
     reader->len += got;
     return 1;
 }
@@ -185,28 +186,11 @@ drain_packets(
 /* Login                                                               */
 /* ------------------------------------------------------------------ */
 
-static int
-read_full(
-    int fd,
-    uint8_t* buf,
-    int count)
-{
-    int got = 0;
-    while( got < count )
-    {
-        int step = (int)read(fd, buf + got, (size_t)(count - got));
-        if( step <= 0 )
-            return got;
-        got += step;
-    }
-    return got;
-}
-
 /* Returns 1 once the game stream is armed. */
 static int
 handshake(
     struct Mock230Server* srv,
-    int fd)
+    struct Mock230Conn* conn)
 {
     uint8_t buf[2048];
     struct RSAreaBuf out;
@@ -223,7 +207,7 @@ handshake(
     char pass[64];
 
     /* 1. INIT_GAME_CONNECTION. */
-    if( read_full(fd, buf, 1) != 1 || buf[0] != 14 )
+    if( mock230_conn_recv_full(conn, buf, 1) != 1 || buf[0] != 14 )
     {
         fprintf(stderr, "mock230: expected opcode 14, got %d\n", buf[0]);
         return 0;
@@ -231,18 +215,18 @@ handshake(
     rsab_wrap(&out, buf, sizeof(buf));
     rsab_p1(&out, 0);
     rsab_p8(&out, (int64_t)SESSION_ID);
-    if( write(fd, buf, rsab_len(&out)) < 0 )
+    if( mock230_conn_send(conn, buf, (int)rsab_len(&out)) < 0 )
         return 0;
 
     /* 2. GAMELOGIN + u16 length + block. */
-    if( read_full(fd, buf, 3) != 3 || buf[0] != 16 )
+    if( mock230_conn_recv_full(conn, buf, 3) != 3 || buf[0] != 16 )
     {
         fprintf(stderr, "mock230: expected opcode 16\n");
         return 0;
     }
     payload_len = (buf[1] << 8) | buf[2];
     if( payload_len < 13 || payload_len > (int)sizeof(buf) ||
-        read_full(fd, buf, payload_len) != payload_len )
+        mock230_conn_recv_full(conn, buf, payload_len) != payload_len )
     {
         fprintf(stderr, "mock230: short login block (%d)\n", payload_len);
         return 0;
@@ -287,7 +271,7 @@ handshake(
     /* 3. Success, then the game stream. */
     {
         uint8_t ok = 2;
-        if( write(fd, &ok, 1) < 0 )
+        if( mock230_conn_send(conn, &ok, 1) < 0 )
             return 0;
     }
 
@@ -340,18 +324,20 @@ now_ms(void)
 static void
 serve(
     struct Mock230Server* srv,
-    int fd,
+    struct Mock230Conn* conn,
     int zone_x,
     int zone_z)
 {
     struct Mock230Reader reader = { { 0 }, 0 };
+    int fd = conn->fd;
     long next_tick;
 
     memset(srv, 0, sizeof(*srv));
     srv->fd = fd;
+    srv->conn = conn;
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
 
-    if( !handshake(srv, fd) )
+    if( !handshake(srv, conn) )
         return;
 
     mock230_scripts_load(srv, mock230_script_dir());
@@ -410,6 +396,7 @@ main(
     char** argv)
 {
     struct Mock230Server srv;
+    static struct Mock230Conn conn; /* 128 KB of buffers — not on the stack */
     int port = argc > 1 ? atoi(argv[1]) : 43595;
     int zone_x = DEFAULT_ZONE_X;
     int zone_z = DEFAULT_ZONE_Z;
@@ -458,7 +445,8 @@ main(
         if( fd < 0 )
             continue;
         fprintf(stderr, "mock230: client connected\n");
-        serve(&srv, fd, zone_x, zone_z);
+        if( mock230_conn_open(&conn, fd) )
+            serve(&srv, &conn, zone_x, zone_z);
         close(fd);
         fprintf(stderr, "mock230: client disconnected\n");
     }

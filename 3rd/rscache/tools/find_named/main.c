@@ -675,6 +675,143 @@ dump_dat1_animbase(const char* path)
     free(data);
 }
 
+
+
+/* Load one config record's bytes. Caller frees out->data. */
+static int
+load_record(
+    struct Tool_Dat2Cache* c,
+    enum RSCache_Type type,
+    int config_kind,
+    int id,
+    struct Tool_Bytes* out)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&c->profile, type);
+    int table, archive_id, found = 0;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_FileList* files;
+
+    memset(out, 0, sizeof(*out));
+    if( addr.group_shift == 0 )
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+        archive_id = config_kind;
+    }
+    else
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, addr.table);
+        archive_id = id >> addr.group_shift;
+    }
+    archive = RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
+    if( !archive )
+        return 0;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return 0;
+    }
+    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return 0;
+    }
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int file_id = archive->file_ids ? archive->file_ids[i] : i;
+        int global = addr.group_shift == 0
+                         ? file_id
+                         : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
+        if( global != id || files->file_sizes[i] <= 0 )
+            continue;
+        out->size = files->file_sizes[i];
+        out->data = malloc((size_t)out->size);
+        if( out->data )
+        {
+            memcpy(out->data, files->files[i], (size_t)out->size);
+            found = 1;
+        }
+        break;
+    }
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return found;
+}
+
+/*
+ * Per-label vertex centroids of the source rig's own body models.
+ *
+ * A vertex label is a joint index local to the rig that authored it, so the
+ * only way to line two eras' rigs up is to ask where each label physically
+ * sits on the body. Identikit models are the right sample: they are the player
+ * body itself, in the rest pose, and between them they cover every joint an
+ * animation can address.
+ *
+ * body_part_id is printed alongside so the anatomy can be checked rather than
+ * assumed — an arm label landing among the legs means the match is wrong.
+ */
+static void
+dump_idk_centroids(struct Tool_Dat2Cache* c)
+{
+    long long sx[256] = { 0 }, sy[256] = { 0 }, sz[256] = { 0 };
+    long long n[256] = { 0 };
+    int part_seen[256][16];
+    int* ids = NULL;
+    int count = 0;
+
+    memset(part_seen, 0, sizeof(part_seen));
+    if( !enumerate_ids(c, RSCACHE_TYPE_IDK, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, &ids, &count) )
+    {
+        printf("idk: enumerate failed\n");
+        return;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        struct Tool_Bytes rec;
+        struct RSCache_Dat2ConfigIdk* idk;
+        if( !load_record(c, RSCACHE_TYPE_IDK, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, ids[i], &rec) )
+            continue;
+        idk = RSCache_Dat2ConfigIdkNewDecode(rec.data, rec.size);
+        tool_bytes_free(&rec);
+        if( !idk )
+            continue;
+        for( int m = 0; m < idk->model_ids_count; m++ )
+        {
+            struct RSCache_Model* model = tool_dat2_model_load(c, idk->model_ids[m]);
+            if( !model )
+                continue;
+            if( model->vertex_bone_map )
+                for( int v = 0; v < model->vertex_count; v++ )
+                {
+                    int lab = model->vertex_bone_map[v];
+                    if( lab == 255 )
+                        continue;
+                    sx[lab] += model->vertices_x[v];
+                    sy[lab] += model->vertices_y[v];
+                    sz[lab] += model->vertices_z[v];
+                    n[lab]++;
+                    if( idk->body_part_id >= 0 && idk->body_part_id < 16 )
+                        part_seen[lab][idk->body_part_id] = 1;
+                }
+            RSCache_ModelFree(model);
+        }
+        RSCache_Dat2ConfigIdkFree(idk);
+    }
+    free(ids);
+
+    printf("# label n x y z parts\n");
+    for( int l = 0; l < 256; l++ )
+    {
+        if( !n[l] )
+            continue;
+        printf("%d %lld %lld %lld %lld", l, n[l], sx[l] / n[l], sy[l] / n[l], sz[l] / n[l]);
+        for( int p = 0; p < 16; p++ )
+            if( part_seen[l][p] )
+                printf(" p%d", p);
+        printf("\n");
+    }
+}
+
 int
 main(int argc, char** argv)
 {
@@ -687,6 +824,7 @@ main(int argc, char** argv)
     int dump_loc_id = -1;
     int dump_framemap_id = -1;
     const char* dat1_anim = NULL;
+    int idk_centroids = 0;
     int dump_seq_id = -1;
     int dump_spotanim_id = -1;
     int scan_spotanim_model = -1;
@@ -711,6 +849,8 @@ main(int argc, char** argv)
             dump_framemap_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--dat1-anim") == 0 && i + 1 < argc )
             dat1_anim = argv[++i];
+        else if( strcmp(argv[i], "--idk-centroids") == 0 )
+            idk_centroids = 1;
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             dump_seq_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -752,6 +892,8 @@ main(int argc, char** argv)
         dump_loc(&cache, dump_loc_id);
     if( dump_framemap_id >= 0 )
         dump_framemap(&cache, dump_framemap_id);
+    if( idk_centroids )
+        dump_idk_centroids(&cache);
     if( dump_seq_id >= 0 )
         dump_seq(&cache, dump_seq_id);
     if( dump_spotanim_id >= 0 )

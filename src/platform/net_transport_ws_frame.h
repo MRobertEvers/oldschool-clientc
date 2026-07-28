@@ -32,12 +32,25 @@ struct WsFrame
     int payload_len;
 };
 
-/* Encode one client frame (FIN=1, always masked with `mask`) into out.
+/* Encode one frame (FIN=1) into out. `mask` non-NULL masks the payload with it,
+ * which is what a client must do; `mask` NULL emits an unmasked frame, which is
+ * what a server must do (RFC 6455 §5.1 forbids a server masking).
  * Returns the framed byte count, or -1 if out_cap is too small. */
 int
 ws_frame_encode(
     int opcode,
     uint8_t const* payload,
+    int payload_len,
+    uint8_t const mask[4],
+    uint8_t* out,
+    int out_cap);
+
+/* Just the header for such a frame (at most 14 bytes), so a large unmasked
+ * payload can be written straight from the caller's buffer instead of copied.
+ * Returns the header byte count, or -1 if out_cap is too small. */
+int
+ws_frame_encode_header(
+    int opcode,
     int payload_len,
     uint8_t const mask[4],
     uint8_t* out,

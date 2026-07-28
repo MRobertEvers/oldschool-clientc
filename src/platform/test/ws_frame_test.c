@@ -76,6 +76,44 @@ test_decode_unmasked_server_frame(void)
     CHECK(frame.payload[0] == 'a' && frame.payload[2] == 'c');
 }
 
+/*
+ * The server direction: mask==NULL emits an unmasked frame, and the
+ * header-only form must agree with it byte for byte — that is what lets the
+ * mock server write a large packet straight from its own buffer instead of
+ * copying it through the codec.
+ */
+static void
+test_encode_unmasked_and_header_only(void)
+{
+    uint8_t const payload[] = { 0xAA, 0xBB, 0xCC };
+    uint8_t framed[64];
+    uint8_t header[16];
+
+    int n = ws_frame_encode(WS_OP_BINARY, payload, 3, NULL, framed, sizeof(framed));
+    CHECK(n == 2 + 3); /* no 4-byte masking key */
+    CHECK(framed[0] == (0x80 | WS_OP_BINARY));
+    CHECK(framed[1] == 3); /* MASK bit clear */
+    CHECK(memcmp(framed + 2, payload, 3) == 0);
+
+    int h = ws_frame_encode_header(WS_OP_BINARY, 3, NULL, header, sizeof(header));
+    CHECK(h == 2);
+    CHECK(memcmp(header, framed, (size_t)h) == 0);
+
+    /* And it round-trips through the decoder, which is what the client runs. */
+    struct WsFrame frame;
+    int consumed = 0;
+    CHECK(ws_frame_decode(framed, n, &frame, &consumed) == WS_DECODE_OK);
+    CHECK(consumed == n);
+    CHECK(frame.payload_len == 3);
+    CHECK(memcmp(frame.payload, payload, 3) == 0);
+
+    /* A payload past 65535 takes the 10-byte header; a header-only caller must
+     * get that length back even though no payload buffer was involved. */
+    h = ws_frame_encode_header(WS_OP_BINARY, 100000, NULL, header, sizeof(header));
+    CHECK(h == 10);
+    CHECK((header[1] & 0x7f) == 127);
+}
+
 /* A ping frame decodes to opcode PING with its payload intact. */
 static void
 test_decode_ping(void)
@@ -126,6 +164,7 @@ main(void)
     test_roundtrip_small();
     test_roundtrip_extended_len();
     test_decode_unmasked_server_frame();
+    test_encode_unmasked_and_header_only();
     test_decode_ping();
     test_incomplete();
     test_two_frames_back_to_back();

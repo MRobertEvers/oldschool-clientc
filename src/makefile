@@ -798,7 +798,8 @@ test-revconfig: $(OBJ_DIR)
 MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_scripts.c $(SS_SRCS)
+	net/mock/mock230_scripts.c net/mock/mock230_ws.c \
+	platform/net_transport_ws_frame.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \

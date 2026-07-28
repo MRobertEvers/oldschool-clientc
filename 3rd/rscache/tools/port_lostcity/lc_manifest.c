@@ -111,6 +111,7 @@ enum manifest_section
     SECTION_TEXTURE,
     SECTION_LABEL_MAP,
     SECTION_EXTRA,
+    SECTION_RIG_MAP,
     SECTION_MAPLOC,
 };
 
@@ -135,6 +136,8 @@ section_of(const char* header)
         return SECTION_TEXTURE;
     if( strcmp(header, "export:label_map") == 0 )
         return SECTION_LABEL_MAP;
+    if( strcmp(header, "export:rig_map") == 0 )
+        return SECTION_RIG_MAP;
     if( strncmp(header, "extra:", 6) == 0 && header[6] != '\0' )
         return SECTION_EXTRA;
     if( strcmp(header, "export:maploc") == 0 )
@@ -315,6 +318,19 @@ handle_element(
     {
         /* Written `place = 35_83,1,28,52,30346,10,3`; the key is decoration. */
         return lc_manifest_add_maploc(parse->manifest, element->_keyval.value);
+    }
+
+    if( parse->section == SECTION_RIG_MAP )
+    {
+        struct LC_Manifest* m = parse->manifest;
+        int from = atoi(element->_keyval.name);
+        int to = atoi(element->_keyval.value);
+        if( from < 0 || from > 255 || to < 0 || to > 255 || m->rig_map_count >= 256 )
+            return 0;
+        m->rig_map_from[m->rig_map_count] = from;
+        m->rig_map_to[m->rig_map_count] = to;
+        m->rig_map_count++;
+        return 1;
     }
 
     if( parse->section == SECTION_LABEL_MAP )

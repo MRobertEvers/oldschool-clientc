@@ -135,6 +135,18 @@ struct LC_Ctx
     int label_map_active;
 
     /**
+     * Source-rig joint number -> destination-rig joint number, applied to every
+     * exported framemap. Identity by default.
+     *
+     * A framemap says which vertex *labels* each transform bends, and a label is
+     * an index into whichever rig authored it — so an animation only fits a
+     * model built against the same numbering. It is not the same numbering
+     * across eras: see RIGGING_OSRS_RS2.md in the repo root.
+     */
+    int rig_map[256];
+    int has_rig_map;
+
+    /**
      * Hand-authored config lines, keyed by config name (manifest `[extra:...]`).
      * Appended to the generated block so a re-export cannot drop them.
      */
