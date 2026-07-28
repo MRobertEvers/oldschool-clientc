@@ -1614,12 +1614,27 @@ blind:
    deterministic span geometries per ISA (both texture sizes, guard bands
    around the destination) and hashes the result.
 
-Results — baseline vs fixed, per ISA:
+The same pass also closed a gap in the scalar file: its two `_v3` functions had
+been left on the old double-divide (only its non-`v3` pair was fixed in the
+first round). Its `_v3` *opaque* variant is the one function of the twelve that
+is not a literal duplicate of a NEON donor — uniquely, it clamps `u` where the
+NEON opaque twin relies on `u_mask` — so that one was written by hand rather
+than transplanted.
 
-| sweep | SSE2 | SSE4.1 | AVX2 |
-|---|---|---|---|
-| normal (`w` never 0) | **hash identical** | **hash identical** | **hash identical** |
-| degenerate (`w` crosses 0) | differs, 355 792 px drawn vs 352 515 | same | same |
+Results — baseline vs fixed, all five implementations:
+
+| implementation | normal spans (`w` never 0) | degenerate spans (`w` crosses 0), px drawn |
+|---|---|---|
+| NEON | **hash identical** | 352 522 → 352 506 |
+| scalar | **hash identical** | 352 522 → 355 792 |
+| SSE2 | **hash identical** | 352 515 → 355 792 |
+| SSE4.1 | **hash identical** | 352 515 → 355 792 |
+| AVX2 | **hash identical** | 352 515 → 355 792 |
+
+NEON moves the other way in the degenerate column because it never had the
+advance bug — only the division-by-zero `(int)` conversion, whose replacement
+by a flat gradient changes which texels a *transparent* span skips. The four
+that did have the bug converge on the same 355 792.
 
 The normal sweep being bit-identical is the point: the carry-forward refactor
 changes nothing about ordinary spans. The degenerate sweep differing *is the
@@ -1639,11 +1654,10 @@ The probe also shows something that was already true and is worth recording:
 at baseline as well as after the fix. NEON, SSE2, SSE4.1 and AVX2 all produce
 one hash; scalar produces a different one for the same inputs.
 
-The cause is that the scalar `_v3` path computes `au / w` with an integer
+The cause is that the scalar non-`v3` path computes `au / w` with an integer
 divide, while every SIMD path multiplies by a `float` reciprocal `1.0f / w` —
-different rounding, so texels differ by one along some spans. The degenerate
-sweep is a three-way split (NEON / scalar / x86) for the same reason plus the
-undefined `(int)` of a division by zero.
+different rounding, so texels differ by one along some spans. (The `_v3`
+functions are now consistent: all five use the float reciprocal.)
 
 This is not introduced here and is not fixed here. It matters because the web
 build is the one most likely to select the scalar path: if wasm output ever has
