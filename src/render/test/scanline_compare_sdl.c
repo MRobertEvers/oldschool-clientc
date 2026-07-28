@@ -45,7 +45,15 @@
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/torirs_types.h"
+#include "engine/world_builder/task_world_load.h"
+#include "engine/world_builder/world_builder.h"
+#include "painters/painters.h"
+#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "render/torirs_frame.h"
 #include "task_runner.h"
+#include "ui/uitree_emit.h"
+#include "varp/varp_manager.h"
+#include "world/world.h"
 
 #include "toridraw.h"
 #include "toridraw_font.h"
@@ -78,6 +86,16 @@ enum
     FAMILY_SCANLINE = 1,
     FAMILY_COUNT = 2,
 };
+
+enum ViewMode
+{
+    MODE_MODEL = 0,
+    MODE_WORLD = 1,
+};
+
+/** Lumbridge; the client's own default spawn square. */
+#define DEFAULT_MAP_X 50
+#define DEFAULT_MAP_Z 50
 
 static int g_scan_limit = SCAN_MODEL_LIMIT_DEFAULT;
 
@@ -124,6 +142,21 @@ struct Viewer
     double ms_samples[FAMILY_COUNT][TIMING_WINDOW];
     int ms_head;
     int ms_count;
+
+    /* --- world mode --- */
+    enum ViewMode mode;
+    struct World* world;
+    struct WorldBuilder* world_builder;
+    struct VarPManager varp;
+    struct PaintersBuffer* painter_buffer;
+    int map_x;
+    int map_z;
+    int world_loaded;
+    int world_commands;
+    /* Camera position over the scene, in world units (y is negative upward). */
+    int world_cam_x;
+    int world_cam_y;
+    int world_cam_z;
 };
 
 static const int k_alpha_modes[] = { 0xFF, 0xC0, 0x80, 0x40 };
@@ -138,6 +171,49 @@ static int
 pane_count(const struct Viewer* viewer)
 {
     return viewer->show_diff ? 3 : 2;
+}
+
+/* ---------------------------------------------------------------- timing */
+
+static double
+now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((double)ts.tv_sec * 1000.0) + ((double)ts.tv_nsec / 1.0e6);
+}
+
+/**
+ * One sample per family per frame. The window advances on the scanline sample,
+ * so the two series stay index-aligned and a partially filled window never
+ * mixes frames.
+ */
+static void
+record_timing(
+    struct Viewer* viewer,
+    int family,
+    double elapsed_ms)
+{
+    viewer->ms_samples[family][viewer->ms_head] = elapsed_ms;
+    if( family == FAMILY_SCANLINE )
+    {
+        viewer->ms_head = (viewer->ms_head + 1) % TIMING_WINDOW;
+        if( viewer->ms_count < TIMING_WINDOW )
+            viewer->ms_count++;
+    }
+}
+
+static double
+average_ms(
+    const struct Viewer* viewer,
+    int family)
+{
+    if( viewer->ms_count <= 0 )
+        return 0.0;
+    double sum = 0.0;
+    for( int i = 0; i < viewer->ms_count; i++ )
+        sum += viewer->ms_samples[family][i];
+    return sum / viewer->ms_count;
 }
 
 /* ---------------------------------------------------------------- loading */
@@ -335,6 +411,251 @@ load_model(
     return 1;
 }
 
+/* ------------------------------------------------------------------ world */
+
+/**
+ * Drain the texture ids the models built by the world rebuild reported, load
+ * them, and publish into the scene texture map. This is the same event-driven
+ * hand-off the client does in app_sync_textures: a model reports its texture
+ * set exactly once, when it is converted, and nothing else will ever report it.
+ */
+static void
+world_sync_textures(struct Viewer* viewer)
+{
+    struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(viewer->scene);
+    int ids[256];
+    int id_count;
+
+    if( !tex_state )
+        return;
+
+    while( (id_count = ToriDraw_ModelTextureWantsTake(ids, 256)) > 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int texture_id = ids[i];
+            if( texture_id < 0 || texture_id >= 2048 )
+                continue;
+            if( tex_state->texture_map.textures[texture_id] )
+                continue;
+
+            if( !CacheProvider_TextureHas(viewer->provider, texture_id) )
+                run_task(viewer, CreateTask_Dat1TextureLoad(viewer->provider, texture_id));
+
+            struct ToriRS_Texture* src = CacheProvider_TextureGet(viewer->provider, texture_id);
+            if( !src || !src->texels || src->width <= 0 || src->height <= 0 )
+                continue;
+
+            struct ToriDraw_Texture* texture = calloc(1, sizeof(*texture));
+            if( !texture )
+                continue;
+            size_t texel_bytes = (size_t)src->width * (size_t)src->height * sizeof(int);
+            texture->texels = malloc(texel_bytes);
+            if( !texture->texels )
+            {
+                free(texture);
+                continue;
+            }
+            memcpy(texture->texels, src->texels, texel_bytes);
+            texture->width = src->width;
+            texture->height = src->height;
+            texture->opaque = src->opaque;
+            texture->animation_direction = src->animation_direction;
+            texture->animation_speed = src->animation_speed;
+            ToriDraw_SceneSetTexture(viewer->scene, texture_id, texture);
+        }
+    }
+}
+
+/** Scene centre, high up and looking down - the client's own scene-reset camera. */
+static void
+world_reset_camera(struct Viewer* viewer)
+{
+    int scene_size = viewer->world ? viewer->world->_scene_size : 104;
+    viewer->world_cam_x = (scene_size / 2 * 128) + 64;
+    viewer->world_cam_z = (scene_size / 2 * 128) + 64;
+    viewer->world_cam_y = -2000;
+    viewer->pitch = 450;
+    viewer->yaw = 0;
+}
+
+/**
+ * Load one map square into a fresh world. The static scene pool is cleared
+ * first: terrain and scenery elements from the previous square would otherwise
+ * survive the rebuild and paint on top of the new one.
+ */
+static int
+world_load(
+    struct Viewer* viewer,
+    int map_x,
+    int map_z)
+{
+    if( map_x < 0 )
+        map_x = 0;
+    if( map_z < 0 )
+        map_z = 0;
+
+    printf("loading map square %d,%d ...\n", map_x, map_z);
+
+    if( viewer->world_builder )
+    {
+        WorldBuilder_Free(viewer->world_builder);
+        viewer->world_builder = NULL;
+    }
+    if( viewer->world )
+    {
+        World_Free(viewer->world);
+        viewer->world = NULL;
+    }
+    ToriDraw_SceneClearPool(viewer->scene, TORIDRAW_SCENE_POOL_STATIC);
+
+    viewer->world = World_New();
+    if( !viewer->world )
+        return 0;
+    VarPManager_Init(&viewer->varp);
+    viewer->world_builder =
+        WorldBuilder_New(viewer->world, viewer->provider, viewer->scene, &viewer->varp);
+    if( !viewer->world_builder )
+        return 0;
+
+    if( !viewer->painter_buffer )
+        viewer->painter_buffer = painter_buffer_new();
+
+    int chunks[2] = { map_x, map_z };
+    run_task(
+        viewer,
+        CreateTask_WorldLoad(
+            viewer->provider, viewer->world_builder, chunks, 1, NULL, NULL));
+
+    if( !viewer->world->load_complete )
+    {
+        fprintf(stderr, "map square %d,%d did not load\n", map_x, map_z);
+        viewer->world_loaded = 0;
+        return 0;
+    }
+
+    world_sync_textures(viewer);
+
+    viewer->map_x = map_x;
+    viewer->map_z = map_z;
+    viewer->world_loaded = 1;
+    world_reset_camera(viewer);
+
+    printf("map square %d,%d loaded (scene %d tiles)\n", map_x, map_z, viewer->world->_scene_size);
+    return 1;
+}
+
+/**
+ * Replay the painted world into one pane through the production frame emitter
+ * and software renderer, so what is compared is exactly what the client draws.
+ */
+static int
+world_replay(
+    struct Viewer* viewer,
+    int* pane)
+{
+    struct UITreeEmitDesc desc;
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_WORLD;
+    desc.x = 0;
+    desc.y = 0;
+    desc.w = PANE_W;
+    desc.h = PANE_H;
+    desc.clip.x = 0;
+    desc.clip.y = 0;
+    desc.clip.w = PANE_W;
+    desc.clip.h = PANE_H;
+    desc.world_level_mask = 0xF;
+
+    struct ToriDraw_Camera camera = { 0 };
+    camera.fov_rpi2048 = 512;
+    camera.near_plane_z = 50;
+    camera.pitch = viewer->pitch & 2047;
+    camera.yaw = viewer->yaw & 2047;
+    camera.roll = 0;
+
+    struct ToriRS_Frame frame;
+    ToriRS_FrameInit(&frame);
+    ToriRS_FrameSetScene(&frame, viewer->scene);
+    ToriRS_FrameSetCanvas(&frame, PANE_W, PANE_H);
+    ToriRS_FrameSetEmit(&frame, &desc, 1);
+    ToriRS_FrameSetWorld(
+        &frame,
+        viewer->world,
+        viewer->painter_buffer,
+        &camera,
+        viewer->world_cam_x,
+        viewer->world_cam_y,
+        viewer->world_cam_z);
+
+    struct ToriRS_Soft3D soft;
+    ToriRS_Soft3D_Init(&soft, viewer->scene, pane, PANE_W, PANE_H);
+
+    int drawn = 0;
+    struct ToriRS_RenderCommand cmd;
+    ToriRS_FrameBegin(&frame);
+    while( ToriRS_FrameNextCommand(&frame, &cmd) )
+    {
+        ToriRS_Soft3D_Execute(&soft, &cmd);
+        drawn++;
+    }
+    ToriRS_FrameEnd(&frame);
+
+    return drawn;
+}
+
+/**
+ * Draw the world into both panels.
+ *
+ * The painter runs once and both families replay the identical command list, so
+ * the timing difference between the two is the raster. Unlike model mode the
+ * bracket also covers per-model projection and face sorting, which the command
+ * replay owns - that work is identical for both families.
+ */
+static void
+render_world_frame(struct Viewer* viewer)
+{
+    for( int i = 0; i < PANE_W * PANE_H; i++ )
+    {
+        viewer->pane_branching[i] = BACKDROP;
+        viewer->pane_scanline[i] = BACKDROP;
+    }
+
+    if( !viewer->world_loaded || !viewer->world || !viewer->painter_buffer )
+        return;
+
+    int max_tile = viewer->world->_scene_size - 1;
+    int cam_sx = viewer->world_cam_x >> 7;
+    int cam_sz = viewer->world_cam_z >> 7;
+    if( cam_sx < 0 )
+        cam_sx = 0;
+    if( cam_sx > max_tile )
+        cam_sx = max_tile;
+    if( cam_sz < 0 )
+        cam_sz = 0;
+    if( cam_sz > max_tile )
+        cam_sz = max_tile;
+
+    painter_set_camera_angles(
+        viewer->world->painter, viewer->pitch & 2047, viewer->yaw & 2047);
+    painter_set_level_mask(viewer->world->painter, 0xF);
+    painter_paint_bucket(viewer->world->painter, viewer->painter_buffer, cam_sx, cam_sz, 0);
+
+    ToriDraw_RasterSetScanline(false);
+    double t0 = now_ms();
+    viewer->world_commands = world_replay(viewer, viewer->pane_branching);
+    double t1 = now_ms();
+
+    ToriDraw_RasterSetScanline(true);
+    double t2 = now_ms();
+    world_replay(viewer, viewer->pane_scanline);
+    double t3 = now_ms();
+    ToriDraw_RasterSetScanline(false);
+
+    record_timing(viewer, FAMILY_BRANCHING, t1 - t0);
+    record_timing(viewer, FAMILY_SCANLINE, t3 - t2);
+}
+
 /**
  * Labels come from a cache font so the panels are self-describing. Failing to
  * load one is not fatal - the viewer just runs without captions.
@@ -384,42 +705,6 @@ draw_label(
 
     ToriDraw2D_DrawString(
         viewer->label_font, &view_port, x, y, text, color, false, true, pane);
-}
-
-static double
-now_ms(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1.0e6;
-}
-
-static void
-record_timing(
-    struct Viewer* viewer,
-    int family,
-    double ms)
-{
-    viewer->ms_samples[family][viewer->ms_head] = ms;
-    if( family == 1 )
-    {
-        viewer->ms_head = (viewer->ms_head + 1) % TIMING_WINDOW;
-        if( viewer->ms_count < TIMING_WINDOW )
-            viewer->ms_count++;
-    }
-}
-
-static double
-average_ms(
-    const struct Viewer* viewer,
-    int family)
-{
-    if( viewer->ms_count <= 0 )
-        return 0.0;
-    double sum = 0.0;
-    for( int i = 0; i < viewer->ms_count; i++ )
-        sum += viewer->ms_samples[family][i];
-    return sum / viewer->ms_count;
 }
 
 /**
@@ -497,8 +782,18 @@ render_frame(struct Viewer* viewer)
     double t3 = now_ms();
     ToriDraw_RasterSetScanline(false);
 
-    record_timing(viewer, 0, t1 - t0);
-    record_timing(viewer, 1, t3 - t2);
+    record_timing(viewer, FAMILY_BRANCHING, t1 - t0);
+    record_timing(viewer, FAMILY_SCANLINE, t3 - t2);
+}
+
+/** Draw whichever subject the viewer is showing into both panels. */
+static void
+render_subject(struct Viewer* viewer)
+{
+    if( viewer->mode == MODE_WORLD )
+        render_world_frame(viewer);
+    else
+        render_frame(viewer);
 }
 
 static int
@@ -549,23 +844,48 @@ draw_panel_captions(struct Viewer* viewer)
     draw_label(viewer, viewer->pane_branching, 8, 16, "BRANCHING (default)", 0x00FFD070);
     draw_label(viewer, viewer->pane_scanline, 8, 16, "SCANLINE (new)", 0x0080FF90);
 
-    snprintf(
-        line,
-        sizeof(line),
-        "model %d  faces %d  alpha 0x%02X",
-        viewer->model_id,
-        viewer->model ? viewer->model->face_count : 0,
-        k_alpha_modes[viewer->alpha_mode]);
-    draw_label(viewer, viewer->pane_branching, 8, 32, line, 0x00C0C0C0);
+    if( viewer->mode == MODE_WORLD )
+    {
+        snprintf(
+            line,
+            sizeof(line),
+            "WORLD  square %d,%d  %d draws",
+            viewer->map_x,
+            viewer->map_z,
+            viewer->world_commands);
+        draw_label(viewer, viewer->pane_branching, 8, 32, line, 0x00C0C0C0);
 
-    snprintf(
-        line,
-        sizeof(line),
-        "yaw %d  pitch %d  zoom %d",
-        viewer->yaw & 2047,
-        viewer->pitch & 2047,
-        viewer->zoom);
-    draw_label(viewer, viewer->pane_scanline, 8, 32, line, 0x00C0C0C0);
+        snprintf(
+            line,
+            sizeof(line),
+            "cam %d,%d,%d  yaw %d  pitch %d",
+            viewer->world_cam_x,
+            viewer->world_cam_y,
+            viewer->world_cam_z,
+            viewer->yaw & 2047,
+            viewer->pitch & 2047);
+        draw_label(viewer, viewer->pane_scanline, 8, 32, line, 0x00C0C0C0);
+    }
+    else
+    {
+        snprintf(
+            line,
+            sizeof(line),
+            "model %d  faces %d  alpha 0x%02X",
+            viewer->model_id,
+            viewer->model ? viewer->model->face_count : 0,
+            k_alpha_modes[viewer->alpha_mode]);
+        draw_label(viewer, viewer->pane_branching, 8, 32, line, 0x00C0C0C0);
+
+        snprintf(
+            line,
+            sizeof(line),
+            "yaw %d  pitch %d  zoom %d",
+            viewer->yaw & 2047,
+            viewer->pitch & 2047,
+            viewer->zoom);
+        draw_label(viewer, viewer->pane_scanline, 8, 32, line, 0x00C0C0C0);
+    }
 
     snprintf(line, sizeof(line), "%d pixels differ", viewer->last_diff);
     draw_label(
@@ -624,7 +944,9 @@ draw_panel_captions(struct Viewer* viewer)
         viewer->pane_branching,
         8,
         PANE_H - 10,
-        "arrows rotate  +/- zoom  [ ] model  a alpha  d diff  space spin",
+        viewer->mode == MODE_WORLD
+            ? "arrows look  wasd/e pan  +/- height  1/2 mapX  3/4 mapZ  m model  d diff"
+            : "arrows rotate  +/- zoom  [ ] model  a alpha  m world  d diff  space spin",
         0x00909090);
 }
 
@@ -813,7 +1135,7 @@ write_window_shot(
 {
     /* Fill the timing window so the caption shows a real average, not one frame. */
     for( int warmup = 0; warmup < TIMING_WINDOW; warmup++ )
-        render_frame(viewer);
+        render_subject(viewer);
 
     viewer->last_diff = render_diff(viewer);
     draw_panel_captions(viewer);
@@ -884,12 +1206,23 @@ handle_key(
     case SDLK_EQUALS:
     case SDLK_PLUS:
     case SDLK_KP_PLUS:
+        if( viewer->mode == MODE_WORLD )
+        {
+            /* World y is negative upward, so "closer" means less negative. */
+            viewer->world_cam_y += 200;
+            break;
+        }
         viewer->zoom -= 100;
         if( viewer->zoom < MIN_ZOOM )
             viewer->zoom = MIN_ZOOM;
         break;
     case SDLK_MINUS:
     case SDLK_KP_MINUS:
+        if( viewer->mode == MODE_WORLD )
+        {
+            viewer->world_cam_y -= 200;
+            break;
+        }
         viewer->zoom += 100;
         if( viewer->zoom > MAX_ZOOM )
             viewer->zoom = MAX_ZOOM;
@@ -911,12 +1244,67 @@ handle_key(
         }
         break;
 
-    case SDLK_SPACE:
-        viewer->auto_rotate = !viewer->auto_rotate;
+    /* --- world mode --- */
+    case SDLK_m:
+        viewer->mode = (viewer->mode == MODE_WORLD) ? MODE_MODEL : MODE_WORLD;
+        viewer->ms_count = 0;
+        viewer->ms_head = 0;
+        if( viewer->mode == MODE_WORLD )
+        {
+            if( !viewer->world_loaded )
+                world_load(viewer, viewer->map_x, viewer->map_z);
+            else
+                world_reset_camera(viewer);
+            viewer->auto_rotate = 0;
+        }
+        else
+        {
+            reset_view(viewer);
+        }
+        break;
+
+    case SDLK_1:
+        if( viewer->mode == MODE_WORLD )
+            world_load(viewer, viewer->map_x - 1, viewer->map_z);
+        break;
+    case SDLK_2:
+        if( viewer->mode == MODE_WORLD )
+            world_load(viewer, viewer->map_x + 1, viewer->map_z);
+        break;
+    case SDLK_3:
+        if( viewer->mode == MODE_WORLD )
+            world_load(viewer, viewer->map_x, viewer->map_z - 1);
+        break;
+    case SDLK_4:
+        if( viewer->mode == MODE_WORLD )
+            world_load(viewer, viewer->map_x, viewer->map_z + 1);
+        break;
+
+    /* Pan the world camera over the scene; in model mode `a` cycles alpha. */
+    case SDLK_w:
+        if( viewer->mode == MODE_WORLD )
+            viewer->world_cam_z += 128;
+        break;
+    case SDLK_s:
+        if( viewer->mode == MODE_WORLD )
+            viewer->world_cam_z -= 128;
+        break;
+    case SDLK_e:
+        if( viewer->mode == MODE_WORLD )
+            viewer->world_cam_x += 128;
         break;
     case SDLK_a:
+        if( viewer->mode == MODE_WORLD )
+        {
+            viewer->world_cam_x -= 128;
+            break;
+        }
         viewer->alpha_mode = (viewer->alpha_mode + 1) % ALPHA_MODE_COUNT;
         load_model(viewer, viewer->model_id);
+        break;
+
+    case SDLK_SPACE:
+        viewer->auto_rotate = !viewer->auto_rotate;
         break;
     case SDLK_x:
         viewer->diff_amplify = !viewer->diff_amplify;
@@ -970,7 +1358,26 @@ main(
     memset(&viewer, 0, sizeof(viewer));
     viewer.diff_amplify = 1;
     viewer.auto_rotate = 1;
+    viewer.map_x = DEFAULT_MAP_X;
+    viewer.map_z = DEFAULT_MAP_Z;
     reset_view(&viewer);
+
+    /* `world` in place of a model id starts in world mode; TORIRS_SCANLINE_MAP
+     * overrides the starting square. */
+    int start_in_world = (argc > 2 && strcmp(argv[2], "world") == 0);
+    {
+        const char* map_env = getenv("TORIRS_SCANLINE_MAP");
+        int env_x;
+        int env_z;
+        if( map_env && sscanf(map_env, "%d,%d", &env_x, &env_z) == 2 )
+        {
+            viewer.map_x = env_x;
+            viewer.map_z = env_z;
+            start_in_world = 1;
+        }
+    }
+    if( start_in_world )
+        forced_model = -1;
 
     viewer.runner.io = ToriRS_IO_New();
     viewer.runner.queue = ToriRS_TaskQueue_New();
@@ -980,6 +1387,19 @@ main(
 
     viewer.buildcache = dat1_buildcache_new();
     viewer.provider = dat1_buildcache_as_provider(viewer.buildcache);
+
+    /* The decoders branch on cache identity, and the world load asserts it has
+     * been stated. cache254 is the rev-254 RS2 dat1 cache (manifest_rs254.ini
+     * [cache:boot]); TORIRS_SCANLINE_REV overrides the revision for other dat1
+     * caches. */
+    {
+        const char* rev_env = getenv("TORIRS_SCANLINE_REV");
+        int revision = rev_env ? atoi(rev_env) : 254;
+        struct RSCache profile = RSCache_ProfileForIdentity(
+            RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT1, revision, RSCACHE_QUIRK_NONE);
+        CacheProvider_SetProfile(viewer.provider, &profile);
+    }
+
     viewer.scene = ToriDraw_SceneNew(0);
     assert(viewer.scene);
 
@@ -988,7 +1408,14 @@ main(
     viewer.pane_diff = malloc(sizeof(int) * PANE_W * PANE_H);
     assert(viewer.pane_branching && viewer.pane_scanline && viewer.pane_diff);
 
-    if( forced_model >= 0 )
+    if( start_in_world )
+    {
+        /* Skip the model sweep; keep one known-good model so `m` can toggle
+         * back without a two-minute scan. */
+        viewer.candidates[0].model_id = 148;
+        viewer.candidate_count = 1;
+    }
+    else if( forced_model >= 0 )
     {
         viewer.candidates[0].model_id = forced_model;
         viewer.candidate_count = 1;
@@ -1005,6 +1432,18 @@ main(
 
     if( !load_model(&viewer, viewer.candidates[0].model_id) )
         return 1;
+
+    if( start_in_world )
+    {
+        viewer.mode = MODE_WORLD;
+        viewer.auto_rotate = 0;
+        if( !world_load(&viewer, viewer.map_x, viewer.map_z) )
+        {
+            fprintf(stderr, "world mode unavailable; falling back to model mode\n");
+            viewer.mode = MODE_MODEL;
+            reset_view(&viewer);
+        }
+    }
 
     if( headless_frames > 0 )
         return run_headless(&viewer, headless_frames, bmp_prefix);
@@ -1064,8 +1503,9 @@ main(
     }
 
     printf(
-        "\nkeys: arrows rotate/tilt, +/- zoom, [ ] model, space spin, a alpha, "
-        "d diff panel, x diff scale, r reset, q quit\n\n");
+        "\nkeys: arrows rotate/tilt, +/- zoom, [ ] model, space spin, a alpha,\n"
+        "      m model/world, 1/2 map X, 3/4 map Z, wasd+e pan (world),\n"
+        "      d diff panel, x diff scale, r reset, q quit\n\n");
 
     int running = 1;
     while( running )
@@ -1099,7 +1539,7 @@ main(
         if( viewer.auto_rotate )
             viewer.yaw = (viewer.yaw + 8) & 2047;
 
-        render_frame(&viewer);
+        render_subject(&viewer);
         viewer.last_diff = render_diff(&viewer);
         draw_panel_captions(&viewer);
         blit_panes(&viewer, texture, window_w);

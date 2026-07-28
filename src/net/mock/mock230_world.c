@@ -429,6 +429,13 @@ npc_spawn(
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         npc->timer_script = -1;
+
+        /* Derived from the cache's sequence names, not from a table of magic
+         * numbers — see mock230_seqinfo.c. -1 means "play nothing", which is
+         * the right answer for an npc whose name follows no convention. */
+        npc->attack_seq = mock230_seq_for_npc(type, "_attack");
+        npc->block_seq = mock230_seq_for_npc(type, "_block");
+        npc->death_seq = mock230_seq_for_npc(type, "_death");
         return;
     }
 }
@@ -1376,6 +1383,7 @@ mock230_world_selftest(void)
 
     memset(&srv, 0, sizeof(srv));
     srv.fd = -1; /* every mock230_send becomes a no-op */
+    mock230_seqinfo_load("cache.osrs230");
     mock230_world_init(&srv, 426, 408);
     player = &srv.player;
 
@@ -1631,6 +1639,21 @@ mock230_world_selftest(void)
             int ticks = 0;
 
             SELFTEST_CHECK(start_hp > 0, "an npc spawns with hitpoints, got %d", start_hp);
+
+            /* Combat animations are resolved from the cache's sequence names,
+             * so a rename upstream shows up here rather than as an npc that
+             * silently stops animating. */
+            SELFTEST_CHECK(npc->attack_seq == 309,
+                           "goblin_attack_unarmed should resolve to 309, got %d",
+                           npc->attack_seq);
+            SELFTEST_CHECK(npc->block_seq == 312, "goblin_block should be 312, got %d",
+                           npc->block_seq);
+            SELFTEST_CHECK(npc->death_seq == 313, "goblin_death should be 313, got %d",
+                           npc->death_seq);
+            SELFTEST_CHECK(mock230_seq_by_name("human_unarmedpunch") == 422,
+                           "human_unarmedpunch should be 422");
+            SELFTEST_CHECK(mock230_seq_by_name("not_a_real_sequence") == -1,
+                           "an unknown name resolves to -1, never to 0");
             SELFTEST_CHECK(npc->max_hitpoints == start_hp,
                            "and at full health");
 

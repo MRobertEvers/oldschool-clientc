@@ -56,6 +56,47 @@ roll_damage(
     return mock230_random(srv, 0, maximum);
 }
 
+/*
+ * The player's swing animation.
+ *
+ * Names come from the cache: `human_unarmedpunch` (422) bare-handed,
+ * `human_sword_slash` (390) with something in the weapon slot. That second
+ * choice is the one simplification here — the cache does not say which of the
+ * ten weapon classes an item belongs to (the obj params are combat bonuses and
+ * attack speed, nothing else), so every armed swing uses the sword set rather
+ * than guessing between axe, blunt, staff and the rest.
+ */
+static int
+player_attack_seq(const struct Mock230Player* player)
+{
+    if( player->worn[MOCK230_WEAR_WEAPON].obj_id >= 0 )
+        return mock230_seq_by_name("human_sword_slash");
+    return mock230_seq_by_name("human_unarmedpunch");
+}
+
+static void
+play_npc_seq(struct Mock230Npc* npc, int seq_id)
+{
+    /* -1 means the cache had no such name. Sending it would spell 65535 on the
+     * wire, which tells the client to STOP whatever is playing — worse than
+     * sending nothing at all. */
+    if( seq_id < 0 )
+        return;
+    npc->anim_id = seq_id;
+    npc->anim_delay = 0;
+    npc->masks |= MOCK230_NMASK_ANIM;
+}
+
+static void
+play_player_seq(struct Mock230Player* player, int seq_id)
+{
+    if( seq_id < 0 )
+        return;
+    player->anim_id = seq_id;
+    player->anim_delay = 0;
+    player->masks |= MOCK230_PMASK_SEQUENCE;
+}
+
 /* ------------------------------------------------------------------ */
 /* Applying damage                                                     */
 /* ------------------------------------------------------------------ */
@@ -97,9 +138,12 @@ mock230_combat_hit_npc(
     }
     npc->face_entity = MOCK230_PLAYER_TERMINATOR;
     npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    /* Flinch. Overwritten below if this was the killing blow. */
+    play_npc_seq(npc, npc->block_seq);
 
     if( npc->hitpoints == 0 )
     {
+        play_npc_seq(npc, npc->death_seq);
         npc->death_tick = srv->tick + MOCK230_DEATH_TICKS;
         npc->combat_target = -1;
         /* Stop roaming and stop being a valid target the moment it dies. */
@@ -127,6 +171,7 @@ mock230_combat_hit_player(
     player->max_hitpoints = player->max_hitpoints > 0 ? player->max_hitpoints
                                                       : MOCK230_PLAYER_MAX_HP;
     player->masks |= MOCK230_PMASK_DAMAGE;
+    play_player_seq(player, mock230_seq_by_name("human_unarmedblock"));
 
     if( player->hitpoints == 0 )
     {
@@ -212,10 +257,9 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     }
     player->attack_clock = MOCK230_ATTACK_SPEED;
 
-    /* No animation from the engine. The attack sequence ids are not verifiable
-     * from this cache without decoding the weapon's bas type, and a wrong seq
-     * id at rev 230 is a silent no-op at best. Content can add one with `anim`;
-     * the hitsplat and health bar are what carry the fight visually. */
+    /* Swing first, then land the hit: the block/death animation the hit sets on
+     * the npc must not be overwritten by anything here. */
+    play_player_seq(player, player_attack_seq(player));
     mock230_combat_hit_npc(srv, player->combat_target, MOCK230_HIT_DAMAGE,
                            roll_damage(srv, 4));
 }
@@ -269,6 +313,7 @@ mock230_combat_npc_tick(
         return;
     }
     npc->attack_clock = MOCK230_ATTACK_SPEED;
+    play_npc_seq(npc, npc->attack_seq);
     mock230_combat_hit_player(srv, MOCK230_HIT_DAMAGE, roll_damage(srv, 3));
 }
 

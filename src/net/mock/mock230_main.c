@@ -423,6 +423,7 @@ main(
         sscanf(zone_env, "%d,%d", &zone_x, &zone_z);
     mock230_objinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_npcinfo_load(cache_dir ? cache_dir : "cache.osrs230");
+    mock230_seqinfo_load(cache_dir ? cache_dir : "cache.osrs230");
 
     /* --selftest: run the game logic with no socket and exit. */
     if( argc > 1 && strcmp(argv[1], "--selftest") == 0 )

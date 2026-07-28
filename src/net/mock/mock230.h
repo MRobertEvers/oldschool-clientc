@@ -369,6 +369,10 @@ struct Mock230Npc
     int death_tick;
     /** Tick to respawn at the spawn tile; -1 when not waiting. */
     int respawn_tick;
+    /** Resolved from the cache's sequence names at spawn; -1 = play nothing. */
+    int attack_seq;
+    int block_seq;
+    int death_seq;
 };
 
 struct Mock230Player
@@ -559,6 +563,31 @@ int
 mock230_step_direction(
     int dx,
     int dz);
+
+/* ------------------------------------------------------------------ */
+/* Sequence names (mock230_seqinfo.c)                                  */
+/* ------------------------------------------------------------------ */
+
+/** Index every sequence's debug name. Returns the count, 0 when absent. */
+int
+mock230_seqinfo_load(const char* cache_dir);
+
+void
+mock230_seqinfo_free(void);
+
+/** Sequence id for an exact debug name, or -1. */
+int
+mock230_seq_by_name(const char* name);
+
+/**
+ * Sequence for an npc by convention: `<lowercased name><suffix>`, e.g.
+ * ("Goblin", "_attack") -> `goblin_attack_unarmed` = 309. -1 when the cache has
+ * no such name, which every caller must treat as "play nothing".
+ */
+int
+mock230_seq_for_npc(
+    int npc_type,
+    const char* suffix);
 
 /* ------------------------------------------------------------------ */
 /* Combat (mock230_combat.c)                                           */
