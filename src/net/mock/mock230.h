@@ -52,6 +52,16 @@ enum
     MOCK230_SCENE_TILES = 104,
     MOCK230_REBUILD_MARGIN = 16,
 
+    /* Player variables the scripts can read and write. rev 230 has far more
+     * than this; the mock only needs the ones its own content uses. */
+    MOCK230_VARP_COUNT = 256,
+    MOCK230_VARP_DIRTY_MAX = 32,
+
+    /* Parked script bookkeeping. */
+    MOCK230_QUEUE_MAX = 16,
+    MOCK230_TIMER_MAX = 8,
+    MOCK230_WORLD_QUEUE_MAX = 16,
+
     /* Wire sentinels in the classic info streams. */
     MOCK230_PLAYER_TERMINATOR = 2047,
     MOCK230_NPC_TERMINATOR = 16383,
@@ -63,6 +73,41 @@ enum
     MOCK230_NPC_SLOT_BITS = 14,
     MOCK230_NPC_TYPE_BITS = 14,
     MOCK230_NPC_TYPE_MAX = (1 << MOCK230_NPC_TYPE_BITS) - 1,
+};
+
+/*
+ * Extended-info mask bits, mirroring the client's readers exactly
+ * (src/net/rev/packets/pkt_player_info.h and pkt_npc_info.h). The writers must
+ * emit fields in ascending bit order, because that is the order the reader
+ * tests them in — the mask says which fields are present, never where.
+ */
+enum
+{
+    MOCK230_PMASK_APPEARANCE = 0x001,
+    MOCK230_PMASK_SEQUENCE = 0x002,
+    MOCK230_PMASK_FACE_ENTITY = 0x004,
+    MOCK230_PMASK_SAY = 0x008,
+    MOCK230_PMASK_DAMAGE = 0x010,
+    MOCK230_PMASK_FACE_COORD = 0x020,
+    MOCK230_PMASK_CHAT = 0x040,
+    /* Not a field: it says the mask itself is two bytes. See put_player_mask. */
+    MOCK230_PMASK_BIG_UPDATE = 0x080,
+    MOCK230_PMASK_SPOTANIM = 0x100,
+    MOCK230_PMASK_EXACT_MOVE = 0x200,
+    MOCK230_PMASK_DAMAGE2 = 0x400,
+};
+
+/* The npc mask is a single byte — there is no widening bit. */
+enum
+{
+    MOCK230_NMASK_DAMAGE2 = 0x01,
+    MOCK230_NMASK_ANIM = 0x02,
+    MOCK230_NMASK_FACE_ENTITY = 0x04,
+    MOCK230_NMASK_SAY = 0x08,
+    MOCK230_NMASK_DAMAGE = 0x10,
+    MOCK230_NMASK_CHANGE_TYPE = 0x20,
+    MOCK230_NMASK_SPOTANIM = 0x40,
+    MOCK230_NMASK_FACE_COORD = 0x80,
 };
 
 /* Appearance/equipment slot numbering. The cache's wearpos fields, the worn
@@ -121,6 +166,70 @@ const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
 /* ------------------------------------------------------------------ */
+/* Packet capture (selftest only)                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Records every packet the tick produces, so the selftest can assert on what
+ * actually went out rather than only on the state left behind.
+ *
+ * The hook sits at the top of mock230_send, above its `fd < 0` early return —
+ * every encoder has already built its payload by then, so all of them become
+ * observable without a single encoder changing. Under the selftest there is no
+ * cipher either, so the recorded opcode is the plain one.
+ */
+
+struct Mock230Server;
+struct SSVM_Provider;
+struct SSVM_Env;
+struct SSVM_State;
+
+enum
+{
+    MOCK230_CAPTURE_MAX = 512,
+    MOCK230_CAPTURE_BYTES = 1024,
+};
+
+struct Mock230CapturedPacket
+{
+    int opcode;
+    int len;
+    uint8_t data[MOCK230_CAPTURE_BYTES];
+};
+
+struct Mock230Capture
+{
+    struct Mock230CapturedPacket packets[MOCK230_CAPTURE_MAX];
+    int count;
+    /** Set when a packet was dropped, so a test cannot silently assert against
+     *  a truncated record. */
+    int overflow;
+};
+
+void
+mock230_capture_begin(
+    struct Mock230Server* srv,
+    struct Mock230Capture* capture);
+void
+mock230_capture_end(struct Mock230Server* srv);
+void
+mock230_capture_reset(struct Mock230Capture* capture);
+
+/** Index of the next packet with this opcode at or after `from`, else -1. */
+int
+mock230_capture_find(
+    const struct Mock230Capture* capture,
+    int opcode,
+    int from);
+
+/** True when `opcodes` all appear in order. Other packets may interleave. */
+int
+mock230_capture_has_sequence(
+    const struct Mock230Capture* capture,
+    const int* opcodes,
+    int count);
+
+/* ------------------------------------------------------------------ */
 /* Game state                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -128,6 +237,25 @@ struct Mock230Item
 {
     int obj_id; /* -1 = empty slot */
     int count;
+};
+
+/** A script waiting for its delay to run out. */
+struct Mock230Queued
+{
+    int active;
+    int script_id;
+    /** Ticks remaining. Decremented once per tick; runs at 0. */
+    int delay;
+    int32_t arg;
+};
+
+/** A script that re-runs on an interval. */
+struct Mock230Timer
+{
+    int active;
+    int script_id;
+    int interval;
+    int clock;
 };
 
 /** One queued tile of movement, in absolute tile coordinates. */
@@ -149,14 +277,36 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+
+    /** Which extended-info fields this npc has to send. Cleared in phase 11. */
+    uint32_t masks;
     int face_entity;
-    int face_entity_dirty;
     char say[80];
-    int say_dirty;
+    int anim_id;
+    int anim_delay;
+    int spotanim_id;
+    int spotanim_height_delay;
+    int change_type;
+    int face_x;
+    int face_z;
+    int damage;
+    int damage_type;
+    int hitpoints;
+    int max_hitpoints;
 
     /** Set once the client has been told about this npc. Cleared by a rebuild,
      *  which drops the client's whole npc list. */
     int tracked;
+
+    /** A script parked on this npc by npc_delay, resumed by phase 4. */
+    struct SSVM_State* active_script;
+    /** Tick at which the npc stops being delayed. */
+    int delayed_until;
+
+    /** [ai_timer]: re-runs every `timer_interval` ticks. -1 = none. */
+    int timer_script;
+    int timer_interval;
+    int timer_clock;
 };
 
 struct Mock230Player
@@ -181,8 +331,24 @@ struct Mock230Player
     uint32_t inv_dirty;
     uint32_t worn_dirty;
 
-    /** Appearance is re-sent whenever equipment changes. */
-    int appearance_dirty;
+    /** Which extended-info fields to send. Cleared in phase 11. */
+    uint32_t masks;
+    int anim_id;
+    int anim_delay;
+    int face_entity;
+    int face_x;
+    int face_z;
+    char say[80];
+    int spotanim_id;
+    int spotanim_height_delay;
+    int damage;
+    int damage_type;
+    int hitpoints;
+    int max_hitpoints;
+    int chat_colour_effect;
+    int chat_type;
+    uint8_t chat_data[80];
+    int chat_len;
 
     /** Set after a teleport or a rebuild: the next PLAYER_INFO must carry an
      *  absolute placement (move op 3) rather than a step direction. */
@@ -192,6 +358,22 @@ struct Mock230Player
      *  PLAYER_INFO encoder: 0 tiles idle, 1 walking, 2 running. */
     int move_dirs[2];
     int move_count;
+
+    /** Player variables. A changed-list rather than a dirty bitmap: a tick
+     *  usually touches one or two, and the list is what the encoder walks. */
+    int32_t varps[MOCK230_VARP_COUNT];
+    int varp_changed[MOCK230_VARP_DIRTY_MAX];
+    int varp_changed_count;
+
+    /** The script parked on this player, resumed by phase 5. At most one: a
+     *  player is doing one thing at a time, which is also why a new trigger
+     *  arriving while one is parked has to be refused rather than queued. */
+    struct SSVM_State* active_script;
+    /** Tick at which the player stops being delayed. */
+    int delayed_until;
+
+    struct Mock230Queued queue[MOCK230_QUEUE_MAX];
+    struct Mock230Timer timers[MOCK230_TIMER_MAX];
 };
 
 struct Mock230Server
@@ -216,11 +398,33 @@ struct Mock230Server
     /** Latched by a handler, acted on by the next tick. */
     int rebuild_pending;
     int clear_map_flag;
+    /** Set by the login burst, drained by phase 7 so [login] runs inside the
+     *  tick rather than ahead of it. */
+    int login_pending;
 
     /** Deterministic per-connection RNG so a session replays identically. */
     uint32_t rng;
 
     int verbose;
+
+    /** Non-NULL only under the selftest; see mock230_capture_begin. */
+    struct Mock230Capture* capture;
+
+    /** Scripts parked by world_delay, drained by phase 1. */
+    struct
+    {
+        struct SSVM_State* state;
+        int delay;
+        int active;
+    } world_queue[MOCK230_WORLD_QUEUE_MAX];
+
+    /* Scripts. Opaque so mock230.h does not pull the whole VM into every
+     * translation unit; owned by mock230_scripts.c. */
+    struct SSVM_Provider* scripts;
+    struct SSVM_Env* script_env;
+    /** 0 when no script pack loaded. Every trigger site falls back to its
+     *  hardcoded C behaviour, so the mock stays usable without content. */
+    int scripts_ok;
 };
 
 /* ------------------------------------------------------------------ */
@@ -282,6 +486,79 @@ mock230_step_direction(
     int dz);
 
 /* ------------------------------------------------------------------ */
+/* Scripts (mock230_scripts.c)                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Load a compiled script pack.
+ *
+ * Returns the number of scripts, or 0 when there is no pack — which is not an
+ * error. Every trigger site falls back to the C behaviour it had before
+ * scripts existed, so a broken or absent toolchain degrades the mock rather
+ * than breaking it. That is what keeps `make test-mock230` green on every
+ * intermediate commit.
+ */
+int
+mock230_scripts_load(
+    struct Mock230Server* srv,
+    const char* dir);
+
+void
+mock230_scripts_free(struct Mock230Server* srv);
+
+/**
+ * Run the script bound to a trigger, if there is one.
+ *
+ * Returns 1 when a script ran to completion, 0 when none matched or it aborted
+ * — in both of those cases the caller should do whatever it did before.
+ *
+ * `npc_slot` is the npc the trigger is about, or -1. It becomes the script's
+ * active npc, which is what `npc_say` and friends operate on.
+ */
+int
+mock230_scripts_run_trigger(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot);
+
+/** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
+void
+mock230_scripts_resume_world(struct Mock230Server* srv);
+void
+mock230_scripts_resume_npc(
+    struct Mock230Server* srv,
+    int slot);
+void
+mock230_scripts_resume_player(struct Mock230Server* srv);
+
+/** Run due queue entries and tick the timers. */
+void
+mock230_scripts_process_queues(struct Mock230Server* srv);
+void
+mock230_scripts_process_timers(struct Mock230Server* srv);
+void
+mock230_scripts_process_npc_timer(
+    struct Mock230Server* srv,
+    int slot);
+
+/** Start a script by id on behalf of the player. For the selftest and for
+ *  anything the engine reaches by id rather than by trigger. Returns 1 when a
+ *  script ran or parked. */
+int
+mock230_scripts_run_script(
+    struct Mock230Server* srv,
+    int script_id);
+
+/** The host command seam: every opcode the VM does not implement itself. */
+int
+mock230_script_command(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/* ------------------------------------------------------------------ */
 /* Encoders (mock230_encode.c)                                         */
 /* ------------------------------------------------------------------ */
 
@@ -315,6 +592,36 @@ mock230_send_if_setevents(
     int from,
     int to,
     int events);
+/* Interface setters. `uid` is the packed (interface << 16) | child. */
+void
+mock230_send_if_settext(
+    struct Mock230Server* srv,
+    int uid,
+    const char* text);
+void
+mock230_send_if_setnpchead(
+    struct Mock230Server* srv,
+    int uid,
+    int npc_id);
+void
+mock230_send_if_setplayerhead(
+    struct Mock230Server* srv,
+    int uid);
+void
+mock230_send_if_setanim(
+    struct Mock230Server* srv,
+    int uid,
+    int anim_id);
+void
+mock230_send_if_sethide(
+    struct Mock230Server* srv,
+    int uid,
+    int hide);
+void
+mock230_send_if_closesub(
+    struct Mock230Server* srv,
+    int uid);
+
 void
 mock230_send_varp_small(
     struct Mock230Server* srv,

@@ -87,8 +87,17 @@ net_out_map_build_complete(
 
 /* -- interface ---------------------------------------------------------- */
 
+/*
+ * One interface component id, at whatever width the revision uses.
+ *
+ * Classic revisions send a flat 2-byte component id. rev 230 sends a packed
+ * (interface << 16) | child uid, which needs 4 bytes — truncating it to 2 drops
+ * the interface half, leaving the server unable to distinguish 231:5 from
+ * 217:5. The width is revision state, so it comes from the table rather than
+ * from a call site.
+ */
 static int
-out_com2(
+out_com(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
@@ -97,9 +106,14 @@ out_com2(
     int component_id)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, out_name, 2, &b) < 0 )
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( out_begin(rev, random_out, buf, cap, out_name, width, &b) < 0 )
         return -1;
-    p2(&b, component_id);
+    if( width == 4 )
+        p4(&b, component_id);
+    else
+        p2(&b, component_id);
     return 1 + (int)b.position;
 }
 
@@ -111,7 +125,7 @@ net_out_if_button(
     int cap,
     int component_id)
 {
-    return out_com2(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTON, component_id);
+    return out_com(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTON, component_id);
 }
 
 int
@@ -122,7 +136,7 @@ net_out_resume_pausebutton(
     int cap,
     int component_id)
 {
-    return out_com2(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, component_id);
+    return out_com(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, component_id);
 }
 
 int

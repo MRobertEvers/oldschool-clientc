@@ -62,6 +62,7 @@ static struct GameProtoRevTable k_rev_osrs230 = {
     /* OldSchool 230 has ~12000 npcs, which does not fit the classic 11-bit
      * type field — 3106 ("Man") would arrive as 1058, a different npc, with no
      * error anywhere. 14 bits matches the slot field and covers the id space. */
+    .component_id_bytes = 4,
     .npc_slot_bits = 14,
     .npc_type_bits = 14,
     .login = &g_osrs230_login_vtable,

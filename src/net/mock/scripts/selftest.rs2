@@ -1,0 +1,26 @@
+// Scripts the selftest drives. Not reachable from the client — these are
+// name-addressed, so nothing but a [queue] or an explicit run can start them.
+//
+// Their whole job is to be observable: each one writes a varp the test can
+// read, so "did this run, and on which tick" is answerable without parsing
+// packets.
+
+// mes, wait 3 ticks, mes. The classic shape of every timed interaction, and
+// the reason the engine needs a parking slot at all.
+[proc,selftest_delay]
+%mock_quest_progress = 1;
+mes("before the delay");
+p_delay(3);
+%mock_quest_progress = 2;
+mes("after the delay");
+
+// Runs when the queue entry's delay expires. The argument is whatever `queue`
+// was given, which is how a queued script knows why it was queued.
+[queue,selftest_queued]
+%mock_quest_progress = 7;
+mes("the queue fired");
+
+// Sets a queue entry and returns immediately, so the test can tick forward and
+// watch it land.
+[proc,selftest_enqueue]
+queue(selftest_queued, 3, 0);

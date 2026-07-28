@@ -1,0 +1,22 @@
+// Hans, npc 3105, the greeter outside Lumbridge castle.
+//
+// rev-230 gives him two menu ops: 1 "Talk-to" and 3 "Age". Both reach the
+// server as OPNPC<n>, which the engine resolves to [opnpc<n>,hans].
+//
+// These ids are rev-230 ids from cache.osrs230. They are NOT LostCity's — see
+// docs/serverscript.md. The symbols come from scripts/pack/npc.pack.
+
+[opnpc1,hans]
+%mock_greeting_count = calc(%mock_greeting_count + 1);
+npc_say("Hello there, adventurer!");
+npc_anim(seq_wave, 0);
+mes("Hans greets you warmly.");
+
+// Suspension in content: Hans answers, pauses, then answers again. The parking
+// slot is what makes this expressible at all — without it the second line would
+// have to be a tick counter somewhere in C.
+[opnpc3,hans]
+npc_say("Let me think...");
+p_delay(2);
+npc_say("I've worked here for years!");
+mes("Hans looks you up and down.");

@@ -87,6 +87,16 @@ struct GameProtoRevTable
      * Stating the widths per revision is what keeps that drift visible; see
      * docs/osrs230_mockserver.md. */
 
+    /**
+     * Bytes an interface component id occupies in a client->server packet.
+     *
+     * 0 = classic 2, a flat component id. rev 230 addresses a component as a
+     * packed (interface << 16) | child uid, which needs 4 — pushing that
+     * through a 2-byte field truncates the interface half away, so the server
+     * cannot tell 231:5 from 217:5 and a resume button can never be matched.
+     */
+    int component_id_bytes;
+
     /** Bits in the new-npc record's slot field. The all-ones value is the
      *  section terminator, so this sets that too. 0 = classic 14. */
     int npc_slot_bits;

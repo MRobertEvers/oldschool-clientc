@@ -24,10 +24,9 @@
   }
   header h1 { font-size: 13px; margin: 0; font-weight: 600; color: #e0d5b8; }
   #status { color: #8f8367; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; }
-  #stage { padding: 0.75rem; }
-  /* The client renders at a fixed 765x503; scale it up without smoothing so
-     the software rasterizer's pixels stay the pixels it drew. */
+  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; }
+  /* The client renders at a fixed 765x503; scale it without smoothing so the
+     software rasterizer's pixels stay the pixels it drew. */
   canvas#canvas {
     display: block;
     background: #000;
@@ -36,20 +35,53 @@
     width: 765px;
     height: 503px;
   }
-  #log {
-    flex: 1;
-    min-width: 320px;
-    margin: 0.75rem 0.75rem 0.75rem 0;
-    padding: 0.5rem;
-    background: #0d0a07;
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     border: 1px solid #3a2f22;
+    background: #0d0a07;
+    max-height: 503px;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7d7157;
+    border-bottom: 1px solid #241c14;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  #iolog-panel { width: 220px; flex: 0 0 auto; }
+  #log-panel { flex: 1; min-width: 320px; }
+  #log {
+    margin: 0;
+    padding: 0.5rem;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 11px;
     color: #93876a;
-    max-height: 503px;
   }
+  /* One row per IO round trip, newest first: which client frame asked, how
+     long the answer took, and how much came back. */
+  #iolog { overflow: auto; padding: 0.25rem 0; font-size: 11px; }
+  #iolog div {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 0.5rem;
+    color: #7f7458;
+    white-space: nowrap;
+  }
+  #iolog .f { width: 3.6em; color: #5f563f; }
+  #iolog .t { width: 4.6em; text-align: right; }
+  #iolog .b { width: 4.6em; text-align: right; }
+  #iolog .s { color: #b08b3a; }
+  /* A round trip that outlived its frame — a stalled main thread when the pump
+     is synchronous, a read the frame could not use when it is not. */
+  #iolog .slow { color: #d0a24a; }
+  #iolog .bad { color: #cf6a5a; }
 </style>
 </head>
 <body>
@@ -58,11 +90,16 @@
   <span id="status">loading…</span>
 </header>
 <main>
-  <div id="stage">
-    <canvas id="canvas" width="765" height="503" tabindex="-1"
-            oncontextmenu="event.preventDefault()"></canvas>
-  </div>
-  <pre id="log"></pre>
+  <canvas id="canvas" width="765" height="503" tabindex="-1"
+          oncontextmenu="event.preventDefault()"></canvas>
+  <section class="panel" id="iolog-panel">
+    <h2>IO log — frame · time · size</h2>
+    <div id="iolog"></div>
+  </section>
+  <section class="panel" id="log-panel">
+    <h2>client</h2>
+    <pre id="log"></pre>
+  </section>
 </main>
 
 <!-- Order matters: the harness defines Module, which the runtime reads on load. -->

@@ -44,12 +44,13 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims port_npc port_lostcity packfile
+.PHONY: all clean find_anims find_named port_npc port_lostcity packfile
 .DEFAULT_GOAL := all
 
-all: find_anims port_npc port_lostcity packfile
+all: find_anims find_named port_npc port_lostcity packfile
 
 find_anims: $(TOOLS)/find_anims/find_anims
+find_named: $(TOOLS)/find_named/find_named
 port_npc: $(TOOLS)/port_npc/port_npc
 port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
 packfile: $(TOOLS)/packfile/packfile
@@ -99,6 +100,9 @@ $(BUILD)/common_%.o: $(TOOLS)/common/%.c | $(BUILD)
 $(TOOLS)/find_anims/find_anims: $(TOOLS)/find_anims/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
+$(TOOLS)/find_named/find_named: $(TOOLS)/find_named/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm
+
 $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
@@ -111,5 +115,5 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^
 
 clean:
-	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/port_npc/port_npc \
+	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/port_npc/port_npc \
 		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile

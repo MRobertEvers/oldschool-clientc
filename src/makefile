@@ -214,7 +214,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify
+.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -468,6 +468,11 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
+# The compiler is a superset: it links the VM sources so a test can compile a
+# script and immediately run it.
+SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
+	serverscript/ssc_compile.c
+
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
 # relation, and the 64-bit lookup key that a rev-230 component uid overflows.
 test-ss-meta: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_meta_test.c
@@ -507,6 +512,18 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_verify_test \
 		$(SS_SRCS) serverscript/test/ss_verify_test.c
 	./$(OBJ_DIR)/ss_verify_test $(SS_CORPUS)
+
+# RuneScript compiler: .rs2 -> script.dat/.idx.
+sscompile: $(OBJ_DIR) $(SSC_SRCS) serverscript/ssc_main.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
+	@echo "built $(OBJ_DIR)/sscompile"
+
+# Compiler end to end: each case writes real RuneScript, compiles it, loads it
+# back through the container and runs it on the VM. Bytecode that is structurally
+# valid but semantically wrong only shows up when it runs.
+test-ssc: $(OBJ_DIR) $(SSC_SRCS) serverscript/test/ssc_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_test $(SSC_SRCS) serverscript/test/ssc_test.c
+	./$(OBJ_DIR)/ssc_test
 
 # CS1 VM core is engine-agnostic, so the suite links only the VM sources.
 test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c
@@ -686,7 +703,7 @@ test-revconfig: $(OBJ_DIR)
 # equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
 MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
-	$(RSAREABUF_DIR)/rsareabuf.c
+	net/mock/mock230_scripts.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
@@ -698,6 +715,14 @@ mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
 # Runs from the repo root so the default cache path (cache.osrs230) resolves —
 # the equipment checks need the cache's wearpos fields to mean anything.
+# Compile the mock's own content. The output is checked in, so building or
+# testing the mock needs no compiler — this only runs when the .rs2 sources
+# change. Ids here are rev-230 ids from cache.osrs230, NOT LostCity's.
+MOCK230_SCRIPT_DIR = $(SRC_DIR)/net/mock/scripts
+mock230-scripts: sscompile
+	./$(OBJ_DIR)/sscompile --src $(MOCK230_SCRIPT_DIR) \
+		--out $(MOCK230_SCRIPT_DIR)/build --pack $(MOCK230_SCRIPT_DIR)/pack
+
 test-mock230: mock230
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
 

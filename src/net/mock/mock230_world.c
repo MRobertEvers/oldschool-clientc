@@ -14,6 +14,9 @@
  */
 #include "mock230.h"
 
+#include "ss_trigger.h"
+#include "ssvm_provider.h"
+
 #include "net/rev/pktnames.h"
 
 #include <rsareabuf.h>
@@ -100,7 +103,7 @@ worn_set(
     player->worn[slot].obj_id = obj_id;
     player->worn[slot].count = count;
     player->worn_dirty |= 1u << slot;
-    player->appearance_dirty = 1;
+    player->masks |= MOCK230_PMASK_APPEARANCE;
 }
 
 static int
@@ -636,12 +639,20 @@ handle_opnpc(
     player->dest_z = npc->z - sign_of(npc->z - player->z);
     steps_walk_to(player, player->dest_x, player->dest_z);
 
-    npc->face_entity = MOCK230_PLAYER_TERMINATOR; /* the local player */
-    npc->face_entity_dirty = 1;
-    npc->say_dirty = 1;
-    snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
-    /* Idle roaming resumes only after the greeting has had time to show. */
+    /* Idle roaming resumes only after the response has had time to show. */
     npc->next_roam_tick = srv->tick + 8;
+
+    /* Content first. [opnpc<n>,<npc>] is resolved the way the reference does
+     * it — exact npc type, then category, then the global form — and only if
+     * nothing matches does the hardcoded greeting run. That fallback is what
+     * lets the mock work with no script pack at all. */
+    if( mock230_scripts_run_trigger(
+            srv, SS_TRIGGER_OPNPC1 + (op_num - 1), npc->type, -1, slot) )
+        return;
+
+    npc->face_entity = MOCK230_PLAYER_TERMINATOR; /* the local player */
+    snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY | MOCK230_NMASK_SAY;
 }
 
 /* OPLOC / OPOBJ: p2 x, p2 z, p2 id. The mock has no loc or ground-item state,
@@ -831,7 +842,7 @@ mock230_world_init(
     player->dest_x = -1;
     player->dest_z = -1;
     player->place_dirty = 1;
-    player->appearance_dirty = 1;
+    player->masks |= MOCK230_PMASK_APPEARANCE;
 
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
     {
@@ -989,8 +1000,14 @@ mock230_world_login(struct Mock230Server* srv)
     player->inv_dirty = 0;
     player->worn_dirty = 0;
 
-    mock230_send_message(srv, "Welcome to the mock 230 world.");
-    mock230_send_message(srv, "Click to walk. Right-click an npc to talk.");
+    /* Anything a script would want to say belongs in [login], which phase 7
+     * runs on the next tick. These two are the no-content fallback. */
+    if( !srv->scripts_ok )
+    {
+        mock230_send_message(srv, "Welcome to the mock 230 world.");
+        mock230_send_message(srv, "Click to walk. Right-click an npc to talk.");
+    }
+    srv->login_pending = 1;
 
     /* 6. First info tick places the player and spawns the npcs. */
     mock230_send_player_info(srv);
@@ -998,16 +1015,130 @@ mock230_world_login(struct Mock230Server* srv)
     mock230_send_tick_end(srv);
 }
 
-void
-mock230_world_tick(struct Mock230Server* srv)
+/* ------------------------------------------------------------------ */
+/* The tick                                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Eleven phases, in the order LostCity's World.cycle() runs them.
+ *
+ * The order is not decoration. It is what decides, for example, that a script
+ * suspended in phase 5 cannot resume in the same tick, that an npc spawned in
+ * phase 4 gets its [ai_spawn] in the *next* tick's phase 3, and that a scene
+ * rebuild is computed (9) before anything is encoded (10). Matching it means
+ * behaviour ports across from the reference instead of being re-derived.
+ *
+ * Several phases are empty until the feature that fills them lands. They exist
+ * now anyway: an empty named phase says where the work goes, whereas an absent
+ * one invites putting it in whichever phase happens to be nearby.
+ */
+
+/** 1. World script queue (world_delay), delayed obj spawns, npc hunt. */
+static void
+phase_world(struct Mock230Server* srv)
+{
+    mock230_scripts_resume_world(srv);
+}
+
+/**
+ * 2. Turn latched client input into world state.
+ *
+ * The socket drain deliberately stays in mock230_main.c between ticks: moving
+ * it in here would need a second buffering layer for no benefit. What belongs
+ * in this phase is the *conversion* of what handlers latched into interactions
+ * and directly-dispatched triggers, which arrives with the interaction model.
+ */
+static void
+phase_clients_in(struct Mock230Server* srv)
+{
+    (void)srv;
+}
+
+/** 3. ai_spawn / ai_despawn, queued by phase 4 and by npc_add. */
+static void
+phase_npc_events(struct Mock230Server* srv)
+{
+    (void)srv;
+}
+
+/** 4. Every npc's turn: delays, timers, queues, then its mode. */
+static void
+phase_npcs(struct Mock230Server* srv)
+{
+    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    {
+        if( !srv->npcs[slot].active )
+            continue;
+        /* Resume before the timer fires: a delayed npc is busy, and starting a
+         * second script on it would interleave two sets of writes. */
+        mock230_scripts_resume_npc(srv, slot);
+        if( !srv->npcs[slot].active_script )
+            mock230_scripts_process_npc_timer(srv, slot);
+    }
+    advance_npcs(srv);
+}
+
+/** 5. The player: delays, resumes, queues, timers, then interaction. */
+static void
+phase_players(struct Mock230Server* srv)
+{
+    /* Order matches the reference exactly, and it matters: a script resumed
+     * here must not have a queue entry started on top of it in the same tick. */
+    mock230_scripts_resume_player(srv);
+    mock230_scripts_process_queues(srv);
+    mock230_scripts_process_timers(srv);
+
+    /* Movement is the tail of the interaction step in the reference, between
+     * the pre-move and post-move interaction attempts. It sits alone here until
+     * there is an interaction model to bracket it. */
+    advance_player(srv);
+}
+
+/** 6. Logouts, which run the [logout] trigger before dropping the player. */
+static void
+phase_logouts(struct Mock230Server* srv)
+{
+    (void)srv;
+}
+
+/** 7. Logins, which run the [login] trigger. */
+static void
+phase_logins(struct Mock230Server* srv)
+{
+    if( !srv->login_pending )
+        return;
+    srv->login_pending = 0;
+    /* The C burst already sent the scene, the gameframe and the containers —
+     * that is engine work. [login] is where anything an operator would want to
+     * change without recompiling belongs. */
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+}
+
+/** 8. Loc/obj respawn timers and the per-zone event flush. */
+static void
+phase_zones(struct Mock230Server* srv)
+{
+    (void)srv;
+}
+
+/**
+ * 9. Recompute what the client needs to be told about.
+ *
+ * The rebuild check lives here rather than in phase 10 because the placement
+ * PLAYER_INFO writes depends on the new origin zone, so it has to be decided
+ * before any encoding starts.
+ */
+static void
+phase_info(struct Mock230Server* srv)
+{
+    maybe_rebuild(srv);
+}
+
+/** 10. Everything the tick has to say, in the order the client expects it. */
+static void
+phase_clients_out(struct Mock230Server* srv)
 {
     struct Mock230Player* player = &srv->player;
-
-    srv->tick++;
-
-    advance_player(srv);
-    advance_npcs(srv);
-    maybe_rebuild(srv);
 
     /* A rebuild has to reach the client before the placement that depends on
      * it, and the client's serial packet queue holds every later packet until
@@ -1038,16 +1169,58 @@ mock230_world_tick(struct Mock230Server* srv)
         player->worn,
         MOCK230_WORN_SLOTS,
         player->worn_dirty);
-    player->inv_dirty = 0;
-    player->worn_dirty = 0;
 
-    if( srv->clear_map_flag )
+    for( int i = 0; i < player->varp_changed_count; i++ )
     {
-        mock230_send_unset_map_flag(srv);
-        srv->clear_map_flag = 0;
+        int varp = player->varp_changed[i];
+
+        mock230_send_varp_small(srv, varp, player->varps[varp]);
     }
 
+    if( srv->clear_map_flag )
+        mock230_send_unset_map_flag(srv);
+
     mock230_send_tick_end(srv);
+}
+
+/** 11. Drop everything that described only this tick. */
+static void
+phase_cleanup(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+
+    player->inv_dirty = 0;
+    player->worn_dirty = 0;
+    player->varp_changed_count = 0;
+    srv->clear_map_flag = 0;
+
+    /* Extended info describes one tick only. Clearing it here rather than
+     * inside the encoder means a field set after PLAYER_INFO was written still
+     * survives to the next tick instead of being silently dropped. */
+    player->masks = 0;
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        srv->npcs[i].masks = 0;
+        srv->npcs[i].step_dir = -1;
+    }
+}
+
+void
+mock230_world_tick(struct Mock230Server* srv)
+{
+    srv->tick++;
+
+    phase_world(srv);
+    phase_clients_in(srv);
+    phase_npc_events(srv);
+    phase_npcs(srv);
+    phase_players(srv);
+    phase_logouts(srv);
+    phase_logins(srv);
+    phase_zones(srv);
+    phase_info(srv);
+    phase_clients_out(srv);
+    phase_cleanup(srv);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1090,6 +1263,227 @@ mock230_world_selftest(void)
     srv.fd = -1; /* every mock230_send becomes a no-op */
     mock230_world_init(&srv, 426, 408);
     player = &srv.player;
+
+    fprintf(stderr, "mock230 selftest: packet capture\n");
+    {
+        /* Proves the harness before anything depends on it. Every later case
+         * that asserts on output is only as trustworthy as this one. */
+        static struct Mock230Capture capture;
+        static const int k_expected[] = { 23 /* PLAYER_INFO */, 104 /* NPC_INFO */,
+                                          108 /* SERVER_TICK_END */ };
+        int tick_end;
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+
+        SELFTEST_CHECK(capture.count > 0, "a tick should produce packets, got %d",
+                       capture.count);
+        SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
+        SELFTEST_CHECK(
+            mock230_capture_has_sequence(&capture, k_expected, 3),
+            "a tick should emit PLAYER_INFO, then NPC_INFO, then SERVER_TICK_END");
+
+        /* SERVER_TICK_END closes the tick, so nothing may follow it. */
+        tick_end = mock230_capture_find(&capture, 108, 0);
+        SELFTEST_CHECK(tick_end == capture.count - 1,
+                       "SERVER_TICK_END should be last, was %d of %d", tick_end,
+                       capture.count);
+    }
+
+    fprintf(stderr, "mock230 selftest: script-driven triggers\n");
+    {
+        static struct Mock230Capture capture;
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+
+        if( !loaded )
+        {
+            /* Running with no content is a supported mode, so this is a skip
+             * rather than a failure — but the fallback below still has to
+             * hold, which the OPNPC case above already covered. */
+            fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
+        }
+        else
+        {
+            uint8_t payload[2];
+            int before;
+
+            /* [login,_] should run in phase 7, not during the login burst. */
+            srv.login_pending = 1;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
+                           "[login] should produce a game message");
+            SELFTEST_CHECK(srv.login_pending == 0, "the login latch should be drained");
+
+            /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
+             * so both the script's effect and the varp flush are observable. */
+            before = player->varps[1];
+            payload[0] = 0;
+            payload[1] = 0; /* npc slot 0 is Hans */
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+            SELFTEST_CHECK(player->varps[1] == before + 1,
+                           "the script should bump %%mock_greeting_count, got %d",
+                           player->varps[1]);
+            SELFTEST_CHECK(strcmp(srv.npcs[0].say, "Hello there, adventurer!") == 0,
+                           "npc_say should set Hans's chat, got \"%s\"", srv.npcs[0].say);
+
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) >= 0,
+                           "a changed varp should reach the client");
+
+            /* A trigger with no script must fall through to the C behaviour,
+             * which is what keeps the mock usable without content. */
+            SELFTEST_CHECK(
+                mock230_scripts_run_trigger(&srv, SS_TRIGGER_OPNPC5, 3105, -1, 0) == 0,
+                "an unbound trigger should report that nothing ran");
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: script suspension\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int start_tick;
+
+            /* p_delay(3) at tick T resumes at T+4: the reference sets
+             * delayedUntil = tick + 1 + n, so a delay of n costs the rest of
+             * this tick plus n more. Getting the +1 wrong is a one-tick error
+             * that nothing else in the system would notice. */
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_delay]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_delay] should be in the pack");
+            if( script )
+            {
+                start_tick = srv.tick;
+                player->varps[2] = 0;
+                mock230_scripts_run_script(&srv, script->id);
+
+                SELFTEST_CHECK(player->varps[2] == 1, "the script ran up to the delay");
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "p_delay should park the script on the player");
+
+                for( int i = 0; i < 3; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->varps[2] == 1,
+                                   "still delayed at tick +%d, varp is %d", i + 1,
+                                   player->varps[2]);
+                }
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 2,
+                               "p_delay(3) should resume on tick +4, varp is %d",
+                               player->varps[2]);
+                SELFTEST_CHECK(player->active_script == NULL,
+                               "a finished script should release its parking slot");
+                SELFTEST_CHECK(srv.tick == start_tick + 4, "four ticks elapsed");
+            }
+
+            /* queue(script, 3, 0) runs on tick +4 for the same reason. */
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_enqueue]");
+            if( script )
+            {
+                player->varps[2] = 0;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 0, "queueing should not run the script");
+
+                for( int i = 0; i < 3; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->varps[2] == 0, "queue not due at tick +%d", i + 1);
+                }
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 7,
+                               "the queued script should run on tick +4, varp is %d",
+                               player->varps[2]);
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: extended info masks\n");
+    {
+        static struct Mock230Capture capture;
+        int index;
+
+        /* THE TRAP. Any mask bit at 0x100 or above needs BIG_UPDATE (0x80) set
+         * and the mask written as two bytes, because the reader does
+         * `mask = g1(); if (mask & 0x80) mask += g1() << 8;`. Writing one byte
+         * with SPOTANIM set silently loses it; writing two without 0x80 makes
+         * the client read the first field as mask bits and misparse the whole
+         * rest of the extended section. Neither shows up as a crash. */
+        player->place_dirty = 0;
+        player->move_count = 0;
+        player->masks = MOCK230_PMASK_SEQUENCE | MOCK230_PMASK_SPOTANIM;
+        player->anim_id = 808;
+        player->anim_delay = 0;
+        player->spotanim_id = 74;
+        player->spotanim_height_delay = 0;
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+
+        index = mock230_capture_find(&capture, 23 /* PLAYER_INFO */, 0);
+        SELFTEST_CHECK(index >= 0, "PLAYER_INFO should have been sent");
+        if( index >= 0 )
+        {
+            const struct Mock230CapturedPacket* packet = &capture.packets[index];
+            /* Bit section: 1 (has update) + 2 (op 0) + 8 (tracked count) +
+             * 11 (terminator) = 22 bits, so the extended block starts at byte
+             * 3 once rsab_bytes rounds up. */
+            int mask_low = packet->data[3];
+            int mask_high = packet->data[4];
+
+            SELFTEST_CHECK((mask_low & 0x80) != 0,
+                           "a mask above 0xff must set BIG_UPDATE, low byte was 0x%02x",
+                           mask_low);
+            SELFTEST_CHECK(mask_high == 0x01,
+                           "the high mask byte should carry SPOTANIM, was 0x%02x", mask_high);
+            SELFTEST_CHECK((mask_low & 0x02) != 0, "SEQUENCE should still be set");
+        }
+
+        /* A single-byte mask must NOT set BIG_UPDATE, or the client eats the
+         * first field as a second mask byte. */
+        player->masks = MOCK230_PMASK_SEQUENCE;
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        index = mock230_capture_find(&capture, 23, 0);
+        if( index >= 0 )
+        {
+            SELFTEST_CHECK((capture.packets[index].data[3] & 0x80) == 0,
+                           "a mask below 0x100 must not set BIG_UPDATE");
+        }
+
+        /* Masks describe one tick, so a tick with nothing set must not emit an
+         * extended block at all. */
+        player->masks = 0;
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        index = mock230_capture_find(&capture, 23, 0);
+        SELFTEST_CHECK(index >= 0 && capture.packets[index].len == 3,
+                       "an idle player should send only the bit section");
+    }
 
     fprintf(stderr, "mock230 selftest: movement\n");
     {
@@ -1149,7 +1543,8 @@ mock230_world_selftest(void)
         equip_from_slot(&srv, slot);
         SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == 1155, "helm reaches the head slot");
         SELFTEST_CHECK(player->inv[slot].obj_id == -1, "helm left the backpack");
-        SELFTEST_CHECK(player->appearance_dirty == 1, "equipping re-sends the appearance");
+        SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
+                       "equipping re-sends the appearance");
         SELFTEST_CHECK((player->worn_dirty & (1u << MOCK230_WEAR_HEAD)) != 0,
                        "the worn slot is marked for the next partial update");
 

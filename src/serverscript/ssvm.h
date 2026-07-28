@@ -229,6 +229,17 @@ struct SSVM_State
 
     struct SSVM_Error err;
 
+    /**
+     * Host bookkeeping the VM stores and never reads.
+     *
+     * Exists because a suspended state outlives the call that created it, so
+     * the host cannot keep per-state context on its own stack. The mock uses
+     * `host_tag` for the active npc's slot: a raw pointer would dangle if the
+     * npc despawned while its script was parked.
+     */
+    void* host_data;
+    int32_t host_tag;
+
     /** Free-list link, valid only while the state is unused. */
     struct SSVM_State* pool_next;
 };

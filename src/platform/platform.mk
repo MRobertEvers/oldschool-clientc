@@ -77,16 +77,12 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
                       -Wno-unknown-warning-option
 
-  # Preload set: everything the client reads through fopen rather than through
-  # the IO queue — boot manifests and RevConfig INIs, a few hundred KB in all.
-  # The cache itself is NOT here: it is served request-by-request by the IO
-  # server, which is the whole point of the web IO backend.
-  #
-  # Add a manifest here to make it selectable from the page's ?args=.
-  WEB_PRELOAD ?= --preload-file $(REPO_ROOT)/manifest_rs254.ini@/manifest_rs254.ini \
-                 --preload-file $(REPO_ROOT)/manifest_osrs230.ini@/manifest_osrs230.ini \
-                 --preload-file $(REPO_ROOT)/manifest_rs377.ini@/manifest_rs377.ini \
-                 --preload-file $(REPO_ROOT)/v0/osrs/revconfig/configs/rev_245_2@/v0/osrs/revconfig/configs/rev_245_2
+  # Nothing is baked into the module. The files the client opens by name — the
+  # boot manifest, the RevConfig INIs it points at — are named on the command
+  # line, and the command line here is the page's query string, so they cannot
+  # be decided at link time. The harness fetches them from the IO server's
+  # /boot/ route into the virtual filesystem before main() runs, which is what
+  # lets one build open any manifest. FORCE_FILESYSTEM below is for that.
 
   # Memory. The client allocates and frees multi-megabyte archives for the whole
   # boot (a dat2 config group is a couple of MB) interleaved with small
@@ -106,8 +102,7 @@ else ifeq ($(PLATFORM),web)
                       -sENVIRONMENT=web \
                       -sMODULARIZE=0 \
                       -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS"]' \
-                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"]' \
-                      $(WEB_PRELOAD)
+                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"]'
 
   ifeq ($(OPT),1)
     # -g0 discards the DWARF the shared CFLAGS' -g put in the objects. Without

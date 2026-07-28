@@ -1,8 +1,8 @@
 # ServerScript — LostCity's RuneScript, in C
 
-`src/serverscript/` reads, runs and (eventually) compiles the server-side script
-bytecode that LostCity's engine executes. It exists so the mock rev-230 server
-can express behaviour as content rather than as `case` labels in a `switch`.
+`src/serverscript/` compiles, reads and runs the server-side script bytecode
+that LostCity's engine executes. It exists so the mock rev-230 server can
+express behaviour as content rather than as `case` labels in a `switch`.
 
 Reference implementation: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
 (TypeScript, `engine/src/engine/script/`).
@@ -24,6 +24,8 @@ items and a long afternoon.
 | `ssvm_provider.h/.c` | `script.dat`/`script.idx` container + name and trigger indices |
 | `ssvm_strpool.h/.c` | per-state bump allocator for derived strings |
 | `ssvm.h`, `ssvm.c` | the VM: core language, arithmetic, strings, host seam |
+| `ssc.h`, `ssc_lex.*`, `ssc_symbols.c`, `ssc_compile.c` | the compiler |
+| `ssc_main.c` | `sscompile` CLI |
 
 Dependencies are libc plus `3rd/rsareabuf` and nothing else — no SDL, no task
 queue, no UI tree — so the whole subsystem links into the standalone `mock230`
@@ -153,6 +155,52 @@ This is why a state owns its string pool rather than resetting per call
 wrong here): a chat dialogue builds a page of text, suspends on `p_pausebutton`,
 and reads it back when the player clicks minutes later.
 
+## The compiler
+
+```
+make -C src sscompile
+src/build/sscompile --src DIR --out DIR [--pack DIR] [--constants DIR]
+```
+
+Single pass: bytecode is emitted as the parser walks, with jump targets
+backpatched once known. There is no AST because nothing in the language needs
+one — no construct's *code* depends on something later in the same expression,
+only its jump *targets* do.
+
+Two passes over the file *set* are still required. The first collects every
+script's name so `~proc()` can resolve a callee defined in a file compiled
+later; the second emits code. Sources compile in sorted path order so script ids
+are stable across machines, which matters because a gosub compiles to a script
+*id* — an unstable ordering silently repoints every call in the pack.
+
+In scope: trigger headers with arguments and returns, `if` / `else if` / `else`,
+`while`, `switch_<type>` with multi-value and `default` cases, `return`,
+`def_<type>`, assignment, `%varp` and `%varbit`, `^constants`, `~proc()` and
+`@label()`, command calls including the `.dot` form, `calc()` with `+ - * / %`,
+comparisons `= ! < > <= >=`, string literals with `<$var>` interpolation, `null`,
+`true`/`false`, and coord literals.
+
+Out of scope: arrays, and the `queue*` vararg type-string sugar.
+
+Things worth knowing:
+
+- **Locals live in two separate spaces.** `PUSH_INT_LOCAL` and
+  `PUSH_STRING_LOCAL` address different arrays, each indexed from zero, so the
+  compiler keeps two counters. One shared counter compiles fine and reads the
+  wrong slot at run time.
+- **A constant expands to source text, compiled in place.** That is what lets
+  `^greeting` hold a string literal and `^some_coord` hold a coord, without the
+  symbol table having to know which.
+- **A subject above 2^21 is a compile error.** The on-disk `lookup_key` is an
+  i32 with the subject at bit 10, so a larger one cannot be represented. Failing
+  at compile time is the difference between an error and a script that silently
+  never fires.
+- **A trailing `RETURN` is appended when content does not write one.** The VM
+  errors if pc runs past the last instruction, so a script without one could
+  never complete.
+- **Emitted branches are the inverse of the source comparison** — `if ($x = 1)`
+  emits `BRANCH_NOT`, because the branch jumps *over* the block.
+
 ## Tests
 
 ```
@@ -161,6 +209,7 @@ make -C src test-ss-corpus      # 9,333 real scripts: exact consumption, names v
 make -C src test-ss-roundtrip   # decode -> encode -> memcmp over all 5.3 MB
 make -C src test-ss-vm          # the VM end to end; no corpus needed
 make -C src test-ss-verify      # static CFG stack verifier over every corpus instruction
+make -C src test-ssc            # compiler: .rs2 -> bytecode -> reader -> VM, end to end
 ```
 
 Corpus-backed tests SKIP when the reference server is not checked out beside

@@ -45,6 +45,42 @@ SSVM_OpcodeMetaKnown(int opcode)
     return g_ss_opcode_meta[opcode].known;
 }
 
+int
+SSVM_OpcodeFromName(const char* name)
+{
+    int opcode;
+
+    if( !name )
+        return -1;
+    if( *name == '.' )
+        name++;
+
+    for( opcode = 0; opcode < SS_OPCODE_MAX; opcode++ )
+    {
+        const char* candidate = g_ss_opcode_names[opcode];
+        const char* left;
+        const char* right;
+
+        if( !candidate )
+            continue;
+
+        /* Table names are upper case, source names lower. Compare directly
+         * rather than lowering into a buffer — the table is walked once per
+         * command in a compile, which is not a hot path. */
+        for( left = candidate, right = name; *left && *right; left++, right++ )
+        {
+            int lc = (*left >= 'A' && *left <= 'Z') ? (*left - 'A' + 'a') : *left;
+            int rc = (*right >= 'A' && *right <= 'Z') ? (*right - 'A' + 'a') : *right;
+
+            if( lc != rc )
+                break;
+        }
+        if( !*left && !*right )
+            return opcode;
+    }
+    return -1;
+}
+
 const char*
 SSVM_TriggerName(int trigger)
 {

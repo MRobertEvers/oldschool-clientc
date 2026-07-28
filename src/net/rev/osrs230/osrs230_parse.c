@@ -139,6 +139,72 @@ osrs230_parse(
             (data[4] << 24) | (data[3] << 16) | (data[6] << 8) | data[5];
         return 1;
 
+    /*
+     * The IF_SET* family.
+     *
+     * rev 230 addresses a component as a packed (interface << 16) | child uid,
+     * where lc254 uses a flat p2 component id — so the shared parser's g2 would
+     * read half of the interface number and then misalign every field after it.
+     * The client stores the uid in `component_id` unchanged; UITree at this
+     * revision is packed-uid addressed throughout.
+     */
+    case PKT_NAME_IF_SETTEXT:
+        if( len < 5 )
+            return 0;
+        out->_if_settext.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        {
+            int text_len = len - 4;
+            char* text = (char*)malloc((size_t)text_len + 1);
+
+            if( !text )
+                return 0;
+            /* Newline-terminated on the wire, like every other Jagex string. */
+            memcpy(text, data + 4, (size_t)text_len);
+            text[text_len] = '\0';
+            for( int i = 0; i < text_len; i++ )
+            {
+                if( text[i] == '\n' )
+                {
+                    text[i] = '\0';
+                    break;
+                }
+            }
+            out->_if_settext.text = text;
+        }
+        return 1;
+
+    case PKT_NAME_IF_SETNPCHEAD:
+        if( len < 6 )
+            return 0;
+        out->_if_setnpchead.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        out->_if_setnpchead.npc_id = (data[4] << 8) | data[5];
+        return 1;
+
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        if( len < 4 )
+            return 0;
+        out->_if_setplayerhead.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        return 1;
+
+    case PKT_NAME_IF_SETANIM:
+        if( len < 6 )
+            return 0;
+        out->_if_setanim.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        out->_if_setanim.anim_id = (data[4] << 8) | data[5];
+        return 1;
+
+    case PKT_NAME_IF_SETHIDE:
+        if( len < 5 )
+            return 0;
+        out->_if_sethide.component_id =
+            (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        out->_if_sethide.hide = data[4];
+        return 1;
+
     /* IF_CLOSESUB (op 36, 4 bytes): combinedId as p4 (big-endian packed int).
      * RSProt IfCloseSubEncoder. */
     case PKT_NAME_IF_CLOSESUB:

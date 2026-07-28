@@ -50,8 +50,10 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     { PKTOUT_NAME_MOVE_MINIMAPCLICK,   55,  PKTOUT_LENGTH_VARU8 },
 
     /* Interface component clicks: p2 component id. */
-    { PKTOUT_NAME_IF_BUTTON,           40,  2 },
-    { PKTOUT_NAME_RESUME_PAUSEBUTTON,  41,  2 },
+    /* 4, not 2: rev 230 sends a packed (interface << 16) | child uid. See
+     * GameProtoRevTable.component_id_bytes. */
+    { PKTOUT_NAME_IF_BUTTON,           40,  4 },
+    { PKTOUT_NAME_RESUME_PAUSEBUTTON,  41,  4 },
     { PKTOUT_NAME_CLOSE_MODAL,         42,  0 },
     { PKTOUT_NAME_RESUME_P_COUNTDIALOG,43,  4 },
 

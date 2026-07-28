@@ -300,6 +300,73 @@ holds.
 
 ---
 
+## 3.9 The tick runs LostCity's eleven phases
+
+`mock230_world_tick` is eleven named phase functions in the order
+`World.cycle()` runs them, not because symmetry is nice but because the order
+*is* the behaviour:
+
+```
+1  world      world_delay queue
+2  clients_in latched input -> interactions and direct triggers
+3  npc_events ai_spawn / ai_despawn
+4  npcs       resume, timers, queues, modes, movement
+5  players    resume, queues, timers, interaction, movement
+6  logouts    [logout]
+7  logins     [login]
+8  zones      loc/obj respawn + zone event flush
+9  info       scene rebuild decision
+10 clients_out every encoder
+11 cleanup    drop everything that described only this tick
+```
+
+That ordering is what makes a script suspended in phase 5 unable to resume in
+the same tick, an npc added in phase 4 get its `[ai_spawn]` in the *next* tick's
+phase 3, and the rebuild decision (9) land before any encoding (10). Several
+phases are still empty; they exist anyway, because an empty named phase says
+where work goes whereas an absent one invites putting it wherever is nearest.
+
+## 3.10 Content is RuneScript, not C
+
+Behaviour that a server operator would want to change lives in
+`src/net/mock/scripts/*.rs2`, compiled by `src/serverscript`'s `sscompile` and
+executed by the ServerScript VM. See `docs/serverscript.md` for the toolchain
+and `src/net/mock/scripts/README.md` for the content.
+
+```
+make -C src mock230-scripts     # rebuild the pack (output is checked in)
+```
+
+Wired triggers: `[login,_]` from phase 7, `[opnpc1..5,<npc>]` from an OPNPC
+packet. Resolution follows the reference — exact npc type, then category, then
+the global form.
+
+**The fallback contract is load-bearing.** No script pack, or no script for a
+trigger, means the call site does exactly what it did before scripts existed.
+That is what keeps `make -C src test-mock230` green while content is mid-edit,
+and what makes a broken toolchain degrade the mock rather than break it.
+
+**Ids are rev-230 ids.** `scripts/pack/*.pack` maps names to ids from
+`cache.osrs230`. LostCity's own packs are 2004-era and would hand the client
+something unrelated.
+
+### Suspension
+
+`p_delay`, `npc_delay` and `world_delay` park a script and the matching tick
+phase resumes it. Two details are worth stating because both are off-by-one
+traps that nothing else would catch:
+
+- **`p_delay(n)` resumes on tick +n+1**, because the reference sets
+  `delayedUntil = tick + 1 + n` — a delay costs the rest of the current tick
+  plus n more. `queue(script, n, arg)` is the same.
+- **A parked script holds its npc by slot, not by pointer.** An npc can despawn
+  or have its slot reused while a script waits on it, so `SSVM_State.host_tag`
+  carries the slot and a resumed script either finds the same npc or finds none.
+
+There is one parking slot per player, matching the reference. A second script
+suspending while one waits is refused rather than queued — two parked scripts
+would interleave writes to the same player.
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —

@@ -60,7 +60,17 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 6, 7, PKT_NAME_IF_OPENSUB },   /* IF_OPENSUB */
     { 36, 4, PKT_NAME_IF_CLOSESUB }, /* IF_CLOSESUB */
     { 53, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_RESYNC */
-    { 94, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_SETTEXT */
+    /* The IF_SET* family. Only 94 is a real RSProt opcode; 95-98 are assigned
+     * here the same way the client->server table's are (see
+     * docs/osrs230_mockserver.md 3.5) — RSProt's encoder table is not
+     * vendored, the mock is the only producer, so what matters is that both
+     * ends agree. All five carry a p4 combined uid where lc254 uses a p2 flat
+     * component id, hence the osrs230_parse overrides. */
+    { 94, PKTIN_LENGTH_VARU16, PKT_NAME_IF_SETTEXT },
+    { 95, 6, PKT_NAME_IF_SETNPCHEAD },
+    { 96, 4, PKT_NAME_IF_SETPLAYERHEAD },
+    { 97, 6, PKT_NAME_IF_SETANIM },
+    { 98, 5, PKT_NAME_IF_SETHIDE },
     { 47, 12, PKT_NAME_NONE }, /* IF_SETEVENTS */
     { 84, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* RUNCLIENTSCRIPT */
     { 90, PKTIN_LENGTH_VARU8, PKT_NAME_MESSAGE_GAME }, /* osrs230_parse override */

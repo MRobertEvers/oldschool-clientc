@@ -14,6 +14,7 @@
  * Env:
  *   MOCK230_VERBOSE=1   log every packet in and out
  *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs230)
+ *   MOCK230_SCRIPTS=dir compiled script pack (default src/net/mock/scripts/build)
  *   MOCK230_ZONE=x,z    origin zone to spawn in (default 426,408)
  *
  * The RSA keypair is fixed and matches manifest_osrs230.ini: the client
@@ -29,6 +30,7 @@
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 #include <rsareabuf.h>
@@ -302,6 +304,31 @@ handshake(
 /* Session                                                             */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Where the compiled script pack lives.
+ *
+ * The ../ fallback mirrors mock230_objinfo_load: the mock is run both from the
+ * repo root and from src/, and having it work either way is worth more than
+ * insisting on one.
+ */
+static const char*
+mock230_script_dir(void)
+{
+    static char resolved[512];
+    const char* configured = getenv("MOCK230_SCRIPTS");
+    struct stat info;
+
+    if( configured )
+        return configured;
+
+    snprintf(resolved, sizeof(resolved), "src/net/mock/scripts/build");
+    if( stat(resolved, &info) == 0 )
+        return resolved;
+
+    snprintf(resolved, sizeof(resolved), "../src/net/mock/scripts/build");
+    return resolved;
+}
+
 static long
 now_ms(void)
 {
@@ -326,6 +353,8 @@ serve(
 
     if( !handshake(srv, fd) )
         return;
+
+    mock230_scripts_load(srv, mock230_script_dir());
 
     mock230_world_init(srv, zone_x, zone_z);
     mock230_world_login(srv);

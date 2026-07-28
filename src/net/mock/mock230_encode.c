@@ -33,6 +33,13 @@ enum
     OP_VARP_SMALL = 35,
     OP_UPDATE_INV_PARTIAL = 37,
     OP_IF_SETEVENTS = 47,
+    /* Assigned, not transcribed — see docs/osrs230_mockserver.md 3.5. */
+    OP_IF_SETTEXT = 94,
+    OP_IF_SETNPCHEAD = 95,
+    OP_IF_SETPLAYERHEAD = 96,
+    OP_IF_SETANIM = 97,
+    OP_IF_SETHIDE = 98,
+    OP_IF_CLOSESUB = 36,
     OP_IF_OPENTOP = 60,
     OP_REBUILD_NORMAL = 68,
     OP_UPDATE_RUNENERGY = 77,
@@ -113,6 +120,31 @@ mock230_send(
 {
     uint8_t frame[64 * 1024];
     struct RSAreaBuf buf;
+
+    /* Above the fd check on purpose: the selftest runs with no socket, and this
+     * is the one point every encoder has already passed through with its
+     * payload built. Recording here makes all of them observable without any
+     * encoder knowing the capture exists. */
+    if( srv->capture )
+    {
+        struct Mock230Capture* capture = srv->capture;
+
+        if( capture->count < MOCK230_CAPTURE_MAX && len <= MOCK230_CAPTURE_BYTES )
+        {
+            struct Mock230CapturedPacket* packet = &capture->packets[capture->count++];
+
+            packet->opcode = opcode;
+            packet->len = len;
+            if( len > 0 )
+                memcpy(packet->data, payload, (size_t)len);
+        }
+        else
+        {
+            /* Never silently truncate: a test asserting "this packet is absent"
+             * against a full buffer would pass for the wrong reason. */
+            capture->overflow = 1;
+        }
+    }
 
     if( srv->fd < 0 )
         return;
@@ -249,6 +281,96 @@ mock230_send_if_setevents(
 /* ------------------------------------------------------------------ */
 /* Scalars                                                             */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Interface setters                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * All five carry a p4 combined uid ((interface << 16) | child), which is how
+ * rev 230 addresses a component. lc254's flat p2 component id does not exist
+ * here — see the osrs230_parse overrides for the reading half.
+ */
+
+void
+mock230_send_if_settext(
+    struct Mock230Server* srv,
+    int uid,
+    const char* text)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 512);
+    rsab_p4(&buf, uid);
+    rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+    flush(srv, &buf, OP_IF_SETTEXT, 2);
+}
+
+void
+mock230_send_if_setnpchead(
+    struct Mock230Server* srv,
+    int uid,
+    int npc_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    rsab_p4(&buf, uid);
+    rsab_p2(&buf, npc_id);
+    flush(srv, &buf, OP_IF_SETNPCHEAD, 0);
+}
+
+void
+mock230_send_if_setplayerhead(
+    struct Mock230Server* srv,
+    int uid)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p4(&buf, uid);
+    flush(srv, &buf, OP_IF_SETPLAYERHEAD, 0);
+}
+
+void
+mock230_send_if_setanim(
+    struct Mock230Server* srv,
+    int uid,
+    int anim_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    rsab_p4(&buf, uid);
+    rsab_p2(&buf, anim_id);
+    flush(srv, &buf, OP_IF_SETANIM, 0);
+}
+
+void
+mock230_send_if_sethide(
+    struct Mock230Server* srv,
+    int uid,
+    int hide)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p4(&buf, uid);
+    rsab_p1(&buf, hide ? 1 : 0);
+    flush(srv, &buf, OP_IF_SETHIDE, 0);
+}
+
+void
+mock230_send_if_closesub(
+    struct Mock230Server* srv,
+    int uid)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p4(&buf, uid);
+    flush(srv, &buf, OP_IF_CLOSESUB, 0);
+}
 
 void
 mock230_send_varp_small(
@@ -493,6 +615,90 @@ mock230_step_direction(
     return dx < 0 ? 5 : (dx == 0 ? 6 : 7);
 }
 
+/*
+ * Write a player's extended-info block.
+ *
+ * Two rules, and getting either wrong corrupts everything after this player in
+ * the stream rather than just dropping a field:
+ *
+ *   The mask is one byte unless any bit at 0x100 or above is set, in which case
+ *   BIG_UPDATE (0x80) must be set AND the mask written as two bytes, low first.
+ *   The reader does `mask = g1(); if (mask & 0x80) mask += g1() << 8;` — so a
+ *   two-byte mask without 0x80 desyncs, and 0x80 without a second byte makes
+ *   the reader eat the first field as mask bits.
+ *
+ *   Fields go in ascending bit order, because that is the order the reader
+ *   tests them in. The mask says which fields are present, never where.
+ */
+static void
+put_player_extended(
+    struct RSAreaBuf* buf,
+    struct Mock230Player* player)
+{
+    uint32_t mask = player->masks;
+
+    if( mask >= 0x100 )
+    {
+        mask |= MOCK230_PMASK_BIG_UPDATE;
+        rsab_p1(buf, (int32_t)(mask & 0xff));
+        rsab_p1(buf, (int32_t)((mask >> 8) & 0xff));
+    }
+    else
+    {
+        rsab_p1(buf, (int32_t)mask);
+    }
+
+    if( mask & MOCK230_PMASK_APPEARANCE )
+    {
+        size_t marker = rsab_psize1_begin(buf);
+
+        put_appearance(buf, player);
+        rsab_psize1_end(buf, marker);
+    }
+    if( mask & MOCK230_PMASK_SEQUENCE )
+    {
+        /* -1 goes on the wire as 65535, which is how the client spells "stop
+         * whatever is playing". */
+        rsab_p2(buf, player->anim_id < 0 ? 65535 : player->anim_id);
+        rsab_p1(buf, player->anim_delay);
+    }
+    if( mask & MOCK230_PMASK_FACE_ENTITY )
+        rsab_p2(buf, player->face_entity < 0 ? 0xffff : player->face_entity);
+    if( mask & MOCK230_PMASK_SAY )
+        rsab_pjstr(buf, player->say, RSAB_JSTR_NEWLINE);
+    if( mask & MOCK230_PMASK_DAMAGE )
+    {
+        rsab_p1(buf, player->damage);
+        rsab_p1(buf, player->damage_type);
+        rsab_p1(buf, player->hitpoints);
+        rsab_p1(buf, player->max_hitpoints);
+    }
+    if( mask & MOCK230_PMASK_FACE_COORD )
+    {
+        rsab_p2(buf, player->face_x);
+        rsab_p2(buf, player->face_z);
+    }
+    if( mask & MOCK230_PMASK_CHAT )
+    {
+        rsab_p2(buf, player->chat_colour_effect);
+        rsab_p1(buf, player->chat_type);
+        rsab_p1(buf, player->chat_len);
+        rsab_pdata(buf, player->chat_data, (size_t)player->chat_len);
+    }
+    if( mask & MOCK230_PMASK_SPOTANIM )
+    {
+        rsab_p2(buf, player->spotanim_id < 0 ? 65535 : player->spotanim_id);
+        rsab_p4(buf, player->spotanim_height_delay);
+    }
+    if( mask & MOCK230_PMASK_DAMAGE2 )
+    {
+        rsab_p1(buf, player->damage);
+        rsab_p1(buf, player->damage_type);
+        rsab_p1(buf, player->hitpoints);
+        rsab_p1(buf, player->max_hitpoints);
+    }
+}
+
 void
 mock230_send_player_info(struct Mock230Server* srv)
 {
@@ -500,7 +706,7 @@ mock230_send_player_info(struct Mock230Server* srv)
     struct Mock230Player* player = &srv->player;
     int local_x = player->x - mock230_scene_origin(srv->zone_x);
     int local_z = player->z - mock230_scene_origin(srv->zone_z);
-    int extended = player->appearance_dirty;
+    int extended = player->masks != 0;
 
     open_packet(&buf, 2048);
     rsab_bits(&buf);
@@ -555,16 +761,9 @@ mock230_send_player_info(struct Mock230Server* srv)
 
     /* --- extended info, byte aligned, in the order the bits queued it --- */
     if( extended )
-    {
-        size_t mark;
-        rsab_p1(&buf, 0x01); /* mask: APPEARANCE */
-        mark = rsab_psize1_begin(&buf);
-        put_appearance(&buf, player);
-        rsab_psize1_end(&buf, mark);
-    }
+        put_player_extended(&buf, player);
 
     flush(srv, &buf, OP_PLAYER_INFO, 2);
-    player->appearance_dirty = 0;
     player->place_dirty = 0;
 }
 
@@ -572,41 +771,61 @@ mock230_send_player_info(struct Mock230Server* srv)
 /* NPC_INFO                                                            */
 /* ------------------------------------------------------------------ */
 
-/* Extended-info mask bits the client's pkt_npc_info reader knows. */
-enum
-{
-    NPC_MASK_ANIM = 0x2,
-    NPC_MASK_FACE_ENTITY = 0x4,
-    NPC_MASK_SAY = 0x8,
-};
-
 static int
 npc_extended_pending(const struct Mock230Npc* npc)
 {
-    return npc->say_dirty || npc->face_entity_dirty;
+    return npc->masks != 0;
 }
 
+/*
+ * The npc mask is a single byte — unlike the player's, there is no widening
+ * bit, so the eight fields below are all there is room for. Fields go in
+ * ascending bit order, matching the reader's test order.
+ */
 static void
 put_npc_extended(
     struct RSAreaBuf* buf,
     struct Mock230Npc* npc)
 {
-    int mask = 0;
-    if( npc->face_entity_dirty )
-        mask |= NPC_MASK_FACE_ENTITY;
-    if( npc->say_dirty )
-        mask |= NPC_MASK_SAY;
-    rsab_p1(buf, mask);
+    uint32_t mask = npc->masks & 0xff;
 
-    /* Field order follows the reader, which tests the mask bits in a fixed
-     * order rather than in numeric order. */
-    if( npc->face_entity_dirty )
+    rsab_p1(buf, (int32_t)mask);
+
+    if( mask & MOCK230_NMASK_DAMAGE2 )
+    {
+        rsab_p1(buf, npc->damage);
+        rsab_p1(buf, npc->damage_type);
+        rsab_p1(buf, npc->hitpoints);
+        rsab_p1(buf, npc->max_hitpoints);
+    }
+    if( mask & MOCK230_NMASK_ANIM )
+    {
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1(buf, npc->anim_delay);
+    }
+    if( mask & MOCK230_NMASK_FACE_ENTITY )
         rsab_p2(buf, npc->face_entity < 0 ? 0xffff : npc->face_entity);
-    if( npc->say_dirty )
+    if( mask & MOCK230_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NEWLINE);
-
-    npc->face_entity_dirty = 0;
-    npc->say_dirty = 0;
+    if( mask & MOCK230_NMASK_DAMAGE )
+    {
+        rsab_p1(buf, npc->damage);
+        rsab_p1(buf, npc->damage_type);
+        rsab_p1(buf, npc->hitpoints);
+        rsab_p1(buf, npc->max_hitpoints);
+    }
+    if( mask & MOCK230_NMASK_CHANGE_TYPE )
+        rsab_p2(buf, npc->change_type);
+    if( mask & MOCK230_NMASK_SPOTANIM )
+    {
+        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
+        rsab_p4(buf, npc->spotanim_height_delay);
+    }
+    if( mask & MOCK230_NMASK_FACE_COORD )
+    {
+        rsab_p2(buf, npc->face_x);
+        rsab_p2(buf, npc->face_z);
+    }
 }
 
 void
@@ -705,4 +924,65 @@ mock230_send_npc_info(struct Mock230Server* srv)
 
     memcpy(srv->tracked, kept, sizeof(int) * (size_t)kept_count);
     srv->tracked_count = kept_count;
+}
+
+/* ------------------------------------------------------------------ */
+/* Capture                                                             */
+/* ------------------------------------------------------------------ */
+
+void
+mock230_capture_begin(
+    struct Mock230Server* srv,
+    struct Mock230Capture* capture)
+{
+    mock230_capture_reset(capture);
+    srv->capture = capture;
+}
+
+void
+mock230_capture_end(struct Mock230Server* srv)
+{
+    srv->capture = NULL;
+}
+
+void
+mock230_capture_reset(struct Mock230Capture* capture)
+{
+    capture->count = 0;
+    capture->overflow = 0;
+}
+
+int
+mock230_capture_find(
+    const struct Mock230Capture* capture,
+    int opcode,
+    int from)
+{
+    for( int i = from < 0 ? 0 : from; i < capture->count; i++ )
+    {
+        if( capture->packets[i].opcode == opcode )
+            return i;
+    }
+    return -1;
+}
+
+int
+mock230_capture_has_sequence(
+    const struct Mock230Capture* capture,
+    const int* opcodes,
+    int count)
+{
+    int at = 0;
+
+    /* Order matters, adjacency does not: a tick interleaves packets from
+     * several phases, and a test that demanded adjacency would break every time
+     * an unrelated encoder was added. */
+    for( int i = 0; i < count; i++ )
+    {
+        at = mock230_capture_find(capture, opcodes[i], at);
+        if( at < 0 )
+            return 0;
+        at++;
+    }
+    return 1;
 }

@@ -11,8 +11,9 @@
  * It also serves build-web/ as static files, so `io_server --manifest X` is the
  * whole thing you need to run to open the client in a browser.
  *
- *   POST /io   an IOWire request batch  ->  an IOWire response batch
- *   GET  /...  a file under --root (default build-web/), "/" -> index.html
+ *   POST /io          an IOWire request batch -> an IOWire response batch
+ *   GET  /boot/<path>  a manifest or RevConfig INI, under --boot-root
+ *   GET  /...          a file under --root (default build-web/), "/" -> index.html
  *
  * Usage:
  *   src/build/io_server --manifest manifest_rs254.ini [--port 8088]
@@ -41,6 +42,14 @@ struct IoServer
     struct RSCache_Dat1Disk* dat1_disk;
     struct RSCache_Dat2Disk* dat2_disk;
     char root[512];
+    /* Where GET /boot/<path> reads from: the tree the manifests live in. */
+    char boot_root[512];
+    /* What this process is serving, reported on /stats. The page's command
+     * line is its query string, so the client's manifest can be changed
+     * without restarting the server — and then the two disagree about which
+     * cache is open, which otherwise shows up as a boot that fails to decode
+     * anything with no hint as to why. */
+    char serving[256];
     int verbose;
 
     long served;
@@ -225,23 +234,14 @@ sanitize_path(
 }
 
 static void
-handle_static(
+serve_file(
     struct IoServer* server,
-    struct HttpRequest const* req,
+    char const* full,
     struct HttpResponse* res)
 {
-    char rel[HTTP_MAX_PATH];
-    char full[HTTP_MAX_PATH + 512];
     FILE* file;
     long size;
     void* data;
-
-    if( sanitize_path(req->path, rel, (int)sizeof(rel)) != 0 )
-    {
-        res->status = 400;
-        return;
-    }
-    snprintf(full, sizeof(full), "%s%s", server->root, rel);
 
     file = fopen(full, "rb");
     if( !file )
@@ -280,6 +280,54 @@ handle_static(
 }
 
 static void
+handle_static(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char rel[HTTP_MAX_PATH];
+    char full[HTTP_MAX_PATH + 512];
+
+    if( sanitize_path(req->path, rel, (int)sizeof(rel)) != 0 )
+    {
+        res->status = 400;
+        return;
+    }
+    snprintf(full, sizeof(full), "%s%s", server->root, rel);
+    serve_file(server, full, res);
+}
+
+/*
+ * GET /boot/<path> — a file the client reads with fopen rather than through the
+ * IO queue: a boot manifest, a RevConfig INI.
+ *
+ * These used to be baked into the module with --preload-file, which made the
+ * page's command line a lie: the manifest is chosen by the query string, so a
+ * manifest that was not linked in could be named but not opened. Serving them
+ * means any manifest works against any build, and a new one needs no relink.
+ *
+ * Rooted at --boot-root (default the working directory, i.e. the repo root)
+ * rather than at --root: these are source files, not build output.
+ */
+static void
+handle_boot_file(
+    struct IoServer* server,
+    struct HttpRequest const* req,
+    struct HttpResponse* res)
+{
+    char rel[HTTP_MAX_PATH];
+    char full[HTTP_MAX_PATH + 512];
+
+    if( sanitize_path(req->path + 5, rel, (int)sizeof(rel)) != 0 || rel[0] != '/' )
+    {
+        res->status = 400;
+        return;
+    }
+    snprintf(full, sizeof(full), "%s%s", server->boot_root, rel);
+    serve_file(server, full, res);
+}
+
+static void
 io_server_handler(
     void* user,
     struct HttpRequest const* req,
@@ -301,6 +349,11 @@ io_server_handler(
     }
     if( strcmp(req->method, "GET") == 0 )
     {
+        if( strncmp(req->path, "/boot/", 6) == 0 )
+        {
+            handle_boot_file(server, req, res);
+            return;
+        }
         if( strcmp(req->path, "/stats") == 0 )
         {
             char* text = malloc(256);
@@ -311,8 +364,8 @@ io_server_handler(
                 return;
             }
             len = snprintf(
-                text, 256, "served=%ld failed=%ld bytes_out=%ld\n", server->served,
-                server->failed, server->bytes_out);
+                text, 256, "serving=%s served=%ld failed=%ld bytes_out=%ld\n",
+                server->serving, server->served, server->failed, server->bytes_out);
             res->status = 200;
             snprintf(res->content_type, sizeof(res->content_type), "text/plain; charset=utf-8");
             res->body = text;
@@ -341,13 +394,16 @@ usage(char const* argv0)
     fprintf(
         stderr,
         "usage: %s [--manifest <boot.ini> | --rev <name> <cache_dir>]\n"
-        "          [--port N] [--root DIR] [--config DIR] [--script DIR] [-v]\n"
+        "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
+        "          [--script DIR] [-v]\n"
         "\n"
-        "  --manifest  read cache identity + dir from the same boot manifest the\n"
-        "              native client uses (recommended: the two cannot disagree)\n"
-        "  --rev       named cache profile, with the cache dir as a positional\n"
-        "  --root      directory served over GET (default %s)\n"
-        "  --port      listen port (default %d)\n",
+        "  --manifest   read cache identity + dir from the same boot manifest the\n"
+        "               native client uses (recommended: the two cannot disagree)\n"
+        "  --rev        named cache profile, with the cache dir as a positional\n"
+        "  --root       directory served over GET (default %s)\n"
+        "  --boot-root  directory served over GET /boot/<path> — the manifests and\n"
+        "               RevConfig INIs the client opens by name (default .)\n"
+        "  --port       listen port (default %d)\n",
         argv0,
         IO_SERVER_DEFAULT_ROOT,
         IO_SERVER_DEFAULT_PORT);
@@ -371,6 +427,7 @@ main(
 
     memset(&server, 0, sizeof(server));
     snprintf(server.root, sizeof(server.root), "%s", IO_SERVER_DEFAULT_ROOT);
+    snprintf(server.boot_root, sizeof(server.boot_root), ".");
 
     for( int i = 1; i < argc; i++ )
     {
@@ -401,6 +458,11 @@ main(
         if( strcmp(argv[i], "--root") == 0 && i + 1 < argc )
         {
             snprintf(server.root, sizeof(server.root), "%s", argv[++i]);
+            continue;
+        }
+        if( strcmp(argv[i], "--boot-root") == 0 && i + 1 < argc )
+        {
+            snprintf(server.boot_root, sizeof(server.boot_root), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "--config") == 0 && i + 1 < argc )
@@ -448,13 +510,16 @@ main(
     {
         char quirks[32];
         RSCache_QuirksName(profile.quirks, quirks, (int)sizeof(quirks));
-        printf(
-            "io_server: cache=%s epoch=%s game=%s revision=%d quirks=%s\n",
+        snprintf(
+            server.serving,
+            sizeof(server.serving),
+            "%s (%s %s rev %d quirks %s)",
             cache_dir,
             RSCache_EpochName(profile.epoch),
             RSCache_GameName(profile.game),
             profile.revision,
             quirks);
+        printf("io_server: cache=%s\n", server.serving);
     }
 
     server.px = PlatformX_IO_New();

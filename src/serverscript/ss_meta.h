@@ -99,6 +99,12 @@ SSVM_OpcodeMeta(int opcode);
 int
 SSVM_OpcodeMetaKnown(int opcode);
 
+/** Opcode id for an engine.rs2 command name ("mes", "inv_add"), or -1.
+ *  Case-insensitive, and a leading '.' selecting the secondary-pointer form is
+ *  ignored — the dot lives in the operand, not in the opcode. */
+int
+SSVM_OpcodeFromName(const char* name);
+
 /* ------------------------------------------------------------------ */
 /* Triggers                                                            */
 /* ------------------------------------------------------------------ */

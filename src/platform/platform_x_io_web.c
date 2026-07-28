@@ -131,6 +131,22 @@ EM_JS(void, torirs_web_io_pump_js, (void), {
         Module.torirsIO.pump();
 });
 
+/*
+ * Synchronous round trip, called from inside Process below. Returns 1 when the
+ * page took the batch and answered it before returning — the slots are already
+ * filled by the time this comes back, so Pending() is 0 and the parked task
+ * resumes on this same scheduler pass rather than next frame.
+ *
+ * Re-entrant into wasm: the page calls torirs_io_response_submit from within
+ * this call. That is why Process encodes every request and clears the active
+ * list BEFORE pumping — nothing here may run while that list is being walked.
+ */
+EM_JS(int, torirs_web_io_pump_sync_js, (void), {
+    if( Module.torirsIO && Module.torirsIO.pumpSync )
+        return Module.torirsIO.pumpSync() ? 1 : 0;
+    return 0;
+});
+
 void
 PlatformXIO_Web_Pump(void)
 {
@@ -452,6 +468,23 @@ PlatformX_IO_Process(
     }
 
     ToriRS_IO_ResetActive(io);
+
+    /*
+     * Hand the batch over now, not next frame.
+     *
+     * A pipeline is serial — one read outstanding, then a park — so a frame
+     * that can only collect one answer makes a boot cost one frame per archive
+     * while the client's wall-clock logic ticks keep queueing more work behind
+     * them. Answering here instead makes this backend behave like the
+     * synchronous one: requests in, data out, before Process returns.
+     *
+     * The page decides whether it can do that (see the harness's pumpSync).
+     * When it cannot, the requests stay pending and the frame-gated path
+     * delivers them later; the Pending() gate covers both.
+     */
+    if( px->pending_count > 0 )
+        torirs_web_io_pump_sync_js();
+
     return served;
 }
 
