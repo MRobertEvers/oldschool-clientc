@@ -1163,6 +1163,22 @@ write_window_shot(
 
     bmp_write_file(path, shot, full_w, PANE_H);
     printf("wrote %s (%d panels, %dx%d)\n", path, panes_shown, full_w, PANE_H);
+
+    double ms_branching = average_ms(viewer, FAMILY_BRANCHING);
+    double ms_scanline = average_ms(viewer, FAMILY_SCANLINE);
+    printf(
+        "  %s: %d pixels differ; raster avg branching %.4f ms, scanline %.4f ms (%.2fx)%s\n",
+        viewer->mode == MODE_WORLD ? "world" : "model",
+        viewer->last_diff,
+        ms_branching,
+        ms_scanline,
+        ms_branching > 0.0 ? ms_scanline / ms_branching : 0.0,
+#ifdef __OPTIMIZE__
+        "");
+#else
+        "  [-O0 build, not comparable]");
+#endif
+
     free(shot);
 }
 

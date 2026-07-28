@@ -381,6 +381,19 @@ does not natively. Two things this forced:
   past a 4 GB heap. The VM is now allocated on the task's first run (which also
   dropped the native peak, 230 MB -> 190 MB on an osrs230 boot).
 
+### Measuring it
+
+`make -C src MEMTRACE=1 web` links the heap tracer and puts a **heap profile**
+button in the page header: it flushes the trace and opens the viewer with it
+loaded — live heap over time, live allocations at any point, per-site totals.
+That is the tool to reach for before guessing at a memory problem here, because
+the wasm heap's high-water mark is the number that matters and it is invisible
+from the outside. See [`tools/memtrace/README.md`](../tools/memtrace/README.md).
+
+Note that it is a separate build flavor (its objects live in
+`build_web_opt_mt/`), so switching to it and back does not disturb a normal
+build's objects.
+
 ## Not ported
 
 - **Live server connections.** `--connect` compiles (emscripten emulates BSD

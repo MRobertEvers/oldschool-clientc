@@ -148,7 +148,7 @@ cs2_script_try_decode_footer(
     }
 
     int switch_table_count = (int)RSCache_BufferG1(&trailer);
-    if( switch_table_count < 0 || switch_table_count > RSCACHE_CS2_SCRIPT_MAX_SWITCHES )
+    if( switch_table_count < 0 )
         return NULL;
     if( op_count <= 0 || op_count > 65536 )
         return NULL;
@@ -167,17 +167,31 @@ cs2_script_try_decode_footer(
     script->string_argument_count = string_argument_count;
     script->long_argument_count = long_argument_count;
     script->op_count = op_count;
-    script->switch_table_count = switch_table_count;
+
+    if( !RSCache_CS2_ScriptAllocSwitches(script, switch_table_count) )
+    {
+        RSCache_ClientScriptFree(out);
+        return NULL;
+    }
 
     for( int s = 0; s < switch_table_count; s++ )
     {
         int case_count = (int)RSCache_BufferG2(&trailer);
-        if( case_count < 0 || case_count > RSCACHE_CS2_SCRIPT_MAX_SWITCH_CASES )
+        /* Bounded by what is actually left in the trailer rather than by a
+         * fixed ceiling: a case is 8 bytes, so a count that could not fit is
+         * a corrupt header, and any count that fits is legitimate. Real
+         * scripts run to hundreds of cases and dozens of tables. */
+        int bytes_remaining = (int)(trailer.size - trailer.position);
+        if( case_count < 0 || case_count > bytes_remaining / 8 )
         {
             RSCache_ClientScriptFree(out);
             return NULL;
         }
-        script->switch_tables[s].case_count = case_count;
+        if( !RSCache_CS2_ScriptAllocSwitchCases(script, s, case_count) )
+        {
+            RSCache_ClientScriptFree(out);
+            return NULL;
+        }
         for( int c = 0; c < case_count; c++ )
         {
             script->switch_tables[s].cases[c].key = RSCache_BufferG4(&trailer);

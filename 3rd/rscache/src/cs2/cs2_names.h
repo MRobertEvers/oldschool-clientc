@@ -94,6 +94,28 @@ RSCache_CS2_NamesLookup(
     enum RSCache_CS2_NameTable table,
     int id);
 
+/**
+ * Name -> id, the reverse direction the compiler needs.
+ *
+ * Returns false when the name is absent. Several tables are deliberately
+ * non-unique (two objs may share a name), which is why the decompiler always
+ * appends the id for those — the reverse lookup is only consulted for the
+ * tables where a name identifies one record.
+ */
+bool
+RSCache_CS2_NamesLookupId(
+    const struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    const char* name,
+    int* out_id);
+
+/** Script name (`[proc,min]` or just `min`) -> script id. */
+bool
+RSCache_CS2_NamesScriptId(
+    const struct RSCache_CS2_Names* names,
+    const char* name,
+    int* out_id);
+
 /** The cache name string for a script, e.g. `[proc,min]`, or NULL. */
 const char*
 RSCache_CS2_NamesScript(const struct RSCache_CS2_Names* names, int script_id);

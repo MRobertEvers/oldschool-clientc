@@ -657,32 +657,45 @@ RSCache_CS2_TypingFreezeProto(struct RSCache_CS2_Typing* typing, enum RSCache_CS
     RSCache_CS2_TypingFreezeIdentifier(typing, prototype->identifier);
 }
 
-void
+bool
 RSCache_CS2_TypingAssign(struct RSCache_CS2_Typing* from, struct RSCache_CS2_Typing* to)
 {
-    assert(from != to);
-    assert(from->stack_type == to->stack_type);
+    if( from == to )
+        return false;
+    if( from->stack_type != to->stack_type )
+        return false;
     RSCache_CS2_VecAddUnique(&from->to, to);
     RSCache_CS2_VecAddUnique(&to->from, from);
+    return true;
 }
 
-void
+bool
 RSCache_CS2_TypingAssignLists(
     const struct RSCache_CS2_TypingList* from,
     const struct RSCache_CS2_TypingList* to)
 {
-    assert(from->count == to->count);
+    if( from->count != to->count )
+        return false;
     for( int i = 0; i < from->count; i++ )
-        RSCache_CS2_TypingAssign(from->items[i], to->items[i]);
+    {
+        if( from->items[i] == to->items[i] )
+            continue;
+        if( !RSCache_CS2_TypingAssign(from->items[i], to->items[i]) )
+            return false;
+    }
+    return true;
 }
 
-void
+bool
 RSCache_CS2_TypingCompare(struct RSCache_CS2_Typing* a, struct RSCache_CS2_Typing* b)
 {
-    assert(a != b);
-    assert(a->stack_type == b->stack_type);
+    if( a == b )
+        return false;
+    if( a->stack_type != b->stack_type )
+        return false;
     RSCache_CS2_VecAddUnique(&a->compare, b);
     RSCache_CS2_VecAddUnique(&b->compare, a);
+    return true;
 }
 
 void
@@ -697,14 +710,15 @@ RSCache_CS2_TypingUnlink(struct RSCache_CS2_Typing* typing)
             &((struct RSCache_CS2_Typing*)typing->compare.items[i])->compare, typing);
 }
 
-void
+bool
 RSCache_CS2_TypingReplace(struct RSCache_CS2_Typing* typing, struct RSCache_CS2_Typing* by)
 {
-    assert(typing != by);
-    assert(typing->stack_type == by->stack_type);
+    if( typing == by || typing->stack_type != by->stack_type )
+        return false;
     /* Only an unsolved typing may be replaced; a solved one carries a decision
      * that would be silently discarded. */
-    assert(typing->type == RSCACHE_CS2_TYPE_NONE && typing->identifier == NULL);
+    if( typing->type != RSCACHE_CS2_TYPE_NONE || typing->identifier != NULL )
+        return false;
 
     for( int i = 0; i < typing->from.count; i++ )
     {
@@ -736,16 +750,20 @@ RSCache_CS2_TypingReplace(struct RSCache_CS2_Typing* typing, struct RSCache_CS2_
             RSCache_CS2_VecAddUnique(&by->compare, neighbour);
         }
     }
+    return true;
 }
 
-void
+bool
 RSCache_CS2_TypingReplaceLists(
     const struct RSCache_CS2_TypingList* typings,
     const struct RSCache_CS2_TypingList* by)
 {
-    assert(typings->count == by->count);
+    if( typings->count != by->count )
+        return false;
+    bool ok = true;
     for( int i = 0; i < typings->count; i++ )
-        RSCache_CS2_TypingReplace(typings->items[i], by->items[i]);
+        ok = RSCache_CS2_TypingReplace(typings->items[i], by->items[i]) && ok;
+    return ok;
 }
 
 static struct RSCache_CS2_TypingList*

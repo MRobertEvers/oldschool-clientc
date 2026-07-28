@@ -177,6 +177,76 @@ RSCache_CS2_NamesLookup(
     return (const char*)RSCache_CS2_IntMapGet(&names->tables[table], id);
 }
 
+/**
+ * Linear scan of a table for a name.
+ *
+ * The tables are read once and consulted a few times per script, so an index
+ * would cost more to build than the scans it saves; the largest table is
+ * ~30,000 entries and only the small constant tables are searched in practice.
+ */
+static bool
+cs2_names_reverse(const struct RSCache_CS2_IntMap* table, const char* name, int* out_id)
+{
+    for( int i = 0; i < table->capacity; i++ )
+    {
+        if( !table->entries[i].occupied )
+            continue;
+        if( strcmp((const char*)table->entries[i].value, name) == 0 )
+        {
+            *out_id = table->entries[i].key;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+RSCache_CS2_NamesLookupId(
+    const struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    const char* name,
+    int* out_id)
+{
+    if( !names || !name || table < 0 || table >= RSCACHE_CS2_NAMES_TABLE_COUNT )
+        return false;
+    return cs2_names_reverse(&names->tables[table], name, out_id);
+}
+
+bool
+RSCache_CS2_NamesScriptId(
+    const struct RSCache_CS2_Names* names,
+    const char* name,
+    int* out_id)
+{
+    if( !names || !name )
+        return false;
+    /* Accepts both the bracketed cache spelling and the bare name a call site
+     * writes, so `~min` and `[proc,min]` resolve alike. */
+    for( int i = 0; i < names->script_names.capacity; i++ )
+    {
+        if( !names->script_names.entries[i].occupied )
+            continue;
+        const char* stored = (const char*)names->script_names.entries[i].value;
+        if( strcmp(stored, name) == 0 )
+        {
+            *out_id = names->script_names.entries[i].key;
+            return true;
+        }
+        const char* comma = strchr(stored, ',');
+        size_t length = strlen(stored);
+        if( comma && length >= 3 && stored[0] == '[' && stored[length - 1] == ']' )
+        {
+            size_t bare_length = (size_t)(stored + length - 1 - comma - 1);
+            if( strlen(name) == bare_length && strncmp(comma + 1, name, bare_length) == 0 )
+            {
+                *out_id = names->script_names.entries[i].key;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 const char*
 RSCache_CS2_NamesScript(const struct RSCache_CS2_Names* names, int script_id)
 {

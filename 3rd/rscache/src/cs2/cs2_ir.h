@@ -350,28 +350,42 @@ RSCache_CS2_TypingFreezeIdentifier(struct RSCache_CS2_Typing* typing, const char
 void
 RSCache_CS2_TypingFreezeProto(struct RSCache_CS2_Typing* typing, enum RSCache_CS2_ProtoId proto);
 
-/** Record that `from`'s value reaches `to`. */
-void
+/**
+ * Record that `from`'s value reaches `to`.
+ *
+ * Returns false when the two disagree about their stack type. That is not a
+ * recoverable condition — it means an arity or a signature is wrong further up
+ * — but it is reported rather than asserted, because the reference throws here
+ * too and a corpus contains scripts that hit it. The caller turns it into a
+ * failed decompile of that one script.
+ */
+bool
 RSCache_CS2_TypingAssign(struct RSCache_CS2_Typing* from, struct RSCache_CS2_Typing* to);
 
-void
+/** False if the lists differ in length, or any pair disagrees. */
+bool
 RSCache_CS2_TypingAssignLists(
     const struct RSCache_CS2_TypingList* from,
     const struct RSCache_CS2_TypingList* to);
 
 /** Record that the two are compared, so they must agree without either flowing. */
-void
+bool
 RSCache_CS2_TypingCompare(struct RSCache_CS2_Typing* a, struct RSCache_CS2_Typing* b);
 
 /** Unlink a typing from its neighbours. */
 void
 RSCache_CS2_TypingUnlink(struct RSCache_CS2_Typing* typing);
 
-/** Redirect every edge of `typing` onto `by`, then drop `typing`. */
-void
+/**
+ * Redirect every edge of `typing` onto `by`, then drop `typing`.
+ *
+ * False when `typing` has already been solved or the two disagree about their
+ * stack type — replacing then would discard a decision rather than move it.
+ */
+bool
 RSCache_CS2_TypingReplace(struct RSCache_CS2_Typing* typing, struct RSCache_CS2_Typing* by);
 
-void
+bool
 RSCache_CS2_TypingReplaceLists(
     const struct RSCache_CS2_TypingList* typings,
     const struct RSCache_CS2_TypingList* by);

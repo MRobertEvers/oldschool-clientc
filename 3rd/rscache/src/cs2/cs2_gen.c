@@ -1,5 +1,7 @@
 #include "cs2_gen.h"
 
+#include "../rsbuffer.h"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -57,6 +59,38 @@ static void
 cs2_put_int(struct cs2_writer* writer, int value)
 {
     RSCache_CS2_StrBufAppendInt(writer->out, value);
+}
+
+/**
+ * Write a cache string as UTF-8.
+ *
+ * The cache stores strings as windows-1252 wire bytes and this library keeps
+ * them that way (EXCEPTIONS.md A2). Source files are text, though, so the one
+ * place the bytes become characters is here — a `0xA0` in a message is a
+ * non-breaking space, and emitting it raw makes the listing invalid UTF-8. The
+ * conversion is a bijection, and the compiler applies its inverse.
+ */
+static void
+cs2_put_cache_string(struct cs2_writer* writer, const char* text)
+{
+    if( !text )
+        return;
+    char stack_buffer[1024];
+    char* buffer = stack_buffer;
+    int needed = RSCache_Cp1252ToUtf8(text, stack_buffer, (int)sizeof(stack_buffer));
+    if( needed >= (int)sizeof(stack_buffer) )
+    {
+        buffer = (char*)malloc((size_t)needed + 1);
+        if( !buffer )
+        {
+            cs2_gen_fail(writer, "out of memory converting a string constant");
+            return;
+        }
+        RSCache_Cp1252ToUtf8(text, buffer, needed + 1);
+    }
+    RSCache_CS2_StrBufAppend(writer->out, buffer);
+    if( buffer != stack_buffer )
+        free(buffer);
 }
 
 static void
@@ -168,7 +202,7 @@ cs2_write_constant(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
     if( expr->value.stack_type == RSCACHE_CS2_STACK_STRING )
     {
         cs2_put_char(writer, '"');
-        cs2_put(writer, expr->value.string_value);
+        cs2_put_cache_string(writer, expr->value.string_value);
         cs2_put_char(writer, '"');
         return;
     }
@@ -286,7 +320,7 @@ cs2_write_operation(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
             if( arg->kind == RSCACHE_CS2_EXPR_CONSTANT &&
                 arg->value.stack_type == RSCACHE_CS2_STACK_STRING )
             {
-                cs2_put(writer, arg->value.string_value);
+                cs2_put_cache_string(writer, arg->value.string_value);
             }
             else
             {
@@ -760,7 +794,14 @@ RSCache_CS2_FunctionName(
         struct RSCache_CS2_ScriptName parsed;
         if( RSCache_CS2_ScriptNameParse(cache_name, &fs->arena, &parsed) )
         {
-            snprintf(out, (size_t)out_capacity, "%s", cache_name);
+            /* Always re-formatted, never echoed: a cache name may be a bare
+             * integer that encodes a trigger and a subject, and the source
+             * heading wants the `[trigger,name]` form either way. */
+            snprintf(
+                out,
+                (size_t)out_capacity,
+                "%s",
+                RSCache_CS2_ScriptNameFormat(&parsed, &fs->arena));
             return out;
         }
     }

@@ -156,11 +156,9 @@ store_free(struct script_store* store)
 {
     for( int i = 0; i < store->count; i++ )
     {
-        if( store->entries[i].script )
-        {
-            RSCache_ClientScriptFree(store->entries[i].script);
-            free(store->entries[i].script);
-        }
+        /* RSCache_ClientScriptFree releases the struct itself, not just its
+         * buffers, so there is nothing left for the caller to free. */
+        RSCache_ClientScriptFree(store->entries[i].script);
         free(store->entries[i].bytes);
     }
     free(store->entries);
@@ -365,10 +363,16 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     if( options->out_directory )
         mkdir(options->out_directory, 0777);
 
+    /* An abort inside the library leaves no clue which script triggered it, and
+     * the corpus is thousands of scripts; this names the one in flight. */
+    bool trace = getenv("CS2_TRACE") != NULL;
+
     int ok = 0;
     int failed = 0;
     for( int i = 0; i < id_count; i++ )
     {
+        if( trace )
+            fprintf(stderr, "script %d\n", ids[i]);
         char error[512] = { 0 };
         char* name = NULL;
         char* source = RSCache_CS2_Decompile(ids[i], &decompile_options, &name, error,
@@ -400,6 +404,99 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     }
 
     fprintf(stderr, "decompiled %d, failed %d, total %d\n", ok, failed, id_count);
+    RSCache_CS2_NamesFree(&names);
+    return failed == 0 ? 0 : 1;
+}
+
+/**
+ * Compile `.cs2` sources back to bytecode.
+ *
+ * Output file names are the script id, matching the layout `--raw` reads, so a
+ * compile can be fed straight back to a decompile.
+ */
+static int
+run_compile(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    (void)ids;
+    (void)id_count;
+
+    struct RSCache_CS2_Names names;
+    RSCache_CS2_NamesInit(&names);
+    if( options->names_directory )
+        RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
+    if( store->have_cache )
+        load_param_types_from_cache(store, &names);
+
+    struct param_source param_source = { &names };
+    struct RSCache_CS2_CompileOptions compile_options;
+    memset(&compile_options, 0, sizeof(compile_options));
+    compile_options.scripts.user = store;
+    compile_options.scripts.load = store_load;
+    compile_options.param_types.user = &param_source;
+    compile_options.param_types.load = param_type_load;
+    compile_options.names = &names;
+
+    if( !options->source_path )
+    {
+        fprintf(stderr, "compile needs --src\n");
+        RSCache_CS2_NamesFree(&names);
+        return 2;
+    }
+    if( options->out_directory )
+        mkdir(options->out_directory, 0777);
+
+    DIR* dir = opendir(options->source_path);
+    int ok = 0;
+    int failed = 0;
+    struct dirent* entry;
+    char path[2048];
+    while( dir && (entry = readdir(dir)) )
+    {
+        size_t length = strlen(entry->d_name);
+        if( length < 5 || strcmp(entry->d_name + length - 4, ".cs2") != 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", options->source_path, entry->d_name);
+        int size = 0;
+        uint8_t* text = read_file(path, &size);
+        if( !text )
+            continue;
+
+        char error[512] = { 0 };
+        struct RSCache_ClientScript script;
+        if( !RSCache_CS2_Compile((const char*)text, &compile_options, &script, error,
+                                 (int)sizeof(error)) )
+        {
+            failed++;
+            if( !options->quiet )
+                fprintf(stderr, "FAIL %s: %s\n", entry->d_name, error);
+            free(text);
+            continue;
+        }
+
+        uint32_t bound = RSCache_ClientScriptEncodeBound(&script);
+        uint8_t* encoded = (uint8_t*)malloc(bound);
+        uint32_t written =
+            encoded ? RSCache_ClientScriptEncodeFlags(&script, store->trailer_flags, encoded,
+                                                      bound)
+                    : 0;
+        if( written && options->out_directory )
+        {
+            char out_path[2048];
+            snprintf(out_path, sizeof(out_path), "%s/%d", options->out_directory,
+                     script.script.script_id);
+            if( !write_file(out_path, (const char*)encoded, written) )
+                fprintf(stderr, "could not write %s\n", out_path);
+        }
+        ok += written ? 1 : 0;
+        failed += written ? 0 : 1;
+        free(encoded);
+        RSCache_CS2_ScriptFree(&script.script);
+        free(text);
+    }
+    if( dir )
+        closedir(dir);
+
+    fprintf(stderr, "compiled %d, failed %d\n", ok, failed);
     RSCache_CS2_NamesFree(&names);
     return failed == 0 ? 0 : 1;
 }
@@ -487,7 +584,8 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
         }
 
         free(encoded);
-        RSCache_ClientScriptFree(&rebuilt);
+        /* `rebuilt` is on the stack, so only its buffers are ours to release. */
+        RSCache_CS2_ScriptFree(&rebuilt.script);
         free(source);
         free(name);
     }
@@ -617,6 +715,8 @@ main(int argc, char** argv)
     int status;
     if( strcmp(options.mode, "decompile") == 0 )
         status = run_decompile(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "compile") == 0 )
+        status = run_compile(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "roundtrip") == 0 )
         status = run_roundtrip(&options, &store, ids, id_count);
     else

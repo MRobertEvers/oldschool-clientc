@@ -59,6 +59,103 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 
 ---
 
+## The `scanline` family (SL1–SL5)
+
+A fourth walk alongside `branching` and `sort`, living in
+[`3rd/toridraw/graphics/raster/scanline/`](../3rd/toridraw/graphics/raster/scanline/).
+**Off by default** — `ToriDraw_RasterSetScanline(true)` or
+`TORIDRAW_RASTER_SCANLINE=1` switches every `ToriDraw_Triangle*` dispatcher over
+to it.
+
+What it does differently, all of it once per triangle rather than per row or per
+pixel (see [`scanline_common.h`](../3rd/toridraw/graphics/raster/scanline/scanline_common.h)):
+
+- **One y-sort**, not a six-way permutation dispatch (`branching`) and not an
+  attribute swap (`sort`). Attribute gradients are plane equations, so they are
+  invariant under the permutation and are derived from the *unsorted* vertices;
+  the sorted signed area comes back from the permutation parity for free.
+- **Left/right edge decided once** from the sign of that signed area, instead of
+  per row.
+- **Vertical clipping folded into the edge accumulators**, so no walker tests y
+  inside its loop.
+- **Horizontal clip classified once per trapezoid segment**
+  (`scanline_segment_no_hclip`): when every row of a segment is inside
+  `[0, screen_width)` the span kernel runs with no bounds arithmetic at all.
+  Previously only `flat` had this; here `gouraud` and every textured variant get it.
+- **Gouraud flat-span degeneration**: a zero colour step across x drops the run
+  into the flat fill (constant on terrain and untextured walls).
+- **Per-triangle hoisting** of texture shift, v mask and the screen-centre uv
+  bias, which the `branching` texture kernels recompute per scanline.
+
+| Row | Variant_ID | Category | Symbol(s) | Source |
+|-----|------------|----------|-----------|--------|
+| SL1 | `flat.screen.opaque.scanline.s8` / `flat.screen.alpha.scanline.s8` | Flat | `raster_flat_screen_{opaque,alpha}_scanline_s8` | [`scanline.flat.screen.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c) |
+| SL2 | `gouraud.screen.opaque.bary.scanline.s4` / `gouraud.screen.alpha.bary.scanline.s4` | Gouraud | `raster_gouraud_screen_{opaque,alpha}_bary_scanline_s4` | [`scanline.gouraud.screen.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.gouraud.screen.u.c) |
+| SL3 | `texshade{flat,blend}.{persp,affine}.{texopaque,textrans}.scanline.lerp8` (8 IDs) | Texture | `raster_texshade*_scanline_lerp8` | [`scanline.texture.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.texture.u.c) + [`scanline.texture_tmpl.inc`](../3rd/toridraw/graphics/raster/scanline/scanline.texture_tmpl.inc) |
+| SL4 | `texshade{flat,blend}.{persp,affine}.{texopaque,textrans}.facealpha.scanline.lerp8` (8 IDs) | Texture | `raster_texshade*_facealpha_scanline_lerp8` | same template |
+| SL5 | `scanline.span.solid` | Span | `scanline_span_{flat,gouraud}_{opaque,alpha}` | [`span/scanline.span.solid.u.c`](../3rd/toridraw/graphics/raster/scanline/span/scanline.span.solid.u.c) |
+
+**SL4 is new capability, not a port**: per-face alpha on a *textured* span has no
+`branching` counterpart, so alpha-blended textured geometry previously had to be
+drawn opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans
+(**TS8**) except in the facealpha variants, which need a read-modify-write.
+
+### Where it is and is not bit-identical
+
+- **Flat and gouraud: exact.** Verified against `branching` over interior,
+  clipped, degenerate, single-row/column and inverted-winding triangles, and on
+  real cache geometry (see below).
+- **`texshadeflat.persp.texopaque`: exact.** Its reference counterpart uses the
+  same left-edge rule.
+- **Other textured variants: differ on span-boundary columns.** The reference
+  `textrans` and `lerp8_v3` kernels start a span at `(x - 1) >> 16`, which begins
+  a row one pixel earlier whenever the left edge lands exactly on a pixel
+  boundary — and because that shifts the 8-pixel block alignment it changes uv
+  and shade for the whole row. `texshadeflat.persp.texopaque` uses `x >> 16`, as
+  do all the flat and gouraud kernels. The two reference conventions are
+  mutually exclusive; the scanline family uses `x >> 16` everywhere so textured
+  faces do not seam against the flat/gouraud faces they share edges with.
+- The scanline family also clamps a clipped right edge to `screen_width` rather
+  than `screen_width - 1`, so it draws the final column that the existing
+  kernels drop.
+
+### Testing
+
+- `make -C src test-scanline` — [`toridraw_scanline_parity_test.c`](../3rd/toridraw/toridraw_scanline_parity_test.c).
+  Diffs every variant against its `branching` counterpart over a triangle set
+  covering interior / clipped / degenerate / inverted cases, then chains the
+  textured variants off the one exact anchor (gate axis: `textrans == texopaque`
+  with no zero texels; shade axis: `texshadeblend == texshadeflat` at equal
+  shades; space axis: `affine == persp` at constant depth; alpha axis: the
+  facealpha blend checked algebraically at five alphas). The shade plane is
+  checked against a double-precision plane rather than another rasterizer.
+- `make -C src scanline-compare` — [`scanline_compare_sdl.c`](../src/render/test/scanline_compare_sdl.c).
+  Draws a textured, alpha-blended model from a dat1 cache into **two side-by-side
+  panels of one window** (left `branching`, right `scanline`). Both panels render
+  from the same camera state, so the rotate/tilt/zoom keys move the model in both
+  at once and the images stay directly comparable; `d` adds a third panel with
+  the amplified difference.
+
+  ```sh
+  make -C src scanline-compare
+  ./src/build/scanline_compare cache254 148
+  ```
+
+  Pass the model id — with none it sweeps the cache (~2 min). Keys: `←/→` yaw,
+  `↑/↓` pitch, `+/-` zoom, `[`/`]` model, `space` turntable, `a` face alpha
+  (FF/C0/80/40), `d` diff panel, `x` diff scale, `r` reset, `q` quit.
+
+  Non-interactive modes: `TORIRS_SCANLINE_HEADLESS=N` sweeps N yaw steps per
+  alpha mode with no window and dumps BMPs; `TORIRS_SCANLINE_SHOT=path` writes a
+  single frame of exactly what the window shows.
+
+  On `cache254` model 148 (1004 faces, 48 textured, 420 alpha) the two families
+  differ on 0.77 % of drawn pixels, and **0** once the model's textures are
+  stripped — which is what pins the residual on the reference span start rather
+  than on the walker.
+
+---
+
 ## How to read this (short)
 
 - **Flat / Gouraud:** triangle work is mostly in `raster_*`; **F5** and **G6** are **face-level** APIs from the model pipeline.

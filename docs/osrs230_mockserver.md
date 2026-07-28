@@ -487,6 +487,54 @@ backs `npc_name`.
 
 Facing the player is kept on the SAY path, because FACE_ENTITY does render.
 
+## 3.12 Baseline melee combat
+
+`mock230_combat.c`. The split follows the rest of the mock: the engine owns what
+has to stay consistent — hitpoints, hitsplats, death, respawn, swing timing —
+and content decides who is attackable.
+
+```
+[opnpc2,goblin]      // action 31 is "Attack" in cache.osrs230
+p_opnpc(2);
+```
+
+That is the whole of it, because everything visible was already a wire feature.
+
+**The DAMAGE mask carries the hitsplat *and* the health bar** (damage, type,
+health, total_health), so a hit is one mask write rather than a packet of its
+own. **An npc dying is the ordinary NPC_INFO remove path**, and respawning
+clears `tracked` so the next NPC_INFO adds it as a new entity — which is what a
+respawn is from the client's side.
+
+Loop: engage → walk beside → swing every `MOCK230_ATTACK_SPEED` ticks → the npc
+retaliates the first time it is hit → death animation holds the corpse for
+`MOCK230_DEATH_TICKS` → despawn → respawn at the spawn tile at full health.
+
+Npc hitpoints scale off the cache's combat level (`level * 2`). That formula is
+the mock's own: rev-230 npc configs carry no server-side hitpoints field, unlike
+LostCity's `npc.dat`.
+
+Three deliberate omissions:
+
+- **No attack animations from the engine.** The sequence ids are not derivable
+  from this cache without decoding the weapon's bas type, and a wrong seq id at
+  rev 230 is a silent no-op at best. Content can add one with `anim` /
+  `npc_anim`; the hitsplat and health bar are what carry the fight visually.
+- **A zero-damage hit is a *block* splat, not nothing.** Otherwise a miss is
+  indistinguishable from the server having dropped the swing.
+- **Player death heals to full** rather than teleporting and dropping items. The
+  mock has no respawn point, no item loss and no death interface, and inventing
+  them is a lot of behaviour nothing asked for.
+
+Commands: `p_opnpc`, `npc_damage`, `damage`, `healenergy`, `uid`,
+`npc_findhero`, `npc_attackrange`. `::fight <slot>` engages an npc without a
+right-click, for headless sessions.
+
+One ordering trap worth stating: `advance_npcs` used to clear `step_dir` at the
+top of its loop, which also wiped the step the combat mover had just produced.
+Phase 11 does that clear, once, at the right time — roaming now skips any npc
+that is fighting or dead.
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —

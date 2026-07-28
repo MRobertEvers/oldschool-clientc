@@ -84,7 +84,24 @@ make -C src io-server
 ./src/build/io_server --manifest manifest_osrs230.ini --root build-web --port 8088
 ```
 
-The page grows a **download memtrace.bin** button in its header once the module is up. Clicking it flushes and downloads the trace — and *ends* recording for that session, since the tracer closes the file. [`viewer.html`](viewer.html) is copied to `build-web/` by the same build, so the downloaded file can be dropped straight into it.
+Two buttons appear in the page header once the module is up (they stay hidden on an untraced build):
+
+| Button | What it does |
+|--------|--------------|
+| **heap profile** | Flushes and opens [`viewer.html`](viewer.html) in a new tab with the trace already loaded — live-heap timeline, live allocations at any point, flame view, SQLite export. The bytes move as a transferable `ArrayBuffer` over `postMessage`, so a hundred-MB trace costs no copy and never touches a URL or storage. |
+| **save .bin** | Downloads `memtrace.bin` for [`summarize.py`](summarize.py). |
+
+Either one **ends recording for that session** — flushing closes the trace file. Play through the scenario you care about *first*, then press the button. `viewer.html` is copied into `build-web/` by the same build, so the viewer tab is served from the same origin as the game.
+
+If the browser blocks the popup, the page says so in its client log; allow popups, or use **save .bin** and open `viewer.html` by hand.
+
+Stacks in a `MEMTRACE=1 web` build come out as `wasm-function[764]:0x50563`, because that target is `-O3 -g0` and the names are gone by then. Build `make -C src MEMTRACE=1 web-debug` when you need readable WASM frames; the site aggregates and totals are the same either way.
+
+The handoff is covered end to end by [`verify_web_button.mjs`](verify_web_button.mjs) — it boots the page in headless Chrome, clicks the button, and asserts the viewer really decoded the trace:
+
+```bash
+node tools/memtrace/verify_web_button.mjs
+```
 
 ### Smoke test
 

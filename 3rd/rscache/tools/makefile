@@ -44,10 +44,10 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named port_npc port_lostcity packfile
+.PHONY: all clean find_anims find_named port_npc port_lostcity packfile cs2
 .DEFAULT_GOAL := all
 
-all: find_anims find_named port_npc port_lostcity packfile
+all: find_anims find_named port_npc port_lostcity packfile cs2
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
@@ -116,4 +116,11 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/port_npc/port_npc \
-		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile
+		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2
+
+# cs2 — the CS2 decompiler/compiler front end. Links the library only; the
+# language layer lives inside the unity TU.
+cs2: $(TOOLS)/cs2/cs2
+
+$(TOOLS)/cs2/cs2: $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm

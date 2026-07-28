@@ -36,9 +36,11 @@ usage(const char* argv0)
         "Usage:\n"
         "  %s --rev NAME <cache_dir> --name SUBSTR [--type npc|obj|loc|all]\n"
         "  %s --rev NAME <cache_dir> --npc ID\n"
+        "  %s --rev NAME <cache_dir> --obj ID\n"
         "  %s --rev NAME <cache_dir> --seq ID\n"
         "  %s --rev NAME <cache_dir> --spotanim ID\n"
         "  %s --rev NAME <cache_dir> --scan-spotanim-model ID\n",
+        argv0,
         argv0,
         argv0,
         argv0,
@@ -374,6 +376,118 @@ print_spotanim(
     }
 }
 
+
+/* Load and decode one obj record. Returns NULL when absent. */
+static struct RSCache_Dat2ConfigObj*
+load_obj(
+    struct Tool_Dat2Cache* c,
+    int id)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&c->profile, RSCACHE_TYPE_OBJ);
+    int table;
+    int archive_id;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_FileList* files;
+    struct RSCache_Dat2ConfigObj* out = NULL;
+
+    if( addr.group_shift == 0 )
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+        archive_id = RSCACHE_DAT2_CONFIG_KIND_OBJECT;
+    }
+    else
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, addr.table);
+        archive_id = id >> addr.group_shift;
+    }
+
+    archive = RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
+    if( !archive )
+        return NULL;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int file_id = archive->file_ids ? archive->file_ids[i] : i;
+        int global = addr.group_shift == 0
+                         ? file_id
+                         : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
+        if( global != id || files->file_sizes[i] <= 0 )
+            continue;
+        out = RSCache_Dat2ConfigObjNewDecodeProfile(
+            &c->profile, files->files[i], files->file_sizes[i]);
+        break;
+    }
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return out;
+}
+
+static void
+dump_obj(
+    struct Tool_Dat2Cache* c,
+    int id)
+{
+    struct RSCache_Dat2ConfigObj* obj = load_obj(c, id);
+    if( !obj )
+    {
+        printf("obj %d: <absent>\n", id);
+        return;
+    }
+    printf("obj %d  \"%s\"\n", id, obj->name ? obj->name : "(null)");
+    if( obj->examine )
+        printf("  %-22s%s\n", "examine", obj->examine);
+    printf("  %-22s%d\n", "inventory_model", obj->inventory_model_id);
+    printf("  %-22s%d\n", "cost", obj->cost);
+    printf("  %-22s%s\n", "members", obj->is_members ? "yes" : "no");
+    printf("  %-22s%d\n", "stacking_behaviour", obj->stacking_behaviour);
+    printf("  %-22s%d / %d / %d\n", "wearpos 1/2/3", obj->wearpos_1, obj->wearpos_2, obj->wearpos_3);
+    printf("  %-22s%d\n", "2dzoom", obj->zoom2d);
+    printf("  %-22s%d / %d / %d\n", "2dxan/yan/zan", obj->xan2d, obj->yan2d, obj->zan2d);
+    printf("  %-22s%d / %d\n", "2dxof/yof", obj->offset_x2d, obj->offset_y2d);
+    printf("  %-22s%d / %d\n", "ambient/contrast", obj->ambient, obj->contrast);
+    printf("  %-22s%d / %d / %d  off %d\n", "male models", obj->male_model_0,
+           obj->male_model_1, obj->male_model_2, obj->male_offset);
+    printf("  %-22s%d / %d / %d  off %d\n", "female models", obj->female_model_0,
+           obj->female_model_1, obj->female_model_2, obj->female_offset);
+    printf("  %-22s%d / %d\n", "male head", obj->male_head_model, obj->male_head_model_2);
+    printf("  %-22s%d / %d\n", "female head", obj->female_head_model, obj->female_head_model_2);
+    printf("  %-22s%d\n", "category", obj->category);
+    printf("  %-22s%d\n", "weight", obj->weight);
+    printf("  %-22s%d / %d\n", "noted id/template", obj->noted_id, obj->noted_template);
+    printf("  %-22s%d / %d / %d\n", "resize x/y/z", obj->resize_x, obj->resize_y, obj->resize_z);
+    for( int i = 0; i < 5; i++ )
+        if( obj->actions[i] )
+            printf("  %-22s[%d] %s\n", "ground op", i, obj->actions[i]);
+    for( int i = 0; i < 5; i++ )
+        if( obj->if_actions[i] )
+            printf("  %-22s[%d] %s\n", "inv op", i, obj->if_actions[i]);
+    if( obj->recolor_count > 0 )
+    {
+        printf("  %-22s", "recolour");
+        for( int i = 0; i < obj->recolor_count; i++ )
+            printf("%s%d->%d", i ? ", " : "", obj->recolors_from[i], obj->recolors_to[i]);
+        printf("\n");
+    }
+    if( obj->retexture_count > 0 )
+    {
+        printf("  %-22s", "retexture");
+        for( int i = 0; i < obj->retexture_count; i++ )
+            printf("%s%d->%d", i ? ", " : "", obj->retextures_from[i], obj->retextures_to[i]);
+        printf("\n");
+    }
+    RSCache_Dat2ConfigObjFree(obj);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -382,6 +496,7 @@ main(int argc, char** argv)
     const char* name = NULL;
     const char* type_filter = "all";
     int dump_npc_id = -1;
+    int dump_obj_id = -1;
     int dump_seq_id = -1;
     int dump_spotanim_id = -1;
     int scan_spotanim_model = -1;
@@ -398,6 +513,8 @@ main(int argc, char** argv)
             type_filter = argv[++i];
         else if( strcmp(argv[i], "--npc") == 0 && i + 1 < argc )
             dump_npc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
+            dump_obj_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             dump_seq_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -428,6 +545,8 @@ main(int argc, char** argv)
 
     if( dump_npc_id >= 0 )
         dump_npc(&cache, dump_npc_id);
+    if( dump_obj_id >= 0 )
+        dump_obj(&cache, dump_obj_id);
     if( dump_seq_id >= 0 )
         dump_seq(&cache, dump_seq_id);
     if( dump_spotanim_id >= 0 )
@@ -467,6 +586,31 @@ main(int argc, char** argv)
         int want_npc = all || strcmp(type_filter, "npc") == 0;
         int want_seq = all || strcmp(type_filter, "seq") == 0;
         int want_spotanim = all || strcmp(type_filter, "spotanim") == 0;
+        int want_obj = all || strcmp(type_filter, "obj") == 0;
+
+        if( want_obj )
+        {
+            int* ids = NULL;
+            int count = 0;
+            if( enumerate_ids(
+                    &cache, RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, &ids, &count) )
+            {
+                for( int i = 0; i < count; i++ )
+                {
+                    struct RSCache_Dat2ConfigObj* obj = load_obj(&cache, ids[i]);
+                    if( !obj )
+                        continue;
+                    if( obj->name && strcasestr_ascii(obj->name, name) )
+                        printf(
+                            "obj %6d  \"%s\"  model %d\n",
+                            ids[i],
+                            obj->name,
+                            obj->inventory_model_id);
+                    RSCache_Dat2ConfigObjFree(obj);
+                }
+                free(ids);
+            }
+        }
 
         /* Sequences and spotanims carry the content team's own debug names in
          * this era, which is the only handle on assets no config points at by

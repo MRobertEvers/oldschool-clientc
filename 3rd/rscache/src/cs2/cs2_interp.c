@@ -18,25 +18,23 @@ RSCache_CS2_ScriptReturnTypes(
 {
     /* What a script returns is not declared anywhere: it is read off the
      * constant pushes immediately before the closing `return`, walking
-     * backwards until something that is not a push. */
-    int count = 0;
-    enum RSCache_CS2_StackType scratch[128];
+     * backwards until something that is not a push. Counted first, then filled
+     * forwards, so nothing here imposes a ceiling of its own. */
+    int first = script->op_count - 1;
     for( int i = script->op_count - 2; i >= 0; i-- )
     {
         int opcode = script->opcodes[i];
-        if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT )
-            scratch[count++] = RSCACHE_CS2_STACK_INT;
-        else if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
-            scratch[count++] = RSCACHE_CS2_STACK_STRING;
-        else
+        if( opcode != RSCACHE_CS2_OP_PUSH_CONSTANT_INT &&
+            opcode != RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
             break;
-        if( count == (int)(sizeof(scratch) / sizeof(scratch[0])) )
-            break;
+        first = i;
     }
-    /* Collected tail-first; the signature wants them in push order. */
-    int written = count < capacity ? count : capacity;
-    for( int i = 0; i < written; i++ )
-        out[i] = scratch[count - 1 - i];
+
+    int count = script->op_count - 1 - first;
+    for( int i = 0; i < count && i < capacity; i++ )
+        out[i] = script->opcodes[first + i] == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING
+                     ? RSCACHE_CS2_STACK_STRING
+                     : RSCACHE_CS2_STACK_INT;
     return count;
 }
 
@@ -220,7 +218,13 @@ cs2_assign_expr_to_protos(
             from->count);
         return;
     }
-    RSCache_CS2_TypingAssignLists(from, to);
+    if( !RSCache_CS2_TypingAssignLists(from, to) )
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d was given an argument of the wrong stack type",
+            interp->script_id,
+            interp->pc,
+            cs2_opcode(interp));
 }
 
 static void
@@ -229,9 +233,17 @@ cs2_assign_element_to_proto(
     struct RSCache_CS2_Expr* element,
     enum RSCache_CS2_ProtoId proto)
 {
-    RSCache_CS2_TypingAssign(
-        RSCache_CS2_TypingsOfElement(cs2_typings(interp), element),
-        RSCache_CS2_TypingsOfProto(cs2_typings(interp), proto));
+    struct RSCache_CS2_Typing* from = RSCache_CS2_TypingsOfElement(cs2_typings(interp), element);
+    struct RSCache_CS2_Typing* to = RSCache_CS2_TypingsOfProto(cs2_typings(interp), proto);
+    if( from != to && !RSCache_CS2_TypingAssign(from, to) )
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d was given a %s where it wanted a %s",
+            interp->script_id,
+            interp->pc,
+            cs2_opcode(interp),
+            from->stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string",
+            to->stack_type == RSCACHE_CS2_STACK_INT ? "int" : "string");
 }
 
 /* -------------------------------------------------------------------------
@@ -336,9 +348,18 @@ cs2_translate_assign(struct cs2_interp* interp, int opcode)
         return NULL;
     }
 
-    RSCache_CS2_TypingAssign(
-        RSCache_CS2_TypingsOfElement(cs2_typings(interp), expression),
-        RSCache_CS2_TypingsOfElement(cs2_typings(interp), definitions));
+    if( !RSCache_CS2_TypingAssign(
+            RSCache_CS2_TypingsOfElement(cs2_typings(interp), expression),
+            RSCache_CS2_TypingsOfElement(cs2_typings(interp), definitions)) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d assigns across stack types",
+            interp->script_id,
+            interp->pc,
+            opcode);
+        return NULL;
+    }
     return RSCache_CS2_InsnAssignment(arena, definitions, expression);
 }
 
@@ -406,8 +427,17 @@ cs2_translate_basic(
     struct RSCache_CS2_Expr* definitions =
         RSCache_CS2_ExprFromList(arena, pushed, info->def_count);
 
-    RSCache_CS2_TypingAssignLists(
-        operation_typing, RSCache_CS2_TypingsOfExpr(cs2_typings(interp), definitions));
+    if( !RSCache_CS2_TypingAssignLists(
+            operation_typing, RSCache_CS2_TypingsOfExpr(cs2_typings(interp), definitions)) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d results do not match what it pushed",
+            interp->script_id,
+            interp->pc,
+            opcode);
+        return NULL;
+    }
     return RSCache_CS2_InsnAssignment(arena, definitions, operation);
 }
 
@@ -498,7 +528,10 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
     }
     cs2_pop(interp, RSCACHE_CS2_STACK_STRING);
 
-    struct RSCache_CS2_Expr* triggers[64];
+    /* Sized to fit rather than capped: a vartransmit hook can watch a hundred
+     * varps, and upstream has no ceiling here either. Allocated from the arena
+     * once the count is read, so there is no cleanup on the error paths. */
+    struct RSCache_CS2_Expr** triggers = NULL;
     int trigger_count = 0;
     if( desc.triggers )
     {
@@ -514,16 +547,19 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
         }
         trigger_count = count_value->int_value;
         cs2_pop(interp, RSCACHE_CS2_STACK_INT);
-        if( trigger_count < 0 || trigger_count > (int)(sizeof(triggers) / sizeof(triggers[0])) )
+        if( trigger_count < 0 || trigger_count > interp->stack.count )
         {
             cs2_fail(
                 interp,
-                "script %d pc %d: hook trigger count %d out of range",
+                "script %d pc %d: hook claims %d triggers, only %d values are on the stack",
                 interp->script_id,
                 interp->pc,
-                trigger_count);
+                trigger_count,
+                interp->stack.count);
             return NULL;
         }
+        triggers = (struct RSCache_CS2_Expr**)RSCache_CS2_ArenaAlloc(
+            arena, (size_t)(trigger_count > 0 ? trigger_count : 1) * sizeof(*triggers));
 
         /* Triggers come off the stack top-first, so they are collected in
          * reverse and flipped below. */
@@ -631,8 +667,16 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
 
     struct RSCache_CS2_TypingList* from =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), args_expr);
-    if( from->count == args_typing->count )
-        RSCache_CS2_TypingAssignLists(from, args_typing);
+    if( !RSCache_CS2_TypingAssignLists(from, args_typing) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: hook arguments do not match script %d's signature",
+            interp->script_id,
+            interp->pc,
+            hook_script_id);
+        return NULL;
+    }
 
     struct RSCache_CS2_Expr* triggers_expr =
         RSCache_CS2_ExprFromList(arena, triggers, trigger_count);
@@ -695,6 +739,7 @@ cs2_translate_param(struct cs2_interp* interp, int opcode, enum RSCache_CS2_Prot
         operation_typing, RSCache_CS2_TypingsOfElement(cs2_typings(interp), definition));
     return RSCache_CS2_InsnAssignment(arena, definition, operation);
 }
+
 
 static struct RSCache_CS2_Insn*
 cs2_translate_enum(struct cs2_interp* interp)
@@ -820,7 +865,16 @@ cs2_translate_proc(struct cs2_interp* interp)
             args_typing->count);
         return NULL;
     }
-    RSCache_CS2_TypingAssignLists(from, args_typing);
+    if( !RSCache_CS2_TypingAssignLists(from, args_typing) )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: gosub to %d passes an argument of the wrong stack type",
+            interp->script_id,
+            interp->pc,
+            callee_id);
+        return NULL;
+    }
 
     enum RSCache_CS2_StackType return_types[CS2_INTERP_MAX_STACK_TYPES];
     int return_count =
@@ -843,6 +897,7 @@ cs2_translate_proc(struct cs2_interp* interp)
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), definitions));
     return RSCache_CS2_InsnAssignment(arena, definitions, proc);
 }
+
 
 static struct RSCache_CS2_Insn*
 cs2_translate(struct cs2_interp* interp)
@@ -884,19 +939,16 @@ cs2_translate(struct cs2_interp* interp)
     case RSCACHE_CS2_CMD_RETURN:
     {
         int count = interp->stack.count;
-        struct RSCache_CS2_Expr* popped[CS2_INTERP_MAX_STACK_TYPES];
-        if( count > CS2_INTERP_MAX_STACK_TYPES )
-        {
-            cs2_fail(interp, "script %d pc %d: too many values returned",
-                     interp->script_id, interp->pc);
-            return NULL;
-        }
+        struct RSCache_CS2_Expr** popped = (struct RSCache_CS2_Expr**)RSCache_CS2_ArenaAlloc(
+            arena, (size_t)(count > 0 ? count : 1) * sizeof(*popped));
         cs2_pop_many(interp, count, popped);
         struct RSCache_CS2_Expr* expression = RSCache_CS2_ExprFromList(arena, popped, count);
 
-        enum RSCache_CS2_StackType stack_types[CS2_INTERP_MAX_STACK_TYPES];
         int stack_count = RSCache_CS2_ExprStackTypeCount(expression);
-        for( int i = 0; i < stack_count && i < CS2_INTERP_MAX_STACK_TYPES; i++ )
+        enum RSCache_CS2_StackType* stack_types =
+            (enum RSCache_CS2_StackType*)RSCache_CS2_ArenaAlloc(
+                arena, (size_t)(stack_count > 0 ? stack_count : 1) * sizeof(*stack_types));
+        for( int i = 0; i < stack_count; i++ )
             stack_types[i] = RSCache_CS2_ExprStackTypeAt(expression, i);
         struct RSCache_CS2_TypingList* returns = RSCache_CS2_TypingsReturns(
             cs2_typings(interp), interp->script_id, stack_types, stack_count);
@@ -935,14 +987,28 @@ cs2_translate(struct cs2_interp* interp)
             return NULL;
         }
         const struct RSCache_CS2_ScriptSwitch* sw = &interp->script->switch_tables[table];
-        int keys[RSCACHE_CS2_SCRIPT_MAX_SWITCH_CASES];
-        int targets[RSCACHE_CS2_SCRIPT_MAX_SWITCH_CASES];
+        int* keys = (int*)malloc((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
+        int* targets =
+            (int*)malloc((size_t)(sw->case_count > 0 ? sw->case_count : 1) * sizeof(int));
+        if( !keys || !targets )
+        {
+            free(keys);
+            free(targets);
+            cs2_fail(interp, "script %d pc %d: out of memory reading a switch table",
+                     interp->script_id, interp->pc);
+            return NULL;
+        }
         for( int i = 0; i < sw->case_count; i++ )
         {
             keys[i] = sw->cases[i].key;
+            /* Case targets are relative to the instruction after the switch. */
             targets[i] = sw->cases[i].target_pc + 1 + interp->pc;
         }
-        return RSCache_CS2_InsnSwitch(arena, expression, keys, targets, sw->case_count);
+        struct RSCache_CS2_Insn* insn =
+            RSCache_CS2_InsnSwitch(arena, expression, keys, targets, sw->case_count);
+        free(keys);
+        free(targets);
+        return insn;
     }
 
     case RSCACHE_CS2_CMD_DISCARD:
@@ -954,13 +1020,19 @@ cs2_translate(struct cs2_interp* interp)
     case RSCACHE_CS2_CMD_JOIN_STRING:
     {
         int count = cs2_operand_int(interp);
-        struct RSCache_CS2_Expr* popped[128];
-        if( count < 0 || count > (int)(sizeof(popped) / sizeof(popped[0])) )
+        if( count < 0 || count > interp->stack.count )
         {
-            cs2_fail(interp, "script %d pc %d: join of %d parts is out of range",
-                     interp->script_id, interp->pc, count);
+            cs2_fail(
+                interp,
+                "script %d pc %d: join claims %d parts, only %d values are on the stack",
+                interp->script_id,
+                interp->pc,
+                count,
+                interp->stack.count);
             return NULL;
         }
+        struct RSCache_CS2_Expr** popped = (struct RSCache_CS2_Expr**)RSCache_CS2_ArenaAlloc(
+            arena, (size_t)(count > 0 ? count : 1) * sizeof(*popped));
         cs2_pop_many(interp, count, popped);
         enum RSCache_CS2_StackType stack_type = RSCACHE_CS2_STACK_STRING;
         struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
