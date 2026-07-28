@@ -520,42 +520,132 @@
     window.requestAnimationFrame(hostFrame);
   };
 
-  // MEMTRACE=1 builds only: the page has no exit for the tracer to flush on, so
-  // the button is the flush. It closes the trace for good — recording does not
-  // resume afterwards — which is why it is a deliberate click rather than
-  // something that happens on unload.
-  function installMemtraceButton() {
-    if (typeof Module._torirs_memtrace_web_flush !== 'function') { return; }
-    var header = document.querySelector('header');
-    if (!header) { return; }
-    var button = document.createElement('button');
-    button.textContent = 'download memtrace.bin';
-    button.title = 'Flush and download the heap trace. Ends recording for this session.';
-    button.onclick = function () {
-      button.disabled = true;
-      Module._torirs_memtrace_web_flush();
-      // UTF8ToString is not in EXPORTED_RUNTIME_METHODS; HEAPU8 is, and the
-      // path is plain ASCII, so read the C string out of the heap directly.
-      var addr = Module._torirs_memtrace_web_path();
-      var path = '';
-      while (Module.HEAPU8[addr]) { path += String.fromCharCode(Module.HEAPU8[addr++]); }
-      var bytes;
+  // ------------------------------------------------------------------ memtrace
+  //
+  // MEMTRACE=1 builds only. The page never exits, so nothing ever runs the
+  // tracer's atexit flush — the button *is* the flush, and because flushing
+  // closes the trace file, it also ends recording for the session. That is why
+  // this is a deliberate click and not something wired to beforeunload.
+  //
+  // The controls stay hidden on an untraced build rather than erroring when
+  // pressed, so the page looks the same as it always did unless the tracer is
+  // actually linked in.
+
+  // Flush once, then read the bytes out of MEMFS. Repeat presses re-read the
+  // same closed file instead of flushing again (which would be a no-op anyway).
+  var memtraceBytes = null;
+
+  function memtraceRead() {
+    if (memtraceBytes) { return memtraceBytes; }
+    Module._torirs_memtrace_web_flush();
+    // UTF8ToString is not in EXPORTED_RUNTIME_METHODS; HEAPU8 is, and the path
+    // is plain ASCII, so read the C string out of the heap directly.
+    var addr = Module._torirs_memtrace_web_path();
+    var path = '';
+    while (Module.HEAPU8[addr]) { path += String.fromCharCode(Module.HEAPU8[addr++]); }
+    memtraceBytes = Module.FS.readFile(path);
+    log('memtrace: flushed ' + memtraceBytes.length + ' bytes from ' + path +
+        ' (recording has stopped)');
+    return memtraceBytes;
+  }
+
+  // Hand the trace to viewer.html in a new tab.
+  //
+  // The bytes go over postMessage as a transferable ArrayBuffer rather than
+  // through a URL or storage: a trace is tens to hundreds of MB, which no query
+  // string or localStorage will hold, and transferring costs no copy. The
+  // viewer announces itself with 'memtrace-ready' and confirms with
+  // 'memtrace-acked'; the retry loop covers the case where it finished loading
+  // before this tab attached its listener.
+  function memtraceOpenViewer() {
+    var bytes;
+    try {
+      bytes = memtraceRead();
+    } catch (e) {
+      log('memtrace: cannot read the trace — ' + e, true);
+      return;
+    }
+
+    var viewer = window.open('./viewer.html', '_blank');
+    if (!viewer) {
+      log('memtrace: the viewer tab was blocked — allow popups for this site, ' +
+          'or use "save .bin" and open viewer.html by hand', true);
+      return;
+    }
+
+    var origin = window.location.origin;
+    var acked = false;
+    var retries = 0;
+    var timer = null;
+
+    function send() {
+      if (acked) { return; }
+      // A transfer neuters the buffer, so each attempt sends its own copy —
+      // otherwise a retry would post an empty one.
+      var copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       try {
-        bytes = Module.FS.readFile(path);
+        viewer.postMessage({ type: 'memtrace-bytes', buffer: copy }, origin, [copy]);
       } catch (e) {
-        log('memtrace: cannot read ' + path + ' — ' + e, true);
-        return;
+        /* viewer not ready yet; the retry below covers it */
       }
-      var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
-      var link = document.createElement('a');
-      link.href = url;
-      link.download = 'memtrace.bin';
-      link.click();
-      URL.revokeObjectURL(url);
-      log('memtrace: wrote ' + bytes.length + ' bytes — analyse with ' +
-          'tools/memtrace/summarize.py, or open memtrace_viewer.html');
-    };
-    header.appendChild(button);
+    }
+
+    function onMessage(ev) {
+      if (ev.source !== viewer || ev.origin !== origin || !ev.data) { return; }
+      if (ev.data.type === 'memtrace-ready') {
+        send();
+      } else if (ev.data.type === 'memtrace-acked') {
+        acked = true;
+        window.clearInterval(timer);
+        window.removeEventListener('message', onMessage);
+        log('memtrace: viewer loaded the trace');
+      }
+    }
+
+    window.addEventListener('message', onMessage);
+    timer = window.setInterval(function () {
+      if (acked) { return; }
+      send();
+      if (++retries >= 20) {
+        window.clearInterval(timer);
+        window.removeEventListener('message', onMessage);
+        log('memtrace: the viewer never acknowledged the trace — is ' +
+            'viewer.html served next to this page?', true);
+      }
+    }, 100);
+    send();
+  }
+
+  function memtraceDownload() {
+    var bytes;
+    try {
+      bytes = memtraceRead();
+    } catch (e) {
+      log('memtrace: cannot read the trace — ' + e, true);
+      return;
+    }
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'memtrace.bin';
+    link.click();
+    URL.revokeObjectURL(url);
+    log('memtrace: saved memtrace.bin — summarize with ' +
+        'python3 tools/memtrace/summarize.py memtrace.bin');
+  }
+
+  function installMemtraceButton() {
+    var controls = document.getElementById('memtrace');
+    if (!controls) { return; }
+    if (typeof Module._torirs_memtrace_web_flush !== 'function'
+        || typeof Module._torirs_memtrace_web_path !== 'function'
+        || !Module.FS) {
+      return; // not a MEMTRACE build — leave the controls hidden
+    }
+    document.getElementById('btn-memtrace-view').onclick = memtraceOpenViewer;
+    document.getElementById('btn-memtrace-download').onclick = memtraceDownload;
+    controls.hidden = false;
+    log('memtrace: heap tracing is on — "heap profile" opens the viewer');
   }
 
   Module.setStatus = function (text) { if (text) { setStatus(text); } };

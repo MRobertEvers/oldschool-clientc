@@ -24,6 +24,20 @@
   }
   header h1 { font-size: 13px; margin: 0; font-weight: 600; color: #e0d5b8; }
   #status { color: #8f8367; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Pushed to the right so the heap controls never crowd the status line. They
+     stay hidden unless the module was built with MEMTRACE=1. */
+  #memtrace { margin-left: auto; display: flex; gap: 0.4rem; white-space: nowrap; }
+  #memtrace[hidden] { display: none; }
+  #memtrace button {
+    font: inherit;
+    color: #c8bda4;
+    background: #241c14;
+    border: 1px solid #3a2f22;
+    padding: 0.15rem 0.5rem;
+    cursor: pointer;
+  }
+  #memtrace button:hover:enabled { background: #32271b; color: #e0d5b8; }
+  #memtrace button:disabled { opacity: 0.45; cursor: default; }
   main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; }
   /* The client renders at a fixed 765x503; scale it without smoothing so the
      software rasterizer's pixels stay the pixels it drew. */
@@ -88,6 +102,19 @@
 <header>
   <h1>torirs — wasm</h1>
   <span id="status">loading…</span>
+  <!-- MEMTRACE=1 builds only; torirs_host.js unhides this once it sees the
+       tracer's exports. Flushing closes the trace, so both actions end
+       recording for the session — see tools/memtrace/README.md. -->
+  <span id="memtrace" hidden>
+    <button type="button" id="btn-memtrace-view"
+            title="Flush the heap trace and open it in the viewer. Ends recording.">
+      heap profile
+    </button>
+    <button type="button" id="btn-memtrace-download"
+            title="Flush and save memtrace.bin for tools/memtrace/summarize.py. Ends recording.">
+      save .bin
+    </button>
+  </span>
 </header>
 <main>
   <canvas id="canvas" width="765" height="503" tabindex="-1"
