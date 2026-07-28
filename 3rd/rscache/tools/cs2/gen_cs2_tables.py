@@ -38,6 +38,20 @@ OUT = HERE.parent.parent / "src" / "cs2" / "cs2_command.gen.h"
 REPO_OPCODES = HERE.parents[3] / "tools" / "cs2_gen_opcodes" / "vendor" / "Opcodes.kt"
 LOCAL_OPCODES = VENDOR / "Opcodes.kt"
 
+# The client's CS2 VM knows the pop/push counts of opcodes the 2021 Command.kt
+# never carried -- OSRS kept adding them. Those counts are layered in for any
+# opcode Command.kt leaves unsigned, which is what lets a modern cache decompile
+# at all: an opcode with no arity desynchronises the operand stack and takes the
+# whole script down.
+#
+# The stack table records *how many* ints and strings, not what they mean, so
+# the generated prototypes are plain `int`/`string`. That costs identifier
+# quality (a width prints as `$int3` rather than `$width3`), never correctness.
+REPO_STACK = HERE.parents[3] / "src" / "cs2vm2" / "cs2vm2_opcode_stack.gen.h"
+# Names for the same opcodes. The VM's metadata table names more of them than
+# Opcodes.kt does, and an opcode with no name cannot be printed as source.
+REPO_OPCODE_META = HERE.parents[3] / "src" / "cs2vm2" / "cs2_opcode_meta.c"
+
 sys.path.insert(0, str(HERE))
 from local_commands import LOCAL_BASIC, LOCAL_NAMES  # noqa: E402
 
@@ -71,6 +85,33 @@ KINDS = [
     "CLIENTSCRIPT",
     "PARAM",
 ]
+
+
+def parse_stack_table(path: Path) -> dict[int, tuple[int, int, int, int]]:
+    """opcode -> (int_in, str_in, int_out, str_out), for entries marked known."""
+    if not path.is_file():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    out: dict[int, tuple[int, int, int, int]] = {}
+    pattern = re.compile(r"\[(\d+)\] = \{ (\d+), (\d+), (\d+), (\d+), (\d+) \}")
+    for match in pattern.finditer(text):
+        if match.group(6) != "1":
+            continue
+        out[int(match.group(1))] = tuple(int(match.group(i)) for i in range(2, 6))
+    return out
+
+
+def parse_opcode_meta(path: Path) -> dict[int, str]:
+    """opcode -> NAME, skipping the placeholders."""
+    if not path.is_file():
+        return {}
+    out: dict[int, str] = {}
+    for match in re.finditer(
+        r'\[(\d+)\] = \{ "([^"]+)"', path.read_text(encoding="utf-8")
+    ):
+        if match.group(2) != "_unknown":
+            out[int(match.group(1))] = match.group(2)
+    return out
 
 
 def parse_opcodes(path: Path) -> tuple[dict[str, int], dict[int, str]]:
@@ -262,6 +303,30 @@ def main() -> int:
     for name, (args, defs, dot) in basic.items():
         put(name, "BASIC", args, defs, dot)
 
+    # Layer the client's stack table over anything still unsigned. Ordering
+    # matters: an explicit Command.kt or local signature always wins, because it
+    # carries prototypes and this carries only counts.
+    stack = parse_stack_table(REPO_STACK)
+    meta_names = parse_opcode_meta(REPO_OPCODE_META)
+    from_stack = 0
+    for opcode, (int_in, str_in, int_out, str_out) in sorted(stack.items()):
+        if opcode in commands:
+            continue
+        if opcode not in by_id:
+            # Opcodes.kt never named it. The VM's metadata table often has one;
+            # failing that the id becomes the name, which is the convention
+            # Opcodes.kt itself uses for opcodes nobody has identified (`_1610`).
+            name = meta_names.get(opcode, f"_{opcode}")
+            by_id[opcode] = name.lower()
+            by_name[name] = opcode
+        args = ["INT"] * int_in + ["STRING"] * str_in
+        defs = ["INT"] * int_out + ["STRING"] * str_out
+        # The active-component forms take their operand as a flag, exactly as
+        # the cc_* commands Command.kt does describe.
+        dot = 100 <= opcode < 2000
+        commands[opcode] = ("BASIC", args, defs, dot, "0")
+        from_stack += 1
+
     max_id = max(max(by_id), max(commands))
 
     # Argument and definition prototype lists are pooled into one flat array and
@@ -343,6 +408,7 @@ def main() -> int:
     signed = sum(1 for r in rows if r and r[1] != "UNKNOWN")
     print(f"generated {OUT}")
     print(f"  {named} named opcodes, {signed} with signatures, pool {len(pool)} entries")
+    print(f"  {from_stack} signatures taken from the client's stack table")
     return 0
 
 

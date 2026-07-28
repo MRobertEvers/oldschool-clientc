@@ -28,11 +28,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Measured on RuneStar/cs2 at 2a8b8fc. Raise these when the port improves;
- * never lower them without a recorded reason. */
+/* Measured against RuneStar/cs2 at 2a8b8fc. Raise these when the port improves;
+ * never lower them without a recorded reason.
+ *
+ * `decompiled` is deliberately higher than the reference's own 6,491: this port
+ * carries opcode arities from the client's CS2 VM that the 2021 sources predate,
+ * and degrades where upstream throws. `identical` is the figure that says the
+ * port is faithful; `decompiled` only says it is not *less* capable. */
 #define CS2_EXPECT_MIN_IDENTICAL 6489
 #define CS2_EXPECT_MAX_DIFFERENT 2
-#define CS2_EXPECT_MIN_DECOMPILED 6537
+#define CS2_EXPECT_MIN_DECOMPILED 7366
 
 struct cs2_entry
 {

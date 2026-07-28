@@ -624,9 +624,20 @@ RSCache_CS2_NamesFormatInt(
         return true;
     }
 
+    case RSCACHE_CS2_TYPE_NEWVAR:
+    case RSCACHE_CS2_TYPE_SPOTANIM:
+    case RSCACHE_CS2_TYPE_PLAYER_UID:
+        /* Upstream has no spelling for these and throws. They are plain ints on
+         * the wire with no name table, so the number is written — which is what
+         * the compiler reads back, and is strictly better than refusing the
+         * whole script. */
+        if( value == -1 )
+            snprintf(out, (size_t)out_capacity, "null");
+        else
+            snprintf(out, (size_t)out_capacity, "%d", value);
+        return true;
+
     default:
-        /* spotanim, newvar and player_uid reach here: upstream has no entry for
-         * them either, and inventing one would produce uncompilable source. */
         return false;
     }
 }

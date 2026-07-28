@@ -52,7 +52,7 @@ usage(const char* argv0)
         "  --content DIR    LostCity content root\n"
         "  --area DIR       config subdirectory under scripts/ (default areas/area_ported)\n"
         "  --prefix NAME    basename for emitted configs and generated asset names\n"
-        "  --npc ID[=name] / --seq / --spotanim / --texture / --loc ID / --map X_Z\n"
+        "  --npc ID[=name] / --obj / --seq / --spotanim / --texture / --loc ID / --map X_Z\n"
         "  --texture        port a material outright; models and floors pull in\n"
         "                   whatever they reference without being asked\n"
         "  --max-textures N highest texture id the destination client reads, exclusive\n"
@@ -105,6 +105,8 @@ main(int argc, char** argv)
             snprintf(manifest.prefix, sizeof(manifest.prefix), "%s", argv[++i]);
         else if( strcmp(argv[i], "--npc") == 0 && i + 1 < argc )
             lc_request_add(&manifest.npcs, argv[++i]);
+        else if( strcmp(argv[i], "--obj") == 0 && i + 1 < argc )
+            lc_request_add(&manifest.objs, argv[++i]);
         else if( strcmp(argv[i], "--seq") == 0 && i + 1 < argc )
             lc_request_add(&manifest.seqs, argv[++i]);
         else if( strcmp(argv[i], "--spotanim") == 0 && i + 1 < argc )
@@ -240,6 +242,19 @@ main(int argc, char** argv)
     {
         const struct LC_Request* req = &manifest.spotanims.items[i];
         if( lc_export_spotanim(&ctx, req->id, req->has_name ? req->name : NULL) < 0 )
+            failures++;
+    }
+    for( int i = 0; i < manifest.objs.count; i++ )
+    {
+        const struct LC_Request* req = &manifest.objs.items[i];
+        char fallback[96];
+        const char* name = req->name;
+        if( !req->has_name )
+        {
+            snprintf(fallback, sizeof(fallback), "%s_obj_%d", manifest.prefix, req->id);
+            name = fallback;
+        }
+        if( lc_export_obj(&ctx, req->id, name) < 0 )
             failures++;
     }
     for( int i = 0; i < manifest.locs.count; i++ )

@@ -314,11 +314,22 @@ cs2_cc_scan(struct cs2_cc_compiler* cc, struct cs2_cc_token* token)
     if( ch == '"' )
     {
         /* Interpolation is the parser's business; the token holds the raw
-         * span so `<...>` can be re-lexed in place. */
+         * span so `<...>` can be re-lexed in place. The scan tracks bracket
+         * depth because an interpolated expression may itself contain string
+         * literals — `"<~text_device("Click", "Tap")> here"` is one string,
+         * not three. */
         int start = ++cc->position;
-        while( cc->source[cc->position] && cc->source[cc->position] != '"' )
+        int depth = 0;
+        while( cc->source[cc->position] )
         {
-            if( cc->source[cc->position] == '\n' )
+            char current = cc->source[cc->position];
+            if( current == '"' && depth == 0 )
+                break;
+            if( current == '<' )
+                depth++;
+            else if( current == '>' && depth > 0 )
+                depth--;
+            else if( current == '\n' )
                 cc->line++;
             cc->position++;
         }
@@ -760,8 +771,29 @@ cs2_cc_resolve_named(
         RSCache_CS2_NamesLookupId(cs2_cc_names(cc), table, text, out) )
         return true;
 
-    /* Everything else — and any unnamed id — carries its id in the spelling. */
-    return cs2_cc_parse_id_suffixed(text, out);
+    /* An id in the spelling settles it outright. */
+    if( cs2_cc_parse_id_suffixed(text, out) )
+        return true;
+
+    if( type != RSCACHE_CS2_TYPE_NONE )
+        return false;
+
+    /* No expectation to go on — a comparison's right-hand side, or a hook
+     * argument. Only the tables whose names identify one record are searched,
+     * longest-established first, so a bare `true` or `p11_full` resolves
+     * without inventing an ambiguity between the non-unique ones. */
+    static const enum RSCache_CS2_NameTable unique_tables[] = {
+        RSCACHE_CS2_NAMES_BOOLEAN,     RSCACHE_CS2_NAMES_STAT,
+        RSCACHE_CS2_NAMES_FONTMETRICS, RSCACHE_CS2_NAMES_MAPAREA,
+        RSCACHE_CS2_NAMES_INV,         RSCACHE_CS2_NAMES_SYNTH,
+        RSCACHE_CS2_NAMES_PARAM,       RSCACHE_CS2_NAMES_INTERFACE,
+    };
+    for( size_t i = 0; i < sizeof(unique_tables) / sizeof(unique_tables[0]); i++ )
+    {
+        if( RSCache_CS2_NamesLookupId(cs2_cc_names(cc), unique_tables[i], text, out) )
+            return true;
+    }
+    return false;
 }
 
 /* -------------------------------------------------------------------------
@@ -987,7 +1019,10 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
 }
 
 static void
-cs2_cc_command_arguments(struct cs2_cc_compiler* cc, const struct RSCache_CS2_CommandInfo* info)
+cs2_cc_command_arguments(
+    struct cs2_cc_compiler* cc,
+    const char* name,
+    const struct RSCache_CS2_CommandInfo* info)
 {
     if( info->arg_count == 0 )
     {
@@ -998,12 +1033,27 @@ cs2_cc_command_arguments(struct cs2_cc_compiler* cc, const struct RSCache_CS2_Co
     }
     if( !cs2_cc_expect_punct(cc, '(') )
         return;
-    for( int i = 0; i < info->arg_count && !cc->failed; i++ )
+
+    /* Argument *slots* are fixed by the signature, but one command returning
+     * several values can fill several of them, so arguments are consumed until
+     * the closing parenthesis rather than counted. The declared prototype still
+     * types each written argument, which is what tells a quoted graphic from a
+     * quoted string. */
+    int written = 0;
+    while( !cc->failed && !cs2_cc_at_punct(cc, ')') && cc->token.kind != CS2_CC_TOK_END )
     {
-        if( i && !cs2_cc_expect_punct(cc, ',') )
+        if( written && !cs2_cc_expect_punct(cc, ',') )
             return;
-        enum RSCache_CS2_ProtoId proto = RSCache_CS2_CommandArg(info, i);
-        cs2_cc_expression(cc, RSCache_CS2_ProtoGet(proto)->type);
+        enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
+        if( written < info->arg_count )
+            expected = RSCache_CS2_ProtoGet(RSCache_CS2_CommandArg(info, written))->type;
+        cs2_cc_expression(cc, expected);
+        written++;
+    }
+    if( !cc->failed && !cs2_cc_at_punct(cc, ')') )
+    {
+        cs2_cc_fail(cc, "'%s' arguments do not end where its signature says", name);
+        return;
     }
     cs2_cc_expect_punct(cc, ')');
 }
@@ -1237,7 +1287,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         return;
     }
 
-    cs2_cc_command_arguments(cc, info);
+    cs2_cc_command_arguments(cc, name, info);
     cs2_cc_emit(cc, opcode, info->dot_capable ? (dot ? 1 : 0) : 0);
 }
 
@@ -1723,6 +1773,29 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                 else if( cc->token.kind == CS2_CC_TOK_CONSTANT )
                 {
                     ok = cs2_cc_resolve_caret(cc, cc->token.text, &value);
+                }
+                else if(
+                    cc->token.kind == CS2_CC_TOK_IDENT &&
+                    cs2_cc_peek(cc)->kind == CS2_CC_TOK_PUNCT &&
+                    cs2_cc_peek(cc)->punct == ':' )
+                {
+                    /* `interface:component` — the only case label that is not a
+                     * single token. */
+                    int interface_id = 0;
+                    ok = RSCache_CS2_NamesLookupId(
+                             cs2_cc_names(cc),
+                             RSCACHE_CS2_NAMES_INTERFACE,
+                             cc->token.text,
+                             &interface_id) ||
+                         cs2_cc_parse_id_suffixed(cc->token.text, &interface_id);
+                    if( ok )
+                    {
+                        cs2_cc_next(cc);
+                        cs2_cc_next(cc);
+                        ok = cc->token.kind == CS2_CC_TOK_INT;
+                        if( ok )
+                            value = (interface_id << 16) | (cc->token.int_value & 0xFFFF);
+                    }
                 }
                 else
                 {

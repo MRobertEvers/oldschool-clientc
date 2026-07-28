@@ -406,12 +406,14 @@ cs2_write_call_target(
     }
     if( parsed.trigger != required )
     {
-        cs2_gen_fail(
-            writer,
-            "%s must be a %s",
-            cache_name,
-            RSCache_CS2_TriggerName(required));
-        return false;
+        /* The name table and the bytecode disagree about what this script is.
+         * The table is community-recovered and lags the cache, whereas the call
+         * site is evidence, so the id is written instead of taking the whole
+         * script down. Upstream throws here; that is its single largest cause
+         * of failure, and nothing is gained by it. */
+        cs2_put(writer, "script");
+        cs2_put_int(writer, script_id);
+        return true;
     }
     cs2_put(writer, parsed.name);
     return true;

@@ -194,6 +194,9 @@ load_param_types_from_cache(struct script_store* store, struct RSCache_CS2_Names
         RSCache_Dat2DiskArchiveNewLoad(store->disk, table, RSCACHE_DAT2_CONFIG_KIND_PARAMS);
     if( !archive )
         return;
+    /* A group loaded by id carries no file list until the reference table is
+     * consulted; without this the config decodes as zero records. */
+    RSCache_Dat2DiskArchiveInitMetadata(store->disk, archive);
 
     struct RSCache_FileList* files =
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);

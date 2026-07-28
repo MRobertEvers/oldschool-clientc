@@ -4,6 +4,7 @@
 #include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
+#include "graphics/raster/flat/flat_screen_edges.h"
 
 #include "graphics/shared_tables.h"
 
@@ -58,6 +59,66 @@ draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
             pixel_buffer[offset] = rgb_color;
             offset += 1;
         }
+
+        color_hsl16_ish8 += color_step_hsl16_ish8;
+    }
+
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
+    switch( (stride) & 0x3 )
+    {
+    case 3:
+        pixel_buffer[offset] = rgb_color;
+        offset += 1;
+    case 2:
+        pixel_buffer[offset] = rgb_color;
+        offset += 1;
+    case 1:
+        pixel_buffer[offset] = rgb_color;
+    }
+}
+
+/**
+ * Same span fill with the left/right clamps removed. The caller proves, once
+ * per trapezoid, that both edges stay inside [0, screen_width) for every
+ * scanline of the segment (flat_screen_fixed_edges_no_hclip), so x_start >= 0
+ * and x_end < screen_width hold by construction here.
+ */
+static inline void
+draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+    toripixel_t* RESTRICT pixel_buffer,
+    int offset,
+    int x_start_ish16,
+    int x_end_ish16,
+    int color_hsl16_ish8,
+    int color_step_hsl16_ish8)
+{
+    if( x_start_ish16 == x_end_ish16 )
+        return;
+
+    int x_start = x_start_ish16 >> 16;
+    int x_end = x_end_ish16 >> 16;
+
+    if( x_start >= x_end )
+        return;
+
+    offset += x_start;
+    color_hsl16_ish8 += x_start * color_step_hsl16_ish8;
+
+    int stride = (x_end - x_start);
+
+    int steps = (stride) >> 2;
+    color_step_hsl16_ish8 <<= 2;
+
+    while( steps-- > 0 )
+    {
+        int color_hsl16 = color_hsl16_ish8 >> 8;
+        int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+
+        pixel_buffer[offset + 0] = rgb_color;
+        pixel_buffer[offset + 1] = rgb_color;
+        pixel_buffer[offset + 2] = rgb_color;
+        pixel_buffer[offset + 3] = rgb_color;
+        offset += 4;
 
         color_hsl16_ish8 += color_step_hsl16_ish8;
     }
@@ -225,20 +286,57 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
     {
+        /* Prove the horizontal clamps redundant once per trapezoid instead of
+         * re-testing them on every scanline. Mirrors the flat rasterizer. */
+        int seg1_count = y1 - y0;
+        int seg2_count = y2 - y1;
+        if( seg1_count < 0 )
+            seg1_count = 0;
+        if( seg2_count < 0 )
+            seg2_count = 0;
+        int noclip_s1 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AB_ish16,
+            step_edge_x_AB_ish16,
+            edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            seg1_count,
+            screen_width);
+        /* BC is not advanced during the first trapezoid; AC is. */
+        int noclip_s2 = flat_screen_fixed_edges_no_hclip(
+            edge_x_BC_ish16,
+            step_edge_x_BC_ish16,
+            edge_x_AC_ish16 + seg1_count * step_edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            seg2_count,
+            screen_width);
+
         y2 -= y1;
         y1 -= y0;
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                0,
-                edge_x_AB_ish16,
-                edge_x_AC_ish16,
-                hsl_ish8,
-                step_x_hsl_ish8);
+            if( noclip_s1 )
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AB_ish16,
+                    edge_x_AC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
+            else
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    0,
+                    edge_x_AB_ish16,
+                    edge_x_AC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -250,15 +348,28 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                0,
-                edge_x_BC_ish16,
-                edge_x_AC_ish16,
-                hsl_ish8,
-                step_x_hsl_ish8);
+            if( noclip_s2 )
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_BC_ish16,
+                    edge_x_AC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
+            else
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    0,
+                    edge_x_BC_ish16,
+                    edge_x_AC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -269,23 +380,54 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     }
     else
     {
+        int seg1_count = y1 - y0;
+        int seg2_count = y2 - y1;
+        if( seg1_count < 0 )
+            seg1_count = 0;
+        if( seg2_count < 0 )
+            seg2_count = 0;
+        int noclip_s1 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            edge_x_AB_ish16,
+            step_edge_x_AB_ish16,
+            seg1_count,
+            screen_width);
+        int noclip_s2 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AC_ish16 + seg1_count * step_edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            edge_x_BC_ish16,
+            step_edge_x_BC_ish16,
+            seg2_count,
+            screen_width);
+
         y2 -= y1;
         y1 -= y0;
 
         while( y1-- > 0 )
         {
-            // if( i > screen_height )
-            //     break;
-
-            draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                0,
-                edge_x_AC_ish16,
-                edge_x_AB_ish16,
-                hsl_ish8,
-                step_x_hsl_ish8);
+            if( noclip_s1 )
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AC_ish16,
+                    edge_x_AB_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
+            else
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    0,
+                    edge_x_AC_ish16,
+                    edge_x_AB_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -296,15 +438,28 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                0,
-                edge_x_AC_ish16,
-                edge_x_BC_ish16,
-                hsl_ish8,
-                step_x_hsl_ish8);
+            if( noclip_s2 )
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AC_ish16,
+                    edge_x_BC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
+            else
+            {
+                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    0,
+                    edge_x_AC_ish16,
+                    edge_x_BC_ish16,
+                    hsl_ish8,
+                    step_x_hsl_ish8);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;

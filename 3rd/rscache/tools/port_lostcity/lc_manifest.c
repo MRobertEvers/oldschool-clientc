@@ -103,6 +103,7 @@ enum manifest_section
     SECTION_NONE = 0,
     SECTION_PORT,
     SECTION_NPC,
+    SECTION_OBJ,
     SECTION_SEQ,
     SECTION_SPOTANIM,
     SECTION_LOC,
@@ -117,6 +118,8 @@ section_of(const char* header)
         return SECTION_PORT;
     if( strcmp(header, "export:npc") == 0 )
         return SECTION_NPC;
+    if( strcmp(header, "export:obj") == 0 )
+        return SECTION_OBJ;
     if( strcmp(header, "export:seq") == 0 )
         return SECTION_SEQ;
     if( strcmp(header, "export:spotanim") == 0 )
@@ -139,6 +142,8 @@ list_for_section(
     {
     case SECTION_NPC:
         return &manifest->npcs;
+    case SECTION_OBJ:
+        return &manifest->objs;
     case SECTION_SEQ:
         return &manifest->seqs;
     case SECTION_SPOTANIM:

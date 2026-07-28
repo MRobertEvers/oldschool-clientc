@@ -87,6 +87,7 @@ struct LC_Manifest
     int max_textures;
 
     struct LC_RequestList npcs;
+    struct LC_RequestList objs;
     struct LC_RequestList seqs;
     struct LC_RequestList spotanims;
     struct LC_RequestList locs;

@@ -182,6 +182,7 @@ lc_ctx_free(struct LC_Ctx* ctx)
     if( !ctx )
         return;
     lc_id_map_free(&ctx->npc_map);
+    lc_id_map_free(&ctx->obj_map);
     lc_id_map_free(&ctx->seq_map);
     lc_id_map_free(&ctx->spotanim_map);
     lc_id_map_free(&ctx->loc_map);
@@ -1069,6 +1070,162 @@ lc_hsl16_to_rgb15(int hsl)
     if( bi < 0 )
         bi = 0;
     return (ri << 10) | (gi << 5) | bi;
+}
+
+/*
+ * LostCity's name for an equipment slot. The ids are the same on both sides —
+ * the cache and ObjType.getWearPosId agree — so this is a rename, not a
+ * mapping, and an id with no name is one LostCity has no slot for.
+ */
+static const char*
+lc_wearpos_name(int wearpos)
+{
+    switch( wearpos )
+    {
+    case 0: return "hat";
+    case 1: return "back";
+    case 2: return "front";
+    case 3: return "righthand";
+    case 4: return "torso";
+    case 5: return "lefthand";
+    case 6: return "arms";
+    case 7: return "legs";
+    case 8: return "head";
+    case 9: return "hands";
+    case 10: return "feet";
+    case 11: return "jaw";
+    case 12: return "ring";
+    case 13: return "quiver";
+    default: return NULL;
+    }
+}
+
+int
+lc_export_obj(
+    struct LC_Ctx* ctx,
+    int src_obj_id,
+    const char* name)
+{
+    assert(ctx && name);
+    int existing;
+    if( lc_id_map_get(&ctx->obj_map, src_obj_id, &existing) )
+        return existing;
+
+    struct Tool_Bytes rec;
+    if( !lc_config_record(ctx, RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, src_obj_id, &rec, NULL) )
+    {
+        lc_out_warn(ctx->out, "obj %d: not in source cache", src_obj_id);
+        return -1;
+    }
+
+    struct RSCache_Dat2ConfigObj* obj =
+        RSCache_Dat2ConfigObjNewDecodeProfile(&ctx->src->profile, rec.data, rec.size);
+    tool_bytes_free(&rec);
+    if( !obj )
+    {
+        lc_out_warn(ctx->out, "obj %d: decode failed", src_obj_id);
+        return -1;
+    }
+
+    int lc_id = lc_pack_alloc(&ctx->packs->packs[LC_PACK_OBJ], name);
+    if( lc_id < 0 )
+    {
+        RSCache_Dat2ConfigObjFree(obj);
+        return -1;
+    }
+    lc_id_map_put(&ctx->obj_map, src_obj_id, lc_id);
+
+    struct LC_Str* cfg = &ctx->out->obj_cfg;
+    lc_str_addf(cfg, "[%s]\n", name);
+    if( obj->name && obj->name[0] )
+        lc_str_addf(cfg, "name=%s\n", obj->name);
+    if( obj->examine && obj->examine[0] )
+        lc_str_addf(cfg, "desc=%s\n", obj->examine);
+
+    /* The inventory model doubles as the ground model, exactly as it does in
+     * the source record. */
+    char base[160];
+    if( obj->inventory_model_id > 0 &&
+        lc_export_model(ctx, obj->inventory_model_id, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "model=%s\n", base);
+
+    /* The icon is rendered from the model, so these five are the difference
+     * between an item that looks right in the inventory and one that is
+     * off-centre or the wrong way round. */
+    lc_str_addf(cfg, "2dzoom=%d\n", obj->zoom2d);
+    lc_str_addf(cfg, "2dxan=%d\n", obj->xan2d);
+    lc_str_addf(cfg, "2dyan=%d\n", obj->yan2d);
+    if( obj->zan2d != 0 )
+        lc_str_addf(cfg, "2dzan=%d\n", obj->zan2d);
+    lc_str_addf(cfg, "2dxof=%d\n", obj->offset_x2d);
+    lc_str_addf(cfg, "2dyof=%d\n", obj->offset_y2d);
+
+    if( obj->cost != 1 )
+        lc_str_addf(cfg, "cost=%d\n", obj->cost);
+    if( obj->is_members )
+        lc_str_addf(cfg, "members=yes\n");
+    if( obj->stacking_behaviour == 1 )
+        lc_str_addf(cfg, "stackable=yes\n");
+    if( obj->weight != 0 )
+        lc_str_addf(cfg, "weight=%dg\n", obj->weight);
+
+    const char* slot = lc_wearpos_name(obj->wearpos_1);
+    if( slot )
+        lc_str_addf(cfg, "wearpos=%s\n", slot);
+    slot = lc_wearpos_name(obj->wearpos_2);
+    if( slot )
+        lc_str_addf(cfg, "wearpos2=%s\n", slot);
+    slot = lc_wearpos_name(obj->wearpos_3);
+    if( slot )
+        lc_str_addf(cfg, "wearpos3=%s\n", slot);
+
+    /* Wield models. LostCity resolves these by model name rather than by any
+     * naming convention, so whatever lc_export_model called them is what goes
+     * in — the offset beside each is the vertical fit-up, straight from the
+     * record. */
+    if( obj->male_model_0 > 0 &&
+        lc_export_model(ctx, obj->male_model_0, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "manwear=%s,%d\n", base, obj->male_offset);
+    if( obj->male_model_1 > 0 &&
+        lc_export_model(ctx, obj->male_model_1, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "manwear2=%s\n", base);
+    if( obj->female_model_0 > 0 &&
+        lc_export_model(ctx, obj->female_model_0, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "womanwear=%s,%d\n", base, obj->female_offset);
+    if( obj->female_model_1 > 0 &&
+        lc_export_model(ctx, obj->female_model_1, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "womanwear2=%s\n", base);
+    if( obj->male_head_model > 0 &&
+        lc_export_model(ctx, obj->male_head_model, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "manhead=%s\n", base);
+    if( obj->female_head_model > 0 &&
+        lc_export_model(ctx, obj->female_head_model, -1, base, sizeof(base)) >= 0 )
+        lc_str_addf(cfg, "womanhead=%s\n", base);
+
+    for( int i = 0; i < obj->recolor_count && i < 6; i++ )
+    {
+        lc_str_addf(cfg, "recol%ds=%d\n", i + 1, (int)(uint16_t)obj->recolors_from[i]);
+        lc_str_addf(cfg, "recol%dd=%d\n", i + 1, (int)(uint16_t)obj->recolors_to[i]);
+    }
+
+    for( int i = 0; i < 5; i++ )
+        if( obj->actions[i] && obj->actions[i][0] )
+            lc_str_addf(cfg, "op%d=%s\n", i + 1, obj->actions[i]);
+    for( int i = 0; i < 5; i++ )
+        if( obj->if_actions[i] && obj->if_actions[i][0] )
+            lc_str_addf(cfg, "iop%d=%s\n", i + 1, obj->if_actions[i]);
+
+    /*
+     * Deliberately not emitted: combat params, category and the noted pair.
+     *
+     * The bonuses an OSRS item carries live in its params table against param
+     * ids this revision does not share, and `category` is an id into a table
+     * that is not ported either — writing them through would produce lines that
+     * name nothing. They are hand-authored, and the README says so.
+     */
+    lc_str_addf(cfg, "\n");
+    RSCache_Dat2ConfigObjFree(obj);
+    return lc_id;
 }
 
 int

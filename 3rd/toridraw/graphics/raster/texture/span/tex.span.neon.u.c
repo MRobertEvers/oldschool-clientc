@@ -640,22 +640,50 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-// Re-useable UV calculation logic
-#define CALC_BLOCK_PARAMS(W_VAL, AU_VAL, BV_VAL)                                                   \
-    float inv_w = 1.0f / (float)((W_VAL) >> texture_shift);                                        \
-    int cur_u = (int)((AU_VAL) * inv_w);                                                           \
-    int cur_v = (int)((BV_VAL) * inv_w);                                                           \
-    float inv_w_n = 1.0f / (float)(((W_VAL) + (step_cw_dx << 3)) >> texture_shift);                \
-    int nxt_u = (int)(((AU_VAL) + (step_au_dx << 3)) * inv_w_n);                                   \
-    int nxt_v = (int)(((BV_VAL) + (step_bv_dx << 3)) * inv_w_n);                                   \
-    int s_u = (nxt_u - cur_u) << (texture_shift - 3);                                              \
-    int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+    int step_au8 = step_au_dx << 3;
+    int step_bv8 = step_bv_dx << 3;
+    int step_cw8 = step_cw_dx << 3;
+
+    /* Block k's end-of-block uv is block k+1's start-of-block uv: same au/bv
+     * and the same w. Carry it forward instead of dividing for it twice.
+     * have_cur == 0 means the carried pair is stale (first block, or the
+     * previous block was skipped / ended on a degenerate w). */
+    int cur_u = 0;
+    int cur_v = 0;
+    int have_cur = 0;
 
     while( blocks-- )
     {
-        if( (cw >> texture_shift) != 0 )
+        int w = cw >> texture_shift;
+        if( w != 0 )
         {
-            CALC_BLOCK_PARAMS(cw, au, bv);
+            if( !have_cur )
+            {
+                float inv_w = 1.0f / (float)w;
+                cur_u = (int)(au * inv_w);
+                cur_v = (int)(bv * inv_w);
+            }
+
+            int w_n = (cw + step_cw8) >> texture_shift;
+            int nxt_u;
+            int nxt_v;
+            if( w_n != 0 )
+            {
+                float inv_w_n = 1.0f / (float)w_n;
+                nxt_u = (int)((au + step_au8) * inv_w_n);
+                nxt_v = (int)((bv + step_bv8) * inv_w_n);
+            }
+            else
+            {
+                /* Degenerate next block: hold the gradient flat rather than
+                 * extrapolating through a zero denominator. */
+                nxt_u = cur_u;
+                nxt_v = cur_v;
+            }
+
+            int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+            int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+
             raster_linear_opaque_blend_lerp8_v3(
                 (uint32_t*)&pixel_buffer[offset],
                 (uint32_t*)texels,
@@ -667,10 +695,18 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
                 u_mask,
                 v_mask,
                 shade8bit_ish8 >> 8);
+
+            cur_u = nxt_u;
+            cur_v = nxt_v;
+            have_cur = (w_n != 0);
         }
-        au += (step_au_dx << 3);
-        bv += (step_bv_dx << 3);
-        cw += (step_cw_dx << 3);
+        else
+        {
+            have_cur = 0;
+        }
+        au += step_au8;
+        bv += step_bv8;
+        cw += step_cw8;
         offset += 8;
         shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
     }
@@ -678,7 +714,27 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     // --- FIX: Proper Tail Cleanup ---
     if( remaining > 0 && (cw >> texture_shift) != 0 )
     {
-        CALC_BLOCK_PARAMS(cw, au, bv);
+        int w = cw >> texture_shift;
+        if( !have_cur )
+        {
+            float inv_w = 1.0f / (float)w;
+            cur_u = (int)(au * inv_w);
+            cur_v = (int)(bv * inv_w);
+        }
+
+        int w_n = (cw + step_cw8) >> texture_shift;
+        int nxt_u = cur_u;
+        int nxt_v = cur_v;
+        if( w_n != 0 )
+        {
+            float inv_w_n = 1.0f / (float)w_n;
+            nxt_u = (int)((au + step_au8) * inv_w_n);
+            nxt_v = (int)((bv + step_bv8) * inv_w_n);
+        }
+
+        int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+        int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+
         int u_scan = cur_u << texture_shift;
         int v_scan = cur_v << texture_shift;
         int shade = shade8bit_ish8 >> 8;
@@ -692,7 +748,6 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
             v_scan += s_v;
         }
     }
-#undef CALC_BLOCK_PARAMS
 }
 
 static inline void
@@ -738,24 +793,47 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
     int blocks = steps >> 3;
     int remaining = steps & 7;
 
-#define CALC_BLOCK_PARAMS(W_VAL, AU_VAL, BV_VAL)                                                   \
-    float inv_w = 1.0f / (float)((W_VAL) >> texture_shift);                                        \
-    int cur_u = (int)((AU_VAL) * inv_w);                                                           \
-    int cur_v = (int)((BV_VAL) * inv_w);                                                           \
-    float inv_w_n = 1.0f / (float)(((W_VAL) + (step_cw_dx << 3)) >> texture_shift);                \
-    int nxt_u = (int)(((AU_VAL) + (step_au_dx << 3)) * inv_w_n);                                   \
-    int nxt_v = (int)(((BV_VAL) + (step_bv_dx << 3)) * inv_w_n);                                   \
-    int s_u = (nxt_u - cur_u) << (texture_shift - 3);                                              \
-    int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+    int step_au8 = step_au_dx << 3;
+    int step_bv8 = step_bv_dx << 3;
+    int step_cw8 = step_cw_dx << 3;
+
+    /* As in the opaque twin: block k's end uv is block k+1's start uv. The
+     * carried u is the CLAMPED one, matching what this block actually used as
+     * its span endpoint. */
+    int cur_u = 0;
+    int cur_v = 0;
+    int have_cur = 0;
 
     while( blocks-- )
     {
-        if( (cw >> texture_shift) != 0 )
+        int w = cw >> texture_shift;
+        if( w != 0 )
         {
-            CALC_BLOCK_PARAMS(cw, au, bv);
-            cur_u = clamp(cur_u, 0, texture_width - 1);
-            nxt_u = clamp(nxt_u, 0, texture_width - 1);
-            s_u = (nxt_u - cur_u) << (texture_shift - 3);
+            if( !have_cur )
+            {
+                float inv_w = 1.0f / (float)w;
+                cur_u = clamp((int)(au * inv_w), 0, texture_width - 1);
+                cur_v = (int)(bv * inv_w);
+            }
+
+            int w_n = (cw + step_cw8) >> texture_shift;
+            int nxt_u;
+            int nxt_v;
+            if( w_n != 0 )
+            {
+                float inv_w_n = 1.0f / (float)w_n;
+                nxt_u = clamp((int)((au + step_au8) * inv_w_n), 0, texture_width - 1);
+                nxt_v = (int)((bv + step_bv8) * inv_w_n);
+            }
+            else
+            {
+                nxt_u = cur_u;
+                nxt_v = cur_v;
+            }
+
+            int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+            int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+
             raster_linear_transparent_blend_lerp8_v3(
                 (uint32_t*)&pixel_buffer[offset],
                 (uint32_t*)texels,
@@ -767,20 +845,45 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
                 u_mask,
                 v_mask,
                 shade8bit_ish8 >> 8);
+
+            cur_u = nxt_u;
+            cur_v = nxt_v;
+            have_cur = (w_n != 0);
         }
-        au += (step_au_dx << 3);
-        bv += (step_bv_dx << 3);
-        cw += (step_cw_dx << 3);
+        else
+        {
+            have_cur = 0;
+        }
+        au += step_au8;
+        bv += step_bv8;
+        cw += step_cw8;
         offset += 8;
         shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
     }
 
     if( remaining > 0 && (cw >> texture_shift) != 0 )
     {
-        CALC_BLOCK_PARAMS(cw, au, bv);
-        cur_u = clamp(cur_u, 0, texture_width - 1);
-        nxt_u = clamp(nxt_u, 0, texture_width - 1);
-        s_u = (nxt_u - cur_u) << (texture_shift - 3);
+        int w = cw >> texture_shift;
+        if( !have_cur )
+        {
+            float inv_w = 1.0f / (float)w;
+            cur_u = clamp((int)(au * inv_w), 0, texture_width - 1);
+            cur_v = (int)(bv * inv_w);
+        }
+
+        int w_n = (cw + step_cw8) >> texture_shift;
+        int nxt_u = cur_u;
+        int nxt_v = cur_v;
+        if( w_n != 0 )
+        {
+            float inv_w_n = 1.0f / (float)w_n;
+            nxt_u = clamp((int)((au + step_au8) * inv_w_n), 0, texture_width - 1);
+            nxt_v = (int)((bv + step_bv8) * inv_w_n);
+        }
+
+        int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+        int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+
         int u_scan = cur_u << texture_shift;
         int v_scan = cur_v << texture_shift;
         int shade = shade8bit_ish8 >> 8;
@@ -797,7 +900,6 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
             v_scan += s_v;
         }
     }
-#undef CALC_BLOCK_PARAMS
 }
 
 static inline void
