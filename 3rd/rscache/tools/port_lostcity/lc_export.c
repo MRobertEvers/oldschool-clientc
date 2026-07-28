@@ -183,6 +183,7 @@ lc_ctx_init(
     for( int i = 0; i < 256; i++ )
         ctx->rig_map[i] = i;
     ctx->has_rig_map = 0;
+    memset(ctx->rig_live, 0, sizeof(ctx->rig_live));
     /* A mid grey: visible, and neutral enough that it reads as "untextured"
      * rather than as a wrong colour. Only reached when a face names a texture
      * the source cache does not hold. */
@@ -701,11 +702,107 @@ lc_apply_rig_map(
     struct LC_Ctx* ctx,
     struct RSCache_Dat2Framemap* fm)
 {
+    int repaired = 0;
+
     if( !ctx->has_rig_map || !fm )
         return;
     for( int i = 0; i < fm->length; i++ )
         for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
             fm->bone_groups[i][j] = ctx->rig_map[fm->bone_groups[i][j] & 0xff];
+
+    /*
+     * Collapse duplicates within each transform.
+     *
+     * A finer source rig maps many joints onto one destination joint, so a
+     * transform that named three distinct shoulder joints now names the same
+     * one three times. That is not harmless: the client walks the label list and
+     * applies the transform once per entry, so the joint is rotated three times
+     * and the limb ends up at three times the intended angle. Over-rotation
+     * reads as a pose that is coherent but wrong — the exact "close but not
+     * quite" symptom — rather than as anything obviously broken.
+     */
+    for( int i = 0; i < fm->length; i++ )
+    {
+        int out = 0;
+        for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
+        {
+            int seen = 0;
+            for( int k = 0; k < out; k++ )
+                if( fm->bone_groups[i][k] == fm->bone_groups[i][j] )
+                    seen = 1;
+            if( !seen )
+                fm->bone_groups[i][out++] = fm->bone_groups[i][j];
+        }
+        fm->bone_groups_lengths[i] = out;
+    }
+
+    /*
+     * Renumbering is necessary but not sufficient, and the leftover is what
+     * makes a retarget look "close but not quite".
+     *
+     * Parking a joint with no counterpart is right for a rotate — it moves
+     * nothing. It is wrong for an ORIGIN, because matching nothing is not a
+     * no-op there: the client falls back to using the raw frame value as an
+     * *absolute* pivot, and the rotate that follows then swings live limbs
+     * around a point near the model's feet. One dead pivot is enough to fling a
+     * limb across the screen.
+     *
+     * So a pivot left with nothing to hold onto is re-pointed at whatever its
+     * dependents still move. The limb then turns about its own centre rather
+     * than about the joint it hangs from — off by a translation instead of off
+     * by the length of the body.
+     */
+    for( int i = 0; i < fm->length; i++ )
+    {
+        int live = 0;
+        int borrowed[256];
+        int borrowed_count = 0;
+
+        if( fm->types[i] != 0 ) /* ORIGIN */
+            continue;
+        for( int j = 0; j < fm->bone_groups_lengths[i]; j++ )
+            if( ctx->rig_live[fm->bone_groups[i][j] & 0xff] )
+                live = 1;
+        if( live )
+            continue;
+
+        for( int k = i + 1; k < fm->length && fm->types[k] != 0; k++ )
+        {
+            if( fm->types[k] != 2 && fm->types[k] != 3 ) /* ROTATE, SCALE */
+                continue;
+            for( int j = 0; j < fm->bone_groups_lengths[k]; j++ )
+            {
+                int label = fm->bone_groups[k][j] & 0xff;
+                int seen = 0;
+                if( !ctx->rig_live[label] )
+                    continue;
+                for( int q = 0; q < borrowed_count; q++ )
+                    if( borrowed[q] == label )
+                        seen = 1;
+                if( !seen && borrowed_count < 256 )
+                    borrowed[borrowed_count++] = label;
+            }
+        }
+        /* Nothing live downstream either: the group is wholly inert, so its
+         * bogus pivot can never be seen. */
+        if( borrowed_count == 0 )
+            continue;
+
+        int* grown = realloc(fm->bone_groups[i], (size_t)borrowed_count * sizeof(int));
+        if( !grown )
+            return;
+        memcpy(grown, borrowed, (size_t)borrowed_count * sizeof(int));
+        fm->bone_groups[i] = grown;
+        fm->bone_groups_lengths[i] = borrowed_count;
+        repaired++;
+    }
+    if( repaired )
+        lc_out_warn(
+            ctx->out,
+            "framemap %d: %d pivot(s) had no destination joint; re-pointed at "
+            "what they move",
+            fm->id,
+            repaired);
 }
 
 int

@@ -3,6 +3,7 @@
 #include "app.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int g_fail = 0;
@@ -40,6 +41,8 @@ test_load_fields(void)
     CHECK(strcmp(bm.transport, "ws") == 0);
     CHECK(strcmp(bm.host, "example.com") == 0);
     CHECK(bm.port == 1234);
+    CHECK(strcmp(bm.ws_host, "ws.example.com") == 0);
+    CHECK(bm.ws_port == 8080);
     CHECK(bm.client_version == 233);
     CHECK(strcmp(bm.rsa_exp, "deadbeef") == 0);
     CHECK(strcmp(bm.rsa_mod, "cafef00d") == 0);
@@ -132,6 +135,49 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
 }
 
+/*
+ * The web endpoint replaces host:port, and only that: everything else the
+ * manifest applied stays put. Env wins over the manifest, and an unset pair
+ * leaves the tcp endpoint alone — the case where a server answers WebSockets on
+ * the same port it answers TCP.
+ */
+static void
+test_web_endpoint(void)
+{
+    struct BootManifest bm;
+    CHECK(BootManifest_LoadFile(&bm, FIXTURE) == 0);
+
+    struct AppConfig cfg = { 0 };
+    BootManifest_ApplyToConfig(&bm, &cfg);
+    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
+    CHECK(cfg.connect_port == 1234);
+
+    BootManifest_ApplyWebEndpoint(&bm, &cfg);
+    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "ws.example.com") == 0);
+    CHECK(cfg.connect_port == 8080);
+    CHECK(cfg.client_version == 233); /* untouched */
+
+    /* Env overrides the manifest. */
+    setenv("TORIRS_WS_HOST", "env.example.com", 1);
+    setenv("TORIRS_WS_PORT", "9001", 1);
+    BootManifest_ApplyWebEndpoint(&bm, &cfg);
+    CHECK(cfg.connect_target && strcmp(cfg.connect_target, "env.example.com") == 0);
+    CHECK(cfg.connect_port == 9001);
+    unsetenv("TORIRS_WS_HOST");
+    unsetenv("TORIRS_WS_PORT");
+
+    /* Neither set: the tcp endpoint stands, so a same-port server needs no
+     * manifest change at all. */
+    struct BootManifest bare;
+    memset(&bare, 0, sizeof(bare));
+    struct AppConfig tcp_only = { 0 };
+    tcp_only.connect_target = "tcp.example.com";
+    tcp_only.connect_port = 43594;
+    BootManifest_ApplyWebEndpoint(&bare, &tcp_only);
+    CHECK(tcp_only.connect_target && strcmp(tcp_only.connect_target, "tcp.example.com") == 0);
+    CHECK(tcp_only.connect_port == 43594);
+}
+
 static void
 test_required_identity_keys(void)
 {
@@ -145,6 +191,7 @@ main(void)
     test_load_fields();
     test_apply_to_config();
     test_partial_apply_preserves_unset();
+    test_web_endpoint();
     test_required_identity_keys();
 
     if( g_fail )

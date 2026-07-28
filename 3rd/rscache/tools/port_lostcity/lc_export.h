@@ -145,6 +145,9 @@ struct LC_Ctx
      */
     int rig_map[256];
     int has_rig_map;
+    /** Which destination joints the map can actually drive — the set of its
+     *  targets. Everything else is inert once the map has run. */
+    unsigned char rig_live[256];
 
     /**
      * Hand-authored config lines, keyed by config name (manifest `[extra:...]`).

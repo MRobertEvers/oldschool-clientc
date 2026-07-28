@@ -14,8 +14,14 @@
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
+ *                 ws_host=<h>  ws_port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
+ *                 ws_host/ws_port are where a *browser* reaches the same
+ *                 server, which is rarely where the native client dials: a
+ *                 page has no TCP, so the web build's sockets are WebSockets
+ *                 (see BootManifest_ApplyWebEndpoint). LostCity, for one,
+ *                 serves the game on 43594/tcp and upgrades / on its web port.
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
  *   [ui:gameframe]  <component>=<interface_id> or
@@ -91,7 +97,11 @@ struct BootManifest
     char rev_name[32];
     char transport[16]; /* "tcp" | "ws"; "" = unset */
     char host[128];
-    int port;           /* 0 = unset */
+    int port; /* 0 = unset */
+    /* Where a browser reaches the same server; "" / 0 = fall back to host/port.
+     * Only the web build looks at these — see BootManifest_ApplyWebEndpoint. */
+    char ws_host[128];
+    int ws_port;
     int client_version; /* 0 = unset; login-block only, not cache identity */
     char rsa_exp[512];
     char rsa_mod[512];
@@ -141,5 +151,21 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path);
  * flags override by plain assignment (precedence: CLI > manifest > defaults). */
 void
 BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg);
+
+/*
+ * Repoint cfg at the endpoint a browser can reach, for hosts whose sockets are
+ * WebSockets (the emscripten build). Call after BootManifest_ApplyToConfig and
+ * before CLI parsing, so --connect/--port still win.
+ *
+ * Precedence within this step: TORIRS_WS_HOST / TORIRS_WS_PORT, then the
+ * manifest's ws_host / ws_port, then whatever ApplyToConfig already set. The
+ * env pair is what lets one manifest serve a server on a non-default web port
+ * without editing it.
+ *
+ * Platform-free on purpose — the caller decides it applies, so this is testable
+ * on any host.
+ */
+void
+BootManifest_ApplyWebEndpoint(struct BootManifest const* bm, struct AppConfig* cfg);
 
 #endif

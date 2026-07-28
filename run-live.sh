@@ -25,6 +25,10 @@
 # For lc254 against a live LostCity server, login checks the cache CRCs against
 # the server; this script fetches them from http://<host>/crc (port 80) unless
 # TORIRS_JAG_CRC is already set. Other revisions (e.g. the osrs230 mock) skip it.
+#
+# The osrs230 manifests point at this repo's own mock server on localhost, so
+# this script starts it too (native and web alike) and stops it on the way out.
+# TORIRS_NO_MOCK=1 opts out; so does an instance already holding the port.
 set -eu
 
 cd "$(dirname "$0")"
@@ -54,6 +58,16 @@ fi
 REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 HOST=$(sed -n 's/^[[:space:]]*host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 TRANSPORT=$(sed -n 's/^[[:space:]]*transport[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+
+# ws_host/ws_port: where a browser reaches the same server (the web build's
+# sockets are WebSockets). For LostCity that is also where /crc lives, which is
+# why the CRC fetch below uses it rather than assuming port 80. TORIRS_WS_* wins
+# — the same override the client itself honours, so the two cannot disagree.
+WS_HOST=$(sed -n 's/^[[:space:]]*ws_host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+WS_PORT=$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+WS_HOST="${TORIRS_WS_HOST:-${WS_HOST:-${HOST:-localhost}}}"
+WS_PORT="${TORIRS_WS_PORT:-${WS_PORT:-80}}"
 
 # --offline never logs in, so the CRC handshake below does not apply to it.
 OFFLINE=0
@@ -64,7 +78,8 @@ esac
 # lc254 live login checks cache CRCs; fetch the 9 big-endian int32s from the
 # server's web endpoint (TORIRS_JAG_CRC env wins over the manifest).
 if [ "$REV" = "lc254" ] && [ "$OFFLINE" = 0 ] && [ -z "${TORIRS_JAG_CRC:-}" ]; then
-    TORIRS_JAG_CRC=$(curl -sf "http://${HOST:-localhost}/crc" | python3 -c "
+    CRC_URL="http://${WS_HOST}:${WS_PORT}/crc"
+    TORIRS_JAG_CRC=$(curl -sf "$CRC_URL" | python3 -c "
 import sys, struct
 d = sys.stdin.buffer.read()
 print(','.join(str(x) for x in struct.unpack('>%di' % (len(d) // 4), d)))
@@ -73,18 +88,61 @@ print(','.join(str(x) for x in struct.unpack('>%di' % (len(d) // 4), d)))
     # POSIX sh), so the empty result is the thing to test — otherwise the client
     # is handed a blank TORIRS_JAG_CRC and the server answers "out of date".
     if [ -z "$TORIRS_JAG_CRC" ]; then
-        echo "run-live.sh: cannot fetch http://${HOST:-localhost}/crc — is the server up?" >&2
+        echo "run-live.sh: cannot fetch $CRC_URL — is the server up?" >&2
+        echo "  (the port comes from [net:boot] ws_port; override with TORIRS_WS_PORT)" >&2
         exit 1
     fi
     export TORIRS_JAG_CRC
 fi
+
+# The osrs230 manifests point at the mock server on localhost, which is part of
+# this repo — so start it rather than making every run a two-terminal ritual. It
+# becomes this script's child and dies with it. If the port is already taken the
+# mock exits immediately and we leave whatever is there alone: someone running
+# their own instance (with MOCK230_VERBOSE, a different zone, a debugger) should
+# not have it fought over.
+MOCK_PID=''
+start_mock230() {
+    [ "$REV" = "osrs230" ] || return 0
+    [ "$OFFLINE" = 0 ] || return 0
+    case "${HOST:-}" in localhost | 127.0.0.1) ;; *) return 0 ;; esac
+    [ "${TORIRS_NO_MOCK:-0}" = 1 ] && return 0
+
+    if [ ! -x src/build/mock230 ]; then
+        echo "run-live.sh: building the mock 230 server..." >&2
+        make -C src mock230
+    fi
+    ./src/build/mock230 "${GAME_PORT:-43595}" &
+    MOCK_PID=$!
+    sleep 1
+    if ! kill -0 "$MOCK_PID" 2>/dev/null; then
+        MOCK_PID=''
+        echo "run-live.sh: mock230 did not start — assuming one is already on port ${GAME_PORT:-43595}" >&2
+    fi
+}
+
+stop_mock230() {
+    if [ -n "$MOCK_PID" ]; then
+        kill "$MOCK_PID" 2>/dev/null || true
+        wait "$MOCK_PID" 2>/dev/null || true
+        MOCK_PID=''
+    fi
+}
 
 if [ "$MODE" = native ]; then
     if [ ! -x src/torirs ]; then
         echo "run-live.sh: building src/torirs..." >&2
         make -C src torirs
     fi
-    exec src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" "$@"
+    start_mock230
+    if [ -z "$MOCK_PID" ]; then
+        exec src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" "$@"
+    fi
+    # A child to clean up means this script has to outlive the client.
+    trap stop_mock230 EXIT
+    trap 'exit 130' INT
+    src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" "$@"
+    exit $?
 fi
 
 # ---------------------------------------------------------------------- web
@@ -139,6 +197,7 @@ cleanup() {
         wait "$IO_PID" 2>/dev/null || true
         IO_PID=''
     fi
+    stop_mock230
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -155,10 +214,23 @@ if ! kill -0 "$IO_PID" 2>/dev/null; then
     exit 1
 fi
 
-if [ "$TRANSPORT" = "tcp" ] && [ "$OFFLINE" = 0 ]; then
-    echo "run-live.sh: note — this manifest uses transport=tcp, which a browser" >&2
-    echo "  cannot open directly. Put a WebSocket bridge in front of the game" >&2
-    echo "  server (e.g. websockify ${HOST:-localhost}:8443 ${HOST:-localhost}:43594)" >&2
+start_mock230
+
+# A browser tab has no TCP. emscripten implements the client's sockets over
+# WebSockets, so whatever the page dials must speak RFC 6455 — the manifest's
+# transport=tcp describes what the *native* client dials, and says nothing
+# about what the page ends up doing. Two manifests already answer this: osrs230
+# points at the mock, which sniffs the first byte and takes either; rs254 names
+# LostCity's web port in ws_port, where `/` upgrades. A manifest that says
+# neither is the case worth warning about.
+WS_ENDPOINT_KNOWN=0
+[ -n "$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=.*/x/p' "$MANIFEST" | head -1)" ] && WS_ENDPOINT_KNOWN=1
+[ "$REV" = "osrs230" ] && WS_ENDPOINT_KNOWN=1
+if [ "$OFFLINE" = 0 ] && [ "$WS_ENDPOINT_KNOWN" = 0 ]; then
+    echo "run-live.sh: note — a browser reaches this server over a WebSocket, and" >&2
+    echo "  this manifest names no ws_port, so the page will dial ${HOST:-localhost}:${GAME_PORT}." >&2
+    echo "  If that port speaks raw TCP only, add ws_port= to [net:boot], put a" >&2
+    echo "  bridge in front (websockify ${HOST:-localhost}:8443 ${HOST:-localhost}:${GAME_PORT})," >&2
     echo "  or pass --offline to run against the cache alone." >&2
 fi
 

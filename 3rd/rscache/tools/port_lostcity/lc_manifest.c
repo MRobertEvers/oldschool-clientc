@@ -54,6 +54,7 @@ lc_manifest_init(struct LC_Manifest* manifest)
     assert(manifest);
     memset(manifest, 0, sizeof(*manifest));
     manifest->max_textures = -1;
+    manifest->rig_inert = -1;
 }
 
 /*
@@ -238,6 +239,8 @@ set_port_key(
         snprintf(manifest->area, sizeof(manifest->area), "%s", value);
     else if( strcmp(key, "prefix") == 0 )
         snprintf(manifest->prefix, sizeof(manifest->prefix), "%s", value);
+    else if( strcmp(key, "rig_inert") == 0 )
+        manifest->rig_inert = atoi(value);
     else if( strcmp(key, "max_textures") == 0 )
         return parse_int("port:lostcity", key, value, &manifest->max_textures);
     else

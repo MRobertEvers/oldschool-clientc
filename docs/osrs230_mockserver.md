@@ -1,17 +1,28 @@
 # The OSRS rev-230 mock server
 
-A standalone TCP server that speaks enough of the rev-230 protocol to drive the
+A standalone server that speaks enough of the rev-230 protocol to drive the
 real client: log in, load a scene, walk around, watch npcs roam, switch sidebar
 tabs, equip items and rearrange the backpack. It exists so the client's
 **server-driven** paths can be exercised without a real server — the paths that
 never run offline, because offline the client has nothing to obey.
 
 ```
-make -C src mock230 && src/build/mock230 &
-src/torirs --manifest manifest_osrs230.ini --user test --pass test
+./run-live.sh     manifest_osrs230.ini testc test   # native  — starts the mock
+./run-live.sh web manifest_osrs230.ini testc test   # browser — mock + IO server
 
 make -C src test-mock230     # game logic, no socket
 make -C src test-rsareabuf   # the wire buffer
+make -C src test-ws-frame    # the WebSocket frame codec
+```
+
+`run-live.sh` starts the mock itself for any manifest whose `[net:boot]` names
+`osrs230` on localhost, and stops it on the way out. `TORIRS_NO_MOCK=1` opts
+out, and so does an instance already holding the port — one you started by hand
+with `MOCK230_VERBOSE=1` or under a debugger is never fought over. By hand:
+
+```
+make -C src mock230 && src/build/mock230 &
+src/torirs --manifest manifest_osrs230.ini --user test --pass test
 ```
 
 | env | effect |
@@ -25,6 +36,7 @@ Layout:
 | file | contents |
 | --- | --- |
 | `src/net/mock/mock230_main.c` | socket, RSA/ISAAC handshake, the 600 ms tick loop, inbound framing |
+| `src/net/mock/mock230_ws.c` | the byte stream: raw TCP or WebSocket, decided per client |
 | `src/net/mock/mock230_world.c` | player, npcs, containers, equipment, the tick, the self-test |
 | `src/net/mock/mock230_encode.c` | every server→client packet |
 | `src/net/mock/mock230_objinfo.c` | obj name / wearpos / ops, decoded from the cache |
@@ -534,6 +546,39 @@ One ordering trap worth stating: `advance_npcs` used to clear `step_dir` at the
 top of its loop, which also wiped the step the combat mover had just produced.
 Phase 11 does that clear, once, at the right time — roaming now skips any npc
 that is fighting or dead.
+
+## 3.13 One port, two transports
+
+A browser tab has no TCP. The web build's sockets are emscripten's, which
+implement `connect()` as a WebSocket to `ws://host:port` — so the same client,
+built for the browser, arrives here as an HTTP/1.1 upgrade followed by RFC 6455
+frames, and every byte of the 230 stream is inside one.
+
+The mock takes both on the same port, and decides by looking rather than by
+configuration: a 230 client opens with `INIT_GAME_CONNECTION` (opcode 14) and an
+upgrade opens with `G`. One byte tells them apart, and one byte is all that can
+be peeked — a raw client sends its opcode alone and then waits, so peeking
+further would deadlock. Nothing above `mock230_ws.c` knows which happened;
+`mock230_conn_recv`/`_send` carry application bytes either way.
+
+Two things about the handshake are not optional:
+
+- **Echo the subprotocol.** Emscripten asks for `binary` by default, and a
+  browser fails a connection outright when the server does not confirm a
+  requested subprotocol. Ignoring the header looks like "the page cannot reach
+  the server" with nothing in either log.
+- **Server frames are unmasked** (RFC 6455 §5.1). `ws_frame_encode` takes
+  `mask == NULL` for that direction; `ws_frame_encode_header` emits just the
+  header so a large packet goes out straight from the caller's buffer.
+
+Frame boundaries carry no meaning in either direction — the payloads are
+concatenated into one stream, because the 230 protocol frames itself and a
+WebSocket message is not a packet. The receive path must therefore treat "the
+socket was readable but produced no application bytes" as normal (a partial
+frame) rather than as a closed connection.
+
+The frame codec is the client's, shared: `src/platform/net_transport_ws_frame.c`,
+unit-tested by `make -C src test-ws-frame`.
 
 ## 4. Client fix this work required: the inv half of the transmit loop
 

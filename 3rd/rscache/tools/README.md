@@ -85,6 +85,27 @@ centroid, which is how the joint correspondence between two rigs is derived.
 Sequence dumps report duration in **both** client cycles and server ticks, which
 is the number a script actually needs — 30 client cycles is one server tick.
 
+## `anim_compare`
+
+Play one animation on two rigs, side by side, frame by frame — the loop for
+refining a cross-era joint correspondence.
+
+```sh
+./anim_compare/anim_compare \
+  --a-rev osrs239 --a-cache ../../cache.osrs239 --a-seq 7514 \
+  --b-models <content>/models/human/man \
+  --b-anim   <content>/models/dclaws/dclaws_animset_0.anim \
+  --out /tmp/cmp --sheet --by-label
+```
+
+Flags: `--frames LO-HI`, `--size WxH`, `--yaw N` (0..2047), `--scale N`,
+`--by-label` (colour by joint rather than material — the mode that finds rig
+bugs), `--sheet` (contact sheet of the whole run).
+
+Its animation kernel is a line-for-line port of the client's `Model.animate2`,
+including the ORIGIN fallback that causes stretching, so what it draws is what
+the client would draw. See `RIGGING_OSRS_RS2.md` at the repo root.
+
 ## `port_npc`
 
 Port an NPC and its asset closure (models, sequences, frames, framemaps, and

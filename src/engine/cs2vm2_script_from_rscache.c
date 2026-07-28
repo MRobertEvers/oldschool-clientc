@@ -16,6 +16,38 @@ cs2vm2_script_translate_opcodes(
         dst->opcodes[i] = CS2_OpcodeTranslate(dialect, dst->opcodes[i]);
 }
 
+/*
+ * Switch tables are the one field the two structs do not share a layout for:
+ * rscache's cases hang off a `struct RSCache_CS2_ScriptSwitch*`, the VM's off a
+ * `struct CS2VM2_ScriptSwitch*`. They must be walked, not memcpy'd — a script
+ * with no tables has a NULL array, and a bulk copy of it segfaulted every boot.
+ */
+static bool
+cs2vm2_script_copy_switch_tables(
+    const struct RSCache_CS2_Script* src,
+    struct CS2VM2_Script* dst)
+{
+    int table;
+    int i;
+
+    if( !CS2VM2_ScriptAllocSwitches(dst, src->switch_table_count) )
+        return false;
+
+    for( table = 0; table < src->switch_table_count; table++ )
+    {
+        const struct RSCache_CS2_ScriptSwitch* from = &src->switch_tables[table];
+
+        if( !CS2VM2_ScriptAllocSwitchCases(dst, table, from->case_count) )
+            return false;
+        for( i = 0; i < from->case_count; i++ )
+        {
+            dst->switch_tables[table].cases[i].key = from->cases[i].key;
+            dst->switch_tables[table].cases[i].target_pc = from->cases[i].target_pc;
+        }
+    }
+    return true;
+}
+
 static bool
 cs2vm2_script_copy_heap_fields(
     const struct RSCache_CS2_Script* src,
@@ -86,8 +118,8 @@ CS2VM2_ScriptFromRSCache(
     dst->opcodes = src->opcodes;
     dst->int_operands = src->int_operands;
     dst->string_operands = src->string_operands;
-    dst->switch_table_count = src->switch_table_count;
-    memcpy(dst->switch_tables, src->switch_tables, sizeof(dst->switch_tables));
+    if( !cs2vm2_script_copy_switch_tables(src, dst) )
+        return false;
 
     /* Ownership transferred; rewrite wire opcodes in place under the chosen dialect. */
     cs2vm2_script_translate_opcodes(dst, dialect);
@@ -124,8 +156,8 @@ CS2VM2_ScriptCopyFromRSCache(
     dst->opcodes = NULL;
     dst->int_operands = NULL;
     dst->string_operands = NULL;
-    dst->switch_table_count = src->switch_table_count;
-    memcpy(dst->switch_tables, src->switch_tables, sizeof(dst->switch_tables));
+    if( !cs2vm2_script_copy_switch_tables(src, dst) )
+        return false;
 
     if( !cs2vm2_script_copy_heap_fields(src, dst) )
         return false;

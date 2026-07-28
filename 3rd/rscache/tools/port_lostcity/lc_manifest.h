@@ -97,6 +97,8 @@ struct LC_Manifest
     int rig_map_from[256];
     int rig_map_to[256];
     int rig_map_count;
+    /** Joint number used for 'no counterpart'; never treated as drivable. */
+    int rig_inert;
 
     /**
      * Verbatim config lines to append to a named block, from `[extra:<name>]`.

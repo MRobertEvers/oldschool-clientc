@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CS2VM2_SCRIPT_MAX_SWITCHES 32
-#define CS2VM2_SCRIPT_MAX_SWITCH_CASES 256
 #define CS2VM2_SCRIPT_STACK_MAX 2048
 #define CS2VM2_SCRIPT_STRING_POOL 262144
 
@@ -15,10 +13,17 @@ struct CS2VM2_ScriptSwitchCase
     int target_pc;
 };
 
+/*
+ * Switch tables are heap arrays, matching RSCache_CS2_Script — they were
+ * `[32]` tables of `[256]` cases and real scripts exceed both
+ * (`[proc,skill_guide_build]` carries 73 tables; four scripts in an OSRS dump
+ * carry a table of more than 256 cases). The fixed form also put 64 KB of
+ * mostly-unused cases inside every decoded script.
+ */
 struct CS2VM2_ScriptSwitch
 {
     int case_count;
-    struct CS2VM2_ScriptSwitchCase cases[CS2VM2_SCRIPT_MAX_SWITCH_CASES];
+    struct CS2VM2_ScriptSwitchCase* cases;
 };
 
 /** Decoded clientscript bytecode (RuneStar Script.kt). */
@@ -50,11 +55,24 @@ struct CS2VM2_Script
     int* int_operands;
     char** string_operands;
     int switch_table_count;
-    struct CS2VM2_ScriptSwitch switch_tables[CS2VM2_SCRIPT_MAX_SWITCHES];
+    struct CS2VM2_ScriptSwitch* switch_tables;
 };
 
 void
 CS2VM2_ScriptInit(struct CS2VM2_Script* script);
+
+/** Allocate `count` switch tables (all empty). False on allocation failure. */
+bool
+CS2VM2_ScriptAllocSwitches(
+    struct CS2VM2_Script* script,
+    int count);
+
+/** Allocate one table's cases. False on allocation failure. */
+bool
+CS2VM2_ScriptAllocSwitchCases(
+    struct CS2VM2_Script* script,
+    int table_index,
+    int case_count);
 
 void
 CS2VM2_ScriptFree(struct CS2VM2_Script* script);

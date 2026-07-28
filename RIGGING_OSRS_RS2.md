@@ -178,13 +178,80 @@ transform list keeps its shape, so only the labels need to move.
 ...
 ```
 
+**Collapsed joints must be deduplicated.** This is the step that decides whether
+a retarget looks right or merely close. A finer source rig maps several joints
+onto one destination joint, so a transform that named three distinct shoulder
+joints ends up naming the same one three times — and the client walks the label
+list applying the transform *once per entry*. The joint is rotated three times
+and the limb lands at three times the intended angle. The result is a coherent,
+plausible, wrong pose, with nothing visibly broken to trace back from:
+
+```
+xform 22 rotate  before dedup: 12 16 12 14 13 12     <- joint 12 rotated 3x
+xform 30 rotate  before dedup: 17 11 15 15 15 10     <- joint 15 rotated 3x
+```
+
+`port_lostcity` collapses duplicates within each transform automatically once a
+`[export:rig_map]` is present. `anim_compare --report` is what surfaces them:
+it prints the live destination labels per transform, and a repeat is obvious.
+
 **Every source label needs an entry, including the ones with no counterpart.**
 Park those on a number no destination model uses (254 works; rev 254 tops out at
 72 with 255 as the no-group sentinel). Leaving them alone is worse than dropping
 them — OSRS label 50 is not rev-254 joint 50, so identity quietly bends a thigh
 with a cape transform. For the claws that was 56 mapped and 199 parked.
 
+## anim_compare: watching both rigs play the same frames
+
+Joints are invisible in every other view, so the loop for refining a
+correspondence is a side-by-side player: source on the left, port on the right,
+paired frame by frame.
+
+```sh
+make -C 3rd/rscache/tools anim_compare
+
+./3rd/rscache/tools/anim_compare/anim_compare \
+  --a-rev osrs239 --a-cache cache.osrs239 --a-seq 7514 \
+  --b-models <content>/models/human/man \
+  --b-anim   <content>/models/dclaws/dclaws_animset_0.anim \
+  --out /tmp/cmp --sheet --by-label
+```
+
+Left is a dat2 cache and a sequence id; right is the `.ob2` body models and the
+`.anim` animset the exporter wrote. Frames pair by index, which holds because an
+exported animset carries its sequence's frames in order. `--sheet` writes one
+contact sheet of the whole run so only the frames that diverge need opening.
+
+**`--by-label` is the mode that finds rig bugs.** It colours faces by vertex
+label instead of by material, so a joint that has been mapped to the wrong
+counterpart shows up as a limb in the wrong colour or in the wrong place, rather
+than as a vaguely-off pose you have to squint at.
+
+Two things this tool taught the hard way, both worth knowing before writing
+another one:
+
+- **Use one model per body part on both sides.** `models/human/man` holds every
+  *variant* of each part — a dozen heads, a dozen torsos — and a player wears
+  one of each. Merging the lot stacks overlapping meshes and renders an exploded
+  figure whether or not the rig is right, which looks exactly like a rig bug.
+- **Rotation order is roll (z), then pitch (x), then yaw (y).** Rotations do not
+  commute. Applying them in index order gives a coherent but subtly wrong pose —
+  again indistinguishable from a bad correspondence. The kernel in `anim_compare`
+  is a line-for-line port of `Model.animate2` for exactly this reason; an
+  approximation there produces confident, wrong conclusions about the map.
+
 ## Verifying
+
+Three things had to be true together before the claws animation played
+correctly, and each alone left it visibly wrong:
+
+1. `[export:rig_map]` renumbering source joints into destination joints
+2. duplicate collapsed joints removed within each transform
+3. dead ORIGIN pivots re-pointed at what their dependents move
+
+Missing (1) bends the wrong parts. Missing (2) over-rotates by the collapse
+factor. Missing (3) flings a limb from an absolute pivot. All three are applied
+by `port_lostcity` when a rig map is declared.
 
 Structural check first — the retargeted animset should read as anatomy:
 
@@ -206,8 +273,9 @@ animation shows alternating poses with a repeat at the loop period.
 ## Limits
 
 - **245 → 71 is lossy.** Where several OSRS joints collapse onto one rev-254
-  joint their rotations compound on the same vertex group, so finely subdivided
-  motion is coarser than the original.
+  joint, only one rotation of the several survives deduplication, so finely
+  subdivided motion is coarser than the original. That is the correct trade:
+  keeping them all multiplies the angle instead of refining it.
 - **The map covers the body only.** OSRS labels above the identikit set are
   equipment, hair and cape joints with no rev-254 equivalent; they are parked
   inert, so any motion authored purely for them is lost.

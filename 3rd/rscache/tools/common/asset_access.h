@@ -81,6 +81,35 @@ tool_dat1_npc_load(
     struct Tool_Dat1Cache* c,
     int npc_id);
 
+/**
+ * Every id present for a dat2 config type.
+ *
+ * Ids come from the archive's own file table rather than a 0..max walk: config
+ * groups are sparse once a revision has removed content, and walking would
+ * decode a lot of absent records and report their misses as failures.
+ */
+int
+tool_dat2_config_ids(
+    struct Tool_Dat2Cache* c,
+    enum RSCache_Type type,
+    int config_kind,
+    int** out_ids,
+    int* out_count);
+
+/**
+ * Model ids of every identikit body part.
+ *
+ * One kit per body part: these are the player body itself in its rest pose, and
+ * between them they cover every joint an animation can address, which makes them
+ * the sample to use when comparing one era's rig against another's. Taking every
+ * kit instead would pile every hairstyle and beard in the game into one mesh.
+ */
+int
+tool_dat2_idk_models(
+    struct Tool_Dat2Cache* c,
+    int** out_ids,
+    int* out_count);
+
 /* ---- Sequence ----------------------------------------------------------- */
 
 struct RSCache_Dat2ConfigSequence*

@@ -608,3 +608,174 @@ tool_dat2_archive_bytes(
     RSCache_Dat2DiskArchiveFree(archive);
     return 1;
 }
+
+int
+tool_dat2_config_ids(
+    struct Tool_Dat2Cache* c,
+    enum RSCache_Type type,
+    int config_kind,
+    int** out_ids,
+    int* out_count)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&c->profile, type);
+    int* ids = NULL;
+    int count = 0, cap = 0, table;
+    int groups[4096];
+    int group_count = 0;
+
+    *out_ids = NULL;
+    *out_count = 0;
+
+    if( addr.group_shift == 0 )
+    {
+        table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+        groups[group_count++] = config_kind;
+    }
+    else
+    {
+        int table_id = RSCache_Dat2DiskTableId(c->disk, addr.table);
+        struct RSCache_ReferenceTable* rt =
+            table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT ? NULL : c->disk->tables[table_id];
+        if( !rt )
+            return 0;
+        table = table_id;
+        for( int i = 0; i < rt->id_count && group_count < 4096; i++ )
+            groups[group_count++] = rt->ids[i];
+    }
+
+    for( int g = 0; g < group_count; g++ )
+    {
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(c->disk, table, groups[g]);
+        if( !archive )
+            continue;
+        if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+        {
+            RSCache_Dat2DiskArchiveFree(archive);
+            continue;
+        }
+        for( int i = 0; i < archive->file_count; i++ )
+        {
+            int file_id = archive->file_ids ? archive->file_ids[i] : i;
+            int global = addr.group_shift == 0
+                             ? file_id
+                             : ((groups[g] << addr.group_shift) | (file_id & addr.file_mask));
+            if( count == cap )
+            {
+                int next = cap ? cap * 2 : 1024;
+                int* grown = realloc(ids, (size_t)next * sizeof(int));
+                if( !grown )
+                {
+                    free(ids);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    return 0;
+                }
+                ids = grown;
+                cap = next;
+            }
+            ids[count++] = global;
+        }
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+    *out_ids = ids;
+    *out_count = count;
+    return 1;
+}
+
+int
+tool_dat2_idk_models(
+    struct Tool_Dat2Cache* c,
+    int** out_ids,
+    int* out_count)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&c->profile, RSCACHE_TYPE_IDK);
+    int* idk_ids = NULL;
+    int idk_count = 0;
+    int* models = NULL;
+    int count = 0, cap = 0;
+    unsigned char part_taken[32] = { 0 };
+
+    *out_ids = NULL;
+    *out_count = 0;
+    if( !tool_dat2_config_ids(
+            c, RSCACHE_TYPE_IDK, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, &idk_ids, &idk_count) )
+        return 0;
+
+    for( int i = 0; i < idk_count; i++ )
+    {
+        int table, archive_id;
+        struct RSCache_Dat2DiskArchive* archive;
+        struct RSCache_FileList* files;
+
+        if( addr.group_shift == 0 )
+        {
+            table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+            archive_id = RSCACHE_DAT2_CONFIG_KIND_IDENTKIT;
+        }
+        else
+        {
+            table = RSCache_Dat2DiskTableId(c->disk, addr.table);
+            archive_id = idk_ids[i] >> addr.group_shift;
+        }
+        archive = RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
+        if( !archive )
+            continue;
+        if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+        {
+            RSCache_Dat2DiskArchiveFree(archive);
+            continue;
+        }
+        files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+        if( !files )
+        {
+            RSCache_Dat2DiskArchiveFree(archive);
+            continue;
+        }
+        for( int k = 0; k < files->file_count; k++ )
+        {
+            int file_id = archive->file_ids ? archive->file_ids[k] : k;
+            int global = addr.group_shift == 0
+                             ? file_id
+                             : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
+            struct RSCache_Dat2ConfigIdk* idk;
+            if( global != idk_ids[i] || files->file_sizes[k] <= 0 )
+                continue;
+            idk = RSCache_Dat2ConfigIdkNewDecode(files->files[k], files->file_sizes[k]);
+            if( !idk )
+                break;
+            /* One kit per body part. Every hairstyle, beard and jaw is an
+             * identikit too, and merging the lot draws a few hundred heads on
+             * top of each other — enough geometry to hide the rig entirely. */
+            if( idk->body_part_id >= 0 && idk->body_part_id < 32 )
+            {
+                if( part_taken[idk->body_part_id] )
+                {
+                    RSCache_Dat2ConfigIdkFree(idk);
+                    break;
+                }
+                part_taken[idk->body_part_id] = 1;
+            }
+            for( int m = 0; m < idk->model_ids_count; m++ )
+            {
+                if( count == cap )
+                {
+                    int next = cap ? cap * 2 : 256;
+                    int* grown = realloc(models, (size_t)next * sizeof(int));
+                    if( !grown )
+                        break;
+                    models = grown;
+                    cap = next;
+                }
+                models[count++] = idk->model_ids[m];
+            }
+            RSCache_Dat2ConfigIdkFree(idk);
+            break;
+        }
+        RSCache_FileListFree(files);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+    free(idk_ids);
+    *out_ids = models;
+    *out_count = count;
+    return 1;
+}

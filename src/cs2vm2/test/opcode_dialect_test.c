@@ -120,8 +120,8 @@ build_wire_switch_script(
     src->int_operands[4] = 7; /* taken case: push 7 */
     src->opcodes[5] = 21;     /* RETURN */
 
-    src->switch_table_count = 1;
-    src->switch_tables[0].case_count = 1;
+    assert(RSCache_CS2_ScriptAllocSwitches(src, 1));
+    assert(RSCache_CS2_ScriptAllocSwitchCases(src, 0, 1));
     src->switch_tables[0].cases[0].key = match_key;
     src->switch_tables[0].cases[0].target_pc = 2; /* from pc=1, +2 lands on push 7 */
 }
@@ -129,6 +129,12 @@ build_wire_switch_script(
 static void
 free_wire_script(struct RSCache_CS2_Script* src)
 {
+    if( src->switch_tables )
+    {
+        for( int i = 0; i < src->switch_table_count; i++ )
+            free(src->switch_tables[i].cases);
+        free(src->switch_tables);
+    }
     free(src->opcodes);
     free(src->int_operands);
     free(src->long_operands);

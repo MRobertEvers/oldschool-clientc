@@ -394,12 +394,60 @@ Note that it is a separate build flavor (its objects live in
 `build_web_opt_mt/`), so switching to it and back does not disturb a normal
 build's objects.
 
+## Playing against a server
+
+A browser tab has no TCP, and the client does not have to care: emscripten
+implements its BSD sockets as WebSockets, so `connect()` to `localhost:43595`
+opens `ws://localhost:43595/` and the byte stream above it is unchanged. Nothing
+in the client is web-specific here — the same `sockstream.c` runs on both hosts,
+and `NetTransport_New` collapses `NET_TRANSPORT_WS` to the plain transport on
+this host, because the platform already did the framing.
+
+Two things move as a result.
+
+**Whatever the page dials must speak RFC 6455.** The manifest's `transport=tcp`
+describes what the *native* client dials and says nothing about the page.
+
+**It is usually not the same port.** A server that offers both keeps them apart:
+LostCity serves the game on `43594/tcp` and upgrades `/` on its *web* port (80
+on macOS/Windows, 8888 on Linux — the port `/crc` and `/rs2.cgi` are on).
+`[net:boot]` therefore has a second endpoint, used only by this build:
+
+```ini
+[net:boot]
+host=localhost
+port=43594      ; native: raw TCP
+ws_host=localhost
+ws_port=80      ; browser: where / upgrades
+```
+
+`TORIRS_WS_HOST` / `TORIRS_WS_PORT` override it without editing the file (a
+server on a non-default `WEB_PORT`), and `--connect` / `--port` still win over
+both. A manifest that sets neither keeps the tcp endpoint, which is right for a
+server answering both on one port — the [mock 230
+server](osrs230_mockserver.md#313-one-port-two-transports) sniffs the first byte
+and takes either.
+
+So a browser run against either is one command:
+
+```sh
+./run-live.sh web manifest_osrs230.ini testc test   # the in-repo mock
+./run-live.sh web manifest_rs254.ini   matt5 zuk    # a real LostCity server
+```
+
+each of which builds what is missing, starts the IO server (and, for osrs230,
+the mock) as children, and opens the page. `run-live.sh` reads `ws_port` for the
+lc254 CRC fetch too, so the client and the script cannot disagree about where
+the server is.
+
+A server that speaks raw TCP only still needs a bridge in front of it
+(`websockify localhost:8443 localhost:43594`) with `ws_port=8443`. One caveat
+worth knowing when writing one: emscripten requests the `binary` subprotocol,
+and a browser fails the connection outright if the server does not confirm it —
+which surfaces as a page that never connects, with nothing in either log.
+
 ## Not ported
 
-- **Live server connections.** `--connect` compiles (emscripten emulates BSD
-  sockets over WebSockets) but is untested from the browser; the web default is
-  `--offline`. A page that needs it wants the `NET_TRANSPORT_WS` path and a
-  WebSocket-speaking server.
 - **The `TORIRS_SIM_*` headless harnesses.** They run before the frame loop and
   several call `App_BootWait`, which spins on `TaskRunner_Step` — that never
   terminates against an asynchronous backend. Use the native build for those.

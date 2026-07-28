@@ -223,6 +223,11 @@ main(int argc, char** argv)
     for( int i = 0; i < manifest.rig_map_count; i++ )
     {
         ctx.rig_map[manifest.rig_map_from[i]] = manifest.rig_map_to[i];
+        /* The park target is a destination for unmapped joints, not a joint the
+         * destination model has — counting it live would make every dead pivot
+         * look healthy and skip the repair that matters. */
+        if( manifest.rig_map_to[i] != manifest.rig_inert )
+            ctx.rig_live[manifest.rig_map_to[i] & 0xff] = 1;
         ctx.has_rig_map = 1;
     }
     ctx.extras = manifest.extras;

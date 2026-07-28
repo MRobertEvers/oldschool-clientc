@@ -54,6 +54,20 @@ NetTransport_NewTcp(int default_port)
 struct NetTransport*
 NetTransport_New(int kind, int default_port)
 {
+#if defined(TORIRS_PLATFORM_WEB)
+    /*
+     * This host has no raw socket to put a WebSocket on top of: emscripten's
+     * connect() *is* a WebSocket, and the browser does the handshake and the
+     * framing. Stacking our own client on that would send an HTTP upgrade as
+     * the first frame's payload and hang waiting for a 101 that the server
+     * already answered to someone else. The plain transport is the right one
+     * here for every rev — one send is one binary frame, which is exactly what
+     * a WebSocket server expects.
+     */
+    if( kind == NET_TRANSPORT_WS )
+        kind = NET_TRANSPORT_TCP;
+#endif
+
     switch( kind )
     {
     case NET_TRANSPORT_TCP:

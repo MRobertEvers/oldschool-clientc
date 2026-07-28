@@ -1033,6 +1033,14 @@ main(
             if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
                 return 1;
             BootManifest_ApplyToConfig(&boot_manifest, &cfg);
+#if defined(TORIRS_PLATFORM_WEB)
+            /* This host's sockets are WebSockets (emscripten maps connect() to
+             * ws://host:port), so the manifest's tcp host:port is the wrong
+             * endpoint whenever the server keeps its WebSocket somewhere else —
+             * LostCity serves the game on 43594/tcp and upgrades / on its web
+             * port. Still before the flag loop, so --connect/--port win. */
+            BootManifest_ApplyWebEndpoint(&boot_manifest, &cfg);
+#endif
             break;
         }
     }

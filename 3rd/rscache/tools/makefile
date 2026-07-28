@@ -44,13 +44,14 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named port_npc port_lostcity packfile cs2
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2
 .DEFAULT_GOAL := all
 
-all: find_anims find_named port_npc port_lostcity packfile cs2
+all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
+anim_compare: $(TOOLS)/anim_compare/anim_compare
 port_npc: $(TOOLS)/port_npc/port_npc
 port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
 packfile: $(TOOLS)/packfile/packfile
@@ -103,6 +104,9 @@ $(TOOLS)/find_anims/find_anims: $(TOOLS)/find_anims/main.c $(COMMON_OBJS) $(LIB_
 $(TOOLS)/find_named/find_named: $(TOOLS)/find_named/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
+$(TOOLS)/anim_compare/anim_compare: $(TOOLS)/anim_compare/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm
+
 $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
@@ -115,7 +119,7 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^
 
 clean:
-	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/port_npc/port_npc \
+	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
 		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the

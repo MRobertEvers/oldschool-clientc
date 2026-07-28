@@ -12,12 +12,60 @@ CS2VM2_ScriptInit(struct CS2VM2_Script* script)
     memset(script, 0, sizeof(*script));
 }
 
+bool
+CS2VM2_ScriptAllocSwitches(
+    struct CS2VM2_Script* script,
+    int count)
+{
+    assert(script);
+    assert(!script->switch_tables);
+
+    script->switch_table_count = 0;
+    if( count <= 0 )
+        return true;
+
+    script->switch_tables = calloc((size_t)count, sizeof(*script->switch_tables));
+    if( !script->switch_tables )
+        return false;
+    script->switch_table_count = count;
+    return true;
+}
+
+bool
+CS2VM2_ScriptAllocSwitchCases(
+    struct CS2VM2_Script* script,
+    int table_index,
+    int case_count)
+{
+    struct CS2VM2_ScriptSwitch* table;
+
+    assert(script);
+    assert(table_index >= 0 && table_index < script->switch_table_count);
+
+    table = &script->switch_tables[table_index];
+    table->case_count = 0;
+    if( case_count <= 0 )
+        return true;
+
+    table->cases = calloc((size_t)case_count, sizeof(*table->cases));
+    if( !table->cases )
+        return false;
+    table->case_count = case_count;
+    return true;
+}
+
 void
 CS2VM2_ScriptFree(struct CS2VM2_Script* script)
 {
     if( !script )
         return;
 
+    if( script->switch_tables )
+    {
+        for( int i = 0; i < script->switch_table_count; i++ )
+            free(script->switch_tables[i].cases);
+        free(script->switch_tables);
+    }
     free(script->signature);
     free(script->opcodes);
     free(script->int_operands);
@@ -55,8 +103,17 @@ CS2VM2_ScriptCopy(
     dst->int_stack_depth = src->int_stack_depth;
     dst->str_stack_depth = src->str_stack_depth;
     dst->op_count = src->op_count;
-    dst->switch_table_count = src->switch_table_count;
-    memcpy(dst->switch_tables, src->switch_tables, sizeof(dst->switch_tables));
+    if( !CS2VM2_ScriptAllocSwitches(dst, src->switch_table_count) )
+        return false;
+    for( i = 0; i < src->switch_table_count; i++ )
+    {
+        if( !CS2VM2_ScriptAllocSwitchCases(dst, i, src->switch_tables[i].case_count) )
+            return false;
+        memcpy(
+            dst->switch_tables[i].cases,
+            src->switch_tables[i].cases,
+            (size_t)src->switch_tables[i].case_count * sizeof(*dst->switch_tables[i].cases));
+    }
 
     if( src->signature )
     {

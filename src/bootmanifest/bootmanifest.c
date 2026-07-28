@@ -233,6 +233,16 @@ bm_set_kv(
             bm->port = atoi(value);
             return;
         }
+        if( strcmp(key, "ws_host") == 0 )
+        {
+            snprintf(bm->ws_host, sizeof(bm->ws_host), "%s", value);
+            return;
+        }
+        if( strcmp(key, "ws_port") == 0 )
+        {
+            bm->ws_port = atoi(value);
+            return;
+        }
         if( strcmp(key, "client_version") == 0 )
         {
             bm->client_version = atoi(value);
@@ -643,4 +653,26 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
     if( bm->spawn_proj_seq_id >= 0 )
         cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
+}
+
+void
+BootManifest_ApplyWebEndpoint(
+    struct BootManifest const* bm,
+    struct AppConfig* cfg)
+{
+    char const* env_host = getenv("TORIRS_WS_HOST");
+    char const* env_port = getenv("TORIRS_WS_PORT");
+
+    assert(bm);
+    assert(cfg);
+
+    if( env_host && env_host[0] )
+        cfg->connect_target = env_host;
+    else if( bm->ws_host[0] )
+        cfg->connect_target = bm->ws_host;
+
+    if( env_port && env_port[0] )
+        cfg->connect_port = atoi(env_port);
+    else if( bm->ws_port > 0 )
+        cfg->connect_port = bm->ws_port;
 }
