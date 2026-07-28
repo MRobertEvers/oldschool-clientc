@@ -1090,6 +1090,12 @@ mock230_script_command(
             return 1;
         if( player->resume_button_count < MOCK230_RESUME_BUTTON_MAX )
             player->resume_buttons[player->resume_button_count++] = uid;
+        /* Registering the button server-side is only half of it: at rev 230
+         * nothing is clickable until the server says so, so the component's
+         * events have to be enabled too or the player looks at a live-looking
+         * prompt that swallows every click. Slot 0..0 with the click bit is
+         * what a plain (non-grid) component needs. */
+        mock230_send_if_setevents(srv, uid, 0, 0, MOCK230_EVENT_CLICK);
         return 1;
     }
 

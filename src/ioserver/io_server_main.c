@@ -205,7 +205,7 @@ io_server_cache_for(
  */
 static void
 load_reference_table_raw(
-    struct IoServer* server,
+    struct CacheSlot* slot,
     struct ToriRS_IOItem* item)
 {
     int logical = item->u.reference_table.table_id;
@@ -217,14 +217,14 @@ load_reference_table_raw(
         item->error_code = -1;
         return;
     }
-    table_id = RSCache_Dat2DiskTableId(server->dat2_disk, (enum RSCache_Dat2Table)logical);
+    table_id = RSCache_Dat2DiskTableId(slot->dat2_disk, (enum RSCache_Dat2Table)logical);
     if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
         item->error_code = -1;
         return;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewReferenceTableLoad(server->dat2_disk, table_id);
+    archive = RSCache_Dat2DiskArchiveNewReferenceTableLoad(slot->dat2_disk, table_id);
     if( !archive )
     {
         item->error_code = -1;
@@ -240,29 +240,27 @@ load_reference_table_raw(
 }
 
 /*
- * Can this server answer this request at all?
+ * Does this slot hold the kind of cache the request needs?
  *
  * What a request asks for is input — it arrived from another process — not an
  * invariant. PlatformX_IO_LoadItem is entitled to assert that the disk it needs
  * is open, because in the native client App_Init opened it two calls earlier;
- * here the client is a browser tab that may be booting an entirely different
- * generation, and an assert would take the whole server down mid-session. It
- * did: a dat1 cache with a dat2 client aborted on the first archive read, and
- * every later request in that tab failed at the transport with nothing saying
- * why.
- *
- * So the mismatch is refused, once loudly and then quietly.
+ * here the client is a browser tab, and an assert would take the whole server
+ * down mid-session. It did once: a dat1 cache asked for a dat2 archive aborted
+ * the server, and every later request in that tab failed at the transport with
+ * nothing saying why. Now that a batch names its cache the right one gets
+ * opened, and this is the backstop for a request that still does not fit the
+ * cache it named.
  */
 static int
-io_server_can_serve(
-    struct IoServer* server,
+slot_can_serve(
+    struct CacheSlot* slot,
     struct ToriRS_IOItem const* item)
 {
-    static int warned = 0;
     int wants_dat1;
 
     if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
-        return server->dat2_disk != NULL;
+        return slot->dat2_disk != NULL;
     if( item->kind != TORIRS_IOK_CACHE )
         return 1;
 
@@ -270,42 +268,28 @@ io_server_can_serve(
                  item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
                  item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY;
 
-    if( wants_dat1 ? (server->dat1_disk != NULL) : (server->dat2_disk != NULL) )
-        return 1;
-
-    if( !warned )
-    {
-        warned = 1;
-        fprintf(
-            stderr,
-            "io_server: this client wants %s archives, but the open cache is %s.\n"
-            "  Start the server with the manifest the client is booting:\n"
-            "    ./run-live.sh web <manifest.ini>\n",
-            wants_dat1 ? "dat1" : "dat2",
-            server->serving);
-    }
-    return 0;
+    return wants_dat1 ? (slot->dat1_disk != NULL) : (slot->dat2_disk != NULL);
 }
 
 static void
 io_server_load(
-    struct IoServer* server,
+    struct CacheSlot* slot,
     struct ToriRS_IOItem* item)
 {
     item->data = NULL;
     item->data_size = 0;
     item->error_code = 0;
 
-    if( !io_server_can_serve(server, item) )
+    if( !slot || !slot_can_serve(slot, item) )
     {
         item->error_code = -1;
         return;
     }
 
     if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
-        load_reference_table_raw(server, item);
+        load_reference_table_raw(slot, item);
     else
-        PlatformX_IO_LoadItem(server->px, item);
+        PlatformX_IO_LoadItem(slot->px, item);
 }
 
 static void
@@ -316,10 +300,12 @@ handle_io_batch(
 {
     struct IOWireReader reader;
     struct IOWireBuf out;
+    struct IOWireCache wanted;
+    struct CacheSlot* slot;
     int count;
 
     IOWireReader_Init(&reader, req->body, req->body_len);
-    count = IOWire_BatchRead(&reader);
+    count = IOWire_BatchRead(&reader, &wanted);
     if( count < 0 )
     {
         res->status = 400;
@@ -330,8 +316,13 @@ handle_io_batch(
         return;
     }
 
+    /* Every record in a batch is about the cache the batch named, so it is
+     * resolved once — and a client naming one this server cannot open gets
+     * failed items rather than a dropped connection. */
+    slot = io_server_cache_for(server, &wanted);
+
     IOWireBuf_Init(&out);
-    IOWire_BatchBegin(&out);
+    IOWire_BatchBegin(&out, NULL);
 
     for( int i = 0; i < count; i++ )
     {
@@ -345,7 +336,7 @@ handle_io_batch(
         }
 
         IOWire_RequestToItem(&wire_req, &item);
-        io_server_load(server, &item);
+        io_server_load(slot, &item);
 
         if( server->verbose || item.error_code != 0 )
         {
@@ -353,7 +344,8 @@ handle_io_batch(
             IOWire_DescribeItem(&item, what, (int)sizeof(what));
             fprintf(
                 stderr,
-                "io: %-40s %s (%d bytes)\n",
+                "io: %-26s %-30s %s (%d bytes)\n",
+                slot ? slot->dir : wanted.dir,
                 what,
                 item.error_code == 0 ? "ok" : "FAILED",
                 item.data_size);
@@ -549,9 +541,12 @@ io_server_handler(
                 res->status = 500;
                 return;
             }
+            /* Which caches are open, so a page can say what it is talking to.
+             * The first is the one --manifest preopened, if any. */
             len = snprintf(
                 text, 256, "serving=%s served=%ld failed=%ld bytes_out=%ld\n",
-                server->serving, server->served, server->failed, server->bytes_out);
+                server->cache_count ? server->caches[0].describe : "(none yet)",
+                server->served, server->failed, server->bytes_out);
             res->status = 200;
             snprintf(res->content_type, sizeof(res->content_type), "text/plain; charset=utf-8");
             res->body = text;
@@ -602,18 +597,17 @@ main(
 {
     static struct IoServer server;
     static struct BootManifest manifest;
-    struct RSCache profile;
-    char const* cache_dir = NULL;
-    char const* config_dir = "config";
-    char const* script_dir = "script";
+    struct IOWireCache preopen;
     char const* rev_name = NULL;
     int port = IO_SERVER_DEFAULT_PORT;
-    int have_identity = 0;
-    int cache_epoch = 0;
+    int have_preopen = 0;
 
     memset(&server, 0, sizeof(server));
+    memset(&preopen, 0, sizeof(preopen));
     snprintf(server.root, sizeof(server.root), "%s", IO_SERVER_DEFAULT_ROOT);
     snprintf(server.boot_root, sizeof(server.boot_root), ".");
+    snprintf(server.config_dir, sizeof(server.config_dir), "config");
+    snprintf(server.script_dir, sizeof(server.script_dir), "script");
 
     for( int i = 1; i < argc; i++ )
     {
@@ -621,14 +615,12 @@ main(
         {
             if( BootManifest_LoadFile(&manifest, argv[++i]) != 0 )
                 return 1;
-            profile = RSCache_ProfileForIdentity(
-                manifest.cache_game,
-                manifest.cache_epoch,
-                manifest.cache_revision,
-                manifest.cache_quirks);
-            cache_epoch = manifest.cache_epoch;
-            cache_dir = manifest.cache_dir;
-            have_identity = 1;
+            preopen.epoch = manifest.cache_epoch;
+            preopen.game = manifest.cache_game;
+            preopen.revision = manifest.cache_revision;
+            preopen.quirks = manifest.cache_quirks;
+            snprintf(preopen.dir, sizeof(preopen.dir), "%s", manifest.cache_dir);
+            have_preopen = 1;
             continue;
         }
         if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
@@ -653,12 +645,12 @@ main(
         }
         if( strcmp(argv[i], "--config") == 0 && i + 1 < argc )
         {
-            config_dir = argv[++i];
+            snprintf(server.config_dir, sizeof(server.config_dir), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "--script") == 0 && i + 1 < argc )
         {
-            script_dir = argv[++i];
+            snprintf(server.script_dir, sizeof(server.script_dir), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0 )
@@ -666,9 +658,9 @@ main(
             server.verbose = 1;
             continue;
         }
-        if( argv[i][0] != '-' && !cache_dir )
+        if( argv[i][0] != '-' && !preopen.dir[0] )
         {
-            cache_dir = argv[i];
+            snprintf(preopen.dir, sizeof(preopen.dir), "%s", argv[i]);
             continue;
         }
         usage(argv[0]);
@@ -680,84 +672,35 @@ main(
         struct RSCache named;
         if( !RSCache_ProfileByName(rev_name, &named) )
         {
-            fprintf(stderr, "io_server: unknown rev '%s'\n", rev_name);
+            fprintf(stderr, "io_server: unknown rev \'%s\'\n", rev_name);
             return 1;
         }
-        profile = named;
-        cache_epoch = named.epoch;
-        have_identity = 1;
+        preopen.epoch = named.epoch;
+        preopen.game = named.game;
+        preopen.revision = named.revision;
+        preopen.quirks = named.quirks;
+        have_preopen = preopen.dir[0] != 0;
     }
-    if( !have_identity || !cache_dir )
+
+    /*
+     * Opening a cache up front is optional now: every batch names the cache it
+     * is about, so the server can answer a client it knew nothing about when it
+     * started. Passing --manifest is still worth it — a missing cache then
+     * fails here, at startup, instead of in a browser tab later.
+     */
+    if( have_preopen && !io_server_cache_for(&server, &preopen) )
     {
-        usage(argv[0]);
+        fprintf(stderr, "io_server: could not open %s\n", preopen.dir);
         return 1;
     }
-
-    {
-        char quirks[32];
-        RSCache_QuirksName(profile.quirks, quirks, (int)sizeof(quirks));
-        snprintf(
-            server.serving,
-            sizeof(server.serving),
-            "%s (%s %s rev %d quirks %s)",
-            cache_dir,
-            RSCache_EpochName(profile.epoch),
-            RSCache_GameName(profile.game),
-            profile.revision,
-            quirks);
-        printf("io_server: cache=%s\n", server.serving);
-    }
-
-    server.px = PlatformX_IO_New();
-    assert(server.px);
-
-    /* Same open the native client does, and for the same reason: the cache is
-     * what knows how to answer these requests. */
-    if( cache_epoch == RSCACHE_EPOCH_DAT1 )
-    {
-        server.dat1_disk = RSCache_Dat1DiskNewFromDirectory(cache_dir);
-        if( !server.dat1_disk )
-        {
-            fprintf(
-                stderr,
-                "io_server: no dat1 cache at %s (expected main_file_cache.dat)\n",
-                cache_dir);
-            return 1;
-        }
-        PlatformX_IO_InitDat1Disk(server.px, server.dat1_disk);
-    }
-    else
-    {
-        server.dat2_disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-        if( !server.dat2_disk )
-        {
-            fprintf(
-                stderr,
-                "io_server: no dat2 cache at %s (expected main_file_cache.dat2)\n",
-                cache_dir);
-            return 1;
-        }
-        /* Table ids and the map XTEA gate are both properties of the identity,
-         * not of the container; without this every logical table is ABSENT. */
-        RSCache_Dat2DiskSetProfile(server.dat2_disk, &profile);
-        if( RSCache_MapLocsEncrypted(&profile) )
-        {
-            char xtea_path[1024];
-            snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);
-            if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-                fprintf(stderr, "io_server: no xtea keys at %s (world maps may fail)\n",
-                        xtea_path);
-        }
-        PlatformX_IO_InitDat2Disk(server.px, server.dat2_disk);
-    }
-    PlatformX_IO_InitConfigPath(server.px, config_dir);
-    PlatformX_IO_InitScriptPath(server.px, script_dir);
 
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
-    printf("io_server: http://localhost:%d/  (serving %s, POST /io for cache reads)\n",
-           port, server.root);
+    printf(
+        "io_server: http://localhost:%d/  (serving %s; caches open on demand)\n",
+        port,
+        server.root);
     fflush(stdout);
 
     if( HttpServer_Run(port, io_server_handler, &server) != 0 )
@@ -765,8 +708,11 @@ main(
 
     printf("io_server: served=%ld failed=%ld bytes=%ld\n",
            server.served, server.failed, server.bytes_out);
-    PlatformX_IO_Free(server.px);
-    RSCache_Dat1DiskFree(server.dat1_disk);
-    RSCache_Dat2DiskFree(server.dat2_disk);
+    for( int i = 0; i < server.cache_count; i++ )
+    {
+        PlatformX_IO_Free(server.caches[i].px);
+        RSCache_Dat1DiskFree(server.caches[i].dat1_disk);
+        RSCache_Dat2DiskFree(server.caches[i].dat2_disk);
+    }
     return 0;
 }

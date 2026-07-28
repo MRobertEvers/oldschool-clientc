@@ -343,6 +343,26 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
     }
 }
 
+/*
+ * True when `group` hosts at least one mounted sub-interface.
+ *
+ * Such a group is part of the live tree by definition — something is mounted
+ * inside it — so it is never spillover, however many levels down the mount
+ * target happens to be.
+ */
+static int
+group_hosts_a_mount(
+    struct UITree const* tree,
+    int group)
+{
+    for( int i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( ((tree->interface_parents[i].container_uid >> 16) & 0xffff) == group )
+            return 1;
+    }
+    return 0;
+}
+
 static void
 hide_unmounted_spillover(struct Task_InterfaceOpen* self)
 {
@@ -366,7 +386,18 @@ hide_unmounted_spillover(struct Task_InterfaceOpen* self)
         if( self->tree->components[root].parent >= 0 )
             continue;
         /* Never hide the active toplevel root group (e.g. 161) while subs are
-         * mounted into it — only hide accidental sibling spillover packs. */
+         * mounted into it — only hide accidental sibling spillover packs.
+         *
+         * The mount target's own group is the obvious case, but it is not the
+         * only one: mounting into a *nested* sub-interface leaves every group
+         * above it unprotected. Opening the chat dialogue (231) into 162:561
+         * gave host_group 162 and then hid 161 — the entire gameframe — which
+         * renders as a blank frame with no error anywhere.
+         *
+         * Hosting a mount is the general form of "part of the live tree", and
+         * it covers the immediate host as well, so one test replaces both. */
+        if( group_hosts_a_mount(self->tree, group) )
+            continue;
         if( self->target_uid >= 0 )
         {
             int host_group = (self->target_uid >> 16) & 0xffff;
@@ -376,6 +407,12 @@ hide_unmounted_spillover(struct Task_InterfaceOpen* self)
         /* Mark it as ours: a pack the CS2 runtime baked ahead of its mount is
          * hidden here, and mount_pack_under_target must be able to tell that
          * hide apart from a cache/script one when the mount finally lands. */
+        /* Kept: this is exactly the print that identified the bug above, and
+         * "which root did the tree just hide" is invisible from anywhere else. */
+        if( getenv("TORIRS_SPILLOVER_DEBUG") )
+            fprintf(stderr, "spillover: hiding root group %d (opening %d, target %d:%d)\n",
+                    group, self->interface_id, (self->target_uid >> 16) & 0xffff,
+                    self->target_uid & 0xffff);
         if( !self->tree->components[root].behavior.hide )
             self->tree->components[root].behavior.hide_unmounted = 1;
         self->tree->components[root].behavior.hide = 1;

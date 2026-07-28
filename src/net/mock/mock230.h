@@ -62,6 +62,9 @@ enum
     MOCK230_TIMER_MAX = 8,
     MOCK230_WORLD_QUEUE_MAX = 16,
     MOCK230_RESUME_BUTTON_MAX = 8,
+    /* IF_SETEVENTS bit 0: the component accepts a plain click, answered with
+     * IF_BUTTON. Mirrors RS_MINIMENU_EVENT_CLICK on the client. */
+    MOCK230_EVENT_CLICK = 0x1,
 
     /* rev-230 dialogue interfaces, verified with tools/dump_interface.
      * 162:559 is the chat container and ships hidden=1, so opening a dialogue

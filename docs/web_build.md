@@ -114,17 +114,38 @@ torirs: boot files manifest_rs254.ini v0/osrs/revconfig/configs/rev_245_2/rev_24
 ```
 
 `--boot-root` (default the working directory) is where the server reads those
-from. One thing this still cannot do for you: **the cache is on the server**.
-The URL picks the client's boot config; `io_server` has whatever cache it was
-started with, and a client booting one generation against another's cache
-decodes nothing. Restart the server (`./run-live.sh web <manifest>`) when you
-switch across caches. So it is visible rather than mysterious, the page prints
-both halves:
+from — and also where it resolves caches, because the cache moves with the
+manifest.
+
+### The client says which cache it wants
+
+Every request batch carries a cache descriptor: the identity a manifest states
+(epoch, game, revision, quirks) plus the directory. The server opens what it is
+asked for, on first use, and keeps it open — so one server answers clients
+booting different generations, and switching manifest in the URL needs no
+restart:
 
 ```
-torirs: dat2 cache=cache.osrs230 iface=161
-torirs: io server has cache.osrs230 (dat2 oldschool rev 230 quirks none) open
+io_server: opened cache.void634 (dat2 rs2 rev 643 quirks void_rs634_no_xteas)
+io_server: opened cache.rs254_zuk (dat1 rs2 rev 254 quirks none)
+io_server: opened cache.osrs230 (dat2 oldschool rev 230 quirks none)
 ```
+
+`--manifest` on the server is therefore optional; it is still worth passing,
+because a missing cache then fails at startup rather than in a browser tab.
+
+Each open cache gets its own `PlatformX_IO`, which is what makes the
+decompressed-archive LRU inside it correct rather than a hazard — a group
+archive cached for one cache must never answer a read against another. Cache
+directories are resolved under `--boot-root` and rejected if absolute or
+containing `..`: the name arrives from another process, so it is input.
+
+This replaced a design where the server held one cache for its lifetime. That
+version aborted on `assert(px->dat2_disk)` the first time a dat2 client asked a
+dat1 server for an archive — taking the whole server down mid-session, after
+which every request in that tab failed at the transport with nothing saying
+why. Requests arriving over a socket are input, not invariants; a request that
+does not fit the cache it named now fails that one item.
 
 ## The WebGL1 renderer
 

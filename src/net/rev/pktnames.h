@@ -40,6 +40,7 @@ enum GameProtoPktName
     /* interface mutators */
     PKT_NAME_IF_SETCOLOUR,
     PKT_NAME_IF_SETHIDE,
+    PKT_NAME_IF_SETEVENTS,
     PKT_NAME_IF_SETOBJECT,
     PKT_NAME_IF_SETMODEL,
     PKT_NAME_IF_SETANIM,

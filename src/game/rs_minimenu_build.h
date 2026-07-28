@@ -64,6 +64,14 @@ struct RS_MinimenuBuildCtx
     struct InvManager* invs;
     struct RS_MinimenuChatSource const* chat; /* NULL = no chat lines yet */
 
+    /* Server-declared component events (IF_SETEVENTS). At rev 230 nothing is
+     * clickable by default: a component the server never enabled produces no
+     * menu row, however clickable it looks. A callback rather than the App
+     * itself keeps this file free of the game layer, like `chat` above.
+     * NULL = no server events, which is correct for the classic revisions. */
+    int (*events_for_component)(void* user, int com_id);
+    void* events_user;
+
     /* Held-item / spell targeting mode (reference useMode/targetMode). */
     struct RS_MinimenuSelection selection;
 

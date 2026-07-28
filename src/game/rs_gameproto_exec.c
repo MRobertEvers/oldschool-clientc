@@ -331,6 +331,17 @@ RS_GameProto_Exec(
         else
             UITree_ApplyText(ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
+    case PKT_NAME_IF_SETEVENTS:
+        /* Persisting, like IF_SETHIDE: the server enables a component's events
+         * before the interface holding it has finished mounting. */
+        if( ctx->app )
+            App_IfEventsSet(
+                ctx->app,
+                packet->_if_setevents.component_id,
+                packet->_if_setevents.from,
+                packet->_if_setevents.to,
+                packet->_if_setevents.events);
+        break;
     case PKT_NAME_IF_SETHIDE:
         /* Persisting setter, not a one-shot apply: IF_SETHIDE routinely lands
          * before the interface it targets has finished mounting (the mount is

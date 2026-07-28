@@ -112,6 +112,22 @@ struct PktIfSetHide
     int hide;        /* g1: 1=hide */
 };
 
+/**
+ * The server declaring which of a component's slots are interactive.
+ *
+ * `events` is a bitmask of what the client may send for slots `from`..`to`.
+ * rev 230 has no clickable-by-default: a component the server never enabled
+ * produces no menu row, which is why an interface that renders fine can still
+ * swallow every click.
+ */
+struct PktIfSetEvents
+{
+    int component_id; /* p4 combined uid at rev 230 */
+    int from;
+    int to;
+    int events;
+};
+
 struct PktIfSetObject
 {
     int component_id; /* g2 */
@@ -514,6 +530,7 @@ struct RevPacket
         struct PktUpdateRunEnergy _update_run_energy;
         struct PktIfSetColour _if_setcolour;
         struct PktIfSetHide _if_sethide;
+        struct PktIfSetEvents _if_setevents;
         struct PktIfSetObject _if_setobject;
         struct PktIfSetModel _if_setmodel;
         struct PktIfSetAnim _if_setanim;

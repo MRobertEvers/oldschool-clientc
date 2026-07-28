@@ -59,18 +59,34 @@ check_round_trip(
     struct IOWireReader reader;
     struct IOWireRequest wire_req;
     struct IOWireResponse wire_resp;
+    struct IOWireCache cache_out;
+    /* A batch says which cache it is about; the server opens that one. Both
+     * the identity and the directory have to survive the round trip, or a
+     * client booting one generation gets answers from another's cache. */
+    struct IOWireCache const cache_in = {
+        .epoch = 1, .game = 2, .revision = 254, .quirks = 0x5u, .dir = "cache.rs254_zuk"
+    };
     int count;
 
     PlatformX_IO_LoadItem(px, &direct);
 
     /* --- client -> server ------------------------------------------------ */
     IOWireBuf_Init(&request);
-    IOWire_BatchBegin(&request);
+    IOWire_BatchBegin(&request, &cache_in);
     IOWire_WriteRequest(&request, 4242, spec);
     CHECK(!request.error, "%s: request encode ran out of memory", label);
 
     IOWireReader_Init(&reader, request.data, request.len);
-    count = IOWire_BatchRead(&reader);
+    count = IOWire_BatchRead(&reader, &cache_out);
+    CHECK(cache_out.epoch == cache_in.epoch, "%s: cache epoch %d, expected %d", label,
+          cache_out.epoch, cache_in.epoch);
+    CHECK(cache_out.game == cache_in.game, "%s: cache game %d", label, cache_out.game);
+    CHECK(cache_out.revision == cache_in.revision, "%s: cache revision %d", label,
+          cache_out.revision);
+    CHECK(cache_out.quirks == cache_in.quirks, "%s: cache quirks %u", label,
+          (unsigned)cache_out.quirks);
+    CHECK(strcmp(cache_out.dir, cache_in.dir) == 0, "%s: cache dir '%s', expected '%s'",
+          label, cache_out.dir, cache_in.dir);
     CHECK(count == 1, "%s: request batch count %d, expected 1", label, count);
     CHECK(IOWire_ReadRequest(&reader, &wire_req) == 0, "%s: request decode failed", label);
     CHECK(wire_req.req_id == 4242, "%s: req_id %u, expected 4242", label, wire_req.req_id);
@@ -100,12 +116,12 @@ check_round_trip(
     PlatformX_IO_LoadItem(px, &server_item);
 
     IOWireBuf_Init(&response);
-    IOWire_BatchBegin(&response);
+    IOWire_BatchBegin(&response, NULL);
     IOWire_WriteResponse(&response, wire_req.req_id, &server_item);
     CHECK(!response.error, "%s: response encode ran out of memory", label);
 
     IOWireReader_Init(&reader, response.data, response.len);
-    count = IOWire_BatchRead(&reader);
+    count = IOWire_BatchRead(&reader, NULL);
     CHECK(count == 1, "%s: response batch count %d, expected 1", label, count);
     CHECK(IOWire_ReadResponse(&reader, &wire_resp) == 0, "%s: response decode failed", label);
     CHECK(reader.off == reader.len, "%s: response record left %d bytes unread", label,
@@ -231,13 +247,13 @@ check_malformed(void)
     struct ToriRS_IOItem item = cache_item(1, 0, TORIRS_IO_CACHE_DAT1);
 
     IOWireReader_Init(&reader, "nope", 4);
-    CHECK(IOWire_BatchRead(&reader) < 0, "bad magic accepted");
+    CHECK(IOWire_BatchRead(&reader, NULL) < 0, "bad magic accepted");
 
     IOWireReader_Init(&reader, "TRIO\x09\x00\x00\x00\x01\x00\x00\x00", 12);
-    CHECK(IOWire_BatchRead(&reader) < 0, "wrong version accepted");
+    CHECK(IOWire_BatchRead(&reader, NULL) < 0, "wrong version accepted");
 
     IOWireBuf_Init(&buf);
-    IOWire_BatchBegin(&buf);
+    IOWire_BatchBegin(&buf, NULL);
     IOWire_WriteResponse(&buf, 7, &item);
     CHECK(buf.len > 12, "response record not written");
     memcpy(good, buf.data, (size_t)(buf.len < 64 ? buf.len : 64));
@@ -245,7 +261,7 @@ check_malformed(void)
     /* Truncated one byte short of complete: the reader must say so rather than
      * hand back a record with a blob pointer past the end of the buffer. */
     IOWireReader_Init(&reader, buf.data, buf.len - 1);
-    CHECK(IOWire_BatchRead(&reader) == 1, "truncated batch header rejected too early");
+    CHECK(IOWire_BatchRead(&reader, NULL) == 1, "truncated batch header rejected too early");
     CHECK(IOWire_ReadResponse(&reader, &resp) != 0, "truncated record accepted");
     IOWireBuf_Free(&buf);
 }

@@ -101,8 +101,9 @@ struct PlatformX_IO
     char* script_dir;
 
     /* Which cache these requests are about. Sent in every batch header so one
-     * server can answer clients booting different generations. */
-    struct IOWireCache cache;
+     * server can answer clients booting different generations. (Not to be
+     * confused with `cache` below, which is the response cache.) */
+    struct IOWireCache cache_id;
 
     struct IOWireBuf out;
     int out_count;
@@ -205,11 +206,11 @@ PlatformX_IO_InitCacheId(
     const char* dir)
 {
     assert(px);
-    px->cache.epoch = (int32_t)epoch;
-    px->cache.game = (int32_t)game;
-    px->cache.revision = (int32_t)revision;
-    px->cache.quirks = (uint32_t)quirks;
-    snprintf(px->cache.dir, sizeof(px->cache.dir), "%s", dir ? dir : "");
+    px->cache_id.epoch = (int32_t)epoch;
+    px->cache_id.game = (int32_t)game;
+    px->cache_id.revision = (int32_t)revision;
+    px->cache_id.quirks = (uint32_t)quirks;
+    snprintf(px->cache_id.dir, sizeof(px->cache_id.dir), "%s", dir ? dir : "");
 }
 
 void
@@ -473,7 +474,7 @@ PlatformX_IO_Process(
         }
 
         if( px->out_count == 0 )
-            IOWire_BatchBegin(&px->out, &px->cache);
+            IOWire_BatchBegin(&px->out, &px->cache_id);
 
         pending->in_use = 1;
         pending->req_id = px->next_req_id++;

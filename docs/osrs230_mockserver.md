@@ -367,7 +367,7 @@ There is one parking slot per player, matching the reference. A second script
 suspending while one waits is refused rather than queued — two parked scripts
 would interleave writes to the same player.
 
-## 3.11 NPC chat dialogue, and the one thing that does not work yet
+## 3.11 NPC chat dialogue
 
 Content: `scripts/chat.rs2`'s `~chatnpc` opens interface **231** into the chatbox
 and blocks on `p_pausebutton`, so a multi-page conversation is just sequential
@@ -395,52 +395,68 @@ Anything here that reads like a missing feature is that difference.
 mounting into `162:561` alone builds a dialogue that is never drawn — which
 looks exactly like the mount having failed.
 
-### Not working: the client renders a blank frame after the mount
+### The client bug this exposed: a nested mount hid the gameframe
 
-The protocol half is done and verified. The packets go out, the client parses
-them with the right uids, `IF_SETHIDE` applies, and `IF_OPENSUB` mounts
-interface 231 under `162:561`:
+Opening the dialogue made the client render a blank frame. Not a mock bug —
+`hide_unmounted_spillover` in `task_interface_open.c` was hiding root group
+**161**, the entire gameframe.
 
-```
-if_settext: com=15138820 text='Hans'                    (231:4)
-if_settext: com=15138822 text='Let me think...'         (231:6)
-if_sethide: com=10617391 hide=0 applied=1               (162:559)
-if-opensub: mount iface=231 under uid=0x00a20231 (162<<16|561) type=0
-```
+That function hides interface packs the CS2 runtime baked ahead of their mount,
+so they do not draw as stray roots. Its guard against hiding the live tree was:
 
-But the frame after that mount is a single flat colour, where the same run
-without the dialogue renders normally. Bisected precisely:
-
-| variant | result |
-|---|---|
-| `IF_SETTEXT` only | renders (1335 distinct colours) |
-| `IF_SETHIDE` only, no mount | renders (1334) |
-| mount only, no unhide | **blank (1)** |
-| `type=0` vs `type=1` | blank either way |
-| 400 vs 1500 frames | blank either way, so not a mid-mount race |
-| chathead `if_setanim` removed | still blank, so not the guessed seq id |
-
-So it is the mount itself, not the unhide, not the `type`, not timing, and not
-the chathead animation. `Task_OpenSubRefresh_Run` requests it and no second
-`InterfaceOpen done` line ever appears. The `Dat2SpriteLoadByName` warnings in
-that log are a red herring — the baseline run emits 51 of them too.
-
-Repro:
-
-```
-src/build/mock230 43600 &
-SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 TORIRS_NET_CHEAT="talk 0" \
-  TORIRS_EXIT_BMP=/tmp/dialogue.bmp TORIRS_NET_DEBUG=1 \
-  src/torirs --manifest manifest_osrs230.ini --user test --pass test \
-  --connect 127.0.0.1:43600
+```c
+int host_group = (self->target_uid >> 16) & 0xffff;
+if( group == host_group )
+    continue;
 ```
 
-`::talk <npcSlot>` fires `[opnpc3]` on that npc without needing a right-click.
+which protects only the mount target's *immediate* group. Every login-burst
+mount targets `161:xx`, so `host_group` is 161 and the gameframe is safe. The
+chat dialogue is the first mount into a **nested** sub-interface — `162:561`,
+where 162 is itself mounted under `161:96` — so `host_group` came out 162 and
+161 fell through and was hidden.
 
-Next place to look is `CreateTask_InterfaceOpenSub` and
-`App_RefreshAfterTreeMutation`: whether mounting a second interface *pack* after
-boot leaves the tree consistent, and whether this reproduces for any group or
-only for 231.
+The failure had no error anywhere: the packets are correct, the mount succeeds,
+and the frame is simply blank.
+
+The fix generalises the guard. A root group that *hosts* a mounted
+sub-interface is part of the live tree by definition, whatever the depth:
+
+```c
+if( group_hosts_a_mount(self->tree, group) )
+    continue;
+```
+
+`TORIRS_SPILLOVER_DEBUG=1` prints every root the tree hides and which mount
+caused it — that print is what found this, and "which root did the tree just
+hide" is invisible from anywhere else, so it stayed.
+
+### Still open: clicking "continue" does not advance the page
+
+The dialogue renders — chathead, name, body, continue prompt — and the server
+side is complete and self-tested. What does not work yet is advancing it from
+the client.
+
+A click lands on the right component:
+
+```
+click: miss=0 (0,0) com=0xe70005 gate=-1 drawable=1 picks=0
+```
+
+`0xe70005` is 231:5, and `picks=0` is the problem: the component produced no
+menu option, so nothing dispatched. `RS_Minimenu_IfButtonActionForType` derives
+the action from a component's `button_type`, which is an IF1 concept; 231:5 is
+IF3 and carries `button=0` with `clickMask=0x1`. At rev 230 a component becomes
+clickable because the server said so via **IF_SETEVENTS**, which this client
+still drops (docs 3.6) — so `if_addresumebutton` has no way to make the button
+live.
+
+That is the same follow-up already on the list, now with a concrete consumer:
+honour IF_SETEVENTS, and send IF_BUTTON for a component whose events bit is set.
+The mock already tracks the registered buttons and matches them by full uid;
+`mock230_scripts_resume_button` is driven directly by the selftest, which covers
+the whole multi-page flow including rejecting a click on another interface's
+component 5.
 
 ## 4. Client fix this work required: the inv half of the transmit loop
 

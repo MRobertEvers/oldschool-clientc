@@ -71,7 +71,7 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 96, 4, PKT_NAME_IF_SETPLAYERHEAD },
     { 97, 6, PKT_NAME_IF_SETANIM },
     { 98, 5, PKT_NAME_IF_SETHIDE },
-    { 47, 12, PKT_NAME_NONE }, /* IF_SETEVENTS */
+    { 47, 12, PKT_NAME_IF_SETEVENTS },
     { 84, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* RUNCLIENTSCRIPT */
     { 90, PKTIN_LENGTH_VARU8, PKT_NAME_MESSAGE_GAME }, /* osrs230_parse override */
     { 29, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* MESSAGE_PRIVATE */

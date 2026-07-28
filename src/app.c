@@ -156,6 +156,73 @@ app_chat_line_at(
         &app->chat, &filters, x - rx, y - ry, out_sender, sender_cap, out_chat_type);
 }
 
+/* Adapter so rs_minimenu_build can ask about server-declared events without
+ * knowing what an App is. */
+static int
+app_minimenu_events_for_component(void* user, int com_id)
+{
+    return App_IfEventsGet((struct App const*)user, com_id);
+}
+
+void
+App_IfEventsSet(
+    struct App* app,
+    int com_id,
+    int from,
+    int to,
+    int events)
+{
+    int i;
+
+    assert(app);
+    for( i = 0; i < app->if_event_count; i++ )
+        if( app->if_events[i].com_id == com_id )
+            break;
+    if( i == app->if_event_count )
+    {
+        if( app->if_event_count == app->if_event_cap )
+        {
+            int cap = app->if_event_cap ? app->if_event_cap * 2 : 64;
+
+            app->if_events = realloc(app->if_events, (size_t)cap * sizeof(*app->if_events));
+            assert(app->if_events);
+            app->if_event_cap = cap;
+        }
+        app->if_events[i].com_id = com_id;
+        app->if_event_count++;
+    }
+    app->if_events[i].from = from;
+    app->if_events[i].to = to;
+    app->if_events[i].events = events;
+
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
+            com_id,
+            (com_id >> 16) & 0xffff,
+            com_id & 0xffff,
+            from,
+            to,
+            events);
+    app->need_redraw = 1;
+}
+
+int
+App_IfEventsGet(
+    struct App const* app,
+    int com_id)
+{
+    if( !app )
+        return 0;
+    for( int i = 0; i < app->if_event_count; i++ )
+    {
+        if( app->if_events[i].com_id == com_id )
+            return app->if_events[i].events;
+    }
+    return 0;
+}
+
 static void
 app_send_if_button(void* user, int com_id);
 static void
@@ -6660,6 +6727,8 @@ app_hover_text_update(
                 .runner = &app->runner,
                 .invs = &app->invs,
                 .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
                 .selection = app_minimenu_selection(app),
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
@@ -6710,6 +6779,8 @@ app_minimenu_open(
         .runner = &app->runner,
         .invs = &app->invs,
         .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
         .selection = app_minimenu_selection(app),
         .world = app->world,
         .world_pickset = &app->world_pickset,
@@ -6955,6 +7026,8 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
         .runner = &app->runner,
         .invs = &app->invs,
         .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
@@ -7732,6 +7805,8 @@ App_RunOnce(
             .runner = &app->runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -7819,6 +7894,8 @@ App_RunOnce(
             .runner = &app->runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
+        .events_for_component = app_minimenu_events_for_component,
+        .events_user = app,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,

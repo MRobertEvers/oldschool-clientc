@@ -521,8 +521,17 @@ add_target_button_row(
  * option label as the row target — reference "<op> <target>") or, for
  * op-less buttons, a single label row. Port of v1
  * ui_click_add_component_menu_rows with xrsps target labeling. */
+/*
+ * Bit 0 of an IF_SETEVENTS mask: the component accepts a plain click, which the
+ * client answers with IF_BUTTON. It is what makes a dialogue's "Click here to
+ * continue" live — the cache marks the component clickable, but at rev 230 only
+ * the server decides whether it currently does anything.
+ */
+#define RS_MINIMENU_EVENT_CLICK 0x1
+
 static int
 add_component_rows(
+    struct RS_MinimenuBuildCtx const* ctx,
     struct UITreeComponent const* node,
     enum RS_MinimenuSelectMode select_mode,
     struct UIMinimenu* menu)
@@ -562,6 +571,30 @@ add_component_rows(
                          ? opts->option_action
                          : if_button_action_for_type(node->behavior.button_type);
         UIMinimenu_AddOption(menu, label, action, 0, pick);
+        return menu->option_count - before;
+    }
+
+    /* Nothing in the cache described this component as a button, but the server
+     * may have enabled it at run time. That is the normal case at rev 230 for
+     * anything a script drives — a dialogue's continue prompt carries
+     * button_type 0 and no menu ops, and is live only because IF_SETEVENTS said
+     * so. The component's own text is the label the player already sees. */
+    if( ctx->events_for_component )
+    {
+        int events = ctx->events_for_component(ctx->events_user, node->component_id);
+
+        if( events & RS_MINIMENU_EVENT_CLICK )
+        {
+            /* A text component's own string is the label the player is
+             * already reading ("Click here to continue"); anything else falls
+             * back to a generic verb. */
+            char const* text = (node->type == UIELEM_RS_TEXT && node->u.rs_text.text &&
+                                node->u.rs_text.text[0] != '\0')
+                                   ? node->u.rs_text.text
+                                   : "Continue";
+
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IF_BUTTON, 0, pick);
+        }
     }
 
     return menu->option_count - before;
@@ -604,7 +637,7 @@ RS_Minimenu_Build(
         else if( node->type == UIELEM_BUILTIN_CHAT )
             add_chat_rows(ctx, node, click_x, click_y, out);
         else
-            add_component_rows(node, ctx->selection.mode, out);
+            add_component_rows(ctx, node, ctx->selection.mode, out);
     }
 
     UIMinimenu_SortPriorityActions(out);

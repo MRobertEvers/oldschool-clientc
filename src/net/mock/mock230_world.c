@@ -842,12 +842,26 @@ mock230_world_handle(
         break;
 
     case PKTOUT_NAME_IF_BUTTON:
-        /* Sidebar tabs are switched entirely client-side at rev 230 (the CS2
-         * gameframe swaps the mounted panel on a varc), so a button click here
-         * needs no server state — it is logged and dropped. */
+    {
+        struct RSAreaBuf button;
+        int uid;
+
+        rsab_wrap(&button, (void*)payload, (size_t)len);
+        uid = rsab_g4(&button);
+        if( !rsab_ok(&button) )
+            break;
         if( srv->verbose )
-            fprintf(stderr, "mock230: <- IF_BUTTON (%d bytes)\n", len);
+            fprintf(stderr, "mock230: <- IF_BUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+
+        /* rev 230 has no separate resume opcode in practice — a component the
+         * server enabled with IF_SETEVENTS answers a click with IF_BUTTON, and
+         * the server decides what it meant. Try it as a resume first; a click
+         * that matches no registered button falls through, which is how sidebar
+         * tabs (switched client-side on a varc) stay a no-op. */
+        if( mock230_scripts_resume_button(srv, uid) )
+            break;
         break;
+    }
 
     default:
         break;

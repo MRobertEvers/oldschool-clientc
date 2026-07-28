@@ -205,6 +205,21 @@ osrs230_parse(
         out->_if_sethide.hide = data[4];
         return 1;
 
+    /* IF_SETEVENTS (op 47, 12 bytes). RSProt IfSetEventsEncoder writes
+     * p4Alt3 combinedId, p2Alt2 start, p4Alt1 events, p2 end — four different
+     * byte orders in one packet, which is normal for Jagex and is why this
+     * cannot go through the shared parser. */
+    case PKT_NAME_IF_SETEVENTS:
+        if( len < 12 )
+            return 0;
+        out->_if_setevents.component_id =
+            (data[1] << 24) | (data[0] << 16) | (data[3] << 8) | data[2];
+        out->_if_setevents.from = (data[4] << 8) | ((data[5] - 128) & 0xff);
+        out->_if_setevents.events =
+            data[6] | (data[7] << 8) | (data[8] << 16) | (data[9] << 24);
+        out->_if_setevents.to = (data[10] << 8) | data[11];
+        return 1;
+
     /* IF_CLOSESUB (op 36, 4 bytes): combinedId as p4 (big-endian packed int).
      * RSProt IfCloseSubEncoder. */
     case PKT_NAME_IF_CLOSESUB:

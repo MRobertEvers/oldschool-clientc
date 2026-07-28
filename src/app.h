@@ -338,6 +338,21 @@ struct App
     int if_hide_cap;
     uint32_t if_hide_applied_gen;
 
+    /* Persistent IF_SETEVENTS store. At rev 230 nothing is clickable by
+     * default — the server declares which slots of which component accept
+     * input, and it does so before the interface finishes mounting, so the
+     * masks have to survive until there is a tree to apply them to. Without
+     * this a dialogue renders correctly and swallows every click. */
+    struct
+    {
+        int com_id;
+        int from;
+        int to;
+        int events;
+    }* if_events;
+    int if_event_count;
+    int if_event_cap;
+
     /* Persistent IF_SETNPCHEAD / IF_SETPLAYERHEAD store (reference keeps
      * model1Type/model1Id on IfType.list and re-resolves getModel every draw):
      * the head packet arrives before the chat interface mounts, so the request
@@ -657,6 +672,27 @@ App_IfHideSet(
     struct App* app,
     int com_id,
     int hide);
+
+/**
+ * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
+ *
+ * Persisting, like App_IfHideSet, because the server enables events before the
+ * interface holding the component has mounted.
+ */
+void
+App_IfEventsSet(
+    struct App* app,
+    int com_id,
+    int from,
+    int to,
+    int events);
+
+/** Server-declared events mask for a component, or 0 when it was never
+ *  enabled. 0 means "not interactive" — rev 230 has no clickable-by-default. */
+int
+App_IfEventsGet(
+    struct App const* app,
+    int com_id);
 
 /** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
  *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —
