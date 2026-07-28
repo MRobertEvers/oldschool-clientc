@@ -339,6 +339,21 @@ app_worldmap_push_icon(
     return true;
 }
 
+/** Nearest first; ties broken by region so the order is stable frame to frame. */
+static int
+app_worldmap_visit_cmp(
+    void const* lhs,
+    void const* rhs)
+{
+    struct App_WorldMapVisit const* a = (struct App_WorldMapVisit const*)lhs;
+    struct App_WorldMapVisit const* b = (struct App_WorldMapVisit const*)rhs;
+    if( a->distance != b->distance )
+        return a->distance < b->distance ? -1 : 1;
+    if( a->region_y != b->region_y )
+        return a->region_y - b->region_y;
+    return a->region_x - b->region_x;
+}
+
 static int
 app_worldmap_build_tiles(
     struct App* app,
@@ -449,10 +464,45 @@ app_worldmap_build_tiles(
     if( max_region_y > area->region_high_y )
         max_region_y = area->region_high_y;
 
+    /*
+     * Visit order is nearest-the-centre first, as the reference sorts its
+     * visible tiles. It decides who gets the frame's bake and asset-load
+     * allowance, and scan order (top-left onwards) spends it on whatever
+     * happens to be scanned first — so a region the view is centred on could
+     * wait behind a whole screenful of edge regions, which is how a pan leaves
+     * tiles unloaded until it has moved past them.
+     */
+    app->worldmap_visit_count = 0;
     for( int region_y = min_region_y; region_y <= max_region_y; region_y++ )
     {
         for( int region_x = min_region_x; region_x <= max_region_x; region_x++ )
         {
+            struct App_WorldMapVisit* visit;
+            int centre_tile_x = region_x * WORLD_MAP_TERRAIN_X + WORLD_MAP_TERRAIN_X / 2;
+            int centre_tile_y = region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z / 2;
+            int dx = centre_tile_x - display_x;
+            int dy = centre_tile_y - display_y;
+
+            if( app->worldmap_visit_count >=
+                (int)(sizeof(app->worldmap_visits) / sizeof(app->worldmap_visits[0])) )
+                break;
+            visit = &app->worldmap_visits[app->worldmap_visit_count++];
+            visit->region_x = region_x;
+            visit->region_y = region_y;
+            visit->distance = dx * dx + dy * dy;
+        }
+    }
+    qsort(
+        app->worldmap_visits,
+        (size_t)app->worldmap_visit_count,
+        sizeof(app->worldmap_visits[0]),
+        app_worldmap_visit_cmp);
+
+    for( int i = 0; i < app->worldmap_visit_count; i++ )
+    {
+        {
+            int region_x = app->worldmap_visits[i].region_x;
+            int region_y = app->worldmap_visits[i].region_y;
             struct UITreeWorldMapTile* tile;
             int size = 0;
             int fallback_scene_id = -1;
@@ -499,10 +549,11 @@ app_worldmap_build_tiles(
 
     /* Icons in a second pass, so no later region paints over an earlier
      * region's icons: everything in this list draws in order. */
-    for( int region_y = min_region_y; region_y <= max_region_y; region_y++ )
+    for( int i = 0; i < app->worldmap_visit_count; i++ )
     {
-        for( int region_x = min_region_x; region_x <= max_region_x; region_x++ )
         {
+            int region_x = app->worldmap_visits[i].region_x;
+            int region_y = app->worldmap_visits[i].region_y;
             struct RS_WorldMapRegionIcon const* icons = NULL;
             int scene_id = RS_WorldMapRender_RegionSprite(
                 app->worldmap_render,
@@ -533,11 +584,23 @@ app_worldmap_build_tiles(
 
     app->worldmap_debug_frame++;
     if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
+    {
+        /* Queue depth is the tell for the surface freezing: the runner is
+         * serial (one task per IO round trip), so a backlog that climbs every
+         * frame means loads are being queued faster than they can retire, and
+         * anything newly in view waits behind all of it. */
+        int queued = 0;
+        for( struct ToriRS_Task* task = app->runner.queue ? app->runner.queue->head : NULL;
+             task && queued < 100000;
+             task = task->next )
+            queued++;
         fprintf(
             stderr,
-            "worldmap frame: display=%d,%d scale=%d regions x=%d..%d y=%d..%d blits=%d\n",
+            "worldmap frame: display=%d,%d scale=%d regions x=%d..%d y=%d..%d blits=%d "
+            "queued_tasks=%d\n",
             display_x, display_y, scale, min_region_x, max_region_x, min_region_y, max_region_y,
-            app->worldmap_tile_count);
+            app->worldmap_tile_count, queued);
+    }
 
     return app->worldmap_tile_count;
 }
@@ -1853,6 +1916,16 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
+#if defined(TORIRS_PLATFORM_WEB)
+    /* The browser has no cache directory to open. Every read the disk layer
+     * would have answered goes to the IO server instead, which holds the real
+     * cache and therefore also the things only an open cache can answer:
+     * logical-table resolution, the map XTEA gate, and the dat1 versionlist
+     * map_index. Leaving both disk handles NULL is what keeps that honest —
+     * anything here that tried to read locally would fault rather than quietly
+     * answer from an empty cache. */
+    (void)cfg->cache_dir;
+#else
     if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
@@ -1897,6 +1970,7 @@ App_Init(
         }
         PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
     }
+#endif
     PlatformX_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     PlatformX_IO_InitScriptPath(app->runner.px, cfg->script_dir);
 
@@ -3037,13 +3111,6 @@ Task_AppBoot_Run(
     app_update_world_viewport(app);
 
     app->boot_progress = 100;
-    if( getenv("TORIRS_BOOT_STATS") )
-        fprintf(
-            stderr,
-            "boot: frames=%d steps=%ld budget_capped_frames=%d\n",
-            app->boot_frames,
-            app->boot_steps,
-            app->boot_frames_budget_capped);
     app->app_state = APP_STATE_READY;
     app->pending_tree_refresh = 1;
     app->need_redraw = 1;
@@ -3263,8 +3330,11 @@ App_BootWait(struct App* app)
     assert(app);
     while( guard-- > 0 )
     {
-        enum TaskRunnerStat main_stat = TaskRunner_Step(&app->runner);
-        enum TaskRunnerStat exec_stat = TaskRunner_Step(&app->exec_runner);
+        enum TaskRunnerStat main_stat;
+        enum TaskRunnerStat exec_stat;
+        app->boot_steps += 2;
+        main_stat = TaskRunner_Step(&app->runner);
+        exec_stat = TaskRunner_Step(&app->exec_runner);
         if( app->app_state == APP_STATE_READY )
             app_async_polls(app);
         if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
@@ -7264,17 +7334,25 @@ App_RunOnce(
         int steps = 0;
         for( int i = 0; i < budget; i++ )
         {
-            stat = TaskRunner_Step(&app->runner);
             steps++;
+            if( booting )
+                app->boot_steps++;
+            stat = TaskRunner_Step(&app->runner);
             if( stat == TASK_RUNNER_IDLE )
                 break;
         }
         if( booting )
         {
             app->boot_frames++;
-            app->boot_steps += steps;
             if( steps >= budget )
                 app->boot_frames_budget_capped++;
+        }
+        else if( steps >= budget )
+        {
+            /* Post-boot frame that used its whole budget with work still
+             * queued: the async pipeline is being drip-fed rather than run. */
+            app->busy_frames++;
+            app->busy_steps += steps;
         }
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
         if( app->runner_had_work && stat == TASK_RUNNER_IDLE )

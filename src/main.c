@@ -24,6 +24,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(TORIRS_PLATFORM_WEB)
+#include "platform/platform_x_io_web.h"
+#endif
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
  * as argv[1] from anywhere else. The default boot is the 254-era dat1 cache
  * driven by the rev_245_2 RevConfig; --dat2 switches to the js5 cache, where
@@ -343,34 +350,637 @@ interactive_render_present(
     }
 }
 
+
+/* --- the interactive frame loop -----------------------------------------
+ *
+ * The loop's state lives at file scope rather than in main's frame because the
+ * browser host cannot keep it there: emscripten_set_main_loop unwinds the C
+ * stack and then calls back one animation frame at a time, so anything main
+ * held as a local would be gone by the first tick. There is exactly one frame
+ * loop per process, so file scope costs nothing and says as much.
+ *
+ * frame_loop_step() is one iteration of what used to be the while body,
+ * verbatim; it returns 0 when the loop should stop. Native spins it; the
+ * browser hands it to requestAnimationFrame.
+ */
+static struct App app;
+static struct AppConfig cfg = {
+    .cache_dir = NULL, /* resolved from cache_kind below */
+    .config_dir = CONFIG_DIR,
+    .script_dir = SCRIPT_DIR,
+    .interface_id = DEFAULT_INTERFACE_ID,
+    .cache_kind = APP_CACHE_DAT1,
+    /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
+    .spawn_x = -1,
+    .spawn_z = -1,
+    /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
+    .spawn_npc_id = -1,
+    .spawn_obj_id = -1,
+    .spawn_spotanim_id = -1,
+    .spawn_spotanim_height = -1,
+    .spawn_spotanim_delay = -1,
+    .spawn_proj_model_id = -1,
+    .spawn_proj_seq_id = -1,
+};
+
+static struct PlatformSDL2* sdl;
+static struct LibToriRS_Input input_storage;
+static struct LibToriRS_Input* input;
+/* The ring is 128KB and there is exactly one bus per process. */
+static struct ToriRS_CmdBus bus;
+static FILE* replay;
+static uint64_t replay_now;
+static struct ToriRS_GL3* gl3;
+static struct PlatformAudio* audio;
+static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
+static int sim_sound_id = -1;
+static int sim_sound_loops = 1;
+static int sim_sound_every;
+static long sim_sound_next;
+static long max_frames;
+static long frame_count;
+static struct NetTransport* sock;
+static int sim_openmain = -1;
+static int sim_openmain_done;
+static int sim_openchat = -1;
+static int sim_openchat_done;
+static int boot_stats;
+static uint64_t boot_start_ms;
+static int boot_reported;
+static char const* sim_sethide;
+static int sim_sethide_done;
+static char const* sim_setvarp;
+static char const* sim_settab;
+static int sim_settab_done;
+static int uncapped;
+
+/** One iteration of the frame loop. Returns 0 when the client should stop. */
+static int
+frame_loop_step(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    /* Carry last frame's queued cache reads to the IO server and take delivery
+     * of whatever came back. Nothing else in the process runs every frame, and
+     * a request nobody carries parks the task queue forever. */
+    PlatformXIO_Web_Pump();
+#endif
+    if( PlatformSDL2_QuitRequested(sdl) )
+        return 0;
+
+    uint64_t now;
+
+    if( max_frames > 0 && frame_count++ >= max_frames )
+        return 0;
+
+    if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
+    {
+        boot_reported = 1;
+        fprintf(
+            stderr,
+            "boot: %llums  frames=%d steps=%ld capped=%d\n",
+            (unsigned long long)(PlatformSDL2_Ticks64() - boot_start_ms),
+            app.boot_frames,
+            app.boot_steps,
+            app.boot_frames_budget_capped);
+    }
+    if( boot_stats && frame_count == max_frames - 1 )
+        fprintf(
+            stderr,
+            "post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+            "whole budget with work still queued)\n",
+            app.busy_frames,
+            app.busy_steps);
+
+    if( sim_openmain > 0 && !sim_openmain_done && app.app_state == APP_STATE_READY )
+    {
+        fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
+        RS_UISlots_OpenMain(&app, sim_openmain);
+        sim_openmain_done = 1;
+    }
+
+    if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
+    {
+        fprintf(stderr, "sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
+        RS_UISlots_OpenChat(&app, sim_openchat);
+        sim_openchat_done = 1;
+    }
+
+    if( sim_settab && !sim_settab_done && app.app_state == APP_STATE_READY )
+    {
+        char* tab_sep = NULL;
+        int tabno = (int)strtol(sim_settab, &tab_sep, 0);
+        int tab_iface =
+            tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
+        fprintf(stderr, "sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
+        RS_UISlots_SetTab(&app, tabno, tab_iface);
+        RS_UISlots_SetSideTab(&app, tabno);
+        sim_settab_done = 1;
+    }
+
+    if( sim_setvarp && app.app_state == APP_STATE_READY )
+    {
+        char const* cur = sim_setvarp;
+        while( *cur )
+        {
+            char* sep = NULL;
+            long varp = strtol(cur, &sep, 0);
+            long value = sep && *sep == ':' ? strtol(sep + 1, &sep, 0) : 0;
+            VarPManager_SetVarpOptimistic(&app.varps, (int)varp, (int)value);
+            while( sep && *sep && *sep != ',' )
+                sep++;
+            cur = sep && *sep == ',' ? sep + 1 : "";
+        }
+    }
+
+    /* TORIRS_SIM_SETHIDE="com:0|1,...": replay IF_SETHIDE offline. The
+     * chat dialogs ship both a narrow and a wide decoration layer and
+     * the server picks one, so without this there is no way to see the
+     * unhidden variant without a live session. */
+    if( sim_sethide && !sim_sethide_done && app.app_state == APP_STATE_READY && app.tree &&
+        (sim_openchat <= 0 || sim_openchat_done) && (!sim_settab || sim_settab_done) )
+    {
+        char const* cur = sim_sethide;
+        while( *cur )
+        {
+            char* sep = NULL;
+            long com = strtol(cur, &sep, 0);
+            int hide = sep && *sep == ':' ? (int)strtol(sep + 1, &sep, 0) : 1;
+            fprintf(stderr, "sim_sethide: com=%ld hide=%d\n", com, hide);
+            App_IfHideSet(&app, (int)com, hide);
+            while( sep && *sep && *sep != ',' )
+                sep++;
+            cur = sep && *sep == ',' ? sep + 1 : "";
+        }
+        App_RefreshAfterTreeMutation(&app);
+        sim_sethide_done = 1;
+    }
+
+    /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
+     * once the client is up, and again every `every_ticks` ticks. The
+     * only way to hear the audio path without a server, so it is the
+     * check that "the sound plays" means a speaker and not a counter. */
+    if( sim_sound_id >= 0 && app.app_state == APP_STATE_READY )
+    {
+        if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
+        {
+            fprintf(
+                stderr,
+                "sim_sound: queueing effect %d loops=%d\n",
+                sim_sound_id,
+                sim_sound_loops);
+            App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
+            sim_sound_next = sim_sound_every > 0 ? frame_count + sim_sound_every : -1;
+        }
+    }
+
+    if( replay )
+    {
+        if( !CmdReplay_PumpFrame(replay, &bus, &replay_now) )
+            return 0; /* recording exhausted */
+        now = replay_now;
+    }
+    else
+    {
+        now = PlatformSDL2_Ticks64();
+        CmdBus_PushFrame(&bus, now);
+        PlatformSDL2_PollCommands(sdl, &bus);
+        if( sock )
+            NetTransport_Poll(sock, app.net, &bus);
+
+        /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats]": press at
+         * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
+         * `repeats` times (default 1). The only way to exercise a drag
+         * headlessly — SIM_CLICK_AT presses and releases in the same
+         * place, which no drag handler reacts to — and the repeat is
+         * what keeps a pan going long enough to show what a client does
+         * when the view never settles. */
+        {
+            static long drag_frame = -2;
+            static long drag_x0, drag_y0, drag_x1, drag_y1;
+            static long drag_repeats = 1;
+            if( drag_frame == -2 )
+            {
+                char const* spec = getenv("TORIRS_SIM_DRAG");
+                drag_frame = -1;
+                if( spec && *spec )
+                {
+                    char* end = NULL;
+                    long values[6];
+                    int count = 0;
+                    values[count++] = strtol(spec, &end, 0);
+                    while( count < 6 && end && *end == ',' )
+                        values[count++] = strtol(end + 1, &end, 0);
+                    if( count >= 5 )
+                    {
+                        drag_frame = values[0];
+                        drag_x0 = values[1];
+                        drag_y0 = values[2];
+                        drag_x1 = values[3];
+                        drag_y1 = values[4];
+                        drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
+                    }
+                }
+            }
+            if( drag_frame >= 0 && frame_count >= drag_frame )
+            {
+                long step = frame_count - drag_frame;
+                long const steps = 20;
+                if( step == 0 )
+                    CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
+                else if( step == 2 )
+                    CmdBus_PushMouseButton(
+                        &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, (int)drag_x0, (int)drag_y0);
+                else if( step > 2 && step <= 2 + steps )
+                {
+                    long i = step - 2;
+                    int x = (int)(drag_x0 + (drag_x1 - drag_x0) * i / steps);
+                    int y = (int)(drag_y0 + (drag_y1 - drag_y0) * i / steps);
+                    CmdBus_PushMouseMove(&bus, x, y);
+                }
+                else if( step == 3 + steps )
+                {
+                    CmdBus_PushMouseButton(
+                        &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, (int)drag_x1, (int)drag_y1);
+                    fprintf(
+                        stderr,
+                        "sim_drag: %ld,%ld -> %ld,%ld (%ld left)\n",
+                        drag_x0, drag_y0, drag_x1, drag_y1, drag_repeats - 1);
+                    if( --drag_repeats > 0 )
+                    {
+                        /* Alternate direction each repeat: panning one
+                         * way clamps at the area edge after a couple of
+                         * drags and the view stops moving, which is not
+                         * the "never settles" case worth testing. */
+                        long swap_x = drag_x0;
+                        long swap_y = drag_y0;
+                        drag_x0 = drag_x1;
+                        drag_y0 = drag_y1;
+                        drag_x1 = swap_x;
+                        drag_y1 = swap_y;
+                        drag_frame = frame_count + 2;
+                    }
+                    else
+                        drag_frame = -1;
+                }
+            }
+        }
+
+        /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
+         * inject a mouse click at the given main-loop frame — the
+         * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
+         * before login completes, too early to test the world). The
+         * move lands 3 frames before the press so the hover pick set
+         * (built during render) covers the click position. */
+        {
+            static char const* sim_at_cursor = NULL;
+            static int sim_at_init = 0;
+            static long pend_frame = -1, pend_x, pend_y, pend_right;
+            if( !sim_at_init )
+            {
+                sim_at_init = 1;
+                sim_at_cursor = getenv("TORIRS_SIM_CLICK_AT");
+            }
+            if( pend_frame < 0 && sim_at_cursor && *sim_at_cursor )
+            {
+                char* end = NULL;
+                pend_frame = strtol(sim_at_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    pend_x = strtol(end + 1, &end, 0);
+                    pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                    pend_right = 0;
+                    if( end && *end == ',' )
+                        pend_right = strtol(end + 1, &end, 0);
+                    sim_at_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    sim_at_cursor = NULL;
+                    pend_frame = -1;
+                }
+            }
+            if( pend_frame >= 0 && frame_count >= pend_frame )
+            {
+                long step = frame_count - pend_frame;
+                uint8_t btn = pend_right ? 3 : 1;
+                if( step == 0 )
+                {
+                    CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
+                    fprintf(
+                        stderr,
+                        "sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
+                        pend_frame,
+                        pend_x,
+                        pend_y,
+                        pend_right);
+                }
+                else if( step == 3 )
+                {
+                    CmdBus_PushMouseButton(
+                        &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, (int)pend_x, (int)pend_y);
+                }
+                else if( step >= 4 )
+                {
+                    CmdBus_PushMouseButton(
+                        &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
+                    fprintf(stderr, "sim_click_at: released %ld,%ld\n", pend_x, pend_y);
+                    pend_frame = -1;
+                }
+            }
+        }
+    }
+
+    LibToriRS_Input_Begin(input, now);
+    App_DrainCommands(&app, &bus, input);
+    LibToriRS_Input_End(input);
+
+    if( App_RunOnce(&app, now, input) )
+        interactive_render_present(&app, sdl, gl3);
+    else if( gl3 )
+        PlatformSDL2_PresentGL(sdl);
+    else
+        PlatformSDL2_Present(sdl);
+
+    /* The game asked; the platform plays. Once per frame, after the tick
+     * that queued the requests and before the next one recycles their
+     * PCM (App_DrainAudio lends it for exactly this long). */
+    PlatformAudio_SubmitAll(
+        audio,
+        audio_commands,
+        App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
+
+    update_window_title(sdl, &app, cfg.interface_id);
+    /* The browser paces us: emscripten_set_main_loop is backed by
+     * requestAnimationFrame, and a blocking sleep here would stall the page's
+     * whole main thread rather than yield it. */
+#if !defined(__EMSCRIPTEN__)
+    if( !replay )
+    {
+        if( uncapped )
+            PlatformSDL2_Delay(1);
+        else
+        {
+            /* 50 fps cap: one frame per 20ms client cycle (--uncapped
+             * frees the loop for profiling/benchmarks). */
+            uint64_t elapsed = PlatformSDL2_Ticks64() - now;
+            if( elapsed < 20 )
+                PlatformSDL2_Delay((uint32_t)(20 - elapsed));
+        }
+    }
+#endif
+    return 1;
+}
+
+/** Everything after the loop: final dumps, then release the platform. */
+static void
+frame_loop_teardown(void)
+{
+
+    /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
+     * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
+    if( getenv("TORIRS_EXIT_BMP") )
+    {
+        /* TORIRS_SIM_HOVER=x,y: park the pointer there for a few real
+         * interact frames FIRST, so both the dumps below and the BMP capture
+         * hover-dependent chrome (IF1 overlayer tooltips, over-colour swaps,
+         * CS2 onmouserepeat tooltip layers) instead of whatever the last
+         * main-loop event left behind. */
+        if( getenv("TORIRS_SIM_HOVER") )
+        {
+            struct LibToriRS_Input hov_storage;
+            struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
+            char* hov_sep = NULL;
+            int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
+            int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+            for( int t = 0; t < 4; t++ )
+            {
+                LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
+                LibToriRS_Input_End(hov_input);
+                App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+            }
+            fprintf(
+                stderr,
+                "sim_hover: parked at %d,%d hover_com_id=%d\n",
+                hov_x,
+                hov_y,
+                app.hover_com_id);
+        }
+        /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
+         * runs before any server IF_OPENSUB lands), this dumps after the
+         * frame loop so server-driven interface mounts are visible. */
+        if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
+            dump_tree(&app, cfg.interface_id);
+        if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
+            dump_hooks(&app);
+        /* Post-network emit dump: the actual draw list for the last frame,
+         * to find what paints over the world viewport (0,0..723,503). */
+        /* TORIRS_DUMP_BOUNDS=<group>: post-net resolved geometry for one
+         * interface. dump_tree deliberately prints no box for RS_LAYERs (it
+         * stays byte-comparable with the reference widgetTreeDump), and
+         * TORIRS_DUMP_LAYOUT runs at boot before anything is mounted — so
+         * this is the only view of a mounted container's resolved box, its
+         * size modes, and its scroll extents. A layer whose box is taller
+         * than the cache says is why its children escape the clip. */
+        if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
+        {
+            int want = (int)strtol(getenv("TORIRS_DUMP_BOUNDS"), NULL, 0);
+            for( uint32_t i = 0; i < app.tree->component_count; i++ )
+            {
+                struct UITreeComponent const* c = &app.tree->components[i];
+                if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
+                    continue;
+                fprintf(
+                    stderr,
+                    "BOUNDS com=0x%08x (%d|%d) type=%d abs=%d,%d %dx%d "
+                    "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
+                    (unsigned)c->component_id,
+                    (c->component_id >> 16) & 0xFFFF,
+                    c->component_id & 0xFFFF,
+                    (int)c->type,
+                    c->position.abs_x, c->position.abs_y,
+                    c->position.abs_w, c->position.abs_h,
+                    c->position.width, c->position.height,
+                    (int)c->position.width_mode, (int)c->position.height_mode,
+                    (int)c->position.x_mode, (int)c->position.y_mode,
+                    c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
+                    c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
+                    c->scroll_x, c->scroll_y);
+            }
+        }
+
+        /* TORIRS_DUMP_EMIT_EXIT: post-net draw list (the boot-time
+         * TORIRS_DUMP_EMIT fires before any server interface has mounted, so
+         * it never shows sub-interface content). Value selects the filter:
+         *   "cover"        -> only viewport-covering rects (the original
+         *                     use: finding an interface painted over the world)
+         *   <group id>     -> only that interface group's components
+         *   anything else  -> every command
+         * The clip is included because a drawable overflowing its container is
+         * a clip bug, and the clip is the only way to tell which. */
+        {
+            char const* emit_filter = getenv("TORIRS_DUMP_EMIT_EXIT");
+            int filter_group = -1;
+            int cover_only = 0;
+            if( emit_filter )
+            {
+                if( strcmp(emit_filter, "cover") == 0 )
+                    cover_only = 1;
+                else if( emit_filter[0] >= '1' && emit_filter[0] <= '9' )
+                    filter_group = (int)strtol(emit_filter, NULL, 0);
+            }
+            for( int i = 0; emit_filter && i < app.emit.count; i++ )
+            {
+                struct UITreeEmitDesc* d = &app.emit.cmds[i];
+                int group = (d->component_id >> 16) & 0xFFFF;
+                if( cover_only && !(d->w >= 300 && d->h >= 200 && d->x < 480) )
+                    continue;
+                if( filter_group >= 0 && group != filter_group )
+                    continue;
+                fprintf(
+                    stderr,
+                    "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d "
+                    "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
+                    i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
+                    d->x, d->y, d->w, d->h, d->scene_id, d->color, d->filled, d->trans,
+                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
+            }
+        }
+        if( getenv("TORIRS_NET_DEBUG") && app.tree )
+        {
+            for( int t = 0; t < 14; t++ )
+                fprintf(
+                    stderr,
+                    "exit: tab %d overlay=%d owner=%d\n",
+                    t,
+                    app.slots.side_overlay_id[t],
+                    app.slots.side_owner_index[t]);
+            for( uint32_t i = 0; i < app.tree->component_count; i++ )
+            {
+                struct UITreeComponent const* c = &app.tree->components[i];
+                if( c->type == UIELEM_BUILTIN_TAB_ICONS )
+                    fprintf(
+                        stderr,
+                        "exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
+                        i,
+                        c->u.tab_icon.tabno,
+                        (int)c->freed,
+                        (int)c->behavior.hide,
+                        c->u.tab_icon.scene_id,
+                        c->position.abs_x,
+                        c->position.abs_y);
+            }
+            for( int f = 0; f < 6; f++ )
+                fprintf(
+                    stderr,
+                    "exit: scene_font %d has=%d\n",
+                    f,
+                    (int)ToriDraw_SceneFontHas(app.scene, f));
+            fprintf(stderr, "exit: hover_com_id=%d\n", app.hover_com_id);
+            fprintf(
+                stderr,
+                "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
+                app.minimap_view_valid,
+                app.minimap_emit_desc.x,
+                app.minimap_emit_desc.y,
+                app.minimap_emit_desc.w,
+                app.minimap_emit_desc.h,
+                app.minimap_emit_desc.component_id);
+            /* TORIRS_DUMP_COM=id: dump every live node carrying that
+             * component id (duplicate-id / ApplyText-target debugging). */
+            if( getenv("TORIRS_DUMP_COM") )
+            {
+                int want = atoi(getenv("TORIRS_DUMP_COM"));
+                for( uint32_t i = 0; i < app.tree->component_count; i++ )
+                {
+                    struct UITreeComponent const* c = &app.tree->components[i];
+                    if( c->component_id != want )
+                        continue;
+                    fprintf(
+                        stderr,
+                        "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
+                        "abs=%d,%d wh=%dx%d font=%d color=0x%x parent=%d\n",
+                        want,
+                        i,
+                        (int)c->type,
+                        (int)c->freed,
+                        (int)c->behavior.hide,
+                        c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text
+                                                                      : "",
+                        c->position.abs_x,
+                        c->position.abs_y,
+                        c->position.abs_w,
+                        c->position.abs_h,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.font_id : -1,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.color : 0,
+                        c->parent);
+                }
+            }
+        }
+        int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        assert(pixels);
+        App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        bmp_write_file(
+            getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        printf("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
+        free(pixels);
+    }
+
+    if( replay )
+    {
+        fclose(replay);
+        /* TORIRS_REPLAY_BMP=path: dump the final replayed frame for golden
+         * comparison against the recorded session. */
+        if( getenv("TORIRS_REPLAY_BMP") )
+        {
+            int* pixels =
+                calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            assert(pixels);
+            App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            bmp_write_file(
+                getenv("TORIRS_REPLAY_BMP"),
+                pixels,
+                UITREE_LAYOUT_ROOT_W,
+                UITREE_LAYOUT_ROOT_H);
+            printf("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
+            free(pixels);
+        }
+    }
+    CmdBus_RecordClose(&bus);
+
+    NetTransport_Free(sock);
+    PlatformAudio_Free(audio);
+    ToriRS_GL3_Free(gl3);
+    PlatformSDL2_Free(sdl);
+    NetTransport_Free(sock);
+    PlatformAudio_Free(audio);
+    ToriRS_GL3_Free(gl3);
+    PlatformSDL2_Free(sdl);
+}
+
+#if defined(__EMSCRIPTEN__)
+/* The browser owns the frame clock, so the loop is inverted: instead of the
+ * client calling the platform once per iteration, the platform calls the
+ * client. Same step function either way. */
+static void
+frame_loop_tick(void)
+{
+    if( frame_loop_step() )
+        return;
+    emscripten_cancel_main_loop();
+    frame_loop_teardown();
+    App_Shutdown(&app);
+}
+#endif
+
 int
 main(
     int argc,
     char** argv)
 {
-    struct AppConfig cfg = {
-        .cache_dir = NULL, /* resolved from cache_kind below */
-        .config_dir = CONFIG_DIR,
-        .script_dir = SCRIPT_DIR,
-        .interface_id = DEFAULT_INTERFACE_ID,
-        .cache_kind = APP_CACHE_DAT1,
-        /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
-        .spawn_x = -1,
-        .spawn_z = -1,
-        /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
-        .spawn_npc_id = -1,
-        .spawn_obj_id = -1,
-        .spawn_spotanim_id = -1,
-        .spawn_spotanim_height = -1,
-        .spawn_spotanim_delay = -1,
-        .spawn_proj_model_id = -1,
-        .spawn_proj_seq_id = -1,
-    };
-    static struct App app;
     static char derived_cache_ini[512];
     static struct BootManifest boot_manifest; /* must outlive app: cfg points into it */
     int write_bmp = 0;
-    int uncapped = 0;
     int offline = 0;
     int cli_connect = 0;
     int use_opengl3 = 0;
@@ -1217,21 +1827,9 @@ main(
     }
 
     {
-        struct PlatformSDL2* sdl = PlatformSDL2_New();
-        struct LibToriRS_Input input_storage;
-        struct LibToriRS_Input* input;
-        /* Static: the ring is 128KB and there is exactly one bus per process. */
-        static struct ToriRS_CmdBus bus;
-        FILE* replay = NULL;
-        uint64_t replay_now = 0;
         char title[64];
-        struct ToriRS_GL3* gl3 = NULL;
-        struct PlatformAudio* audio = NULL;
-        struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
-        int sim_sound_id = -1;
-        int sim_sound_loops = 1;
-        int sim_sound_every = 0;
-        long sim_sound_next = 0;
+
+        sdl = PlatformSDL2_New();
 
         snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
         if( !sdl )
@@ -1347,13 +1945,13 @@ main(
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
-        long max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
-        long frame_count = 0;
+        max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
+        frame_count = 0;
 
         /* Socket transport is created only when --connect enabled networking;
          * it bridges the net subsystem's out ring to a TCP socket and pushes
          * received bytes onto the bus as NET_RECV commands. */
-        struct NetTransport* sock =
+        sock =
             app.net ? NetTransport_New(
                           app.net->rev->transport_kind,
                           cfg.connect_port > 0 ? cfg.connect_port : 43594)
@@ -1362,530 +1960,55 @@ main(
         /* TORIRS_SIM_OPENMAIN=<iface>: once the gameframe is up, mount an
          * interface into the main-modal slot exactly as an IF_OPENMAIN packet
          * would. Offline repro for server-driven modals (player design 3559). */
-        int sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
+        sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
                                ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
                                : -1;
-        int sim_openmain_done = 0;
+        sim_openmain_done = 0;
 
         /* TORIRS_SIM_OPENCHAT=<iface>: same, for the chatback dialog slot
          * (reference IF_OPENCHAT / chatComId). Offline repro for the
          * server-driven chat dialogs (option menus 2459.., npc/player chat). */
-        int sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
+        sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
                                ? (int)strtol(getenv("TORIRS_SIM_OPENCHAT"), NULL, 0)
                                : -1;
-        int sim_openchat_done = 0;
-        char const* sim_sethide = getenv("TORIRS_SIM_SETHIDE");
-        int sim_sethide_done = 0;
+        sim_openchat_done = 0;
+
+        /* TORIRS_BOOT_STATS=1: how long the gameframe took to come up, and
+         * whether the frame loop or the work itself is the limit. `capped` is
+         * the number of boot frames that used their whole per-frame scheduler
+         * budget — those are frames that had more work ready and were stopped. */
+        boot_stats = getenv("TORIRS_BOOT_STATS") ? 1 : 0;
+        boot_start_ms = PlatformSDL2_Ticks64();
+        boot_reported = 0;
+
+        sim_sethide = getenv("TORIRS_SIM_SETHIDE");
+        sim_sethide_done = 0;
 
         /* TORIRS_SIM_SETVARP="id:value,...": drive the varps the IF1 "active"
          * scripts read (spec energy 300/301, attack style, ...) without a
          * server, so widgets whose whole behaviour is getIfActive can be seen
          * offline. Applied every frame — a re-bake would otherwise reset them. */
-        char const* sim_setvarp = getenv("TORIRS_SIM_SETVARP");
+        sim_setvarp = getenv("TORIRS_SIM_SETVARP");
 
         /* TORIRS_SIM_SETTAB="tabno:iface": replay IF_SETTAB offline, so the
          * sidebar panels the server assigns (combat tab 3796, stats, ...) can
          * be inspected without a session. */
-        char const* sim_settab = getenv("TORIRS_SIM_SETTAB");
-        int sim_settab_done = 0;
+        sim_settab = getenv("TORIRS_SIM_SETTAB");
+        sim_settab_done = 0;
 
-        while( !PlatformSDL2_QuitRequested(sdl) )
+#if defined(__EMSCRIPTEN__)
+        /* Hand the loop to requestAnimationFrame and never return: the browser
+         * drives frame_loop_step from here on, and the stack below this point
+         * is unwound (which is why the loop's state is at file scope).
+         * Shutdown happens in frame_loop_tick when the step says stop. */
+        emscripten_set_main_loop(frame_loop_tick, 0, 1);
+        return 0;
+#else
+        while( frame_loop_step() )
         {
-            uint64_t now;
-
-            if( max_frames > 0 && frame_count++ >= max_frames )
-                break;
-
-            if( sim_openmain > 0 && !sim_openmain_done && app.app_state == APP_STATE_READY )
-            {
-                fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
-                RS_UISlots_OpenMain(&app, sim_openmain);
-                sim_openmain_done = 1;
-            }
-
-            if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
-            {
-                fprintf(stderr, "sim_openchat: opening chat dialog iface=%d\n", sim_openchat);
-                RS_UISlots_OpenChat(&app, sim_openchat);
-                sim_openchat_done = 1;
-            }
-
-            if( sim_settab && !sim_settab_done && app.app_state == APP_STATE_READY )
-            {
-                char* tab_sep = NULL;
-                int tabno = (int)strtol(sim_settab, &tab_sep, 0);
-                int tab_iface =
-                    tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
-                fprintf(stderr, "sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
-                RS_UISlots_SetTab(&app, tabno, tab_iface);
-                RS_UISlots_SetSideTab(&app, tabno);
-                sim_settab_done = 1;
-            }
-
-            if( sim_setvarp && app.app_state == APP_STATE_READY )
-            {
-                char const* cur = sim_setvarp;
-                while( *cur )
-                {
-                    char* sep = NULL;
-                    long varp = strtol(cur, &sep, 0);
-                    long value = sep && *sep == ':' ? strtol(sep + 1, &sep, 0) : 0;
-                    VarPManager_SetVarpOptimistic(&app.varps, (int)varp, (int)value);
-                    while( sep && *sep && *sep != ',' )
-                        sep++;
-                    cur = sep && *sep == ',' ? sep + 1 : "";
-                }
-            }
-
-            /* TORIRS_SIM_SETHIDE="com:0|1,...": replay IF_SETHIDE offline. The
-             * chat dialogs ship both a narrow and a wide decoration layer and
-             * the server picks one, so without this there is no way to see the
-             * unhidden variant without a live session. */
-            if( sim_sethide && !sim_sethide_done && app.app_state == APP_STATE_READY && app.tree &&
-                (sim_openchat <= 0 || sim_openchat_done) && (!sim_settab || sim_settab_done) )
-            {
-                char const* cur = sim_sethide;
-                while( *cur )
-                {
-                    char* sep = NULL;
-                    long com = strtol(cur, &sep, 0);
-                    int hide = sep && *sep == ':' ? (int)strtol(sep + 1, &sep, 0) : 1;
-                    fprintf(stderr, "sim_sethide: com=%ld hide=%d\n", com, hide);
-                    App_IfHideSet(&app, (int)com, hide);
-                    while( sep && *sep && *sep != ',' )
-                        sep++;
-                    cur = sep && *sep == ',' ? sep + 1 : "";
-                }
-                App_RefreshAfterTreeMutation(&app);
-                sim_sethide_done = 1;
-            }
-
-            /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
-             * once the client is up, and again every `every_ticks` ticks. The
-             * only way to hear the audio path without a server, so it is the
-             * check that "the sound plays" means a speaker and not a counter. */
-            if( sim_sound_id >= 0 && app.app_state == APP_STATE_READY )
-            {
-                if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
-                {
-                    fprintf(
-                        stderr,
-                        "sim_sound: queueing effect %d loops=%d\n",
-                        sim_sound_id,
-                        sim_sound_loops);
-                    App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
-                    sim_sound_next = sim_sound_every > 0 ? frame_count + sim_sound_every : -1;
-                }
-            }
-
-            if( replay )
-            {
-                if( !CmdReplay_PumpFrame(replay, &bus, &replay_now) )
-                    break; /* recording exhausted */
-                now = replay_now;
-            }
-            else
-            {
-                now = PlatformSDL2_Ticks64();
-                CmdBus_PushFrame(&bus, now);
-                PlatformSDL2_PollCommands(sdl, &bus);
-                if( sock )
-                    NetTransport_Poll(sock, app.net, &bus);
-
-                /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats]": press at
-                 * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
-                 * `repeats` times (default 1). The only way to exercise a drag
-                 * headlessly — SIM_CLICK_AT presses and releases in the same
-                 * place, which no drag handler reacts to — and the repeat is
-                 * what keeps a pan going long enough to show what a client does
-                 * when the view never settles. */
-                {
-                    static long drag_frame = -2;
-                    static long drag_x0, drag_y0, drag_x1, drag_y1;
-                    static long drag_repeats = 1;
-                    if( drag_frame == -2 )
-                    {
-                        char const* spec = getenv("TORIRS_SIM_DRAG");
-                        drag_frame = -1;
-                        if( spec && *spec )
-                        {
-                            char* end = NULL;
-                            long values[6];
-                            int count = 0;
-                            values[count++] = strtol(spec, &end, 0);
-                            while( count < 6 && end && *end == ',' )
-                                values[count++] = strtol(end + 1, &end, 0);
-                            if( count >= 5 )
-                            {
-                                drag_frame = values[0];
-                                drag_x0 = values[1];
-                                drag_y0 = values[2];
-                                drag_x1 = values[3];
-                                drag_y1 = values[4];
-                                drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
-                            }
-                        }
-                    }
-                    if( drag_frame >= 0 && frame_count >= drag_frame )
-                    {
-                        long step = frame_count - drag_frame;
-                        long const steps = 20;
-                        if( step == 0 )
-                            CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
-                        else if( step == 2 )
-                            CmdBus_PushMouseButton(
-                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, (int)drag_x0, (int)drag_y0);
-                        else if( step > 2 && step <= 2 + steps )
-                        {
-                            long i = step - 2;
-                            int x = (int)(drag_x0 + (drag_x1 - drag_x0) * i / steps);
-                            int y = (int)(drag_y0 + (drag_y1 - drag_y0) * i / steps);
-                            CmdBus_PushMouseMove(&bus, x, y);
-                        }
-                        else if( step == 3 + steps )
-                        {
-                            CmdBus_PushMouseButton(
-                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, (int)drag_x1, (int)drag_y1);
-                            fprintf(
-                                stderr,
-                                "sim_drag: %ld,%ld -> %ld,%ld (%ld left)\n",
-                                drag_x0, drag_y0, drag_x1, drag_y1, drag_repeats - 1);
-                            if( --drag_repeats > 0 )
-                            {
-                                /* Alternate direction each repeat: panning one
-                                 * way clamps at the area edge after a couple of
-                                 * drags and the view stops moving, which is not
-                                 * the "never settles" case worth testing. */
-                                long swap_x = drag_x0;
-                                long swap_y = drag_y0;
-                                drag_x0 = drag_x1;
-                                drag_y0 = drag_y1;
-                                drag_x1 = swap_x;
-                                drag_y1 = swap_y;
-                                drag_frame = frame_count + 2;
-                            }
-                            else
-                                drag_frame = -1;
-                        }
-                    }
-                }
-
-                /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
-                 * inject a mouse click at the given main-loop frame — the
-                 * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
-                 * before login completes, too early to test the world). The
-                 * move lands 3 frames before the press so the hover pick set
-                 * (built during render) covers the click position. */
-                {
-                    static char const* sim_at_cursor = NULL;
-                    static int sim_at_init = 0;
-                    static long pend_frame = -1, pend_x, pend_y, pend_right;
-                    if( !sim_at_init )
-                    {
-                        sim_at_init = 1;
-                        sim_at_cursor = getenv("TORIRS_SIM_CLICK_AT");
-                    }
-                    if( pend_frame < 0 && sim_at_cursor && *sim_at_cursor )
-                    {
-                        char* end = NULL;
-                        pend_frame = strtol(sim_at_cursor, &end, 0);
-                        if( end && *end == ',' )
-                        {
-                            pend_x = strtol(end + 1, &end, 0);
-                            pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
-                            pend_right = 0;
-                            if( end && *end == ',' )
-                                pend_right = strtol(end + 1, &end, 0);
-                            sim_at_cursor = (end && *end == ';') ? end + 1 : NULL;
-                        }
-                        else
-                        {
-                            sim_at_cursor = NULL;
-                            pend_frame = -1;
-                        }
-                    }
-                    if( pend_frame >= 0 && frame_count >= pend_frame )
-                    {
-                        long step = frame_count - pend_frame;
-                        uint8_t btn = pend_right ? 3 : 1;
-                        if( step == 0 )
-                        {
-                            CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
-                            fprintf(
-                                stderr,
-                                "sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
-                                pend_frame,
-                                pend_x,
-                                pend_y,
-                                pend_right);
-                        }
-                        else if( step == 3 )
-                        {
-                            CmdBus_PushMouseButton(
-                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, (int)pend_x, (int)pend_y);
-                        }
-                        else if( step >= 4 )
-                        {
-                            CmdBus_PushMouseButton(
-                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
-                            fprintf(stderr, "sim_click_at: released %ld,%ld\n", pend_x, pend_y);
-                            pend_frame = -1;
-                        }
-                    }
-                }
-            }
-
-            LibToriRS_Input_Begin(input, now);
-            App_DrainCommands(&app, &bus, input);
-            LibToriRS_Input_End(input);
-
-            if( App_RunOnce(&app, now, input) )
-                interactive_render_present(&app, sdl, gl3);
-            else if( gl3 )
-                PlatformSDL2_PresentGL(sdl);
-            else
-                PlatformSDL2_Present(sdl);
-
-            /* The game asked; the platform plays. Once per frame, after the tick
-             * that queued the requests and before the next one recycles their
-             * PCM (App_DrainAudio lends it for exactly this long). */
-            PlatformAudio_SubmitAll(
-                audio,
-                audio_commands,
-                App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
-
-            update_window_title(sdl, &app, cfg.interface_id);
-            if( !replay )
-            {
-                if( uncapped )
-                    PlatformSDL2_Delay(1);
-                else
-                {
-                    /* 50 fps cap: one frame per 20ms client cycle (--uncapped
-                     * frees the loop for profiling/benchmarks). */
-                    uint64_t elapsed = PlatformSDL2_Ticks64() - now;
-                    if( elapsed < 20 )
-                        PlatformSDL2_Delay((uint32_t)(20 - elapsed));
-                }
-            }
         }
-
-        /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
-         * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
-        if( getenv("TORIRS_EXIT_BMP") )
-        {
-            /* TORIRS_SIM_HOVER=x,y: park the pointer there for a few real
-             * interact frames FIRST, so both the dumps below and the BMP capture
-             * hover-dependent chrome (IF1 overlayer tooltips, over-colour swaps,
-             * CS2 onmouserepeat tooltip layers) instead of whatever the last
-             * main-loop event left behind. */
-            if( getenv("TORIRS_SIM_HOVER") )
-            {
-                struct LibToriRS_Input hov_storage;
-                struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
-                char* hov_sep = NULL;
-                int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
-                int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
-                for( int t = 0; t < 4; t++ )
-                {
-                    LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
-                    LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
-                    LibToriRS_Input_End(hov_input);
-                    App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
-                }
-                fprintf(
-                    stderr,
-                    "sim_hover: parked at %d,%d hover_com_id=%d\n",
-                    hov_x,
-                    hov_y,
-                    app.hover_com_id);
-            }
-            /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
-             * runs before any server IF_OPENSUB lands), this dumps after the
-             * frame loop so server-driven interface mounts are visible. */
-            if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
-                dump_tree(&app, cfg.interface_id);
-            if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
-                dump_hooks(&app);
-            /* Post-network emit dump: the actual draw list for the last frame,
-             * to find what paints over the world viewport (0,0..723,503). */
-            /* TORIRS_DUMP_BOUNDS=<group>: post-net resolved geometry for one
-             * interface. dump_tree deliberately prints no box for RS_LAYERs (it
-             * stays byte-comparable with the reference widgetTreeDump), and
-             * TORIRS_DUMP_LAYOUT runs at boot before anything is mounted — so
-             * this is the only view of a mounted container's resolved box, its
-             * size modes, and its scroll extents. A layer whose box is taller
-             * than the cache says is why its children escape the clip. */
-            if( getenv("TORIRS_DUMP_BOUNDS") && app.tree )
-            {
-                int want = (int)strtol(getenv("TORIRS_DUMP_BOUNDS"), NULL, 0);
-                for( uint32_t i = 0; i < app.tree->component_count; i++ )
-                {
-                    struct UITreeComponent const* c = &app.tree->components[i];
-                    if( c->freed || ((c->component_id >> 16) & 0xFFFF) != want )
-                        continue;
-                    fprintf(
-                        stderr,
-                        "BOUNDS com=0x%08x (%d|%d) type=%d abs=%d,%d %dx%d "
-                        "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
-                        (unsigned)c->component_id,
-                        (c->component_id >> 16) & 0xFFFF,
-                        c->component_id & 0xFFFF,
-                        (int)c->type,
-                        c->position.abs_x, c->position.abs_y,
-                        c->position.abs_w, c->position.abs_h,
-                        c->position.width, c->position.height,
-                        (int)c->position.width_mode, (int)c->position.height_mode,
-                        (int)c->position.x_mode, (int)c->position.y_mode,
-                        c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
-                        c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
-                        c->scroll_x, c->scroll_y);
-                }
-            }
-
-            /* TORIRS_DUMP_EMIT_EXIT: post-net draw list (the boot-time
-             * TORIRS_DUMP_EMIT fires before any server interface has mounted, so
-             * it never shows sub-interface content). Value selects the filter:
-             *   "cover"        -> only viewport-covering rects (the original
-             *                     use: finding an interface painted over the world)
-             *   <group id>     -> only that interface group's components
-             *   anything else  -> every command
-             * The clip is included because a drawable overflowing its container is
-             * a clip bug, and the clip is the only way to tell which. */
-            {
-                char const* emit_filter = getenv("TORIRS_DUMP_EMIT_EXIT");
-                int filter_group = -1;
-                int cover_only = 0;
-                if( emit_filter )
-                {
-                    if( strcmp(emit_filter, "cover") == 0 )
-                        cover_only = 1;
-                    else if( emit_filter[0] >= '1' && emit_filter[0] <= '9' )
-                        filter_group = (int)strtol(emit_filter, NULL, 0);
-                }
-                for( int i = 0; emit_filter && i < app.emit.count; i++ )
-                {
-                    struct UITreeEmitDesc* d = &app.emit.cmds[i];
-                    int group = (d->component_id >> 16) & 0xFFFF;
-                    if( cover_only && !(d->w >= 300 && d->h >= 200 && d->x < 480) )
-                        continue;
-                    if( filter_group >= 0 && group != filter_group )
-                        continue;
-                    fprintf(
-                        stderr,
-                        "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d "
-                        "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
-                        i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
-                        d->x, d->y, d->w, d->h, d->scene_id, d->color, d->filled, d->trans,
-                        d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
-                }
-            }
-            if( getenv("TORIRS_NET_DEBUG") && app.tree )
-            {
-                for( int t = 0; t < 14; t++ )
-                    fprintf(
-                        stderr,
-                        "exit: tab %d overlay=%d owner=%d\n",
-                        t,
-                        app.slots.side_overlay_id[t],
-                        app.slots.side_owner_index[t]);
-                for( uint32_t i = 0; i < app.tree->component_count; i++ )
-                {
-                    struct UITreeComponent const* c = &app.tree->components[i];
-                    if( c->type == UIELEM_BUILTIN_TAB_ICONS )
-                        fprintf(
-                            stderr,
-                            "exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
-                            i,
-                            c->u.tab_icon.tabno,
-                            (int)c->freed,
-                            (int)c->behavior.hide,
-                            c->u.tab_icon.scene_id,
-                            c->position.abs_x,
-                            c->position.abs_y);
-                }
-                for( int f = 0; f < 6; f++ )
-                    fprintf(
-                        stderr,
-                        "exit: scene_font %d has=%d\n",
-                        f,
-                        (int)ToriDraw_SceneFontHas(app.scene, f));
-                fprintf(stderr, "exit: hover_com_id=%d\n", app.hover_com_id);
-                fprintf(
-                    stderr,
-                    "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
-                    app.minimap_view_valid,
-                    app.minimap_emit_desc.x,
-                    app.minimap_emit_desc.y,
-                    app.minimap_emit_desc.w,
-                    app.minimap_emit_desc.h,
-                    app.minimap_emit_desc.component_id);
-                /* TORIRS_DUMP_COM=id: dump every live node carrying that
-                 * component id (duplicate-id / ApplyText-target debugging). */
-                if( getenv("TORIRS_DUMP_COM") )
-                {
-                    int want = atoi(getenv("TORIRS_DUMP_COM"));
-                    for( uint32_t i = 0; i < app.tree->component_count; i++ )
-                    {
-                        struct UITreeComponent const* c = &app.tree->components[i];
-                        if( c->component_id != want )
-                            continue;
-                        fprintf(
-                            stderr,
-                            "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
-                            "abs=%d,%d wh=%dx%d font=%d color=0x%x parent=%d\n",
-                            want,
-                            i,
-                            (int)c->type,
-                            (int)c->freed,
-                            (int)c->behavior.hide,
-                            c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text
-                                                                          : "",
-                            c->position.abs_x,
-                            c->position.abs_y,
-                            c->position.abs_w,
-                            c->position.abs_h,
-                            c->type == UIELEM_RS_TEXT ? c->u.rs_text.font_id : -1,
-                            c->type == UIELEM_RS_TEXT ? c->u.rs_text.color : 0,
-                            c->parent);
-                    }
-                }
-            }
-            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
-            assert(pixels);
-            App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            bmp_write_file(
-                getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            printf("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
-            free(pixels);
-        }
-
-        if( replay )
-        {
-            fclose(replay);
-            /* TORIRS_REPLAY_BMP=path: dump the final replayed frame for golden
-             * comparison against the recorded session. */
-            if( getenv("TORIRS_REPLAY_BMP") )
-            {
-                int* pixels =
-                    calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
-                assert(pixels);
-                App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                bmp_write_file(
-                    getenv("TORIRS_REPLAY_BMP"),
-                    pixels,
-                    UITREE_LAYOUT_ROOT_W,
-                    UITREE_LAYOUT_ROOT_H);
-                printf("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
-                free(pixels);
-            }
-        }
-        CmdBus_RecordClose(&bus);
-
-        NetTransport_Free(sock);
-        PlatformAudio_Free(audio);
-        ToriRS_GL3_Free(gl3);
-        PlatformSDL2_Free(sdl);
+        frame_loop_teardown();
+#endif
     }
 
     App_Shutdown(&app);

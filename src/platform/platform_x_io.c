@@ -85,16 +85,16 @@ PlatformX_IO_InitScriptPath(
 }
 
 void
-PlatformX_IO_Free(struct PlatformX_IO* io)
+PlatformX_IO_Free(struct PlatformX_IO* px)
 {
-    if( !io )
+    if( !px )
         return;
 
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
-        RSCache_Dat2DiskArchiveFree(io->archive_cache[i].archive);
-    free(io->config_dir);
-    free(io->script_dir);
-    free(io);
+        RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
+    free(px->config_dir);
+    free(px->script_dir);
+    free(px);
 }
 
 static struct RSCache_Dat2DiskArchive*
@@ -513,6 +513,18 @@ PlatformX_IO_LoadItem(
         item->error_code = -1;
         return -1;
     }
+}
+
+/* Nothing is ever outstanding here: Process reads from the open cache inline
+ * and every active slot is filled before it returns. */
+int
+PlatformX_IO_Pending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io)
+{
+    (void)px;
+    (void)io;
+    return 0;
 }
 
 int

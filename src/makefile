@@ -2,20 +2,30 @@
 # Optimized build: make -C src release (or make -C src OPT=1 <target>).
 # Objects go to build_opt/ so debug and optimized objects never mix; both
 # flavors link the same ./torirs, whichever was built last.
+#
+# Which host to build for is one variable, PLATFORM (see platform/platform.mk):
+#   make -C src                 native debug     -> src/torirs
+#   make -C src release         native optimized -> src/torirs
+#   make -C src web             emscripten       -> build-web/torirs.js
+#   make -C src io-server       the web build's cache backend (always native)
+# Every (PLATFORM, OPT) pair owns its own OBJ_DIR, so flavors never share .o's.
 
-CC ?= cc
 OPT ?= 0
-ifeq ($(OPT),1)
-OBJ_DIR = build_opt
-O_LEVEL = -O3
-else
-OBJ_DIR = build
-O_LEVEL = -O0
-endif
-TARGET = torirs
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
+
+include $(SRC_DIR)/platform/platform.mk
+
+CC := $(PLATFORM_CC)
+ifeq ($(OPT),1)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt
+O_LEVEL = -O3
+else
+OBJ_DIR = $(PLATFORM_OBJ_BASE)
+O_LEVEL = -O0
+endif
+TARGET = $(PLATFORM_TARGET)
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
@@ -45,35 +55,20 @@ TORIDRAW_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
-SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
-SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
-ifeq ($(strip $(SDL_CFLAGS)$(SDL_LIBS)),)
-  SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
-  SDL_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
-endif
-ifeq ($(strip $(SDL_CFLAGS)$(SDL_LIBS)),)
-  SDL_CFLAGS := -I/opt/homebrew/include/SDL2 -I/usr/local/include/SDL2
-  SDL_LIBS   := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
-endif
-
-CFLAGS += $(SDL_CFLAGS)
-LDFLAGS = -lm -Wl,-dead_strip $(SDL_LIBS)
-
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-  LDFLAGS += -framework OpenGL
-else
-  LDFLAGS += -lGL
-endif
+# Toolchain, SDL and link flags come from the selected platform block.
+CFLAGS += $(PLATFORM_CFLAGS)
+LDFLAGS = $(PLATFORM_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
-SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
-	platform/platform_audio_sdl2.c \
-	platform/platform_sdl2_renderer_soft3d.c platform/platform_sdl2_renderer_gl3.c \
+# platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
+# and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
+SRCS = main.c app.c platform/platform_sdl2.c \
+	platform/platform_sdl2_renderer_soft3d.c \
+	$(PLATFORM_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
@@ -190,10 +185,14 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
 # against) links into the app; $(sort) dedupes objects shared with WB_OBJS.
+# The desktop-GL binding is native-only: the web host renders through Soft3D.
+ifeq ($(PLATFORM),native)
+GL_OBJS = $(OBJ_DIR)/opengl3_sdlgl.o
+endif
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
-	$(OBJ_DIR)/trspk_unity.o $(OBJ_DIR)/opengl3_sdlgl.o \
+	$(OBJ_DIR)/trspk_unity.o $(GL_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o \
@@ -209,7 +208,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
+.PHONY: all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -227,8 +226,53 @@ FORCE:
 endif
 
 $(TARGET): $(OBJS)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 	@echo $(OBJ_DIR) > .last_flavor
+
+# --- Web target ----------------------------------------------------------
+# `make -C src web` builds the emscripten flavor and copies the JS host
+# harness next to the module, so build-web/ is a complete servable directory.
+# The IO server (below) serves it, and answers the client's cache reads.
+web:
+	$(MAKE) PLATFORM=web OPT=1 all
+	@cp $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js $(REPO_ROOT)/build-web/
+	@echo "built $(REPO_ROOT)/build-web/torirs.js — serve with: make -C src io-server && ./src/build/io_server <cache_dir>"
+
+web-debug:
+	$(MAKE) PLATFORM=web OPT=0 all
+	@cp $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js $(REPO_ROOT)/build-web/
+
+# --- IO server -----------------------------------------------------------
+# The web client has no disk: every ToriRS_IOItem it would have satisfied
+# locally is answered by this process, which opens the cache and runs the
+# SAME PlatformX_IO_LoadItem the native build uses. Always built native, even
+# when PLATFORM=web, so `make -C src web io-server` produces both halves.
+IO_SERVER_OBJ_DIR = build
+IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
+	platform/io_wire.c platform/platform_x_io.c \
+	bootmanifest/bootmanifest.c $(INI_SRC)
+io-server:
+	$(MAKE) PLATFORM=native $(IO_SERVER_OBJ_DIR)/io_server
+$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
+		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
+		$(IO_SERVER_OBJ_DIR)/xteas.o -lm
+	@echo "built $@"
+
+# IO wire codec round-trip: encode a request/response pair for every item kind
+# and assert the decoded item matches field for field.
+test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/io_wire_test \
+		platform/io_wire.c platform/test/io_wire_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	./$(OBJ_DIR)/io_wire_test
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
@@ -613,7 +657,8 @@ test-bootmanifest: $(OBJ_DIR)
 	./$(OBJ_DIR)/bootmanifest_test
 
 clean:
-	rm -rf build build_opt $(TARGET) .last_flavor
+	rm -rf build build_opt build_web build_web_opt torirs \
+		$(REPO_ROOT)/build-web .last_flavor
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read

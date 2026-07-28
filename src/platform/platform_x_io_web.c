@@ -1,0 +1,617 @@
+/*
+ * Asynchronous IO backend for the browser.
+ *
+ * The native backend answers an item by reading the cache off disk inside
+ * PlatformX_IO_Process. A browser cannot: there is no disk, and the one channel
+ * that can reach the bytes (fetch) does not return them until some later turn of
+ * the JS event loop. So this backend *starts* reads and reports what is still
+ * outstanding, and PlatformX_IO_Pending keeps the scheduler from resuming a task
+ * whose slot has not been filled yet. Nothing above the platform layer changes:
+ * a task still queues, yields, and finds an archive in its slot when it wakes.
+ *
+ * The shape of one read, end to end:
+ *
+ *   Process()             encode the item into the outgoing batch, remember
+ *                         (req_id -> io, slot), return
+ *   [next frame] JS pump  copies the batch out of wasm memory, POSTs it to the
+ *                         IO server, and eventually calls back in
+ *   response_submit()     decode, fill the slots, drop the pending records
+ *   TaskRunner_Step       Pending() now says 0, the task resumes
+ *
+ * Batching is what makes that affordable. Everything a task queued before it
+ * yielded goes out in one request, so a frame costs one round trip rather than
+ * one per archive.
+ *
+ * The response cache is the other half of that. A dat2 config group is fetched
+ * once per id it contains — the obj group was requested 219 times in one boot —
+ * and each of those would otherwise be a round trip, which on this design is a
+ * whole frame. Cached entries are kept as the encoded response record and
+ * re-applied through the same decoder, so a hit and a miss build the identical
+ * item and there is no second materialization path to keep in step.
+ */
+
+#include "platform/platform_x_io.h"
+
+#include "platform/io_wire.h"
+
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "platform/platform_x_io_web.h"
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+/* Building this file natively is useful for testing the queueing logic in a
+ * plain debugger; the JS pump simply never runs and nothing completes. */
+#define EM_JS(ret, name, args, body)                                                               \
+    static ret name args                                                                           \
+    {                                                                                              \
+    }
+#define EMSCRIPTEN_KEEPALIVE
+#endif
+
+/* Two ToriRS_IO instances of TORIRS_IO_MAX_ITEMS slots each is the most that
+ * can be outstanding, because a runner never queues more before it yields. */
+#define WEB_IO_MAX_PENDING (TORIRS_IO_MAX_ITEMS * 2)
+
+#define WEB_IO_CACHE_SLOTS 1024
+/* Bytes of decoded archive kept resident. Generous: this is what stands
+ * between a boot and a few hundred extra round trips, and a browser tab that
+ * is already holding a scene graph will not notice 64MB. */
+#define WEB_IO_CACHE_BUDGET (64 * 1024 * 1024)
+
+struct WebCacheKey
+{
+    int32_t kind;
+    int32_t table_id;
+    int32_t archive_id;
+    int32_t flags;
+};
+
+struct WebPending
+{
+    int in_use;
+    uint32_t req_id;
+    struct ToriRS_IO* io;
+    int slot;
+    struct WebCacheKey key;
+    int cacheable;
+};
+
+struct WebCacheEntry
+{
+    int used;
+    struct WebCacheKey key;
+    /* One encoded response record, exactly as it arrived. */
+    uint8_t* record;
+    int record_len;
+    uint64_t last_used;
+};
+
+struct PlatformX_IO
+{
+    /* Kept only so a misconfigured boot is diagnosable; the server owns the
+     * real ones and every path resolution happens there. */
+    char* config_dir;
+    char* script_dir;
+
+    struct IOWireBuf out;
+    int out_count;
+
+    struct WebPending pending[WEB_IO_MAX_PENDING];
+    int pending_count;
+    uint32_t next_req_id;
+
+    struct WebCacheEntry cache[WEB_IO_CACHE_SLOTS];
+    uint64_t cache_clock;
+    int64_t cache_bytes;
+
+    /* Counters, surfaced to the page through torirs_io_stats. */
+    int stat_requests;
+    int stat_cache_hits;
+    int stat_completed;
+    int stat_failed;
+};
+
+/*
+ * The browser calls in through plain exported functions, which have no place to
+ * carry a context pointer, so the backend is a singleton. That is not a
+ * compromise: App owns exactly one PlatformX_IO and shares it between both task
+ * pipelines, so a second instance would already be a bug.
+ */
+static struct PlatformX_IO* g_web_io = NULL;
+
+EM_JS(void, torirs_web_io_pump_js, (void), {
+    if( Module.torirsIO && Module.torirsIO.pump )
+        Module.torirsIO.pump();
+});
+
+void
+PlatformXIO_Web_Pump(void)
+{
+    torirs_web_io_pump_js();
+}
+
+struct PlatformX_IO*
+PlatformX_IO_New(void)
+{
+    struct PlatformX_IO* px = calloc(1, sizeof(struct PlatformX_IO));
+    assert(px);
+    IOWireBuf_Init(&px->out);
+    px->next_req_id = 1;
+    g_web_io = px;
+    return px;
+}
+
+void
+PlatformX_IO_InitDat2Disk(
+    struct PlatformX_IO* px,
+    struct RSCache_Dat2Disk* disk)
+{
+    /* There is no local disk in the browser. App_Init does not call this under
+     * TORIRS_PLATFORM_WEB; the definition exists so the header stays one
+     * interface rather than two. */
+    (void)px;
+    (void)disk;
+}
+
+void
+PlatformX_IO_InitDat1Disk(
+    struct PlatformX_IO* px,
+    struct RSCache_Dat1Disk* disk)
+{
+    (void)px;
+    (void)disk;
+}
+
+void
+PlatformX_IO_InitConfigPath(
+    struct PlatformX_IO* px,
+    const char* config_path)
+{
+    assert(px);
+    free(px->config_dir);
+    px->config_dir = config_path ? strdup(config_path) : NULL;
+}
+
+void
+PlatformX_IO_InitScriptPath(
+    struct PlatformX_IO* px,
+    const char* script_path)
+{
+    assert(px);
+    free(px->script_dir);
+    px->script_dir = script_path ? strdup(script_path) : NULL;
+}
+
+void
+PlatformX_IO_Free(struct PlatformX_IO* px)
+{
+    if( !px )
+        return;
+    for( int i = 0; i < WEB_IO_CACHE_SLOTS; i++ )
+        free(px->cache[i].record);
+    IOWireBuf_Free(&px->out);
+    free(px->config_dir);
+    free(px->script_dir);
+    if( g_web_io == px )
+        g_web_io = NULL;
+    free(px);
+}
+
+/* --- response cache ------------------------------------------------------ */
+
+static int
+cache_key_eq(
+    struct WebCacheKey const* a,
+    struct WebCacheKey const* b)
+{
+    return a->kind == b->kind && a->table_id == b->table_id &&
+           a->archive_id == b->archive_id && a->flags == b->flags;
+}
+
+/* Fills `out` and returns 1 when this item's answer is worth remembering.
+ * Config/script reads are one-shot boot files and are not cached. */
+static int
+cache_key_for(
+    struct ToriRS_IOItem const* item,
+    struct WebCacheKey* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->kind = (int32_t)item->kind;
+    if( item->kind == TORIRS_IOK_CACHE )
+    {
+        out->table_id = item->u.cache.table_id;
+        out->archive_id = item->u.cache.archive_id;
+        out->flags = item->u.cache.flags;
+        return 1;
+    }
+    if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
+    {
+        out->table_id = item->u.reference_table.table_id;
+        return 1;
+    }
+    return 0;
+}
+
+static struct WebCacheEntry*
+cache_find(
+    struct PlatformX_IO* px,
+    struct WebCacheKey const* key)
+{
+    for( int i = 0; i < WEB_IO_CACHE_SLOTS; i++ )
+    {
+        struct WebCacheEntry* entry = &px->cache[i];
+        if( entry->used && cache_key_eq(&entry->key, key) )
+        {
+            entry->last_used = ++px->cache_clock;
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+static void
+cache_evict_one(struct PlatformX_IO* px)
+{
+    struct WebCacheEntry* lru = NULL;
+    for( int i = 0; i < WEB_IO_CACHE_SLOTS; i++ )
+    {
+        struct WebCacheEntry* entry = &px->cache[i];
+        if( !entry->used )
+            continue;
+        if( !lru || entry->last_used < lru->last_used )
+            lru = entry;
+    }
+    if( !lru )
+        return;
+    px->cache_bytes -= lru->record_len;
+    free(lru->record);
+    memset(lru, 0, sizeof(*lru));
+}
+
+static void
+cache_put(
+    struct PlatformX_IO* px,
+    struct WebCacheKey const* key,
+    uint8_t const* record,
+    int record_len)
+{
+    struct WebCacheEntry* slot = NULL;
+    uint8_t* copy;
+
+    if( record_len <= 0 )
+        return;
+    /* A single entry larger than the whole budget would evict everything and
+     * still not fit; skip it rather than thrash. */
+    if( record_len > WEB_IO_CACHE_BUDGET )
+        return;
+
+    while( px->cache_bytes + record_len > WEB_IO_CACHE_BUDGET )
+        cache_evict_one(px);
+
+    for( int i = 0; i < WEB_IO_CACHE_SLOTS; i++ )
+    {
+        if( !px->cache[i].used )
+        {
+            slot = &px->cache[i];
+            break;
+        }
+    }
+    if( !slot )
+    {
+        cache_evict_one(px);
+        for( int i = 0; i < WEB_IO_CACHE_SLOTS && !slot; i++ )
+            if( !px->cache[i].used )
+                slot = &px->cache[i];
+        if( !slot )
+            return;
+    }
+
+    copy = malloc((size_t)record_len);
+    if( !copy )
+        return;
+    memcpy(copy, record, (size_t)record_len);
+
+    slot->used = 1;
+    slot->key = *key;
+    slot->record = copy;
+    slot->record_len = record_len;
+    slot->last_used = ++px->cache_clock;
+    px->cache_bytes += record_len;
+}
+
+/* Re-apply a stored record. Returns 1 when the item was filled. */
+static int
+cache_serve(
+    struct PlatformX_IO* px,
+    struct WebCacheKey const* key,
+    struct ToriRS_IOItem* item)
+{
+    struct WebCacheEntry* entry = cache_find(px, key);
+    struct IOWireReader reader;
+    struct IOWireResponse resp;
+
+    if( !entry )
+        return 0;
+    IOWireReader_Init(&reader, entry->record, entry->record_len);
+    if( IOWire_ReadResponse(&reader, &resp) != 0 )
+        return 0;
+    if( IOWire_ApplyResponse(&resp, item) != 0 )
+        return 0;
+    px->stat_cache_hits++;
+    return 1;
+}
+
+/* --- request queueing ---------------------------------------------------- */
+
+static struct WebPending*
+pending_alloc(struct PlatformX_IO* px)
+{
+    for( int i = 0; i < WEB_IO_MAX_PENDING; i++ )
+        if( !px->pending[i].in_use )
+            return &px->pending[i];
+    return NULL;
+}
+
+int
+PlatformX_IO_Pending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io)
+{
+    int count = 0;
+    assert(px);
+    for( int i = 0; i < WEB_IO_MAX_PENDING; i++ )
+        if( px->pending[i].in_use && px->pending[i].io == io )
+            count++;
+    return count;
+}
+
+/* Synchronous single-item load has no meaning here — there is nothing to read
+ * from. Kept because the header declares it; it reports failure rather than
+ * pretending, so a caller that reaches for it fails loudly instead of silently
+ * receiving an empty archive. */
+int
+PlatformX_IO_LoadItem(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    (void)px;
+    assert(item);
+    fprintf(stderr, "web io: synchronous LoadItem is not available in the browser\n");
+    item->data = NULL;
+    item->data_size = 0;
+    item->error_code = -1;
+    return -1;
+}
+
+int
+PlatformX_IO_Process(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io)
+{
+    int served = 0;
+
+    assert(px);
+    assert(io);
+
+    for( int i = 0; i < io->active_count; i++ )
+    {
+        int slot_id = io->active[i];
+        struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+        struct WebCacheKey key;
+        int cacheable = cache_key_for(item, &key);
+        struct WebPending* pending;
+
+        item->data = NULL;
+        item->data_size = 0;
+        item->error_code = 0;
+
+        if( cacheable && cache_serve(px, &key, item) )
+        {
+            served++;
+            continue;
+        }
+
+        pending = pending_alloc(px);
+        if( !pending )
+        {
+            /* Cannot happen with the slot arithmetic above, but a silently
+             * dropped request would hang the boot forever, so it fails the
+             * item instead. */
+            fprintf(stderr, "web io: pending table full, failing request\n");
+            item->error_code = -1;
+            continue;
+        }
+
+        if( px->out_count == 0 )
+            IOWire_BatchBegin(&px->out);
+
+        pending->in_use = 1;
+        pending->req_id = px->next_req_id++;
+        pending->io = io;
+        pending->slot = slot_id;
+        pending->key = key;
+        pending->cacheable = cacheable;
+        px->pending_count++;
+
+        IOWire_WriteRequest(&px->out, pending->req_id, item);
+        px->out_count++;
+        px->stat_requests++;
+    }
+
+    ToriRS_IO_ResetActive(io);
+    return served;
+}
+
+/* --- browser entry points ------------------------------------------------ */
+
+/*
+ * The JS side reads the outgoing batch straight out of the wasm heap, so the
+ * contract is: read len, read ptr, copy, then call _taken. Memory growth can
+ * move the heap between calls, which is why the pointer is fetched fresh each
+ * time rather than cached on the JS side.
+ */
+
+EMSCRIPTEN_KEEPALIVE int
+torirs_io_request_len(void)
+{
+    if( !g_web_io || g_web_io->out_count == 0 )
+        return 0;
+    return g_web_io->out.len;
+}
+
+EMSCRIPTEN_KEEPALIVE void*
+torirs_io_request_ptr(void)
+{
+    if( !g_web_io || g_web_io->out_count == 0 )
+        return NULL;
+    return g_web_io->out.data;
+}
+
+EMSCRIPTEN_KEEPALIVE void
+torirs_io_request_taken(void)
+{
+    if( !g_web_io )
+        return;
+    IOWireBuf_Reset(&g_web_io->out);
+    g_web_io->out_count = 0;
+}
+
+/** Scratch for one response batch. JS writes the bytes here, then submits. */
+EMSCRIPTEN_KEEPALIVE void*
+torirs_io_response_alloc(int size)
+{
+    if( size <= 0 )
+        return NULL;
+    return malloc((size_t)size);
+}
+
+static void
+pending_release(struct PlatformX_IO* px, struct WebPending* pending)
+{
+    memset(pending, 0, sizeof(*pending));
+    px->pending_count--;
+}
+
+EMSCRIPTEN_KEEPALIVE void
+torirs_io_response_submit(
+    void* data,
+    int size)
+{
+    struct PlatformX_IO* px = g_web_io;
+    struct IOWireReader reader;
+    int count;
+
+    if( !px || !data )
+    {
+        free(data);
+        return;
+    }
+
+    IOWireReader_Init(&reader, data, size);
+    count = IOWire_BatchRead(&reader);
+    if( count < 0 )
+    {
+        fprintf(stderr, "web io: malformed response batch (%d bytes)\n", size);
+        free(data);
+        return;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        int record_start = reader.off;
+        struct IOWireResponse resp;
+        struct WebPending* pending = NULL;
+
+        if( IOWire_ReadResponse(&reader, &resp) != 0 )
+        {
+            fprintf(stderr, "web io: truncated response record %d/%d\n", i, count);
+            break;
+        }
+
+        for( int p = 0; p < WEB_IO_MAX_PENDING; p++ )
+        {
+            if( px->pending[p].in_use && px->pending[p].req_id == resp.req_id )
+            {
+                pending = &px->pending[p];
+                break;
+            }
+        }
+        if( !pending )
+        {
+            /* A duplicate or a leftover from a batch that already timed out. */
+            continue;
+        }
+
+        if( IOWire_ApplyResponse(&resp, &pending->io->io_slots[pending->slot]) == 0 )
+        {
+            px->stat_completed++;
+            if( pending->cacheable )
+                cache_put(
+                    px, &pending->key, reader.data + record_start, reader.off - record_start);
+        }
+        else
+        {
+            px->stat_failed++;
+        }
+        pending_release(px, pending);
+    }
+
+    free(data);
+}
+
+/**
+ * Fail everything outstanding.
+ *
+ * Called by the harness when a batch could not be delivered. A dropped request
+ * would park the task queue forever with no diagnostic; an errored slot makes
+ * the waiting task take its own failure path, which does print one.
+ */
+EMSCRIPTEN_KEEPALIVE void
+torirs_io_fail_pending(void)
+{
+    struct PlatformX_IO* px = g_web_io;
+    int failed = 0;
+
+    if( !px )
+        return;
+    for( int i = 0; i < WEB_IO_MAX_PENDING; i++ )
+    {
+        struct WebPending* pending = &px->pending[i];
+        struct ToriRS_IOItem* item;
+        if( !pending->in_use )
+            continue;
+        item = &pending->io->io_slots[pending->slot];
+        item->data = NULL;
+        item->data_size = 0;
+        item->error_code = -1;
+        pending_release(px, pending);
+        failed++;
+        px->stat_failed++;
+    }
+    if( failed )
+        fprintf(stderr, "web io: failed %d outstanding request(s)\n", failed);
+}
+
+/** requests, cache hits, completions, failures, in-flight — for the page HUD. */
+EMSCRIPTEN_KEEPALIVE void
+torirs_io_stats(int* out)
+{
+    if( !out )
+        return;
+    if( !g_web_io )
+    {
+        memset(out, 0, 5 * sizeof(int));
+        return;
+    }
+    out[0] = g_web_io->stat_requests;
+    out[1] = g_web_io->stat_cache_hits;
+    out[2] = g_web_io->stat_completed;
+    out[3] = g_web_io->stat_failed;
+    out[4] = g_web_io->pending_count;
+}

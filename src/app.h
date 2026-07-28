@@ -183,6 +183,14 @@ struct AppSeqBindPending
     int seq_id;
 };
 
+/** One visible map surface region, with its distance from the view centre. */
+struct App_WorldMapVisit
+{
+    int region_x;
+    int region_y;
+    int distance;
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -280,6 +288,11 @@ struct App
     int worldmap_tile_count;
     /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
     struct RS_WorldMapRender* worldmap_render;
+    /* Visible regions for this frame, ordered nearest-the-view-centre first —
+     * the order decides who gets the frame's bake and load allowance. The
+     * lowest zoom over the whole map surface stays well inside this. */
+    struct App_WorldMapVisit worldmap_visits[512];
+    int worldmap_visit_count;
     /* World map surface box, recorded by the emit walk (the widget is sized by
      * the world map's scripts), and the drag-to-pan grab point. */
     int worldmap_box_x;
@@ -427,6 +440,11 @@ struct App
     int boot_frames;
     long boot_steps;
     int boot_frames_budget_capped;
+    uint64_t boot_start_ms;
+    /* Post-boot frames that used their whole step budget with work still
+     * pending — the async pipeline being drip-fed a slice at a time. */
+    int busy_frames;
+    long busy_steps;
     int boot_interface_id;
     /** Set when async work mutated the tree; App_RunOnce consumes it with a
      * relayout + CS1 re-eval request + redraw. */

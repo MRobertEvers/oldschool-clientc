@@ -36,6 +36,11 @@ static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
     assert(runner && runner->queue && runner->io && runner->px);
+    /* A read the platform has not answered yet: the head task is parked right
+     * after its PT_YIELD and running it would resume it over an empty slot.
+     * Always false on a synchronous backend, so native behaviour is unchanged. */
+    if( PlatformX_IO_Pending(runner->px, runner->io) )
+        return TASK_RUNNER_PENDING;
     if( ToriRS_TaskQueue_Run(runner->queue, runner->io) == TORIRS_ASYNCIO_STAT_YIELD )
     {
         PlatformX_IO_Process(runner->px, runner->io);
