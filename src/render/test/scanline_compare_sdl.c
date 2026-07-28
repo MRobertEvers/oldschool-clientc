@@ -8,33 +8,61 @@
  * directly comparable. An optional third panel shows the amplified absolute
  * difference.
  *
+ * Two subjects:
+ *   model  - one cache model on a turntable
+ *   world  - a real map square built through WorldBuilder and drawn through the
+ *            production painter -> frame emitter -> software renderer path, so
+ *            what is compared is exactly what the client draws
+ *
  * Run from src/:
  *   make scanline-compare [DAT1_CACHE=../cache254]
- *   ./build/scanline_compare ../cache254 148
+ *   ./build/scanline_compare ../cache254 148        # model mode
+ *   ./build/scanline_compare ../cache254 world      # world mode at 50,50
  *
- * Pass the model id: with none it sweeps the cache for the model with the most
- * textured and alpha-blended faces, which takes a couple of minutes. In
- * cache254 that model is 148 (1004 faces, 48 textured, 420 alpha); 597, 598,
- * 1178 and 1199 are also worth a look.
+ * In model mode, pass the model id: with none it sweeps the cache for the model
+ * with the most textured and alpha-blended faces, which takes a couple of
+ * minutes. In cache254 that model is 148 (1004 faces, 48 textured, 420 alpha);
+ * 597, 598, 1178 and 1199 are also worth a look.
  *
- * Keys:
- *   left / right     rotate the model (yaw)
- *   up / down        tilt the camera (pitch)
- *   + / -            zoom in / out
- *   [ / ]            previous / next model from the scanned candidate list
- *   space            toggle the auto-turntable
- *   a                cycle a synthetic per-face alpha over the model
- *                    (0xFF -> 0xC0 -> 0x80 -> 0x40), so the alpha kernels are
- *                    exercised even on models whose faces are all opaque
- *   d                show / hide the difference panel
+ * Timings are only meaningful from an optimized build: `make OPT=1
+ * scanline-compare`, then run build_opt/scanline_compare. A debug build says so
+ * in the panel.
+ *
+ * Keys. Every key means exactly one thing; WASD is reserved for the world pan
+ * cluster, which is why the difference panel is on `v` and the alpha cycle on
+ * `t` rather than the more obvious `d` and `a`.
+ *
+ * Both modes:
+ *   left / right     yaw
+ *   up / down        pitch
+ *   + / -            zoom (model) / camera height (world)
+ *   m                switch between model and world
+ *   v                show / hide the difference panel
  *   x                toggle difference amplification (x16 or raw)
  *   r                reset view
  *   escape / q       quit
  *
+ * Model mode:
+ *   [ / ]            previous / next model from the scanned candidate list
+ *   space            toggle the auto-turntable
+ *   t                cycle a synthetic per-face alpha over the model
+ *                    (0xFF -> 0xC0 -> 0x80 -> 0x40), so the alpha kernels are
+ *                    exercised even on models whose faces are all opaque
+ *
+ * World mode:
+ *   w / a / s / d    pan the camera north / west / south / east
+ *   1 / 2            map square X -1 / +1
+ *   3 / 4            map square Z -1 / +1
+ *
  * Environment:
  *   TORIRS_SCANLINE_HEADLESS=N   render N turntable frames with no window,
  *                                print the per-frame pixel difference for each
- *                                alpha mode, dump BMPs, and exit.
+ *                                alpha mode, dump BMPs, and exit (model mode).
+ *   TORIRS_SCANLINE_SHOT=path    write a single frame of exactly what the
+ *                                window shows, then exit.
+ *   TORIRS_SCANLINE_SHOT_YAW/_PITCH/_DIFF   view state for the shot.
+ *   TORIRS_SCANLINE_MAP=x,z      start in world mode on that square.
+ *   TORIRS_SCANLINE_REV=N        dat1 cache revision (default 254).
  *   TORIRS_SCANLINE_BMP=prefix   BMP output prefix (default build/scanline).
  *   TORIRS_SCANLINE_SCAN=N       how many model ids to sweep (default 4000).
  */
@@ -896,20 +924,32 @@ draw_panel_captions(struct Viewer* viewer)
         line,
         viewer->last_diff ? 0x00FFA0A0 : 0x0080FF90);
 
-    /* Raster-only time, averaged over the last TIMING_WINDOW frames. Projection
-     * and face sorting are shared and excluded. */
-    snprintf(line, sizeof(line), "raster avg %.3f ms  (%d frames)", ms_branching, viewer->ms_count);
+    /*
+     * Averaged over the last TIMING_WINDOW frames.
+     *
+     * Model mode brackets the raster alone - projection and face sorting run
+     * once and are shared by both families. World mode replays a painter
+     * command list, which owns per-model projection and sorting, so its bracket
+     * necessarily includes them. That work is identical for both families, but
+     * it dilutes the raster difference, hence the different label.
+     */
+    const char* timing_kind = viewer->mode == MODE_WORLD ? "draw" : "raster";
+
+    snprintf(
+        line, sizeof(line), "%s avg %.3f ms  (%d frames)", timing_kind, ms_branching,
+        viewer->ms_count);
     draw_label(viewer, viewer->pane_branching, 8, 48, line, 0x00FFD070);
 
     if( ms_branching > 0.0 )
         snprintf(
             line,
             sizeof(line),
-            "raster avg %.3f ms  (%.2fx branching)",
+            "%s avg %.3f ms  (%.2fx branching)",
+            timing_kind,
             ms_scanline,
             ms_scanline / ms_branching);
     else
-        snprintf(line, sizeof(line), "raster avg %.3f ms", ms_scanline);
+        snprintf(line, sizeof(line), "%s avg %.3f ms", timing_kind, ms_scanline);
     draw_label(
         viewer,
         viewer->pane_scanline,
@@ -945,8 +985,8 @@ draw_panel_captions(struct Viewer* viewer)
         8,
         PANE_H - 10,
         viewer->mode == MODE_WORLD
-            ? "arrows look  wasd/e pan  +/- height  1/2 mapX  3/4 mapZ  m model  d diff"
-            : "arrows rotate  +/- zoom  [ ] model  a alpha  m world  d diff  space spin",
+            ? "arrows look  wasd pan  +/- height  1/2 mapX  3/4 mapZ  m model  v diff"
+            : "arrows rotate  +/- zoom  [ ] model  t alpha  m world  v diff  space spin",
         0x00909090);
 }
 
@@ -1167,9 +1207,10 @@ write_window_shot(
     double ms_branching = average_ms(viewer, FAMILY_BRANCHING);
     double ms_scanline = average_ms(viewer, FAMILY_SCANLINE);
     printf(
-        "  %s: %d pixels differ; raster avg branching %.4f ms, scanline %.4f ms (%.2fx)%s\n",
+        "  %s: %d pixels differ; %s avg branching %.4f ms, scanline %.4f ms (%.2fx)%s\n",
         viewer->mode == MODE_WORLD ? "world" : "model",
         viewer->last_diff,
+        viewer->mode == MODE_WORLD ? "draw (incl. project+sort)" : "raster",
         ms_branching,
         ms_scanline,
         ms_branching > 0.0 ? ms_scanline / ms_branching : 0.0,
@@ -1296,7 +1337,9 @@ handle_key(
             world_load(viewer, viewer->map_x, viewer->map_z + 1);
         break;
 
-    /* Pan the world camera over the scene; in model mode `a` cycles alpha. */
+    /* Pan the world camera. WASD is the whole cluster and nothing else claims a
+     * letter in it - the difference panel is on `v` and the alpha cycle on `t`
+     * precisely so this stays unambiguous. */
     case SDLK_w:
         if( viewer->mode == MODE_WORLD )
             viewer->world_cam_z += 128;
@@ -1305,16 +1348,16 @@ handle_key(
         if( viewer->mode == MODE_WORLD )
             viewer->world_cam_z -= 128;
         break;
-    case SDLK_e:
+    case SDLK_a:
+        if( viewer->mode == MODE_WORLD )
+            viewer->world_cam_x -= 128;
+        break;
+    case SDLK_d:
         if( viewer->mode == MODE_WORLD )
             viewer->world_cam_x += 128;
         break;
-    case SDLK_a:
-        if( viewer->mode == MODE_WORLD )
-        {
-            viewer->world_cam_x -= 128;
-            break;
-        }
+
+    case SDLK_t:
         viewer->alpha_mode = (viewer->alpha_mode + 1) % ALPHA_MODE_COUNT;
         load_model(viewer, viewer->model_id);
         break;
@@ -1328,7 +1371,7 @@ handle_key(
     case SDLK_r:
         reset_view(viewer);
         break;
-    case SDLK_d:
+    case SDLK_v:
         viewer->show_diff = !viewer->show_diff;
         return 1;
 
@@ -1519,9 +1562,10 @@ main(
     }
 
     printf(
-        "\nkeys: arrows rotate/tilt, +/- zoom, [ ] model, space spin, a alpha,\n"
-        "      m model/world, 1/2 map X, 3/4 map Z, wasd+e pan (world),\n"
-        "      d diff panel, x diff scale, r reset, q quit\n\n");
+        "\nkeys  both modes: arrows look, +/- zoom or height, m model/world,\n"
+        "                  v diff panel, x diff scale, r reset, q quit\n"
+        "  model mode:     [ ] model, space turntable, t face alpha\n"
+        "  world mode:     wasd pan, 1/2 map X, 3/4 map Z\n\n");
 
     int running = 1;
     while( running )

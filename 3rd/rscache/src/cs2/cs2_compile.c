@@ -330,8 +330,12 @@ cs2_cc_scan(struct cs2_cc_compiler* cc, struct cs2_cc_token* token)
         return;
     }
 
-    if( ch == '$' || ch == '%' || ch == '^' )
+    if( (ch == '$' || ch == '^' || ch == '%') &&
+        cs2_cc_ident_char(cc->source[cc->position + 1]) )
     {
+        /* `%` is the global sigil *and* the modulo operator; only a following
+         * identifier character makes it a sigil. Without this, `calc($a % 3)`
+         * lexes an empty global and the arithmetic falls apart. */
         cc->position++;
         int start = cc->position;
         while( cs2_cc_ident_char(cc->source[cc->position]) )
@@ -772,6 +776,9 @@ cs2_cc_statement(struct cs2_cc_compiler* cc);
 
 static void
 cs2_cc_block(struct cs2_cc_compiler* cc);
+
+static void
+cs2_cc_statements_until(struct cs2_cc_compiler* cc, char stop);
 
 /** Decode a source string literal into the windows-1252 bytes the cache holds. */
 static const char*
@@ -1809,8 +1816,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     {
         struct cs2_cc_lexer_state saved;
         cs2_cc_enter_fragment(cc, default_body, &saved);
-        while( cc->token.kind != CS2_CC_TOK_END && !cc->failed )
-            cs2_cc_statement(cc);
+        cs2_cc_statements_until(cc, 0);
         cs2_cc_leave_fragment(cc, &saved);
         if( cc->failed )
             return;
@@ -1846,8 +1852,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
         {
             struct cs2_cc_lexer_state saved;
             cs2_cc_enter_fragment(cc, cases[i].body, &saved);
-            while( cc->token.kind != CS2_CC_TOK_END && !cc->failed )
-                cs2_cc_statement(cc);
+            cs2_cc_statements_until(cc, 0);
             cs2_cc_leave_fragment(cc, &saved);
         }
         cs2_cc_jumps_add(cc, &ends, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
@@ -2056,13 +2061,47 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
     cs2_cc_accept_punct(cc, ';');
 }
 
+/**
+ * Run statements until `stop`, refusing to loop on one that consumes nothing.
+ *
+ * Every statement must advance the lexer. A parse bug that leaves the cursor
+ * where it was would otherwise spin silently, so it is reported against the
+ * token that could not be consumed.
+ */
+static void
+cs2_cc_statements_until(struct cs2_cc_compiler* cc, char stop)
+{
+    while( !cc->failed && cc->token.kind != CS2_CC_TOK_END )
+    {
+        if( stop && cs2_cc_at_punct(cc, stop) )
+            return;
+        int before_position = cc->position;
+        enum cs2_cc_token_kind before_kind = cc->token.kind;
+        const char* before_text = cc->token.text;
+        char before_punct = cc->token.punct;
+
+        cs2_cc_statement(cc);
+
+        if( cc->failed )
+            return;
+        if( cc->position == before_position && cc->token.kind == before_kind &&
+            cc->token.text == before_text && cc->token.punct == before_punct )
+        {
+            cs2_cc_fail(
+                cc,
+                "cannot parse a statement starting at '%s'",
+                before_text ? before_text : (const char[]){ before_punct, '\0' });
+            return;
+        }
+    }
+}
+
 static void
 cs2_cc_block(struct cs2_cc_compiler* cc)
 {
     if( !cs2_cc_expect_punct(cc, '{') )
         return;
-    while( !cc->failed && !cs2_cc_at_punct(cc, '}') && cc->token.kind != CS2_CC_TOK_END )
-        cs2_cc_statement(cc);
+    cs2_cc_statements_until(cc, '}');
     cs2_cc_expect_punct(cc, '}');
 }
 
@@ -2210,8 +2249,7 @@ RSCache_CS2_Compile(
 
     cs2_cc_next(&cc);
     cs2_cc_signature(&cc);
-    while( !cc.failed && cc.token.kind != CS2_CC_TOK_END )
-        cs2_cc_statement(&cc);
+    cs2_cc_statements_until(&cc, 0);
 
     /* A script that returns nothing has its trailing `return` omitted by the
      * decompiler, and every script ends with an epilogue that pushes one

@@ -46,6 +46,7 @@ struct LC_Out
     int dry_run;
 
     struct LC_Str npc_cfg;
+    struct LC_Str obj_cfg;
     struct LC_Str seq_cfg;
     struct LC_Str spotanim_cfg;
     struct LC_Str loc_cfg;

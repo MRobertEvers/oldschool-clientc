@@ -36,6 +36,7 @@ struct LC_Pack
 enum LC_PackKind
 {
     LC_PACK_NPC,
+    LC_PACK_OBJ,
     LC_PACK_SEQ,
     LC_PACK_SPOTANIM,
     LC_PACK_LOC,

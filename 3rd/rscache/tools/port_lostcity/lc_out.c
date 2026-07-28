@@ -193,6 +193,8 @@ lc_out_flush_configs(struct LC_Out* out)
     assert(out);
     if( !flush_one(out, &out->npc_cfg, "npc") )
         return 0;
+    if( !flush_one(out, &out->obj_cfg, "obj") )
+        return 0;
     if( !flush_one(out, &out->seq_cfg, "seq") )
         return 0;
     if( !flush_one(out, &out->spotanim_cfg, "spotanim") )
@@ -210,6 +212,7 @@ lc_out_free(struct LC_Out* out)
     if( !out )
         return;
     lc_str_free(&out->npc_cfg);
+    lc_str_free(&out->obj_cfg);
     lc_str_free(&out->seq_cfg);
     lc_str_free(&out->spotanim_cfg);
     lc_str_free(&out->loc_cfg);

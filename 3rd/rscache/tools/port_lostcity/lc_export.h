@@ -85,6 +85,7 @@ struct LC_Ctx
     struct LC_Out* out;
 
     struct LC_IdMap npc_map;
+    struct LC_IdMap obj_map;
     struct LC_IdMap seq_map;
     struct LC_IdMap spotanim_map;
     struct LC_IdMap loc_map;
@@ -171,6 +172,20 @@ int
 lc_export_npc(
     struct LC_Ctx* ctx,
     int src_npc_id,
+    const char* name);
+
+/**
+ * Export an item as a LostCity `.obj` config plus its models.
+ *
+ * An item carries up to three: the one the inventory icon is rendered from and
+ * the male and female wield models. LostCity names the wield models by
+ * convention (`<base>_manwear`), and the packer finds them by that name rather
+ * than by anything in the config, so the names have to be built here.
+ */
+int
+lc_export_obj(
+    struct LC_Ctx* ctx,
+    int src_obj_id,
     const char* name);
 
 int

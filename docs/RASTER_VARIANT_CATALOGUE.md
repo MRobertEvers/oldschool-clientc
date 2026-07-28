@@ -138,21 +138,47 @@ drawn opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans
 
   ```sh
   make -C src scanline-compare
-  ./src/build/scanline_compare cache254 148
+  ./src/build/scanline_compare cache254 148      # one model on a turntable
+  ./src/build/scanline_compare cache254 world    # a real map square at 50,50
   ```
 
-  Pass the model id — with none it sweeps the cache (~2 min). Keys: `←/→` yaw,
-  `↑/↓` pitch, `+/-` zoom, `[`/`]` model, `space` turntable, `a` face alpha
-  (FF/C0/80/40), `d` diff panel, `x` diff scale, `r` reset, `q` quit.
+  **World mode** builds the square through `WorldBuilder` + `CreateTask_WorldLoad`
+  and draws it through the production `painter_paint_bucket` → `ToriRS_Frame` →
+  `ToriRS_Soft3D_Execute` path, so what is compared is exactly what the client
+  draws. The painter runs once per frame and both families replay the identical
+  command list.
 
-  Non-interactive modes: `TORIRS_SCANLINE_HEADLESS=N` sweeps N yaw steps per
-  alpha mode with no window and dumps BMPs; `TORIRS_SCANLINE_SHOT=path` writes a
-  single frame of exactly what the window shows.
+  Keys — both modes: `←/→` yaw, `↑/↓` pitch, `+/-` zoom (model) or camera height
+  (world), `m` switch mode, `d` diff panel, `x` diff scale, `r` reset, `q` quit.
+  Model mode adds `[`/`]` model, `space` turntable, `a` face alpha (FF/C0/80/40).
+  World mode adds `1`/`2` map X ∓, `3`/`4` map Z ∓, `w`/`s`/`a`/`e` pan.
+
+  Non-interactive: `TORIRS_SCANLINE_HEADLESS=N` sweeps N yaw steps per alpha mode
+  with no window and dumps BMPs; `TORIRS_SCANLINE_SHOT=path` writes a single frame
+  of exactly what the window shows; `TORIRS_SCANLINE_MAP=x,z` starts in world mode
+  on that square.
 
   On `cache254` model 148 (1004 faces, 48 textured, 420 alpha) the two families
   differ on 0.77 % of drawn pixels, and **0** once the model's textures are
   stripped — which is what pins the residual on the reference span start rather
-  than on the walker.
+  than on the walker. Lumbridge (50,50) differs on 3.5 % of the viewport, all of
+  it on textured terrain and roofs.
+
+### Performance
+
+Numbers below are from an optimized build (`make -C src OPT=1 scanline-compare`);
+a debug build says so in the panel, because `-O0` timings are meaningless here.
+
+| Subject | Bracket | branching | scanline | |
+|---|---|---|---|---|
+| model 148 / 597 / 1178 | raster only | 0.042 / 0.027 / 0.018 ms | 0.037 / 0.024 / 0.016 ms | **0.87–0.96×** |
+| world 50,50 | draw incl. project + sort | 1.22 ms | 1.21 ms | 1.00× |
+
+Model mode brackets the raster alone — projection and face sorting run once and
+are shared. World mode replays a painter command list, which owns per-model
+projection and sorting; that work is identical for both families but dilutes the
+raster difference to a wash. The honest summary is a **modest raster win, not an
+end-to-end one**: at world scale the transform and sort dominate.
 
 ---
 
