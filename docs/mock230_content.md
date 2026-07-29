@@ -508,11 +508,22 @@ content refers to it by — and writes the `.pack` files.
 
 ```
 tools/gameval_import.py --search npcs goblin
-tools/gameval_import.py --names tools/gameval_import.names --out OSRS-Content/osrs239-content/pack
+tools/gameval_import.py --names tools/gameval_import.names \
+    --out OSRS-Content/osrs239-content/names
 ```
 
 `tools/gameval_import.names` is the request list; a symbol not in it is not
 imported, which keeps the packs a readable subset rather than 3 MB of text.
+
+**`--out` is `names/`, not `pack/`.** This command used to say `pack/`, and the
+script opened every output with `"w"` — so running it as documented truncated
+`pack/npc.pack` from 16,292 lines to 39 and `pack/varp.pack` from 5,705 to 11,
+after which a `cachepack unpack` refilled them from the cache and reverted every
+alias the import had just made. An imported name is an *authored* name from a
+foreign revision, so it belongs in layer 1; `pack/` is regenerated wholesale from
+the cache's own gameval table. The script now refuses a `pack/` output and merges
+into whatever is already in the target rather than replacing it. See
+[`CONTENT_ARCHITECTURE.md`](CONTENT_ARCHITECTURE.md) §4.1 and §6.2.
 
 **OpenRune's cache is revision 235.10 and the mock runs against 230.** An id
 that moved between them does not fail loudly — it resolves to a *different* npc,

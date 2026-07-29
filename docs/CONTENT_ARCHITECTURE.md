@@ -569,3 +569,40 @@ cannot come back quietly.
 The general lesson is the one §4.1 already argued: **the hazard was written down
 in prose in the very file that caused it.** A comment saying "this is subtle,
 be careful" is a check that never runs.
+
+---
+
+## 6.2 Step 3, as landed — and what a real import tried to do
+
+`tools/gameval_import.py` now:
+
+- **refuses a `pack/` output** (non-zero exit, with the reason), because layer 0
+  is regenerated wholesale by `cachepack unpack`;
+- **merges instead of truncating.** It owns exactly the lines between
+  `// >>> gameval_import: generated` and `// <<< gameval_import: end generated`;
+  everything else in the file — prose, hand-authored aliases — is copied through.
+  Verified idempotent: two runs produce a byte-identical file.
+
+The documented command in `docs/mock230_content.md` §5 pointed at `pack/` and
+opened every output `"w"`, so running it truncated `pack/npc.pack` from 16,292
+lines to 39. That is now impossible rather than merely discouraged.
+
+**Running the corrected import for real caught three things the layer validator
+would otherwise never have had a chance to see**, because the old tool wrote into
+layer 0 where a collision is invisible by construction:
+
+| requested | OpenRune 235.10 | cache.osrs239 already names | consequence |
+|---|---|---|---|
+| `npcs:sos_war_goblin_armed as goblin_armed` | 2484 | **3045** `goblin_armed` | `[ai_queue3,goblin_armed]` pointed the goblin drop table at a different npc |
+| `npcs:goblin_cook_charred as goblin_cook` | 4851 | **4850** `goblin_cook` | `[opnpc1,goblin_cook]` addressed the *charred* variant |
+| `varp:bankcert as bank_withdrawnotes` | varp 115 | varbit 3958 is varp 115 bit 0 | re-created the §6.1 whole-varp bug |
+| `varp:bankinsert as bank_insertmode` | varp 304 | varbit 3959 is varp 304 bit 0 | likewise |
+
+All four requests are deleted from `tools/gameval_import.names`, each with the
+reason in place, so the next person to read the list sees why the obvious alias
+is absent.
+
+This is the "id drift" risk §5.2 describes — *same display name, different id* —
+caught mechanically rather than by someone noticing a goblin dropping the wrong
+loot. The remaining generalisation, pinning the whole referenced surface with a
+field fingerprint (`names/pins.ini`), is still step 6.

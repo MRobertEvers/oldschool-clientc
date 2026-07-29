@@ -32,7 +32,10 @@ npcs:sos_pest_giantspider1 as giant_spider_50
 npcs:poh_giantspider as huge_spider
 npcs:godwars_goblin2 as goblin_12
 npcs:godwars_goblin4 as goblin_15
-npcs:sos_war_goblin_armed as goblin_armed
+// REMOVED: OpenRune 235.10 calls npc 2484 `sos_war_goblin_armed`, but
+// cache.osrs239 already names npc 3045 `goblin_armed` — a different npc.
+// Content binds [ai_queue3,goblin_armed], so the alias silently repointed
+// the drop table at the wrong monster. The cache's own name is correct here.
 npcs:goblin_unarmed_melee_in_3 as goblin_unarmed
 npcs:goblin_armed_melee_4 as goblin_armed_2
 npcs:man4 as man_alt2
@@ -47,7 +50,8 @@ npcs:bob
 npcs:doomsayer_normal as doomsayer
 npcs:generalshopkeeper1 as shop_keeper
 npcs:generalassistant1 as shop_assistant
-npcs:goblin_cook_charred as goblin_cook
+// REMOVED: cache.osrs239 names 4850 `goblin_cook`; 4851 is the *charred*
+// variant. [opnpc1,goblin_cook] wants 4850, which layer 0 already gives.
 npcs:lumbridge_guide2_man as gee
 npcs:father_aereck
 npcs:aide_tutor_cooking as cooking_tutor
@@ -247,9 +251,13 @@ varp:sa_attack
 // Bank. `bankcert` is note-mode and `bankinsert` is insert-mode; the aliases
 // are the names the bank content already writes.
 varp:bankcert
-varp:bankcert as bank_withdrawnotes
+// REMOVED: `bank_withdrawnotes` is a varbit (3958, varp 115 bit 0), and it is
+// requested as one above. Aliasing the *base varp* under the same name made
+// `%bank_withdrawnotes` resolve varp-first and compile to a whole-varp write,
+// wiping bank_currenttab in bits 4..7. See docs/CONTENT_ARCHITECTURE.md §6.1.
 varp:bankinsert
-varp:bankinsert as bank_insertmode
+// REMOVED: same as bank_withdrawnotes — varbit 3959 is varp 304 bit 0, and
+// varp 304 bits 1..31 are bank_requestedquantity.
 
 // The three dialogue interfaces the chat toolkit drives, all mounted into the
 // same chatbox slot: 231 the npc's side, 217 the player's, 229 a plain message

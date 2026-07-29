@@ -10,11 +10,22 @@ one thing this repo has no way to derive — a cache carries an npc's *display*
 name, not the unique symbol a server needs.
 
     tools/gameval_import.py --search npcs goblin        # discovery
-    tools/gameval_import.py --names tools/gameval_import.names --out DIR
+    tools/gameval_import.py --names tools/gameval_import.names \
+        --out OSRS-Content/osrs239-content/names
 
 `--names` is the checked-in request list: one `namespace:name` per line, so the
 generated packs stay a *subset* rather than 3 MB of text nobody reads. A name
 the table does not have is an error, never a silent omission.
+
+**`--out` is the `names/` directory, never `pack/`.** An imported alias is
+layer 1 — a name a human chose, from a foreign revision, that the cache does not
+state. `pack/` is layer 0 and is regenerated wholesale by `cachepack unpack`, so
+an alias written there is reverted by the next unpack or, worse, kept and made
+indistinguishable from a name the cache actually carries. The script refuses a
+`pack/` output rather than trusting the caller, and merges into whatever is
+already in the target file instead of truncating it. Both of those were real:
+the previously documented command truncated `pack/npc.pack` from 16,292 lines to
+39. See docs/CONTENT_ARCHITECTURE.md §4.1.
 
 OpenRune's cache is revision 235.10 and this repo's mock targets 230, so an id
 imported here is a *claim* that has to be checked. `mock230_pack` does that
@@ -136,7 +147,56 @@ def read_requests(path):
     return requests
 
 
+# The tool owns exactly what sits between these markers. Everything else in the
+# file — comments, hand-authored aliases, the prose justifying them — is copied
+# through untouched. See docs/CONTENT_ARCHITECTURE.md §3.2: `cachepack unpack`
+# already destroys authored prose in the packs it owns, and this tool used to do
+# the same thing far more violently.
+BEGIN_MARKER = "// >>> gameval_import: generated, do not edit below this line"
+END_MARKER = "// <<< gameval_import: end generated"
+
+
+def split_managed(text):
+    """(before, after) around the tool's own block, which is discarded.
+
+    A file with no markers is all `before`, so the block gets appended.
+    """
+    if BEGIN_MARKER not in text:
+        return text, ""
+    before, _, rest = text.partition(BEGIN_MARKER)
+    if END_MARKER not in rest:
+        # A truncated previous run. Everything from the marker on is ours and
+        # unparseable, so drop it rather than guess where it ended.
+        return before, ""
+    _, _, after = rest.partition(END_MARKER)
+    return before, after.lstrip("\n")
+
+
 def cmd_generate(groups, requests, out_dir, source):
+    """Merge the requested aliases into the layer-1 packs under `out_dir`.
+
+    Two things this deliberately does NOT do, both of which it used to:
+
+    - **Write layer 0.** `pack/<ns>.pack` is regenerated wholesale by
+      `cachepack unpack` from the cache's own gameval table. Writing an alias
+      there means the next unpack reverts it, or — worse — keeps it and leaves
+      it indistinguishable from a name the cache actually stated. Aliases belong
+      in `names/`, which is layer 1. See docs/CONTENT_ARCHITECTURE.md §4.1.
+
+    - **Truncate.** Every output was opened `"w"` and rewritten with only the
+      requested symbols, so running the command documented in
+      docs/mock230_content.md §5 took `pack/npc.pack` from 16,292 lines to 39
+      and `pack/varp.pack` from 5,705 to 11. A following `cachepack unpack`
+      refilled them from the cache and silently reverted every alias the import
+      had just made. Neither ordering was correct.
+    """
+    if os.path.basename(os.path.normpath(out_dir)) == "pack":
+        raise SystemExit(
+            f"refusing to write {out_dir}: that is layer 0, which cachepack\n"
+            f"regenerates from the cache's gameval table. Aliases go in the\n"
+            f"sibling `names/` directory — see docs/CONTENT_ARCHITECTURE.md §4.1."
+        )
+
     packs = {}
     missing = []
     for namespace, name, alias in requests:
@@ -157,16 +217,33 @@ def cmd_generate(groups, requests, out_dir, source):
     os.makedirs(out_dir, exist_ok=True)
     for pack, entries in sorted(packs.items()):
         path = os.path.join(out_dir, f"{pack}.pack")
+        existing = ""
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as handle:
+                existing = handle.read()
+        before, after = split_managed(existing)
+
+        block = [
+            BEGIN_MARKER,
+            f"// Imported by tools/gameval_import.py from {source}.",
+            "// Add symbols to tools/gameval_import.names and re-run; hand-authored",
+            "// lines outside this block are preserved. Ids are OpenRune's (cache rev",
+            "// 235.10) and are re-validated against the cache by mock230_pack.",
+        ]
+        for alias, value in sorted(entries.items(), key=lambda kv: kv[1]):
+            block.append(f"{value}={alias}")
+        block.append(END_MARKER)
+
+        if before and not before.endswith("\n"):
+            before += "\n"
+        text = before + "\n".join(block) + "\n"
+        if after.strip():
+            text += "\n" + after.lstrip("\n")
+
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write(
-                f"// Generated by tools/gameval_import.py from {source}.\n"
-                f"// Do not edit: add the symbol to tools/gameval_import.names\n"
-                f"// and re-run. Ids are OpenRune's (cache rev 235.10) and are\n"
-                f"// re-validated against cache.osrs230 by mock230_pack.\n"
-            )
-            for alias, value in sorted(entries.items(), key=lambda kv: kv[1]):
-                handle.write(f"{value}={alias}\n")
-        print(f"wrote {path} ({len(entries)} symbols)")
+            handle.write(text)
+        kept = len([ln for ln in before.splitlines() if "=" in ln and not ln.strip().startswith("//")])
+        print(f"wrote {path} ({len(entries)} imported, {kept} hand-authored preserved)")
 
 
 def main():
@@ -174,7 +251,10 @@ def main():
     parser.add_argument("--gamevals", default=DEFAULT_GAMEVALS)
     parser.add_argument("--search", nargs=2, metavar=("NAMESPACE", "SUBSTRING"))
     parser.add_argument("--names", help="request list to generate packs from")
-    parser.add_argument("--out", help="directory to write the .pack files into")
+    parser.add_argument(
+        "--out",
+        help="the tree's `names/` directory (layer 1). Writing `pack/` is refused.",
+    )
     parser.add_argument(
         "--namespaces", action="store_true", help="list the table's groups"
     )
