@@ -56,6 +56,55 @@
  */
 #define CP_ASSET_ENCRYPTED 0x2
 
+/**
+ * A friendly form for one asset kind: the payload as text or as an image, rather
+ * than as the bytes the cache holds.
+ *
+ * Both halves may decline. `write` returns 0 for a record it cannot decode, and
+ * `read` returns NULL when the friendly file is not on disk — in both cases the
+ * caller falls back to the raw payload with its raw extension. That fallback is
+ * not a nicety: 37 of osrs239's clientscripts do not decompile, and a mode that
+ * dropped them would quietly ship a cache missing 37 scripts.
+ *
+ * `path_stem` is the output path without an extension, so a codec can write one
+ * file, several, or a directory as it sees fit.
+ */
+struct CP_AssetCodec
+{
+    /** Extension this codec writes, for the report and for `--list-assets`. */
+    const char* ext;
+    /**
+     * 1 = written, 0 = decline and let the raw payload be written instead.
+     *
+     * `file_ids`/`file_count` describe the archive's members, because a codec for
+     * a multi-file archive (an interface's components, a map's five layers)
+     * cannot recover them from the payload alone — the count lives in the
+     * reference table, not in the bytes.
+     */
+    int (*write)(
+        struct CP_Ctx* ctx,
+        int record_id,
+        const uint8_t* payload,
+        int size,
+        const int* file_ids,
+        int file_count,
+        const char* path_stem);
+    /**
+     * Payload bytes (caller frees), or NULL to fall back to the raw file.
+     *
+     * `*out_file_ids` (caller frees) is the rebuilt member list, so an archive
+     * that gained or lost a member updates the reference table's child list too.
+     * Leave it NULL for a single-file asset.
+     */
+    uint8_t* (*read)(
+        struct CP_Ctx* ctx,
+        int record_id,
+        const char* path_stem,
+        int** out_file_ids,
+        int* out_file_count,
+        int* out_size);
+};
+
 struct CP_Asset
 {
     /** Directory under the source tree, e.g. "models". */
@@ -68,6 +117,8 @@ struct CP_Asset
     /** enum RSCache_Dat2Table — resolved to an on-disk id per cache. */
     int table;
     unsigned flags;
+    /** Friendly form, or NULL to always write the raw payload. */
+    const struct CP_AssetCodec* codec;
 };
 
 const struct CP_Asset*
@@ -96,6 +147,10 @@ cp_asset_extension(
     int size);
 
 /* ---- drivers ------------------------------------------------------------ */
+
+/** Turn the friendly codecs off, so every asset writes its raw payload. */
+void
+cp_assets_set_raw(int raw);
 
 int
 cp_assets_export(
