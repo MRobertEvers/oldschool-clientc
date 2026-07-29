@@ -43,6 +43,11 @@ test_load(void)
         "w=33\n"
         "h=33\n"
         "\n"
+        "[component:world]\n"
+        "type=world\n"
+        "mmb_rotate=true\n"
+        "wheel_zoom=false\n"
+        "\n"
         "[layout:fixed]\n"
         "n=compass_slot\n"
         "c=compass\n"
@@ -87,7 +92,13 @@ test_load(void)
             break;
         case RCITEM_UICOMPONENT:
             components++;
-            TEST_ASSERT(items->items[i].u.uicomponent.width == 33, "component w value");
+            if( strcmp(items->items[i].u.uicomponent.name, "compass") == 0 )
+                TEST_ASSERT(items->items[i].u.uicomponent.width == 33, "component w value");
+            else
+            {
+                TEST_ASSERT(items->items[i].u.uicomponent.mmb_rotate == 1, "mmb_rotate=true");
+                TEST_ASSERT(items->items[i].u.uicomponent.wheel_zoom == 0, "wheel_zoom=false");
+            }
             break;
         case RCITEM_UILAYOUT:
             layouts++;
@@ -102,7 +113,7 @@ test_load(void)
     }
 
     TEST_ASSERT(sprites == 1, "one sprite");
-    TEST_ASSERT(components == 1, "one component");
+    TEST_ASSERT(components == 2, "two components");
     TEST_ASSERT(layouts == 2, "two layouts from bare =");
     TEST_ASSERT(invs == 1, "one inv");
 

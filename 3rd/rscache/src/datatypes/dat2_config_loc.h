@@ -125,6 +125,15 @@ struct RSCache_Dat2ConfigLoc
     int resize_z;
 
     int map_scene_id;
+    /**
+     * Opcode 69: the sides this loc may NOT be approached from, as a 4-bit
+     * DirectionFlag mask (1 N, 2 E, 4 S, 8 W) in the loc's *unrotated* frame.
+     * Consumed by the client's pathfinder approach test (Client-TS
+     * CollisionMap.testLoc), which rotates it by the placed angle first:
+     *   angle != 0 -> ((fa << angle) & 0xf) + (fa >> (4 - angle))
+     * Default 0 = approachable from every side.
+     */
+    int force_approach;
     int offset_x;
     int offset_y;
     int offset_z;

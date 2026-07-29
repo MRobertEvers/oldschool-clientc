@@ -263,7 +263,7 @@ prune_doors(const char* content)
     int dropped = 0;
     int skipping = 0;
 
-    snprintf(path, sizeof(path), "%s/scripts/doors/configs/doors.loc", content);
+    snprintf(path, sizeof(path), "%s/server/scripts/doors/configs/doors.loc", content);
     snprintf(temp, sizeof(temp), "%s.new", path);
     in = fopen(path, "rb");
     if( !in )
@@ -628,7 +628,7 @@ export_cache(
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = 230;
+    profile.revision = MOCK230_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_out);
     if( !disk )
@@ -754,8 +754,8 @@ usage(void)
     fprintf(stderr,
             "usage: mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR] [-v]\n"
             "\n"
-            "  --content DIR    content tree (default OSRS-Content/mock230)\n"
-            "  --cache DIR      source cache (default cache.osrs230)\n"
+            "  --content DIR    content tree (default OSRS-Content/osrs239-content)\n"
+            "  --cache DIR      source cache (default cache.osrs239)\n"
             "  --cache-out DIR  write a derived cache with the authored npc combat\n"
             "                   data baked into each record's params\n"
             "  --prune-doors    rewrite doors.loc without the pairs the cache\n"
@@ -768,8 +768,8 @@ main(
     int argc,
     char** argv)
 {
-    const char* content = "OSRS-Content/mock230";
-    const char* cache = "cache.osrs230";
+    const char* content = "OSRS-Content/osrs239-content";
+    const char* cache = MOCK230_CACHE_DIR_DEFAULT;
     const char* cache_out = NULL;
     int prune = 0;
 
@@ -811,7 +811,7 @@ main(
 
         profile.game = RSCACHE_GAME_OLDSCHOOL;
         profile.epoch = RSCACHE_EPOCH_DAT2;
-        profile.revision = 230;
+        profile.revision = MOCK230_CACHE_REVISION;
         disk = RSCache_Dat2DiskNewFromDirectory(cache);
         if( disk )
         {

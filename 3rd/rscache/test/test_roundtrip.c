@@ -1988,7 +1988,8 @@ loc_equal(
         lhs->shadowed != rhs->shadowed || lhs->resize_x != rhs->resize_x ||
         lhs->resize_height != rhs->resize_height || lhs->resize_z != rhs->resize_z ||
         lhs->offset_x != rhs->offset_x || lhs->offset_y != rhs->offset_y ||
-        lhs->offset_z != rhs->offset_z || lhs->obstructs_ground != rhs->obstructs_ground ||
+        lhs->offset_z != rhs->offset_z || lhs->force_approach != rhs->force_approach ||
+        lhs->obstructs_ground != rhs->obstructs_ground ||
         lhs->break_routefinding != rhs->break_routefinding ||
         lhs->support_items != rhs->support_items ||
         lhs->transform_varbit != rhs->transform_varbit ||

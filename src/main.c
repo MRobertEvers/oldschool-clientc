@@ -622,17 +622,20 @@ frame_loop_step(void)
         if( sock )
             NetTransport_Poll(sock, app.net, &bus);
 
-        /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats]": press at
+        /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
          * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
          * `repeats` times (default 1). The only way to exercise a drag
          * headlessly — SIM_CLICK_AT presses and releases in the same
          * place, which no drag handler reacts to — and the repeat is
          * what keeps a pan going long enough to show what a client does
-         * when the view never settles. */
+         * when the view never settles. `button` is the LibToriRS_MouseButton
+         * code (1 left, 2 middle, 3 right) and defaults to left; middle is
+         * what drives the viewport's camera rotate. */
         {
             static long drag_frame = -2;
             static long drag_x0, drag_y0, drag_x1, drag_y1;
             static long drag_repeats = 1;
+            static long drag_button = 1;
             if( drag_frame == -2 )
             {
                 char const* spec = getenv("TORIRS_SIM_DRAG");
@@ -640,10 +643,10 @@ frame_loop_step(void)
                 if( spec && *spec )
                 {
                     char* end = NULL;
-                    long values[6];
+                    long values[7];
                     int count = 0;
                     values[count++] = strtol(spec, &end, 0);
-                    while( count < 6 && end && *end == ',' )
+                    while( count < 7 && end && *end == ',' )
                         values[count++] = strtol(end + 1, &end, 0);
                     if( count >= 5 )
                     {
@@ -653,6 +656,7 @@ frame_loop_step(void)
                         drag_x1 = values[3];
                         drag_y1 = values[4];
                         drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
+                        drag_button = count > 6 && values[6] > 0 ? values[6] : 1;
                     }
                 }
             }
@@ -664,7 +668,11 @@ frame_loop_step(void)
                     CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
                 else if( step == 2 )
                     CmdBus_PushMouseButton(
-                        &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, (int)drag_x0, (int)drag_y0);
+                        &bus,
+                        TORIRS_CMD_INPUT_MOUSE_DOWN,
+                        (uint8_t)drag_button,
+                        (int)drag_x0,
+                        (int)drag_y0);
                 else if( step > 2 && step <= 2 + steps )
                 {
                     long i = step - 2;
@@ -675,11 +683,15 @@ frame_loop_step(void)
                 else if( step == 3 + steps )
                 {
                     CmdBus_PushMouseButton(
-                        &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, (int)drag_x1, (int)drag_y1);
+                        &bus,
+                        TORIRS_CMD_INPUT_MOUSE_UP,
+                        (uint8_t)drag_button,
+                        (int)drag_x1,
+                        (int)drag_y1);
                     fprintf(
                         stderr,
-                        "sim_drag: %ld,%ld -> %ld,%ld (%ld left)\n",
-                        drag_x0, drag_y0, drag_x1, drag_y1, drag_repeats - 1);
+                        "sim_drag: %ld,%ld -> %ld,%ld button=%ld (%ld left)\n",
+                        drag_x0, drag_y0, drag_x1, drag_y1, drag_button, drag_repeats - 1);
                     if( --drag_repeats > 0 )
                     {
                         /* Alternate direction each repeat: panning one
@@ -696,6 +708,58 @@ frame_loop_step(void)
                     }
                     else
                         drag_frame = -1;
+                }
+            }
+        }
+
+        /* TORIRS_SIM_WHEEL="frame,x,y,notches[,repeats]": park the pointer
+         * at (x,y) and turn the wheel `notches` (positive = up / toward the
+         * screen, which zooms the viewport in) once per frame for `repeats`
+         * frames. Wheel events carry no position of their own, so the move
+         * has to land first — same reason SIM_CLICK_AT moves ahead of its
+         * press. */
+        {
+            static long wheel_frame = -2;
+            static long wheel_x, wheel_y, wheel_notches;
+            static long wheel_repeats = 1;
+            if( wheel_frame == -2 )
+            {
+                char const* spec = getenv("TORIRS_SIM_WHEEL");
+                wheel_frame = -1;
+                if( spec && *spec )
+                {
+                    char* end = NULL;
+                    long values[5];
+                    int count = 0;
+                    values[count++] = strtol(spec, &end, 0);
+                    while( count < 5 && end && *end == ',' )
+                        values[count++] = strtol(end + 1, &end, 0);
+                    if( count >= 4 )
+                    {
+                        wheel_frame = values[0];
+                        wheel_x = values[1];
+                        wheel_y = values[2];
+                        wheel_notches = values[3];
+                        wheel_repeats = count > 4 && values[4] > 0 ? values[4] : 1;
+                    }
+                }
+            }
+            if( wheel_frame >= 0 && frame_count >= wheel_frame )
+            {
+                long step = frame_count - wheel_frame;
+                if( step == 0 )
+                    CmdBus_PushMouseMove(&bus, (int)wheel_x, (int)wheel_y);
+                else if( step <= 2 + wheel_repeats && step > 2 )
+                {
+                    CmdBus_PushMouseWheel(&bus, (int16_t)wheel_notches);
+                    if( step == 2 + wheel_repeats )
+                    {
+                        fprintf(
+                            stderr,
+                            "sim_wheel: %ld,%ld notches=%ld x%ld\n",
+                            wheel_x, wheel_y, wheel_notches, wheel_repeats);
+                        wheel_frame = -1;
+                    }
                 }
             }
         }

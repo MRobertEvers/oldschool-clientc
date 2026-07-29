@@ -1,6 +1,7 @@
 #include "bootmanifest.h"
 
 #include "app.h"
+#include "features/features.h"
 
 #include "3rd/ini/ini.h"
 #include "3rd/rscache/src/rscache_profile.h"
@@ -103,6 +104,7 @@ enum bm_section
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
     BM_SECTION_SPAWN,
+    BM_SECTION_FEATURES,
 };
 
 static enum bm_section
@@ -121,6 +123,8 @@ bm_section_of(char const* header)
         return BM_SECTION_UI;
     if( strncmp(header, "spawn:", 6) == 0 )
         return BM_SECTION_SPAWN;
+    if( strncmp(header, "features:", 9) == 0 )
+        return BM_SECTION_FEATURES;
     return BM_SECTION_NONE;
 }
 
@@ -432,6 +436,24 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_FEATURES:
+        if( strcmp(key, "era") == 0 )
+        {
+            /* Validated here rather than at App_Init so a typo names itself at
+             * load time, next to the file it came from. */
+            if( !ToriRS_Features_ByName(value) )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                    value);
+                return;
+            }
+            snprintf(bm->features_era, sizeof(bm->features_era), "%s", value);
+            return;
+        }
+        break;
+
     case BM_SECTION_NONE:
         return;
     }
@@ -615,6 +637,9 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->connect_user = bm->user;
     if( bm->pass[0] )
         cfg->connect_pass = bm->pass;
+
+    if( bm->features_era[0] )
+        cfg->features_era = bm->features_era;
 
     if( bm->ui_logic )
         cfg->ui_logic = bm->ui_logic;

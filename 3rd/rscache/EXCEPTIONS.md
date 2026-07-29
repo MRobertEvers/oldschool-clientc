@@ -182,7 +182,7 @@ back. All still round-trip **semantically**.
 | spotanim | recolour/retexture slots past 6 (the opcode ranges are 10 wide) |
 | sequence | v1's frame-sound record packs id/loops/location into 24 bits, leaving `retain` and `weight` nowhere to live; v1 and v2 index frame sounds by *position*, so the list is written dense with zero-filled holes (the decoder's own `id >= 1` filter drops them again); opcode 100's blend table is consumed without storing |
 | sprites | the per-sprite flags byte, which the decoder does not retain. Row-major is always written (never FLAG_VERTICAL) and FLAG_ALPHA only when the alpha channel cannot be re-derived from `index != 0`, so a vertically-stored sprite is same-length but different bytes — sprites measure **100% same-length, 24–29% exact**, i.e. the shortfall is entirely byte ordering. Also: a palette entry of 0, which the decoder rewrites to 1 on the way in. |
-| loc | the largest lossy set of any type — roughly 25 opcodes consumed without storing (25, 44, 45, 61, 69, 88/90/91/96–105, 163–191 and the boolean-flag block), plus opcode 95's pre-220 payload. Also collapses three groups of aliased opcodes: actions 0–4 (writable via 30+i *or* 150+i), map_function_id (60, 82, 107) and map_scene_id (68, 102) — the encoder emits the lowest opcode of each. Hence ~0–1% byte-exact against ~52% same-length. |
+| loc | the largest lossy set of any type — roughly 24 opcodes consumed without storing (25, 44, 45, 61, 88/90/91/96–105, 163–191 and the boolean-flag block), plus opcode 95's pre-220 payload. (Opcode 69, `force_approach`, left this list on 2026-07-29 — the client's pathfinder approach test needs it; see docs/PATHING_INTERACTION_PARITY.md. 2459 of `cache.osrs230`'s locs carry it. Measured effect on loc round-trip, osrs230: **exact 508 -> 545**, same-len-incl-exact 29667 -> 29492, so 175 records moved same-len -> differ. Those 175 were length *coincidences*: they carry opcode 69 **and** other opcodes from this same lossy list, and the two losses happened to cancel in length. Nothing regressed — `semantic` stays 100% on every cache, and cachepack's `lost-here` stays 0.) Also collapses three groups of aliased opcodes: actions 0–4 (writable via 30+i *or* 150+i), map_function_id (60, 82, 107) and map_scene_id (68, 102) — the encoder emits the lowest opcode of each. Hence ~0–1% byte-exact against ~52% same-length. |
 
 ### B3. Jagex's opcode ordering is not reproduced *(Gap)*
 
@@ -1855,6 +1855,66 @@ definitions, each with its own id and its own line in LostCity's `texture.pack`)
 `dbindex` (a master index plus one file per indexed column). Everything else stores
 the archive's payload whole, which costs nothing — the payload is the container's own
 file table plus the files — and takes the tree from 352,849 files to 117,086.
+
+### H8. Two encoders the library was missing, written for the readable asset forms
+
+`--assets` can decode maps and interfaces into text only because both directions
+exist. Neither did before.
+
+**`RSCache_MapLocsEncode`.** The loc stream is two nested runs of *unsigned*
+deltas, so entries have to leave sorted by `(loc_id, packed position)` or a delta
+cannot be spelled. The encoder sorts rather than demanding it of the caller: a
+decoded stream is already in that order, so it is a no-op on a round trip, and it
+makes the function usable by something that assembled locs itself. Ties keep caller
+order, because the client draws in stream order. **2,933 / 2,933 loc streams
+byte-exact, 4,968,456 locs.**
+
+**`RSCache_Dat2ComponentEncodeIf3`**, dispatching IF1 and IF3 on the component's
+own flag. IF1 is not vestigial — 2,096 of osrs239's components and 11,086 of
+osrs184's. **74,719 / 74,719 byte-exact** across three caches.
+
+Three things it had to get right, and one it caught:
+
+- Several stream bytes are not stored but folded into `clickMask` — type 2's four
+  flag bytes, the op-present bits, type 7's flag, button-type 2's 6-bit field.
+  Each owns a distinct bit, so they read back out.
+- **Two ambiguities do not**, and both took decode-time provenance (the B8 pattern).
+  An empty `option` decodes to a default by button type, so an absent option and
+  one spelling out `Continue` are the same state afterwards — interface 99 file 30
+  carries the word in full in all three caches, which is how the first guess was
+  caught, by byte diff rather than by reasoning. And an inventory slot's flag byte
+  is dropped with absence marked by graphic id -1, so a present slot whose graphic
+  is genuinely -1 lost its eight bytes. `optionFromDefault` and `invSlotPresent[20]`
+  now record what the wire said.
+- Sizing the encode bound for IF3 alone tripped rsbuffer's write-past-the-end
+  assert on an IF1 type-2 widget, which carries 20 inventory slots and five object
+  ops no IF3 component has. The bound covers both layouts.
+
+### H9. Readable asset forms, and what each one costs
+
+Five kinds decode to something editable; the rest stay payload. All five round-trip,
+and the whole tree is a fixed point at 137,652 files with an identical client boot.
+
+| kind | form | note |
+|---|---|---|
+| maps | `.jm2` | terrain + locs; the three undecoded per-square files ride alongside as `.extra<N>.bin` |
+| interfaces | `.if` | one `[com <id>]` block per component |
+| textures | `.texture` | text, because an OldSchool texture is a **record**, not a bitmap |
+| scripts | `.cs2` | via the existing decompiler; 5,586 of 9,725 |
+| sprites | `.bmp` + `pack.meta` | palette recorded, not re-derived; alpha rides in the 32-bit BMP |
+
+**Declining is a first-class outcome.** A record the codec cannot express writes its
+raw payload under a different extension instead — 4,139 clientscripts take that path
+without name tables. Sharing one extension between the decoded and raw forms was a
+real bug during development: every script fell back, kept the `.cs2` name, and the
+output looked like successful decompilation of garbage. They are now `.cs2` and
+`.bin`.
+
+One bug worth recording because the symptom pointed nowhere near the cause: passing
+the param config's type *character* to `RSCache_CS2_NamesSetParamType` instead of
+converting it through `RSCache_CS2_TypeOfDescAuto` mistypes every param, and the
+result is not a wrong name — it is a stack-shape mismatch that fails the decompile
+of every script touching a param. All 9,725 declined until that was fixed.
 
 ---
 

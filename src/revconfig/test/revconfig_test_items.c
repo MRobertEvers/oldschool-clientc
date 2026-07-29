@@ -108,9 +108,23 @@ test_items_build(void)
     }
     push(fields, RCFIELD_ITEMDONE, "");
 
+    /* World viewport: the camera-gesture keys default ON when the section
+     * omits them, so packs written before the keys existed keep the gestures. */
+    push(fields, RCFIELD_ITEMTYPE, "component");
+    push(fields, RCFIELD_ITEMNAME, "world_default");
+    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
+    push(fields, RCFIELD_ITEMDONE, "");
+
+    push(fields, RCFIELD_ITEMTYPE, "component");
+    push(fields, RCFIELD_ITEMNAME, "world_off");
+    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
+    push(fields, RCFIELD_UICOMPONENT_MMB_ROTATE, "false");
+    push(fields, RCFIELD_UICOMPONENT_WHEEL_ZOOM, "0");
+    push(fields, RCFIELD_ITEMDONE, "");
+
     revconfig_items_build(fields, items);
 
-    TEST_ASSERT(items->item_count == 9, "item_count");
+    TEST_ASSERT(items->item_count == 11, "item_count");
 
     struct RevConfigItem const* invback = &items->items[0];
     TEST_ASSERT(invback->kind == RCITEM_CACHE_SPRITE, "invback kind");
@@ -168,6 +182,14 @@ test_items_build(void)
     TEST_ASSERT(backpack->kind == RCITEM_INV, "inv kind");
     TEST_ASSERT(backpack->u.inv.item_count == 3, "inv count");
     TEST_ASSERT(strcmp(backpack->u.inv.items[1], "item1") == 0, "inv item");
+
+    struct RevConfigItem const* world_default = &items->items[9];
+    TEST_ASSERT(world_default->u.uicomponent.mmb_rotate == 1, "mmb_rotate default on");
+    TEST_ASSERT(world_default->u.uicomponent.wheel_zoom == 1, "wheel_zoom default on");
+
+    struct RevConfigItem const* world_off = &items->items[10];
+    TEST_ASSERT(world_off->u.uicomponent.mmb_rotate == 0, "mmb_rotate=false");
+    TEST_ASSERT(world_off->u.uicomponent.wheel_zoom == 0, "wheel_zoom=0");
 
     revconfig_buffer_free(fields);
     revconfig_item_buffer_free(items);

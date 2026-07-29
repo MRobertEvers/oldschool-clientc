@@ -82,6 +82,8 @@ struct UIBuilderTreeOp
     char slot[24];
     int dirty;
     int level_mask;
+    int mmb_rotate;
+    int wheel_zoom;
     int color;
     int filled;
     int center;

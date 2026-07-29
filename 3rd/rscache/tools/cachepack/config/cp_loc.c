@@ -103,6 +103,8 @@ emit_loc(
     EMIT_INT(offset_x, "offsetx");
     EMIT_INT(offset_y, "offsety");
     EMIT_INT(offset_z, "offsetz");
+    /* LostCity spells this one `forceapproach` in its loc configs. */
+    EMIT_INT(force_approach, "forceapproach");
     EMIT_INT(obstructs_ground, "forcedecor");
     EMIT_INT(break_routefinding, "breakroutefinding");
     EMIT_INT(support_items, "raiseobject");
@@ -433,6 +435,8 @@ cp_pack_loc(
             ok = cp_parse_int(value, &entry->offset_y);
         else if( strcmp(key, "offsetz") == 0 )
             ok = cp_parse_int(value, &entry->offset_z);
+        else if( strcmp(key, "forceapproach") == 0 )
+            ok = cp_parse_int(value, &entry->force_approach);
         else if( strcmp(key, "forcedecor") == 0 )
             ok = cp_parse_int(value, &entry->obstructs_ground);
         else if( strcmp(key, "breakroutefinding") == 0 )

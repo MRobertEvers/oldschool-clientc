@@ -188,6 +188,7 @@ init_loc(struct RSCache_Dat2ConfigLoc* loc)
     loc->offset_x = 0;
     loc->offset_z = 0;
     loc->offset_y = 0;
+    loc->force_approach = 0;
     loc->obstructs_ground = 0;
     loc->break_routefinding = 0;
     loc->support_items = -1;
@@ -503,6 +504,11 @@ RSCache_Dat2ConfigLocEncodeFlags(
     {
         p1(&buffer, 68);
         p2(&buffer, loc->map_scene_id);
+    }
+    if( loc->force_approach != defaults.force_approach )
+    {
+        p1(&buffer, 69);
+        p1(&buffer, loc->force_approach);
     }
     if( loc->offset_x != defaults.offset_x )
     {
@@ -1030,7 +1036,7 @@ decode_loc(
             loc->map_scene_id = g2(&buffer);
             break;
         case 69:
-            g1(&buffer); // Skip unsigned byte
+            loc->force_approach = g1(&buffer);
             break;
         case 70:
             loc->offset_x = g2b(&buffer);

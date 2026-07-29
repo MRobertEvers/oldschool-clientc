@@ -177,4 +177,13 @@ cp_assets_import(
 void
 cp_assets_name_models(struct CP_Ctx* ctx);
 
+/**
+ * Name map squares `m<x>_<z>`, so the tree's `maps/` reads the way LostCity's
+ * does and the server's spawn file for a square is the same file as its terrain.
+ *
+ * Called before the map table is written, for the same reason the model naming is.
+ */
+void
+cp_assets_name_maps(struct CP_Ctx* ctx);
+
 #endif

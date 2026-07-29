@@ -42,7 +42,7 @@ mock230_seqinfo_load(const char* cache_dir)
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = 230;
+    profile.revision = MOCK230_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )

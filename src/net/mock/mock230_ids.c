@@ -113,7 +113,7 @@ mock230_ids_resolve(void)
           &g_ids.varbit_bank_leaveplaceholders },
         { MOCK230_PACK_VARBIT, "bank_showincinerator", &g_ids.varbit_bank_showincinerator },
         { MOCK230_PACK_VARBIT, "bank_hidedepositworn", &g_ids.varbit_bank_hidedepositworn },
-        { MOCK230_PACK_VARBIT, "bank_side_slot_ignore", &g_ids.varbit_bank_side_slot_ignore },
+        { MOCK230_PACK_VARBIT, "bank_side_slot_ignoreinvlocks", &g_ids.varbit_bank_side_slot_ignore },
     };
     static const struct
     {

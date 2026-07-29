@@ -21,6 +21,19 @@
  * which parts deviate from a real rev-230 server.
  */
 
+/*
+ * The cache this server reads, and the profile revision every decoder is opened
+ * with. The content tree in OSRS-Content/osrs239-content is an unpack of exactly
+ * this cache — its `meta.ini` says so — and the ids in its pack files are that
+ * cache's. Pointing one at a different cache than the other silently spawns the
+ * wrong npc rather than failing.
+ *
+ * The server still speaks the rev-230 protocol: what moved to 239 is the content,
+ * not the wire.
+ */
+#define MOCK230_CACHE_REVISION 239
+#define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239"
+
 #include "mock230_bank.h"
 
 #include "net/isaac.h"

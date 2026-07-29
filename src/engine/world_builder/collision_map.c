@@ -3,6 +3,7 @@
 #include <rscache.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -512,11 +513,166 @@ collision_test_loc(
     return false;
 }
 
-/* Arrival predicate for the flood: exact destination, or (when `approach` is
- * set) any loc/obj approach test the reference tryMove checks per popped tile
- * (Client.ts:5885-5906). */
+/* Does a size x size mover footprint anchored at (src) overlap the rect
+ * [min_x..max_x] x [min_z..max_z]? (XRSPS RouteStrategy footprintOverlaps.) */
 static bool
-collision_flood_arrived(
+collision_footprint_overlaps(
+    int src_x,
+    int src_z,
+    int size,
+    int min_x,
+    int min_z,
+    int max_x,
+    int max_z)
+{
+    return src_x <= max_x && src_x + size - 1 >= min_x && src_z <= max_z &&
+           src_z + size - 1 >= min_z;
+}
+
+/* Is the shared edge between the mover's edge tile (px,pz) and the target's
+ * edge tile (tx,tz) walled off? `side` names where the mover stands relative to
+ * the target. A wall is flagged on both tiles of an edge, so either bit blocks
+ * — this is the part the legacy testLoc does NOT do (it only reads the source
+ * tile), and the reason a rev-230 server can refuse an approach Client-TS would
+ * have accepted. (XRSPS RouteStrategy.isEdgeWallBlocked.) */
+static bool
+collision_edge_wall_blocked(
+    struct CollisionMap* cm,
+    int px,
+    int pz,
+    int tx,
+    int tz,
+    int side)
+{
+    int pflag = cm->flags[collision_map_index_at(cm, px, pz)];
+    int tflag = cm->flags[collision_map_index_at(cm, tx, tz)];
+    switch( side )
+    {
+    case DIR_WEST: /* mover is west of the target */
+        return (pflag & COLL_FLAG_WALL_EAST) != 0 || (tflag & COLL_FLAG_WALL_WEST) != 0;
+    case DIR_EAST:
+        return (pflag & COLL_FLAG_WALL_WEST) != 0 || (tflag & COLL_FLAG_WALL_EAST) != 0;
+    case DIR_SOUTH:
+        return (pflag & COLL_FLAG_WALL_NORTH) != 0 || (tflag & COLL_FLAG_WALL_SOUTH) != 0;
+    default: /* DIR_NORTH */
+        return (pflag & COLL_FLAG_WALL_SOUTH) != 0 || (tflag & COLL_FLAG_WALL_NORTH) != 0;
+    }
+}
+
+/* rsmod / XRSPS RectAdjacentRouteStrategy.hasArrived. */
+static bool
+collision_test_rect_adjacent(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    int size = approach->mover_size > 0 ? approach->mover_size : 1;
+    int min_x = dst_x;
+    int min_z = dst_z;
+    int max_x = dst_x + (approach->loc_width > 0 ? approach->loc_width : 1) - 1;
+    int max_z = dst_z + (approach->loc_length > 0 ? approach->loc_length : 1) - 1;
+    int src_max_x = src_x + size - 1;
+    int src_max_z = src_z + size - 1;
+
+    if( collision_footprint_overlaps(src_x, src_z, size, min_x, min_z, max_x, max_z) )
+        return approach->allow_overlap != 0;
+
+    /* Flush against exactly one cardinal side, with overlap on the other axis.
+     * Corner-only contact is never an arrival — OSRS forbids diagonal
+     * interaction outright. */
+    bool z_overlap = src_z <= max_z && src_max_z >= min_z;
+    bool x_overlap = src_x <= max_x && src_max_x >= min_x;
+    bool on_west = src_max_x == min_x - 1 && z_overlap;
+    bool on_east = src_x == max_x + 1 && z_overlap;
+    bool on_south = src_max_z == min_z - 1 && x_overlap;
+    bool on_north = src_z == max_z + 1 && x_overlap;
+
+    if( !(on_west || on_east || on_south || on_north) )
+        return false;
+    /* blocked_sides is the rect model's forceapproach: it names the side the
+     * mover is standing on, in the same DirectionFlag bits. */
+    if( (on_west && (approach->blocked_sides & DIR_WEST)) ||
+        (on_east && (approach->blocked_sides & DIR_EAST)) ||
+        (on_south && (approach->blocked_sides & DIR_SOUTH)) ||
+        (on_north && (approach->blocked_sides & DIR_NORTH)) )
+        return false;
+
+    /* Arrived if ANY tile along the shared edge is not wall-separated. */
+    if( on_west || on_east )
+    {
+        int from_z = src_z > min_z ? src_z : min_z;
+        int to_z = src_max_z < max_z ? src_max_z : max_z;
+        int px = on_west ? src_max_x : src_x;
+        int tx = on_west ? min_x : max_x;
+        for( int pz = from_z; pz <= to_z; pz++ )
+        {
+            if( !collision_edge_wall_blocked(
+                    cm, px, pz, tx, pz, on_west ? DIR_WEST : DIR_EAST) )
+                return true;
+        }
+        return false;
+    }
+
+    int from_x = src_x > min_x ? src_x : min_x;
+    int to_x = src_max_x < max_x ? src_max_x : max_x;
+    int pz = on_south ? src_max_z : src_z;
+    int tz = on_south ? min_z : max_z;
+    for( int px = from_x; px <= to_x; px++ )
+    {
+        if( !collision_edge_wall_blocked(cm, px, pz, px, tz, on_south ? DIR_SOUTH : DIR_NORTH) )
+            return true;
+    }
+    return false;
+}
+
+/* rsmod RectRouteStrategy: stand anywhere on the rect. */
+static bool
+collision_test_rect_inside(
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    int size = approach->mover_size > 0 ? approach->mover_size : 1;
+    return collision_footprint_overlaps(
+        src_x, src_z, size, dst_x, dst_z, dst_x + (approach->loc_width > 0 ? approach->loc_width : 1) - 1,
+        dst_z + (approach->loc_length > 0 ? approach->loc_length : 1) - 1);
+}
+
+/* rsmod RectWithinRangeRouteStrategy: never on the rect, else rect-to-rect
+ * Chebyshev distance within range. */
+static bool
+collision_test_rect_within_range(
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    int size = approach->mover_size > 0 ? approach->mover_size : 1;
+    int min_x = dst_x;
+    int min_z = dst_z;
+    int max_x = dst_x + (approach->loc_width > 0 ? approach->loc_width : 1) - 1;
+    int max_z = dst_z + (approach->loc_length > 0 ? approach->loc_length : 1) - 1;
+    int src_max_x = src_x + size - 1;
+    int src_max_z = src_z + size - 1;
+
+    if( collision_footprint_overlaps(src_x, src_z, size, min_x, min_z, max_x, max_z) )
+        return false;
+
+    int dx = src_x > max_x ? src_x - max_x : (min_x > src_max_x ? min_x - src_max_x : 0);
+    int dz = src_z > max_z ? src_z - max_z : (min_z > src_max_z ? min_z - src_max_z : 0);
+    int chebyshev = dx > dz ? dx : dz;
+    return chebyshev <= (approach->range > 0 ? approach->range : 1);
+}
+
+/* Client-TS tryMove's per-popped-tile arrival tests (Client.ts:6034-6058). */
+static bool
+collision_test_legacy_shape(
     struct CollisionMap* cm,
     int x,
     int z,
@@ -524,11 +680,6 @@ collision_flood_arrived(
     int dst_z,
     struct CollisionApproach const* approach)
 {
-    if( x == dst_x && z == dst_z )
-        return true;
-    if( !approach )
-        return false;
-
     int shape = approach->loc_shape;
     int angle = approach->loc_angle;
 
@@ -550,6 +701,120 @@ collision_flood_arrived(
         return true;
 
     return false;
+}
+
+/* Arrival predicate for the flood: the exact destination always counts (the
+ * reference checks it first, before any shape test), then whichever approach
+ * model `approach->kind` selects. A NULL approach is EXACT. */
+static bool
+collision_flood_arrived(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    if( x == dst_x && z == dst_z )
+        return true;
+    if( !approach )
+        return false;
+
+    switch( approach->kind )
+    {
+    case COLL_APPROACH_LEGACY_SHAPE:
+        return collision_test_legacy_shape(cm, x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_RECT_ADJACENT:
+        return collision_test_rect_adjacent(cm, x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_RECT_INSIDE:
+        return collision_test_rect_inside(x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_RECT_WITHIN_RANGE:
+        return collision_test_rect_within_range(x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_EXACT:
+    default:
+        return false;
+    }
+}
+
+/*
+ * The unreachable fallback, shared by ground clicks and (under the modern era)
+ * interaction clicks. Scans a (2*range+1)-square box around the destination for the
+ * best flooded tile and writes it to *out_x/*out_z. Returns 1 when one was
+ * found.
+ *
+ * Two rankings, because the two references rank differently and the choice only
+ * makes sense alongside the box size — see struct CollisionNearestOpts.
+ */
+static int
+collision_nearest_fallback(
+    struct CollisionMap* cm,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* opts,
+    int const* dist_map,
+    int* out_x,
+    int* out_z)
+{
+    if( !opts || opts->range <= 0 )
+        return 0;
+
+    int max_dist = opts->max_dist > 0 ? opts->max_dist : 100;
+    int rect_w = approach && approach->loc_width > 0 ? approach->loc_width : 1;
+    int rect_l = approach && approach->loc_length > 0 ? approach->loc_length : 1;
+    int best_cost = INT_MAX;
+    int best_dist = INT_MAX;
+    int found = 0;
+
+    for( int px = dst_x - opts->range; px <= dst_x + opts->range; px++ )
+    {
+        for( int pz = dst_z - opts->range; pz <= dst_z + opts->range; pz++ )
+        {
+            if( px < 0 || pz < 0 || px >= cm->size_x || pz >= cm->size_z )
+                continue;
+            int dist = dist_map[collision_map_index_at(cm, px, pz)];
+            if( dist >= max_dist )
+                continue;
+
+            if( !opts->rank_by_rect_distance )
+            {
+                /* Reference 3x3 ring: strictly-lower step count wins, so the
+                 * first tile at the minimum is kept (scan order is the
+                 * reference's px-then-pz). */
+                if( dist >= best_dist )
+                    continue;
+                best_dist = dist;
+                *out_x = px;
+                *out_z = pz;
+                found = 1;
+                continue;
+            }
+
+            /* XRSPS alternative route: squared distance to the target
+             * rectangle first, step count only as a tie-break. */
+            int dx = 0;
+            if( px < dst_x )
+                dx = dst_x - px;
+            else if( px > dst_x + rect_w - 1 )
+                dx = px - (dst_x + rect_w - 1);
+            int dz = 0;
+            if( pz < dst_z )
+                dz = dst_z - pz;
+            else if( pz > dst_z + rect_l - 1 )
+                dz = pz - (dst_z + rect_l - 1);
+            int cost = dx * dx + dz * dz;
+
+            if( cost < best_cost || (cost == best_cost && dist < best_dist) )
+            {
+                best_cost = cost;
+                best_dist = dist;
+                *out_x = px;
+                *out_z = pz;
+                found = 1;
+            }
+        }
+    }
+    return found;
 }
 
 /* Reference tryMove flood (Client.ts:5860-6008 ground-click arrival): fills
@@ -876,26 +1141,19 @@ collision_map_try_route(
 
     if( !arrived && try_nearest )
     {
-        /* Reference nearest fallback: lowest-distance flooded tile in the 3x3
-         * ring around the destination (dist must be < 100). */
-        int min = 100;
-        for( int px = dst_x - 1; px <= dst_x + 1; px++ )
+        /* Reference ground/minimap nearest fallback: the lowest-distance
+         * flooded tile in the 3x3 ring around the destination (dist < 100).
+         * Identical in both references, so it is not era-conditional. */
+        struct CollisionNearestOpts const ring = {
+            .range = 1,
+            .max_dist = 100,
+            .rank_by_rect_distance = 0,
+        };
+        if( collision_nearest_fallback(cm, dst_x, dst_z, NULL, &ring, dist_map, &end_x, &end_z) )
         {
-            for( int pz = dst_z - 1; pz <= dst_z + 1; pz++ )
-            {
-                if( px < 0 || pz < 0 || px >= cm->size_x || pz >= cm->size_z )
-                    continue;
-                int dist = dist_map[collision_map_index_at(cm, px, pz)];
-                if( dist < min )
-                {
-                    min = dist;
-                    end_x = px;
-                    end_z = pz;
-                    arrived = 1;
-                    if( out_used_nearest )
-                        *out_used_nearest = 1;
-                }
-            }
+            arrived = 1;
+            if( out_used_nearest )
+                *out_used_nearest = 1;
         }
     }
 
@@ -918,12 +1176,16 @@ collision_map_try_route_op(
     int dst_x,
     int dst_z,
     struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
     int* route_x,
     int* route_z,
-    int max_route)
+    int max_route,
+    int* out_used_nearest)
 {
     const int buf_size = cm->size_x * cm->size_z;
 
+    if( out_used_nearest )
+        *out_used_nearest = 0;
     if( src_x < 0 || src_z < 0 || src_x >= cm->size_x || src_z >= cm->size_z || dst_x < 0 ||
         dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
         return -1;
@@ -941,13 +1203,24 @@ collision_map_try_route_op(
         return -1;
     }
 
-    /* Reference tryMove type 2: tryNearest = false, so no 3x3 fallback — arrival
-     * is whichever approach tile the flood reaches first (or the exact tile). */
+    /* Arrival is whichever approach tile the flood reaches first (or the exact
+     * tile). Client-TS passes tryNearest = false for every type-2 tryMove, so
+     * with `nearest` NULL/range 0 an unreachable target yields no route at all
+     * — the reference behaviour. The modern era supplies the XRSPS
+     * alternative-route box instead. */
     int end_x = dst_x;
     int end_z = dst_z;
     int arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, approach, dir_map, dist_map, queue_x, queue_z, &end_x,
         &end_z);
+
+    if( !arrived &&
+        collision_nearest_fallback(cm, dst_x, dst_z, approach, nearest, dist_map, &end_x, &end_z) )
+    {
+        arrived = 1;
+        if( out_used_nearest )
+            *out_used_nearest = 1;
+    }
 
     int length = arrived
         ? collision_route_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, route_x, route_z, max_route)

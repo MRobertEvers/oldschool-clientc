@@ -13,8 +13,8 @@
  *
  * Env:
  *   MOCK230_VERBOSE=1   log every packet in and out
- *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs230)
- *   MOCK230_CONTENT=dir content tree (default OSRS-Content/mock230)
+ *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs239)
+ *   MOCK230_CONTENT=dir content tree (default OSRS-Content/osrs239-content)
  *   MOCK230_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
  *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
  *                       courtyard, beside Hans; the scene's origin zone is
@@ -329,11 +329,11 @@ mock230_content_dir(void)
     if( configured )
         return configured;
 
-    snprintf(resolved, sizeof(resolved), "OSRS-Content/mock230");
+    snprintf(resolved, sizeof(resolved), "OSRS-Content/osrs239-content");
     if( stat(resolved, &info) == 0 )
         return resolved;
 
-    snprintf(resolved, sizeof(resolved), "../OSRS-Content/mock230");
+    snprintf(resolved, sizeof(resolved), "../OSRS-Content/osrs239-content");
     return resolved;
 }
 
@@ -345,7 +345,7 @@ mock230_script_dir(void)
 
     if( configured )
         return configured;
-    snprintf(resolved, sizeof(resolved), "%s/scripts/build", mock230_content_dir());
+    snprintf(resolved, sizeof(resolved), "%s/server/scripts/build", mock230_content_dir());
     return resolved;
 }
 
@@ -449,12 +449,12 @@ main(
     zone_x = home_x >> 3;
     zone_z = home_z >> 3;
 
-    mock230_world_set_cache_dir(cache_dir ? cache_dir : "cache.osrs230");
-    mock230_objinfo_load(cache_dir ? cache_dir : "cache.osrs230");
-    mock230_npcinfo_load(cache_dir ? cache_dir : "cache.osrs230");
-    mock230_seqinfo_load(cache_dir ? cache_dir : "cache.osrs230");
+    mock230_world_set_cache_dir(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
+    mock230_objinfo_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
+    mock230_npcinfo_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
+    mock230_seqinfo_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
     /* Varbit bit-ranges, from the same cache the client unpacks them with. */
-    mock230_varbit_load(cache_dir ? cache_dir : "cache.osrs230");
+    mock230_varbit_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
     /* After the three cache loaders: the content tree seeds its combat bonuses
      * from the params they decoded. See mock230_content_load. */
     mock230_content_load(mock230_content_dir());
@@ -463,7 +463,7 @@ main(
     mock230_ids_resolve();
     /* Container sizes and varbit bit ranges, for the bank. Last, because it
      * looks the bank's container up by the id the two steps above resolved. */
-    mock230_bank_load(cache_dir ? cache_dir : "cache.osrs230");
+    mock230_bank_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
     mock230_world_set_home(home_x, home_z);
 
     /* --selftest: run the game logic with no socket and exit. */

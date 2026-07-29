@@ -22,6 +22,14 @@
  *                 page has no TCP, so the web build's sockets are WebSockets
  *                 (see BootManifest_ApplyWebEndpoint). LostCity, for one,
  *                 serves the game on 43594/tcp and upgrades / on its web port.
+ *   [features:boot] era=lostcity|osrs|server_routed
+ *                 Client-behaviour generation (src/features/features.h): who
+ *                 computes a click's route, and which approach model decides
+ *                 "close enough to interact". Optional — absent, the era is
+ *                 derived from the cache epoch/revision, which is right for
+ *                 every cache-only boot. State it when the *server* diverges
+ *                 from what the cache implies (xrsps paths server-side over a
+ *                 rev-233 cache, so it needs era=server_routed).
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
  *   [ui:gameframe]  <component>=<interface_id> or
@@ -113,6 +121,10 @@ struct BootManifest
      * server answers "invalid username or password". --user/--pass still win. */
     char user[64];
     char pass[64];
+
+    /* [features:boot] — client-behaviour era name; "" = derive from the cache
+     * identity (ToriRS_Features_ForCache). */
+    char features_era[32];
 
     /* [ui:boot] */
     int ui_logic;  /* enum AppUiLogic; 0 = unset/default */

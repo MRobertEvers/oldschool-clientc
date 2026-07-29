@@ -103,9 +103,9 @@ RSCache_WorldMapAreaDecodeInplace(
     entry->internal_name = RSCache_BufferReadStringNullTerminated(&buffer);
     entry->external_name = RSCache_BufferReadStringNullTerminated(&buffer);
     entry->origin = RSCache_BufferG4(&buffer);
-    (void)RSCache_BufferG4(&buffer); /* unused int */
+    entry->unknown_int = RSCache_BufferG4(&buffer); /* unused by the client; kept to re-encode */
     entry->background_colour = RSCache_BufferG4(&buffer);
-    (void)RSCache_BufferG1(&buffer);
+    entry->unknown_byte = RSCache_BufferG1(&buffer);
     entry->is_main = RSCache_BufferG1(&buffer) == 1;
     entry->zoom = RSCache_BufferG1(&buffer);
 
@@ -209,6 +209,7 @@ RSCache_WorldMapAreaDecodeIconsInplace(
             rscache_worldmap_read_data0(&buffer, has_group_file_ids, &entry->regions[i]);
         entry->region_count = data0_count;
     }
+    entry->data0_count = data0_count > 0 ? data0_count : 0;
 
     data1_count = RSCache_BufferG2(&buffer);
     if( data1_count > 0 )
@@ -252,4 +253,191 @@ RSCache_WorldMapAreaFreeInplace(struct RSCache_WorldMapArea* entry)
     free(entry->sections);
     free(entry->icons);
     memset(entry, 0, sizeof(*entry));
+}
+
+/* ---- encode -------------------------------------------------------------- */
+
+static bool
+rscache_worldmap_section_encode(
+    struct RSCache_Buffer* buffer,
+    const struct RSCache_WorldMapSection* section)
+{
+    RSCache_BufferP1(buffer, section->type);
+    switch( section->type )
+    {
+    case RSCACHE_WORLDMAP_SECTION_REGION_RANGE:
+        RSCache_BufferP1(buffer, section->min_plane);
+        RSCache_BufferP1(buffer, section->planes);
+        RSCache_BufferP2(buffer, section->src_region_x);
+        RSCache_BufferP2(buffer, section->src_region_y);
+        RSCache_BufferP2(buffer, section->src_region_x_end);
+        RSCache_BufferP2(buffer, section->src_region_y_end);
+        RSCache_BufferP2(buffer, section->dst_region_x);
+        RSCache_BufferP2(buffer, section->dst_region_y);
+        RSCache_BufferP2(buffer, section->dst_region_x_end);
+        RSCache_BufferP2(buffer, section->dst_region_y_end);
+        return true;
+    case RSCACHE_WORLDMAP_SECTION_REGION:
+        RSCache_BufferP1(buffer, section->min_plane);
+        RSCache_BufferP1(buffer, section->planes);
+        RSCache_BufferP2(buffer, section->src_region_x);
+        RSCache_BufferP2(buffer, section->src_region_y);
+        RSCache_BufferP2(buffer, section->dst_region_x);
+        RSCache_BufferP2(buffer, section->dst_region_y);
+        return true;
+    case RSCACHE_WORLDMAP_SECTION_CHUNK_RANGE:
+        RSCache_BufferP1(buffer, section->min_plane);
+        RSCache_BufferP1(buffer, section->planes);
+        RSCache_BufferP2(buffer, section->src_region_x);
+        RSCache_BufferP1(buffer, section->src_chunk_x_low);
+        RSCache_BufferP1(buffer, section->src_chunk_x_high);
+        RSCache_BufferP2(buffer, section->src_region_y);
+        RSCache_BufferP1(buffer, section->src_chunk_y_low);
+        RSCache_BufferP1(buffer, section->src_chunk_y_high);
+        RSCache_BufferP2(buffer, section->dst_region_x);
+        RSCache_BufferP1(buffer, section->dst_chunk_x_low);
+        RSCache_BufferP1(buffer, section->dst_chunk_x_high);
+        RSCache_BufferP2(buffer, section->dst_region_y);
+        RSCache_BufferP1(buffer, section->dst_chunk_y_low);
+        RSCache_BufferP1(buffer, section->dst_chunk_y_high);
+        return true;
+    case RSCACHE_WORLDMAP_SECTION_CHUNK:
+        RSCache_BufferP1(buffer, section->min_plane);
+        RSCache_BufferP1(buffer, section->planes);
+        RSCache_BufferP2(buffer, section->src_region_x);
+        RSCache_BufferP1(buffer, section->src_chunk_x_low);
+        RSCache_BufferP2(buffer, section->src_region_y);
+        RSCache_BufferP1(buffer, section->src_chunk_y_low);
+        RSCache_BufferP2(buffer, section->dst_region_x);
+        RSCache_BufferP1(buffer, section->dst_chunk_x_low);
+        RSCache_BufferP2(buffer, section->dst_region_y);
+        RSCache_BufferP1(buffer, section->dst_chunk_y_low);
+        return true;
+    default:
+        return false;
+    }
+}
+
+uint32_t
+RSCache_WorldMapAreaEncodeBound(const struct RSCache_WorldMapArea* entry)
+{
+    if( !entry )
+        return 0;
+    uint32_t bound = 32;
+    bound += (uint32_t)(entry->internal_name ? strlen(entry->internal_name) : 0) + 1;
+    bound += (uint32_t)(entry->external_name ? strlen(entry->external_name) : 0) + 1;
+    /* The widest section is CHUNK_RANGE at 21 bytes including its type byte. */
+    bound += (uint32_t)entry->section_count * 24u;
+    return bound;
+}
+
+uint32_t
+RSCache_WorldMapAreaEncode(
+    const struct RSCache_WorldMapArea* entry,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out || out_capacity < RSCache_WorldMapAreaEncodeBound(entry) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    RSCache_BufferPjstr(
+        &buffer, entry->internal_name ? entry->internal_name : "", RSCACHE_JSTR_TERMINATOR_NULL);
+    RSCache_BufferPjstr(
+        &buffer, entry->external_name ? entry->external_name : "", RSCACHE_JSTR_TERMINATOR_NULL);
+    RSCache_BufferP4(&buffer, entry->origin);
+    RSCache_BufferP4(&buffer, entry->unknown_int);
+    RSCache_BufferP4(&buffer, entry->background_colour);
+    RSCache_BufferP1(&buffer, entry->unknown_byte);
+    RSCache_BufferP1(&buffer, entry->is_main ? 1 : 0);
+    RSCache_BufferP1(&buffer, entry->zoom);
+
+    RSCache_BufferP1(&buffer, entry->section_count);
+    for( int i = 0; i < entry->section_count; i++ )
+    {
+        if( !rscache_worldmap_section_encode(&buffer, &entry->sections[i]) )
+            return 0;
+    }
+    return buffer.position;
+}
+
+uint32_t
+RSCache_WorldMapAreaEncodeIconsBound(const struct RSCache_WorldMapArea* entry)
+{
+    if( !entry )
+        return 0;
+    /* Per region: 15 fixed bytes plus two BigSmarts at 4 each. Per icon: a
+     * BigSmart, a coord and a flag. */
+    return 8u + (uint32_t)entry->region_count * 24u + (uint32_t)entry->icon_count * 10u;
+}
+
+uint32_t
+RSCache_WorldMapAreaEncodeIcons(
+    const struct RSCache_WorldMapArea* entry,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !entry || !out || out_capacity < RSCache_WorldMapAreaEncodeIconsBound(entry) )
+        return 0;
+    bool has_group_file_ids = (flags & RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE) == 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    int data0_count = entry->data0_count;
+    if( data0_count > entry->region_count )
+        data0_count = entry->region_count;
+    int data1_count = entry->region_count - data0_count;
+
+    RSCache_BufferP2(&buffer, data0_count);
+    for( int i = 0; i < data0_count; i++ )
+    {
+        const struct RSCache_WorldMapRegion* region = &entry->regions[i];
+        RSCache_BufferP1(&buffer, region->kind);
+        RSCache_BufferP1(&buffer, region->min_plane);
+        RSCache_BufferP1(&buffer, region->planes);
+        RSCache_BufferP2(&buffer, region->src_region_x);
+        RSCache_BufferP2(&buffer, region->src_region_y);
+        RSCache_BufferP2(&buffer, region->dst_region_x);
+        RSCache_BufferP2(&buffer, region->dst_region_y);
+        if( has_group_file_ids )
+        {
+            RSCache_BufferWriteBigSmart(&buffer, region->group_id);
+            RSCache_BufferWriteBigSmart(&buffer, region->file_id);
+        }
+    }
+
+    RSCache_BufferP2(&buffer, data1_count);
+    for( int i = 0; i < data1_count; i++ )
+    {
+        const struct RSCache_WorldMapRegion* region = &entry->regions[data0_count + i];
+        RSCache_BufferP1(&buffer, region->kind);
+        RSCache_BufferP1(&buffer, region->min_plane);
+        RSCache_BufferP1(&buffer, region->planes);
+        RSCache_BufferP2(&buffer, region->src_region_x);
+        RSCache_BufferP2(&buffer, region->src_region_y);
+        RSCache_BufferP1(&buffer, region->src_chunk_x);
+        RSCache_BufferP1(&buffer, region->src_chunk_y);
+        RSCache_BufferP2(&buffer, region->dst_region_x);
+        RSCache_BufferP2(&buffer, region->dst_region_y);
+        RSCache_BufferP1(&buffer, region->dst_chunk_x);
+        RSCache_BufferP1(&buffer, region->dst_chunk_y);
+        if( has_group_file_ids )
+        {
+            RSCache_BufferWriteBigSmart(&buffer, region->group_id);
+            RSCache_BufferWriteBigSmart(&buffer, region->file_id);
+        }
+    }
+
+    RSCache_BufferP2(&buffer, entry->icon_count);
+    for( int i = 0; i < entry->icon_count; i++ )
+    {
+        RSCache_BufferWriteBigSmart(&buffer, entry->icons[i].element);
+        RSCache_BufferP4(&buffer, entry->icons[i].coord);
+        RSCache_BufferP1(&buffer, entry->icons[i].hidden ? 1 : 0);
+    }
+    return buffer.position;
 }

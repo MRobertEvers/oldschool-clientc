@@ -8,14 +8,21 @@ struct WorldEntity_Scenery
     int element_id;
     int loc_id;
     struct WorldEntityFacet_GridPosition grid_position;
+    /** ROUTE footprint: the loc's config size, angle-swapped, which is what the
+     *  click-time approach test measures against. Not the render footprint —
+     *  ground decor routes as its full config size but draws on one tile. */
     int size_x;
     int size_z;
-    /** Loc shape (RSCACHE_LOC_SHAPE_*) and rotation (0..3 = W/N/E/S). Kept for
-     *  the op-click approach test (reference interactWithLoc passes shape+angle
-     *  for walls, size for centrepieces) — geometry already consumed them, but
-     *  routing needs them at click time. */
+    /** Loc shape (RSCACHE_LOC_SHAPE_*, the shape the MAP placed) and rotation
+     *  (0..3 = W/N/E/S). Kept for the op-click approach test (reference
+     *  interactWithLoc passes shape+angle for walls, size for centrepieces) —
+     *  geometry already consumed them, but routing needs them at click time. */
     int shape;
     int angle;
+    /** LocType.forceapproach (config opcode 69) already rotated into the placed
+     *  frame: DirectionFlag bits naming sides the approach test must refuse.
+     *  0 = any side. See ToriRS_Location.force_approach. */
+    int force_approach;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_AnimationStep animation;
     char name[32];

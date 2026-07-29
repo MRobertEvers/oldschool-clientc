@@ -116,6 +116,11 @@ struct UITreeEmitDesc
     uint8_t line_direction;
     /* WORLD: scene levels the painter may draw (bit per level). */
     uint8_t world_level_mask;
+    /* WORLD: camera gestures this viewport accepts (revconfig mmb_rotate= /
+     * wheel_zoom=). The host reads them off the cached WORLD desc, which is
+     * also what gates the pointer to the viewport rect. */
+    uint8_t world_mmb_rotate;
+    uint8_t world_wheel_zoom;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw.

@@ -442,6 +442,11 @@ struct UITreeComponent
         struct
         {
             uint8_t level_mask;
+            /** INI mmb_rotate= — middle-button drag inside the viewport
+             *  rotates the camera (yaw/pitch). */
+            uint8_t mmb_rotate;
+            /** INI wheel_zoom= — mouse wheel over the viewport zooms. */
+            uint8_t wheel_zoom;
         } world;
         struct
         {
@@ -703,6 +708,8 @@ struct UITreeNodeSpec
         struct
         {
             uint8_t level_mask;
+            uint8_t mmb_rotate; /* INI mmb_rotate= (see UITreeComponent) */
+            uint8_t wheel_zoom; /* INI wheel_zoom= (see UITreeComponent) */
         } world;
         struct
         {

@@ -238,6 +238,18 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
             int fid = archive->file_ids ? archive->file_ids[f] : f;
             if( files->file_sizes[f] <= 0 )
                 continue;
+            /*
+             * A name already in the pack file wins over the gameval.
+             *
+             * The pack is the content's own naming, and scripts refer to records
+             * by it — so re-unpacking a cache over a tree must not rename
+             * `fire_rune` back to the index's `firerune` and break every line
+             * that says the former. The gameval is a seed for the ids nobody has
+             * named yet, which is all of them on a first unpack and almost all of
+             * them thereafter.
+             */
+            if( cp_name_get(ctx, (enum CP_TypeId)t, fid) )
+                continue;
             char name[256];
             sanitise_name(files->files[f], files->file_sizes[f], name, sizeof(name));
             if( !name[0] )

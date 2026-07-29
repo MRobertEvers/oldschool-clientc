@@ -42,7 +42,7 @@ static int g_home_z = 3218;
 /* Where the scene reads its map squares from. Set once beside the other cache
  * loaders; kept here rather than threaded through every rebuild path because
  * the mock opens exactly one cache. */
-static char g_cache_dir[512] = "cache.osrs230";
+static char g_cache_dir[512] = MOCK230_CACHE_DIR_DEFAULT;
 
 void
 mock230_world_set_cache_dir(const char* dir)
@@ -434,7 +434,7 @@ run_energy_tick(
             player->run_energy = 0;
             player->run_toggle = 0;
             player->running = 0;
-            mock230_world_set_varp(srv, mock230_world_varp("run"), 0);
+            mock230_world_set_varp(srv, mock230_world_varp("option_run"), 0);
         }
         return;
     }
@@ -885,7 +885,7 @@ handle_move(
     if( ctrl && !player->run_toggle )
     {
         player->run_toggle = 1;
-        mock230_world_set_varp(srv, mock230_world_varp("run"), 1);
+        mock230_world_set_varp(srv, mock230_world_varp("option_run"), 1);
     }
     /* Walking somewhere is a new interaction, and a new interaction ends the
      * old one. Without this the player keeps swinging at whatever they were
@@ -1540,7 +1540,7 @@ handle_cheat(
         int want = !player->run_toggle;
         (void)sscanf(text, "run %d", &want);
         player->run_toggle = want != 0;
-        mock230_world_set_varp(srv, mock230_world_varp("run"), player->run_toggle);
+        mock230_world_set_varp(srv, mock230_world_varp("option_run"), player->run_toggle);
         say(srv, "Run %s (%d%%).", player->run_toggle ? "on" : "off",
             player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX);
         return;
@@ -1944,8 +1944,8 @@ mock230_world_sync_combat_varbits(struct Mock230Server* srv)
     struct Mock230Player* player = &srv->player;
     int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
     int category = weapon >= 0 ? mock230_objinfo(weapon)->category : 0;
-    int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "weapon_category");
-    int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_level");
+    int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_weapon_category");
+    int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combatlevel_transmit");
     int level = mock230_combat_level(player);
 
     /*
@@ -2685,7 +2685,7 @@ mock230_world_selftest(void)
 
     memset(&srv, 0, sizeof(srv));
     srv.fd = -1; /* every mock230_send becomes a no-op */
-    mock230_seqinfo_load("cache.osrs230");
+    mock230_seqinfo_load(MOCK230_CACHE_DIR_DEFAULT);
     mock230_world_init(&srv, 426, 408);
     player = &srv.player;
 
@@ -2799,10 +2799,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: script-driven triggers\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -2871,10 +2871,10 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: script suspension\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -2943,10 +2943,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: npc chat dialogue\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -3774,7 +3774,7 @@ mock230_world_selftest(void)
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
-        SELFTEST_CHECK(player->varps[mock230_world_varp("run")] == 0,
+        SELFTEST_CHECK(player->varps[mock230_world_varp("option_run")] == 0,
                        "and the varp the orb reads");
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");

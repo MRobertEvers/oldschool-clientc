@@ -538,6 +538,32 @@ scenery_load_model(
     {
         char actions32[5][32];
         int pool_idx;
+        int angle = map_tile->orientation & 0x3;
+        /*
+         * ROUTE footprint, which is not the render footprint. The reference
+         * interactWithLoc measures the approach against `loc.width/length`
+         * (angle-swapped) for centrepieces AND ground decor alike, while ground
+         * decor *renders* on one tile — so deriving it from config_loc here is
+         * both the reference's rule and the only place that sees it for every
+         * shape. Walls register a size they never route by (their approach is
+         * the shape+angle wall test), which is harmless and keeps this one
+         * derivation.
+         */
+        int route_size_x = config_loc->size_x > 0 ? config_loc->size_x : 1;
+        int route_size_z = config_loc->size_z > 0 ? config_loc->size_z : 1;
+        /* LocType.forceapproach, rotated into the placed frame exactly as
+         * Client.interactWithLoc does before handing it to tryMove. */
+        int force_approach = config_loc->force_approach & 0xf;
+        if( angle == 1 || angle == 3 )
+        {
+            int tmp = route_size_x;
+            route_size_x = route_size_z;
+            route_size_z = tmp;
+        }
+        if( angle != 0 )
+            force_approach =
+                ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
+
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
         /* Register the MAP orientation (0-3), not the render rotation: the
@@ -545,7 +571,12 @@ scenery_load_model(
          * consumers of this field want that — the tryMove wall approach
          * (app_scenery_approach) and the runtime loc-change collision del
          * (WorldBuilder_ApplyLocChange). An L-wall's render rotations
-         * (orientation+4, (orientation+1)&3) would del the wrong edges. */
+         * (orientation+4, (orientation+1)&3) would del the wrong edges.
+         *
+         * The shape is the MAP shape too (map_tile->shape_select), not the
+         * shape whose models were selected: scenery_add_normal loads shape 10's
+         * model list for a shape-11 diagonal centrepiece, and registering 10
+         * there would misreport the placed loc. */
         pool_idx = World_SceneryRegister(
             world,
             element_id,
@@ -553,10 +584,11 @@ scenery_load_model(
             scene_x,
             scene_z,
             map_tile->chunk_pos_level,
-            size_x,
-            size_z,
-            shape_select,
-            map_tile->orientation & 0x3,
+            route_size_x,
+            route_size_z,
+            map_tile->shape_select,
+            angle,
+            force_approach,
             config_loc->name,
             actions32,
             config_loc->is_interactive);

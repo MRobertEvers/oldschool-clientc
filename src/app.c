@@ -61,6 +61,21 @@ enum
      * text box, so the baseline offset comes from the font ascent. */
     APP_HOVERTEXT_INSET_X = 4,
     APP_HOVERTEXT_INSET_Y = 2,
+    /* Middle-button rotate. Yaw is 2048 units per turn, so 4 units per pixel
+     * puts a full turn at 512 px of travel — roughly the viewport's width.
+     * The orbit pitch band is only 255 units wide, so it moves at half that. */
+    APP_WORLD_MMB_YAW_PER_PX = 4,
+    APP_WORLD_MMB_PITCH_PER_PX = 2,
+    /* Wheel zoom, as a percentage of the follow camera's natural orbit
+     * distance. The bounds keep the eye outside the player model at one end
+     * and inside the scene's draw distance at the other. */
+    APP_WORLD_ZOOM_DEFAULT_PCT = 100,
+    APP_WORLD_ZOOM_MIN_PCT = 40,
+    APP_WORLD_ZOOM_MAX_PCT = 300,
+    APP_WORLD_ZOOM_STEP_PCT = 10,
+    /* Free camera (offline / scripted): no orbit distance to scale, so a notch
+     * dollies along the view axis instead. */
+    APP_WORLD_ZOOM_FREECAM_STEP = 140,
 };
 
 static struct RS_ChatFilters
@@ -2219,6 +2234,7 @@ App_Init(
     app->world_camera_pos.z = -800;
     app->orbit_pitch = 128; /* reference orbitCameraPitch default */
     app->orbit_yaw = 0;
+    app->world_zoom_pct = APP_WORLD_ZOOM_DEFAULT_PCT;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
@@ -2284,6 +2300,24 @@ App_Init(
     app->hover_com_id = -1;
     app->clicked_com_id = -1;
     app->need_redraw = 1;
+
+    /* Client-behaviour era. Resolved unconditionally — an offline boot still
+     * clicks locs, so it still needs an approach model. Precedence matches the
+     * rest of the boot parameters: manifest > env > derived from the cache. */
+    {
+        char const* era_name = cfg->features_era;
+        if( !era_name || !era_name[0] )
+            era_name = getenv("TORIRS_FEATURES_ERA");
+        app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
+        if( era_name && era_name[0] && !app->features )
+            fprintf(stderr, "app: unknown features era '%s', deriving from cache\n", era_name);
+        if( !app->features )
+            app->features = ToriRS_Features_ForCache(
+                cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
+        assert(app->features);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "app: features era=%s\n", app->features->name);
+    }
 
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
@@ -4269,17 +4303,29 @@ app_try_move(
     if( !cm )
         return 0;
 
-    route_len = collision_map_try_route(
-        cm,
-        player->pathing.route_x[0],
-        player->pathing.route_z[0],
-        dst_x,
-        dst_z,
-        true,
-        route_x,
-        route_z,
-        (int)(sizeof(route_x) / sizeof(route_x[0])),
-        &nearest);
+    if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
+    {
+        /* The server owns the route (xrsps WALK): send the destination alone.
+         * A 1-entry route is exactly that — out_move writes the absolute
+         * coordinate and no deltas. */
+        route_x[0] = dst_x;
+        route_z[0] = dst_z;
+        route_len = 1;
+    }
+    else
+    {
+        route_len = collision_map_try_route(
+            cm,
+            player->pathing.route_x[0],
+            player->pathing.route_z[0],
+            dst_x,
+            dst_z,
+            true,
+            route_x,
+            route_z,
+            (int)(sizeof(route_x) / sizeof(route_x[0])),
+            &nearest);
+    }
     if( route_len < 1 )
         return 0;
 
@@ -4690,6 +4736,146 @@ app_world_camera_keys(
      * rebuild clears world scene elements incl. spawned entities). */
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
         app_world_load_begin(app, NULL, 0);
+}
+
+/* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
+ * Prints whichever camera is live, since the follow cam and the free cam keep
+ * their angles in different fields. */
+static void
+app_debug_log_camera(
+    struct App* app,
+    char const* what,
+    int follow_cam)
+{
+    if( !getenv("TORIRS_CAM_DEBUG") )
+        return;
+    fprintf(
+        stderr,
+        "cam_%s: %s yaw=%d pitch=%d zoom=%d%% eye=%d,%d,%d\n",
+        what,
+        follow_cam ? "orbit" : "free",
+        follow_cam ? app->orbit_yaw : app->world_camera.yaw,
+        follow_cam ? app->orbit_pitch : app->world_camera.pitch,
+        app->world_zoom_pct,
+        app->world_camera_pos.x,
+        app->world_camera_pos.y,
+        app->world_camera_pos.z);
+}
+
+/* Middle-button rotate and wheel zoom over the world viewport. Both gestures
+ * are properties of the WORLD element (revconfig mmb_rotate= / wheel_zoom=),
+ * read off the cached emit desc — the same desc whose rect app_world_mouse_gate
+ * uses to decide the pointer is on the scene rather than on the interface.
+ *
+ * Neither gesture exists in the reference client, so there is nothing to match.
+ * The rotate uses the drag-the-camera convention every OSRS client with a
+ * middle-button camera uses: the view turns the way the pointer moves, so the
+ * scene slides the OPPOSITE way. In projection terms (app_world_project) screen
+ * x grows with camera yaw and the scene rises as pitch grows, hence yaw -= dx
+ * and pitch += dy. Both cameras get the identical screen-space rule; matching
+ * each one's arrow keys instead is not an option, since the free cam's arrows
+ * and the orbit cam's turn the camera in opposite directions. */
+static void
+app_world_camera_mouse(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut const* out)
+{
+    int mouse_x = input->curr.mouse_x;
+    int mouse_y = input->curr.mouse_y;
+    int follow_cam;
+
+    if( !app->world_active || !app->world_view_valid )
+    {
+        app->cam_mmb_active = 0;
+        return;
+    }
+    /* The same split app_world_camera_keys makes: online and out of a cutscene
+     * the orbit follow cam owns the angles, otherwise the free camera does. */
+    follow_cam = app->net && !app->cam_script.scripted;
+
+    if( app->world_emit_desc.world_mmb_rotate )
+    {
+        /* Only the press has to land on the scene; once latched the drag keeps
+         * the pointer until release, so sweeping over the sidebar mid-rotate
+         * does not stall the camera. */
+        if( !app->cam_mmb_active && input->curr.mouse_button_down[TORIRSM_MIDDLE] &&
+            !app->interact.minimenu.visible && app_world_mouse_gate(app, mouse_x, mouse_y) )
+        {
+            app->cam_mmb_active = 1;
+            app->cam_mmb_x = mouse_x;
+            app->cam_mmb_y = mouse_y;
+        }
+
+        if( app->cam_mmb_active )
+        {
+            int dx = mouse_x - app->cam_mmb_x;
+            int dy = mouse_y - app->cam_mmb_y;
+
+            app->cam_mmb_x = mouse_x;
+            app->cam_mmb_y = mouse_y;
+
+            if( dx != 0 || dy != 0 )
+            {
+                if( follow_cam )
+                {
+                    /* The key path eases through a velocity; a drag is already
+                     * a position delta, so it writes the angle and zeroes the
+                     * velocity rather than fighting the decay next frame. */
+                    app->orbit_yaw =
+                        (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
+                    app->orbit_pitch += dy * APP_WORLD_MMB_PITCH_PER_PX;
+                    if( app->orbit_pitch < 128 )
+                        app->orbit_pitch = 128;
+                    if( app->orbit_pitch > 383 )
+                        app->orbit_pitch = 383;
+                    app->orbit_yaw_vel = 0;
+                    app->orbit_pitch_vel = 0;
+                }
+                else
+                {
+                    app->world_camera.yaw = ToriDraw_AddAngle(
+                        app->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
+                    app->world_camera.pitch = ToriDraw_AddAngle(
+                        app->world_camera.pitch, dy * APP_WORLD_MMB_PITCH_PER_PX);
+                }
+                app_debug_log_camera(app, "rotate", follow_cam);
+                app->need_redraw = 1;
+            }
+        }
+
+        if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
+            input->curr.mouse_button_up[TORIRSM_MIDDLE] )
+            app->cam_mmb_active = 0;
+    }
+    else
+        app->cam_mmb_active = 0;
+
+    /* Wheel up (positive) zooms in. Gated on the pointer being over the scene
+     * and on no widget having already taken this notch, so a wheel over a
+     * scroll pane drawn across the viewport still belongs to that pane —
+     * app_world_mouse_gate alone only rejects *interactive* nodes, and an IF1
+     * scroll layer is pass-through. */
+    if( app->world_emit_desc.world_wheel_zoom && input->curr.mouse_wheel_y != 0 &&
+        !out->wheel_consumed && !app->interact.minimenu.visible &&
+        app_world_mouse_gate(app, mouse_x, mouse_y) )
+    {
+        if( follow_cam )
+        {
+            app->world_zoom_pct -= input->curr.mouse_wheel_y * APP_WORLD_ZOOM_STEP_PCT;
+            if( app->world_zoom_pct < APP_WORLD_ZOOM_MIN_PCT )
+                app->world_zoom_pct = APP_WORLD_ZOOM_MIN_PCT;
+            if( app->world_zoom_pct > APP_WORLD_ZOOM_MAX_PCT )
+                app->world_zoom_pct = APP_WORLD_ZOOM_MAX_PCT;
+        }
+        else
+        {
+            app_camera_move_forward(
+                app, input->curr.mouse_wheel_y * APP_WORLD_ZOOM_FREECAM_STEP);
+        }
+        app_debug_log_camera(app, "zoom", follow_cam);
+        app->need_redraw = 1;
+    }
 }
 
 /* Classic human animation set (players; INTERFACE_PLAYER_IDLE_SEQ parity). */
@@ -6750,7 +6936,9 @@ app_world_camera_follow(struct App* app)
     if( app->camera_pitch_clamp / 256 > pitch )
         pitch = app->camera_pitch_clamp / 256;
     yaw = app->orbit_yaw & 0x7ff;
-    distance = pitch * 3 + 600;
+    /* Reference distance is `pitch * 3 + 600`; wheel zoom scales it. At 100%
+     * (the default, and the only value the reference has) this is exact. */
+    distance = (pitch * 3 + 600) * app->world_zoom_pct / APP_WORLD_ZOOM_DEFAULT_PCT;
     off_x = 0;
     off_y = 0;
     off_z = distance;
@@ -8487,6 +8675,7 @@ App_RunOnce(
         RS_CS2_PumpTransmits(&app->host, &app->runner);
 
     app_world_camera_keys(app, input, &out);
+    app_world_camera_mouse(app, input, &out);
     app_world_hotkeys(app, input, &out);
     app_inv_drag_tick(app, input);
     app_worldmap_drag_tick(app, input);

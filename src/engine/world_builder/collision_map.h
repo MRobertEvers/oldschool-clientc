@@ -175,32 +175,101 @@ collision_map_try_route(
     int max_route,
     int* out_used_nearest);
 
-/* Loc/obj approach descriptor for op-clicks (reference Client.tryMove type 2).
- * The flood arrives on any tile that satisfies the loc's approach test, not just
- * the exact destination — matching interactWithLoc / obj doAction:
- *   - sized loc (centrepiece / ground decor): loc_width,loc_length (+forceapproach)
- *     let a tile inside or beside the footprint arrive (testLoc).
- *   - wall / wall-decor: loc_shape = reference locShape (shape + 1) with loc_angle
- *     lets an adjacent tile that can face the wall arrive (testWall/testWDecor).
- *   - obj / plain tile: loc_width = loc_length = 0 and loc_shape = 0 → exact tile
- *     only (or pass 1x1 for the reference's obj fallback).
- * loc_shape here is the reference locShape value (RSCACHE loc shape + 1); 0 means
- * "no wall test" (WALL_STRAIGHT), so an unshaped loc leaves the wall tests off. */
+/*
+ * Which arrival rule the flood applies. The client supports two generations of
+ * approach semantics, selected per boot by the era feature table
+ * (src/features/features.h, enum ToriRS_ApproachModel) — see
+ * docs/PATHING_INTERACTION_PARITY.md for why they differ.
+ */
+enum CollisionApproachKind
+{
+    /** The destination tile and nothing else (a ground click, or the
+     *  reference's exact-tile obj attempt). Also what a NULL approach means. */
+    COLL_APPROACH_EXACT = 0,
+    /** Client-TS CollisionMap.testWall / testWDecor / testLoc, keyed off the
+     *  loc's placed shape+angle, with forceapproach vetoing sides. */
+    COLL_APPROACH_LEGACY_SHAPE,
+    /** rsmod / XRSPS RectAdjacentRouteStrategy: footprint overlap (accepted
+     *  only when allow_overlap), else a flush cardinal side with axis overlap
+     *  — never a diagonal — and then a wall check along the shared edge that
+     *  reads BOTH tiles' wall bits. blocked_sides vetoes sides the way
+     *  forceapproach does for the legacy model. */
+    COLL_APPROACH_RECT_ADJACENT,
+    /** rsmod RectRouteStrategy: arrive by standing anywhere on the rect. Used
+     *  for non-clipping locs (floor decorations, rugs, traps). */
+    COLL_APPROACH_RECT_INSIDE,
+    /** rsmod RectWithinRangeRouteStrategy: never on the rect, else Chebyshev
+     *  distance from the rect <= range. */
+    COLL_APPROACH_RECT_WITHIN_RANGE,
+};
+
+/*
+ * Loc/obj/npc approach descriptor for op-clicks (reference Client.tryMove type
+ * 2). The flood arrives on any tile satisfying this test, not just the exact
+ * destination.
+ *
+ * `kind` picks the rule; the fields below are read per kind:
+ *   EXACT             — nothing.
+ *   LEGACY_SHAPE      — loc_width/loc_length + forceapproach for a sized loc
+ *                       (testLoc); loc_shape (= RSCACHE shape + 1) + loc_angle
+ *                       for a wall / wall-decor (testWall / testWDecor). A
+ *                       loc_shape of 0 means "no wall test" (WALL_STRAIGHT),
+ *                       so an unshaped loc leaves the wall tests off.
+ *   RECT_ADJACENT     — loc_width/loc_length, allow_overlap, blocked_sides.
+ *   RECT_INSIDE       — loc_width/loc_length.
+ *   RECT_WITHIN_RANGE — loc_width/loc_length, range.
+ *
+ * `mover_size` is the footprint of the thing being routed (1 for the local
+ * player, which is the only mover torirs paths today) and is honoured by the
+ * RECT_* kinds; the legacy kinds ignore it, exactly like the reference.
+ */
 struct CollisionApproach
 {
+    int kind; /* enum CollisionApproachKind */
     int loc_width;
     int loc_length;
     int loc_angle;
     int loc_shape;
     int forceapproach;
+    int mover_size;
+    int allow_overlap;
+    int blocked_sides; /* DirectionFlag bits (1 N, 2 E, 4 S, 8 W) */
+    int range;
+};
+
+/*
+ * "Could not reach it — walk as close as possible."
+ *
+ * Client-TS has exactly one of these, the 3x3 ring on a ground/minimap click
+ * (`range = 1`, first tile with the lowest step count wins), and deliberately
+ * none for interactions. XRSPS's server runs one for every request over a
+ * 21x21 box ranked by squared distance to the target rectangle. Both are
+ * expressed here; `range = 0` disables the fallback entirely.
+ */
+struct CollisionNearestOpts
+{
+    /** Box radius around the destination. 0 = no fallback. */
+    int range;
+    /** Upper bound on the flooded step count of a candidate. Both references
+     *  use 100; 0 is read as 100. */
+    int max_dist;
+    /** 0 = lowest step count wins (the reference's 3x3 ring). 1 = lowest
+     *  squared distance to the loc_width x loc_length rect at the destination,
+     *  ties broken by step count (XRSPS's alternative-route search). */
+    int rank_by_rect_distance;
 };
 
 /* Same backtrace/route layout as collision_map_try_route, but arrival is decided
- * by `approach` (reference tryMove type 2, tryNearest = false — no 3x3 fallback).
- * route[0] is the arrival tile (which may be adjacent to the loc, not the loc
- * tile), ascending toward the source; the source tile is never stored. Returns
- * route length (>= 1; already-adjacent yields 1 so the caller still emits a
- * zero-delta MOVE_OPCLICK), or -1 when unreachable / the route overflows. */
+ * by `approach`. route[0] is the arrival tile (which may be adjacent to the loc,
+ * not the loc tile), ascending toward the source; the source tile is never
+ * stored. Returns route length (>= 1; already-adjacent yields 1 so the caller
+ * still emits a zero-delta MOVE_OPCLICK), or -1 when unreachable / the route
+ * overflows.
+ *
+ * `nearest` is the unreachable fallback. Pass NULL (or range 0) for the
+ * Client-TS behaviour, which has none for interaction clicks; pass the XRSPS
+ * alternative-route settings under the modern era. *out_used_nearest, when
+ * non-NULL, reports whether the route ends on a fallback tile. */
 int
 collision_map_try_route_op(
     struct CollisionMap* cm,
@@ -209,9 +278,11 @@ collision_map_try_route_op(
     int dst_x,
     int dst_z,
     struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
     int* route_x,
     int* route_z,
-    int max_route);
+    int max_route,
+    int* out_used_nearest);
 
 static inline int
 collision_map_index_at(

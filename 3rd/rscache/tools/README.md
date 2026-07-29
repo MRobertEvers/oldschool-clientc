@@ -539,6 +539,55 @@ against the repacked cache matches the original's line for line. The *container*
 bytes differ, because the payload is recompressed on the way in — use `--binary` if
 you need container-level byte-exactness.
 
+### Readable forms for five of them
+
+`--assets` decodes five kinds into something you can open and edit, and leaves the
+rest as their payload. `cachepack --list-assets` prints which is which.
+
+| kind | form | round-trips |
+|---|---|---|
+| `maps` | `.jm2`, LostCity's format — `==== MAP ====` tiles, `==== LOC ====` scenery | all 2,934 squares |
+| `interfaces` | `.if`, one `[com <id>]` block per component | all 968 |
+| `textures` | `.texture`, a text record | all 210 |
+| `scripts` | `.cs2` source, via the library's own decompiler | 5,586 of 9,725 |
+| `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
+
+Two of these needed encoders the library did not have, and both are now in it and
+measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact, 4,968,456
+locs) and `RSCache_Dat2ComponentEncodeIf3`, which dispatches IF1 and IF3
+(**74,719 / 74,719 components byte-exact** across osrs239, osrs230 and osrs184).
+
+**Declining is normal and nothing is lost.** A record the decoder cannot handle
+falls back to its raw payload under a different extension — 4,139 clientscripts do,
+which is why `scripts/` holds both `.cs2` and `.bin`. `--raw-assets` turns the
+decoders off entirely.
+
+A few things worth knowing:
+
+- **A texture is not an image.** LostCity stores textures as PNG because a rev-254
+  texture *is* a bitmap; an OldSchool one is a record naming a sprite and its
+  animation, so the readable form is text. A PNG would mean rendering something
+  the cache never stored.
+- **A map archive is five files, not two.** Terrain is file 0 and locs file 1, but
+  osrs239 squares also carry three the library does not decode. They sit beside the
+  `.jm2` as `.extra<N>.bin` and go back on import — a readable map format that
+  dropped a third of the archive would be the worse trade.
+- **Height comes from `authored_height`.** The terrain decode rewrites `height` for
+  every tile, so by the time anyone sees it there is nothing writable left
+  (EXCEPTIONS.md B8).
+- **Sprite palettes are written out, not re-derived.** Two entries can hold the
+  same colour, so RGB does not determine the index. Alpha rides in the BMP, which
+  is 32-bit BGRA.
+- **CS2 name tables are optional but worth having.** Without them a decompile is
+  correct but reads `obj_995` rather than `coins_995`, and the four types with no
+  numeric spelling (`boolean`, `stat`, `maparea`, `fontmetrics`) fail outright —
+  which is most of the 4,139 fallbacks. Point `CACHEPACK_CS2_NAMES` at a clone of
+  [RuneStar/cs2](https://github.com/RuneStar/cs2)'s resources directory.
+
+Measured end to end on `cache.osrs239`: unpack → pack → unpack returns all
+**137,652 files** byte-identical, and the client's boot log against the repacked
+cache matches the original's line for line.
+
 ### Raw containers
 
 `--binary` is the other half of the trade: the same tables as `binary/idx7/1234.bin`,

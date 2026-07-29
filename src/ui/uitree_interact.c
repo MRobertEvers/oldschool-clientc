@@ -426,6 +426,7 @@ interact_wheel(
         /* Wheel up (positive) scrolls content up -> scroll_y down. */
         layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
         UITree_ScrollClampComponent(layer);
+        out->wheel_consumed = 1;
         out->need_redraw = 1;
         return;
     }
@@ -450,6 +451,10 @@ interact_wheel(
          * (browser deltaY > 0). */
         intent.event_mouse_y = input->curr.mouse_wheel_y > 0 ? -1 : 1;
         intent_push(out, &intent);
+        /* Deliberately NOT wheel_consumed: an onScroll hook is a broadcast to
+         * the top-most handler, not a claim on the notch. rev230's gameframe
+         * root (161:1) carries one over the whole screen, so treating it as a
+         * consumer would silently disable every app-level wheel gesture. */
         out->need_redraw = 1;
     }
 }

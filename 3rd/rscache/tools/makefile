@@ -11,7 +11,7 @@ THIRD   := $(abspath ../..)
 TOOLS   := $(abspath .)
 
 INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) \
-	-I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini \
+	-I$(THIRD)/bmp -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini \
 	-I$(TOOLS)/common
 
 CFLAGS  ?= -std=c11 -g -O0 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
@@ -41,6 +41,7 @@ LIB_OBJS := \
 	$(BUILD)/bzip.o \
 	$(BUILD)/bzip_encode.o \
 	$(BUILD)/miniz.o \
+	$(BUILD)/bmp.o \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
@@ -88,6 +89,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_codec.c \
 	$(TOOLS)/cachepack/cp_binary.c \
 	$(TOOLS)/cachepack/cp_assets.c \
+	$(TOOLS)/cachepack/cp_decode.c \
 	$(TOOLS)/cachepack/config/cp_flo.c \
 	$(TOOLS)/cachepack/config/cp_var.c \
 	$(TOOLS)/cachepack/config/cp_small.c \
@@ -109,6 +111,9 @@ $(BUILD)/bzip.o: $(THIRD)/bzip/bzip.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
 $(BUILD)/bzip_encode.o: $(THIRD)/bzip/bzip_encode.c | $(BUILD)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(BUILD)/bmp.o: $(THIRD)/bmp/bmp.c | $(BUILD)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD)/miniz.o: $(THIRD)/miniz/miniz.c | $(BUILD)

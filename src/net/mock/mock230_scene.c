@@ -23,6 +23,8 @@
 
 #include "mock230_scene.h"
 
+#include "mock230.h"
+
 #include "engine/world_builder/collision_map.h"
 
 #include <rscache.h>
@@ -433,7 +435,7 @@ mock230_scene_build(
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = 230;
+    profile.revision = MOCK230_CACHE_REVISION;
 
     if( !open_disk(cache_dir, &disk, resolved, sizeof(resolved)) )
     {

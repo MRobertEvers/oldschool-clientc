@@ -223,7 +223,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/gameproto_rev_params.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
-	bootmanifest/bootmanifest.c \
+	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c \
@@ -868,11 +868,12 @@ test-mock230-bank: mock230-bank
 # script pack until this runs. That is not fatal — every trigger site falls back
 # to its hardcoded C behaviour — but it does mean no dialogue and no drop
 # tables. Ids are rev-230 ids from cache.osrs230, NOT LostCity's.
-MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/mock230
+MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 mock230-scripts: sscompile
-	@mkdir -p $(MOCK230_CONTENT_DIR)/scripts/build
-	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/scripts \
-		--out $(MOCK230_CONTENT_DIR)/scripts/build --pack $(MOCK230_CONTENT_DIR)/pack
+	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
+	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
+		--pack $(MOCK230_CONTENT_DIR)/pack --pack $(MOCK230_CONTENT_DIR)/server/pack
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it

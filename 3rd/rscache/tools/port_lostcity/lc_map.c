@@ -452,6 +452,20 @@ lc_export_map(
                             tokens + n, sizeof(tokens) - (size_t)n, "u%d ", flo + 1);
                 }
 
+                if( getenv("LC_MAP_DEBUG") && level == 0 && x >= 20 && x <= 40 && z >= 44 &&
+                    z <= 60 )
+                    fprintf(
+                        stderr,
+                        "MAPDBG %d,%d u=%d o=%d shape=%d rot=%d settings=%d h=%d wrote='%s'\n",
+                        x,
+                        z,
+                        tile->underlay_id,
+                        tile->overlay_id,
+                        tile->shape,
+                        tile->rotation,
+                        tile->settings,
+                        tile->authored_height,
+                        tokens);
                 if( n == 0 )
                     continue;
                 tokens[n - 1] = '\0'; /* drop the trailing space */

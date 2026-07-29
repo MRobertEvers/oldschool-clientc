@@ -1167,6 +1167,8 @@ UITree_Push(
 
     case UIELEM_BUILTIN_WORLD:
         component->u.world.level_mask = spec->u.world.level_mask;
+        component->u.world.mmb_rotate = spec->u.world.mmb_rotate;
+        component->u.world.wheel_zoom = spec->u.world.wheel_zoom;
         break;
 
     case UIELEM_BUILTIN_SIDEBAR:

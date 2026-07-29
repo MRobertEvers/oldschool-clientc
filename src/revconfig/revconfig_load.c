@@ -124,6 +124,10 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_INV;
     else if( strcmp(key, "paint_levels") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
+    else if( strcmp(key, "mmb_rotate") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MMB_ROTATE;
+    else if( strcmp(key, "wheel_zoom") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_WHEEL_ZOOM;
     else if( strcmp(key, "color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COLOR;
     else if( strcmp(key, "filled") == 0 && strcmp(s_ini_item_type, "component") == 0 )

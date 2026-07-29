@@ -802,6 +802,7 @@ World_SceneryRegister(
     int size_z,
     int shape,
     int angle,
+    int force_approach,
     char const* name,
     char const actions[5][32],
     int interactive)
@@ -827,6 +828,7 @@ World_SceneryRegister(
     scenery->size_z = size_z;
     scenery->shape = shape;
     scenery->angle = angle;
+    scenery->force_approach = force_approach & 0xf;
     if( name )
     {
         strncpy(scenery->name, name, sizeof(scenery->name) - 1);

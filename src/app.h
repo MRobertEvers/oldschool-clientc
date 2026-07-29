@@ -7,6 +7,7 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_scene_bridge.h"
+#include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs1_host.h"
@@ -167,6 +168,10 @@ struct AppConfig
     int client_version;
     /** enum AppUiLogic. 0 (DEFAULT) = derive from cache_kind. */
     int ui_logic;
+    /** Client-behaviour era name from `[features:boot] era` — "lostcity",
+     * "osrs" or "server_routed" (src/features/features.h). NULL/"" = derive
+     * from the cache identity; TORIRS_FEATURES_ERA still overrides. */
+    char const* features_era;
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -243,6 +248,17 @@ struct App
     int cam_key_right;
     int cam_key_up;
     int cam_key_down;
+    /* Middle-button rotate (revconfig mmb_rotate= on the WORLD element): the
+     * press latches inside the viewport rect and keeps the pointer until
+     * release, so a drag that wanders over the sidebar keeps rotating.
+     * cam_mmb_x/y is the pointer position the last delta was measured from. */
+    int cam_mmb_active;
+    int cam_mmb_x;
+    int cam_mmb_y;
+    /* Wheel zoom (revconfig wheel_zoom=), as a percentage of the follow cam's
+     * natural orbit distance. 100 = the reference distance; smaller is closer.
+     * The free camera dollies instead and ignores this. */
+    int world_zoom_pct;
     int world_active; /* 1 once Task_WorldLoad completed */
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
@@ -437,6 +453,10 @@ struct App
      *  pointer so app.h need not include the net headers. */
     struct ToriRS_Network* net;
     int net_enabled;
+    /** Client-behaviour era table (src/features/features.h). Never NULL after
+     *  App_Init — unlike `net`, it is resolved on every boot because an
+     *  offline click still has to pick an approach model. */
+    struct ToriRS_FeatureTable const* features;
 
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;

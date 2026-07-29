@@ -1,5 +1,12 @@
 #include "cp_assets.h"
 
+extern const struct CP_AssetCodec cp_codec_texture;
+extern const struct CP_AssetCodec cp_codec_interface;
+extern const struct CP_AssetCodec cp_codec_map;
+extern const struct CP_AssetCodec cp_codec_script;
+extern const struct CP_AssetCodec cp_codec_sprite;
+extern const struct CP_AssetCodec cp_codec_worldmap;
+
 #include "archive.h"
 #include "checksum.h"
 #include "dat2disk.h"
@@ -62,49 +69,68 @@
 /* clang-format off */
 static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_FRAME] = {
-        "animsets", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0 },
+        "animsets", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0, NULL },
     [CP_ASSET_FRAMEMAP] = {
-        "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0 },
+        "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, NULL },
     [CP_ASSET_INTERFACE] = {
-        "interfaces", "interface", "if", RSCACHE_DAT2_TABLE_INTERFACES, 0 },
+        "interfaces", "interface", "if", RSCACHE_DAT2_TABLE_INTERFACES, 0,
+        &cp_codec_interface },
     [CP_ASSET_SYNTH] = {
-        "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0 },
+        "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, NULL },
     [CP_ASSET_MAP] = {
-        "maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED },
+        "maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED, &cp_codec_map },
     [CP_ASSET_SONG] = {
-        "songs", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0 },
+        "songs", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0, NULL },
     [CP_ASSET_MODEL] = {
-        "models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0 },
+        "models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0, NULL },
     [CP_ASSET_SPRITE] = {
-        "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0 },
+        "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "texture", "texture", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE },
+        "textures", "texture", "texture", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE,
+        &cp_codec_texture },
     [CP_ASSET_BINARY] = {
-        "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0 },
+        "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, NULL },
     [CP_ASSET_JINGLE] = {
-        "jingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0 },
+        "jingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, NULL },
     [CP_ASSET_SCRIPT] = {
-        "scripts", "script", "cs2", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0 },
+        "scripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, &cp_codec_script },
     [CP_ASSET_FONT] = {
-        "fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0 },
+        "fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, NULL },
     [CP_ASSET_SAMPLE] = {
-        "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0 },
+        "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, NULL },
     [CP_ASSET_PATCH] = {
-        "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0 },
+        "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, NULL },
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
         "worldmap/geography", "worldmapgeo", "wmg",
-        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0 },
+        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, NULL },
     [CP_ASSET_WORLDMAP_AREA] = {
-        "worldmap/areas", "worldmaparea", "wma", RSCACHE_DAT2_TABLE_WORLDMAP, 0 },
+        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP,
+        CP_ASSET_MULTIFILE, &cp_codec_worldmap },
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "worldmapground", "bin",
-        RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0 },
+        RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, NULL },
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_MULTIFILE },
+        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_MULTIFILE, NULL },
     [CP_ASSET_ANIMAYA] = {
-        "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0 },
+        "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, NULL },
 };
 /* clang-format on */
+
+/* `--raw-assets` turns every friendly codec off in one place, which is how a
+ * caller gets the payload back when a decoded form is in the way. */
+static int g_raw_assets = 0;
+
+void
+cp_assets_set_raw(int raw)
+{
+    g_raw_assets = raw;
+}
+
+static const struct CP_AssetCodec*
+asset_codec(const struct CP_Asset* asset)
+{
+    return g_raw_assets ? NULL : asset->codec;
+}
 
 const struct CP_Asset*
 cp_asset(enum CP_AssetId id)
@@ -392,6 +418,92 @@ cp_assets_name_models(struct CP_Ctx* ctx)
     printf("  named %d models after the configs that reference them\n", named);
 }
 
+/*
+ * Name map squares `m<x>_<z>`, the way LostCity's `maps/` is.
+ *
+ * A classic cache names its map archives itself, by hashing `m50_50` into the
+ * reference table's identifier — one archive for terrain and another for locs.
+ * OldSchool dropped identifiers and addresses one archive per region instead, at
+ * `(x << 8) | z`, with terrain and locs as files inside it. Both are handled: the
+ * hash is inverted where there is one (131,072 candidate names is a cheap table),
+ * and the region id is decoded where there is not.
+ *
+ * Either way the file lands at `maps/m50_50.jm2`, which is the name the server's
+ * spawns are already filed under and the whole reason the two trees can be one.
+ */
+void
+cp_assets_name_maps(struct CP_Ctx* ctx)
+{
+    if( !ctx->cache_open )
+        return;
+    int table = RSCache_Dat2DiskTableId(ctx->cache.disk, cp_asset(CP_ASSET_MAP)->table);
+    if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk->tables[table] )
+        return;
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table];
+
+    int identified = 0;
+    for( int i = 0; i < rt->id_count; i++ )
+    {
+        int id = rt->ids[i];
+        if( id < rt->archive_count && rt->archives[id].identifier != 0 )
+            identified = 1;
+    }
+
+    /* Only built when the cache actually names its archives. */
+    int(*hashes)[256][2] = NULL;
+    if( identified )
+    {
+        hashes = malloc(256 * sizeof(*hashes));
+        if( !hashes )
+            return;
+        for( int x = 0; x < 256; x++ )
+        {
+            for( int z = 0; z < 256; z++ )
+            {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "m%d_%d", x, z);
+                hashes[x][z][0] = RSCache_ArchiveNameHashDat2(buf);
+                snprintf(buf, sizeof(buf), "l%d_%d", x, z);
+                hashes[x][z][1] = RSCache_ArchiveNameHashDat2(buf);
+            }
+        }
+    }
+
+    int count = 0;
+    for( int i = 0; i < rt->id_count; i++ )
+    {
+        int id = rt->ids[i];
+        if( cp_asset_name_get(ctx, CP_ASSET_MAP, id) )
+            continue; /* the tree already named it */
+        char name[32];
+        name[0] = '\0';
+        if( identified )
+        {
+            int want = id < rt->archive_count ? rt->archives[id].identifier : 0;
+            for( int x = 0; x < 256 && !name[0]; x++ )
+            {
+                for( int z = 0; z < 256 && !name[0]; z++ )
+                {
+                    if( hashes[x][z][0] == want )
+                        snprintf(name, sizeof(name), "m%d_%d", x, z);
+                    else if( hashes[x][z][1] == want )
+                        snprintf(name, sizeof(name), "l%d_%d", x, z);
+                }
+            }
+        }
+        else if( id >= 0 && id <= 0xFFFF )
+        {
+            snprintf(name, sizeof(name), "m%d_%d", id >> 8, id & 0xFF);
+        }
+        if( !name[0] )
+            continue;
+        cp_asset_name_set(ctx, CP_ASSET_MAP, id, name);
+        count++;
+    }
+    free(hashes);
+    printf("  named %d map squares m<x>_<z>\n", count);
+}
+
 /* ---- export ------------------------------------------------------------- */
 
 static int
@@ -488,7 +600,32 @@ export_one(
         const char* name = cp_asset_name_ensure(ctx, id, archive_id);
         char path[1500];
 
-        if( (asset->flags & CP_ASSET_MULTIFILE) && archive->file_count > 1 )
+        const struct CP_AssetCodec* codec = asset_codec(asset);
+        int multifile = (asset->flags & CP_ASSET_MULTIFILE) && archive->file_count > 1;
+        if( codec && codec->write && !multifile )
+        {
+            snprintf(path, sizeof(path), "%s/%s", root, name);
+            char* slash = strrchr(path, '/');
+            if( slash )
+            {
+                *slash = '\0';
+                ensure_dir_recursive(path);
+                *slash = '/';
+            }
+            if( codec->write(ctx, archive_id, (const uint8_t*)archive->data, archive->data_size,
+                             archive->file_ids, archive->file_count, path) )
+            {
+                written++;
+                bytes += archive->data_size;
+                RSCache_Dat2DiskArchiveFree(archive);
+                continue;
+            }
+            /* Declined: fall through and write the raw payload, so a record the
+             * codec cannot express is still carried rather than dropped. */
+            ctx->warn_unknown_key++;
+        }
+
+        if( multifile )
         {
             /* Several files under one id: the archive becomes a directory, so the
              * file ids inside it stay addressable and the round trip can put them
@@ -505,6 +642,17 @@ export_one(
                         int file_id = archive->file_ids ? archive->file_ids[f] : f;
                         const uint8_t* payload = (const uint8_t*)files->files[f];
                         int payload_size = files->file_sizes[f];
+                        if( codec && codec->write )
+                        {
+                            snprintf(path, sizeof(path), "%s/%s/%d", root, name, file_id);
+                            if( codec->write(ctx, file_id, payload, payload_size, NULL, 1,
+                                             path) )
+                            {
+                                written++;
+                                bytes += payload_size;
+                                continue;
+                            }
+                        }
                         const char* ext = cp_asset_extension(id, payload, payload_size);
                         snprintf(path, sizeof(path), "%s/%s/%d.%s", root, name, file_id, ext);
                         if( write_file(path, payload, payload_size) )
@@ -562,6 +710,8 @@ cp_assets_export(
     /* Models first need their names, and the names come from the configs. */
     if( all || (mask & (1u << CP_ASSET_MODEL)) )
         cp_assets_name_models(ctx);
+    if( all || (mask & (1u << CP_ASSET_MAP)) )
+        cp_assets_name_maps(ctx);
 
     long long total_bytes = 0;
     int total_files = 0;
@@ -656,11 +806,14 @@ compare_file_id(
  */
 static uint8_t*
 build_multifile_payload(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset_id,
     const char* dir,
     int** out_ids,
     int* out_count,
     int* out_size)
 {
+    const struct CP_AssetCodec* codec = asset_codec(cp_asset(asset_id));
     DIR* handle = opendir(dir);
     if( !handle )
         return NULL;
@@ -680,11 +833,24 @@ build_multifile_payload(
             continue;
 
         char path[1600];
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
         uint8_t* data = NULL;
         int size = 0;
-        if( !read_file(path, &data, &size) )
-            continue;
+        if( codec && codec->read )
+        {
+            /* The member's friendly form sits at `<dir>/<id>` without an
+             * extension, which is where the exporter put it. */
+            int* ignored_ids = NULL;
+            int ignored_count = 0;
+            snprintf(path, sizeof(path), "%s/%d", dir, (int)file_id);
+            data = codec->read(ctx, (int)file_id, path, &ignored_ids, &ignored_count, &size);
+            free(ignored_ids);
+        }
+        if( !data )
+        {
+            snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+            if( !read_file(path, &data, &size) )
+                continue;
+        }
 
         if( count == capacity )
         {
@@ -844,10 +1010,19 @@ import_one(
         int* file_ids = NULL;
         int file_count = 0;
 
-        if( (asset->flags & CP_ASSET_MULTIFILE) && stat(base, &info) == 0 &&
+        const struct CP_AssetCodec* codec = asset_codec(asset);
+        if( codec && codec->read && !(asset->flags & CP_ASSET_MULTIFILE) )
+            payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
+
+        if( payload )
+        {
+            /* handled by the codec */
+        }
+        else if( (asset->flags & CP_ASSET_MULTIFILE) && stat(base, &info) == 0 &&
             S_ISDIR(info.st_mode) )
         {
-            payload = build_multifile_payload(base, &file_ids, &file_count, &payload_size);
+            payload = build_multifile_payload(ctx, id, base, &file_ids, &file_count,
+                                              &payload_size);
         }
         else
         {

@@ -130,6 +130,8 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_COMPONENTNO,
     RCFIELD_UICOMPONENT_INV,
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
+    RCFIELD_UICOMPONENT_MMB_ROTATE,
+    RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_COLOR,
     RCFIELD_UICOMPONENT_FILLED,
     RCFIELD_UICOMPONENT_FONT,
@@ -449,6 +451,23 @@ struct RevConfigUIComponentItem
      * Empty string means all levels (0xF mask).
      */
     char paint_levels[64];
+
+    /*
+     * INI: mmb_rotate= (true/1 or false/0; default true when the section opens)
+     * type=world: holding the MIDDLE mouse button inside the viewport and
+     * dragging rotates the camera (yaw from horizontal travel, pitch from
+     * vertical). Revisions that need the middle button for something else set
+     * this false.
+     */
+    int mmb_rotate;
+
+    /*
+     * INI: wheel_zoom= (true/1 or false/0; default true when the section opens)
+     * type=world: the mouse wheel over the viewport zooms the camera in/out
+     * (orbit distance when following the player, dolly along the view axis for
+     * the free camera).
+     */
+    int wheel_zoom;
 
     /* INI: color= — RGB/text/line colour for rs_text, rs_rect, rs_line. */
     int color;

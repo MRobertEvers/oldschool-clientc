@@ -34,6 +34,8 @@ usage(void)
         "                songs/<name>.jmid, binary/title.jpg. Extensions come from\n"
         "                the bytes, and nothing is transcoded. --assets=models,maps\n"
         "                limits it to those kinds; --list-assets prints them.\n"
+        "  --raw-assets  skip the friendly decoders, so every asset writes its raw\n"
+        "                payload. Use when a decoded form is in the way.\n"
         "  --binary      also move the non-config tables, as raw container bytes.\n"
         "                On unpack, --binary=5,7 limits it to those idx files.\n"
         "  --warn N      cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
@@ -62,16 +64,23 @@ list_types(void)
 static void
 list_assets(void)
 {
-    printf("%-19s %-14s %-8s %s\n", "directory", "pack", "ext", "notes");
+    printf("%-19s %-14s %-8s %-9s %s\n", "directory", "pack", "raw", "decoded", "notes");
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
         const struct CP_Asset* asset = cp_asset(i);
-        printf("%-19s %-14s .%-7s %s%s\n", asset->dir, asset->pack, asset->ext,
+        char decoded[16];
+        snprintf(decoded, sizeof(decoded), "%s",
+                 asset->codec ? asset->codec->ext : "-");
+        printf("%-19s %-14s .%-7s %-9s %s%s\n", asset->dir, asset->pack, asset->ext, decoded,
                (asset->flags & CP_ASSET_MULTIFILE) ? "multi-file " : "",
                (asset->flags & CP_ASSET_ENCRYPTED) ? "xtea" : "");
     }
-    printf("\nExtensions shown are the fallback; PNG, JPEG, GIF, MIDI, Ogg and the\n"
-           "four model formats are detected from the payload and override it.\n");
+    printf("\n`raw` is the fallback extension; PNG, JPEG, GIF, MIDI, Ogg and the four\n"
+           "model formats are detected from the payload and override it.\n"
+           "`decoded` is the friendly form, written instead where the record decodes.\n"
+           "A record the decoder declines falls back to its raw form, so nothing is\n"
+           "lost — 4,139 of osrs239's 9,725 clientscripts take that path.\n"
+           "--raw-assets turns the decoders off entirely.\n");
 }
 
 static int
@@ -195,6 +204,8 @@ main(int argc, char** argv)
             want_binary = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
+        else if( strcmp(arg, "--raw-assets") == 0 )
+            cp_assets_set_raw(1);
         else if( strncmp(arg, "--assets=", 9) == 0 )
         {
             want_assets = 1;

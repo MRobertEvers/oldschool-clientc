@@ -125,6 +125,19 @@ struct RSCache_WorldMapArea
     /* From "compositemap": the map surface's geography, region by region. */
     struct RSCache_WorldMapRegion* regions;
     int region_count;
+
+    /*
+     * Provenance, so the record can be written back.
+     *
+     * `unknown_int` and `unknown_byte` are read and discarded by the decode; they
+     * would otherwise re-encode as zeros. `data0_count` is where the compositemap's
+     * first block ends — the two blocks land in one array, and splitting them again
+     * by each record's `kind` would trust a field the stream is free to disagree
+     * with. Same reasoning as EXCEPTIONS.md B8: record it, do not infer it.
+     */
+    int unknown_int;
+    int unknown_byte;
+    int data0_count;
 };
 
 /**
@@ -150,6 +163,45 @@ RSCache_WorldMapAreaDecodeIconsInplace(
     const void* data,
     int data_size,
     int flags);
+
+/**
+ * Encode an area record — the inverse of RSCache_WorldMapAreaDecodeInplace.
+ *
+ * Two fields the decode reads and never uses are carried on the struct so this
+ * can put them back; without them the record re-encodes two zeros where the
+ * cache had values.
+ *
+ * Returns bytes written, or 0 on failure.
+ */
+uint32_t
+RSCache_WorldMapAreaEncode(
+    const struct RSCache_WorldMapArea* entry,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+uint32_t
+RSCache_WorldMapAreaEncodeBound(const struct RSCache_WorldMapArea* entry);
+
+/**
+ * Encode the compositemap — the inverse of RSCache_WorldMapAreaDecodeIconsInplace.
+ *
+ * `regions` holds two stream blocks concatenated, split at `data0_count`; the
+ * split is recorded rather than re-derived from each record's `kind`, which the
+ * stream is free to disagree with.
+ *
+ * `flags` must be the same RSCache_WorldMapFlags the decode used: OSRS >= 238
+ * drops the trailing group/file BigSmart pair from every record, and writing it
+ * anyway shifts everything after it.
+ */
+uint32_t
+RSCache_WorldMapAreaEncodeIcons(
+    const struct RSCache_WorldMapArea* entry,
+    int flags,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+uint32_t
+RSCache_WorldMapAreaEncodeIconsBound(const struct RSCache_WorldMapArea* entry);
 
 void
 RSCache_WorldMapAreaFreeInplace(struct RSCache_WorldMapArea* entry);

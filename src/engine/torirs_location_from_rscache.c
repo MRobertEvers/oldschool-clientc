@@ -100,6 +100,9 @@ ToriRS_LocationFromRSCacheDat2(
     loc->size_z = src->size_z;
     loc->blocks_walk = src->blocks_walk;
     loc->blocks_projectiles = src->blocks_projectiles;
+    /* LocType.forceapproach (config opcode 69), still in the loc's unrotated
+     * frame — the placed angle is applied where the loc is registered. */
+    loc->force_approach = src->force_approach;
     loc->wall_width = src->wall_width;
     loc->seq_id = src->seq_id;
     loc->contoured_ground = src->contoured_ground;

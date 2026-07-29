@@ -106,6 +106,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_INV";
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         return "RCFIELD_UICOMPONENT_PAINT_LEVELS";
+    case RCFIELD_UICOMPONENT_MMB_ROTATE:
+        return "RCFIELD_UICOMPONENT_MMB_ROTATE";
+    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
+        return "RCFIELD_UICOMPONENT_WHEEL_ZOOM";
     case RCFIELD_UICOMPONENT_COLOR:
         return "RCFIELD_UICOMPONENT_COLOR";
     case RCFIELD_UICOMPONENT_FILLED:
@@ -386,6 +390,11 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_UICOMPONENT;
         item->u.uicomponent.componentno = -1;
+        /* type=world camera gestures: on unless a revision opts out, so packs
+         * that predate the keys (and the cache-interface build path, which has
+         * no revconfig section at all) behave the same way. */
+        item->u.uicomponent.mmb_rotate = 1;
+        item->u.uicomponent.wheel_zoom = 1;
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
@@ -658,6 +667,12 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         strncpy(comp->paint_levels, value, sizeof(comp->paint_levels) - 1);
         comp->paint_levels[sizeof(comp->paint_levels) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_MMB_ROTATE:
+        comp->mmb_rotate = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
+        comp->wheel_zoom = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_COLOR:
         comp->color = atoi(value);

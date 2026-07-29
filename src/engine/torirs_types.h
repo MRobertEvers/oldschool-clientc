@@ -198,6 +198,11 @@ struct ToriRS_Location
     int size_z;
     int blocks_walk;
     int blocks_projectiles;
+    /** LocType.forceapproach (config opcode 69): DirectionFlag bits (1 N, 2 E,
+     *  4 S, 8 W) naming the sides this loc may NOT be interacted with from, in
+     *  the loc's unrotated frame. 0 = any side. Consumed by the click-time
+     *  approach test; the placed angle is applied at register time. */
+    int force_approach;
     int wall_width;
     int seq_id;
     int contoured_ground;

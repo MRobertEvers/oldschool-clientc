@@ -541,6 +541,8 @@ push_builtin_op(
     }
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = (uint8_t)op->level_mask;
+        spec.u.world.mmb_rotate = op->mmb_rotate ? 1u : 0u;
+        spec.u.world.wheel_zoom = op->wheel_zoom ? 1u : 0u;
         break;
     case UIELEM_BUILTIN_REDSTONE_TAB:
         spec.u.redstone_tab.tabno = op->tabno;
