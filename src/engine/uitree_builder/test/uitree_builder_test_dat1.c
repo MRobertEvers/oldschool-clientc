@@ -12,6 +12,7 @@
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_cmd_render.h"
 #include "engine/uitree_scene_bridge.h"
+#include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "task_runner.h"
 #include "ui/uitree.h"
@@ -162,6 +163,34 @@ main(
         CHECK(inv_pack->component_count > 0, "inventory pack has components");
 
     CHECK(tree->component_count > 30, "baked tree has chrome nodes");
+
+    /* [hotkey:…] bindings resolved onto real nodes. The INI binds 22 keys (F1
+     * through F12 plus the digit row) and one more to the compass, which never
+     * advertised select_tab — that last one must not survive. */
+    {
+        int f3_tab = -1;
+        int z_bound = 0;
+        int z_key = LibToriRS_OsrsKeyFromName("z");
+        int f3_key = LibToriRS_OsrsKeyFromName("f3");
+
+        int well_formed = 0;
+
+        CHECK(tree->hotkey_count == 22, "hotkey bindings resolved");
+        for( int i = 0; i < tree->hotkey_count; i++ )
+        {
+            struct UITreeComponent const* node = &tree->components[tree->hotkeys[i].node_index];
+            if( tree->hotkeys[i].effect == UITREE_HOTKEY_EFFECT_SELECT_TAB &&
+                node->type == UIELEM_BUILTIN_TAB_ICONS )
+                well_formed++;
+            if( tree->hotkeys[i].osrs_key == f3_key )
+                f3_tab = node->u.tab_icon.tabno;
+            if( tree->hotkeys[i].osrs_key == z_key )
+                z_bound = 1;
+        }
+        CHECK(well_formed == tree->hotkey_count, "every binding is select_tab on a tab icon");
+        CHECK(f3_tab == 2, "F3 bound to the quest tab");
+        CHECK(!z_bound, "binding dropped: compass never advertised select_tab");
+    }
 
     /* Client-hardcoded sprites bound to bridge slots (no owning INI node).
      * mapmarker/mapdots are absent from the RevConfig INI, so they exercise the

@@ -179,6 +179,14 @@ make -C 3rd/rscache/tools port_lostcity
   --loc 30356 --map 35_83 --apply
 ```
 
+`--mapfill X_Z,level,x1,z1,x2,z2,N` (manifest section `[export:mapfill]`,
+lines `fill = 35_83,0,22,52,40,59,72`) writes source underlay `N` on every
+tile in the box that has neither overlay nor underlay. For arena interiors the
+source leaves floor-less: void is black in the reference client, and any model
+with translucent faces standing on it composites those faces against black —
+which reads as the model half not rendering. Bounded on purpose; the void
+outside an arena's walls is authored darkness.
+
 `--overlay-backing N` (manifest key `overlay_backing`) writes source underlay
 `N` under every tile that carries an overlay but no underlay. Modern OSRS data
 uses overlay-only tiles freely; the 2004 client draws the backing half of a

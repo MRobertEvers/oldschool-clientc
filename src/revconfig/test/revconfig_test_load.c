@@ -47,6 +47,12 @@ test_load(void)
         "type=world\n"
         "mmb_rotate=true\n"
         "wheel_zoom=false\n"
+        "hotkey=select_tab\n"
+        "hotkey=another_effect\n"
+        "\n"
+        "[hotkey:f4]\n"
+        "c=world\n"
+        "e=select_tab\n"
         "\n"
         "[layout:fixed]\n"
         "n=compass_slot\n"
@@ -73,6 +79,12 @@ test_load(void)
     TEST_ASSERT(count_kind(fields, RCFIELD_UILAYOUT_WIDTH) == 1, "layout w");
     TEST_ASSERT(count_kind(fields, RCFIELD_UILAYOUT_GROUP) >= 2, "layout group re-emit");
     TEST_ASSERT(count_kind(fields, RCFIELD_INV_ITEM) == 2, "inv items");
+    /* Repeated component key, and `c=` disambiguated by section: it must land
+     * as a hotkey component here, not as a layout component. */
+    TEST_ASSERT(count_kind(fields, RCFIELD_UICOMPONENT_HOTKEY) == 2, "hotkey= repeats");
+    TEST_ASSERT(count_kind(fields, RCFIELD_HOTKEY_COMPONENT) == 1, "hotkey c=");
+    TEST_ASSERT(count_kind(fields, RCFIELD_HOTKEY_EFFECT) == 1, "hotkey e=");
+    TEST_ASSERT(count_kind(fields, RCFIELD_UILAYOUT_COMPONENT) == 2, "layout c= unaffected");
 
     /* Trailing ITEMDONE always present */
     TEST_ASSERT(

@@ -7,6 +7,7 @@
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
+#include "input/torirs_keymap.h"
 #include "net/net.h"
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
@@ -760,6 +761,60 @@ frame_loop_step(void)
                             wheel_x, wheel_y, wheel_notches, wheel_repeats);
                         wheel_frame = -1;
                     }
+                }
+            }
+        }
+
+        /* TORIRS_SIM_HOTKEY="frame,<key>[;frame,<key>...]": press a named key
+         * at that main-loop frame and release it two frames later. Key names
+         * are the revconfig [hotkey:…] spelling (f1, 3, escape — see
+         * LibToriRS_OsrsKeyFromName).
+         *
+         * Separate from the pre-loop TORIRS_SIM_KEYS block because that one
+         * runs before the frame loop and behind App_BootWait; a binding is only
+         * live once the tree is baked and App_Interact is running. Drives the
+         * OSRS-coded key arrays, which is what both revconfig hotkeys and CS2
+         * KEYPRESSED read. */
+        {
+            static char const* hk_cursor = NULL;
+            static int hk_init = 0;
+            static long hk_frame = -1;
+            static int hk_key = -1;
+            if( !hk_init )
+            {
+                hk_init = 1;
+                hk_cursor = getenv("TORIRS_SIM_HOTKEY");
+            }
+            if( hk_frame < 0 && hk_cursor && *hk_cursor )
+            {
+                char* end = NULL;
+                char name[64] = { 0 };
+                long at = strtol(hk_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    char const* start = end + 1;
+                    size_t len = 0;
+                    while( start[len] && start[len] != ';' && len < sizeof(name) - 1 )
+                        len++;
+                    memcpy(name, start, len);
+                    hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
+                    hk_frame = at;
+                    hk_key = LibToriRS_OsrsKeyFromName(name);
+                    fprintf(stderr, "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
+                            name, hk_key, hk_frame);
+                }
+                else
+                    hk_cursor = NULL;
+            }
+            if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
+            {
+                if( frame_count == hk_frame )
+                    CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
+                else if( frame_count >= hk_frame + 2 )
+                {
+                    CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
+                    hk_frame = -1;
+                    hk_key = -1;
                 }
             }
         }
@@ -1665,9 +1720,19 @@ main(
                 enum LibToriRS_MouseButton btn = key_char == '!'   ? TORIRSM_RIGHT
                                                  : key_char == '.' ? TORIRSM_LEFT
                                                                    : TORIRSM_UNKNOWN;
+                /* A real keydown fills the OSRS-coded arrays as well as the
+                 * platform-neutral ones (see the SDL handler), and the digit
+                 * row is bound to sidebar tabs in rev 254 — without this the
+                 * simulated press could only ever reach the debug spawn keys,
+                 * never the hotkey that shadows them. */
+                char osrs_name[2] = { key_char, '\0' };
+                int osrs_key = LibToriRS_OsrsKeyFromName(osrs_name);
+
                 LibToriRS_Input_Begin(swk_input, swk_ms);
                 if( key != TORIRSK_UNKNOWN )
                     LibToriRS_Input_PushKeyDown(swk_input, key);
+                if( key != TORIRSK_UNKNOWN && osrs_key >= 0 )
+                    LibToriRS_Input_SetOsrsKeyState(swk_input, osrs_key, 1, 1);
                 if( btn != TORIRSM_UNKNOWN )
                     LibToriRS_Input_PushMouseDown(swk_input, btn, wkx, wky);
                 LibToriRS_Input_End(swk_input);
@@ -1677,6 +1742,8 @@ main(
                 LibToriRS_Input_Begin(swk_input, swk_ms);
                 if( key != TORIRSK_UNKNOWN )
                     LibToriRS_Input_PushKeyUp(swk_input, key);
+                if( key != TORIRSK_UNKNOWN && osrs_key >= 0 )
+                    LibToriRS_Input_SetOsrsKeyState(swk_input, osrs_key, 0, 0);
                 if( btn != TORIRSM_UNKNOWN )
                     LibToriRS_Input_PushMouseUp(swk_input, btn, wkx, wky);
                 LibToriRS_Input_End(swk_input);

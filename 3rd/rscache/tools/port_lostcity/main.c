@@ -139,6 +139,11 @@ main(int argc, char** argv)
             if( !lc_manifest_add_maploc(&manifest, argv[++i]) )
                 return 2;
         }
+        else if( strcmp(argv[i], "--mapfill") == 0 && i + 1 < argc )
+        {
+            if( !lc_manifest_add_mapfill(&manifest, argv[++i]) )
+                return 2;
+        }
         else if( strcmp(argv[i], "--texture") == 0 && i + 1 < argc )
             lc_request_add(&manifest.textures, argv[++i]);
         else if( strcmp(argv[i], "--max-textures") == 0 && i + 1 < argc )
@@ -322,7 +327,7 @@ main(int argc, char** argv)
             failures++;
             continue;
         }
-        if( !lc_export_map(&ctx, map_x, map_z, manifest.maplocs, manifest.maploc_count) )
+        if( !lc_export_map(&ctx, map_x, map_z, manifest.maplocs, manifest.maploc_count, manifest.mapfills, manifest.mapfill_count) )
             failures++;
     }
 

@@ -114,6 +114,7 @@ enum manifest_section
     SECTION_EXTRA,
     SECTION_RIG_MAP,
     SECTION_MAPLOC,
+    SECTION_MAPFILL,
 };
 
 static enum manifest_section
@@ -143,6 +144,8 @@ section_of(const char* header)
         return SECTION_EXTRA;
     if( strcmp(header, "export:maploc") == 0 )
         return SECTION_MAPLOC;
+    if( strcmp(header, "export:mapfill") == 0 )
+        return SECTION_MAPFILL;
     return SECTION_NONE;
 }
 
@@ -340,6 +343,11 @@ handle_element(
         return lc_manifest_add_maploc(parse->manifest, element->_keyval.value);
     }
 
+    if( parse->section == SECTION_MAPFILL )
+    {
+        return lc_manifest_add_mapfill(parse->manifest, element->_keyval.value);
+    }
+
     if( parse->section == SECTION_RIG_MAP )
     {
         struct LC_Manifest* m = parse->manifest;
@@ -523,9 +531,47 @@ lc_manifest_add_maploc(
     return 1;
 }
 
+int
+lc_manifest_add_mapfill(
+    struct LC_Manifest* manifest,
+    const char* text)
+{
+    struct LC_MapFill fill;
+    if( sscanf(
+            text,
+            "%d_%d,%d,%d,%d,%d,%d,%d",
+            &fill.map_x,
+            &fill.map_z,
+            &fill.level,
+            &fill.x1,
+            &fill.z1,
+            &fill.x2,
+            &fill.z2,
+            &fill.underlay) != 8 )
+    {
+        fprintf(
+            stderr,
+            "mapfill wants MAPX_MAPZ,level,x1,z1,x2,z2,underlay (got %s)\n",
+            text);
+        return 0;
+    }
+    if( manifest->mapfill_count == manifest->mapfill_cap )
+    {
+        int next = manifest->mapfill_cap ? manifest->mapfill_cap * 2 : 8;
+        void* grown = realloc(manifest->mapfills, (size_t)next * sizeof(*manifest->mapfills));
+        if( !grown )
+            return 0;
+        manifest->mapfills = grown;
+        manifest->mapfill_cap = next;
+    }
+    manifest->mapfills[manifest->mapfill_count++] = fill;
+    return 1;
+}
+
 void
 lc_manifest_free(struct LC_Manifest* manifest)
 {
+    free(manifest->mapfills);
     free(manifest->maplocs);
     if( !manifest )
         return;

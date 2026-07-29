@@ -140,6 +140,23 @@ struct LC_Manifest
     }* maplocs;
     int maploc_count;
     int maploc_cap;
+
+    /**
+     * Underlay fills for floor-less tile regions, from `[export:mapfill]` /
+     * `--mapfill`. A tile with neither overlay nor underlay is void — the
+     * reference client draws nothing there, and anything standing on it with
+     * translucent faces composites against black. Inside an arena that reads
+     * as holes; outside the walls it is the authored darkness, which is why
+     * this is a bounded region and not a squares-wide default.
+     */
+    struct LC_MapFill
+    {
+        int map_x, map_z;
+        int level, x1, z1, x2, z2;
+        int underlay;
+    }* mapfills;
+    int mapfill_count;
+    int mapfill_cap;
     struct LC_RequestList seqs;
     struct LC_RequestList spotanims;
     struct LC_RequestList locs;
@@ -167,6 +184,12 @@ lc_manifest_free(struct LC_Manifest* manifest);
 /** Append one `35_83,level,x,z,locid,shape,angle` placement. */
 int
 lc_manifest_add_maploc(
+    struct LC_Manifest* manifest,
+    const char* text);
+
+/** Append one `35_83,level,x1,z1,x2,z2,underlay` fill region. */
+int
+lc_manifest_add_mapfill(
     struct LC_Manifest* manifest,
     const char* text);
 

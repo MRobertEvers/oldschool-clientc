@@ -61,13 +61,16 @@ test_manifest_from_hand_pushed_fields(void)
     push_field(fields, RCFIELD_UICOMPONENT_INV, "inventory");
     push_field(fields, RCFIELD_ITEMDONE, "");
 
-    /* [component:compass] builtin, no RS */
+    /* [component:compass] builtin, no RS. Two hotkey= lines: the repeat is the
+     * point — one component may advertise several effects. */
     push_field(fields, RCFIELD_ITEMTYPE, "component");
     push_field(fields, RCFIELD_ITEMNAME, "compass");
     push_field(fields, RCFIELD_UICOMPONENT_TYPE, "compass");
     push_field(fields, RCFIELD_UICOMPONENT_SPRITE, "cross");
     push_field(fields, RCFIELD_UICOMPONENT_WIDTH, "33");
     push_field(fields, RCFIELD_UICOMPONENT_HEIGHT, "33");
+    push_field(fields, RCFIELD_UICOMPONENT_HOTKEY, "select_tab");
+    push_field(fields, RCFIELD_UICOMPONENT_HOTKEY, "some_future_effect");
     push_field(fields, RCFIELD_ITEMDONE, "");
 
     /* [layout] entries */
@@ -84,6 +87,26 @@ test_manifest_from_hand_pushed_fields(void)
     push_field(fields, RCFIELD_UILAYOUT_NAME, "sidebar_slot");
     push_field(fields, RCFIELD_UILAYOUT_COMPONENT, "sidebar");
     push_field(fields, RCFIELD_UILAYOUT_PARENT, "compass_slot");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    /* [hotkey:f1] / [hotkey:3] — two keys onto the same component + effect,
+     * plus one malformed section (no e=) that must be dropped here rather than
+     * reaching the bake. */
+    push_field(fields, RCFIELD_ITEMTYPE, "hotkey");
+    push_field(fields, RCFIELD_ITEMNAME, "f1");
+    push_field(fields, RCFIELD_HOTKEY_COMPONENT, "compass");
+    push_field(fields, RCFIELD_HOTKEY_EFFECT, "select_tab");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "hotkey");
+    push_field(fields, RCFIELD_ITEMNAME, "3");
+    push_field(fields, RCFIELD_HOTKEY_COMPONENT, "compass");
+    push_field(fields, RCFIELD_HOTKEY_EFFECT, "select_tab");
+    push_field(fields, RCFIELD_ITEMDONE, "");
+
+    push_field(fields, RCFIELD_ITEMTYPE, "hotkey");
+    push_field(fields, RCFIELD_ITEMNAME, "f2");
+    push_field(fields, RCFIELD_HOTKEY_COMPONENT, "compass");
     push_field(fields, RCFIELD_ITEMDONE, "");
 
     /* [inv:inventory] */
@@ -116,6 +139,19 @@ test_manifest_from_hand_pushed_fields(void)
     TEST_ASSERT(strcmp(manifest.ops[0].type, "compass") == 0, "compass type");
     TEST_ASSERT(manifest.ops[1].kind == UIBUILDER_OP_PUSH_RS_SUBTREE, "sidebar rs");
     TEST_ASSERT(manifest.ops[1].componentno == 149, "sidebar componentno");
+
+    /* The compass op carries the component name (the bake resolves bindings by
+     * component, not by layout-entry name) and both advertised effects. */
+    TEST_ASSERT(strcmp(manifest.ops[0].component_name, "compass") == 0, "op component name");
+    TEST_ASSERT(manifest.ops[0].hotkey_count == 2, "advertised effect count");
+    TEST_ASSERT(strcmp(manifest.ops[0].hotkeys[0], "select_tab") == 0, "advertised effect 0");
+
+    /* Two well-formed bindings kept in order; the one missing e= is dropped. */
+    TEST_ASSERT(manifest.hotkey_count == 2, "hotkey binding count");
+    TEST_ASSERT(strcmp(manifest.hotkeys[0].key_name, "f1") == 0, "binding0 key");
+    TEST_ASSERT(strcmp(manifest.hotkeys[0].component_name, "compass") == 0, "binding0 component");
+    TEST_ASSERT(strcmp(manifest.hotkeys[0].effect, "select_tab") == 0, "binding0 effect");
+    TEST_ASSERT(strcmp(manifest.hotkeys[1].key_name, "3") == 0, "binding1 key");
 
     TEST_ASSERT(manifest.invs[0].item_count == 2, "inv items");
     TEST_ASSERT(manifest.invs[0].obj_ids[0] == 1333, "inv obj0");

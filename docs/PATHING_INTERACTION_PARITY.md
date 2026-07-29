@@ -343,190 +343,105 @@ loc shape" and one more consumer would make it a bug.
 
 ---
 
-## 5. Proposed implementation
+## 5. What shipped
 
-Two stages. Stage 1 closes the Client-TS gaps and is unconditional — it is
-strictly "the port finished". Stage 2 introduces the modern arrival semantics
-behind an era gate, for rev-230+ boots.
+Both modes are supported and selected by era. Section 6 keeps the original
+proposal for the parts deliberately left out.
 
-### Stage 1 — finish the Client-TS port
+### 5.1 The era seam — `src/features/`
 
-**1.1 Decode `forceapproach`** (`3rd/rscache`, then the adaptor)
-
-- `dat2_config_loc.c` case 69: `loc->force_approach = g1(&buffer);` — plus the
-  matching encoder branch, a default of `0`, and the field on
-  `struct RSCache_Dat2ConfigLoc`. Register the change in
-  `3rd/rscache/EXCEPTIONS.md` and prove it with the standard byte-exact
-  round-trip (the existing decoder-validation discipline for this vendored tree).
-- `struct ToriRS_Location`: add `int force_approach;`, filled by
-  `torirs_location_from_rscache.c`.
-
-**1.2 Register the rotated forceapproach and the true route footprint**
-(`world_scenery.u.c`)
-
-`World_SceneryRegister` currently takes the *render* size. Split the two:
-
-- Add `int route_size_x, int route_size_z, int force_approach` to
-  `scenery_load_model` (and thread them to `World_SceneryRegister`), defaulting
-  to the render size at the existing call sites.
-- `scenery_add_normal`: pass the already-swapped `size_x/size_z` (unchanged
-  behaviour) and `force_approach` rotated **at register time** by the map angle,
-  mirroring how the size swap is already done there:
-  ```c
-  int fa = config_loc->force_approach;
-  int angle = map_loc->orientation & 3;
-  if (angle != 0) fa = ((fa << angle) & 0xf) + (fa >> (4 - angle));
-  ```
-- `scenery_add_floor_decoration`: keep the model/painter at `1,1` (the reference
-  draws ground decor on one tile) but pass the loc's true, angle-swapped
-  `config_loc->size_x/size_z` as the **route** footprint, plus the same rotated
-  `force_approach`. Fixes D3.
-- Add `int force_approach;` to `struct WorldEntity_Scenery` and have
-  `app_scenery_approach` read `scenery->force_approach` instead of leaving 0.
-  Fixes D1.
-- While in `scenery_add_normal`, pass `map_loc->shape_select` rather than the
-  literal `RSCACHE_LOC_SHAPE_SCENERY` so a diagonal centrepiece registers shape
-  11. Fixes D10; no routing behaviour changes.
-
-**1.3 Thread ctrl-held into the menu action path** (`app.c`)
-
-The minimenu dispatch has no `struct LibToriRS_Input*`. Cheapest faithful fix:
-latch it once per frame where the input is already in hand (next to the existing
-`app_minimap_click` call at `app.c:8202`):
+`struct ToriRS_FeatureTable` (`src/features/features.h`) is to *client
+behaviour* what `struct GameProtoRevTable` (`src/net/rev/`) is to the wire and
+`cache_provider.h` is to the cache format: a table of slots whose **zero value
+is the 2004/Client-TS behaviour**, so `{0}` is a working era and adding a field
+cannot move an existing one.
 
 ```c
-app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL);
+enum ToriRS_PathingMode   { CLIENT_BFS = 0, SERVER_AUTHORITATIVE };
+enum ToriRS_ApproachModel { LEGACY_SHAPE = 0, RECT };
 ```
 
-then use `app->ctrl_held` in `app_try_move` (Walk-here call site),
-`app_try_move_op`, `_npc`, `_loc`, `_obj`. Keep `app_minimap_click`'s explicit
-parameter — it is already correct — or collapse it onto the same field. Fixes D2.
+| era | `pathing_mode` | `approach_model` | npc size | op-click fallback |
+|---|---|---|---|---|
+| `lostcity` | CLIENT_BFS | LEGACY_SHAPE | 1×1 | none |
+| `osrs` | CLIENT_BFS | RECT | `npc->size` | range 10, rect-ranked |
+| `server_routed` | SERVER_AUTHORITATIVE | RECT | `npc->size` | n/a |
 
-**1.4 Loc-lookup miss aborts the whole click** (`app.c`)
+Resolution (`App_Init`), unconditional — an offline boot still clicks locs:
 
-- `app_try_move_loc` returns `int`: `-1` = "no such scenery" (reference
-  `typecode2 === -1`), `0` = routed/unreachable but the loc exists.
-- `PICK_SCENERY` / `USEHELD_ONLOC` / `TGT_LOC` return early on `-1` without
-  sending OPLOC/OPLOCU/OPLOCT.
-- The cross is currently shown before the pick switch
-  (`app_minimenu_run_option:7594`); move the `UICross_Show` for the three loc
-  actions after the lookup, or hide it on the `-1` path. Fixes D4.
-
-**1.5 Tests** (`src/world/test/world_test_route.c`, `make -C src test-world`)
-
-- `test_try_route_op_forceapproach`: 1×1 loc with `forceapproach = DIR_WEST`,
-  player due west with an otherwise clear approach → the flood must **not**
-  arrive on the west tile and must instead arrive north/south/east.
-- `test_forceapproach_rotation`: the same loc at angles 0..3, asserting the
-  `((fa << angle) & 0xf) + (fa >> (4 - angle))` table.
-- `test_try_route_op_ground_decor_2x1`: multi-tile ground decor arrives from the
-  far edge of the rect.
-- `test_try_move_loc_missing_scenery`: element id with no scenery → no packet.
-
-### Stage 2 — modern (XRSPS) arrival semantics behind an era gate
-
-The gate already exists: `BootManifest.cache_revision` /
-`cache_epoch` (`src/bootmanifest/bootmanifest.h:83-87`). Add
-`enum World_PathingMode { WORLD_PATHING_LEGACY_SHAPE, WORLD_PATHING_RECT }` on
-`struct World`, set at boot (`LEGACY_SHAPE` for dat1 / lc254 / rev < 230,
-`RECT` for rev ≥ 230), and let the manifest override it
-(`[game] pathing=legacy|osrs`) so a mock server can be pointed either way.
-
-**2.1 Generalise `struct CollisionApproach`**
-
-```c
-enum CollisionApproachKind {
-    COLL_APPROACH_EXACT,          /* dst tile only (obj, ground click) */
-    COLL_APPROACH_LEGACY_SHAPE,   /* today: testWall / testWDecor / testLoc */
-    COLL_APPROACH_RECT_ADJACENT,  /* XRSPS RectAdjacentRouteStrategy */
-    COLL_APPROACH_RECT_INSIDE,    /* XRSPS RectRouteStrategy */
-    COLL_APPROACH_WITHIN_RANGE,   /* XRSPS RectWithinRangeRouteStrategy */
-};
-
-struct CollisionApproach
-{
-    enum CollisionApproachKind kind;
-    int loc_width, loc_length;      /* target rect, anchored at dst */
-    int loc_angle, loc_shape;       /* LEGACY_SHAPE only */
-    int forceapproach;              /* LEGACY_SHAPE only */
-    int mover_size;                 /* 1 today; plumbed for later NPC pathing */
-    int allow_overlap;              /* RECT_ADJACENT: doors, non-clipping scenery */
-    int blocked_sides;              /* DirectionFlag bits, RECT_ADJACENT */
-    int range;                      /* WITHIN_RANGE */
-};
+```
+[features:boot] era=…   >   TORIRS_FEATURES_ERA   >   ToriRS_Features_ForCache()
 ```
 
-`collision_flood_arrived` becomes a `switch (approach->kind)`. The existing
-branch moves under `COLL_APPROACH_LEGACY_SHAPE` unchanged; `NULL` stays
-equivalent to `COLL_APPROACH_EXACT`. Nothing else in `collision_flood` changes,
-so Stage 1's tests keep passing byte-for-byte.
+`ToriRS_Features_ForCache` keys off the **lineage, not the revision**: dat1 →
+`lostcity`; dat2+`oldschool` → `osrs`; dat2+`rs2` (the rev-634/643 caches) stays
+`lostcity`, because those are still the classic client. Nothing derivable
+selects `server_routed` — that is a property of the *server*, so
+`manifest_xrsps.ini` states it.
 
-**2.2 Implement `collision_test_rect_adjacent`**
+### 5.2 Server-authoritative mode
 
-Direct port of `RectAdjacentRouteStrategy.hasArrived` +
-`isEdgeWallBlocked`:
+`app_try_move_op` returns immediately after latching the minimap flag: no BFS,
+no MOVE_OPCLICK — the interaction packet carries the target and the server
+paths, exactly as xrsps does. A ground click degenerates to a 1-entry route,
+which `out_move` already encodes as "absolute destination, no deltas" — the
+shape of xrsps's `WALK`.
 
-1. footprint overlap → return `allow_overlap`;
-2. flush cardinal side with axis overlap, else reject (no diagonal);
-3. if any tile along the shared edge is not wall-separated, arrive — reading
-   **both** tiles' `COLL_FLAG_WALL_*` bits, not just the source tile's. This is
-   the one place where the modern predicate is genuinely stronger than
-   `testLoc`, which only checks the source tile.
+### 5.3 The rect approach model
 
-`collision_test_rect_inside` and `collision_test_within_range` are three-line
-functions off the same footprint helper.
+`struct CollisionApproach` gained a `kind` discriminator
+(`collision_map.h`). The old logic moved under `COLL_APPROACH_LEGACY_SHAPE`
+untouched; `RECT_ADJACENT` / `RECT_INSIDE` / `RECT_WITHIN_RANGE` are ports of
+the corresponding `RouteStrategy.hasArrived`.
 
-**2.3 Strategy selection for locs** (`app_scenery_approach`)
+**The exact-destination shortcut is legacy-only.** Client-TS tests
+`x === dx && z === dz` before any shape test, so standing on a loc's own tile is
+always an arrival there. `Pathfinder.findPathS1` has no such test —
+`hasArrived` is the only predicate — and that is precisely what lets rsmod
+refuse an approach overlapping a clipping loc. Applying the shortcut to the RECT
+kinds would have silently re-introduced the legacy behaviour under the modern
+era.
 
-Under `WORLD_PATHING_RECT`, derive from the loc *definition*, mirroring
-`deriveLocRouteProfile`, and cache it on `WorldEntity_Scenery` at register time
-(the shape and the config are both in hand there — keep `world/` a leaf):
+Loc strategy selection (`app_scenery_approach`) mirrors
+`deriveLocRouteProfile`: wall shapes → adjacent+overlap; non-clipping floor
+decor → inside; non-clipping with actions → adjacent+overlap; non-clipping
+otherwise → inside; clipping → adjacent, no overlap.
 
-| condition | kind |
+### 5.4 The defect fixes
+
+| | fix |
 |---|---|
-| shape ∈ wall/wall-decor set (0..9) | `RECT_ADJACENT`, `blocked_sides` from the wall angle |
-| `blocks_walk == 0` and shape 22 | `RECT_INSIDE` |
-| `blocks_walk == 0` and any action non-empty | `RECT_ADJACENT`, `allow_overlap = 1` |
-| `blocks_walk == 0` | `RECT_INSIDE` |
-| otherwise | `RECT_ADJACENT`, `allow_overlap = 0` |
+| **D1** | `force_approach` decoded (rscache loc opcode 69, encoder + cachepack text + `loc_equal` round-trip), carried to `ToriRS_Location` → `WorldEntity_Scenery`, **rotated by the placed angle at register time** (`((fa << angle) & 0xf) + (fa >> (4 - angle))`, once, where the size swap already happens). 2459 of `cache.osrs230`'s locs carry it. Under RECT it becomes `blocked_sides` — same bits, same meaning. |
+| **D2** | `app->ctrl_held` latched each frame in `App_RunOnce` from `TORIRSK_CTRL` and threaded into every `app_try_move*`. The reference reads `keyHeld[5]` *inside* `tryMove`, so it covers ground, minimap and interaction clicks alike. |
+| **D3** | `World_SceneryRegister` now takes the **route** footprint, derived once inside `scenery_load_model` from `config_loc->size_x/size_z` angle-swapped — so ground decor routes as its true size while still rendering on one tile. |
+| **D4** | `app_try_move_loc` returns 0 when the scenery lookup misses, and all three loc call sites drop the whole click (no OPLOC/OPLOCU/OPLOCT), matching `interactWithLoc`'s early return on `typecode2 == -1`. |
+| **D5** | `npc_approach_uses_size`. |
+| **D7** | `struct CollisionNearestOpts` + `collision_nearest_fallback`, shared by the ground-click 3×3 ring (identical in both references, so not era-conditional) and the era's op-click box. |
+| **D10** | `map_tile->shape_select` registered instead of the model-selection shape, so a diagonal centrepiece records shape 11. |
 
-Door actions (`Open`/`Close`/`Unlock`/`Lock`/`Pay-toll(`) additionally set
-`allow_overlap = 1` and skip the wall gate — same carve-out as
-`LocInteractionHandler.isDoorAction`. The action string is on the pick, so this
-is decided in `app_try_move_loc`, not at register time.
+### 5.5 Tests — `make -C src test-world`
 
-`ToriRS_Location.blocks_walk` already exists (`torirs_types.h:199`), so no new
-decode is needed for this table.
+`test_try_route_op_forceapproach`, `test_force_approach_rotation`,
+`test_try_route_op_rect`, `test_features_eras`, plus the existing op tests
+updated. Two assertions are worth calling out because they pin the *era
+difference* rather than either era alone:
 
-**2.4 NPC approach** (D5)
+- **Asymmetric wall.** A wall added through `collision_map_add_wall` flags both
+  tiles of the edge, so both models refuse it — that is *not* where they
+  differ. Flag the target tile alone (reachable in practice: `del_wall` is an
+  unconditional clear) and legacy accepts the edge while RECT refuses it,
+  because only RECT reads the target's bits.
+- **Overlap.** Starting the route on the target: legacy arrives immediately,
+  `RECT_ADJACENT` without `allow_overlap` steps off, with it arrives.
 
-Under `WORLD_PATHING_RECT`: `loc_width = loc_length = npc->size`, kind
-`RECT_ADJACENT`, `allow_overlap = 0`. Under `LEGACY_SHAPE`: unchanged `{1,1}`.
+rscache: `make -C 3rd/rscache test` — `semantic` stays 100% on every cache,
+loc byte-exact rose 508 → 545 on osrs230. See the note in `EXCEPTIONS.md` for
+why 175 records moved `same-len` → `differ` without anything regressing.
 
-**2.5 Alternative-route fallback for interactions** (D7)
+---
 
-Add `struct CollisionRouteOpts { bool try_nearest; int nearest_range; int nearest_max_dist; }`.
+## 6. Deliberately not done
 
-- `LEGACY_SHAPE`: op-clicks keep `try_nearest = false` (Client-TS).
-- `RECT`: op-clicks use `try_nearest = true, nearest_range = 10,
-  nearest_max_dist = 100`, ranked by **squared distance to the target rect**
-  then step count — i.e. the `Pathfinder.findPath` alternative-route block, not
-  the 3×3 first-found ring. The ground-click 3×3 ring stays as-is in both modes;
-  it is the same in both references.
-
-**2.6 Tests**
-
-Mirror each Stage-1 case under `WORLD_PATHING_RECT`, plus:
-- a wall between player and loc on the flush edge → `RECT_ADJACENT` rejects,
-  `LEGACY_SHAPE` (testLoc, source-tile-only check) accepts — the concrete
-  behaviour difference between the two eras;
-- diagonal-only contact rejected in both modes;
-- size-3 NPC: `RECT` arrives beside the 3×3 footprint, `LEGACY` beside the SW
-  tile;
-- alternative-route ranking: two reachable tiles equidistant in steps, the one
-  closer to the rect wins.
-
-### Deliberately out of scope
 
 - **D6 (player picks)** — needs `UI_MINIMENU_PICK_PLAYER`, player rows in
   `rs_minimenu_world.c` and the `OPPLAYER*` dispatch before the pathing question

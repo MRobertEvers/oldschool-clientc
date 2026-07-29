@@ -385,7 +385,9 @@ lc_export_map(
     int map_x,
     int map_z,
     const struct LC_MapLocAdd* extra,
-    int extra_count)
+    int extra_count,
+    const struct LC_MapFill* fills,
+    int fill_count)
 {
     assert(ctx);
 
@@ -448,6 +450,18 @@ lc_export_map(
                 if( underlay_id == 0 && tile->attr_opcode != 0 &&
                     ctx->overlay_backing_underlay > 0 )
                     underlay_id = ctx->overlay_backing_underlay;
+                /* Region fills: floor for void tiles inside an arena, so
+                 * translucent model faces standing there have something behind
+                 * them. Overlay tiles are already handled above. */
+                if( underlay_id == 0 && tile->attr_opcode == 0 )
+                    for( int fi = 0; fi < fill_count; fi++ )
+                        if( fills[fi].map_x == map_x && fills[fi].map_z == map_z &&
+                            fills[fi].level == level && x >= fills[fi].x1 &&
+                            x <= fills[fi].x2 && z >= fills[fi].z1 && z <= fills[fi].z2 )
+                        {
+                            underlay_id = fills[fi].underlay;
+                            break;
+                        }
                 if( underlay_id != 0 )
                 {
                     int flo = export_underlay(ctx, underlay_id - 1);

@@ -286,6 +286,7 @@ lc_export_loc(
  * manifest list can be passed for every square.
  */
 struct LC_MapLocAdd;
+struct LC_MapFill;
 
 int
 lc_export_map(
@@ -293,7 +294,9 @@ lc_export_map(
     int map_x,
     int map_z,
     const struct LC_MapLocAdd* extra,
-    int extra_count);
+    int extra_count,
+    const struct LC_MapFill* fills,
+    int fill_count);
 
 /** Encode every accumulated animset. Call once after the last sequence. */
 int

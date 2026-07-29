@@ -122,9 +122,23 @@ test_items_build(void)
     push(fields, RCFIELD_UICOMPONENT_WHEEL_ZOOM, "0");
     push(fields, RCFIELD_ITEMDONE, "");
 
+    /* hotkey= repeats into a list; [hotkey:…] is its own item kind. */
+    push(fields, RCFIELD_ITEMTYPE, "component");
+    push(fields, RCFIELD_ITEMNAME, "tab_icon");
+    push(fields, RCFIELD_UICOMPONENT_TYPE, "tab_icon");
+    push(fields, RCFIELD_UICOMPONENT_HOTKEY, "select_tab");
+    push(fields, RCFIELD_UICOMPONENT_HOTKEY, "another_effect");
+    push(fields, RCFIELD_ITEMDONE, "");
+
+    push(fields, RCFIELD_ITEMTYPE, "hotkey");
+    push(fields, RCFIELD_ITEMNAME, "f4");
+    push(fields, RCFIELD_HOTKEY_COMPONENT, "tab_icon");
+    push(fields, RCFIELD_HOTKEY_EFFECT, "select_tab");
+    push(fields, RCFIELD_ITEMDONE, "");
+
     revconfig_items_build(fields, items);
 
-    TEST_ASSERT(items->item_count == 11, "item_count");
+    TEST_ASSERT(items->item_count == 13, "item_count");
 
     struct RevConfigItem const* invback = &items->items[0];
     TEST_ASSERT(invback->kind == RCITEM_CACHE_SPRITE, "invback kind");
@@ -190,6 +204,17 @@ test_items_build(void)
     struct RevConfigItem const* world_off = &items->items[10];
     TEST_ASSERT(world_off->u.uicomponent.mmb_rotate == 0, "mmb_rotate=false");
     TEST_ASSERT(world_off->u.uicomponent.wheel_zoom == 0, "wheel_zoom=0");
+
+    struct RevConfigItem const* tab_icon = &items->items[11];
+    TEST_ASSERT(tab_icon->u.uicomponent.hotkey_count == 2, "hotkey= repeats");
+    TEST_ASSERT(strcmp(tab_icon->u.uicomponent.hotkeys[0], "select_tab") == 0, "hotkey 0");
+    TEST_ASSERT(strcmp(tab_icon->u.uicomponent.hotkeys[1], "another_effect") == 0, "hotkey 1");
+
+    struct RevConfigItem const* binding = &items->items[12];
+    TEST_ASSERT(binding->kind == RCITEM_HOTKEY, "hotkey item kind");
+    TEST_ASSERT(strcmp(binding->u.hotkey.name, "f4") == 0, "hotkey key name");
+    TEST_ASSERT(strcmp(binding->u.hotkey.component, "tab_icon") == 0, "hotkey c=");
+    TEST_ASSERT(strcmp(binding->u.hotkey.effect, "select_tab") == 0, "hotkey e=");
 
     revconfig_buffer_free(fields);
     revconfig_item_buffer_free(items);

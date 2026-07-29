@@ -812,6 +812,66 @@ dump_idk_centroids(struct Tool_Dat2Cache* c)
     }
 }
 
+
+/* Face-level statistics for a decoded model: what a renderer actually eats. */
+static void
+dump_model_stats(
+    const char* title,
+    struct RSCache_Model* model)
+{
+    int flat = 0;
+    int textured = 0;
+    int hidden = 0;
+    int alpha_faces = 0;
+    int dark = 0;
+    int light_hist[8] = { 0 };
+
+    printf("%s\n", title);
+    if( !model )
+    {
+        printf("  <decode failed>\n");
+        return;
+    }
+    printf("  %-22s%d\n", "vertices", model->vertex_count);
+    printf("  %-22s%d\n", "faces", model->face_count);
+    printf("  %-22s%d\n", "textured triangles", model->textured_face_count);
+    printf(
+        "  %-22s%s / %s / %s / %s\n",
+        "arrays i/p/a/t",
+        model->face_infos ? "infos" : "-",
+        model->face_priorities ? "prios" : "-",
+        model->face_alphas ? "alphas" : "-",
+        model->face_textures ? "textures" : "-");
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        int info = model->face_infos ? model->face_infos[i] : 0;
+        int color = model->face_colors ? model->face_colors[i] : 0;
+        if( (info & 3) == 2 )
+            textured++;
+        else if( (info & 3) == 3 )
+            hidden++;
+        else if( (info & 3) == 1 )
+            flat++;
+        if( model->face_alphas && model->face_alphas[i] != 0 )
+            alpha_faces++;
+        {
+            int light = color & 0x7f;
+            light_hist[light >> 4]++;
+            if( light < 8 )
+                dark++;
+        }
+    }
+    printf("  %-22s%d\n", "flat-shaded (info&3=1)", flat);
+    printf("  %-22s%d\n", "textured (info&3=2)", textured);
+    printf("  %-22s%d\n", "info&3=3", hidden);
+    printf("  %-22s%d\n", "alpha!=0 faces", alpha_faces);
+    printf("  %-22s%d\n", "lightness<8 faces", dark);
+    printf("  %-22s", "lightness histogram");
+    for( int i = 0; i < 8; i++ )
+        printf("%s%d-%d:%d", i ? "  " : "", i * 16, i * 16 + 15, light_hist[i]);
+    printf("\n");
+}
+
 int
 main(int argc, char** argv)
 {
@@ -822,6 +882,8 @@ main(int argc, char** argv)
     int dump_npc_id = -1;
     int dump_obj_id = -1;
     int dump_loc_id = -1;
+    int dump_model_id = -1;
+    const char* dump_ob2_path = NULL;
     int dump_framemap_id = -1;
     const char* dat1_anim = NULL;
     int idk_centroids = 0;
@@ -845,6 +907,10 @@ main(int argc, char** argv)
             dump_obj_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--loc") == 0 && i + 1 < argc )
             dump_loc_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--model") == 0 && i + 1 < argc )
+            dump_model_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--ob2") == 0 && i + 1 < argc )
+            dump_ob2_path = argv[++i];
         else if( strcmp(argv[i], "--framemap") == 0 && i + 1 < argc )
             dump_framemap_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--dat1-anim") == 0 && i + 1 < argc )
@@ -890,6 +956,32 @@ main(int argc, char** argv)
         dump_obj(&cache, dump_obj_id);
     if( dump_loc_id >= 0 )
         dump_loc(&cache, dump_loc_id);
+    if( dump_model_id >= 0 )
+    {
+        char title[64];
+        struct RSCache_Model* model = tool_dat2_model_load(&cache, dump_model_id);
+        snprintf(title, sizeof(title), "source model %d", dump_model_id);
+        dump_model_stats(title, model);
+        if( model )
+            RSCache_ModelFree(model);
+    }
+    if( dump_ob2_path )
+    {
+        FILE* fh = fopen(dump_ob2_path, "rb");
+        if( !fh )
+            printf("ob2 %s: <unreadable>\n", dump_ob2_path);
+        else
+        {
+            char* buf = malloc(4 << 20);
+            size_t got = fread(buf, 1, 4 << 20, fh);
+            fclose(fh);
+            struct RSCache_Model* model = RSCache_ModelNewDecode(buf, (int)got);
+            dump_model_stats(dump_ob2_path, model);
+            if( model )
+                RSCache_ModelFree(model);
+            free(buf);
+        }
+    }
     if( dump_framemap_id >= 0 )
         dump_framemap(&cache, dump_framemap_id);
     if( idk_centroids )

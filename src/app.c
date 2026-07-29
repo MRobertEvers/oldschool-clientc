@@ -4952,6 +4952,13 @@ app_ui_hotkeys(
             }
             app->hotkey_consumed[binding->osrs_key] = 1;
             app->need_redraw = 1;
+            if( getenv("TORIRS_HOTKEY_DEBUG") )
+                fprintf(
+                    stderr,
+                    "hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
+                    binding->osrs_key,
+                    binding->node_index,
+                    tabno);
             break;
         }
         default:
