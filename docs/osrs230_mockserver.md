@@ -692,6 +692,42 @@ server over the queue pair, feeding the stream in 7-byte chunks so the torn-read
 path is exercised on every run. If it ever hangs, the handshake has gone back to
 waiting for bytes.
 
+**The real client can do it too.** `src/platform/net_transport_embed.c` is a
+third `NetTransport` beside TCP and WebSocket — same vtable, no wire under it —
+selected by `[net:boot] transport=embed`:
+
+```sh
+make -C src torirs EMBED_SERVER=1
+src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+```
+
+That boots the scene, the player and the npc roster with **no server process and
+no socket**. The manifest differs from `manifest_osrs230.ini` by one line.
+
+Three notes on it:
+
+- **`EMBED_SERVER=1` is opt-in**, because linking it puts the server's tick, its
+  script VM and its content loaders inside the *client* binary (3.0 MB → 3.5 MB)
+  and makes the client's build depend on a content tree it otherwise never
+  reads. Without the flag, selecting `transport=embed` fails loudly rather than
+  silently falling back to TCP.
+- **`[net:boot] transport=` was dead config until now.** It was parsed into the
+  manifest and read by nothing but its own unit test; the revision table's
+  `transport_kind` decided everything. It is honoured in `main.c` now, with the
+  revision as the default — which is right, since a rev table describes a
+  protocol and `embed` is a *deployment*.
+- **The server ticks on its own clock**, not the frame clock: a client rendering
+  at 144 Hz must not run the world 144 times a second. `embed_poll` anchors to a
+  600 ms schedule the same way the socket server's loop does.
+
+A makefile trap worth recording, because it cost a build cycle and the symptom
+points nowhere near the cause: `$(TARGET): $(OBJS)` expands its prerequisites
+when the makefile is *read*, while its recipe expands them when it *runs*. So
+`SRCS += $(MOCK230_CORE_SRCS)` placed after that rule produced a link line
+listing objects that were never prerequisites — `no such file or directory:
+build/ssvm.o` for a file the build had simply never been asked to compile. The
+source lists are defined above the rule for that reason.
+
 The loader order also moved out of `main()` into `mock230_boot.c`, because two
 callers now need it and it is order-dependent in three places that all fail
 *silently* when reversed (see that file's header).

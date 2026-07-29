@@ -69,50 +69,54 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
 /* clang-format off */
 static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_FRAME] = {
-        "animsets", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0, NULL },
+        "animsets", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0, -1, NULL },
     [CP_ASSET_FRAMEMAP] = {
-        "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, NULL },
+        "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, -1, NULL },
     [CP_ASSET_INTERFACE] = {
-        "interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0,
+        "interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0, 14,
         &cp_codec_interface },
     [CP_ASSET_SYNTH] = {
-        "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, NULL },
+        "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, -1, NULL },
     [CP_ASSET_MAP] = {
-        "maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED, &cp_codec_map },
+        "maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED, -1, &cp_codec_map },
+    /* Archive 11 names 1,196 tracks and the music table holds 881, so the
+     * verifier rejects it — 881 songs plus 315 jingles is exactly 1,196, so it
+     * names both tables in one id space and neither table alone can check it.
+     * Unclaimed rather than half-trusted; nothing content-side names a song. */
     [CP_ASSET_SONG] = {
-        "songs", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0, NULL },
+        "songs", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0, -1, NULL },
     [CP_ASSET_MODEL] = {
-        "models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0, NULL },
+        "models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0, -1, NULL },
     [CP_ASSET_SPRITE] = {
-        "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, &cp_codec_sprite },
+        "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, 12, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE,
+        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE, -1,
         &cp_codec_texture },
     [CP_ASSET_BINARY] = {
-        "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, NULL },
+        "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, -1, NULL },
     [CP_ASSET_JINGLE] = {
-        "jingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, NULL },
+        "jingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, -1, NULL },
     [CP_ASSET_SCRIPT] = {
-        "scripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, &cp_codec_script },
+        "scripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
     [CP_ASSET_FONT] = {
-        "fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, NULL },
+        "fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, -1, NULL },
     [CP_ASSET_SAMPLE] = {
-        "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, NULL },
+        "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
     [CP_ASSET_PATCH] = {
-        "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, NULL },
+        "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, -1, NULL },
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
         "worldmap/geography", "worldmapgeo", "wmg",
-        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, NULL },
+        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, -1, NULL },
     [CP_ASSET_WORLDMAP_AREA] = {
         "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP,
-        CP_ASSET_MULTIFILE, &cp_codec_worldmap },
+        CP_ASSET_MULTIFILE, -1, &cp_codec_worldmap },
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "worldmapground", "bin",
-        RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, NULL },
+        RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_MULTIFILE, NULL },
+        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_MULTIFILE, -1, NULL },
     [CP_ASSET_ANIMAYA] = {
-        "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, NULL },
+        "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
 };
 /* clang-format on */
 

@@ -111,8 +111,16 @@ lc_pack_load(
             continue;
         *eq = '\0';
         char* name = eq + 1;
+        /* A trailing `//` comment. Layer-1 packs use one to carry the layer-0
+         * name an alias stands in for (`3254=guard  // cache: guard1`), so a
+         * reader can tell an alias from an unexamined claim about an id. Cut it
+         * before the name is measured. */
+        char* trailing = strstr(name, "//");
+        if( trailing )
+            *trailing = '\0';
         size_t n = strlen(name);
-        while( n > 0 && (name[n - 1] == '\n' || name[n - 1] == '\r') )
+        while( n > 0 && (name[n - 1] == '\n' || name[n - 1] == '\r' || name[n - 1] == ' ' ||
+                         name[n - 1] == '\t') )
             name[--n] = '\0';
         if( n == 0 )
             continue;
@@ -149,6 +157,77 @@ lc_pack_save(
     {
         if( pack->names[id] )
             fprintf(f, "%d=%s\n", id, pack->names[id]);
+    }
+    fclose(f);
+    return 1;
+}
+
+int
+lc_pack_synthetic_id(
+    const char* type,
+    const char* name)
+{
+    assert(type && name);
+    size_t type_len = strlen(type);
+
+    if( strncmp(name, type, type_len) != 0 || name[type_len] != '_' )
+        return -1;
+
+    const char* digits = name + type_len + 1;
+    if( !*digits )
+        return -1;
+    /* Leading zeros would make two spellings of one id, and nothing writes
+     * them, so `param_007` is not param 7 — it is a name that happens to look
+     * like one, and treating it as an id would bind it silently. */
+    if( digits[0] == '0' && digits[1] )
+        return -1;
+    for( const char* c = digits; *c; c++ )
+    {
+        if( *c < '0' || *c > '9' )
+            return -1;
+    }
+
+    long id = strtol(digits, NULL, 10);
+    if( id < 0 || id > 0x7fffffff )
+        return -1;
+    return (int)id;
+}
+
+int
+lc_pack_save_sparse(
+    const struct LC_Pack* pack,
+    const char* path)
+{
+    assert(pack && path);
+    int real = 0;
+
+    for( int id = 0; id < pack->capacity; id++ )
+    {
+        if( pack->names[id] && lc_pack_synthetic_id(pack->type, pack->names[id]) != id )
+            real++;
+    }
+
+    if( real == 0 )
+    {
+        /* Not an empty namespace — a namespace the cache does not name. Leaving
+         * a file of pure filler behind would say the opposite. */
+        remove(path);
+        return 1;
+    }
+
+    FILE* f = fopen(path, "wb");
+    if( !f )
+    {
+        fprintf(stderr, "pack: cannot write %s\n", path);
+        return 0;
+    }
+    for( int id = 0; id < pack->capacity; id++ )
+    {
+        if( !pack->names[id] )
+            continue;
+        if( lc_pack_synthetic_id(pack->type, pack->names[id]) == id )
+            continue;
+        fprintf(f, "%d=%s\n", id, pack->names[id]);
     }
     fclose(f);
     return 1;

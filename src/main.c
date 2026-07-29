@@ -2239,11 +2239,39 @@ main(
         /* Socket transport is created only when --connect enabled networking;
          * it bridges the net subsystem's out ring to a TCP socket and pushes
          * received bytes onto the bus as NET_RECV commands. */
-        sock =
-            app.net ? NetTransport_New(
-                          app.net->rev->transport_kind,
-                          cfg.connect_port > 0 ? cfg.connect_port : 43594)
-                    : NULL;
+        /*
+         * The revision decides the transport, unless the manifest overrides it.
+         *
+         * A rev table describes a *protocol*, so its `transport_kind` is the
+         * right default and the only thing that knew about transports until
+         * now — `[net:boot] transport=` was parsed into the manifest and then
+         * read by nothing but its own unit test. It is honoured here.
+         *
+         * `embed` is the one value a revision could never supply, because it is
+         * not a protocol but a deployment: the server runs in this process and
+         * the two ends trade bytes through a queue pair instead of a socket.
+         */
+        {
+            int transport_kind = app.net ? app.net->rev->transport_kind : 0;
+
+            if( boot_manifest.transport[0] )
+            {
+                if( strcmp(boot_manifest.transport, "embed") == 0 )
+                    transport_kind = NET_TRANSPORT_EMBED;
+                else if( strcmp(boot_manifest.transport, "ws") == 0 )
+                    transport_kind = NET_TRANSPORT_WS;
+                else if( strcmp(boot_manifest.transport, "tcp") == 0 )
+                    transport_kind = NET_TRANSPORT_TCP;
+                else
+                    fprintf(stderr, "torirs: unknown [net:boot] transport=%s — using the "
+                                    "revision's\n",
+                            boot_manifest.transport);
+            }
+
+            sock = app.net ? NetTransport_New(transport_kind,
+                                              cfg.connect_port > 0 ? cfg.connect_port : 43594)
+                           : NULL;
+        }
 
         /* TORIRS_SIM_OPENMAIN=<iface>: once the gameframe is up, mount an
          * interface into the main-modal slot exactly as an IF_OPENMAIN packet

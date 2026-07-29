@@ -606,3 +606,114 @@ This is the "id drift" risk §5.2 describes — *same display name, different id
 caught mechanically rather than by someone noticing a goblin dropping the wrong
 loot. The remaining generalisation, pinning the whole referenced surface with a
 field fingerprint (`names/pins.ini`), is still step 6.
+
+---
+
+## 6.3 Step 2, as landed — the register
+
+`src/content/content_register.{h,c}` is the shared loader §6 asked for, and the
+first thing to live under `src/content/`. It reads `content.ini` from a tree
+root, overlaying built-in defaults, and answers two questions:
+
+- `ContentRegister_Find(reg, "varp")` — what namespaces exist and who owns each
+  part of them (`ids` = cache | server | protocol, `names` = cache | authored |
+  derived | imported, `vardomain` for the four that share `%name`).
+- `ContentRegister_ForPackFile(reg, "varbit.pack")` — which namespace a pack
+  file belongs to. This one call is the compiler's entire former filename table.
+
+Both consumers in `src/` now use it:
+
+| was | now |
+|---|---|
+| `mock230_content.c` `k_namespaces[]`, 13 rows | register, plus a namespace→`Mock230PackKind` map |
+| `ssc_symbols.c` `kind_for_pack()`, 21 filenames | register, plus a namespace→`SSC_SymbolKind` map |
+
+The residual per-consumer map is deliberate and small: the register says which
+namespaces *exist*, and each tool says which of its own enum slots each one
+becomes. What went away is the part that actually drifted — the list of files,
+where they live, and which tree-specific layer-1 names to look for. The
+compiler's table had `varp_mock.pack` hardcoded, the single place it knew about
+one particular tree's filenames; layer 1 is now `names/<ns>.pack` uniformly, so
+there is nothing tree-specific left to list. Symbol counts are unchanged
+(160,531 runtime, 307,085 compiler), which is the check that this was a move.
+
+`cachepack`'s `cp_names_load` still has its own list — it is a vendored tool in
+`3rd/` and reading `content.ini` there is the remaining part of this step.
+
+### The trap, for the next consumer of 3rd/ini
+
+`3rd/ini` **does not trim**. It skips whitespace before an element, then takes
+the key as everything up to `=` and the value as everything to end of line — so
+
+```ini
+ids       = cache
+```
+
+arrives as key `"ids       "` and value `" cache"`, and a plain `strcmp` matches
+nothing. The first version of this parser read a perfectly valid `content.ini`
+into zero overrides and reported success, which is the register's whole failure
+mode: **silence**. A tree that misspells the file, or writes `[varp]` where
+`[namespace:varp]` was meant, loads fine with everything it meant to declare
+ignored.
+
+`make -C src test-content-register` exists for exactly that. Its load-bearing
+assertions are the negative ones — that a present file is *marked as read*, that
+a declared key actually overrides, and that an unregistered pack resolves to
+nothing.
+
+---
+
+## 6.4 cachepack joins the register — step 2 complete
+
+`3rd/rscache/tools/cachepack/cp_register.{h,c}` is a second, much smaller reader
+of `content.ini`. Deliberately not shared code with `src/content`: cachepack is a
+vendored-library tool and the two repos are meant to be usable apart, so
+`content.ini` is the *contract* between them rather than a header. It answers one
+question — **may cachepack rewrite `pack/<ns>.pack`?** — and the answer is no
+whenever `names` is anything but `cache`.
+
+`cp_names_load` now also reads `names/<ns>.pack` into `CP_Names.authored`, a
+*separate* `LC_Pack` array. Separate is load-bearing: `cp_names_save` writes
+`CP_Names.packs` straight back to layer 0, so an authored name merged into it
+would be spliced into the machine-owned file on the next unpack — exactly the
+corruption the split exists to stop. Both lookups prefer layer 1
+(`cp_name_find` for name→id, `cp_name_get` for id→name), which is the runtime's
+rule, and neither has a path to the save.
+
+Measured on a copy of the tree, `cachepack unpack --types param,npc`:
+
+| pack | before | after |
+|---|---|---|
+| `pack/npc.pack` | 16,292 lines | 16,292 — still regenerated |
+| `pack/stat.pack` | absent | **not created** (names = authored) |
+| `pack/category.pack` | absent | **not created** |
+| `pack/component.pack` | absent | **not created** (names = imported) |
+| `names/varp.pack` | — | **byte-identical** |
+
+### param stops pretending to have a layer 0
+
+The same run still took `pack/param.pack` from 2,692 lines / 58 comments to
+2,634 / 0 — §3.2's exact complaint, because `param` was declared `names = cache`.
+Counting showed why that declaration was wrong: of 2,634 entries, **2,598 were
+`param_<id>` placeholders and 36 were real names.** The cache has no gameval
+archive for params (table 24 covers ten types and params are not among them), so
+there was never a machine-owned layer 0 to regenerate — only noise wrapped around
+the 36 names, and a header explaining them that regeneration deleted.
+
+So `param` is now `names = authored`: the 36 names and all 58 prose lines live in
+`names/param.pack`, and `pack/param.pack` is gone. The runtime's symbol count
+drops by exactly 2,598, which is the check that only placeholders were lost.
+
+This is what §4.1 meant by *layer 0 becomes disposable*. Three namespaces —
+`param`, `component`, `stat`/`category` — turned out never to have had a
+legitimate one; the register is what made the question answerable instead of a
+matter of which tool wrote the file last.
+
+### Still open in this area
+
+- The 34 hand-spliced names in `pack/interface.pack` are duplicated into
+  `names/interface.pack` (same ids, so the layer validator permits it) but have
+  not been removed from layer 0. That needs a clean `cachepack unpack --types
+  interface`, which rewrites 968 lines and wants its own review.
+- `configs/` is still write-only (§3.5). The field register and the
+  `{client, server}` encoder split are step 5 and unaffected by any of this.

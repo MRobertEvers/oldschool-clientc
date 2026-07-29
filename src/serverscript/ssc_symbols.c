@@ -13,6 +13,9 @@
  */
 
 #include "ssc.h"
+
+#include "content/content_register.h"
+
 #include <sys/stat.h>
 
 #include <dirent.h>
@@ -207,6 +210,7 @@ SSC_SymbolsLoadPack(
     {
         char* cursor = line;
         char* equals;
+        char* trailing;
 
         /* A generated pack carries a provenance header saying where its ids
          * came from and how to add one. Without comment support that header
@@ -220,7 +224,16 @@ SSC_SymbolsLoadPack(
         if( !equals )
             continue;
         *equals = '\0';
+        /* A trailing `//` comment. Layer-1 packs use one to carry the layer-0
+         * name an alias stands in for (`3254=guard  // cache: guard1`), which
+         * is what makes the line readable as an alias rather than as an
+         * unexamined claim about an id. Cut it before the name is taken. */
+        trailing = strstr(equals + 1, "//");
+        if( trailing )
+            *trailing = '\0';
         strip_eol(equals + 1);
+        if( !equals[1] )
+            continue;
         if( SSC_SymbolsAdd(symbols, equals + 1, (int32_t)atoi(cursor), kind, NULL) )
             loaded++;
     }
@@ -273,46 +286,80 @@ SSC_SymbolsLoadConstants(
     return loaded;
 }
 
-/* Map a pack filename onto the namespace it describes. Unlisted packs load as
- * SSC_SYM_UNKNOWN, which still resolves for an unqualified reference. */
+/*
+ * Map a pack filename onto the namespace it describes.
+ *
+ * *Which* namespaces exist is the register's answer (src/content, and through
+ * it a tree's `content.ini`); this only says which of the compiler's own symbol
+ * kinds each one becomes. Unlisted packs load as SSC_SYM_UNKNOWN, which still
+ * resolves for an unqualified reference.
+ *
+ * The filename table this replaced had `varp_mock.pack` hardcoded — the one
+ * place in the compiler that knew a *specific tree's* layer-1 filename. That is
+ * exactly the coupling the register removes: layer 1 is now `names/<ns>.pack`
+ * for every namespace, so there is nothing tree-specific left to list.
+ */
 static enum SSC_SymbolKind
-kind_for_pack(const char* filename)
+kind_for_namespace(const char* ns)
 {
     static const struct
     {
-        const char* file;
+        const char* ns;
         enum SSC_SymbolKind kind;
     } k_map[] = {
-        { "npc.pack",       SSC_SYM_NPC       },
-        { "obj.pack",       SSC_SYM_OBJ       },
-        { "loc.pack",       SSC_SYM_LOC       },
-        { "inv.pack",       SSC_SYM_INV       },
-        { "seq.pack",       SSC_SYM_SEQ       },
-        { "spotanim.pack",  SSC_SYM_SPOTANIM  },
-        { "interface.pack", SSC_SYM_INTERFACE },
-        { "component.pack", SSC_SYM_COMPONENT },
-        { "varp.pack",      SSC_SYM_VARP      },
-        { "varp_mock.pack", SSC_SYM_VARP      },
-        { "varbit.pack",    SSC_SYM_VARBIT    },
-        { "varn.pack",      SSC_SYM_VARN      },
-        { "vars.pack",      SSC_SYM_VARS      },
-        { "enum.pack",      SSC_SYM_ENUM      },
-        { "struct.pack",    SSC_SYM_STRUCT    },
-        { "dbtable.pack",   SSC_SYM_DBTABLE   },
-        { "param.pack",     SSC_SYM_PARAM     },
-        { "category.pack",  SSC_SYM_CATEGORY  },
-        { "synth.pack",     SSC_SYM_SYNTH     },
-        { "stat.pack",      SSC_SYM_STAT      },
-        { "script.pack",    SSC_SYM_SCRIPT    },
+        { "npc",       SSC_SYM_NPC       },
+        { "obj",       SSC_SYM_OBJ       },
+        { "loc",       SSC_SYM_LOC       },
+        { "inv",       SSC_SYM_INV       },
+        { "seq",       SSC_SYM_SEQ       },
+        { "spotanim",  SSC_SYM_SPOTANIM  },
+        { "interface", SSC_SYM_INTERFACE },
+        { "component", SSC_SYM_COMPONENT },
+        { "varp",      SSC_SYM_VARP      },
+        { "varbit",    SSC_SYM_VARBIT    },
+        { "varn",      SSC_SYM_VARN      },
+        { "vars",      SSC_SYM_VARS      },
+        { "enum",      SSC_SYM_ENUM      },
+        { "struct",    SSC_SYM_STRUCT    },
+        { "dbtable",   SSC_SYM_DBTABLE   },
+        { "param",     SSC_SYM_PARAM     },
+        { "category",  SSC_SYM_CATEGORY  },
+        { "synth",     SSC_SYM_SYNTH     },
+        { "stat",      SSC_SYM_STAT      },
+        { "script",    SSC_SYM_SCRIPT    },
     };
     size_t i;
 
     for( i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
     {
-        if( strcmp(filename, k_map[i].file) == 0 )
+        if( strcmp(ns, k_map[i].ns) == 0 )
             return k_map[i].kind;
     }
     return SSC_SYM_UNKNOWN;
+}
+
+static enum SSC_SymbolKind
+kind_for_pack(const char* filename)
+{
+    static struct ContentRegister registry;
+    static int loaded;
+    const struct ContentNamespace* ns;
+
+    /* Defaults only: the compiler is handed `--pack DIR` paths rather than a
+     * tree root, so it has no `content.ini` to read. The defaults are the union
+     * of what every consumer knows, which is what makes them safe here — a
+     * namespace a tree adds without telling the compiler simply resolves
+     * unqualified, exactly as an unlisted pack always did. */
+    if( !loaded )
+    {
+        ContentRegister_Defaults(&registry);
+        loaded = 1;
+    }
+
+    ns = ContentRegister_ForPackFile(&registry, filename);
+    if( !ns )
+        return SSC_SYM_UNKNOWN;
+    return kind_for_namespace(ns->name);
 }
 
 static int

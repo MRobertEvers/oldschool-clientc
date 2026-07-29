@@ -77,6 +77,34 @@ lc_pack_save(
     const struct LC_Pack* pack,
     const char* path);
 
+/**
+ * The same, omitting every line whose name is `<type>_<id>`.
+ *
+ * Such a name carries no information: it is the id, spelled twice, and
+ * `lc_pack_synthetic_id` reconstructs the mapping from the name alone. Storing
+ * it cost a real tree 93,000 of its 306,818 pack lines — 20 of 39 files were
+ * *entirely* this — and made every pack look authored when most held nothing.
+ *
+ * Returns 0 on failure, and deletes `path` rather than writing an empty file
+ * when nothing survives: a pack with no real names is not an empty namespace,
+ * it is a namespace the cache does not name, and the two should not look alike.
+ */
+int
+lc_pack_save_sparse(
+    const struct LC_Pack* pack,
+    const char* path);
+
+/**
+ * Id encoded in a synthetic `<type>_<id>` name, or -1.
+ *
+ * The inverse of what `cp_name_ensure` writes, so a record whose name was never
+ * anything but its id resolves with no pack line to back it.
+ */
+int
+lc_pack_synthetic_id(
+    const char* type,
+    const char* name);
+
 void
 lc_pack_free(struct LC_Pack* pack);
 

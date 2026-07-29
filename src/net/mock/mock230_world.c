@@ -2835,7 +2835,7 @@ mock230_world_login(struct Mock230Server* srv)
          * the child on its own, so the low half is what goes on the wire.
          * type 1 = overlay.
          */
-        const struct Mock230EnumDef* frame = mock230_content_enum("gameframe");
+        const struct Mock230EnumDef* frame = mock230_content_enum("toplevel_osrs_stretch");
 
         if( !frame || frame->count == 0 )
         {

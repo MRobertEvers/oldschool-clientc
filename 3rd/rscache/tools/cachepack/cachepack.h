@@ -163,6 +163,17 @@ cp_type_by_name(const char* name);
 struct CP_Names
 {
     struct LC_Pack packs[CP_TYPE_COUNT];
+    /**
+     * Layer 1: `names/<type>.pack`, the tree's *authored* names.
+     *
+     * Separate from `packs` on purpose. `cp_names_save` writes `packs` back out
+     * to layer 0, so an authored name merged into it would be spliced into the
+     * machine-owned file on the next unpack — the exact corruption the two-layer
+     * split exists to prevent. This is therefore consulted for name -> id only
+     * (so `cachepack pack` can resolve a `[bankmain]` block header) and never
+     * for id -> name.
+     */
+    struct LC_Pack authored[CP_TYPE_COUNT];
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
@@ -176,6 +187,9 @@ struct CP_Names
      * which it is holding.
      */
     struct LC_Pack asset_packs[CP_ASSET_COUNT];
+    /** Layer 1 for the asset kinds, `names/<pack>.pack`. Same rule as
+     *  `authored`: read for both directions, never written. */
+    struct LC_Pack asset_authored[CP_ASSET_COUNT];
 };
 
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */

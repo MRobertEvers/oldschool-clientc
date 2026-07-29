@@ -83,6 +83,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_text.c \
 	$(TOOLS)/cachepack/cp_types.c \
 	$(TOOLS)/cachepack/cp_names.c \
+	$(TOOLS)/cachepack/cp_register.c \
 	$(TOOLS)/cachepack/cp_common.c \
 	$(TOOLS)/cachepack/cp_unpack.c \
 	$(TOOLS)/cachepack/cp_pack.c \

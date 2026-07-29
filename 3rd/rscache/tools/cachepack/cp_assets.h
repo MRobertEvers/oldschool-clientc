@@ -117,6 +117,18 @@ struct CP_Asset
     /** enum RSCache_Dat2Table — resolved to an on-disk id per cache. */
     int table;
     unsigned flags;
+    /**
+     * Gameval archive (table 24) naming this kind, or -1 when the cache names
+     * none of them.
+     *
+     * Config types have had this since the start; assets did not, and the cost
+     * was concrete. Table 24 archive 14 names all 969 interfaces — the cache
+     * calls 161 `toplevel_osrs_stretch` and 12 `bankmain` — and because nothing
+     * read it, `pack/interface.pack` was 934 lines of `interface_<id>` with 34
+     * names hand-copied from a *different server's* table spliced in among them.
+     * Claiming the archive replaces both halves with what the cache says.
+     */
+    int gameval_archive;
     /** Friendly form, or NULL to always write the raw payload. */
     const struct CP_AssetCodec* codec;
 };

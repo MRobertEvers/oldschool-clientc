@@ -39,6 +39,11 @@ enum NetTransportKind
 {
     NET_TRANSPORT_TCP = 0,
     NET_TRANSPORT_WS = 1,
+    /* No wire at all: the server runs in this process and the two ends trade
+     * bytes through a queue pair. Never selected by a revision — a rev table
+     * describes a protocol, and this is a *deployment* — so it is only reachable
+     * from `[net:boot] transport=embed` or `--connect embed`. */
+    NET_TRANSPORT_EMBED = 2,
 };
 
 /* Forward decls: the generation-module slots below take pointers only. */

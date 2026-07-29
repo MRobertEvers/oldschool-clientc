@@ -226,7 +226,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
-	platform/net_transport_ws_frame.c \
+	platform/net_transport_ws_frame.c platform/net_transport_embed.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
@@ -237,6 +237,43 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	painters/painters.c
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
+endif
+
+# Defined up here, above both the EMBED_SERVER block and the $(TARGET) rule.
+# $(TARGET): $(OBJS) expands its prerequisites when the makefile is *read*,
+# while its recipe expands them when it *runs* — so a definition placed after
+# that rule links objects it never listed as prerequisites, and the build fails
+# with "no such file or directory: build/ssvm.o" for things it never compiled.
+SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
+	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
+	$(RSAREABUF_DIR)/rsareabuf.c
+
+MOCK230_CORE_SRCS = net/mock/mock230_world.c \
+	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
+	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
+	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
+	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
+	net/mock/mock230_ids.c \
+	net/mock/mock230_prayer.c \
+	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
+	net/mock/mock230_embed.c content/content_register.c $(INI_SRC) \
+	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+	engine/world_builder/collision_map.c \
+	platform/net_transport_ws_frame.c $(SS_SRCS)
+
+# EMBED_SERVER=1: link the rev-230 server into the client, so a manifest saying
+# `[net:boot] transport=embed` runs the whole game in one process with no socket.
+#
+# Opt-in rather than default, and the reason is scope: it puts the server's tick,
+# its script VM and its content loaders inside the *client* binary, and makes the
+# client's build depend on a content tree it otherwise never reads. That is the
+# wrong default for a client and the right one for anyone who wants one process.
+#
+# Without it, selecting the embed transport fails loudly rather than silently
+# falling back to TCP — see platform/net_transport_embed.c.
+ifeq ($(EMBED_SERVER),1)
+CFLAGS += -DTORIRS_EMBED_SERVER=1
+SRCS += $(MOCK230_CORE_SRCS)
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
@@ -352,6 +389,7 @@ endef
 
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c
+
 $(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c
@@ -540,13 +578,11 @@ test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 # in. Regenerate them from the reference server with:
 #     python3 serverscript/gen_opcode_meta.py [path-to-LostCity_Server]
 # ---------------------------------------------------------------------------
-SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
-	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
-	$(RSAREABUF_DIR)/rsareabuf.c
 
 # The compiler is a superset: it links the VM sources so a test can compile a
 # script and immediately run it.
 SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
+	content/content_register.c $(INI_SRC) \
 	serverscript/ssc_compile.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
@@ -801,18 +837,6 @@ test-revconfig: $(OBJ_DIR)
 # Everything but main(). Split out so the same server can be linked into a host
 # that has its own entry point — the in-process build (test-mock230-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
-	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
-	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
-	net/mock/mock230_ids.c \
-	net/mock/mock230_prayer.c \
-	net/mock/mock230_boot.c net/mock/mock230_transport.c net/mock/mock230_session.c \
-	net/mock/mock230_embed.c \
-	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
-	engine/world_builder/collision_map.c \
-	platform/net_transport_ws_frame.c $(SS_SRCS)
 MOCK230_SRCS = net/mock/mock230_main.c $(MOCK230_CORE_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -888,7 +912,8 @@ mock230-scripts: sscompile
 # is run by hand rather than as part of a build.
 MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_ids.c \
-	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c
+	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
+	content/content_register.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
@@ -908,6 +933,15 @@ test-mock230: mock230
 # than hiding one that is not.
 test-mock230-coverage:
 	python3 net/mock/gen_opcode_coverage.py --check
+
+# The namespace register: defaults, [namespace:*] overlay, pack-filename
+# resolution. Its failure mode is silence — a misspelled content.ini loads
+# perfectly with everything it meant to declare ignored — so the assertions that
+# matter are the ones proving the file was read.
+test-content-register: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
+		content/test/content_register_test.c content/content_register.c $(INI_SRC)
+	./$(OBJ_DIR)/content_register_test
 
 # The server hosted in-process: a real client subsystem and a real server joined
 # by two byte buffers, no socket and no thread. Links the server core (no

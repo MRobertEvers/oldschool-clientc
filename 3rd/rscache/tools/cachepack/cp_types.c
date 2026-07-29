@@ -17,10 +17,15 @@
  * content and then verified per cache at load (cp_names_seed_from_cache):
  *
  *   0 obj   1 npc   2 inv   3 varp   4 varbit
- *   6 loc   7 seq   8 spotanim   9 dbrow   10 dbtable
+ *   6 loc   7 seq   8 spotanim   9 dbrow   10 dbtable   15 varc
  *
- * Archives 11, 12 and 13 also exist and hold music, sprite and interface names —
- * none of which is a config type here, so they are not claimed.
+ * Archives 11, 12 and 14 hold song, sprite and interface names. Those are asset
+ * kinds rather than config types, so they are claimed in cp_assets.c's register
+ * instead — see `gameval_archive` there. 5 and 13 are absent from this cache.
+ *
+ * All four were unclaimed until the layer split, and the cost was that
+ * `pack/interface.pack` and `pack/varc.pack` were `<type>_<id>` filler standing
+ * in for names the cache had all along.
  *
  * ## What each flag costs
  *
@@ -75,7 +80,7 @@ static const struct CP_Type g_types[CP_TYPE_COUNT] = {
         "varp", RSCACHE_TYPE_VARPLAYER, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, 3, 0,
         cp_unpack_varp, cp_pack_varp },
     [CP_TYPE_VARC] = {
-        "varc", RSCACHE_TYPE_VARCLIENT, RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, -1, 0,
+        "varc", RSCACHE_TYPE_VARCLIENT, RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, 15, 0,
         cp_unpack_varc, cp_pack_varc },
     [CP_TYPE_HITSPLAT] = {
         "hitsplat", RSCACHE_TYPE_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT, -1, 0,

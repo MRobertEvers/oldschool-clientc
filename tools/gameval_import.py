@@ -172,10 +172,33 @@ def split_managed(text):
     return before, after.lstrip("\n")
 
 
-def cmd_generate(groups, requests, out_dir, source):
+def read_layer0(pack_dir, pack):
+    """{id: name} from `pack_dir/<pack>.pack`, or {} when there is no layer 0.
+
+    Namespaces whose `names` authority is not `cache` have no layer 0 at all
+    (`component` has no gameval archive; `stat` has no cache table), and a
+    missing file is exactly that case rather than an error.
+    """
+    path = os.path.join(pack_dir, f"{pack}.pack")
+    if not os.path.exists(path):
+        return {}
+
+    layer0 = {}
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("//") or "=" not in line:
+                continue
+            key, _, name = line.partition("=")
+            if key.isdigit():
+                layer0[int(key)] = name
+    return layer0
+
+
+def cmd_generate(groups, requests, out_dir, source, layer0_dir=None):
     """Merge the requested aliases into the layer-1 packs under `out_dir`.
 
-    Two things this deliberately does NOT do, both of which it used to:
+    Three things this deliberately does NOT do, all of which it used to:
 
     - **Write layer 0.** `pack/<ns>.pack` is regenerated wholesale by
       `cachepack unpack` from the cache's own gameval table. Writing an alias
@@ -189,6 +212,21 @@ def cmd_generate(groups, requests, out_dir, source):
       and `pack/varp.pack` from 5,705 to 11. A following `cachepack unpack`
       refilled them from the cache and silently reverted every alias the import
       had just made. Neither ordering was correct.
+
+    - **Restate layer 0.** Of the 172 symbols this list requests, 123 name an id
+      the cache's own gameval table names identically — OpenRune calls npc 3028
+      `goblin` and so does the cache. Writing those produced a layer-1 line that
+      looked authored, carried a foreign revision's authority, and said nothing.
+      They are skipped, so `names/` holds exactly what layer 0 does not say: the
+      49 genuine aliases (`3254=guard` beside the cache's `guard1`) and the ids
+      no gameval names at all.
+
+      That the skipped names keep resolving *through layer 0* is the point, and
+      so is what happens when they stop: if a later cache renames id 3028, the
+      symbol vanishes and content that says `goblin` fails to compile. A
+      restated line would instead pin the name onto whatever 3028 had become,
+      which is the id-drift hazard wearing a hat. Deliberate pinning is
+      `names/pins.ini`'s job, with a fingerprint attached.
     """
     if os.path.basename(os.path.normpath(out_dir)) == "pack":
         raise SystemExit(
@@ -214,9 +252,28 @@ def cmd_generate(groups, requests, out_dir, source):
             "gamevals.dat has no entry for:\n  " + "\n  ".join(missing)
         )
 
+    # Layer 0 lives beside layer 1 by construction — `<tree>/pack` next to
+    # `<tree>/names` — so it is derived rather than asked for.
+    if layer0_dir is None:
+        layer0_dir = os.path.join(os.path.dirname(os.path.normpath(out_dir)), "pack")
+
     os.makedirs(out_dir, exist_ok=True)
     for pack, entries in sorted(packs.items()):
         path = os.path.join(out_dir, f"{pack}.pack")
+        layer0 = read_layer0(layer0_dir, pack)
+
+        # Split the request into what layer 0 already says and what it does not.
+        # `cache_name` is carried through so the emitted line can show the name
+        # it is an alias *for*, which is the whole of the evidence that it is an
+        # alias rather than a claim about an id nobody checked.
+        aliases = {}
+        restated = []
+        for alias, value in entries.items():
+            if layer0.get(value) == alias:
+                restated.append(alias)
+            else:
+                aliases[alias] = (value, layer0.get(value))
+
         existing = ""
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as handle:
@@ -229,9 +286,15 @@ def cmd_generate(groups, requests, out_dir, source):
             "// Add symbols to tools/gameval_import.names and re-run; hand-authored",
             "// lines outside this block are preserved. Ids are OpenRune's (cache rev",
             "// 235.10) and are re-validated against the cache by mock230_pack.",
+            "//",
+            f"// {len(restated)} requested symbol(s) are named identically by the cache's own",
+            "// gameval table and are not restated here — they resolve through layer 0.",
         ]
-        for alias, value in sorted(entries.items(), key=lambda kv: kv[1]):
-            block.append(f"{value}={alias}")
+        for alias, (value, cache_name) in sorted(aliases.items(), key=lambda kv: kv[1][0]):
+            if cache_name:
+                block.append(f"{value}={alias}  // cache: {cache_name}")
+            else:
+                block.append(f"{value}={alias}")
         block.append(END_MARKER)
 
         if before and not before.endswith("\n"):
@@ -243,7 +306,10 @@ def cmd_generate(groups, requests, out_dir, source):
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
         kept = len([ln for ln in before.splitlines() if "=" in ln and not ln.strip().startswith("//")])
-        print(f"wrote {path} ({len(entries)} imported, {kept} hand-authored preserved)")
+        print(
+            f"wrote {path} ({len(aliases)} alias(es), {len(restated)} already named "
+            f"by the cache, {kept} hand-authored preserved)"
+        )
 
 
 def main():
