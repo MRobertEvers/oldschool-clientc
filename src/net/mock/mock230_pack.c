@@ -28,6 +28,7 @@
 
 #include "mock230.h"
 #include "mock230_content.h"
+#include "mock230_ids.h"
 
 #include <rscache.h>
 
@@ -795,6 +796,11 @@ main(
     mock230_npcinfo_load(cache);
     mock230_seqinfo_load(cache);
     mock230_content_load(content);
+    /* The engine's own symbol table, which is a claim about the packs in
+     * exactly the way a config line is: every name the C addresses has to be in
+     * one. Resolving it here is what makes a renamed or dropped symbol a
+     * validator failure rather than a dead interface at runtime. */
+    mock230_ids_resolve();
 
     g_errors += mock230_content_error_count();
 

@@ -430,8 +430,11 @@ apply_and_free_column(
                 int lightsrc_y = -10;
                 int lightsrc_z = -50;
 
+                /* Signed, and the contrast arrives pre-scaled from the loc
+                 * decoder — see ToriDraw_LightModelDefault, which this inlines
+                 * because the shared pass feeds merged normals. */
                 light_ambient += map_element->light_ambient;
-                light_attenuation += (map_element->light_attenuation & 0xff) * 5;
+                light_attenuation += map_element->light_attenuation;
 
                 int light_magnitude =
                     (int)sqrt((double)(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +

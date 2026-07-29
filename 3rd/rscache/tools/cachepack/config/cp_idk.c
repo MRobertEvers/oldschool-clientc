@@ -8,6 +8,26 @@
 
 /* ---- identkit ----------------------------------------------------------- */
 
+/**
+ * Release an identkit's arrays without releasing the struct.
+ *
+ * `RSCache_Dat2ConfigIdkFree` is `free(idk)` and nothing else — it frees the
+ * struct and leaks every array hanging off it — so it cannot be used on a stack
+ * record, and using it anyway aborts on a free of a stack address. Every other
+ * config type in the library has a matching `...FreeInplace`; this one does not,
+ * so the in-place release lives here.
+ */
+static void
+idk_free_inplace(struct RSCache_Dat2ConfigIdk* idk)
+{
+    free(idk->model_ids);
+    free(idk->recolors_from);
+    free(idk->recolors_to);
+    free(idk->retextures_from);
+    free(idk->retextures_to);
+    memset(idk, 0, sizeof(*idk));
+}
+
 int
 cp_unpack_idk(
     struct CP_Ctx* ctx,
@@ -37,52 +57,7 @@ cp_unpack_idk(
     if( entry.is_not_selectable )
         cp_lines_addf(out, "notselectable=yes");
 
-    RSCache_Dat2ConfigIdkFree(&entry);
-    return 1;
-}
-
-/**
- * Collect `prefix<N>s` / `prefix<N>d` pairs into two arrays.
- *
- * Recolour lists are count-prefixed on the wire, so the count is data. It is
- * derived from the highest index the text names rather than from the number of
- * lines, which is what lets a hand-edit leave a hole without silently shifting
- * every later pair down one slot.
- */
-static int
-collect_pairs(
-    const struct CP_Config* config,
-    const char* prefix,
-    struct CP_IntList* from,
-    struct CP_IntList* to)
-{
-    size_t plen = strlen(prefix);
-    for( int i = 0; i < config->count; i++ )
-    {
-        const char* key = config->lines[i].key;
-        size_t klen = strlen(key);
-        if( klen < plen + 2 || strncmp(key, prefix, plen) != 0 )
-            continue;
-        char side = key[klen - 1];
-        if( side != 's' && side != 'd' )
-            continue;
-        char index_text[16];
-        if( klen - plen - 1 >= sizeof(index_text) )
-            continue;
-        memcpy(index_text, key + plen, klen - plen - 1);
-        index_text[klen - plen - 1] = '\0';
-        int index = 0;
-        if( !cp_parse_int(index_text, &index) || index <= 0 )
-            continue;
-        int value = 0;
-        if( !cp_parse_int(config->lines[i].value, &value) )
-            return 0;
-        cp_intlist_set(side == 's' ? from : to, index - 1, value);
-    }
-    /* A pair list is only as long as its shorter half; a source with no
-     * destination is not a recolour. */
-    if( from->count != to->count )
-        return 0;
+    idk_free_inplace(&entry);
     return 1;
 }
 
@@ -95,6 +70,7 @@ cp_pack_idk(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigIdk entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigIdkDecodeInplace(
         &entry, (char*)cp_empty_record, (int)sizeof(cp_empty_record));
     entry._id = id;
@@ -143,8 +119,8 @@ cp_pack_idk(
         }
     }
 
-    if( !collect_pairs(config, "recol", &recol_s, &recol_d) ||
-        !collect_pairs(config, "retex", &retex_s, &retex_d) )
+    if( !cp_collect_pairs(config, "recol", &recol_s, &recol_d) ||
+        !cp_collect_pairs(config, "retex", &retex_s, &retex_d) )
     {
         fprintf(stderr, "cachepack: idk [%s]: mismatched recolour pairs\n", config->debugname);
         goto done;
@@ -167,7 +143,7 @@ done:
     entry.model_ids = NULL;
     entry.recolors_from = entry.recolors_to = NULL;
     entry.retextures_from = entry.retextures_to = NULL;
-    RSCache_Dat2ConfigIdkFree(&entry);
+    idk_free_inplace(&entry);
     cp_intlist_free(&models);
     cp_intlist_free(&recol_s);
     cp_intlist_free(&recol_d);

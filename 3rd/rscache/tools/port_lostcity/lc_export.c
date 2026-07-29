@@ -1112,8 +1112,8 @@ lc_export_npc(
 
     for( int i = 0; i < npc->recolor_count && i < 6; i++ )
     {
-        lc_str_addf(cfg, "recol%ds=%d\n", i + 1, (int)(uint16_t)npc->recolor_to_find[i]);
-        lc_str_addf(cfg, "recol%dd=%d\n", i + 1, (int)(uint16_t)npc->recolor_to_replace[i]);
+        lc_str_addf(cfg, "recol%ds=%d\n", i + 1, npc->recolor_to_find[i]);
+        lc_str_addf(cfg, "recol%dd=%d\n", i + 1, npc->recolor_to_replace[i]);
     }
 
     int size = npc->size;

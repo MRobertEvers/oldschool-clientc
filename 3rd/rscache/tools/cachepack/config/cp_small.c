@@ -52,6 +52,7 @@ cp_pack_inv(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigInv entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigInvDecodeInplace(&entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
@@ -94,6 +95,11 @@ cp_unpack_param(
     memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigParamDecodeInplace(&entry, record, record_size);
 
+    struct RSCache_Dat2ConfigParam defaults;
+    memset(&defaults, 0, sizeof(defaults));
+    RSCache_Dat2ConfigParamDecodeInplace(
+        &defaults, cp_empty_record, (int)sizeof(cp_empty_record));
+
     /*
      * `type` is the script var-type character (`i` int, `s` string, and the rest of
      * the ScriptVarType alphabet). It is written as the character rather than its
@@ -108,8 +114,13 @@ cp_unpack_param(
         cp_lines_addf(out, "defaultlong=%lld", (long long)entry.default_long);
     if( entry.default_string )
         cp_lines_add_str(out, "defaultstr", entry.default_string);
-    if( entry.auto_disable )
-        cp_lines_addf(out, "autodisable=yes");
+    /* Defaults to 1; opcode 4 is what clears it. Same trap as the overlay's
+     * hide_underlay — writing the line only when the flag is set drops the opcode
+     * from every record that actually carries it. */
+    if( entry.auto_disable != defaults.auto_disable )
+        cp_lines_addf(out, "autodisable=%s", entry.auto_disable ? "yes" : "no");
+
+    RSCache_Dat2ConfigParamFreeInplace(&defaults);
 
     RSCache_Dat2ConfigParamFreeInplace(&entry);
     return 1;
@@ -124,6 +135,7 @@ cp_pack_param(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigParam entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigParamDecodeInplace(&entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
@@ -203,6 +215,7 @@ cp_pack_struct(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigStruct entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigStructDecodeInplace(&entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
@@ -276,6 +289,7 @@ cp_pack_healthbar(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigHealthbar entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigHealthbarDecodeInplace(
         &entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
@@ -393,6 +407,7 @@ cp_pack_hitsplat(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigHitsplat entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigHitsplatDecodeInplace(
         &entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;

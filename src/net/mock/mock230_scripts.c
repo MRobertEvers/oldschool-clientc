@@ -15,6 +15,7 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_ids.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -500,17 +501,17 @@ container_for(
     int32_t inv_id,
     int* out_slots)
 {
-    if( inv_id == MOCK230_INV_BACKPACK )
+    if( inv_id == mock230_ids()->inv_backpack )
     {
         *out_slots = MOCK230_INV_SLOTS;
         return srv->player.inv;
     }
-    if( inv_id == MOCK230_INV_WORN )
+    if( inv_id == mock230_ids()->inv_worn )
     {
         *out_slots = MOCK230_WORN_SLOTS;
         return srv->player.worn;
     }
-    if( inv_id == MOCK230_INV_BANK )
+    if( inv_id == mock230_ids()->inv_bank )
     {
         *out_slots = srv->player.bank.size;
         return srv->player.bank.slots;
@@ -527,14 +528,14 @@ container_dirty(
     int32_t inv_id,
     int slot)
 {
-    if( inv_id == MOCK230_INV_BACKPACK && slot >= 0 && slot < MOCK230_INV_SLOTS )
+    if( inv_id == mock230_ids()->inv_backpack && slot >= 0 && slot < MOCK230_INV_SLOTS )
         srv->player.inv_dirty |= 1u << slot;
-    else if( inv_id == MOCK230_INV_WORN && slot >= 0 && slot < MOCK230_WORN_SLOTS )
+    else if( inv_id == mock230_ids()->inv_worn && slot >= 0 && slot < MOCK230_WORN_SLOTS )
     {
         srv->player.worn_dirty |= 1u << slot;
         srv->player.masks |= MOCK230_PMASK_APPEARANCE;
     }
-    else if( inv_id == MOCK230_INV_BANK )
+    else if( inv_id == mock230_ids()->inv_bank )
         srv->player.bank.dirty = 1;
 }
 
@@ -761,7 +762,7 @@ mock230_script_command(
                 continue;
             items[i].obj_id = values[1];
             items[i].count = values[2];
-            if( values[0] == MOCK230_INV_BACKPACK )
+            if( values[0] == mock230_ids()->inv_backpack )
                 player->inv_dirty |= 1u << i;
             else
                 player->worn_dirty |= 1u << i;
@@ -807,7 +808,7 @@ mock230_script_command(
                 items[i].obj_id = -1;
                 items[i].count = 0;
             }
-            if( values[0] == MOCK230_INV_BACKPACK )
+            if( values[0] == mock230_ids()->inv_backpack )
                 player->inv_dirty |= 1u << i;
             else
                 player->worn_dirty |= 1u << i;
@@ -1662,7 +1663,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &count) || !SSVM_PopInt(state, &obj_id) ||
             !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
             return 1;
-        if( from_inv == MOCK230_INV_BANK )
+        if( from_inv == mock230_ids()->inv_bank )
         {
             int slot = -1;
 
@@ -1683,7 +1684,7 @@ mock230_script_command(
             }
             return 1;
         }
-        if( to_inv == MOCK230_INV_BANK && from_inv == MOCK230_INV_BACKPACK )
+        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_backpack )
         {
             for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
             {
@@ -1693,7 +1694,7 @@ mock230_script_command(
             }
             return 1;
         }
-        if( to_inv == MOCK230_INV_BANK && from_inv == MOCK230_INV_WORN )
+        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_worn )
         {
             /* Straight off the body and into the bank, which is what the
              * deposit-worn button is. Going via the backpack would need a free
@@ -1750,7 +1751,7 @@ mock230_script_command(
         items = container_for(srv, inv_id, &slots);
         if( !items )
             return 1;
-        if( inv_id == MOCK230_INV_BANK )
+        if( inv_id == mock230_ids()->inv_bank )
         {
             /* Only the used prefix: UPDATE_INV_FULL clears everything past the
              * capacity it carries, so 1,208 empty slots cost nothing. */
@@ -1773,7 +1774,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &component) )
             return 1;
-        if( ((component >> 16) & 0xffff) == MOCK230_BANK_IFACE )
+        if( MOCK230_COM_GROUP(component) == mock230_ids()->iface_bankmain )
             srv->player.bank.open = 0;
         return 1;
     }
@@ -1852,7 +1853,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &side_group) || !SSVM_PopInt(state, &main_group) )
             return 1;
-        if( main_group == MOCK230_BANK_IFACE )
+        if( main_group == mock230_ids()->iface_bankmain )
         {
             /* The bank knows how to open itself — settings, events and both
              * containers — and doing it here rather than leaving the script to
@@ -1860,9 +1861,11 @@ mock230_script_command(
             mock230_bank_open(srv);
             return 1;
         }
-        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_MAINMODAL_SLOT,
+        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
+                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
                                 (int)main_group, 0);
-        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_SIDEMODAL_SLOT,
+        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
+                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_sidemodal),
                                 (int)side_group, 3);
         return 1;
     }
@@ -1873,8 +1876,9 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_MAINMODAL_SLOT, (int)group,
-                                0);
+        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
+                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
+                                (int)group, 0);
         return 1;
     }
 

@@ -2,6 +2,7 @@
 
 #include "datatypes/dat2_config_flo.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -74,22 +75,37 @@ cp_unpack_overlay(
     int record_size,
     struct CP_Lines* out)
 {
+    int flags = RSCache_Dat2ConfigFloFlags(&ctx->profile);
+
     struct RSCache_Dat2ConfigOverlay entry;
     memset(&entry, 0, sizeof(entry));
-    entry.texture = -1;
-    entry.secondary_rgb_color = -1;
-    RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
-        &entry, (char*)record, record_size, RSCache_Dat2ConfigFloFlags(&ctx->profile));
+    RSCache_Dat2ConfigOverlayDecodeInplaceFlags(&entry, (char*)record, record_size, flags);
 
-    if( entry.rgb_color )
+    struct RSCache_Dat2ConfigOverlay defaults;
+    memset(&defaults, 0, sizeof(defaults));
+    RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
+        &defaults, (char*)cp_empty_record, (int)sizeof(cp_empty_record), flags);
+
+    if( entry.rgb_color != defaults.rgb_color )
         cp_lines_addf(out, "colour=0x%06X", entry.rgb_color & 0xFFFFFF);
-    if( entry.texture >= 0 )
+    if( entry.texture != defaults.texture )
         cp_lines_addf(out, "texture=%d", entry.texture);
-    if( entry.hide_underlay )
-        cp_lines_addf(out, "hideunderlay=yes");
-    if( entry.secondary_rgb_color >= 0 )
+    /*
+     * `hide_underlay` defaults to **true** and opcode 5 is what clears it, so the
+     * line has to be written when the flag is false. Writing it only when true —
+     * the reflex for a boolean — silently drops opcode 5 from every record that
+     * carries it, and the repack then hides an underlay the source showed.
+     */
+    if( entry.hide_underlay != defaults.hide_underlay )
+        cp_lines_addf(out, "hideunderlay=%s", entry.hide_underlay ? "yes" : "no");
+    if( entry.flotype_overlay != defaults.flotype_overlay )
+        cp_lines_addf(out, "flotype=%s", entry.flotype_overlay ? "yes" : "no");
+    if( entry.flotype_name )
+        cp_lines_add_str(out, "flotypename", entry.flotype_name);
+    if( entry.secondary_rgb_color != defaults.secondary_rgb_color )
         cp_lines_addf(out, "blendcolour=0x%06X", entry.secondary_rgb_color & 0xFFFFFF);
 
+    RSCache_Dat2ConfigOverlayFreeInplace(&defaults);
     RSCache_Dat2ConfigOverlayFreeInplace(&entry);
     return 1;
 }
@@ -103,6 +119,7 @@ cp_pack_overlay(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigOverlay entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
         &entry,
         (char*)cp_empty_record,
@@ -123,14 +140,26 @@ cp_pack_overlay(
             ok = cp_parse_int(value, &entry.secondary_rgb_color);
         else if( strcmp(key, "hideunderlay") == 0 )
             ok = cp_parse_bool(value, &entry.hide_underlay);
+        else if( strcmp(key, "flotype") == 0 )
+            ok = cp_parse_bool(value, &entry.flotype_overlay);
+        else if( strcmp(key, "flotypename") == 0 )
+        {
+            char buf[512];
+            cp_unescape(value, buf, sizeof(buf));
+            free(entry.flotype_name);
+            entry.flotype_name = strdup(buf);
+        }
         else
             cp_warn(ctx, &ctx->warn_unknown_key, "overlay [%s]: unknown key %s",
                     config->debugname, key);
         if( !ok )
         {
             fprintf(stderr, "cachepack: overlay [%s]: bad value for %s\n", config->debugname, key);
+            RSCache_Dat2ConfigOverlayFreeInplace(&entry);
             return 0;
         }
     }
-    return RSCache_Dat2ConfigOverlayEncode(&entry, out, out_capacity);
+    uint32_t written = RSCache_Dat2ConfigOverlayEncode(&entry, out, out_capacity);
+    RSCache_Dat2ConfigOverlayFreeInplace(&entry);
+    return written;
 }

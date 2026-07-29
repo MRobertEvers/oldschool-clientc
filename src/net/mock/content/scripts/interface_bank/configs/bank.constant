@@ -1,0 +1,19 @@
+// The bank's tuning numbers.
+//
+// LostCity's own bank.constant carries `^bank_total_slots` and
+// `^bank_free_slots` — the capacity is content there because its 2004 bank has
+// no inv config to read it from. Ours does (config group 5 says 1220 at rev
+// 230), so the capacity is NOT here: a number restated in two places is a
+// number that can disagree with the client's.
+//
+// What is here is the part no cache states.
+
+// Quantity modes, in the order the five radio buttons sit in — and, more to the
+// point, the order `bank_quantity_type` encodes them in. The client's own CS2
+// reads that varbit and lights the matching button, so these are the numbers
+// both ends agree on, the same way ^attack_style_accurate is in combat.constant.
+^bank_qty_1 = 0
+^bank_qty_5 = 1
+^bank_qty_10 = 2
+^bank_qty_x = 3
+^bank_qty_all = 4

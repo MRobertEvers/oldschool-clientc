@@ -25,11 +25,17 @@ struct RSCache_Dat2ConfigNpc
     int rotate_left_animation;
     int rotate_right_animation;
     char* actions[5]; // Options 30-34
-    short* recolor_to_find;
-    short* recolor_to_replace;
+    /* Recolour/retexture pairs. These are 16-bit *unsigned* quantities — an HSL
+     * word (hue<<10|sat<<7|lum) or a texture id — so they must not be stored in
+     * a signed 16-bit field: every colour from 0x8000 up came back negative and
+     * only round-tripped because both the encoder and the ToriRS adaptor
+     * happened to cast back through `uint16_t`. `int` is what every other config
+     * struct here uses for the same data. */
+    int* recolor_to_find;
+    int* recolor_to_replace;
     int recolor_count;
-    short* retexture_to_find;
-    short* retexture_to_replace;
+    int* retexture_to_find;
+    int* retexture_to_replace;
     int retexture_count;
     int* chathead_models;
     int chathead_models_count;

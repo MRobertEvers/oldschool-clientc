@@ -11,7 +11,8 @@
  *      applies.
  *   2. The **settings**, which at rev 230 are varbits — bit ranges inside
  *      shared varplayers. Resolved through the cache, never written down.
- *   3. The **wire**: two IF_OPENSUBs and an UPDATE_INV_FULL of container 95.
+ *   3. The **wire**: two IF_OPENSUBs and an UPDATE_INV_FULL of the bank
+ *      container.
  *
  * What this does *not* do is lay the interface out. Every component the player
  * sees is created by the bank's own CS2 (`bankmain_init`, script 274) out of
@@ -24,6 +25,8 @@
 #include "mock230_bank.h"
 
 #include "mock230.h"
+#include "mock230_content.h"
+#include "mock230_ids.h"
 
 #include <rscache.h>
 
@@ -235,7 +238,7 @@ mock230_bank_load(const char* cache_dir)
     RSCache_Dat2DiskFree(disk);
 
     fprintf(stderr, "mock230: bank tables loaded (%d varbits, bank=%d slots)\n", loaded,
-            mock230_bank_inv_size(MOCK230_INV_BANK));
+            mock230_bank_inv_size(mock230_ids()->inv_bank));
     return loaded;
 }
 
@@ -511,11 +514,12 @@ mock230_bank_count(
 /*
  * Transmit the container.
  *
- * The component uid is the bank's item container, and the inv id is 95. Both
+ * The component uid is the bank's item grid, and the inv id is the bank's
+ * container. Both
  * are sent because rev 230 sends both: the client binds the container by inv
  * id (which is what `inv_getobj(bank, …)` reads) and uses the component only to
  * decide which interface to notify. Sending only the component would leave the
- * bank's CS2 reading an empty container id 95.
+ * bank's CS2 reading an empty container.
  *
  * Only the used prefix goes out. `UPDATE_INV_FULL` clears everything past the
  * capacity it carries, so a bank holding 12 objs is a 12-slot packet and the
@@ -532,9 +536,8 @@ bank_transmit(struct Mock230Server* srv)
         if( bank->slots[i].obj_id >= 0 )
             used = i + 1;
 
-    mock230_send_inv_full(
-        srv, (MOCK230_BANK_IFACE << 16) | MOCK230_BANK_COM_ITEMS, MOCK230_INV_BANK, bank->slots,
-        used);
+    mock230_send_inv_full(srv, mock230_ids()->com_bankmain_items, mock230_ids()->inv_bank,
+                          bank->slots, used);
 }
 
 void
@@ -560,16 +563,25 @@ static void
 bank_push_settings(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->player.bank;
+    const struct Mock230Ids* ids = mock230_ids();
+    /* Tab index -> the varbit holding that tab's size. A keyed table rather
+     * than `first + index`: see interface_bank/configs/bank.enum. */
+    const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
 
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_WITHDRAWNOTES, bank->note_mode);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_INSERTMODE, bank->insert_mode);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_QUANTITY_TYPE, bank->quantity_mode);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY,
-                            bank->requested_quantity);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_CURRENTTAB, bank->current_tab);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_TAB_DISPLAY, bank->tab_display);
-    for( int i = 0; i < MOCK230_BANK_TABS; i++ )
-        mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_TAB_1 + i, bank->tab_size[i]);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_quantity_type, bank->quantity_mode);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_requestedquantity, bank->requested_quantity);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_currenttab, bank->current_tab);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_tab_display, bank->tab_display);
+    for( int i = 0; tabs && i < tabs->count; i++ )
+    {
+        int tab = tabs->values[i].key;
+
+        if( tab < 0 || tab >= MOCK230_BANK_TABS )
+            continue;
+        mock230_bank_set_varbit(srv, tabs->values[i].value, bank->tab_size[tab]);
+    }
 
     /*
      * Three panels the mock has no content for. The interface ships them
@@ -577,11 +589,11 @@ bank_push_settings(struct Mock230Server* srv)
      * whatever the varp happened to hold draws an incinerator and a deposit-
      * worn button over a bank that implements neither.
      */
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_SHOWINCINERATOR, 0);
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_LEAVEPLACEHOLDERS, 0);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_showincinerator, 0);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_leaveplaceholders, 0);
     /* The side panel draws a lock overlay on every inventory slot unless told
      * to ignore the lock varbit, which the mock never sets. */
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_SIDE_SLOT_IGNORE, 1);
+    mock230_bank_set_varbit(srv, ids->varbit_bank_side_slot_ignore, 1);
 }
 
 /*
@@ -611,35 +623,34 @@ static void
 bank_set_events(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->player.bank;
+    const struct Mock230Ids* ids = mock230_ids();
     const int ops_1_to_10 = 0x7fe;
     const int op_1 = 1 << 1;
     const int drag_depth_1 = 1 << 17;
     const int drag_target = 1 << 20;
-    static const int k_buttons[] = {
-        MOCK230_BANK_COM_SWAP,      MOCK230_BANK_COM_INSERT,
-        MOCK230_BANK_COM_ITEM_MODE, MOCK230_BANK_COM_NOTE_MODE,
-        MOCK230_BANK_COM_QTY_1,     MOCK230_BANK_COM_QTY_5,
-        MOCK230_BANK_COM_QTY_10,    MOCK230_BANK_COM_QTY_X,
-        MOCK230_BANK_COM_QTY_ALL,   MOCK230_BANK_COM_DEPOSIT_INV,
-        MOCK230_BANK_COM_DEPOSIT_WORN,
+    const int k_buttons[] = {
+        ids->com_bankmain_swap,        ids->com_bankmain_insert,
+        ids->com_bankmain_item_mode,   ids->com_bankmain_note_mode,
+        ids->com_bankmain_qty_1,       ids->com_bankmain_qty_5,
+        ids->com_bankmain_qty_10,      ids->com_bankmain_qty_x,
+        ids->com_bankmain_qty_all,     ids->com_bankmain_deposit_inv,
+        ids->com_bankmain_deposit_worn,
     };
 
-    mock230_send_if_setevents(
-        srv, (MOCK230_BANK_IFACE << 16) | MOCK230_BANK_COM_ITEMS, 0, bank->size - 1,
-        ops_1_to_10 | drag_depth_1 | drag_target);
-    mock230_send_if_setevents(
-        srv, (MOCK230_BANKSIDE_IFACE << 16) | MOCK230_BANKSIDE_COM_ITEMS, 0,
-        MOCK230_INV_SLOTS - 1, ops_1_to_10 | drag_depth_1 | drag_target);
+    mock230_send_if_setevents(srv, ids->com_bankmain_items, 0, bank->size - 1,
+                              ops_1_to_10 | drag_depth_1 | drag_target);
+    mock230_send_if_setevents(srv, ids->com_bankside_items, 0, MOCK230_INV_SLOTS - 1,
+                              ops_1_to_10 | drag_depth_1 | drag_target);
 
     for( size_t i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
-        mock230_send_if_setevents(
-            srv, (MOCK230_BANK_IFACE << 16) | k_buttons[i], 0, 0, op_1);
+        mock230_send_if_setevents(srv, k_buttons[i], 0, 0, op_1);
 }
 
 void
 mock230_bank_open(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->player.bank;
+    const struct Mock230Ids* ids = mock230_ids();
 
     if( bank->open )
         return;
@@ -660,20 +671,21 @@ mock230_bank_open(struct Mock230Server* srv)
      * sidebar replacement. The side panel has to arrive after the main one
      * because the sidebar's own CS2 keys "is a modal open" off the main mount.
      */
-    mock230_send_if_opensub(
-        srv, MOCK230_ROOT_IFACE, MOCK230_MAINMODAL_SLOT, MOCK230_BANK_IFACE, 0);
-    mock230_send_if_opensub(
-        srv, MOCK230_ROOT_IFACE, MOCK230_SIDEMODAL_SLOT, MOCK230_BANKSIDE_IFACE, 3);
+    mock230_send_if_opensub(srv, ids->iface_gameframe,
+                            MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
+                            ids->iface_bankmain, 0);
+    mock230_send_if_opensub(srv, ids->iface_gameframe,
+                            MOCK230_COM_CHILD(ids->com_gameframe_sidemodal),
+                            ids->iface_bankside, 3);
 
     bank_set_events(srv);
 
-    /* Both containers, in full. The side panel paints the backpack out of
-     * container 93, which the client already holds — but its paint hook only
-     * runs on a transmit, so it has to be re-sent or the panel mounts empty. */
+    /* Both containers, in full. The side panel paints the backpack out of the
+     * inv container the client already holds — but its paint hook only runs on
+     * a transmit, so it has to be re-sent or the panel mounts empty. */
     bank_transmit(srv);
-    mock230_send_inv_full(
-        srv, (MOCK230_BANKSIDE_IFACE << 16) | MOCK230_BANKSIDE_COM_ITEMS,
-        MOCK230_INV_BACKPACK, srv->player.inv, MOCK230_INV_SLOTS);
+    mock230_send_inv_full(srv, ids->com_bankside_items, ids->inv_backpack, srv->player.inv,
+                          MOCK230_INV_SLOTS);
     bank->dirty = 0;
 }
 
@@ -681,21 +693,21 @@ void
 mock230_bank_close(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->player.bank;
+    const struct Mock230Ids* ids = mock230_ids();
 
     if( !bank->open )
         return;
     bank->open = 0;
 
-    mock230_send_if_closesub(srv, (MOCK230_ROOT_IFACE << 16) | MOCK230_MAINMODAL_SLOT);
-    mock230_send_if_closesub(srv, (MOCK230_ROOT_IFACE << 16) | MOCK230_SIDEMODAL_SLOT);
+    mock230_send_if_closesub(srv, ids->com_gameframe_mainmodal);
+    mock230_send_if_closesub(srv, ids->com_gameframe_sidemodal);
 
     /* The sidebar's inventory tab is a different interface from the bank's side
      * panel, and it was never unmounted — but its container binding is, so the
      * backpack has to be re-sent against the tab's own component or the tab
      * comes back empty. */
-    mock230_send_inv_full(
-        srv, (MOCK230_INV_IFACE << 16) | 0, MOCK230_INV_BACKPACK, srv->player.inv,
-        MOCK230_INV_SLOTS);
+    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, srv->player.inv,
+                          MOCK230_INV_SLOTS);
 
     /* The reference compacts on close as well, in a queued script, so a bank
      * re-opened later is already tidy. */
@@ -1012,27 +1024,28 @@ at_most(
     return wanted < available ? wanted : available;
 }
 
-/** What the "default quantity" radio buttons currently select. */
+/** What the "default quantity" radio buttons currently select. The modes are
+ *  `^bank_qty_*`, so this is an if-ladder rather than a switch — a case label
+ *  has to be a compile-time constant and these come out of a config file. */
 static int
 default_quantity(
     const struct Mock230Bank* bank,
     int available)
 {
-    switch( bank->quantity_mode )
-    {
-    case MOCK230_BANK_QTY_1:
+    const struct Mock230Ids* ids = mock230_ids();
+    int mode = bank->quantity_mode;
+
+    if( mode == ids->bank_qty_1 )
         return at_most(1, available);
-    case MOCK230_BANK_QTY_5:
+    if( mode == ids->bank_qty_5 )
         return at_most(5, available);
-    case MOCK230_BANK_QTY_10:
+    if( mode == ids->bank_qty_10 )
         return at_most(10, available);
-    case MOCK230_BANK_QTY_X:
+    if( mode == ids->bank_qty_x )
         return bank->requested_quantity > 0 ? at_most(bank->requested_quantity, available)
                                             : MOCK230_BANK_ASK;
-    case MOCK230_BANK_QTY_ALL:
-    default:
-        return available;
-    }
+    /* bank_qty_all, and anything the client invents. */
+    return available;
 }
 
 int
@@ -1043,6 +1056,7 @@ mock230_bank_quantity_for_op(
     int side)
 {
     struct Mock230Bank* bank = &srv->player.bank;
+    const struct Mock230Ids* ids = mock230_ids();
     int mode = bank->quantity_mode;
     int requested = bank->requested_quantity;
 
@@ -1102,16 +1116,16 @@ mock230_bank_quantity_for_op(
         int count = 0;
 
         rows[count++] = ROW_DEFAULT;
-        if( mode != MOCK230_BANK_QTY_1 )
+        if( mode != ids->bank_qty_1 )
             rows[count++] = ROW_ONE;
-        if( mode != MOCK230_BANK_QTY_5 )
+        if( mode != ids->bank_qty_5 )
             rows[count++] = ROW_FIVE;
-        if( mode != MOCK230_BANK_QTY_10 )
+        if( mode != ids->bank_qty_10 )
             rows[count++] = ROW_TEN;
-        if( mode != MOCK230_BANK_QTY_X && requested > 0 )
+        if( mode != ids->bank_qty_x && requested > 0 )
             rows[count++] = ROW_REQUESTED;
         rows[count++] = ROW_ASK;
-        if( mode != MOCK230_BANK_QTY_ALL )
+        if( mode != ids->bank_qty_all )
             rows[count++] = ROW_ALL;
         rows[count++] = ROW_ALL_BUT_ONE;
 
@@ -1153,9 +1167,77 @@ set_quantity_mode(
     int mode)
 {
     srv->player.bank.quantity_mode = mode;
-    mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_QUANTITY_TYPE, mode);
+    mock230_bank_set_varbit(srv, mock230_ids()->varbit_bank_quantity_type, mode);
 }
 
+/** A click on the side panel's inventory grid, which is always a deposit. */
+static int
+handle_side_click(
+    struct Mock230Server* srv,
+    int sub,
+    int op)
+{
+    struct Mock230Bank* bank = &srv->player.bank;
+    int obj_id = sub < MOCK230_INV_SLOTS ? srv->player.inv[sub].obj_id : -1;
+    int held = 0;
+    int amount;
+
+    if( obj_id < 0 )
+        return 1;
+    if( mock230_objinfo(obj_id)->stackable )
+        held = srv->player.inv[sub].count;
+    else
+        /* Deposit-All on a non-stackable obj means every one of them, not the
+         * one slot's count of 1. */
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            if( srv->player.inv[i].obj_id == obj_id )
+                held += srv->player.inv[i].count;
+
+    amount = mock230_bank_quantity_for_op(srv, op, held, 1);
+    if( amount == MOCK230_BANK_ASK )
+    {
+        /* "Deposit-X". The prompt is the client's; the answer comes back as
+         * RESUME_P_COUNTDIALOG, and the pending action has to survive until it
+         * does. */
+        bank->pending_kind = MOCK230_BANK_PENDING_DEPOSIT;
+        bank->pending_slot = sub;
+        mock230_send_if_opencountdialog(srv);
+    }
+    else if( amount > 0 )
+        mock230_bank_deposit(srv, sub, amount);
+    return 1;
+}
+
+/** A click on the main panel's item grid, which is always a withdraw. */
+static int
+handle_main_click(
+    struct Mock230Server* srv,
+    int sub,
+    int op)
+{
+    struct Mock230Bank* bank = &srv->player.bank;
+    int amount;
+
+    if( !bank->open || sub < 0 || sub >= bank->size )
+        return 1;
+    amount = mock230_bank_quantity_for_op(srv, op, bank->slots[sub].count, 0);
+    if( amount == MOCK230_BANK_ASK )
+    {
+        bank->pending_kind = MOCK230_BANK_PENDING_WITHDRAW;
+        bank->pending_slot = sub;
+        mock230_send_if_opencountdialog(srv);
+    }
+    else if( amount > 0 )
+        mock230_bank_withdraw(srv, sub, amount);
+    return 1;
+}
+
+/*
+ * An if-ladder over packed component uids rather than a switch over child ids:
+ * the uids come out of the content tree, and a case label has to be a
+ * compile-time constant. Comparing the whole uid also means the interface is
+ * checked at the same time as the component.
+ */
 int
 mock230_bank_handle_button(
     struct Mock230Server* srv,
@@ -1165,116 +1247,53 @@ mock230_bank_handle_button(
     int op)
 {
     struct Mock230Bank* bank = &srv->player.bank;
-    int group = (uid >> 16) & 0xffff;
-    int child = uid & 0xffff;
+    const struct Mock230Ids* ids = mock230_ids();
 
     (void)obj;
 
-    if( group == MOCK230_BANKSIDE_IFACE )
+    if( MOCK230_COM_GROUP(uid) == MOCK230_COM_GROUP(ids->com_bankside_items) )
     {
-        if( child != MOCK230_BANKSIDE_COM_ITEMS || sub < 0 )
+        if( uid != ids->com_bankside_items || sub < 0 || !bank->open )
             return 0;
-        if( !bank->open )
-            return 0;
-        {
-            int obj_id = sub < MOCK230_INV_SLOTS ? srv->player.inv[sub].obj_id : -1;
-            int held = 0;
-            int amount;
-
-            if( obj_id < 0 )
-                return 1;
-            if( mock230_objinfo(obj_id)->stackable )
-                held = srv->player.inv[sub].count;
-            else
-                /* Deposit-All on a non-stackable obj means every one of them,
-                 * not the one slot's count of 1. */
-                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-                    if( srv->player.inv[i].obj_id == obj_id )
-                        held += srv->player.inv[i].count;
-
-            amount = mock230_bank_quantity_for_op(srv, op, held, 1);
-            if( amount == MOCK230_BANK_ASK )
-            {
-                /* "Deposit-X". The prompt is the client's; the answer comes
-                 * back as RESUME_P_COUNTDIALOG, and the pending action has to
-                 * survive until it does. */
-                bank->pending_kind = MOCK230_BANK_PENDING_DEPOSIT;
-                bank->pending_slot = sub;
-                mock230_send_if_opencountdialog(srv);
-            }
-            else if( amount > 0 )
-                mock230_bank_deposit(srv, sub, amount);
-        }
-        return 1;
+        return handle_side_click(srv, sub, op);
     }
 
-    if( group != MOCK230_BANK_IFACE )
+    if( MOCK230_COM_GROUP(uid) != MOCK230_COM_GROUP(ids->com_bankmain_items) )
         return 0;
 
-    switch( child )
+    if( uid == ids->com_bankmain_items )
+        return handle_main_click(srv, sub, op);
+
+    if( uid == ids->com_bankmain_swap || uid == ids->com_bankmain_insert )
     {
-    case MOCK230_BANK_COM_ITEMS:
-        if( !bank->open || sub < 0 || sub >= bank->size )
-            return 1;
-        {
-            int available = bank->slots[sub].count;
-            int amount = mock230_bank_quantity_for_op(srv, op, available, 0);
-
-            if( amount == MOCK230_BANK_ASK )
-            {
-                bank->pending_kind = MOCK230_BANK_PENDING_WITHDRAW;
-                bank->pending_slot = sub;
-                mock230_send_if_opencountdialog(srv);
-            }
-            else if( amount > 0 )
-                mock230_bank_withdraw(srv, sub, amount);
-        }
+        bank->insert_mode = uid == ids->com_bankmain_insert;
+        mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
         return 1;
-
-    case MOCK230_BANK_COM_SWAP:
-        bank->insert_mode = 0;
-        mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_INSERTMODE, 0);
-        return 1;
-    case MOCK230_BANK_COM_INSERT:
-        bank->insert_mode = 1;
-        mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_INSERTMODE, 1);
-        return 1;
-    case MOCK230_BANK_COM_ITEM_MODE:
-        bank->note_mode = 0;
-        mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_WITHDRAWNOTES, 0);
-        return 1;
-    case MOCK230_BANK_COM_NOTE_MODE:
-        bank->note_mode = 1;
-        mock230_bank_set_varbit(srv, MOCK230_VARBIT_BANK_WITHDRAWNOTES, 1);
-        return 1;
-
-    case MOCK230_BANK_COM_QTY_1:
-        set_quantity_mode(srv, MOCK230_BANK_QTY_1);
-        return 1;
-    case MOCK230_BANK_COM_QTY_5:
-        set_quantity_mode(srv, MOCK230_BANK_QTY_5);
-        return 1;
-    case MOCK230_BANK_COM_QTY_10:
-        set_quantity_mode(srv, MOCK230_BANK_QTY_10);
-        return 1;
-    case MOCK230_BANK_COM_QTY_X:
-        set_quantity_mode(srv, MOCK230_BANK_QTY_X);
-        return 1;
-    case MOCK230_BANK_COM_QTY_ALL:
-        set_quantity_mode(srv, MOCK230_BANK_QTY_ALL);
-        return 1;
-
-    case MOCK230_BANK_COM_DEPOSIT_INV:
-        mock230_bank_deposit_all_inv(srv);
-        return 1;
-    case MOCK230_BANK_COM_DEPOSIT_WORN:
-        mock230_bank_deposit_all_worn(srv);
-        return 1;
-
-    default:
-        break;
     }
-    return 0;
+    if( uid == ids->com_bankmain_item_mode || uid == ids->com_bankmain_note_mode )
+    {
+        bank->note_mode = uid == ids->com_bankmain_note_mode;
+        mock230_bank_set_varbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
+        return 1;
+    }
+
+    if( uid == ids->com_bankmain_qty_1 )
+        set_quantity_mode(srv, ids->bank_qty_1);
+    else if( uid == ids->com_bankmain_qty_5 )
+        set_quantity_mode(srv, ids->bank_qty_5);
+    else if( uid == ids->com_bankmain_qty_10 )
+        set_quantity_mode(srv, ids->bank_qty_10);
+    else if( uid == ids->com_bankmain_qty_x )
+        set_quantity_mode(srv, ids->bank_qty_x);
+    else if( uid == ids->com_bankmain_qty_all )
+        set_quantity_mode(srv, ids->bank_qty_all);
+    else if( uid == ids->com_bankmain_deposit_inv )
+        mock230_bank_deposit_all_inv(srv);
+    else if( uid == ids->com_bankmain_deposit_worn )
+        mock230_bank_deposit_all_worn(srv);
+    else
+        return 0;
+    return 1;
 }
 
 int
@@ -1306,7 +1325,8 @@ void
 mock230_bank_init(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->player.bank;
-    int size = mock230_bank_inv_size(MOCK230_INV_BANK);
+    const struct Mock230Ids* ids = mock230_ids();
+    int size = mock230_bank_inv_size(ids->inv_bank);
 
     mock230_bank_shutdown(srv);
 
@@ -1331,7 +1351,7 @@ mock230_bank_init(struct Mock230Server* srv)
     bank->open = 0;
     bank->note_mode = 0;
     bank->insert_mode = 0;
-    bank->quantity_mode = MOCK230_BANK_QTY_1;
+    bank->quantity_mode = ids->bank_qty_1;
     bank->requested_quantity = 0;
     bank->current_tab = 0;
     bank->tab_display = 0;

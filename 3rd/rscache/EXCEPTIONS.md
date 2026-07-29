@@ -1374,6 +1374,9 @@ exception to "only add the write half".
 | D23 | **The client's default spawn square is not universally loadable, and failed as "no scenery" rather than "no keys".** `app_world_load_begin` hardcoded 50,50 with only `TORIRS_WORLD_MAP` able to override it. `cache.643` ships XTEA keys for 1,591 loc squares and 50,50 is not one of them — nor 49,49 / 50,49 / 51,49 / 51,50, a hole directly over Lumbridge. Added a `[cache:boot] spawn=<x>,<z>` manifest key (env still wins, a server REBUILD_NORMAL wins over both) and set the 643 manifest to a keyed square. | **Terrain archives are not encrypted; only `l*` loc archives are.** So an unkeyed square renders ground perfectly and then zero locs — which reads as a renderer or loc-decode fault, not as missing keys, and is indistinguishable from one without checking `world_load`'s loc count. It also hid behind every measurement taken with an explicit `TORIRS_WORLD_MAP=40,55`: the square that was verified working was never the square the client actually booted. Worth generalising — when a default is only valid for some inputs, an override existing is not the same as the default being right. |
 | D24 | **Removing the table allow-lists left a bare range walk, which probed tables the cache never had.** `init_reference_tables` iterated 0..TABLE_COUNT and printed `Failed to load referencetable N` for each absent one, so every OldSchool boot emitted ~14 spurious failures for RS2's tables 23..34. Now gated on `dat2disk_table_present` — a table exists iff its `.idxN` file does. Absence is silent; a table whose index exists but whose reference table will not load is still reported. | **The fix for D18/D21 was right but incomplete: the question was never "which ids do we know", it is "which does this cache have".** Both a name allow-list and a range walk answer it from the library's side and are wrong in opposite directions — one hides real tables, the other invents missing ones. The cache itself is authoritative and free to ask. Also a reminder that log noise is a defect: 14 lines of routine "failure" per boot is exactly what trains someone to stop reading the log that would have shown D23. |
 | D25 | **Identity fields were declared by every revision module and read by almost none.** `game` was written and never consulted; lineage was smuggled via a third `epoch` value (`EPOCH_643`) while 643 suppressed `revision` to `UNKNOWN` so it could never match a threshold — which made manifests unable to select it except by the `0 == UNKNOWN` coincidence on unset `client_version`. Collapsed to four load-bearing fields (`game`/`epoch`/`revision`/`quirks`), with `epoch` = dat1\|dat2 only, predicates `IsOsrs`/`IsRs2Dat2`/`RevisionAtLeastOsrs`/`RevisionAtLeastRs2`, and boot through required `[cache:boot]` keys → `RSCache_ProfileForIdentity`. Map XTEA is the same class of bug: presence of a key file is not the gate; OldSchool ≥ 237 stores locs plain and RS2 dat2 encrypts from 414 (`RSCache_MapLocsEncrypted`). | Latent for every multi-era boot. Symptoms looked like missing tables, blank scenery, or "works only when client_version is unset". Fixed end-to-end: manifests state identity; `manifest_osrs239.ini` is the unencrypted regression vehicle. |
+| D26 | **npc opcodes 100/101 read ambient and contrast as *unsigned* bytes, and did not pre-scale contrast.** The reference is `ambient = g1b()` and `contrast = g1b() * 5` (Client-TS `config/NpcType.ts`, matching obj opcode 114). `g1` turned every darkening npc into a brightening one — `cache.osrs230` decoded 113 records at `ambient=231` and 24 at `246`, which are `-25` and `-10`. `calculateNormals` then lit them at `64 + 231`, saturating every face to white. The encoder now writes `p1b` and `contrast / 5`, which is byte-identical to what it wrote before, so no round-trip number moves. | The value distribution *is* the proof: a signed field misread as unsigned has a hole in the middle and a cluster at the top, and npc ambient had exactly one — nothing between 100 and 231, then 231/241/246. obj and loc, which already used `g1b`, showed the negatives directly. Semantic round-trip stays 100% on all six caches. |
+| D27 | **npc recolour/retexture pairs were stored in `short`.** Both are unsigned 16-bit — an HSL word or a texture id — so everything from `0x8000` up came back negative, and the only reason nothing broke was that the encoder and the client-side adaptor each happened to cast back through `uint16_t`. Widened to `int`, which is what every other config struct in the library already uses for the same data, and the two compensating casts are gone. | Found by auditing the library for colour data in signed types after D26. Latent rather than live — but it is a trap that only holds while every consumer remembers to undo it, and `find_named` already printed the negatives. |
+| D28 | **loc opcode 39 pre-scaled contrast by 25 for every era, including dat1.** dat2/OldSchool is `readByte() * 25`; dat1 is `g1b() * 5` (Client-TS `config/LocType.ts`). A dat1 loc therefore came out five times as attenuated as the reference. Now gated on `RSCACHE_CONFIG_LOC_DECODE_DAT`, with the encoder dividing by the same era-dependent multiplier. | Surfaced while fixing the client's lighting, which had a compensating `* 5` on the *consumer* side (`ToriDraw_LightModelDefault`) — correct for dat1's raw byte, wrong for anything the library had already scaled. With the consumer's multiplier removed, the era gate is what keeps dat1 right. |
 | D9 | **The round-trip harness was under-specifying the profile.** It built a profile from the group's archive revision alone, so `cache.kronos` was scanned *without* `RSCACHE_QUIRK_KRONOS` — which no revision number can imply. That left 228 loc records misaligned on the ambient-sound retain byte. Fixed by resolving the cache directory name to a declared profile. | Consumption failures on kronos and osrs184 only, both dropping to zero once the quirk was applied. Incidentally the best end-to-end validation that the quirk mechanism works. |
 
 ### D7. A regression I introduced and caught
@@ -1723,6 +1726,88 @@ Two further departures from upstream, both strictly more capable:
   number compiles back.
 
 Neither changes any of the 6,489 outputs that match the reference.
+
+---
+
+## H. `cachepack` — the cache unpacker / packer
+
+`tools/cachepack` turns an OldSchool cache's configs into editable text and back,
+on LostCity_Server's architecture. Its full documentation is in `tools/README.md`;
+what belongs here are the places it stops short.
+
+### H1. `dbrow` and `dbtable` are unpack-only *(Gap)*
+
+rscache decodes both (`dat2_config_db.c`) and encodes neither, so `pack` skips them
+and the base cache's records pass through unchanged. Writing an encoder from the
+decoder's struct would be an unvalidated guess at a format nothing in the repo can
+check, and a wrong dbrow does not fail loudly — it feeds a CS2 script a plausible
+value from the wrong column. The text is still emitted, since it is the only
+readable view of what a client database table declares.
+
+### H2. The text layer is faithful; the codecs' losses are inherited *(Gap, measured)*
+
+Everything B2 and B3 record about the encoders applies to a repack, because a repack
+goes through them. What `cachepack verify` adds is the ability to *attribute* a loss:
+it runs the library's own decode→encode beside the full record→text→record trip and
+reports `lost-here`, the count of records the codec reproduced byte-exactly and the
+text did not.
+
+Measured on `cache.osrs230` (157,253 records over 18 encodable types) and on
+`cache.osrs239`: **`lost-here` is 0 for every type**, and the `exact` column equals
+`codec-ex` throughout. So the text layer costs nothing beyond what the library
+already costs.
+
+That column is not decorative. It was built after the first full run showed overlay
+and param losing 188 and 122 records more than their codecs did, both from the same
+mistake: `hide_underlay` and `auto_disable` default to **true**, and their opcodes
+*clear* them, so writing the line only when the flag is set drops the opcode from
+every record that carries it. Against raw differ counts of 192 and 416 those read as
+"this type is a bit lossy". Against codec baselines of 4 and 294 they were obvious.
+
+The stronger check is the **source fixed point** — unpack, pack, unpack, diff — which
+holds even where a record re-encodes to different bytes, because what it asserts is
+that nothing the client can see was lost. `cache.osrs230` is a fixed point across all
+twenty `all.<type>` files and all twenty pack files, and the client's boot log against
+the packed cache is identical to the original's.
+
+### H3. Two bugs this found in code it does not own *(Resolved)*
+
+Recorded because both are traps for the next caller, not just for this tool.
+
+- **`RSCache_Dat2ConfigIdkFree` is `free(idk)` and nothing else.** It releases the
+  struct and leaks every array on it, so it cannot be used on a stack record — and
+  using it anyway aborts on a free of a stack address. Every other config type has a
+  matching `...FreeInplace`; identkit does not. `cp_idk.c` carries a local one.
+- **`RSCache_ReferenceTable.archives` is indexed by archive id, not packed by
+  position.** The decoder writes `table->archives[ids[i]]` and leaves the gaps at
+  `index == -1`. A linear search for a matching `index` finds a different entry
+  entirely, and the symptom is subtle: a reference table rewritten on every import
+  carrying some other archive's CRC.
+
+### H4. The reference-table CRC covers the container minus its version trailer
+
+Not a gap — a fact that had to be established, and one nothing in the library states
+because the library's own writer never emits a trailer, so for it the two spans
+coincide. A stored Jagex archive does carry a u16 version after the payload, and the
+CRC does **not** include it.
+
+Measured over `cache.osrs230` idx13: `crc32` of the whole stored archive matches the
+table's CRC on **0 of 10** archives, `crc32` of `size - 2` on **10 of 10**. Getting it
+wrong writes a CRC the client then rejects the archive for, so `cp_binary.c` derives
+the body length from the container header rather than assuming a trailer width.
+
+### H5. Binary tables move as raw containers, not as decoded assets *(Deviation, deliberate)*
+
+`--binary` carries models, sprites, maps, scripts and sounds as the bytes the
+container holds. A text form for each would mean a decoder, an encoder and a fidelity
+claim per table — a far larger job, and one this library already partly refuses (B10,
+B11: the model tail is carried, not understood). Raw is byte-exact by construction,
+lets XTEA-encrypted map archives through untouched, and keeps A1's bzip2 non-identity
+out of the picture entirely.
+
+The cost is that a binary archive cannot be *edited* through this path, only moved.
+That is the right trade for what the flag is for — reproducing a working cache — and
+the config side, which is the part anyone wants to edit, is text.
 
 ---
 

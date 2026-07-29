@@ -1453,3 +1453,130 @@ CreateTask_CS2VarTransmitDispatch(
         return CreateTask_CS2VarTransmitDispatchSet(host, NULL, 0);
     return CreateTask_CS2VarTransmitDispatchSet(host, &var_id, 1);
 }
+
+/* =========================================================================
+ * Sub-change dispatch
+ * =========================================================================
+ *
+ * The "a sub-interface came or went" hooks. Mounting one already runs them
+ * (task_interface_open step 8); unmounting did not, which is why closing a side
+ * panel left the sidebar blank — the gameframe's hook is what puts the tab strip
+ * back, and nothing was asking it to.
+ *
+ * Snapshotted before the first hook runs, for the same reason the mount path
+ * snapshots: a hook can create and delete components, so component indices do
+ * not survive the yield.
+ */
+
+#define TASK_SUBCHANGE_HOOK_MAX 256
+
+struct Task_CS2SubChangeHook
+{
+    int component_id;
+    int script_id;
+    int argc;
+    int argv[UITREE_HOOK_ARG_MAX];
+    uint64_t str_mask;
+    int str_argc;
+    char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
+};
+
+struct Task_CS2SubChangeDispatch
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+
+    struct RS_CS2Host* host;
+    struct Task_CS2SubChangeHook hooks[TASK_SUBCHANGE_HOOK_MAX];
+    int hook_count;
+    int hook_index;
+};
+
+static int
+Task_CS2SubChangeDispatch_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IO* io)
+{
+    struct Task_CS2SubChangeDispatch* self = (struct Task_CS2SubChangeDispatch*)task;
+
+    PT_BEGIN(&self->pt);
+
+    assert(self->host);
+
+    for( self->hook_index = 0; self->hook_index < self->hook_count; self->hook_index++ )
+    {
+        struct Task_CS2SubChangeHook const* hook = &self->hooks[self->hook_index];
+        char const* strp[UITREE_HOOK_STR_ARG_MAX];
+
+        /* The hook's component may have been reclaimed by an earlier hook in
+         * this same pass. */
+        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+            continue;
+        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+            strp[si] = hook->strv[si];
+        TASK_AWAITSELF(CreateTask_CS2RunMixed(
+            self->host,
+            hook->script_id,
+            hook->component_id,
+            hook->component_id,
+            hook->argc > 0 ? hook->argv : NULL,
+            hook->argc,
+            hook->str_mask,
+            strp,
+            hook->str_argc));
+    }
+
+    PT_END(&self->pt);
+    return 0;
+}
+
+static void
+Task_CS2SubChangeDispatch_Free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable Task_CS2SubChangeDispatch_VTable = {
+    .run = Task_CS2SubChangeDispatch_Run,
+    .free = Task_CS2SubChangeDispatch_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
+{
+    struct Task_CS2SubChangeDispatch* self;
+
+    assert(host);
+    self = calloc(1, sizeof(*self));
+    assert(self);
+    self->task.vtable = &Task_CS2SubChangeDispatch_VTable;
+    strcpy(self->task.name, "CS2SubChangeDispatch");
+    self->host = host;
+
+    if( host->tree )
+    {
+        for( uint32_t i = 0;
+             i < host->tree->component_count && self->hook_count < TASK_SUBCHANGE_HOOK_MAX;
+             i++ )
+        {
+            struct UITreeComponent const* node = &host->tree->components[i];
+            struct UITreeRuntimeScriptHook const* slot = &node->runtime_hooks.on_sub_change;
+            struct Task_CS2SubChangeHook* dst;
+
+            if( node->freed || slot->script_id <= 0 )
+                continue;
+            dst = &self->hooks[self->hook_count++];
+            dst->component_id = node->component_id;
+            dst->script_id = slot->script_id;
+            dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
+            if( dst->argc > 0 )
+                memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+            dst->str_mask = slot->str_mask;
+            dst->str_argc = slot->str_argc;
+            memcpy(dst->strv, slot->strv, sizeof(dst->strv));
+        }
+    }
+
+    PT_INIT(&self->pt);
+    return &self->task;
+}

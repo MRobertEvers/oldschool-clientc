@@ -17,30 +17,19 @@
 struct Mock230Server;
 struct Mock230Player;
 
-enum
-{
-    /* OldSchool's 29 prayers, in the order interface 541 lists them — which is
-     * by level, and which is also the order its 29 buttons (541:9..541:37) are
-     * laid out in. Verified: the gameframe's CS2 sets op1="Activate" on exactly
-     * those 29 components and no others. */
-    MOCK230_PRAYER_COUNT = 29,
+/*
+ * The prayers themselves are content: `skill_prayer/configs/prayers.prayer`
+ * for the table and `prayers.constant` for the overhead icon indices, which
+ * are read through mock230_content_prayer and mock230_prayer_headicon. The
+ * prayer book's own id is in mock230_ids.
+ *
+ * A prayer is identified here by its index in that file, which is the bit it
+ * occupies in `player->prayer_active` — see MOCK230_PRAYER_MAX for what bounds
+ * that.
+ */
 
-    MOCK230_PRAYER_IFACE = 541,
-    MOCK230_PRAYER_FIRST_BUTTON = 9,
-
-    /* Headicon sprite indices in the `headicons` pack, which is also the bit
-     * position each one occupies in the appearance byte. */
-    MOCK230_HEADICON_PROTECT_MELEE = 0,
-    MOCK230_HEADICON_PROTECT_MISSILES = 1,
-    MOCK230_HEADICON_PROTECT_MAGIC = 2,
-    MOCK230_HEADICON_RETRIBUTION = 3,
-    MOCK230_HEADICON_SMITE = 4,
-    MOCK230_HEADICON_REDEMPTION = 5,
-    MOCK230_HEADICON_NONE = -1,
-};
-
-/** Enable the 29 prayer buttons' op 1 so a click reaches the server. Part of
- *  the login burst; see mock230_equipment_arm_worn_tab for why. */
+/** Enable each prayer button's op 1 so a click reaches the server. Part of the
+ *  login burst; see mock230_equipment_arm_worn_tab for why. */
 void
 mock230_prayer_arm_buttons(struct Mock230Server* srv);
 
@@ -53,8 +42,8 @@ mock230_prayer_handle_button(
     int component,
     int op);
 
-/** Turn one prayer (0..MOCK230_PRAYER_COUNT-1) on or off, applying the level
- *  requirement and the conflict groups. Returns 1 if anything changed. */
+/** Turn one prayer on or off by index, applying the level requirement and the
+ *  conflict groups. Returns 1 if anything changed. */
 int
 mock230_prayer_toggle(
     struct Mock230Server* srv,
@@ -72,14 +61,29 @@ mock230_prayer_tick(struct Mock230Server* srv);
 int
 mock230_prayer_headicon_mask(const struct Mock230Player* player);
 
-/** 1 when the named protection prayer is up (MOCK230_HEADICON_PROTECT_*). */
+/** 1 when a prayer drawing this overhead icon is up. */
 int
 mock230_prayer_protecting(
     const struct Mock230Player* player,
     int headicon);
 
+/**
+ * An overhead icon index by its `^headicon_prayer_*` constant, or -1.
+ *
+ * The caller names the icon rather than the prayer on purpose: what the combat
+ * code cares about is "is anything protecting from melee up", and the icon is
+ * exactly that question — one icon, however many prayers might draw it.
+ */
+int
+mock230_prayer_headicon(const char* symbol);
+
 /** Prayer name, for chat messages. */
 const char*
 mock230_prayer_name(int prayer);
+
+/** A prayer's index by its `[symbol]` in prayers.prayer, or -1. For callers
+ *  that mean one particular prayer rather than "whichever the player clicked". */
+int
+mock230_prayer_index(const char* symbol);
 
 #endif

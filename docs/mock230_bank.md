@@ -49,11 +49,17 @@ because its client has no CS2; this one describes only state.
 | mount slot, main | `161:16` | toplevel_osrs_stretch `mainmodal` |
 | mount slot, side | `161:74` | toplevel_osrs_stretch `sidemodal` |
 
-The component ids inside interface 12 (`mock230_bank.h`) were read out of
-`dump_interface` against this cache and **not** borrowed from another server's
-table. The bank's child numbering moved between OldSchool revisions: a constant
-taken from a newer cache — xrsps's `BankMainChild.ITEMS = 12`, for instance —
-names a `line` here, not the item container.
+Every one of those, and every component inside interface 12, is a **name** in
+the content tree: `bankmain`, `bankside`, `bankmain_items`, `gameframe_mainmodal`
+in `content/pack/`, resolved once at boot into `mock230_ids.h`. `mock230_bank.h`
+contains no ids at all — only the array ceilings and the pending-prompt states.
+
+They were read out of `dump_interface` against this cache and **not** borrowed
+from another server's table. The bank's child numbering moved between OldSchool
+revisions: a constant taken from a newer cache — xrsps's `BankMainChild.ITEMS =
+12`, for instance — names a `line` here, not the item container. `test-mock230`
+pins each resolved id to the number it was verified at, so a pack regenerated
+from a newer gameval table fails there rather than in the panel.
 
 ---
 
@@ -71,6 +77,13 @@ bank_requestedquantity 3960 varp  304  bits 1..31
 bank_quantity_type   6590   varp 1666  bits 2..4
 bank_tab_1..9        4171+  varps 867, 1052, 1053, 1793, 3750
 ```
+
+The varbit **ids** are names too — `varbit.pack`, imported from OpenRune's
+`varbits` group — and the nine tab counters are a keyed table rather than
+`bank_tab_1 + i`: `interface_bank/configs/bank.enum` maps tab index to varbit,
+because their being consecutive is a fact about one cache. The quantity modes
+the interface encodes into `bank_quantity_type` are `^bank_qty_*` in
+`bank.constant`, beside it.
 
 Two consequences, and both are load-bearing:
 

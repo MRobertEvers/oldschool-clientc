@@ -53,6 +53,7 @@ npcs:father_aereck
 npcs:aide_tutor_cooking as cooking_tutor
 npcs:aide_tutor_crafting as crafting_tutor
 npcs:aide_tutor_prayer as prayer_tutor
+npcs:banker1 as banker
 
 // ------------------------------------------------------------------
 // Objs
@@ -112,6 +113,13 @@ objects:qip_cook_trapdoor_open as castle_trapdoor
 objects:castledoubledoorl as castle_door_left
 objects:castledoubledoorr as castle_door_right
 
+// Bank booths. The engine keys on the cache's own "Bank" menu op, so these
+// symbols exist so content can bind [oploc<n>] to a specific booth — not so the
+// engine can find one.
+objects:bankbooth
+objects:bankboothclosed
+objects:bank_deposit_box
+
 // ------------------------------------------------------------------
 // Sequences — combat animations for the npcs above and for the player.
 // ------------------------------------------------------------------
@@ -144,3 +152,235 @@ sequences:human_ready as seq_idle
 // Drop-table objs (appended after the first pass; see content/configs/lumbridge.npc)
 items:cow_hide as cowhide
 items:goblin_armour as goblin_mail
+
+// ------------------------------------------------------------------
+// Interfaces — the gameframe root and everything the login burst mounts into
+// it. See content/scripts/player/configs/gameframe.enum.
+// ------------------------------------------------------------------
+interfaces:toplevel_osrs_stretch as gameframe
+interfaces:chat_left as npcchat
+interfaces:chat_right as playerchat
+interfaces:chatmenu as chatmulti
+interfaces:messagebox as chatmessage
+interfaces:bankmain
+interfaces:bankside
+// The equipment-stats screen and its side panel. Aliased away from OpenRune's
+// bare `equipment`, which reads like the worn-items tab (387) it is opened
+// from and is a different interface entirely.
+interfaces:equipment as equipment_stats
+interfaces:equipment_side as equipment_stats_side
+interfaces:chatbox
+interfaces:buff_bar
+interfaces:stat_boosts_hud
+interfaces:pm_chat
+interfaces:hpbar_hud
+interfaces:pvp_icons
+interfaces:orbs
+interfaces:xp_drops
+interfaces:popout
+interfaces:ehc_worldhop
+interfaces:combat_interface
+interfaces:stats
+interfaces:side_journal
+interfaces:inventory
+interfaces:wornitems as worn_equipment
+interfaces:prayerbook
+interfaces:worldmap
+interfaces:magic_spellbook
+interfaces:side_channels
+interfaces:account
+interfaces:friends
+interfaces:logout
+interfaces:settings_side
+interfaces:emote
+interfaces:music
+
+// ------------------------------------------------------------------
+// Components. A gameval component value is the packed (interface << 16) | child
+// uid the rev-230 protocol addresses a component by — not a bare child id — so
+// these import directly. Aliases keep the shorter names the scripts already use.
+// ------------------------------------------------------------------
+// Varbits the combat tab reads. 357 is the equipped weapon's category, which
+// selects which of the ten button layouts the tab builds — with it unset every
+// button hides and the tab shows nothing but auto-retaliate. 13027 is the
+// combat level printed above them.
+varbits:combat_weapon_category as weapon_category
+varbits:combatlevel_transmit as combat_level
+
+// The bank's settings. Every one is a bit range inside a shared varplayer —
+// the ranges come from config group 14 at runtime, these are only the ids.
+// `bank_tab_1..9` are read as a run: the count of them the pack carries is how
+// many tabs the bank has, so adding a tenth is a line here and nothing else.
+varbits:bank_withdrawnotes
+varbits:bank_insertmode
+varbits:bank_requestedquantity
+varbits:bank_quantity_type
+varbits:bank_currenttab
+varbits:bank_tab_display
+varbits:bank_tab_1
+varbits:bank_tab_2
+varbits:bank_tab_3
+varbits:bank_tab_4
+varbits:bank_tab_5
+varbits:bank_tab_6
+varbits:bank_tab_7
+varbits:bank_tab_8
+varbits:bank_tab_9
+varbits:bank_leaveplaceholders
+varbits:bank_showincinerator
+varbits:bank_hidedepositworn
+varbits:bank_side_slot_ignoreinvlocks as bank_side_slot_ignore
+
+// The varps those varbits are packed into. The bit ranges come from the cache
+// (config group 14), not from here — this is only the name of the container.
+varp:randomhitsound as varp_weapon_category
+varp:wilderness_statistics as varp_combat_level
+
+// The combat tab's own four, which OpenRune's AttackTab writes. Declared in
+// content/scripts/player/configs/player_controls.varp and written by [login].
+varp:com_mode
+varp:option_nodef
+varp:option_run as run
+varp:sa_energy
+varp:sa_attack
+
+// Bank. `bankcert` is note-mode and `bankinsert` is insert-mode; the aliases
+// are the names the bank content already writes.
+varp:bankcert
+varp:bankcert as bank_withdrawnotes
+varp:bankinsert
+varp:bankinsert as bank_insertmode
+
+components:chat_left:head as chat_head
+components:chat_left:name as chat_name
+components:chat_left:continue as chat_continue
+components:chat_left:text as chat_body
+components:chatbox:chatcrm as chat_container
+components:chatbox:crmcanvas as chat_slot
+
+components:bankmain:items as bankmain_items
+components:bankmain:swap as bankmain_swap
+components:bankmain:insert as bankmain_insert
+components:bankmain:item as bankmain_item_mode
+components:bankmain:note as bankmain_note_mode
+components:bankmain:quantity1 as bankmain_qty_1
+components:bankmain:quantity5 as bankmain_qty_5
+components:bankmain:quantity10 as bankmain_qty_10
+components:bankmain:quantityx as bankmain_qty_x
+components:bankmain:quantityall as bankmain_qty_all
+components:bankmain:depositinv as bankmain_deposit_inv
+components:bankmain:depositworn as bankmain_deposit_worn
+components:bankside:items as bankside_items
+
+// The two panels the sidebar tabs and the modal screens mount into, and the
+// inventory tab's own grid. `wornitems:equipment` is 387:1 — the worn tab's
+// only op, "View equipment stats".
+components:toplevel_osrs_stretch:mainmodal as gameframe_mainmodal
+components:toplevel_osrs_stretch:sidemodal as gameframe_sidemodal
+components:inventory:items as inventory_items
+components:toplevel_osrs_stretch:floater as gameframe_floater
+components:worldmap:esckey as worldmap_esckey
+components:worldmap:close as worldmap_close
+components:wornitems:equipment as worn_equipment_stats
+
+// The worn tab's eleven slot components. OpenRune reads the same mapping out of
+// the cache (`enums.equipment_tab_to_slots_map`); the gameval name carries the
+// wear slot, which is why they are not consecutive — 6, 8 and 11 are arms, hair
+// and jaw, which nothing is equipped into. See player/configs/worn.enum.
+components:wornitems:slot0 as worn_slot0
+components:wornitems:slot1 as worn_slot1
+components:wornitems:slot2 as worn_slot2
+components:wornitems:slot3 as worn_slot3
+components:wornitems:slot4 as worn_slot4
+components:wornitems:slot5 as worn_slot5
+components:wornitems:slot7 as worn_slot7
+components:wornitems:slot9 as worn_slot9
+components:wornitems:slot10 as worn_slot10
+components:wornitems:slot12 as worn_slot12
+components:wornitems:slot13 as worn_slot13
+
+// The equipment-stats screen. `universe` is 84:0, which the worn container
+// binds to; the other eighteen are the empty text rows under each heading, in
+// screen order. The gameval names are the cross-check that this is the modern
+// layout: `stabatt` IS the stab-attack row, not a component that happens to sit
+// where one used to.
+components:equipment:universe as equipment_stats_container
+components:equipment:stabatt as equipment_stats_stabatt
+components:equipment:slashatt as equipment_stats_slashatt
+components:equipment:crushatt as equipment_stats_crushatt
+components:equipment:magicatt as equipment_stats_magicatt
+components:equipment:rangeatt as equipment_stats_rangeatt
+components:equipment:stabdef as equipment_stats_stabdef
+components:equipment:slashdef as equipment_stats_slashdef
+components:equipment:crushdef as equipment_stats_crushdef
+components:equipment:magicdef as equipment_stats_magicdef
+components:equipment:rangedef as equipment_stats_rangedef
+components:equipment:meleestrength as equipment_stats_meleestrength
+components:equipment:rangestrength as equipment_stats_rangestrength
+components:equipment:magicdamage as equipment_stats_magicdamage
+components:equipment:prayer as equipment_stats_prayer
+components:equipment:typemultiplier as equipment_stats_typemultiplier
+components:equipment:slayermultiplier as equipment_stats_slayermultiplier
+components:equipment:attackspeedbase as equipment_stats_attackspeedbase
+components:equipment:attackspeedactual as equipment_stats_attackspeedactual
+
+// The prayer book's 30 buttons. The content names which prayer sits on which,
+// so the run is imported whole rather than as "first + index".
+components:prayerbook:prayer1 as prayerbook_prayer1
+components:prayerbook:prayer2 as prayerbook_prayer2
+components:prayerbook:prayer3 as prayerbook_prayer3
+components:prayerbook:prayer4 as prayerbook_prayer4
+components:prayerbook:prayer5 as prayerbook_prayer5
+components:prayerbook:prayer6 as prayerbook_prayer6
+components:prayerbook:prayer7 as prayerbook_prayer7
+components:prayerbook:prayer8 as prayerbook_prayer8
+components:prayerbook:prayer9 as prayerbook_prayer9
+components:prayerbook:prayer10 as prayerbook_prayer10
+components:prayerbook:prayer11 as prayerbook_prayer11
+components:prayerbook:prayer12 as prayerbook_prayer12
+components:prayerbook:prayer13 as prayerbook_prayer13
+components:prayerbook:prayer14 as prayerbook_prayer14
+components:prayerbook:prayer15 as prayerbook_prayer15
+components:prayerbook:prayer16 as prayerbook_prayer16
+components:prayerbook:prayer17 as prayerbook_prayer17
+components:prayerbook:prayer18 as prayerbook_prayer18
+components:prayerbook:prayer19 as prayerbook_prayer19
+components:prayerbook:prayer20 as prayerbook_prayer20
+components:prayerbook:prayer21 as prayerbook_prayer21
+components:prayerbook:prayer22 as prayerbook_prayer22
+components:prayerbook:prayer23 as prayerbook_prayer23
+components:prayerbook:prayer24 as prayerbook_prayer24
+components:prayerbook:prayer25 as prayerbook_prayer25
+components:prayerbook:prayer26 as prayerbook_prayer26
+components:prayerbook:prayer27 as prayerbook_prayer27
+components:prayerbook:prayer28 as prayerbook_prayer28
+components:prayerbook:prayer29 as prayerbook_prayer29
+components:prayerbook:prayer30 as prayerbook_prayer30
+
+// Gameframe slots. OpenRune's GameframeLoader mounts exactly these, by exactly
+// these names; the numbers underneath are the child ids the mock used to carry
+// as a literal table. See content/scripts/player/configs/gameframe.enum.
+components:toplevel_osrs_stretch:chat_container as gameframe_chat_container
+components:toplevel_osrs_stretch:buff_bar as gameframe_buff_bar
+components:toplevel_osrs_stretch:stat_boosts_hud as gameframe_stat_boosts_hud
+components:toplevel_osrs_stretch:pm_container as gameframe_pm_container
+components:toplevel_osrs_stretch:hpbar_hud as gameframe_hpbar_hud
+components:toplevel_osrs_stretch:pvp_icons as gameframe_pvp_icons
+components:toplevel_osrs_stretch:orbs as gameframe_orbs
+components:toplevel_osrs_stretch:xp_drops as gameframe_xp_drops
+components:toplevel_osrs_stretch:popout as gameframe_popout
+components:toplevel_osrs_stretch:ehc_listener as gameframe_ehc_listener
+components:toplevel_osrs_stretch:side0 as gameframe_side0
+components:toplevel_osrs_stretch:side1 as gameframe_side1
+components:toplevel_osrs_stretch:side2 as gameframe_side2
+components:toplevel_osrs_stretch:side3 as gameframe_side3
+components:toplevel_osrs_stretch:side4 as gameframe_side4
+components:toplevel_osrs_stretch:side5 as gameframe_side5
+components:toplevel_osrs_stretch:side6 as gameframe_side6
+components:toplevel_osrs_stretch:side7 as gameframe_side7
+components:toplevel_osrs_stretch:side8 as gameframe_side8
+components:toplevel_osrs_stretch:side9 as gameframe_side9
+components:toplevel_osrs_stretch:side10 as gameframe_side10
+components:toplevel_osrs_stretch:side11 as gameframe_side11
+components:toplevel_osrs_stretch:side12 as gameframe_side12
+components:toplevel_osrs_stretch:side13 as gameframe_side13

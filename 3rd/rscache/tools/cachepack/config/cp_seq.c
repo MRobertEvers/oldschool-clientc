@@ -359,7 +359,6 @@ cp_pack_spotanim(
         const char* key = config->lines[i].key;
         const char* value = config->lines[i].value;
         int ok = 1;
-        int index;
 
         if( strcmp(key, "model") == 0 )
             ok = cp_parse_int(value, &entry->model);

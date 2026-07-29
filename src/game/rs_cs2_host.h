@@ -137,6 +137,11 @@ struct RS_CS2Host
      *  flow wired up, so this just records that a script asked for one. */
     bool logout_requested;
 
+    /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the
+     *  App's tick, which sends CLOSE_MODAL; the server is what actually
+     *  unmounts, so nothing here touches the tree. */
+    bool close_modal_requested;
+
     /** Viewport FOV/zoom, backing VIEWPORT_SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM.
      *  Host-owned so SET/CLAMP round-trips through the matching GET; defaults
      *  match the values these getters returned before they were host-routed. */

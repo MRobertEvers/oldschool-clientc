@@ -363,6 +363,157 @@ touched.
 
 ---
 
+## `cachepack` — unpack an OldSchool cache into source, and pack it back
+
+```sh
+make -C 3rd/rscache/tools cachepack
+
+cachepack unpack --cache DIR --rev NAME --src SRCDIR [--types a,b] [--binary[=1,2]]
+cachepack pack   --src SRCDIR --out DIR [--base DIR] [--rev NAME] [--types a,b] [--binary]
+cachepack verify --cache DIR --rev NAME --src SRCDIR [--types a,b]
+cachepack --list
+```
+
+Every other tool here answers a question about a cache or moves one asset between
+two. This one turns a whole cache's configs into editable text and turns that text
+back into a cache.
+
+```sh
+cachepack unpack --cache cache.osrs230 --rev osrs230 --src /tmp/src230
+# -> /tmp/src230/pack/npc.pack      3028=goblin
+#    /tmp/src230/configs/all.npc    [goblin] name=Goblin  model1=24458 ...
+#    /tmp/src230/meta.ini           the identity, so `pack` needs no --rev
+
+$EDITOR /tmp/src230/configs/all.npc
+
+cachepack pack --src /tmp/src230 --base cache.osrs230 --out /tmp/out230
+```
+
+### The architecture is LostCity's
+
+Deliberately, because it is a shape that works: `<type>.pack` files are the id
+authority, `[name]` blocks of `key=value` lines are the record format, and one
+module per type maps between a record and its text. The mapping is:
+
+| LostCity_Server | here |
+|---|---|
+| `engine/tools/unpack/config/Unpack.ts` | `cp_unpack.c` |
+| `engine/tools/pack/config/PackShared.ts` | `cp_pack.c` + `cp_text.c` |
+| `engine/tools/pack/PackFileBase.ts` | `port_lostcity/lc_pack.c`, reused |
+| `engine/tools/{un,}pack/config/NpcConfig.ts` | `config/cp_npc.c` |
+
+Two things depart from the reference.
+
+**The opcode readers and writers are the library's, not this tool's.** LostCity
+hand-writes three mirrors of every record layout — an unpacker, a validator and a
+packer — and they can drift. Here both directions pass through rscache's decoder
+and encoder structs, the same ones the client uses. What is left per type is only
+the mapping between a struct and its text, which is half the code and none of the
+opportunity for the two directions to disagree about a field's width.
+
+**Names come from the cache.** LostCity has no name table, so it invents
+`npc_1234`. An OldSchool cache ships **table 24, the gameval index** — the content
+team's own names — and `unpack` seeds the pack files from it, so records come out
+as `[goblin]` and a reference reads `readyanim=slice_surface_goblin_squat_ready`.
+Ten of the twenty types are covered (obj, npc, inv, varp, varbit, loc, seq,
+spotanim, dbrow, dbtable); the rest fall back to `<type>_<id>`.
+
+The archive-id-to-type mapping is not recorded anywhere in the cache, so it is
+**verified rather than trusted**: an archive is accepted only when at least 90% of
+the file ids it names are ids the config group actually holds. A mismatch is
+refused with a message and that type keeps synthetic names.
+
+### What round-trips, and what does not
+
+`verify` measures it, on the cache in front of you rather than from this table:
+
+```
+type         records      exact same-len   differ   codec-ex lost-here
+npc            14205         94     7925     6186         94        0
+obj            30891      13967    14200     2724      13967        0
+loc            56376        508    29159    26709        508        0
+varbit         17426      17426        0        0      17426        0
+...
+```
+
+`codec-ex` is what the library's own decode→encode manages on the same records with
+no text in between, and **`lost-here` counts records it reproduced byte-exactly and
+the text did not**. That last column is the one this tool owns and it should be
+zero; everything else is the library's own fidelity, already measured and recorded
+in `EXCEPTIONS.md` B2/B3. A non-zero `lost-here` fails the run.
+
+Measured on `cache.osrs230` (157,253 records over 18 encodable types) and
+`cache.osrs239`: `lost-here` is **0 everywhere**, and `exact` equals `codec-ex` for
+every type. The two bugs that column was built to find — an inverted default on the
+overlay's `hideunderlay` and on the param's `autodisable`, both flags whose *absence*
+means true — were 188 and 122 records wide against codec baselines of 4 and 294, and
+would have read as "this type is a bit lossy" without it.
+
+Three known limits, all reported rather than silent:
+
+- **`dbrow` and `dbtable` are unpack-only.** rscache decodes them and has no
+  encoder, so `pack` skips them and the base cache's records stay as they were.
+  The text is still worth having — it is the only readable view of what a client
+  database table declares.
+- **`mapelement` is 0% byte-exact by construction.** Its decoder keeps four of two
+  dozen fields (see `dat2_config_mapelement.h`), so a repack is a readable map
+  element rather than a copy of the source.
+- **`loc`, `npc`, `obj`, `seq`, `enum`, `spotanim` are lossy** for the reasons
+  EXCEPTIONS.md B2 lists — fields consumed without being stored, aliased opcodes
+  collapsed to their lowest spelling, ascending opcode order rather than Jagex's.
+  A repack is a valid record the client reads identically; it is not the same bytes.
+
+`cachepack --list` prints the register with each type's config group, gameval
+archive and flags.
+
+### The end-to-end check
+
+```sh
+cachepack unpack --cache cache.osrs230 --rev osrs230 --src A
+cachepack pack   --src A --base cache.osrs230 --out OUT
+cachepack unpack --cache OUT --rev osrs230 --src B
+diff -r A B        # A == B is the bar
+```
+
+That is a **fixed point** on `cache.osrs230`: all twenty `all.<type>` files and all
+twenty pack files come back byte-identical, and the client boots the packed cache
+with a boot log identical to the original's (`world_load: 1 chunks, 9 underlays,
+8 overlays, 23 textures, 430 locs, 399 models, 17 seqs`). It is a stronger check
+than per-record byte-exactness, because it holds even where a record re-encodes to
+different bytes: what it says is that nothing the client can see was lost.
+
+### Binary tables
+
+`--binary` moves the tables that are not configs — models, sprites, maps, scripts,
+sounds — as **raw container bytes**, never decompressed:
+
+```sh
+cachepack unpack --cache cache.osrs230 --rev osrs230 --src A --binary=7,8
+# -> A/binary/idx7/0.bin ...
+cachepack pack --src A --base cache.osrs230 --out OUT --binary
+```
+
+Raw rather than decoded because the round trip is then byte-exact with no encoder
+to be wrong, XTEA-encrypted map archives pass through untouched, and the bzip2
+encoder's known non-identity to Jagex's (EXCEPTIONS.md A1) never enters the picture.
+Import rewrites the reference-table entry from the bytes actually stored, so an
+edited archive does not sit behind a stale CRC.
+
+One thing worth knowing if you touch that code: **the reference table's CRC covers
+the container minus its 2-byte version trailer.** Measured, not assumed — over
+`cache.osrs230` idx13, the whole-archive CRC matches on 0 of 10 archives and the
+`size - 2` CRC on 10 of 10.
+
+### Packing writes into a copy of a cache
+
+A cache is far more than its configs, so `pack` starts from a base cache and writes
+the config table into it — exactly as LostCity's `cache.write(0, 2, config)` writes
+one archive into an existing cache and leaves the rest alone. `--base` copies first;
+without it `--out` is edited in place, which grows the file because the dat2
+container appends rather than compacts (EXCEPTIONS.md B4).
+
+---
+
 ## `cs2` — decompile and compile clientscripts
 
 ```sh

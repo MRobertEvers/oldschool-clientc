@@ -51,6 +51,7 @@ cp_pack_varbit(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigVarbit entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigVarbitDecodeInplace(&entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
@@ -119,6 +120,7 @@ cp_pack_varp(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigVarplayer entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigVarplayerDecodeInplace(
         &entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
@@ -180,6 +182,7 @@ cp_pack_varc(
     uint32_t out_capacity)
 {
     struct RSCache_Dat2ConfigVarclient entry;
+    memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigVarclientDecodeInplace(
         &entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;

@@ -79,4 +79,17 @@ CreateTask_CS2VarTransmitDispatchSet(
     int const* var_ids,
     int var_count);
 
+/**
+ * Run every `on_sub_change` hook in the tree.
+ *
+ * These are the "a sub-interface came or went" scripts, and the gameframe's are
+ * what decide whether the sidebar shows the tab strip or whatever replaced it.
+ * The mount path already runs them (task_interface_open step 8); the *unmount*
+ * path did not, so closing a side panel left the tabs hidden and the sidebar
+ * blank. Hooks are snapshotted before the first one runs, because a hook may
+ * mutate the tree it was found in.
+ */
+struct ToriRS_Task*
+CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host);
+
 #endif /* TASK_CS2_RUN_H */

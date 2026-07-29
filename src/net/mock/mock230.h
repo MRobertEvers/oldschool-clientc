@@ -46,26 +46,12 @@ enum
     MOCK230_INV_SLOTS = 28,
     MOCK230_WORN_SLOTS = 14,
 
-    /* Container ids the client's InvManager knows (INV_MANAGER_CONTAINER_*). */
-    MOCK230_INV_BACKPACK = 93,
-    MOCK230_INV_WORN = 94,
-
-    /* Gameframe root (manifest_osrs230.ini ui:boot interface_id) and the two
-     * component slots the inventory and equipment containers bind to. */
-    MOCK230_ROOT_IFACE = 161,
-    MOCK230_INV_IFACE = 149,
-    MOCK230_WORN_IFACE = 387,
-    /* Component uid the backpack's 28 item cells hang off. It, not the cells,
-     * is what an inventory op names on the wire — see worn_slot_for_component
-     * in mock230_world.c. */
-    MOCK230_INV_COMPONENT = (MOCK230_INV_IFACE << 16) | 0,
-    /* 387:15 is the helmet slot; the other ten follow it in wear order. */
-    MOCK230_WORN_FIRST_SLOT_CHILD = 15,
-
-    /* OldSchool's run-mode player variable. The minimap orb reads it to decide
-     * whether to light up, so the toggle is not the server's private state —
-     * it has to be transmitted like any other varp. */
-    MOCK230_VARP_RUN = 173,
+    /*
+     * Container ids, interface ids and component uids are NOT here. They are
+     * the cache's numbers, not this server's, so they come from the content
+     * tree by name — see mock230_ids.h. What stays in this file is what sizes
+     * an array or what the protocol means.
+     */
 
     /* Scene is 104x104 tiles based at (zone - 6) * 8. Rebuild once the player
      * comes within 16 tiles of an edge, the same margin the reference uses. */
@@ -117,9 +103,6 @@ enum
      */
     MOCK230_RUN_ENERGY_MAX = 10000,
 
-    /* Hitsplat types the client's hitmark renderer knows. */
-    MOCK230_HIT_DAMAGE = 0,
-    MOCK230_HIT_BLOCK = 1,
     /* IF_SETEVENTS bit 0: the component accepts a plain click, answered with
      * IF_BUTTON. Mirrors RS_MINIMENU_EVENT_CLICK on the client. */
     MOCK230_EVENT_CLICK = 0x1,
@@ -297,6 +280,11 @@ struct Mock230ObjInfo
      *  right for every weapon whose class is unambiguous and harmless for the
      *  rest. A `param=damagetype,N` in a .obj config overrides it. */
     int damagetype;
+    /** Weapon/equipment class from the cache record's own `category` field.
+     *  It is what the combat interface's `weapon_category` varbit carries, and
+     *  therefore what decides which of the ten button layouts the tab builds:
+     *  bronze scimitar 21, abyssal whip 150, unarmed 0. */
+    int category;
     /** 1 when the record carried any params at all. A tinderbox has none, and
      *  "no params" has to be distinguishable from "all bonuses zero" — the
      *  first is unarmed, the second is a weapon that happens to be bad. */
@@ -758,6 +746,59 @@ mock230_world_set_cache_dir(const char* dir);
 const char*
 mock230_world_cache_dir(void);
 
+/* ------------------------------------------------------------------ */
+/* Varbits (mock230_varbit.c)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A varbit is a named bit range inside a varp, and the range lives in the
+ * cache — config group 14, the same records the client reads.
+ *
+ * The mock needs them because the combat tab is built entirely from two:
+ * varbit `weapon_category` (varp 843, bits 0-5) selects which of the ten button
+ * layouts interface 593 builds, and `combat_level` (varp 1105, bits 24-30) is
+ * the number above them. With the category unset, every style button hides and
+ * the tab shows nothing but auto-retaliate — which is exactly what it did.
+ *
+ * The bit ranges are NOT authored anywhere here. Restating them in a config
+ * would be a second source of truth that could disagree with the cache the
+ * client reads them from.
+ */
+int
+mock230_varbit_load(const char* cache_dir);
+void
+mock230_varbit_free(void);
+
+/** Read a varbit out of the player's varps. 0 when the id is unknown. */
+int
+mock230_varbit_get(
+    const struct Mock230Player* player,
+    int varbit_id);
+
+/**
+ * Write a varbit, patching the bits inside its base varp and marking that varp
+ * for transmission. Returns the base varp id, or -1 when the varbit is unknown
+ * — which every caller must tolerate: a cache without the record is a cache
+ * this content does not fit, not a crash.
+ */
+int
+mock230_varbit_set(
+    struct Mock230Server* srv,
+    int varbit_id,
+    int value);
+
+/** Recompute the two varbits interface 593 builds itself from — the equipped
+ *  weapon's category and the player's combat level. Call after anything that
+ *  changes either. */
+void
+mock230_world_sync_combat_varbits(struct Mock230Server* srv);
+
+/** A varp id by symbol, from content/pack/varp.pack. -1 when unknown, which
+ *  every caller must treat as "do not write" — an undeclared varp is not an
+ *  error, it is a content tree that does not use that variable. */
+int
+mock230_world_varp(const char* symbol);
+
 /**
  * The player's attack style, read out of the `com_mode` varp.
  *
@@ -938,6 +979,11 @@ void
 mock230_combat_stop_npc(
     struct Mock230Server* srv,
     int slot);
+
+/** The player's combat level, by OldSchool's melee formula. Shared by the
+ *  aggression check and the combat tab's `combat_level` varbit. */
+int
+mock230_combat_level(const struct Mock230Player* player);
 
 /** Mark a stat as changed so phase 10 flushes it. */
 void

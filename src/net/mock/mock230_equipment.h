@@ -2,8 +2,8 @@
 #define SRC_NET_MOCK_MOCK230_EQUIPMENT_H
 
 /*
- * The equipment-stats screen (interface 84), reached from "View equipment
- * stats" on the worn tab.
+ * The equipment-stats screen, reached from "View equipment stats" on the worn
+ * tab.
  *
  * Nothing about it is client-side: OldSchool's client draws eighteen empty text
  * components and waits for the server to fill them in, which is why the tab
@@ -11,22 +11,27 @@
  * from the same obj params the combat code rolls against, so the screen cannot
  * disagree with the fight.
  *
+ * The interface and its eighteen components are named in the content tree and
+ * resolved by mock230_ids — `equipment_stats` and `equipment_stats_*`. Nothing
+ * about the screen's layout is written down here.
+ *
  * See docs/mock230_player_systems.md §3.
  */
 
 struct Mock230Server;
 
-enum
-{
-    MOCK230_EQUIPSTATS_IFACE = 84,
-    /** The side panel: an empty 162x248 layer the backpack is drawn into. */
-    MOCK230_EQUIPSTATS_SIDE_IFACE = 85,
-    /** 387:1, whose only op is "View equipment stats". */
-    MOCK230_WORN_COM_STATS_BUTTON = 1,
-};
+/**
+ * Which equipment slot a component of the worn tab stands for, or -1.
+ *
+ * Reads the `worn_slots` enum, because the mapping is not the component's
+ * position: the tab draws eleven slots and the wear positions they stand for
+ * skip 6, 8 and 11. See player/configs/worn.enum.
+ */
+int
+mock230_equipment_worn_slot(int component);
 
 /** Enable the worn tab's "View equipment stats" op so a click on it reaches
- *  the server. Part of the login burst. */
+ *  the server, and the eleven slots' own Remove. Part of the login burst. */
 void
 mock230_equipment_arm_worn_tab(struct Mock230Server* srv);
 

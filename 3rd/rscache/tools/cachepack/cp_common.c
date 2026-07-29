@@ -196,23 +196,6 @@ cp_emit_recols(
     }
 }
 
-void
-cp_emit_recols_short(
-    struct CP_Lines* out,
-    const short* from,
-    const short* to,
-    int count,
-    const char* prefix)
-{
-    for( int i = 0; i < count; i++ )
-    {
-        /* The wire field is unsigned; the struct stores it signed, so a colour
-         * above 0x7FFF would print negative and re-encode to a different value. */
-        cp_lines_addf(out, "%s%ds=%d", prefix, i + 1, (int)(unsigned short)from[i]);
-        cp_lines_addf(out, "%s%dd=%d", prefix, i + 1, (int)(unsigned short)to[i]);
-    }
-}
-
 /*
  * A param line is `param=<name>,<kind>,<value>`.
  *
@@ -230,6 +213,39 @@ param_kind_name(uint8_t kind)
     if( kind == RSCACHE_PARAM_LONG )
         return "long";
     return "int";
+}
+
+int
+cp_collect_pairs(
+    const struct CP_Config* config,
+    const char* prefix,
+    struct CP_IntList* from,
+    struct CP_IntList* to)
+{
+    size_t plen = strlen(prefix);
+    for( int i = 0; i < config->count; i++ )
+    {
+        const char* key = config->lines[i].key;
+        size_t klen = strlen(key);
+        if( klen < plen + 2 || strncmp(key, prefix, plen) != 0 )
+            continue;
+        char side = key[klen - 1];
+        if( side != 's' && side != 'd' )
+            continue;
+        char index_text[16];
+        if( klen - plen - 1 >= sizeof(index_text) )
+            continue;
+        memcpy(index_text, key + plen, klen - plen - 1);
+        index_text[klen - plen - 1] = '\0';
+        int index = 0;
+        if( !cp_parse_int(index_text, &index) || index <= 0 )
+            continue;
+        int value = 0;
+        if( !cp_parse_int(config->lines[i].value, &value) )
+            return 0;
+        cp_intlist_set(side == 's' ? from : to, index - 1, value);
+    }
+    return from->count == to->count;
 }
 
 void
@@ -359,18 +375,21 @@ cp_parse_param(
 void
 cp_emit_entity_ops(
     struct CP_Lines* out,
-    const struct RSCache_EntityOps* ops,
-    int slots)
+    char* const* actions,
+    int slots,
+    const struct RSCache_EntityOps* ops)
 {
-    for( int i = 0; i < slots && i < RSCACHE_ENTITY_OPS_SLOTS; i++ )
+    for( int i = 0; i < slots; i++ )
     {
-        if( ops->ops[i] )
+        if( actions[i] )
         {
             char key[16];
             snprintf(key, sizeof(key), "op%d", i + 1);
-            cp_lines_add_str(out, key, ops->ops[i]);
+            cp_lines_add_str(out, key, actions[i]);
         }
     }
+    if( !ops )
+        return;
     for( int i = 0; i < ops->sub_ops_count; i++ )
     {
         const struct RSCache_EntitySubOp* s = &ops->sub_ops[i];
@@ -446,6 +465,8 @@ push_field_list(
 
 int
 cp_parse_entity_op(
+    char** actions,
+    int slots,
     struct RSCache_EntityOps* ops,
     const char* key,
     const char* value)
@@ -456,12 +477,14 @@ cp_parse_entity_op(
     int slot = cp_indexed_key(key, "op");
     if( slot >= 0 )
     {
-        if( slot >= RSCACHE_ENTITY_OPS_SLOTS )
+        if( slot >= slots )
             return 0;
-        free(ops->ops[slot]);
-        ops->ops[slot] = dup_tail(unescaped);
+        free(actions[slot]);
+        actions[slot] = dup_tail(unescaped);
         return 1;
     }
+    if( !ops )
+        return 0;
 
     /* `n` leading integer fields, then the text. */
     int nfields;

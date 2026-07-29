@@ -96,6 +96,36 @@ play_player_seq(struct Mock230Player* player, int seq_id)
     player->masks |= MOCK230_PMASK_SEQUENCE;
 }
 
+/*
+ * Which splat a hit draws with.
+ *
+ * Cache config group 32 gives every hitsplat type its own record naming a
+ * sprite, so these are ordinary cache ids and live in content/pack/hitsplat.pack
+ * like every other id. They were `#define hitsplat_damage() 0` /
+ * `hitsplat_block() 1` and were **the wrong way round** — 0 is the blue zero
+ * splat and 1 is the red damage one — so every hit drew a block and every miss
+ * drew damage. Nothing failed; it just looked wrong. The pack file records how
+ * each id was identified, which is the part that stops it being guessed again.
+ *
+ * Resolved per call rather than cached: content loads after the world does, so
+ * a value cached at init would be the -1 from before the load.
+ */
+static int
+hitsplat_damage(void)
+{
+    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage");
+
+    return id >= 0 ? id : 1;
+}
+
+static int
+hitsplat_block(void)
+{
+    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block");
+
+    return id >= 0 ? id : 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Disengaging                                                         */
 /* ------------------------------------------------------------------ */
@@ -389,7 +419,7 @@ mock230_combat_hit_npc(
      * splat rather than nothing — the reference shows those, and without them a
      * miss is indistinguishable from the server having ignored the swing. */
     npc->damage = amount;
-    npc->damage_type = amount > 0 ? type : MOCK230_HIT_BLOCK;
+    npc->damage_type = amount > 0 ? type : hitsplat_block();
     npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
     npc->masks |= MOCK230_NMASK_DAMAGE;
@@ -434,7 +464,7 @@ mock230_combat_hit_player(
     player->hitpoints -= amount;
 
     player->damage = amount;
-    player->damage_type = amount > 0 ? type : MOCK230_HIT_BLOCK;
+    player->damage_type = amount > 0 ? type : hitsplat_block();
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
     player->masks |= MOCK230_PMASK_DAMAGE;
     mock230_combat_sync_hitpoints(player);
@@ -606,7 +636,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
 
     if( !roll_hit(srv, attack_roll, defence_roll) )
     {
-        mock230_combat_hit_npc(srv, player->combat_target, MOCK230_HIT_BLOCK, 0);
+        mock230_combat_hit_npc(srv, player->combat_target, hitsplat_block(), 0);
         return;
     }
 
@@ -616,7 +646,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
         int damage = mock230_random(srv, 0, ceiling);
         int target = player->combat_target;
 
-        mock230_combat_hit_npc(srv, target, MOCK230_HIT_DAMAGE, damage);
+        mock230_combat_hit_npc(srv, target, hitsplat_damage(), damage);
 
         /*
          * Experience: 4 points per damage to the style's skill, and 4/3 to
@@ -656,8 +686,8 @@ mock230_combat_player_tick(struct Mock230Server* srv)
  * would still be mobbing a player who has outgrown them by an order of
  * magnitude, which is a worse first impression than no aggression at all.
  */
-static int
-player_combat_level(const struct Mock230Player* player)
+int
+mock230_combat_level(const struct Mock230Player* player)
 {
     /* OldSchool's melee formula:
      * floor(0.25 * (defence + hitpoints + floor(prayer / 2)) + 0.325 * (attack
@@ -690,7 +720,7 @@ maybe_aggress(
         return;
 
     npc_level = mock230_npcinfo(npc->type)->combat_level;
-    if( npc_level > 0 && player_combat_level(player) > npc_level * 2 )
+    if( npc_level > 0 && mock230_combat_level(player) > npc_level * 2 )
         return;
 
     npc->combat_target = 0;
@@ -771,7 +801,7 @@ mock230_combat_npc_tick(
 
     if( !roll_hit(srv, attack_roll, defence_roll) )
     {
-        mock230_combat_hit_player(srv, MOCK230_HIT_BLOCK, 0);
+        mock230_combat_hit_player(srv, hitsplat_block(), 0);
         return;
     }
     /*
@@ -784,16 +814,17 @@ mock230_combat_npc_tick(
      * only one with an effect today. The lookup is by damage type so that stops
      * being true the moment a ranged one exists.
      */
-    if( mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE) )
+    if( mock230_prayer_protecting(
+            player, mock230_prayer_headicon("headicon_prayer_protectfrommelee")) )
     {
-        mock230_combat_hit_player(srv, MOCK230_HIT_BLOCK, 0);
+        mock230_combat_hit_player(srv, hitsplat_block(), 0);
         return;
     }
     {
         int strength = npc_effective(npc->def ? npc->def->strength : 1);
         int bonus = npc->def ? npc->def->bonus[MOCK230_PARAM_STRENGTHBONUS] : 0;
 
-        mock230_combat_hit_player(srv, MOCK230_HIT_DAMAGE,
+        mock230_combat_hit_player(srv, hitsplat_damage(),
                                   mock230_random(srv, 0, max_hit(strength, bonus)));
     }
 }

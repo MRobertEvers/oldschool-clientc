@@ -16,6 +16,7 @@
 
 #include "mock230_content.h"
 #include "mock230_equipment.h"
+#include "mock230_ids.h"
 #include "mock230_prayer.h"
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
@@ -433,7 +434,7 @@ run_energy_tick(
             player->run_energy = 0;
             player->run_toggle = 0;
             player->running = 0;
-            mock230_world_set_varp(srv, MOCK230_VARP_RUN, 0);
+            mock230_world_set_varp(srv, mock230_world_varp("run"), 0);
         }
         return;
     }
@@ -884,7 +885,7 @@ handle_move(
     if( ctrl && !player->run_toggle )
     {
         player->run_toggle = 1;
-        mock230_world_set_varp(srv, MOCK230_VARP_RUN, 1);
+        mock230_world_set_varp(srv, mock230_world_varp("run"), 1);
     }
     /* Walking somewhere is a new interaction, and a new interaction ends the
      * old one. Without this the player keeps swinging at whatever they were
@@ -924,54 +925,14 @@ handle_move(
             player->dest_z);
 }
 
-/*
- * Worn slot behind one of interface 387's equipment-slot components.
- *
- * The worn tab is not a grid. Each equipment slot is its own static layer
- * (387:15..387:25) whose item is a `cc_create`d child, so the slot identity is
- * in the COMPONENT, not in the packet's sub id — that is 1, the item child's
- * index, for every one of them.
- *
- * OpenRune reads the same mapping out of the cache
- * (`enums.equipment_tab_to_slots_map`, EquipmentStats.kt). This table is that
- * enum transcribed, checked against cache.osrs230's own silhouette graphics:
- * 387:15 shows sprite 156 (a helmet) and so on down to 387:25's arrow.
- * Returns -1 when the component is not an equipment slot.
- */
-static int
-worn_slot_for_component(int component)
-{
-    static const int k_worn_slot_by_child[] = {
-        /* 387:15 */ MOCK230_WEAR_HEAD,   /* 387:16 */ MOCK230_WEAR_CAPE,
-        /* 387:17 */ MOCK230_WEAR_AMULET, /* 387:18 */ MOCK230_WEAR_WEAPON,
-        /* 387:19 */ MOCK230_WEAR_BODY,   /* 387:20 */ MOCK230_WEAR_SHIELD,
-        /* 387:21 */ MOCK230_WEAR_LEGS,   /* 387:22 */ MOCK230_WEAR_HANDS,
-        /* 387:23 */ MOCK230_WEAR_FEET,   /* 387:24 */ MOCK230_WEAR_RING,
-        /* 387:25 */ MOCK230_WEAR_AMMO,
-    };
-    int child;
-
-    if( ((component >> 16) & 0xffff) != MOCK230_WORN_IFACE )
-        return -1;
-    child = (component & 0xffff) - MOCK230_WORN_FIRST_SLOT_CHILD;
-    if( child < 0 || child >= (int)(sizeof(k_worn_slot_by_child) / sizeof(k_worn_slot_by_child[0])) )
-        return -1;
-    return k_worn_slot_by_child[child];
-}
-
 /** Is this component one of the bank's two item grids? Those are the only
  *  components whose `slot` does not index the backpack. */
 static int
 bank_component(int component)
 {
-    int group = (component >> 16) & 0xffff;
-    int child = component & 0xffff;
+    const struct Mock230Ids* ids = mock230_ids();
 
-    if( group == MOCK230_BANK_IFACE )
-        return child == MOCK230_BANK_COM_ITEMS;
-    if( group == MOCK230_BANKSIDE_IFACE )
-        return child == MOCK230_BANKSIDE_COM_ITEMS;
-    return 0;
+    return component == ids->com_bankmain_items || component == ids->com_bankside_items;
 }
 
 /* OPHELD<n>: p2 objId, p2 slot, p4 componentId. `n` is the 1-based index into
@@ -982,7 +943,7 @@ bank_component(int component)
  * cell belongs to — 149:0 for the backpack, 387:15..25 for a worn slot — and
  * `slot` the sub id inside it (rsprot If3Button.combinedId / .sub). The
  * backpack's sub id IS the inventory slot; the worn tab's is not, so that side
- * goes through worn_slot_for_component. */
+ * goes through mock230_equipment_worn_slot. */
 static void
 handle_opheld(
     struct Mock230Server* srv,
@@ -1041,7 +1002,7 @@ handle_opheld(
      * packet, so a click there means "take it off" rather than "put it on".
      * Which slot came off is in the component, not in `slot`. */
     {
-        int worn = worn_slot_for_component(component);
+        int worn = mock230_equipment_worn_slot(component);
         if( worn >= 0 )
         {
             unequip_slot(srv, worn);
@@ -1134,7 +1095,7 @@ handle_inv_buttond(
             from_slot,
             to_slot);
 
-    if( component != MOCK230_INV_COMPONENT )
+    if( component != mock230_ids()->com_inventory_items )
         return;
     if( from_slot < 0 || from_slot >= MOCK230_INV_SLOTS || to_slot < 0 ||
         to_slot >= MOCK230_INV_SLOTS || from_slot == to_slot )
@@ -1472,6 +1433,24 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "equip", 5) == 0 )
+    {
+        /* `::equip <slot>` wears an inventory item without a right-click. The
+         * combat tab is built from the equipped weapon's category, so being
+         * able to change weapons headlessly is what makes that testable. */
+        int slot = 0;
+
+        (void)sscanf(text, "equip %d", &slot);
+        if( slot >= 0 && slot < MOCK230_INV_SLOTS && player->inv[slot].obj_id >= 0 )
+        {
+            const struct Mock230ObjInfo* info = mock230_objinfo(player->inv[slot].obj_id);
+
+            say(srv, "Equipping %s (category %d).", info->name, info->category);
+            equip_from_slot(srv, slot);
+        }
+        return;
+    }
+
     if( strncmp(text, "style", 5) == 0 )
     {
         /*
@@ -1561,7 +1540,7 @@ handle_cheat(
         int want = !player->run_toggle;
         (void)sscanf(text, "run %d", &want);
         player->run_toggle = want != 0;
-        mock230_world_set_varp(srv, MOCK230_VARP_RUN, player->run_toggle);
+        mock230_world_set_varp(srv, mock230_world_varp("run"), player->run_toggle);
         say(srv, "Run %s (%d%%).", player->run_toggle ? "on" : "off",
             player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX);
         return;
@@ -1840,8 +1819,9 @@ mock230_world_handle(
             fprintf(stderr, "mock230: <- CLOSE_MODAL\n");
         if( srv->player.bank.open )
         {
-            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE,
-                                             (MOCK230_BANK_IFACE << 16), -1, -1) )
+            if( !mock230_scripts_run_trigger(
+                    srv, SS_TRIGGER_IF_CLOSE,
+                    MOCK230_COM(mock230_ids()->iface_bankmain, 0), -1, -1) )
                 mock230_bank_close(srv);
         }
         break;
@@ -1928,6 +1908,63 @@ mock230_world_player_respawn(struct Mock230Server* srv)
 /* ------------------------------------------------------------------ */
 
 /*
+ * A varp id by symbol.
+ *
+ * Every varp the engine itself writes goes through here rather than through a
+ * `#define`: content/pack/varp.pack is the one place an id lives, and the
+ * engine and the scripts then name the same thing. Resolved per call rather
+ * than cached because the content tree loads after the world does — a value
+ * cached at init would be the -1 from before the load.
+ */
+int
+mock230_world_varp(const char* symbol)
+{
+    return mock230_content_symbol(MOCK230_PACK_VARP, symbol);
+}
+
+/*
+ * The two varbits interface 593 builds itself from.
+ *
+ * `weapon_category` selects which of the ten button layouts the combat tab
+ * builds — the tab's own CS2 (script 7593) hides every style button when it is
+ * 0, which is why an unset one shows nothing but auto-retaliate. The category
+ * is a field on the weapon's cache record, so the engine reads it there rather
+ * than making content restate it.
+ *
+ * `combat_level` is the number printed above the buttons, by the same formula
+ * the minimenu colours npc levels with.
+ *
+ * Both are written whenever their input changes — equipping, unequipping or
+ * gaining a level — because a varbit the client is never told about reads as 0,
+ * and 0 is a meaningful category.
+ */
+void
+mock230_world_sync_combat_varbits(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
+    int category = weapon >= 0 ? mock230_objinfo(weapon)->category : 0;
+    int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "weapon_category");
+    int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_level");
+    int level = mock230_combat_level(player);
+
+    /*
+     * Compared before writing, unlike an ordinary varp write.
+     *
+     * A varp assignment always transmits — that is the reference's rule and
+     * `[login] %com_mode = 0` depends on it. But these two are *derived*: they
+     * are recomputed every tick from the equipment and the stats, so writing
+     * unconditionally would put two varps on the wire fifty times a minute for
+     * a value that has not moved. Derived state compares; authored state does
+     * not.
+     */
+    if( category_varbit >= 0 && mock230_varbit_get(player, category_varbit) != category )
+        mock230_varbit_set(srv, category_varbit, category);
+    if( level_varbit >= 0 && mock230_varbit_get(player, level_varbit) != level )
+        mock230_varbit_set(srv, level_varbit, level);
+}
+
+/*
  * The attack style lives in the `com_mode` varp and nowhere else.
  *
  * Resolved by symbol rather than by number so the engine and the content name
@@ -1939,7 +1976,7 @@ mock230_world_player_respawn(struct Mock230Server* srv)
 static int
 attack_style_varp(void)
 {
-    return mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
+    return mock230_world_varp("com_mode");
 }
 
 int
@@ -2160,6 +2197,7 @@ void
 mock230_world_login(struct Mock230Server* srv)
 {
     struct Mock230Player* player = &srv->player;
+    const struct Mock230Ids* ids = mock230_ids();
 
     /* 1. The scene. Everything after this is applied by the client behind the
      *    world load, because the packet queue is serial. */
@@ -2169,50 +2207,58 @@ mock230_world_login(struct Mock230Server* srv)
      *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
      *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
      *    overlay. */
-    mock230_send_if_opentop(srv, MOCK230_ROOT_IFACE);
+    mock230_send_if_opentop(srv, ids->iface_gameframe);
     {
-        static const struct
+        /*
+         * What goes in which slot is content: the `gameframe` enum in
+         * content/scripts/player/configs/gameframe.enum, whose keys are
+         * gameframe components and whose values are interfaces. It used to be a
+         * 24-entry table of raw numbers here, which is the same list OpenRune's
+         * GameframeLoader carries — so it may as well be named on both sides
+         * and editable without a compiler.
+         *
+         * The key is a packed (interface << 16) | child uid; IF_OPENSUB wants
+         * the child on its own, so the low half is what goes on the wire.
+         * type 1 = overlay.
+         */
+        const struct Mock230EnumDef* frame = mock230_content_enum("gameframe");
+
+        if( !frame || frame->count == 0 )
         {
-            int slot;
-            int group;
-        } opensubs[] = {
-            /* HUD overlays */
-            { 96, 162 }, /* chatbox */
-            { 6,  651 }, /* buff bar */
-            { 5,  708 }, /* stat boosts */
-            { 93, 163 }, /* private chat */
-            { 2,  303 }, /* hp bar */
-            { 3,  90  }, /* pvp icons */
-            { 33, 160 }, /* orbs */
-            { 9,  122 }, /* xp drops */
-            { 35, 728 }, /* popout */
-            { 36, 896 }, /* worldhop */
-            /* Sidebar tabs, side0..side13 */
-            { 76, 593 }, /* combat */
-            { 77, 320 }, /* stats */
-            { 78, 629 }, /* journal */
-            { 79, 149 }, /* inventory */
-            { 80, 387 }, /* worn equipment */
-            { 81, 541 }, /* prayer */
-            { 82, 218 }, /* spellbook */
-            { 83, 707 }, /* channels */
-            { 84, 109 }, /* account */
-            { 85, 429 }, /* friends */
-            { 86, 182 }, /* logout */
-            { 87, 116 }, /* settings */
-            { 88, 216 }, /* emotes */
-            { 89, 239 }, /* music */
-        };
-        for( size_t i = 0; i < sizeof(opensubs) / sizeof(opensubs[0]); i++ )
-            mock230_send_if_opensub(
-                srv, MOCK230_ROOT_IFACE, opensubs[i].slot, opensubs[i].group, 1);
+            /* Without the gameframe there is no chatbox and no sidebar, so the
+             * session is unusable rather than degraded — say so once rather
+             * than leaving a blank screen to be diagnosed. */
+            fprintf(stderr,
+                    "mock230: no `gameframe` enum in the content tree — the "
+                    "gameframe will be empty\n");
+        }
+        for( int i = 0; frame && i < frame->count; i++ )
+            mock230_send_if_opensub(srv, ids->iface_gameframe,
+                                    frame->values[i].key & 0xffff, frame->values[i].value,
+                                    1);
     }
 
-    /* 3. Unlock clicks on the inventory and equipment slot grids. Without this
-     *    the components render but swallow every click, so nothing can be
-     *    equipped or dragged. */
-    mock230_send_if_setevents(srv, (MOCK230_INV_IFACE << 16) | 0, 0, MOCK230_INV_SLOTS, 0x3fe);
-    mock230_send_if_setevents(srv, (MOCK230_WORN_IFACE << 16) | 0, 0, MOCK230_WORN_SLOTS, 0x3fe);
+    /*
+     * 3. Unlock dragging on the inventory and equipment containers.
+     *
+     *    Drag bits only, deliberately. The backpack's verbs are the ObjType's —
+     *    Wear, Eat, Drop — and the client builds those rows itself and sends
+     *    them as OPHELD; the container names no op of its own. Arming ops 1..9
+     *    here (which this used to do) told the client the paint script's stray
+     *    op4 "Read" was live, and a component op that IS live replaces the
+     *    ObjType rows rather than joining them, so every backpack item offered
+     *    "Read" and nothing else. The worn tab's real "Remove" is armed on the
+     *    slot components themselves — see mock230_equipment_arm_worn_tab.
+     */
+    {
+        const int drag_depth_1 = 1 << 17;
+        const int drag_target = 1 << 20;
+
+        mock230_send_if_setevents(srv, ids->com_inventory_items, 0, MOCK230_INV_SLOTS - 1,
+                                  drag_depth_1 | drag_target);
+        mock230_send_if_setevents(srv, MOCK230_COM(ids->iface_wornitems, 0), 0,
+                                  MOCK230_WORN_SLOTS - 1, drag_depth_1 | drag_target);
+    }
     /*    …and on the world map orb, whose verbs are the server's alone. */
     mock230_worldmap_login(srv);
 
@@ -2240,20 +2286,15 @@ mock230_world_login(struct Mock230Server* srv)
                           player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
 
     /* 5. Containers, in full. Deltas take over from the next tick. */
-    mock230_send_inv_full(
-        srv,
-        (MOCK230_INV_IFACE << 16) | 0,
-        MOCK230_INV_BACKPACK,
-        player->inv,
-        MOCK230_INV_SLOTS);
-    mock230_send_inv_full(
-        srv,
-        (MOCK230_WORN_IFACE << 16) | 0,
-        MOCK230_INV_WORN,
-        player->worn,
-        MOCK230_WORN_SLOTS);
+    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, player->inv,
+                          MOCK230_INV_SLOTS);
+    mock230_send_inv_full(srv, MOCK230_COM(ids->iface_wornitems, 0), ids->inv_worn,
+                          player->worn, MOCK230_WORN_SLOTS);
     player->inv_dirty = 0;
     player->worn_dirty = 0;
+
+    /* The combat tab builds itself from these; nothing else sends them. */
+    mock230_world_sync_combat_varbits(srv);
 
     /* Anything a script would want to say belongs in [login], which phase 7
      * runs on the next tick. These two are the no-content fallback. */
@@ -2396,6 +2437,10 @@ phase_zones(struct Mock230Server* srv)
 static void
 phase_info(struct Mock230Server* srv)
 {
+    /* Derived client state, recomputed before anything is encoded. Cheap, and
+     * it only writes when a value actually moved — so a quiet tick sends
+     * nothing. */
+    mock230_world_sync_combat_varbits(srv);
     maybe_rebuild(srv);
 }
 
@@ -2447,20 +2492,12 @@ phase_clients_out(struct Mock230Server* srv)
     if( player->worn_dirty )
         mock230_equipment_refresh_stats(srv);
 
-    mock230_send_inv_partial(
-        srv,
-        (MOCK230_INV_IFACE << 16) | 0,
-        MOCK230_INV_BACKPACK,
-        player->inv,
-        MOCK230_INV_SLOTS,
-        player->inv_dirty);
-    mock230_send_inv_partial(
-        srv,
-        (MOCK230_WORN_IFACE << 16) | 0,
-        MOCK230_INV_WORN,
-        player->worn,
-        MOCK230_WORN_SLOTS,
-        player->worn_dirty);
+    mock230_send_inv_partial(srv, mock230_ids()->com_inventory_items,
+                             mock230_ids()->inv_backpack, player->inv, MOCK230_INV_SLOTS,
+                             player->inv_dirty);
+    mock230_send_inv_partial(srv, MOCK230_COM(mock230_ids()->iface_wornitems, 0),
+                             mock230_ids()->inv_worn, player->worn, MOCK230_WORN_SLOTS,
+                             player->worn_dirty);
 
     /* VARP_SMALL's value is one signed byte. A varp holding packed varbits is
      * routinely wider than that — the bank's tab counters occupy bits 0..25 of
@@ -2643,6 +2680,7 @@ mock230_world_selftest(void)
 {
     struct Mock230Server srv;
     struct Mock230Player* player;
+    const struct Mock230Ids* ids = mock230_ids();
     int slot;
 
     memset(&srv, 0, sizeof(srv));
@@ -2650,6 +2688,86 @@ mock230_world_selftest(void)
     mock230_seqinfo_load("cache.osrs230");
     mock230_world_init(&srv, 426, 408);
     player = &srv.player;
+
+    fprintf(stderr, "mock230 selftest: ids resolve out of the content tree\n");
+    {
+        /*
+         * Every number below was a literal in a C header until the content tree
+         * started stating them, and each one was verified against cache.osrs230
+         * when it was written down — with tools/dump_interface, with the
+         * decompiled clientscripts, or against OpenRune's own tables. Asserting
+         * that the symbols still resolve to them is what makes this a *move*
+         * rather than a change: a pack regenerated from a newer gameval table
+         * that renumbered something fails here, which is the whole reason the
+         * ids are checkable now.
+         *
+         * mock230_ids_resolve is idempotent, so re-running it is how the "no
+         * content tree" case shows up as a failure instead of as a server that
+         * silently addresses component 0.
+         */
+        SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
+
+        SELFTEST_CHECK(ids->iface_gameframe == 161, "gameframe should be 161, got %d",
+                       ids->iface_gameframe);
+        SELFTEST_CHECK(ids->iface_bankmain == 12 && ids->iface_bankside == 15,
+                       "the bank should be 12/15, got %d/%d", ids->iface_bankmain,
+                       ids->iface_bankside);
+        SELFTEST_CHECK(ids->iface_equipment_stats == 84 && ids->iface_prayerbook == 541,
+                       "equipment stats should be 84 and the prayer book 541, got %d/%d",
+                       ids->iface_equipment_stats, ids->iface_prayerbook);
+        SELFTEST_CHECK(ids->inv_backpack == 93 && ids->inv_worn == 94 && ids->inv_bank == 95,
+                       "the three containers should be 93/94/95, got %d/%d/%d",
+                       ids->inv_backpack, ids->inv_worn, ids->inv_bank);
+
+        SELFTEST_CHECK(MOCK230_COM_CHILD(ids->com_gameframe_mainmodal) == 16 &&
+                           MOCK230_COM_CHILD(ids->com_gameframe_sidemodal) == 74,
+                       "the two modal slots should be 161:16 and 161:74, got %d/%d",
+                       MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
+                       MOCK230_COM_CHILD(ids->com_gameframe_sidemodal));
+        SELFTEST_CHECK(ids->com_bankmain_items == MOCK230_COM(12, 13) &&
+                           ids->com_bankside_items == MOCK230_COM(15, 3),
+                       "the two item grids should be 12:13 and 15:3");
+        SELFTEST_CHECK(ids->com_worn_equipment_stats == MOCK230_COM(387, 1),
+                       "the stats button should be 387:1");
+        SELFTEST_CHECK(ids->com_equipment_stats_stabatt == MOCK230_COM(84, 24) &&
+                           ids->com_equipment_stats_attackspeedactual == MOCK230_COM(84, 54),
+                       "the stats rows should run 84:24..84:54");
+        SELFTEST_CHECK(ids->varbit_bank_withdrawnotes == 3958 &&
+                           ids->varbit_bank_currenttab == 4150,
+                       "the bank varbits should be 3958/4150, got %d/%d",
+                       ids->varbit_bank_withdrawnotes, ids->varbit_bank_currenttab);
+        SELFTEST_CHECK(ids->bank_qty_1 == 0 && ids->bank_qty_all == 4,
+                       "the quantity modes should run 0..4, got %d..%d", ids->bank_qty_1,
+                       ids->bank_qty_all);
+
+        /* The two content tables that replaced C arrays. The worn one is the
+         * one that was never a straight run: the tab's eleven cells stand for
+         * wear slots 0..5, 7, 9, 10, 12, 13. */
+        SELFTEST_CHECK(mock230_content_prayer_count() == 29,
+                       "the tree should declare 29 prayers, got %d",
+                       mock230_content_prayer_count());
+        SELFTEST_CHECK(mock230_content_prayer(0) &&
+                           mock230_content_prayer(0)->button == MOCK230_COM(541, 9),
+                       "the first prayer should sit on 541:9");
+        SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 15)) == MOCK230_WEAR_HEAD,
+                       "387:15 should be the helmet slot, got %d",
+                       mock230_equipment_worn_slot(MOCK230_COM(387, 15)));
+        SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 21)) == MOCK230_WEAR_LEGS,
+                       "387:21 should be the legs slot (6 and 8 are skipped), got %d",
+                       mock230_equipment_worn_slot(MOCK230_COM(387, 21)));
+        SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 26)) < 0,
+                       "and 387:26 is not a slot at all");
+
+        {
+            const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
+
+            SELFTEST_CHECK(tabs && tabs->count == MOCK230_BANK_TABS,
+                           "the bank_tabs enum should list %d tabs, got %d",
+                           MOCK230_BANK_TABS, tabs ? tabs->count : -1);
+            SELFTEST_CHECK(tabs && tabs->values[0].value == 4171,
+                           "tab 1 should be varbit 4171");
+        }
+    }
 
     fprintf(stderr, "mock230 selftest: packet capture\n");
     {
@@ -3136,6 +3254,21 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!mock230_objinfo(995)->has_params,
                        "coins should carry no combat params");
 
+        /*
+         * The splat ids, which were backwards.
+         *
+         * Config group 32 gives hitsplat 0 sprite 2270 (blue, the zero splat)
+         * and hitsplat 1 sprite 3521 (red, damage). The mock had them the other
+         * way round, so every hit drew a block and every miss drew damage —
+         * nothing failed, it just looked wrong. Asserting the ids here is the
+         * cheap half; content/pack/hitsplat.pack records how they were
+         * identified, which is the half that stops it recurring.
+         */
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage") == 1,
+                       "hitsplat_damage should be 1 (sprite 3521, red)");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block") == 0,
+                       "hitsplat_block should be 0 (sprite 2270, blue)");
+
         /* Attackability is the cache's own op list, which is what the client's
          * right-click menu reads. */
         SELFTEST_CHECK(mock230_combat_attackable(3028), "a goblin is attackable");
@@ -3320,7 +3453,7 @@ mock230_world_selftest(void)
             rsab_wrap(&drop, payload, sizeof(payload));
             rsab_p2(&drop, 526);
             rsab_p2(&drop, free_before);
-            rsab_p4(&drop, MOCK230_INV_COMPONENT);
+            rsab_p4(&drop, mock230_ids()->com_inventory_items);
             mock230_world_handle(&srv, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
             for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
             {
@@ -3529,9 +3662,17 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: prayer\n");
     {
-        const int protect_melee = 18; /* interface 541's 19th button */
-        const int rock_skin = 5;
-        const int steel_skin = 13;
+        /* Indices into prayers.prayer, which is also the order the book lists
+         * them in. Named through the file rather than counted here so a prayer
+         * inserted into the content does not silently move what is asserted. */
+        const int protect_melee = mock230_prayer_index("prayer_protect_from_melee");
+        const int rock_skin = mock230_prayer_index("prayer_rock_skin");
+        const int steel_skin = mock230_prayer_index("prayer_steel_skin");
+        const int overhead_melee = mock230_prayer_headicon("headicon_prayer_protectfrommelee");
+
+        SELFTEST_CHECK(protect_melee >= 0 && rock_skin >= 0 && steel_skin >= 0 &&
+                           overhead_melee >= 0,
+                       "the prayer content should declare the three this asserts on");
 
         mock230_prayer_clear(&srv);
         player->stat_level[MOCK230_STAT_PRAYER] = 1;
@@ -3545,10 +3686,9 @@ mock230_world_selftest(void)
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
         mock230_prayer_toggle(&srv, protect_melee);
-        SELFTEST_CHECK(mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE),
+        SELFTEST_CHECK(mock230_prayer_protecting(player, overhead_melee),
                        "protect from melee is up");
-        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) ==
-                           (1 << MOCK230_HEADICON_PROTECT_MELEE),
+        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) == (1 << overhead_melee),
                        "and is the only overhead icon");
         SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
                        "turning a prayer on re-sends the appearance");
@@ -3560,7 +3700,7 @@ mock230_world_selftest(void)
         SELFTEST_CHECK((player->prayer_active & (1u << rock_skin)) == 0,
                        "steel skin replaces rock skin");
         SELFTEST_CHECK((player->prayer_active & (1u << steel_skin)) != 0, "steel skin is up");
-        SELFTEST_CHECK(mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE),
+        SELFTEST_CHECK(mock230_prayer_protecting(player, overhead_melee),
                        "and left the overhead alone — a different group");
 
         /* Drain: steel skin (12) + protect from melee (12) is 24 a tick against
@@ -3634,7 +3774,8 @@ mock230_world_selftest(void)
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
-        SELFTEST_CHECK(player->varps[MOCK230_VARP_RUN] == 0, "and the varp the orb reads");
+        SELFTEST_CHECK(player->varps[mock230_world_varp("run")] == 0,
+                       "and the varp the orb reads");
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");
 
@@ -3718,7 +3859,7 @@ mock230_world_selftest(void)
         to_obj = player->inv[to_slot].obj_id;
 
         rsab_wrap(&buf, payload, sizeof(payload));
-        rsab_p4(&buf, MOCK230_INV_COMPONENT);
+        rsab_p4(&buf, mock230_ids()->com_inventory_items);
         rsab_p2(&buf, from_slot);
         rsab_p2(&buf, to_slot);
         rsab_p1(&buf, 0);
@@ -3781,38 +3922,38 @@ mock230_world_selftest(void)
         int msb = 0;
 
         mock230_world_init(&srv, 402, 402);
-        SELFTEST_CHECK(mock230_bank_inv_size(MOCK230_INV_BANK) == 1220,
+        SELFTEST_CHECK(mock230_bank_inv_size(ids->inv_bank) == 1220,
                        "the cache should say the bank has 1220 slots, got %d",
-                       mock230_bank_inv_size(MOCK230_INV_BANK));
+                       mock230_bank_inv_size(ids->inv_bank));
 
         /* The two that share varp 115 — the case a whole-varp write breaks. */
         SELFTEST_CHECK(
-            mock230_bank_varbit_resolve(MOCK230_VARBIT_BANK_WITHDRAWNOTES, &basevar, &lsb,
+            mock230_bank_varbit_resolve(ids->varbit_bank_withdrawnotes, &basevar, &lsb,
                                         &msb) &&
                 basevar == 115 && lsb == 0 && msb == 0,
             "withdraw-notes should resolve to varp 115 bit 0, got varp %d bits %d..%d",
             basevar, lsb, msb);
         SELFTEST_CHECK(
-            mock230_bank_varbit_resolve(MOCK230_VARBIT_BANK_CURRENTTAB, &basevar, &lsb,
+            mock230_bank_varbit_resolve(ids->varbit_bank_currenttab, &basevar, &lsb,
                                         &msb) &&
                 basevar == 115 && lsb == 4 && msb == 7,
             "current-tab should resolve to varp 115 bits 4..7, got varp %d bits %d..%d",
             basevar, lsb, msb);
 
-        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_CURRENTTAB, 9);
-        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_WITHDRAWNOTES, 1);
-        SELFTEST_CHECK(mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_CURRENTTAB) == 9,
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_currenttab, 9);
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_withdrawnotes, 1);
+        SELFTEST_CHECK(mock230_bank_get_varbit(&srv, ids->varbit_bank_currenttab) == 9,
                        "setting the neighbouring bit must not disturb the tab");
         SELFTEST_CHECK(player->varps[115] == ((9 << 4) | 1),
                        "both varbits should share varp 115, got %d", player->varps[115]);
 
         /* The widest one. 3960 is bits 1..31, which is where a naive
          * `1 << (msb - lsb + 1)` shifts by 32 and is undefined. */
-        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY, 100000);
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_requestedquantity, 100000);
         SELFTEST_CHECK(
-            mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY) == 100000,
+            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 100000,
             "a 31-bit varbit should round-trip, got %d",
-            mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY));
+            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity));
     }
 
     fprintf(stderr, "mock230 selftest: bank deposit and withdraw\n");
@@ -3934,7 +4075,7 @@ mock230_world_selftest(void)
          * on "1", the row that would say Withdraw-1 is omitted, so the ladder
          * runs Default, 5, 10, X, All, All-but-1 — and "All" is op 5.
          */
-        bank->quantity_mode = MOCK230_BANK_QTY_1;
+        bank->quantity_mode = ids->bank_qty_1;
         bank->requested_quantity = 0;
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 1,
                        "op 1 is the default quantity");
@@ -3948,7 +4089,7 @@ mock230_world_selftest(void)
 
         /* Switch the default to All and the ladder shifts: the All row is the
          * one omitted now, and Withdraw-1 reappears at op 2. */
-        bank->quantity_mode = MOCK230_BANK_QTY_ALL;
+        bank->quantity_mode = ids->bank_qty_all;
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 100,
                        "op 1 is still the default, which is now All");
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,

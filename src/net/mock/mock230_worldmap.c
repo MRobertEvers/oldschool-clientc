@@ -21,38 +21,34 @@
  */
 
 #include "mock230.h"
+#include "mock230_ids.h"
 
 #include <stdio.h>
 
 /*
- * Ids, all verified against cache.osrs230 with the decompiled clientscripts:
+ * The map itself, its floater slot and its two close buttons are named in the
+ * content tree (`worldmap`, `gameframe_floater`, `worldmap_esckey`,
+ * `worldmap_close`) and resolved by mock230_ids.
  *
- * - 160:53 is the orb's inner graphic — `orbs_worldmap_setup` (proc 1700) is
- *   what installs "Floating World Map" (op 2) and "Fullscreen World Map"
- *   (op 3) on it.
- * - 1749 is `worldmap_transmitdata`, three ints into varcint 188/1078/401.
- *   Only the first (the packed coord) is read by anything the mock drives.
- * - 161:18 is the toplevel's floater slot: `orbs_worldmap_setup` tests
- *   `if_hassub(... interface_161:18)` to decide whether the orb should offer
- *   "Close Floating panel" instead of the two open verbs, so it is by
- *   definition where the map mounts.
- * - 595:4 and 595:38 are both "close". 595:4 is a zero-sized component that
- *   exists only to hold the escape binding (`worldmap_init`'s trailing
- *   `if_setopkey(1, ^key_escape, 0, interface_595:4)`); 595:38 is the red X in
- *   the corner (`worldmap_mobile_layout` repositions it, `deadman_spectator_map`
- *   hides it). Neither carries an onop script, so both are the server's.
+ * The ORB IS NOT, and that is the interesting part.
+ *
+ * OpenRune's gameval table calls 160:55 `orbs:worldmap`. At rev 230 the orb's
+ * inner graphic is 160:53 — `orbs_worldmap_setup` (proc 1700), the script that
+ * installs "Floating World Map" (op 2) and "Fullscreen World Map" (op 3) on it,
+ * says so, and 160:53 is `wiki_icon` in OpenRune's rev-235 table. Two
+ * components were inserted between the revisions. Importing the name would
+ * silently arm the wiki button instead, so this one stays a literal with its
+ * evidence beside it, which is what a symbol cannot give here.
+ *
+ * `worldmap_transmitdata` (1749) is a *client* script id, which no pack in this
+ * tree carries; it is three ints into varcint 188/1078/401, and only the first
+ * (the packed coord) is read by anything the mock drives.
  */
 enum
 {
     MOCK230_ORB_IFACE = 160,
     MOCK230_ORB_WORLDMAP_CHILD = 53,
     MOCK230_ORB_WORLDMAP_UID = (MOCK230_ORB_IFACE << 16) | MOCK230_ORB_WORLDMAP_CHILD,
-
-    MOCK230_WORLDMAP_IFACE = 595,
-    MOCK230_WORLDMAP_CLOSE_UID = (MOCK230_WORLDMAP_IFACE << 16) | 4,
-    MOCK230_WORLDMAP_CLOSEX_UID = (MOCK230_WORLDMAP_IFACE << 16) | 38,
-    MOCK230_WORLDMAP_SLOT_CHILD = 18,
-    MOCK230_WORLDMAP_SLOT_UID = (MOCK230_ROOT_IFACE << 16) | MOCK230_WORLDMAP_SLOT_CHILD,
 
     MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA = 1749,
 
@@ -96,9 +92,9 @@ mock230_worldmap_login(struct Mock230Server* srv)
      * range to arm. */
     mock230_send_if_setevents(srv, MOCK230_ORB_WORLDMAP_UID, -1, -1, MOCK230_ORB_EVENTS);
     mock230_send_if_setevents(
-        srv, MOCK230_WORLDMAP_CLOSE_UID, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
+        srv, mock230_ids()->com_worldmap_esckey, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
     mock230_send_if_setevents(
-        srv, MOCK230_WORLDMAP_CLOSEX_UID, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
+        srv, mock230_ids()->com_worldmap_close, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
     srv->player.worldmap_open = 0;
     srv->player.worldmap_tile_sent = -1;
 }
@@ -114,7 +110,9 @@ mock230_worldmap_open(struct Mock230Server* srv)
      * so "sent first" is "applied first". */
     send_worldmap_tile(srv);
     mock230_send_if_opensub(
-        srv, MOCK230_ROOT_IFACE, MOCK230_WORLDMAP_SLOT_CHILD, MOCK230_WORLDMAP_IFACE, 1);
+        srv, mock230_ids()->iface_gameframe,
+        MOCK230_COM_CHILD(mock230_ids()->com_gameframe_floater), mock230_ids()->iface_worldmap,
+        1);
     srv->player.worldmap_open = 1;
     srv->player.worldmap_tile_sent = pack_coord(srv->player.level, srv->player.x, srv->player.z);
     if( srv->verbose )
@@ -126,7 +124,7 @@ mock230_worldmap_close(struct Mock230Server* srv)
 {
     if( !srv->player.worldmap_open )
         return;
-    mock230_send_if_closesub(srv, MOCK230_WORLDMAP_SLOT_UID);
+    mock230_send_if_closesub(srv, mock230_ids()->com_gameframe_floater);
     srv->player.worldmap_open = 0;
     if( srv->verbose )
         fprintf(stderr, "mock230: world map closed\n");
@@ -150,7 +148,7 @@ mock230_worldmap_handle_button(
             mock230_worldmap_open(srv);
         return 1;
     }
-    if( uid == MOCK230_WORLDMAP_CLOSE_UID || uid == MOCK230_WORLDMAP_CLOSEX_UID )
+    if( uid == mock230_ids()->com_worldmap_esckey || uid == mock230_ids()->com_worldmap_close )
     {
         (void)op;
         mock230_worldmap_close(srv);

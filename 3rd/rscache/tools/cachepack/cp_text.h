@@ -110,6 +110,23 @@ cp_config_file_load(
     struct CP_ConfigFile* file,
     const char* path);
 
+/** Serialise one record's block into a heap buffer. Caller frees. */
+char*
+cp_lines_to_string(
+    const struct CP_Lines* lines,
+    const char* debugname,
+    size_t* out_size);
+
+/** As cp_config_file_load, over bytes already in memory. `label` names them in
+ *  error messages. Used by `verify`, which round-trips a record through the text
+ *  without touching the filesystem. */
+int
+cp_config_file_load_memory(
+    struct CP_ConfigFile* file,
+    const char* text,
+    size_t size,
+    const char* label);
+
 void
 cp_config_file_free(struct CP_ConfigFile* file);
 

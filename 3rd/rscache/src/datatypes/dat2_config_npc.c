@@ -177,8 +177,8 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p1(&buffer, npc->recolor_count);
         for( int i = 0; i < npc->recolor_count; i++ )
         {
-            p2(&buffer, (int)(uint16_t)npc->recolor_to_find[i]);
-            p2(&buffer, (int)(uint16_t)npc->recolor_to_replace[i]);
+            p2(&buffer, npc->recolor_to_find[i]);
+            p2(&buffer, npc->recolor_to_replace[i]);
         }
     }
     if( npc->retexture_count > 0 )
@@ -187,8 +187,8 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p1(&buffer, npc->retexture_count);
         for( int i = 0; i < npc->retexture_count; i++ )
         {
-            p2(&buffer, (int)(uint16_t)npc->retexture_to_find[i]);
-            p2(&buffer, (int)(uint16_t)npc->retexture_to_replace[i]);
+            p2(&buffer, npc->retexture_to_find[i]);
+            p2(&buffer, npc->retexture_to_replace[i]);
         }
     }
 
@@ -255,12 +255,14 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     if( npc->ambient != 0 )
     {
         p1(&buffer, 100);
-        p1(&buffer, npc->ambient);
+        p1b(&buffer, npc->ambient);
     }
     if( npc->contrast != 0 )
     {
         p1(&buffer, 101);
-        p1(&buffer, npc->contrast);
+        /* Stored pre-scaled by 5 (decode opcode 101); undo it for the wire.
+         * Exact for every value the decoder can produce. */
+        p1b(&buffer, npc->contrast / 5);
     }
 
     /* Opcode 102's shape is era dependent — the whole reason this encoder takes a
@@ -677,28 +679,28 @@ decode_npc_type(
         case 40:
         {
             int length = g1(buffer);
-            npc->recolor_to_find = malloc(length * sizeof(short));
-            npc->recolor_to_replace = malloc(length * sizeof(short));
+            npc->recolor_to_find = malloc(length * sizeof(int));
+            npc->recolor_to_replace = malloc(length * sizeof(int));
             npc->recolor_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->recolor_to_find[idx] = (short)(g2(buffer));
-                npc->recolor_to_replace[idx] = (short)(g2(buffer));
+                npc->recolor_to_find[idx] = g2(buffer);
+                npc->recolor_to_replace[idx] = g2(buffer);
             }
             break;
         }
         case 41:
         {
             int length = g1(buffer);
-            npc->retexture_to_find = malloc(length * sizeof(short));
-            npc->retexture_to_replace = malloc(length * sizeof(short));
+            npc->retexture_to_find = malloc(length * sizeof(int));
+            npc->retexture_to_replace = malloc(length * sizeof(int));
             npc->retexture_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->retexture_to_find[idx] = (short)(g2(buffer));
-                npc->retexture_to_replace[idx] = (short)(g2(buffer));
+                npc->retexture_to_find[idx] = g2(buffer);
+                npc->retexture_to_replace[idx] = g2(buffer);
             }
             break;
         }
@@ -803,12 +805,18 @@ decode_npc_type(
         }
         case 100:
         {
-            npc->ambient = g1(buffer);
+            /* Signed. Reference NpcType opcode 100 is `g1b` (Client-TS
+             * config/NpcType.ts) — a darkening ambient is a *negative* byte and
+             * reading it unsigned turned -25 into 231, which saturates
+             * calculateNormals' `ambient + 64` and renders the model white. */
+            npc->ambient = g1b(buffer);
             break;
         }
         case 101:
         {
-            npc->contrast = g1(buffer);
+            /* Signed, and pre-scaled by 5 the way the reference stores it
+             * (`g1b * 5`), matching obj opcode 114. loc opcode 39 uses 25. */
+            npc->contrast = g1b(buffer) * 5;
             break;
         }
         case 102:

@@ -292,6 +292,7 @@ kind_for_pack(const char* filename)
         { "interface.pack", SSC_SYM_INTERFACE },
         { "component.pack", SSC_SYM_COMPONENT },
         { "varp.pack",      SSC_SYM_VARP      },
+        { "varp_mock.pack", SSC_SYM_VARP      },
         { "varbit.pack",    SSC_SYM_VARBIT    },
         { "varn.pack",      SSC_SYM_VARN      },
         { "vars.pack",      SSC_SYM_VARS      },

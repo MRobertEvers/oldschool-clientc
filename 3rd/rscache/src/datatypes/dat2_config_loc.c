@@ -447,8 +447,8 @@ RSCache_Dat2ConfigLocEncodeFlags(
     if( loc->contrast != defaults.contrast )
     {
         p1(&buffer, 39);
-        /* The decoder multiplies by 25. */
-        p1b(&buffer, loc->contrast / 25);
+        /* Undo the decoder's era-dependent pre-scale (opcode 39). */
+        p1b(&buffer, loc->contrast / ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25));
     }
 
     if( loc->recolor_count > 0 )
@@ -960,8 +960,13 @@ decode_loc(
             break;
         }
         case 39:
-            // Old Revisions multiply the contract by 5 instead of 25
-            loc->contrast = g1b(&buffer) * 25;
+            /* Stored pre-scaled, the way both references store it, so no
+             * consumer has to know which era a record came from: dat1 uses
+             * `g1b * 5` (Client-TS LocType), dat2/OSRS `readByte() * 25`. The
+             * multiplier used to be 25 unconditionally, which made every dat1
+             * loc five times as attenuated as the reference. */
+            loc->contrast =
+                g1b(&buffer) * ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25);
             break;
         case 40:
         {

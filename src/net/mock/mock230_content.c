@@ -216,6 +216,95 @@ mock230_content_symbol_name(
     return NULL;
 }
 
+/** The pack file a kind is spelled with, for diagnostics. */
+static const char*
+pack_kind_name(enum Mock230PackKind kind)
+{
+    static const char* k_names[MOCK230_PACK_COUNT] = {
+        "npc",  "obj",  "loc",       "seq",   "spotanim", "inv",   "varp",
+        "varbit", "interface", "component", "stat", "param", "hitsplat",
+    };
+
+    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+        return "?";
+    return k_names[kind];
+}
+
+int
+mock230_content_resolve(
+    const char* what,
+    const struct Mock230SymbolRef* refs,
+    int count)
+{
+    int failed = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        *refs[i].out = mock230_content_symbol(refs[i].kind, refs[i].name);
+        if( *refs[i].out >= 0 )
+            continue;
+        CONTENT_ERROR("%s: no `%s` in %s.pack\n", what, refs[i].name,
+                      pack_kind_name(refs[i].kind));
+        failed++;
+    }
+    return failed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Constants                                                           */
+/* ------------------------------------------------------------------ */
+
+struct Constant
+{
+    char* name; /* without the caret */
+    char* text;
+};
+
+static struct Constant* g_constants;
+static int g_constant_count;
+static int g_constant_capacity;
+
+const char*
+mock230_content_constant(const char* name)
+{
+    if( !name )
+        return NULL;
+    if( *name == '^' )
+        name++;
+    for( int i = 0; i < g_constant_count; i++ )
+    {
+        if( strcmp(g_constants[i].name, name) == 0 )
+            return g_constants[i].text;
+    }
+    return NULL;
+}
+
+int
+mock230_content_constant_int(
+    const char* name,
+    int fallback)
+{
+    const char* text = mock230_content_constant(name);
+    char* end;
+    long value;
+
+    if( !text )
+    {
+        CONTENT_ERROR("no `^%s` in any .constant\n", *name == '^' ? name + 1 : name);
+        return fallback;
+    }
+    value = strtol(text, &end, 10);
+    while( *end == ' ' || *end == '\t' )
+        end++;
+    if( end == text || *end )
+    {
+        CONTENT_ERROR("`^%s` is `%s`, which is not a number\n",
+                      *name == '^' ? name + 1 : name, text);
+        return fallback;
+    }
+    return (int)value;
+}
+
 /* ------------------------------------------------------------------ */
 /* Definition tables                                                   */
 /* ------------------------------------------------------------------ */
@@ -229,6 +318,10 @@ mock230_content_symbol_name(
 static struct Mock230NpcDef* g_npc_defs;
 static int g_npc_def_count;
 static int g_npc_def_capacity;
+
+static struct Mock230EnumDef* g_enum_defs;
+static int g_enum_def_count;
+static int g_enum_def_capacity;
 
 static struct Mock230VarpDef* g_varp_defs;
 static int g_varp_def_count;
@@ -281,6 +374,17 @@ const struct Mock230NpcDef*
 mock230_content_npc_default(void)
 {
     return &g_npc_default;
+}
+
+const struct Mock230EnumDef*
+mock230_content_enum(const char* symbol)
+{
+    for( int i = 0; i < g_enum_def_count; i++ )
+    {
+        if( g_enum_defs[i].symbol && strcmp(g_enum_defs[i].symbol, symbol) == 0 )
+            return &g_enum_defs[i];
+    }
+    return NULL;
 }
 
 const struct Mock230VarpDef*
@@ -513,6 +617,215 @@ load_npc_config(const char* path)
 }
 
 /* ------------------------------------------------------------------ */
+/* .constant configs                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `^name = value`, one per line, no sections. LostCity writes the caret on the
+ * declaration as well as at every use, so the file is greppable for either.
+ *
+ * The text is kept verbatim rather than parsed: a constant expands to whatever
+ * the grammar accepts — a number here, but a coord or a string in a `.rs2` — and
+ * the serverscript compiler reads the same files through ssc_symbols.
+ */
+static void
+load_constant_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = clean_line(raw);
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+        if( *line != '^' )
+        {
+            CONTENT_ERROR("%s:%d: a .constant holds `^name = value` lines only\n", path,
+                          line_number);
+            continue;
+        }
+        value = split_key_value(line);
+        if( !value )
+        {
+            CONTENT_ERROR("%s:%d: `%s` has no `=`\n", path, line_number, line);
+            continue;
+        }
+        if( mock230_content_constant(line + 1) )
+        {
+            CONTENT_ERROR("%s:%d: `%s` is declared twice\n", path, line_number, line);
+            continue;
+        }
+        g_constants =
+            grow(g_constants, &g_constant_capacity, g_constant_count, sizeof(*g_constants));
+        g_constants[g_constant_count].name = strdup(line + 1);
+        g_constants[g_constant_count].text = strdup(value);
+        g_constant_count++;
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
+/* .enum configs                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Map a `.enum` type name onto the pack it resolves against. */
+static enum Mock230PackKind
+pack_kind_for_type(const char* name)
+{
+    static const struct
+    {
+        const char* name;
+        enum Mock230PackKind kind;
+    } k_map[] = {
+        { "npc", MOCK230_PACK_NPC },         { "namedobj", MOCK230_PACK_OBJ },
+        { "obj", MOCK230_PACK_OBJ },         { "loc", MOCK230_PACK_LOC },
+        { "seq", MOCK230_PACK_SEQ },         { "spotanim", MOCK230_PACK_SPOTANIM },
+        { "inv", MOCK230_PACK_INV },         { "varp", MOCK230_PACK_VARP },
+        { "varbit", MOCK230_PACK_VARBIT },
+        { "interface", MOCK230_PACK_INTERFACE },
+        { "component", MOCK230_PACK_COMPONENT },
+        { "stat", MOCK230_PACK_STAT },       { "param", MOCK230_PACK_PARAM },
+        { "hitsplat", MOCK230_PACK_HITSPLAT },
+    };
+
+    for( size_t i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
+    {
+        if( strcmp(name, k_map[i].name) == 0 )
+            return k_map[i].kind;
+    }
+    /* `int` and anything else unlisted: the operand is a literal, not a
+     * symbol. MOCK230_PACK_COUNT is the sentinel for that. */
+    return MOCK230_PACK_COUNT;
+}
+
+/** Resolve one side of a `val=` line: a symbol when the declared type names a
+ *  pack, a literal when it does not. `^name` expands first, either way — the
+ *  reference writes `val=^prayer_thickskin,3`. */
+static int
+enum_operand(
+    enum Mock230PackKind kind,
+    const char* text,
+    int* out_ok)
+{
+    *out_ok = 1;
+    if( *text == '^' )
+    {
+        const char* expanded = mock230_content_constant(text);
+
+        if( !expanded )
+        {
+            *out_ok = 0;
+            return -1;
+        }
+        text = expanded;
+    }
+    if( kind == MOCK230_PACK_COUNT )
+        return atoi(text);
+    {
+        int id = mock230_content_symbol(kind, text);
+
+        if( id < 0 )
+            *out_ok = 0;
+        return id;
+    }
+}
+
+static void
+load_enum_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    struct Mock230EnumDef* def = NULL;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = clean_line(raw);
+        char* header;
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = section_header(line);
+        if( header )
+        {
+            g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
+                               sizeof(*g_enum_defs));
+            def = &g_enum_defs[g_enum_def_count++];
+            memset(def, 0, sizeof(*def));
+            def->symbol = strdup(header);
+            def->input_kind = MOCK230_PACK_COUNT;
+            def->output_kind = MOCK230_PACK_COUNT;
+            continue;
+        }
+
+        value = split_key_value(line);
+        if( !value || !def )
+        {
+            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
+                          line_number);
+            continue;
+        }
+
+        if( strcmp(line, "inputtype") == 0 )
+            def->input_kind = pack_kind_for_type(value);
+        else if( strcmp(line, "outputtype") == 0 )
+            def->output_kind = pack_kind_for_type(value);
+        else if( strcmp(line, "default") == 0 )
+            continue; /* carried by the reference; nothing here reads it */
+        else if( strcmp(line, "val") == 0 )
+        {
+            char* comma = strchr(value, ',');
+            int key_ok = 0;
+            int value_ok = 0;
+            int key;
+            int mapped;
+
+            if( !comma )
+            {
+                CONTENT_ERROR("%s:%d: val needs `key,value`\n", path, line_number);
+                continue;
+            }
+            *comma = '\0';
+            key = enum_operand(def->input_kind, value, &key_ok);
+            mapped = enum_operand(def->output_kind, comma + 1, &value_ok);
+            if( !key_ok )
+                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);
+            if( !value_ok )
+                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number,
+                              comma + 1);
+            if( !key_ok || !value_ok )
+                continue;
+            if( def->count >= MOCK230_ENUM_VALUE_MAX )
+            {
+                CONTENT_ERROR("%s:%d: more than %d values in one enum\n", path,
+                              line_number, MOCK230_ENUM_VALUE_MAX);
+                continue;
+            }
+            def->values[def->count].key = key;
+            def->values[def->count].value = mapped;
+            def->count++;
+        }
+        else
+        {
+            CONTENT_ERROR("%s:%d: unknown enum key `%s`\n", path, line_number, line);
+        }
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
 /* .varp configs                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -714,6 +1027,157 @@ resolve_loc_stages(void)
     g_pending = NULL;
     g_pending_count = 0;
     g_pending_capacity = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* .prayer configs                                                     */
+/* ------------------------------------------------------------------ */
+
+static struct Mock230PrayerDef* g_prayer_defs;
+static int g_prayer_def_count;
+static int g_prayer_def_capacity;
+
+const struct Mock230PrayerDef*
+mock230_content_prayer(int index)
+{
+    if( index < 0 || index >= g_prayer_def_count )
+        return NULL;
+    return &g_prayer_defs[index];
+}
+
+int
+mock230_content_prayer_count(void)
+{
+    return g_prayer_def_count;
+}
+
+/** `group=` takes the reference's stat names, one per line so a prayer can
+ *  claim several — which Piety, Chivalry, Rigour and Augury all do. */
+static int
+prayer_group(const char* name)
+{
+    static const struct
+    {
+        const char* name;
+        int mask;
+    } k_groups[] = {
+        { "defence", MOCK230_PRAYER_GROUP_DEFENCE },
+        { "strength", MOCK230_PRAYER_GROUP_STRENGTH },
+        { "attack", MOCK230_PRAYER_GROUP_ATTACK },
+        { "ranged", MOCK230_PRAYER_GROUP_RANGED },
+        { "magic", MOCK230_PRAYER_GROUP_MAGIC },
+        { "overhead", MOCK230_PRAYER_GROUP_OVERHEAD },
+    };
+
+    for( size_t i = 0; i < sizeof(k_groups) / sizeof(k_groups[0]); i++ )
+        if( strcmp(name, k_groups[i].name) == 0 )
+            return k_groups[i].mask;
+    return 0;
+}
+
+/** A `key=value` operand that may be a `^constant`. */
+static int
+config_int(const char* text)
+{
+    const char* expanded = *text == '^' ? mock230_content_constant(text) : NULL;
+
+    return atoi(expanded ? expanded : text);
+}
+
+/** One `key=value` inside a prayer block. Returns 0 for a key it does not
+ *  know, so the caller can report it with the line number. */
+static int
+prayer_field(
+    struct Mock230PrayerDef* def,
+    const char* key,
+    const char* value)
+{
+    if( strcmp(key, "name") == 0 )
+    {
+        free(def->name);
+        def->name = strdup(value);
+    }
+    else if( strcmp(key, "level") == 0 )
+        def->level = config_int(value);
+    else if( strcmp(key, "drain") == 0 )
+        def->drain = config_int(value);
+    else if( strcmp(key, "headicon") == 0 )
+        def->headicon = config_int(value);
+    else if( strcmp(key, "group") == 0 )
+        def->groups |= prayer_group(value);
+    else if( strcmp(key, "button") == 0 )
+        def->button = mock230_content_symbol(MOCK230_PACK_COMPONENT, value);
+    else
+        return 0;
+    return 1;
+}
+
+/** A fresh block, or NULL when the tree declares more prayers than the mask
+ *  can hold. */
+static struct Mock230PrayerDef*
+prayer_begin(const char* symbol)
+{
+    struct Mock230PrayerDef* def;
+
+    if( g_prayer_def_count >= MOCK230_PRAYER_MAX )
+        return NULL;
+    g_prayer_defs =
+        grow(g_prayer_defs, &g_prayer_def_capacity, g_prayer_def_count, sizeof(*g_prayer_defs));
+    def = &g_prayer_defs[g_prayer_def_count++];
+    memset(def, 0, sizeof(*def));
+    def->symbol = strdup(symbol);
+    def->name = strdup(symbol);
+    def->level = 1;
+    def->drain = 1;
+    def->headicon = -1;
+    def->button = -1;
+    return def;
+}
+
+static void
+load_prayer_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    struct Mock230PrayerDef* def = NULL;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = clean_line(raw);
+        char* header;
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = section_header(line);
+        if( header )
+        {
+            def = prayer_begin(header);
+            if( !def )
+                CONTENT_ERROR("%s:%d: more than %d prayers; `prayer_active` is a "
+                              "32-bit mask\n",
+                              path, line_number, MOCK230_PRAYER_MAX);
+            continue;
+        }
+
+        value = split_key_value(line);
+        if( !value || !def )
+            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
+                          line_number);
+        else if( !prayer_field(def, line, value) )
+            CONTENT_ERROR("%s:%d: unknown prayer key `%s`\n", path, line_number, line);
+        else if( strcmp(line, "group") == 0 && !prayer_group(value) )
+            CONTENT_ERROR("%s:%d: unknown prayer group `%s`\n", path, line_number, value);
+        else if( strcmp(line, "button") == 0 && def->button < 0 )
+            CONTENT_ERROR("%s:%d: `%s` is not in pack/component.pack\n", path, line_number,
+                          value);
+    }
+    fclose(file);
 }
 
 /* ------------------------------------------------------------------ */
@@ -932,10 +1396,13 @@ mock230_content_load(const char* dir)
         { "spotanim.pack",  MOCK230_PACK_SPOTANIM  },
         { "inv.pack",       MOCK230_PACK_INV       },
         { "varp.pack",      MOCK230_PACK_VARP      },
+        { "varp_mock.pack", MOCK230_PACK_VARP      },
+        { "varbit.pack",    MOCK230_PACK_VARBIT    },
         { "interface.pack", MOCK230_PACK_INTERFACE },
         { "component.pack", MOCK230_PACK_COMPONENT },
         { "stat.pack",      MOCK230_PACK_STAT      },
         { "param.pack",     MOCK230_PACK_PARAM     },
+        { "hitsplat.pack",  MOCK230_PACK_HITSPLAT  },
     };
     char path[1024];
     DIR* probe;
@@ -974,19 +1441,25 @@ mock230_content_load(const char* dir)
     init_defaults();
 
     snprintf(path, sizeof(path), "%s/scripts", dir);
+    /* Constants first: every other grammar may write `^name` where a number
+     * goes, and an unexpanded caret is a load error rather than a zero. */
+    walk_configs(path, ".constant", load_constant_config);
+    walk_configs(path, ".enum", load_enum_config);
     walk_configs(path, ".varp", load_varp_config);
     walk_configs(path, ".npc", load_npc_config);
     walk_configs(path, ".loc", load_loc_config);
+    walk_configs(path, ".prayer", load_prayer_config);
     resolve_loc_stages();
 
     snprintf(path, sizeof(path), "%s/maps", dir);
     load_maps(path);
 
     fprintf(stderr,
-            "mock230: content loaded (%d symbols, %d npc defs, %d loc defs, %d varp "
-            "defs, %d npc spawns, %d obj spawns%s)\n",
-            symbols, g_npc_def_count, g_loc_def_count, g_varp_def_count, g_npc_spawn_count,
-            g_obj_spawn_count, g_errors ? ", WITH ERRORS" : "");
+            "mock230: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
+            "%d varp defs, %d prayers, %d npc spawns, %d obj spawns%s)\n",
+            symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
+            g_prayer_def_count, g_npc_spawn_count, g_obj_spawn_count,
+            g_errors ? ", WITH ERRORS" : "");
     return g_npc_def_count;
 }
 
@@ -1011,6 +1484,27 @@ mock230_content_free(void)
     free(g_varp_defs);
     g_varp_defs = NULL;
     g_varp_def_count = g_varp_def_capacity = 0;
+    for( int i = 0; i < g_enum_def_count; i++ )
+        free((void*)g_enum_defs[i].symbol);
+    free(g_enum_defs);
+    g_enum_defs = NULL;
+    g_enum_def_count = g_enum_def_capacity = 0;
+    for( int i = 0; i < g_prayer_def_count; i++ )
+    {
+        free((void*)g_prayer_defs[i].symbol);
+        free(g_prayer_defs[i].name);
+    }
+    free(g_prayer_defs);
+    g_prayer_defs = NULL;
+    g_prayer_def_count = g_prayer_def_capacity = 0;
+    for( int i = 0; i < g_constant_count; i++ )
+    {
+        free(g_constants[i].name);
+        free(g_constants[i].text);
+    }
+    free(g_constants);
+    g_constants = NULL;
+    g_constant_count = g_constant_capacity = 0;
     free(g_npc_spawns);
     g_npc_spawns = NULL;
     g_npc_spawn_count = g_npc_spawn_capacity = 0;

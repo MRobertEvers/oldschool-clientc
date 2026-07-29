@@ -44,13 +44,13 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 poser-gl
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack poser-gl
 .DEFAULT_GOAL := all
 
 # poser-gl is not in `all`: it needs SDL2 and an OpenGL 3.3 context, which the
 # other tools do not, and a machine without SDL2 should still build the rest.
 # `make poser-gl` builds it.
-all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2
+all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
@@ -73,6 +73,29 @@ LC_SRCS := \
 # about what a pack line means.
 PACKFILE_SRCS := \
 	$(TOOLS)/packfile/main.c \
+	$(TOOLS)/port_lostcity/lc_pack.c
+
+# `cachepack` reuses lc_pack.c for the same reason packfile does: a `<type>.pack`
+# file means one thing, and two readers of it would eventually disagree.
+CACHEPACK_SRCS := \
+	$(TOOLS)/cachepack/main.c \
+	$(TOOLS)/cachepack/cp_text.c \
+	$(TOOLS)/cachepack/cp_types.c \
+	$(TOOLS)/cachepack/cp_names.c \
+	$(TOOLS)/cachepack/cp_common.c \
+	$(TOOLS)/cachepack/cp_unpack.c \
+	$(TOOLS)/cachepack/cp_pack.c \
+	$(TOOLS)/cachepack/cp_codec.c \
+	$(TOOLS)/cachepack/cp_binary.c \
+	$(TOOLS)/cachepack/config/cp_flo.c \
+	$(TOOLS)/cachepack/config/cp_var.c \
+	$(TOOLS)/cachepack/config/cp_small.c \
+	$(TOOLS)/cachepack/config/cp_idk.c \
+	$(TOOLS)/cachepack/config/cp_seq.c \
+	$(TOOLS)/cachepack/config/cp_npc.c \
+	$(TOOLS)/cachepack/config/cp_obj.c \
+	$(TOOLS)/cachepack/config/cp_loc.c \
+	$(TOOLS)/cachepack/config/cp_db.c \
 	$(TOOLS)/port_lostcity/lc_pack.c
 
 $(BUILD):
@@ -121,10 +144,15 @@ $(TOOLS)/port_lostcity/port_lostcity: $(LC_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^
 
+cachepack: $(TOOLS)/cachepack/cachepack
+
+$(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm
+
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
 		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
-		$(TOOLS)/poser-gl-c/poser-gl
+		$(TOOLS)/cachepack/cachepack $(TOOLS)/poser-gl-c/poser-gl
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the
 # language layer lives inside the unity TU.

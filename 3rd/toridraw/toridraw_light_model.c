@@ -77,32 +77,23 @@ ToriDraw_LightModelParams(
         model->vertices_z);
 }
 
-/* Scene/widget default light: Model.calculateNormals(64, 768, -50, -10, -50). */
-static void
-toridraw_light_model_default_impl(
-    struct ToriDraw_ModelHandle hnd,
-    int model_contrast,
-    int model_ambient,
-    bool contrast_pre_scaled)
-{
-    int light_attenuation = 768;
-
-    if( contrast_pre_scaled )
-        light_attenuation += model_contrast;
-    else
-        // This is what 2004Scape does. Later revs do not.
-        light_attenuation += (model_contrast & 0xff) * 5;
-
-    ToriDraw_LightModelParams(hnd, 64 + model_ambient, light_attenuation, -50, -10, -50);
-}
-
+/* Scene/widget default light: Model.calculateNormals(64, 768, -50, -10, -50).
+ *
+ * Both parameters are added as they arrive, signed. There used to be a second
+ * mode here that applied `(contrast & 0xff) * 5`, on the theory that the caller
+ * held the raw config byte — but no rscache decoder hands out a raw byte: obj
+ * opcode 114 and npc opcode 101 pre-scale by 5, loc opcode 39 by 5 (dat1) or 25
+ * (dat2), and spotanim opcodes 7/8 are unscaled in the reference too. So that
+ * mode scaled an already-scaled contrast, and its mask turned every negative
+ * ambient/contrast into a large positive one — which is what washed loc and obj
+ * models out to white. */
 void
 ToriDraw_LightModelDefault(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
     int model_ambient)
 {
-    toridraw_light_model_default_impl(hnd, model_contrast, model_ambient, false);
+    ToriDraw_LightModelParams(hnd, 64 + model_ambient, 768 + model_contrast, -50, -10, -50);
 }
 
 void
@@ -111,5 +102,5 @@ ToriDraw_LightModelDefaultPreScaled(
     int model_contrast,
     int model_ambient)
 {
-    toridraw_light_model_default_impl(hnd, model_contrast, model_ambient, true);
+    ToriDraw_LightModelDefault(hnd, model_contrast, model_ambient);
 }

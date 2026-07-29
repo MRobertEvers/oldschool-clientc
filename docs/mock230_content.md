@@ -35,8 +35,10 @@ src/net/mock/content/
   pack/                      id=name, one file per namespace
     npc.pack obj.pack loc.pack seq.pack        generated (tools/gameval_import.py)
     door.pack                                  generated (tools/door_import.py)
-    interface.pack component.pack inv.pack     hand-authored
-    varp.pack varbit.pack stat.pack param.pack hand-authored
+    interface.pack component.pack varbit.pack  generated (tools/gameval_import.py)
+    varp.pack                                  generated
+    inv.pack stat.pack param.pack              hand-authored
+    varp_mock.pack hitsplat.pack               hand-authored
   maps/
     m50_50.jm2 …             ==== NPC ==== / ==== OBJ ==== spawn sections
   scripts/
@@ -50,6 +52,11 @@ src/net/mock/content/
     drop tables/configs/lootdrop.constant
     interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
     interface_bank/configs/bank.varp           the varps its varbits live in
+    interface_bank/configs/bank.constant       quantity modes
+    interface_bank/configs/bank.enum           tab index -> tab-size varbit
+    skill_prayer/configs/prayers.prayer        the 29 prayers
+    skill_prayer/configs/prayers.constant      overhead icon indices
+    player/configs/worn.enum                   worn-tab cell -> wear slot
     player/login.rs2
     build/                                     compiled script pack (gitignored)
 ```
@@ -121,6 +128,80 @@ if ($dropint < 1) {
 The engine fires the trigger when an npc reaches zero hitpoints. With no script
 bound, the config's `death_drop` still drops — so an npc with no table leaves
 bones rather than nothing.
+
+### No ids in headers
+
+Everything the engine addresses by id resolves through a pack at the point of
+use. What used to be a `#define` or a literal table in C:
+
+| was | now |
+|---|---|
+| a 24-entry `{ slot, group }` table in `mock230_world.c` | the `gameframe` **.enum** — keys are components, values are interfaces |
+| `MOCK230_HIT_DAMAGE 0` / `MOCK230_HIT_BLOCK 1` | `hitsplat.pack`, and they were **backwards** (see below) |
+| `MOCK230_VARP_ATTACK_STYLE 43`, `MOCK230_VARP_RUN 173`, … | `varp.pack`, resolved by `mock230_world_varp("com_mode")` |
+| `MOCK230_CHAT_CONTAINER_UID (162 << 16) | 559` | `component.pack` |
+| combat-tab varbits | `varbit.pack`; the *bit ranges* stay in the cache |
+| `MOCK230_BANK_IFACE 12`, `MOCK230_BANK_COM_*`, the eleven bank varbits | `interface.pack` / `component.pack` / `varbit.pack`, through **`mock230_ids.h`** |
+| `MOCK230_EQUIPSTATS_IFACE 84` and interface 84's eighteen text rows | `component.pack` — `equipment_stats_stabatt` and friends |
+| the 29-row `k_prayers[]` table in `mock230_prayer.c` | a **`.prayer`** config, which is LostCity's prayers `.dbrow` flattened |
+| `MOCK230_HEADICON_PROTECT_MELEE 0` … | `prayers.constant`, LostCity's `headicon.constant` shape |
+| `MOCK230_BANK_QTY_1 0` … | `bank.constant`, the same shape as `^attack_style_accurate` |
+| `k_worn_slot_by_child[]` in `mock230_world.c` | the `worn_slots` **.enum** — keys are components, values are wear slots |
+| `MOCK230_ROOT_IFACE 161`, `MOCK230_INV_BACKPACK 93`, `MOCK230_WORN_IFACE 387` | `mock230_ids.h`, resolved from the packs at boot |
+
+The rule the table encodes: **an id lives in a pack, a tunable lives in a
+config, and arithmetic stays in C.** `+8` in the effective-level formula is not
+a magic number — it is the formula. `MOCK230_INV_SLOTS 28` is not either; it is
+the size of a backpack, and LostCity states it in a `.inv` config for the same
+reason it states `size=28` rather than deriving it.
+
+### The engine's own symbol table
+
+C cannot write `bankmain:items` and have a compiler resolve it, which is what
+LostCity's engine gets for free. `src/net/mock/mock230_ids.h` is the substitute:
+one struct naming every id the engine addresses by hand, filled once at boot by
+`mock230_ids_resolve()` out of the packs and the `.constant` files, and
+**nothing downstream holds a literal**. Adding an interface is a line in
+`tools/gameval_import.names` and a field in that struct.
+
+Three kinds of number stay in C on purpose, and the distinction is worth
+keeping:
+
+- **Storage ceilings** — `MOCK230_BANK_TABS`, `MOCK230_PRAYER_MAX`,
+  `MOCK230_INV_SLOTS`. They size arrays, so they have to be compile-time
+  constants. Content decides how much of the array is used and the loader
+  checks it fits.
+- **Protocol encodings** — event-mask bits, op numbers, the IF_OPENSUB mount
+  type. Those say what the *packet* means, not what the cache calls something;
+  no config file could be checked against a cache.
+- **Arithmetic** — the `+8` in the effective-level formula is the formula.
+
+`mock230_pack` resolves the table too, so a renamed or dropped symbol is a
+validator failure rather than a dead interface discovered by clicking on it.
+The trade is that the mock **needs its content tree**: with none, every id is
+-1 and `--selftest` says so on the first line instead of running a server that
+addresses component 0. `test-mock230` also pins each resolved id to the number
+it had as a `#define`, so a regenerated pack that renumbered something fails
+there.
+
+That guard has already earned itself once. OpenRune's table calls 160:55
+`orbs:worldmap`; at rev 230 the world-map orb is 160:53, and 53 is `wiki_icon`
+in the newer table — two components were inserted between the revisions.
+Importing the name would have armed the wiki button. That one id stays a
+literal in `mock230_worldmap.c` with the clientscript evidence beside it, which
+is what a symbol cannot give when the symbol is wrong.
+
+Two of these were only *discoverable* once they were data:
+
+- **The hitsplat ids were the wrong way round.** Type 0 is the blue zero splat
+  (sprite 2270) and type 1 is red damage (3521); the mock had damage on 0. Every
+  hit drew a block and every miss drew damage, and nothing failed. Each id in
+  `hitsplat.pack` now carries the sprite it resolves to and that sprite's
+  measured dominant colour, which is what makes the pairing checkable rather
+  than assertable.
+- **The gameframe list was already OpenRune's**, entry for entry, in the same
+  order — its `GameframeLoader` mounts exactly these 24. Naming both sides made
+  that visible; as two columns of numbers it was not.
 
 ### Varps are declared, not hardcoded
 

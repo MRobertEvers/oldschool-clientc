@@ -142,8 +142,8 @@ sharelight_map_push_shared(
             (struct SharelightMapElement){ .element_idx = element_idx,
                                           .size_x = (uint8_t)size_x,
                                           .size_z = (uint8_t)size_z,
-                                          .light_ambient = (uint8_t)light_ambient,
-                                          .light_attenuation = (uint8_t)light_attenuation },
+                                          .light_ambient = (int16_t)light_ambient,
+                                          .light_attenuation = (int16_t)light_attenuation },
         .next = tile->sharelight_head,
     };
     tile->sharelight_head = ni;
@@ -173,8 +173,8 @@ sharelight_map_push_default_lit_element(
             (struct SharelightMapElement){ .element_idx = element_idx,
                                           .size_x = (uint8_t)element_size_x,
                                           .size_z = (uint8_t)element_size_z,
-                                          .light_ambient = (uint8_t)light_ambient,
-                                          .light_attenuation = (uint8_t)light_attenuation },
+                                          .light_ambient = (int16_t)light_ambient,
+                                          .light_attenuation = (int16_t)light_attenuation },
         .next = tile->defaultlight_head,
     };
     tile->defaultlight_head = ni;

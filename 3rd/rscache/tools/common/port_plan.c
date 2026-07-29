@@ -95,35 +95,35 @@ tool_neutral_npc_from_dat2(
     }
     if( npc->recolor_count > 0 && npc->recolor_to_find )
     {
-        out->recolor_to_find = malloc((size_t)npc->recolor_count * sizeof(short));
-        out->recolor_to_replace = malloc((size_t)npc->recolor_count * sizeof(short));
+        out->recolor_to_find = malloc((size_t)npc->recolor_count * sizeof(int));
+        out->recolor_to_replace = malloc((size_t)npc->recolor_count * sizeof(int));
         if( out->recolor_to_find && out->recolor_to_replace )
         {
             memcpy(
                 out->recolor_to_find,
                 npc->recolor_to_find,
-                (size_t)npc->recolor_count * sizeof(short));
+                (size_t)npc->recolor_count * sizeof(int));
             memcpy(
                 out->recolor_to_replace,
                 npc->recolor_to_replace,
-                (size_t)npc->recolor_count * sizeof(short));
+                (size_t)npc->recolor_count * sizeof(int));
             out->recolor_count = npc->recolor_count;
         }
     }
     if( npc->retexture_count > 0 && npc->retexture_to_find )
     {
-        out->retexture_to_find = malloc((size_t)npc->retexture_count * sizeof(short));
-        out->retexture_to_replace = malloc((size_t)npc->retexture_count * sizeof(short));
+        out->retexture_to_find = malloc((size_t)npc->retexture_count * sizeof(int));
+        out->retexture_to_replace = malloc((size_t)npc->retexture_count * sizeof(int));
         if( out->retexture_to_find && out->retexture_to_replace )
         {
             memcpy(
                 out->retexture_to_find,
                 npc->retexture_to_find,
-                (size_t)npc->retexture_count * sizeof(short));
+                (size_t)npc->retexture_count * sizeof(int));
             memcpy(
                 out->retexture_to_replace,
                 npc->retexture_to_replace,
-                (size_t)npc->retexture_count * sizeof(short));
+                (size_t)npc->retexture_count * sizeof(int));
             out->retexture_count = npc->retexture_count;
         }
     }
@@ -244,14 +244,14 @@ tool_neutral_npc_from_dat1(
     }
     if( npc->recol_count > 0 && npc->recol_s )
     {
-        out->recolor_to_find = malloc((size_t)npc->recol_count * sizeof(short));
-        out->recolor_to_replace = malloc((size_t)npc->recol_count * sizeof(short));
+        out->recolor_to_find = malloc((size_t)npc->recol_count * sizeof(int));
+        out->recolor_to_replace = malloc((size_t)npc->recol_count * sizeof(int));
         if( out->recolor_to_find && out->recolor_to_replace )
         {
             for( int i = 0; i < npc->recol_count; i++ )
             {
-                out->recolor_to_find[i] = (short)npc->recol_s[i];
-                out->recolor_to_replace[i] = (short)npc->recol_d[i];
+                out->recolor_to_find[i] = npc->recol_s[i];
+                out->recolor_to_replace[i] = npc->recol_d[i];
             }
             out->recolor_count = npc->recol_count;
         }
@@ -340,33 +340,33 @@ tool_neutral_npc_to_dat2(
     }
     if( n->recolor_count > 0 )
     {
-        npc->recolor_to_find = malloc((size_t)n->recolor_count * sizeof(short));
-        npc->recolor_to_replace = malloc((size_t)n->recolor_count * sizeof(short));
+        npc->recolor_to_find = malloc((size_t)n->recolor_count * sizeof(int));
+        npc->recolor_to_replace = malloc((size_t)n->recolor_count * sizeof(int));
         if( npc->recolor_to_find && npc->recolor_to_replace )
         {
             memcpy(
-                npc->recolor_to_find, n->recolor_to_find, (size_t)n->recolor_count * sizeof(short));
+                npc->recolor_to_find, n->recolor_to_find, (size_t)n->recolor_count * sizeof(int));
             memcpy(
                 npc->recolor_to_replace,
                 n->recolor_to_replace,
-                (size_t)n->recolor_count * sizeof(short));
+                (size_t)n->recolor_count * sizeof(int));
             npc->recolor_count = n->recolor_count;
         }
     }
     if( n->retexture_count > 0 )
     {
-        npc->retexture_to_find = malloc((size_t)n->retexture_count * sizeof(short));
-        npc->retexture_to_replace = malloc((size_t)n->retexture_count * sizeof(short));
+        npc->retexture_to_find = malloc((size_t)n->retexture_count * sizeof(int));
+        npc->retexture_to_replace = malloc((size_t)n->retexture_count * sizeof(int));
         if( npc->retexture_to_find && npc->retexture_to_replace )
         {
             memcpy(
                 npc->retexture_to_find,
                 n->retexture_to_find,
-                (size_t)n->retexture_count * sizeof(short));
+                (size_t)n->retexture_count * sizeof(int));
             memcpy(
                 npc->retexture_to_replace,
                 n->retexture_to_replace,
-                (size_t)n->retexture_count * sizeof(short));
+                (size_t)n->retexture_count * sizeof(int));
             npc->retexture_count = n->retexture_count;
             add_warning(
                 warnings,

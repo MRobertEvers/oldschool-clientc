@@ -3,13 +3,22 @@
 
 #include "toridraw_types.h"
 
+/**
+ * Scene/widget default light — Model.calculateNormals(64 + ambient,
+ * 768 + contrast, -50, -10, -50).
+ *
+ * Both are *signed* config values added as they arrive; a config that darkens
+ * its model passes a negative ambient. Contrast arrives already pre-scaled by
+ * whatever multiplier its config opcode uses, so do not re-scale or mask it.
+ */
 void
 ToriDraw_LightModelDefault(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
     int model_ambient);
 
-/** Like ToriDraw_LightModelDefault but contrast is already pre-scaled (dat2 decode). */
+/** Deprecated alias for ToriDraw_LightModelDefault, which no longer has a
+ *  non-pre-scaled mode. Kept so the older trees still compile. */
 void
 ToriDraw_LightModelDefaultPreScaled(
     struct ToriDraw_ModelHandle hnd,

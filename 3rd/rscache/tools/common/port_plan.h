@@ -38,11 +38,11 @@ struct Tool_NeutralNpc
     int models_count;
     int* chathead_models;
     int chathead_models_count;
-    short* recolor_to_find;
-    short* recolor_to_replace;
+    int* recolor_to_find;
+    int* recolor_to_replace;
     int recolor_count;
-    short* retexture_to_find;
-    short* retexture_to_replace;
+    int* retexture_to_find;
+    int* retexture_to_replace;
     int retexture_count;
     char* actions[5];
     int combat_level;

@@ -300,6 +300,23 @@ cp_verify_run(
     struct CP_Ctx* ctx,
     const struct CP_Selection* sel);
 
+/**
+ * Decode a record and encode it straight back, no text in between.
+ *
+ * `verify` runs this alongside the full trip so a loss can be attributed: the
+ * library's codecs lose a documented amount (EXCEPTIONS.md B2/B3) and this tool
+ * must not lose any more. NULL for the two decode-only types.
+ */
+typedef uint32_t (*cp_codec_fn)(
+    struct CP_Ctx* ctx,
+    const uint8_t* data,
+    int size,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+cp_codec_fn
+cp_codec_roundtrip(enum CP_TypeId type);
+
 /* ---- binary tables ------------------------------------------------------ */
 
 /**
@@ -332,8 +349,37 @@ cp_binary_import(
  * several of these types default to -1 rather than 0. Copying the default list into
  * this tool would be a second copy to keep in step with the library; running the
  * decoder makes the two agree by construction.
+ *
+ * **Zero the struct first.** Only some of the library's decoders initialise the
+ * record themselves (`init_loc`, `init_overlay`, the `New*` entry points); the
+ * smaller `...DecodeInplace` functions leave that to the caller and only write the
+ * fields their opcodes carry. Skipping the memset leaves whatever was on the stack
+ * in every field the empty record does not touch — which surfaces as a params count
+ * of a few million, not as a wrong value.
  */
 extern const uint8_t cp_empty_record[1];
+
+/** Free-standing growable int list, for the array-valued keys. */
+struct CP_IntList
+{
+    int* items;
+    int count;
+    int capacity;
+};
+
+void
+cp_intlist_set(
+    struct CP_IntList* list,
+    int index,
+    int value);
+
+void
+cp_intlist_push(
+    struct CP_IntList* list,
+    int value);
+
+void
+cp_intlist_free(struct CP_IntList* list);
 
 /** Emit `key=<name of id in type>` unless `id` is `absent`. */
 void
@@ -363,13 +409,21 @@ cp_emit_recols(
     int count,
     const char* prefix);
 
-void
-cp_emit_recols_short(
-    struct CP_Lines* out,
-    const short* from,
-    const short* to,
-    int count,
-    const char* prefix);
+/**
+ * Collect `prefix<N>s` / `prefix<N>d` line pairs into two parallel lists.
+ *
+ * The count is taken from the highest index named, not from the number of lines,
+ * so a hand-edit that leaves a hole does not silently shift every later pair down
+ * a slot. Returns 0 when the two halves end up different lengths — a source with
+ * no destination is not a recolour, and letting it through would write a
+ * count-prefixed list whose tail is uninitialised.
+ */
+int
+cp_collect_pairs(
+    const struct CP_Config* config,
+    const char* prefix,
+    struct CP_IntList* from,
+    struct CP_IntList* to);
 
 /** `param=<name>,<value>` lines for a param map. */
 void
@@ -385,40 +439,31 @@ cp_parse_param(
     struct RSCache_Params* params,
     const char* value);
 
-/** `op1..opN`, sub-ops and conditional ops for a rev-237 EntityOps block. */
+/**
+ * `op1..opN`, plus the rev-237 sub-ops and conditional ops.
+ *
+ * Plain ops and the conditional forms live in different places on the struct, and
+ * the split is load-bearing rather than cosmetic: every decoder in the library
+ * writes opcodes 30..34 into `actions[]` and leaves `RSCache_EntityOps.ops[]`
+ * NULL, while the encoders emit plain ops from `actions[]` *and* would emit them
+ * again from `ops[]` if anything ever filled it. So this reads `actions` and
+ * writes `actions`, and `ops` carries only the sub/conditional lists.
+ */
 void
 cp_emit_entity_ops(
     struct CP_Lines* out,
-    const struct RSCache_EntityOps* ops,
-    int slots);
+    char* const* actions,
+    int slots,
+    const struct RSCache_EntityOps* ops);
 
+/** Returns 1 when `key` was an op line and was consumed. */
 int
 cp_parse_entity_op(
+    char** actions,
+    int slots,
     struct RSCache_EntityOps* ops,
     const char* key,
     const char* value);
-
-/** Free-standing growable int list, for the array-valued keys. */
-struct CP_IntList
-{
-    int* items;
-    int count;
-    int capacity;
-};
-
-void
-cp_intlist_set(
-    struct CP_IntList* list,
-    int index,
-    int value);
-
-void
-cp_intlist_push(
-    struct CP_IntList* list,
-    int value);
-
-void
-cp_intlist_free(struct CP_IntList* list);
 
 /** Parse `keyN` (1-based) and return N-1, or -1 when `key` is not `prefix` + digits. */
 int

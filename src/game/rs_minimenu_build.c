@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define RS_MINIMENU_HIT_STACK_MAX 64
@@ -287,24 +288,72 @@ add_obj_cell_rows(
     int obj_count,
     struct UIMinimenu* menu)
 {
-    struct UITreeMenuOptions const* component_ops =
-        &ctx->tree->components[cell->ops_node_index].menu_options;
+    struct UITreeMenuOptions component_ops =
+        ctx->tree->components[cell->ops_node_index].menu_options;
     int const before = menu->option_count;
     struct ToriRS_Objtype const* obj = ensure_objtype(ctx, obj_id);
     struct UIMinimenuPick pick = pick_inv_slot(cell->component_id, cell->slot, obj_id, obj_count);
     char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     char suffix[UITREE_MINIMENU_OPTION_LEN];
+    bool component_ops_armed = false;
 
     if( add_inv_slot_select_row(
             &ctx->selection, pick, cell->component_id, cell->slot, obj_name, menu) )
         return menu->option_count - before;
 
-    add_inv_obj_rows(menu, pick, obj, cell->obj_ops != 0, cell->obj_use != 0);
+    /*
+     * A CS2 cell's verbs are offered only where the server armed them.
+     *
+     * A grid keeps the cache's own answer, but a script-created cell has no
+     * cache record and the strings on it are not evidence: rev 230's backpack
+     * paint script leaves a fixed op4 "Read" on every slot regardless of what
+     * is in it, while the bank's leaves genuine per-item rows on the same kind
+     * of node. What separates them is the server's IF_SETEVENTS mask — the bank
+     * arms its items component, the gameframe's backpack is never armed — which
+     * is exactly the distinction the real client makes and the reason the stray
+     * "Read" is invisible there.
+     *
+     * Without this the two containers cannot both be right: honouring the child
+     * strings gives a bank its Withdraw ladder and costs the backpack its
+     * Wear/Use/Drop, and ignoring them does the reverse.
+     */
+    if( cell->kind == UITREE_OBJ_CELL_DYNAMIC )
+    {
+        int const events =
+            ctx->events_for_component ? ctx->events_for_component(ctx->events_user, cell->component_id) : 0;
+        /* The three things that decide an item cell's rows, in one line —
+         * which container the wire will name, and whether its verbs are live. */
+        if( getenv("TORIRS_MINIMENU_DEBUG") )
+            fprintf(
+                stderr, "objcell: com=%d|%d events=0x%x ops_node=%d\n",
+                (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, events,
+                (int)cell->ops_node_index);
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            if( (events & (1 << (i + 1))) == 0 )
+                component_ops.ops[i][0] = '\0';
+            else if( component_ops.ops[i][0] != '\0' )
+                component_ops_armed = true;
+        }
+    }
+    else
+    {
+        component_ops_armed = true;
+    }
+
+    /* The ObjType's own verbs stand in when the container named none that are
+     * live — the backpack's Wear/Eat/Drop, and "Use". */
+    add_inv_obj_rows(
+        menu,
+        pick,
+        obj,
+        cell->obj_ops != 0 || !component_ops_armed,
+        cell->obj_use != 0 || !component_ops_armed);
     snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
     /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
      * Remove), then the always-present Examine — trailing order per reference
      * (Client.ts: 9993-10020). */
-    add_menu_ops_rows(menu, component_ops, pick, suffix);
+    add_menu_ops_rows(menu, &component_ops, pick, suffix);
     {
         char examine[UITREE_MINIMENU_OPTION_LEN];
         format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);

@@ -576,6 +576,7 @@ RS_CS2Host_Init(
      * server can drive it. Real default is TBD once minimap zoom is rendered. */
     host->minimap_zoom = 2;
     host->logout_requested = false;
+    host->close_modal_requested = false;
     /* Preserve what VIEWPORT_GETFOV/GETZOOM returned before they were
      * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
     host->viewport_fov = 128;
@@ -3601,6 +3602,10 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_LOGOUT:
         host->logout_requested = true;
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_IF_CLOSE:
+        host->close_modal_requested = true;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_VIEWPORT:

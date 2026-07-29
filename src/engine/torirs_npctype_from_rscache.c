@@ -80,33 +80,6 @@ torirs_npctype_copy_pairs_int(
     *dst_count = count;
 }
 
-/* dat2 decodes recolor/retexture pairs as signed shorts; widen to the
- * non-negative 16-bit values the loc/obj conversions already store. */
-static void
-torirs_npctype_copy_pairs_short(
-    int** dst_from,
-    int** dst_to,
-    int* dst_count,
-    const short* src_from,
-    const short* src_to,
-    int count)
-{
-    *dst_count = 0;
-    if( count <= 0 || !src_from || !src_to )
-        return;
-
-    *dst_from = malloc((size_t)count * sizeof(int));
-    *dst_to = malloc((size_t)count * sizeof(int));
-    assert(*dst_from);
-    assert(*dst_to);
-    for( int i = 0; i < count; i++ )
-    {
-        (*dst_from)[i] = (int)(unsigned short)src_from[i];
-        (*dst_to)[i] = (int)(unsigned short)src_to[i];
-    }
-    *dst_count = count;
-}
-
 struct ToriRS_Npctype*
 ToriRS_NpctypeFromRSCacheDat1(
     int npc_id,
@@ -187,14 +160,14 @@ ToriRS_NpctypeFromRSCacheDat2(
     torirs_npctype_copy_models(npctype, src->models, src->models_count);
     torirs_npctype_copy_heads(npctype, src->chathead_models, src->chathead_models_count);
 
-    torirs_npctype_copy_pairs_short(
+    torirs_npctype_copy_pairs_int(
         &npctype->recolors_from,
         &npctype->recolors_to,
         &npctype->recolor_count,
         src->recolor_to_find,
         src->recolor_to_replace,
         src->recolor_count);
-    torirs_npctype_copy_pairs_short(
+    torirs_npctype_copy_pairs_int(
         &npctype->retextures_from,
         &npctype->retextures_to,
         &npctype->retexture_count,

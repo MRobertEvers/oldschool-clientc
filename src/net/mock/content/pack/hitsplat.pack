@@ -1,0 +1,27 @@
+// Hitsplat types (cache config group 32).
+//
+// Hand-authored, because OpenRune's gameval table has no hitsplat namespace —
+// but not guessed. Each id was resolved to its sprite through the config
+// record's opcode 5 and the sprite's dominant colour measured:
+//
+//   0  sprite 2270  rgb  61, 31,126  blue   the zero/block splat
+//   1  sprite 3521  rgb 142, 21, 26  red    ordinary damage
+//   3  sprite 1361  rgb 153,109,  4  yellow
+//   4  sprite 1633  rgb 151,108,  3  yellow
+//   5  sprite 1632  rgb  26, 78, 73  teal
+//   6  sprite 1629  rgb 104, 21,140  purple
+//   7  sprite 3405  rgb  61, 99, 19  green  poison
+//
+// The mock had 0 and 1 the other way round, so every hit drew the blue block
+// splat and every miss drew the red one. Nothing failed — it just looked wrong,
+// which is why it needed measuring rather than reasoning about.
+//
+// The unnamed ids (2, 8-77) are real records; most carry no sprite at all. They
+// get symbols when something needs them.
+0=hitsplat_block
+1=hitsplat_damage
+3=hitsplat_yellow
+4=hitsplat_yellow_alt
+5=hitsplat_teal
+6=hitsplat_purple
+7=hitsplat_poison

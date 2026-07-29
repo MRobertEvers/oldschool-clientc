@@ -249,6 +249,14 @@ enum CS2VM_HostRequestKind
      * RS_CS2Host.logout_requested) for whatever drives the actual disconnect. */
     CS2VM_HOST_REQUEST_LOGOUT,
 
+    /* IF_CLOSE (3103): no payload, no return value. Every framed interface's X
+     * runs it — `steelborder` binds op 1 to clientscript 29, whose whole body is
+     * `if_close`. It closes nothing locally: the reference sends CLOSE_MODAL and
+     * the server unmounts. The host records the request (see
+     * RS_CS2Host.close_modal_requested) and the App drains it on the next tick,
+     * which is the same shape as LOGOUT above. */
+    CS2VM_HOST_REQUEST_IF_CLOSE,
+
     /* Viewport FOV/zoom get/set/clamp (6200..6205), one kind carrying the opcode
      * and its popped args. The host owns both values so a SET/CLAMP round-trips
      * through the matching GET (like CAM_*FOLLOWHEIGHT). */

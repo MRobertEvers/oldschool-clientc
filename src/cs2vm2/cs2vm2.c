@@ -8363,8 +8363,22 @@ CS2VM2_RunOp(
         return CS2VM_EXECNO_OK;
     }
     case CS2_OP_IF_CLOSE:
-        /* No stack args. Generated meta wrongly treats this like MES (1 string). */
-        return CS2VM_EXECNO_OK;
+    {
+        /*
+         * No stack args. Generated meta wrongly treats this like MES (1 string).
+         *
+         * This is what every interface's close button runs — `steelborder`
+         * binds op 1 to clientscript 29, whose entire body is `if_close`. It is
+         * *not* a local close: the reference sends CLOSE_MODAL and waits for the
+         * server to unmount. Returning OK here without telling the host made the
+         * X on the bank, the world map and every other framed interface a
+         * no-op that consumed the click.
+         */
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_IF_CLOSE;
+        return vm->vm->host_exec(vm, &request);
+    }
     default:
         /* Contiguous families, matched by range rather than forty case labels. */
         if( (opcode >= CS2_OP_WORLDMAP_INIT && opcode <= CS2_OP_WORLDMAP_LISTELEMENT_NEXT) ||

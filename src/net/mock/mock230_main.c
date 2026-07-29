@@ -26,6 +26,7 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_ids.h"
 #include "mock230_ws.h"
 #include "net/isaac.h"
 #include "net/rev/osrs230/packetout.h"
@@ -452,11 +453,17 @@ main(
     mock230_objinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_npcinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_seqinfo_load(cache_dir ? cache_dir : "cache.osrs230");
-    /* Container sizes and varbit bit ranges, for the bank. */
-    mock230_bank_load(cache_dir ? cache_dir : "cache.osrs230");
+    /* Varbit bit-ranges, from the same cache the client unpacks them with. */
+    mock230_varbit_load(cache_dir ? cache_dir : "cache.osrs230");
     /* After the three cache loaders: the content tree seeds its combat bonuses
      * from the params they decoded. See mock230_content_load. */
     mock230_content_load(mock230_content_dir());
+    /* And after the content: every interface, component and varbit the engine
+     * addresses is a name in that tree. See mock230_ids.h. */
+    mock230_ids_resolve();
+    /* Container sizes and varbit bit ranges, for the bank. Last, because it
+     * looks the bank's container up by the id the two steps above resolved. */
+    mock230_bank_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_world_set_home(home_x, home_z);
 
     /* --selftest: run the game logic with no socket and exit. */

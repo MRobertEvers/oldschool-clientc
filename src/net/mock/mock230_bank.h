@@ -29,86 +29,31 @@
 struct Mock230Server;
 struct Mock230Item;
 
+/*
+ * No interface, component, container or varbit id appears in this file.
+ *
+ * Every one of them is the cache's number rather than this server's, so they
+ * are named in the content tree and resolved at boot — `mock230_ids.h` for the
+ * interfaces, components and varbits, `interface_bank/configs/bank.constant`
+ * for the quantity modes, `bank.enum` for the tab varbits. What is left below
+ * is what content cannot state: how much memory a bank takes and what a pending
+ * prompt is going to do with the number when it arrives.
+ */
 enum
 {
-    /** Container id the client's InvManager knows (INV_MANAGER_CONTAINER_BANK)
-     *  and the id `inv_getobj(bank, …)` resolves in the bank's own CS2. */
-    MOCK230_INV_BANK = 95,
-
     /** Slots the mock allocates. The cache's inv config decides how many are
-     *  actually used; this is the ceiling the array is sized to. */
+     *  actually used (1220 at rev 230); this is the ceiling the array is sized
+     *  to, and the fallback when there is no cache to ask. */
     MOCK230_BANK_SLOTS = 1220,
+    /** Ceiling on `tab_size`, which is a fixed array. The number of tabs is
+     *  however many the `bank_tabs` enum lists. */
     MOCK230_BANK_TABS = 9,
 
-    /* Interface groups, verified with tools/dump_interface against
-     * cache.osrs230 and named the same way OpenRune's gameval table does
-     * (interfaces.bankmain / interfaces.bankside). */
-    MOCK230_BANK_IFACE = 12,
-    MOCK230_BANKSIDE_IFACE = 15,
-
-    /*
-     * Where the two halves mount, in toplevel_osrs_stretch (161).
-     *
-     * `mainmodal` is the big centre panel every full-screen interface opens
-     * into; `sidemodal` replaces the whole sidebar, which is what makes the
-     * bank's inventory panel appear where the tabs were. Opening the side half
-     * anywhere else leaves the tab strip on top of it.
-     */
-    MOCK230_MAINMODAL_SLOT = 16,
-    MOCK230_SIDEMODAL_SLOT = 74,
-
-    /*
-     * Components of interface 12 the server addresses directly. Every one was
-     * read out of tools/dump_interface rather than taken from another server's
-     * table — the bank's child numbering moved between OldSchool revisions, and
-     * a constant borrowed from a newer cache names a different component here.
-     */
-    MOCK230_BANK_COM_TITLE = 3,
-    MOCK230_BANK_COM_ITEMS = 13,
-    MOCK230_BANK_COM_SCROLLBAR = 14,
-    MOCK230_BANK_COM_SWAP = 19,
-    MOCK230_BANK_COM_INSERT = 21,
-    MOCK230_BANK_COM_ITEM_MODE = 24,
-    MOCK230_BANK_COM_NOTE_MODE = 26,
-    MOCK230_BANK_COM_QTY_1 = 30,
-    MOCK230_BANK_COM_QTY_5 = 32,
-    MOCK230_BANK_COM_QTY_10 = 34,
-    MOCK230_BANK_COM_QTY_X = 36,
-    MOCK230_BANK_COM_QTY_ALL = 38,
-    MOCK230_BANK_COM_DEPOSIT_INV = 44,
-    MOCK230_BANK_COM_DEPOSIT_WORN = 46,
-
-    /** Bank side: the inventory grid the deposit ops come from. */
-    MOCK230_BANKSIDE_COM_ITEMS = 3,
-
-    /*
-     * Bank varbits. Names are OpenRune's gameval `varbits` group; the bit
-     * ranges are *not* here on purpose — they come from the cache, see
-     * mock230_bank_varbit_resolve.
-     */
-    MOCK230_VARBIT_BANK_WITHDRAWNOTES = 3958,
-    MOCK230_VARBIT_BANK_INSERTMODE = 3959,
-    MOCK230_VARBIT_BANK_REQUESTEDQUANTITY = 3960,
-    MOCK230_VARBIT_BANK_QUANTITY_TYPE = 6590,
-    MOCK230_VARBIT_BANK_CURRENTTAB = 4150,
-    MOCK230_VARBIT_BANK_TAB_DISPLAY = 4170,
-    MOCK230_VARBIT_BANK_TAB_1 = 4171,
-    MOCK230_VARBIT_BANK_LEAVEPLACEHOLDERS = 3755,
-    MOCK230_VARBIT_BANK_SHOWINCINERATOR = 5102,
-    MOCK230_VARBIT_BANK_HIDEDEPOSITWORN = 5364,
-    MOCK230_VARBIT_BANK_SIDE_SLOT_IGNORE = 5450,
-
-    /** What a pending "-X" prompt will do with the number when it arrives. */
+    /** What a pending "-X" prompt will do with the number when it arrives. This
+     *  is the server's own bookkeeping and never reaches the wire. */
     MOCK230_BANK_PENDING_NONE = 0,
     MOCK230_BANK_PENDING_WITHDRAW = 1,
     MOCK230_BANK_PENDING_DEPOSIT = 2,
-
-    /** Quantity modes, in the order the five buttons sit in. */
-    MOCK230_BANK_QTY_1 = 0,
-    MOCK230_BANK_QTY_5 = 1,
-    MOCK230_BANK_QTY_10 = 2,
-    MOCK230_BANK_QTY_X = 3,
-    MOCK230_BANK_QTY_ALL = 4,
 };
 
 /**
@@ -126,11 +71,11 @@ struct Mock230Bank
     int size;
 
     int open;
-    /** Withdraw as note rather than as item (varbit 3958). */
+    /** Withdraw as note rather than as item (varbit bank_withdrawnotes). */
     int note_mode;
-    /** Insert rather than swap when a slot is dragged (varbit 3959). */
+    /** Insert rather than swap when a slot is dragged (bank_insertmode). */
     int insert_mode;
-    /** MOCK230_BANK_QTY_* (varbit 6590). */
+    /** One of the `^bank_qty_*` constants (varbit bank_quantity_type). */
     int quantity_mode;
 
     /*
@@ -144,16 +89,16 @@ struct Mock230Bank
      */
     int pending_kind;
     int pending_slot;
-    /** The X in "Withdraw-X" (varbit 3960). */
+    /** The X in "Withdraw-X" (varbit bank_requestedquantity). */
     int requested_quantity;
-    /** 0 = all items, 1..9 = a tab (varbit 4150). */
+    /** 0 = all items, 1..n = a tab (varbit bank_currenttab). */
     int current_tab;
-    /** How the tab strip labels itself (varbit 4170): 0 numbers, 3 hides it
-     *  when no tab holds anything. */
+    /** How the tab strip labels itself (bank_tab_display): 0 numbers, 3 hides
+     *  it when no tab holds anything. */
     int tab_display;
     /** Objs in each tab, which is what the client lays the tab strip out from
-     *  (varbits 4171..4179). Tab 0 is "everything not in a tab" and is derived,
-     *  not stored. */
+     *  (the `bank_tabs` enum's varbits). Tab 0 is "everything not in a tab" and
+     *  is derived, not stored. */
     int tab_size[MOCK230_BANK_TABS];
 
     /** Set by any mutation; drained by mock230_bank_flush in phase 10. A whole
@@ -222,8 +167,8 @@ mock230_bank_init(struct Mock230Server* srv);
 void
 mock230_bank_shutdown(struct Mock230Server* srv);
 
-/** Open both halves: main into 161:16, side into 161:74, push every setting
- *  varbit, and transmit both containers. */
+/** Open both halves — main into the gameframe's mainmodal slot, side into its
+ *  sidemodal — push every setting varbit, and transmit both containers. */
 void
 mock230_bank_open(struct Mock230Server* srv);
 

@@ -1,0 +1,24 @@
+// The bank's tabs, by index.
+//
+// Nine varbits with no arithmetic relationship worth relying on: they happen to
+// be consecutive at rev 230 (4171..4179), and `bank_tab_1 + i` was how the
+// engine walked them. That is a coincidence of one cache. A keyed table is what
+// the reference uses for exactly this shape (LostCity's `.enum`,
+// inputtype/outputtype/val=key,value), and it makes the tab count content: add
+// a tenth line and the bank has ten tabs, up to what the player struct can hold.
+//
+// The value each one holds is how many objs that tab owns; tab 0 is "the main
+// tab", which is everything not claimed by another and so has no varbit.
+
+[bank_tabs]
+inputtype=int
+outputtype=varbit
+val=0,bank_tab_1
+val=1,bank_tab_2
+val=2,bank_tab_3
+val=3,bank_tab_4
+val=4,bank_tab_5
+val=5,bank_tab_6
+val=6,bank_tab_7
+val=7,bank_tab_8
+val=8,bank_tab_9

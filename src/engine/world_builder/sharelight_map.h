@@ -10,8 +10,14 @@ struct SharelightMapElement
     uint8_t size_x;
     uint8_t size_z;
 
-    uint8_t light_ambient;
-    uint8_t light_attenuation;
+    /* LocType ambient/contrast, carried from the build pass to the lighting
+     * pass. Signed and 16-bit wide because both are: ambient is a signed byte
+     * (-128..127) and contrast is a signed byte pre-scaled by 25 on dat2
+     * (-3200..3175). These were `uint8_t`, which turned cache.osrs230's ~1,300
+     * negative-ambient locs into +230-ish and truncated every contrast above
+     * 255 — the model then lit at ambient 64+230 and rendered flat white. */
+    int16_t light_ambient;
+    int16_t light_attenuation;
 };
 
 struct SharelightMapTile

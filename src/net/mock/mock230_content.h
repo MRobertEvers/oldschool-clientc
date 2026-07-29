@@ -9,6 +9,8 @@
  *   content/scripts/<area>/configs/     .npc  `[symbol]` + `key=value` + `param=`
  *                                       .param  parameter declarations
  *                                       .loc  loc overlays (doors, stairs)
+ *                                       .constant  `^name = value`
+ *                                       .prayer  one block per prayer
  *   content/maps/m<x>_<z>.jm2           `==== NPC ====` / `==== OBJ ====`
  *   content/scripts/<area>/             .rs2  behaviour (see mock230_scripts.c)
  *
@@ -41,10 +43,12 @@ enum Mock230PackKind
     MOCK230_PACK_SPOTANIM,
     MOCK230_PACK_INV,
     MOCK230_PACK_VARP,
+    MOCK230_PACK_VARBIT,
     MOCK230_PACK_INTERFACE,
     MOCK230_PACK_COMPONENT,
     MOCK230_PACK_STAT,
     MOCK230_PACK_PARAM,
+    MOCK230_PACK_HITSPLAT,
     MOCK230_PACK_COUNT
 };
 
@@ -61,6 +65,61 @@ const char*
 mock230_content_symbol_name(
     enum Mock230PackKind kind,
     int symbol_id);
+
+/*
+ * Resolving a table of symbols in one go.
+ *
+ * The engine addresses a few dozen ids directly — the interfaces it opens, the
+ * components it arms, the varbits it writes. LostCity's engine never sees those
+ * numbers because its content names all of them; this is the same arrangement
+ * for a server whose interface logic is in C: one table per subsystem, resolved
+ * once at boot, and nothing downstream holds a literal.
+ *
+ * A name that does not resolve leaves its `out` at -1, prints, and counts
+ * towards mock230_content_error_count — the same treatment a bad config line
+ * gets, because it is the same mistake.
+ */
+struct Mock230SymbolRef
+{
+    enum Mock230PackKind kind;
+    const char* name;
+    int* out;
+};
+
+/** Resolve `count` refs; returns how many failed. `what` names the caller in
+ *  the diagnostic ("bank", "prayer"). */
+int
+mock230_content_resolve(
+    const char* what,
+    const struct Mock230SymbolRef* refs,
+    int count);
+
+/* ------------------------------------------------------------------ */
+/* Constants (`.constant`)                                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * LostCity's `^name = value`, scattered through the tree in `.constant` files
+ * and referenced with a leading caret. The compiler substitutes them into
+ * RuneScript; here they are the tuning numbers the C engine reads — quantity
+ * modes, prayer indices, headicon slots. Anything that is a *number the client
+ * and server have to agree on* belongs in one, so both ends can be read off the
+ * same line.
+ *
+ * A constant may also be used on either side of a `.enum` val= line, exactly as
+ * the reference does (`val=^prayer_thickskin,3`).
+ */
+
+/** The literal text of `^name` (with or without the caret), or NULL. */
+const char*
+mock230_content_constant(const char* name);
+
+/** `^name` as a number. Missing or non-numeric yields `fallback` and a
+ *  diagnostic — a constant the engine reads is content it needs. */
+int
+mock230_content_constant_int(
+    const char* name,
+    int fallback);
 
 /* ------------------------------------------------------------------ */
 /* Combat parameters                                                   */
@@ -217,6 +276,46 @@ const struct Mock230VarpDef*
 mock230_content_varp(int varp_id);
 
 /* ------------------------------------------------------------------ */
+/* Enums                                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A LostCity `.enum`: a keyed table of `val=key,value` lines with declared
+ * input and output namespaces.
+ *
+ * The mock uses one, for the gameframe layout — 24 slot/interface pairs that
+ * were a literal table in C. Keeping the reference's shape rather than
+ * inventing a `.gameframe` file means the next keyed table has an obvious home,
+ * and that a LostCity `.enum` can be read here unchanged.
+ *
+ * Order is preserved. The gameframe is mounted in the order it is listed, and
+ * the chatbox has to exist before anything writes to it.
+ */
+enum
+{
+    MOCK230_ENUM_VALUE_MAX = 64,
+};
+
+struct Mock230EnumValue
+{
+    int key;
+    int value;
+};
+
+struct Mock230EnumDef
+{
+    const char* symbol;
+    enum Mock230PackKind input_kind;
+    enum Mock230PackKind output_kind;
+    struct Mock230EnumValue values[MOCK230_ENUM_VALUE_MAX];
+    int count;
+};
+
+/** An enum by name, or NULL. */
+const struct Mock230EnumDef*
+mock230_content_enum(const char* symbol);
+
+/* ------------------------------------------------------------------ */
 /* Loc definitions (doors, gates, stairs)                              */
 /* ------------------------------------------------------------------ */
 
@@ -246,6 +345,70 @@ struct Mock230LocDef
 
 const struct Mock230LocDef*
 mock230_content_loc(int loc_id);
+
+/* ------------------------------------------------------------------ */
+/* Prayers (`.prayer`)                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * One block per prayer, in the order the prayer book lists them.
+ *
+ * LostCity keeps the same table as a `.dbrow` per prayer over a `prayers`
+ * `.dbtable`, with the drain rates and headicons in `.enum`s beside it. This is
+ * that table flattened into the `[symbol]` + `key=value` shape the rest of this
+ * tree already uses — a `.dbtable` reader would be a second config grammar for
+ * one table of 29 rows. The field names are the reference's.
+ *
+ * `button` is the *component* the prayer sits on, named rather than derived:
+ * the book has 30 buttons and this revision fills 29 of them, so "first button
+ * plus index" is a coincidence that holds today.
+ */
+enum
+{
+    /** Storage ceiling, not a count: `prayer_active` is a 32-bit mask, so a
+     *  30th prayer is free and a 33rd needs a wider field. The number the
+     *  engine loops over is however many blocks the tree declares. */
+    MOCK230_PRAYER_MAX = 32,
+};
+
+/** Which stat bonus a prayer claims. Two prayers sharing any group cannot be up
+ *  together, which is why this is a mask and not a group id — Piety claims
+ *  three at once. */
+enum Mock230PrayerGroup
+{
+    MOCK230_PRAYER_GROUP_DEFENCE = 1 << 0,
+    MOCK230_PRAYER_GROUP_STRENGTH = 1 << 1,
+    MOCK230_PRAYER_GROUP_ATTACK = 1 << 2,
+    MOCK230_PRAYER_GROUP_RANGED = 1 << 3,
+    MOCK230_PRAYER_GROUP_MAGIC = 1 << 4,
+    MOCK230_PRAYER_GROUP_OVERHEAD = 1 << 5,
+};
+
+struct Mock230PrayerDef
+{
+    const char* symbol;
+    /** Display name, as the "You need a Prayer level of N to use X." message
+     *  spells it. */
+    char* name;
+    int level;
+    /** Drain units per tick, weighed against 60 + 2 * prayer bonus. */
+    int drain;
+    /** A mask of Mock230PrayerGroup. */
+    int groups;
+    /** Overhead sprite index, or -1 for the prayers that draw none. */
+    int headicon;
+    /** Packed component uid of the button that toggles it. */
+    int button;
+};
+
+/** The prayer at `index`, or NULL. Index is the bit position in
+ *  `player->prayer_active`, which is the order the blocks were read in. */
+const struct Mock230PrayerDef*
+mock230_content_prayer(int index);
+
+/** How many prayers the tree declares. */
+int
+mock230_content_prayer_count(void);
 
 /* ------------------------------------------------------------------ */
 /* Map spawns (content/maps/m<x>_<z>.jm2)                              */

@@ -707,35 +707,20 @@ Against the real client (`SDL_VIDEODRIVER=dummy`, `TORIRS_MAX_FRAMES`,
   (15,000 coins).
 - **Scene, gameframe, chat, stats, run energy** — the full login burst applies.
 
-**Not reachable from the client yet: inventory item ops.** Both the menu builder
-and the drag machine require a `UIELEM_RS_INV` grid node:
+**Inventory item ops now reach the client too.** They did not when this section
+was first written, and the diagnosis here was right about the symptom and wrong
+about the cause: the claim was that the menu builder and the drag machine needed
+a `UIELEM_RS_INV` grid node, which rev 230's inventory does not have. What they
+actually needed was to understand the *other* shape an item cell comes in — a
+CS2 `cc_create`d child whose index within its static parent IS the slot, which
+is also what rsprot's `If3Button.combinedId` / `.sub` mean.
 
-- `rs_minimenu_build.c: add_inv_slot_rows` — needs `node->u.rs_inv` for the slot
-  hit-test, and only then emits `pick_inv_slot`, which is what
-  `app_minimenu_inv_action` turns into `OPHELD`/`INV_BUTTON`.
-- `app.c: app_inv_node_at` — `if (node->type != UIELEM_RS_INV) continue;`.
-
-At rev 230 the inventory has no such node. Interface 149 mounts a single static
-`RS_LAYER`; every item cell is a CS2-created dynamic component with no recorded
-container or slot. A right-click on an item therefore falls through to the
-generic component-ops path and produces a `UI` pick, which dispatches a CS2 hook
-instead of a packet:
-
-```
-minimenu: open at 541,229 in_world=0 picks=0
-  row[0] action=1106 op=-1 kind=0 id=0        "Cancel"
-  row[1] action=331  op=3  kind=1 id=9801690  "Read <col=ff9040>Bronze full helm</col>"
-                           ^ kind=1 is PICK_UI, not PICK_INV_SLOT
-```
-
-(The op label is wrong too — "Read" is the component's static op, not the
-objtype's "Wear" — and component `9801690` = `149<<16|39386` does not appear in
-the mounted tree at all, which points back at the interface-pack double-bake.)
-
-Closing this needs a slot/container association on CS2-created item components
-and an inventory-slot pick built from it. That is a rev-230 UI change, not a
-server one, and it is the single remaining blocker for equip and drag through
-the UI.
+`UITree_ObjCellForNode` resolves both shapes for both callers. Right-click,
+left-click and drag all work on the backpack and on the worn tab, and the wire's
+component field was widened from 2 bytes to the revision's 4 so `149:0` stops
+arriving as `0`. See [`mock230_player_systems.md`](mock230_player_systems.md) §1
+for the whole of it, including where a cell's verbs come from and why the worn
+tab needed a different answer from the backpack.
 
 **The server half of both is implemented and tested** — `make -C src
 test-mock230` drives the game logic with no socket attached:
@@ -750,7 +735,13 @@ npcs roam inside their radius     200 ticks, radius respected, a zero-radius npc
 ```
 
 The mock also accepts `::` commands over `CLIENT_CHEAT` (`item <id> [count]`,
-`tele <x> <z>`, `npc <id>`) for steering a session once chat input is reachable.
+`tele <x> <z>`, `npc <id>`, `run`, `pray`, `equipstats`) for steering a session
+once chat input is reachable.
+
+Run energy, the equipment-stats screen and overhead prayers are documented
+separately in [`mock230_player_systems.md`](mock230_player_systems.md), along
+with the second binary (`make -C src mock230-dev`, port 43597) they were built
+against.
 
 ---
 

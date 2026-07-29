@@ -801,8 +801,10 @@ MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
+	net/mock/mock230_ids.c \
 	net/mock/mock230_prayer.c \
-	net/mock/mock230_scene.c net/mock/mock230_worldmap.c engine/world_builder/collision_map.c \
+	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+	engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -873,6 +875,7 @@ mock230-scripts: sscompile
 # the same content and cache readers but none of the socket or tick code, and it
 # is run by hand rather than as part of a build.
 MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
+	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o

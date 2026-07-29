@@ -4,6 +4,9 @@
 // re-validated against cache.osrs230 by mock230_pack.
 1521=castle_door_left
 1524=castle_door_right
+10355=bankbooth
+10528=bankboothclosed
+10529=bank_deposit_box
 14880=castle_trapdoor
 16672=castle_stairs_middle
 16679=ladder_top
@@ -11,9 +14,3 @@
 16684=ladder_middle
 56230=castle_stairs_bottom
 56231=castle_stairs_top
-// Bank booths. OpenRune's gameval `objects` group; 10355 is the standard OSRS
-// booth and 10529 the counter form. Their menu op is "Bank" in the cache, which
-// is what the engine actually keys on — these symbols exist so content can bind
-// [oploc<n>] to a specific booth, not so the engine can find one.
-10355=bankbooth
-10528=bankboothclosed

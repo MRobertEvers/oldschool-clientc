@@ -1,0 +1,30 @@
+// The mock's own player variables — bookkeeping no cache and no reference
+// server has ever heard of, so they cannot be imported.
+//
+// A second file rather than lines appended to the generated varp.pack: that one
+// is rewritten by tools/gameval_import.py, and anything hand-added to it is
+// deleted the next time the importer runs. The same split as loc.pack /
+// door.pack.
+//
+// None of these is declared in a .varp config, so none is transmitted.
+1=mock_greeting_count
+2=mock_quest_progress
+3=lumbridge_visited
+
+// Bank variables with no OldSchool counterpart at this revision: the quantity
+// mode and the "X" amount are the mock's own bookkeeping. `bankcert` and
+// `bankinsert` ARE real varps and come from varp.pack.
+1666=bank_quantity_type
+1667=bank_requestedquantity
+
+// Bank tabs and locked slots. These ids do NOT match OpenRune's gameval names
+// for the same numbers (867 is `prayer23` there, not a bank tab), so they are
+// not imported — they are whatever the bank content was written against, kept
+// verbatim. If they turn out to be wrong the fix is here, in one place.
+867=bank_tab_a
+1052=bank_tab_b
+1053=bank_tab_c
+1793=bank_tab_d
+3750=bank_tab_e
+4611=bank_locked_slots
+1666=bank_quantity

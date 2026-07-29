@@ -227,6 +227,32 @@ dup_range(
     return s;
 }
 
+char*
+cp_lines_to_string(
+    const struct CP_Lines* lines,
+    const char* debugname,
+    size_t* out_size)
+{
+    size_t need = strlen(debugname) + 4;
+    for( int i = 0; i < lines->count; i++ )
+        need += strlen(lines->lines[i]) + 1;
+    char* buf = malloc(need + 1);
+    if( !buf )
+        return NULL;
+    size_t w = (size_t)snprintf(buf, need + 1, "[%s]\n", debugname);
+    for( int i = 0; i < lines->count; i++ )
+        w += (size_t)snprintf(buf + w, need + 1 - w, "%s\n", lines->lines[i]);
+    if( out_size )
+        *out_size = w;
+    return buf;
+}
+
+static int
+config_file_read(
+    struct CP_ConfigFile* file,
+    FILE* f,
+    const char* path);
+
 int
 cp_config_file_load(
     struct CP_ConfigFile* file,
@@ -240,6 +266,30 @@ cp_config_file_load(
         return 0;
     }
     file->path = dup_range(path, strlen(path));
+    return config_file_read(file, f, path);
+}
+
+int
+cp_config_file_load_memory(
+    struct CP_ConfigFile* file,
+    const char* text,
+    size_t size,
+    const char* label)
+{
+    memset(file, 0, sizeof(*file));
+    FILE* f = fmemopen((void*)text, size, "rb");
+    if( !f )
+        return 0;
+    file->path = dup_range(label, strlen(label));
+    return config_file_read(file, f, label);
+}
+
+static int
+config_file_read(
+    struct CP_ConfigFile* file,
+    FILE* f,
+    const char* path)
+{
 
     char* line = NULL;
     size_t cap = 0;

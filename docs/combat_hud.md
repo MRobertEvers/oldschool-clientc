@@ -12,10 +12,11 @@ every time and it was right once out of five.
 | | symptom | made of | gap |
 |---|---|---|---|
 | 1 | number, no splat | hitsplat config group 32 → sprite id | client looked for a sprite *archive* that does not exist at this revision |
+| 1b | wrong splat for damage | hitsplat type id | the mock had damage and block **swapped** — 0 is blue/zero, 1 is red |
 | 2 | skills tab all zeros | CS2 `STAT`/`STAT_BASE`/`STAT_XP` | opcodes had a signature but no handler — the stub pushed 0 |
 | 3 | no `(level-N)` on npcs | local player's combat level | server never sent `UPDATE_PID`, so the client did not know which entity was itself |
 | 4 | facing never clears | `FACE_ENTITY` mask | it is a latch; the server never sent the clear |
-| 5 | combat tab: only auto-retaliate | CS2 + weapon category + four varps | **partly open** — see §5 |
+| 5 | combat tab: only auto-retaliate | CS2 script 7593 keyed on varbit 357 (weapon category) | varbits never sent; one line still needed — see §5 |
 
 ---
 
@@ -64,6 +65,21 @@ loader only ever holds what something explicitly requested.**
 
 Verify: `TORIRS_OVERLAY_DEBUG=1` prints the primitives per frame. A `kind=1`
 (sprite) item beside the two `kind=2` (text) items is the fix working.
+
+### 1b. …and the two ids were swapped
+
+Once the splat rendered, it rendered the *wrong* one: hits drew a block and
+misses drew damage. The mock's `MOCK230_HIT_DAMAGE 0` / `MOCK230_HIT_BLOCK 1`
+predated being able to read the table, and are backwards — resolving each id to
+its sprite and measuring the sprite's dominant colour settles it:
+
+```
+hitsplat 0  sprite 2270  rgb  61, 31,126  blue   the zero/block splat
+hitsplat 1  sprite 3521  rgb 142, 21, 26  red    ordinary damage
+```
+
+They are `content/pack/hitsplat.pack` now, with that table in the file as the
+evidence — a pairing nobody can check gets guessed again.
 
 ---
 
@@ -171,55 +187,66 @@ and that is exactly how one of them got forgotten.
 
 ---
 
-## 5. The combat tab — **partly open**
+## 5. The combat tab — the weapon panel is built from two varbits
 
-**How it works.** Interface 593 is two independent pieces:
+**How it works, established by decompiling it.** Interface 593:0's `onLoad` is
+CS2 script **7592**, which calls **7593**; `onVarpTransmit` is 420, which calls
+7593 again. 7593 is the whole panel:
 
-- **Auto-retaliate** — a plain button whose label is driven by varp 172
-  (`option_nodef`).
-- **The weapon panel** — the weapon name (593:2), a subtitle (593:4) and four
-  style buttons (593:5, 9, 13, 17). *All of them ship `hidden=1` with empty text
-  and `graphic=-1`*, so a CS2 script has to unhide and fill every one. Which
-  layout it builds depends on the equipped weapon's **category** — a field on
-  the obj's cache record (bronze scimitar 21, abyssal whip 150) — looked up in
-  the `combat_interface_weapon_category` dbtable (table 78). OpenRune generates
-  a Kotlin row class for that same table, which is how its ids were confirmed.
+```
+if (%varbit13027 > 0) { if_settext("Combat Lvl: <...>", interface_593:4); }
+...
+$op1, $string5, $graphic15, ... = ~script7603(%varbit357);
+if ($graphic15 ! null) { if_sethide(false, interface_593:5); ... }
+else                   { if_sethide(true,  interface_593:5); }
+```
+
+- **`%varbit357`** — the equipped weapon's *category*. `~script7603` maps it to
+  the four (op, tooltip, graphic) triples. **When it is 0 the script returns
+  nulls and hides every button**, which is precisely "only auto-retaliate".
+- **`%varbit13027`** — the combat level printed above them.
+
+Decompile it yourself with:
+
+```
+3rd/rscache/tools/cs2/cs2 decompile --rev osrs230 --cache cache.osrs230 \
+    --names <dir with boolean-names.tsv> --out /tmp/cs2 7592 7593
+```
+
+The `--names` directory is not optional: without a `boolean-names.tsv` mapping
+`0 false` / `1 true`, both scripts fail with "no source spelling for 1 as
+boolean-boolean" — a *printing* limitation, not a decode failure, and the reason
+these two are among the 2,973 the bulk run reports as failed.
+
+The varbits' bit ranges are in the cache, not authored: 357 is varp **843** bits
+0–5, 13027 is varp **1105** bits 24–30 (config group 14 — the same records the
+client unpacks them with).
 
 **What was done.**
 
-- *Server*: the four varps OpenRune's `AttackTab` writes now reach the client —
-  `com_mode` (attack style), `option_nodef` (auto-retaliate), `sa_energy`
-  (special energy, tenths of a percent), `sa_attack`. They are **content, not
-  engine**: declared `transmit=yes` in
-  `content/scripts/player/configs/player_controls.varp` and written by
-  `[login,_]`, the way LostCity does it. `sa_energy` is what forced a
-  `VARP_LARGE` encoder — `VARP_SMALL` carries a signed byte and a full bar is
-  1000. Confirmed landing: the special-attack orb reads 100, and exactly four
-  varp packets go out (three small, one wide) with the mock's own undeclared
-  counters correctly absent.
-- *Client*: `ToriRS_Objtype` had **no category field at all**; the adaptor
-  dropped it on the floor. It is now carried through from the cache record,
-  which is a precondition for any weapon-category lookup.
+- *Server*: a varbit table (`mock230_varbit.c`), decoded from the same config
+  group the client reads, with read/write that patches the bits inside the base
+  varp and marks it for transmission — so a varbit is a *view* of a varp and
+  goes through the same transmit gate and small/large encoder choice as any
+  other. `mock230_world_sync_combat_varbits` recomputes both from the equipped
+  weapon and the player's stats, in phase 9, and writes only on change
+  (derived state compares; authored state does not — see the varp section of
+  `mock230_content.md`).
+- *Content*: `varbit.pack` names the two, `combat_tab.varp` declares their
+  container varps `transmit=yes`, and the four `AttackTab` varps
+  (`com_mode`, `option_nodef`, `sa_energy`, `sa_attack`) are written by
+  `[login,_]`. Verified landing — the special-attack orb reads 100.
+- *Client*: `ToriRS_Objtype` gained the `category` field, which the adaptor was
+  dropping.
 
-**What is still missing.** The weapon panel does not build. Established:
-
-- the tab opens, lays out, and its auto-retaliate half works;
-- the varps it reads are correct and arriving;
-- the panel's components are cache-hidden, so *something* must run to show them.
-
-Not established: which script that is, or why it does not fill them.
-`TORIRS_DUMP_HOOKS_EXIT` reports zero runtime hooks for the *entire* tree —
-including the inventory, which demonstrably works — so that dump is reading the
-wrong state and is not usable as evidence either way. The next step is to
-disassemble 593's `onLoad` with `3rd/rscache/tools/cs2 decompile` and read what
-it asks for, rather than to guess again.
-
-Worth knowing before that: the panel being empty is **not** the unarmed layout.
-The reference's unarmed case still shows a weapon name and Punch/Kick/Block, and
-this shows neither — so the script is failing earlier than the weapon lookup,
-not falling through to a default. (Compare the dragon-claws note in
-`exporter-owns-generated-configs`: a *missing category* produces the unarmed
-interface, which is a different and more visible failure than this one.)
+**What is still missing, precisely.** `Mock230ObjInfo` needs the one line
+`entry->category = obj->category;` in `mock230_objinfo.c`'s `record()`. Without
+it the equipped weapon always reports category 0 and the panel stays empty even
+with a scimitar on. I applied it three times during this work and each time it
+was overwritten by concurrent edits to that file, so it is called out here
+rather than left as a silent regression. Everything downstream of it — the
+varbit table, the sync, the transmit path, the packs — is in place and tested;
+`::equip <slot>` exists to drive it headlessly.
 
 ---
 

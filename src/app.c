@@ -31,6 +31,7 @@
 #include "game/rs_worldmap_render.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
+#include "game/task_cs2_run.h"
 #include "input/torirs_input_cmd.h"
 #include "input/torirs_keymap.h"
 #include "painters/painters.h"
@@ -3430,6 +3431,16 @@ Task_OpenSubRefresh_Run(
          * mount task asserts interface_id>0, so a close never routes through it. */
         UITree_InterfaceParentClear(app->tree, self->target_uid);
         UITree_ApplyHide(app->tree, self->target_uid, 1);
+        /*
+         * Then tell the tree a sub-interface went away.
+         *
+         * The mount path runs these hooks (task_interface_open step 8) and this
+         * one did not, which is asymmetric and was wrong: the gameframe's
+         * `on_sub_change` is what decides whether the sidebar shows the tab
+         * strip or whatever replaced it. Opening the bank hid the tabs and
+         * closing it left them hidden, so the sidebar came back blank.
+         */
+        TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
     }
     App_RefreshAfterTreeMutation(app);
     PT_END(&self->pt);
@@ -3659,6 +3670,23 @@ app_logic_tick(struct App* app)
     RS_Audio_Tick(&app->audio, app->provider, &app->runner, &app->audio_out);
 
     RS_CS2Host_Tick(&app->host);
+
+    /*
+     * An interface asked to close itself.
+     *
+     * `if_close` is what every framed interface's X runs (steelborder binds op 1
+     * to clientscript 29, whose whole body is that one opcode). It is a request,
+     * not a local close: the server is what unmounts, and it answers with
+     * IF_CLOSESUB. Draining the flag here rather than inside the hook dispatch
+     * keeps the CS2 host free of any knowledge of the socket, which is the same
+     * split every other host request has.
+     */
+    if( app->host.close_modal_requested )
+    {
+        app->host.close_modal_requested = false;
+        if( app->button_sink.close_modal )
+            app->button_sink.close_modal(app->button_sink.user);
+    }
 
     /* clientCode-populated components (friends rows, list sizes, design
      * preview) refresh from live state each tick (reference clientComponent

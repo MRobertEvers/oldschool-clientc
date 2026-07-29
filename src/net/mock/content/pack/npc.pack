@@ -5,6 +5,7 @@
 134=huge_spider
 1173=chicken
 1265=ram
+1613=banker
 1838=duck
 2246=goblin_12
 2248=goblin_15
@@ -40,6 +41,3 @@
 6773=doomsayer
 6816=gee
 10619=bob
-// A banker, for the [opnpc] route into the bank. 1613 is OpenRune's
-// npcs.banker1 and decodes as "Banker" in cache.osrs230.
-1613=banker
