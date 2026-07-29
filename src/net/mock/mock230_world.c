@@ -3922,8 +3922,10 @@ mock230_world_selftest(void)
         int msb = 0;
 
         mock230_world_init(&srv, 402, 402);
-        SELFTEST_CHECK(mock230_bank_inv_size(ids->inv_bank) == 1220,
-                       "the cache should say the bank has 1220 slots, got %d",
+        /* 1,410 in rev 239; the bank grows with almost every OldSchool update, so
+         * this is a claim about cache.osrs239 and not about banks in general. */
+        SELFTEST_CHECK(mock230_bank_inv_size(ids->inv_bank) == 1410,
+                       "the cache should say the bank has 1410 slots, got %d",
                        mock230_bank_inv_size(ids->inv_bank));
 
         /* The two that share varp 115 — the case a whole-varp write breaks. */

@@ -30,6 +30,7 @@ uibuilder_manifest_free(struct UIBuilderManifest* m)
     free(m->components);
     free(m->invs);
     free(m->ops);
+    free(m->hotkeys);
     memset(m, 0, sizeof(*m));
 }
 
@@ -215,6 +216,26 @@ add_component_req(
     c->iface_id = packed >> 16;
 }
 
+/* A binding whose component or effect is blank is a malformed section, not a
+ * disabled one — dropping it here keeps the bake's resolve loop total. */
+static void
+add_hotkey(
+    struct UIBuilderManifest* out,
+    int* hotkey_cap,
+    struct RevConfigHotkeyItem const* hotkey)
+{
+    assert(out && hotkey_cap && hotkey);
+    if( hotkey->name[0] == '\0' || hotkey->component[0] == '\0' || hotkey->effect[0] == '\0' )
+        return;
+
+    out->hotkeys = grow_array(out->hotkeys, &out->hotkey_count, hotkey_cap, sizeof(*out->hotkeys));
+    struct UIBuilderHotkey* binding = &out->hotkeys[out->hotkey_count++];
+    memset(binding, 0, sizeof(*binding));
+    strncpy(binding->key_name, hotkey->name, sizeof(binding->key_name) - 1);
+    strncpy(binding->component_name, hotkey->component, sizeof(binding->component_name) - 1);
+    strncpy(binding->effect, hotkey->effect, sizeof(binding->effect) - 1);
+}
+
 static void
 add_inv(
     struct UIBuilderManifest* out,
@@ -260,6 +281,9 @@ fill_tree_op_from_component(
     op->level_mask = parse_paint_levels_mask(comp->paint_levels);
     op->mmb_rotate = comp->mmb_rotate;
     op->wheel_zoom = comp->wheel_zoom;
+    op->hotkey_count = comp->hotkey_count;
+    for( int i = 0; i < comp->hotkey_count && i < REVCONFIG_COMPONENT_HOTKEY_MAX; i++ )
+        strncpy(op->hotkeys[i], comp->hotkeys[i], sizeof(op->hotkeys[i]) - 1);
     op->color = comp->color;
     op->filled = comp->filled;
     op->center = comp->center;
@@ -332,6 +356,7 @@ add_layout_op(
     memset(op, 0, sizeof(*op));
 
     strncpy(op->name, layout->name, sizeof(op->name) - 1);
+    strncpy(op->component_name, layout->component, sizeof(op->component_name) - 1);
     strncpy(op->parent_name, layout->parent, sizeof(op->parent_name) - 1);
     op->x = layout->x;
     op->y = layout->y;
@@ -373,6 +398,7 @@ uibuilder_manifest_from_revconfig(
     int component_cap = 0;
     int inv_cap = 0;
     int op_cap = 0;
+    int hotkey_cap = 0;
 
     for( uint32_t i = 0; i < items->item_count; i++ )
     {
@@ -391,6 +417,9 @@ uibuilder_manifest_from_revconfig(
         case RCITEM_UICOMPONENT:
             if( uibuilder_uicomponent_needs_rs_load(&item->u.uicomponent) )
                 add_component_req(out, &component_cap, item->u.uicomponent.componentno);
+            break;
+        case RCITEM_HOTKEY:
+            add_hotkey(out, &hotkey_cap, &item->u.hotkey);
             break;
         default:
             break;

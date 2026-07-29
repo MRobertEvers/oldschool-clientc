@@ -4,6 +4,7 @@
  * absolute tile (mapBuildBase), route tile vs draw fine units (tile*128 +
  * size*64), and the painter footprint of a mover between tiles. */
 #include "entity_pathing.h"
+#include "features/features.h"
 #include "painters/painters.h"
 #include "painters/painters_i.h"
 #include "test_harness.h"
@@ -123,9 +124,9 @@ test_try_route(void)
     collision_map_free(cm);
 }
 
-/* Op-click approach arrival (reference tryMove type 2): the flood may stop on a
- * tile beside the loc's footprint, not the loc tile itself, and never uses the
- * 3x3 nearest fallback (tryNearest = false). */
+/* Op-click approach arrival under the LostCity era (reference tryMove type 2):
+ * the flood may stop on a tile beside the loc's footprint, not the loc tile
+ * itself, and never uses a nearest fallback (tryNearest = false). */
 void
 test_try_route_op(void)
 {
@@ -137,16 +138,18 @@ test_try_route_op(void)
     int len;
 
     /* Obj / exact tile: approach with no footprint arrives on the tile itself. */
-    struct CollisionApproach exact = { 0 };
-    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &exact, route_x, route_z, 256);
+    struct CollisionApproach exact = { .kind = COLL_APPROACH_EXACT };
+    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &exact, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1, "exact: route found");
     TEST_ASSERT(route_x[0] == 10 && route_z[0] == 20, "exact: arrives on the tile");
 
     /* Sized centrepiece (2x2 at 10,20): approaching from the south, the flood
      * stops on the south-adjacent tile (10,19) — an approach tile, not the loc
      * tile — because testLoc accepts the edge before the footprint is entered. */
-    struct CollisionApproach sized = { .loc_width = 2, .loc_length = 2 };
-    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &sized, route_x, route_z, 256);
+    struct CollisionApproach sized = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 2, .loc_length = 2
+    };
+    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &sized, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1, "sized loc: route found");
     TEST_ASSERT(
         route_x[0] == 10 && route_z[0] == 19, "sized loc: arrives adjacent to the footprint");
@@ -154,11 +157,13 @@ test_try_route_op(void)
     /* Obj fallback: block the exact tile so the exact approach fails, then a 1x1
      * approach still arrives on an adjacent tile (reference obj doAction retry). */
     collision_map_add_floor(cm, 40, 20);
-    struct CollisionApproach exact2 = { 0 };
-    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &exact2, route_x, route_z, 256);
+    struct CollisionApproach exact2 = { .kind = COLL_APPROACH_EXACT };
+    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &exact2, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len == -1, "obj on blocked tile: exact approach fails (no nearest fallback)");
-    struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
-    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &one, route_x, route_z, 256);
+    struct CollisionApproach one = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 1, .loc_length = 1
+    };
+    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &one, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1, "obj 1x1 fallback: route found");
     TEST_ASSERT(
         route_x[0] == 40 && route_z[0] == 19, "obj 1x1 fallback: arrives adjacent to the tile");
@@ -168,12 +173,313 @@ test_try_route_op(void)
     /* Shape 0 = RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE (LocShape.WALL_STRAIGHT); the
      * approach passes the reference locShape = shape + 1. */
     collision_map_add_wall(cm, 25, 20, 0, COLL_ANGLE_WEST, 0);
-    struct CollisionApproach wall = { .loc_shape = 0 + 1, .loc_angle = COLL_ANGLE_WEST };
-    len = collision_map_try_route_op(cm, 20, 20, 25, 20, &wall, route_x, route_z, 256);
+    struct CollisionApproach wall = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_shape = 0 + 1, .loc_angle = COLL_ANGLE_WEST
+    };
+    len = collision_map_try_route_op(cm, 20, 20, 25, 20, &wall, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1, "wall: route found");
     TEST_ASSERT(route_x[0] == 24 && route_z[0] == 20, "wall: arrives immediately west of the wall");
 
     collision_map_free(cm);
+}
+
+/* LocType.forceapproach (config opcode 69) vetoes sides of a sized loc. The
+ * value reaching the approach test is already rotated into the placed frame
+ * (world_scenery.u.c), so this exercises the test itself; the rotation formula
+ * is pinned separately below. */
+void
+test_try_route_op_forceapproach(void)
+{
+    printf("TEST: try_route_op forceapproach (LocType opcode 69)\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int route_x[256];
+    int route_z[256];
+    int len;
+
+    /* 1x1 loc at (20,20). Approaching from due south with no veto arrives on
+     * (20,19) — the south edge band. */
+    struct CollisionApproach open = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 1, .loc_length = 1
+    };
+    len = collision_map_try_route_op(cm, 20, 10, 20, 20, &open, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 19,
+                "forceapproach 0: arrives on the south edge");
+
+    /*
+     * DIR_SOUTH (4) vetoes standing south of it. testLoc's south band is the
+     * `src_z == dst_z - 1` case, gated on `(forceapproach & DIR_SOUTH) == 0`,
+     * so the flood must keep going and arrive on some other side.
+     */
+    struct CollisionApproach no_south = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 1, .loc_length = 1, .forceapproach = 4
+    };
+    len =
+        collision_map_try_route_op(cm, 20, 10, 20, 20, &no_south, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1, "forceapproach south: still reachable from another side");
+    TEST_ASSERT(!(route_x[0] == 20 && route_z[0] == 19),
+                "forceapproach south: does NOT stop on the vetoed south tile");
+
+    /* Every cardinal vetoed: only standing ON the loc tile is an arrival, and
+     * the loc tile itself is walkable here, so the route ends on it. */
+    struct CollisionApproach all_blocked = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 1, .loc_length = 1, .forceapproach = 0xf
+    };
+    len = collision_map_try_route_op(
+        cm, 20, 10, 20, 20, &all_blocked, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 20,
+                "forceapproach 0xf: only the loc tile itself arrives");
+
+    /* ...and with the loc tile blocked too, there is no approach at all. */
+    collision_map_add_floor(cm, 30, 20);
+    len = collision_map_try_route_op(
+        cm, 30, 10, 30, 20, &all_blocked, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len == -1, "forceapproach 0xf on a blocked tile: unreachable");
+
+    collision_map_free(cm);
+}
+
+/* The angle rotation Client.interactWithLoc applies before handing
+ * forceapproach to tryMove, which torirs performs once at register time
+ * (world_scenery.u.c). Pinned here because it is easy to get backwards and
+ * silently wrong: a mis-rotated mask vetoes the wrong side of the loc. */
+static int
+rotate_force_approach(int force_approach, int angle)
+{
+    if( angle == 0 )
+        return force_approach;
+    return ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
+}
+
+void
+test_force_approach_rotation(void)
+{
+    printf("TEST: forceapproach angle rotation\n");
+
+    /* DirectionFlag bits: 1 N, 2 E, 4 S, 8 W. Rotating by one angle step turns
+     * the mask one quarter-turn, wrapping the top bit back to the bottom. */
+    TEST_ASSERT(rotate_force_approach(1, 0) == 1, "angle 0 is identity");
+    TEST_ASSERT(rotate_force_approach(1, 1) == 2, "N at angle 1 -> E");
+    TEST_ASSERT(rotate_force_approach(1, 2) == 4, "N at angle 2 -> S");
+    TEST_ASSERT(rotate_force_approach(1, 3) == 8, "N at angle 3 -> W");
+    TEST_ASSERT(rotate_force_approach(8, 1) == 1, "W at angle 1 wraps to N");
+    /* The real-world value from cache.osrs230's `mcannoncave`: 11 = N|E|W. */
+    TEST_ASSERT(rotate_force_approach(11, 1) == 7, "11 at angle 1 -> 7");
+    TEST_ASSERT(rotate_force_approach(11, 2) == 14, "11 at angle 2 -> 14");
+    TEST_ASSERT(rotate_force_approach(11, 3) == 13, "11 at angle 3 -> 13");
+    /* Four steps is the identity for every mask. */
+    for( int mask = 0; mask <= 0xf; mask++ )
+    {
+        int spun = mask;
+        for( int i = 0; i < 4; i++ )
+            spun = rotate_force_approach(spun, 1);
+        TEST_ASSERT(spun == mask, "four quarter-turns is the identity");
+    }
+}
+
+/* The OSRS-era approach model (features era "osrs"): rsmod rectangle
+ * strategies. The behaviour that separates it from the legacy shape tests is
+ * the shared-edge wall check reading BOTH tiles' wall bits, plus size-aware
+ * targets and the alternative-route fallback. */
+void
+test_try_route_op_rect(void)
+{
+    printf("TEST: try_route_op rect model (OSRS era)\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int route_x[256];
+    int route_z[256];
+    int used_nearest = -1;
+    int len;
+
+    /* A 1x1 rect target at (20,20) reached from the south: flush cardinal side,
+     * no wall, so (20,19) arrives — same answer as the legacy model. */
+    struct CollisionApproach rect = {
+        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 1, .loc_length = 1, .mover_size = 1
+    };
+    len = collision_map_try_route_op(cm, 20, 10, 20, 20, &rect, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 19, "rect: arrives on the south edge");
+
+    struct CollisionApproach legacy = {
+        .kind = COLL_APPROACH_LEGACY_SHAPE, .loc_width = 1, .loc_length = 1
+    };
+
+    /*
+     * A wall added through collision_map_add_wall flags BOTH tiles of the edge,
+     * so both models refuse it and this is not where they differ.
+     */
+    collision_map_add_wall(cm, 20, 20, 0, COLL_ANGLE_SOUTH, 0);
+    len =
+        collision_map_try_route_op(cm, 20, 10, 20, 20, &legacy, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 20 && route_z[0] == 19),
+                "legacy: refuses a walled edge when the wall is mirrored onto the source tile");
+    len = collision_map_try_route_op(cm, 20, 10, 20, 20, &rect, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 20 && route_z[0] == 19),
+                "rect: refuses the same walled edge");
+
+    /*
+     * Where they DO differ: an ASYMMETRIC wall, flagged on the target tile only.
+     * testLoc reads the source tile's bits and nothing else, so it happily
+     * arrives on (35,19); the rect model reads the target's WALL_SOUTH as well
+     * and walks around. This state is reachable in practice — del_wall is an
+     * unconditional clear (see the reference's own locChangeUnchecked), so a
+     * shared edge can lose one of its two flags.
+     */
+    cm->flags[collision_map_index_at(cm, 35, 20)] |= COLL_FLAG_WALL_SOUTH;
+    len =
+        collision_map_try_route_op(cm, 35, 10, 35, 20, &legacy, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 35 && route_z[0] == 19,
+                "legacy: source-tile-only check accepts an edge the target alone walls off");
+    len = collision_map_try_route_op(cm, 35, 10, 35, 20, &rect, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 35 && route_z[0] == 19),
+                "rect: reads the target's wall bit too and refuses that edge");
+
+    /*
+     * The other real divergence: overlap. Standing ON the target is always an
+     * arrival for testLoc; the rect model refuses it unless allow_overlap is
+     * set. Starting the route inside the footprint makes that unambiguous.
+     */
+    len = collision_map_try_route_op(cm, 50, 30, 50, 30, &legacy, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len == 1 && route_x[0] == 50 && route_z[0] == 30,
+                "legacy: standing on the loc is already an arrival");
+    struct CollisionApproach rect_no_overlap = {
+        .kind = COLL_APPROACH_RECT_ADJACENT,
+        .loc_width = 1,
+        .loc_length = 1,
+        .mover_size = 1,
+        .allow_overlap = 0,
+    };
+    len = collision_map_try_route_op(
+        cm, 50, 30, 50, 30, &rect_no_overlap, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 50 && route_z[0] == 30),
+                "rect: standing on the loc is not an arrival, it steps off");
+    struct CollisionApproach rect_overlap = {
+        .kind = COLL_APPROACH_RECT_ADJACENT,
+        .loc_width = 1,
+        .loc_length = 1,
+        .mover_size = 1,
+        .allow_overlap = 1,
+    };
+    len = collision_map_try_route_op(
+        cm, 50, 30, 50, 30, &rect_overlap, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len == 1 && route_x[0] == 50 && route_z[0] == 30,
+                "rect + allow_overlap: standing on it arrives, like a door");
+
+    /* Diagonal contact is never an arrival in the rect model. Seal every
+     * cardinal neighbour of a 1x1 target so only its corners are open. */
+    collision_map_add_floor(cm, 45, 21);
+    collision_map_add_floor(cm, 45, 19);
+    collision_map_add_floor(cm, 44, 20);
+    collision_map_add_floor(cm, 46, 20);
+    collision_map_add_floor(cm, 45, 20); /* the target tile itself, so no overlap arrival */
+    len = collision_map_try_route_op(cm, 45, 10, 45, 20, &rect, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len == -1, "rect: corner-only contact is not an arrival");
+
+    /* ...and the alternative-route fallback walks as close as it can instead of
+     * giving up, which is what the rsmod server does for every request. */
+    struct CollisionNearestOpts alt = { .range = 10, .max_dist = 100, .rank_by_rect_distance = 1 };
+    len = collision_map_try_route_op(
+        cm, 45, 10, 45, 20, &rect, &alt, route_x, route_z, 256, &used_nearest);
+    TEST_ASSERT(len >= 1, "rect + alternative route: a partial route is produced");
+    TEST_ASSERT(used_nearest == 1, "rect + alternative route: flagged as a fallback");
+    {
+        /* It should land on a diagonal neighbour — distance 1 from the rect on
+         * both axes is the closest any reachable tile gets. */
+        int dx = route_x[0] - 45;
+        int dz = route_z[0] - 20;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        TEST_ASSERT(dx <= 1 && dz <= 1, "rect + alternative route: lands adjacent to the target");
+    }
+
+    /* A size-3 target (a large NPC) is approached beside its 3x3 footprint, not
+     * beside its south-west tile: from the north the arrival is z = 20+3 = 23. */
+    struct CollisionApproach big = {
+        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 3, .loc_length = 3, .mover_size = 1
+    };
+    len = collision_map_try_route_op(cm, 21, 30, 20, 20, &big, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1, "size-3 target: route found");
+    TEST_ASSERT(route_z[0] == 23 && route_x[0] >= 20 && route_x[0] <= 22,
+                "size-3 target: arrives beside the 3x3 footprint, not the SW tile");
+
+    /* RECT_INSIDE (a non-clipping floor decoration): standing on it arrives. */
+    struct CollisionApproach inside = {
+        .kind = COLL_APPROACH_RECT_INSIDE, .loc_width = 1, .loc_length = 1, .mover_size = 1
+    };
+    len = collision_map_try_route_op(cm, 10, 30, 10, 35, &inside, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 10 && route_z[0] == 35, "rect inside: stands on the loc");
+
+    /* RECT_WITHIN_RANGE: never on the target, but within Chebyshev range. */
+    struct CollisionApproach ranged = {
+        .kind = COLL_APPROACH_RECT_WITHIN_RANGE,
+        .loc_width = 1,
+        .loc_length = 1,
+        .mover_size = 1,
+        .range = 3,
+    };
+    len = collision_map_try_route_op(cm, 10, 50, 10, 40, &ranged, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1, "rect range: route found");
+    {
+        int dx = route_x[0] - 10;
+        int dz = route_z[0] - 40;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        int chebyshev = dx > dz ? dx : dz;
+        TEST_ASSERT(chebyshev > 0 && chebyshev <= 3, "rect range: stops within range, not on top");
+    }
+
+    collision_map_free(cm);
+}
+
+/* The era table is the seam both modes hang off. Assert the two shipped tables
+ * differ in exactly the ways the client branches on, so a future edit that
+ * flattens them fails here rather than silently in the world. */
+void
+test_features_eras(void)
+{
+    printf("TEST: features era tables\n");
+
+    struct ToriRS_FeatureTable const* lostcity = ToriRS_Features_LostCity();
+    struct ToriRS_FeatureTable const* osrs = ToriRS_Features_OSRS();
+    struct ToriRS_FeatureTable const* routed = ToriRS_Features_ServerRouted();
+
+    TEST_ASSERT(ToriRS_Features_ByName("lostcity") == lostcity, "ByName resolves lostcity");
+    TEST_ASSERT(ToriRS_Features_ByName("osrs") == osrs, "ByName resolves osrs");
+    TEST_ASSERT(ToriRS_Features_ByName("server_routed") == routed, "ByName resolves server_routed");
+    TEST_ASSERT(ToriRS_Features_ByName("nope") == NULL, "ByName rejects an unknown era");
+    TEST_ASSERT(ToriRS_Features_ByName(NULL) == NULL, "ByName tolerates NULL");
+
+    /* LostCity is the zero table: every slot at the 2004 behaviour. */
+    TEST_ASSERT(lostcity->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "lostcity paths client-side");
+    TEST_ASSERT(lostcity->approach_model == TORIRS_APPROACH_LEGACY_SHAPE, "lostcity uses shapes");
+    TEST_ASSERT(lostcity->npc_approach_uses_size == 0, "lostcity npc target is 1x1");
+    TEST_ASSERT(lostcity->op_click_nearest_range == 0, "lostcity has no op-click fallback");
+
+    TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "osrs still paths client-side");
+    TEST_ASSERT(osrs->approach_model == TORIRS_APPROACH_RECT, "osrs uses rect strategies");
+    TEST_ASSERT(osrs->npc_approach_uses_size == 1, "osrs npc target is size-aware");
+    TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
+    TEST_ASSERT(osrs->nearest_ranks_by_rect_distance == 1, "osrs ranks by rect distance");
+
+    TEST_ASSERT(routed->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
+                "server_routed defers to the server");
+
+    /* Derivation from the cache identity: the lineage decides, not the number.
+     * RSCACHE_EPOCH_DAT1 = 1, DAT2 = 2; RSCACHE_GAME_OLDSCHOOL = 1, RS2 = 2. */
+    TEST_ASSERT(ToriRS_Features_ForCache(2 /*rs2*/, 1 /*dat1*/, 254) == lostcity,
+                "dat1 rs2 254 -> lostcity");
+    TEST_ASSERT(ToriRS_Features_ForCache(1 /*oldschool*/, 2 /*dat2*/, 230) == osrs,
+                "dat2 oldschool 230 -> osrs");
+    TEST_ASSERT(ToriRS_Features_ForCache(2 /*rs2*/, 2 /*dat2*/, 643) == lostcity,
+                "dat2 rs2 643 stays on the classic client model");
+    TEST_ASSERT(ToriRS_Features_ForCache(0, 0, -1) == lostcity, "unidentified cache -> lostcity");
+    /* Nothing derivable selects server_routed — that is a server property. */
+    TEST_ASSERT(ToriRS_Features_ForCache(1, 2, 233) != routed,
+                "server_routed is never derived from a cache");
 }
 
 /* Runtime LOC change (door open/close) removes a loc's collision with the del_*

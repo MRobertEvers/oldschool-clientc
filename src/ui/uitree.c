@@ -514,6 +514,16 @@ UITree_Reparent(
     tree->generation++;
 }
 
+uint32_t
+UITree_HotkeyEffectFromName(char const* name)
+{
+    if( !name || name[0] == '\0' )
+        return 0;
+    if( strcmp(name, "select_tab") == 0 )
+        return UITREE_HOTKEY_EFFECT_SELECT_TAB;
+    return 0;
+}
+
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type)
 {
@@ -1096,6 +1106,7 @@ UITree_Push(
      * grows one is duplicated instead of aliased into the node. */
     uitree_menu_options_copy(&component->menu_options, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
+    component->hotkey_effects = spec->hotkey_effects;
 
     if( spec->has_position )
     {

@@ -13,6 +13,8 @@
 
 #include "mock230.h"
 
+#include "mock230_content.h"
+
 #include <rscache.h>
 
 #include <stdio.h>
@@ -117,17 +119,29 @@ mock230_seqinfo_free(void)
     g_seq_count = 0;
 }
 
+/**
+ * The id of a named sequence.
+ *
+ * Two sources, in order. A sequence record may carry a `debug_name`, which is the
+ * cache naming itself and needs nothing else loaded — but OldSchool stopped
+ * writing them, and rev 239 has none at all. The content tree's `pack/seq.pack`
+ * is the other: 14,413 names, taken from the cache's own gameval index when it
+ * was unpacked, and the same names the scripts are written against.
+ *
+ * Trying the record first keeps a cache that still has debug names working
+ * without a content tree beside it.
+ */
 int
 mock230_seq_by_name(const char* name)
 {
-    if( !g_seqs || !name )
+    if( !name )
         return -1;
     for( int i = 0; i < g_seq_count; i++ )
     {
         if( strcmp(g_seqs[i].name, name) == 0 )
             return g_seqs[i].id;
     }
-    return -1;
+    return mock230_content_symbol(MOCK230_PACK_SEQ, name);
 }
 
 /**

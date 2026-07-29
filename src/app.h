@@ -255,6 +255,10 @@ struct App
     int cam_mmb_active;
     int cam_mmb_x;
     int cam_mmb_y;
+    /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
+     * code. Debug world hotkeys share the digit row with the rev-254 tab
+     * bindings, so they check this and stand down rather than firing both. */
+    uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
     /* Wheel zoom (revconfig wheel_zoom=), as a percentage of the follow cam's
      * natural orbit distance. 100 = the reference distance; smaller is closer.
      * The free camera dollies instead and ignores this. */
@@ -469,6 +473,11 @@ struct App
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
     uint64_t last_logic_ms;
+    /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
+     *  frame because the minimenu action path has no LibToriRS_Input in hand,
+     *  and the reference reads it inside tryMove — i.e. for ground, minimap AND
+     *  interaction clicks alike, all of which run from there. */
+    int ctrl_held;
     int hover_com_id;
     int clicked_com_id;
     int need_redraw;

@@ -444,9 +444,13 @@ lc_export_map(
                 if( tile->settings != 0 )
                     n += snprintf(
                         tokens + n, sizeof(tokens) - (size_t)n, "f%d ", tile->settings);
-                if( tile->underlay_id != 0 )
+                int underlay_id = tile->underlay_id;
+                if( underlay_id == 0 && tile->attr_opcode != 0 &&
+                    ctx->overlay_backing_underlay > 0 )
+                    underlay_id = ctx->overlay_backing_underlay;
+                if( underlay_id != 0 )
                 {
-                    int flo = export_underlay(ctx, tile->underlay_id - 1);
+                    int flo = export_underlay(ctx, underlay_id - 1);
                     if( flo >= 0 )
                         n += snprintf(
                             tokens + n, sizeof(tokens) - (size_t)n, "u%d ", flo + 1);

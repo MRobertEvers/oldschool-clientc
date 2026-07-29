@@ -85,6 +85,8 @@ struct LC_Manifest
     char prefix[64];
     /** -1 when the manifest did not say; the caller applies the default. */
     int max_textures;
+    /** Raw source underlay id backing overlay-only tiles; 0 = off. */
+    int overlay_backing;
 
     struct LC_RequestList npcs;
     struct LC_RequestList objs;

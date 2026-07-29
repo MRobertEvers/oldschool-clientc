@@ -406,6 +406,9 @@ struct UITreeComponent
     uint8_t force_left_click;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
+    /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a
+     *  bound key (revconfig `hotkey=` lines). 0 = not a hotkey target. */
+    uint32_t hotkey_effects;
     int scroll_x;
     int scroll_y;
     struct UITreeElemPosition position;
@@ -586,6 +589,40 @@ struct UITreeComponent
     } u;
 };
 
+/**
+ * Chrome actions a configured hotkey can trigger.
+ *
+ * The set is HARD-CODED: revconfig names an effect, it never defines one. A
+ * component advertises the effects it accepts with `hotkey=<effect>` lines
+ * (UITreeComponent.hotkey_effects), and a [hotkey:<key>] section binds a key to
+ * one component + effect pair. The advertisement is an allow-list — a binding
+ * naming an effect its component does not accept is dropped at bake.
+ *
+ * Values are bits so a component can advertise several in one mask.
+ */
+enum UITreeHotkeyEffect
+{
+    /** "select_tab" — make this node's sidebar tab the active one. Requires a
+     *  node that carries a tabno (tab_icon, redstone_tab, sidebar). */
+    UITREE_HOTKEY_EFFECT_SELECT_TAB = 1u << 0,
+};
+
+/** Effect bit for a config spelling, or 0 when the name is not an effect. */
+uint32_t
+UITree_HotkeyEffectFromName(char const* name);
+
+/** One resolved key binding: press `osrs_key` -> run `effect` on `node_index`.
+ *  Node index rather than component_id because gameframe chrome (tab icons,
+ *  the viewport) is built from revconfig and usually carries no component id. */
+struct UITreeHotkey
+{
+    int osrs_key; /* OSRS internal code; see LibToriRS_OsrsKeyFromName */
+    int32_t node_index;
+    uint32_t effect;
+};
+
+#define UITREE_HOTKEY_MAX 64
+
 struct UITree
 {
     struct UITreeComponent* components;
@@ -657,6 +694,11 @@ struct UITree
      *  Set once from the cache profile, because it is a property of the era's
      *  art rather than of any one widget. */
     uint8_t mask_keep_opaque;
+    /** Key bindings resolved at bake from the [hotkey:…] sections. Lives on the
+     *  tree because the node indices it holds only mean anything for this tree;
+     *  a rebuild re-resolves them from the manifest. */
+    struct UITreeHotkey hotkeys[UITREE_HOTKEY_MAX];
+    int hotkey_count;
 };
 
 struct UITreeNodeSpec
@@ -846,6 +888,8 @@ struct UITreeNodeSpec
         } rs_inv_text;
     } u;
     struct UITreeMenuOptions menu_options;
+    /** OR of enum UITreeHotkeyEffect (see UITreeComponent.hotkey_effects). */
+    uint32_t hotkey_effects;
 };
 
 char const*

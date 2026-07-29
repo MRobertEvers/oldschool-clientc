@@ -656,6 +656,7 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
 		engine/world_builder/minimap.c painters/painters.c \
+		features/features.c \
 		world/test/world_test_unit.c world/test/world_test_sim.c \
 		world/test/world_test_route.c world/test/world_test_main.c \
 		$(OBJ_DIR)/toridraw_unity.o
@@ -901,7 +902,7 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c features/features.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \

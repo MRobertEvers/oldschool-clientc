@@ -256,6 +256,8 @@ set_port_key(
     }
     else if( strcmp(key, "rig_inert") == 0 )
         manifest->rig_inert = atoi(value);
+    else if( strcmp(key, "overlay_backing") == 0 )
+        manifest->overlay_backing = atoi(value);
     else if( strcmp(key, "max_textures") == 0 )
         return parse_int("port:lostcity", key, value, &manifest->max_textures);
     else

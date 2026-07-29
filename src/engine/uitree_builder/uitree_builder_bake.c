@@ -8,6 +8,7 @@
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
+#include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
@@ -418,6 +419,16 @@ push_builtin_op(
     if( op->dirty )
         spec.always_dirty = 1;
     copy_menu_options(op, &spec.menu_options);
+    /* Advertised hotkey effects (revconfig hotkey= lines) are a property of the
+     * component, not of its type, so they resolve here rather than in the type
+     * switch. An unknown effect name asserts: a silently-ignored one leaves a
+     * key that quietly does nothing, and the set is closed and hard-coded. */
+    for( int i = 0; i < op->hotkey_count && i < REVCONFIG_COMPONENT_HOTKEY_MAX; i++ )
+    {
+        uint32_t effect = UITree_HotkeyEffectFromName(op->hotkeys[i]);
+        assert(effect != 0 && "component hotkey= names an unknown effect");
+        spec.hotkey_effects |= effect;
+    }
 
     int sprite_id = -1;
     int atlas_index = 0;
@@ -653,6 +664,56 @@ bake_rs_subtree_for_op(
     uitree_builder_bake_pack_under_owner(tree, builder, pack, owner_idx, inv_source_id);
 }
 
+/*
+ * Resolve the [hotkey:…] bindings against the nodes this bake just produced.
+ *
+ * A binding names a COMPONENT, and a component can be placed by more than one
+ * layout entry (a fixed and a resizable gameframe both mounting the same tab
+ * icon), so every op built from that component gets its own binding — whichever
+ * copy is on screen answers the key.
+ *
+ * Three ways a binding is dropped, all quietly, because a revision's INI can
+ * legitimately name chrome it does not lay out: an unknown key name, a
+ * component with no layout entry, and — the one that matters — a component that
+ * never advertised the effect. That last check is why `hotkey=` exists on the
+ * component at all: a key can only reach behaviour the component opted into.
+ */
+static void
+bake_hotkeys(
+    struct UITree* tree,
+    struct UIBuilderManifest const* manifest,
+    int32_t const* node_index)
+{
+    assert(tree && manifest);
+
+    tree->hotkey_count = 0;
+    for( int i = 0; i < manifest->hotkey_count; i++ )
+    {
+        struct UIBuilderHotkey const* binding = &manifest->hotkeys[i];
+        int osrs_key = LibToriRS_OsrsKeyFromName(binding->key_name);
+        uint32_t effect = UITree_HotkeyEffectFromName(binding->effect);
+
+        if( osrs_key < 0 || effect == 0 )
+            continue;
+
+        for( int op = 0; op < manifest->op_count; op++ )
+        {
+            if( strcmp(manifest->ops[op].component_name, binding->component_name) != 0 )
+                continue;
+            if( node_index[op] < 0 )
+                continue;
+            if( (tree->components[node_index[op]].hotkey_effects & effect) == 0 )
+                continue;
+            if( tree->hotkey_count >= UITREE_HOTKEY_MAX )
+                return;
+            tree->hotkeys[tree->hotkey_count].osrs_key = osrs_key;
+            tree->hotkeys[tree->hotkey_count].node_index = node_index[op];
+            tree->hotkeys[tree->hotkey_count].effect = effect;
+            tree->hotkey_count++;
+        }
+    }
+}
+
 void
 uitree_builder_bake(
     struct UITree* tree,
@@ -710,5 +771,6 @@ uitree_builder_bake(
     assert(built == manifest->op_count && "incomplete layout bake (parent cycle?)");
 
     uitree_builder_inv_bind_tree(tree, builder, manifest, invs);
+    bake_hotkeys(tree, manifest, node_index);
     free(node_index);
 }

@@ -1581,9 +1581,20 @@ main(
         int sk_tail_ticks =
             getenv("TORIRS_SIM_TICKS") ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0) : 10;
 
+        /* An OSRS-coded key pressed on the previous iteration, still to be
+         * released. A real keydown/keyup pair drives both the event queue and
+         * the held/pressed arrays (see the SDL handler); without the release
+         * the key would read as held forever. */
+        int sk_held_key = -1;
+
         for( ;; )
         {
             LibToriRS_Input_Begin(sk_input, sk_ms);
+            if( sk_held_key >= 0 )
+            {
+                LibToriRS_Input_SetOsrsKeyState(sk_input, sk_held_key, 0, 0);
+                sk_held_key = -1;
+            }
             if( sk_cursor && *sk_cursor )
             {
                 char kind = *sk_cursor++;
@@ -1593,7 +1604,14 @@ main(
                 if( kind == 'c' )
                     LibToriRS_Input_PushKeyEvent(sk_input, -1, (int)val, 0);
                 else
+                {
                     LibToriRS_Input_PushKeyEvent(sk_input, (int)val, 0, 0);
+                    /* k<n> already IS an OSRS code, so it can drive KEYHELD /
+                     * KEYPRESSED and the revconfig hotkey bindings too — both
+                     * read the same arrays a real press fills. */
+                    LibToriRS_Input_SetOsrsKeyState(sk_input, (int)val, 1, 1);
+                    sk_held_key = (int)val;
+                }
                 fprintf(stderr, "sim_keys: %c%ld\n", kind, val);
             }
             else if( sk_tail_ticks-- <= 0 )

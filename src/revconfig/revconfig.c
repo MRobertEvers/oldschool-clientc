@@ -110,6 +110,12 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_MMB_ROTATE";
     case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
         return "RCFIELD_UICOMPONENT_WHEEL_ZOOM";
+    case RCFIELD_UICOMPONENT_HOTKEY:
+        return "RCFIELD_UICOMPONENT_HOTKEY";
+    case RCFIELD_HOTKEY_COMPONENT:
+        return "RCFIELD_HOTKEY_COMPONENT";
+    case RCFIELD_HOTKEY_EFFECT:
+        return "RCFIELD_HOTKEY_EFFECT";
     case RCFIELD_UICOMPONENT_COLOR:
         return "RCFIELD_UICOMPONENT_COLOR";
     case RCFIELD_UICOMPONENT_FILLED:
@@ -363,6 +369,9 @@ revconfig_item_set_name(
     case RCITEM_INV:
         strncpy(item->u.inv.name, value, sizeof(item->u.inv.name) - 1);
         break;
+    case RCITEM_HOTKEY:
+        strncpy(item->u.hotkey.name, value, sizeof(item->u.hotkey.name) - 1);
+        break;
     default:
         break;
     }
@@ -400,6 +409,8 @@ revconfig_item_begin(
         item->kind = RCITEM_UILAYOUT;
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
+    else if( strcmp(type_value, "hotkey") == 0 )
+        item->kind = RCITEM_HOTKEY;
     else
         item->kind = RCITEM_NONE;
 }
@@ -674,6 +685,18 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
         comp->wheel_zoom = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
+    case RCFIELD_UICOMPONENT_HOTKEY:
+        /* Repeatable, like transform= and inv item=: each line appends. */
+        if( comp->hotkey_count < REVCONFIG_COMPONENT_HOTKEY_MAX )
+        {
+            strncpy(
+                comp->hotkeys[comp->hotkey_count],
+                value,
+                sizeof(comp->hotkeys[comp->hotkey_count]) - 1);
+            comp->hotkeys[comp->hotkey_count][sizeof(comp->hotkeys[0]) - 1] = '\0';
+            comp->hotkey_count++;
+        }
+        break;
     case RCFIELD_UICOMPONENT_COLOR:
         comp->color = atoi(value);
         break;
@@ -925,6 +948,18 @@ revconfig_item_apply_field(
                 value,
                 sizeof(item->u.inv.items[item->u.inv.item_count]) - 1);
             item->u.inv.item_count++;
+        }
+        break;
+    case RCITEM_HOTKEY:
+        if( kind == RCFIELD_HOTKEY_COMPONENT )
+        {
+            strncpy(item->u.hotkey.component, value, sizeof(item->u.hotkey.component) - 1);
+            item->u.hotkey.component[sizeof(item->u.hotkey.component) - 1] = '\0';
+        }
+        else if( kind == RCFIELD_HOTKEY_EFFECT )
+        {
+            strncpy(item->u.hotkey.effect, value, sizeof(item->u.hotkey.effect) - 1);
+            item->u.hotkey.effect[sizeof(item->u.hotkey.effect) - 1] = '\0';
         }
         break;
     default:

@@ -25,3 +25,75 @@ LibToriRS_OsrsKeyFromVk(int vk)
         return -1;
     return osrs_key_map[vk];
 }
+
+/* Named VK codes the config spelling maps onto; everything else is derived
+ * (letters, digits, F-keys are contiguous VK ranges). */
+static struct
+{
+    char const* name;
+    int vk;
+} const s_named_vk[] = {
+    { "escape", TORIRS_VK_ESCAPE },   { "esc", TORIRS_VK_ESCAPE },
+    { "tab", TORIRS_VK_TAB },         { "space", TORIRS_VK_SPACE },
+    { "enter", TORIRS_VK_ENTER },     { "return", TORIRS_VK_ENTER },
+    { "backspace", TORIRS_VK_BACKSPACE }, { "delete", TORIRS_VK_DELETE },
+    { "pageup", 33 },                 { "pagedown", 34 },
+    { "end", 35 },                    { "home", 36 },
+    { "left", 37 },                   { "up", 38 },
+    { "right", 39 },                  { "down", 40 },
+};
+
+static int
+name_equals_ci(
+    char const* name,
+    char const* other)
+{
+    for( ;; name++, other++ )
+    {
+        int lhs = *name;
+        int rhs = *other;
+        if( lhs >= 'A' && lhs <= 'Z' )
+            lhs += 'a' - 'A';
+        if( lhs != rhs )
+            return 0;
+        if( lhs == '\0' )
+            return 1;
+    }
+}
+
+int
+LibToriRS_OsrsKeyFromName(char const* name)
+{
+    if( !name || name[0] == '\0' )
+        return -1;
+
+    /* Single character: a letter or a digit. */
+    if( name[1] == '\0' )
+    {
+        int ch = name[0];
+        if( ch >= 'A' && ch <= 'Z' )
+            ch += 'a' - 'A';
+        if( ch >= 'a' && ch <= 'z' )
+            return LibToriRS_OsrsKeyFromVk(65 + (ch - 'a')); /* VK_A .. VK_Z */
+        if( ch >= '0' && ch <= '9' )
+            return LibToriRS_OsrsKeyFromVk(48 + (ch - '0')); /* VK_0 .. VK_9 */
+        return -1;
+    }
+
+    if( (name[0] == 'f' || name[0] == 'F') && name[1] >= '0' && name[1] <= '9' )
+    {
+        int number = name[1] - '0';
+        int rest = 2;
+        while( name[rest] >= '0' && name[rest] <= '9' )
+            number = number * 10 + (name[rest++] - '0');
+        if( name[rest] == '\0' && number >= 1 && number <= 12 )
+            return LibToriRS_OsrsKeyFromVk(112 + (number - 1)); /* VK_F1 .. VK_F12 */
+    }
+
+    for( unsigned i = 0; i < sizeof(s_named_vk) / sizeof(s_named_vk[0]); i++ )
+    {
+        if( name_equals_ci(name, s_named_vk[i].name) )
+            return LibToriRS_OsrsKeyFromVk(s_named_vk[i].vk);
+    }
+    return -1;
+}

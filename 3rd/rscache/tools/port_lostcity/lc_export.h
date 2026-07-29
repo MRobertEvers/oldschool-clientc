@@ -176,6 +176,21 @@ struct LC_Ctx
     /** Colour a textured face falls back to when its texture has no average. */
     int texture_fallback_hsl;
     /**
+     * Source underlay id (raw map value, 0 = off) written under every tile
+     * that has an overlay but no underlay of its own.
+     *
+     * The 2004 scene build renders the backing half of a shaped overlay tile
+     * with the tile's *own* underlay blend; an overlay-only tile gets colour
+     * -1 there and draws black. OSRS data uses overlay-only tiles freely (the
+     * Inferno's lava is one), so a faithful export looks moth-eaten in a 2004
+     * client while a modern one shows it seamless. Backing the overlay tiles
+     * keeps the export inside what the reference client renders; tiles with
+     * no floor at all stay void, which is what the black outside an arena is
+     * supposed to be.
+     */
+    int overlay_backing_underlay;
+
+    /**
      * How many texture ids the destination may hold. Zero ports none.
      *
      * The check is on the *id*, not on how many this run adds: `texture.pack` is

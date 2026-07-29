@@ -4387,15 +4387,35 @@ app_try_move(
     return 1;
 }
 
+/* The era's alternative-route settings for an interaction click. Client-TS
+ * passes tryNearest = false to every type-2 tryMove, so `range` is 0 there and
+ * an unreachable target produces no MOVE_OPCLICK at all; the OSRS era supplies
+ * the rsmod 21x21 rect-ranked search its server always runs. */
+static struct CollisionNearestOpts
+app_op_nearest_opts(struct App const* app)
+{
+    struct CollisionNearestOpts opts = {
+        .range = app->features->op_click_nearest_range,
+        .max_dist = 100,
+        .rank_by_rect_distance = app->features->nearest_ranks_by_rect_distance,
+    };
+    return opts;
+}
+
 /* Reference tryMove type 2 (interactWithLoc / obj doAction): pathfind toward a
- * loc/obj using its approach footprint (tryNearest = false), and — when a route
- * exists — emit MOVE_OPCLICK. Unlike a ground click this arrives on an approach
- * tile beside the loc, not the loc tile itself. The caller sends the
- * OP(LOC|OBJ|NPC) afterwards regardless of the return, matching the reference
- * (the walk is best-effort; the interaction is always requested on the same
- * click). A reachable click always emits — even a zero-delta route when the
- * player already stands on an approach tile. Returns 1 when a route was found
- * (so an obj can skip its 1x1 fallback), 0 when unreachable. */
+ * loc/obj using its approach footprint and — when a route exists — emit
+ * MOVE_OPCLICK. Unlike a ground click this arrives on an approach tile beside
+ * the loc, not the loc tile itself. The caller sends the OP(LOC|OBJ|NPC)
+ * afterwards regardless of the return, matching the reference (the walk is
+ * best-effort; the interaction is always requested on the same click). A
+ * reachable click always emits — even a zero-delta route when the player
+ * already stands on an approach tile. Returns 1 when a route was found (so an
+ * obj can skip its 1x1 fallback), 0 when unreachable.
+ *
+ * Under a server-authoritative era there is no route to compute and no
+ * MOVE_OPCLICK to send: the interaction packet carries the target and the
+ * server paths. The minimap flag is still latched, because the UI reads the
+ * same either way. */
 static int
 app_try_move_op(
     struct App* app,
@@ -4409,6 +4429,7 @@ app_try_move_op(
     struct World* world = app->world;
     struct WorldEntity_Player* player;
     struct CollisionMap* cm;
+    struct CollisionNearestOpts nearest_opts;
     int level, route_len;
 
     if( !world || !world->load_complete )
@@ -4420,6 +4441,14 @@ app_try_move_op(
     if( !player )
         return 0;
 
+    if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
+    {
+        app->minimap_flag_x = dst_x;
+        app->minimap_flag_z = dst_z;
+        app->need_redraw = 1;
+        return 1;
+    }
+
     level = player->grid_position.level;
     if( level < 0 )
         level = 0;
@@ -4429,6 +4458,7 @@ app_try_move_op(
     if( !cm )
         return 0;
 
+    nearest_opts = app_op_nearest_opts(app);
     route_len = collision_map_try_route_op(
         cm,
         player->pathing.route_x[0],
@@ -4436,9 +4466,11 @@ app_try_move_op(
         dst_x,
         dst_z,
         approach,
+        &nearest_opts,
         route_x,
         route_z,
-        (int)(sizeof(route_x) / sizeof(route_x[0])));
+        (int)(sizeof(route_x) / sizeof(route_x[0])),
+        NULL);
     if( route_len < 1 )
         return 0;
 
@@ -4462,62 +4494,155 @@ app_try_move_op(
     return 1;
 }
 
-/* Reference tryMove type 2 toward an NPC (Client.ts OP_NPC1..5 / USEHELD_ONNPC /
- * TGT_NPC all do `tryMove(src, npc.routeX[0], npc.routeZ[0], false, 1, 1, 0, 0,
- * 0, 2)`): pathfind to a 1x1 approach beside the NPC's current route tile and
- * emit MOVE_OPCLICK, so the player walks into interaction/cast range on the same
- * click. Best-effort — the OP(NPC|NPCU|NPCT) packet is sent by the caller
- * regardless of the walk result, matching the reference. */
+/*
+ * Approach an NPC (Client.ts OP_NPC1..5 / USEHELD_ONNPC / TGT_NPC) at its
+ * current route tile, so the player walks into interaction/cast range on the
+ * same click. Best-effort — the OP(NPC|NPCU|NPCT) packet is sent by the caller
+ * regardless of the walk result, matching the reference.
+ *
+ * Client-TS passes a literal 1x1 target here (`tryMove(..., npc.routeX[0],
+ * npc.routeZ[0], 2, 1, 1, ...)`) whatever the NPC's size, so under the LostCity
+ * era so do we. Every rsmod-derived server instead treats the NPC as its own
+ * sizeXsize rectangle, and against one of those a 1x1 target flags a tile
+ * *inside* a large NPC — hence the era switch.
+ */
 static int
 app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_held)
 {
-    struct CollisionApproach approach = { .loc_width = 1, .loc_length = 1 };
+    struct CollisionApproach approach = { 0 };
+    int size;
+
     if( !npc )
         return 0;
+    size = app->features->npc_approach_uses_size && npc->size > 0 ? npc->size : 1;
+    approach.kind = app->features->approach_model == TORIRS_APPROACH_RECT
+                        ? COLL_APPROACH_RECT_ADJACENT
+                        : COLL_APPROACH_LEGACY_SHAPE;
+    approach.loc_width = size;
+    approach.loc_length = size;
+    approach.mover_size = 1;
     return app_try_move_op(
         app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, ctrl_held);
 }
 
-/* Build the op-click approach for a loc (reference interactWithLoc, Client.ts
- * 5817-5833). Centrepieces and ground decor approach by footprint (testLoc,
- * size already angle-swapped at register time); walls / wall decorations
- * approach an adjacent facing tile (testWall/testWDecor, locShape = shape + 1).
- * forceapproach stays 0 — LocType opcode 69 is not decoded yet, and it is 0 for
- * the vast majority of locs. */
+/*
+ * Build the op-click approach for a loc.
+ *
+ * LEGACY_SHAPE is the reference interactWithLoc (Client.ts:5963-5984):
+ * centrepieces and ground decor approach by footprint (testLoc, size and
+ * forceapproach already angle-rotated at register time); walls and wall
+ * decorations approach an adjacent facing tile (testWall/testWDecor, locShape =
+ * shape + 1).
+ *
+ * RECT is the rsmod model XRSPS's server uses, which keys off the loc's own
+ * clip/action metadata rather than its placed shape
+ * (LocInteractionHandler.deriveLocRouteProfile):
+ *   wall-ish shapes            -> adjacent, with the wall's own side blocked
+ *   non-clipping floor decor   -> stand on it
+ *   non-clipping with actions  -> adjacent, overlap allowed
+ *   non-clipping otherwise     -> stand on it
+ *   clipping                   -> adjacent, no overlap
+ * `blocks_walk` (LocType opcode 17/27) is the clip flag; the decoder already
+ * folds break_routefinding into it.
+ */
 static struct CollisionApproach
-app_scenery_approach(struct WorldEntity_Scenery const* scenery)
+app_scenery_approach(struct App const* app, struct WorldEntity_Scenery const* scenery)
 {
     struct CollisionApproach approach = { 0 };
     int shape = scenery->shape;
+    bool sized = shape == RSCACHE_LOC_SHAPE_SCENERY ||
+                 shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
+                 shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION;
 
-    if( shape == RSCACHE_LOC_SHAPE_SCENERY || shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
-        shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+    approach.mover_size = 1;
+
+    if( app->features->approach_model != TORIRS_APPROACH_RECT )
     {
-        approach.loc_width = scenery->size_x;
-        approach.loc_length = scenery->size_z;
+        approach.kind = COLL_APPROACH_LEGACY_SHAPE;
+        if( sized )
+        {
+            approach.loc_width = scenery->size_x;
+            approach.loc_length = scenery->size_z;
+            approach.forceapproach = scenery->force_approach;
+        }
+        else
+        {
+            approach.loc_angle = scenery->angle;
+            approach.loc_shape = shape + 1;
+        }
+        return approach;
     }
-    else
+
+    approach.loc_width = scenery->size_x > 0 ? scenery->size_x : 1;
+    approach.loc_length = scenery->size_z > 0 ? scenery->size_z : 1;
+    /* forceapproach carries over as the rect model's blocked sides: same bits,
+     * same meaning, already rotated into the placed frame. */
+    approach.blocked_sides = scenery->force_approach;
+
+    if( !sized )
     {
-        approach.loc_angle = scenery->angle;
-        approach.loc_shape = shape + 1;
+        /* Wall / wall-decor: a 1x1 target you stand beside. The wall's own
+         * facing side is the one you interact THROUGH, so it must stay open;
+         * the shared-edge wall test in collision_test_rect_adjacent is what
+         * refuses the sides the wall actually blocks. */
+        approach.kind = COLL_APPROACH_RECT_ADJACENT;
+        approach.loc_width = 1;
+        approach.loc_length = 1;
+        approach.allow_overlap = 1;
+        return approach;
+    }
+
+    {
+        struct ToriRS_Location const* loc =
+            CacheProvider_LocationGet(app->provider, scenery->loc_id);
+        bool clips = !loc || loc->blocks_walk != 0;
+        bool has_action = false;
+        for( int i = 0; i < 5 && !has_action; i++ )
+            has_action = scenery->actions[i].name[0] != '\0';
+
+        if( clips )
+        {
+            approach.kind = COLL_APPROACH_RECT_ADJACENT;
+            approach.allow_overlap = 0;
+        }
+        else if( shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+        {
+            approach.kind = COLL_APPROACH_RECT_INSIDE;
+        }
+        else if( has_action )
+        {
+            approach.kind = COLL_APPROACH_RECT_ADJACENT;
+            approach.allow_overlap = 1;
+        }
+        else
+        {
+            approach.kind = COLL_APPROACH_RECT_INSIDE;
+        }
     }
     return approach;
 }
 
-/* Reference tryMove type 2 toward a loc (Client.ts interactWithLoc, shared by
- * OP_LOC1..5 / USEHELD_ONLOC / TGT_LOC): pathfind to the loc's footprint/wall
- * approach and emit MOVE_OPCLICK. Best-effort — the caller sends the OP packet
- * regardless of the route result. */
-static void
-app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z)
+/*
+ * Approach a loc (Client.ts interactWithLoc, shared by OP_LOC1..5 /
+ * USEHELD_ONLOC / TGT_LOC): pathfind to the loc's approach and emit
+ * MOVE_OPCLICK. The walk is best-effort, but the *lookup* is not: the reference
+ * resolves the placed loc through `typecode2` and returns early on -1, sending
+ * no walk, no cross and no OPLOC. Returns 0 for that case so the caller can
+ * drop the whole click; 1 when the loc exists (whether or not it was
+ * reachable).
+ */
+static int
+app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z, int ctrl_held)
 {
     struct WorldEntity_Scenery const* scenery =
         World_SceneryGetByElementId(app->world, element_id);
-    if( scenery )
-    {
-        struct CollisionApproach approach = app_scenery_approach(scenery);
-        app_try_move_op(app, tile_x, tile_z, &approach, 0);
-    }
+    struct CollisionApproach approach;
+
+    if( !scenery )
+        return 0;
+    approach = app_scenery_approach(app, scenery);
+    app_try_move_op(app, tile_x, tile_z, &approach, ctrl_held);
+    return 1;
 }
 
 /* Reference tryMove type 2 toward a ground obj (Client.ts OP_OBJ1..5 /
@@ -4525,13 +4650,20 @@ app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z)
  * 1x1 approach so an adjacent tile still arrives, then emit MOVE_OPCLICK.
  * Best-effort — the caller sends the OP packet regardless of the route. */
 static void
-app_try_move_obj(struct App* app, int tile_x, int tile_z)
+app_try_move_obj(struct App* app, int tile_x, int tile_z, int ctrl_held)
 {
-    struct CollisionApproach exact = { 0 };
-    if( !app_try_move_op(app, tile_x, tile_z, &exact, 0) )
+    struct CollisionApproach exact = { .kind = COLL_APPROACH_EXACT, .mover_size = 1 };
+    if( !app_try_move_op(app, tile_x, tile_z, &exact, ctrl_held) )
     {
-        struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
-        app_try_move_op(app, tile_x, tile_z, &one, 0);
+        struct CollisionApproach one = {
+            .kind = app->features->approach_model == TORIRS_APPROACH_RECT
+                        ? COLL_APPROACH_RECT_ADJACENT
+                        : COLL_APPROACH_LEGACY_SHAPE,
+            .loc_width = 1,
+            .loc_length = 1,
+            .mover_size = 1,
+        };
+        app_try_move_op(app, tile_x, tile_z, &one, ctrl_held);
     }
 }
 
@@ -4736,6 +4868,96 @@ app_world_camera_keys(
      * rebuild clears world scene elements incl. spawned entities). */
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
         app_world_load_begin(app, NULL, 0);
+}
+
+/*
+ * Configured hotkeys: revconfig binds a key to one chrome node + effect, and
+ * the effects themselves are hard-coded here (enum UITreeHotkeyEffect).
+ *
+ * Dispatch lives in the app rather than in uitree_interact because the
+ * suppression rule does: a key that reaches a hotkey must not also be a
+ * character being typed, and only the app knows which of the chat, social, and
+ * dialog input lines has focus. Keys are read off osrs_key_pressed — the same
+ * edge array CS2's KEYPRESSED reads — which, unlike enum LibToriRS_KeyCode,
+ * covers the F-keys.
+ *
+ * Returns nothing, but marks each key it acted on in app->hotkey_consumed so a
+ * bound key does not also fire a debug world hotkey on the same press.
+ */
+static void
+app_ui_hotkeys(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    memset(app->hotkey_consumed, 0, sizeof(app->hotkey_consumed));
+
+    if( !app->tree || app->tree->hotkey_count <= 0 )
+        return;
+    /* Typing wins over every binding — otherwise "f" in a chat line, or a digit
+     * in a bank amount, silently switches tabs behind the caret. */
+    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+        return;
+    /* An open right-click menu owns the pointer; let it own the keyboard too,
+     * matching how interact_minimenu swallows everything until it closes. */
+    if( app->interact.minimenu.visible )
+        return;
+
+    for( int i = 0; i < app->tree->hotkey_count; i++ )
+    {
+        struct UITreeHotkey const* binding = &app->tree->hotkeys[i];
+        struct UITreeComponent const* node;
+
+        if( binding->osrs_key < 0 || binding->osrs_key >= TORIRS_OSRSKEY_COUNT )
+            continue;
+        if( !input->osrs_key_pressed[binding->osrs_key] )
+            continue;
+        if( binding->node_index < 0 ||
+            (uint32_t)binding->node_index >= app->tree->component_count )
+            continue;
+
+        node = &app->tree->components[binding->node_index];
+        if( node->freed )
+            continue;
+
+        switch( binding->effect )
+        {
+        case UITREE_HOTKEY_EFFECT_SELECT_TAB:
+        {
+            /* Same path a click on the tab takes (interact_click's chrome
+             * gestures), enabled-gate included: a tab with no interface
+             * mounted is not selectable by key any more than by mouse. */
+            int tabno = -1;
+            if( node->type == UIELEM_BUILTIN_TAB_ICONS )
+                tabno = node->u.tab_icon.tabno;
+            else if( node->type == UIELEM_BUILTIN_REDSTONE_TAB )
+                tabno = node->u.redstone_tab.tabno;
+            else if( node->type == UIELEM_BUILTIN_SIDEBAR )
+                tabno = node->u.sidebar.tabno;
+            if( tabno < 0 )
+                break;
+            {
+                struct UITreeHostRequest enabled_req = {
+                    .kind = UITREE_HOST_GET_TAB_ENABLED,
+                    .u.tab_enabled.tabno = tabno,
+                };
+                if( !UITree_Host(&app->ui_host, &enabled_req) )
+                    break;
+            }
+            {
+                struct UITreeHostRequest set_req = {
+                    .kind = UITREE_HOST_SET_SELECTED_TAB,
+                    .u.set_selected_tab.tabno = tabno,
+                };
+                UITree_Host(&app->ui_host, &set_req);
+            }
+            app->hotkey_consumed[binding->osrs_key] = 1;
+            app->need_redraw = 1;
+            break;
+        }
+        default:
+            break;
+        }
+    }
 }
 
 /* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
@@ -6591,6 +6813,26 @@ app_world_entity_spotanim_test(struct App* app)
         World_NpcSetSpotanim(app->world, i, spotanim_id, height, delay);
 }
 
+/* A debug digit key is available only if no revconfig hotkey binding already
+ * acted on it this frame. The two collide by construction: rev 254 binds the
+ * digit row to the sidebar tabs, which covers most of the spawn keys. Deleting
+ * those [hotkey:<digit>] sections from the INI hands the digits back. */
+static int
+app_debug_digit_key(
+    struct App const* app,
+    struct LibToriRS_Input* input,
+    enum LibToriRS_KeyCode key,
+    int digit)
+{
+    int osrs_key;
+    if( !LibToriRS_Input_IsKeyDown(input, key) )
+        return 0;
+    osrs_key = LibToriRS_OsrsKeyFromVk(48 + digit); /* VK_0 .. VK_9 */
+    if( osrs_key >= 0 && osrs_key < TORIRS_OSRSKEY_COUNT && app->hotkey_consumed[osrs_key] )
+        return 0;
+    return 1;
+}
+
 /* Spawn test hotkeys (readme): 9 player, 8 npc, 7 ground item, 0 projectile,
  * 6 test hitsplat — all act on the tile under the mouse, so they no-op when
  * nothing is hovered. */
@@ -6612,23 +6854,23 @@ app_world_hotkeys(
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return;
 
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_9) )
+    if( app_debug_digit_key(app, input, TORIRSK_9, 9) )
         app_world_spawn_player(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_8) )
+    if( app_debug_digit_key(app, input, TORIRSK_8, 8) )
         app_world_spawn_npc(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_6) )
+    if( app_debug_digit_key(app, input, TORIRSK_6, 6) )
         app_world_damage_test(app);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_4) )
+    if( app_debug_digit_key(app, input, TORIRSK_4, 4) )
         app_world_entity_spotanim_test(app);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_5) )
+    if( app_debug_digit_key(app, input, TORIRSK_5, 5) )
         app_world_spawn_spotanim(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_7) )
+    if( app_debug_digit_key(app, input, TORIRSK_7, 7) )
         app_world_spawn_obj(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_0) )
+    if( app_debug_digit_key(app, input, TORIRSK_0, 0) )
         app_world_spawn_projectile(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
 }
@@ -7742,7 +7984,12 @@ app_minimenu_run_option(
         switch( opt.action )
         {
         case REVCONFIG_MINIMENU_USEHELD_ONLOC:
-            app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
+            /* Reference interactWithLoc returns before sending anything when
+             * the placed loc cannot be resolved (typecode2 == -1). */
+            if( !app_try_move_loc(
+                    app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id,
+                    app->ctrl_held) )
+                break;
             APP_NET_SEND(
                 app, net_out_oplocu(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -7750,14 +7997,17 @@ app_minimenu_run_option(
                          app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
-            app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
+            if( !app_try_move_loc(
+                    app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id,
+                    app->ctrl_held) )
+                break;
             APP_NET_SEND(
                 app, net_out_oploct(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
                          opt.pick.secondary_id, app->targetsel.component_id));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
-            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
             APP_NET_SEND(
                 app, net_out_opobju(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -7765,7 +8015,7 @@ app_minimenu_run_option(
                          app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_OBJ:
-            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
             APP_NET_SEND(
                 app, net_out_opobjt(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -7777,7 +8027,7 @@ app_minimenu_run_option(
                 World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
-                app_try_move_npc(app, npc, 0);
+                app_try_move_npc(app, npc, app->ctrl_held);
                 APP_NET_SEND(
                     app, net_out_opnpcu(
                              app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
@@ -7792,7 +8042,7 @@ app_minimenu_run_option(
                 World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
-                app_try_move_npc(app, npc, 0);
+                app_try_move_npc(app, npc, app->ctrl_held);
                 APP_NET_SEND(
                     app, net_out_opnpct(
                              app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
@@ -7891,7 +8141,8 @@ app_minimenu_run_option(
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
                 app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
-        app_try_move(app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, 0);
+        app_try_move(
+            app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -7900,7 +8151,7 @@ app_minimenu_run_option(
             return 0; /* not yet server-synced */
         /* Reference OP_NPC1..5 / USEHELD_ONNPC walk toward the NPC (tryMove
          * type 2) on the same click; the OP is sent regardless of the route. */
-        app_try_move_npc(app, npc, 0);
+        app_try_move_npc(app, npc, app->ctrl_held);
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -7929,7 +8180,9 @@ app_minimenu_run_option(
         /* Reference interactWithLoc: pathfind toward the loc (tryMove type 2)
          * on the same click, then send the OP below regardless of the walk
          * result. The scene tile is the pick's (tertiary,quaternary). */
-        app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
+        if( !app_try_move_loc(
+                app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held) )
+            return 0; /* reference interactWithLoc: typecode2 == -1 sends nothing */
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -7960,7 +8213,7 @@ app_minimenu_run_option(
         /* Reference obj doAction: pathfind to the exact tile (tryMove type 2),
          * and on failure retry a 1x1 approach so an adjacent tile still arrives;
          * the OP is sent below on the same click either way. */
-        app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
+        app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -8175,6 +8428,11 @@ App_RunOnce(
      * KEYPRESSED answer about the frame the script is reacting to. */
     RS_CS2_SyncKeyState(&app->host, input);
     RS_CS2_SyncMouseState(&app->host, input);
+
+    /* Reference keyHeld[5]: read inside tryMove, so it applies to ground,
+     * minimap AND interaction clicks. Latched here because the minimenu action
+     * path that runs the last two has no input handle. */
+    app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? 1 : 0;
 
     UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
 
@@ -8676,6 +8934,9 @@ App_RunOnce(
 
     app_world_camera_keys(app, input, &out);
     app_world_camera_mouse(app, input, &out);
+    /* Before the debug world hotkeys: a configured binding claims its key so
+     * the same press cannot also spawn something. */
+    app_ui_hotkeys(app, input);
     app_world_hotkeys(app, input, &out);
     app_inv_drag_tick(app, input);
     app_worldmap_drag_tick(app, input);

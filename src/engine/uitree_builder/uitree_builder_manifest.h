@@ -53,10 +53,29 @@ enum UIBuilderTreeOpKind
     UIBUILDER_OP_PUSH_RS_SUBTREE,
 };
 
+/*
+ * One [hotkey:<key>] binding, still in config spelling.
+ *
+ * The manifest deliberately stays string-shaped: turning a key name into an
+ * OSRS code and an effect name into a bit needs input/ and ui/, which the
+ * manifest layer (and its standalone test) does not link. uitree_builder_bake
+ * resolves both.
+ */
+struct UIBuilderHotkey
+{
+    char key_name[64];
+    char component_name[64];
+    char effect[64];
+};
+
 struct UIBuilderTreeOp
 {
     enum UIBuilderTreeOpKind kind;
     char name[64];
+    /** The [component:…] this op instantiates. Layout entries are named
+     *  separately (`name` is the layout's n=), but a hotkey binds a COMPONENT,
+     *  so the bake needs the component name to find the node it produced. */
+    char component_name[64];
     char parent_name[64];
     char type[32];
     int x;
@@ -84,6 +103,9 @@ struct UIBuilderTreeOp
     int level_mask;
     int mmb_rotate;
     int wheel_zoom;
+    /** Effect names this component advertises (revconfig hotkey= lines). */
+    char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
+    int hotkey_count;
     int color;
     int filled;
     int center;
@@ -125,6 +147,8 @@ struct UIBuilderManifest
     int inv_count;
     struct UIBuilderTreeOp* ops;
     int op_count;
+    struct UIBuilderHotkey* hotkeys;
+    int hotkey_count;
 };
 
 void

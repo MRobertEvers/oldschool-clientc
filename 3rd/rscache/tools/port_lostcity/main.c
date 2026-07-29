@@ -132,6 +132,8 @@ main(int argc, char** argv)
             lc_request_add(&manifest.locs, argv[++i]);
         else if( strcmp(argv[i], "--map") == 0 && i + 1 < argc )
             lc_request_add(&manifest.maps, argv[++i]);
+        else if( strcmp(argv[i], "--overlay-backing") == 0 && i + 1 < argc )
+            manifest.overlay_backing = atoi(argv[++i]);
         else if( strcmp(argv[i], "--maploc") == 0 && i + 1 < argc )
         {
             if( !lc_manifest_add_maploc(&manifest, argv[++i]) )
@@ -220,6 +222,7 @@ main(int argc, char** argv)
     struct LC_Ctx ctx;
     lc_ctx_init(&ctx, &src, &packs, &out);
     ctx.max_textures = manifest.max_textures;
+    ctx.overlay_backing_underlay = manifest.overlay_backing;
     for( int i = 0; i < manifest.rig_map_count; i++ )
     {
         ctx.rig_map[manifest.rig_map_from[i]] = manifest.rig_map_to[i];

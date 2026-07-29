@@ -179,6 +179,14 @@ make -C 3rd/rscache/tools port_lostcity
   --loc 30356 --map 35_83 --apply
 ```
 
+`--overlay-backing N` (manifest key `overlay_backing`) writes source underlay
+`N` under every tile that carries an overlay but no underlay. Modern OSRS data
+uses overlay-only tiles freely; the 2004 client draws the backing half of a
+shaped overlay tile from the tile's own underlay and renders black when there
+is none, so a faithful export of such an area looks moth-eaten in the
+reference client. Pick the area's ordinary ground underlay; blending does the
+rest. Tiles with neither overlay nor underlay are left void on purpose.
+
 `--maploc X_Z,level,x,z,locid,shape,angle` (manifest section `[export:maploc]`,
 lines written `place = 35_83,1,28,52,30346,10,3`) appends a static placement to
 the square's `.jm2` after the source ones. For arena dressing that is not in any

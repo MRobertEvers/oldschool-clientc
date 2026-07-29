@@ -6,6 +6,8 @@
 #define REVCONFIG_MENU_OPTION_SLOTS 5
 #define REVCONFIG_MENU_OPTION_LEN 32
 #define REVCONFIG_CHAT_OP_TEMPLATE_LEN 64
+/** Effects one [component:…] may advertise with repeated hotkey= lines. */
+#define REVCONFIG_COMPONENT_HOTKEY_MAX 8
 
 /* Local copies of RS button / minimenu constants so this module stays leaf. */
 enum RevConfigButtonType
@@ -132,6 +134,9 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
     RCFIELD_UICOMPONENT_MMB_ROTATE,
     RCFIELD_UICOMPONENT_WHEEL_ZOOM,
+    RCFIELD_UICOMPONENT_HOTKEY,
+    RCFIELD_HOTKEY_COMPONENT,
+    RCFIELD_HOTKEY_EFFECT,
     RCFIELD_UICOMPONENT_COLOR,
     RCFIELD_UICOMPONENT_FILLED,
     RCFIELD_UICOMPONENT_FONT,
@@ -216,6 +221,7 @@ enum RevConfigItemKind
     RCITEM_UICOMPONENT,
     RCITEM_UILAYOUT,
     RCITEM_INV,
+    RCITEM_HOTKEY,
 };
 
 /*
@@ -469,6 +475,18 @@ struct RevConfigUIComponentItem
      */
     int wheel_zoom;
 
+    /*
+     * INI: hotkey=  (repeatable, up to REVCONFIG_COMPONENT_HOTKEY_MAX)
+     * Names a hard-coded chrome effect this component accepts from a bound key
+     * (see enum UITreeHotkeyEffect; "select_tab" is currently the only one).
+     * Listing an effect does not bind anything on its own — a [hotkey:<key>]
+     * section supplies the key. This list is the allow-list those bindings are
+     * checked against, so a component can never be driven by an effect it does
+     * not opt into.
+     */
+    char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
+    int hotkey_count;
+
     /* INI: color= — RGB/text/line colour for rs_text, rs_rect, rs_line. */
     int color;
 
@@ -602,6 +620,27 @@ struct RevConfigInvItem
     int item_count;
 };
 
+/*
+ * One key binding from a [hotkey:<key>] revconfig INI section.
+ *
+ * The section name is the key ("f1", "3", "escape" — see
+ * LibToriRS_OsrsKeyFromName), and the pair (component, effect) says what the
+ * press does. The effect must also appear in that component's hotkey= list, or
+ * the binding is dropped when the tree is baked.
+ */
+struct RevConfigHotkeyItem
+{
+    /* [hotkey:<name>] — the key this binds. Not unique: two keys may drive the
+     * same component + effect, and one key may appear once per component. */
+    char name[64];
+
+    /* INI: c= — name of the [component:…] section the effect runs on. */
+    char component[64];
+
+    /* INI: e= — hard-coded effect name (enum UITreeHotkeyEffect spelling). */
+    char effect[64];
+};
+
 struct RevConfigItem
 {
     enum RevConfigItemKind kind;
@@ -612,6 +651,7 @@ struct RevConfigItem
         struct RevConfigUIComponentItem uicomponent;
         struct RevConfigUILayoutItem uilayout;
         struct RevConfigInvItem inv;
+        struct RevConfigHotkeyItem hotkey;
     } u;
 };
 

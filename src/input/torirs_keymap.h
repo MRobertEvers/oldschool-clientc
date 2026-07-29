@@ -45,4 +45,21 @@
 int
 LibToriRS_OsrsKeyFromVk(int vk);
 
+/**
+ * OSRS internal key code for a configuration key NAME, or -1 when unknown.
+ *
+ * The spelling revconfig uses in a [hotkey:<name>] section header: "f1".."f12",
+ * "0".."9", "a".."z", and "escape" / "tab" / "space" / "enter" / "backspace" /
+ * "delete" / "left" / "right" / "up" / "down" / "pageup" / "pagedown" /
+ * "home" / "end". Case-insensitive.
+ *
+ * Resolves name -> VK -> OSRS through the one table above rather than carrying
+ * a second mapping. OSRS codes are also what LibToriRS_Input.osrs_key_pressed
+ * is indexed by, and that array (unlike enum LibToriRS_KeyCode) already covers
+ * the F-keys -- see the note on sdl_keycode_to_vk about not growing
+ * TORIRSK_COUNT.
+ */
+int
+LibToriRS_OsrsKeyFromName(char const* name);
+
 #endif

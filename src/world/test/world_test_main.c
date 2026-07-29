@@ -20,6 +20,10 @@ main(void)
     test_entity_face();
     test_try_route();
     test_try_route_op();
+    test_try_route_op_forceapproach();
+    test_force_approach_rotation();
+    test_try_route_op_rect();
+    test_features_eras();
     test_collision_loc_change_inverse();
     test_route_coordinate_coincidence();
     test_tile_stack_dedup();

@@ -78,6 +78,14 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SPRITE;
     else if( strcmp(key, "type") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TYPE;
+    /* `c=` names a component in both a layout entry and a hotkey binding; the
+     * section type disambiguates. Layout stays the unqualified fallback so the
+     * existing `[layout:…]` bodies (which never state their type per entry) are
+     * unaffected. */
+    else if( strcmp(key, "c") == 0 && strcmp(s_ini_item_type, "hotkey") == 0 )
+        kind = RCFIELD_HOTKEY_COMPONENT;
+    else if( strcmp(key, "e") == 0 && strcmp(s_ini_item_type, "hotkey") == 0 )
+        kind = RCFIELD_HOTKEY_EFFECT;
     else if( strcmp(key, "c") == 0 )
         kind = RCFIELD_UILAYOUT_COMPONENT;
     else if( strcmp(key, "x") == 0 )
@@ -128,6 +136,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_MMB_ROTATE;
     else if( strcmp(key, "wheel_zoom") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_WHEEL_ZOOM;
+    else if( strcmp(key, "hotkey") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_HOTKEY;
     else if( strcmp(key, "color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COLOR;
     else if( strcmp(key, "filled") == 0 && strcmp(s_ini_item_type, "component") == 0 )

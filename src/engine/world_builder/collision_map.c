@@ -703,9 +703,17 @@ collision_test_legacy_shape(
     return false;
 }
 
-/* Arrival predicate for the flood: the exact destination always counts (the
- * reference checks it first, before any shape test), then whichever approach
- * model `approach->kind` selects. A NULL approach is EXACT. */
+/*
+ * Arrival predicate for the flood.
+ *
+ * The exact-destination shortcut belongs to the LEGACY family only. Client-TS
+ * tryMove tests `x === dx && z === dz` first, before any shape test, so
+ * standing on a loc's own tile is always an arrival there. The rsmod
+ * pathfinder has no such test — `RouteStrategy.hasArrived` is the *only*
+ * predicate (Pathfinder.findPathS1) — which is exactly what lets it refuse an
+ * approach that overlaps a clipping loc. Applying the shortcut to the RECT
+ * kinds would quietly re-introduce the legacy behaviour under the modern era.
+ */
 static bool
 collision_flood_arrived(
     struct CollisionMap* cm,
@@ -715,15 +723,14 @@ collision_flood_arrived(
     int dst_z,
     struct CollisionApproach const* approach)
 {
-    if( x == dst_x && z == dst_z )
-        return true;
     if( !approach )
-        return false;
+        return x == dst_x && z == dst_z;
 
     switch( approach->kind )
     {
     case COLL_APPROACH_LEGACY_SHAPE:
-        return collision_test_legacy_shape(cm, x, z, dst_x, dst_z, approach);
+        return (x == dst_x && z == dst_z) ||
+               collision_test_legacy_shape(cm, x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_RECT_ADJACENT:
         return collision_test_rect_adjacent(cm, x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_RECT_INSIDE:
@@ -732,15 +739,15 @@ collision_flood_arrived(
         return collision_test_rect_within_range(x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_EXACT:
     default:
-        return false;
+        return x == dst_x && z == dst_z;
     }
 }
 
 /*
  * The unreachable fallback, shared by ground clicks and (under the modern era)
- * interaction clicks. Scans a (2*range+1)-square box around the destination for the
- * best flooded tile and writes it to *out_x/*out_z. Returns 1 when one was
- * found.
+ * interaction clicks. Scans a (2*range+1)-square box around the destination for
+ * the best flooded tile and writes it through out_x / out_z. Returns 1 when one
+ * was found.
  *
  * Two rankings, because the two references rank differently and the choice only
  * makes sense alongside the box size — see struct CollisionNearestOpts.
