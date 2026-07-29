@@ -86,4 +86,14 @@ RSCache_ClientScriptNewFromArchive(
 void
 RSCache_ClientScriptFree(struct RSCache_ClientScript* script);
 
+/**
+ * Release what a script owns, without freeing the script.
+ *
+ * For one the caller did not allocate — `RSCache_CS2_Compile` fills a struct the
+ * caller supplies, and that struct is usually on the stack. Passing it to
+ * RSCache_ClientScriptFree frees a pointer malloc never returned.
+ */
+void
+RSCache_ClientScriptFreeInplace(struct RSCache_ClientScript* script);
+
 #endif

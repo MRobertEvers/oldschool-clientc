@@ -865,6 +865,34 @@ dump_model_stats(
     printf("  %-22s%d\n", "textured (info&3=2)", textured);
     printf("  %-22s%d\n", "info&3=3", hidden);
     printf("  %-22s%d\n", "alpha!=0 faces", alpha_faces);
+    {
+        int prio_hist[16] = { 0 };
+        int prio_over = 0;
+        for( int i = 0; i < model->face_count; i++ )
+            if( model->face_priorities )
+            {
+                int prio = model->face_priorities[i];
+                if( prio < 16 )
+                    prio_hist[prio]++;
+                else
+                    prio_over++;
+            }
+        printf("  %-22s", "priority histogram");
+        for( int i = 0; i < 16; i++ )
+            if( prio_hist[i] )
+                printf("%d:%d  ", i, prio_hist[i]);
+        printf(">15:%d\n", prio_over);
+    }
+    {
+        int alpha_hist[8] = { 0 };
+        for( int i = 0; i < model->face_count; i++ )
+            if( model->face_alphas && model->face_alphas[i] != 0 )
+                alpha_hist[model->face_alphas[i] >> 5]++;
+        printf("  %-22s", "alpha histogram");
+        for( int i = 0; i < 8; i++ )
+            printf("%s%d-%d:%d", i ? "  " : "", i * 32, i * 32 + 31, alpha_hist[i]);
+        printf("\n");
+    }
     printf("  %-22s%d\n", "lightness<8 faces", dark);
     printf("  %-22s", "lightness histogram");
     for( int i = 0; i < 8; i++ )

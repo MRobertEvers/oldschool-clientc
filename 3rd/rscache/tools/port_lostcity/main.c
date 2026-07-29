@@ -307,11 +307,13 @@ main(int argc, char** argv)
         if( lc_export_obj(&ctx, req->id, name) < 0 )
             failures++;
     }
+    ctx.exporting_dynamic_locs = 1;
     for( int i = 0; i < manifest.locs.count; i++ )
     {
         if( lc_export_loc(&ctx, manifest.locs.items[i].id) < 0 )
             failures++;
     }
+    ctx.exporting_dynamic_locs = 0;
     /* A map request is "X_Z", a coordinate pair rather than an id, so it comes
      * off the raw text the parser kept. */
     for( int i = 0; i < manifest.maps.count; i++ )

@@ -154,6 +154,11 @@ struct LC_Manifest
         int map_x, map_z;
         int level, x1, z1, x2, z2;
         int underlay;
+        /** Literal colour fill (`#RRGGBB` in the manifest), or -1 when the
+         *  fill names a source underlay. A synthetic flo is generated for it —
+         *  for ground that must read as something no source underlay is, like
+         *  lava under crag bases. */
+        int rgb;
     }* mapfills;
     int mapfill_count;
     int mapfill_cap;

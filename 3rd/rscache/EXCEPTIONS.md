@@ -1924,10 +1924,47 @@ re-read as `0x000000`, re-encoded a different colour, and the source fixed point
 still held because the loss was symmetric. Only the payload comparison against the
 original cache found it.
 
-### H10. Readable asset forms, and what each one costs
+### H10. Two crashes the round trip found in the library, and the invariant behind both
 
-Six kinds decode to something editable; the rest stay payload. All six round-trip,
-and the whole tree is a fixed point at 137,652 files with an identical client boot.
+Packing the tree back aborted twice, in different places, for the same underlying
+reason: **a decoded and a raw form shared an extension.**
+
+`interfaces` wrote `.if` both ways and `textures` wrote `.texture` both ways. That
+is harmless while every record decodes — and both do — but the moment one declines,
+its raw payload lands on the name the decoder also uses. On import the reader
+declines the same record, falls back to the raw path, and packs *the text file* into
+the cache as though it were the payload. The archive that produces is malformed in a
+way nothing downstream expects.
+
+`assert_extensions_distinct()` now checks the register at startup, because this is a
+property of a table of literals and should not wait for a cache to expose it. Both
+rows were changed to a `bin` fallback. (EXCEPTIONS already recorded this exact bug
+for `scripts` during development; it was not generalised at the time.)
+
+What the malformed archives then hit was two real defects in the library:
+
+- **`RSCache_FileListNewFromDecode` freed pointers it never allocated.** `files` was
+  `malloc`'d rather than `calloc`'d, and every `goto error` runs
+  `RSCache_FileListFree`, which walks the whole array. A group whose size table does
+  not parse takes the error path with most of the array still uninitialised. Three
+  more locals (`chunk_sizes`, `sizes`, `file_offsets`) were declared *after* labels
+  that jump to `error`, so those frees read indeterminate values. All four are now
+  declared and nulled up front, the chunk count is checked against the payload size,
+  and a negative or absurd file length refuses instead of reaching `malloc`.
+- **`cachepack` freed a stack struct.** `RSCache_CS2_Compile` fills a caller-supplied
+  `RSCache_ClientScript`, which `script_read` keeps on the stack;
+  `RSCache_ClientScriptFree` ends in `free(script)`. The library had no in-place
+  release, so `RSCache_ClientScriptFreeInplace` is now the primitive and
+  `RSCache_ClientScriptFree` is it plus the `free`.
+
+Neither is reachable from a well-formed cache, which is why neither showed up until
+the tool wrote a bad one.
+
+### H11. Readable asset forms, and what each one costs
+
+Six kinds decode to something editable; the rest stay payload. Five of the six are
+a fixed point; scripts are not, and the gap is the CS2 layer's rather than this
+tool's — see the measurement below the table.
 
 | kind | form | note |
 |---|---|---|
@@ -1937,6 +1974,15 @@ and the whole tree is a fixed point at 137,652 files with an identical client bo
 | textures | `.texture` | text, because an OldSchool texture is a **record**, not a bitmap |
 | scripts | `.cs2` | via the existing decompiler; 5,586 of 9,725 |
 | sprites | `.bmp` + `pack.meta` | palette recorded, not re-derived; alpha rides in the 32-bit BMP |
+
+**Scripts are the one readable form that is not a fixed point.** Measured on
+`cache.osrs239`: all 4,139 scripts that decline decompilation round-trip
+byte-exactly. Of the 5,586 that decompile, **2,818 re-encode to different bytes** —
+the compiler produces valid, equivalent bytecode, not the original bytecode — and
+on a second unpack 68 of them stop decompiling and 3 decompile to different source.
+5,515 / 5,586 (98.7%) source fixed point, exact for every other kind. This is G1/G2
+showing up at the tool level; `--raw-assets` trades the readable forms for an exact
+tree.
 
 **Declining is a first-class outcome.** A record the codec cannot express writes its
 raw payload under a different extension instead — 4,139 clientscripts take that path

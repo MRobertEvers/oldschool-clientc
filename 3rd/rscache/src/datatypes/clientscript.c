@@ -417,10 +417,18 @@ RSCache_ClientScriptNewFromArchive(
 }
 
 void
-RSCache_ClientScriptFree(struct RSCache_ClientScript* script)
+RSCache_ClientScriptFreeInplace(struct RSCache_ClientScript* script)
 {
     if( !script )
         return;
     RSCache_CS2_ScriptFree(&script->script);
+}
+
+void
+RSCache_ClientScriptFree(struct RSCache_ClientScript* script)
+{
+    if( !script )
+        return;
+    RSCache_ClientScriptFreeInplace(script);
     free(script);
 }

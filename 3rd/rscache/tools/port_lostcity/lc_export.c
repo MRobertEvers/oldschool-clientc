@@ -208,6 +208,7 @@ lc_ctx_free(struct LC_Ctx* ctx)
     lc_id_map_free(&ctx->underlay_map);
     lc_id_map_free(&ctx->overlay_map);
     lc_id_map_free(&ctx->texture_map);
+    lc_id_map_free(&ctx->fillflo_map);
     for( int i = 0; i < ctx->animset_count; i++ )
     {
         free(ctx->animsets[i].src_frames);

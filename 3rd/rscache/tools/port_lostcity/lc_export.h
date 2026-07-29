@@ -100,6 +100,8 @@ struct LC_Ctx
     struct LC_IdMap overlay_map;
     /** Source texture id -> LostCity `texture.pack` id. */
     struct LC_IdMap texture_map;
+    /** Literal fill colour (RGB) -> LostCity `flo.pack` id. */
+    struct LC_IdMap fillflo_map;
 
     struct LC_AnimSet* animsets;
     int animset_count;
@@ -175,6 +177,18 @@ struct LC_Ctx
     int texture_count;
     /** Colour a textured face falls back to when its texture has no average. */
     int texture_fallback_hsl;
+    /**
+     * 1 while exporting the manifest's explicit `--loc` list.
+     *
+     * Those locs exist to be spawned from scripts, and a dynamically added loc
+     * is lit by LocType.getModel, whose lighting call passes `!sharelight` —
+     * a sharelight model is left waiting for a static scene build that will
+     * never run, and draws with no face colours at all. The reference client
+     * is authentic in this: 2004 content never spawned a sharelight loc at
+     * runtime. Statics keep their flag; the scene build lights them properly.
+     */
+    int exporting_dynamic_locs;
+
     /**
      * Source underlay id (raw map value, 0 = off) written under every tile
      * that has an overlay but no underlay of its own.

@@ -1773,8 +1773,8 @@ script_read(
     uint32_t written =
         payload ? RSCache_ClientScriptEncode(&ctx->profile, &script, payload, bound) : 0;
     /* `RSCache_CS2_Compile` fills a script that owns its buffers, exactly like a
-     * decoded one, so it is released the same way. */
-    RSCache_ClientScriptFree(&script);
+     * decoded one — but this one is on the stack, so only the buffers go. */
+    RSCache_ClientScriptFreeInplace(&script);
     if( written == 0 )
     {
         free(payload);

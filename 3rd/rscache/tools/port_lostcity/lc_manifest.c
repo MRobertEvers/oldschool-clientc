@@ -537,7 +537,24 @@ lc_manifest_add_mapfill(
     const char* text)
 {
     struct LC_MapFill fill;
+    fill.underlay = 0;
+    fill.rgb = -1;
+    unsigned rgb;
     if( sscanf(
+            text,
+            "%d_%d,%d,%d,%d,%d,%d,#%x",
+            &fill.map_x,
+            &fill.map_z,
+            &fill.level,
+            &fill.x1,
+            &fill.z1,
+            &fill.x2,
+            &fill.z2,
+            &rgb) == 8 )
+    {
+        fill.rgb = (int)(rgb & 0xFFFFFF);
+    }
+    else if( sscanf(
             text,
             "%d_%d,%d,%d,%d,%d,%d,%d",
             &fill.map_x,
@@ -551,7 +568,7 @@ lc_manifest_add_mapfill(
     {
         fprintf(
             stderr,
-            "mapfill wants MAPX_MAPZ,level,x1,z1,x2,z2,underlay (got %s)\n",
+            "mapfill wants MAPX_MAPZ,level,x1,z1,x2,z2,<underlay|#RRGGBB> (got %s)\n",
             text);
         return 0;
     }

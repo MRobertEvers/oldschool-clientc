@@ -29,6 +29,36 @@
 
 /* ---- floors ------------------------------------------------------------- */
 
+/* Get-or-create a flo for a literal colour fill. Same idempotency contract as
+ * every other exporter: one flo per colour per run, name derived from the
+ * value, registered ids reused across runs. */
+static int
+export_fill_flo(
+    struct LC_Ctx* ctx,
+    int rgb)
+{
+    int existing;
+    if( lc_id_map_get(&ctx->fillflo_map, rgb, &existing) )
+        return existing;
+
+    char name[64];
+    snprintf(name, sizeof(name), "flo_%s_fill_%06x", ctx->out->prefix, (unsigned)rgb);
+    int lc_id = lc_pack_alloc(&ctx->packs->packs[LC_PACK_FLO], name);
+    if( lc_id < 0 )
+        return -1;
+    if( lc_id > 255 - 81 )
+    {
+        lc_out_warn(
+            ctx->out, "fill flo %s got flo id %d; a map tile can only name up to %d", name, lc_id, 255 - 81);
+        return -1;
+    }
+    lc_str_addf(&ctx->out->flo_cfg, "[%s]\n", name);
+    lc_str_addf(&ctx->out->flo_cfg, "colour=0x%06X\n", (unsigned)rgb);
+    lc_str_addf(&ctx->out->flo_cfg, "\n");
+    lc_id_map_put(&ctx->fillflo_map, rgb, lc_id);
+    return lc_id;
+}
+
 static int
 export_underlay(
     struct LC_Ctx* ctx,
@@ -308,7 +338,11 @@ lc_export_loc(
      * is a graded contour LostCity has no key for. */
     if( loc->contoured_ground == 0 )
         lc_str_addf(cfg, "hillskew=yes\n");
-    if( loc->sharelight )
+    /* Dropped for script-spawned locs: a dynamic add is lit through
+     * LocType.getModel, which skips baking face colours for sharelight models
+     * (they expect the static scene build's merge pass), so a sharelight loc
+     * spawned at runtime renders with its faces simply not drawn. */
+    if( loc->sharelight && !ctx->exporting_dynamic_locs )
         lc_str_addf(cfg, "sharelight=yes\n");
     if( loc->occlude )
         lc_str_addf(cfg, "occlude=yes\n");
@@ -447,22 +481,34 @@ lc_export_map(
                     n += snprintf(
                         tokens + n, sizeof(tokens) - (size_t)n, "f%d ", tile->settings);
                 int underlay_id = tile->underlay_id;
-                if( underlay_id == 0 && tile->attr_opcode != 0 &&
-                    ctx->overlay_backing_underlay > 0 )
-                    underlay_id = ctx->overlay_backing_underlay;
-                /* Region fills: floor for void tiles inside an arena, so
-                 * translucent model faces standing there have something behind
-                 * them. Overlay tiles are already handled above. */
-                if( underlay_id == 0 && tile->attr_opcode == 0 )
+                /* Region fills: an underlay for any tile that has none of its
+                 * own, void or overlay alike — inside the box they outrank the
+                 * generic overlay backing, so the ground under a specific
+                 * structure can read as something the area around it is not
+                 * (lava under crag bases). First listed fill wins, so a tight
+                 * colour fill can sit inside a broad one. */
+                int fill_rgb = -1;
+                if( underlay_id == 0 )
                     for( int fi = 0; fi < fill_count; fi++ )
                         if( fills[fi].map_x == map_x && fills[fi].map_z == map_z &&
                             fills[fi].level == level && x >= fills[fi].x1 &&
                             x <= fills[fi].x2 && z >= fills[fi].z1 && z <= fills[fi].z2 )
                         {
                             underlay_id = fills[fi].underlay;
+                            fill_rgb = fills[fi].rgb;
                             break;
                         }
-                if( underlay_id != 0 )
+                if( underlay_id == 0 && fill_rgb < 0 && tile->attr_opcode != 0 &&
+                    ctx->overlay_backing_underlay > 0 )
+                    underlay_id = ctx->overlay_backing_underlay;
+                if( fill_rgb >= 0 )
+                {
+                    int flo = export_fill_flo(ctx, fill_rgb);
+                    if( flo >= 0 )
+                        n += snprintf(
+                            tokens + n, sizeof(tokens) - (size_t)n, "u%d ", flo + 1);
+                }
+                else if( underlay_id != 0 )
                 {
                     int flo = export_underlay(ctx, underlay_id - 1);
                     if( flo >= 0 )

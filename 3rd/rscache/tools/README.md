@@ -614,9 +614,17 @@ A few things worth knowing:
   which is most of the 4,139 fallbacks. Point `CACHEPACK_CS2_NAMES` at a clone of
   [RuneStar/cs2](https://github.com/RuneStar/cs2)'s resources directory.
 
-Measured end to end on `cache.osrs239`: unpack → pack → unpack returns all
-**137,652 files** byte-identical, and the client's boot log against the repacked
-cache matches the original's line for line.
+Measured end to end on `cache.osrs239`: unpack → pack → unpack returns every file
+byte-identical **except the decompiled clientscripts**, and the client's boot log
+against the repacked cache matches the original's line for line.
+
+The exception is worth stating precisely, because it is the CS2 layer's and not
+this tool's. All 4,139 scripts that decline decompilation round-trip byte-exactly
+as `.bin`. Of the 5,586 that decompile, 2,818 re-encode to *different bytes* — the
+compiler does not reproduce the original bytecode — and on the second unpack 68 of
+them no longer decompile at all and 3 decompile to different source. So the source
+fixed point is 5,515 / 5,586 (98.7%) for scripts and exact for everything else.
+`--raw-assets` gives an exact tree at the cost of the readable forms.
 
 ### Raw containers
 
