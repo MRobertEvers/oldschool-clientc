@@ -1,0 +1,303 @@
+# The bank
+
+A working bank against the real rev-230 client: open it at a booth or a banker,
+withdraw and deposit by right-click, toggle notes/insert/quantity, and watch the
+container come back down the wire.
+
+```
+make -C src mock230-bank && src/build/bank_mock230 &
+src/torirs --manifest manifest_osrs230_bank.ini --user testc --pass test
+```
+
+Then `::bank` in the chat box, or walk to a bank booth — the Lumbridge castle
+ones are two staircases up from the spawn tile.
+
+| file | contents |
+| --- | --- |
+| `src/net/mock/mock230_bank.c` | the container, the settings, the arithmetic, the wire |
+| `src/net/mock/content/scripts/interface_bank/` | the ported LostCity content |
+| `src/net/mock/content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
+| `src/ui/uitree_obj_cell.c` | the one client-side change this needed (§6) |
+
+Tests: `make -C src test-mock230` covers varbit packing, deposit/withdraw,
+notes, the op ladder and the open burst. `make -C src test-mock230-bank` is the
+same suite against this binary.
+
+---
+
+## 1. What a bank is, at rev 230
+
+Almost nothing, server-side. **The client already knows how to draw a bank** —
+`bankmain_init` (clientscript 274) builds 1,220 item cells, a tab strip, a
+scrollbar and the settings row out of nothing but a container and a dozen
+varbits. So the server's whole job is:
+
+1. mount two interfaces,
+2. push the settings,
+3. send container 95,
+4. and act on the clicks that come back.
+
+That is the shape of the port. LostCity's bank has to describe its own interface
+because its client has no CS2; this one describes only state.
+
+| what | id | how it was established |
+| --- | --- | --- |
+| bank interface | `12` | `tools/dump_interface cache.osrs230 --dat2 --iface 12` |
+| bank side panel | `15` | same |
+| bank container | `95` | `inv-names.tsv`, and the client's own `INV_MANAGER_CONTAINER_BANK` |
+| bank capacity | `1220` | config group 5 (inv), read at startup — **not** written down |
+| mount slot, main | `161:16` | toplevel_osrs_stretch `mainmodal` |
+| mount slot, side | `161:74` | toplevel_osrs_stretch `sidemodal` |
+
+The component ids inside interface 12 (`mock230_bank.h`) were read out of
+`dump_interface` against this cache and **not** borrowed from another server's
+table. The bank's child numbering moved between OldSchool revisions: a constant
+taken from a newer cache — xrsps's `BankMainChild.ITEMS = 12`, for instance —
+names a `line` here, not the item container.
+
+---
+
+## 2. The settings are varbits, and that is the whole difficulty
+
+LostCity's bank writes `%bankcert` and `%bankinsert`, player variables it
+invented. At rev 230 every one of those is a **varbit**: a named bit range
+inside a varplayer the client already owns.
+
+```
+bank_withdrawnotes   3958   varp  115  bit  0
+bank_currenttab      4150   varp  115  bits 4..7
+bank_insertmode      3959   varp  304  bit  0
+bank_requestedquantity 3960 varp  304  bits 1..31
+bank_quantity_type   6590   varp 1666  bits 2..4
+bank_tab_1..9        4171+  varps 867, 1052, 1053, 1793, 3750
+```
+
+Two consequences, and both are load-bearing:
+
+- **Writing one as a whole varp destroys the others in it.** Withdraw-as-note
+  and the current tab share varp 115. There is no symptom until the panel is
+  looked at, so `mock230_bank_set_varbit` does a read-modify-write of the bit
+  range and nothing writes those varps directly.
+- **The ranges come from the cache**, config group 14, decoded at startup by
+  `mock230_bank_load`. They are not in `varbit.pack` and not in the header. A
+  second copy of a cache fact is the failure mode this content tree exists to
+  avoid, and the ranges are the client's, not the server's, so they cannot be
+  allowed to drift.
+
+`MOCK230_VARP_COUNT` went from 256 to 5000 for this. None of those ids were
+chosen here; the tab counters alone are spread over five varps up to 3750, and
+the side panel's slot locks are varp 4611.
+
+`.varp` configs matter too. The mock only transmits a varp a config declares
+with `transmit=yes` (undeclared means server-only, which is right for its own
+counters and wrong for these), so
+`content/scripts/interface_bank/configs/bank.varp` declares all nine.
+
+### The one that is not a setting
+
+`bank_side_slot_ignoreinvlocks` (5450) is pushed to 1 on open. The side panel
+draws a padlock over every inventory slot unless told to ignore the lock varbit,
+which the mock never sets — so without this the bank opens with a locked-looking
+inventory.
+
+---
+
+## 3. Notes come out of the obj record, both directions
+
+A bank holds one stack of an item, never two, so a deposit un-notes and a
+withdraw re-notes on request. Both directions read straight out of the objtype:
+
+```
+1511 Logs      noted 1512 / template  -1     <- an item, pointing forward
+1512 "null"    noted 1511 / template 799     <- its note, pointing back
+```
+
+Opcode 97 is "the record on the other side of the link" and opcode 98 says which
+side this record is on. So `oc_cert` and `oc_uncert` are one field lookup each
+and neither needs an index — worth stating, because the pair reads like one
+field and a flag until you print a few.
+
+Two things about note records bit during this work, both silent:
+
+- **Every note is named `null`.** A note takes its display name from the item it
+  stands for. `mock230_objinfo` used to gate its "do I know this obj" test on
+  the name, so all ~8,000 notes reported as unknown; the gate is now a `known`
+  flag and the name is borrowed from the linked item at load.
+- **Every note records `stacking_behaviour = 0`.** The reference client tests
+  `stackable == 1 || notedTemplate != -1`. Without the second half, a stack of
+  20 noted swordfish takes 20 backpack slots — which is precisely the thing
+  notes exist to avoid.
+
+---
+
+## 4. The op index is not fixed, and that is a port decision
+
+LostCity binds five handlers, `[inv_button1..5,bank_main:inv]`, one per withdraw
+amount. Its interface always offers the same five rows in the same order.
+
+rev 230's bank builds its rows **conditionally**. `~script669` omits the row
+that would duplicate the current default quantity:
+
+```
+                        Withdraw-<default>          always
+    if quantity != 1    Withdraw-1
+    if quantity != 5    Withdraw-5
+    if quantity != 10   Withdraw-10
+    if quantity != X    Withdraw-<X>                and only when X is set
+                        Withdraw-X                  always (the prompt)
+    if quantity != All  Withdraw-All
+                        Withdraw-All-but-1          always
+```
+
+So "Withdraw-All" is op 5 with the default on 1 and op 6 with it on All, and the
+op index alone does not say what was clicked. Reconstructing the ladder needs
+the same varbits the client drew it from, so it lives in the engine
+(`mock230_bank_quantity_for_op`) and the item rows are **deliberately not bound
+in content**. Binding them would mean writing the ladder twice.
+
+The side panel is the other way round: `bankside_drawitem` uses constants, so op
+3 is Deposit-1 whether or not it is on the menu. Hence the `side` parameter
+rather than an offset.
+
+`Withdraw-X` / `Deposit-X` return `MOCK230_BANK_ASK`, which opens the count
+prompt and parks the slot in `bank.pending_slot` until `RESUME_P_COUNTDIALOG`
+arrives.
+
+**Only five of the ten rows reach the player.** `UITREE_MENU_OPTION_SLOTS` is 5,
+so Withdraw-All-but-1 and Placeholder are dropped by the client's menu. The
+server implements them anyway, because the cut is the client's and moving it
+does not need a server change.
+
+---
+
+## 5. Two packets that did not exist
+
+- **`P_COUNTDIALOG`** — assigned opcode 128, zero-length. Modern OldSchool drives
+  the "Enter amount" prompt through a clientscript rather than a packet, so
+  there was no real opcode to transcribe. The client already had the handler
+  (`RS_Chat.dialog_input`); nothing was reaching it. Same assignment convention
+  as the `IF_SET*` family — see `docs/osrs230_mockserver.md` §3.5.
+- **`VARP_LARGE` per value, not per call site.** A varp holding packed varbits is
+  routinely wider than `VARP_SMALL`'s signed byte (the tab counters occupy bits
+  0..25 of theirs), so the encoder is now chosen from the magnitude in the phase
+  10 flush. Truncating would corrupt every bit above the eighth.
+
+`UPDATE_INV_FULL`'s arena was sized at 8 KB, which was fine for a 28-slot
+backpack and a 14-slot worn set. A full bank is 1,220 slots at up to 7 bytes
+each; the buffer is now sized from the count. Only the used prefix goes out —
+`UPDATE_INV_FULL` clears everything past the capacity it carries, so a bank
+holding twelve objs is a twelve-slot packet.
+
+---
+
+## 6. The client change: whose ops does a cell offer?
+
+Everything above was server work. One thing was not, and it is a single line.
+
+`UITree_ObjCellForNode` resolved a CS2-created item cell's verbs from the cell's
+**container**:
+
+```c
+out->ops_node_index = node->parent >= 0 ? node->parent : node_index;
+```
+
+which is right for the backpack and the worn tab — they set their ops once on
+the static parent and every cell inherits them. The bank does not.
+`bankmain_drawitem` calls `cc_setop` on the *child* it just drew, because the
+rows differ per item and per setting. Reading only the parent gave a bank item
+the ObjType's Drop/Use rows and none of its own:
+
+```
+row[1] "Examine @lre@ Coins"        <- the client's synthesised row
+row[2] "Drop @lre@ Coins"           <- the ObjType's
+row[3] "Use @lre@ Coins"
+```
+
+The child now wins when it has any ops, which is also what the reference does —
+it reads the ops off whatever component the cursor is over. Same click
+afterwards:
+
+```
+row[2] "Withdraw-All @lre@ Coins"
+row[3] "Withdraw-X @lre@ Coins"
+row[4] "Withdraw-10 @lre@ Coins"
+row[5] "Withdraw-5 @lre@ Coins"
+row[6] "Withdraw-1 @lre@ Coins"
+```
+
+`obj_ops` falls out of the same test, so the ObjType rows disappear on their own
+rather than needing a second rule.
+
+This closes follow-up 1 of `docs/osrs230_mockserver.md` §6 — inventory item ops
+through the rev-230 UI — which had been described there as unreachable.
+
+### The settings buttons needed arming, not code
+
+The Item/Note, Swap/Insert and quantity buttons each have a CS2 hook of their
+own (`bankmain_itemnote_op` and friends) that flips the varbit **client-side and
+sends nothing**. Pressing Note visibly worked and then a withdraw came out as an
+item, because the server's copy had not moved.
+
+The client already handles this: a numbered op on an IF3 widget sends
+`IF_BUTTON<n>` **and** runs the hook, gated on the server's events mask. The
+mock simply was not arming those components. `bank_set_events` now does.
+
+Watch the bit convention — the client's test is `events & (1 << op_num)` with
+`op_num` **one-based**, so ops 1..10 are `0x7fe`, not `0x3ff`. The same word is
+read 0-based elsewhere in the codebase.
+
+---
+
+## 7. What the content tree owns
+
+`content/scripts/interface_bank/` is the LostCity port. The *rules* carried over
+verbatim, because they are OldSchool's:
+
+- a deposit un-notes;
+- a withdraw refuses rather than half-completes, with the reference's three
+  different "no space" messages (a stack that will not fit and a pile that will
+  not all fit are different sentences);
+- insert mode shuffles rather than swaps (`insert_bank`, one slot at a time);
+- the bank is compacted on open and on close, because a drag can leave gaps.
+
+What content owns: the ways in (`[oploc1,bankbooth]`, `[opnpc1,banker]`), the
+settings buttons, and the two deposit-everything buttons. What the engine owns:
+the item rows (§4), the space arithmetic, and the varbit push on open.
+
+Both routes exist, and that is the tree's standing contract: **with no script
+pack loaded, the bank still works**, because `mock230_bank_handle_button` is the
+fallback for every trigger content might have bound. That is what keeps
+`test-mock230` green while content is mid-edit.
+
+Opening the bank is verb-driven, not id-driven. The engine opens it for any loc
+whose cache menu op is `Bank`, the same way "Attack" is decided — OldSchool has
+dozens of booths, chests and counters and every one of them says `Bank` in the
+cache. An id list would be a hand-kept second copy of that, wrong for whichever
+booth nobody added. `loc.pack` names `bankbooth` so content *can* bind a
+specific booth, not so the engine can find one.
+
+New script host commands, all with LostCity's signatures so the content ports as
+text: `inv_size`, `inv_getobj`, `inv_getnum`, `inv_itemspace`, `inv_itemspace2`,
+`inv_movetoslot`, `inv_moveitem` / `_cert` / `_uncert`, `inv_clear`,
+`inv_transmit`, `inv_stoptransmit`, `oc_cert`, `oc_uncert`, `~varbit` read and
+write, `if_openmain`, `if_openmain_side`, `p_countdialog`, `last_int`,
+`last_slot`, `last_targetslot`.
+
+---
+
+## 8. Not implemented
+
+Stated rather than left to be discovered. Each is an interface feature with no
+server state behind it, and the varbit that hides it is pushed on open.
+
+| what | why |
+| --- | --- |
+| **Tabs** | The nine counters are transmitted and always zero. Assigning an item to a tab is a drag onto the tab strip, which arrives as a drag-complete the mock does not route yet. |
+| **Placeholders** | `bank_leaveplaceholders` is pushed to 0. A placeholder is a third slot state (obj, empty, remembered), and nothing else in the mock has one. |
+| **The incinerator** | `bank_showincinerator` pushed to 0. |
+| **Equipment-bonus panel, potion store, deposit box, bank pin** | Separate interfaces with their own containers. |
+| **Search** | Client-side filtering the server never sees. |
+| **Membership / capacity limits** | LostCity's `^bank_free_slots` gate. The mock has no membership flag, so every slot is free. |
+
+The bank is also **not persisted** — the mock has no storage at all, so a fresh
+login gets the same seeded stock (`mock230_world_init`).

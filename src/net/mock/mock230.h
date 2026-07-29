@@ -21,6 +21,8 @@
  * which parts deviate from a real rev-230 server.
  */
 
+#include "mock230_bank.h"
+
 #include "net/isaac.h"
 
 #include <stdint.h>
@@ -53,16 +55,37 @@ enum
     MOCK230_ROOT_IFACE = 161,
     MOCK230_INV_IFACE = 149,
     MOCK230_WORN_IFACE = 387,
+    /* Component uid the backpack's 28 item cells hang off. It, not the cells,
+     * is what an inventory op names on the wire — see worn_slot_for_component
+     * in mock230_world.c. */
+    MOCK230_INV_COMPONENT = (MOCK230_INV_IFACE << 16) | 0,
+    /* 387:15 is the helmet slot; the other ten follow it in wear order. */
+    MOCK230_WORN_FIRST_SLOT_CHILD = 15,
+
+    /* OldSchool's run-mode player variable. The minimap orb reads it to decide
+     * whether to light up, so the toggle is not the server's private state —
+     * it has to be transmitted like any other varp. */
+    MOCK230_VARP_RUN = 173,
 
     /* Scene is 104x104 tiles based at (zone - 6) * 8. Rebuild once the player
      * comes within 16 tiles of an edge, the same margin the reference uses. */
     MOCK230_SCENE_TILES = 104,
     MOCK230_REBUILD_MARGIN = 16,
 
-    /* Player variables the scripts can read and write. rev 230 has far more
-     * than this; the mock only needs the ones its own content uses. */
-    MOCK230_VARP_COUNT = 256,
-    MOCK230_VARP_DIRTY_MAX = 32,
+    /*
+     * Player variables the scripts can read and write.
+     *
+     * This used to be 256, which covered everything the mock's own content
+     * wrote. The bank broke that: its settings are *varbits*, and a varbit is a
+     * bit range inside whichever varplayer the cache happens to have put it in
+     * — the nine tab counters alone live in varps 867, 1052, 1053, 1793 and
+     * 3750, and the side panel's slot locks are varp 4611. None of those are
+     * ids content picked; they are the client's, so the array has to reach
+     * them. rev 230 has about 5,000 varps.
+     */
+    MOCK230_VARP_COUNT = 5000,
+    /* One bank open writes about fifteen varps in a tick. */
+    MOCK230_VARP_DIRTY_MAX = 64,
 
     /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
      * handful per kill, and they expire. */
@@ -85,6 +108,14 @@ enum
     /* Ticks from despawn to respawn at the spawn tile. */
     MOCK230_RESPAWN_TICKS = 25,
     MOCK230_PLAYER_MAX_HP = 30,
+
+    /*
+     * Run energy is kept in hundredths of a percent, which is the unit
+     * OldSchool's own drain formula is written in: one running step off an
+     * unencumbered player costs 67 of these, so a percent is not a fine enough
+     * grain to hold the remainder. The wire and the orb carry the percent.
+     */
+    MOCK230_RUN_ENERGY_MAX = 10000,
 
     /* Hitsplat types the client's hitmark renderer knows. */
     MOCK230_HIT_DAMAGE = 0,
@@ -168,6 +199,7 @@ enum
     MOCK230_STAT_RANGED = 4,
     MOCK230_STAT_PRAYER = 5,
     MOCK230_STAT_MAGIC = 6,
+    MOCK230_STAT_AGILITY = 16,
     MOCK230_STAT_COUNT = 23,
 };
 
@@ -182,12 +214,6 @@ enum Mock230AttackStyle
     MOCK230_STYLE_AGGRESSIVE = 1,
     MOCK230_STYLE_DEFENSIVE = 2,
     MOCK230_STYLE_CONTROLLED = 3,
-};
-
-/** varp the combat tab writes the attack style into. */
-enum
-{
-    MOCK230_VARP_ATTACK_STYLE = 43,
 };
 
 enum Mock230WearPos
@@ -222,6 +248,33 @@ struct Mock230ObjInfo
     int wearpos_2;
     int wearpos_3;
     int stackable;
+    /** Grams, from the obj record's own weight field (config opcode 75). It is
+     *  the only input to the run-energy drain rate, so an unarmoured player
+     *  with an empty backpack really does run twice as far as a fully kitted
+     *  one. Signed: weight-reducing items are negative. */
+    int weight;
+    /*
+     * Bank notes ("certificates"), both directions.
+     *
+     * A *note* record carries `noted_template` — the shared template obj it
+     * borrows its model from — and `noted_id`, the item it stands for. A plain
+     * item carries neither, and nothing in the cache points from an item to its
+     * note. So un-noting reads straight out of the record, and noting needs the
+     * reverse index mock230_objinfo_load builds by walking the whole table.
+     *
+     * All three are -1 when absent, which is also what "this obj has no note
+     * form" means — the case a bank has to report rather than assume.
+     */
+    int noted_id;
+    int noted_template;
+    /** The note form of this item, or -1. */
+    int cert_id;
+    /** 1 when the cache had a record for this id at all. Not the same as
+     *  "has a name": every note record is named `null`, because a note takes
+     *  its name from the item it stands for. Gating on the name — which is what
+     *  this used to do — made every note in the game report as unknown, and an
+     *  unknown obj is not stackable, so a stack of 20 notes came out as 1. */
+    int known;
     /** Inventory menu ops (config opcodes 35-39) — "Wear", "Wield", "Drop",
      *  "Eat". OPHELD<n> carries the 1-based index into this array, so the
      *  server can act on the verb the player actually clicked. NULL = absent. */
@@ -486,8 +539,29 @@ struct Mock230Npc
 struct Mock230Player
 {
     int x, z, level;
-    /** Run toggles per move request (the client sends ctrl-held with it). */
+    /** Whether this tick's steps are being run rather than walked. Derived
+     *  each tick from `run_toggle` and whether any energy is left. */
     int running;
+    /** The player's standing preference: the run orb, and the ctrl-held flag
+     *  the client puts on a move request. Mirrored into varp 173 so the orb
+     *  draws itself lit. */
+    int run_toggle;
+    /** 0..MOCK230_RUN_ENERGY_MAX. */
+    int run_energy;
+    /** Bit per prayer, indexed like interface 541's buttons (see
+     *  mock230_prayer.h). The overhead icon is a function of this and nothing
+     *  else, which is why turning one on re-sends the appearance. */
+    uint32_t prayer_active;
+    /** Fractional prayer point spent so far, in drain-rate units. */
+    int prayer_drain_acc;
+    /** The equipment-stats screen (interface 84) is mounted. Its eighteen
+     *  numbers are IF_SETTEXTs to components that only exist while it is, so
+     *  every refresh has to check this first. */
+    int equip_stats_open;
+    /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
+     *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
+    int run_energy_sent;
+    int run_weight_sent;
 
     struct Mock230Step steps[MOCK230_STEP_MAX];
     int step_count;
@@ -528,6 +602,12 @@ struct Mock230Player
      *  absolute placement (move op 3) rather than a step direction. */
     int place_dirty;
 
+    /** World map overlay state. `worldmap_tile_sent` is the packed coord the
+     *  map's varc was last told about, so the per-tick refresh only fires when
+     *  the player actually moved. */
+    int worldmap_open;
+    int worldmap_tile_sent;
+
     /** This tick's movement, filled in by the tick and consumed by the
      *  PLAYER_INFO encoder: 0 tiles idle, 1 walking, 2 running. */
     int move_dirs[2];
@@ -538,6 +618,11 @@ struct Mock230Player
     int32_t varps[MOCK230_VARP_COUNT];
     int varp_changed[MOCK230_VARP_DIRTY_MAX];
     int varp_changed_count;
+
+    /** The bank: container 95 plus the settings its interface reads out of
+     *  varbits. Heap-allocated, so mock230_bank_shutdown has to run before the
+     *  player struct is cleared. See mock230_bank.h. */
+    struct Mock230Bank bank;
 
     /** The script parked on this player, resumed by phase 5. At most one: a
      *  player is doing one thing at a time, which is also why a new trigger
@@ -555,6 +640,23 @@ struct Mock230Player
     int resume_button_count;
     /** The component that released the last wait — what `last_com` returns. */
     int last_com;
+    /*
+     * The rest of the `last_*` family, which is how a RuneScript interface
+     * trigger learns what was clicked: the script is bound to a *component*,
+     * and everything about the click that is not the component arrives here.
+     *
+     * `last_slot` is the grid cell, `last_targetslot` the cell a drag landed
+     * on, `last_item` the obj that was in it, `last_verb` the 1-based op index,
+     * and `last_int` the number a p_countdialog collected. All -1 / 0 when the
+     * last trigger did not carry one, which is the same thing the reference
+     * does — a script reading one it was not given gets a sentinel, not a
+     * stale value from an unrelated click.
+     */
+    int last_slot;
+    int last_targetslot;
+    int last_item;
+    int last_verb;
+    int32_t last_int;
 
     /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
      * above, since the mask is what carries them to the client. */
@@ -579,9 +681,6 @@ struct Mock230Player
     /** Stats whose level or xp changed this tick, flushed by phase 10. */
     uint32_t stat_dirty;
 
-    /** Attack style, 0-3 — see Mock230AttackStyle. Written by the combat tab
-     *  through varp 43, which is where OldSchool keeps it. */
-    int attack_style;
 
     /** Set on death, drained by the tick: the respawn has to happen between
      *  ticks so the death animation is seen before the teleport. */
@@ -659,6 +758,33 @@ mock230_world_set_cache_dir(const char* dir);
 const char*
 mock230_world_cache_dir(void);
 
+/**
+ * The player's attack style, read out of the `com_mode` varp.
+ *
+ * Not a field on the player: the combat interface writes the style as a varp,
+ * content sets the opening one as a varp, and a copy on the side is a second
+ * source of truth that can disagree with the one the client is showing. The
+ * varp *is* the state; this resolves its id through the content pack so the
+ * engine and the scripts name it the same way.
+ */
+int
+mock230_world_attack_style(const struct Mock230Server* srv);
+
+/** Set it, and mark it for transmission. */
+void
+mock230_world_set_attack_style(
+    struct Mock230Server* srv,
+    int style);
+
+/** Write a player variable and queue it for phase 10, skipping the write when
+ *  the value is unchanged (a varp that did not change must not be sent — the
+ *  client re-runs every script listening on it). */
+void
+mock230_world_set_varp(
+    struct Mock230Server* srv,
+    int varp,
+    int value);
+
 /** The tile a session logs in on, and respawns at. Set from main() before
  *  mock230_world_init; defaults to the Lumbridge castle courtyard. */
 void
@@ -690,6 +816,50 @@ mock230_world_handle(
 /** The on-login burst: scene, gameframe, containers, stats, first info tick. */
 void
 mock230_world_login(struct Mock230Server* srv);
+
+/** Put the player on an absolute tile, clearing the walk and rebuilding the
+ *  scene if the destination left the current one. */
+void
+mock230_world_teleport(
+    struct Mock230Server* srv,
+    int level,
+    int abs_x,
+    int abs_z);
+
+/* ------------------------------------------------------------------ */
+/* World map (mock230_worldmap.c)                                      */
+/* ------------------------------------------------------------------ */
+
+/** Arm the orb's and the close button's ops with IF_SETEVENTS. Without this the
+ *  client never sends the click — rev 230 has no clickable-by-default. */
+void
+mock230_worldmap_login(struct Mock230Server* srv);
+
+/** Mount / unmount interface 595 in the toplevel's floater slot. */
+void
+mock230_worldmap_open(struct Mock230Server* srv);
+void
+mock230_worldmap_close(struct Mock230Server* srv);
+
+/** Claim an IF_BUTTON<op> aimed at the orb or the map's close button. Returns
+ *  1 when it was one of those, 0 to let the normal button routing have it. */
+int
+mock230_worldmap_handle_button(
+    struct Mock230Server* srv,
+    int uid,
+    int op);
+
+/** CLICK_WORLD_MAP: the player clicked a tile on the open map. */
+void
+mock230_worldmap_click(
+    struct Mock230Server* srv,
+    int level,
+    int abs_x,
+    int abs_z);
+
+/** Once per tick: refresh the "you are here" marker while the map is open. */
+void
+mock230_worldmap_tick(struct Mock230Server* srv);
 
 /**
  * Drive the game logic with no socket attached and assert the results.
@@ -753,6 +923,21 @@ mock230_seq_for_npc(
  *  the same test the client's minimenu makes. */
 int
 mock230_combat_attackable(int npc_type);
+
+/**
+ * Stop fighting, and tell the client to stop facing.
+ *
+ * The two halves are one action: dropping `combat_target` without sending a
+ * FACE_ENTITY of -1 leaves the client turned toward a corpse forever, because
+ * the mask is a latch — nothing un-faces an entity except being told to. That
+ * is the whole of "facing never clears after clicking away".
+ */
+void
+mock230_combat_stop_player(struct Mock230Server* srv);
+void
+mock230_combat_stop_npc(
+    struct Mock230Server* srv,
+    int slot);
 
 /** Mark a stat as changed so phase 10 flushes it. */
 void
@@ -911,6 +1096,18 @@ mock230_scripts_resume_button(
     struct Mock230Server* srv,
     int component_uid);
 
+/**
+ * Release a p_countdialog wait with the number the client sent.
+ *
+ * Separate from mock230_scripts_resume_button: the two waits are released by
+ * different packets and neither may release the other — a click arriving while
+ * a count dialog is up must leave the script parked.
+ */
+int
+mock230_scripts_resume_countdialog(
+    struct Mock230Server* srv,
+    int32_t value);
+
 /** Start a script by id on behalf of the player. For the selftest and for
  *  anything the engine reaches by id rather than by trigger. Returns 1 when a
  *  script ran or parked. */
@@ -960,6 +1157,15 @@ mock230_send_if_setevents(
     int from,
     int to,
     int events);
+/** RUNCLIENTSCRIPT: run a CS2 clientscript on the client with int arguments.
+ *  The world map's `worldmap_transmitdata` is the one the mock needs — it is
+ *  how the server tells the map where the player is standing. */
+void
+mock230_send_run_clientscript(
+    struct Mock230Server* srv,
+    int script_id,
+    int const* args,
+    int argc);
 /* Interface setters. `uid` is the packed (interface << 16) | child. */
 void
 mock230_send_if_settext(
@@ -989,12 +1195,23 @@ void
 mock230_send_if_closesub(
     struct Mock230Server* srv,
     int uid);
+/** Open the "Enter amount" prompt. Zero payload; the answer arrives as
+ *  RESUME_P_COUNTDIALOG. */
+void
+mock230_send_if_opencountdialog(struct Mock230Server* srv);
 
 void
 mock230_send_varp_small(
     struct Mock230Server* srv,
     int id,
     int value);
+/** p2 id, p4 value — for anything VARP_SMALL's signed byte cannot hold. */
+void
+mock230_send_varp_large(
+    struct Mock230Server* srv,
+    int id,
+    int value);
+
 void
 mock230_send_stat(
     struct Mock230Server* srv,
@@ -1002,6 +1219,12 @@ mock230_send_stat(
     int level,
     int xp,
     int boosted);
+/** Tell the client which player index it is. Sent once, in the login burst. */
+void
+mock230_send_update_pid(
+    struct Mock230Server* srv,
+    int local_pid);
+
 void
 mock230_send_run_energy(
     struct Mock230Server* srv,

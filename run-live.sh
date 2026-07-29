@@ -29,6 +29,9 @@
 # The osrs230 manifests point at this repo's own mock server on localhost, so
 # this script starts it too (native and web alike) and stops it on the way out.
 # TORIRS_NO_MOCK=1 opts out; so does an instance already holding the port.
+# TORIRS_MOCK_BIN names a different server binary — `make -C src mock230-dev`
+# and `mock230-alt` build the same sources on ports 43597 and 43599, so two
+# sessions can run at once (manifest_osrs230_dev.ini / _alt.ini point at them).
 set -eu
 
 cd "$(dirname "$0")"
@@ -108,11 +111,15 @@ start_mock230() {
     case "${HOST:-}" in localhost | 127.0.0.1) ;; *) return 0 ;; esac
     [ "${TORIRS_NO_MOCK:-0}" = 1 ] && return 0
 
-    if [ ! -x src/build/mock230 ]; then
+    # TORIRS_MOCK_BIN names a different server binary — the parallel-session
+    # builds (src/build/dev_mock230, src/build/alt_mock230) are the same sources
+    # with a different default port, and each has a manifest pointing at it.
+    MOCK_BIN="${TORIRS_MOCK_BIN:-src/build/mock230}"
+    if [ ! -x "$MOCK_BIN" ]; then
         echo "run-live.sh: building the mock 230 server..." >&2
         make -C src mock230
     fi
-    ./src/build/mock230 "${GAME_PORT:-43595}" &
+    "./$MOCK_BIN" "${GAME_PORT:-43595}" &
     MOCK_PID=$!
     sleep 1
     if ! kill -0 "$MOCK_PID" 2>/dev/null; then

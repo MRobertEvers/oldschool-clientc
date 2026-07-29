@@ -50,6 +50,27 @@ net_out_if_button(
     uint8_t* buf,
     int cap,
     int component_id);
+/** IF_BUTTON1..10: op `op_num` of an IF3 component. `sub` is the grid cell the
+ *  click landed in, or -1 for a plain widget. */
+int
+net_out_if_button_op(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int component_id,
+    int sub);
+/** CLICK_WORLD_MAP: the absolute tile a world-map click landed on. */
+int
+net_out_click_world_map(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int level,
+    int abs_x,
+    int abs_z);
 int
 net_out_resume_pausebutton(
     struct GameProtoRevTable const* rev,

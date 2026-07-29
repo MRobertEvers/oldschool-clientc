@@ -1,0 +1,87 @@
+// The bank, ported from LostCity's content/scripts/interface_bank/scripts.
+//
+// The *rules* are the reference's and are worth keeping: a deposit un-notes, a
+// withdraw refuses rather than half-completes, insert mode shuffles instead of
+// swapping. Three things about the port are not transcription, and they are the
+// whole difference between the 2004 interface and the rev-230 one:
+//
+//   1. **The settings are varbits, not varps.** LostCity writes `%bankcert = 1`
+//      and `%bankinsert = 1`, which are whole player variables it invented. At
+//      rev 230 they are bit ranges inside varps the client already owns —
+//      withdraw-as-note is one bit of varp 115 and the current tab is four more
+//      of the same varp — so writing either as a varp destroys the other. The
+//      names below are OldSchool's own (content/pack/varbit.pack) and the bit
+//      ranges come from the cache.
+//
+//   2. **There is no `bank_main:inv` component.** LostCity's bank interface has
+//      a real inventory component with 350 cells in the interface file. rev
+//      230's has one empty container that its CS2 fills with 1,220 dynamic
+//      children, so an op on an item arrives naming the *container* plus a sub
+//      id, and `last_slot` is that sub id.
+//
+//   3. **The op indices are not fixed, so the item rows are not content.**
+//      LostCity binds five handlers, `[inv_button1..5,bank_main:inv]`, one per
+//      withdraw amount, because its interface always offers the same five rows
+//      in the same order. rev 230's bank builds its rows *conditionally* — the
+//      row duplicating the current default quantity is omitted — so
+//      "Withdraw-All" is op 6 or op 7 depending on a setting, and the index
+//      alone does not say what was clicked. Reconstructing that ladder needs
+//      the same varbits the client drew it from, so it lives in the engine
+//      (mock230_bank_quantity_for_op) and the item rows are deliberately not
+//      bound here. Binding them would mean writing the ladder twice.
+//
+// What is deliberately absent: placeholders, tabs, the incinerator, the
+// equipment-bonus panel and the deposit box. All of them are interface features
+// with no server state behind them here, and the varbits that hide them are
+// pushed by the engine on open.
+
+// ------------------------------------------------------------------
+// Getting in
+// ------------------------------------------------------------------
+
+// Any booth. The engine also opens the bank for any loc whose cache menu op is
+// "Bank", so these bindings are what a *specific* booth would override rather
+// than the only way in.
+[oploc1,bankbooth] ~openbank;
+[oploc2,bankbooth] ~openbank;
+
+// A banker. rev 230 gives them "Talk-to" and "Bank"; the mock has no dialogue
+// tree, so both open the bank.
+[opnpc1,banker] ~openbank;
+[opnpc2,banker] ~openbank;
+
+[proc,openbank]
+// Withdraw-as-item every time the bank is opened — the reference resets it, and
+// a note toggle that survives a session is how a player accidentally notes a
+// weapon they wanted to wield.
+%bank_withdrawnotes = 0;
+if_openmain_side(bankmain, bankside);
+
+[if_close,bankmain] @closebank;
+
+[label,closebank]
+inv_stoptransmit(bankmain_items);
+inv_stoptransmit(bankside_items);
+
+// ------------------------------------------------------------------
+// The settings row along the bottom
+// ------------------------------------------------------------------
+
+[if_button,bankmain_swap] %bank_insertmode = 0;
+[if_button,bankmain_insert] %bank_insertmode = 1;
+[if_button,bankmain_item_mode] %bank_withdrawnotes = 0;
+[if_button,bankmain_note_mode] %bank_withdrawnotes = 1;
+
+[if_button,bankmain_qty_1] %bank_quantity_type = 0;
+[if_button,bankmain_qty_5] %bank_quantity_type = 1;
+[if_button,bankmain_qty_10] %bank_quantity_type = 2;
+[if_button,bankmain_qty_all] %bank_quantity_type = 4;
+
+// "X" sets the default quantity *and* asks for the number, which is what makes
+// the button say "Withdraw-<n>" afterwards.
+[if_button,bankmain_qty_x]
+%bank_quantity_type = 3;
+p_countdialog;
+if (last_int > 0) {
+    %bank_requestedquantity = last_int;
+}

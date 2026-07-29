@@ -33,6 +33,7 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_prayer.h"
 #include "mock230_scene.h"
 
 #include <math.h>
@@ -93,6 +94,54 @@ play_player_seq(struct Mock230Player* player, int seq_id)
     player->anim_id = seq_id;
     player->anim_delay = 0;
     player->masks |= MOCK230_PMASK_SEQUENCE;
+}
+
+/* ------------------------------------------------------------------ */
+/* Disengaging                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * FACE_ENTITY is a latch, not a per-tick state.
+ *
+ * The client turns the entity toward whatever the last FACE_ENTITY named and
+ * keeps it there — there is no timeout and no implicit clear. So every path
+ * that drops a combat target has to send -1 (65535 on the wire, which is how
+ * the client spells "face nothing"), and every path means: the target died, the
+ * player died, the player walked away, or the player started doing something
+ * else.
+ *
+ * Missing one of them is invisible until you notice a goblin has been staring
+ * at a spot on the ground since the fight before last.
+ */
+void
+mock230_combat_stop_player(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+
+    player->combat_target = -1;
+    if( player->face_entity != -1 )
+    {
+        player->face_entity = -1;
+        player->masks |= MOCK230_PMASK_FACE_ENTITY;
+    }
+}
+
+void
+mock230_combat_stop_npc(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Npc* npc;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    npc->combat_target = -1;
+    if( npc->face_entity != -1 )
+    {
+        npc->face_entity = -1;
+        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,12 +294,13 @@ player_damage_type(const struct Mock230Player* player)
 static int
 player_effective(
     const struct Mock230Player* player,
-    int stat)
+    int stat,
+    int style)
 {
     int level = player->stat_boosted[stat] > 0 ? player->stat_boosted[stat]
                                                : player->stat_level[stat];
 
-    return level + style_bonus(player->attack_style, stat) + 8;
+    return level + style_bonus(style, stat) + 8;
 }
 
 /*
@@ -360,10 +410,10 @@ mock230_combat_hit_npc(
     {
         play_npc_seq(npc, npc->death_seq);
         npc->death_tick = srv->tick + MOCK230_DEATH_TICKS;
-        npc->combat_target = -1;
         npc->next_roam_tick = srv->tick + MOCK230_RESPAWN_TICKS;
+        mock230_combat_stop_npc(srv, slot);
         if( srv->player.combat_target == slot )
-            srv->player.combat_target = -1;
+            mock230_combat_stop_player(srv);
         /* The drop table is content: [ai_queue3,<npc>] with obj_add calls, the
          * same shape as LostCity's. mock230_scripts.c runs it and falls back to
          * the config's death_drop when nothing is bound. */
@@ -404,11 +454,11 @@ mock230_combat_hit_player(
          * PLAYER_INFO. */
         play_player_seq(player, mock230_content_symbol(MOCK230_PACK_SEQ, "human_death"));
         player->death_tick = srv->tick + MOCK230_DEATH_TICKS;
-        player->combat_target = -1;
+        mock230_combat_stop_player(srv);
         for( int i = 0; i < MOCK230_NPC_MAX; i++ )
         {
             if( srv->npcs[i].combat_target == 0 )
-                srv->npcs[i].combat_target = -1;
+                mock230_combat_stop_npc(srv, i);
         }
         mock230_send_message(srv, "Oh dear, you are dead!");
     }
@@ -515,7 +565,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     npc = &srv->npcs[player->combat_target];
     if( !npc->active || npc->death_tick >= 0 )
     {
-        player->combat_target = -1;
+        mock230_combat_stop_player(srv);
         return;
     }
 
@@ -540,10 +590,10 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     }
     player->attack_clock = player_attack_rate(player);
 
-    style = player->attack_style;
+    style = mock230_world_attack_style(srv);
     damage_type = player_damage_type(player);
 
-    attack_roll = player_effective(player, MOCK230_STAT_ATTACK) *
+    attack_roll = player_effective(player, MOCK230_STAT_ATTACK, style) *
                   (player_bonus(player, MOCK230_PARAM_STABATTACK + damage_type) + 64);
     defence_roll = npc_effective(npc->def ? npc->def->defence : 1) *
                    ((npc->def ? npc->def->bonus[MOCK230_PARAM_STABDEFENCE + damage_type]
@@ -561,7 +611,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     }
 
     {
-        int strength = player_effective(player, MOCK230_STAT_STRENGTH);
+        int strength = player_effective(player, MOCK230_STAT_STRENGTH, style);
         int ceiling = max_hit(strength, player_bonus(player, MOCK230_PARAM_STRENGTHBONUS));
         int damage = mock230_random(srv, 0, ceiling);
         int target = player->combat_target;
@@ -677,7 +727,7 @@ mock230_combat_npc_tick(
         return;
     if( player->death_tick >= 0 )
     {
-        npc->combat_target = -1;
+        mock230_combat_stop_npc(srv, slot);
         return;
     }
 
@@ -715,10 +765,26 @@ mock230_combat_npc_tick(
     attack_roll = npc_effective(npc->def ? npc->def->attack : 1) *
                   ((npc->def ? npc->def->bonus[MOCK230_PARAM_STABATTACK + damage_type] : 0) +
                    64);
-    defence_roll = player_effective(player, MOCK230_STAT_DEFENCE) *
+    defence_roll = player_effective(player, MOCK230_STAT_DEFENCE,
+                                    mock230_world_attack_style(srv)) *
                    (player_bonus(player, MOCK230_PARAM_STABDEFENCE + damage_type) + 64);
 
     if( !roll_hit(srv, attack_roll, defence_roll) )
+    {
+        mock230_combat_hit_player(srv, MOCK230_HIT_BLOCK, 0);
+        return;
+    }
+    /*
+     * Protection prayers are applied to the DAMAGE, after the accuracy roll —
+     * that is OldSchool's order, and it is why a protected hit still splashes a
+     * blue 0 rather than not landing. Against monsters the reduction is total;
+     * the 40% PvP figure has no meaning here, since nothing but npcs attacks.
+     *
+     * Every npc in the mock is a melee attacker, so protect-from-melee is the
+     * only one with an effect today. The lookup is by damage type so that stops
+     * being true the moment a ranged one exists.
+     */
+    if( mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE) )
     {
         mock230_combat_hit_player(srv, MOCK230_HIT_BLOCK, 0);
         return;

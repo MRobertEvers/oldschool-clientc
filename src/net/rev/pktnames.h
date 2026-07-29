@@ -95,6 +95,11 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /* RUNCLIENTSCRIPT: run a CS2 clientscript with server-supplied arguments.
+     * The world map needs it (the server pushes the player's coord through
+     * `worldmap_transmitdata` before opening the interface), and it is the
+     * general channel for "server tells the UI something a varp cannot say". */
+    PKT_NAME_RUNCLIENTSCRIPT,
 
     /* maps / vars / audio */
     PKT_NAME_REBUILD_NORMAL,
@@ -203,6 +208,24 @@ enum GameProtoPktOutName
     PKTOUT_NAME_INV_BUTTOND,
 
     PKTOUT_NAME_IF_BUTTON,
+    /* IF_BUTTON1..10 (RSProt If3Button): op N of an IF3 component, carrying the
+     * packed component uid plus the sub id (a grid cell index, or -1 for a
+     * plain widget). IF_BUTTON above is the op-less plain click; these are the
+     * numbered verbs `if_setop` installs — the world map orb's "World Map" is
+     * op 2 on component 160:53. */
+    PKTOUT_NAME_IF_BUTTON1,
+    PKTOUT_NAME_IF_BUTTON2,
+    PKTOUT_NAME_IF_BUTTON3,
+    PKTOUT_NAME_IF_BUTTON4,
+    PKTOUT_NAME_IF_BUTTON5,
+    PKTOUT_NAME_IF_BUTTON6,
+    PKTOUT_NAME_IF_BUTTON7,
+    PKTOUT_NAME_IF_BUTTON8,
+    PKTOUT_NAME_IF_BUTTON9,
+    PKTOUT_NAME_IF_BUTTON10,
+    /* CLICK_WORLD_MAP: a click on the open world map surface, as the absolute
+     * tile it landed on (packed level<<28 | x<<14 | z). */
+    PKTOUT_NAME_CLICK_WORLD_MAP,
     PKTOUT_NAME_RESUME_PAUSEBUTTON,
     PKTOUT_NAME_CLOSE_MODAL,
     PKTOUT_NAME_RESUME_P_COUNTDIALOG,

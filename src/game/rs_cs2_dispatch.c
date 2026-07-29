@@ -128,6 +128,39 @@ RS_CS2_DispatchHook(
 }
 
 void
+RS_CS2_RunScript(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int script_id,
+    int const* int_args,
+    int arg_count,
+    uint32_t str_mask,
+    char const* const* str_args,
+    int str_arg_count)
+{
+    struct ToriRS_Task* task;
+
+    assert(host);
+    assert(runner);
+    if( script_id <= 0 )
+        return;
+
+    task = CreateTask_CS2RunMixed(
+        host,
+        script_id,
+        -1,
+        -1,
+        arg_count > 0 ? int_args : NULL,
+        arg_count,
+        str_mask,
+        str_args,
+        str_arg_count);
+    if( !task )
+        return;
+    ToriRS_TaskQueue_Add(runner->queue, task);
+}
+
+void
 RS_CS2_PumpTransmits(
     struct RS_CS2Host* host,
     struct TaskRunner* runner)

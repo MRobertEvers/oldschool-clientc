@@ -1,0 +1,67 @@
+// The varplayers the bank's settings live inside.
+//
+// Every one of these has to be transmitted, and none of them is a variable the
+// bank "owns": a bank setting is a *varbit* — a bit range the cache places
+// inside a shared varplayer — so what goes on the wire is the whole varp that
+// happens to contain it. Leave one undeclared and it is treated as server-only
+// (see mock230_content_varp), which is exactly right for the mock's own
+// counters and exactly wrong here: the interface reads these, so the panel
+// silently keeps whatever the previous session left in it.
+//
+// Which bits are in which varp comes from config group 14 at runtime, not from
+// this file. See mock230_bank_load.
+//
+//   115  bank_withdrawnotes (bit 0), bank_currenttab (bits 4..7)
+//   304  bank_insertmode (bit 0), bank_requestedquantity (bits 1..31)
+//   867  bank_tab_1, bank_tab_2, bank_tab_display
+//   1052 bank_tab_3, bank_tab_4, bank_showincinerator
+//   1053 bank_tab_5, bank_tab_6, bank_leaveplaceholders, bank_hidedepositworn
+//   1666 bank_quantity_type (bits 2..4)
+//   1793 bank_tab_7, bank_tab_8
+//   3750 bank_tab_9
+//   4611 bank_side_slot_overview, bank_side_slot_ignoreinvlocks
+
+[bankcert]
+protect=no
+transmit=yes
+scope=perm
+
+[bankinsert]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_tab_a]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_tab_b]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_tab_c]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_tab_d]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_tab_e]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_quantity]
+protect=no
+transmit=yes
+scope=perm
+
+[bank_locked_slots]
+protect=no
+transmit=yes
+scope=perm

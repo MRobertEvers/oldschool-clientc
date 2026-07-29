@@ -1,5 +1,7 @@
 #include "game/rs_cs2_host.h"
 
+#include "game/rs_player_stats.h"
+
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
@@ -245,6 +247,18 @@ rs_cs2_apply_op(
         text ? text : "",
         UITREE_MENU_OPTION_LEN - 1);
     tree->components[idx].menu_options.ops[index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
+    /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
+     * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
+     * missing verb there is invisible until the menu is opened. */
+    if( getenv("TORIRS_OPS_DEBUG") )
+        fprintf(
+            stderr,
+            "cs2 setop com=0x%08x (%d|%d) op%d=\"%s\"\n",
+            (unsigned)component_id,
+            (component_id >> 16) & 0xFFFF,
+            component_id & 0xFFFF,
+            index,
+            text ? text : "");
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -569,8 +583,13 @@ RS_CS2Host_Init(
     host->viewport_zoom = 128;
     host->viewport_zoom_max = 896;
     host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
-    /* Facing north; nothing writes this yet (no CAM_SETYAW, no live camera link). */
+    /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
+     * once a world is up, so this only covers the pre-login window. The pitch
+     * default matches app.c's orbit_pitch (the reference orbitCameraPitch). */
     host->cam_yaw = 0;
+    host->cam_angle_x = 128;
+    host->cam_angle_y = 0;
+    host->cam_angle_forced = false;
     /* Op 1 is the primary left-click op, which is what every mouse-driven
      * dispatch reports. Must not be left at the memset 0: on_op handlers read
      * this through the CS2VM_SCRIPT_ARG_OP_INDEX sentinel. */
@@ -586,6 +605,7 @@ RS_CS2Host_Init(
      * first dispatch after registration (widget-loaded parity). */
     host->var_change_serial = 1;
     host->inv_change_serial = 1;
+    host->stat_change_serial = 1;
     host->worldmap = RS_WorldMap_New(provider);
 }
 
@@ -656,6 +676,41 @@ RS_CS2Host_NotifyInvChanged(
 }
 
 void
+RS_CS2Host_SetStats(
+    struct RS_CS2Host* host,
+    struct RS_PlayerStats* stats)
+{
+    if( host )
+        host->stats = stats;
+}
+
+void
+RS_CS2Host_NotifyStatChanged(
+    struct RS_CS2Host* host,
+    int stat_id)
+{
+    if( !host )
+        return;
+    host->stat_change_serial++;
+    host->stat_transmit_dirty = 1;
+
+    if( host->stat_changed_all )
+        return;
+    if( stat_id < 0 || host->stat_changed_count >= RS_CS2_HOST_VAR_CHANGED_MAX )
+    {
+        host->stat_changed_all = 1;
+        host->stat_changed_count = 0;
+        return;
+    }
+    for( int i = 0; i < host->stat_changed_count; i++ )
+    {
+        if( host->stat_changed_ids[i] == stat_id )
+            return;
+    }
+    host->stat_changed_ids[host->stat_changed_count++] = stat_id;
+}
+
+void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
     assert(host);
@@ -679,6 +734,40 @@ RS_CS2Host_SetBridge(
 {
     assert(host);
     host->bridge = bridge;
+}
+
+void
+RS_CS2Host_SetCameraAngles(
+    struct RS_CS2Host* host,
+    int angle_x,
+    int angle_y)
+{
+    assert(host);
+    /* A snap the app has not picked up yet is the newer value of the two — the
+     * script wrote it this tick and the camera it would be mirrored from still
+     * holds last tick's angles. Leave it alone until it has been consumed. */
+    if( host->cam_angle_forced )
+        return;
+    host->cam_angle_x = angle_x;
+    host->cam_angle_y = angle_y & 0x7ff;
+    host->cam_yaw = host->cam_angle_y;
+}
+
+bool
+RS_CS2Host_TakeCameraForce(
+    struct RS_CS2Host* host,
+    int* out_angle_x,
+    int* out_angle_y)
+{
+    assert(host);
+    if( !host->cam_angle_forced )
+        return false;
+    host->cam_angle_forced = false;
+    if( out_angle_x )
+        *out_angle_x = host->cam_angle_x;
+    if( out_angle_y )
+        *out_angle_y = host->cam_angle_y;
+    return true;
 }
 
 void
@@ -3441,6 +3530,31 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
 
+    case CS2VM_HOST_REQUEST_STAT:
+    case CS2VM_HOST_REQUEST_STAT_BASE:
+    case CS2VM_HOST_REQUEST_STAT_XP:
+    {
+        int stat = request->u.stat.stat;
+        int value = 0;
+
+        if( host->stats && stat >= 0 && stat < RS_PLAYER_STATS_SKILL_COUNT )
+        {
+            if( request->kind == CS2VM_HOST_REQUEST_STAT )
+                value = host->stats->current_level[stat];
+            else if( request->kind == CS2VM_HOST_REQUEST_STAT_BASE )
+                value = host->stats->base_level[stat];
+            else
+                value = host->stats->xp[stat];
+        }
+        return CS2VM2_PushInt(vm, value);
+    }
+
+    case CS2VM_HOST_REQUEST_RUNENERGY:
+        return CS2VM2_PushInt(vm, host->stats ? host->stats->run_energy : 0);
+
+    case CS2VM_HOST_REQUEST_RUNWEIGHT:
+        return CS2VM2_PushInt(vm, host->stats ? host->stats->run_weight : 0);
+
     case CS2VM_HOST_REQUEST_MOUSE_GETX:
         return CS2VM2_PushInt(vm, host->mouse_x);
 
@@ -3500,6 +3614,29 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CAM_GETYAW:
         return CS2VM2_PushInt(vm, host->cam_yaw);
+
+    /* Pitch is clamped to the range the orbit camera can actually reach, so a
+     * script that reads, adjusts and writes back cannot walk the camera out of
+     * bounds one call at a time. */
+    case CS2VM_HOST_REQUEST_CAM_FORCEANGLE:
+    {
+        int angle_x = request->u.cam_force_angle.angle_x;
+        if( angle_x < 128 )
+            angle_x = 128;
+        if( angle_x > 383 )
+            angle_x = 383;
+        host->cam_angle_x = angle_x;
+        host->cam_angle_y = request->u.cam_force_angle.angle_y & 0x7ff;
+        host->cam_yaw = host->cam_angle_y;
+        host->cam_angle_forced = true;
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_CAM_GETANGLE_XA:
+        return CS2VM2_PushInt(vm, host->cam_angle_x);
+
+    case CS2VM_HOST_REQUEST_CAM_GETANGLE_YA:
+        return CS2VM2_PushInt(vm, host->cam_angle_y);
 
     case CS2VM_HOST_REQUEST_WORLDMAP:
         return exec_worldmap(host, vm, request->u.worldmap);
@@ -3604,6 +3741,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         if( tree )
         {
+
             int was_hidden = 0;
             int32_t hide_idx;
 #if UITREE_CLICK_DEBUG

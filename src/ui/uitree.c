@@ -1883,6 +1883,39 @@ UITree_ApplyScrollPos(
     return true;
 }
 
+/* Does `child` sit in an equipment slot — a container the script builds three
+ * cc_create children for (d0 border, d1 item overlay, d2 empty silhouette) —
+ * rather than in an item grid?
+ *
+ * A grid (the backpack under 149|0, a bank's rows) puts one cell per sub_id
+ * under a single parent, so its d1 and d2 are both real slots. Keying only on
+ * "this is d1" therefore made every grid's *third* cell the silhouette of its
+ * second: setting an object in slot 1 hid slot 2. The inventory's third square
+ * went blank that way, and only came back while the pointer was over it,
+ * because the emit walk lets a hovered component through its own hide gate.
+ *
+ * The shape is the discriminator: a slot container's cells stop at d2, a grid's
+ * do not. */
+static bool
+uitree_parent_is_equipment_slot(
+    struct UITree const* tree,
+    struct UITreeComponent const* child)
+{
+    assert(tree);
+    assert(child);
+    if( child->parent < 0 || (uint32_t)child->parent >= tree->component_count )
+        return false;
+
+    for( int32_t sib = tree->components[child->parent].first_child; sib >= 0;
+         sib = tree->components[sib].next_sibling )
+    {
+        struct UITreeComponent const* s = &tree->components[sib];
+        if( s->dynamic && s->dynamic_child_index > 2 )
+            return false;
+    }
+    return true;
+}
+
 bool
 UITree_ApplyObject(
     struct UITree* tree,
@@ -1908,10 +1941,12 @@ UITree_ApplyObject(
     }
 
     /* Equipment slots: d1 = item overlay, d2 = empty silhouette graphic.
-     * Only toggle silhouette when applying to the overlay and d2 is chrome
-     * (not another CC_OBJ) — bank/grid items share one parent with sub_ids
-     * 0,1,2,… and must not treat sibling 2 as a silhouette. */
-    int const is_equipment_overlay = c->dynamic && c->dynamic_child_index == 1;
+     * Only toggle silhouette when applying to the overlay, d2 is chrome (not
+     * another CC_OBJ), and the parent is an equipment slot at all — an item
+     * *grid* fills one parent with a cell per sub_id, so its d2 is a real slot
+     * (see uitree_parent_is_equipment_slot). */
+    int const is_equipment_overlay =
+        c->dynamic && c->dynamic_child_index == 1 && uitree_parent_is_equipment_slot(tree, c);
 
     if( obj_id <= 0 )
     {

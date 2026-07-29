@@ -191,6 +191,17 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,
+    /* STAT / STAT_BASE / STAT_XP (3305-3307): the skill a script is asking
+     * about. `stat` is the protocol's skill index — the same one UPDATE_STAT
+     * carries. */
+    CS2VM_HOST_REQUEST_STAT,
+    CS2VM_HOST_REQUEST_STAT_BASE,
+    CS2VM_HOST_REQUEST_STAT_XP,
+    /* RUNENERGY_VISIBLE (0-100) / RUNWEIGHT_VISIBLE (grams). Both arrive from
+     * the server (UPDATE_RUNENERGY / UPDATE_RUNWEIGHT) and are read back by the
+     * minimap orb's paint script; neither takes an argument. */
+    CS2VM_HOST_REQUEST_RUNENERGY,
+    CS2VM_HOST_REQUEST_RUNWEIGHT,
     /* Current pointer position in canvas coords (MOUSE_GETX / MOUSE_GETY). */
     CS2VM_HOST_REQUEST_MOUSE_GETX,
     CS2VM_HOST_REQUEST_MOUSE_GETY,
@@ -256,6 +267,15 @@ enum CS2VM_HostRequestKind
      * CAM_*FOLLOWHEIGHT — the host owns the value, but nothing writes it yet
      * (no live link to the render-side camera from RS_CS2Host). */
     CS2VM_HOST_REQUEST_CAM_GETYAW,
+
+    /* CAM_FORCEANGLE (5504) and CAM_GETANGLE_XA/YA (5505/5506): the orbit
+     * camera's pitch and yaw in the units scripts see — pitch 128..383,
+     * yaw 0..2047, which is exactly how the reference stores orbitCameraPitch /
+     * orbitCameraYaw. The host mirrors the live camera (app pushes it in every
+     * logic tick) and raises a force flag the app consumes on the way back. */
+    CS2VM_HOST_REQUEST_CAM_FORCEANGLE,
+    CS2VM_HOST_REQUEST_CAM_GETANGLE_XA,
+    CS2VM_HOST_REQUEST_CAM_GETANGLE_YA,
 
     /* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
      * ops on an NPC/LOC/OBJ/PLAYER/TILE slot. One kind carrying the opcode +
@@ -913,10 +933,25 @@ struct CS2VM_HostRequest_MEC
     int mec_id;
 };
 
+/** STAT / STAT_BASE / STAT_XP. `stat` is the protocol skill index. */
+struct CS2VM_HostRequest_Stat
+{
+    int stat;
+};
+
 /** CAM_SETFOLLOWHEIGHT payload; the getter carries no args. */
 struct CS2VM_HostRequest_CamSetFollowHeight
 {
     int height;
+};
+
+/** CAM_FORCEANGLE (5504): snap the orbit camera. `angle_x` is the pitch in the
+ *  script's 128..383 units, `angle_y` the yaw in 0..2047 — the same units
+ *  CAM_GETANGLE_XA/YA read back. */
+struct CS2VM_HostRequest_CamForceAngle
+{
+    int angle_x;
+    int angle_y;
 };
 
 /** Any HIGHLIGHT_* opcode. `args` holds its popped int args in push order
@@ -1120,6 +1155,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_WorldMap worldmap;
         struct CS2VM_HostRequest_MEC mec;
         struct CS2VM_HostRequest_CamSetFollowHeight cam_set_follow_height;
+        struct CS2VM_HostRequest_Stat stat;
+        struct CS2VM_HostRequest_CamForceAngle cam_force_angle;
         struct CS2VM_HostRequest_Highlight highlight;
         struct CS2VM_HostRequest_Minimenu minimenu;
         struct CS2VM_HostRequest_ClientOption client_option;

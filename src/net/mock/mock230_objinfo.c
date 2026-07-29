@@ -30,6 +30,9 @@ static const struct Mock230ObjInfo k_unknown = {
     .wearpos_2 = -1,
     .wearpos_3 = -1,
     .stackable = 0,
+    .noted_id = -1,
+    .noted_template = -1,
+    .cert_id = -1,
 };
 
 /*
@@ -107,7 +110,30 @@ record(
     entry->wearpos = obj->wearpos_1;
     entry->wearpos_2 = obj->wearpos_2;
     entry->wearpos_3 = obj->wearpos_3;
-    entry->stackable = obj->stacking_behaviour == 1;
+    entry->known = 1;
+    /* A note is stackable whatever its own `stacking_behaviour` says — every
+     * one of them records 0, and the reference client tests
+     * `stackable == 1 || notedTemplate != -1`. Without the second half a stack
+     * of 20 noted swordfish occupies 20 backpack slots. */
+    entry->stackable = obj->stacking_behaviour == 1 || obj->noted_template >= 0;
+    entry->weight = obj->weight;
+    /*
+     * Notes, both directions, out of the same two fields.
+     *
+     * Opcode 97 (`noted_id`) is "the record on the other side of the note
+     * link", and opcode 98 (`noted_template`) is what says which side this
+     * record is on: a plain item leaves it -1 and points *forward* at its note,
+     * a note sets it to the shared template (799) and points *back* at the
+     * item. So both directions read straight out of the record and neither
+     * needs an index — which is worth stating, because the pair does look like
+     * one field and a flag until you print a few.
+     *
+     *   1511 Logs          noted 1512 / template   -1
+     *   1512 "null"        noted 1511 / template  799
+     */
+    entry->noted_id = obj->noted_id;
+    entry->noted_template = obj->noted_template;
+    entry->cert_id = obj->noted_template < 0 ? obj->noted_id : -1;
     for( int i = 0; i < 5; i++ )
         entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
 
@@ -197,6 +223,9 @@ mock230_objinfo_load(const char* cache_dir)
         g_objs[i].wearpos = -1;
         g_objs[i].wearpos_2 = -1;
         g_objs[i].wearpos_3 = -1;
+        g_objs[i].noted_id = -1;
+        g_objs[i].noted_template = -1;
+        g_objs[i].cert_id = -1;
     }
 
     for( int i = 0; i < files->file_count; i++ )
@@ -212,6 +241,20 @@ mock230_objinfo_load(const char* cache_dir)
         record(file_id, obj);
         RSCache_Dat2ConfigObjFree(obj);
         loaded++;
+    }
+
+    /* A note takes its name from the item it stands for — its own record says
+     * `null`. Borrowing it here rather than at every call site means a message
+     * about a note reads as "Swordfish" instead of "item". */
+    for( int id = 0; id < g_obj_count; id++ )
+    {
+        int real = g_objs[id].noted_id;
+
+        if( g_objs[id].name || g_objs[id].noted_template < 0 )
+            continue;
+        if( real < 0 || real >= g_obj_count || !g_objs[real].name )
+            continue;
+        g_objs[id].name = strdup(g_objs[real].name);
     }
 
     RSCache_FileListFree(files);
@@ -238,7 +281,9 @@ mock230_objinfo_free(void)
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id)
 {
-    if( !g_objs || obj_id < 0 || obj_id >= g_obj_count || !g_objs[obj_id].name )
+    /* Keyed on `known`, not on the name: a record with no name is still a
+     * record, and every one of the game's ~8,000 notes is one. */
+    if( !g_objs || obj_id < 0 || obj_id >= g_obj_count || !g_objs[obj_id].known )
         return &k_unknown;
     return &g_objs[obj_id];
 }

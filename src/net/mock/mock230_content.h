@@ -182,6 +182,41 @@ mock230_content_npc_default(void);
  * table would cost a tenth of a second at boot and buy nothing. */
 
 /* ------------------------------------------------------------------ */
+/* Varp definitions                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A player variable's declaration, from a `.varp` config.
+ *
+ * The only field the engine acts on is `transmit`, and it is the one that
+ * matters: a varp the *client's own CS2* reads has to reach the client, and one
+ * that is purely server bookkeeping must not — sending it costs a packet per
+ * change and, worse, invites the client to react to something it should not see.
+ * LostCity spells that decision `transmit=yes` in a config file, so this does
+ * too.
+ *
+ * `protect` and `scope` are carried but unread: this server has no protected
+ * scripts and no persistence. They exist so a config shared with a LostCity
+ * tree keeps its meaning rather than being quietly dropped.
+ */
+struct Mock230VarpDef
+{
+    int varp_id;
+    const char* symbol;
+    int transmit;
+    int protect;
+    /** 0 temp, 1 perm. */
+    int scope_perm;
+    int clientcode;
+};
+
+/** Declaration for a varp, or NULL when nothing declared it. An undeclared
+ *  varp is server-only — the safe default, and the one that keeps the mock's
+ *  own bookkeeping variables off the wire. */
+const struct Mock230VarpDef*
+mock230_content_varp(int varp_id);
+
+/* ------------------------------------------------------------------ */
 /* Loc definitions (doors, gates, stairs)                              */
 /* ------------------------------------------------------------------ */
 

@@ -40,3 +40,6 @@
 6773=doomsayer
 6816=gee
 10619=bob
+// A banker, for the [opnpc] route into the bank. 1613 is OpenRune's
+// npcs.banker1 and decodes as "Banker" in cache.osrs230.
+1613=banker

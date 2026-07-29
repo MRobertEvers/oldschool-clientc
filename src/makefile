@@ -133,6 +133,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
+	game/rs_hitsplat.c engine/dat2/task_dat2_hitsplat_load.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_gameproto_exec.c \
@@ -209,7 +210,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-	ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
+	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
@@ -271,7 +272,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -664,7 +665,7 @@ test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-		ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
@@ -799,7 +800,9 @@ MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
-	net/mock/mock230_scene.c engine/world_builder/collision_map.c \
+	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
+	net/mock/mock230_prayer.c \
+	net/mock/mock230_scene.c net/mock/mock230_worldmap.c engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -807,6 +810,50 @@ mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/mock230"
+
+# A second binary from the same sources, listening on 43597 rather than 43595.
+# It exists so two people (or two agents) can each hold a live session against
+# their own server without fighting over the port or over one output file.
+# manifest_osrs230_dev.ini points at it; everything else is identical.
+#
+# The name is `dev_mock230`, not `mock230_dev`, on purpose: the usual way to
+# stop a stray server is `pkill -f build/mock230`, and that pattern is a prefix
+# match — anything named `mock230*` in the same directory dies with it.
+mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_mock230 $(MOCK230_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/dev_mock230"
+
+test-mock230-dev: mock230-dev
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/dev_mock230 --selftest
+
+# A third binary on 43599, same deal as mock230-dev above — one more parallel
+# session that owns its own port and its own output file.
+# manifest_osrs230_alt.ini points at it.
+mock230-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_mock230 $(MOCK230_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/alt_mock230"
+
+test-mock230-alt: mock230-alt
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/alt_mock230 --selftest
+
+# A fourth binary on 43601, for the bank work. Same sources, same reason as the
+# two above: a live session that owns its own port and its own output file.
+# manifest_osrs230_bank.ini points at it.
+mock230-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_mock230 $(MOCK230_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/bank_mock230"
+
+test-mock230-bank: mock230-bank
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/bank_mock230 --selftest
 
 # Mock server game logic with no socket: movement, scene rebuild, equipment
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.

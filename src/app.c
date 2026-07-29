@@ -719,6 +719,68 @@ app_worldmap_build_icons(
 }
 
 /*
+ * A click on the open world map, reported to the server as the absolute tile it
+ * landed on (reference ClickWorldMap).
+ *
+ * The screen -> tile conversion is the inverse of the icon placement above: the
+ * box centre shows the view's display position, and each map tile is
+ * `zoom scale` pixels wide, with screen y growing opposite map y. That gives a
+ * *display* coord (a position on the flattened map surface); the area's
+ * sections turn it back into the world coord the surface was baked from, which
+ * is what the packet carries.
+ */
+static void
+app_worldmap_click(
+    struct App* app,
+    int mouse_x,
+    int mouse_y)
+{
+    int display_x = 0;
+    int display_y = 0;
+    int scale;
+    int map_x;
+    int map_y;
+    int source;
+    int plane;
+    int abs_x;
+    int abs_z;
+
+    assert(app);
+    if( !app->host.worldmap || !app->net )
+        return;
+    RS_WorldMap_DisplayPosition(app->host.worldmap, &display_x, &display_y);
+    if( display_x < 0 || display_y < 0 )
+        return;
+    scale = RS_WorldMap_ZoomScale(app->host.worldmap);
+    if( scale <= 0 )
+        return;
+
+    map_x = display_x + (mouse_x - (app->worldmap_box_x + app->worldmap_box_w / 2)) / scale;
+    map_y = display_y - (mouse_y - (app->worldmap_box_y + app->worldmap_box_h / 2)) / scale;
+
+    source = RS_WorldMap_DisplayToSource(
+        app->host.worldmap, ToriRS_WorldMapPackCoord(0, map_x, map_y));
+    if( source < 0 )
+        return;
+    ToriRS_WorldMapUnpackCoord(source, &plane, &abs_x, &abs_z);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
+            mouse_x,
+            mouse_y,
+            map_x,
+            map_y,
+            plane,
+            abs_x,
+            abs_z);
+    APP_NET_SEND(
+        app,
+        net_out_click_world_map(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), plane, abs_x, abs_z));
+}
+
+/*
  * Drag to pan the world map.
  *
  * Anchored, like the reference (OsrsClient.updateWorldMapDrag): the grab records
@@ -750,8 +812,17 @@ app_worldmap_drag_tick(
         return;
     }
 
+    /*
+     * The map's own chrome sits *inside* the surface box — the close X, the key
+     * panel, the search field, the zoom buttons — so "the pointer is in the box"
+     * is not "the pointer is on the map". A clickable component under the
+     * pointer owns the press: hover_com_id is -1 over bare map and a real id
+     * over anything else, which is exactly the distinction needed. Without it,
+     * closing the map also teleported the player to whatever tile the X was
+     * drawn over.
+     */
     if( !app->worldmap_drag_active && !app->interact.minimenu.visible &&
-        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        app->hover_com_id < 0 && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
         mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
         mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
     {
@@ -765,6 +836,7 @@ app_worldmap_drag_tick(
         app->worldmap_drag_y = mouse_y;
         app->worldmap_drag_display_x = display_x;
         app->worldmap_drag_display_y = display_y;
+        app->worldmap_drag_moved = 0;
     }
 
     if( !app->worldmap_drag_active )
@@ -773,6 +845,12 @@ app_worldmap_drag_tick(
     if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
         input->curr.mouse_button_up[TORIRSM_LEFT] )
     {
+        /* Released without ever panning: this was a click on the map, and the
+         * server is the one that decides what a click there means (the
+         * reference's ClickWorldMap — a teleport for staff, ignored for
+         * everyone else). A drag that moved the view is not also a click. */
+        if( !app->worldmap_drag_moved )
+            app_worldmap_click(app, mouse_x, mouse_y);
         app->worldmap_drag_active = 0;
         return;
     }
@@ -798,6 +876,7 @@ app_worldmap_drag_tick(
             return;
 
         RS_WorldMap_SetDisplayPosition(app->host.worldmap, next_x, next_y);
+        app->worldmap_drag_moved = 1;
         app->need_redraw = 1;
     }
 }
@@ -1238,18 +1317,47 @@ app_overlay_build_entity(
             screen_y -= 10;
         }
 
-        if( hitmarks_scene > 0 )
+        /*
+         * The splat behind the number.
+         *
+         * Two eras, two sources, and the type index means a different thing in
+         * each. dat1 packs every splat into one "hitmarks" sprite archive and
+         * the damage type is the frame within it. OldSchool gives each type its
+         * own *config record* naming an ordinary sprite id (group 32 — damage is
+         * sprite 2270, block is 3521), so the type is a table lookup and the
+         * resulting sprite has one frame.
+         *
+         * Preferring the config table means the OldSchool path works; falling
+         * back to the archive means the dat1 path is untouched. Neither
+         * available draws the number alone, which is what this used to do
+         * always.
+         */
         {
-            struct UITreeEntityOverlay spr = {
-                .kind = UITREE_ENTITY_OVERLAY_SPRITE,
-                .x = screen_x - 12,
-                .y = screen_y - 12,
-                .w = 0,
-                .h = 0,
-                .scene_id = hitmarks_scene,
-                .atlas_index = combat->damage_types[i],
-            };
-            app_overlay_push(app, &spr);
+            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats,
+                                                      combat->damage_types[i]);
+            int splat_scene = -1;
+            int splat_frame = 0;
+
+            if( splat_sprite >= 0 )
+                splat_scene = UITreeSceneBridge_EnsureSprite(&app->bridge, splat_sprite);
+            if( splat_scene < 0 && hitmarks_scene > 0 )
+            {
+                splat_scene = hitmarks_scene;
+                splat_frame = combat->damage_types[i];
+            }
+            if( splat_scene >= 0 )
+            {
+                struct UITreeEntityOverlay spr = {
+                    .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+                    .x = screen_x - 12,
+                    .y = screen_y - 12,
+                    .w = 0,
+                    .h = 0,
+                    .scene_id = splat_scene,
+                    .atlas_index = splat_frame,
+                };
+                app_overlay_push(app, &spr);
+            }
         }
         snprintf(text, sizeof(text), "%d", combat->damage_values[i]);
         if( font_id >= 0 )
@@ -1290,8 +1398,21 @@ app_build_entity_overlays(
 
     font_id = app_hitsplat_font_scene_id(app);
     hitmarks_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HITMARKS);
+    /*
+     * Older caches ship one `headicons` pack holding prayer icons and the PK
+     * skull together; OldSchool split it, and rev 230 has no `headicons`
+     * archive at all — only `headicons_prayer`, `headicons_pk` and
+     * `headicons_hint`. The prayer icons keep their indices across the split
+     * (0 melee, 1 missiles, 2 magic, 3 retribution, 4 smite, 5 redemption), so
+     * the split pack is a drop-in for the overhead pass. Without this the whole
+     * feature is silently dead on a modern cache: the mask arrives, the slot is
+     * -1, and nothing draws.
+     */
     int headicons_scene =
         UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS);
+    if( headicons_scene <= 0 )
+        headicons_scene =
+            UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_PRAYER);
     pool = &world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
@@ -2140,6 +2261,9 @@ App_Init(
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
+    /* The skills tab reads levels and xp through STAT / STAT_BASE / STAT_XP,
+     * which need somewhere to read them from. */
+    RS_CS2Host_SetStats(&app->host, &app->stats);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
@@ -3059,6 +3183,12 @@ Task_AppBoot_Run(
     else
         TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
+    /* Hitsplat types. dat1 has no such config group — it keeps the splat
+     * graphics in a "hitmarks" sprite archive, which the static-sprite path
+     * binds — so this is a dat2-only load and an absent group is not an error. */
+    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+        TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
+
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
      * Skipped when networked, for the same reason [ui:gameframe] is. */
@@ -3373,6 +3503,36 @@ App_CloseSubInterface(
             target_uid & 0xffff);
     /* iface_id <= 0 makes the mount task just clear the slot. */
     app_enqueue_open_sub(app, target_uid, -1, 0);
+}
+
+void
+App_RunClientScript(
+    struct App* app,
+    struct PktRunClientScript const* request)
+{
+    char const* strp[PKT_RUNCLIENTSCRIPT_ARG_MAX];
+
+    assert(app);
+    assert(request);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "runclientscript: script=%d argc=%d str_mask=0x%x\n",
+            request->script_id,
+            request->argc,
+            (unsigned)request->str_mask);
+
+    for( int i = 0; i < PKT_RUNCLIENTSCRIPT_ARG_MAX; i++ )
+        strp[i] = request->strv[i];
+    RS_CS2_RunScript(
+        &app->host,
+        &app->runner,
+        request->script_id,
+        request->intv,
+        request->argc,
+        request->str_mask,
+        strp,
+        PKT_RUNCLIENTSCRIPT_ARG_MAX);
 }
 
 /* Shared per-frame completion polls for async work (world load, textures,
@@ -6634,6 +6794,23 @@ app_world_frame(
      * cutscene is up, and the cinema cam returns early when one is not. */
     app_world_camera_cinema(app);
     app_world_camera_follow(app);
+    /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
+     * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
+     * sides speak the reference's orbitCameraPitch/Yaw units, which is what
+     * app->orbit_pitch/orbit_yaw already hold, so no conversion is involved.
+     * Order matters: mirror first, then apply a force, so a snap issued this
+     * tick is not read back as "the camera moved there on its own". */
+    RS_CS2Host_SetCameraAngles(&app->host, app->orbit_pitch, app->orbit_yaw);
+    {
+        int forced_pitch, forced_yaw;
+        if( RS_CS2Host_TakeCameraForce(&app->host, &forced_pitch, &forced_yaw) )
+        {
+            app->orbit_pitch = forced_pitch;
+            app->orbit_yaw = forced_yaw & 0x7ff;
+            app->orbit_pitch_vel = 0;
+            app->orbit_yaw_vel = 0;
+        }
+    }
     app_world_sync_entity_animations(app);
     app_world_sync_entity_spotanims(app);
 
@@ -6663,6 +6840,22 @@ app_measure_text_cb(
     if( !font || !text )
         return 0;
     return ToriDraw2D_MeasureString(font, text);
+}
+
+/* RSProt If3Button.sub: the dynamic-child index of a grid cell, or -1 when the
+ * component is a plain widget. Same value CC_GETSUBID would report. */
+static int
+app_component_sub_id(
+    struct App const* app,
+    int component_id)
+{
+    int32_t idx;
+
+    assert(app);
+    idx = UITree_FindByComponentId(app->tree, component_id);
+    if( idx < 0 )
+        return -1;
+    return app->tree->components[idx].dynamic ? app->tree->components[idx].dynamic_child_index : -1;
 }
 
 /* Snapshot the armed use/target selection for the minimenu builder (reference
@@ -6902,7 +7095,7 @@ app_minimenu_inv_action(
             net_out_opheld(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, obj_id, slot, com_id));
-        return 0;
+        return 1;
     case REVCONFIG_MINIMENU_INV_BUTTON1:
     case REVCONFIG_MINIMENU_INV_BUTTON2:
     case REVCONFIG_MINIMENU_INV_BUTTON3:
@@ -6913,7 +7106,7 @@ app_minimenu_inv_action(
             net_out_inv_button(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, obj_id, slot, com_id));
-        return 0;
+        return 1;
     case REVCONFIG_MINIMENU_OPHELDT_START:
     {
         /* "Use <item>": enter selection mode; the next click targets it. */
@@ -6952,52 +7145,33 @@ app_minimenu_inv_action(
 }
 
 #include "ui/uitree_inv_view.h"
+#include "ui/uitree_obj_cell.h"
 
-/* Resolve the RS_INV node under a canvas point + the slot within it. Returns
- * the tree index (or -1) and fills *out_slot / *out_source_id. Goes through
- * UITree_CollectNodesAt (visibility, clipping, selected sidebar tab, and the
- * per-slot hit rule): an inv component's own layout bounds are cols x rows
- * PIXELS (4x7 for the backpack), so gating on the node box never matches a
- * slot click — the same trap fixed in collect_inv_grid_slot_hit. */
-static int32_t
-app_inv_node_at(
+/* Filled item cell under a canvas point, of either shape the tree can express
+ * one in — a TYPE_INV grid slot or a rev-230 CS2 item child. Resolution and
+ * the obj lookup both live in UITree_ObjCellForNode / InvManager so the drag
+ * machine and the right-click builder cannot disagree about which slot was
+ * pressed. Returns false when the point is over no filled cell. */
+static bool
+app_obj_cell_at(
     struct App* app,
     int px,
     int py,
-    int* out_slot,
-    int* out_source_id)
+    struct UITreeObjCell* out)
 {
-    int32_t hits[16];
-    int hit_count =
-        UITree_CollectNodesAt(app->tree, &app->ui_host, px, py, hits, 16);
-
-    for( int i = 0; i < hit_count; i++ )
+    if( !UITree_ObjCellAt(app->tree, &app->ui_host, px, py, out) )
+        return false;
+    if( out->kind == UITREE_OBJ_CELL_GRID )
     {
-        struct UITreeComponent const* node = &app->tree->components[hits[i]];
-        struct UITreeInvGridLayout layout;
-        int bx = 0, by = 0, bw = 0, bh = 0, offx = 0, offy = 0, slot;
-
-        if( node->type != UIELEM_RS_INV )
-            continue;
-        UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
-
-        layout.cols = node->u.rs_inv.cols;
-        layout.rows = node->u.rs_inv.rows;
-        layout.margin_x = node->u.rs_inv.margin_x;
-        layout.margin_y = node->u.rs_inv.margin_y;
-        layout.offset_x = node->u.rs_inv.inv_slot_offset_x;
-        layout.offset_y = node->u.rs_inv.inv_slot_offset_y;
-        UITree_AccumScrollOffset(app->tree, hits[i], &offx, &offy);
-        slot = UITree_InvViewGridHitTest(bx, by, &layout, px + offx, py + offy);
-        if( slot < 0 )
-            continue;
-        if( out_slot )
-            *out_slot = slot;
-        if( out_source_id )
-            *out_source_id = node->u.rs_inv.inv_source_id;
-        return hits[i];
+        struct InvSlot inv_slot;
+        if( !InvManager_GetSlot(&app->invs, out->inv_source_id, out->slot, &inv_slot) )
+            return false;
+        if( inv_slot.obj_id <= 0 )
+            return false;
+        out->obj_id = inv_slot.obj_id;
+        out->obj_count = inv_slot.obj_count;
     }
-    return -1;
+    return true;
 }
 
 static int
@@ -7051,6 +7225,63 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
     }
 }
 
+/*
+ * A real drag was released at (mx, my): find the destination slot in the
+ * container the drag started from, apply it locally, and tell the server.
+ *
+ * The destination lookup is NOT app_obj_cell_at. An empty slot is a legal
+ * drop target and is exactly what a hit-test cannot see: a TYPE_INV grid has
+ * no obj there, and rev 230's paint script hides the child of an empty cell
+ * outright. Each shape therefore resolves its own way — the grid by its slot
+ * geometry, the CS2 container by walking its (laid-out, possibly hidden)
+ * children.
+ */
+static void
+app_inv_drag_drop(
+    struct App* app,
+    int mouse_x,
+    int mouse_y)
+{
+    int to_slot = -1;
+
+    if( app->inv_drag_source_id >= 0 )
+    {
+        struct UITreeObjCell dest;
+        if( UITree_ObjCellAt(app->tree, &app->ui_host, mouse_x, mouse_y, &dest) &&
+            dest.kind == UITREE_OBJ_CELL_GRID && dest.inv_source_id == app->inv_drag_source_id )
+            to_slot = dest.slot;
+    }
+    else
+    {
+        to_slot =
+            UITree_ObjCellDynamicSlotAt(app->tree, app->inv_drag_com_id, mouse_x, mouse_y);
+    }
+
+    if( to_slot < 0 || to_slot == app->inv_drag_from_slot )
+        return;
+
+    /* The move is applied locally so the drag feels instant; the server's
+     * UPDATE_INV echo repaints it a tick later either way. */
+    if( app->inv_drag_source_id >= 0 )
+    {
+        InvManager_SwapSlots(
+            &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+        RS_CS2Host_NotifyInvChanged(
+            &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
+    }
+    else
+    {
+        UITree_ObjCellDynamicSwap(
+            app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+    }
+
+    APP_NET_SEND(
+        app,
+        net_out_inv_buttond(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+            app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
+}
+
 /* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
  * mouseLoop 8584 + gameLoop 2476):
  *  - left press over a FILLED slot arms; nothing fires on the down edge.
@@ -7077,26 +7308,20 @@ app_inv_drag_tick(
     if( app->inv_drag_com_id < 0 && !app->interact.minimenu.visible &&
         LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
-        int slot = -1, source_id = -1;
-        int32_t idx = app_inv_node_at(app, mx, my, &slot, &source_id);
-        if( idx >= 0 )
+        struct UITreeObjCell cell;
+        if( app_obj_cell_at(app, mx, my, &cell) )
         {
-            struct InvSlot inv_slot;
-            if( source_id >= 0 && InvManager_GetSlot(&app->invs, source_id, slot, &inv_slot) &&
-                inv_slot.obj_id > 0 )
-            {
-                app->inv_drag_com_id = app->tree->components[idx].component_id;
-                app->inv_drag_can_drag = app->tree->components[idx].u.rs_inv.can_drag;
-                app->inv_drag_from_slot = slot;
-                app->inv_drag_source_id = source_id;
-                app->inv_drag_cycles = 0;
-                app->inv_drag_grab_x = mx;
-                app->inv_drag_grab_y = my;
-                app->inv_drag_threshold = 0;
-                app->inv_drag_dx = 0;
-                app->inv_drag_dy = 0;
-                app->need_redraw = 1; /* armed slot renders trans-128 now */
-            }
+            app->inv_drag_com_id = cell.component_id;
+            app->inv_drag_can_drag = cell.can_drag;
+            app->inv_drag_from_slot = cell.slot;
+            app->inv_drag_source_id = cell.inv_source_id;
+            app->inv_drag_cycles = 0;
+            app->inv_drag_grab_x = mx;
+            app->inv_drag_grab_y = my;
+            app->inv_drag_threshold = 0;
+            app->inv_drag_dx = 0;
+            app->inv_drag_dy = 0;
+            app->need_redraw = 1; /* armed slot renders trans-128 now */
         }
     }
 
@@ -7149,26 +7374,7 @@ app_inv_drag_tick(
 
     /* Released. */
     if( app->inv_drag_threshold && app->inv_drag_cycles >= 5 )
-    {
-        int to_slot = -1, to_source = -1;
-        int32_t idx = app_inv_node_at(app, mx, my, &to_slot, &to_source);
-        if( idx >= 0 && to_source == app->inv_drag_source_id &&
-            to_slot != app->inv_drag_from_slot )
-        {
-            InvManager_SwapSlots(
-                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
-            /* The swap is applied locally so the drag feels instant; the CS2
-             * paint script still has to be asked to repaint it. */
-            RS_CS2Host_NotifyInvChanged(
-                &app->host,
-                InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
-            APP_NET_SEND(
-                app,
-                net_out_inv_buttond(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
-        }
-    }
+        app_inv_drag_drop(app, mx, my);
     else
     {
         app_run_default_ui_row(app, mx, my);
@@ -7398,22 +7604,44 @@ app_minimenu_run_option(
 
         if( idx < 0 )
             return 0;
+        /*
+         * An inventory op is the server's to answer, so it is sent before any
+         * hook is looked at. It used to be the fallback for "this component
+         * has no CS2 hook", which held only for the backpack: rev 230's worn
+         * slots DO carry an onop hook (the container owns the "Remove" verb),
+         * and resolving it first meant clicking Remove ran a script and sent
+         * nothing — the helmet stayed on.
+         */
+        /* Whatever app_minimenu_inv_action claimed — a packet sent, an
+         * Examine printed, a "Use" armed — is the whole of this click. The
+         * container's own hook must not also fire: rev 230's worn slots carry
+         * an onop script beside their "Remove" verb, and running it instead of
+         * sending left the helmet on. */
+        if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT && app_minimenu_inv_action(app, &opt) )
+            return 0;
+        /*
+         * A numbered op on a plain IF3 widget goes to the server as IF_BUTTON<n>
+         * *and* runs the local onop hook — both, not either. The world map orb
+         * is the clearest case: its onop is `opsound(...)`, nothing more, and
+         * the whole of "Open World Map" happens server-side. The events mask is
+         * the gate (bit n enables op n), so a component the server never armed
+         * stays purely client-side, which is what rev 230 means by "no
+         * clickable-by-default".
+         */
+        if( opt.pick.kind == UI_MINIMENU_PICK_UI && opt.action_index >= 0 &&
+            opt.action_index < 10 && app->net )
+        {
+            int const op_num = opt.action_index + 1;
+            if( App_IfEventsGet(app, opt.pick.id) & (1 << op_num) )
+                APP_NET_SEND(
+                    app,
+                    net_out_if_button_op(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_num,
+                        opt.pick.id, app_component_sub_id(app, opt.pick.id)));
+        }
         hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
         if( !hook || hook->script_id <= 0 )
         {
-            /* Inventory item ops go straight to the server (reference
-             * OPHELD/INV_BUTTON) — no CS2 hook is involved. */
-            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
-                app_minimenu_inv_action(app, &opt) )
-                return 0;
-            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
-                (opt.action >= REVCONFIG_MINIMENU_OPHELD1 &&
-                 opt.action <= REVCONFIG_MINIMENU_OPHELD6) )
-                return 0;
-            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
-                opt.action >= REVCONFIG_MINIMENU_INV_BUTTON1 &&
-                opt.action <= REVCONFIG_MINIMENU_INV_BUTTON5 )
-                return 0;
             /* IF1-style static buttons have no CS2 hook — the button engine
              * applies buttonType/varp semantics locally (+ server notify via
              * the sink once networking attaches). */

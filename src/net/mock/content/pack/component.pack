@@ -8,3 +8,25 @@
 15138820=chat_name
 15138821=chat_continue
 15138822=chat_body
+
+// The bank, interface 12 (main) and 15 (side). Child ids read out of
+// tools/dump_interface against cache.osrs230 — NOT borrowed from another
+// server's table, because the bank's child numbering moved between OldSchool
+// revisions and a constant from a newer cache names a different component here.
+//
+// The two grids (bankmain_items, bankside_items) are containers, not cells:
+// every visible item is a dynamic child the bank's CS2 creates, and an op on
+// one arrives naming the container plus a sub id.
+786445=bankmain_items
+786451=bankmain_swap
+786453=bankmain_insert
+786456=bankmain_item_mode
+786458=bankmain_note_mode
+786462=bankmain_qty_1
+786464=bankmain_qty_5
+786466=bankmain_qty_10
+786468=bankmain_qty_x
+786470=bankmain_qty_all
+786476=bankmain_deposit_inv
+786478=bankmain_deposit_worn
+983043=bankside_items

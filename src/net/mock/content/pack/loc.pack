@@ -11,3 +11,9 @@
 16684=ladder_middle
 56230=castle_stairs_bottom
 56231=castle_stairs_top
+// Bank booths. OpenRune's gameval `objects` group; 10355 is the standard OSRS
+// booth and 10529 the counter form. Their menu op is "Bank" in the cache, which
+// is what the engine actually keys on — these symbols exist so content can bind
+// [oploc<n>] to a specific booth, not so the engine can find one.
+10355=bankbooth
+10528=bankboothclosed

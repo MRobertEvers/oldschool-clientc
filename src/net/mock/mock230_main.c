@@ -38,6 +38,12 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+/* Overridden by the `mock230-dev` build (43597) so a second instance can run
+ * beside the default one. `src/build/mock230 <port>` still wins over both. */
+#ifndef MOCK230_DEFAULT_PORT
+#define MOCK230_DEFAULT_PORT 43595
+#endif
+
 #include <rsareabuf.h>
 
 #include <errno.h>
@@ -426,7 +432,7 @@ main(
 {
     struct Mock230Server srv;
     static struct Mock230Conn conn; /* 128 KB of buffers — not on the stack */
-    int port = argc > 1 ? atoi(argv[1]) : 43595;
+    int port = argc > 1 ? atoi(argv[1]) : MOCK230_DEFAULT_PORT;
     int home_x = DEFAULT_HOME_X;
     int home_z = DEFAULT_HOME_Z;
     int zone_x;
@@ -446,6 +452,8 @@ main(
     mock230_objinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_npcinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_seqinfo_load(cache_dir ? cache_dir : "cache.osrs230");
+    /* Container sizes and varbit bit ranges, for the bank. */
+    mock230_bank_load(cache_dir ? cache_dir : "cache.osrs230");
     /* After the three cache loaders: the content tree seeds its combat bonuses
      * from the params they decoded. See mock230_content_load. */
     mock230_content_load(mock230_content_dir());

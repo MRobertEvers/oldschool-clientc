@@ -1,0 +1,4 @@
+// LostCity's interface_controls/configs/player_controls.constant, verbatim for
+// the two it shares. The varp is `option_nodef` — "no defend" — so ON is 0.
+^player_auto_retaliate_on = 0
+^player_auto_retaliate_off = 1

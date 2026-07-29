@@ -493,7 +493,7 @@ active_npc(struct SSVM_State* state)
     return &srv->npcs[slot];
 }
 
-/** Container by the id scripts name it with (93 backpack, 94 worn). */
+/** Container by the id scripts name it with (93 backpack, 94 worn, 95 bank). */
 static struct Mock230Item*
 container_for(
     struct Mock230Server* srv,
@@ -510,8 +510,32 @@ container_for(
         *out_slots = MOCK230_WORN_SLOTS;
         return srv->player.worn;
     }
+    if( inv_id == MOCK230_INV_BANK )
+    {
+        *out_slots = srv->player.bank.size;
+        return srv->player.bank.slots;
+    }
     *out_slots = 0;
     return NULL;
+}
+
+/** Mark a container for this tick's transmit. The backpack and worn set carry
+ *  per-slot dirty bits; the bank is re-sent whole. */
+static void
+container_dirty(
+    struct Mock230Server* srv,
+    int32_t inv_id,
+    int slot)
+{
+    if( inv_id == MOCK230_INV_BACKPACK && slot >= 0 && slot < MOCK230_INV_SLOTS )
+        srv->player.inv_dirty |= 1u << slot;
+    else if( inv_id == MOCK230_INV_WORN && slot >= 0 && slot < MOCK230_WORN_SLOTS )
+    {
+        srv->player.worn_dirty |= 1u << slot;
+        srv->player.masks |= MOCK230_PMASK_APPEARANCE;
+    }
+    else if( inv_id == MOCK230_INV_BANK )
+        srv->player.bank.dirty = 1;
 }
 
 static void
@@ -859,11 +883,23 @@ mock230_script_command(
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
         }
-        if( player->varps[varp] != value )
-        {
-            player->varps[varp] = value;
-            mark_varp_changed(player, varp);
-        }
+        /*
+         * Assignment always marks the varp for transmission, even when the
+         * value is unchanged.
+         *
+         * That is the reference's semantics and it is load-bearing:
+         * LostCity's content contains `%option_nodef = %option_nodef;` with the
+         * comment "resync varp", which only means anything if a write to an
+         * equal value still reaches the client. It is also what makes an
+         * opening state work at all — [login] setting `%com_mode = 0` on a varp
+         * that is already 0 has to *tell* the client 0, because the client has
+         * never been told anything.
+         *
+         * `mark_varp_changed` is idempotent within a tick, so a script writing
+         * the same varp repeatedly still produces one packet.
+         */
+        player->varps[varp] = value;
+        mark_varp_changed(player, varp);
         return 1;
     }
 
@@ -1476,9 +1512,420 @@ mock230_script_command(
         return 1;
     }
 
+    /* ---- containers ------------------------------------------------ */
+
+    /*
+     * The container commands the bank content needs.
+     *
+     * These are LostCity's own signatures, so `content/scripts/interface_bank`
+     * ports across as text. What differs is the *implementation*: LostCity's
+     * inventories are dynamic objects with a transmit list per client, and the
+     * mock has three fixed containers and one client, so "transmit" is a flag
+     * and "stop transmitting" is clearing it.
+     */
+
+    case SS_OP_INV_SIZE:
+    {
+        int32_t inv_id;
+        int slots = 0;
+
+        if( !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        (void)container_for(srv, inv_id, &slots);
+        SSVM_PushInt(state, slots);
+        return 1;
+    }
+
+    case SS_OP_INV_GETOBJ:
+    case SS_OP_INV_GETNUM:
+    {
+        int32_t inv_id;
+        int32_t slot;
+        int slots = 0;
+        struct Mock230Item* items;
+
+        if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        items = container_for(srv, inv_id, &slots);
+        if( !items || slot < 0 || slot >= slots || items[slot].obj_id < 0 )
+        {
+            /* `null` is -1 for an obj and 0 for a count, which is what every
+             * caller branches on. */
+            SSVM_PushInt(state, opcode == SS_OP_INV_GETOBJ ? -1 : 0);
+            return 1;
+        }
+        SSVM_PushInt(state, opcode == SS_OP_INV_GETOBJ ? items[slot].obj_id
+                                                       : items[slot].count);
+        return 1;
+    }
+
+    /*
+     * inv_itemspace / inv_itemspace2: "will this fit" and "how much will not".
+     *
+     * The reference splits them because the *messages* differ — a stack that
+     * will not fit and a pile that will not all fit are different sentences —
+     * and both need the overflow count, not a boolean.
+     */
+    case SS_OP_INV_ITEMSPACE:
+    case SS_OP_INV_ITEMSPACE2:
+    {
+        int32_t inv_id;
+        int32_t obj_id;
+        int32_t count;
+        int32_t limit;
+        int slots = 0;
+        struct Mock230Item* items;
+        int space = 0;
+
+        if( !SSVM_PopInt(state, &limit) || !SSVM_PopInt(state, &count) ||
+            !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        items = container_for(srv, inv_id, &slots);
+        if( limit > 0 && limit < slots )
+            slots = (int)limit;
+        if( items )
+        {
+            if( mock230_objinfo((int)obj_id)->stackable )
+            {
+                int has_stack = 0;
+
+                for( int i = 0; i < slots; i++ )
+                    if( items[i].obj_id == obj_id )
+                        has_stack = 1;
+                    else if( items[i].obj_id < 0 )
+                        space++;
+                space = (has_stack || space > 0) ? (int)count : 0;
+            }
+            else
+            {
+                for( int i = 0; i < slots; i++ )
+                    if( items[i].obj_id < 0 )
+                        space++;
+                if( space > count )
+                    space = (int)count;
+            }
+        }
+        if( opcode == SS_OP_INV_ITEMSPACE )
+            SSVM_PushInt(state, space >= count ? 1 : 0);
+        else
+            SSVM_PushInt(state, (int)count - space);
+        return 1;
+    }
+
+    case SS_OP_INV_MOVETOSLOT:
+    {
+        int32_t from_inv;
+        int32_t to_inv;
+        int32_t from_slot;
+        int32_t to_slot;
+        int from_slots = 0;
+        int to_slots = 0;
+        struct Mock230Item* from_items;
+        struct Mock230Item* to_items;
+
+        if( !SSVM_PopInt(state, &to_slot) || !SSVM_PopInt(state, &from_slot) ||
+            !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
+            return 1;
+        from_items = container_for(srv, from_inv, &from_slots);
+        to_items = container_for(srv, to_inv, &to_slots);
+        if( !from_items || !to_items || from_slot < 0 || from_slot >= from_slots ||
+            to_slot < 0 || to_slot >= to_slots )
+            return 1;
+        {
+            struct Mock230Item swap = from_items[from_slot];
+
+            from_items[from_slot] = to_items[to_slot];
+            to_items[to_slot] = swap;
+        }
+        container_dirty(srv, from_inv, (int)from_slot);
+        container_dirty(srv, to_inv, (int)to_slot);
+        return 1;
+    }
+
+    /*
+     * inv_moveitem / _cert / _uncert: the whole of deposit and withdraw.
+     *
+     * The cert variants are what make a bank hold one stack of an item rather
+     * than two: depositing un-notes on the way in, and withdrawing notes on the
+     * way out only if the player asked for it. Both directions go through
+     * mock230_bank, which owns the space checks and their three messages.
+     */
+    case SS_OP_INV_MOVEITEM:
+    case SS_OP_INV_MOVEITEM_CERT:
+    case SS_OP_INV_MOVEITEM_UNCERT:
+    {
+        int32_t from_inv;
+        int32_t to_inv;
+        int32_t obj_id;
+        int32_t count;
+
+        if( !SSVM_PopInt(state, &count) || !SSVM_PopInt(state, &obj_id) ||
+            !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
+            return 1;
+        if( from_inv == MOCK230_INV_BANK )
+        {
+            int slot = -1;
+
+            for( int i = 0; i < srv->player.bank.size; i++ )
+                if( srv->player.bank.slots[i].obj_id == obj_id )
+                    slot = i;
+            if( slot < 0 )
+                return 1;
+            /* The opcode decides the form, not the bank's own note toggle:
+             * `inv_moveitem_cert` means "as a note" wherever it is called
+             * from. Set the flag, move, put it back. */
+            {
+                int saved = srv->player.bank.note_mode;
+
+                srv->player.bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
+                mock230_bank_withdraw(srv, slot, (int)count);
+                srv->player.bank.note_mode = saved;
+            }
+            return 1;
+        }
+        if( to_inv == MOCK230_INV_BANK && from_inv == MOCK230_INV_BACKPACK )
+        {
+            for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
+            {
+                if( srv->player.inv[i].obj_id != obj_id )
+                    continue;
+                count -= mock230_bank_deposit(srv, i, (int)count);
+            }
+            return 1;
+        }
+        if( to_inv == MOCK230_INV_BANK && from_inv == MOCK230_INV_WORN )
+        {
+            /* Straight off the body and into the bank, which is what the
+             * deposit-worn button is. Going via the backpack would need a free
+             * slot the player may not have. */
+            for( int i = 0; i < MOCK230_WORN_SLOTS && count > 0; i++ )
+            {
+                if( srv->player.worn[i].obj_id != obj_id )
+                    continue;
+                count -= mock230_bank_deposit_worn(srv, i, (int)count);
+            }
+            return 1;
+        }
+        fprintf(stderr, "mock230: inv_moveitem %d -> %d is not modelled\n", (int)from_inv,
+                (int)to_inv);
+        return 1;
+    }
+
+    case SS_OP_INV_CLEAR:
+    {
+        int32_t inv_id;
+        int slots = 0;
+        struct Mock230Item* items = NULL;
+
+        if( !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        items = container_for(srv, inv_id, &slots);
+        for( int i = 0; i < slots; i++ )
+        {
+            items[i].obj_id = -1;
+            items[i].count = 0;
+            container_dirty(srv, inv_id, i);
+        }
+        return 1;
+    }
+
+    /*
+     * inv_transmit / inv_stoptransmit: bind a container to a component.
+     *
+     * The reference keeps a per-client list of (inv, component) bindings and
+     * sends a full update when one is added. There is one client here and the
+     * bindings are fixed, so the whole of it is "send the container now" —
+     * which is the part that matters, because the interface it paints was built
+     * before the container existed and its paint hook only runs on a transmit.
+     */
+    case SS_OP_INV_TRANSMIT:
+    {
+        int32_t inv_id;
+        int32_t component;
+        int slots = 0;
+        struct Mock230Item* items;
+
+        if( !SSVM_PopInt(state, &component) || !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        items = container_for(srv, inv_id, &slots);
+        if( !items )
+            return 1;
+        if( inv_id == MOCK230_INV_BANK )
+        {
+            /* Only the used prefix: UPDATE_INV_FULL clears everything past the
+             * capacity it carries, so 1,208 empty slots cost nothing. */
+            int used = 0;
+
+            for( int i = 0; i < slots; i++ )
+                if( items[i].obj_id >= 0 )
+                    used = i + 1;
+            slots = used;
+            srv->player.bank.open = 1;
+            srv->player.bank.dirty = 0;
+        }
+        mock230_send_inv_full(srv, (int)component, (int)inv_id, items, slots);
+        return 1;
+    }
+
+    case SS_OP_INV_STOPTRANSMIT:
+    {
+        int32_t component;
+
+        if( !SSVM_PopInt(state, &component) )
+            return 1;
+        if( ((component >> 16) & 0xffff) == MOCK230_BANK_IFACE )
+            srv->player.bank.open = 0;
+        return 1;
+    }
+
+    /* ---- objs ------------------------------------------------------ */
+
+    /*
+     * oc_cert / oc_uncert: the note form of an obj and back.
+     *
+     * The cache states only one direction — a note record names the item it
+     * stands for — so the forward link is a reverse index mock230_objinfo
+     * builds. Both return the input unchanged when there is no other form,
+     * which is what the reference does and what every caller tests for.
+     */
+    case SS_OP_OC_CERT:
+    case SS_OP_OC_UNCERT:
+    {
+        int32_t obj_id;
+        const struct Mock230ObjInfo* info;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        info = mock230_objinfo((int)obj_id);
+        if( opcode == SS_OP_OC_CERT )
+            SSVM_PushInt(state, info->cert_id >= 0 ? info->cert_id : obj_id);
+        else
+            SSVM_PushInt(state, (info->noted_template >= 0 && info->noted_id >= 0)
+                                    ? info->noted_id
+                                    : obj_id);
+        return 1;
+    }
+
+    /* ---- varbits --------------------------------------------------- */
+
+    /*
+     * A varbit is a bit range inside a varplayer, and which range is a cache
+     * fact — see mock230_bank.c. Writing one as a whole varp would destroy
+     * whatever else shares it, which for the bank is always something: the
+     * withdraw-as-note flag and the current tab are both in varp 115.
+     */
+    case SS_OP_PUSH_VARBIT:
+    {
+        int32_t varbit_id;
+
+        if( !SSVM_PopInt(state, &varbit_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_bank_get_varbit(srv, (int)varbit_id));
+        return 1;
+    }
+
+    case SS_OP_POP_VARBIT:
+    {
+        int32_t varbit_id;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &varbit_id) || !SSVM_PopInt(state, &value) )
+            return 1;
+        mock230_bank_set_varbit(srv, (int)varbit_id, (int)value);
+        return 1;
+    }
+
+    /* ---- interfaces ------------------------------------------------ */
+
+    /*
+     * if_openmain_side: the two-panel open a bank (or a shop, or a trade) is.
+     *
+     * The main interface goes into toplevel's `mainmodal` and the side one
+     * replaces the whole sidebar through `sidemodal`, which is what puts the
+     * bank's inventory panel where the tab strip was. Doing only the first
+     * leaves the player's real inventory tab beside a bank that cannot see it.
+     */
+    case SS_OP_IF_OPENMAIN_SIDE:
+    {
+        int32_t main_group;
+        int32_t side_group;
+
+        if( !SSVM_PopInt(state, &side_group) || !SSVM_PopInt(state, &main_group) )
+            return 1;
+        if( main_group == MOCK230_BANK_IFACE )
+        {
+            /* The bank knows how to open itself — settings, events and both
+             * containers — and doing it here rather than leaving the script to
+             * push fifteen varbits is what keeps the ported content readable. */
+            mock230_bank_open(srv);
+            return 1;
+        }
+        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_MAINMODAL_SLOT,
+                                (int)main_group, 0);
+        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_SIDEMODAL_SLOT,
+                                (int)side_group, 3);
+        return 1;
+    }
+
+    case SS_OP_IF_OPENMAIN:
+    {
+        int32_t group;
+
+        if( !SSVM_PopInt(state, &group) )
+            return 1;
+        mock230_send_if_opensub(srv, MOCK230_ROOT_IFACE, MOCK230_MAINMODAL_SLOT, (int)group,
+                                0);
+        return 1;
+    }
+
+    /*
+     * p_countdialog: ask for a number and wait.
+     *
+     * The client opens its own "Enter amount" prompt and answers with
+     * RESUME_P_COUNTDIALOG. Nothing in the tick releases this — the same shape
+     * as p_pausebutton, and for the same reason.
+     */
+    case SS_OP_P_COUNTDIALOG:
+        player->last_int = 0;
+        mock230_send_if_opencountdialog(srv);
+        SSVM_Suspend(state, SSVM_COUNTDIALOG);
+        return 1;
+
+    case SS_OP_LAST_INT:
+        SSVM_PushInt(state, player->last_int);
+        return 1;
+    case SS_OP_LAST_SLOT:
+        SSVM_PushInt(state, player->last_slot);
+        return 1;
+    case SS_OP_LAST_TARGETSLOT:
+        SSVM_PushInt(state, player->last_targetslot);
+        return 1;
+
     default:
         /* Not ours. The VM reports it through the loud stub, which pops and
          * pushes what the signature declares so the script survives. */
         return 0;
     }
+}
+
+/**
+ * Release a p_countdialog wait with the number the client sent.
+ *
+ * Separate from mock230_scripts_resume_button because the two waits are
+ * released by different packets and neither may release the other — a click
+ * arriving while a count dialog is up must leave the script parked.
+ */
+int
+mock230_scripts_resume_countdialog(
+    struct Mock230Server* srv,
+    int32_t value)
+{
+    struct SSVM_State* state = srv->player.active_script;
+
+    if( !srv->scripts_ok || !state )
+        return 0;
+    if( state->execution != SSVM_COUNTDIALOG )
+        return 0;
+    srv->player.last_int = value;
+    return run_or_park(srv, state);
 }

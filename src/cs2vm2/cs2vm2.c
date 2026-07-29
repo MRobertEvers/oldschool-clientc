@@ -7508,8 +7508,18 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CoordZ(vm, frame, operand);
     case CS2_OP_MOVECOORD:
         return CS2VM2_Op_MoveCoord(vm, frame, operand);
+    /* The minimap run orb reads both every frame it repaints. They used to
+     * push 0 (RUNWEIGHT_VISIBLE) and fall to the stack-meta stub (3321), which
+     * is why the orb read "0" no matter what UPDATE_RUNENERGY said. */
+    case CS2_OP_RUNENERGY_VISIBLE:
     case CS2_OP_RUNWEIGHT_VISIBLE:
-        return CS2VM2_Op_RunWeightVisible(vm, frame, operand);
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = opcode == CS2_OP_RUNENERGY_VISIBLE ? CS2VM_HOST_REQUEST_RUNENERGY
+                                                          : CS2VM_HOST_REQUEST_RUNWEIGHT;
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_INV_SIZE:
         return CS2VM2_Op_InvSize(vm, frame, operand);
     case CS2_OP_INV_GETOBJ:
@@ -8138,6 +8148,30 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
         return vm->vm->host_exec(vm, &request);
     }
+    /*
+     * STAT (3305) is the *boosted* level, STAT_BASE (3306) the level the
+     * experience buys, STAT_XP (3307) the experience itself. The skills tab
+     * reads all three; before these had handlers they fell through to the
+     * stack-meta stub, which popped the skill id and pushed 0 — so the tab
+     * built correctly and drew "0/0" for every skill, which looks far more like
+     * a missing packet than a missing opcode.
+     */
+    case CS2_OP_STAT:
+    case CS2_OP_STAT_BASE:
+    case CS2_OP_STAT_XP:
+    {
+        struct CS2VM_HostRequest request;
+        int stat;
+
+        if( CS2VM2_PopInt(vm, &stat) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        memset(&request, 0, sizeof(request));
+        request.kind = opcode == CS2_OP_STAT        ? CS2VM_HOST_REQUEST_STAT
+                       : opcode == CS2_OP_STAT_BASE ? CS2VM_HOST_REQUEST_STAT_BASE
+                                                    : CS2VM_HOST_REQUEST_STAT_XP;
+        request.u.stat.stat = stat;
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOUSE_GETX:
     case CS2_OP_MOUSE_GETY:
     {
@@ -8170,6 +8204,36 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_CAM_GETYAW;
+        return vm->vm->host_exec(vm, &request);
+    }
+    /* CAM_FORCEANGLE / CAM_GETANGLE_XA / CAM_GETANGLE_YA (5504..5506): the
+     * orbit camera's pitch and yaw, in the units the scripts use — pitch
+     * 128..383, yaw 0..2047, matching the reference's orbitCameraPitch /
+     * orbitCameraYaw. FORCEANGLE pops (x, y) in push order. These have a
+     * (0,0,0,0) entry in the generated table and used to reach StackMetaStub,
+     * which now asserts; the RS2 overlay's stub entries for the same ids are
+     * shadowed by this dispatch, and the two eras agree on the signature. */
+    case CS2_OP_CAM_FORCEANGLE:
+    {
+        struct CS2VM_HostRequest request;
+        int angle_x, angle_y;
+        if( CS2VM2_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_CAM_FORCEANGLE;
+        request.u.cam_force_angle.angle_x = angle_x;
+        request.u.cam_force_angle.angle_y = angle_y;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_CAM_GETANGLE_XA:
+    case CS2_OP_CAM_GETANGLE_YA:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = opcode == CS2_OP_CAM_GETANGLE_XA ? CS2VM_HOST_REQUEST_CAM_GETANGLE_XA
+                                                        : CS2VM_HOST_REQUEST_CAM_GETANGLE_YA;
         return vm->vm->host_exec(vm, &request);
     }
     /* CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks. SET pops

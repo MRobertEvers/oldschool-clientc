@@ -9,3 +9,8 @@
 161=gameframe
 149=inventory
 387=worn_equipment
+// The bank's two halves. OpenRune's gameval `interfaces` group calls them
+// bankmain and bankside, and tools/dump_interface confirms 12 is the 765x503
+// main panel and 15 the sidebar replacement.
+12=bankmain
+15=bankside

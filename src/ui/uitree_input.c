@@ -410,7 +410,14 @@ collect_nodes_recursive(
         bool const has_ops = UITree_ComponentHasMenuOptions(component) ||
                              component->menu_options.option[0] != '\0' ||
                              component->type == UIELEM_BUILTIN_CHAT;
-        if( (inv_grid || has_ops || !UITree_ComponentIsPassThrough(component, host)) &&
+        /* A script-created cell holding an obj is a menu target on the strength
+         * of the obj alone. It carries no ops and no hook of its own — the
+         * rev-230 worn tab puts "Remove" on the slot LAYER, not on the item
+         * child — so every other test here calls it pass-through chrome and
+         * drops it, and the equipment slots become unclickable. */
+        bool const has_obj = component->item_id > 0;
+        if( (inv_grid || has_ops || has_obj ||
+             !UITree_ComponentIsPassThrough(component, host)) &&
             ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;
     }

@@ -1,0 +1,34 @@
+// Bank varbits, and the first varbits the mock's content has used at all.
+//
+// A varbit is a *named bit range inside a varplayer*, and every id here is
+// OldSchool's, taken from OpenRune's gameval `varbits` group. The names are
+// theirs verbatim, because the bank's own CS2 reads these ranges — a symbol
+// invented here would name a range nothing on the client side agrees with.
+//
+// Which varp and which bits each one occupies is deliberately NOT in this file.
+// The engine resolves that from config group 14 at startup
+// (mock230_bank_varbit_resolve), so the layout cannot drift from what the
+// client reads. Writing it down here as well would be a second copy of a cache
+// fact, which is the failure mode this tree exists to avoid.
+//
+//   ./src/build/mock230   prints "bank tables loaded (N varbits, bank=1220 slots)"
+
+3755=bank_leaveplaceholders
+3958=bank_withdrawnotes
+3959=bank_insertmode
+3960=bank_requestedquantity
+4150=bank_currenttab
+4170=bank_tab_display
+4171=bank_tab_1
+4172=bank_tab_2
+4173=bank_tab_3
+4174=bank_tab_4
+4175=bank_tab_5
+4176=bank_tab_6
+4177=bank_tab_7
+4178=bank_tab_8
+4179=bank_tab_9
+5102=bank_showincinerator
+5364=bank_hidedepositworn
+5450=bank_side_slot_ignoreinvlocks
+6590=bank_quantity_type

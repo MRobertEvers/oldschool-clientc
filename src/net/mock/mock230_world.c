@@ -15,6 +15,8 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_equipment.h"
+#include "mock230_prayer.h"
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
@@ -145,6 +147,21 @@ inv_first_free(const struct Mock230Player* player)
 {
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
         if( player->inv[i].obj_id < 0 )
+            return i;
+    return -1;
+}
+
+/* Slot already holding a stack of `obj_id`, or -1 — the obj is not stackable
+ * or there is none yet. Stackability is the cache's own field, not a list. */
+static int
+inv_stack_slot(
+    const struct Mock230Player* player,
+    int obj_id)
+{
+    if( !mock230_objinfo(obj_id)->stackable )
+        return -1;
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        if( player->inv[i].obj_id == obj_id )
             return i;
     return -1;
 }
@@ -349,13 +366,126 @@ mock230_world_walk_beside(
     steps_walk_to(player, player->dest_x, player->dest_z);
 }
 
+/* ------------------------------------------------------------------ */
+/* Run energy                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Everything the player is carrying, in grams, worn items included.
+ *
+ * The weights come out of the obj records themselves (config opcode 75), which
+ * is why there is no table here: a cape weighs what OldSchool says a cape
+ * weighs. Weight-reducing items are negative in the cache and stay negative,
+ * so the total can go below zero; the drain formula clamps.
+ */
+static int
+player_weight_grams(const struct Mock230Player* player)
+{
+    int total = 0;
+
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        if( player->inv[i].obj_id >= 0 )
+            total += mock230_objinfo(player->inv[i].obj_id)->weight;
+    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+        if( player->worn[i].obj_id >= 0 )
+            total += mock230_objinfo(player->worn[i].obj_id)->weight;
+    return total;
+}
+
+/*
+ * One tick of energy, in OldSchool's own arithmetic (xrsps
+ * MovementService.updateRunEnergy, which is the same formula):
+ *
+ *   drain per running step = 67 + 67 * min(64, weight_kg) / 64
+ *   regen per idle/walking tick = agility / 6 + 8
+ *
+ * so an unencumbered player gets a hair over 74 running steps from full and a
+ * fully-laden one about half that, and standing still refills at roughly one
+ * percent every eight ticks at level 1. Energy is spent per STEP, not per
+ * tick: a running tick covers two tiles and costs twice as much as a walking
+ * one would.
+ *
+ * Reaching zero clears the toggle rather than merely refusing to run, which is
+ * what makes the orb go dark instead of the player silently walking with a lit
+ * orb.
+ */
+static void
+run_energy_tick(
+    struct Mock230Server* srv,
+    int run_steps)
+{
+    struct Mock230Player* player = &srv->player;
+
+    if( run_steps > 0 )
+    {
+        int weight_kg = player_weight_grams(player) / 1000;
+        int drain;
+
+        if( weight_kg < 0 )
+            weight_kg = 0;
+        if( weight_kg > 64 )
+            weight_kg = 64;
+        drain = (67 + (67 * weight_kg) / 64) * run_steps;
+
+        player->run_energy -= drain;
+        if( player->run_energy <= 0 )
+        {
+            player->run_energy = 0;
+            player->run_toggle = 0;
+            player->running = 0;
+            mock230_world_set_varp(srv, MOCK230_VARP_RUN, 0);
+        }
+        return;
+    }
+
+    if( player->run_energy < MOCK230_RUN_ENERGY_MAX )
+    {
+        int agility = player->stat_boosted[MOCK230_STAT_AGILITY];
+        if( agility < 1 )
+            agility = 1;
+        player->run_energy += agility / 6 + 8;
+        if( player->run_energy > MOCK230_RUN_ENERGY_MAX )
+            player->run_energy = MOCK230_RUN_ENERGY_MAX;
+    }
+}
+
+/* Put the orb's two numbers on the wire, but only when one of them moved: at
+ * one packet a tick each they would be a third of everything the mock sends. */
+static void
+run_energy_flush(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+    int percent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
+    /* Kilograms, not grams. UPDATE_RUNWEIGHT's value is read back by CS2's
+     * RUNWEIGHT_VISIBLE, and the gameframe prints that with "kg" after it —
+     * sending grams put "31892 kg" beside a player carrying 32. */
+    int weight = player_weight_grams(player) / 1000;
+
+    if( percent != player->run_energy_sent )
+    {
+        player->run_energy_sent = percent;
+        mock230_send_run_energy(srv, percent);
+    }
+    if( weight != player->run_weight_sent )
+    {
+        player->run_weight_sent = weight;
+        mock230_send_run_weight(srv, weight);
+    }
+}
+
 /* Consume up to `max_tiles` queued steps, recording the direction of each so
  * PLAYER_INFO can spell them out. */
 static void
 advance_player(struct Mock230Server* srv)
 {
     struct Mock230Player* player = &srv->player;
-    int max_tiles = player->running ? 2 : 1;
+    int max_tiles;
+
+    /* Running is a request, not a state: the toggle says the player wants to,
+     * the energy says whether they can. Deciding it here rather than at the
+     * move packet is what makes energy run out mid-walk. */
+    player->running = player->run_toggle && player->run_energy > 0;
+    max_tiles = player->running ? 2 : 1;
 
     player->move_count = 0;
     for( int i = 0; i < max_tiles; i++ )
@@ -742,7 +872,25 @@ handle_move(
     if( !rsab_ok(&buf) )
         return;
 
-    player->running = ctrl != 0;
+    /*
+     * Ctrl held on a move request turns run mode ON and leaves it on, the way
+     * a ctrl-click does in OldSchool. It is deliberately not a mirror of the
+     * flag: the client sends 0 on every ordinary click, so assigning it would
+     * mean the next plain click silently switched running back off.
+     *
+     * `running` itself is decided per tick in advance_player, because the
+     * energy can run out between here and the step that spends it.
+     */
+    if( ctrl && !player->run_toggle )
+    {
+        player->run_toggle = 1;
+        mock230_world_set_varp(srv, MOCK230_VARP_RUN, 1);
+    }
+    /* Walking somewhere is a new interaction, and a new interaction ends the
+     * old one. Without this the player keeps swinging at whatever they were
+     * fighting the moment they get back in range, and — more visibly — keeps
+     * *facing* it the whole way there. */
+    mock230_combat_stop_player(srv);
     steps_clear(player);
     steps_walk_to(player, start_x, start_z);
 
@@ -776,9 +924,65 @@ handle_move(
             player->dest_z);
 }
 
-/* OPHELD<n>: p2 objId, p2 slot, p2 componentId. `n` is the 1-based index into
+/*
+ * Worn slot behind one of interface 387's equipment-slot components.
+ *
+ * The worn tab is not a grid. Each equipment slot is its own static layer
+ * (387:15..387:25) whose item is a `cc_create`d child, so the slot identity is
+ * in the COMPONENT, not in the packet's sub id — that is 1, the item child's
+ * index, for every one of them.
+ *
+ * OpenRune reads the same mapping out of the cache
+ * (`enums.equipment_tab_to_slots_map`, EquipmentStats.kt). This table is that
+ * enum transcribed, checked against cache.osrs230's own silhouette graphics:
+ * 387:15 shows sprite 156 (a helmet) and so on down to 387:25's arrow.
+ * Returns -1 when the component is not an equipment slot.
+ */
+static int
+worn_slot_for_component(int component)
+{
+    static const int k_worn_slot_by_child[] = {
+        /* 387:15 */ MOCK230_WEAR_HEAD,   /* 387:16 */ MOCK230_WEAR_CAPE,
+        /* 387:17 */ MOCK230_WEAR_AMULET, /* 387:18 */ MOCK230_WEAR_WEAPON,
+        /* 387:19 */ MOCK230_WEAR_BODY,   /* 387:20 */ MOCK230_WEAR_SHIELD,
+        /* 387:21 */ MOCK230_WEAR_LEGS,   /* 387:22 */ MOCK230_WEAR_HANDS,
+        /* 387:23 */ MOCK230_WEAR_FEET,   /* 387:24 */ MOCK230_WEAR_RING,
+        /* 387:25 */ MOCK230_WEAR_AMMO,
+    };
+    int child;
+
+    if( ((component >> 16) & 0xffff) != MOCK230_WORN_IFACE )
+        return -1;
+    child = (component & 0xffff) - MOCK230_WORN_FIRST_SLOT_CHILD;
+    if( child < 0 || child >= (int)(sizeof(k_worn_slot_by_child) / sizeof(k_worn_slot_by_child[0])) )
+        return -1;
+    return k_worn_slot_by_child[child];
+}
+
+/** Is this component one of the bank's two item grids? Those are the only
+ *  components whose `slot` does not index the backpack. */
+static int
+bank_component(int component)
+{
+    int group = (component >> 16) & 0xffff;
+    int child = component & 0xffff;
+
+    if( group == MOCK230_BANK_IFACE )
+        return child == MOCK230_BANK_COM_ITEMS;
+    if( group == MOCK230_BANKSIDE_IFACE )
+        return child == MOCK230_BANKSIDE_COM_ITEMS;
+    return 0;
+}
+
+/* OPHELD<n>: p2 objId, p2 slot, p4 componentId. `n` is the 1-based index into
  * the item's inventory ops, so the server can tell "Wear" from "Drop" instead
- * of guessing from the item type. */
+ * of guessing from the item type.
+ *
+ * `component` is the packed (interface << 16) | child uid of the container the
+ * cell belongs to — 149:0 for the backpack, 387:15..25 for a worn slot — and
+ * `slot` the sub id inside it (rsprot If3Button.combinedId / .sub). The
+ * backpack's sub id IS the inventory slot; the worn tab's is not, so that side
+ * goes through worn_slot_for_component. */
 static void
 handle_opheld(
     struct Mock230Server* srv,
@@ -797,7 +1001,7 @@ handle_opheld(
     rsab_wrap(&buf, (void*)payload, (size_t)len);
     obj_id = rsab_g2(&buf);
     slot = rsab_g2(&buf);
-    component = rsab_g2(&buf);
+    component = rsab_g4(&buf);
     if( !rsab_ok(&buf) )
         return;
 
@@ -806,20 +1010,43 @@ handle_opheld(
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: <- OPHELD%d obj=%d (%s) slot=%d com=%d verb=%s\n",
+            "mock230: <- OPHELD%d obj=%d (%s) slot=%d com=%d|%d verb=%s\n",
             op_num,
             obj_id,
             info->name,
             slot,
-            component,
+            (component >> 16) & 0xffff,
+            component & 0xffff,
             verb ? verb : "-");
 
-    /* The equipment tab's own component sends its ops through the same packet,
-     * so a click there means "take it off" rather than "put it on". */
-    if( (component >> 16) == MOCK230_WORN_IFACE )
+    /*
+     * The bank's two grids answer on the same packet, and they are not the
+     * backpack: `slot` there indexes container 95 (or the side panel's copy of
+     * the backpack), and `component` is what says which. Content gets first
+     * refusal through the [inv_button<n>] trigger; the engine's own router is
+     * the no-content fallback.
+     */
+    if( bank_component(component) )
     {
-        unequip_slot(srv, slot);
+        player->last_slot = slot;
+        player->last_com = component;
+        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1 + (op_num - 1), component,
+                                        -1, -1) )
+            return;
+        mock230_bank_handle_button(srv, component, slot, obj_id, op_num);
         return;
+    }
+
+    /* The equipment tab's own components send their ops through the same
+     * packet, so a click there means "take it off" rather than "put it on".
+     * Which slot came off is in the component, not in `slot`. */
+    {
+        int worn = worn_slot_for_component(component);
+        if( worn >= 0 )
+        {
+            unequip_slot(srv, worn);
+            return;
+        }
     }
 
     if( slot < 0 || slot >= MOCK230_INV_SLOTS || player->inv[slot].obj_id != obj_id )
@@ -869,9 +1096,14 @@ handle_opheld(
     say(srv, "Nothing interesting happens.");
 }
 
-/* INV_BUTTOND: p2 componentId, p2 fromSlot, p2 toSlot, p1 mode. The client has
+/* INV_BUTTOND: p4 componentId, p2 fromSlot, p2 toSlot, p1 mode. The client has
  * already applied the swap locally, so this confirms it; a server that
- * disagreed would send a partial update putting both slots back. */
+ * disagreed would send a partial update putting both slots back.
+ *
+ * A real rev-230 IfButtonD names both ends (selected component + sub, target
+ * component + sub) so an item can be dragged between two interfaces. The mock
+ * only ever moves within the backpack, so it carries one component and refuses
+ * anything else — a drag onto the worn tab is not an equip here. */
 static void
 handle_inv_buttond(
     struct Mock230Server* srv,
@@ -886,7 +1118,7 @@ handle_inv_buttond(
     struct Mock230Item swap;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
-    component = rsab_g2(&buf);
+    component = rsab_g4(&buf);
     from_slot = rsab_g2(&buf);
     to_slot = rsab_g2(&buf);
     (void)rsab_g1(&buf); /* mode */
@@ -896,11 +1128,14 @@ handle_inv_buttond(
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: <- INV_BUTTOND com=%d %d -> %d\n",
-            component,
+            "mock230: <- INV_BUTTOND com=%d|%d %d -> %d\n",
+            (component >> 16) & 0xffff,
+            component & 0xffff,
             from_slot,
             to_slot);
 
+    if( component != MOCK230_INV_COMPONENT )
+        return;
     if( from_slot < 0 || from_slot >= MOCK230_INV_SLOTS || to_slot < 0 ||
         to_slot >= MOCK230_INV_SLOTS || from_slot == to_slot )
         return;
@@ -933,6 +1168,10 @@ handle_opnpc(
 
     if( srv->verbose )
         fprintf(stderr, "mock230: <- OPNPC%d slot=%d type=%d\n", op_num, slot, npc->type);
+
+    /* A new interaction ends the old one — including the facing. Combat is
+     * re-established below if this op turns out to be "Attack". */
+    mock230_combat_stop_player(srv);
 
     /* Stop next to the npc rather than on top of it. */
     steps_clear(player);
@@ -1043,6 +1282,7 @@ handle_opobj(
     if( !rsab_ok(&buf) )
         return;
 
+    mock230_combat_stop_player(srv);
     steps_clear(player);
     player->dest_x = tile_x;
     player->dest_z = tile_z;
@@ -1056,13 +1296,24 @@ handle_opobj(
             obj->z != tile_z || obj->level != player->level )
             continue;
 
-        free_slot = inv_first_free(player);
-        if( free_slot < 0 )
+        /* A stackable obj joins the pile it already has rather than taking a
+         * slot of its own. Without this a full backpack refuses a single coin
+         * while holding 15,000 of them two slots over. */
+        free_slot = inv_stack_slot(player, obj->obj_id);
+        if( free_slot >= 0 )
         {
-            say(srv, "You don't have enough inventory space.");
-            return;
+            inv_set(player, free_slot, obj->obj_id, player->inv[free_slot].count + obj->count);
         }
-        inv_set(player, free_slot, obj->obj_id, obj->count);
+        else
+        {
+            free_slot = inv_first_free(player);
+            if( free_slot < 0 )
+            {
+                say(srv, "You don't have enough inventory space.");
+                return;
+            }
+            inv_set(player, free_slot, obj->obj_id, obj->count);
+        }
         say(srv, "You pick up the %s.", mock230_objinfo(obj_id)->name);
         ground_take(srv, i);
         return;
@@ -1107,6 +1358,7 @@ handle_oploc(
     if( !rsab_ok(&buf) )
         return;
 
+    mock230_combat_stop_player(srv);
     mock230_world_walk_beside(srv, tile_x, tile_z);
 
     slot = mock230_scene_find_loc(tile_x, tile_z, player->level, loc_id);
@@ -1140,7 +1392,25 @@ handle_oploc(
         return;
     }
 
+    /* Content first, then the engine's verb table. `[oploc<n>,bankbooth]` is
+     * where the ported bank content hooks in. */
+    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1), loc->loc_id, -1,
+                                    -1) )
+        return;
+
     verb = mock230_scene_loc_op(loc->loc_id, op_num);
+    /*
+     * Opening the bank is decided by the loc's own menu verb rather than by an
+     * id list, for the same reason "Attack" is: OldSchool has dozens of bank
+     * booths, chests and counters and every one of them says "Bank" in the
+     * cache. An id list would be a second copy of that, kept by hand, and
+     * wrong for whichever booth nobody added.
+     */
+    if( verb && (strcmp(verb, "Bank") == 0 || strcmp(verb, "Use-quickly") == 0) )
+    {
+        mock230_bank_open(srv);
+        return;
+    }
     if( verb && strcmp(verb, "Climb-up") == 0 )
     {
         climb(srv, +1);
@@ -1218,14 +1488,7 @@ handle_cheat(
         (void)sscanf(text, "style %d", &style);
         if( style < 0 || style > 3 )
             style = 0;
-        player->attack_style = style;
-        if( player->varps[MOCK230_VARP_ATTACK_STYLE] != style )
-        {
-            player->varps[MOCK230_VARP_ATTACK_STYLE] = style;
-            if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
-                player->varp_changed[player->varp_changed_count++] =
-                    MOCK230_VARP_ATTACK_STYLE;
-        }
+        mock230_world_set_attack_style(srv, style);
         say(srv, "Attack style: %s.",
             style == MOCK230_STYLE_ACCURATE      ? "accurate"
             : style == MOCK230_STYLE_AGGRESSIVE  ? "aggressive"
@@ -1257,6 +1520,62 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "pray", 4) == 0 )
+    {
+        /* `::pray <0-28>` — toggle a prayer by its index in interface 541's
+         * button order (18 is Protect from Melee). The prayer tab does the
+         * same thing; this is for the headless harness. */
+        int prayer = -1;
+        (void)sscanf(text, "pray %d", &prayer);
+        if( prayer >= 0 )
+        {
+            /* The mock has no altars, so a session starts at prayer level 1 and
+             * could not turn most of these on. Grant the level the prayer needs
+             * rather than adding a second cheat to do it. */
+            if( player->stat_level[MOCK230_STAT_PRAYER] < 99 )
+            {
+                player->stat_level[MOCK230_STAT_PRAYER] = 99;
+                player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+                mock230_combat_stat_mark(player, MOCK230_STAT_PRAYER);
+            }
+            mock230_prayer_toggle(srv, prayer);
+            say(srv, "%s %s.", mock230_prayer_name(prayer),
+                (player->prayer_active & (1u << prayer)) ? "on" : "off");
+        }
+        return;
+    }
+
+    if( strncmp(text, "equipstats", 10) == 0 )
+    {
+        /* `::equipstats` opens the bonus screen without walking the sidebar —
+         * "View equipment stats" is two clicks deep on the worn tab. */
+        mock230_equipment_open_stats(srv);
+        return;
+    }
+
+    if( strncmp(text, "run", 3) == 0 )
+    {
+        /* `::run [0|1]` — the run toggle without a keyboard. The client sets
+         * it with ctrl held on a move request, which the headless harness has
+         * no way to synthesise. */
+        int want = !player->run_toggle;
+        (void)sscanf(text, "run %d", &want);
+        player->run_toggle = want != 0;
+        mock230_world_set_varp(srv, MOCK230_VARP_RUN, player->run_toggle);
+        say(srv, "Run %s (%d%%).", player->run_toggle ? "on" : "off",
+            player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX);
+        return;
+    }
+
+    if( strncmp(text, "bank", 4) == 0 )
+    {
+        /* `::bank` opens the bank without walking to a booth — the Lumbridge
+         * ones are on the castle's top floor, two staircases from the spawn
+         * tile, which is a long way to go to check a packet. */
+        mock230_bank_open(srv);
+        return;
+    }
+
     if( strncmp(text, "fight", 5) == 0 )
     {
         /* `::fight <slot>` engages an npc without needing a right-click, so
@@ -1280,11 +1599,7 @@ handle_cheat(
     }
     if( sscanf(text, "tele %d %d", &tile_x, &tile_z) == 2 )
     {
-        steps_clear(player);
-        player->x = tile_x;
-        player->z = tile_z;
-        player->place_dirty = 1;
-        maybe_rebuild(srv);
+        mock230_world_teleport(srv, player->level, tile_x, tile_z);
         say(srv, "Teleported to %d,%d.", tile_x, tile_z);
         return;
     }
@@ -1295,6 +1610,29 @@ handle_cheat(
         return;
     }
     say(srv, "Unknown command: %s", text);
+}
+
+void
+mock230_world_teleport(
+    struct Mock230Server* srv,
+    int level,
+    int abs_x,
+    int abs_z)
+{
+    struct Mock230Player* player = &srv->player;
+
+    steps_clear(player);
+    player->level = level;
+    player->x = abs_x;
+    player->z = abs_z;
+    player->dest_x = -1;
+    player->dest_z = -1;
+    /* The next PLAYER_INFO has to carry an absolute placement, and the scene
+     * around the new tile has to be built before anything reads collision from
+     * it — a teleport past the rebuild margin is the common case, not the edge
+     * one, when the destination came off a world map click. */
+    player->place_dirty = 1;
+    maybe_rebuild(srv);
 }
 
 void
@@ -1404,6 +1742,127 @@ mock230_world_handle(
          * tabs (switched client-side on a varc) stay a no-op. */
         if( mock230_scripts_resume_button(srv, uid) )
             break;
+
+        /* The world map's close buttons carry no cache op, so a click on the
+         * red X arrives here rather than as IF_BUTTON1. */
+        if( mock230_worldmap_handle_button(srv, uid, 1) )
+            break;
+
+        /* Then as an ordinary interface button. Content bound to the component
+         * wins; the engine's own routers are the no-content fallback, which is
+         * what keeps the bank's toggles working with no script pack. */
+        srv->player.last_com = uid;
+        srv->player.last_slot = -1;
+        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
+            break;
+        if( mock230_bank_handle_button(srv, uid, -1, -1, 1) )
+            break;
+        if( mock230_equipment_handle_button(srv, uid, -1, 1) )
+            break;
+        break;
+    }
+
+    /*
+     * IF_BUTTON1..10: op N of an IF3 component (RSProt If3Button). Distinct
+     * from IF_BUTTON above, which is the op-less plain click — an op-bearing
+     * widget like the world map orb names which verb was picked, and the verb
+     * is the whole message ("Floating World Map" and "Fullscreen World Map"
+     * are ops 2 and 3 of the same component).
+     */
+    case PKTOUT_NAME_IF_BUTTON1:
+    case PKTOUT_NAME_IF_BUTTON2:
+    case PKTOUT_NAME_IF_BUTTON3:
+    case PKTOUT_NAME_IF_BUTTON4:
+    case PKTOUT_NAME_IF_BUTTON5:
+    case PKTOUT_NAME_IF_BUTTON6:
+    case PKTOUT_NAME_IF_BUTTON7:
+    case PKTOUT_NAME_IF_BUTTON8:
+    case PKTOUT_NAME_IF_BUTTON9:
+    case PKTOUT_NAME_IF_BUTTON10:
+    {
+        struct RSAreaBuf button;
+        int uid;
+        int sub;
+        int op = name - PKTOUT_NAME_IF_BUTTON1 + 1;
+
+        rsab_wrap(&button, (void*)payload, (size_t)len);
+        uid = rsab_g4(&button);
+        sub = (int16_t)rsab_g2(&button);
+        if( !rsab_ok(&button) )
+            break;
+        if( srv->verbose )
+            fprintf(
+                stderr, "mock230: <- IF_BUTTON%d %d:%d sub=%d\n", op, uid >> 16, uid & 0xffff, sub);
+        if( mock230_worldmap_handle_button(srv, uid, op) )
+            break;
+        srv->player.last_com = uid;
+        srv->player.last_slot = sub;
+        srv->player.last_verb = op;
+        /* run_trigger's parameters are (trigger, type, category, npc_slot): the
+         * component uid is the type, and an interface button has neither a
+         * category nor an npc. `sub` and `op` reach content through last_slot
+         * and last_verb, which is where a RuneScript trigger reads them. */
+        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
+            break;
+        /* (uid, sub, obj, op) — the bank needs the sub id, which is which of
+         * the 1,220 dynamic children was clicked. */
+        if( mock230_bank_handle_button(srv, uid, sub, -1, op) )
+            break;
+        if( mock230_equipment_handle_button(srv, uid, sub, op) )
+            break;
+        if( mock230_prayer_handle_button(srv, uid, op) )
+            break;
+        break;
+    }
+
+    case PKTOUT_NAME_CLICK_WORLD_MAP:
+    {
+        struct RSAreaBuf click;
+        int packed;
+
+        rsab_wrap(&click, (void*)payload, (size_t)len);
+        packed = rsab_g4(&click);
+        if( !rsab_ok(&click) )
+            break;
+        mock230_worldmap_click(
+            srv, (packed >> 28) & 0x3, (packed >> 14) & 0x3fff, packed & 0x3fff);
+        break;
+    }
+
+    /*
+     * The player pressed Escape, or clicked a component whose CS2 called
+     * `if_close`. The client has already torn its own copy down; the server has
+     * to agree, or the next open finds the bank still marked open and sends
+     * nothing.
+     */
+    case PKTOUT_NAME_CLOSE_MODAL:
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- CLOSE_MODAL\n");
+        if( srv->player.bank.open )
+        {
+            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE,
+                                             (MOCK230_BANK_IFACE << 16), -1, -1) )
+                mock230_bank_close(srv);
+        }
+        break;
+
+    /* The number a p_countdialog collected — "Withdraw-X". */
+    case PKTOUT_NAME_RESUME_P_COUNTDIALOG:
+    {
+        struct RSAreaBuf count;
+        int32_t value;
+
+        rsab_wrap(&count, (void*)payload, (size_t)len);
+        value = rsab_g4(&count);
+        if( !rsab_ok(&count) )
+            break;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- RESUME_P_COUNTDIALOG %d\n", (int)value);
+        srv->player.last_int = value;
+        /* A parked script owns the answer if there is one; only when nothing is
+         * waiting does the engine's own pending "-X" row get it. */
+        if( !mock230_scripts_resume_countdialog(srv, value) )
+            mock230_bank_resume_countdialog(srv, (int)value);
         break;
     }
 
@@ -1455,6 +1914,9 @@ mock230_world_player_respawn(struct Mock230Server* srv)
     player->dest_z = -1;
     player->hitpoints = player->stat_level[MOCK230_STAT_HITPOINTS];
     mock230_combat_sync_hitpoints(player);
+    /* Death drops every prayer — and with them the overhead icon, which would
+     * otherwise follow the corpse back to Lumbridge. */
+    mock230_prayer_clear(srv);
     /* Nothing is lost. A mock that drops your inventory on death is a mock
      * nobody uses twice, and item protection is a whole system of its own. */
     mock230_send_message(srv, "You wake up in Lumbridge.");
@@ -1464,6 +1926,54 @@ mock230_world_player_respawn(struct Mock230Server* srv)
 /* ------------------------------------------------------------------ */
 /* Login + tick                                                        */
 /* ------------------------------------------------------------------ */
+
+/*
+ * The attack style lives in the `com_mode` varp and nowhere else.
+ *
+ * Resolved by symbol rather than by number so the engine and the content name
+ * the same thing: content/pack/varp.pack says com_mode is 43, and if that ever
+ * changes there is one place to change it. Resolved on each call rather than
+ * cached because the content tree loads after the world does, and a cached -1
+ * would outlive the load.
+ */
+static int
+attack_style_varp(void)
+{
+    return mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
+}
+
+int
+mock230_world_attack_style(const struct Mock230Server* srv)
+{
+    int varp = attack_style_varp();
+
+    if( varp < 0 || varp >= MOCK230_VARP_COUNT )
+        return MOCK230_STYLE_ACCURATE;
+    return srv->player.varps[varp];
+}
+
+void
+mock230_world_set_varp(
+    struct Mock230Server* srv,
+    int varp,
+    int value)
+{
+    struct Mock230Player* player = &srv->player;
+
+    if( varp < 0 || varp >= MOCK230_VARP_COUNT || player->varps[varp] == value )
+        return;
+    player->varps[varp] = value;
+    if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
+        player->varp_changed[player->varp_changed_count++] = varp;
+}
+
+void
+mock230_world_set_attack_style(
+    struct Mock230Server* srv,
+    int style)
+{
+    mock230_world_set_varp(srv, attack_style_varp(), style);
+}
 
 void
 mock230_world_set_home(
@@ -1492,6 +2002,11 @@ mock230_world_init(
      * call. */
     mock230_scene_build(mock230_world_cache_dir(), zone_x, zone_z);
 
+    /* The bank owns a heap allocation, and the memset below is what would
+     * otherwise lose the pointer to it — a re-init (which the selftest does)
+     * has to release the old container before the struct is cleared. */
+    mock230_bank_shutdown(srv);
+
     memset(player, 0, sizeof(*player));
     /* On the home tile, not in the middle of the scene: the scene is 104 tiles
      * of whatever the origin zone happens to cover, and standing in the middle
@@ -1518,11 +2033,18 @@ mock230_world_init(
     player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = 11540; /* 1154 xp = level 10 */
     player->hitpoints = 10;
     mock230_combat_sync_hitpoints(player);
-    player->attack_style = MOCK230_STYLE_ACCURATE;
     player->dest_x = -1;
     player->dest_z = -1;
     player->place_dirty = 1;
     player->masks |= MOCK230_PMASK_APPEARANCE;
+
+    /* Full energy, run off. The sent-values are deliberately impossible so the
+     * first flush is a send whatever the starting state is. */
+    player->run_energy = MOCK230_RUN_ENERGY_MAX;
+    player->run_toggle = 0;
+    player->running = 0;
+    player->run_energy_sent = -1;
+    player->run_weight_sent = INT32_MIN;
 
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
     {
@@ -1561,6 +2083,36 @@ mock230_world_init(
         };
         for( size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++ )
             inv_set(player, (int)i, kit[i].obj_id, kit[i].count);
+    }
+
+    /*
+     * The bank. Seeded with a handful of objs rather than left empty, because
+     * an empty bank and a bank that failed to transmit look identical, and
+     * the withdraw side is the half that cannot be exercised from a full
+     * backpack anyway.
+     */
+    mock230_bank_init(srv);
+    {
+        static const struct
+        {
+            int obj_id;
+            int count;
+        } stock[] = {
+            { 995,  250000 }, /* Coins — stackable, and past the 255 escape */
+            { 1511, 100    }, /* Logs — a stack of a non-stackable obj (note 1512) */
+            { 314,  5000   }, /* Feather — stackable, and has NO note form */
+            { 373,  60     }, /* Swordfish (note 374) */
+            { 1163, 1      }, /* Rune full helm */
+            { 1127, 1      }, /* Rune platebody */
+            { 1079, 1      }, /* Rune platelegs */
+            { 1333, 1      }, /* Rune scimitar */
+        };
+        for( size_t i = 0; i < sizeof(stock) / sizeof(stock[0]); i++ )
+            if( i < (size_t)player->bank.size )
+            {
+                player->bank.slots[i].obj_id = stock[i].obj_id;
+                player->bank.slots[i].count = stock[i].count;
+            }
     }
 
     /*
@@ -1661,10 +2213,28 @@ mock230_world_login(struct Mock230Server* srv)
      *    equipped or dragged. */
     mock230_send_if_setevents(srv, (MOCK230_INV_IFACE << 16) | 0, 0, MOCK230_INV_SLOTS, 0x3fe);
     mock230_send_if_setevents(srv, (MOCK230_WORN_IFACE << 16) | 0, 0, MOCK230_WORN_SLOTS, 0x3fe);
+    /*    …and on the world map orb, whose verbs are the server's alone. */
+    mock230_worldmap_login(srv);
 
-    /* 4. Player state. */
-    mock230_send_run_energy(srv, 100);
-    mock230_send_run_weight(srv, 0);
+    /* 4. Player state. The pid comes first: it decides which entity in the
+     *    stream the client treats as itself, and several things it drives —
+     *    the npc menu's level suffix among them — are computed the moment the
+     *    first PLAYER_INFO lands. */
+    mock230_send_update_pid(srv, MOCK230_PLAYER_TERMINATOR);
+    /* Both orb numbers, unconditionally: the per-tick flush only sends what
+     * changed, and a session that starts full would otherwise never send one. */
+    player->run_energy_sent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
+    mock230_send_run_energy(srv, player->run_energy_sent);
+
+    /* The combat tab's varps are NOT sent here. They are ordinary varp writes
+     * in [login,_] (content/scripts/player/login.rs2), declared transmit=yes in
+     * player_controls.varp, and phase 10 puts them on the wire like any other
+     * changed varp. A server operator changing the opening attack style should
+     * not need a compiler. */
+    player->run_weight_sent = player_weight_grams(player) / 1000;
+    mock230_send_run_weight(srv, player->run_weight_sent);
+    mock230_equipment_arm_worn_tab(srv);
+    mock230_prayer_arm_buttons(srv);
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
         mock230_send_stat(srv, stat, player->stat_level[stat],
                           player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
@@ -1780,6 +2350,12 @@ phase_players(struct Mock230Server* srv)
      * same way: step first, then swing, so a player who arrives this tick
      * attacks on it rather than a tick later. */
     advance_player(srv);
+    /* Energy is spent on the steps that were actually taken, so a route that
+     * ran out of tiles this tick regenerates instead of draining. */
+    run_energy_tick(srv, srv->player.running ? srv->player.move_count : 0);
+    /* Before the swing: a prayer that ran out this tick must not protect the
+     * hit that lands on it. */
+    mock230_prayer_tick(srv);
     mock230_combat_player_tick(srv);
 }
 
@@ -1860,6 +2436,17 @@ phase_clients_out(struct Mock230Server* srv)
     mock230_send_player_info(srv);
     mock230_send_npc_info(srv);
 
+    /* After the containers would have changed but before they are flushed:
+     * weight is a function of what is in them, and the orb should not lag a
+     * tick behind the item that changed it. */
+    run_energy_flush(srv);
+
+    /* Same argument for the bonus screen — it is a view of the worn container,
+     * so it repaints on the tick that container changed rather than the next
+     * time it is opened. No-op unless the screen is up. */
+    if( player->worn_dirty )
+        mock230_equipment_refresh_stats(srv);
+
     mock230_send_inv_partial(
         srv,
         (MOCK230_INV_IFACE << 16) | 0,
@@ -1875,12 +2462,40 @@ phase_clients_out(struct Mock230Server* srv)
         MOCK230_WORN_SLOTS,
         player->worn_dirty);
 
+    /* VARP_SMALL's value is one signed byte. A varp holding packed varbits is
+     * routinely wider than that — the bank's tab counters occupy bits 0..25 of
+     * their varp — so the encoder is chosen per value rather than per call
+     * site. Truncating instead would corrupt every bit above the eighth. */
+    /*
+     * Changed varps.
+     *
+     * Two decisions per varp, and both are data rather than code:
+     *
+     * - **Whether it goes at all.** A varp the client's own CS2 reads has to
+     *   reach it; one that is purely server bookkeeping must not. `transmit=`
+     *   in a .varp config says which, and an *undeclared* varp is server-only —
+     *   the safe default, and what keeps the mock's own counters
+     *   (`mock_greeting_count`, `lumbridge_visited`) off the wire.
+     * - **Which encoder.** VARP_SMALL's value is a single signed byte. Special
+     *   attack energy is in tenths of a percent, so a full bar is 1000 and
+     *   would land as -24. Picking by magnitude means content never has to know
+     *   there are two packets.
+     */
     for( int i = 0; i < player->varp_changed_count; i++ )
     {
         int varp = player->varp_changed[i];
+        const struct Mock230VarpDef* def = mock230_content_varp(varp);
+        int32_t value = player->varps[varp];
 
-        mock230_send_varp_small(srv, varp, player->varps[varp]);
+        if( !def || !def->transmit )
+            continue;
+        if( value >= -128 && value <= 127 )
+            mock230_send_varp_small(srv, varp, (int)value);
+        else
+            mock230_send_varp_large(srv, varp, (int)value);
     }
+
+    mock230_bank_flush(srv);
 
     /* Stats. UPDATE_STAT carries the boosted level as well as the base one, and
      * the boosted hitpoints level is what the health orb draws — so every hit
@@ -1936,6 +2551,10 @@ mock230_world_tick(struct Mock230Server* srv)
     phase_logouts(srv);
     phase_logins(srv);
     phase_zones(srv);
+    /* After movement, before the info streams: the world map marker is derived
+     * state, and this is the only place it can be refreshed with the tile the
+     * player will actually be reported on. */
+    mock230_worldmap_tick(srv);
     phase_info(srv);
     phase_clients_out(srv);
     phase_cleanup(srv);
@@ -2108,8 +2727,19 @@ mock230_world_selftest(void)
 
             mock230_world_tick(&srv);
             mock230_capture_end(&srv);
-            SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) >= 0,
-                           "a changed varp should reach the client");
+            /*
+             * `mock_greeting_count` is server bookkeeping: no .varp config
+             * declares it, so it must NOT reach the client. That is the point
+             * of the transmit gate — a counter nothing client-side reads costs
+             * a packet per change and invites the client to react to it.
+             *
+             * The transmitted case is asserted in the login-burst section,
+             * against a varp that really is declared.
+             */
+            SELFTEST_CHECK(mock230_content_varp(1) == NULL,
+                           "mock_greeting_count should have no varp declaration");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) < 0,
+                           "an undeclared varp must stay off the wire");
 
             /* A trigger with no script must fall through to the C behaviour,
              * which is what keeps the mock usable without content. */
@@ -2367,6 +2997,110 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: facing clears\n");
+    {
+        /*
+         * FACE_ENTITY is a latch. Every path that drops a target has to send
+         * -1, and "the player clicked somewhere else" is one of those paths —
+         * it is the one that produced "facing never clears", because the other
+         * three end a fight and this one just leaves.
+         */
+        int goblin = selftest_find_npc(&srv, 3028);
+
+        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        if( goblin >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[goblin];
+            uint8_t move[7];
+
+            selftest_park_player(&srv, npc->x + 1, npc->z);
+            player->level = npc->level;
+            mock230_combat_engage(&srv, goblin);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->face_entity == goblin,
+                           "engaging faces the target, got %d", player->face_entity);
+
+            /* MOVE_GAMECLICK: p1 ctrl, p2 start x, p2 start z, then waypoints. */
+            player->masks = 0;
+            move[0] = 0;
+            move[1] = (uint8_t)((player->x + 3) >> 8);
+            move[2] = (uint8_t)(player->x + 3);
+            move[3] = (uint8_t)(player->z >> 8);
+            move[4] = (uint8_t)player->z;
+            mock230_world_handle(&srv, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+
+            SELFTEST_CHECK(player->combat_target == -1,
+                           "walking away ends the fight");
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "and stops facing, got %d", player->face_entity);
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and says so on the wire — a clear nobody sends is a "
+                           "clear that never happens");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: login burst\n");
+    {
+        static struct Mock230Capture capture;
+        /* UPDATE_PID before the stats: it is what tells the client which entity
+         * in the stream is itself, which everything asking "what is my combat
+         * level" depends on — the npc menu's (level-N) suffix most visibly. */
+        static const int k_burst[] = {
+            68 /* REBUILD_NORMAL */, 60 /* IF_OPENTOP */, 127 /* UPDATE_PID */,
+            114 /* UPDATE_STAT */,   10 /* UPDATE_INV_FULL */,
+        };
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_login(&srv);
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_burst, 5),
+                       "the login burst should place, open, identify, then fill");
+
+        /*
+         * The combat tab's varps are content, not burst.
+         *
+         * [login,_] writes them and phase 10 transmits them, so they arrive on
+         * the tick AFTER the burst — which is the whole point of moving them:
+         * the engine no longer knows they exist. What is asserted here is the
+         * end state on the wire, not where in the C it came from.
+         *
+         * The wide form matters on its own: special-attack energy is in tenths
+         * of a percent, so a full bar is 1000, and VARP_SMALL's signed byte
+         * would put it on the wire as -24.
+         */
+        if( srv.scripts_ok )
+        {
+            int com_mode = mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
+            int sa_energy = mock230_content_symbol(MOCK230_PACK_VARP, "sa_energy");
+
+            srv.login_pending = 1;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(com_mode >= 0 && sa_energy >= 0,
+                           "com_mode and sa_energy should be in pack/varp.pack");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) >= 0,
+                           "[login] should transmit the small varps");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 82 /* VARP_LARGE */, 0) >= 0,
+                           "and the spec bar through the wide form");
+            SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 1000,
+                           "^sa_max_energy should be 1000, got %d",
+                           sa_energy >= 0 ? player->varps[sa_energy] : -1);
+            SELFTEST_CHECK(mock230_world_attack_style(&srv) == MOCK230_STYLE_ACCURATE,
+                           "the opening attack style should be accurate, got %d",
+                           mock230_world_attack_style(&srv));
+
+            /* An undeclared varp is server-only. The mock's own counters have
+             * no .varp config, so nothing they do reaches the client. */
+            SELFTEST_CHECK(mock230_content_varp(1) == NULL,
+                           "mock_greeting_count should have no varp declaration");
+            SELFTEST_CHECK(mock230_content_varp(com_mode) != NULL &&
+                               mock230_content_varp(com_mode)->transmit,
+                           "com_mode should be declared transmit=yes");
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: combat arithmetic\n");
     {
         /*
@@ -2577,14 +3311,17 @@ mock230_world_selftest(void)
              * has to recognise the *index*, not a verb it will never see.
              */
             int on_floor = 0;
-            uint8_t payload[6] = { (uint8_t)(526 >> 8),         (uint8_t)526,
-                                   (uint8_t)(free_before >> 8), (uint8_t)free_before,
-                                   0,                           0 };
+            uint8_t payload[8];
+            struct RSAreaBuf drop;
 
             SELFTEST_CHECK(mock230_objinfo(526)->if_ops[4] == NULL,
                            "the cache should NOT name a Drop op — the client adds it");
 
-            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD5, payload, 6);
+            rsab_wrap(&drop, payload, sizeof(payload));
+            rsab_p2(&drop, 526);
+            rsab_p2(&drop, free_before);
+            rsab_p4(&drop, MOCK230_INV_COMPONENT);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
             for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
             {
                 if( srv.ground[i].active && srv.ground[i].obj_id == 526 &&
@@ -2773,7 +3510,9 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->x == start_x + 1 && player->z == start_z + 1,
                        "one diagonal step, at %d,%d", player->x, player->z);
 
-        player->running = 1;
+        /* The toggle, not `running` — the tick derives the latter from it and
+         * from the energy, so setting `running` directly is overwritten. */
+        player->run_toggle = 1;
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->move_count == 2, "running covers two tiles per tick, got %d",
                        player->move_count);
@@ -2785,6 +3524,123 @@ mock230_world_selftest(void)
         steps_walk_to(player, player->x, player->z + 7);
         SELFTEST_CHECK(player->step_count == 7, "7-tile leg fills 7 steps, got %d",
                        player->step_count);
+        player->run_toggle = 0;
+    }
+
+    fprintf(stderr, "mock230 selftest: prayer\n");
+    {
+        const int protect_melee = 18; /* interface 541's 19th button */
+        const int rock_skin = 5;
+        const int steel_skin = 13;
+
+        mock230_prayer_clear(&srv);
+        player->stat_level[MOCK230_STAT_PRAYER] = 1;
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
+
+        /* The level gate reads the base level, so a level-1 character is
+         * refused Protect from Melee no matter how many points they have. */
+        mock230_prayer_toggle(&srv, protect_melee);
+        SELFTEST_CHECK(player->prayer_active == 0, "a level-1 character cannot protect");
+
+        player->stat_level[MOCK230_STAT_PRAYER] = 99;
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+        mock230_prayer_toggle(&srv, protect_melee);
+        SELFTEST_CHECK(mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE),
+                       "protect from melee is up");
+        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) ==
+                           (1 << MOCK230_HEADICON_PROTECT_MELEE),
+                       "and is the only overhead icon");
+        SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
+                       "turning a prayer on re-sends the appearance");
+
+        /* Same group: the second defence prayer replaces the first rather than
+         * stacking with it. */
+        mock230_prayer_toggle(&srv, rock_skin);
+        mock230_prayer_toggle(&srv, steel_skin);
+        SELFTEST_CHECK((player->prayer_active & (1u << rock_skin)) == 0,
+                       "steel skin replaces rock skin");
+        SELFTEST_CHECK((player->prayer_active & (1u << steel_skin)) != 0, "steel skin is up");
+        SELFTEST_CHECK(mock230_prayer_protecting(player, MOCK230_HEADICON_PROTECT_MELEE),
+                       "and left the overhead alone — a different group");
+
+        /* Drain: steel skin (12) + protect from melee (12) is 24 a tick against
+         * a resistance of 60, so a point goes every third tick. */
+        mock230_prayer_clear(&srv);
+        mock230_prayer_toggle(&srv, protect_melee);
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+        player->prayer_drain_acc = 0;
+        mock230_prayer_tick(&srv);
+        SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99,
+                       "12 units is not yet a point");
+        mock230_prayer_tick(&srv);
+        SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99, "nor is 24");
+        for( int i = 0; i < 3; i++ )
+            mock230_prayer_tick(&srv);
+        SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 98,
+                       "60 units is one prayer point, got %d",
+                       player->stat_boosted[MOCK230_STAT_PRAYER]);
+
+        /* Running out drops everything, including the overhead. */
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
+        for( int i = 0; i < 10; i++ )
+            mock230_prayer_tick(&srv);
+        SELFTEST_CHECK(player->prayer_active == 0, "running out clears every prayer");
+        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) == 0, "and the overhead icon");
+
+        player->stat_level[MOCK230_STAT_PRAYER] = 1;
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
+    }
+
+    fprintf(stderr, "mock230 selftest: run energy\n");
+    {
+        int energy_before;
+        int weight;
+
+        steps_clear(player);
+        player->run_energy = MOCK230_RUN_ENERGY_MAX;
+        player->run_toggle = 1;
+
+        /* Drain is per tile, not per tick, and it is the carried weight that
+         * decides the rate. The starting kit is heavy enough that the loaded
+         * rate has to be strictly worse than the bare one — if the weight
+         * lookup ever returns 0 for everything, this is what notices. */
+        weight = player_weight_grams(player);
+        SELFTEST_CHECK(weight > 0, "the starting kit weighs something (%d g)", weight);
+
+        steps_walk_to(player, player->x + 6, player->z);
+        energy_before = player->run_energy;
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->move_count == 2, "running covers two tiles");
+        {
+            int spent = energy_before - player->run_energy;
+            int weight_kg = weight / 1000 > 64 ? 64 : weight / 1000;
+            int expect = 2 * (67 + (67 * weight_kg) / 64);
+            SELFTEST_CHECK(spent == expect, "two running tiles cost %d, got %d", expect, spent);
+        }
+
+        /* Standing still refills, and never past full. */
+        steps_clear(player);
+        energy_before = player->run_energy;
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->run_energy > energy_before, "standing still regenerates");
+        player->run_energy = MOCK230_RUN_ENERGY_MAX;
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX, "regen clamps at full");
+
+        /* Empty means walk, and the toggle goes with it — otherwise the orb
+         * stays lit over a player who is plainly walking. */
+        player->run_energy = 1;
+        steps_walk_to(player, player->x + 6, player->z);
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
+        SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
+        SELFTEST_CHECK(player->varps[MOCK230_VARP_RUN] == 0, "and the varp the orb reads");
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");
+
+        steps_clear(player);
+        player->run_energy = MOCK230_RUN_ENERGY_MAX;
+        player->run_toggle = 0;
     }
 
     fprintf(stderr, "mock230 selftest: rebuild on scene edge\n");
@@ -2840,7 +3696,7 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: inventory drag\n");
     {
-        uint8_t payload[7];
+        uint8_t payload[9];
         struct RSAreaBuf buf;
         int from_obj;
         int to_obj;
@@ -2862,7 +3718,7 @@ mock230_world_selftest(void)
         to_obj = player->inv[to_slot].obj_id;
 
         rsab_wrap(&buf, payload, sizeof(payload));
-        rsab_p2(&buf, (MOCK230_INV_IFACE << 16) | 0);
+        rsab_p4(&buf, MOCK230_INV_COMPONENT);
         rsab_p2(&buf, from_slot);
         rsab_p2(&buf, to_slot);
         rsab_p1(&buf, 0);
@@ -2906,6 +3762,246 @@ mock230_world_selftest(void)
                                    srv.npcs[hans].x == srv.npcs[hans].spawn_x,
                                "a nomove npc never moves");
         }
+    }
+
+    /*
+     * The bank.
+     *
+     * Every one of these is reachable from the client only through a click the
+     * rev-230 UI cannot currently produce (see docs/mock230_bank.md §6), so
+     * this is where the arithmetic is actually exercised. It is also the only
+     * place the varbit packing is checked: a bank setting is a bit range inside
+     * a shared varp, and writing one as a whole varp destroys the others in it
+     * without any symptom until the interface is looked at.
+     */
+    fprintf(stderr, "mock230 selftest: bank varbit packing\n");
+    {
+        int basevar = 0;
+        int lsb = 0;
+        int msb = 0;
+
+        mock230_world_init(&srv, 402, 402);
+        SELFTEST_CHECK(mock230_bank_inv_size(MOCK230_INV_BANK) == 1220,
+                       "the cache should say the bank has 1220 slots, got %d",
+                       mock230_bank_inv_size(MOCK230_INV_BANK));
+
+        /* The two that share varp 115 — the case a whole-varp write breaks. */
+        SELFTEST_CHECK(
+            mock230_bank_varbit_resolve(MOCK230_VARBIT_BANK_WITHDRAWNOTES, &basevar, &lsb,
+                                        &msb) &&
+                basevar == 115 && lsb == 0 && msb == 0,
+            "withdraw-notes should resolve to varp 115 bit 0, got varp %d bits %d..%d",
+            basevar, lsb, msb);
+        SELFTEST_CHECK(
+            mock230_bank_varbit_resolve(MOCK230_VARBIT_BANK_CURRENTTAB, &basevar, &lsb,
+                                        &msb) &&
+                basevar == 115 && lsb == 4 && msb == 7,
+            "current-tab should resolve to varp 115 bits 4..7, got varp %d bits %d..%d",
+            basevar, lsb, msb);
+
+        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_CURRENTTAB, 9);
+        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_WITHDRAWNOTES, 1);
+        SELFTEST_CHECK(mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_CURRENTTAB) == 9,
+                       "setting the neighbouring bit must not disturb the tab");
+        SELFTEST_CHECK(player->varps[115] == ((9 << 4) | 1),
+                       "both varbits should share varp 115, got %d", player->varps[115]);
+
+        /* The widest one. 3960 is bits 1..31, which is where a naive
+         * `1 << (msb - lsb + 1)` shifts by 32 and is undefined. */
+        mock230_bank_set_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY, 100000);
+        SELFTEST_CHECK(
+            mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY) == 100000,
+            "a 31-bit varbit should round-trip, got %d",
+            mock230_bank_get_varbit(&srv, MOCK230_VARBIT_BANK_REQUESTEDQUANTITY));
+    }
+
+    fprintf(stderr, "mock230 selftest: bank deposit and withdraw\n");
+    {
+        struct Mock230Bank* bank = &player->bank;
+        int coins_before;
+
+        mock230_world_init(&srv, 402, 402);
+        coins_before = mock230_bank_count(&srv, 995);
+        SELFTEST_CHECK(coins_before > 0, "the starting bank should hold coins");
+
+        /* Deposit the backpack's coin stack onto the bank's. */
+        {
+            int slot = -1;
+            int held;
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id == 995 )
+                    slot = i;
+            SELFTEST_CHECK(slot >= 0, "the starting kit should include coins");
+            held = slot >= 0 ? player->inv[slot].count : 0;
+            mock230_bank_deposit(&srv, slot, held);
+            SELFTEST_CHECK(mock230_bank_count(&srv, 995) == coins_before + held,
+                           "a deposit should land on the existing stack");
+            SELFTEST_CHECK(slot >= 0 && player->inv[slot].obj_id < 0,
+                           "and empty the backpack slot it came from");
+        }
+
+        /* Withdraw a non-stackable obj: one backpack slot each, and no more
+         * than there is room for. */
+        {
+            int free_before = 0;
+            int slot = -1;
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id < 0 )
+                    free_before++;
+            for( int i = 0; i < bank->size; i++ )
+                if( bank->slots[i].obj_id == 1511 )
+                    slot = i;
+            SELFTEST_CHECK(slot >= 0, "the starting bank should hold logs");
+            if( slot >= 0 )
+            {
+                int moved = mock230_bank_withdraw(&srv, slot, 3);
+                int free_after = 0;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id < 0 )
+                        free_after++;
+                SELFTEST_CHECK(moved == 3, "three logs should come out, got %d", moved);
+                SELFTEST_CHECK(free_before - free_after == 3,
+                               "a non-stackable withdraw takes one slot each, took %d",
+                               free_before - free_after);
+            }
+        }
+
+        /*
+         * Note mode.
+         *
+         * Swordfish (373) is not stackable and its note (374) is, which is the
+         * whole point of the feature: 20 of them need 20 backpack slots as
+         * items and one as a note. Both directions of the link come out of the
+         * obj record itself — see mock230_objinfo.
+         */
+        {
+            const struct Mock230ObjInfo* fish = mock230_objinfo(373);
+            int slot = -1;
+
+            SELFTEST_CHECK(fish->cert_id == 374,
+                           "the cache should give swordfish note 374, got %d",
+                           fish->cert_id);
+            SELFTEST_CHECK(mock230_objinfo(374)->noted_template >= 0 &&
+                               mock230_objinfo(374)->noted_id == 373,
+                           "and the note should point back at the fish");
+            SELFTEST_CHECK(mock230_objinfo(314)->cert_id < 0,
+                           "a feather has no note form, and that has to be sayable");
+
+            for( int i = 0; i < bank->size; i++ )
+                if( bank->slots[i].obj_id == 373 )
+                    slot = i;
+            bank->note_mode = 1;
+            if( slot >= 0 )
+                mock230_bank_withdraw(&srv, slot, 20);
+            bank->note_mode = 0;
+            {
+                int found = 0;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id == 374 )
+                        found = player->inv[i].count;
+                SELFTEST_CHECK(found == 20,
+                               "20 noted swordfish should be in one slot, got %d", found);
+            }
+            /* And back in un-noted: a bank never holds two forms of one obj. */
+            {
+                int slot_of_note = -1;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id == 374 )
+                        slot_of_note = i;
+                mock230_bank_deposit(&srv, slot_of_note, 20);
+                SELFTEST_CHECK(mock230_bank_count(&srv, 374) == 0,
+                               "a deposited note must not make a second bank stack");
+                SELFTEST_CHECK(mock230_bank_count(&srv, 373) == 60,
+                               "it should merge back onto the un-noted stack, got %d",
+                               mock230_bank_count(&srv, 373));
+            }
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: bank op ladder\n");
+    {
+        struct Mock230Bank* bank = &player->bank;
+
+        mock230_world_init(&srv, 402, 402);
+
+        /*
+         * The conditional row list from script 669. With the default quantity
+         * on "1", the row that would say Withdraw-1 is omitted, so the ladder
+         * runs Default, 5, 10, X, All, All-but-1 — and "All" is op 5.
+         */
+        bank->quantity_mode = MOCK230_BANK_QTY_1;
+        bank->requested_quantity = 0;
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 1,
+                       "op 1 is the default quantity");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 5, "then 5");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 0) == 10, "then 10");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 4, 100, 0) == MOCK230_BANK_ASK,
+                       "then the X prompt");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 100, "then All");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == 99,
+                       "then All-but-1");
+
+        /* Switch the default to All and the ladder shifts: the All row is the
+         * one omitted now, and Withdraw-1 reappears at op 2. */
+        bank->quantity_mode = MOCK230_BANK_QTY_ALL;
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 100,
+                       "op 1 is still the default, which is now All");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,
+                       "and Withdraw-1 is back at op 2");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == 99,
+                       "All-but-1 stays last");
+
+        /* The side panel numbers its rows with constants, so it does not move. */
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 1) == 1,
+                       "side op 3 is always Deposit-1");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 1) == 100,
+                       "side op 8 is always Deposit-All");
+    }
+
+    fprintf(stderr, "mock230 selftest: bank open sends both halves\n");
+    {
+        static struct Mock230Capture capture;
+        /* IF_OPENSUB twice (main then side), IF_SETEVENTS to make the grids
+         * clickable, then the container. */
+        static const int k_open[] = {
+            6 /* IF_OPENSUB */, 6 /* IF_OPENSUB */, 47 /* IF_SETEVENTS */,
+            10 /* UPDATE_INV_FULL */,
+        };
+
+        mock230_world_init(&srv, 402, 402);
+        mock230_capture_begin(&srv, &capture);
+        mock230_bank_open(&srv);
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_open, 4),
+                       "opening the bank should mount, unlock, then fill");
+        SELFTEST_CHECK(player->bank.open, "and leave the bank marked open");
+
+        /* Insert mode moves a slot without displacing its neighbour. */
+        {
+            int first = player->bank.slots[0].obj_id;
+            int second = player->bank.slots[1].obj_id;
+            int third = player->bank.slots[2].obj_id;
+
+            player->bank.insert_mode = 1;
+            mock230_bank_move_slot(&srv, 0, 2);
+            SELFTEST_CHECK(player->bank.slots[0].obj_id == second &&
+                               player->bank.slots[1].obj_id == third &&
+                               player->bank.slots[2].obj_id == first,
+                           "insert should shuffle, not swap");
+            player->bank.insert_mode = 0;
+            mock230_bank_move_slot(&srv, 2, 0);
+            SELFTEST_CHECK(player->bank.slots[0].obj_id == first &&
+                               player->bank.slots[2].obj_id == second,
+                           "swap should exchange the two slots");
+        }
+
+        mock230_bank_close(&srv);
+        SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
     }
 
     if( g_selftest_failures )

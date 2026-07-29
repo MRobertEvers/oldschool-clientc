@@ -12,6 +12,7 @@ struct CacheProvider;
 struct InvManager;
 struct VarPManager;
 struct VarCManager;
+struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
@@ -60,12 +61,37 @@ struct RS_CS2VarTransmitHook
     uint32_t last_seen_serial;
 };
 
+/*
+ * Stat-transmit hooks are the third channel of the same reactive loop as inv
+ * and var, and the struct is deliberately the same shape as the other two: a
+ * component, a script, its captured args, the stat ids that trigger it, and the
+ * serial it last fired for.
+ */
+struct RS_CS2StatTransmitHook
+{
+    int component_id;
+    int script_id;
+    int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
+    int int_arg_count;
+    uint32_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+    int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
+    int trigger_count;
+    /** stat_change_serial this hook last fired for (0 = never fired). */
+    uint32_t last_seen_serial;
+};
+
 struct RS_CS2Host
 {
     struct UITree* tree;
     struct CacheProvider* provider;
     struct InvManager* invs;
     struct VarPManager* varps;        /* may be NULL */
+    /** Skill levels and xp, for the STAT / STAT_BASE / STAT_XP opcodes. May be
+     *  NULL, in which case those read 0 — which is what the skills tab used to
+     *  show unconditionally. */
+    struct RS_PlayerStats* stats;
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     bool has_pending;
@@ -130,11 +156,27 @@ struct RS_CS2Host
      *  until something wires the real value in. */
     int cam_yaw;
 
+    /** The orbit camera as scripts see it, backing CAM_GETANGLE_XA/YA (5505/5506)
+     *  and written by CAM_FORCEANGLE (5504). Units are the reference's
+     *  orbitCameraPitch / orbitCameraYaw: pitch 128..383, yaw 0..2047 — not the
+     *  renderer's. The app mirrors its live orbit camera in here once per logic
+     *  tick (RS_CS2Host_SetCameraAngles), so a getter reads the real camera even
+     *  though this host has no pointer to it. */
+    int cam_angle_x;
+    int cam_angle_y;
+    /** Raised by CAM_FORCEANGLE and cleared by RS_CS2Host_TakeCameraForce. The
+     *  app consumes it on the way back so a script snap survives the mirror
+     *  write that would otherwise overwrite it on the next tick. */
+    bool cam_angle_forced;
+
     struct RS_CS2InvTransmitHook inv_transmit_hooks[RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX];
     int inv_transmit_hook_count;
 
     struct RS_CS2VarTransmitHook var_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
     int var_transmit_hook_count;
+
+    struct RS_CS2StatTransmitHook stat_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
+    int stat_transmit_hook_count;
 
     /** Set when IF_SETHIDE unhides a subtree (TS markWidgetsLoaded). Consumed once
      *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating
@@ -149,6 +191,14 @@ struct RS_CS2Host
      *  (via RS_CS2Host_NotifyInvChanged, wired to the UPDATE_INV_* handlers and
      *  to local slot swaps). Consumed once per tick by RS_CS2_PumpTransmits. */
     int inv_transmit_dirty;
+    /** Set when a skill's level or experience changed this tick (via
+     *  RS_CS2Host_NotifyStatChanged, wired to UPDATE_STAT). Without it the
+     *  skills tab paints once at build time — against the zeroes it starts
+     *  with — and nothing ever asks it to paint again. */
+    int stat_transmit_dirty;
+    int stat_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
+    int stat_changed_count;
+    int stat_changed_all;
     /** Which container ids changed since the last dispatch, mirroring
      *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
     int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
@@ -169,6 +219,7 @@ struct RS_CS2Host
      *  bump lets already-fired hooks re-run when a value changes. */
     uint32_t var_change_serial;
     uint32_t inv_change_serial;
+    uint32_t stat_change_serial;
 
     /** Live pointer position in canvas coords, backing MOUSE_GETX / MOUSE_GETY
      *  (-1,-1 when the pointer is off the canvas, as the reference reports).
@@ -235,6 +286,21 @@ RS_CS2Host_Init(
     struct VarPManager* varps,
     struct VarCManager* varcs);
 
+/** Give the host the player's skill table. Separate from Init because the
+ *  stats outlive a host re-init and Init has enough parameters already. */
+void
+RS_CS2Host_SetStats(
+    struct RS_CS2Host* host,
+    struct RS_PlayerStats* stats);
+
+/** Signal that a skill changed: bumps stat_change_serial and flags a
+ *  stat-transmit re-dispatch. The stat half of the same reactive loop
+ *  NotifyVarChanged and NotifyInvChanged drive. Pass -1 for "all". */
+void
+RS_CS2Host_NotifyStatChanged(
+    struct RS_CS2Host* host,
+    int stat_id);
+
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change
  *  callbacks; safe to call with any/no var id. */
@@ -259,6 +325,24 @@ void
 RS_CS2Host_SetBridge(
     struct RS_CS2Host* host,
     struct UITreeSceneBridge* bridge);
+
+/** Mirror the live orbit camera into the host so CAM_GETANGLE_XA/YA and
+ *  CAM_GETYAW answer with the real thing. Call once per logic tick, in script
+ *  units (pitch 128..383, yaw 0..2047). A pending CAM_FORCEANGLE wins: the
+ *  mirror is skipped until RS_CS2Host_TakeCameraForce has handed it over. */
+void
+RS_CS2Host_SetCameraAngles(
+    struct RS_CS2Host* host,
+    int angle_x,
+    int angle_y);
+
+/** Consume a pending CAM_FORCEANGLE. Returns true once per script snap and
+ *  writes the requested angles; returns false when nothing forced them. */
+bool
+RS_CS2Host_TakeCameraForce(
+    struct RS_CS2Host* host,
+    int* out_angle_x,
+    int* out_angle_y);
 
 /** Advance CLIENTCLOCK once per game tick. */
 void

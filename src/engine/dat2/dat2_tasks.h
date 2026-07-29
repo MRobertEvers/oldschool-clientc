@@ -116,6 +116,19 @@ CreateTask_Dat2VarbitLoad(
     struct CacheProvider* provider,
     struct VarPManager* varps);
 
+/*
+ * Hitsplat types (config group 32), whole-group and eager.
+ *
+ * At OldSchool revisions the splat graphic is a plain sprite id held in a
+ * hitsplat config record, not a frame of a named "hitmarks" archive — so
+ * without this the overlay draws the damage number with nothing behind it.
+ */
+struct RS_Hitsplats;
+struct ToriRS_Task*
+CreateTask_Dat2HitsplatLoad(
+    struct CacheProvider* provider,
+    struct RS_Hitsplats* hitsplats);
+
 struct ToriRS_Task*
 CreateTask_Dat2ParamLoad(
     struct CacheProvider* provider,

@@ -1,0 +1,10 @@
+// LostCity's skill_combat/configs/combat.constant.
+^sa_max_energy = 1000
+
+// Attack styles, in the order the combat interface lists them. The engine
+// reads %com_mode back for the style bonus, so these are the numbers both ends
+// agree on.
+^attack_style_accurate = 0
+^attack_style_aggressive = 1
+^attack_style_defensive = 2
+^attack_style_controlled = 3

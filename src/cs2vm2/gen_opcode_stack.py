@@ -62,6 +62,12 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # CAM_GETYAW: no-arg getter. Dedicated dispatch in cs2vm2.c forwards it to the
     # host (CS2VM_HOST_REQUEST_CAM_GETYAW), like CAM_GETFOLLOWHEIGHT.
     6232: (0, 0, 1, 0),
+    # Orbit camera angles (5504..5506). Dedicated dispatch in cs2vm2.c forwards
+    # them to the host; these document the contracts. Units are the script's,
+    # not the renderer's: pitch 128..383, yaw 0..2047.
+    5504: (2, 0, 0, 0),  # CAM_FORCEANGLE(pitch, yaw)
+    5505: (0, 0, 1, 0),  # CAM_GETANGLE_XA -> pitch
+    5506: (0, 0, 1, 0),  # CAM_GETANGLE_YA -> yaw
     3328: (0, 0, 1, 0),  # idle-time getter (script 5327 logout warning polls it)
     # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards them to
     # the host (CS2VM_HOST_REQUEST_MINIMAP), so they never reach StackMetaStub —

@@ -30,11 +30,13 @@
 #include "ui/uitree_hovertext.h"
 #include "ui/uitree_interact.h"
 #include "varc/varc_manager.h"
+#include "game/rs_hitsplat.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
 
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
+struct PktRunClientScript;
 
 #include <stdint.h>
 
@@ -307,6 +309,9 @@ struct App
      * accumulated per frame. */
     int worldmap_drag_display_x;
     int worldmap_drag_display_y;
+    /* A press that releases without panning is a click on the map, not a drag,
+     * so the release has to know whether the view ever moved. */
+    int worldmap_drag_moved;
     /** Scene id of the hitmarks sprite pack, resolved once at boot. */
     int hitmarks_scene_id;
 
@@ -395,6 +400,9 @@ struct App
      * re-enqueues while any item slot still lacks a rasterized icon). */
     int inv_icon_reconcile_inflight;
     struct VarPManager varps;
+    /* Hitsplat types: type -> sprite id, from config group 32. See
+     * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
+    struct RS_Hitsplats hitsplats;
     struct VarCManager varcs;
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
@@ -647,6 +655,15 @@ void
 App_CloseSubInterface(
     struct App* app,
     int target_uid);
+
+/** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Enqueued
+ *  on the same serial pipeline as everything else, so a script that seeds state
+ *  for an interface (the world map's `worldmap_transmitdata`) settles before the
+ *  IF_OPENSUB behind it. */
+void
+App_RunClientScript(
+    struct App* app,
+    struct PktRunClientScript const* request);
 
 /**
  * IDK_SAVEDESIGN: send the accepted character design (reference

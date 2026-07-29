@@ -22,6 +22,22 @@ RS_CS2_DispatchHook(
     int component_id,
     struct UITreeRuntimeScriptHook const* hook);
 
+/** Run a clientscript the server named (RUNCLIENTSCRIPT), with no component
+ *  context — nothing in the tree triggered it, so `.cc_*` opcodes inside it
+ *  have nothing to resolve against, exactly as in the reference. Argument
+ *  encoding matches the hook path: str_mask bit i marks position i as the
+ *  string in str_args[i]. */
+void
+RS_CS2_RunScript(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int script_id,
+    int const* int_args,
+    int arg_count,
+    uint32_t str_mask,
+    char const* const* str_args,
+    int str_arg_count);
+
 /** Once per logic tick: if any widget was unhidden since the last pump, run the
  *  inv/var transmit traversals (per-hook serial gating makes quiet passes free).
  *  TS parity: processWidgetTransmits gated by widgetsLoadedDirty. */

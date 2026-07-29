@@ -72,7 +72,7 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 97, 6, PKT_NAME_IF_SETANIM },
     { 98, 5, PKT_NAME_IF_SETHIDE },
     { 47, 12, PKT_NAME_IF_SETEVENTS },
-    { 84, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* RUNCLIENTSCRIPT */
+    { 84, PKTIN_LENGTH_VARU16, PKT_NAME_RUNCLIENTSCRIPT },
     { 90, PKTIN_LENGTH_VARU8, PKT_NAME_MESSAGE_GAME }, /* osrs230_parse override */
     { 29, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* MESSAGE_PRIVATE */
     /* SET_MAP_FLAG carries (x, y) with 255,255 meaning "clear". The mock only
@@ -126,6 +126,29 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 124, 6, PKT_NAME_MAP_ANIM },
     { 125, 15, PKT_NAME_MAP_PROJANIM },
     { 126, 14, PKT_NAME_LOC_MERGE },
+    /*
+     * UPDATE_PID: p2 the local player's index, p1 members flag.
+     *
+     * Assigned (127 is free here), lc254's payload. Without it the client never
+     * learns which entity is *itself*: `esync.local_pid` stays -1, so
+     * `world->local_pid` does too, and everything that asks "what is my combat
+     * level" — the `(level-N)` suffix on an npc's right-click row, most
+     * visibly — gets no answer. Other call sites paper over it with a 2047
+     * sentinel; the minimenu deliberately does not, because the reference
+     * gates the whole suffix on having a local player.
+     */
+    { 127, 3, PKT_NAME_UPDATE_PID },
+    /*
+     * P_COUNTDIALOG: open the "Enter amount" prompt and wait for a number.
+     *
+     * Assigned (128 is free here), and zero-length like lc254's, which is the
+     * whole packet — the prompt has nothing to configure and the answer comes
+     * back as RESUME_P_COUNTDIALOG. Modern OldSchool drives this through a CS2
+     * script instead of a packet, so there is no real rev-230 opcode to
+     * transcribe; the client already has the handler (RS_Chat.dialog_input),
+     * and nothing but the number was reaching it.
+     */
+    { 128, 0, PKT_NAME_P_COUNTDIALOG },
     { 55, 4, PKT_NAME_NONE },  /* SET_ACTIVE_WORLD_V1 */
     { 22, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* REFLECTION_CHECKER */
     { 52, 8, PKT_NAME_NONE },  /* SEND_PING */

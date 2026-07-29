@@ -374,6 +374,23 @@ cs2 roundtrip (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
 Turns a cache's table 12 into CS2 source and back. The language layer itself
 lives in the library (`src/cs2/`); this is the front end.
 
+```sh
+# One script, out to ./decompiled/.
+git clone https://github.com/RuneStar/cs2 ~/cs2      # the name tables; see --names below
+NAMES=~/cs2/src/main/resources/org/runestar/cs2
+
+3rd/rscache/tools/cs2/cs2 decompile \
+    --cache cache.osrs230 --rev osrs230 \
+    --names "$NAMES" --out decompiled 2319
+# decompiled 1, failed 0, total 1
+# -> decompiled/[clientscript,tob_partydetails_kickmember].cs2
+```
+
+Omit the id list to decompile every script in the cache. **Omitting `--names`,
+though, is what produces `FAIL 2319: no source spelling for 1 as int-bool`** —
+`1` is `^true`, and `true` lives only in `boolean-names.tsv`. See `--names`
+below; that failure is by design, not a decode error.
+
 Two script sources, because they answer different questions:
 
 - `--cache` reads a real cache, which is what the tool is *for*. It also reads

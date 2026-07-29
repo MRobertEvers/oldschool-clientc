@@ -93,13 +93,20 @@ Task_StaticSpritesLoad_Run(
             struct StaticSpriteDef const* def =
                 StaticSprite_Def((enum StaticSpriteSlot)self->slot);
             int sprite_id = static_sprite_lookup(self->provider, def);
+            int scene_id;
             if( sprite_id < 0 )
             {
                 /* Era-absent or missing archive: leave the slot unbound. */
+                if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
+                    fprintf(stderr, "static_sprite: '%s' unresolved\n", def->name);
                 continue;
             }
-            UITreeSceneBridge_EnsureStaticSprite(
+            scene_id = UITreeSceneBridge_EnsureStaticSprite(
                 self->bridge, (enum StaticSpriteSlot)self->slot, sprite_id);
+            if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
+                fprintf(
+                    stderr, "static_sprite: '%s' sprite=%d scene=%d\n", def->name, sprite_id,
+                    scene_id);
         }
     }
 

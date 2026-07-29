@@ -96,6 +96,18 @@ net_out_map_build_complete(
  * 217:5. The width is revision state, so it comes from the table rather than
  * from a call site.
  */
+static void
+out_p_com(
+    struct RSCache_Buffer* buf,
+    int width,
+    int component_id)
+{
+    if( width == 4 )
+        p4(buf, component_id);
+    else
+        p2(buf, component_id);
+}
+
 static int
 out_com(
     struct GameProtoRevTable const* rev,
@@ -110,10 +122,7 @@ out_com(
 
     if( out_begin(rev, random_out, buf, cap, out_name, width, &b) < 0 )
         return -1;
-    if( width == 4 )
-        p4(&b, component_id);
-    else
-        p2(&b, component_id);
+    out_p_com(&b, width, component_id);
     return 1 + (int)b.position;
 }
 
@@ -126,6 +135,55 @@ net_out_if_button(
     int component_id)
 {
     return out_com(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTON, component_id);
+}
+
+int
+net_out_if_button_op(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int component_id,
+    int sub)
+{
+    struct RSCache_Buffer b;
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( op_num < 1 || op_num > 10 )
+        return -1;
+    if( out_begin(
+            rev,
+            random_out,
+            buf,
+            cap,
+            PKTOUT_NAME_IF_BUTTON1 + (op_num - 1),
+            width + 2,
+            &b) < 0 )
+        return -1;
+    out_p_com(&b, width, component_id);
+    p2(&b, sub & 0xffff);
+    return 1 + (int)b.position;
+}
+
+int
+net_out_click_world_map(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int level,
+    int abs_x,
+    int abs_z)
+{
+    struct RSCache_Buffer b;
+
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLICK_WORLD_MAP, 4, &b) < 0 )
+        return -1;
+    /* RSProt ClickWorldMap packs the destination into one int, the same
+     * level<<28 | x<<14 | z coord the CS2 map ops speak. */
+    p4(&b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
+    return 1 + (int)b.position;
 }
 
 int
@@ -345,11 +403,18 @@ out_obj_slot_com(
     int component_id)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, out_name, 6, &b) < 0 )
+    /* The component travels at the revision's full width, like every other
+     * packet that names one (out_com). At rev 230 that is the packed
+     * (interface << 16) | child uid — rsprot's If3Button.combinedId — and
+     * truncating it to two bytes drops the interface half, so a backpack slot
+     * (149<<16|0) and a worn slot arrive identical and equal to zero. */
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( out_begin(rev, random_out, buf, cap, out_name, 4 + width, &b) < 0 )
         return -1;
     p2(&b, obj_id);
     p2(&b, slot);
-    p2(&b, component_id);
+    out_p_com(&b, width, component_id);
     return 1 + (int)b.position;
 }
 
@@ -382,12 +447,14 @@ net_out_opheldt(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDT, 8, &b) < 0 )
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDT, 4 + 2 * width, &b) < 0 )
         return -1;
     p2(&b, obj_id);
     p2(&b, slot);
-    p2(&b, component_id);
-    p2(&b, spell_component_id);
+    out_p_com(&b, width, component_id);
+    out_p_com(&b, width, spell_component_id);
     return 1 + (int)b.position;
 }
 
@@ -405,14 +472,16 @@ net_out_opheldu(
     int use_component_id)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDU, 12, &b) < 0 )
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDU, 8 + 2 * width, &b) < 0 )
         return -1;
     p2(&b, obj_id);
     p2(&b, slot);
-    p2(&b, component_id);
+    out_p_com(&b, width, component_id);
     p2(&b, use_obj_id);
     p2(&b, use_slot);
-    p2(&b, use_component_id);
+    out_p_com(&b, width, use_component_id);
     return 1 + (int)b.position;
 }
 
@@ -452,9 +521,11 @@ net_out_inv_buttond(
     int mode)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND, 7, &b) < 0 )
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
+
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND, 5 + width, &b) < 0 )
         return -1;
-    p2(&b, component_id);
+    out_p_com(&b, width, component_id);
     p2(&b, from_slot);
     p2(&b, to_slot);
     p1(&b, mode);

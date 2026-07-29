@@ -16,6 +16,8 @@
  */
 #include "mock230.h"
 
+#include "mock230_prayer.h"
+
 #include "mock230_ws.h"
 
 /* The client's framing table, for the length check in mock230_send. */
@@ -24,6 +26,7 @@
 #include <rsareabuf.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -45,6 +48,9 @@ enum
     OP_IF_SETANIM = 97,
     OP_IF_SETHIDE = 98,
     OP_IF_CLOSESUB = 36,
+    OP_RUNCLIENTSCRIPT = 84,
+    /* Assigned here, zero-length; see src/net/rev/osrs230/packetin.h. */
+    OP_P_COUNTDIALOG = 128,
     OP_IF_OPENTOP = 60,
     OP_REBUILD_NORMAL = 68,
     OP_UPDATE_RUNENERGY = 77,
@@ -52,6 +58,8 @@ enum
     OP_NPC_INFO = 104,
     OP_SERVER_TICK_END = 108,
     OP_UPDATE_STAT = 114,
+    OP_UPDATE_PID = 127,
+    OP_VARP_LARGE = 82,
 
     /* Zones. 106 is a real rev-230 opcode; the sub-packet opcodes are assigned
      * here and must match src/net/rev/osrs230/packetin.h, which is where the
@@ -107,6 +115,8 @@ opcode_name(int op)
         return "UPDATE_INV_PARTIAL";
     case OP_IF_SETEVENTS:
         return "IF_SETEVENTS";
+    case OP_RUNCLIENTSCRIPT:
+        return "RUNCLIENTSCRIPT";
     case OP_IF_OPENTOP:
         return "IF_OPENTOP";
     case OP_REBUILD_NORMAL:
@@ -121,6 +131,10 @@ opcode_name(int op)
         return "SERVER_TICK_END";
     case OP_UPDATE_STAT:
         return "UPDATE_STAT";
+    case OP_UPDATE_PID:
+        return "UPDATE_PID";
+    case OP_VARP_LARGE:
+        return "VARP_LARGE";
     case OP_UPDATE_ZONE_PARTIAL_FOLLOWS:
         return "UPDATE_ZONE_PARTIAL_FOLLOWS";
     case OP_LOC_ADD_CHANGE:
@@ -326,6 +340,29 @@ mock230_send_if_opensub(
 }
 
 void
+mock230_send_run_clientscript(
+    struct Mock230Server* srv,
+    int script_id,
+    int const* args,
+    int argc)
+{
+    /* Reference layout: the per-argument type string, then the arguments in
+     * REVERSE order, then the script id. Only int arguments are sent — nothing
+     * the mock drives takes a string one, and an unused string path would be an
+     * untested path. */
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 256);
+    for( int i = 0; i < argc; i++ )
+        rsab_p1(&buf, 'i');
+    rsab_p1(&buf, '\n');
+    for( int i = argc - 1; i >= 0; i-- )
+        rsab_p4(&buf, args[i]);
+    rsab_p4(&buf, script_id);
+    flush(srv, &buf, OP_RUNCLIENTSCRIPT, 2);
+}
+
+void
 mock230_send_if_setevents(
     struct Mock230Server* srv,
     int uid,
@@ -438,6 +475,22 @@ mock230_send_if_closesub(
     flush(srv, &buf, OP_IF_CLOSESUB, 0);
 }
 
+/*
+ * P_COUNTDIALOG: open the "Enter amount" prompt.
+ *
+ * No payload — the packet is the whole message, and the answer comes back as
+ * RESUME_P_COUNTDIALOG. The client's handler is `RS_Chat.dialog_input`, which
+ * already existed; only the packet reaching it was missing.
+ */
+void
+mock230_send_if_opencountdialog(struct Mock230Server* srv)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 4);
+    flush(srv, &buf, OP_P_COUNTDIALOG, 0);
+}
+
 void
 mock230_send_varp_small(
     struct Mock230Server* srv,
@@ -449,6 +502,26 @@ mock230_send_varp_small(
     rsab_p2(&buf, id);
     rsab_p1(&buf, value);
     flush(srv, &buf, OP_VARP_SMALL, 0);
+}
+
+/*
+ * VARP_LARGE: p2 id, p4 value.
+ *
+ * VARP_SMALL's value is a single signed byte, so anything outside -128..127
+ * has to go this way. Special-attack energy is in tenths of a percent — 1000
+ * for a full bar — which is exactly the case that made this necessary.
+ */
+void
+mock230_send_varp_large(
+    struct Mock230Server* srv,
+    int id,
+    int value)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p2(&buf, id);
+    rsab_p4(&buf, value);
+    flush(srv, &buf, OP_VARP_LARGE, 0);
 }
 
 void
@@ -473,6 +546,27 @@ mock230_send_stat(
     rsab_p4(&buf, xp);
     rsab_p1(&buf, boosted);
     flush(srv, &buf, OP_UPDATE_STAT, 0);
+}
+
+/*
+ * Which player index the client is.
+ *
+ * The mock puts the local player at 2047 — the classic self index, which is
+ * also what every fallback in the client assumes — but "assumes" is the
+ * problem: `world->local_pid` stays -1 until something says otherwise, and the
+ * minimenu gates its `(level-N)` suffix on a local player actually being
+ * known. Sending it once at login is what makes the client sure.
+ */
+void
+mock230_send_update_pid(
+    struct Mock230Server* srv,
+    int local_pid)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p2(&buf, local_pid);
+    rsab_p1(&buf, 0); /* members flag */
+    flush(srv, &buf, OP_UPDATE_PID, 0);
 }
 
 void
@@ -559,7 +653,11 @@ mock230_send_inv_full(
     int slot_count)
 {
     struct RSAreaBuf buf;
-    open_packet(&buf, 8192);
+    /* A slot is at most 7 bytes (count byte + 4-byte escape + 2-byte obj), and
+     * the bank is 1220 of them — well past the 8 KB this used to reserve when
+     * the only containers were the 28-slot backpack and the 14-slot worn set.
+     * Sizing from the count keeps a full bank inside one packet. */
+    open_packet(&buf, (size_t)(16 + ((slot_count > 0 ? slot_count : 0) * 7)));
     rsab_p4(&buf, component);
     rsab_p2(&buf, container);
     rsab_p2(&buf, slot_count);
@@ -651,7 +749,23 @@ put_appearance(
     }
 
     rsab_p1(buf, 0); /* gender: male */
-    rsab_p1(buf, 0); /* head icon */
+    /*
+     * Overhead icons.
+     *
+     * A real rev-230 appearance carries two separate one-byte fields here — a
+     * prayer icon index and a PK-skull index, each 255 for "none". This client
+     * reads ONE byte and treats it as a bitmask over the `headicons` sprite
+     * pack (app.c: app_overlay_build_player_headicons plots every set bit,
+     * stacked upward), which is the older shape. The mask is what goes on the
+     * wire because the client is the only consumer; see
+     * docs/mock230_player_systems.md §4.
+     */
+    {
+        int headicons = mock230_prayer_headicon_mask(player);
+        if( headicons && getenv("MOCK230_VERBOSE") )
+            fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
+        rsab_p1(buf, headicons);
+    }
     for( int i = 0; i < 12; i++ )
     {
         if( slots[i] == 0 )

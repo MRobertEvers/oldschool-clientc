@@ -304,6 +304,12 @@ RS_GameProto_Exec(
         {
             RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
+            /* The reactive half. Without it the skills tab paints once at
+             * build time — against the zeroes the client starts with — and
+             * nothing ever asks it to paint again, which is the same shape as
+             * the inv-transmit gap that left server-driven inventories blank. */
+            if( ctx->app )
+                RS_CS2Host_NotifyStatChanged(&ctx->app->host, packet->_update_stat.stat);
             RS_PlayerStats_RecomputeCombatLevel(ctx->stats);
         }
         break;
@@ -471,6 +477,10 @@ RS_GameProto_Exec(
     case PKT_NAME_IF_CLOSESUB:
         if( ctx->app )
             App_CloseSubInterface(ctx->app, packet->_if_closesub.target_uid);
+        break;
+    case PKT_NAME_RUNCLIENTSCRIPT:
+        if( ctx->app )
+            App_RunClientScript(ctx->app, &packet->_runclientscript);
         break;
 
     /* ---- chat ---- */

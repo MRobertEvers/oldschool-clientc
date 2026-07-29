@@ -36,7 +36,7 @@ src/net/mock/content/
     npc.pack obj.pack loc.pack seq.pack        generated (tools/gameval_import.py)
     door.pack                                  generated (tools/door_import.py)
     interface.pack component.pack inv.pack     hand-authored
-    varp.pack stat.pack param.pack             hand-authored
+    varp.pack varbit.pack stat.pack param.pack hand-authored
   maps/
     m50_50.jm2 …             ==== NPC ==== / ==== OBJ ==== spawn sections
   scripts/
@@ -48,6 +48,8 @@ src/net/mock/content/
     doors/configs/doors.loc                    generated + cache-validated
     drop tables/scripts/*.rs2                  [ai_queue3] drop tables
     drop tables/configs/lootdrop.constant
+    interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
+    interface_bank/configs/bank.varp           the varps its varbits live in
     player/login.rs2
     build/                                     compiled script pack (gitignored)
 ```
@@ -119,6 +121,52 @@ if ($dropint < 1) {
 The engine fires the trigger when an npc reaches zero hitpoints. With no script
 bound, the config's `death_drop` still drops — so an npc with no table leaves
 bones rather than nothing.
+
+### Varps are declared, not hardcoded
+
+LostCity keeps player variables in two places and so does this: a `.varp` config
+declares each one, and content writes it as an ordinary `%name = value`.
+
+```
+content/scripts/player/configs/player_controls.varp
+  [option_nodef]
+  protect=no
+  transmit=yes
+  scope=perm
+
+content/scripts/player/login.rs2
+  %com_mode = ^attack_style_accurate;
+  %option_nodef = ^player_auto_retaliate_on;
+  %sa_attack = 0;
+  %sa_energy = ^sa_max_energy;
+```
+
+The engine reads exactly one key, and it is the one that matters. **`transmit=`
+decides whether the varp reaches the client**, and an *undeclared* varp is
+server-only — the safe default, and what keeps the mock's own counters
+(`mock_greeting_count`, `lumbridge_visited`) off the wire while the combat tab's
+four go out. `protect` and `scope` are parsed and carried so a config shared
+with a LostCity tree keeps its meaning, but this server has neither protected
+scripts nor persistence to apply them to.
+
+Two things follow from copying the reference's semantics rather than inventing
+some:
+
+- **Assigning a varp always transmits, even when the value is unchanged.**
+  LostCity's content contains `%option_nodef = %option_nodef; // resync varp`,
+  which only means anything under that rule. It is also what makes an opening
+  state work at all: `[login]` setting `%com_mode = 0` on a varp that is already
+  0 still has to *tell* the client 0, because the client has never been told
+  anything.
+- **The encoder is picked by magnitude, not by content.** `VARP_SMALL` carries a
+  signed byte; special-attack energy is in tenths of a percent, so a full bar is
+  1000 and would land as −24. Content writes `%sa_energy = ^sa_max_energy` and
+  never learns there are two packets.
+
+There is no varp id in any header. `com_mode` is resolved through
+`pack/varp.pack` at the one place the engine needs it (the attack style, which
+the combat formulas read back) — so the engine and the scripts name the same
+thing, and the id lives in one file.
 
 ---
 

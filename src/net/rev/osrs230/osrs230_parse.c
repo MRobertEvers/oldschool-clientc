@@ -119,6 +119,58 @@ osrs230_parse(
     case PKT_NAME_REBUILD_NORMAL:
         return pkt_rebuild_normal_read(data, len, out);
 
+    /*
+     * RUNCLIENTSCRIPT (op 84). Reference layout: a newline-terminated string of
+     * one type character per argument, then the arguments in REVERSE order
+     * ('s' -> string, anything else -> p4), then the script id as p4. The
+     * reverse order is not a quirk of this port — the reference writer pushes
+     * the CS2 operand stack, which unwinds last-argument-first.
+     */
+    case PKT_NAME_RUNCLIENTSCRIPT:
+    {
+        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
+        int argc = 0;
+
+        while( argc < PKT_RUNCLIENTSCRIPT_ARG_MAX )
+        {
+            int ch = c_g1(&cur);
+            if( cur.over || ch == '\n' || ch == 0 )
+                break;
+            types[argc++] = (char)ch;
+        }
+        types[argc] = '\0';
+        if( cur.over )
+            return 0;
+
+        memset(&out->_runclientscript, 0, sizeof(out->_runclientscript));
+        out->_runclientscript.argc = argc;
+        for( int i = argc - 1; i >= 0; i-- )
+        {
+            if( types[i] == 's' )
+            {
+                char* dst = out->_runclientscript.strv[i];
+                int n = 0;
+                for( ;; )
+                {
+                    int ch = c_g1(&cur);
+                    if( cur.over || ch == '\n' || ch == 0 )
+                        break;
+                    if( n < PKT_RUNCLIENTSCRIPT_STR_LEN - 1 )
+                        dst[n++] = (char)ch;
+                }
+                dst[n] = '\0';
+                out->_runclientscript.str_mask |= 1u << i;
+            }
+            else
+            {
+                out->_runclientscript.intv[i] = c_g4(&cur);
+            }
+        }
+        out->_runclientscript.script_id = c_g4(&cur);
+        return cur.over ? 0 : 1;
+    }
+
     /* IF_OPENTOP (op 60, 2 bytes): interfaceId as p2Alt1 (little-endian short,
      * bytes [lo, hi]). Opens a group as the gameframe root. */
     case PKT_NAME_IF_OPENTOP:

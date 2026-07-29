@@ -6,6 +6,7 @@
 #include "ui/uitree_input.h"
 #include "ui/uitree_inv_view.h"
 #include "ui/uitree_layout.h"
+#include "ui/uitree_obj_cell.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -265,66 +266,79 @@ add_inv_slot_select_row(
     return false;
 }
 
-/* Inventory grid node: resolve the slot under the click (content coords fold
- * ancestor scroll back in) and emit held-item + component-op rows. */
+/*
+ * Held-item rows for one item cell, whichever shape the tree expressed it in
+ * (UITree_ObjCellForNode resolves both — see ui/uitree_obj_cell.h).
+ *
+ * The container's own iop buttons come with it — a shop grid's Value/Sell, the
+ * worn tab's "Remove" — and `cell->obj_ops` says whether the ObjType's own
+ * verbs join them. cell->ops_node_index is where those buttons live: itself
+ * for a grid, the static parent for a rev-230 CS2 cell, because that is where
+ * the paint script puts them. (It leaves a stray op4 "Read" on each backpack
+ * *child*, which the real client hides behind the server's IF_SETEVENTS op
+ * mask; reading the parent's ops instead of the child's is what keeps that row
+ * out without needing the mask — docs/osrs230_mockserver.md §3.6.)
+ */
+static int
+add_obj_cell_rows(
+    struct RS_MinimenuBuildCtx const* ctx,
+    struct UITreeObjCell const* cell,
+    int obj_id,
+    int obj_count,
+    struct UIMinimenu* menu)
+{
+    struct UITreeMenuOptions const* component_ops =
+        &ctx->tree->components[cell->ops_node_index].menu_options;
+    int const before = menu->option_count;
+    struct ToriRS_Objtype const* obj = ensure_objtype(ctx, obj_id);
+    struct UIMinimenuPick pick = pick_inv_slot(cell->component_id, cell->slot, obj_id, obj_count);
+    char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
+    char suffix[UITREE_MINIMENU_OPTION_LEN];
+
+    if( add_inv_slot_select_row(
+            &ctx->selection, pick, cell->component_id, cell->slot, obj_name, menu) )
+        return menu->option_count - before;
+
+    add_inv_obj_rows(menu, pick, obj, cell->obj_ops != 0, cell->obj_use != 0);
+    snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+    /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
+     * Remove), then the always-present Examine — trailing order per reference
+     * (Client.ts: 9993-10020). */
+    add_menu_ops_rows(menu, component_ops, pick, suffix);
+    {
+        char examine[UITREE_MINIMENU_OPTION_LEN];
+        format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);
+        UIMinimenu_AddOption(menu, examine, REVCONFIG_MINIMENU_OPHELD6, 0, pick);
+    }
+    return menu->option_count - before;
+}
+
+/* Item cell under the click, of either shape. The grid's obj lives in
+ * InvManager; a CS2 cell carries its own. */
 static int
 add_inv_slot_rows(
     struct RS_MinimenuBuildCtx const* ctx,
-    struct UITreeComponent const* node,
     int32_t node_idx,
     int click_x,
     int click_y,
     struct UIMinimenu* menu)
 {
-    struct UITreeInvGridLayout layout;
-    int bx = 0, by = 0, bw = 0, bh = 0;
-    int offx = 0, offy = 0;
-    int slot;
-    struct InvSlot inv_slot;
+    struct UITreeObjCell cell;
 
-    layout.cols = node->u.rs_inv.cols;
-    layout.rows = node->u.rs_inv.rows;
-    layout.margin_x = node->u.rs_inv.margin_x;
-    layout.margin_y = node->u.rs_inv.margin_y;
-    layout.offset_x = node->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = node->u.rs_inv.inv_slot_offset_y;
-
-    UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
-    UITree_AccumScrollOffset(ctx->tree, node_idx, &offx, &offy);
-    slot = UITree_InvViewGridHitTest(bx, by, &layout, click_x + offx, click_y + offy);
-    if( slot < 0 )
-        return 0;
-    if( !InvManager_GetSlot(ctx->invs, node->u.rs_inv.inv_source_id, slot, &inv_slot) )
-        return 0;
-    if( inv_slot.obj_id <= 0 )
+    if( !UITree_ObjCellForNode(ctx->tree, node_idx, click_x, click_y, &cell) )
         return 0;
 
+    if( cell.kind == UITREE_OBJ_CELL_GRID )
     {
-        int const before = menu->option_count;
-        struct ToriRS_Objtype const* obj = ensure_objtype(ctx, inv_slot.obj_id);
-        struct UIMinimenuPick pick =
-            pick_inv_slot(node->component_id, slot, inv_slot.obj_id, inv_slot.obj_count);
-        char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
-        char suffix[UITREE_MINIMENU_OPTION_LEN];
-
-        if( add_inv_slot_select_row(
-                &ctx->selection, pick, node->component_id, slot, obj_name, menu) )
-            return menu->option_count - before;
-
-        add_inv_obj_rows(
-            menu, pick, obj, node->u.rs_inv.obj_ops != 0, node->u.rs_inv.obj_use != 0);
-        snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
-        /* Component's own iop buttons (e.g. shop Value/Sell 1/5/10), then the
-         * always-present Examine — trailing order per reference (Client.ts:
-         * 9993-10020). */
-        add_menu_ops_rows(menu, &node->menu_options, pick, suffix);
-        {
-            char examine[UITREE_MINIMENU_OPTION_LEN];
-            format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);
-            UIMinimenu_AddOption(menu, examine, REVCONFIG_MINIMENU_OPHELD6, 0, pick);
-        }
-        return menu->option_count - before;
+        struct InvSlot inv_slot;
+        if( !InvManager_GetSlot(ctx->invs, cell.inv_source_id, cell.slot, &inv_slot) )
+            return 0;
+        if( inv_slot.obj_id <= 0 )
+            return 0;
+        return add_obj_cell_rows(ctx, &cell, inv_slot.obj_id, inv_slot.obj_count, menu);
     }
+
+    return add_obj_cell_rows(ctx, &cell, cell.obj_id, cell.obj_count, menu);
 }
 
 /* Friend/ignore list entries by client_code. src/main has no chat/social
@@ -627,14 +641,41 @@ RS_Minimenu_Build(
     hit_count =
         UITree_CollectNodesAt(ctx->tree, ctx->ui_host, click_x, click_y, hits, RS_MINIMENU_HIT_STACK_MAX);
 
+    /* A cell's rows are emitted for the cell, and the container it borrowed
+     * its verbs from must not emit them a second time on its own account —
+     * the worn tab would otherwise offer "Remove" twice, once as an inventory
+     * op and once as a plain CS2 button. Collected up front because the hits
+     * are walked parent-first below, so the container is reached before the
+     * child that claims it. */
+    int32_t claimed[RS_MINIMENU_HIT_STACK_MAX];
+    int claimed_count = 0;
+    for( int i = 0; i < hit_count; i++ )
+    {
+        struct UITreeObjCell cell;
+        if( UITree_ObjCellForNode(ctx->tree, hits[i], click_x, click_y, &cell) &&
+            cell.ops_node_index != hits[i] )
+            claimed[claimed_count++] = cell.ops_node_index;
+    }
+
     /* Bottom-most node first: later-inserted rows draw higher, so the
      * top-most component's rows land on top of the menu. */
     for( int i = hit_count - 1; i >= 0; i-- )
     {
         struct UITreeComponent const* node = &ctx->tree->components[hits[i]];
+        bool is_claimed = false;
+
+        /* An item cell wins over its own component rows: a rev-230 backpack
+         * slot is a plain dynamic RS_GRAPHIC, so the generic path would claim
+         * it and dispatch a CS2 hook instead of sending an inventory op. */
+        if( add_inv_slot_rows(ctx, hits[i], click_x, click_y, out) > 0 )
+            continue;
         if( node->type == UIELEM_RS_INV )
-            add_inv_slot_rows(ctx, node, hits[i], click_x, click_y, out);
-        else if( node->type == UIELEM_BUILTIN_CHAT )
+            continue;
+        for( int j = 0; j < claimed_count; j++ )
+            is_claimed = is_claimed || claimed[j] == hits[i];
+        if( is_claimed )
+            continue;
+        if( node->type == UIELEM_BUILTIN_CHAT )
             add_chat_rows(ctx, node, click_x, click_y, out);
         else
             add_component_rows(ctx, node, ctx->selection.mode, out);

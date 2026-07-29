@@ -510,6 +510,22 @@ struct PktSetPlayerOp
     char* text;  /* gjstr, heap */
 };
 
+/** RUNCLIENTSCRIPT: a clientscript id plus its arguments. Strings are heap and
+ *  owned by the packet; `str_mask` bit i marks argument i as the string in
+ *  `strv[i]` rather than the int in `intv[i]`, the same convention the CS2
+ *  hook-argument plumbing already uses. */
+#define PKT_RUNCLIENTSCRIPT_ARG_MAX 20
+#define PKT_RUNCLIENTSCRIPT_STR_LEN 128
+
+struct PktRunClientScript
+{
+    int script_id;
+    int argc;
+    uint32_t str_mask;
+    int intv[PKT_RUNCLIENTSCRIPT_ARG_MAX];
+    char strv[PKT_RUNCLIENTSCRIPT_ARG_MAX][PKT_RUNCLIENTSCRIPT_STR_LEN];
+};
+
 struct RevPacket
 {
     enum GameProtoPktName packet_type;
@@ -582,6 +598,7 @@ struct RevPacket
         struct PktMidiSong _midi_song;
         struct PktMidiJingle _midi_jingle;
         struct PktSetPlayerOp _set_player_op;
+        struct PktRunClientScript _runclientscript;
     };
 };
 

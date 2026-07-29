@@ -1,0 +1,33 @@
+// The two "deposit everything" buttons, ported from LostCity's bank_deposit.rs2.
+//
+// The reference walks the container and moves each obj by *type*, not by slot,
+// which is what makes a backpack holding 25 bones deposit as one stack rather
+// than as 25 separate moves. `inv_moveitem` un-notes on the way in, so a
+// backpack full of noted swordfish and a backpack full of swordfish both land
+// on the same bank slot.
+//
+// Both loops read the slot back on every iteration rather than caching the
+// count, because a move can empty more than the slot it was told about.
+
+[if_button,bankmain_deposit_inv] @deposit_inv;
+[if_button,bankmain_deposit_worn] @deposit_worn;
+
+[label,deposit_inv]
+def_int $slot = 0;
+while ($slot < inv_size(inv)) {
+    def_obj $obj = inv_getobj(inv, $slot);
+    if ($obj ! null) {
+        inv_moveitem(inv, bank, $obj, inv_total(inv, $obj));
+    }
+    $slot = calc($slot + 1);
+}
+
+[label,deposit_worn]
+def_int $slot = 0;
+while ($slot < inv_size(worn)) {
+    def_obj $obj = inv_getobj(worn, $slot);
+    if ($obj ! null) {
+        inv_moveitem(worn, bank, $obj, inv_getnum(worn, $slot));
+    }
+    $slot = calc($slot + 1);
+}

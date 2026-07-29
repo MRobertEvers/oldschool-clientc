@@ -50,13 +50,16 @@ Layout:
 | `src/net/mock/mock230_content.c` | the LostCity content tree — see `docs/mock230_content.md` |
 | `src/net/mock/mock230_scene.c` | collision and locs, built from the cache's map squares |
 | `src/net/mock/mock230_combat.c` | melee on OldSchool's own arithmetic |
+| `src/net/mock/mock230_bank.c` | the bank — see [`mock230_bank.md`](mock230_bank.md) |
 | `src/net/mock/mock230_pack.c` | content validator + derived-cache exporter |
 | `3rd/rsareabuf/` | the packet buffer everything encodes through |
 
 The world is **Lumbridge**, spawned from OpenRune's own spawn list, with
 collision read out of the same map squares the client draws. Content — combat
 stats, drop tables, doors, dialogue — lives in `src/net/mock/content` and is
-documented separately in [`mock230_content.md`](mock230_content.md).
+documented separately in [`mock230_content.md`](mock230_content.md). The HUD
+that fighting drives — hitsplats, the skills tab, npc level suffixes, facing,
+the combat tab — is in [`combat_hud.md`](combat_hud.md).
 
 ---
 
@@ -635,6 +638,21 @@ frame) rather than as a closed connection.
 The frame codec is the client's, shared: `src/platform/net_transport_ws_frame.c`,
 unit-tested by `make -C src test-ws-frame`.
 
+## 3.14 The world map is the server's, start to finish
+
+`src/net/mock/mock230_worldmap.c`. The orb on the minimap has no client-side
+behaviour beyond a click sound, so opening the map is four server steps:
+`IF_SETEVENTS` to arm the orb's ops at login, `IF_BUTTON<op>` in, a
+`RUNCLIENTSCRIPT` of `worldmap_transmitdata` carrying the player's coord, then
+`IF_OPENSUB` of interface 595 into the toplevel's floater slot (161:18).
+Clicking the map comes back as `CLICK_WORLD_MAP`.
+
+Three of those were new wire: `IF_BUTTON1..10` (the *numbered* op on a plain
+IF3 widget — `IF_BUTTON` alone is the op-less click), `RUNCLIENTSCRIPT`
+inbound, and `CLICK_WORLD_MAP` outbound. Full write-up, including how each id
+was established from the decompiled clientscripts, in
+[`worldmap_and_gameframe_fixes.md`](worldmap_and_gameframe_fixes.md).
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —
@@ -738,10 +756,16 @@ The mock also accepts `::` commands over `CLIENT_CHEAT` (`item <id> [count]`,
 
 ## 6. Follow-ups, in the order they unblock things
 
-1. **Inventory-slot association for CS2-created components** (§5) — unblocks
-   equip and drag through the UI. Everything on both sides of it already works.
-2. **`IF_SETEVENTS`** (§3.6) — the client has no server-driven events mask, so
-   op availability is currently whatever the interface definition says.
+1. ~~**Inventory-slot association for CS2-created components** (§5)~~ — **done**.
+   `UITree_ObjCellForNode` resolves a CS2 item cell, and a numbered op on one
+   goes to the server as `IF_BUTTON<n>` carrying the container uid and the sub
+   id. The last piece was whose verbs the cell offers — the container's or the
+   child's — which the bank is what found; see
+   [`mock230_bank.md`](mock230_bank.md) §6.
+2. ~~**`IF_SETEVENTS`** (§3.6)~~ — **done**. The mask is persisted by
+   `App_IfEventsSet` and gates both the minimenu row and the outbound
+   `IF_BUTTON<n>`. Note the convention: the bit for op N is `1 << N` with N
+   one-based.
 3. **A real v5 `PLAYER_INFO`/`NPC_INFO` decoder** (§3.1) — the prerequisite for
    ever pointing this client at a real OldSchool 230 server. The rev table has
    three unused function-pointer slots (`player_info_read`, `npc_info_read`,

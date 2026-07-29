@@ -9,5 +9,5 @@
 // Content decides who is aggressive and how hard they hit, and those live in
 // the area's .npc config. What belongs here is anything a fight should *say*.
 
-[opnpc1,goblin]
+[opnpc2,goblin]
 npc_say("Ye be dead soon!");

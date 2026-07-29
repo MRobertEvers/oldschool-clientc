@@ -53,26 +53,48 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     /* 4, not 2: rev 230 sends a packed (interface << 16) | child uid. See
      * GameProtoRevTable.component_id_bytes. */
     { PKTOUT_NAME_IF_BUTTON,           40,  4 },
+
+    /* IF_BUTTON1..10 (RSProt If3Button): p4 combined component uid, p2 sub.
+     * `sub` is the dynamic-child index a grid cell was clicked in, or -1 for a
+     * plain widget. Opcodes assigned here like the rest of this table. */
+    { PKTOUT_NAME_IF_BUTTON1,          90,  6 },
+    { PKTOUT_NAME_IF_BUTTON2,          91,  6 },
+    { PKTOUT_NAME_IF_BUTTON3,          92,  6 },
+    { PKTOUT_NAME_IF_BUTTON4,          93,  6 },
+    { PKTOUT_NAME_IF_BUTTON5,          94,  6 },
+    { PKTOUT_NAME_IF_BUTTON6,          95,  6 },
+    { PKTOUT_NAME_IF_BUTTON7,          96,  6 },
+    { PKTOUT_NAME_IF_BUTTON8,          97,  6 },
+    { PKTOUT_NAME_IF_BUTTON9,          98,  6 },
+    { PKTOUT_NAME_IF_BUTTON10,         99,  6 },
+
+    /* CLICK_WORLD_MAP: p4 packed coord (level << 28 | x << 14 | z). */
+    { PKTOUT_NAME_CLICK_WORLD_MAP,     100, 4 },
     { PKTOUT_NAME_RESUME_PAUSEBUTTON,  41,  4 },
     { PKTOUT_NAME_CLOSE_MODAL,         42,  0 },
     { PKTOUT_NAME_RESUME_P_COUNTDIALOG,43,  4 },
 
-    /* Held-item ops: p2 obj, p2 slot, p2 component. OPHELD2 is wear/wield. */
-    { PKTOUT_NAME_OPHELD1,             57,  6 },
-    { PKTOUT_NAME_OPHELD2,             58,  6 },
-    { PKTOUT_NAME_OPHELD3,             59,  6 },
-    { PKTOUT_NAME_OPHELD4,             61,  6 },
-    { PKTOUT_NAME_OPHELD5,             62,  6 },
-    { PKTOUT_NAME_OPHELDT,             63,  8 },
-    { PKTOUT_NAME_OPHELDU,             64,  12 },
+    /* Held-item ops: p2 obj, p2 slot, p4 component. OPHELD2 is wear/wield.
+     * The component is 4 bytes for the same reason IF_BUTTON's is — rev 230
+     * names a component by the packed (interface << 16) | child uid, which is
+     * rsprot's If3Button.combinedId. `slot` is the sub id beside it: the
+     * inventory slot for the backpack, the dynamic child index for a worn
+     * slot (rsprot If3Button.sub). */
+    { PKTOUT_NAME_OPHELD1,             57,  8 },
+    { PKTOUT_NAME_OPHELD2,             58,  8 },
+    { PKTOUT_NAME_OPHELD3,             59,  8 },
+    { PKTOUT_NAME_OPHELD4,             61,  8 },
+    { PKTOUT_NAME_OPHELD5,             62,  8 },
+    { PKTOUT_NAME_OPHELDT,             63,  12 },
+    { PKTOUT_NAME_OPHELDU,             64,  16 },
 
-    /* Inventory-component ops + drag. INV_BUTTOND is p2 com, p2 from, p2 to, p1 mode. */
-    { PKTOUT_NAME_INV_BUTTON1,         44,  6 },
-    { PKTOUT_NAME_INV_BUTTON2,         45,  6 },
-    { PKTOUT_NAME_INV_BUTTON3,         46,  6 },
-    { PKTOUT_NAME_INV_BUTTON4,         47,  6 },
-    { PKTOUT_NAME_INV_BUTTON5,         48,  6 },
-    { PKTOUT_NAME_INV_BUTTOND,         49,  7 },
+    /* Inventory-component ops + drag. INV_BUTTOND is p4 com, p2 from, p2 to, p1 mode. */
+    { PKTOUT_NAME_INV_BUTTON1,         44,  8 },
+    { PKTOUT_NAME_INV_BUTTON2,         45,  8 },
+    { PKTOUT_NAME_INV_BUTTON3,         46,  8 },
+    { PKTOUT_NAME_INV_BUTTON4,         47,  8 },
+    { PKTOUT_NAME_INV_BUTTON5,         48,  8 },
+    { PKTOUT_NAME_INV_BUTTOND,         49,  9 },
 
     /* NPC ops: p2 npc slot. */
     { PKTOUT_NAME_OPNPC1,              9,   2 },

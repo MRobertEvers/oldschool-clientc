@@ -230,6 +230,10 @@ static struct Mock230NpcDef* g_npc_defs;
 static int g_npc_def_count;
 static int g_npc_def_capacity;
 
+static struct Mock230VarpDef* g_varp_defs;
+static int g_varp_def_count;
+static int g_varp_def_capacity;
+
 static struct Mock230LocDef* g_loc_defs;
 static int g_loc_def_count;
 static int g_loc_def_capacity;
@@ -277,6 +281,17 @@ const struct Mock230NpcDef*
 mock230_content_npc_default(void)
 {
     return &g_npc_default;
+}
+
+const struct Mock230VarpDef*
+mock230_content_varp(int varp_id)
+{
+    for( int i = 0; i < g_varp_def_count; i++ )
+    {
+        if( g_varp_defs[i].varp_id == varp_id )
+            return &g_varp_defs[i];
+    }
+    return NULL;
 }
 
 const struct Mock230LocDef*
@@ -493,6 +508,74 @@ load_npc_config(const char* path)
         }
         snprintf(where, sizeof(where), "%s:%d", path, line_number);
         npc_config_key(def, line, value, where);
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
+/* .varp configs                                                       */
+/* ------------------------------------------------------------------ */
+
+static void
+load_varp_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    struct Mock230VarpDef* def = NULL;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = clean_line(raw);
+        char* header;
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = section_header(line);
+        if( header )
+        {
+            int varp_id = mock230_content_symbol(MOCK230_PACK_VARP, header);
+
+            def = NULL;
+            if( varp_id < 0 )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not in pack/varp.pack\n", path, line_number,
+                              header);
+                continue;
+            }
+            g_varp_defs = grow(g_varp_defs, &g_varp_def_capacity, g_varp_def_count,
+                               sizeof(*g_varp_defs));
+            def = &g_varp_defs[g_varp_def_count++];
+            memset(def, 0, sizeof(*def));
+            def->varp_id = varp_id;
+            def->symbol = mock230_content_symbol_name(MOCK230_PACK_VARP, varp_id);
+            def->clientcode = -1;
+            continue;
+        }
+
+        value = split_key_value(line);
+        if( !value || !def )
+        {
+            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
+                          line_number);
+            continue;
+        }
+
+        if( strcmp(line, "transmit") == 0 )
+            def->transmit = strcmp(value, "yes") == 0;
+        else if( strcmp(line, "protect") == 0 )
+            def->protect = strcmp(value, "yes") == 0;
+        else if( strcmp(line, "scope") == 0 )
+            def->scope_perm = strcmp(value, "perm") == 0;
+        else if( strcmp(line, "clientcode") == 0 )
+            def->clientcode = atoi(value);
+        else
+            CONTENT_ERROR("%s:%d: unknown varp key `%s`\n", path, line_number, line);
     }
     fclose(file);
 }
@@ -891,6 +974,7 @@ mock230_content_load(const char* dir)
     init_defaults();
 
     snprintf(path, sizeof(path), "%s/scripts", dir);
+    walk_configs(path, ".varp", load_varp_config);
     walk_configs(path, ".npc", load_npc_config);
     walk_configs(path, ".loc", load_loc_config);
     resolve_loc_stages();
@@ -899,10 +983,10 @@ mock230_content_load(const char* dir)
     load_maps(path);
 
     fprintf(stderr,
-            "mock230: content loaded (%d symbols, %d npc defs, %d loc defs, "
-            "%d npc spawns, %d obj spawns%s)\n",
-            symbols, g_npc_def_count, g_loc_def_count, g_npc_spawn_count, g_obj_spawn_count,
-            g_errors ? ", WITH ERRORS" : "");
+            "mock230: content loaded (%d symbols, %d npc defs, %d loc defs, %d varp "
+            "defs, %d npc spawns, %d obj spawns%s)\n",
+            symbols, g_npc_def_count, g_loc_def_count, g_varp_def_count, g_npc_spawn_count,
+            g_obj_spawn_count, g_errors ? ", WITH ERRORS" : "");
     return g_npc_def_count;
 }
 
@@ -924,6 +1008,9 @@ mock230_content_free(void)
     free(g_loc_defs);
     g_loc_defs = NULL;
     g_loc_def_count = g_loc_def_capacity = 0;
+    free(g_varp_defs);
+    g_varp_defs = NULL;
+    g_varp_def_count = g_varp_def_capacity = 0;
     free(g_npc_spawns);
     g_npc_spawns = NULL;
     g_npc_spawn_count = g_npc_spawn_capacity = 0;

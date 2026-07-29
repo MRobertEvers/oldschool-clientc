@@ -326,6 +326,12 @@ struct ToriRS_Objtype
      * a note. */
     int cert_link;
     int cert_template;
+    /** Weapon/equipment class from the cache record's `category` field, or 0.
+     *  This is the key the combat interface's dbtable
+     *  (`combat_interface_weapon_category`) is looked up by — cache.osrs230
+     *  gives the bronze scimitar 21 and the abyssal whip 150. Carried through
+     *  from the cache because nothing else can reconstruct it. */
+    int category;
     int zoom2d;
     int xan2d;
     int yan2d;
