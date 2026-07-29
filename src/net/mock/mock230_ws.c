@@ -584,22 +584,6 @@ mock230_conn_recv(
 }
 
 int
-mock230_conn_recv_full(
-    struct Mock230Conn* conn,
-    uint8_t* out,
-    int count)
-{
-    int got = 0;
-    while( got < count )
-    {
-        if( conn->app_len == 0 && !conn_fill(conn) )
-            break;
-        got += app_take(conn, out + got, count - got);
-    }
-    return got;
-}
-
-int
 mock230_conn_send(
     struct Mock230Conn* conn,
     uint8_t const* data,

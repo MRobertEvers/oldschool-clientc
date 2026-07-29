@@ -1,10 +1,10 @@
 /*
  * mock230_pack — check the content tree against the cache, and optionally bake
- * it into one.
+ * server-authoritative overlays into a derived cache.
  *
  *   make -C src mock230-pack
  *   src/build/mock230_pack                       # validate
- *   src/build/mock230_pack --cache-out cache.mock  # validate + write
+ *   src/build/mock230_pack --cache-out cache.mock  # validate + bake
  *
  * Why this exists: every id in the tree came from OpenRune's gameval table,
  * whose cache is revision 235.10, and the mock runs against 230. An id that
@@ -18,12 +18,16 @@
  * So the rule is: the importers state, this validates. A non-zero exit means
  * the tree and the cache disagree.
  *
- * `--cache-out` is the other half. The mock reads its combat data out of the
- * text tree, which is enough for the mock — but a *cache* is the portable form,
- * readable by dump_npc, by the client, and by any other server pointed at it.
- * The export writes the authored blocks back into each npc record's param
- * table, using the ids in content/pack/param.pack, beside the equipment
- * bonuses OldSchool already keeps there.
+ * `--cache-out` is the revision-loop pack step. The mock reads overlays from
+ * server/scripts feature configs at boot, which is enough for the mock — but a
+ * *cache* is the portable form. The export folds authored fields that have a
+ * home in the client record into each record's param table:
+ *
+ *   - npc combat overlays (hitpoints, attacklevel, death_drop, anims, ...)
+ *   - loc door stages (`next_loc_stage` -> param of the same name)
+ *
+ * using the ids in pack/param.pack. Pure server data (RuneScript, enums,
+ * drop tables) stays in `server/` and is not baked.
  */
 
 #include "mock230.h"
@@ -211,6 +215,126 @@ validate_spawns(void)
             report_error("obj %d spawned at %d,%d is not in the cache", objs[i].obj_id,
                          objs[i].x, objs[i].z);
     }
+}
+
+/*
+ * Equipment requirements.
+ *
+ * The table is merged from two sources that disagree — cache.osrs239's own
+ * params 434/436 + 435/437, and `skill_combat/configs/equipment.obj` imported
+ * from Kronos — so what this checks is not "is it there" but "is it *sane*",
+ * which for a requirement means four things:
+ *
+ *   - the skill is one the wire has (0..22),
+ *   - the level is 1..99,
+ *   - the obj it gates is actually wearable, because a requirement on something
+ *     you cannot equip can never fire and is therefore a mis-typed symbol,
+ *   - and the ladder still climbs. A scimitar ladder that reads 5/10/20/30/40/60
+ *     is the one line of this report worth reading at a glance; a source swapped
+ *     for a worse one shows up as a number out of order rather than as silence.
+ *
+ * See tools/kronos_item_import.py for where the numbers come from and
+ * docs/mock230_content.md §5 for why neither source is trusted alone.
+ */
+static void
+validate_requirements(void)
+{
+    /* The ladders. Every one of these is an OldSchool value nobody should be
+     * able to change by accident, and they span both sources: steel through
+     * adamant come from the overlay, rune and dragon from the cache. */
+    static const struct
+    {
+        const char* symbol;
+        int stat;
+        int level;
+    } k_expect[] = {
+        { "bronze_scimitar", -1, 0 },  /* no requirement at all */
+        { "iron_scimitar", -1, 0 },
+        { "steel_scimitar", MOCK230_STAT_ATTACK, 5 },
+        { "black_scimitar", MOCK230_STAT_ATTACK, 10 },
+        { "mithril_scimitar", MOCK230_STAT_ATTACK, 20 },
+        { "adamant_scimitar", MOCK230_STAT_ATTACK, 30 },
+        { "rune_scimitar", MOCK230_STAT_ATTACK, 40 },
+        { "dragon_scimitar", MOCK230_STAT_ATTACK, 60 },
+        { "rune_platebody", MOCK230_STAT_DEFENCE, 40 },
+        { "abyssal_whip", MOCK230_STAT_ATTACK, 70 },
+        { "magic_shortbow", MOCK230_STAT_RANGED, 50 },
+    };
+    int total = 0;
+    int from_cache = 0;
+    int checked = 0;
+
+    mock230_obj_require_counts(&total, &from_cache);
+    fprintf(stderr, "equipment requirements\n");
+
+    for( int obj_id = 0; obj_id < 40000; obj_id++ )
+    {
+        const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
+        const struct Mock230ObjInfo* info;
+
+        if( !require )
+            continue;
+        checked++;
+        info = mock230_objinfo(obj_id);
+        if( info->wearpos < 0 )
+            report_error("obj %d (%s) has an equip requirement but cannot be worn",
+                         obj_id, info->name ? info->name : "?");
+        for( int i = 0; i < require->count; i++ )
+        {
+            if( require->req[i].stat < 0 || require->req[i].stat >= MOCK230_STAT_COUNT )
+                report_error("obj %d (%s) requires skill %d, which is not a skill", obj_id,
+                             info->name ? info->name : "?", require->req[i].stat);
+            if( require->req[i].level < 1 || require->req[i].level > 99 )
+                report_error("obj %d (%s) requires level %d", obj_id,
+                             info->name ? info->name : "?", require->req[i].level);
+        }
+    }
+
+    for( size_t i = 0; i < sizeof(k_expect) / sizeof(k_expect[0]); i++ )
+    {
+        int obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, k_expect[i].symbol);
+        const struct Mock230ObjRequire* require;
+        int found = 0;
+
+        if( obj_id < 0 )
+        {
+            report_error("%s is not in pack/obj.pack", k_expect[i].symbol);
+            continue;
+        }
+        require = mock230_obj_require(obj_id);
+        if( k_expect[i].stat < 0 )
+        {
+            if( require )
+                report_error("%s should have no requirement, has %d", k_expect[i].symbol,
+                             require->count);
+            continue;
+        }
+        if( !require )
+        {
+            report_error("%s should require %d in skill %d, has no requirement",
+                         k_expect[i].symbol, k_expect[i].level, k_expect[i].stat);
+            continue;
+        }
+        for( int r = 0; r < require->count; r++ )
+        {
+            if( require->req[r].stat != k_expect[i].stat )
+                continue;
+            found = 1;
+            if( require->req[r].level != k_expect[i].level )
+                report_error("%s requires level %d in skill %d, expected %d",
+                             k_expect[i].symbol, require->req[r].level, k_expect[i].stat,
+                             k_expect[i].level);
+        }
+        if( !found )
+            report_error("%s does not require skill %d at all", k_expect[i].symbol,
+                         k_expect[i].stat);
+    }
+
+    report_info("%d objs carry a requirement — %d out of the cache's own params, %d "
+                "added or corrected by the .obj overlay",
+                total, from_cache, total - from_cache);
+    fprintf(stderr, "        %d requirement rows checked, %zu ladder values pinned\n", checked,
+            sizeof(k_expect) / sizeof(k_expect[0]));
 }
 
 /*
@@ -592,18 +716,195 @@ bake_npc_params(
     }
 }
 
+static void
+bake_loc_params(
+    struct RSCache_Dat2ConfigLoc* loc,
+    const struct Mock230LocDef* def)
+{
+    int key;
+
+    if( !def || def->next_loc_stage < 0 )
+        return;
+    key = mock230_content_symbol(MOCK230_PACK_PARAM, "next_loc_stage");
+    if( key < 0 )
+    {
+        report_warning("param.pack has no id for `next_loc_stage` — not baked");
+        return;
+    }
+    param_set(&loc->params, key, def->next_loc_stage);
+}
+
 /*
- * Re-encode the npc config group with the authored params folded in.
+ * Re-encode one config group with overlays folded into params.
  *
- * The npc encoder is a semantic round trip, not a byte-exact one: it cannot
- * tell "field absent" from "field present and zero", so a re-encoded record is
- * usually a few bytes shorter than the original. Decoding it yields the same
- * struct, which is what matters here — but it does mean the output cache is not
- * byte-identical to the input even for records nothing touched, so every record
- * in the group is re-encoded rather than only the edited ones. Splicing edited
- * records into original bytes would be the byte-exact option and needs an
- * encoder that can distinguish the two states. See 3rd/rscache/EXCEPTIONS.md.
+ * The encoders are semantic round trips, not byte-exact ones: they cannot tell
+ * "field absent" from "field present and zero", so a re-encoded record is usually
+ * a few bytes shorter than the original. Untouched records keep their original
+ * bytes so the rest of the group stays identical.
  */
+static int
+bake_config_group(
+    struct RSCache_Dat2Disk* disk,
+    struct RSCache* profile,
+    struct RSCache_Dat2Edit* edit,
+    int table,
+    int config_kind,
+    enum RSCache_Type rs_type,
+    int (*bake_one)(
+        struct RSCache* profile,
+        int id,
+        const uint8_t* data,
+        int size,
+        uint8_t* out,
+        uint32_t out_cap,
+        uint32_t* out_size),
+    const char* label,
+    int* out_baked)
+{
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_FileList* files;
+    struct RSCache_FileList packed;
+    uint8_t* encoded_group = NULL;
+    uint32_t encoded_size;
+    int baked = 0;
+    int ok = 0;
+    uint8_t buffer[8192];
+
+    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, config_kind);
+    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
+    {
+        fprintf(stderr, "mock230_pack: no %s config archive\n", label);
+        if( archive )
+            RSCache_Dat2DiskArchiveFree(archive);
+        return 0;
+    }
+    RSCache_ProfileSetGroupRevision(profile, rs_type, archive->revision);
+    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
+                                          archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return 0;
+    }
+
+    memset(&packed, 0, sizeof(packed));
+    packed.file_count = files->file_count;
+    packed.files = calloc((size_t)packed.file_count, sizeof(char*));
+    packed.file_sizes = calloc((size_t)packed.file_count, sizeof(int));
+
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int id = archive->file_ids ? archive->file_ids[i] : i;
+        uint32_t size = 0;
+
+        if( files->file_sizes[i] <= 0 )
+            continue;
+        if( !bake_one(profile, id, (const uint8_t*)files->files[i], files->file_sizes[i],
+                      buffer, sizeof(buffer), &size) )
+        {
+            packed.files[i] = files->files[i];
+            packed.file_sizes[i] = files->file_sizes[i];
+            continue;
+        }
+        packed.files[i] = malloc(size);
+        memcpy(packed.files[i], buffer, size);
+        packed.file_sizes[i] = (int)size;
+        baked++;
+    }
+
+    encoded_size = RSCache_FileListEncodeBound(&packed);
+    encoded_group = malloc(encoded_size);
+    encoded_size = RSCache_FileListEncode(&packed, encoded_group, encoded_size);
+    if( encoded_size == 0 )
+    {
+        fprintf(stderr, "mock230_pack: the %s group did not encode\n", label);
+    }
+    else if( RSCache_Dat2EditPutArchive(edit, table, config_kind, encoded_group,
+                                        encoded_size) )
+    {
+        fprintf(stderr, "        baked %d %s records\n", baked, label);
+        ok = 1;
+        if( out_baked )
+            *out_baked = baked;
+    }
+    else
+    {
+        fprintf(stderr, "mock230_pack: could not stage the %s archive\n", label);
+    }
+
+    for( int i = 0; i < packed.file_count; i++ )
+    {
+        if( packed.files[i] && packed.files[i] != files->files[i] )
+            free(packed.files[i]);
+    }
+    free(packed.files);
+    free(packed.file_sizes);
+    free(encoded_group);
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return ok;
+}
+
+static int
+bake_one_npc(
+    struct RSCache* profile,
+    int id,
+    const uint8_t* data,
+    int size,
+    uint8_t* out,
+    uint32_t out_cap,
+    uint32_t* out_size)
+{
+    const struct Mock230NpcDef* def = mock230_content_npc(id);
+    struct RSCache_Dat2ConfigNpc* npc;
+
+    *out_size = 0;
+    if( !def )
+        return 0;
+    npc = RSCache_Dat2ConfigNpcNewDecodeProfile(profile, (char*)data, size);
+    if( !npc )
+        return 0;
+    bake_npc_params(npc, def);
+    *out_size = RSCache_Dat2ConfigNpcEncodeProfile(profile, npc, out, out_cap);
+    RSCache_Dat2ConfigNpcFree(npc);
+    if( *out_size == 0 )
+    {
+        report_error("npc %d did not re-encode", id);
+        return 0;
+    }
+    return 1;
+}
+
+static int
+bake_one_loc(
+    struct RSCache* profile,
+    int id,
+    const uint8_t* data,
+    int size,
+    uint8_t* out,
+    uint32_t out_cap,
+    uint32_t* out_size)
+{
+    const struct Mock230LocDef* def = mock230_content_loc(id);
+    struct RSCache_Dat2ConfigLoc* loc;
+
+    *out_size = 0;
+    if( !def || def->next_loc_stage < 0 )
+        return 0;
+    loc = RSCache_Dat2ConfigLocNewDecodeProfile(profile, (char*)data, size);
+    if( !loc )
+        return 0;
+    bake_loc_params(loc, def);
+    *out_size = RSCache_Dat2ConfigLocEncode(profile, loc, out, out_cap);
+    RSCache_Dat2ConfigLocFree(loc);
+    if( *out_size == 0 )
+    {
+        report_error("loc %d did not re-encode", id);
+        return 0;
+    }
+    return 1;
+}
+
 static int
 export_cache(
     const char* cache,
@@ -612,13 +913,7 @@ export_cache(
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
     struct RSCache_Dat2Edit* edit;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    struct RSCache_FileList packed;
-    uint8_t* encoded_group;
-    uint32_t encoded_size;
     int table;
-    int baked = 0;
     int ok = 0;
 
     fprintf(stderr, "exporting to %s (copying %s — this writes the whole cache)\n",
@@ -639,107 +934,39 @@ export_cache(
     RSCache_Dat2DiskSetProfile(disk, &profile);
 
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_NPC);
-    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
+    edit = RSCache_Dat2EditNew(disk);
+    if( !edit )
     {
-        fprintf(stderr, "mock230_pack: no npc config archive\n");
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_NPC, archive->revision);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
+        fprintf(stderr, "mock230_pack: cannot begin an edit\n");
         RSCache_Dat2DiskFree(disk);
         return 0;
     }
 
-    memset(&packed, 0, sizeof(packed));
-    packed.file_count = files->file_count;
-    packed.files = calloc((size_t)packed.file_count, sizeof(char*));
-    packed.file_sizes = calloc((size_t)packed.file_count, sizeof(int));
-
-    for( int i = 0; i < files->file_count; i++ )
+    if( !bake_config_group(disk, &profile, edit, table, RSCACHE_DAT2_CONFIG_KIND_NPC,
+                           RSCACHE_TYPE_NPC, bake_one_npc, "npc", NULL) )
     {
-        int id = archive->file_ids[i];
-        const struct Mock230NpcDef* def = mock230_content_npc(id);
-        struct RSCache_Dat2ConfigNpc* npc;
-        uint8_t buffer[8192];
-        uint32_t size;
-
-        if( files->file_sizes[i] <= 0 )
-            continue;
-        if( !def )
-        {
-            /* Untouched: keep the original bytes. That keeps 14,000 of the
-             * 14,205 records byte-identical, which is worth the branch. */
-            packed.files[i] = files->files[i];
-            packed.file_sizes[i] = files->file_sizes[i];
-            continue;
-        }
-
-        npc = RSCache_Dat2ConfigNpcNewDecodeProfile(&profile, files->files[i],
-                                                    files->file_sizes[i]);
-        if( !npc )
-        {
-            packed.files[i] = files->files[i];
-            packed.file_sizes[i] = files->file_sizes[i];
-            continue;
-        }
-        bake_npc_params(npc, def);
-        size = RSCache_Dat2ConfigNpcEncodeProfile(&profile, npc, buffer, sizeof(buffer));
-        RSCache_Dat2ConfigNpcFree(npc);
-        if( size == 0 )
-        {
-            report_error("npc %d did not re-encode", id);
-            packed.files[i] = files->files[i];
-            packed.file_sizes[i] = files->file_sizes[i];
-            continue;
-        }
-        packed.files[i] = malloc(size);
-        memcpy(packed.files[i], buffer, size);
-        packed.file_sizes[i] = (int)size;
-        baked++;
+        RSCache_Dat2EditFree(edit);
+        RSCache_Dat2DiskFree(disk);
+        return 0;
+    }
+    if( !bake_config_group(disk, &profile, edit, table, RSCACHE_DAT2_CONFIG_KIND_LOCS,
+                           RSCACHE_TYPE_LOC, bake_one_loc, "loc", NULL) )
+    {
+        RSCache_Dat2EditFree(edit);
+        RSCache_Dat2DiskFree(disk);
+        return 0;
     }
 
-    encoded_size = RSCache_FileListEncodeBound(&packed);
-    encoded_group = malloc(encoded_size);
-    encoded_size = RSCache_FileListEncode(&packed, encoded_group, encoded_size);
-    if( encoded_size == 0 )
+    if( RSCache_Dat2EditCommit(edit, cache_out) )
     {
-        fprintf(stderr, "mock230_pack: the npc group did not encode\n");
+        fprintf(stderr, "        wrote patched cache to %s\n", cache_out);
+        ok = 1;
     }
     else
     {
-        edit = RSCache_Dat2EditNew(disk);
-        if( edit &&
-            RSCache_Dat2EditPutArchive(edit, table, RSCACHE_DAT2_CONFIG_KIND_NPC,
-                                       encoded_group, encoded_size) &&
-            RSCache_Dat2EditCommit(edit, cache_out) )
-        {
-            fprintf(stderr, "        baked %d npc records into %s\n", baked, cache_out);
-            ok = 1;
-        }
-        else
-        {
-            fprintf(stderr, "mock230_pack: the edit did not commit\n");
-        }
-        if( edit )
-            RSCache_Dat2EditFree(edit);
+        fprintf(stderr, "mock230_pack: the edit did not commit\n");
     }
-
-    for( int i = 0; i < packed.file_count; i++ )
-    {
-        if( packed.files[i] && packed.files[i] != files->files[i] )
-            free(packed.files[i]);
-    }
-    free(packed.files);
-    free(packed.file_sizes);
-    free(encoded_group);
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
+    RSCache_Dat2EditFree(edit);
     RSCache_Dat2DiskFree(disk);
     return ok;
 }
@@ -756,8 +983,8 @@ usage(void)
             "\n"
             "  --content DIR    content tree (default OSRS-Content/osrs239-content)\n"
             "  --cache DIR      source cache (default cache.osrs239)\n"
-            "  --cache-out DIR  write a derived cache with the authored npc combat\n"
-            "                   data baked into each record's params\n"
+            "  --cache-out DIR  write a derived cache with server overlays baked in:\n"
+            "                   npc combat params and loc next_loc_stage\n"
             "  --prune-doors    rewrite doors.loc without the pairs the cache\n"
             "                   rejects — run this after tools/door_import.py\n"
             "  -v               list every definition as it is checked\n");
@@ -805,6 +1032,7 @@ main(
     g_errors += mock230_content_error_count();
 
     validate_spawns();
+    validate_requirements();
     {
         struct RSCache profile = RSCache_ProfileZero();
         struct RSCache_Dat2Disk* disk;

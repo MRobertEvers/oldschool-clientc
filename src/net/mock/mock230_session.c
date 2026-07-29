@@ -1,0 +1,467 @@
+/*
+ * The login handshake and the inbound frame reader, as a state machine.
+ *
+ * See mock230_session.h for why it is one. The short version: every wait is
+ * "have enough bytes arrived yet?", answered against a buffer, so nothing here
+ * blocks and an in-process client can feed the server on the same thread.
+ */
+
+#include "mock230_session.h"
+
+#include "mock230.h"
+
+#include "net/isaac.h"
+#include "net/rev/osrs230/packetout.h"
+#include "net/rsa.h"
+
+#include <rsareabuf.h>
+
+#include <stdio.h>
+#include <string.h>
+
+/*
+ * The server's identity. Fixed, and matching manifest_osrs230.ini: the client
+ * encrypts the login block with (E=10001, N), this decrypts with (D, N).
+ */
+static const char* MOCK_RSA_D =
+    "795ae97353fb30c7d069891454220c40d0c006732e9180cd3b74f0fcd02a74980d363ffc0a19e8cfe13b7d556"
+    "b8874e22576d0e3bb214b8bbfdcdee7295036a63ad32111d525f65546d3bae015c190654a52424f1a946d4135"
+    "1f17a48e80fe0a33a0118c8c436f810f2585cf874828890d486c26ac1cd29a824d2fdac6032305";
+
+/* The modulus, stated once and shared by both halves. */
+const char* const MOCK230_RSA_PUBLIC_EXPONENT = "10001";
+const char* const MOCK230_RSA_PUBLIC_MODULUS =
+    "c30fcbc01e071ff224ea1a6508052d1140f87abaf8f40f7004efa59926708e5d99e2bc832fdca8276482dd0d6"
+    "90f644156850f47886f8032b3e9aa52508d24e8c9b7c50b8d8b8716fb8c3993bb6ce15e2124883edb7aaa7241"
+    "a8b530f806c61cd1345879413fc105980a4f5fcdb3f0d743b14b16228b4d1496c83d3755a78a19";
+
+#define MOCK_RSA_N MOCK230_RSA_PUBLIC_MODULUS
+
+#define SESSION_ID 0x0102030405060708ULL
+
+/* ------------------------------------------------------------------ */
+/* Lifetime                                                            */
+/* ------------------------------------------------------------------ */
+
+void
+mock230_session_init(
+    struct Mock230Session* session,
+    const struct Mock230Transport* transport,
+    int verbose)
+{
+    memset(session, 0, sizeof(*session));
+    session->transport = *transport;
+    session->state = MOCK230_SESSION_INIT;
+    session->verbose = verbose;
+    /* Not memset's 0, which is a real opcode — a zeroed session would decode
+     * its first byte as the body of a packet nobody sent. */
+    session->pending_opcode = -1;
+}
+
+void
+mock230_session_free(struct Mock230Session* session)
+{
+    isaac_free(session->cipher_out);
+    isaac_free(session->cipher_in);
+    session->cipher_out = NULL;
+    session->cipher_in = NULL;
+    if( session->transport.close )
+        session->transport.close(session->transport.ctx);
+    session->state = MOCK230_SESSION_DEAD;
+}
+
+void
+mock230_session_kill(struct Mock230Session* session)
+{
+    session->state = MOCK230_SESSION_DEAD;
+}
+
+int
+mock230_session_alive(const struct Mock230Session* session)
+{
+    return session->state != MOCK230_SESSION_DEAD;
+}
+
+int
+mock230_session_pollfd(const struct Mock230Session* session)
+{
+    if( !session->transport.pollfd )
+        return -1;
+    return session->transport.pollfd(session->transport.ctx);
+}
+
+int
+mock230_session_send(
+    struct Mock230Session* session,
+    const uint8_t* data,
+    int len)
+{
+    if( session->state == MOCK230_SESSION_DEAD || !session->transport.send )
+        return -1;
+    return session->transport.send(session->transport.ctx, data, len);
+}
+
+int
+mock230_session_take_login(struct Mock230Session* session)
+{
+    int raised = session->login_raised;
+
+    session->login_raised = 0;
+    return raised;
+}
+
+/* ------------------------------------------------------------------ */
+/* Buffer                                                             */
+/* ------------------------------------------------------------------ */
+
+/** Drop `count` consumed bytes off the front. */
+static void
+consume(
+    struct Mock230Session* session,
+    int count)
+{
+    if( count <= 0 )
+        return;
+    if( count >= session->in_len )
+    {
+        session->in_len = 0;
+        return;
+    }
+    memmove(session->in, session->in + count, (size_t)(session->in_len - count));
+    session->in_len -= count;
+}
+
+/*
+ * Pull one read's worth. Returns 0 when the peer is gone.
+ *
+ * Exactly one recv, never a loop, and that is a correctness requirement rather
+ * than a simplification: an accepted socket is blocking, so the caller's
+ * select() is what guarantees the *first* read returns. A second read has no
+ * such guarantee and would park the whole server until the client happened to
+ * say something else.
+ *
+ * The cost is that a burst larger than the buffer spans several pumps, which
+ * costs nothing — each pump consumes what it can and the next one continues.
+ */
+static int
+fill(struct Mock230Session* session)
+{
+    int space = MOCK230_SESSION_IN_MAX - session->in_len;
+    int got;
+
+    if( space <= 0 )
+    {
+        /*
+         * A full buffer that the reader could not consume from means the peer
+         * sent a packet longer than MOCK230_SESSION_IN_MAX, which no revision
+         * does. Dropping the session beats spinning on a read that can never
+         * make progress.
+         */
+        fprintf(stderr, "mock230: inbound buffer full (%d bytes), dropping session\n",
+                session->in_len);
+        return 0;
+    }
+
+    got = session->transport.recv(session->transport.ctx, session->in + session->in_len, space);
+    if( got < 0 )
+        return 0;
+    /* got == 0 is "nothing available yet" — not an error, and specifically not
+     * end-of-stream: a WebSocket read can deliver less than one whole frame. */
+    session->in_len += got;
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Handshake                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Step 1: INIT_GAME_CONNECTION. One byte in, nine out.
+ *
+ * Returns 1 when it advanced, 0 when it needs more bytes.
+ */
+static int
+step_init(struct Mock230Session* session)
+{
+    uint8_t out[16];
+    struct RSAreaBuf buf;
+
+    if( session->in_len < 1 )
+        return 0;
+    if( session->in[0] != 14 )
+    {
+        fprintf(stderr, "mock230: expected opcode 14, got %d\n", session->in[0]);
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    consume(session, 1);
+
+    rsab_wrap(&buf, out, sizeof(out));
+    rsab_p1(&buf, 0);
+    rsab_p8(&buf, (int64_t)SESSION_ID);
+    if( mock230_session_send(session, out, (int)rsab_len(&buf)) < 0 )
+    {
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    session->state = MOCK230_SESSION_LOGIN;
+    return 1;
+}
+
+/*
+ * Step 2: GAMELOGIN, its RSA block, and arming both ciphers.
+ *
+ * Returns 1 when it advanced, 0 when it needs more bytes. Unlike the old
+ * straight-line version this re-enters cleanly on a block split across reads —
+ * nothing is consumed until the whole thing is present.
+ */
+static int
+step_login(
+    struct Mock230Session* session,
+    struct Mock230Server* srv)
+{
+    struct RSAreaBuf in;
+    struct rsa rsa;
+    uint8_t plain[512];
+    int payload_len;
+    int rsa_size;
+    int plain_len;
+    int32_t seed[4];
+    int32_t seed_in[4];
+    uint64_t claimed;
+    char user[64];
+    char pass[64];
+    uint8_t ok = 2;
+
+    if( session->in_len < 3 )
+        return 0;
+    if( session->in[0] != 16 )
+    {
+        fprintf(stderr, "mock230: expected opcode 16, got %d\n", session->in[0]);
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    payload_len = (session->in[1] << 8) | session->in[2];
+    if( payload_len < 13 || payload_len > MOCK230_SESSION_IN_MAX - 3 )
+    {
+        fprintf(stderr, "mock230: bad login block length (%d)\n", payload_len);
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    if( session->in_len < 3 + payload_len )
+        return 0; /* the rest of the block is still in flight */
+
+    rsab_wrap(&in, session->in + 3, (size_t)payload_len);
+    (void)rsab_g4(&in); /* version */
+    (void)rsab_g4(&in); /* subVersion */
+    (void)rsab_g1(&in); /* clientType */
+    (void)rsab_g1(&in); /* platformType */
+    (void)rsab_g1(&in); /* externalAuth */
+    rsa_size = rsab_g2(&in);
+    if( !rsab_ok(&in) )
+    {
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+
+    if( rsa_init(&rsa, MOCK_RSA_D, MOCK_RSA_N) != 0 )
+    {
+        fprintf(stderr, "mock230: rsa_init failed\n");
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    plain_len = rsa_crypt(&rsa, session->in + 3 + in.pos, (size_t)rsa_size, plain,
+                          sizeof(plain));
+    if( plain_len <= 0 )
+    {
+        fprintf(stderr, "mock230: rsa decrypt failed\n");
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+
+    rsab_wrap(&in, plain, (size_t)plain_len);
+    (void)rsab_g1(&in); /* encryption check byte */
+    for( int i = 0; i < 4; i++ )
+        seed[i] = rsab_g4(&in);
+    claimed = (uint64_t)rsab_g8(&in);
+    (void)rsab_g1(&in); /* auth type */
+    rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
+    rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+    (void)pass;
+
+    /*
+     * The session keeps the name; it does NOT write it onto the player here.
+     * mock230_world_init memsets the whole player struct and runs after this,
+     * so a name written now is a name silently erased — which is exactly what
+     * used to happen, and why `displayname` in a script reported nothing. The
+     * caller copies it across with mock230_world_set_display_name once the
+     * world is up.
+     */
+    (void)srv;
+    snprintf(session->display_name, sizeof(session->display_name), "%s",
+             user[0] ? user : "Player");
+    fprintf(stderr, "mock230: login user='%s' session=%s\n", user,
+            claimed == SESSION_ID ? "ok" : "MISMATCH");
+
+    consume(session, 3 + payload_len);
+
+    if( mock230_session_send(session, &ok, 1) < 0 )
+    {
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+
+    /* The client seeds its out-cipher with the raw seed and its in-cipher with
+     * seed + 50, so the server is the mirror image. */
+    for( int i = 0; i < 4; i++ )
+        seed_in[i] = seed[i] + 50;
+    session->cipher_out = isaac_new(seed_in, 4);
+    session->cipher_in = isaac_new((int32_t*)seed, 4);
+    if( !session->cipher_out || !session->cipher_in )
+    {
+        fprintf(stderr, "mock230: isaac_new failed\n");
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+
+    session->state = MOCK230_SESSION_ONLINE;
+    session->login_raised = 1;
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Game stream                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Decode whole packets and hand them to the world.
+ *
+ * Two rules carry the whole function.
+ *
+ * **Never guess.** An unknown opcode is framed as zero-length, which
+ * resynchronises on the next byte instead of consuming a made-up payload and
+ * desyncing the ISAAC stream for good.
+ *
+ * **The opcode byte is spent when it is read.** ISAAC is a keystream cipher and
+ * cannot be rewound, so there is no way to look at an opcode and put it back.
+ * It is therefore consumed immediately and parked in `pending_opcode` until the
+ * body arrives, which is what lets a packet torn across two reads survive. The
+ * length prefix is *not* scrambled, so re-reading that costs nothing.
+ */
+static int
+step_online(
+    struct Mock230Session* session,
+    struct Mock230Server* srv)
+{
+    int progressed = 0;
+
+    for( ;; )
+    {
+        int size;
+        int len_bytes;
+        int payload_len;
+        int name;
+
+        if( session->pending_opcode < 0 )
+        {
+            if( session->in_len < 1 )
+                break;
+            session->pending_opcode =
+                (session->in[0] - isaac_next(session->cipher_in)) & 0xff;
+            consume(session, 1);
+        }
+
+        size = osrs230_packetout_size(session->pending_opcode);
+        if( size == PKTOUT_LENGTH_VARU8 )
+            len_bytes = 1;
+        else if( size == PKTOUT_LENGTH_VARU16 )
+            len_bytes = 2;
+        else
+            len_bytes = 0;
+
+        if( session->in_len < len_bytes )
+            break; /* length prefix still in flight; opcode stays parked */
+
+        if( len_bytes == 1 )
+            payload_len = session->in[0];
+        else if( len_bytes == 2 )
+            payload_len = (session->in[0] << 8) | session->in[1];
+        else
+            payload_len = size;
+
+        if( session->in_len < len_bytes + payload_len )
+            break; /* body still in flight; nothing consumed */
+
+        name = osrs230_packetout_name(session->pending_opcode);
+        if( name == PKTOUT_NAME_NONE )
+        {
+            if( session->verbose )
+                fprintf(stderr, "mock230: <- unknown op %d (%d bytes)\n",
+                        session->pending_opcode, payload_len);
+        }
+        else
+        {
+            mock230_world_handle(srv, name, session->in + len_bytes, payload_len);
+        }
+
+        consume(session, len_bytes + payload_len);
+        session->pending_opcode = -1;
+        progressed = 1;
+    }
+
+    return progressed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pump                                                               */
+/* ------------------------------------------------------------------ */
+
+int
+mock230_session_pump(
+    struct Mock230Session* session,
+    struct Mock230Server* srv)
+{
+    if( session->state == MOCK230_SESSION_DEAD )
+        return 0;
+
+    if( !fill(session) )
+    {
+        session->state = MOCK230_SESSION_DEAD;
+        return 0;
+    }
+
+    /*
+     * Loop rather than a single step: one fill can carry the whole handshake
+     * plus the first game packets, which an embedded host routinely does
+     * because it writes everything it has before yielding. Each step returns 0
+     * when it wants more bytes, which is the only way out.
+     */
+    for( ;; )
+    {
+        int advanced = 0;
+
+        switch( session->state )
+        {
+        case MOCK230_SESSION_INIT:
+            advanced = step_init(session);
+            break;
+        case MOCK230_SESSION_LOGIN:
+            advanced = step_login(session, srv);
+            break;
+        case MOCK230_SESSION_ONLINE:
+            advanced = step_online(session, srv);
+            break;
+        case MOCK230_SESSION_DEAD:
+            return 0;
+        }
+
+        if( !advanced )
+            break;
+        /* The login burst has to run before any packet behind it is decoded,
+         * so hand control back the moment the stream arms. */
+        if( session->login_raised )
+            break;
+    }
+
+    return session->state != MOCK230_SESSION_DEAD;
+}

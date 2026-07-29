@@ -42,6 +42,56 @@ mock230_equipment_bonus(
     return total;
 }
 
+int
+mock230_equipment_may_wear(
+    struct Mock230Server* srv,
+    int obj_id)
+{
+    /* The wire's own skill order, which is `server/pack/stat.pack`. Only the
+     * name is needed here and only for the message, so this is a label table
+     * rather than a second copy of the pack — the *ids* still come from it. */
+    static const char* const k_stat_names[MOCK230_STAT_COUNT] = {
+        "Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic",
+        "Cooking", "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting",
+        "Smithing", "Mining", "Herblore", "Agility", "Thieving", "Slayer", "Farming",
+        "Runecraft", "Hunter", "Construction",
+    };
+    const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
+
+    if( !require )
+        return 1;
+
+    for( int i = 0; i < require->count; i++ )
+    {
+        int stat = require->req[i].stat;
+        int level = require->req[i].level;
+
+        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+            continue;
+        /* Base, not boosted: a potion does not let you wield what you could not
+         * wield sober. */
+        if( srv->player.stat_level[stat] >= level )
+            continue;
+
+        /*
+         * OldSchool's refusal, both lines, and the first unmet requirement is
+         * the one it names — a player 20 levels short in two skills is told
+         * about one of them, which is what the reference does rather than
+         * listing them.
+         */
+        mock230_send_message(srv, "You are not a high enough level to use this item.");
+        {
+            char line[128];
+
+            snprintf(line, sizeof(line), "You need to have a %s level of %d.",
+                     k_stat_names[stat], level);
+            mock230_send_message(srv, line);
+        }
+        return 0;
+    }
+    return 1;
+}
+
 /* OldSchool prints a leading '+' on non-negative bonuses; the minus sign comes
  * from the number itself. A bonus of 0 reads "+0", not "0". */
 static void

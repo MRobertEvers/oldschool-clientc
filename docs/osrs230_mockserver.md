@@ -638,6 +638,165 @@ frame) rather than as a closed connection.
 The frame codec is the client's, shared: `src/platform/net_transport_ws_frame.c`,
 unit-tested by `make -C src test-ws-frame`.
 
+### 3.13b Three transports, and why the handshake had to stop blocking
+
+Raw TCP and WebSocket are both *sockets*. A third has no socket at all: the
+server hosted inside the client's own process, exchanging bytes through a pair
+of queues. `src/net/mock/mock230_transport.h` is the seam — `recv` / `send` /
+`pollfd` / `close` over a `void*` — and `mock230_embed.h` is the API a host
+drives:
+
+```
+client PopOut   --->  mock230_embed_write     (client -> server)
+                      mock230_embed_pump
+client NET_RECV <---  mock230_embed_read      (server -> client)
+```
+
+The client half needed nothing. `struct ToriRS_Network` never touched a
+descriptor: bytes arrive through `HandleCmd(NET_RECV)` and leave through
+`PopOut`, and the platform layer is what bridges that to a socket. So an
+in-process game is those two streams crossed with the server's.
+
+**The server half needed one real change, and it is the whole story of this
+section.** The login handshake was a straight-line function that blocked on
+`recv_full(1)`, `recv_full(3)`, `recv_full(len)`. That is fine when a thread is
+free to wait. In-process, client and server share a thread — so a server
+waiting for bytes is a server the client can never reach, and a blocking read
+stops being a stall and becomes a deadlock.
+
+So `mock230_session.c` is a state machine (`INIT` → `LOGIN` → `ONLINE`), and
+every wait is "have enough bytes arrived yet?" answered against a buffer and
+re-entered on the next pump. `mock230_conn_recv_full` has been **deleted**
+rather than left unused: it is the API that made blocking possible, and leaving
+it invites its return.
+
+Two things fell out of that rewrite that were latent bugs on the socket path
+too:
+
+- **Torn packets now survive.** The old reader had two `fprintf(stderr, "split
+  var-u8 header")` bail-outs admitting it could not cope with a packet split
+  across two reads; it stayed correct only because the client happens to write
+  each packet with a single `write()`. The awkward part is that descrambling an
+  opcode *spends a byte of ISAAC keystream* and a stream cipher cannot be
+  rewound — so the opcode is consumed the instant it is read and parked in
+  `Mock230Session.pending_opcode` until the body catches up. The length prefix
+  is not scrambled, so re-reading that costs nothing.
+- **One `recv` per pump, never a loop.** An accepted socket is blocking, so the
+  `select()` in `mock230_main.c` is the only thing guaranteeing the *first* read
+  returns; a second has no such guarantee. For the same reason a `select()`
+  timeout must not fall through into a read, or a session whose player is
+  standing still hangs the server.
+
+`make -C src test-mock230-embed` runs a real client subsystem against a real
+server over the queue pair, feeding the stream in 7-byte chunks so the torn-read
+path is exercised on every run. If it ever hangs, the handshake has gone back to
+waiting for bytes.
+
+The loader order also moved out of `main()` into `mock230_boot.c`, because two
+callers now need it and it is order-dependent in three places that all fail
+*silently* when reversed (see that file's header).
+
+## 3.13c Interactions walk before they act
+
+Every op handler used to walk *and* act in the same call. `handle_opobj` queued
+a route to the tile and emptied the ground pile in the same breath, under a
+comment admitting "the mock has no interaction model, so the player arrives
+instantly in game terms". The player could take an obj from across Lumbridge,
+through a wall.
+
+There is now a real interaction (`struct Mock230Interaction`, latched on the
+player), resolved once per tick in phase 5 after movement:
+
+| distance | what runs |
+|---|---|
+| within ap range (10) | `[apnpc<n>]` / `[aploc<n>]` / `[apobj<n>]` — if content bound one, the interaction is done and the player never closes the distance |
+| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling if nothing was bound |
+| further | keep walking, try again next tick |
+
+The packet handler also attempts resolution immediately, so clicking something
+you are already standing next to acts on the tick the click arrives rather than
+the one after. That is what the reference does, and it is why most of the
+existing selftests needed no change.
+
+This is the prerequisite for the whole `ap`/`op` half of the LostCity content
+convention: "at range" was previously not a state the server could be in, so no
+`[ap*]` trigger could ever have fired.
+
+Three things worth knowing:
+
+- **An npc target is re-read every tick**, because it moves. Re-routing as it
+  goes is what makes following work; without it the player walks to a memory.
+  Slot reuse is checked too — same index, different npc, and acting on it would
+  attack whatever respawned there.
+- **A loc is re-found by id first, tile second.** A tile routinely carries more
+  than one loc: 3226,3223 in Lumbridge holds the castle door *and* a wall
+  decoration, and "whatever is at this tile" resolves to the decoration. Only
+  when the id is gone does the tile-only form apply — which is the case that
+  matters for a door somebody else opened mid-walk.
+- **Anything meaning "the player changed their mind" must clear it** — a ground
+  click, a teleport, `p_stopaction`. A pending op that survives is one that
+  fires whenever the player next wanders into range.
+
+One deliberate behaviour change came with it: the door swap used to run *before*
+the script trigger, making a door the one thing content could not override. It
+is now behind the trigger like everything else. Nothing in the tree binds a door
+script today, so this changes no behaviour — it removes an exception that would
+otherwise have been found the hard way.
+
+`make -C src test-mock230` covers it, including the negative: that a click from
+eight tiles away latches an interaction, starts a walk, and does **not** act.
+
+## 3.13d Two dispatch tables, and the opcode gap report
+
+**Inbound packets** are a table (`k_packet_routes` in `mock230_world.c`), 45
+entries mapping `PKTOUT_NAME_*` to a handler. It was a 240-line `switch` with
+half its bodies written inline, which made `mock230_world_handle` the function
+every new packet had to be threaded through. Adding one is now a line plus a
+handler. Handlers take `name` even when they ignore it, because the numbered
+families (`OPHELD1..5`, `OPNPC1..5`, `IF_BUTTON1..10`) derive their op index
+from it — one table entry per opcode, one handler per family.
+
+**Host opcodes** get the more interesting half. The server implements 155 of the
+396 declared ServerScript opcodes (63 in the VM core, 92 in the host seam), and
+the question that matters is not "how many" but "which ones does *this content
+tree* need that we lack".
+
+`mock230_scripts_report_gaps` answers it at **load** time by walking every
+loaded script's `opcodes[]` array:
+
+```
+mock230: 3 opcode(s) this content uses are not implemented:
+  MES                          first wanted by [opnpc3,bob]
+  NPC_SAY                      first wanted by [opnpc2,goblin]
+  INV_ADD                      first wanted by [label,citizen_chat]
+```
+
+Load time, not call time, is the whole value. The VM already complains when an
+unimplemented opcode is *reached* — but only if a player triggers that script,
+which for content behind a quest step or a rare drop may be never. This turns
+the number into a work queue: an opcode nothing asks for is not worth
+implementing, and one three scripts ask for is blocking three scripts.
+
+The coverage set is **generated** from the `case SS_OP_*:` labels in the VM core
+and the host seam (`gen_opcode_coverage.py`), because the answer already exists
+twice in the source and a third hand-kept copy goes stale the first time someone
+adds an opcode without remembering it. A wrong coverage list is worse than none:
+it would either hide a missing opcode or cry wolf about an implemented one.
+`make -C src test-mock230-coverage` fails when the generated header is stale,
+and the failure direction is safe either way — a stale table over-reports.
+
+Two traps worth recording:
+
+- **Opcode values are sparse, not dense.** 396 declared opcodes span values up
+  to 10003 (host commands start at 4000). An array sized by the *count* silently
+  treats every real opcode as out of range, which is exactly how the first
+  version of this reported no gaps at all while three were present.
+- The `first_user` array is `static` because 10,004 pointers is 80 KB, most of a
+  default thread stack.
+
+`make -C src test-mock230` asserts the shipped tree has zero gaps, so content
+written against an opcode the engine lacks fails the build rather than a player.
+
 ## 3.14 The world map is the server's, start to finish
 
 `src/net/mock/mock230_worldmap.c`. The orb on the minimap has no client-side
@@ -762,6 +921,59 @@ against.
    three unused function-pointer slots (`player_info_read`, `npc_info_read`,
    `appearance_decode`) reserved for exactly this; nothing assigns or calls them
    yet.
+
+### 6.1 Becoming a full server, in dependency order
+
+The transport seam (§3.13b) and the interaction model (§3.13c) are the first two
+steps of this and are done. What is left, in the order each unblocks the next:
+
+1. **Finish the session/world/player split.** Net state is out of
+   `struct Mock230Server` and lives on `Mock230Session`; what remains is the
+   player. `srv->player` is still a single embedded struct, so a second player
+   is not a change but a rewrite of every signature that takes `srv`. The shape
+   wanted is `M2World { players[], npcs, zones, ... }` with the player passed
+   down rather than reached through the world. Do it before the content grows —
+   it gets more expensive every week, and *what is saveable is exactly
+   `M2Player`*, so persistence wants the same struct.
+2. ~~**Dispatch tables, twice.**~~ — **done**, see §3.13d. Inbound packets are a
+   45-entry table; the opcode gap report is generated from the `case` labels and
+   runs at load. What is *not* done is splitting the 1,550-line host `switch`
+   into per-domain files — the introspection that motivated it came from the
+   generator instead, so the split is now a readability change rather than a
+   blocking one.
+3. **Zones with buffered events.** `npcs[256]` / `ground[256]` are scanned flat
+   every tick, and the npc cap is justified by a *wire* field width, which is a
+   protocol constant standing in for a world capacity. A `ZoneMap` keyed
+   `(zx, zz, level)` holding per-zone entity lists and an event buffer is what
+   makes a loc change replayable to whoever walks in later — which is the thing
+   multiplayer actually needs.
+4. **Fill in the host opcodes.** ~100 of 396 are implemented. Driven by the gap
+   report from step 2, plus `.dbtable`/`.dbrow` support in the content reader —
+   `mock230_content.h` admits prayers were flattened into a bespoke `.prayer`
+   grammar to avoid writing one, and drop tables and shops want it too.
+5. **Move the C content into content.** ~3,200 lines that are content by
+   LostCity's definition still live in C: the bank (1,370), combat (858),
+   equipment, prayer, the world map, doors, and the login burst. The reason is
+   real and documented in `bank.rs2`'s own header — the rev-230 bank builds its
+   op ladder conditionally on varbits, so the index alone does not say what was
+   clicked — which is exactly why step 4 comes first. Widen the opcode surface
+   until a script *can* say it, then move it.
+6. **Invert the fallback.** `mock230_scripts.c` promises that a missing script
+   leaves every call site doing "exactly what it did before scripts existed".
+   That was right while scripts were an experiment; for a real server it means
+   every behaviour has two implementations that can disagree, and a content bug
+   (script aborted, returned 0) is indistinguishable from an engine path. Keep
+   one fallback — the reference's `_` wildcard script — and let a trigger with
+   no script do nothing, loudly under `MOCK230_VERBOSE`.
+7. **Rename.** `mock230_*` is a double misnomer: it is not a mock, and it reads
+   a 239 cache while speaking the 230 wire. Mechanical, and cheapest while
+   there is still one consumer.
+
+Two smaller things that belong with step 1: the accepted socket is *blocking*,
+so the `select()` in `mock230_main.c` is load-bearing (see §3.13b) and a real
+server wants non-blocking accept with per-connection output buffering; and
+`MOCK230_VARP_COUNT` is a flat `int32_t[5000]` per player — 20 KB each — which
+wants to be sparse or sized from the cache.
 
 The player stream's 11-bit pid field is the same class of thing as §3.2 and has
 not been parameterised — it is 11 bits in every revision in the tree, so there

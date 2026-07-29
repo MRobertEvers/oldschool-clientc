@@ -14,6 +14,7 @@ usage(void)
         "cachepack — unpack an OldSchool cache into editable source, and pack it back.\n"
         "\n"
         "  cachepack unpack --cache DIR --rev NAME --src DIR [--types a,b]\n"
+        "                   [--compare DIR] [--compare-rev NAME]\n"
         "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
         "                   [--assets] [--binary]\n"
@@ -21,26 +22,34 @@ usage(void)
         "\n"
         "  unpack  writes pack/<type>.pack (id=name, seeded from the cache's gameval\n"
         "          table), configs/all.<type> (text records) and meta.ini.\n"
+        "          Existing pack names are never overwritten. With --compare DIR, also\n"
+        "          writes a LostCity-style review queue under\n"
+        "          configs/_unpack/<rev>/ (new ids, .merge for changed records, stale\n"
+        "          pack lines).\n"
         "  pack    reads that tree and writes the config records into a cache. --base\n"
         "          copies a cache first; without it --out is edited in place, which\n"
         "          grows the file because the container appends rather than compacts.\n"
+        "          Server overlays (combat params, door stages) are baked with\n"
+        "          mock230_pack --cache-out in the parent repo — see OSRS-Content README.\n"
         "  verify  round-trips every record through the text and reports exact /\n"
         "          same-length / differing counts per type.\n"
         "\n"
         "Options:\n"
-        "  --types a,b   restrict to these config types (default: all)\n"
-        "  --assets      lay the non-config tables out as named files, the way\n"
-        "                LostCity's content/ is: models/npc/goblin.model,\n"
-        "                songs/<name>.jmid, binary/title.jpg. Extensions come from\n"
-        "                the bytes, and nothing is transcoded. --assets=models,maps\n"
-        "                limits it to those kinds; --list-assets prints them.\n"
-        "  --raw-assets  skip the friendly decoders, so every asset writes its raw\n"
-        "                payload. Use when a decoded form is in the way.\n"
-        "  --binary      also move the non-config tables, as raw container bytes.\n"
-        "                On unpack, --binary=5,7 limits it to those idx files.\n"
-        "  --warn N      cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
-        "  --list        print the config types this build knows and exit\n"
-        "  --list-assets print the asset kinds this build knows and exit\n");
+        "  --types a,b     restrict to these config types (default: all)\n"
+        "  --compare DIR   previous revision's binary cache; emit _unpack/<rev> diffs\n"
+        "  --compare-rev N profile name for --compare (default: same as --rev)\n"
+        "  --assets        lay the non-config tables out as named files, the way\n"
+        "                  LostCity's content/ is: models/npc/goblin.model,\n"
+        "                  songs/<name>.jmid, binary/title.jpg. Extensions come from\n"
+        "                  the bytes, and nothing is transcoded. --assets=models,maps\n"
+        "                  limits it to those kinds; --list-assets prints them.\n"
+        "  --raw-assets    skip the friendly decoders, so every asset writes its raw\n"
+        "                  payload. Use when a decoded form is in the way.\n"
+        "  --binary        also move the non-config tables, as raw container bytes.\n"
+        "                  On unpack, --binary=5,7 limits it to those idx files.\n"
+        "  --warn N        cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
+        "  --list          print the config types this build knows and exit\n"
+        "  --list-assets   print the asset kinds this build knows and exit\n");
 }
 
 static void
@@ -180,6 +189,8 @@ main(int argc, char** argv)
     const char* base_dir = NULL;
     const char* src_dir = NULL;
     const char* rev = NULL;
+    const char* compare_dir = NULL;
+    const char* compare_rev = NULL;
     const char* types_csv = NULL;
     const char* binary_tables = NULL;
     const char* asset_kinds = NULL;
@@ -231,6 +242,10 @@ main(int argc, char** argv)
             src_dir = argv[++i];
         else if( strcmp(arg, "--rev") == 0 )
             rev = argv[++i];
+        else if( strcmp(arg, "--compare") == 0 )
+            compare_dir = argv[++i];
+        else if( strcmp(arg, "--compare-rev") == 0 )
+            compare_rev = argv[++i];
         else if( strcmp(arg, "--types") == 0 )
             types_csv = argv[++i];
         else if( strcmp(arg, "--warn") == 0 )
@@ -268,6 +283,7 @@ main(int argc, char** argv)
     {
         if( !tool_resolve_profile(rev, NULL, NULL, NULL, NULL, &ctx.profile) )
             return 1;
+        snprintf(ctx.rev_name, sizeof(ctx.rev_name), "%s", rev);
     }
     else if( strcmp(command, "pack") == 0 && load_meta(src_dir, &ctx.profile) )
     {
@@ -299,6 +315,39 @@ main(int argc, char** argv)
         }
         ctx.cache_open = true;
         tool_print_profile(cache_dir, &ctx.profile);
+
+        if( strcmp(command, "unpack") == 0 && compare_dir )
+        {
+            const char* cmp_rev = compare_rev ? compare_rev : rev;
+            if( !cmp_rev )
+            {
+                fprintf(stderr, "cachepack: --compare needs --rev (or --compare-rev)\n");
+                tool_dat2_close(&ctx.cache);
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            if( !tool_resolve_profile(cmp_rev, NULL, NULL, NULL, NULL, &ctx.compare_profile) )
+            {
+                tool_dat2_close(&ctx.cache);
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            if( !tool_dat2_open(compare_dir, &ctx.compare_profile, &ctx.compare) )
+            {
+                tool_dat2_close(&ctx.cache);
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            ctx.compare_open = true;
+            printf("Compare baseline: %s (%s)\n", compare_dir, cmp_rev);
+        }
+        else if( compare_dir )
+        {
+            fprintf(stderr, "cachepack: --compare is only valid for unpack\n");
+            tool_dat2_close(&ctx.cache);
+            cp_names_free(&ctx.names);
+            return 1;
+        }
 
         if( strcmp(command, "unpack") == 0 )
         {
@@ -347,6 +396,8 @@ main(int argc, char** argv)
 
     if( ctx.cache_open )
         tool_dat2_close(&ctx.cache);
+    if( ctx.compare_open )
+        tool_dat2_close(&ctx.compare);
     cp_names_free(&ctx.names);
     return rc;
 }

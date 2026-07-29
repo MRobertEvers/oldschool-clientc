@@ -1,0 +1,119 @@
+/*
+ * The loader sequence. See mock230_boot.h for why the order is a function
+ * rather than a comment.
+ */
+
+#include "mock230_boot.h"
+
+#include "mock230.h"
+#include "mock230_bank.h"
+#include "mock230_content.h"
+#include "mock230_ids.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+
+/*
+ * Where a session starts: the Lumbridge castle courtyard, one tile from Hans.
+ *
+ * OpenRune calls the same place home (`home-x: 3218, home-z: 3218` in its
+ * game.yml) and so does OldSchool. It is the right default because everything
+ * worth exercising is within a short walk: goblins and guards east on the Al
+ * Kharid road, rats under the castle, cows and chickens north-east, a general
+ * store, and stairs, ladders, doors and a trapdoor in the castle itself.
+ */
+#define DEFAULT_HOME_X 3222
+#define DEFAULT_HOME_Z 3218
+
+/*
+ * The ../ fallback: the server is run both from the repo root and from src/,
+ * and having it work either way is worth more than insisting on one.
+ */
+static const char*
+resolve_content_dir(void)
+{
+    static char resolved[512];
+    const char* configured = getenv("MOCK230_CONTENT");
+    struct stat info;
+
+    if( configured )
+        return configured;
+
+    snprintf(resolved, sizeof(resolved), "OSRS-Content/osrs239-content");
+    if( stat(resolved, &info) == 0 )
+        return resolved;
+
+    snprintf(resolved, sizeof(resolved), "../OSRS-Content/osrs239-content");
+    return resolved;
+}
+
+void
+mock230_boot_defaults(struct Mock230BootConfig* config)
+{
+    static char script_dir[600];
+    const char* cache_env = getenv("MOCK230_CACHE");
+    const char* script_env = getenv("MOCK230_SCRIPTS");
+    const char* home_env = getenv("MOCK230_HOME");
+
+    memset(config, 0, sizeof(*config));
+    config->cache_dir = cache_env ? cache_env : MOCK230_CACHE_DIR_DEFAULT;
+    config->content_dir = resolve_content_dir();
+
+    if( script_env )
+    {
+        config->script_dir = script_env;
+    }
+    else
+    {
+        snprintf(script_dir, sizeof(script_dir), "%s/server/scripts/build",
+                 config->content_dir);
+        config->script_dir = script_dir;
+    }
+
+    config->home_x = DEFAULT_HOME_X;
+    config->home_z = DEFAULT_HOME_Z;
+    if( home_env )
+        sscanf(home_env, "%d,%d", &config->home_x, &config->home_z);
+}
+
+int
+mock230_boot_load(const struct Mock230BootConfig* config)
+{
+    mock230_world_set_cache_dir(config->cache_dir);
+
+    /* 1. The cache's own tables. The content tree overlays these, so they have
+     *    to exist before it is read. */
+    mock230_objinfo_load(config->cache_dir);
+    mock230_npcinfo_load(config->cache_dir);
+    mock230_seqinfo_load(config->cache_dir);
+    /* Varbit bit-ranges, from the same cache the client unpacks them with. */
+    mock230_varbit_load(config->cache_dir);
+
+    /* 2. The content tree, whose combat bonuses are seeded from the params
+     *    step 1 decoded. */
+    mock230_content_load(config->content_dir);
+
+    /* 3. Every interface, component and varbit the engine addresses is a name
+     *    in that tree. */
+    mock230_ids_resolve();
+
+    /* 4. Container sizes and varbit bit ranges for the bank, which looks its
+     *    container up by an id step 3 resolved. */
+    mock230_bank_load(config->cache_dir);
+
+    mock230_world_set_home(config->home_x, config->home_z);
+
+    return mock230_content_error_count();
+}
+
+void
+mock230_boot_free(void)
+{
+    mock230_objinfo_free();
+    mock230_npcinfo_free();
+    mock230_seqinfo_free();
+    mock230_varbit_free();
+    mock230_content_free();
+}

@@ -75,11 +75,23 @@ struct SSC_Compiler
     /** Script id -> name, filled by the declare pass so `~proc()` can resolve a
      *  callee defined in a file compiled later. */
     char (*names)[SSC_MAX_NAME];
+    /** Script id -> the argument list it declared, also from the declare pass.
+     *  A gosub pushes its arguments and the callee pops exactly what its header
+     *  said, so a call that passes the wrong number leaves the stack skewed —
+     *  and the symptom is the *next* command reading someone else's value, tens
+     *  of instructions later. -1 means "declared no argument list". */
+    int8_t* name_int_args;
+    int8_t* name_str_args;
     int name_count;
     int name_capacity;
 
     struct SSVM_Script* scripts;
     int script_count;
+
+    /** Kind to try first when resolving a bare identifier, or SSC_SYM_UNKNOWN.
+     *  Set by parse_command around a command whose arguments are a language
+     *  enumeration the packs also use as data names — see parse_expression. */
+    enum SSC_SymbolKind arg_kind_hint;
 
     struct SSC_Build build;
     struct SSC_Lexer lexer;
@@ -321,6 +333,8 @@ parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
 {
     char full[SSC_MAX_NAME];
     int script_id;
+    int pushed_ints = 0;
+    int pushed_strs = 0;
 
     snprintf(full, sizeof(full), "[%s,%s]", is_label ? "label" : "proc", bare_name);
     script_id = script_id_for_name(compiler, full);
@@ -340,6 +354,10 @@ parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
 
                 if( !parse_expression(compiler, &arg_is_string) )
                     return 0;
+                if( arg_is_string )
+                    pushed_strs++;
+                else
+                    pushed_ints++;
                 if( SSC_LexIsPunct(&compiler->lexer, "," ) )
                 {
                     SSC_LexNext(&compiler->lexer);
@@ -352,6 +370,26 @@ parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
             return fail(compiler, "expected ')' to close the argument list");
         SSC_LexNext(&compiler->lexer);
     }
+
+    /*
+     * The callee pops exactly what its header declared, so a call that pushed a
+     * different number leaves the stack skewed for everything after it. The
+     * damage shows up as an unrelated command reading someone else's value tens
+     * of instructions later — the failure mode the corpus verifier exists to
+     * catch, and one nothing checks for a tree's own content. The declare pass
+     * already read every header, so the comparison is free.
+     *
+     * -1 means the declare pass never saw an argument list for that name, which
+     * only happens for a script id that came from somewhere other than a
+     * header; those are left unchecked rather than reported wrongly.
+     */
+    if( script_id < compiler->name_count && compiler->name_int_args[script_id] >= 0 &&
+        (pushed_ints != compiler->name_int_args[script_id] ||
+         pushed_strs != compiler->name_str_args[script_id]) )
+        return fail(compiler,
+                    "'%s' takes %d int and %d string arguments, called with %d and %d",
+                    full, compiler->name_int_args[script_id],
+                    compiler->name_str_args[script_id], pushed_ints, pushed_strs);
 
     emit(compiler, is_label ? SS_OP_JUMP_WITH_PARAMS : SS_OP_GOSUB_WITH_PARAMS, script_id);
     return 1;
@@ -394,29 +432,53 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     if( !meta->known )
         return fail(compiler, "command '%s' has no declared signature", name);
 
-    /* A command may be written bare when it takes nothing — `p_pausebutton;`. */
-    if( SSC_LexIsPunct(&compiler->lexer, "(") )
+    /*
+     * A stat is a language-level enumeration written bare — `stat(prayer)` —
+     * and this cache uses three of the 23 names for other things as well. The
+     * hint tells parse_expression to try SSC_SYM_STAT first for the duration of
+     * this command's argument list, and only for this family, so a bare
+     * `fishing` outside one still resolves to the loc it names. See
+     * parse_expression for the collision list and what it costs to get wrong.
+     *
+     * It nests: a `stat(...)` inside another command's arguments sets the hint
+     * on entry and puts back what it found on the way out.
+     */
     {
-        SSC_LexNext(&compiler->lexer);
-        if( !SSC_LexIsPunct(&compiler->lexer, ")") )
-        {
-            for( ;; )
-            {
-                int arg_is_string = 0;
+        const char* op_name = SSVM_OpcodeName(opcode);
+        enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
 
-                if( !parse_expression(compiler, &arg_is_string) )
-                    return 0;
-                if( SSC_LexIsPunct(&compiler->lexer, ",") )
+        if( op_name &&
+            (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||
+             strncmp(op_name, "NPC_STAT", 8) == 0) )
+            compiler->arg_kind_hint = SSC_SYM_STAT;
+        else
+            compiler->arg_kind_hint = SSC_SYM_UNKNOWN;
+
+        /* A command may be written bare when it takes nothing — `p_pausebutton;`. */
+        if( SSC_LexIsPunct(&compiler->lexer, "(") )
+        {
+            SSC_LexNext(&compiler->lexer);
+            if( !SSC_LexIsPunct(&compiler->lexer, ")") )
+            {
+                for( ;; )
                 {
-                    SSC_LexNext(&compiler->lexer);
-                    continue;
+                    int arg_is_string = 0;
+
+                    if( !parse_expression(compiler, &arg_is_string) )
+                        return 0;
+                    if( SSC_LexIsPunct(&compiler->lexer, ",") )
+                    {
+                        SSC_LexNext(&compiler->lexer);
+                        continue;
+                    }
+                    break;
                 }
-                break;
             }
+            if( !SSC_LexIsPunct(&compiler->lexer, ")") )
+                return fail(compiler, "expected ')' after arguments to '%s'", name);
+            SSC_LexNext(&compiler->lexer);
         }
-        if( !SSC_LexIsPunct(&compiler->lexer, ")") )
-            return fail(compiler, "expected ')' after arguments to '%s'", name);
-        SSC_LexNext(&compiler->lexer);
+        compiler->arg_kind_hint = saved_hint;
     }
 
     /*
@@ -828,6 +890,32 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         {
             SSC_LexNext(lexer);
             return parse_command(compiler, text, is_string);
+        }
+
+        /*
+         * A stat command's arguments name stats, and the bare name is ambiguous.
+         *
+         * `SSC_SymbolsFind` with no kind returns the lowest-numbered kind that
+         * has the name, and this cache collides three of the 23 stat names with
+         * something that sorts earlier: `hitpoints` is also param 2100,
+         * `attack` is also varp 259, `fishing` is also loc 20926. Without the
+         * hint `stat_heal(hitpoints, 3, 0)` compiles to `stat_heal(2100, 3, 0)`
+         * and silently heals nothing, which is exactly the failure the
+         * reference's typed argument lists prevent and this compiler has no
+         * types to prevent with.
+         *
+         * The hint is set by parse_command for the stat family only, so a bare
+         * `fishing` anywhere else still means the loc.
+         */
+        if( compiler->arg_kind_hint != SSC_SYM_UNKNOWN )
+        {
+            symbol = SSC_SymbolsFind(compiler->symbols, text, compiler->arg_kind_hint);
+            if( symbol )
+            {
+                emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
+                SSC_LexNext(lexer);
+                return 1;
+            }
         }
 
         symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_UNKNOWN);
@@ -1725,8 +1813,16 @@ SSC_New(struct SSC_Symbols* symbols)
     compiler->scripts =
         (struct SSVM_Script*)calloc(SSC_MAX_SCRIPTS, sizeof(struct SSVM_Script));
     compiler->names = (char(*)[SSC_MAX_NAME])calloc(SSC_MAX_SCRIPTS, SSC_MAX_NAME);
+    compiler->name_int_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    compiler->name_str_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
-    if( !compiler->scripts || !compiler->names )
+    if( compiler->name_int_args && compiler->name_str_args )
+    {
+        memset(compiler->name_int_args, -1, SSC_MAX_SCRIPTS);
+        memset(compiler->name_str_args, -1, SSC_MAX_SCRIPTS);
+    }
+    if( !compiler->scripts || !compiler->names || !compiler->name_int_args ||
+        !compiler->name_str_args )
     {
         SSC_Free(compiler);
         return NULL;
@@ -1745,6 +1841,8 @@ SSC_Free(struct SSC_Compiler* compiler)
         SSVM_ScriptFree(&compiler->scripts[i]);
     free(compiler->scripts);
     free(compiler->names);
+    free(compiler->name_int_args);
+    free(compiler->name_str_args);
     free(compiler);
 }
 
@@ -1851,9 +1949,55 @@ SSC_Declare(
 
             if( compiler->name_count < compiler->name_capacity )
             {
-                snprintf(compiler->names[compiler->name_count], SSC_MAX_NAME, "[%s,%s]",
-                         trigger, subject);
+                int slot = compiler->name_count;
+
+                snprintf(compiler->names[slot], SSC_MAX_NAME, "[%s,%s]", trigger, subject);
                 compiler->name_count++;
+
+                /*
+                 * The argument list, counted the same way parse_arg_list does.
+                 *
+                 * `lexer.current` is the `]` here; a header with arguments has
+                 * `(type $name, ...)` immediately after it. Only the types are
+                 * needed — enough to check a call site pushed the right number
+                 * onto each of the two stacks — so this reads them and leaves
+                 * the real parse to the emit pass.
+                 */
+                if( SSC_LexIsPunct(&lexer, "]") )
+                {
+                    SSC_LexNext(&lexer);
+                    if( SSC_LexIsPunct(&lexer, "(") )
+                    {
+                        int ints = 0;
+                        int strs = 0;
+
+                        SSC_LexNext(&lexer);
+                        while( !SSC_LexIsPunct(&lexer, ")") &&
+                               lexer.current.kind != SSC_TOK_EOF )
+                        {
+                            if( lexer.current.kind == SSC_TOK_IDENT )
+                            {
+                                if( type_is_string(lexer.current.text) )
+                                    strs++;
+                                else
+                                    ints++;
+                            }
+                            SSC_LexNext(&lexer); /* the type */
+                            if( lexer.current.kind == SSC_TOK_LOCAL )
+                                SSC_LexNext(&lexer); /* the $name */
+                            if( SSC_LexIsPunct(&lexer, ",") )
+                                SSC_LexNext(&lexer);
+                        }
+                        compiler->name_int_args[slot] = (int8_t)ints;
+                        compiler->name_str_args[slot] = (int8_t)strs;
+                    }
+                    else
+                    {
+                        compiler->name_int_args[slot] = 0;
+                        compiler->name_str_args[slot] = 0;
+                    }
+                    continue;
+                }
             }
             else
             {

@@ -37,17 +37,20 @@ cp_warn(
 /* ---- record access ------------------------------------------------------ */
 
 int
-cp_group_open(
+cp_group_open_disk(
     struct CP_Ctx* ctx,
+    struct Tool_Dat2Cache* disk_cache,
     enum CP_TypeId type,
     struct CP_Group* group)
 {
     memset(group, 0, sizeof(*group));
-    if( !ctx->cache_open )
+    if( !disk_cache || !disk_cache->disk )
         return 0;
 
+    (void)ctx;
     const struct CP_Type* t = cp_type(type);
-    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&ctx->profile, t->rs_type);
+    struct RSCache_RecordAddress addr =
+        RSCache_RecordAddressFor(&disk_cache->profile, t->rs_type);
     if( addr.group_shift != 0 )
     {
         fprintf(
@@ -58,14 +61,14 @@ cp_group_open(
         return 0;
     }
 
-    int table = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    int table = RSCache_Dat2DiskTableId(disk_cache->disk, RSCACHE_DAT2_TABLE_CONFIGS);
     if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return 0;
 
-    group->archive = RSCache_Dat2DiskArchiveNewLoad(ctx->cache.disk, table, t->config_kind);
+    group->archive = RSCache_Dat2DiskArchiveNewLoad(disk_cache->disk, table, t->config_kind);
     if( !group->archive )
         return 0;
-    if( !RSCache_Dat2DiskArchiveInitMetadata(ctx->cache.disk, group->archive) ||
+    if( !RSCache_Dat2DiskArchiveInitMetadata(disk_cache->disk, group->archive) ||
         group->archive->file_count <= 0 )
     {
         cp_group_free(group);
@@ -81,6 +84,47 @@ cp_group_open(
     group->ids = group->archive->file_ids;
     group->count = group->files->file_count;
     return 1;
+}
+
+int
+cp_group_open(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    struct CP_Group* group)
+{
+    if( !ctx->cache_open )
+        return 0;
+    return cp_group_open_disk(ctx, &ctx->cache, type, group);
+}
+
+int
+cp_group_find_id(
+    const struct CP_Group* group,
+    int id)
+{
+    if( !group || group->count <= 0 )
+        return -1;
+    if( !group->ids )
+    {
+        /* Dense 0..count-1 layout. */
+        if( id < 0 || id >= group->count )
+            return -1;
+        return id;
+    }
+    int lo = 0;
+    int hi = group->count - 1;
+    while( lo <= hi )
+    {
+        int mid = lo + (hi - lo) / 2;
+        int mid_id = group->ids[mid];
+        if( mid_id == id )
+            return mid;
+        if( mid_id < id )
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return -1;
 }
 
 void

@@ -200,6 +200,25 @@ Things worth knowing:
   never complete.
 - **Emitted branches are the inverse of the source comparison** — `if ($x = 1)`
   emits `BRANCH_NOT`, because the branch jumps *over* the block.
+- **A call's argument count is checked against the callee's header.** The
+  declare pass already reads every `[proc,name](int $a, string $b)`, so it
+  records the two counts and `parse_call` compares. Without it a wrong-arity
+  `~proc()` compiles, and the callee pops what its header declared — leaving the
+  stack skewed for everything after it, so the damage surfaces as an unrelated
+  command reading someone else's value. This is the same failure class
+  `test-ss-verify` catches in the corpus, and nothing was catching it in a
+  tree's own content; it found two stale call sites the moment it was turned on.
+- **A stat argument is resolved with a kind hint, because the bare name is
+  ambiguous.** `SSC_SymbolsFind` with no kind returns the lowest-numbered kind
+  holding the name, and `cache.osrs239` uses three of the 23 stat names for
+  something that sorts earlier: `hitpoints` is also param 2100, `attack` varp
+  259, `fishing` loc 20926. So `stat_heal(hitpoints, 3, 0)` compiled to
+  `stat_heal(2100, 3, 0)` and healed nothing. `parse_command` sets
+  `arg_kind_hint = SSC_SYM_STAT` for the `STAT*` / `NPC_STAT*` family only, so a
+  bare `fishing` anywhere else still means the loc. The reference's typed
+  argument lists make this a non-problem for it; this compiler has no types, and
+  the hint is the narrowest thing that works. The mock's stat commands abort on
+  an out-of-range id as the second half of the same fix.
 
 ## Tests
 

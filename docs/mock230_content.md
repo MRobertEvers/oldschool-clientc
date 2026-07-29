@@ -8,7 +8,7 @@ config can be pasted in either direction and mean the same thing.
 
 The ids are not LostCity's. They come from **OpenRune**, whose gameval table
 names every id in a modern OldSchool cache, and every one of them is re-checked
-against `cache.osrs239` before it is trusted. See §4.
+against `cache.osrs239` before it is trusted. See §6.
 
 `build/` is excluded by the repo's `.gitignore`, so **a fresh checkout has no
 compiled script pack** until `mock230-scripts` runs. The mock still works
@@ -47,21 +47,34 @@ OSRS-Content/osrs239-content/
     pack/
       stat.pack              skills; no cache table holds them
       varp_mock.pack         aliases for varps this world repurposed
+      category.pack          obj categories the cache states but does not name
     scripts/
+      interface_chat/scripts/chat.rs2            ~chatnpc / ~chatplayer / ~mesbox
+      interface_chat/configs/chat.constant       chathead expressions
       areas/lumbridge/configs/lumbridge.npc      combat blocks
-      areas/lumbridge/scripts/*.rs2              dialogue
+      areas/lumbridge/scripts/*.rs2              dialogue: hans, bob,
+                                                 father_aereck, tutors, citizens
       skill_combat/configs/combat.param          LostCity's param names, verbatim
       skill_combat/configs/npc_combat.param
       skill_combat/combat.rs2
+      skill_combat/configs/equipment.obj          equip requirements, GENERATED
+      skill_combat/configs/equipment_disputed.obj the 18 the sources fight over
+      skill_thieving/scripts/pickpocket.rs2      [opnpc3] on every human
+      skill_thieving/configs/thieving.constant   levels, experience, stun
+      skill_prayer/scripts/bury_bone.rs2         [opheld1,_bones]
+      skill_prayer/scripts/altar.rs2             [oploc1,altar]
+      skill_prayer/configs/bones.constant        prayer experience per bone
+      skill_prayer/configs/prayers.prayer        the 29 prayers
+      skill_prayer/configs/prayers.constant      overhead icon indices
+      general/scripts/food.rs2                   eating, bound by obj category
+      general/configs/food.constant              hitpoints healed per food
       doors/configs/doors.loc                    generated + cache-validated
-      drop tables/scripts/*.rs2                  [ai_queue3] drop tables
-      drop tables/configs/lootdrop.constant
+      drop_tables/scripts/*.rs2                  [ai_queue3] drop tables
+      drop_tables/configs/lootdrop.constant
       interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
       interface_bank/configs/bank.varp           the varps its varbits live in
       interface_bank/configs/bank.constant       quantity modes
       interface_bank/configs/bank.enum           tab index -> tab-size varbit
-      skill_prayer/configs/prayers.prayer        the 29 prayers
-      skill_prayer/configs/prayers.constant      overhead icon indices
       player/configs/worn.enum                   worn-tab cell -> wear slot
       player/login.rs2
       build/                                     compiled script pack (gitignored)
@@ -74,8 +87,10 @@ exactly as OldSchool ships it, so a config block is an **overlay** carrying only
 what a cache cannot state. Reading the text costs about a millisecond and takes
 a build step out of the edit loop.
 
-`mock230_pack --cache-out` is the packer, for when an overlay should be visible
-outside the mock. See §6.
+When you *do* need a portable cache that carries those overlays (npc combat
+params, door `next_loc_stage`), bake them with `mock230_pack --cache-out` —
+see the revision-bump runbook in `OSRS-Content/README.md`. `mock230_pack
+--cache-out` is the packer for that case. See §8.
 
 ---
 
@@ -102,7 +117,7 @@ param=death_drop,bones
 
 **Omitted is the normal case.** Name, models, recolours, walk and ready
 animations, menu ops and combat level all come from the cache record. So do the
-*equipment bonuses* — see §3 — which is why a config almost never states one.
+*equipment bonuses* — see §4 — which is why a config almost never states one.
 
 What has to be authored is what an OldSchool cache has no field for: hitpoints,
 the three combat levels, aggression, and the drop. Values follow OpenRune's own
@@ -134,6 +149,50 @@ if ($dropint < 1) {
 The engine fires the trigger when an npc reaches zero hitpoints. With no script
 bound, the config's `death_drop` still drops — so an npc with no table leaves
 bones rather than nothing.
+
+### Content gets first refusal, and that cuts both ways
+
+Every interaction trigger dispatches content first and the engine's own
+behaviour second — `[opnpc<n>]`, `[oploc<n>]`, `[opheld<n>]`, `[inv_button<n>]`.
+That is what lets the mock run with no script pack at all, and it is also a trap
+worth stating once: a script bound to an op the *cache gives a verb to* replaces
+the engine's handling of it rather than running alongside it.
+
+A goblin's "Attack" is op 2, so `[opnpc2,goblin]` is the Attack click. The
+version of `skill_combat/combat.rs2` that only said a line made goblins say it
+and stand there. The fix is one statement, and it is the same call the engine's
+own branch makes:
+
+```rs2
+[opnpc2,goblin]
+npc_say("Ye be dead soon!");
+p_opnpc(2);      // without this, "Attack" no longer attacks
+```
+
+### Categories: the grouping a cache already states
+
+An OldSchool obj record carries a `category` (config opcode 94), and a trigger
+can be bound to one. `[opheld1,_bones]` is every bone in the game — 38 of them
+in `cache.osrs239`, and a 39th needs no edit:
+
+```rs2
+[opheld1,_bones] @bury_bones(last_slot, last_item);
+[opheld1,_cooked_meat] @eat_food(last_slot, last_item);
+[opheld1,_cooked_fish] @eat_food(last_slot, last_item);
+```
+
+The cache has no table naming categories, so `server/pack/category.pack` does —
+six of them, each checked by grouping the obj table and confirming the group is
+what the name claims. **Category 0 is not a name and must not be one**: it is
+the decoder's default for "no category stated", so a trigger bound to it would
+match every uncategorised obj in the game. The engine passes `-1` rather than
+`0` for that reason.
+
+Two things a category cannot do here. `[opnpc<n>,_citizen]` — LostCity's way of
+binding one script to every townsperson — has no equivalent, because an
+OldSchool npc record carries no such grouping; those bindings are one line per
+npc. And a loc category is not read at all, so `[oploc1,_prayer_altar]` becomes
+`[oploc1,altar]`.
 
 ### No ids in headers
 
@@ -257,7 +316,52 @@ thing, and the id lives in one file.
 
 ---
 
-## 3. The cache already knows the combat bonuses
+## 3. Dialogue
+
+`interface_chat/scripts/chat.rs2` is LostCity's dialogue toolkit, and every
+conversation in the tree goes through it. Four procs:
+
+```rs2
+~chatnpc("Hello. What are you doing here?");          // npc head, left  (231)
+~chatnpc_anim(^chat_angry, "Get yer own!");
+~chatplayer("I'm looking for whoever is in charge.");  // player head, right (217)
+~chatplayer_anim(^chat_happy, "Thanks!");
+~mesbox("You need level 40 Thieving to pick the guard's pocket.");  // no head (229)
+```
+
+Each sets the head, the name, the body and the continue row, mounts the
+interface into the chatbox slot, arms the continue row as a resume button and
+blocks on `p_pausebutton`. A five-line conversation is five statements.
+
+**The speaker is read off the active npc**, `npc_type` for the head and
+`npc_name` for the label, which is why a `~chatnpc` line copies across from a
+LostCity script unedited — and why no dialogue file writes an npc's name down.
+A hand-written "Cooking tutor" beside npc 3219 is a second copy of what the
+cache says, and a second copy can disagree.
+
+Three differences from the reference, all with the same root:
+
+- **No paging.** LostCity measures the string with `split_init` and picks one of
+  `npcchat1..npcchat4` by line count, because each has a fixed number of text
+  components. rev 230 has one interface with one multi-line body (231:6, 67px,
+  lineheight 16) that wraps by itself, so there is nothing to split. A ported
+  line replaces LostCity's `|` hard breaks with spaces; anything past about four
+  lines is clipped rather than paged, which is the one thing this does worse.
+- **`<p,expression>` becomes an argument.** The tag is stripped by `split_init`
+  in the reference, so the expression is the first argument of the `_anim` form
+  instead. `configs/chat.constant` maps the seven one-for-one.
+- **No `~p_choice2..5`, and this is the real gap.** rev 230's option dialogue
+  (interface 219, `chatmulti`) has *two* components and builds its rows with
+  `cc_create` from a clientscript, so `if_settext` cannot address them at all —
+  the server drives it with RUNCLIENTSCRIPT, which this server does not send.
+  Every ported conversation with a choice in it is linearised, and each one
+  names the branches it dropped at the point it drops them. Closing this is the
+  highest-value piece of dialogue work left; nothing else about those scripts
+  would change.
+
+---
+
+## 4. The cache already knows the combat bonuses
 
 This is the single most useful thing in the whole system and it is easy to miss.
 
@@ -285,7 +389,118 @@ should be rare enough to deserve a comment.
 
 ---
 
-## 4. Where the ids come from, and why they are checked
+## 5. Items: what the cache states, and the one thing it does not
+
+The bonuses in §4 are not the half of it. An OldSchool obj record also carries
+the name, the description, the model and its recolours, the 2D transforms, the
+`cost` (so alchemy values are `× 6/10` and `× 4/10`, never authored), the weight,
+stackability, the four stack variants, all three wear positions, the category,
+the inventory ops, and the note/placeholder links. `pack/param.pack` names four
+more that nothing was reading: ranged strength (12 on ammunition, **189** on worn
+gear — two ids for one equipment-stats row, and naming only the one OpenRune
+documents would silently zero every arrow in the game), attack range (13), and
+magic damage in tenths of a percent (299).
+
+So porting items is mostly *not* transcribing tables. It is naming what is
+already there, and authoring the one thing that genuinely is not.
+
+### The level you need to wear it
+
+This is the gap, and it is a sharp one: before this existed the mock let a
+level-1 character wield a dragon scimitar.
+
+The cache half-states it. Params 434/436 and 435/437 are a `(skill, level)`
+requirement pair, and reading them is worth doing — rune scimitar Attack 40,
+green d'hide body Ranged 40 + Defence 40, all OldSchool values. But it is
+half-stated in two distinct ways, and each cost a wrong first attempt:
+
+- **It covers 698 of 6,153 wearable objs.** Rune and dragon are there; mithril
+  and adamant are not, and they need 20 and 30. So the cache is a *cross-check*,
+  not the authority — the same relationship this tree already has with npc
+  hitpoints.
+- **The pair is all the room there is.** Void knight gear needs seven
+  requirements, so no cache record can express it. The config's own key is
+  therefore repeatable, deliberately unlike the cache's fixed pair.
+- **The same pair states the requirement to *make* the record.** A fire
+  battlestaff reads Crafting 62, which is what it takes to build one. "Is it
+  wearable" does not separate the two — 19 records in this cache are wearable
+  *and* carry a creation requirement — so the engine's test is whether the skill
+  is a **combat** skill, because no combat skill is ever a creation requirement.
+  A non-combat requirement that really does gate wearing (a skill cape needs 99,
+  a larupia hat 28 Hunter) comes in through the overlay, stated rather than
+  inferred.
+
+`tools/kronos_item_import.py` fills the rest in from Kronos'
+`data/items/item_info.json` — 11,512 hand-curated entries whose ladders match
+OldSchool exactly — and prints an audit rather than asserting the merge:
+
+```
+$ tools/kronos_item_import.py --report
+kronos entries with a requirement : 1172
+  cache already states it exactly : 251  (no line emitted)
+  emitted to the overlay          : 790
+  no name match in this cache     : 108
+  name matches, id drifted 184->239: 65
+  withheld, sources disagree      : 18  -> equipment_disputed.obj
+```
+
+Items are matched by **display name**, never by id — Kronos is rev 184 and this
+cache is 239 — and the 108 that match on neither are printed, not dropped. Most
+are abbreviations Kronos writes and the cache does not (`Blue d'hide vamb`).
+
+### Why there is no tie-break rule
+
+The 18 conflicts are the interesting part. Where both sources state a level for
+the same skill and the levels differ, **neither side is reliably right**:
+
+```
+twisted bow      cache 85 Ranged   kronos 75 Ranged   -> 75
+guardian boots   cache 75 Defence  kronos 60 Defence  -> 75
+```
+
+Both directions, in the same list. Preferring the cache because it is 55
+revisions newer puts the twisted bow ten levels too high; preferring Kronos
+because it is hand-curated drops guardian boots fifteen too low. So the importer
+**withholds** them and they are settled by hand in
+`skill_combat/configs/equipment_disputed.obj`, each carrying both candidates in a
+comment and two marked `UNSURE`. The generator does not own that file and will
+not overwrite it — the same rule the LostCity exporter has.
+
+### Where it ends up
+
+A sparse table, not a field on every record: about 1,400 of 33,747 objs have a
+requirement, so eight `(stat, level)` pairs on all of them would cost 2 MB to say
+"none" thirty-two thousand times.
+
+```
+mock230: content loaded (… 1419 equip reqs (675 from the cache) …)
+```
+
+The check itself is `mock230_equipment_may_wear`, and two things about it are
+decisions rather than plumbing. It reads the **base** level, so a potion does not
+let you wield what you could not wield sober — which is what LostCity's
+`levelrequire_*` labels do with `stat_base`. And an obj with **no** requirement
+is wearable, so a cache the importer has not been run against stays playable
+rather than refusing everything it does not recognise.
+
+It lives in the engine rather than in content for the same reason "Attack" does:
+it applies to every wearable obj in the cache, and LostCity's per-item form —
+528 lines of `[opheld2,rune_scimitar] @levelrequire_attack(40, last_slot);`
+across `tier1..tier70` — would be a second copy of a table the content tree
+already states. Content can still override any single item by binding
+`[opheld2]`.
+
+`mock230_pack` pins the ladder, so a source swapped for a worse one shows up as
+a number out of order rather than as silence:
+
+```
+equipment requirements
+        1419 requirement rows checked, 11 ladder values pinned
+```
+
+---
+
+## 6. Where the ids come from, and why they are checked
 
 `tools/gameval_import.py` reads OpenRune's `data/cfg/gamevals-binary/gamevals.dat`
 — a Java `writeUTF` table of every id in its cache with the symbolic name its
@@ -319,7 +534,7 @@ this tree.
 
 ---
 
-## 5. Doors: derive broadly, then let the cache decide
+## 7. Doors: derive broadly, then let the cache decide
 
 Two loc ids look identical to a cache reader — one closed, one open — and
 nothing in the cache says which pairs with which. LostCity records the pairing
@@ -362,7 +577,7 @@ disagree with it.
 
 ---
 
-## 6. `mock230_pack`
+## 8. `mock230_pack`
 
 ```
 src/build/mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR]
@@ -371,13 +586,19 @@ src/build/mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR]
 
 Validates, and exits non-zero on an error. It checks that every spawned id is in
 the cache, that every symbol resolves, that a config with a combat block names
-an npc the cache makes attackable, and that every door pair holds up (§5).
+an npc the cache makes attackable, and that every door pair holds up (§6).
 
-`--cache-out DIR` writes a **derived cache**: the source cache copied, with each
-authored npc's combat block folded into that record's param table using the ids
-in `content/pack/param.pack`. The mock does not need it — it reads the text —
-but a cache is the portable form, readable by `tools/dump_npc`, by the client,
-and by any other server pointed at it:
+`--cache-out DIR` writes a **derived cache**: the source cache copied, with
+server-authoritative overlays folded into each record's param table using the
+ids in `pack/param.pack`:
+
+- **npc** combat blocks (hitpoints, attacklevel, death_drop, anims, …)
+- **loc** door stages (`next_loc_stage`)
+
+The mock does not need it — it reads the text — but a cache is the portable
+form, readable by `tools/dump_npc`, by the client, and by any other server
+pointed at it. This is step 4 of the revision-bump runbook in
+`OSRS-Content/README.md`.
 
 ```
 $ tools/dump_npc/dump_npc --rev osrs230 cache.mock --id 3028
@@ -390,11 +611,11 @@ Two things worth knowing about the export:
 - **It copies the whole cache** (~180 MB). An edit appends its new archive to
   `main_file_cache.dat2` and repoints the index at it, so the `.dat2` is part of
   the output whether or not most of it changed.
-- **Untouched records keep their original bytes.** Only the 38 npcs with a
-  config block are re-encoded, because the npc encoder is a semantic round trip
-  rather than a byte-exact one — it cannot distinguish "field absent" from
-  "field present and zero", so a re-encoded record is usually a few bytes
-  shorter. See `3rd/rscache/EXCEPTIONS.md`.
+- **Untouched records keep their original bytes.** Only records with an overlay
+  are re-encoded, because the encoders are semantic round trips rather than
+  byte-exact ones — they cannot distinguish "field absent" from "field present
+  and zero", so a re-encoded record is usually a few bytes shorter. See
+  `3rd/rscache/EXCEPTIONS.md`.
 
 It refuses to export from a tree the validator rejected. A baked cache is wrong
 in exactly the way the errors said and then outlives the message.

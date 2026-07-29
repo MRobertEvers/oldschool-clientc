@@ -108,10 +108,37 @@ section_header(char* line)
 /* Packs                                                               */
 /* ------------------------------------------------------------------ */
 
+/*
+ * A namespace is two layers, not two directories. See
+ * docs/CONTENT_ARCHITECTURE.md §4.1.
+ *
+ *   layer 0   pack/<ns>.pack    machine-owned. Regenerated wholesale by
+ *                               cachepack from the cache's gameval table.
+ *                               Never hand-edited; comments here get eaten.
+ *   layer 1   names/<ns>.pack   human-owned. Never machine-written. Holds the
+ *                               three things layer 0 structurally cannot say:
+ *                                 alias     a second name for a named id
+ *                                 override  replace layer 0's name for an id
+ *                                 fill      name an id layer 0 leaves unnamed
+ *
+ * `pack/varp.pack` is a *function of the cache* — `115=bankcert` is the cache's
+ * own gameval, not anybody's choice — and `LC_Pack` is `names[id]`, one name per
+ * id. So `115=bank_withdrawnotes` cannot live there, and the old answer was to
+ * hand-splice authored lines into a file `cachepack unpack` regenerates. This
+ * makes layer 0 disposable: `rm -rf pack/ && cachepack unpack` becomes safe, and
+ * every surviving name in `names/` is one a human wrote.
+ */
+enum
+{
+    PACK_LAYER_CACHE = 0,
+    PACK_LAYER_AUTHORED = 1,
+};
+
 struct PackEntry
 {
     char* name;
     int id;
+    int layer;
 };
 
 struct Pack
@@ -127,7 +154,8 @@ static void
 pack_add(
     struct Pack* pack,
     const char* name,
-    int id)
+    int id,
+    int layer)
 {
     if( pack->count == pack->capacity )
     {
@@ -141,18 +169,23 @@ pack_add(
     }
     pack->entries[pack->count].name = strdup(name);
     pack->entries[pack->count].id = id;
+    pack->entries[pack->count].layer = layer;
     pack->count++;
 }
 
 static int
 pack_load(
     struct Pack* pack,
-    const char* path)
+    const char* path,
+    int layer)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
     int loaded = 0;
 
+    /* A missing pack is not an error: layer 1 is optional for every namespace,
+     * and layer 0 does not exist at all for the server-only ones (`stat` has no
+     * gameval archive to be regenerated from). */
     if( !file )
         return 0;
     while( fgets(raw, sizeof(raw), file) )
@@ -165,7 +198,7 @@ pack_load(
         name = split_key_value(line);
         if( !name || !*name )
             continue;
-        pack_add(pack, name, atoi(line));
+        pack_add(pack, name, atoi(line), layer);
         loaded++;
     }
     fclose(file);
@@ -189,10 +222,26 @@ mock230_content_symbol(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return -1;
 
+    /*
+     * Both layers resolve name -> id, authored first.
+     *
+     * Layer 0's names keep working on purpose: `bankcert` is what the cache
+     * calls varp 115 and `bank_withdrawnotes` is what this world calls it, and
+     * a config or script may reasonably say either. Searching authored first
+     * only matters when the two disagree, and the loader has already refused to
+     * start in that case (see validate_name_layers).
+     */
     pack = &g_packs[kind];
     for( int i = 0; i < pack->count; i++ )
     {
-        if( strcmp(pack->entries[i].name, name) == 0 )
+        if( pack->entries[i].layer == PACK_LAYER_AUTHORED &&
+            strcmp(pack->entries[i].name, name) == 0 )
+            return pack->entries[i].id;
+    }
+    for( int i = 0; i < pack->count; i++ )
+    {
+        if( pack->entries[i].layer == PACK_LAYER_CACHE &&
+            strcmp(pack->entries[i].name, name) == 0 )
             return pack->entries[i].id;
     }
     return -1;
@@ -208,12 +257,107 @@ mock230_content_symbol_name(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return NULL;
     pack = &g_packs[kind];
+    /* Layer 1 wins for id -> name: the canonical name of an id this world
+     * repurposed is the one this world gave it, not the cache's. */
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].id == symbol_id )
+        if( pack->entries[i].layer == PACK_LAYER_AUTHORED &&
+            pack->entries[i].id == symbol_id )
+            return pack->entries[i].name;
+    }
+    for( int i = 0; i < pack->count; i++ )
+    {
+        if( pack->entries[i].layer == PACK_LAYER_CACHE && pack->entries[i].id == symbol_id )
             return pack->entries[i].name;
     }
     return NULL;
+}
+
+/* Forward: the diagnostic namespace name, defined just below. */
+static const char*
+pack_kind_name(enum Mock230PackKind kind);
+
+/**
+ * Refuse to start on a namespace whose two layers disagree.
+ *
+ * Two rules, both LostCity's (`packConfigs()`), and both describing hazards this
+ * tree has already written down in prose rather than checked:
+ *
+ * 1. **An authored name may not shadow a *different* id's cache name.** If
+ *    layer 0 says `115=bankcert` and layer 1 says `843=bankcert`, then
+ *    `bankcert` in a script means one thing to a reader and another to the
+ *    loader. Aliasing the *same* id is the entire point of layer 1 and is fine;
+ *    aliasing a different one is a typo that would otherwise resolve silently.
+ *
+ * 2. **varp and varbit share one RuneScript name domain.** `%name` does not say
+ *    which of the two it is, so a name meaning varp 115 and varbit 4 cannot
+ *    coexist however separate their pack files look.
+ *
+ * Returns the number of collisions; each is reported through the content error
+ * count, so `mock230_pack` fails on them too.
+ */
+static int
+validate_name_layers(void)
+{
+    /* varp and varbit only. `varn`/`vars` would join this list when they exist;
+     * the other namespaces each have their own domain. */
+    static const enum Mock230PackKind k_shared_domain[] = {
+        MOCK230_PACK_VARP,
+        MOCK230_PACK_VARBIT,
+    };
+    int collisions = 0;
+
+    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    {
+        const struct Pack* pack = &g_packs[kind];
+
+        for( int i = 0; i < pack->count; i++ )
+        {
+            if( pack->entries[i].layer != PACK_LAYER_AUTHORED )
+                continue;
+            for( int j = 0; j < pack->count; j++ )
+            {
+                if( pack->entries[j].layer != PACK_LAYER_CACHE )
+                    continue;
+                if( pack->entries[j].id == pack->entries[i].id )
+                    continue; /* an alias for the same id — the point of layer 1 */
+                if( strcmp(pack->entries[j].name, pack->entries[i].name) != 0 )
+                    continue;
+                CONTENT_ERROR(
+                    "names/%s.pack: `%s` = %d shadows pack/%s.pack's `%s` = %d\n",
+                    pack_kind_name((enum Mock230PackKind)kind), pack->entries[i].name,
+                    pack->entries[i].id, pack_kind_name((enum Mock230PackKind)kind),
+                    pack->entries[j].name, pack->entries[j].id);
+                collisions++;
+            }
+        }
+    }
+
+    for( size_t a = 0; a < sizeof(k_shared_domain) / sizeof(k_shared_domain[0]); a++ )
+    {
+        for( size_t b = a + 1; b < sizeof(k_shared_domain) / sizeof(k_shared_domain[0]); b++ )
+        {
+            const struct Pack* left = &g_packs[k_shared_domain[a]];
+            const struct Pack* right = &g_packs[k_shared_domain[b]];
+
+            for( int i = 0; i < left->count; i++ )
+            {
+                for( int j = 0; j < right->count; j++ )
+                {
+                    if( strcmp(left->entries[i].name, right->entries[j].name) != 0 )
+                        continue;
+                    CONTENT_ERROR("`%s` is both %s %d and %s %d — one RuneScript name "
+                                  "domain covers both\n",
+                                  left->entries[i].name,
+                                  pack_kind_name(k_shared_domain[a]), left->entries[i].id,
+                                  pack_kind_name(k_shared_domain[b]), right->entries[j].id);
+                    collisions++;
+                }
+            }
+        }
+    }
+
+    return collisions;
 }
 
 /** The pack file a kind is spelled with, for diagnostics. */
@@ -613,6 +757,154 @@ load_npc_config(const char* path)
         snprintf(where, sizeof(where), "%s:%d", path, line_number);
         npc_config_key(def, line, value, where);
     }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
+/* .obj configs                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Equipment requirements, and nothing else yet.
+ *
+ * The same overlay contract the `.npc` grammar has: a block starts from what
+ * `cache.osrs239` already says about the record and states only what a cache
+ * cannot. For an obj that is a short list, because the cache is unusually
+ * generous here — name, model, cost, weight, stackability, stack variants, the
+ * wear positions, the category, the twelve combat bonuses and the attack rate
+ * are all in the record already, and restating any of them in a config is how a
+ * config comes to disagree with the client.
+ *
+ * What it cannot state is the level you need to *wear* the thing, except for a
+ * subset and never more than two of them. See docs/mock230_content.md §5 and
+ * tools/kronos_item_import.py.
+ *
+ *     [mithril_scimitar]
+ *     param=levelrequire,attack,20
+ *
+ *     [pest_void_knight_top]
+ *     param=levelrequire,attack,42
+ *     param=levelrequire,defence,42
+ *     ...
+ *
+ * `levelrequire` is repeatable and its value is `<skill>,<level>`, which is a
+ * deliberate departure from the cache's fixed 434/436 + 435/437 pair: the pair
+ * is why an OldSchool cache cannot express Void knight gear at all, and there is
+ * no reason for a config this server owns to inherit the limit. LostCity spells
+ * its own single-requirement form `param=levelrequire,N`; this is that with the
+ * skill named, because rev 230 has items requiring seven.
+ */
+static void
+obj_config_key(
+    const char* key,
+    const char* value,
+    int* stats,
+    int* levels,
+    int* count,
+    const char* where)
+{
+    char param_name[64] = { 0 };
+    char skill_name[64] = { 0 };
+    int level = 0;
+    int stat;
+
+    if( strcmp(key, "param") != 0 )
+    {
+        /* Every other LostCity obj key states something the cache already does.
+         * Accepted and ignored, like the `.npc` grammar's `model=` — but never
+         * silently, so a paste from a LostCity tree reports what it dropped. */
+        CONTENT_ERROR("%s: obj key `%s` is the cache's to state, ignored\n", where, key);
+        return;
+    }
+    if( sscanf(value, "%63[^,],%63[^,],%d", param_name, skill_name, &level) != 3 )
+    {
+        CONTENT_ERROR("%s: `param=levelrequire,<skill>,<level>` is the shape, got `%s`\n",
+                      where, value);
+        return;
+    }
+    if( strcmp(param_name, "levelrequire") != 0 )
+    {
+        CONTENT_ERROR("%s: obj param `%s` is not one this server reads\n", where, param_name);
+        return;
+    }
+    stat = mock230_content_symbol(MOCK230_PACK_STAT, skill_name);
+    if( stat < 0 )
+    {
+        CONTENT_ERROR("%s: `%s` is not in server/pack/stat.pack\n", where, skill_name);
+        return;
+    }
+    if( level <= 0 || level > 99 )
+    {
+        CONTENT_ERROR("%s: level %d is outside 1..99\n", where, level);
+        return;
+    }
+    if( *count >= MOCK230_OBJ_REQUIRE_MAX )
+    {
+        CONTENT_ERROR("%s: more than %d requirements on one obj\n", where,
+                      MOCK230_OBJ_REQUIRE_MAX);
+        return;
+    }
+    stats[*count] = stat;
+    levels[*count] = level;
+    (*count)++;
+}
+
+static void
+load_obj_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    char where[600];
+    int obj_id = -1;
+    int stats[MOCK230_OBJ_REQUIRE_MAX];
+    int levels[MOCK230_OBJ_REQUIRE_MAX];
+    int count = 0;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = clean_line(raw);
+        char* header;
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = section_header(line);
+        if( header )
+        {
+            /* Flush the block that just ended before starting the next one. The
+             * requirements are a set, so they are applied once per block rather
+             * than accumulated into the table a line at a time. */
+            if( obj_id >= 0 && count )
+                mock230_obj_require_set(obj_id, stats, levels, count);
+            count = 0;
+            obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, header);
+            if( obj_id < 0 )
+                CONTENT_ERROR("%s:%d: `%s` is not in pack/obj.pack\n", path, line_number,
+                              header);
+            continue;
+        }
+
+        value = split_key_value(line);
+        if( !value )
+        {
+            CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
+            continue;
+        }
+        if( obj_id < 0 )
+        {
+            CONTENT_ERROR("%s:%d: `%s` before any [section]\n", path, line_number, line);
+            continue;
+        }
+        snprintf(where, sizeof(where), "%s:%d", path, line_number);
+        obj_config_key(line, value, stats, levels, &count, where);
+    }
+    if( obj_id >= 0 && count )
+        mock230_obj_require_set(obj_id, stats, levels, count);
     fclose(file);
 }
 
@@ -1381,30 +1673,52 @@ int
 mock230_content_load(const char* dir)
 {
     /*
-     * `pack/` is the cache's own naming, one name per record id, written by
-     * cachepack. `server/pack/` is what only the server has: skills, which no
-     * cache table holds, and aliases for varps this world repurposed. It loads
-     * second so an alias adds to the namespace rather than fighting it.
+     * The namespace register.
+     *
+     * One row per namespace rather than one per *file*, because a namespace is
+     * two layers of one name domain (see the Packs section above): layer 0 in
+     * `pack/<ns>.pack`, layer 1 in `names/<ns>.pack`. A namespace with no cache
+     * table — `stat`, which no gameval archive names — simply has no layer 0,
+     * and a missing pack loads as zero symbols rather than as an error.
+     *
+     * This is also step 2 of docs/CONTENT_ARCHITECTURE.md in embryo: when the
+     * `content.ini` register lands, this table is what it replaces, and the same
+     * rows are what sscompile and cachepack should be reading instead of their
+     * own filename tables.
+     */
+    static const struct
+    {
+        const char* ns;
+        enum Mock230PackKind kind;
+    } k_namespaces[] = {
+        { "npc",       MOCK230_PACK_NPC       },
+        { "obj",       MOCK230_PACK_OBJ       },
+        { "loc",       MOCK230_PACK_LOC       },
+        { "seq",       MOCK230_PACK_SEQ       },
+        { "spotanim",  MOCK230_PACK_SPOTANIM  },
+        { "inv",       MOCK230_PACK_INV       },
+        { "varp",      MOCK230_PACK_VARP      },
+        { "varbit",    MOCK230_PACK_VARBIT    },
+        { "interface", MOCK230_PACK_INTERFACE },
+        { "component", MOCK230_PACK_COMPONENT },
+        { "param",     MOCK230_PACK_PARAM     },
+        { "hitsplat",  MOCK230_PACK_HITSPLAT  },
+        { "stat",      MOCK230_PACK_STAT      },
+    };
+    /*
+     * Where layer 1 used to live, before it was a layer.
+     *
+     * Kept so a content tree that has not moved its files yet still loads —
+     * these are read at layer 1, which is what they always were in spirit. They
+     * go away once the tree ships `names/`.
      */
     static const struct
     {
         const char* file;
         enum Mock230PackKind kind;
-    } k_packs[] = {
-        { "pack/npc.pack",              MOCK230_PACK_NPC       },
-        { "pack/obj.pack",              MOCK230_PACK_OBJ       },
-        { "pack/loc.pack",              MOCK230_PACK_LOC       },
-        { "pack/seq.pack",              MOCK230_PACK_SEQ       },
-        { "pack/spotanim.pack",         MOCK230_PACK_SPOTANIM  },
-        { "pack/inv.pack",              MOCK230_PACK_INV       },
-        { "pack/varp.pack",             MOCK230_PACK_VARP      },
-        { "pack/varbit.pack",           MOCK230_PACK_VARBIT    },
-        { "pack/interface.pack",        MOCK230_PACK_INTERFACE },
-        { "pack/component.pack",        MOCK230_PACK_COMPONENT },
-        { "pack/param.pack",            MOCK230_PACK_PARAM     },
-        { "pack/hitsplat.pack",         MOCK230_PACK_HITSPLAT  },
-        { "server/pack/stat.pack",      MOCK230_PACK_STAT      },
-        { "server/pack/varp_mock.pack", MOCK230_PACK_VARP      },
+    } k_legacy_authored[] = {
+        { "server/pack/stat.pack",      MOCK230_PACK_STAT },
+        { "server/pack/varp_mock.pack", MOCK230_PACK_VARP },
     };
     char path[1024];
     DIR* probe;
@@ -1432,11 +1746,33 @@ mock230_content_load(const char* dir)
     }
     closedir(probe);
 
-    for( size_t i = 0; i < sizeof(k_packs) / sizeof(k_packs[0]); i++ )
+    /*
+     * Layer 0 first, then layer 1, then the pre-`names/` locations.
+     *
+     * Order is not resolution — the lookups pick by layer, not by position — but
+     * loading in this order keeps the diagnostics readable: an authored name is
+     * reported against the cache name it collides with, and the cache name has
+     * to be present for that to say anything useful.
+     */
+    for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
     {
-        snprintf(path, sizeof(path), "%s/%s", dir, k_packs[i].file);
-        symbols += pack_load(&g_packs[k_packs[i].kind], path);
+        snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, k_namespaces[i].ns);
+        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_LAYER_CACHE);
     }
+    for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
+    {
+        snprintf(path, sizeof(path), "%s/names/%s.pack", dir, k_namespaces[i].ns);
+        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_LAYER_AUTHORED);
+    }
+    for( size_t i = 0; i < sizeof(k_legacy_authored) / sizeof(k_legacy_authored[0]); i++ )
+    {
+        snprintf(path, sizeof(path), "%s/%s", dir, k_legacy_authored[i].file);
+        symbols += pack_load(&g_packs[k_legacy_authored[i].kind], path, PACK_LAYER_AUTHORED);
+    }
+
+    /* A namespace whose two layers disagree is refused here rather than
+     * resolved silently later. */
+    validate_name_layers();
 
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */
@@ -1449,6 +1785,7 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".enum", load_enum_config);
     walk_configs(path, ".varp", load_varp_config);
     walk_configs(path, ".npc", load_npc_config);
+    walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
     walk_configs(path, ".prayer", load_prayer_config);
     resolve_loc_stages();
@@ -1456,12 +1793,19 @@ mock230_content_load(const char* dir)
     snprintf(path, sizeof(path), "%s/maps", dir);
     load_maps(path);
 
-    fprintf(stderr,
-            "mock230: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
-            "%d varp defs, %d prayers, %d npc spawns, %d obj spawns%s)\n",
-            symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
-            g_prayer_def_count, g_npc_spawn_count, g_obj_spawn_count,
-            g_errors ? ", WITH ERRORS" : "");
+    {
+        int requires_total = 0;
+        int requires_from_cache = 0;
+
+        mock230_obj_require_counts(&requires_total, &requires_from_cache);
+        fprintf(stderr,
+                "mock230: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
+                "%d varp defs, %d prayers, %d equip reqs (%d from the cache), %d npc spawns, "
+                "%d obj spawns%s)\n",
+                symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
+                g_prayer_def_count, requires_total, requires_from_cache, g_npc_spawn_count,
+                g_obj_spawn_count, g_errors ? ", WITH ERRORS" : "");
+    }
     return g_npc_def_count;
 }
 

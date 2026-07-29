@@ -282,20 +282,6 @@ mock230_bank_varbit_resolve(
 /* Varps and varbits                                                   */
 /* ------------------------------------------------------------------ */
 
-static void
-varp_mark(
-    struct Mock230Player* player,
-    int varp)
-{
-    for( int i = 0; i < player->varp_changed_count; i++ )
-        if( player->varp_changed[i] == varp )
-            return;
-    if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
-        player->varp_changed[player->varp_changed_count++] = varp;
-    else
-        fprintf(stderr, "mock230: varp change list full, varp %d not sent\n", varp);
-}
-
 void
 mock230_bank_set_varbit(
     struct Mock230Server* srv,
@@ -331,7 +317,7 @@ mock230_bank_set_varbit(
     if( (int32_t)current == player->varps[basevar] )
         return;
     player->varps[basevar] = (int32_t)current;
-    varp_mark(player, basevar);
+    mock230_world_mark_varp(player, basevar);
 }
 
 int

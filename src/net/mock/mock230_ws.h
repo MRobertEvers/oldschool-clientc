@@ -67,14 +67,14 @@ mock230_conn_recv(
     int max);
 
 /*
- * Block until `count` application bytes have arrived. Returns how many were
- * actually delivered — short means the peer went away, exactly as read_full on
- * a raw socket does.
+ * There is deliberately no blocking read here.
+ *
+ * `mock230_conn_recv_full` used to exist, and the login handshake was written
+ * against it. It is gone because the server now has a transport that is not
+ * always a socket (mock230_transport.h): an in-process session shares a thread
+ * with the client feeding it, so a blocking read is not a stall, it is a
+ * deadlock. Everything above this file waits by re-entering with more bytes,
+ * never by asking for them.
  */
-int
-mock230_conn_recv_full(
-    struct Mock230Conn* conn,
-    uint8_t* out,
-    int count);
 
 #endif

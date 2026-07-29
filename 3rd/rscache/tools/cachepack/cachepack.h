@@ -278,6 +278,21 @@ struct CP_Ctx
     struct Tool_Dat2Cache cache; /* open only for unpack/verify */
     bool cache_open;
 
+    /**
+     * Previous revision's cache, opened for LC-style unpack diffs.
+     *
+     * When set, unpack still rewrites `configs/all.<type>` from the *new* cache
+     * (so the tree matches what the client ships) and additionally writes a
+     * review queue under `configs/_unpack/<rev_name>/`: new ids and `.merge`
+     * files for records whose text changed. See cp_unpack.c.
+     */
+    struct Tool_Dat2Cache compare;
+    bool compare_open;
+    struct RSCache compare_profile;
+
+    /** `--rev` string, used as the `_unpack/<rev_name>/` directory name. */
+    char rev_name[64];
+
     struct CP_Names names;
     char srcdir[1024];
 
@@ -330,6 +345,19 @@ cp_group_open(
     enum CP_TypeId type,
     struct CP_Group* group);
 
+/**
+ * Open a config group from an arbitrary dat2 cache (main or compare).
+ *
+ * `disk_cache` must already be open and profiled. Used by unpack's diff path so
+ * the previous revision can be walked without swapping `ctx->cache`.
+ */
+int
+cp_group_open_disk(
+    struct CP_Ctx* ctx,
+    struct Tool_Dat2Cache* disk_cache,
+    enum CP_TypeId type,
+    struct CP_Group* group);
+
 void
 cp_group_free(struct CP_Group* group);
 
@@ -339,6 +367,15 @@ cp_group_record(
     const struct CP_Group* group,
     int index,
     int* out_size);
+
+/**
+ * Index of `id` in `group`, or -1. Ids are ascending as the container stores
+ * them, so this is a binary search.
+ */
+int
+cp_group_find_id(
+    const struct CP_Group* group,
+    int id);
 
 /** Every record id present for `type`, ascending. Caller frees `*out_ids`. */
 int

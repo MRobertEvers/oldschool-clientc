@@ -76,6 +76,191 @@ read_combat_params(
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* Equipment requirements                                              */
+/* ------------------------------------------------------------------ */
+
+static struct Mock230ObjRequire* g_requires;
+static int g_require_count;
+static int g_require_capacity;
+static int g_require_from_cache;
+
+/** Which skills can gate *wearing* something.
+ *
+ * The cache's 434/436 pair states a requirement to *use* a record, and for a
+ * wearable obj "use" sometimes means "make": a fire battlestaff reads Crafting
+ * 62, which is what it takes to build one rather than to hold it. Nineteen
+ * records in cache.osrs239 are like that, so being wearable is not the test —
+ * the skill is, because no combat skill is ever a creation requirement. A
+ * non-combat requirement that really does gate wearing (a skill cape needs 99,
+ * a larupia hat needs 28 Hunter) comes in through the `.obj` overlay instead,
+ * where it is stated deliberately rather than inferred. */
+static int
+gates_wearing(int stat)
+{
+    switch( stat )
+    {
+    case MOCK230_STAT_ATTACK:
+    case MOCK230_STAT_DEFENCE:
+    case MOCK230_STAT_STRENGTH:
+    case MOCK230_STAT_HITPOINTS:
+    case MOCK230_STAT_RANGED:
+    case MOCK230_STAT_PRAYER:
+    case MOCK230_STAT_MAGIC:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/** The table is kept sorted by obj id so a lookup is a binary search; ids arrive
+ *  in ascending order from the decode pass, and the overlay's inserts are rare
+ *  enough that shifting is cheaper than a second index. */
+static int
+require_index(int obj_id)
+{
+    int low = 0;
+    int high = g_require_count - 1;
+
+    while( low <= high )
+    {
+        int mid = low + ((high - low) / 2);
+
+        if( g_requires[mid].obj_id < obj_id )
+            low = mid + 1;
+        else if( g_requires[mid].obj_id > obj_id )
+            high = mid - 1;
+        else
+            return mid;
+    }
+    return -(low + 1); /* -(insertion point) - 1, like bsearch's cousins */
+}
+
+static struct Mock230ObjRequire*
+require_slot(int obj_id)
+{
+    int index = require_index(obj_id);
+
+    if( index >= 0 )
+        return &g_requires[index];
+
+    index = -(index + 1);
+    if( g_require_count == g_require_capacity )
+    {
+        int capacity = g_require_capacity ? g_require_capacity * 2 : 256;
+        struct Mock230ObjRequire* grown =
+            (struct Mock230ObjRequire*)realloc(g_requires, (size_t)capacity * sizeof(*grown));
+
+        if( !grown )
+            return NULL;
+        g_requires = grown;
+        g_require_capacity = capacity;
+    }
+    memmove(&g_requires[index + 1], &g_requires[index],
+            (size_t)(g_require_count - index) * sizeof(*g_requires));
+    memset(&g_requires[index], 0, sizeof(g_requires[index]));
+    g_requires[index].obj_id = obj_id;
+    g_require_count++;
+    return &g_requires[index];
+}
+
+const struct Mock230ObjRequire*
+mock230_obj_require(int obj_id)
+{
+    int index;
+
+    if( obj_id < 0 || !g_requires )
+        return NULL;
+    index = require_index(obj_id);
+    return index >= 0 ? &g_requires[index] : NULL;
+}
+
+int
+mock230_obj_require_set(
+    int obj_id,
+    const int* stats,
+    const int* levels,
+    int count)
+{
+    struct Mock230ObjRequire* entry;
+
+    if( obj_id < 0 || count < 0 || count > MOCK230_OBJ_REQUIRE_MAX )
+        return 0;
+    entry = require_slot(obj_id);
+    if( !entry )
+        return 0;
+    entry->count = 0;
+    for( int i = 0; i < count; i++ )
+    {
+        entry->req[entry->count].stat = stats[i];
+        entry->req[entry->count].level = levels[i];
+        entry->count++;
+    }
+    return 1;
+}
+
+void
+mock230_obj_require_counts(
+    int* total,
+    int* from_cache)
+{
+    if( total )
+        *total = g_require_count;
+    if( from_cache )
+        *from_cache = g_require_from_cache;
+}
+
+/*
+ * Read the cache's own requirement pairs off one record.
+ *
+ * 434/436 and 435/437 are (skill, level), and that is all the room a cache
+ * record has — which is why Void knight gear, with seven, cannot be stated in
+ * one at all. A pair with only half of it present is ignored rather than
+ * half-applied.
+ */
+static void
+read_requirements(
+    int obj_id,
+    const struct RSCache_Params* params,
+    int wearable)
+{
+    int skill[2] = { -1, -1 };
+    int level[2] = { -1, -1 };
+    int stats[2];
+    int levels[2];
+    int count = 0;
+
+    if( !wearable )
+        return;
+    for( int i = 0; i < params->count; i++ )
+    {
+        int key = params->keys[i];
+        int value;
+
+        if( params->kinds[i] != 0 || !params->values[i] )
+            continue;
+        value = *(const int*)params->values[i];
+        switch( key )
+        {
+        case 434: skill[0] = value; break;
+        case 436: level[0] = value; break;
+        case 435: skill[1] = value; break;
+        case 437: level[1] = value; break;
+        default: break;
+        }
+    }
+    for( int i = 0; i < 2; i++ )
+    {
+        if( skill[i] < 0 || level[i] <= 0 || !gates_wearing(skill[i]) )
+            continue;
+        stats[count] = skill[i];
+        levels[count] = level[i];
+        count++;
+    }
+    if( count && mock230_obj_require_set(obj_id, stats, levels, count) )
+        g_require_from_cache++;
+}
+
 /* Which of the three melee bonuses a weapon swings with: whichever attack bonus
  * is largest. A scimitar's slash beats its stab, a mace's crush beats both.
  * Ties go to stab, matching the enum order, and a weapon with no attack bonuses
@@ -137,8 +322,18 @@ record(
     for( int i = 0; i < 5; i++ )
         entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
 
+    /* Opcode 94. Two things read it: the combat interface's weapon_category
+     * varbit, which picks one of the ten attack-style layouts, and the
+     * `[opheld<n>,_<category>]` trigger, which is how content addresses "every
+     * bone in the cache" without listing all 38. Zero is the decoder's default
+     * *and* a legal id, so callers that need to tell "unset" from "category 0"
+     * treat 0 as unset — the same thing the text config does by omitting the
+     * key. */
+    entry->category = obj->category;
+
     entry->attackrate = 4;
     read_combat_params(&obj->params, entry->bonus, &entry->attackrate, &entry->has_params);
+    read_requirements(obj_id, &obj->params, entry->wearpos >= 0);
     entry->damagetype = derive_damage_type(entry->bonus);
 }
 
@@ -276,6 +471,12 @@ mock230_objinfo_free(void)
     free(g_objs);
     g_objs = NULL;
     g_obj_count = 0;
+
+    free(g_requires);
+    g_requires = NULL;
+    g_require_count = 0;
+    g_require_capacity = 0;
+    g_require_from_cache = 0;
 }
 
 const struct Mock230ObjInfo*

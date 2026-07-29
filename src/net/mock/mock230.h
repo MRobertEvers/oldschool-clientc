@@ -5,11 +5,14 @@
  * Mock OSRS rev-230 game server: shared state and the seam between its four
  * translation units.
  *
- *   mock230_main.c     socket, RSA/ISAAC login handshake, the 600 ms tick loop
- *   mock230_ws.c       the byte stream — raw TCP or WebSocket, sniffed per client
- *   mock230_world.c    game state — movement, NPCs, containers, equipment
- *   mock230_encode.c   every server->client packet
- *   mock230_objinfo.c  obj metadata (name / wearpos / stackable) from the cache
+ *   mock230_main.c       the listening socket and the 600 ms tick loop
+ *   mock230_transport.c  where bytes come from — a socket, or an in-process queue
+ *   mock230_ws.c         the socket byte stream: raw TCP or WebSocket, sniffed
+ *   mock230_session.c    login handshake + ISAAC + inbound framing, as a state machine
+ *   mock230_embed.c      the server hosted inside another process, no socket at all
+ *   mock230_world.c      game state — movement, NPCs, containers, equipment
+ *   mock230_encode.c     every server->client packet
+ *   mock230_objinfo.c    obj metadata (name / wearpos / stackable) from the cache
  *
  * The server is authoritative in the way a real one is: the client asks to
  * walk, to wear, to swap two inventory slots, and nothing moves until a packet
@@ -36,11 +39,10 @@
 
 #include "mock230_bank.h"
 
-#include "net/isaac.h"
-
 #include <stdint.h>
 
 struct Mock230Conn;
+struct Mock230Session;
 
 /* ------------------------------------------------------------------ */
 /* Limits                                                              */
@@ -317,6 +319,71 @@ const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
 /* ------------------------------------------------------------------ */
+/* Equipment requirements                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The levels you need to wear something.
+ *
+ * A sparse table rather than a field on Mock230ObjInfo: about 1,100 of the
+ * 33,747 objs have a requirement at all, so eight (stat, level) pairs on every
+ * record would cost 2 MB to say "none" 32,000 times.
+ *
+ * Two sources feed it and neither is sufficient alone — see
+ * tools/kronos_item_import.py and docs/mock230_content.md §5:
+ *
+ *   - cache.osrs239's own params 434/436 and 435/437, read at decode time.
+ *     Room for exactly two, and only trustworthy for a *combat* skill: the same
+ *     pair states the requirement to *make* a record, so a fire battlestaff
+ *     reads Crafting 62 and a wearable obj is not enough to tell the two apart.
+ *   - `skill_combat/configs/equipment.obj`, which fills in the ~790 the cache is
+ *     silent about and can state more than two.
+ */
+enum
+{
+    /* Seven is the observed maximum — Void knight gear, and the max capes as
+     * Kronos records them. */
+    MOCK230_OBJ_REQUIRE_MAX = 8,
+};
+
+struct Mock230ObjRequire
+{
+    int obj_id;
+    int count;
+    struct
+    {
+        int stat;
+        int level;
+    } req[MOCK230_OBJ_REQUIRE_MAX];
+};
+
+/** NULL when the obj has no requirement, which is the overwhelming majority. */
+const struct Mock230ObjRequire*
+mock230_obj_require(int obj_id);
+
+/**
+ * Replace an obj's requirements, for the `.obj` config overlay.
+ *
+ * Replace rather than merge: a config block that names an item is stating the
+ * whole requirement for it, the same way an `.npc` block's `hitpoints=` is not
+ * added to whatever the cache said. Returns 0 when the table is full or the id
+ * is out of range.
+ */
+int
+mock230_obj_require_set(
+    int obj_id,
+    const int* stats,
+    const int* levels,
+    int count);
+
+/** How many objs carry a requirement, and how many came from the cache alone.
+ *  For mock230_pack's report. */
+void
+mock230_obj_require_counts(
+    int* total,
+    int* from_cache);
+
+/* ------------------------------------------------------------------ */
 /* NPC metadata (mock230_npcinfo.c)                                    */
 /* ------------------------------------------------------------------ */
 
@@ -472,6 +539,84 @@ struct Mock230Step
     int16_t z;
 };
 
+/* ------------------------------------------------------------------ */
+/* Interactions                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * What the player is trying to do to something, and how far away it still is.
+ *
+ * Before this existed, every op handler walked *and* acted in the same call —
+ * `handle_opobj` queued a route to the tile and emptied the ground pile in the
+ * same breath, with a comment admitting "the mock has no interaction model, so
+ * the player arrives instantly in game terms". That is wrong in a way that is
+ * invisible until it matters: a player could take an obj from across Lumbridge,
+ * and no `[ap*]` trigger could ever fire, because "at range" was not a state
+ * the server could be in.
+ *
+ * The model is LostCity's. An interaction is latched by the packet handler and
+ * resolved in the player's phase, once per tick, until it completes or is
+ * replaced:
+ *
+ *   - within `ap` range  -> run [apnpc<n>] / [aploc<n>] / [apobj<n>]. If content
+ *                           bound one, that is the whole interaction and the
+ *                           player never closes the distance. This is how
+ *                           ranged and magic attacks, and "Talk-to" from two
+ *                           tiles away, are expressed.
+ *   - adjacent           -> run [opnpc<n>] / [oploc<n>] / [opobj<n>], then the
+ *                           engine's own verb handling if nothing was bound.
+ *   - otherwise          -> keep walking, try again next tick.
+ *
+ * Resolution is also attempted immediately by the handler, so clicking a thing
+ * you are already standing next to acts on the tick the click arrives rather
+ * than the one after — which is both what the reference does and what stops
+ * every existing test from having to learn about ticks.
+ */
+enum Mock230InteractionKind
+{
+    MOCK230_INTERACT_NONE = 0,
+    MOCK230_INTERACT_NPC,
+    MOCK230_INTERACT_LOC,
+    MOCK230_INTERACT_OBJ,
+};
+
+struct Mock230Interaction
+{
+    enum Mock230InteractionKind kind;
+    /** 1-based op index, as the OP<thing><n> packet numbered it. */
+    int op;
+
+    /** NPC slot for MOCK230_INTERACT_NPC. Revalidated every tick: an npc can
+     *  die or have its slot reused while the player is still walking over. */
+    int npc_slot;
+    /** The npc type / loc id / obj id this interaction was started against, so
+     *  a slot that changed underneath is detected rather than acted on. */
+    int target_id;
+
+    /** South-west tile of the target, and its footprint. A 3x3 npc is reachable
+     *  from further out than a 1x1 one, so the range test is against the
+     *  rectangle rather than against a point. */
+    int x, z, level;
+    int size_x, size_z;
+
+    /** The ap trigger has been tried and nothing was bound, so only the
+     *  adjacent form is left. Without this the ap lookup runs every tick of a
+     *  long walk. */
+    int ap_tried;
+};
+
+enum
+{
+    /**
+     * How far away `[ap*]` triggers fire.
+     *
+     * LostCity lets a script declare its own with `.aprange`, which needs a
+     * per-script field the compiler does not carry yet; until it does, this is
+     * the reference's default for a script that does not say.
+     */
+    MOCK230_AP_RANGE_DEFAULT = 10,
+};
+
 struct Mock230Npc
 {
     int active;
@@ -572,6 +717,9 @@ struct Mock230Player
      *  that clears the client's map flag. -1 when idle. */
     int dest_x, dest_z;
 
+    /** What this walk is *for*, resolved once per tick by phase 5. */
+    struct Mock230Interaction interaction;
+
     struct Mock230Item inv[MOCK230_INV_SLOTS];
     struct Mock230Item worn[MOCK230_WORN_SLOTS];
 
@@ -659,6 +807,13 @@ struct Mock230Player
     int last_verb;
     int32_t last_int;
 
+    /** The name typed at the login screen, which is what `displayname` returns.
+     *  Nothing else in the mock has a use for it — there is one player and the
+     *  wire never carries a name — but a dialogue that puts the player's words
+     *  on screen has to label them with something, and "Player" is a worse
+     *  answer than the one the client already sent. */
+    char display_name[32];
+
     /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
      * above, since the mask is what carries them to the client. */
     /** Npc slot being fought, or -1. */
@@ -690,13 +845,18 @@ struct Mock230Player
 
 struct Mock230Server
 {
-    /** Liveness only: -1 means "write nothing" (the selftest runs with no
-     *  socket at all). The bytes themselves go through `conn`, which knows
-     *  whether this client is raw TCP or a WebSocket. */
-    int fd;
-    struct Mock230Conn* conn;
-    struct Isaac* cipher_out; /* server -> client opcode scramble */
-    struct Isaac* cipher_in;  /* client -> server opcode descramble */
+    /*
+     * Where this world's bytes go, or NULL for a world with no client at all —
+     * which is what the selftest runs, and what makes every encoder testable
+     * without a socket.
+     *
+     * The session owns the transport, both ISAAC ciphers and the login state
+     * machine. None of that is world state, and keeping it here is what used to
+     * make "the server" and "this connection" the same struct. It is also what
+     * an in-process host replaces: the world cannot tell whether the session
+     * behind this pointer is a socket or a pair of byte queues.
+     */
+    struct Mock230Session* session;
     int tick;
 
     /** Origin zone of the scene the client currently holds. Absolute tile of
@@ -839,12 +999,34 @@ mock230_world_set_varp(
     int varp,
     int value);
 
+/**
+ * Queue a varp for phase 10 without writing it — for a caller that patched
+ * `varps[]` itself, which the varbit writers do.
+ *
+ * Deduping, and loud when the change list is full. The only copy: three
+ * subsystems each had one, with different dedupe semantics.
+ */
+void
+mock230_world_mark_varp(
+    struct Mock230Player* player,
+    int varp);
+
 /** The tile a session logs in on, and respawns at. Set from main() before
  *  mock230_world_init; defaults to the Lumbridge castle courtyard. */
 void
 mock230_world_set_home(
     int tile_x,
     int tile_z);
+
+/**
+ * Copy the login name onto the player. **Call after mock230_world_init**, which
+ * memsets the player struct — writing the name before it is what used to make
+ * `displayname` report nothing.
+ */
+void
+mock230_world_set_display_name(
+    struct Mock230Server* srv,
+    const char* name);
 
 /** Seed the player, the npc roster and the starting inventory. */
 void
@@ -1087,6 +1269,41 @@ mock230_world_walk_beside(
     int z);
 
 /* ------------------------------------------------------------------ */
+/* Interactions (mock230_world.c)                                      */
+/* ------------------------------------------------------------------ */
+
+/** Latch what the player is trying to do. The walk is the caller's; resolving
+ *  it is mock230_world_process_interaction's. */
+void
+mock230_world_interaction_set(
+    struct Mock230Server* srv,
+    enum Mock230InteractionKind kind,
+    int op,
+    int npc_slot,
+    int target_id,
+    int tile_x,
+    int tile_z,
+    int level,
+    int size_x,
+    int size_z);
+
+/** Abandon it. Anything that means "the player changed their mind" — a ground
+ *  click, a teleport, p_stopaction — must call this, or the op fires later when
+ *  the player happens to wander back into range. */
+void
+mock230_world_interaction_clear(struct Mock230Server* srv);
+
+/**
+ * Resolve the pending interaction if it is in range, else leave it walking.
+ *
+ * Called twice per interaction at least: once by the packet handler that set it
+ * (so clicking something you are standing next to acts immediately) and once per
+ * tick from phase 5 after movement.
+ */
+void
+mock230_world_process_interaction(struct Mock230Server* srv);
+
+/* ------------------------------------------------------------------ */
 /* Scripts (mock230_scripts.c)                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1106,6 +1323,19 @@ mock230_scripts_load(
 
 void
 mock230_scripts_free(struct Mock230Server* srv);
+
+/**
+ * List every opcode the loaded content uses that nothing implements, and return
+ * how many there are.
+ *
+ * Runs at load, which is the point: the VM's own complaint arrives only when a
+ * player triggers the offending script, and content behind a quest step may
+ * never be reached at all. This turns "155 of 396 opcodes are implemented" into
+ * "this tree needs these eleven, and here is the first script wanting each" —
+ * which is the work queue for moving the remaining C behaviour into content.
+ */
+int
+mock230_scripts_report_gaps(struct Mock230Server* srv);
 
 /**
  * Run the script bound to a trigger, if there is one.

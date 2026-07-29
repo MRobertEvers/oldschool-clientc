@@ -202,6 +202,12 @@ equip_from_slot(
         say(srv, "You can't wear that.");
         return;
     }
+    /* The level requirement. Engine rather than content for the same reason
+     * "Attack" is: it applies to every wearable obj in the cache, and a
+     * per-item script binding would be a second copy of a table the content
+     * tree already states. Content can still override by binding [opheld2]. */
+    if( !mock230_equipment_may_wear(srv, obj_id) )
+        return;
 
     claimed[claimed_count++] = info->wearpos;
     if( info->wearpos_2 >= 0 && info->wearpos_2 < MOCK230_WORN_SLOTS )
@@ -365,6 +371,323 @@ mock230_world_walk_beside(
     player->dest_x = x - sign_of(x - player->x);
     player->dest_z = z - sign_of(z - player->z);
     steps_walk_to(player, player->dest_x, player->dest_z);
+}
+
+/* ------------------------------------------------------------------ */
+/* Interactions                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Chebyshev distance from a point to a rectangle, 0 when inside.
+ *
+ * Rectangle rather than point because targets have footprints: a 3x3 npc is
+ * "next to you" from a tile that is three away from its south-west corner, and
+ * testing against the corner alone makes large npcs unreachable from two of
+ * their four sides.
+ */
+static int
+distance_to_rect(
+    int from_x,
+    int from_z,
+    int rect_x,
+    int rect_z,
+    int size_x,
+    int size_z)
+{
+    int dx = 0;
+    int dz = 0;
+
+    if( from_x < rect_x )
+        dx = rect_x - from_x;
+    else if( from_x > rect_x + size_x - 1 )
+        dx = from_x - (rect_x + size_x - 1);
+    if( from_z < rect_z )
+        dz = rect_z - from_z;
+    else if( from_z > rect_z + size_z - 1 )
+        dz = from_z - (rect_z + size_z - 1);
+
+    return dx > dz ? dx : dz;
+}
+
+void
+mock230_world_interaction_clear(struct Mock230Server* srv)
+{
+    memset(&srv->player.interaction, 0, sizeof(srv->player.interaction));
+    srv->player.interaction.kind = MOCK230_INTERACT_NONE;
+    srv->player.interaction.npc_slot = -1;
+}
+
+void
+mock230_world_interaction_set(
+    struct Mock230Server* srv,
+    enum Mock230InteractionKind kind,
+    int op,
+    int npc_slot,
+    int target_id,
+    int tile_x,
+    int tile_z,
+    int level,
+    int size_x,
+    int size_z)
+{
+    struct Mock230Interaction* interaction = &srv->player.interaction;
+
+    interaction->kind = kind;
+    interaction->op = op;
+    interaction->npc_slot = npc_slot;
+    interaction->target_id = target_id;
+    interaction->x = tile_x;
+    interaction->z = tile_z;
+    interaction->level = level;
+    interaction->size_x = size_x > 0 ? size_x : 1;
+    interaction->size_z = size_z > 0 ? size_z : 1;
+    interaction->ap_tried = 0;
+}
+
+/**
+ * The loc an interaction is about, by id first and position second.
+ *
+ * A tile routinely carries more than one loc — 3226,3223 in Lumbridge holds the
+ * castle door *and* a wall decoration — so "whatever is at this tile" is not a
+ * safe way to re-find one. The id is tried first; only when it is gone does the
+ * tile-only form apply, which is the case that matters for a door somebody else
+ * opened while the player was walking over. That door is still the thing they
+ * clicked, and its id having changed is not staleness.
+ */
+static int
+find_interaction_loc(
+    int tile_x,
+    int tile_z,
+    int level,
+    int loc_id)
+{
+    int slot = mock230_scene_find_loc(tile_x, tile_z, level, loc_id);
+
+    if( slot >= 0 )
+        return slot;
+    return mock230_scene_find_loc(tile_x, tile_z, level, -1);
+}
+
+/**
+ * Is the target still there, and where?
+ *
+ * Returns 0 when the interaction is stale, which is the common case rather than
+ * the exotic one: npcs die and respawn into the same slot, doors are opened by
+ * something else, and a ground obj is taken by whoever got there first. An npc
+ * is re-read every tick because it *moves* — walking to where it was is not the
+ * same as walking to where it is.
+ */
+static int
+interaction_target(
+    struct Mock230Server* srv,
+    int* out_x,
+    int* out_z,
+    int* out_size_x,
+    int* out_size_z)
+{
+    struct Mock230Interaction* interaction = &srv->player.interaction;
+
+    switch( interaction->kind )
+    {
+    case MOCK230_INTERACT_NPC:
+    {
+        struct Mock230Npc* npc;
+
+        if( interaction->npc_slot < 0 || interaction->npc_slot >= MOCK230_NPC_MAX )
+            return 0;
+        npc = &srv->npcs[interaction->npc_slot];
+        /* Slot reuse: same index, different npc. Acting on it would attack
+         * whatever respawned there. */
+        if( !npc->active || npc->type != interaction->target_id )
+            return 0;
+        if( npc->level != srv->player.level )
+            return 0;
+        if( npc->death_tick >= 0 )
+            return 0;
+        *out_x = npc->x;
+        *out_z = npc->z;
+        *out_size_x = interaction->size_x;
+        *out_size_z = interaction->size_z;
+        return 1;
+    }
+
+    case MOCK230_INTERACT_LOC:
+    {
+        int slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
+                                        interaction->target_id);
+        struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+        /* A tile with nothing on it at all is genuinely stale. */
+        if( !loc )
+            return 0;
+        *out_x = loc->x;
+        *out_z = loc->z;
+        *out_size_x = loc->size_x > 0 ? loc->size_x : 1;
+        *out_size_z = loc->size_z > 0 ? loc->size_z : 1;
+        return 1;
+    }
+
+    case MOCK230_INTERACT_OBJ:
+        for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        {
+            struct Mock230GroundObj* obj = &srv->ground[i];
+
+            if( !obj->active || obj->obj_id != interaction->target_id )
+                continue;
+            if( obj->x != interaction->x || obj->z != interaction->z )
+                continue;
+            if( obj->level != interaction->level )
+                continue;
+            *out_x = obj->x;
+            *out_z = obj->z;
+            *out_size_x = 1;
+            *out_size_z = 1;
+            return 1;
+        }
+        return 0;
+
+    case MOCK230_INTERACT_NONE:
+    default:
+        return 0;
+    }
+}
+
+/* The engine's own behaviour for an op nothing was bound to. Defined below;
+ * these are what used to run inline inside the packet handlers. */
+static void
+interaction_engine_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int op_num);
+static void
+interaction_engine_loc(
+    struct Mock230Server* srv,
+    int op_num,
+    int loc_id,
+    int tile_x,
+    int tile_z,
+    int level);
+static void
+interaction_engine_obj(
+    struct Mock230Server* srv);
+
+/**
+ * Resolve the pending interaction, if it is time.
+ *
+ * Called once from the player's phase, after movement, and once by the packet
+ * handler that set it — so an interaction that is already in range costs no
+ * tick, and one that is not costs exactly as many as the walk.
+ */
+void
+mock230_world_process_interaction(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+    struct Mock230Interaction* interaction = &player->interaction;
+    int target_x;
+    int target_z;
+    int size_x;
+    int size_z;
+    int distance;
+    int trigger;
+
+    if( interaction->kind == MOCK230_INTERACT_NONE )
+        return;
+
+    if( !interaction_target(srv, &target_x, &target_z, &size_x, &size_z) )
+    {
+        mock230_world_interaction_clear(srv);
+        return;
+    }
+
+    /* An npc that moved takes its walk with it. Re-routing every tick is what
+     * makes following work; without it the player walks to a memory. */
+    if( interaction->kind == MOCK230_INTERACT_NPC &&
+        (target_x != interaction->x || target_z != interaction->z) )
+    {
+        interaction->x = target_x;
+        interaction->z = target_z;
+        mock230_world_walk_beside(srv, target_x, target_z);
+    }
+
+    distance = distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z);
+
+    /*
+     * At range: content's chance to handle this without closing the distance.
+     * Only content can — the engine has no ranged behaviour of its own — so a
+     * miss here just falls through to the walk.
+     */
+    if( !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
+    {
+        interaction->ap_tried = 1;
+        switch( interaction->kind )
+        {
+        case MOCK230_INTERACT_NPC:
+            trigger = SS_TRIGGER_APNPC1 + (interaction->op - 1);
+            break;
+        case MOCK230_INTERACT_LOC:
+            trigger = SS_TRIGGER_APLOC1 + (interaction->op - 1);
+            break;
+        case MOCK230_INTERACT_OBJ:
+            trigger = SS_TRIGGER_APOBJ1 + (interaction->op - 1);
+            break;
+        default:
+            trigger = -1;
+            break;
+        }
+        if( trigger >= 0 &&
+            mock230_scripts_run_trigger(srv, trigger, interaction->target_id, -1,
+                                        interaction->npc_slot) )
+        {
+            steps_clear(player);
+            mock230_world_interaction_clear(srv);
+            return;
+        }
+    }
+
+    /* A ground obj has to be stood on; everything else is reached from beside. */
+    if( distance > (interaction->kind == MOCK230_INTERACT_OBJ ? 0 : 1) )
+        return; /* still walking */
+
+    {
+        int op_num = interaction->op;
+        int slot = interaction->npc_slot;
+        enum Mock230InteractionKind kind = interaction->kind;
+        int target_id = interaction->target_id;
+        int loc_x = interaction->x;
+        int loc_z = interaction->z;
+        int loc_level = interaction->level;
+
+        /*
+         * Clear *before* running, not after. A script is allowed to start a new
+         * interaction (`p_opnpc`), and clearing afterwards would throw away the
+         * one it just asked for.
+         */
+        mock230_world_interaction_clear(srv);
+        steps_clear(player);
+        player->dest_x = -1;
+        player->dest_z = -1;
+
+        switch( kind )
+        {
+        case MOCK230_INTERACT_NPC:
+            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1), target_id,
+                                             -1, slot) )
+                interaction_engine_npc(srv, slot, op_num);
+            break;
+        case MOCK230_INTERACT_LOC:
+            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1), target_id,
+                                             -1, -1) )
+                interaction_engine_loc(srv, op_num, target_id, loc_x, loc_z, loc_level);
+            break;
+        case MOCK230_INTERACT_OBJ:
+            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ1 + (op_num - 1), target_id,
+                                             -1, -1) )
+                interaction_engine_obj(srv);
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -890,8 +1213,12 @@ handle_move(
     /* Walking somewhere is a new interaction, and a new interaction ends the
      * old one. Without this the player keeps swinging at whatever they were
      * fighting the moment they get back in range, and — more visibly — keeps
-     * *facing* it the whole way there. */
+     * *facing* it the whole way there. The same argument retires a pending
+     * op: clicking the ground half way to a door means you changed your mind,
+     * and a door that opens when you happen to walk past it later is worse than
+     * one that does not open at all. */
     mock230_combat_stop_player(srv);
+    mock230_world_interaction_clear(srv);
     steps_clear(player);
     steps_walk_to(player, start_x, start_z);
 
@@ -1013,6 +1340,28 @@ handle_opheld(
     if( slot < 0 || slot >= MOCK230_INV_SLOTS || player->inv[slot].obj_id != obj_id )
         return;
 
+    /*
+     * Content first, exactly as OPNPC and OPLOC do it.
+     *
+     * The obj record's own `category` is the second key, which is what lets
+     * `[opheld1,_bones]` cover all 38 bones in the cache from one script the
+     * way the reference's does — an obj category is the only grouping an
+     * OldSchool cache states, and restating it as a list in content would be a
+     * second copy of it kept by hand.
+     *
+     * `last_item` / `last_slot` / `last_verb` are set before the dispatch
+     * because a bound script reads them to learn *which* item was clicked: the
+     * script is addressed by obj or category, so nothing else carries the slot.
+     */
+    player->last_item = obj_id;
+    player->last_slot = slot;
+    player->last_com = component;
+    player->last_verb = op_num;
+    if( op_num >= 1 && op_num <= 5 &&
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1 + (op_num - 1), obj_id,
+                                    info->category > 0 ? info->category : -1, -1) )
+        return;
+
     if( verb && (strcmp(verb, "Wear") == 0 || strcmp(verb, "Wield") == 0) )
     {
         equip_from_slot(srv, slot);
@@ -1106,7 +1455,50 @@ handle_inv_buttond(
     inv_set(player, to_slot, swap.obj_id, swap.count);
 }
 
-/* OPNPC<n>: p2 npc slot. Walk next to it and have it acknowledge you. */
+/*
+ * What an npc op does when no content claimed it.
+ *
+ * "Attack" is engine behaviour, not content. The verb comes from the npc's own
+ * cache record — the same five ops the client built its right-click menu from —
+ * so anything OldSchool made attackable is attackable here, with no per-npc
+ * script line and no separate list to keep in step with the client's. Which op
+ * index carries it varies (a goblin's Attack is op 2, a guard's is op 1), which
+ * is exactly why the index is not hardcoded.
+ */
+static void
+interaction_engine_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int op_num)
+{
+    struct Mock230Npc* npc;
+    const struct Mock230NpcInfo* info;
+    const char* verb;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+        return;
+    npc = &srv->npcs[slot];
+
+    info = mock230_npcinfo(npc->type);
+    verb = (op_num >= 1 && op_num <= 5) ? info->ops[op_num - 1] : NULL;
+    if( verb && strcmp(verb, "Attack") == 0 )
+    {
+        mock230_combat_engage(srv, slot);
+        return;
+    }
+
+    npc->face_entity = MOCK230_PLAYER_TERMINATOR; /* the local player */
+    snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY | MOCK230_NMASK_SAY;
+}
+
+/*
+ * OPNPC<n>: p2 npc slot.
+ *
+ * Latches the interaction and starts the walk; the acting happens in
+ * mock230_world_process_interaction, either on this tick (already in range) or
+ * on whichever tick the player arrives.
+ */
 static void
 handle_opnpc(
     struct Mock230Server* srv,
@@ -1114,10 +1506,10 @@ handle_opnpc(
     const uint8_t* payload,
     int len)
 {
-    struct Mock230Player* player = &srv->player;
     struct RSAreaBuf buf;
     int slot;
     struct Mock230Npc* npc;
+    const struct Mock230NpcInfo* info;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
     slot = rsab_g2(&buf);
@@ -1131,50 +1523,18 @@ handle_opnpc(
         fprintf(stderr, "mock230: <- OPNPC%d slot=%d type=%d\n", op_num, slot, npc->type);
 
     /* A new interaction ends the old one — including the facing. Combat is
-     * re-established below if this op turns out to be "Attack". */
+     * re-established by the engine handler if this op is "Attack". */
     mock230_combat_stop_player(srv);
 
-    /* Stop next to the npc rather than on top of it. */
-    steps_clear(player);
-    player->dest_x = npc->x - sign_of(npc->x - player->x);
-    player->dest_z = npc->z - sign_of(npc->z - player->z);
-    steps_walk_to(player, player->dest_x, player->dest_z);
+    info = mock230_npcinfo(npc->type);
+    mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, op_num, slot, npc->type, npc->x,
+                                  npc->z, npc->level, info->size, info->size);
+    mock230_world_walk_beside(srv, npc->x, npc->z);
 
     /* Idle roaming resumes only after the response has had time to show. */
     npc->next_roam_tick = srv->tick + 8;
 
-    /* Content first. [opnpc<n>,<npc>] is resolved the way the reference does
-     * it — exact npc type, then category, then the global form — and only if
-     * nothing matches does the engine's own behaviour run. That fallback is
-     * what lets the mock work with no script pack at all. */
-    if( mock230_scripts_run_trigger(
-            srv, SS_TRIGGER_OPNPC1 + (op_num - 1), npc->type, -1, slot) )
-        return;
-
-    /*
-     * "Attack" is engine behaviour, not content.
-     *
-     * The verb comes from the npc's own cache record — the same five ops the
-     * client built its right-click menu from — so anything OldSchool made
-     * attackable is attackable here, with no per-npc script line and no
-     * separate list to keep in step with the client's. Which op index carries
-     * it varies (a goblin's Attack is op 2, a guard's is op 1), which is
-     * exactly why the index is not hardcoded.
-     */
-    {
-        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
-        const char* verb = (op_num >= 1 && op_num <= 5) ? info->ops[op_num - 1] : NULL;
-
-        if( verb && strcmp(verb, "Attack") == 0 )
-        {
-            mock230_combat_engage(srv, slot);
-            return;
-        }
-    }
-
-    npc->face_entity = MOCK230_PLAYER_TERMINATOR; /* the local player */
-    snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
-    npc->masks |= MOCK230_NMASK_FACE_ENTITY | MOCK230_NMASK_SAY;
+    mock230_world_process_interaction(srv);
 }
 
 /*
@@ -1223,38 +1583,19 @@ climb(
  * the other direction (take first, walk after) would let a player vacuum up
  * Lumbridge from the castle roof.
  */
+/* Taking the pile the player is now standing on. */
 static void
-handle_opobj(
-    struct Mock230Server* srv,
-    const uint8_t* payload,
-    int len)
+interaction_engine_obj(struct Mock230Server* srv)
 {
     struct Mock230Player* player = &srv->player;
-    struct RSAreaBuf buf;
-    int tile_x;
-    int tile_z;
-    int obj_id;
-    int free_slot;
-
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    obj_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
-        return;
-
-    mock230_combat_stop_player(srv);
-    steps_clear(player);
-    player->dest_x = tile_x;
-    player->dest_z = tile_z;
-    steps_walk_to(player, tile_x, tile_z);
 
     for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
     {
         struct Mock230GroundObj* obj = &srv->ground[i];
+        int free_slot;
 
-        if( !obj->active || obj->obj_id != obj_id || obj->x != tile_x ||
-            obj->z != tile_z || obj->level != player->level )
+        if( !obj->active || obj->x != player->x || obj->z != player->z ||
+            obj->level != player->level )
             continue;
 
         /* A stackable obj joins the pile it already has rather than taking a
@@ -1275,11 +1616,42 @@ handle_opobj(
             }
             inv_set(player, free_slot, obj->obj_id, obj->count);
         }
-        say(srv, "You pick up the %s.", mock230_objinfo(obj_id)->name);
+        say(srv, "You pick up the %s.", mock230_objinfo(obj->obj_id)->name);
         ground_take(srv, i);
         return;
     }
     say(srv, "You can't reach that.");
+}
+
+static void
+handle_opobj(
+    struct Mock230Server* srv,
+    int op_num,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int obj_id;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    obj_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+
+    mock230_combat_stop_player(srv);
+    mock230_world_interaction_set(srv, MOCK230_INTERACT_OBJ, op_num, -1, obj_id, tile_x,
+                                  tile_z, srv->player.level, 1, 1);
+    /* Onto the tile, not beside it: a pile is picked up from on top. */
+    steps_clear(&srv->player);
+    srv->player.dest_x = tile_x;
+    srv->player.dest_z = tile_z;
+    steps_walk_to(&srv->player, tile_x, tile_z);
+
+    mock230_world_process_interaction(srv);
 }
 
 /*
@@ -1295,34 +1667,30 @@ handle_opobj(
  *   player a level. The direction is already in the cache, so content does not
  *   restate it.
  */
+/*
+ * What a loc op does when no content claimed it.
+ *
+ * The door swap used to run *before* the script trigger, which made a door the
+ * one thing content could not override. It is here now, behind the trigger,
+ * so "content gets first refusal" is true of locs as it is of everything else.
+ * Nothing in the tree binds a door script today, so this changes no behaviour —
+ * it removes an exception that would have been discovered the hard way.
+ */
 static void
-handle_oploc(
+interaction_engine_loc(
     struct Mock230Server* srv,
     int op_num,
-    const uint8_t* payload,
-    int len)
+    int loc_id,
+    int tile_x,
+    int tile_z,
+    int level)
 {
-    struct Mock230Player* player = &srv->player;
-    struct RSAreaBuf buf;
-    int tile_x;
-    int tile_z;
-    int loc_id;
     int slot;
     struct Mock230SceneLoc* loc;
     const struct Mock230LocDef* def;
     const char* verb;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    tile_x = rsab_g2(&buf);
-    tile_z = rsab_g2(&buf);
-    loc_id = rsab_g2(&buf);
-    if( !rsab_ok(&buf) )
-        return;
-
-    mock230_combat_stop_player(srv);
-    mock230_world_walk_beside(srv, tile_x, tile_z);
-
-    slot = mock230_scene_find_loc(tile_x, tile_z, player->level, loc_id);
+    slot = find_interaction_loc(tile_x, tile_z, level, loc_id);
     loc = mock230_scene_loc(slot);
     if( !loc )
     {
@@ -1349,15 +1717,9 @@ handle_oploc(
         }
         if( srv->verbose )
             fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
-                    def->symbol ? def->symbol : "door", tile_x, tile_z);
+                    def->symbol ? def->symbol : "door", loc->x, loc->z);
         return;
     }
-
-    /* Content first, then the engine's verb table. `[oploc<n>,bankbooth]` is
-     * where the ported bank content hooks in. */
-    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1), loc->loc_id, -1,
-                                    -1) )
-        return;
 
     verb = mock230_scene_loc_op(loc->loc_id, op_num);
     /*
@@ -1391,6 +1753,56 @@ handle_oploc(
         return;
     }
     say(srv, "Nothing interesting happens.");
+}
+
+/*
+ * OPLOC<n>: p2 x, p2 z, p2 locId — doors, gates, stairs and ladders.
+ *
+ * Latches the interaction and walks to a tile beside the loc; the acting is
+ * interaction_engine_loc above, or whatever content bound to [oploc<n>].
+ */
+static void
+handle_oploc(
+    struct Mock230Server* srv,
+    int op_num,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int loc_id;
+    int slot;
+    struct Mock230SceneLoc* loc;
+    int size_x = 1;
+    int size_z = 1;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    loc_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+
+    mock230_combat_stop_player(srv);
+
+    /* The footprint decides what counts as "beside it": a two-tile gate is
+     * reachable from tiles a one-tile door is not. */
+    slot = mock230_scene_find_loc(tile_x, tile_z, srv->player.level, loc_id);
+    loc = mock230_scene_loc(slot);
+    if( loc )
+    {
+        tile_x = loc->x;
+        tile_z = loc->z;
+        size_x = loc->size_x > 0 ? loc->size_x : 1;
+        size_z = loc->size_z > 0 ? loc->size_z : 1;
+    }
+
+    mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, op_num, -1, loc_id, tile_x,
+                                  tile_z, srv->player.level, size_x, size_z);
+    mock230_world_walk_beside(srv, tile_x, tile_z);
+
+    mock230_world_process_interaction(srv);
 }
 
 /* ::commands, so a session can be steered without a UI. */
@@ -1614,6 +2026,371 @@ mock230_world_teleport(
     maybe_rebuild(srv);
 }
 
+/* ------------------------------------------------------------------ */
+/* Inbound dispatch                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * One handler per packet, and a table naming them.
+ *
+ * This was a 240-line `switch` with half its bodies written inline, which made
+ * `mock230_world_handle` the function every new packet had to be threaded
+ * through and the monolith's single widest merge target. A table costs one line
+ * per packet and puts each body somewhere with a name.
+ *
+ * Every handler takes `name` even when it does not need it, because the
+ * numbered families (`OPHELD1..5`, `OPNPC1..5`, `IF_BUTTON1..10`) derive their
+ * op index from it — one entry per opcode in the table, one handler for the
+ * family.
+ */
+
+static void
+handle_move_gameclick(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_move(srv, payload, len, 0);
+}
+
+/* The minimap variant carries a 14-byte trailer the game click does not. */
+static void
+handle_move_minimapclick(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_move(srv, payload, len, 14);
+}
+
+static void
+handle_opheld_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    /* INV_BUTTON<n> carries the same (obj, slot, component) triple as OPHELD.
+     * Which of the two an inventory row produces depends on whether the menu
+     * entry came from the objtype's ops or from the component's, and at rev 230
+     * the gameframe's CS2 inventory script routes them through the component —
+     * so both have to mean the same thing here or nothing is ever equipped. */
+    int base = (name >= PKTOUT_NAME_INV_BUTTON1 && name <= PKTOUT_NAME_INV_BUTTON5)
+                   ? PKTOUT_NAME_INV_BUTTON1
+                   : PKTOUT_NAME_OPHELD1;
+
+    handle_opheld(srv, name - base + 1, payload, len);
+}
+
+static void
+handle_inv_buttond_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_inv_buttond(srv, payload, len);
+}
+
+static void
+handle_opnpc_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    handle_opnpc(srv, name - PKTOUT_NAME_OPNPC1 + 1, payload, len);
+}
+
+static void
+handle_oploc_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    handle_oploc(srv, name - PKTOUT_NAME_OPLOC1 + 1, payload, len);
+}
+
+static void
+handle_opobj_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    handle_opobj(srv, name - PKTOUT_NAME_OPOBJ1 + 1, payload, len);
+}
+
+static void
+handle_cheat_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_cheat(srv, payload, len);
+}
+
+/* The client sends the packed (interface << 16) | child uid at full width
+ * (GameProtoRevTable.component_id_bytes); truncating it would make every
+ * interface's component 5 look alike. */
+static void
+handle_resume_pausebutton(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf resume;
+    int uid;
+
+    (void)name;
+    rsab_wrap(&resume, (void*)payload, (size_t)len);
+    uid = rsab_g4(&resume);
+    if( !rsab_ok(&resume) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+    mock230_scripts_resume_button(srv, uid);
+}
+
+static void
+handle_if_button(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf button;
+    int uid;
+
+    (void)name;
+    rsab_wrap(&button, (void*)payload, (size_t)len);
+    uid = rsab_g4(&button);
+    if( !rsab_ok(&button) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- IF_BUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+
+    /* rev 230 has no separate resume opcode in practice — a component the
+     * server enabled with IF_SETEVENTS answers a click with IF_BUTTON, and
+     * the server decides what it meant. Try it as a resume first; a click
+     * that matches no registered button falls through, which is how sidebar
+     * tabs (switched client-side on a varc) stay a no-op. */
+    if( mock230_scripts_resume_button(srv, uid) )
+        return;
+
+    /* The world map's close buttons carry no cache op, so a click on the
+     * red X arrives here rather than as IF_BUTTON1. */
+    if( mock230_worldmap_handle_button(srv, uid, 1) )
+        return;
+
+    /* Content bound to the component wins; the engine's own routers are the
+     * no-content fallback, which is what keeps the bank's toggles working with
+     * no script pack. */
+    srv->player.last_com = uid;
+    srv->player.last_slot = -1;
+    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
+        return;
+    if( mock230_bank_handle_button(srv, uid, -1, -1, 1) )
+        return;
+    mock230_equipment_handle_button(srv, uid, -1, 1);
+}
+
+/*
+ * IF_BUTTON1..10: op N of an IF3 component (RSProt If3Button). Distinct from
+ * IF_BUTTON above, which is the op-less plain click — an op-bearing widget like
+ * the world map orb names which verb was picked, and the verb is the whole
+ * message ("Floating World Map" and "Fullscreen World Map" are ops 2 and 3 of
+ * the same component).
+ */
+static void
+handle_if_button_op(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf button;
+    int uid;
+    int sub;
+    int op_num = name - PKTOUT_NAME_IF_BUTTON1 + 1;
+
+    rsab_wrap(&button, (void*)payload, (size_t)len);
+    uid = rsab_g4(&button);
+    sub = (int16_t)rsab_g2(&button);
+    if( !rsab_ok(&button) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- IF_BUTTON%d %d:%d sub=%d\n", op_num, uid >> 16,
+                uid & 0xffff, sub);
+    if( mock230_worldmap_handle_button(srv, uid, op_num) )
+        return;
+    srv->player.last_com = uid;
+    srv->player.last_slot = sub;
+    srv->player.last_verb = op_num;
+    /* run_trigger's parameters are (trigger, type, category, npc_slot): the
+     * component uid is the type, and an interface button has neither a category
+     * nor an npc. `sub` and `op` reach content through last_slot and last_verb,
+     * which is where a RuneScript trigger reads them. */
+    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
+        return;
+    /* (uid, sub, obj, op) — the bank needs the sub id, which is which of the
+     * 1,220 dynamic children was clicked. */
+    if( mock230_bank_handle_button(srv, uid, sub, -1, op_num) )
+        return;
+    if( mock230_equipment_handle_button(srv, uid, sub, op_num) )
+        return;
+    mock230_prayer_handle_button(srv, uid, op_num);
+}
+
+static void
+handle_click_world_map(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf click;
+    int packed;
+
+    (void)name;
+    rsab_wrap(&click, (void*)payload, (size_t)len);
+    packed = rsab_g4(&click);
+    if( !rsab_ok(&click) )
+        return;
+    mock230_worldmap_click(srv, (packed >> 28) & 0x3, (packed >> 14) & 0x3fff,
+                           packed & 0x3fff);
+}
+
+/*
+ * The player pressed Escape, or clicked a component whose CS2 called
+ * `if_close`. The client has already torn its own copy down; the server has to
+ * agree, or the next open finds the bank still marked open and sends nothing.
+ */
+static void
+handle_close_modal(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    (void)payload;
+    (void)len;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- CLOSE_MODAL\n");
+    if( !srv->player.bank.open )
+        return;
+    if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE,
+                                     MOCK230_COM(mock230_ids()->iface_bankmain, 0), -1, -1) )
+        mock230_bank_close(srv);
+}
+
+/* The number a p_countdialog collected — "Withdraw-X". */
+static void
+handle_resume_countdialog(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf count;
+    int32_t value;
+
+    (void)name;
+    rsab_wrap(&count, (void*)payload, (size_t)len);
+    value = rsab_g4(&count);
+    if( !rsab_ok(&count) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- RESUME_P_COUNTDIALOG %d\n", (int)value);
+    srv->player.last_int = value;
+    /* A parked script owns the answer if there is one; only when nothing is
+     * waiting does the engine's own pending "-X" row get it. */
+    if( !mock230_scripts_resume_countdialog(srv, value) )
+        mock230_bank_resume_countdialog(srv, (int)value);
+}
+
+typedef void (*Mock230PacketHandler)(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len);
+
+struct Mock230PacketRoute
+{
+    int name;
+    Mock230PacketHandler handler;
+};
+
+/*
+ * The routing table. Adding a packet is a line here plus a handler; nothing
+ * else in the file has to change, which is the whole point of it being a table.
+ */
+static const struct Mock230PacketRoute k_packet_routes[] = {
+    { PKTOUT_NAME_MOVE_GAMECLICK, handle_move_gameclick },
+    { PKTOUT_NAME_MOVE_OPCLICK, handle_move_gameclick },
+    { PKTOUT_NAME_MOVE_MINIMAPCLICK, handle_move_minimapclick },
+
+    { PKTOUT_NAME_OPHELD1, handle_opheld_packet },
+    { PKTOUT_NAME_OPHELD2, handle_opheld_packet },
+    { PKTOUT_NAME_OPHELD3, handle_opheld_packet },
+    { PKTOUT_NAME_OPHELD4, handle_opheld_packet },
+    { PKTOUT_NAME_OPHELD5, handle_opheld_packet },
+
+    { PKTOUT_NAME_INV_BUTTON1, handle_opheld_packet },
+    { PKTOUT_NAME_INV_BUTTON2, handle_opheld_packet },
+    { PKTOUT_NAME_INV_BUTTON3, handle_opheld_packet },
+    { PKTOUT_NAME_INV_BUTTON4, handle_opheld_packet },
+    { PKTOUT_NAME_INV_BUTTON5, handle_opheld_packet },
+    { PKTOUT_NAME_INV_BUTTOND, handle_inv_buttond_packet },
+
+    { PKTOUT_NAME_OPNPC1, handle_opnpc_packet },
+    { PKTOUT_NAME_OPNPC2, handle_opnpc_packet },
+    { PKTOUT_NAME_OPNPC3, handle_opnpc_packet },
+    { PKTOUT_NAME_OPNPC4, handle_opnpc_packet },
+    { PKTOUT_NAME_OPNPC5, handle_opnpc_packet },
+
+    { PKTOUT_NAME_OPLOC1, handle_oploc_packet },
+    { PKTOUT_NAME_OPLOC2, handle_oploc_packet },
+    { PKTOUT_NAME_OPLOC3, handle_oploc_packet },
+    { PKTOUT_NAME_OPLOC4, handle_oploc_packet },
+    { PKTOUT_NAME_OPLOC5, handle_oploc_packet },
+
+    { PKTOUT_NAME_OPOBJ1, handle_opobj_packet },
+    { PKTOUT_NAME_OPOBJ2, handle_opobj_packet },
+    { PKTOUT_NAME_OPOBJ3, handle_opobj_packet },
+    { PKTOUT_NAME_OPOBJ4, handle_opobj_packet },
+    { PKTOUT_NAME_OPOBJ5, handle_opobj_packet },
+
+    { PKTOUT_NAME_IF_BUTTON, handle_if_button },
+    { PKTOUT_NAME_IF_BUTTON1, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON2, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON3, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON4, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON5, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON6, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON7, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON8, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON9, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTON10, handle_if_button_op },
+
+    { PKTOUT_NAME_RESUME_PAUSEBUTTON, handle_resume_pausebutton },
+    { PKTOUT_NAME_RESUME_P_COUNTDIALOG, handle_resume_countdialog },
+    { PKTOUT_NAME_CLICK_WORLD_MAP, handle_click_world_map },
+    { PKTOUT_NAME_CLOSE_MODAL, handle_close_modal },
+    { PKTOUT_NAME_CLIENT_CHEAT, handle_cheat_packet },
+};
+
 void
 mock230_world_handle(
     struct Mock230Server* srv,
@@ -1621,235 +2398,21 @@ mock230_world_handle(
     const uint8_t* payload,
     int len)
 {
-    switch( name )
+    for( size_t i = 0; i < sizeof(k_packet_routes) / sizeof(k_packet_routes[0]); i++ )
     {
-    case PKTOUT_NAME_MOVE_GAMECLICK:
-    case PKTOUT_NAME_MOVE_OPCLICK:
-        handle_move(srv, payload, len, 0);
-        break;
-    case PKTOUT_NAME_MOVE_MINIMAPCLICK:
-        handle_move(srv, payload, len, 14);
-        break;
-
-    case PKTOUT_NAME_OPHELD1:
-    case PKTOUT_NAME_OPHELD2:
-    case PKTOUT_NAME_OPHELD3:
-    case PKTOUT_NAME_OPHELD4:
-    case PKTOUT_NAME_OPHELD5:
-        handle_opheld(srv, name - PKTOUT_NAME_OPHELD1 + 1, payload, len);
-        break;
-
-    /* INV_BUTTON<n> carries the same (obj, slot, component) triple as OPHELD.
-     * Which of the two an inventory row produces depends on whether the menu
-     * entry came from the objtype's ops or from the component's, and at rev 230
-     * the gameframe's CS2 inventory script routes them through the component —
-     * so both have to mean the same thing here or nothing is ever equipped. */
-    case PKTOUT_NAME_INV_BUTTON1:
-    case PKTOUT_NAME_INV_BUTTON2:
-    case PKTOUT_NAME_INV_BUTTON3:
-    case PKTOUT_NAME_INV_BUTTON4:
-    case PKTOUT_NAME_INV_BUTTON5:
-        handle_opheld(srv, name - PKTOUT_NAME_INV_BUTTON1 + 1, payload, len);
-        break;
-
-    case PKTOUT_NAME_INV_BUTTOND:
-        handle_inv_buttond(srv, payload, len);
-        break;
-
-    case PKTOUT_NAME_OPNPC1:
-    case PKTOUT_NAME_OPNPC2:
-    case PKTOUT_NAME_OPNPC3:
-    case PKTOUT_NAME_OPNPC4:
-    case PKTOUT_NAME_OPNPC5:
-        handle_opnpc(srv, name - PKTOUT_NAME_OPNPC1 + 1, payload, len);
-        break;
-
-    case PKTOUT_NAME_OPLOC1:
-    case PKTOUT_NAME_OPLOC2:
-    case PKTOUT_NAME_OPLOC3:
-    case PKTOUT_NAME_OPLOC4:
-    case PKTOUT_NAME_OPLOC5:
-        handle_oploc(srv, name - PKTOUT_NAME_OPLOC1 + 1, payload, len);
-        break;
-
-    case PKTOUT_NAME_OPOBJ1:
-    case PKTOUT_NAME_OPOBJ2:
-    case PKTOUT_NAME_OPOBJ3:
-    case PKTOUT_NAME_OPOBJ4:
-    case PKTOUT_NAME_OPOBJ5:
-        handle_opobj(srv, payload, len);
-        break;
-
-    /* The client sends the packed (interface << 16) | child uid at full width
-     * (GameProtoRevTable.component_id_bytes); truncating it would make every
-     * interface's component 5 look alike. */
-    case PKTOUT_NAME_RESUME_PAUSEBUTTON:
-    {
-        struct RSAreaBuf resume;
-        int uid;
-
-        rsab_wrap(&resume, (void*)payload, (size_t)len);
-        uid = rsab_g4(&resume);
-        if( !rsab_ok(&resume) )
-            break;
-        if( srv->verbose )
-            fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d\n", uid >> 16, uid & 0xffff);
-        mock230_scripts_resume_button(srv, uid);
-        break;
+        if( k_packet_routes[i].name != name )
+            continue;
+        k_packet_routes[i].handler(srv, name, payload, len);
+        return;
     }
 
-    case PKTOUT_NAME_CLIENT_CHEAT:
-        handle_cheat(srv, payload, len);
-        break;
-
-    case PKTOUT_NAME_IF_BUTTON:
-    {
-        struct RSAreaBuf button;
-        int uid;
-
-        rsab_wrap(&button, (void*)payload, (size_t)len);
-        uid = rsab_g4(&button);
-        if( !rsab_ok(&button) )
-            break;
-        if( srv->verbose )
-            fprintf(stderr, "mock230: <- IF_BUTTON %d:%d\n", uid >> 16, uid & 0xffff);
-
-        /* rev 230 has no separate resume opcode in practice — a component the
-         * server enabled with IF_SETEVENTS answers a click with IF_BUTTON, and
-         * the server decides what it meant. Try it as a resume first; a click
-         * that matches no registered button falls through, which is how sidebar
-         * tabs (switched client-side on a varc) stay a no-op. */
-        if( mock230_scripts_resume_button(srv, uid) )
-            break;
-
-        /* The world map's close buttons carry no cache op, so a click on the
-         * red X arrives here rather than as IF_BUTTON1. */
-        if( mock230_worldmap_handle_button(srv, uid, 1) )
-            break;
-
-        /* Then as an ordinary interface button. Content bound to the component
-         * wins; the engine's own routers are the no-content fallback, which is
-         * what keeps the bank's toggles working with no script pack. */
-        srv->player.last_com = uid;
-        srv->player.last_slot = -1;
-        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
-            break;
-        if( mock230_bank_handle_button(srv, uid, -1, -1, 1) )
-            break;
-        if( mock230_equipment_handle_button(srv, uid, -1, 1) )
-            break;
-        break;
-    }
-
-    /*
-     * IF_BUTTON1..10: op N of an IF3 component (RSProt If3Button). Distinct
-     * from IF_BUTTON above, which is the op-less plain click — an op-bearing
-     * widget like the world map orb names which verb was picked, and the verb
-     * is the whole message ("Floating World Map" and "Fullscreen World Map"
-     * are ops 2 and 3 of the same component).
-     */
-    case PKTOUT_NAME_IF_BUTTON1:
-    case PKTOUT_NAME_IF_BUTTON2:
-    case PKTOUT_NAME_IF_BUTTON3:
-    case PKTOUT_NAME_IF_BUTTON4:
-    case PKTOUT_NAME_IF_BUTTON5:
-    case PKTOUT_NAME_IF_BUTTON6:
-    case PKTOUT_NAME_IF_BUTTON7:
-    case PKTOUT_NAME_IF_BUTTON8:
-    case PKTOUT_NAME_IF_BUTTON9:
-    case PKTOUT_NAME_IF_BUTTON10:
-    {
-        struct RSAreaBuf button;
-        int uid;
-        int sub;
-        int op = name - PKTOUT_NAME_IF_BUTTON1 + 1;
-
-        rsab_wrap(&button, (void*)payload, (size_t)len);
-        uid = rsab_g4(&button);
-        sub = (int16_t)rsab_g2(&button);
-        if( !rsab_ok(&button) )
-            break;
-        if( srv->verbose )
-            fprintf(
-                stderr, "mock230: <- IF_BUTTON%d %d:%d sub=%d\n", op, uid >> 16, uid & 0xffff, sub);
-        if( mock230_worldmap_handle_button(srv, uid, op) )
-            break;
-        srv->player.last_com = uid;
-        srv->player.last_slot = sub;
-        srv->player.last_verb = op;
-        /* run_trigger's parameters are (trigger, type, category, npc_slot): the
-         * component uid is the type, and an interface button has neither a
-         * category nor an npc. `sub` and `op` reach content through last_slot
-         * and last_verb, which is where a RuneScript trigger reads them. */
-        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
-            break;
-        /* (uid, sub, obj, op) — the bank needs the sub id, which is which of
-         * the 1,220 dynamic children was clicked. */
-        if( mock230_bank_handle_button(srv, uid, sub, -1, op) )
-            break;
-        if( mock230_equipment_handle_button(srv, uid, sub, op) )
-            break;
-        if( mock230_prayer_handle_button(srv, uid, op) )
-            break;
-        break;
-    }
-
-    case PKTOUT_NAME_CLICK_WORLD_MAP:
-    {
-        struct RSAreaBuf click;
-        int packed;
-
-        rsab_wrap(&click, (void*)payload, (size_t)len);
-        packed = rsab_g4(&click);
-        if( !rsab_ok(&click) )
-            break;
-        mock230_worldmap_click(
-            srv, (packed >> 28) & 0x3, (packed >> 14) & 0x3fff, packed & 0x3fff);
-        break;
-    }
-
-    /*
-     * The player pressed Escape, or clicked a component whose CS2 called
-     * `if_close`. The client has already torn its own copy down; the server has
-     * to agree, or the next open finds the bank still marked open and sends
-     * nothing.
-     */
-    case PKTOUT_NAME_CLOSE_MODAL:
-        if( srv->verbose )
-            fprintf(stderr, "mock230: <- CLOSE_MODAL\n");
-        if( srv->player.bank.open )
-        {
-            if( !mock230_scripts_run_trigger(
-                    srv, SS_TRIGGER_IF_CLOSE,
-                    MOCK230_COM(mock230_ids()->iface_bankmain, 0), -1, -1) )
-                mock230_bank_close(srv);
-        }
-        break;
-
-    /* The number a p_countdialog collected — "Withdraw-X". */
-    case PKTOUT_NAME_RESUME_P_COUNTDIALOG:
-    {
-        struct RSAreaBuf count;
-        int32_t value;
-
-        rsab_wrap(&count, (void*)payload, (size_t)len);
-        value = rsab_g4(&count);
-        if( !rsab_ok(&count) )
-            break;
-        if( srv->verbose )
-            fprintf(stderr, "mock230: <- RESUME_P_COUNTDIALOG %d\n", (int)value);
-        srv->player.last_int = value;
-        /* A parked script owns the answer if there is one; only when nothing is
-         * waiting does the engine's own pending "-X" row get it. */
-        if( !mock230_scripts_resume_countdialog(srv, value) )
-            mock230_bank_resume_countdialog(srv, (int)value);
-        break;
-    }
-
-    default:
-        break;
-    }
+    /* A packet with no route is not an error: the client sends plenty this
+     * server has no use for (camera, focus, idle). The session layer already
+     * framed it correctly, so ignoring it costs nothing. */
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- unrouted packet name %d (%d bytes)\n", name, len);
 }
+
 
 /* ------------------------------------------------------------------ */
 /* Death                                                               */
@@ -1989,6 +2552,41 @@ mock230_world_attack_style(const struct Mock230Server* srv)
     return srv->player.varps[varp];
 }
 
+/*
+ * Queue a varp for phase 10, once.
+ *
+ * The dedupe is not an optimisation, it is correctness under varbits: a varbit
+ * is a bit range *inside* a varp, so the ten bank settings written on open all
+ * land in varp 115. Appending per write queued the same varp ten times, sent it
+ * ten times, and — worse — spent ten of the change list's entries on it. The
+ * list is a fixed 64 and dropping past it used to be silent, which is a varp the
+ * client never hears about and a UI that stays stale with no diagnostic.
+ *
+ * This is the only copy. mock230_bank.c and mock230_scripts.c each had their
+ * own, with different dedupe semantics, which is exactly how the varbit path
+ * ended up on the one that had none.
+ */
+void
+mock230_world_mark_varp(
+    struct Mock230Player* player,
+    int varp)
+{
+    if( varp < 0 || varp >= MOCK230_VARP_COUNT )
+        return;
+    for( int i = 0; i < player->varp_changed_count; i++ )
+    {
+        if( player->varp_changed[i] == varp )
+            return;
+    }
+    if( player->varp_changed_count >= MOCK230_VARP_DIRTY_MAX )
+    {
+        fprintf(stderr, "mock230: varp change list full (%d), varp %d not sent\n",
+                MOCK230_VARP_DIRTY_MAX, varp);
+        return;
+    }
+    player->varp_changed[player->varp_changed_count++] = varp;
+}
+
 void
 mock230_world_set_varp(
     struct Mock230Server* srv,
@@ -2000,8 +2598,7 @@ mock230_world_set_varp(
     if( varp < 0 || varp >= MOCK230_VARP_COUNT || player->varps[varp] == value )
         return;
     player->varps[varp] = value;
-    if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
-        player->varp_changed[player->varp_changed_count++] = varp;
+    mock230_world_mark_varp(player, varp);
 }
 
 void
@@ -2019,6 +2616,23 @@ mock230_world_set_home(
 {
     g_home_x = tile_x;
     g_home_z = tile_z;
+}
+
+/*
+ * The name the session collected at login.
+ *
+ * Separate from mock230_world_init, and called after it, because that function
+ * memsets the player — a name written before it is a name erased by it. This is
+ * the whole of why `displayname` used to come back empty.
+ */
+void
+mock230_world_set_display_name(
+    struct Mock230Server* srv,
+    const char* name)
+{
+    if( !name || !name[0] )
+        return;
+    snprintf(srv->player.display_name, sizeof(srv->player.display_name), "%s", name);
 }
 
 void
@@ -2391,6 +3005,11 @@ phase_players(struct Mock230Server* srv)
      * same way: step first, then swing, so a player who arrives this tick
      * attacks on it rather than a tick later. */
     advance_player(srv);
+    /* Post-move: a player who reached their target this tick acts on it now,
+     * not next tick. This is the other half of the interaction model — the
+     * packet handler tried once when the click arrived, and this is every tick
+     * of the walk that followed. */
+    mock230_world_process_interaction(srv);
     /* Energy is spent on the steps that were actually taken, so a route that
      * ran out of tiles this tick regenerates instead of draining. */
     run_energy_tick(srv, srv->player.running ? srv->player.move_count : 0);
@@ -2643,11 +3262,38 @@ selftest_park_player(
     player->hitpoints = player->max_hitpoints;
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
         srv->npcs[i].combat_target = -1;
+    /* A section that repositions the player is starting over, so anything the
+     * last one left pending goes with it. Leaving it is how one section's
+     * unfinished click resolved in the middle of the next one's fight. */
+    mock230_world_interaction_clear(srv);
     /* Moving the player is a teleport, and a teleport may need the scene to
      * follow. Without this the collision window and the ground-obj visibility
      * test still describe wherever the last section left off. */
     player->place_dirty = 1;
     maybe_rebuild(srv);
+}
+
+/**
+ * Tick until the pending interaction resolves.
+ *
+ * The interaction model means a click on something out of reach is answered by
+ * a walk, not by the act — so a test that fires OPNPC/OPLOC/OPOBJ from across
+ * the map has to let the player get there. Returns the ticks it took, or -1
+ * when it never resolved, which is a genuine failure rather than a slow test:
+ * an interaction that cannot complete is one the player is stuck on.
+ */
+static int
+selftest_settle(
+    struct Mock230Server* srv,
+    int max_ticks)
+{
+    for( int i = 0; i < max_ticks; i++ )
+    {
+        if( srv->player.interaction.kind == MOCK230_INTERACT_NONE )
+            return i;
+        mock230_world_tick(srv);
+    }
+    return srv->player.interaction.kind == MOCK230_INTERACT_NONE ? max_ticks : -1;
 }
 
 /** Slot holding the first active npc of this type, or -1. */
@@ -2684,7 +3330,10 @@ mock230_world_selftest(void)
     int slot;
 
     memset(&srv, 0, sizeof(srv));
-    srv.fd = -1; /* every mock230_send becomes a no-op */
+    /* No session: a world with no client. Every mock230_send still builds its
+     * payload and still reaches the capture hook, then writes nothing — which
+     * is what makes every encoder assertable without a socket. */
+    srv.session = NULL;
     mock230_seqinfo_load(MOCK230_CACHE_DIR_DEFAULT);
     mock230_world_init(&srv, 426, 408);
     player = &srv.player;
@@ -2706,6 +3355,48 @@ mock230_world_selftest(void)
          * silently addresses component 0.
          */
         SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
+
+        /*
+         * The two namespace layers agree.
+         *
+         * A clean load means no authored name shadows a *different* id's cache
+         * name, and nothing is both a varp and a varbit. The second rule is not
+         * pedantry: `%name` resolves varp before varbit, so an alias naming the
+         * varp *behind* a bank varbit made every setting the content wrote go
+         * out as a whole-varp write. varp 115 also holds bank_currenttab in bits
+         * 4..7 and varp 304 holds bank_requestedquantity in bits 1..31, so
+         * opening the bank reset the tab and toggling insert mode discarded the
+         * pending quantity — both shipped, both invisible.
+         *
+         * mock230_content_error_count covers the whole load, so this is also the
+         * assertion that no config line was rejected.
+         */
+        SELFTEST_CHECK(mock230_content_error_count() == 0,
+                       "the content tree should load clean, got %d error(s)",
+                       mock230_content_error_count());
+
+        /* The specific names that were aliased. Each must be a varbit — the
+         * thing that patches one bit range — and not a varp. */
+        SELFTEST_CHECK(
+            mock230_content_symbol(MOCK230_PACK_VARP, "bank_withdrawnotes") == -1 &&
+                mock230_content_symbol(MOCK230_PACK_VARBIT, "bank_withdrawnotes") >= 0,
+            "bank_withdrawnotes should be a varbit only");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "bank_insertmode") == -1 &&
+                           mock230_content_symbol(MOCK230_PACK_VARBIT, "bank_insertmode") >= 0,
+                       "bank_insertmode should be a varbit only");
+        SELFTEST_CHECK(
+            mock230_content_symbol(MOCK230_PACK_VARP, "bank_quantity_type") == -1 &&
+                mock230_content_symbol(MOCK230_PACK_VARBIT, "bank_quantity_type") >= 0,
+            "bank_quantity_type should be a varbit only");
+
+        /* Layer 1 still does its actual job: an id this world repurposed
+         * resolves to the authored name, not the cache's. */
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "varp_weapon_category") == 843,
+                       "the authored alias for varp 843 should resolve, got %d",
+                       mock230_content_symbol(MOCK230_PACK_VARP, "varp_weapon_category"));
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "randomhitsound") == 843,
+                       "and the cache's own name for it should still resolve too, got %d",
+                       mock230_content_symbol(MOCK230_PACK_VARP, "randomhitsound"));
 
         SELFTEST_CHECK(ids->iface_gameframe == 161, "gameframe should be 161, got %d",
                        ids->iface_gameframe);
@@ -2813,6 +3504,16 @@ mock230_world_selftest(void)
         }
         else
         {
+            /*
+             * Every opcode this tree uses is implemented.
+             *
+             * A regression here means content was written against an opcode the
+             * engine does not have — which otherwise fails at the moment a
+             * player triggers that script, possibly never during a test run.
+             * The report names each one and the first script wanting it.
+             */
+            SELFTEST_CHECK(mock230_scripts_report_gaps(&srv) == 0,
+                           "the content tree should not use unimplemented opcodes");
             uint8_t payload[2];
             int before;
             int hans;
@@ -2835,13 +3536,19 @@ mock230_world_selftest(void)
             payload[1] = (uint8_t)(hans & 0xff);
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+            /* The click starts a walk; the script runs when the player gets
+             * there. Hans is across the courtyard, so that is several ticks. */
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                           "the walk to Hans should complete");
             SELFTEST_CHECK(player->varps[1] == before + 1,
                            "the script should bump %%mock_greeting_count, got %d",
                            player->varps[1]);
-            SELFTEST_CHECK(hans >= 0 &&
-                               strcmp(srv.npcs[hans].say, "Hello there, adventurer!") == 0,
-                           "npc_say should set Hans's chat, got \"%s\"",
-                           hans >= 0 ? srv.npcs[hans].say : "");
+            /* Hans's greeting is a four-page conversation, so the script is
+             * still parked on its first p_pausebutton here. Both halves matter:
+             * the varp above proves the script ran, this proves it suspended
+             * rather than falling off the end. */
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "[opnpc1,hans] should park on its first dialogue page");
 
             mock230_world_tick(&srv);
             mock230_capture_end(&srv);
@@ -2966,6 +3673,8 @@ mock230_world_selftest(void)
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, payload, 2);
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                           "the walk to Hans should complete");
             mock230_capture_end(&srv);
 
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 5),
@@ -3002,8 +3711,8 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->last_com == continue_uid,
                            "last_com should name the button that resumed it");
 
-            /* Page 3, then the script finishes and closes the dialogue. */
-            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            /* Page 2 is the last one Hans's "Age" reply has, so the next click
+             * runs off the end of the script and into its if_close. */
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
             mock230_capture_end(&srv);
@@ -3013,6 +3722,160 @@ mock230_world_selftest(void)
                            "if_close should close the dialogue");
             SELFTEST_CHECK(player->resume_button_count == 0,
                            "and drop its resume buttons");
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: held-item content\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct Mock230Ids* ids = mock230_ids();
+            uint8_t held[8];
+            int bones = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+            int meat = mock230_content_symbol(MOCK230_PACK_OBJ, "cooked_meat");
+            int prayer_xp;
+            /* This section rewrites the backpack, the worn slots and the
+             * hitpoints stat, and the equipment sections after it are written
+             * against the starting kit. Snapshot and put it all back. */
+            static struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+            static struct Mock230Item saved_worn[MOCK230_WORN_SLOTS];
+            int saved_hp = player->hitpoints;
+            int saved_hp_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+
+            memcpy(saved_inv, player->inv, sizeof(saved_inv));
+            memcpy(saved_worn, player->worn, sizeof(saved_worn));
+
+            SELFTEST_CHECK(bones > 0 && meat > 0, "bones and cooked_meat should be in obj.pack");
+            SELFTEST_CHECK(mock230_objinfo(bones)->category == 6,
+                           "bones should be category 6, got %d",
+                           mock230_objinfo(bones)->category);
+
+            /*
+             * Bury: `[opheld1,_bones]` is bound to the obj *category*, not to
+             * the obj, so what this really asserts is that a category-addressed
+             * trigger resolves at all. It is the only one in the tree.
+             */
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, -1, 0);
+            inv_set(player, 0, bones, 1);
+            player->stat_xp_tenths[MOCK230_STAT_PRAYER] = 0;
+            prayer_xp = player->stat_xp_tenths[MOCK230_STAT_PRAYER];
+
+            held[0] = (uint8_t)(bones >> 8);
+            held[1] = (uint8_t)(bones & 0xff);
+            held[2] = 0;
+            held[3] = 0; /* slot 0 */
+            held[4] = (uint8_t)(ids->com_inventory_items >> 24);
+            held[5] = (uint8_t)(ids->com_inventory_items >> 16);
+            held[6] = (uint8_t)(ids->com_inventory_items >> 8);
+            held[7] = (uint8_t)ids->com_inventory_items;
+            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+
+            /* p_delay(0) parks the script for the rest of this tick, which is
+             * why the effects land on the next one rather than immediately. */
+            SELFTEST_CHECK(player->active_script != NULL, "bury should park on its p_delay");
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->inv[0].obj_id == -1,
+                           "inv_delslot should empty the bones slot, got %d",
+                           player->inv[0].obj_id);
+            SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_PRAYER] == prayer_xp + 450,
+                           "burying bones should award 45 prayer experience, got %d",
+                           player->stat_xp_tenths[MOCK230_STAT_PRAYER] - prayer_xp);
+
+            /*
+             * Eat: same trigger, a different category, and the clamping half of
+             * stat_heal — a heal never exceeds the base level, so eating at
+             * full health costs the food and heals nothing.
+             */
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
+            player->hitpoints = 4;
+            mock230_combat_stat_mark(player, MOCK230_STAT_HITPOINTS);
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 4;
+            inv_set(player, 0, meat, 1);
+            held[0] = (uint8_t)(meat >> 8);
+            held[1] = (uint8_t)(meat & 0xff);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+            SELFTEST_CHECK(player->hitpoints == 7,
+                           "cooked meat should heal 3, got %d", player->hitpoints);
+            SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
+
+            inv_set(player, 0, meat, 1);
+            player->hitpoints = 10;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
+            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+            SELFTEST_CHECK(player->hitpoints == 10,
+                           "eating at full health should not overheal, got %d",
+                           player->hitpoints);
+
+            /* An obj with no [opheld] script must still reach the engine's own
+             * verb table — the fallback that keeps the mock usable without a
+             * script pack, now that content gets first refusal on this packet
+             * too. */
+            {
+                int sword = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_sword");
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+                inv_set(player, 3, sword, 1);
+                held[0] = (uint8_t)(sword >> 8);
+                held[1] = (uint8_t)(sword & 0xff);
+                held[3] = 3;
+                mock230_world_handle(&srv, PKTOUT_NAME_OPHELD2, held, 8);
+                SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == sword,
+                               "an unbound opheld should still fall through to Wield");
+            }
+
+            /*
+             * Pickpocketing is the other half of the same story: `[opnpc3,man]`
+             * is an op the cache offers and nothing answered until now. The
+             * level gate is what makes it observable without depending on a
+             * random roll — a guard needs 40 Thieving, so at level 1 the script
+             * always takes the refusal branch and parks on its ~mesbox.
+             */
+            {
+                int guard = selftest_find_npc(&srv, 3254);
+                int thieving = mock230_content_symbol(MOCK230_PACK_STAT, "thieving");
+                uint8_t npc_payload[2];
+
+                SELFTEST_CHECK(guard >= 0, "the roster should include a guard");
+                SELFTEST_CHECK(thieving == 17, "thieving should be stat 17, got %d", thieving);
+                if( guard >= 0 && thieving >= 0 )
+                {
+                    npc_payload[0] = (uint8_t)(guard >> 8);
+                    npc_payload[1] = (uint8_t)(guard & 0xff);
+                    player->stat_level[thieving] = 1;
+                    player->stat_boosted[thieving] = 1;
+                    player->active_script = NULL;
+                    /* Stand next to the guard: this section is about the level
+                     * gate, not about the walk, and settling would also run the
+                     * pickpocket script's own delay. */
+                    player->x = srv.npcs[guard].x + 1;
+                    player->z = srv.npcs[guard].z;
+                    player->level = srv.npcs[guard].level;
+                    mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, npc_payload, 2);
+                    SELFTEST_CHECK(player->active_script != NULL,
+                                   "pickpocketing under the level requirement should "
+                                   "park on its mesbox");
+                    mock230_scripts_free(&srv);
+                }
+            }
+
+            memcpy(player->inv, saved_inv, sizeof(saved_inv));
+            memcpy(player->worn, saved_worn, sizeof(saved_worn));
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_hp_level;
+            player->hitpoints = saved_hp;
+            mock230_combat_sync_hitpoints(player);
 
             mock230_scripts_free(&srv);
         }
@@ -3467,6 +4330,71 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: interactions walk before they act\n");
+    {
+        /*
+         * The regression test for the interaction model.
+         *
+         * Before it existed, every op handler walked *and* acted in the same
+         * call, so this section's obj would have been in the backpack the
+         * instant the packet landed — from eight tiles away, through a wall.
+         * What is asserted here is the *negative*: nothing happened yet.
+         */
+        int obj_x = 3230;
+        int obj_z = 3218;
+        int free_slot;
+        int settled;
+
+        selftest_park_player(&srv, 3222, 3218);
+        free_slot = inv_first_free(player);
+        mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0, MOCK230_LOOT_TICKS);
+
+        {
+            uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                   (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                   (uint8_t)(526 >> 8),   (uint8_t)526 };
+
+            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+        }
+
+        SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_OBJ,
+                       "a click on something out of reach latches an interaction");
+        SELFTEST_CHECK(free_slot < 0 || player->inv[free_slot].obj_id != 526,
+                       "and does NOT act on it from eight tiles away");
+        SELFTEST_CHECK(player->step_count > 0, "it starts a walk instead");
+
+        settled = selftest_settle(&srv, 40);
+        SELFTEST_CHECK(settled > 0, "arriving takes ticks, got %d", settled);
+        SELFTEST_CHECK(free_slot >= 0 && player->inv[free_slot].obj_id == 526,
+                       "and the obj is taken on arrival");
+        SELFTEST_CHECK(player->x == obj_x && player->z == obj_z,
+                       "standing on the tile it was on, got %d,%d", player->x, player->z);
+
+        /* Changing your mind cancels it: a ground click must not leave an op
+         * armed to fire whenever the player next wanders into range. */
+        selftest_park_player(&srv, 3222, 3218);
+        mock230_world_obj_add(&srv, 526, 1, obj_x, obj_z, 0, MOCK230_LOOT_TICKS);
+        {
+            uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                   (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                   (uint8_t)(526 >> 8),   (uint8_t)526 };
+            uint8_t move[5];
+            struct RSAreaBuf walk;
+
+            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_OBJ,
+                           "the interaction is armed");
+
+            rsab_wrap(&walk, move, sizeof(move));
+            rsab_p1(&walk, 0);
+            rsab_p2(&walk, 3224);
+            rsab_p2(&walk, 3218);
+            mock230_world_handle(&srv, PKTOUT_NAME_MOVE_GAMECLICK, move, (int)rsab_len(&walk));
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
+                           "and walking somewhere else abandons it");
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: doors\n");
     {
         static struct Mock230Capture capture;
@@ -3492,6 +4420,11 @@ mock230_world_selftest(void)
             player->level = 0;
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            /* The door is across the courtyard: the click routes there and the
+             * swap happens on arrival. That the walk is now part of opening a
+             * door is the interaction model working. */
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                           "the walk to the door should complete");
             mock230_capture_end(&srv);
 
             SELFTEST_CHECK(loc->loc_id == 1536, "opening swaps the loc, got %d",
@@ -3509,6 +4442,9 @@ mock230_world_selftest(void)
             payload[4] = (uint8_t)(1536 >> 8);
             payload[5] = (uint8_t)1536;
             mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            /* Standing beside it now, so this one resolves on the click. */
+            SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
+                           "closing the door should complete");
             SELFTEST_CHECK(loc->loc_id == 1535, "and closing swaps it back, got %d",
                            loc->loc_id);
         }
@@ -3818,6 +4754,114 @@ mock230_world_selftest(void)
         unequip_slot(&srv, MOCK230_WEAR_HEAD);
         SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1, "head slot is empty again");
         SELFTEST_CHECK(selftest_find(player, 1155) >= 0, "helm is back in the backpack");
+    }
+
+    fprintf(stderr, "mock230 selftest: equipment level requirements\n");
+    {
+        /*
+         * The requirement table is merged from two sources that disagree with
+         * each other (the cache's own params and the Kronos import — see
+         * tools/kronos_item_import.py), so what is worth pinning here is that
+         * the *merge* comes out right at both ends: a rune scimitar's Attack 40
+         * comes from the cache, and a mithril scimitar's Attack 20 comes from
+         * the overlay. mock230_pack checks the whole ladder; this checks that
+         * the engine acts on it.
+         */
+        int rune = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_scimitar");
+        int mithril = mock230_content_symbol(MOCK230_PACK_OBJ, "mithril_scimitar");
+        int bronze = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
+        int free_slot = -1;
+        int saved_attack = player->stat_level[MOCK230_STAT_ATTACK];
+
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            if( player->inv[i].obj_id < 0 )
+            {
+                free_slot = i;
+                break;
+            }
+        SELFTEST_CHECK(rune > 0 && mithril > 0 && bronze > 0,
+                       "the scimitar ladder is in pack/obj.pack");
+        SELFTEST_CHECK(free_slot >= 0, "a free backpack slot to test with");
+
+        if( free_slot >= 0 && rune > 0 )
+        {
+            const struct Mock230ObjRequire* require = mock230_obj_require(rune);
+
+            SELFTEST_CHECK(require && require->count == 1 &&
+                               require->req[0].stat == MOCK230_STAT_ATTACK &&
+                               require->req[0].level == 40,
+                           "rune scimitar requires Attack 40 (from the cache's own params)");
+
+            player->stat_level[MOCK230_STAT_ATTACK] = 1;
+            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+            inv_set(player, free_slot, rune, 1);
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
+                           "Attack 1 cannot wield a rune scimitar");
+            SELFTEST_CHECK(player->inv[free_slot].obj_id == rune,
+                           "and the refused item stays in the backpack");
+
+            /* Boosted must not count — the reference reads the base level, so a
+             * potion cannot lift you over a requirement. */
+            player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
+                           "a boost does not satisfy a requirement");
+            player->stat_boosted[MOCK230_STAT_ATTACK] = 1;
+
+            player->stat_level[MOCK230_STAT_ATTACK] = 40;
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == rune,
+                           "Attack 40 can");
+            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+        }
+
+        /* Mithril 20 is the overlay's, not the cache's — the cache says nothing
+         * about mithril, which is the whole reason the overlay exists. */
+        if( free_slot >= 0 && mithril > 0 )
+        {
+            const struct Mock230ObjRequire* require = mock230_obj_require(mithril);
+
+            SELFTEST_CHECK(require && require->count == 1 &&
+                               require->req[0].stat == MOCK230_STAT_ATTACK &&
+                               require->req[0].level == 20,
+                           "mithril scimitar requires Attack 20 (from the .obj overlay)");
+            player->stat_level[MOCK230_STAT_ATTACK] = 19;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id == mithril )
+                    inv_set(player, i, -1, 0);
+            inv_set(player, free_slot, mithril, 1);
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != mithril,
+                           "Attack 19 cannot wield a mithril scimitar");
+            player->stat_level[MOCK230_STAT_ATTACK] = 20;
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == mithril,
+                           "Attack 20 can");
+            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+        }
+
+        /* And nothing below steel is gated at all, which is the case that would
+         * break every new character if the importer ever emitted a level 1 row. */
+        if( free_slot >= 0 && bronze > 0 )
+        {
+            SELFTEST_CHECK(mock230_obj_require(bronze) == NULL,
+                           "a bronze scimitar has no requirement");
+            player->stat_level[MOCK230_STAT_ATTACK] = 1;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id == bronze )
+                    inv_set(player, i, -1, 0);
+            inv_set(player, free_slot, bronze, 1);
+            equip_from_slot(&srv, free_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == bronze,
+                           "and Attack 1 wields it");
+            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+        }
+
+        player->stat_level[MOCK230_STAT_ATTACK] = saved_attack;
+        player->stat_boosted[MOCK230_STAT_ATTACK] = saved_attack;
+        if( free_slot >= 0 )
+            inv_set(player, free_slot, -1, 0);
     }
 
     fprintf(stderr, "mock230 selftest: two-handed weapon evicts the shield\n");

@@ -71,4 +71,26 @@ mock230_equipment_bonus(
     const struct Mock230Server* srv,
     int param);
 
+/**
+ * May the player wear this obj?
+ *
+ * Returns 1 when they may. Returns 0 and sends the refusal — OldSchool's own
+ * two lines, naming the first skill that is short — when they may not.
+ *
+ * The requirement itself comes from `mock230_obj_require`, merged from the
+ * cache's own params and the `.obj` overlay. Two things about *this* function
+ * are decisions rather than plumbing:
+ *
+ *   - It reads the **base** level, not the boosted one, matching the reference:
+ *     a strength potion does not let you wield a rune scimitar. LostCity's
+ *     `levelrequire_*` labels all call `stat_base`.
+ *   - An obj with no requirement is wearable, so an item this server has never
+ *     heard of stays equippable. The alternative — refusing what is unknown —
+ *     would make a cache the importer has not been run against unplayable.
+ */
+int
+mock230_equipment_may_wear(
+    struct Mock230Server* srv,
+    int obj_id);
+
 #endif

@@ -17,8 +17,9 @@
 #include "mock230.h"
 
 #include "mock230_prayer.h"
+#include "mock230_session.h"
 
-#include "mock230_ws.h"
+#include "net/isaac.h"
 
 /* The client's framing table, for the length check in mock230_send. */
 #include "net/rev/osrs230/packetin.h"
@@ -226,10 +227,12 @@ mock230_send(
         }
     }
 
-    if( srv->fd < 0 )
+    /* No session is a world with no client — the selftest. Everything above
+     * this point still ran, so the capture saw the packet. */
+    if( !srv->session || !mock230_session_alive(srv->session) )
         return;
     rsab_wrap(&buf, frame, sizeof(frame));
-    rsab_p1(&buf, (opcode + isaac_next(srv->cipher_out)) & 0xff);
+    rsab_p1(&buf, (opcode + isaac_next(srv->session->cipher_out)) & 0xff);
     if( var == 1 )
         rsab_p1(&buf, len);
     else if( var == 2 )
@@ -241,8 +244,8 @@ mock230_send(
         fprintf(stderr, "mock230: frame overflow for op %d (%d bytes)\n", opcode, len);
         return;
     }
-    if( mock230_conn_send(srv->conn, frame, (int)rsab_len(&buf)) < 0 )
-        srv->fd = -1;
+    if( mock230_session_send(srv->session, frame, (int)rsab_len(&buf)) < 0 )
+        mock230_session_kill(srv->session);
 
     if( srv->verbose )
         fprintf(

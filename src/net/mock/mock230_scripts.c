@@ -20,6 +20,11 @@
 #include "ss_meta.h"
 #include "ss_opcode.h"
 #include "ssvm.h"
+#include "ssvm_provider.h"
+
+/* Derived from the `case SS_OP_*:` labels in this file and in the VM core.
+ * See gen_opcode_coverage.py for why it is generated. */
+#include "mock230_opcode_coverage.gen.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,12 +107,124 @@ mock230_scripts_load(
 
     srv->scripts_ok = 1;
     fprintf(stderr, "mock230: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
+    /* Before anything runs: an opcode this tree needs and the engine lacks is a
+     * fact about the tree, not about whichever player eventually triggers it. */
+    mock230_scripts_report_gaps(srv);
     return srv->scripts->loaded;
+}
+
+/* ------------------------------------------------------------------ */
+/* Coverage                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Does anything — the VM core or the host seam — implement this opcode? */
+static int
+opcode_implemented(int opcode)
+{
+    int lo = 0;
+    int hi = MOCK230_OPCODE_COVERAGE_COUNT - 1;
+
+    while( lo <= hi )
+    {
+        int mid = lo + ((hi - lo) / 2);
+        int value = (int)MOCK230_OPCODE_COVERAGE[mid];
+
+        if( value == opcode )
+            return 1;
+        if( value < opcode )
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return 0;
+}
+
+/**
+ * Report every opcode the loaded content uses that nothing implements.
+ *
+ * At **load** time, not at call time, and that is the whole value. The VM
+ * already complains when an unimplemented opcode is reached — but only if a
+ * player happens to trigger that script, which for content behind a quest step
+ * or a rare drop may be never. Answering the question up front turns "the
+ * server has 155 of 396 opcodes" into the far more useful "this content tree
+ * needs these eleven, here is the first script that wants each".
+ *
+ * That list is the work queue for moving the remaining C behaviour into
+ * content: an opcode nothing asks for is not worth implementing, and one that
+ * three scripts ask for is blocking three scripts.
+ *
+ * Returns the number of distinct missing opcodes.
+ */
+int
+mock230_scripts_report_gaps(struct Mock230Server* srv)
+{
+    /* One bit per opcode, so each is reported once however many scripts want
+     * it. opcode values run to 10003 (they are sparse, not dense), so this is
+     * sized by the generated value limit rather than by the opcode count. */
+    static uint8_t seen[MOCK230_OPCODE_VALUE_LIMIT];
+    /* Static, not automatic: 10,004 pointers is 80 KB, which is most of a
+     * default thread stack. */
+    static const char* first_user[MOCK230_OPCODE_VALUE_LIMIT];
+    int missing = 0;
+
+    if( !srv->scripts_ok || !srv->scripts )
+        return 0;
+
+    memset(seen, 0, sizeof(seen));
+    memset(first_user, 0, sizeof(first_user));
+
+    for( int i = 0; i < srv->scripts->count; i++ )
+    {
+        const struct SSVM_Script* script = &srv->scripts->scripts[i];
+
+        /* Absent slots are zeroed; op_count marks them. */
+        if( script->op_count <= 0 || !script->opcodes )
+            continue;
+
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            int opcode = (int)script->opcodes[op];
+
+            if( opcode < 0 || opcode >= MOCK230_OPCODE_VALUE_LIMIT )
+                continue;
+            if( seen[opcode] || opcode_implemented(opcode) )
+                continue;
+            seen[opcode] = 1;
+            first_user[opcode] = script->name ? script->name : "?";
+            missing++;
+        }
+    }
+
+    if( missing == 0 )
+        return 0;
+
+    fprintf(stderr, "mock230: %d opcode(s) this content uses are not implemented:\n",
+            missing);
+    for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+    {
+        if( !seen[opcode] )
+            continue;
+        fprintf(stderr, "  %-28s first wanted by %s\n", SSVM_OpcodeName(opcode),
+                first_user[opcode]);
+    }
+    return missing;
 }
 
 void
 mock230_scripts_free(struct Mock230Server* srv)
 {
+    /*
+     * The parked script points into the env that is about to be freed.
+     *
+     * Nothing noticed while every trigger ran to completion; a conversation
+     * that blocks on p_pausebutton is the first content that leaves a state
+     * parked across a reload, and the next tick would then walk a freed
+     * pointer. The resume buttons go with it — they only mean anything to the
+     * script that registered them.
+     */
+    srv->player.active_script = NULL;
+    srv->player.resume_button_count = 0;
+
     if( srv->script_env )
     {
         SSVM_EnvFree(srv->script_env);
@@ -539,18 +656,6 @@ container_dirty(
         srv->player.bank.dirty = 1;
 }
 
-static void
-mark_varp_changed(struct Mock230Player* player, int varp)
-{
-    for( int i = 0; i < player->varp_changed_count; i++ )
-    {
-        if( player->varp_changed[i] == varp )
-            return;
-    }
-    if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
-        player->varp_changed[player->varp_changed_count++] = varp;
-}
-
 int
 mock230_script_command(
     struct SSVM_State* state,
@@ -816,6 +921,43 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * inv_delslot empties one cell, whatever is in it.
+     *
+     * Not a convenience over inv_del: they answer different questions. A script
+     * that ate the item the player clicked has to remove *that* stack, and
+     * inv_del removes the first matching one — which is a different cell as
+     * soon as two slots hold the same obj. The reference's consume path uses
+     * delslot for exactly this reason and so does the port.
+     */
+    case SS_OP_INV_DELSLOT:
+    {
+        int32_t values[2];
+        int slots = 0;
+        struct Mock230Item* items;
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        items = container_for(srv, values[0], &slots);
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_delslot on unknown container %d", values[0]);
+            return 1;
+        }
+        if( values[1] < 0 || values[1] >= slots )
+            return 1;
+        items[values[1]].obj_id = -1;
+        items[values[1]].count = 0;
+        if( values[0] == mock230_ids()->inv_backpack )
+            player->inv_dirty |= 1u << values[1];
+        else
+            player->worn_dirty |= 1u << values[1];
+        return 1;
+    }
+
     case SS_OP_INV_TOTAL:
     {
         int32_t values[2];
@@ -896,11 +1038,11 @@ mock230_script_command(
          * that is already 0 has to *tell* the client 0, because the client has
          * never been told anything.
          *
-         * `mark_varp_changed` is idempotent within a tick, so a script writing
-         * the same varp repeatedly still produces one packet.
+         * `mock230_world_mark_varp` is idempotent within a tick, so a script
+         * writing the same varp repeatedly still produces one packet.
          */
         player->varps[varp] = value;
-        mark_varp_changed(player, varp);
+        mock230_world_mark_varp(player, varp);
         return 1;
     }
 
@@ -923,6 +1065,19 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
         SSVM_PushInt(state, mock230_objinfo(obj_id)->stackable);
+        return 1;
+    }
+
+    /* The obj record's own category (opcode 94) — the same number the
+     * `[opheld<n>,_<category>]` trigger keys on, so content can test it
+     * directly for the cases a trigger cannot express. */
+    case SS_OP_OC_CATEGORY:
+    {
+        int32_t obj_id;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_objinfo(obj_id)->category);
         return 1;
     }
 
@@ -1440,6 +1595,18 @@ mock230_script_command(
 
     /* ---- stats ----------------------------------------------------- */
 
+    /*
+     * Every stat command aborts on an id outside the table rather than
+     * returning zero or doing nothing.
+     *
+     * A stat is a bare name in RuneScript, and this cache uses three of the 23
+     * names for something else as well — `hitpoints` is also a param, `attack`
+     * a varp, `fishing` a loc. The compiler now resolves the stat family with a
+     * kind hint so those cannot arrive here, and this is the second half of
+     * that fix: if one ever does, the number will be in the thousands, and a
+     * silent no-op means a script that heals nothing and says nothing. That is
+     * how the first version of the food content shipped looking correct.
+     */
     case SS_OP_STAT:
     {
         int32_t stat;
@@ -1448,12 +1615,111 @@ mock230_script_command(
             return 1;
         if( stat < 0 || stat >= MOCK230_STAT_COUNT )
         {
-            SSVM_PushInt(state, 0);
+            SSVM_Abort(state, "stat %d is not a skill", stat);
             return 1;
         }
         /* `stat` is the *boosted* level in the reference — what a level check
          * in content wants to know is what you can do right now. */
         SSVM_PushInt(state, player->stat_boosted[stat]);
+        return 1;
+    }
+
+    /* The *base* level — what the stat would be with no boost or drain on it.
+     * Content asks for this when a cap is involved: an altar restores prayer to
+     * its base, not to whatever a potion left it at. */
+    case SS_OP_STAT_BASE:
+    {
+        int32_t stat;
+
+        if( !SSVM_PopInt(state, &stat) )
+            return 1;
+        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_base %d is not a skill", stat);
+            return 1;
+        }
+        SSVM_PushInt(state, player->stat_level[stat]);
+        return 1;
+    }
+
+    /*
+     * stat_heal(stat, constant, percent) — the reference's formula, verbatim.
+     *
+     *   healed = current + (constant + base * percent / 100)
+     *   level  = max(min(healed, base), current)
+     *
+     * The two clamps are what make it a *heal*: it never exceeds the base level
+     * and never takes a stat down, so calling it on a stat already at full is a
+     * no-op rather than a reset. Food is (n, 0); an altar is (base - current,
+     * 0); a percentage restore is (0, n).
+     */
+    case SS_OP_STAT_HEAL:
+    {
+        int32_t values[3];
+        int base;
+        int current;
+        int healed;
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_heal %d is not a skill", values[0]);
+            return 1;
+        }
+        base = player->stat_level[values[0]];
+        current = player->stat_boosted[values[0]];
+        healed = current + values[1] + base * values[2] / 100;
+        if( healed > base )
+            healed = base;
+        if( healed < current )
+            healed = current;
+        if( healed == current )
+            return 1;
+        player->stat_boosted[values[0]] = healed;
+        /* Hitpoints are two views of one number — the stat the skills tab
+         * prints and the health orb's `hitpoints`. Writing only the stat would
+         * heal a player whose orb never moved. */
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+            player->hitpoints = healed;
+        mock230_combat_stat_mark(player, values[0]);
+        return 1;
+    }
+
+    /*
+     * stat_random(stat, low, high) — the level-interpolated success roll.
+     *
+     *   value  = low * (99 - level) / 98 + high * (level - 1) / 98 + 1
+     *   return value > random(256)
+     *
+     * `low` is the chance out of 256 at level 1 and `high` the chance at level
+     * 99, with everything between them on a straight line. Every skill in
+     * OldSchool that can fail rolls this, which is why it is a command and not
+     * four lines of `calc()` in content: it is the formula, and the rule this
+     * tree keeps is that arithmetic stays in C.
+     */
+    case SS_OP_STAT_RANDOM:
+    {
+        int32_t values[3];
+        int level;
+        int value;
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_random %d is not a skill", values[0]);
+            return 1;
+        }
+        level = player->stat_boosted[values[0]];
+        value = values[1] * (99 - level) / 98 + values[2] * (level - 1) / 98 + 1;
+        SSVM_PushInt(state, value > mock230_random(srv, 0, 255) ? 1 : 0);
         return 1;
     }
 
@@ -1466,6 +1732,11 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &stat) )
             return 1;
+        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_advance %d is not a skill", stat);
+            return 1;
+        }
         /* The reference's xp argument is already in tenths. */
         mock230_combat_add_xp(srv, stat, experience);
         return 1;
@@ -1903,6 +2174,24 @@ mock230_script_command(
         return 1;
     case SS_OP_LAST_TARGETSLOT:
         SSVM_PushInt(state, player->last_targetslot);
+        return 1;
+    case SS_OP_LAST_ITEM:
+        SSVM_PushInt(state, player->last_item);
+        return 1;
+
+    case SS_OP_DISPLAYNAME:
+        SSVM_PushStr(state, player->display_name[0] ? player->display_name : "Player");
+        return 1;
+
+    /*
+     * `p_stopaction` ends whatever the player was doing before the script's own
+     * effect lands. Combat is the only standing action the mock models — the
+     * walk queue is not one, because a click that starts a script has already
+     * replaced it — so that is the whole implementation rather than a partial
+     * one.
+     */
+    case SS_OP_P_STOPACTION:
+        mock230_combat_stop_player(srv);
         return 1;
 
     default:

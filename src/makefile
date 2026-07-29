@@ -797,16 +797,23 @@ test-revconfig: $(OBJ_DIR)
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
 # on-login burst, and a 600 ms game tick driving movement, npcs, inventory and
 # equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
-MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
+#
+# Everything but main(). Split out so the same server can be linked into a host
+# that has its own entry point — the in-process build (test-mock230-embed) is
+# the first, and src/platform/net_transport_embed.c is the second.
+MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_prayer.c \
+	net/mock/mock230_boot.c net/mock/mock230_transport.c net/mock/mock230_session.c \
+	net/mock/mock230_embed.c \
 	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
+MOCK230_SRCS = net/mock/mock230_main.c $(MOCK230_CORE_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
@@ -874,7 +881,7 @@ mock230-scripts: sscompile
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
 	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/server/scripts \
 		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
-		--pack $(MOCK230_CONTENT_DIR)/pack --pack $(MOCK230_CONTENT_DIR)/server/pack
+		--pack $(MOCK230_CONTENT_DIR)/pack --pack $(MOCK230_CONTENT_DIR)/names
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
@@ -891,6 +898,26 @@ mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 
 test-mock230: mock230
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
+
+# The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
+# core and the host command seam, so it cannot disagree with them — provided it
+# is regenerated when either changes. This fails when it is not.
+#
+# The failure direction is safe either way: a stale table over-reports, so the
+# load-time gap report nags about an opcode that is actually implemented rather
+# than hiding one that is not.
+test-mock230-coverage:
+	python3 net/mock/gen_opcode_coverage.py --check
+
+# The server hosted in-process: a real client subsystem and a real server joined
+# by two byte buffers, no socket and no thread. Links the server core (no
+# main()) against the client's net stack. If this hangs, the login handshake has
+# gone back to blocking — see net/mock/test/embed_test.c.
+test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
+		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)

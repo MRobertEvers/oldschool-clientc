@@ -251,10 +251,21 @@ varp:bankcert as bank_withdrawnotes
 varp:bankinsert
 varp:bankinsert as bank_insertmode
 
+// The three dialogue interfaces the chat toolkit drives, all mounted into the
+// same chatbox slot: 231 the npc's side, 217 the player's, 229 a plain message
+// box with no head at all. 231's four keep their unqualified names because
+// content already writes them; the other two are prefixed with the interface
+// so a call site says which side it is setting.
 components:chat_left:head as chat_head
 components:chat_left:name as chat_name
 components:chat_left:continue as chat_continue
 components:chat_left:text as chat_body
+components:chat_right:head as playerchat_head
+components:chat_right:name as playerchat_name
+components:chat_right:continue as playerchat_continue
+components:chat_right:text as playerchat_body
+components:messagebox:text as chatmessage_body
+components:messagebox:continue as chatmessage_continue
 components:chatbox:chatcrm as chat_container
 components:chatbox:crmcanvas as chat_slot
 
