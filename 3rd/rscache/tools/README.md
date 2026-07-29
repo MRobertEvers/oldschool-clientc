@@ -482,27 +482,82 @@ with a boot log identical to the original's (`world_load: 1 chunks, 9 underlays,
 than per-record byte-exactness, because it holds even where a record re-encodes to
 different bytes: what it says is that nothing the client can see was lost.
 
-### Binary tables
+### The asset tree
 
-`--binary` moves the tables that are not configs — models, sprites, maps, scripts,
-sounds — as **raw container bytes**, never decompressed:
+`--assets` lays every non-config table out the way LostCity's `content/` is — one
+named file per asset, in a directory that says what it is:
+
+```sh
+cachepack unpack --cache cache.osrs239 --rev osrs239 --src A --assets
+cachepack pack   --src A --base cache.osrs239 --out OUT --assets
+```
+
+```
+A/models/npc/goblin.model      A/songs/song_12.jmid       A/binary/title.jpg
+A/models/loc/oak_tree8.model   A/synth/synth_401.synth    A/worldmap/ground/*.png
+A/animsets/animset_77.anim     A/maps/map_10016.map       A/textures/texture_0/3.texture
+```
+
+`cachepack --list-assets` prints the register: 20 tables, their directory, their
+pack file and their fallback extension.
+
+**Extensions come from the bytes.** LostCity stores models as `.ob2` because a
+rev-254 model *is* an OB2; an OldSchool 239 model is not. A census over all 61,615
+finds 26,990 osrs-v2 and 34,625 osrs-v3 and **zero** ob2 or ob3, so writing them as
+`.ob2` would name the file after a format it does not contain. The extension is
+therefore per file and read off the magic trailer — a real ob2 gets `.ob2`, a real
+ob3 gets `.ob3`, the OldSchool formats get `.model`.
+
+The same rule pays off in both directions. Table 10 is JPEG and table 20 is PNG, so
+those are detected and get their real extension for free — which is how
+`binary/title.jpg` comes out right with no converter. And the music tables are
+**not** raw MIDI (they open `17 07 f6 02`, Jagex's own container), so they get
+`.jmid` rather than a `.mid` no player would open.
+
+**Nothing is transcoded.** The bytes in the file are the bytes in the archive. Going
+to LostCity's actual formats would mean converting, and that is lossy for exactly
+the assets anyone would want it for — EXCEPTIONS.md A5 records that dat2 → dat1
+`.ob2` drops OB3/V2/V3 texture render types and animaya skinning. `port_lostcity` is
+the converter and it is a different job.
+
+**Models are named after the configs that reference them**, as LostCity's
+`unpackModelNames`/`renameModel` does — otherwise every model is `model_24458` and
+the tree is no more readable than the raw idx dump. On `cache.osrs239` that names
+9,553 under `npc/`, 11,278 under `obj/`, 30,761 under `loc/`, 1,631 under `spot/`
+and 167 under `idk/`, leaving 8,225 unreferenced as `model_<id>`.
+
+**Most archives stay whole.** The first cut exploded every multi-file archive into a
+directory and produced 352,849 files, 209,295 of them individual animation frames.
+That is not what LostCity does — an `.anim` *is* the archive, which is why its
+`models/` holds 4,229 files and not a quarter of a million — and a frame is not
+independently useful anyway. Only `textures` and `dbindex` explode now, where the
+files inside really are separately addressed assets. The tree is 117,086 files.
+
+The round trip is exact at the **payload** level: unpack → pack → unpack over
+`cache.osrs239` returns the entire tree byte-identical, and the client's boot log
+against the repacked cache matches the original's line for line. The *container*
+bytes differ, because the payload is recompressed on the way in — use `--binary` if
+you need container-level byte-exactness.
+
+### Raw containers
+
+`--binary` is the other half of the trade: the same tables as `binary/idx7/1234.bin`,
+never decompressed.
 
 ```sh
 cachepack unpack --cache cache.osrs230 --rev osrs230 --src A --binary=7,8
-# -> A/binary/idx7/0.bin ...
 cachepack pack --src A --base cache.osrs230 --out OUT --binary
 ```
 
-Raw rather than decoded because the round trip is then byte-exact with no encoder
-to be wrong, XTEA-encrypted map archives pass through untouched, and the bzip2
-encoder's known non-identity to Jagex's (EXCEPTIONS.md A1) never enters the picture.
-Import rewrites the reference-table entry from the bytes actually stored, so an
-edited archive does not sit behind a stale CRC.
+Byte-exact with no encoder to be wrong, XTEA-encrypted map archives pass through
+untouched, and the bzip2 encoder's known non-identity to Jagex's (EXCEPTIONS.md A1)
+never enters the picture — at the cost of being unreadable. It also reaches tables
+the asset register does not name, which `--assets` skips.
 
-One thing worth knowing if you touch that code: **the reference table's CRC covers
-the container minus its 2-byte version trailer.** Measured, not assumed — over
-`cache.osrs230` idx13, the whole-archive CRC matches on 0 of 10 archives and the
-`size - 2` CRC on 10 of 10.
+One thing worth knowing if you touch either importer: **the reference table's CRC
+covers the container minus its 2-byte version trailer.** Measured, not assumed —
+over `cache.osrs230` idx13, the whole-archive CRC matches on 0 of 10 archives and
+the `size - 2` CRC on 10 of 10.
 
 ### Packing writes into a copy of a cache
 

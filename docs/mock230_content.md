@@ -31,7 +31,7 @@ src/build/mock230_pack -v        # ... and list every definition
 ## 1. Layout
 
 ```
-src/net/mock/content/
+OSRS-Content/mock230/
   pack/                      id=name, one file per namespace
     npc.pack obj.pack loc.pack seq.pack        generated (tools/gameval_import.py)
     door.pack                                  generated (tools/door_import.py)
@@ -287,7 +287,7 @@ content refers to it by — and writes the `.pack` files.
 
 ```
 tools/gameval_import.py --search npcs goblin
-tools/gameval_import.py --names tools/gameval_import.names --out src/net/mock/content/pack
+tools/gameval_import.py --names tools/gameval_import.names --out OSRS-Content/mock230/pack
 ```
 
 `tools/gameval_import.names` is the request list; a symbol not in it is not

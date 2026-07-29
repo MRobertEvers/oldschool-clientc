@@ -29,7 +29,7 @@ src/torirs --manifest manifest_osrs230.ini --user test --pass test
 | --- | --- |
 | `MOCK230_VERBOSE=1` | log every packet in and out |
 | `MOCK230_CACHE=dir` | cache to read metadata and map squares from (default `cache.osrs230`, falling back to `../cache.osrs230`) |
-| `MOCK230_CONTENT=dir` | content tree (default `src/net/mock/content`) |
+| `MOCK230_CONTENT=dir` | content tree (default `OSRS-Content/mock230`) |
 | `MOCK230_SCRIPTS=dir` | compiled script pack (default `<content>/scripts/build`) |
 | `MOCK230_HOME=x,z` | tile to log in on (default `3222,3218` — the Lumbridge castle courtyard). The scene's origin zone is derived from it |
 
@@ -56,7 +56,7 @@ Layout:
 
 The world is **Lumbridge**, spawned from OpenRune's own spawn list, with
 collision read out of the same map squares the client draws. Content — combat
-stats, drop tables, doors, dialogue — lives in `src/net/mock/content` and is
+stats, drop tables, doors, dialogue — lives in `OSRS-Content/mock230` and is
 documented separately in [`mock230_content.md`](mock230_content.md). The HUD
 that fighting drives — hitsplats, the skills tab, npc level suffixes, facing,
 the combat tab — is in [`combat_hud.md`](combat_hud.md).
@@ -392,7 +392,7 @@ where work goes whereas an absent one invites putting it wherever is nearest.
 ## 3.10 Content is RuneScript, not C
 
 Behaviour that a server operator would want to change lives in
-`src/net/mock/content/scripts/`, compiled by `src/serverscript`'s `sscompile`
+`OSRS-Content/mock230/scripts/`, compiled by `src/serverscript`'s `sscompile`
 and executed by the ServerScript VM. See `docs/serverscript.md` for the
 toolchain and [`mock230_content.md`](mock230_content.md) for the tree.
 

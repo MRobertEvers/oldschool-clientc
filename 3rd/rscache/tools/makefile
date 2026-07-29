@@ -87,6 +87,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_pack.c \
 	$(TOOLS)/cachepack/cp_codec.c \
 	$(TOOLS)/cachepack/cp_binary.c \
+	$(TOOLS)/cachepack/cp_assets.c \
 	$(TOOLS)/cachepack/config/cp_flo.c \
 	$(TOOLS)/cachepack/config/cp_var.c \
 	$(TOOLS)/cachepack/config/cp_small.c \

@@ -1,5 +1,6 @@
 #include "cachepack.h"
 
+#include "cp_assets.h"
 #include "tool_profile.h"
 
 #include <stdlib.h>
@@ -12,9 +13,10 @@ usage(void)
         stderr,
         "cachepack — unpack an OldSchool cache into editable source, and pack it back.\n"
         "\n"
-        "  cachepack unpack --cache DIR --rev NAME --src DIR [--types a,b] [--binary[=1,2]]\n"
+        "  cachepack unpack --cache DIR --rev NAME --src DIR [--types a,b]\n"
+        "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
-        "                   [--binary]\n"
+        "                   [--assets] [--binary]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "\n"
         "  unpack  writes pack/<type>.pack (id=name, seeded from the cache's gameval\n"
@@ -27,10 +29,16 @@ usage(void)
         "\n"
         "Options:\n"
         "  --types a,b   restrict to these config types (default: all)\n"
+        "  --assets      lay the non-config tables out as named files, the way\n"
+        "                LostCity's content/ is: models/npc/goblin.model,\n"
+        "                songs/<name>.jmid, binary/title.jpg. Extensions come from\n"
+        "                the bytes, and nothing is transcoded. --assets=models,maps\n"
+        "                limits it to those kinds; --list-assets prints them.\n"
         "  --binary      also move the non-config tables, as raw container bytes.\n"
         "                On unpack, --binary=5,7 limits it to those idx files.\n"
         "  --warn N      cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
-        "  --list        print the config types this build knows and exit\n");
+        "  --list        print the config types this build knows and exit\n"
+        "  --list-assets print the asset kinds this build knows and exit\n");
 }
 
 static void
@@ -49,6 +57,21 @@ list_types(void)
                (type->flags & CP_TYPE_LOSSY) ? "lossy " : "",
                (type->flags & CP_TYPE_NO_ENCODER) ? "unpack-only" : "");
     }
+}
+
+static void
+list_assets(void)
+{
+    printf("%-19s %-14s %-8s %s\n", "directory", "pack", "ext", "notes");
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        const struct CP_Asset* asset = cp_asset(i);
+        printf("%-19s %-14s .%-7s %s%s\n", asset->dir, asset->pack, asset->ext,
+               (asset->flags & CP_ASSET_MULTIFILE) ? "multi-file " : "",
+               (asset->flags & CP_ASSET_ENCRYPTED) ? "xtea" : "");
+    }
+    printf("\nExtensions shown are the fallback; PNG, JPEG, GIF, MIDI, Ogg and the\n"
+           "four model formats are detected from the payload and override it.\n");
 }
 
 static int
@@ -133,6 +156,11 @@ main(int argc, char** argv)
         list_types();
         return 0;
     }
+    if( strcmp(command, "--list-assets") == 0 )
+    {
+        list_assets();
+        return 0;
+    }
     if( strcmp(command, "--help") == 0 || strcmp(command, "-h") == 0 )
     {
         usage();
@@ -145,7 +173,9 @@ main(int argc, char** argv)
     const char* rev = NULL;
     const char* types_csv = NULL;
     const char* binary_tables = NULL;
+    const char* asset_kinds = NULL;
     int want_binary = 0;
+    int want_assets = 0;
     int warn_limit = 20;
 
     for( int i = 2; i < argc; i++ )
@@ -156,8 +186,20 @@ main(int argc, char** argv)
             list_types();
             return 0;
         }
+        else if( strcmp(arg, "--list-assets") == 0 )
+        {
+            list_assets();
+            return 0;
+        }
         else if( strcmp(arg, "--binary") == 0 )
             want_binary = 1;
+        else if( strcmp(arg, "--assets") == 0 )
+            want_assets = 1;
+        else if( strncmp(arg, "--assets=", 9) == 0 )
+        {
+            want_assets = 1;
+            asset_kinds = arg + 9;
+        }
         else if( strncmp(arg, "--binary=", 9) == 0 )
         {
             want_binary = 1;
@@ -250,8 +292,14 @@ main(int argc, char** argv)
         if( strcmp(command, "unpack") == 0 )
         {
             rc = cp_unpack_run(&ctx, &sel) ? 0 : 1;
+            if( rc == 0 && want_assets )
+                rc = cp_assets_export(&ctx, asset_kinds) ? 0 : 1;
             if( rc == 0 && want_binary )
                 rc = cp_binary_export(&ctx, binary_tables) ? 0 : 1;
+            /* The pack files gain a line per asset, so they are written again
+             * after the asset tree rather than only after the configs. */
+            if( rc == 0 && want_assets && !cp_names_save(&ctx.names, src_dir) )
+                rc = 1;
         }
         else
         {
@@ -267,6 +315,11 @@ main(int argc, char** argv)
             return 1;
         }
         rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
+        if( want_assets && ctx.cache_open )
+        {
+            if( !cp_assets_import(&ctx, out_dir) )
+                rc = 1;
+        }
         if( want_binary && ctx.cache_open )
         {
             /* After the configs, so a binary import of the config table (if the

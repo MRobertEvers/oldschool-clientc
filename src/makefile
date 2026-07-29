@@ -861,13 +861,16 @@ test-mock230-bank: mock230-bank
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
 # Runs from the repo root so the default cache path (cache.osrs230) resolves —
 # the equipment checks need the cache's wearpos fields to mean anything.
-# Compile the mock's own content. The output lands in content/scripts/build,
-# which the repo's .gitignore excludes (`build/`), so a fresh checkout has no
+# Compile the mock's own content. The content itself lives in the OSRS-Content
+# submodule, so a checkout without `git submodule update --init` has none of it.
+# The output lands in mock230/scripts/build, which that repo's .gitignore
+# excludes (`build/`), so a fresh checkout has no
 # script pack until this runs. That is not fatal — every trigger site falls back
 # to its hardcoded C behaviour — but it does mean no dialogue and no drop
 # tables. Ids are rev-230 ids from cache.osrs230, NOT LostCity's.
-MOCK230_CONTENT_DIR = $(SRC_DIR)/net/mock/content
+MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/mock230
 mock230-scripts: sscompile
+	@mkdir -p $(MOCK230_CONTENT_DIR)/scripts/build
 	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/scripts \
 		--out $(MOCK230_CONTENT_DIR)/scripts/build --pack $(MOCK230_CONTENT_DIR)/pack
 

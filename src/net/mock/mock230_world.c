@@ -2799,10 +2799,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: script-driven triggers\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
         {
@@ -2871,10 +2871,10 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: script suspension\n");
     {
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
         {
@@ -2943,10 +2943,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: npc chat dialogue\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/mock230/scripts/build");
 
         if( !loaded )
         {

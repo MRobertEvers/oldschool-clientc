@@ -1,5 +1,7 @@
 #include "cachepack.h"
 
+#include "cp_assets.h"
+
 #include "dat2disk.h"
 #include "filelist.h"
 #include "reference_table.h"
@@ -34,6 +36,17 @@ cp_names_load(
             return 0;
         }
     }
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        const struct CP_Asset* asset = cp_asset(i);
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/pack/%s.pack", srcdir, asset->pack);
+        if( !lc_pack_load(&names->asset_packs[i], path, asset->pack, 1) )
+        {
+            fprintf(stderr, "cachepack: failed to read %s\n", path);
+            return 0;
+        }
+    }
     return 1;
 }
 
@@ -55,6 +68,21 @@ cp_names_save(
             return 0;
         }
     }
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        /* An asset pack with nothing in it means that table was never exported.
+         * Writing an empty file would suggest the table is empty, which is a
+         * different claim. */
+        if( names->asset_packs[i].max == 0 )
+            continue;
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/%s.pack", dir, cp_asset(i)->pack);
+        if( !lc_pack_save(&names->asset_packs[i], path) )
+        {
+            fprintf(stderr, "cachepack: failed to write %s\n", path);
+            return 0;
+        }
+    }
     return 1;
 }
 
@@ -63,6 +91,8 @@ cp_names_free(struct CP_Names* names)
 {
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
         lc_pack_free(&names->packs[i]);
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+        lc_pack_free(&names->asset_packs[i]);
 }
 
 /*
@@ -258,4 +288,55 @@ cp_name_find(
     const char* name)
 {
     return lc_pack_find(&ctx->names.packs[type], name);
+}
+
+/* ---- asset names -------------------------------------------------------- */
+
+const char*
+cp_asset_name_get(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id)
+{
+    struct LC_Pack* pack = &ctx->names.asset_packs[asset];
+    if( id < 0 || id >= pack->capacity || !pack->names )
+        return NULL;
+    return pack->names[id];
+}
+
+void
+cp_asset_name_set(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id,
+    const char* name)
+{
+    char unique[300];
+    snprintf(unique, sizeof(unique), "%s", name);
+    uniquify(&ctx->names.asset_packs[asset], unique, sizeof(unique));
+    lc_pack_set(&ctx->names.asset_packs[asset], id, unique);
+}
+
+const char*
+cp_asset_name_ensure(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id)
+{
+    const char* existing = cp_asset_name_get(ctx, asset, id);
+    if( existing )
+        return existing;
+    char name[256];
+    snprintf(name, sizeof(name), "%s_%d", cp_asset(asset)->pack, id);
+    cp_asset_name_set(ctx, asset, id, name);
+    return cp_asset_name_get(ctx, asset, id);
+}
+
+int
+cp_asset_name_find(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    const char* name)
+{
+    return lc_pack_find(&ctx->names.asset_packs[asset], name);
 }

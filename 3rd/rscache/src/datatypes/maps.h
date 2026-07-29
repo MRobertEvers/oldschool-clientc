@@ -269,6 +269,40 @@ RSCache_MapLocsNewDecode(
     char* data,
     int data_size);
 
+/**
+ * Encode a loc stream — the exact inverse of RSCache_MapLocsNewDecode.
+ *
+ * The format is two nested delta runs, and both deltas are unsigned, which is the
+ * whole of what this has to get right:
+ *
+ *   loc id      usmart-int-shortcompat, added to a running id, 0 terminates
+ *     position  ushort-smart *minus one*, added to a running position that resets
+ *               per loc id, 0 terminates
+ *     attrs     u8: shape in the high six bits, orientation in the low two
+ *
+ * So the entries have to come out sorted by `(loc_id, packed position)` or a delta
+ * goes negative and there is no way to spell it. They are sorted here rather than
+ * required of the caller: a decoded stream is already in that order (the format
+ * admits no other), so sorting is a no-op on a round trip and makes the function
+ * safe for a caller that assembled locs itself — which is the entire point of
+ * having an encoder.
+ *
+ * Ties are broken by the order the caller gave, so two locs on one tile keep
+ * their relative order. That matters: the client draws them in stream order.
+ *
+ * Returns bytes written, or 0 on failure (out too small, or a loc whose fields do
+ * not fit the wire — `chunk_pos_*` outside 0..63 / 0..3, shape outside 0..63).
+ */
+uint32_t
+RSCache_MapLocsEncode(
+    const struct RSCache_MapLocs* map_locs,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Safe `out_capacity` for RSCache_MapLocsEncode. */
+uint32_t
+RSCache_MapLocsEncodeBound(const struct RSCache_MapLocs* map_locs);
+
 void
 RSCache_MapLocsFree(struct RSCache_MapLocs* map_locs);
 

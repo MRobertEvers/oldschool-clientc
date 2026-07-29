@@ -379,6 +379,7 @@ RSCache_Dat2ComponentDecodeIf1(
         for( int i = 0; i < 20; i++ )
         {
             int32_t flag = g1(buf);
+            self->invSlotPresent[i] = (uint8_t)(flag == 1);
             if( flag == 1 )
             {
                 self->invSlotOffsetX[i] = g2b(buf);
@@ -526,6 +527,7 @@ RSCache_Dat2ComponentDecodeIf1(
         if( !self->option || self->option[0] == '\0' )
         {
             free(self->option);
+            self->optionFromDefault = true;
             if( self->buttonType == 1 )
                 self->option = strdup(kOptionOk);
             else if( self->buttonType == 4 || self->buttonType == 5 )
@@ -1088,6 +1090,481 @@ RSCache_Dat2ComponentDecodeIf3(
     self->varpTriggers = read_triggers(buf, &self->varpTriggersLen);
     self->inventoryTriggers = read_triggers(buf, &self->inventoryTriggersLen);
     self->statTriggers = read_triggers(buf, &self->statTriggersLen);
+}
+
+/* ---- IF1 encode --------------------------------------------------------- */
+
+/** Inverse of read_jstring: NUL-terminated, and a NULL string is an empty one —
+ *  which is what the decoder produces for an empty field, so they agree. */
+static void
+write_jstring(
+    struct RSCache_Buffer* buf,
+    const char* str)
+{
+    pjstr(buf, str ? str : "", RSCACHE_JSTR_TERMINATOR_NULL);
+}
+
+/**
+ * Encode an IF1 component — the inverse of RSCache_Dat2ComponentDecodeIf1.
+ *
+ * Harder than IF3 in one way that is worth naming: several stream bytes are not
+ * *stored*, they are folded into `clickMask` on the way in. Those are recovered by
+ * reading the bit back out, which works because each one owns a distinct bit:
+ *
+ *   type 2   four flag bytes -> 0x10000000, 0x40000000, INT32_MIN, 0x20000000
+ *   type 2/7 an op string present -> bit (23 + i)
+ *   type 7   one flag byte -> 0x40000000
+ *   button 2 a 6-bit field -> bits 11..16
+ *
+ * Two things genuinely cannot come back, and both are recorded rather than
+ * papered over:
+ *
+ *   - **type 1 discards three bytes** (`g2` then `g1`) without storing them, so
+ *     they re-encode as zeros. Same class as the lossy config decoders in
+ *     EXCEPTIONS.md B2.
+ *   - **an empty `option` decodes to a default** ("Ok" / "Select" / "Continue")
+ *     by button type, so an absent option and one that literally says "Ok" are
+ *     the same state afterwards. This writes the empty string whenever the value
+ *     equals the default its button type would have produced, because that is
+ *     what the caches actually contain — measured, not assumed.
+ */
+static uint32_t
+component_encode_if1(
+    const struct RSCache_Dat2Component* self,
+    struct RSCache_Dat2ComponentDecodeRev rev,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, out, out_capacity);
+
+    p1(&buf, self->type);
+    p1(&buf, self->buttonType);
+    p2(&buf, self->clientCode);
+    p2(&buf, self->baseX);
+    p2(&buf, self->baseY);
+    p2(&buf, self->baseWidth);
+    p2(&buf, self->baseHeight);
+    p1(&buf, self->transparency);
+
+    if( self->layer == -1 )
+        p2(&buf, 65535);
+    else
+        p2(&buf, (self->layer - (self->id & (int32_t)0xFFFF0000u)) & 0xFFFF);
+    p2(&buf, self->linkedComponentId == -1 ? 65535 : (self->linkedComponentId & 0xFFFF));
+
+    p1(&buf, self->cs1ComparisonLen);
+    for( int32_t i = 0; i < self->cs1ComparisonLen; i++ )
+    {
+        p1(&buf, self->cs1ComparisonOpcodes[i]);
+        p2(&buf, self->cs1ComparisonOperands[i]);
+    }
+
+    p1(&buf, self->cs1ScriptsLen);
+    for( int32_t i = 0; i < self->cs1ScriptsLen; i++ )
+    {
+        int32_t op_count = self->cs1ScriptsLengths[i];
+        p2(&buf, op_count);
+        for( int32_t j = 0; j < op_count; j++ )
+        {
+            int32_t value = self->cs1Scripts[i][j];
+            p2(&buf, value == -1 ? 65535 : (value & 0xFFFF));
+        }
+    }
+
+    if( self->type == 0 )
+    {
+        p2(&buf, self->scrollHeight);
+        p1(&buf, self->hidden ? 1 : 0);
+    }
+    if( self->type == 1 )
+    {
+        /* Read and discarded on the way in — see the note above. */
+        p2(&buf, 0);
+        p1(&buf, 0);
+    }
+    if( self->type == 2 )
+    {
+        p1(&buf, (self->clickMask & 0x10000000) ? 1 : 0);
+        p1(&buf, (self->clickMask & 0x40000000) ? 1 : 0);
+        p1(&buf, (self->clickMask & INT32_MIN) ? 1 : 0);
+        p1(&buf, (self->clickMask & 0x20000000) ? 1 : 0);
+        p1(&buf, self->marginX);
+        p1(&buf, self->marginY);
+        for( int i = 0; i < 20; i++ )
+        {
+            /* The flag says "this slot has an offset block"; the decoder marks an
+             * absent one by leaving the graphic id at -1. */
+            bool present = self->invSlotPresent[i] != 0;
+            p1(&buf, present ? 1 : 0);
+            if( present )
+            {
+                p2(&buf, self->invSlotOffsetX[i]);
+                p2(&buf, self->invSlotOffsetY[i]);
+                p4(&buf, self->invSlotGraphicId[i]);
+            }
+        }
+        for( int i = 0; i < 5; i++ )
+            write_jstring(&buf, self->objOps ? self->objOps[i] : NULL);
+    }
+    if( self->type == 3 )
+        p1(&buf, self->fill ? 1 : 0);
+
+    if( self->type == 4 || self->type == 1 )
+    {
+        p1(&buf, self->textHorizontalAlignment);
+        p1(&buf, self->textVerticalAlignment);
+        p1(&buf, self->textLineHeight);
+        p2(&buf, self->textFont == -1 ? 65535 : (self->textFont & 0xFFFF));
+        p1(&buf, self->textShadow ? 1 : 0);
+    }
+    if( self->type == 4 )
+    {
+        write_jstring(&buf, self->text);
+        write_jstring(&buf, self->activeText);
+    }
+    if( self->type == 1 || self->type == 3 || self->type == 4 )
+        p4(&buf, self->color);
+    if( self->type == 3 || self->type == 4 )
+    {
+        p4(&buf, self->activeColour);
+        p4(&buf, self->overColour);
+        p4(&buf, self->activeOverColour);
+    }
+    if( self->type == 5 )
+    {
+        p4(&buf, self->graphic);
+        p4(&buf, self->activeGraphic);
+    }
+    if( self->type == 6 )
+    {
+        if( rev_has_int_model_ids(rev) )
+        {
+            p4(&buf, self->modelId);
+            p4(&buf, self->activeModelId);
+        }
+        else
+        {
+            p2(&buf, self->modelId == -1 ? 65535 : (self->modelId & 0xFFFF));
+            p2(&buf, self->activeModelId == -1 ? 65535 : (self->activeModelId & 0xFFFF));
+        }
+        p2(&buf, self->modelSeqId == -1 ? 65535 : (self->modelSeqId & 0xFFFF));
+        p2(&buf, self->activeAnimId == -1 ? 65535 : (self->activeAnimId & 0xFFFF));
+        p2(&buf, self->modelZoom);
+        p2(&buf, self->modelXAngle);
+        p2(&buf, self->modelYAngle);
+    }
+    if( self->type == 7 )
+    {
+        p1(&buf, self->textHorizontalAlignment);
+        p2(&buf, self->textFont == -1 ? 65535 : (self->textFont & 0xFFFF));
+        p1(&buf, self->textShadow ? 1 : 0);
+        p4(&buf, self->color);
+        p2(&buf, self->marginX);
+        p2(&buf, self->marginY);
+        p1(&buf, (self->clickMask & 0x40000000) ? 1 : 0);
+        for( int i = 0; i < 5; i++ )
+            write_jstring(&buf, self->objOps ? self->objOps[i] : NULL);
+    }
+    if( self->type == 8 )
+        write_jstring(&buf, self->text);
+
+    if( self->buttonType == 2 || self->type == 2 )
+    {
+        write_jstring(&buf, self->targetVerb);
+        write_jstring(&buf, self->targetText);
+        p2(&buf, (self->clickMask >> 11) & 0x3F);
+    }
+    if( self->buttonType == 1 || self->buttonType == 4 || self->buttonType == 5 ||
+        self->buttonType == 6 )
+    {
+        /* The wire said what it said: `optionFromDefault` is the only thing that
+         * can tell an empty option from one spelling out its own default. */
+        write_jstring(&buf, self->optionFromDefault ? "" : self->option);
+    }
+
+    return buf.position;
+}
+
+/* ---- IF3 encode --------------------------------------------------------- */
+
+static void
+write_arguments(
+    struct RSCache_Buffer* buf,
+    const struct RSCache_Dat2ComponentScriptVar* args,
+    int32_t len)
+{
+    if( !args || len <= 0 )
+    {
+        p1(buf, 0);
+        return;
+    }
+    p1(buf, len);
+    for( int32_t i = 0; i < len; i++ )
+    {
+        if( args[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
+        {
+            p1(buf, 0);
+            p4(buf, args[i].value.i);
+        }
+        else
+        {
+            /* Any non-zero type byte selects the string branch on read; 1 is the
+             * canonical spelling and the only one the corpus carries. */
+            p1(buf, 1);
+            write_jstring(buf, args[i].value.s);
+        }
+    }
+}
+
+static void
+write_triggers(
+    struct RSCache_Buffer* buf,
+    const int32_t* triggers,
+    int32_t len)
+{
+    if( !triggers || len <= 0 )
+    {
+        p1(buf, 0);
+        return;
+    }
+    p1(buf, len);
+    for( int32_t i = 0; i < len; i++ )
+        p4(buf, triggers[i]);
+}
+
+static uint32_t
+arguments_bound(
+    const struct RSCache_Dat2ComponentScriptVar* args,
+    int32_t len)
+{
+    uint32_t bound = 1;
+    for( int32_t i = 0; i < len && args; i++ )
+    {
+        bound += 1;
+        if( args[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
+            bound += 4;
+        else
+            bound += (uint32_t)(args[i].value.s ? strlen(args[i].value.s) : 0) + 1;
+    }
+    return bound;
+}
+
+uint32_t
+RSCache_Dat2ComponentEncodeIf3Bound(const struct RSCache_Dat2Component* self)
+{
+    if( !self )
+        return 0;
+    /*
+     * Covers *both* layouts, because one entry point encodes both. Sizing this
+     * for IF3 alone is what the write-past-the-end assert in rsbuffer catches:
+     * an IF1 type-2 widget carries 20 inventory slots and five object ops that
+     * no IF3 component has.
+     */
+    uint32_t bound = 256;
+    bound += (uint32_t)(self->text ? strlen(self->text) : 0) + 1;
+    bound += (uint32_t)(self->name ? strlen(self->name) : 0) + 1;
+    bound += (uint32_t)(self->targetVerb ? strlen(self->targetVerb) : 0) + 1;
+    bound += 1;
+    for( int32_t i = 0; i < self->opsLen; i++ )
+        bound += (uint32_t)(self->ops && self->ops[i] ? strlen(self->ops[i]) : 0) + 1;
+
+    /* --- IF1-only fields --- */
+    bound += (uint32_t)(self->activeText ? strlen(self->activeText) : 0) + 1;
+    bound += (uint32_t)(self->targetText ? strlen(self->targetText) : 0) + 1;
+    bound += (uint32_t)(self->option ? strlen(self->option) : 0) + 1;
+    bound += (uint32_t)self->cs1ComparisonLen * 3u + 1u;
+    for( int32_t i = 0; i < self->cs1ScriptsLen; i++ )
+        bound += (uint32_t)self->cs1ScriptsLengths[i] * 2u + 2u;
+    bound += 1;
+    /* 20 inventory slots at a flag plus eight bytes, and five object ops. */
+    bound += 20u * 9u;
+    if( self->objOps )
+    {
+        for( int i = 0; i < 5; i++ )
+            bound += (uint32_t)(self->objOps[i] ? strlen(self->objOps[i]) : 0) + 1;
+    }
+    else
+    {
+        bound += 5;
+    }
+
+    bound += arguments_bound(self->onLoad, self->onLoadLen);
+    bound += arguments_bound(self->onMouseOver, self->onMouseOverLen);
+    bound += arguments_bound(self->onMouseLeave, self->onMouseLeaveLen);
+    bound += arguments_bound(self->onTargetLeave, self->onTargetLeaveLen);
+    bound += arguments_bound(self->onTargetEnter, self->onTargetEnterLen);
+    bound += arguments_bound(self->onVarpTransmit, self->onVarpTransmitLen);
+    bound += arguments_bound(self->onInvTransmit, self->onInvTransmitLen);
+    bound += arguments_bound(self->onStatTransmit, self->onStatTransmitLen);
+    bound += arguments_bound(self->onTimer, self->onTimerLen);
+    bound += arguments_bound(self->onOp, self->onOpLen);
+    bound += arguments_bound(self->onMouseRepeat, self->onMouseRepeatLen);
+    bound += arguments_bound(self->onClick, self->onClickLen);
+    bound += arguments_bound(self->onClickRepeat, self->onClickRepeatLen);
+    bound += arguments_bound(self->onRelease, self->onReleaseLen);
+    bound += arguments_bound(self->onHold, self->onHoldLen);
+    bound += arguments_bound(self->onDrag, self->onDragLen);
+    bound += arguments_bound(self->onDragComplete, self->onDragCompleteLen);
+    bound += arguments_bound(self->onScrollWheel, self->onScrollWheelLen);
+
+    bound += (uint32_t)(self->varpTriggersLen + self->inventoryTriggersLen +
+                        self->statTriggersLen) *
+                 4u +
+             3u;
+    return bound;
+}
+
+uint32_t
+RSCache_Dat2ComponentEncodeIf3(
+    const struct RSCache_Dat2Component* self,
+    struct RSCache_Dat2ComponentDecodeRev rev,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !self || !out )
+        return 0;
+    if( rev_is_643(rev) )
+        return 0; /* the RS2 layout is decoded by decode_if3_rs2 and not inverted here */
+    if( out_capacity < RSCache_Dat2ComponentEncodeIf3Bound(self) )
+        return 0;
+    /* IF1 and IF3 are one dispatch on the way in and one on the way out; the
+     * caller should not have to know which era a component came from. */
+    if( !self->if3 )
+        return component_encode_if1(self, rev, out, out_capacity);
+
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, out, out_capacity);
+
+    p1(&buf, 255); /* the IF3 marker the decoder skips */
+    p1(&buf, self->type);
+    p2(&buf, self->clientCode);
+    p2(&buf, self->baseX);
+    p2(&buf, self->baseY);
+    p2(&buf, self->baseWidth);
+    p2(&buf, self->baseHeight);
+
+    p1(&buf, (uint8_t)self->widthMode);
+    p1(&buf, (uint8_t)self->heightMode);
+    p1(&buf, (uint8_t)self->xMode);
+    p1(&buf, (uint8_t)self->yMode);
+
+    /* Stored relative to the owning interface; the decoder adds it back. */
+    if( self->layer == -1 )
+        p2(&buf, 65535);
+    else
+        p2(&buf, (self->layer - (self->id & (int32_t)0xFFFF0000u)) & 0xFFFF);
+
+    p1(&buf, self->hidden ? 1 : 0);
+
+    if( self->type == 0 )
+    {
+        p2(&buf, self->scrollWidth);
+        p2(&buf, self->scrollHeight);
+        p1(&buf, self->noClickThrough ? 1 : 0);
+    }
+    if( self->type == 5 )
+    {
+        p4(&buf, self->graphic);
+        p2(&buf, self->angle);
+        p1(&buf, (self->alpha ? 0x2 : 0) | (self->tiled ? 0x1 : 0));
+        p1(&buf, self->transparency);
+        p1(&buf, self->outline);
+        p4(&buf, self->graphicShadow);
+        p1(&buf, self->verticalFlip ? 1 : 0);
+        p1(&buf, self->horizontalFlip ? 1 : 0);
+    }
+    if( self->type == 6 )
+    {
+        if( rev_has_int_model_ids(rev) )
+        {
+            p4(&buf, self->modelId);
+        }
+        else
+        {
+            p2(&buf, self->modelId == -1 ? 65535 : (self->modelId & 0xFFFF));
+        }
+        p2(&buf, self->modelXOffset);
+        p2(&buf, self->modelYOffset);
+        p2(&buf, self->modelXAngle);
+        p2(&buf, self->modelYAngle);
+        p2(&buf, self->modelZAngle);
+        p2(&buf, self->modelZoom);
+        p2(&buf, self->modelSeqId == -1 ? 65535 : (self->modelSeqId & 0xFFFF));
+        p1(&buf, self->modelOrthographic ? 1 : 0);
+        p2(&buf, (uint16_t)self->aShort50);
+        /* Both override shorts travel together whenever either size mode is
+         * dynamic — see the decoder's note; gating them separately misaligns
+         * everything after. */
+        if( self->widthMode != 0 || self->heightMode != 0 )
+        {
+            p2(&buf, self->anInt5957);
+            p2(&buf, self->anInt5920);
+        }
+    }
+    if( self->type == 4 )
+    {
+        p2(&buf, self->textFont == -1 ? 65535 : (self->textFont & 0xFFFF));
+        write_jstring(&buf, self->text);
+        p1(&buf, self->textLineHeight);
+        p1(&buf, self->textHorizontalAlignment);
+        p1(&buf, self->textVerticalAlignment);
+        p1(&buf, self->textShadow ? 1 : 0);
+        p4(&buf, self->color);
+    }
+    if( self->type == 3 )
+    {
+        p4(&buf, self->color);
+        p1(&buf, self->fill ? 1 : 0);
+        p1(&buf, self->transparency);
+    }
+    if( self->type == 9 )
+    {
+        p1(&buf, self->lineWidth);
+        p4(&buf, self->color);
+        p1(&buf, self->lineDirection ? 1 : 0);
+    }
+
+    p3(&buf, self->clickMask);
+    write_jstring(&buf, self->name);
+
+    /* The decoder only allocates when the count is positive, so an all-NULL ops
+     * array and an absent one are the same state and both write 0. */
+    int32_t action_count = self->ops ? self->opsLen : 0;
+    p1(&buf, action_count);
+    for( int32_t i = 0; i < action_count; i++ )
+        write_jstring(&buf, self->ops[i]);
+
+    p1(&buf, self->dragDeadZone);
+    p1(&buf, self->dragDeadTime);
+    p1(&buf, self->dragRender ? 1 : 0);
+
+    write_jstring(&buf, self->targetVerb);
+
+    write_arguments(&buf, self->onLoad, self->onLoadLen);
+    write_arguments(&buf, self->onMouseOver, self->onMouseOverLen);
+    write_arguments(&buf, self->onMouseLeave, self->onMouseLeaveLen);
+    write_arguments(&buf, self->onTargetLeave, self->onTargetLeaveLen);
+    write_arguments(&buf, self->onTargetEnter, self->onTargetEnterLen);
+    write_arguments(&buf, self->onVarpTransmit, self->onVarpTransmitLen);
+    write_arguments(&buf, self->onInvTransmit, self->onInvTransmitLen);
+    write_arguments(&buf, self->onStatTransmit, self->onStatTransmitLen);
+    write_arguments(&buf, self->onTimer, self->onTimerLen);
+    write_arguments(&buf, self->onOp, self->onOpLen);
+    write_arguments(&buf, self->onMouseRepeat, self->onMouseRepeatLen);
+    write_arguments(&buf, self->onClick, self->onClickLen);
+    write_arguments(&buf, self->onClickRepeat, self->onClickRepeatLen);
+    write_arguments(&buf, self->onRelease, self->onReleaseLen);
+    write_arguments(&buf, self->onHold, self->onHoldLen);
+    write_arguments(&buf, self->onDrag, self->onDragLen);
+    write_arguments(&buf, self->onDragComplete, self->onDragCompleteLen);
+    write_arguments(&buf, self->onScrollWheel, self->onScrollWheelLen);
+
+    write_triggers(&buf, self->varpTriggers, self->varpTriggersLen);
+    write_triggers(&buf, self->inventoryTriggers, self->inventoryTriggersLen);
+    write_triggers(&buf, self->statTriggers, self->statTriggersLen);
+
+    return buf.position;
 }
 
 void

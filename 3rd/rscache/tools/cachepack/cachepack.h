@@ -80,6 +80,36 @@ enum CP_TypeId
     CP_TYPE_COUNT
 };
 
+/**
+ * One slot per non-config table the asset tree lays out, and the index into
+ * CP_Names' asset packs. See cp_assets.h for what each one is and why its
+ * extension is what it is.
+ */
+enum CP_AssetId
+{
+    CP_ASSET_FRAME = 0,
+    CP_ASSET_FRAMEMAP,
+    CP_ASSET_INTERFACE,
+    CP_ASSET_SYNTH,
+    CP_ASSET_MAP,
+    CP_ASSET_SONG,
+    CP_ASSET_MODEL,
+    CP_ASSET_SPRITE,
+    CP_ASSET_TEXTURE,
+    CP_ASSET_BINARY,
+    CP_ASSET_JINGLE,
+    CP_ASSET_SCRIPT,
+    CP_ASSET_FONT,
+    CP_ASSET_SAMPLE,
+    CP_ASSET_PATCH,
+    CP_ASSET_WORLDMAP_GEOGRAPHY,
+    CP_ASSET_WORLDMAP_AREA,
+    CP_ASSET_WORLDMAP_GROUND,
+    CP_ASSET_DBINDEX,
+    CP_ASSET_ANIMAYA,
+    CP_ASSET_COUNT
+};
+
 /** The type carries fields the decoder consumes without storing, so a repack is a
  *  valid record with less in it than the source had. Reported, never silent. */
 #define CP_TYPE_LOSSY 0x1
@@ -136,6 +166,16 @@ struct CP_Names
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
+    /**
+     * The same, for the non-config tables the asset tree lays out.
+     *
+     * Kept separate from `packs` rather than appended to it because the two are
+     * named from different sources — a config gets its name from the cache's
+     * gameval index, an asset from the config that references it (models) or from
+     * its id. Merging them would put both behind one lookup that has to guess
+     * which it is holding.
+     */
+    struct LC_Pack asset_packs[CP_ASSET_COUNT];
 };
 
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */
@@ -194,6 +234,40 @@ int
 cp_name_find(
     struct CP_Ctx* ctx,
     enum CP_TypeId type,
+    const char* name);
+
+/* The same three, over the asset packs. */
+
+const char*
+cp_asset_name_get(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id);
+
+/** Name for `id`, registering `<dir>_<id>` when absent. */
+const char*
+cp_asset_name_ensure(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id);
+
+int
+cp_asset_name_find(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    const char* name);
+
+/**
+ * Bind `id` to `name`, uniquified against what the pack already holds.
+ *
+ * Used by the model renamer, where several configs can want the same name for
+ * different models — `goblin` is an npc *and* the six models it is built from.
+ */
+void
+cp_asset_name_set(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    int id,
     const char* name);
 
 /* ---- context ------------------------------------------------------------ */
@@ -337,6 +411,36 @@ int
 cp_binary_import(
     struct CP_Ctx* ctx,
     const char* out_cache_dir);
+
+/**
+ * Point one reference-table entry at bytes now stored, and write the table back.
+ *
+ * Shared by the raw-container importer and the asset-tree importer: both place an
+ * archive and then have to leave the table agreeing with it, and a stale CRC is
+ * how the client comes to reject an archive that is perfectly well formed.
+ *
+ * `file_ids` (may be NULL) is the archive's new child list, for a caller that
+ * rebuilt it from a directory and may have added or removed files.
+ *
+ * Sets `*out_dirty` when something changed; the table is only rewritten — and its
+ * version only bumped — once, by `cp_reference_write`, after the last archive.
+ */
+int
+cp_reference_sync(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    const uint8_t* container,
+    int container_size,
+    const int* file_ids,
+    int file_count,
+    int* out_dirty);
+
+int
+cp_reference_write(
+    struct CP_Ctx* ctx,
+    const char* out_dir,
+    int table_id);
 
 /* ---- shared config helpers, used by the per-type modules ---------------- */
 

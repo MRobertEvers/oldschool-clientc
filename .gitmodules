@@ -1,3 +1,6 @@
 [submodule "Client-TS"]
 	path = Client-TS
 	url = https://github.com/LostCityRS/Client-TS.git
+[submodule "OSRS-Content"]
+	path = OSRS-Content
+	url = https://github.com/MRobertEvers/OSRS-Content.git

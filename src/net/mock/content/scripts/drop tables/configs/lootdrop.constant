@@ -1,4 +1,0 @@
-// Ticks a dropped obj stays on the floor. LostCity's own value and its own
-// constant name, so a drop table copied from its content tree compiles here
-// unchanged.
-^lootdrop_duration = 200

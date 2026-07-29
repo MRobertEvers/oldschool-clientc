@@ -1796,18 +1796,65 @@ table's CRC on **0 of 10** archives, `crc32` of `size - 2` on **10 of 10**. Gett
 wrong writes a CRC the client then rejects the archive for, so `cp_binary.c` derives
 the body length from the container header rather than assuming a trailer width.
 
-### H5. Binary tables move as raw containers, not as decoded assets *(Deviation, deliberate)*
+### H5. Two ways out for the non-config tables, and neither transcodes *(Deviation, deliberate)*
 
 `--binary` carries models, sprites, maps, scripts and sounds as the bytes the
-container holds. A text form for each would mean a decoder, an encoder and a fidelity
-claim per table — a far larger job, and one this library already partly refuses (B10,
-B11: the model tail is carried, not understood). Raw is byte-exact by construction,
-lets XTEA-encrypted map archives through untouched, and keeps A1's bzip2 non-identity
-out of the picture entirely.
+container holds. Raw is byte-exact by construction, lets XTEA-encrypted map archives
+through untouched, and keeps A1's bzip2 non-identity out of the picture entirely —
+at the cost of being unreadable.
 
-The cost is that a binary archive cannot be *edited* through this path, only moved.
-That is the right trade for what the flag is for — reproducing a working cache — and
-the config side, which is the part anyone wants to edit, is text.
+`--assets` is the readable one: the archive's *payload*, named, in a directory
+laid out like LostCity's `content/`. Round-trips exactly at the payload level
+(unpack → pack → unpack returns `cache.osrs239`'s whole tree byte-identical, 117,086
+files, and the client's boot log against the repacked cache matches the original's
+line for line), but not at the container level, because the payload is recompressed
+on the way in.
+
+**Neither converts formats**, and that is the point. Writing LostCity's actual
+formats would mean transcoding, which A5 already records as lossy for exactly the
+assets anyone would want it for — dat2 → dat1 `.ob2` drops OB3/V2/V3 texture render
+types and animaya skinning, and dat2 framemap → `.base` drops `transform_actor`,
+masks and skeletal blobs. `tools/port_lostcity` is the converter; keeping the two
+apart means neither has to compromise.
+
+### H6. Extensions in the asset tree are read off the payload, not assumed from the era
+
+Worth recording because the obvious thing to do is wrong in both directions.
+
+LostCity stores models as `.ob2` because a rev-254 model *is* an OB2. An OldSchool
+model is not: a census over all 61,615 in `cache.osrs239` finds **26,990 osrs-v2,
+34,625 osrs-v3, and zero ob2 or ob3**. Naming them `.ob2` would label every file
+after a format it does not contain. So the extension comes from the magic trailer,
+per file — a real ob2 gets `.ob2`, a real ob3 `.ob3`, the OldSchool formats
+`.model`.
+
+The same check pays off the other way. Sniffing the payload for container magic
+finds that **table 10 is JPEG and table 20 is PNG**, which is how `binary/title.jpg`
+comes out right with no converter — and that the **music tables are not MIDI**
+(`17 07 f6 02`, Jagex's own container), so they get `.jmid` rather than a `.mid` that
+no player would open.
+
+One trap the sniffing introduces and has to avoid: a *whole* multi-file archive
+begins with its first member's bytes, so detecting on it names the archive after one
+of the files inside. Hence `CP_ASSET_SIZE_ARCHIVE`, which suppresses detection for
+that case.
+
+### H7. Most multi-file archives are not exploded into directories *(Deviation from the first cut)*
+
+The first implementation turned every multi-file archive into a directory of its
+files. It worked and round-tripped, and it was the wrong shape: **352,849 files,
+209,295 of them individual animation frames.**
+
+Two things say so. LostCity does not do it — an `.anim` *is* the archive, which is
+why its `models/` holds 4,229 files and not a quarter of a million. And an animation
+frame is not independently useful: the animset is the unit anything loads, names or
+edits.
+
+So the flag is now the exception, kept for `textures` (one archive, 210 material
+definitions, each with its own id and its own line in LostCity's `texture.pack`) and
+`dbindex` (a master index plus one file per indexed column). Everything else stores
+the archive's payload whole, which costs nothing — the payload is the container's own
+file table plus the files — and takes the tree from 352,849 files to 117,086.
 
 ---
 

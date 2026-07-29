@@ -738,6 +738,120 @@ RSCache_MapLocsNewDecode(
     return map_locs;
 }
 
+/** Wire position: level in bits 12-13, x in 6-11, z in 0-5. */
+static int
+map_loc_packed_position(const struct RSCache_MapLoc* loc)
+{
+    return ((loc->chunk_pos_level & 0x3) << 12) | ((loc->chunk_pos_x & 0x3F) << 6) |
+           (loc->chunk_pos_z & 0x3F);
+}
+
+struct map_loc_order
+{
+    int index;
+    int loc_id;
+    int position;
+};
+
+static int
+map_loc_compare(
+    const void* lhs,
+    const void* rhs)
+{
+    const struct map_loc_order* left = lhs;
+    const struct map_loc_order* right = rhs;
+    if( left->loc_id != right->loc_id )
+        return left->loc_id < right->loc_id ? -1 : 1;
+    if( left->position != right->position )
+        return left->position < right->position ? -1 : 1;
+    /* Stable on ties: two locs sharing a tile keep the order the caller gave,
+     * because the client draws them in stream order. */
+    return left->index - right->index;
+}
+
+uint32_t
+RSCache_MapLocsEncodeBound(const struct RSCache_MapLocs* map_locs)
+{
+    if( !map_locs )
+        return 1;
+    /* Worst case per loc: a fresh id run (5 bytes of smart id delta plus the
+     * run's terminator), a 2-byte position smart and the attribute byte. */
+    return ((uint32_t)map_locs->locs_count * 9u) + 8u;
+}
+
+uint32_t
+RSCache_MapLocsEncode(
+    const struct RSCache_MapLocs* map_locs,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    if( !map_locs || !out )
+        return 0;
+    if( out_capacity < RSCache_MapLocsEncodeBound(map_locs) )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    int count = map_locs->locs_count;
+    if( count <= 0 )
+    {
+        /* An empty square is a bare terminator, not an empty file — the decoder
+         * loops until it reads a zero id delta. */
+        p1(&buffer, 0);
+        return buffer.position;
+    }
+
+    struct map_loc_order* order = malloc((size_t)count * sizeof(*order));
+    if( !order )
+        return 0;
+    for( int i = 0; i < count; i++ )
+    {
+        const struct RSCache_MapLoc* loc = &map_locs->locs[i];
+        /* Fields that do not fit the wire would encode as a different loc rather
+         * than fail, so they are refused. */
+        if( loc->loc_id < 0 || loc->chunk_pos_x < 0 || loc->chunk_pos_x > 63 ||
+            loc->chunk_pos_z < 0 || loc->chunk_pos_z > 63 || loc->chunk_pos_level < 0 ||
+            loc->chunk_pos_level > 3 || loc->shape_select < 0 || loc->shape_select > 63 ||
+            loc->orientation < 0 || loc->orientation > 3 )
+        {
+            free(order);
+            return 0;
+        }
+        order[i].index = i;
+        order[i].loc_id = loc->loc_id;
+        order[i].position = map_loc_packed_position(loc);
+    }
+    qsort(order, (size_t)count, sizeof(*order), map_loc_compare);
+
+    int previous_id = -1;
+    int index = 0;
+    while( index < count )
+    {
+        int loc_id = order[index].loc_id;
+        puintsmartshortcompat(&buffer, loc_id - previous_id);
+        previous_id = loc_id;
+
+        int previous_position = 0;
+        while( index < count && order[index].loc_id == loc_id )
+        {
+            const struct RSCache_MapLoc* loc = &map_locs->locs[order[index].index];
+            /* The reader does `position += offset - 1`, so the offset carries the
+             * delta plus one — which is also why a zero offset can terminate the
+             * run without colliding with a repeated tile. */
+            pushortsmart(&buffer, order[index].position - previous_position + 1);
+            previous_position = order[index].position;
+            p1(&buffer, (loc->shape_select << 2) | (loc->orientation & 0x3));
+            index++;
+        }
+        p1(&buffer, 0);
+    }
+    p1(&buffer, 0);
+
+    free(order);
+    return buffer.position;
+}
+
 void
 RSCache_MapLocsFree(struct RSCache_MapLocs* map_locs)
 {

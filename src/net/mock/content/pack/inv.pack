@@ -1,6 +1,0 @@
-// Container ids the client's InvManager knows (INV_MANAGER_CONTAINER_*).
-93=inv
-94=worn
-// The bank. 1220 slots at rev 230 — read from the cache's inv config rather
-// than written down; see mock230_bank_load.
-95=bank

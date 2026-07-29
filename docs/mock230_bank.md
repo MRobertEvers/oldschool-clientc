@@ -15,8 +15,8 @@ ones are two staircases up from the spawn tile.
 | file | contents |
 | --- | --- |
 | `src/net/mock/mock230_bank.c` | the container, the settings, the arithmetic, the wire |
-| `src/net/mock/content/scripts/interface_bank/` | the ported LostCity content |
-| `src/net/mock/content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
+| `OSRS-Content/mock230/scripts/interface_bank/` | the ported LostCity content |
+| `OSRS-Content/mock230/pack/varbit.pack` | the bank's varbit ids (new namespace) |
 | `src/ui/uitree_obj_cell.c` | the one client-side change this needed (§6) |
 
 Tests: `make -C src test-mock230` covers varbit packing, deposit/withdraw,

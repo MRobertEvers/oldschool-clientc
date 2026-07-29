@@ -270,13 +270,15 @@ container_split(
  * Skipped when nothing changed: rewriting the table bumps its version, and a
  * version bump the contents do not justify is a difference for its own sake.
  */
-static int
-sync_reference_entry(
+int
+cp_reference_sync(
     struct CP_Ctx* ctx,
     int table_id,
     int archive_id,
     const uint8_t* container,
     int container_size,
+    const int* file_ids,
+    int file_count,
     int* out_dirty)
 {
     struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
@@ -307,12 +309,45 @@ sync_reference_entry(
     int body = container_split(container, container_size, &trailer, &uncompressed);
     int crc = (int)RSCache_Crc32Buffer(container, (uint32_t)body);
 
-    /* CRC alone decides "unchanged". The size fields are only written when the
+    /*
+     * CRC alone decides "unchanged". The size fields are only written when the
      * table carries them, and are not part of the test, because whether a
      * particular cache sets RSCACHE_REFTABLE_FLAG_SIZES is not something an
-     * unchanged-archive check should depend on. */
-    if( archive->crc == crc )
+     * unchanged-archive check should depend on.
+     *
+     * A changed child list counts as changed even at an equal CRC, which cannot
+     * happen from the same bytes but can from a caller that rebuilt the archive
+     * with a different file set.
+     */
+    int children_differ = 0;
+    if( file_ids && file_count > 0 )
+    {
+        children_differ = archive->children.count != file_count;
+        for( int i = 0; !children_differ && i < file_count; i++ )
+            children_differ = archive->children.files[i].id != file_ids[i];
+    }
+    if( archive->crc == crc && !children_differ )
         return 1;
+
+    if( children_differ )
+    {
+        struct RSCache_ReferenceTableArchiveFile* grown = realloc(
+            archive->children.files, (size_t)file_count * sizeof(*grown));
+        if( !grown )
+            return 0;
+        /* The name hash is the client's `getArchive(name)` key. A file the tree
+         * did not previously hold has no name to hash, so it gets -1 — which is
+         * what the decoder reads for "unnamed" and what every id-addressed table
+         * already carries. */
+        for( int i = 0; i < file_count; i++ )
+        {
+            grown[i].id = file_ids[i];
+            grown[i].name_hash = i < archive->children.count ? archive->children.files[i].name_hash
+                                                             : -1;
+        }
+        archive->children.files = grown;
+        archive->children.count = file_count;
+    }
 
     archive->crc = crc;
     if( rt->flags & RSCACHE_REFTABLE_FLAG_SIZES )
@@ -339,8 +374,8 @@ sync_reference_entry(
     return 1;
 }
 
-static int
-write_reference_table(
+int
+cp_reference_write(
     struct CP_Ctx* ctx,
     const char* out_dir,
     int table_id)
@@ -450,12 +485,12 @@ cp_binary_import(
                         archive_id);
                 return 0;
             }
-            sync_reference_entry(ctx, table_id, archive_id, data, (int)size, &dirty);
+            cp_reference_sync(ctx, table_id, archive_id, data, (int)size, NULL, 0, &dirty);
             free(data);
             written++;
         }
 
-        if( dirty && !write_reference_table(ctx, out_cache_dir, table_id) )
+        if( dirty && !cp_reference_write(ctx, out_cache_dir, table_id) )
             return 0;
         if( written )
             printf("  idx%-3d %6d archives%s\n", table_id, written,

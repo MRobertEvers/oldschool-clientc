@@ -14,7 +14,7 @@
  * Env:
  *   MOCK230_VERBOSE=1   log every packet in and out
  *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs230)
- *   MOCK230_CONTENT=dir content tree (default src/net/mock/content)
+ *   MOCK230_CONTENT=dir content tree (default OSRS-Content/mock230)
  *   MOCK230_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
  *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
  *                       courtyard, beside Hans; the scene's origin zone is
@@ -329,11 +329,11 @@ mock230_content_dir(void)
     if( configured )
         return configured;
 
-    snprintf(resolved, sizeof(resolved), "src/net/mock/content");
+    snprintf(resolved, sizeof(resolved), "OSRS-Content/mock230");
     if( stat(resolved, &info) == 0 )
         return resolved;
 
-    snprintf(resolved, sizeof(resolved), "../src/net/mock/content");
+    snprintf(resolved, sizeof(resolved), "../OSRS-Content/mock230");
     return resolved;
 }
 

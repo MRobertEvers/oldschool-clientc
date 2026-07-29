@@ -754,7 +754,7 @@ usage(void)
     fprintf(stderr,
             "usage: mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR] [-v]\n"
             "\n"
-            "  --content DIR    content tree (default src/net/mock/content)\n"
+            "  --content DIR    content tree (default OSRS-Content/mock230)\n"
             "  --cache DIR      source cache (default cache.osrs230)\n"
             "  --cache-out DIR  write a derived cache with the authored npc combat\n"
             "                   data baked into each record's params\n"
@@ -768,7 +768,7 @@ main(
     int argc,
     char** argv)
 {
-    const char* content = "src/net/mock/content";
+    const char* content = "OSRS-Content/mock230";
     const char* cache = "cache.osrs230";
     const char* cache_out = NULL;
     int prune = 0;

@@ -141,6 +141,28 @@ struct RSCache_Dat2Component
     int32_t* invSlotOffsetY;
     int32_t* invSlotGraphicId;
 
+    /*
+     * Provenance, so an IF1 type-2 widget can be written back.
+     *
+     * Each of the 20 slots is introduced by a flag byte, and the decoder marks an
+     * absent slot by leaving its graphic id at -1. That is not injective: a slot
+     * whose flag was set and whose graphic id is genuinely -1 looks identical to
+     * one that was never there, and re-encoding drops its eight bytes. Recording
+     * the flag is the same fix EXCEPTIONS.md B8 applies to frames and terrain —
+     * keep what the wire said rather than trying to infer it back.
+     */
+    uint8_t invSlotPresent[20];
+    /*
+     * Set when `option` was empty on the wire and the decoder substituted the
+     * button type's default ("Ok" / "Select" / "Continue").
+     *
+     * Without it an absent option and one that literally says "Continue" are the
+     * same state, and every guess is wrong for somebody: interface 99 file 30
+     * carries the word in full in all three OldSchool caches here, while most
+     * widgets leave it empty.
+     */
+    bool optionFromDefault;
+
     int32_t anInt5907;
     int32_t anInt5921;
     int16_t aShort50;
@@ -345,6 +367,46 @@ RSCache_Dat2ComponentSetOp(
     struct RSCache_Dat2Component* self,
     int32_t i,
     const char* op);
+
+/**
+ * Encode a component — the exact inverse of the decoder that produced it.
+ *
+ * Dispatches on the component's own `if3` flag, so a caller does not have to know
+ * which era a widget came from: both families are present in the same cache (2,096
+ * of osrs239's 26,478 components are IF1, and 11,086 of osrs184's 22,931 are).
+ *
+ * Three places the decode is not a plain read, and the encode has to undo each:
+ *
+ *  - **`layer`** is stored relative and read absolute: the decoder adds the
+ *    component's own interface id (`id & 0xFFFF0000`) and maps 65535 to -1. So the
+ *    encoder subtracts it back, and writes 65535 for -1.
+ *  - **`modelId` / `modelSeqId` / `textFont`** each use 65535 as their absent
+ *    sentinel and decode to -1.
+ *  - **type 5's flag byte** packs `alpha` and `tiled` into bits 1 and 0.
+ *
+ * The era matters as much as it does on the way in: `rev_has_int_model_ids` widens
+ * type 6's model id from u16 to u32 at revision 237, and encoding with the wrong
+ * rev shifts every byte after it.
+ *
+ * The IF1 path is byte-exact except for one thing it cannot know: its type-1 block
+ * reads three bytes the decoder discards, so those re-encode as zeros. See the
+ * note on `component_encode_if1`.
+ *
+ * The RS2 (643) layout is decoded by `decode_if3_rs2` and is **not** inverted here;
+ * that rev is refused.
+ *
+ * Returns bytes written, or 0 on failure (RS2 rev, or `out` too small).
+ */
+uint32_t
+RSCache_Dat2ComponentEncodeIf3(
+    const struct RSCache_Dat2Component* self,
+    struct RSCache_Dat2ComponentDecodeRev rev,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** Safe `out_capacity` for RSCache_Dat2ComponentEncodeIf3. */
+uint32_t
+RSCache_Dat2ComponentEncodeIf3Bound(const struct RSCache_Dat2Component* self);
 
 void
 RSCache_Dat2ComponentPackFree(struct RSCache_Dat2ComponentPack* pack);
