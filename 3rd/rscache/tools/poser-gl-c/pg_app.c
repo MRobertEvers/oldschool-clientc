@@ -539,7 +539,7 @@ command_execute(struct PG_App* app, struct PG_Command* command, bool redo)
     {
     case PG_CMD_TRANSFORM_NODE:
     {
-        struct PG_Transformation* target;
+        struct PG_RigJoint* target;
         anim = redo ? animation_by_id(app, command->animation_id) : pg_app_animation_or_copy(app);
         if( !anim )
             return false;
@@ -549,7 +549,7 @@ command_execute(struct PG_App* app, struct PG_Command* command, bool redo)
         if( command->keyframe_index < 0 || command->keyframe_index >= anim->keyframe_count )
             return false;
         keyframe = &anim->keyframes[command->keyframe_index];
-        target = pg_keyframe_find(keyframe, command->transformation_id);
+        target = pg_rig_skeleton_find(&keyframe->skeleton, command->transformation_id);
         if( !target )
             return false;
         if( !redo )
@@ -632,20 +632,20 @@ command_execute(struct PG_App* app, struct PG_Command* command, bool redo)
                 pg_app_message(app, "Invalid Operation", "Skeletons do not match");
                 return false;
             }
-            largest = first->transformation_count > second->transformation_count ? first : second;
+            largest = first->skeleton.joint_count > second->skeleton.joint_count ? first : second;
             smallest = largest == first ? second : first;
             pg_keyframe_copy(&source, largest, anim->keyframe_count);
             /* Halfway between the two, transform by transform. Walking the
              * smaller list bounds the pairing; the extra transforms of the larger
              * keep whatever they had. */
-            for( int i = 0; i < smallest->transformation_count && i < source.transformation_count;
+            for( int i = 0; i < smallest->skeleton.joint_count && i < source.skeleton.joint_count;
                  i++ )
             {
                 for( int k = 0; k < 3; k++ )
                 {
-                    float a = (float)first->transformations[i].delta[k];
-                    float b = (float)second->transformations[i].delta[k];
-                    source.transformations[i].delta[k] = (int)(a + (b - a) * 0.5f);
+                    float a = (float)first->skeleton.joints[i].delta[k];
+                    float b = (float)second->skeleton.joints[i].delta[k];
+                    source.skeleton.joints[i].delta[k] = (int)(a + (b - a) * 0.5f);
                 }
             }
             source.modified = true;
@@ -713,8 +713,8 @@ command_unexecute(struct PG_App* app, struct PG_Command* command)
             return;
         keyframe = &anim->keyframes[command->keyframe_index];
         {
-            struct PG_Transformation* target =
-                pg_keyframe_find(keyframe, command->transformation_id);
+            struct PG_RigJoint* target =
+                pg_rig_skeleton_find(&keyframe->skeleton, command->transformation_id);
             if( target )
                 target->delta[command->coord_index] = command->previous_value;
         }
@@ -825,6 +825,37 @@ pg_app_copy_keyframe(struct PG_App* app)
 
 /* ---- nodes ------------------------------------------------------------------------- */
 
+struct PG_Vec3
+pg_joint_position(const struct PG_RigJoint* joint)
+{
+    return pg_vec3(joint->position[0], joint->position[1], joint->position[2]);
+}
+
+/*
+ * Where to draw a joint's marker.
+ *
+ * The frame's own offset goes into the numerator with the vertex positions and
+ * the whole sum is divided by the vertex count — which is not the same as adding
+ * the offset to the mean, and is what the reference does.
+ */
+static void
+set_joint_position(struct PG_RigJoint* joint, const struct PG_ModelDef* def, float divisor)
+{
+    float sum[3];
+    int count = pg_model_label_vertex_sum(def, joint->labels, joint->label_count, sum);
+
+    for( int i = 0; i < 3; i++ )
+    {
+        float value = sum[i] + (float)joint->delta[i];
+        if( count > 0 )
+            value /= (float)count;
+        joint->position[i] = value / divisor;
+    }
+    /* The entity shader flips x, so a marker drawn in world space has to be
+     * flipped here to land on the joint it belongs to. */
+    joint->position[0] = -joint->position[0];
+}
+
 static void
 node_push(struct PG_App* app, int index)
 {
@@ -857,37 +888,38 @@ collect_nodes(struct PG_App* app, struct PG_Keyframe* keyframe)
     if( !app->nodes_enabled || !app->entity.def )
         return;
 
-    for( int i = 0; i < keyframe->transformation_count; i++ )
+    for( int i = 0; i < keyframe->skeleton.joint_count; i++ )
     {
-        struct PG_Transformation* node = &keyframe->transformations[i];
+        struct PG_RigJoint* node = &keyframe->skeleton.joints[i];
         bool can_display;
-        bool is_origin;
+        bool at_origin;
 
-        if( !node->is_reference )
+        if( !node->is_origin )
             continue;
-        pg_reference_set_position(node, app->entity.def, divisor);
+        set_joint_position(node, app->entity.def, divisor);
 
         /* A reference with no rotation is a pivot the animation never turns, and
          * showing it clutters the rig with joints nothing can be done to. */
-        can_display = node->child_by_type[PG_TF_ROTATION] >= 0 || app->settings.advanced_mode;
-        is_origin = node->position.x == 0.0f && node->position.y == 0.0f &&
-                    node->position.z == 0.0f;
-        if( !can_display || is_origin )
+        can_display = node->child_by_kind[PG_RIG_ROTATE] >= 0 || app->settings.advanced_mode;
+        /* A joint that landed on the model origin matched no vertices at all,
+         * so there is nothing for a marker to sit on. */
+        at_origin = node->position[0] == 0.0f && node->position[1] == 0.0f &&
+                    node->position[2] == 0.0f;
+        if( !can_display || at_origin )
             continue;
 
-        node->highlighted = false;
         node_push(app, i);
     }
 }
 
-static struct PG_Transformation*
+static struct PG_RigJoint*
 selected_node(struct PG_App* app, struct PG_Keyframe* keyframe)
 {
     if( app->selected_node_id < 0 || !keyframe )
         return NULL;
     for( int i = 0; i < app->node_count; i++ )
     {
-        struct PG_Transformation* node = &keyframe->transformations[app->node_indices[i]];
+        struct PG_RigJoint* node = &keyframe->skeleton.joints[app->node_indices[i]];
         if( node->id == app->selected_node_id )
             return node;
     }
@@ -895,17 +927,17 @@ selected_node(struct PG_App* app, struct PG_Keyframe* keyframe)
 }
 
 static void
-select_node(struct PG_App* app, struct PG_Transformation* node)
+select_node(struct PG_App* app, struct PG_RigJoint* node)
 {
     app->selected_node_id = node->id;
-    if( node->child_by_type[app->selected_type] < 0 )
+    if( node->child_by_kind[app->selected_type] < 0 )
     {
         /* Fall back to whatever this joint does have, in the order the framemap
          * listed them. */
-        app->selected_type = PG_TF_TRANSLATION;
-        for( int t = PG_TF_TRANSLATION; t <= PG_TF_SCALE; t++ )
+        app->selected_type = PG_RIG_TRANSLATE;
+        for( int t = PG_RIG_TRANSLATE; t <= PG_RIG_SCALE; t++ )
         {
-            if( node->child_by_type[t] >= 0 )
+            if( node->child_by_kind[t] >= 0 )
             {
                 app->selected_type = t;
                 break;
@@ -915,10 +947,10 @@ select_node(struct PG_App* app, struct PG_Transformation* node)
     app->gizmo_enabled = true;
     pg_gizmo_set(
         &app->gizmo,
-        app->selected_type == PG_TF_ROTATION
+        app->selected_type == PG_RIG_ROTATE
             ? PG_GIZMO_ROTATION
-            : (app->selected_type == PG_TF_SCALE ? PG_GIZMO_SCALE : PG_GIZMO_TRANSLATION),
-        node->position);
+            : (app->selected_type == PG_RIG_SCALE ? PG_GIZMO_SCALE : PG_GIZMO_TRANSLATION),
+        pg_joint_position(node));
 }
 
 /* ---- frame ------------------------------------------------------------------------ */
@@ -958,7 +990,7 @@ tick_animation(struct PG_App* app)
 
     if( keyframe->id != app->previous_keyframe_id )
     {
-        struct PG_Transformation* node = selected_node(app, keyframe);
+        struct PG_RigJoint* node = selected_node(app, keyframe);
         if( node )
             select_node(app, node);
         app->previous_keyframe_id = keyframe->id;
@@ -1079,32 +1111,32 @@ draw_scene(struct PG_App* app)
         {
             for( int i = 0; i < app->node_count; i++ )
             {
-                struct PG_Transformation* node = &keyframe->transformations[app->node_indices[i]];
-                struct PG_Transformation* parent;
+                struct PG_RigJoint* node = &keyframe->skeleton.joints[app->node_indices[i]];
+                struct PG_RigJoint* parent;
                 int parent_index = node->parent;
                 bool parent_visible = false;
 
                 if( parent_index < 0 )
                     continue;
-                parent = &keyframe->transformations[parent_index];
+                parent = &keyframe->skeleton.joints[parent_index];
                 for( int j = 0; j < app->node_count; j++ )
-                    if( keyframe->transformations[app->node_indices[j]].id == parent->id )
+                    if( keyframe->skeleton.joints[app->node_indices[j]].id == parent->id )
                         parent_visible = true;
                 if( !parent_visible )
                     continue;
-                if( keyframe->root_node >= 0 )
+                if( keyframe->skeleton.root >= 0 )
                 {
-                    int root_id = keyframe->transformations[keyframe->root_node].id;
+                    int root_id = keyframe->skeleton.joints[keyframe->skeleton.root].id;
                     if( node->id == root_id || parent->id == root_id )
                         continue;
                 }
-                if( parent->child_by_type[PG_TF_ROTATION] < 0 )
+                if( parent->child_by_kind[PG_RIG_ROTATE] < 0 )
                     continue;
                 pg_render_bone(
                     &app->renderer,
                     view,
-                    node->position,
-                    parent->position,
+                    pg_joint_position(node),
+                    pg_joint_position(parent),
                     app->entity.scale * divisor);
             }
         }
@@ -1113,9 +1145,9 @@ draw_scene(struct PG_App* app)
         {
             for( int i = 0; i < app->node_count; i++ )
             {
-                struct PG_Transformation* node = &keyframe->transformations[app->node_indices[i]];
-                struct PG_Vec3 min = pg_vec3_sub(node->position, pg_vec3(scale, scale, scale));
-                struct PG_Vec3 max = pg_vec3_add(node->position, pg_vec3(scale, scale, scale));
+                struct PG_RigJoint* node = &keyframe->skeleton.joints[app->node_indices[i]];
+                struct PG_Vec3 min = pg_vec3_sub(pg_joint_position(node), pg_vec3(scale, scale, scale));
+                struct PG_Vec3 max = pg_vec3_add(pg_joint_position(node), pg_vec3(scale, scale, scale));
                 float near_t = 0.0f;
                 float far_t = 0.0f;
                 if( pg_intersect_ray_aabb(ray, min, max, &near_t, &far_t) &&
@@ -1130,9 +1162,8 @@ draw_scene(struct PG_App* app)
         app->hovered_node_id = -1;
         if( closest >= 0 )
         {
-            struct PG_Transformation* node = &keyframe->transformations[app->node_indices[closest]];
+            struct PG_RigJoint* node = &keyframe->skeleton.joints[app->node_indices[closest]];
             bool gizmo_busy = app->gizmo_enabled && app->gizmo.selected_axis >= 0;
-            node->highlighted = true;
             app->hovered_node_id = node->id;
             if( app->gui.input.pressed[PG_MOUSE_LEFT] && !gizmo_busy )
             {
@@ -1151,12 +1182,18 @@ draw_scene(struct PG_App* app)
 
         for( int i = 0; i < app->node_count; i++ )
         {
-            struct PG_Transformation* node = &keyframe->transformations[app->node_indices[i]];
-            bool is_root = keyframe->root_node >= 0 &&
-                           keyframe->transformations[keyframe->root_node].id == node->id;
+            struct PG_RigJoint* node = &keyframe->skeleton.joints[app->node_indices[i]];
+            bool is_root = keyframe->skeleton.root >= 0 &&
+                           keyframe->skeleton.joints[keyframe->skeleton.root].id == node->id;
             if( node->id == app->selected_node_id )
                 continue;
-            pg_render_node(&app->renderer, view, node->position, scale, node->highlighted, is_root);
+            pg_render_node(
+                &app->renderer,
+                view,
+                pg_joint_position(node),
+                scale,
+                node->id == app->hovered_node_id,
+                is_root);
         }
     }
 
@@ -1165,14 +1202,14 @@ draw_scene(struct PG_App* app)
 
     if( app->nodes_enabled && keyframe && app->selected_node_id >= 0 )
     {
-        struct PG_Transformation* node = selected_node(app, keyframe);
+        struct PG_RigJoint* node = selected_node(app, keyframe);
         if( node && app->gizmo_enabled )
         {
             int axis;
             int delta = 0;
             bool cyclic = false;
 
-            app->gizmo.position = node->position;
+            app->gizmo.position = pg_joint_position(node);
             axis = pg_gizmo_update(
                 &app->gizmo,
                 ray,
@@ -1182,7 +1219,7 @@ draw_scene(struct PG_App* app)
                 &cyclic);
             if( axis >= 0 && delta != 0 )
             {
-                struct PG_Transformation* target = pg_reference_child(keyframe, node, app->selected_type);
+                struct PG_RigJoint* target = pg_rig_joint_child(&keyframe->skeleton, node, app->selected_type);
                 if( target )
                 {
                     struct PG_Command command;
@@ -1210,7 +1247,8 @@ draw_scene(struct PG_App* app)
             pg_gizmo_render(&app->gizmo, &app->renderer, view, app->entity.size);
         }
         if( node )
-            pg_render_node(&app->renderer, view, node->position, node_scale(app), true, false);
+            pg_render_node(
+                &app->renderer, view, pg_joint_position(node), node_scale(app), true, false);
     }
 
     if( over_view && app->gui.input.down[PG_MOUSE_LEFT] &&
@@ -1266,7 +1304,7 @@ pg_app_init(struct PG_App* app, const char* cache_dir, const char* rev)
     app->current_animation = -1;
     app->selected_node_id = -1;
     app->hovered_node_id = -1;
-    app->selected_type = PG_TF_TRANSLATION;
+    app->selected_type = PG_RIG_TRANSLATE;
     app->previous_keyframe_id = -1;
     app->shading_type = PG_SHADING_SMOOTH;
     app->polygon_mode = PG_POLYGON_FILL;

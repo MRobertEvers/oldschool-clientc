@@ -1,0 +1,43 @@
+// Parameter ids.
+//
+// 0-11 and 14 are the OldSchool cache's OWN param ids for the equipment
+// bonuses and the attack rate — the numbers `mock230_objinfo` reads out of an
+// obj record. Naming them here means a `param=` line in a config and a
+// `oc_param(...)` in a script are talking about the same field the cache is.
+//
+// Everything from 2000 up is this engine's, for things a cache has no param
+// for. LostCity assigns its own the same way, from its own param.pack.
+0=stabattack
+1=slashattack
+2=crushattack
+3=magicattack
+4=rangeattack
+5=stabdefence
+6=slashdefence
+7=crushdefence
+8=magicdefence
+9=rangedefence
+10=strengthbonus
+11=prayerbonus
+14=attackrate
+189=rangebonus
+
+2000=death_drop
+2001=attack_anim
+2002=defend_anim
+2003=death_anim
+2004=huntrange
+2005=attackrange
+2006=damagetype
+2007=next_loc_stage
+2008=slashattack_anim
+
+// Engine-only params the cache export bakes into an npc record, so a derived
+// cache carries the authored combat block where any cache reader can see it.
+// An OldSchool cache has no field for any of these.
+2100=hitpoints
+2101=attacklevel
+2102=strengthlevel
+2103=defencelevel
+2104=respawnrate
+2105=wanderrange

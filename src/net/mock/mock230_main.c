@@ -14,14 +14,18 @@
  * Env:
  *   MOCK230_VERBOSE=1   log every packet in and out
  *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs230)
- *   MOCK230_SCRIPTS=dir compiled script pack (default src/net/mock/scripts/build)
- *   MOCK230_ZONE=x,z    origin zone to spawn in (default 426,408)
+ *   MOCK230_CONTENT=dir content tree (default src/net/mock/content)
+ *   MOCK230_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
+ *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
+ *                       courtyard, beside Hans; the scene's origin zone is
+ *                       derived from it)
  *
  * The RSA keypair is fixed and matches manifest_osrs230.ini: the client
  * encrypts the login block with (E=10001, N), the mock decrypts with (D, N).
  */
 #include "mock230.h"
 
+#include "mock230_content.h"
 #include "mock230_ws.h"
 #include "net/isaac.h"
 #include "net/rev/osrs230/packetout.h"
@@ -57,8 +61,21 @@ static const char* MOCK_RSA_N =
 #define MOCK230_TICK_MS 600
 
 /* Lumbridge-ish default. zone = tile >> 3; scene origin = (zone - 6) * 8. */
-#define DEFAULT_ZONE_X 426
-#define DEFAULT_ZONE_Z 408
+/*
+ * Where a session starts: the Lumbridge castle courtyard, one tile from Hans.
+ *
+ * OpenRune calls the same place home (`home-x: 3218, home-z: 3218` in its
+ * game.yml) and so does OldSchool. It is the right default for a mock because
+ * everything worth exercising is within a short walk: goblins and guards east
+ * on the Al Kharid road, rats under the castle, cows and chickens north-east,
+ * a general store, and stairs, ladders, doors and a trapdoor in the castle
+ * itself.
+ *
+ * The scene's origin zone follows from the tile rather than being configured
+ * beside it — two numbers that have to agree are one number.
+ */
+#define DEFAULT_HOME_X 3222
+#define DEFAULT_HOME_Z 3218
 
 /* ------------------------------------------------------------------ */
 /* Inbound framing                                                     */
@@ -296,20 +313,32 @@ handshake(
  * insisting on one.
  */
 static const char*
-mock230_script_dir(void)
+mock230_content_dir(void)
 {
     static char resolved[512];
-    const char* configured = getenv("MOCK230_SCRIPTS");
+    const char* configured = getenv("MOCK230_CONTENT");
     struct stat info;
 
     if( configured )
         return configured;
 
-    snprintf(resolved, sizeof(resolved), "src/net/mock/scripts/build");
+    snprintf(resolved, sizeof(resolved), "src/net/mock/content");
     if( stat(resolved, &info) == 0 )
         return resolved;
 
-    snprintf(resolved, sizeof(resolved), "../src/net/mock/scripts/build");
+    snprintf(resolved, sizeof(resolved), "../src/net/mock/content");
+    return resolved;
+}
+
+static const char*
+mock230_script_dir(void)
+{
+    static char resolved[600];
+    const char* configured = getenv("MOCK230_SCRIPTS");
+
+    if( configured )
+        return configured;
+    snprintf(resolved, sizeof(resolved), "%s/scripts/build", mock230_content_dir());
     return resolved;
 }
 
@@ -398,19 +427,29 @@ main(
     struct Mock230Server srv;
     static struct Mock230Conn conn; /* 128 KB of buffers — not on the stack */
     int port = argc > 1 ? atoi(argv[1]) : 43595;
-    int zone_x = DEFAULT_ZONE_X;
-    int zone_z = DEFAULT_ZONE_Z;
+    int home_x = DEFAULT_HOME_X;
+    int home_z = DEFAULT_HOME_Z;
+    int zone_x;
+    int zone_z;
     int listener;
     int reuse = 1;
     struct sockaddr_in addr;
     const char* cache_dir = getenv("MOCK230_CACHE");
-    const char* zone_env = getenv("MOCK230_ZONE");
+    const char* home_env = getenv("MOCK230_HOME");
 
-    if( zone_env )
-        sscanf(zone_env, "%d,%d", &zone_x, &zone_z);
+    if( home_env )
+        sscanf(home_env, "%d,%d", &home_x, &home_z);
+    zone_x = home_x >> 3;
+    zone_z = home_z >> 3;
+
+    mock230_world_set_cache_dir(cache_dir ? cache_dir : "cache.osrs230");
     mock230_objinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_npcinfo_load(cache_dir ? cache_dir : "cache.osrs230");
     mock230_seqinfo_load(cache_dir ? cache_dir : "cache.osrs230");
+    /* After the three cache loaders: the content tree seeds its combat bonuses
+     * from the params they decoded. See mock230_content_load. */
+    mock230_content_load(mock230_content_dir());
+    mock230_world_set_home(home_x, home_z);
 
     /* --selftest: run the game logic with no socket and exit. */
     if( argc > 1 && strcmp(argv[1], "--selftest") == 0 )
@@ -437,7 +476,8 @@ main(
         return 1;
     }
     listen(listener, 1);
-    fprintf(stderr, "mock230: listening on 127.0.0.1:%d (zone %d,%d)\n", port, zone_x, zone_z);
+    fprintf(stderr, "mock230: listening on 127.0.0.1:%d (home %d,%d — zone %d,%d)\n", port,
+            home_x, home_z, zone_x, zone_z);
 
     for( ;; )
     {

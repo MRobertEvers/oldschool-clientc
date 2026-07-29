@@ -10,7 +10,7 @@ Reference implementation: `/Users/matthewevers/Documents/git_repos/LostCity_Serv
 **LostCity's content ids are 2004-era and do NOT match `cache.osrs230`.** Its
 9,333 compiled scripts are a conformance corpus for this reader and VM, not
 runnable content for the mock. Anything the mock actually runs is authored
-against rev-230 ids. Wiring the two together produces a client showing random
+against rev-230 ids — see `docs/mock230_content.md`. Wiring the two together produces a client showing random
 items and a long afternoon.
 
 ## Layout

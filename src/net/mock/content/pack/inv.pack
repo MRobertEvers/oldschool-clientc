@@ -1,0 +1,3 @@
+// Container ids the client's InvManager knows (INV_MANAGER_CONTAINER_*).
+93=inv
+94=worn

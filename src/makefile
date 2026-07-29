@@ -271,7 +271,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts
+.PHONY: test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -798,7 +798,8 @@ test-revconfig: $(OBJ_DIR)
 MOCK230_SRCS = net/mock/mock230_main.c net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_scripts.c net/mock/mock230_ws.c \
+	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
+	net/mock/mock230_scene.c engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -811,13 +812,27 @@ mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
 # Runs from the repo root so the default cache path (cache.osrs230) resolves —
 # the equipment checks need the cache's wearpos fields to mean anything.
-# Compile the mock's own content. The output is checked in, so building or
-# testing the mock needs no compiler — this only runs when the .rs2 sources
-# change. Ids here are rev-230 ids from cache.osrs230, NOT LostCity's.
-MOCK230_SCRIPT_DIR = $(SRC_DIR)/net/mock/scripts
+# Compile the mock's own content. The output lands in content/scripts/build,
+# which the repo's .gitignore excludes (`build/`), so a fresh checkout has no
+# script pack until this runs. That is not fatal — every trigger site falls back
+# to its hardcoded C behaviour — but it does mean no dialogue and no drop
+# tables. Ids are rev-230 ids from cache.osrs230, NOT LostCity's.
+MOCK230_CONTENT_DIR = $(SRC_DIR)/net/mock/content
 mock230-scripts: sscompile
-	./$(OBJ_DIR)/sscompile --src $(MOCK230_SCRIPT_DIR) \
-		--out $(MOCK230_SCRIPT_DIR)/build --pack $(MOCK230_SCRIPT_DIR)/pack
+	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/scripts \
+		--out $(MOCK230_CONTENT_DIR)/scripts/build --pack $(MOCK230_CONTENT_DIR)/pack
+
+# Content validator + cache exporter. Separate binary from the server: it needs
+# the same content and cache readers but none of the socket or tick code, and it
+# is run by hand rather than as part of a build.
+MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
+	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c
+mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/mock230_pack"
 
 test-mock230: mock230
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest

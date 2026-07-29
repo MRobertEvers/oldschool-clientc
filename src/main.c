@@ -469,6 +469,44 @@ frame_loop_step(void)
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
 
+    /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
+     * every `step` loop iterations from `start` on — a film strip of a live
+     * sequence. Single frames (TORIRS_EXIT_BMP) cannot catch a two-tick
+     * animation whose start jitters with login time; a strip through the whole
+     * window can. */
+    {
+        static char series_dir[512];
+        static long series_start = -1, series_step = 1, series_count = 0, series_written = 0;
+        static int series_parsed = 0;
+        if( !series_parsed )
+        {
+            char const* env = getenv("TORIRS_BMP_SERIES");
+            series_parsed = 1;
+            if( env )
+                sscanf(
+                    env,
+                    "%511[^,],%ld,%ld,%ld",
+                    series_dir,
+                    &series_start,
+                    &series_step,
+                    &series_count);
+        }
+        if( series_start >= 0 && series_written < series_count && frame_count >= series_start &&
+            (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
+        {
+            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            if( pixels )
+            {
+                char path[600];
+                App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+                snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
+                bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+                free(pixels);
+                series_written++;
+            }
+        }
+    }
+
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;

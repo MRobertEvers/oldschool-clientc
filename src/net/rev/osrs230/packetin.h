@@ -91,9 +91,41 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 20, 0, PKT_NAME_NONE },  /* LOGOUT */
     { 102, 5, PKT_NAME_NONE }, /* SYNTH_SOUND */
     { 57, 10, PKT_NAME_NONE }, /* MIDI_SONG_V2 */
-    { 41, 3, PKT_NAME_NONE },  /* UPDATE_ZONE_FULL_FOLLOWS */
-    { 106, 3, PKT_NAME_NONE }, /* UPDATE_ZONE_PARTIAL_FOLLOWS */
-    { 38, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* UPDATE_ZONE_PARTIAL_ENCLOSED */
+    /*
+     * Zones and the sub-packets that follow them.
+     *
+     * 41 / 106 / 38 are real rev-230 opcodes. The sub-packet opcodes below are
+     * assigned here, the same way the IF_SET* family's are (see 3.5 of
+     * docs/osrs230_mockserver.md): RSProt's encoder table is not vendored, the
+     * mock is the only producer, so what matters is that both ends agree. The
+     * numbers are free in this table and the payload layouts are lc254's, which
+     * is what gameproto_parse.c's readers already decode.
+     *
+     * A zone sub-packet's opcode is resolved through this same table
+     * (`rev->packetin_code`), so these must not collide with a top-level
+     * opcode — which is why they are not simply lc254's numbering: lc254 puts
+     * OBJ_COUNT on 98 and MAP_ANIM on 114, and rev 230 has IF_SETHIDE and
+     * UPDATE_STAT there.
+     */
+    /* Two bytes, not the three RSProt's table states. The payload is the
+     * zone's base as a pair of scene-local tiles, which is what the shared
+     * parser reads and what the mock writes; a third byte would leave the
+     * parser's exact-consumption assert unsatisfied. Real rev-230 zone packets
+     * carry a level as well — the mock is single-plane per scene and sends the
+     * player's, so it has nothing to put there. */
+    { 41, 2, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS },
+    { 106, 2, PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS },
+    { 38, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED },
+    { 70, 4, PKT_NAME_LOC_ADD_CHANGE },
+    { 71, 2, PKT_NAME_LOC_DEL },
+    { 72, 4, PKT_NAME_LOC_ANIM },
+    { 120, 5, PKT_NAME_OBJ_ADD },
+    { 121, 3, PKT_NAME_OBJ_DEL },
+    { 122, 7, PKT_NAME_OBJ_COUNT },
+    { 123, 7, PKT_NAME_OBJ_REVEAL },
+    { 124, 6, PKT_NAME_MAP_ANIM },
+    { 125, 15, PKT_NAME_MAP_PROJANIM },
+    { 126, 14, PKT_NAME_LOC_MERGE },
     { 55, 4, PKT_NAME_NONE },  /* SET_ACTIVE_WORLD_V1 */
     { 22, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* REFLECTION_CHECKER */
     { 52, 8, PKT_NAME_NONE },  /* SEND_PING */

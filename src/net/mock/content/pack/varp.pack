@@ -1,0 +1,5 @@
+// Player variables the mock's own content uses. rev 230 has ~2600; these are
+// the ones written here, so they are authored rather than imported.
+1=mock_greeting_count
+2=mock_quest_progress
+3=lumbridge_visited

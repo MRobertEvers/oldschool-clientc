@@ -383,6 +383,35 @@ pg_model_reset_transformations(struct PG_ModelDef* def)
     }
 }
 
+int
+pg_model_label_vertex_sum(
+    const struct PG_ModelDef* def,
+    const int* labels,
+    int label_count,
+    float out_sum[3])
+{
+    int count = 0;
+
+    out_sum[0] = out_sum[1] = out_sum[2] = 0.0f;
+    if( !def )
+        return 0;
+    for( int i = 0; i < label_count; i++ )
+    {
+        int label = labels[i];
+        if( label < 0 || label >= def->group_count || !def->groups[label] )
+            continue;
+        for( int j = 0; j < def->group_counts[label]; j++ )
+        {
+            int vertex = def->groups[label][j];
+            out_sum[0] += (float)def->vertices_x[vertex];
+            out_sum[1] += (float)def->vertices_y[vertex];
+            out_sum[2] += (float)def->vertices_z[vertex];
+            count++;
+        }
+    }
+    return count;
+}
+
 void
 pg_model_animate(
     struct PG_ModelDef* def,

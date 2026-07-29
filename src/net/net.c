@@ -285,7 +285,20 @@ net_process_packets(struct ToriRS_Network* net)
                 packetbuffer_size(&net->packet_buffer));
         if( name == PKT_NAME_NONE )
         {
-            fprintf(stderr, "net: dropping unknown wire opcode %d (%s)\n", wire, net->rev->name);
+            /* Both "not in the rev table" and "in it with no decoder" land here
+             * — the framer already sized the packet either way, so the drop is
+             * clean. Once per opcode is enough to notice it: SERVER_TICK_END
+             * alone would otherwise print every tick, which buries the arrival
+             * of a packet actually worth wiring up. */
+            static uint8_t warned[256];
+
+            if( wire >= 0 && wire < 256 && !warned[wire] )
+            {
+                warned[wire] = 1;
+                fprintf(
+                    stderr, "net: no decoder for wire opcode %d (%s) — dropped\n",
+                    wire, net->rev->name);
+            }
         }
         else
         {

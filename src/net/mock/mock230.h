@@ -33,7 +33,11 @@ struct Mock230Conn;
 
 enum
 {
-    MOCK230_NPC_MAX = 96,
+    /* Lumbridge's roster is about 70 npcs across five map squares, and only
+     * the ones within 15 tiles are ever sent — but they all have to exist for
+     * the player to be able to walk to them. The tracked count is an 8-bit
+     * field on the wire, so this must stay under 256. */
+    MOCK230_NPC_MAX = 256,
     /* The client sends at most 25 waypoints per move request; a walk can then
      * be interpolated over many tiles, so the step queue is larger. */
     MOCK230_STEP_MAX = 256,
@@ -59,6 +63,12 @@ enum
      * than this; the mock only needs the ones its own content uses. */
     MOCK230_VARP_COUNT = 256,
     MOCK230_VARP_DIRTY_MAX = 32,
+
+    /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
+     * handful per kill, and they expire. */
+    MOCK230_GROUND_MAX = 256,
+    /* Ticks a dropped obj stays on the floor. LostCity's ^lootdrop_duration. */
+    MOCK230_LOOT_TICKS = 200,
 
     /* Parked script bookkeeping. */
     MOCK230_QUEUE_MAX = 16,
@@ -143,6 +153,43 @@ enum
  * space, so one enum serves all three. 6/8/11 hold body kits rather than
  * items; an item claims them through wearpos_2 / wearpos_3 to hide the kit
  * underneath (a full helm hides hair + jaw, a platebody hides arms). */
+/*
+ * Skills. The index is the protocol's: UPDATE_STAT carries it, the client's own
+ * stat table uses it, and content/pack/stat.pack names it. Only the six combat
+ * skills are used, but the array is the full 23 so a stat id from the wire is
+ * never out of range.
+ */
+enum
+{
+    MOCK230_STAT_ATTACK = 0,
+    MOCK230_STAT_DEFENCE = 1,
+    MOCK230_STAT_STRENGTH = 2,
+    MOCK230_STAT_HITPOINTS = 3,
+    MOCK230_STAT_RANGED = 4,
+    MOCK230_STAT_PRAYER = 5,
+    MOCK230_STAT_MAGIC = 6,
+    MOCK230_STAT_COUNT = 23,
+};
+
+/*
+ * Attack styles, in the order the combat interface lists them. OldSchool folds
+ * the style into the effective level before the roll: accurate is +3 attack,
+ * aggressive +3 strength, defensive +3 defence, controlled +1 to all three.
+ */
+enum Mock230AttackStyle
+{
+    MOCK230_STYLE_ACCURATE = 0,
+    MOCK230_STYLE_AGGRESSIVE = 1,
+    MOCK230_STYLE_DEFENSIVE = 2,
+    MOCK230_STYLE_CONTROLLED = 3,
+};
+
+/** varp the combat tab writes the attack style into. */
+enum
+{
+    MOCK230_VARP_ATTACK_STYLE = 43,
+};
+
 enum Mock230WearPos
 {
     MOCK230_WEAR_HEAD = 0,
@@ -179,6 +226,28 @@ struct Mock230ObjInfo
      *  "Eat". OPHELD<n> carries the 1-based index into this array, so the
      *  server can act on the verb the player actually clicked. NULL = absent. */
     const char* if_ops[5];
+
+    /*
+     * Combat bonuses, straight out of the obj record's own param table.
+     *
+     * An OldSchool cache really does carry these: param ids 0..11 are the
+     * twelve equipment bonuses in the order Mock230CombatParam names them, 14
+     * is the attack rate in ticks. Verified against cache.osrs230 — the bronze
+     * scimitar (1321) reads slashattack +7, strengthbonus +6, attackrate 4.
+     * This is why the mock can compute a real OldSchool max hit without a
+     * hand-written bonus table for every item in the game.
+     */
+    int bonus[12];
+    int attackrate;
+    /** 0 stab, 1 slash, 2 crush — which bonus a swing with this weapon uses.
+     *  Not in the cache; derived from which attack bonus is largest, which is
+     *  right for every weapon whose class is unambiguous and harmless for the
+     *  rest. A `param=damagetype,N` in a .obj config overrides it. */
+    int damagetype;
+    /** 1 when the record carried any params at all. A tinderbox has none, and
+     *  "no params" has to be distinguishable from "all bonuses zero" — the
+     *  first is unarmed, the second is a weapon that happens to be bad. */
+    int has_params;
 };
 
 /** Decode the whole obj config table once. Returns 0 when the cache is absent,
@@ -203,6 +272,15 @@ struct Mock230NpcInfo
     const char* name;
     int combat_level;
     int size;
+    /** Menu ops (config opcodes 30-34). "Attack" in one of them is what makes
+     *  an npc a valid combat target — the same test the client's minimenu
+     *  makes, so the two ends agree without a second attackability list. */
+    const char* ops[5];
+    /** Same param table as the obj records, same indices. cache.osrs230's
+     *  Goblin (3028) reads strengthbonus -15 and five defences of -15. */
+    int bonus[12];
+    int attackrate;
+    int has_params;
 };
 
 /** Decode the npc config table once. Returns 0 when the cache is absent, in
@@ -234,6 +312,7 @@ struct Mock230Server;
 struct SSVM_Provider;
 struct SSVM_Env;
 struct SSVM_State;
+struct Mock230NpcDef;
 
 enum
 {
@@ -290,6 +369,29 @@ struct Mock230Item
     int count;
 };
 
+/*
+ * One obj on the floor.
+ *
+ * A *spawn* (from the content tree's map squares) respawns after it is taken;
+ * a drop does not, and expires instead. That is LostCity's distinction between
+ * a static obj and a dynamic one, and it is the whole reason both fields exist.
+ */
+struct Mock230GroundObj
+{
+    int active;
+    int obj_id;
+    int count;
+    int x, z, level;
+    /** Tick this obj vanishes; -1 for a spawn, which stays forever. */
+    int despawn_tick;
+    /** Tick a taken spawn comes back; -1 when not waiting. */
+    int respawn_tick;
+    /** 1 when this came from a map square rather than from a drop. */
+    int is_spawn;
+    /** Set once the client has been told; cleared by a rebuild. */
+    int sent;
+};
+
 /** A script waiting for its delay to run out. */
 struct Mock230Queued
 {
@@ -321,8 +423,11 @@ struct Mock230Npc
     int active;
     int type;
     int x, z, level;
-    int spawn_x, spawn_z;
+    int spawn_x, spawn_z, spawn_level;
     int wander_radius;
+    /** The content block this npc was spawned from, or the engine defaults.
+     *  Never NULL on an active npc; owned by mock230_content.c. */
+    const struct Mock230NpcDef* def;
     /** RSMod/xrsps parity: idle NPCs try to roam every 15-30 ticks. */
     int next_roam_tick;
 
@@ -456,6 +561,31 @@ struct Mock230Player
     /** Npc slot being fought, or -1. */
     int combat_target;
     int attack_clock;
+
+    /*
+     * Skills. `level` is the base level, `boosted` what a potion or a drain
+     * left it at, and `xp` is in tenths of a point — OldSchool's hitpoints
+     * award is 4/3 of the damage dealt, which is not an integer, and rounding
+     * it every hit loses a third of a point per swing.
+     *
+     * The hitpoints *stat* and the player's hitpoints are one thing:
+     * `boosted[STAT_HITPOINTS]` IS `hitpoints`, kept in step by
+     * mock230_combat_sync_hitpoints, because the client's health orb reads the
+     * stat and the hitsplat's health bar reads the DAMAGE mask.
+     */
+    int stat_level[MOCK230_STAT_COUNT];
+    int stat_boosted[MOCK230_STAT_COUNT];
+    int stat_xp_tenths[MOCK230_STAT_COUNT];
+    /** Stats whose level or xp changed this tick, flushed by phase 10. */
+    uint32_t stat_dirty;
+
+    /** Attack style, 0-3 — see Mock230AttackStyle. Written by the combat tab
+     *  through varp 43, which is where OldSchool keeps it. */
+    int attack_style;
+
+    /** Set on death, drained by the tick: the respawn has to happen between
+     *  ticks so the death animation is seen before the teleport. */
+    int death_tick;
 };
 
 struct Mock230Server
@@ -496,6 +626,11 @@ struct Mock230Server
     /** Non-NULL only under the selftest; see mock230_capture_begin. */
     struct Mock230Capture* capture;
 
+    /** Objs on the floor. Flat rather than zone-bucketed: 256 entries scanned
+     *  once a tick is nothing, and a zone index would be the only structure in
+     *  the mock that has to be kept consistent under a rebuild. */
+    struct Mock230GroundObj ground[MOCK230_GROUND_MAX];
+
     /** Scripts parked by world_delay, drained by phase 1. */
     struct
     {
@@ -516,6 +651,20 @@ struct Mock230Server
 /* ------------------------------------------------------------------ */
 /* World (mock230_world.c)                                             */
 /* ------------------------------------------------------------------ */
+
+/** Cache the scene reads its map squares from. Set from main() beside the
+ *  other cache loaders. */
+void
+mock230_world_set_cache_dir(const char* dir);
+const char*
+mock230_world_cache_dir(void);
+
+/** The tile a session logs in on, and respawns at. Set from main() before
+ *  mock230_world_init; defaults to the Lumbridge castle courtyard. */
+void
+mock230_world_set_home(
+    int tile_x,
+    int tile_z);
 
 /** Seed the player, the npc roster and the starting inventory. */
 void
@@ -600,6 +749,29 @@ mock230_seq_for_npc(
 /* Combat (mock230_combat.c)                                           */
 /* ------------------------------------------------------------------ */
 
+/** Is this npc type a valid combat target? Decided by the cache's own menu ops,
+ *  the same test the client's minimenu makes. */
+int
+mock230_combat_attackable(int npc_type);
+
+/** Mark a stat as changed so phase 10 flushes it. */
+void
+mock230_combat_stat_mark(
+    struct Mock230Player* player,
+    int stat);
+
+/** Keep the hitpoints stat and the player's hitpoints in step. Call after any
+ *  change to either; they are one number in two places. */
+void
+mock230_combat_sync_hitpoints(struct Mock230Player* player);
+
+/** Award experience, in tenths of a point. Levels up and marks the stat. */
+void
+mock230_combat_add_xp(
+    struct Mock230Server* srv,
+    int stat,
+    int tenths);
+
 /** Engage an npc in melee: face it, walk beside it, and start swinging. */
 void
 mock230_combat_engage(
@@ -640,6 +812,28 @@ mock230_random(
     struct Mock230Server* srv,
     int lo,
     int hi);
+
+/** An npc reached zero hitpoints: run its drop table and leave the loot. */
+void
+mock230_world_npc_died(
+    struct Mock230Server* srv,
+    int slot);
+
+/** Put the player back on the home tile at full health. */
+void
+mock230_world_player_respawn(struct Mock230Server* srv);
+
+/** Drop an obj on the floor. `duration` is ticks, or -1 for a permanent spawn.
+ *  Returns the ground slot, or -1 when the floor is full. */
+int
+mock230_world_obj_add(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration);
 
 /** Queue a walk to a tile adjacent to (x, z) rather than onto it. */
 void
@@ -806,7 +1000,8 @@ mock230_send_stat(
     struct Mock230Server* srv,
     int stat,
     int level,
-    int xp);
+    int xp,
+    int boosted);
 void
 mock230_send_run_energy(
     struct Mock230Server* srv,
@@ -843,6 +1038,49 @@ mock230_send_inv_partial(
     const struct Mock230Item* slots,
     int slot_count,
     uint32_t dirty);
+
+/* Zone updates. Every zone sub-packet is preceded by the zone it applies to;
+ * `mock230_send_zone` emits that header, and the caller then sends sub-packets
+ * whose `pos` is the tile's offset inside the 8x8 zone. */
+/** Names the zone containing `tile_x`/`tile_z` and returns the `pos` byte the
+ *  sub-packets that follow must carry. Header and pos are only correct
+ *  together, which is why one call produces both. */
+int
+mock230_send_zone(
+    struct Mock230Server* srv,
+    int tile_x,
+    int tile_z);
+void
+mock230_send_obj_add(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id,
+    int count);
+void
+mock230_send_obj_del(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id);
+void
+mock230_send_obj_count(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id,
+    int old_count,
+    int new_count);
+void
+mock230_send_loc_add_change(
+    struct Mock230Server* srv,
+    int pos,
+    int shape,
+    int angle,
+    int loc_id);
+void
+mock230_send_loc_del(
+    struct Mock230Server* srv,
+    int pos,
+    int shape,
+    int angle);
 
 void
 mock230_send_player_info(struct Mock230Server* srv);

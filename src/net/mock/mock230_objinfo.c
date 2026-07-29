@@ -32,20 +32,88 @@ static const struct Mock230ObjInfo k_unknown = {
     .stackable = 0,
 };
 
+/*
+ * Copy the combat bonuses out of the record's param table.
+ *
+ * Param ids 0..11 are the twelve equipment bonuses (see Mock230CombatParam) and
+ * 14 is the attack rate in ticks — an OldSchool convention, documented by
+ * OpenRune's ParamMapper and confirmed against cache.osrs230 before anything
+ * was built on it. Anything else in the table is left alone: `params` also
+ * carries skill requirements, slayer categories and quest flags.
+ *
+ * `kinds[i] != 0` means a string param, whose `values[i]` is a `char*` — reading
+ * it as an int is a wild pointer dereference, not a wrong number.
+ */
+static void
+read_combat_params(
+    const struct RSCache_Params* params,
+    int* bonus,
+    int* attackrate,
+    int* has_params)
+{
+    for( int i = 0; i < params->count; i++ )
+    {
+        int key = params->keys[i];
+        int value;
+
+        if( params->kinds[i] != 0 || !params->values[i] )
+            continue;
+        value = *(const int*)params->values[i];
+
+        if( key >= 0 && key < 12 )
+        {
+            bonus[key] = value;
+            *has_params = 1;
+        }
+        else if( key == 14 )
+        {
+            *attackrate = value;
+            *has_params = 1;
+        }
+    }
+}
+
+/* Which of the three melee bonuses a weapon swings with: whichever attack bonus
+ * is largest. A scimitar's slash beats its stab, a mace's crush beats both.
+ * Ties go to stab, matching the enum order, and a weapon with no attack bonuses
+ * at all lands on crush, which is what an unarmed punch is. */
+static int
+derive_damage_type(const int* bonus)
+{
+    int best = 2; /* crush */
+    int best_value = bonus[2];
+
+    if( bonus[0] > best_value )
+    {
+        best = 0;
+        best_value = bonus[0];
+    }
+    if( bonus[1] > best_value )
+        best = 1;
+    return best;
+}
+
 static void
 record(
     int obj_id,
     const struct RSCache_Dat2ConfigObj* obj)
 {
+    struct Mock230ObjInfo* entry;
+
     if( obj_id < 0 || obj_id >= g_obj_count )
         return;
-    g_objs[obj_id].name = (obj->name && strcmp(obj->name, "null") != 0) ? strdup(obj->name) : NULL;
-    g_objs[obj_id].wearpos = obj->wearpos_1;
-    g_objs[obj_id].wearpos_2 = obj->wearpos_2;
-    g_objs[obj_id].wearpos_3 = obj->wearpos_3;
-    g_objs[obj_id].stackable = obj->stacking_behaviour == 1;
+    entry = &g_objs[obj_id];
+    entry->name = (obj->name && strcmp(obj->name, "null") != 0) ? strdup(obj->name) : NULL;
+    entry->wearpos = obj->wearpos_1;
+    entry->wearpos_2 = obj->wearpos_2;
+    entry->wearpos_3 = obj->wearpos_3;
+    entry->stackable = obj->stacking_behaviour == 1;
     for( int i = 0; i < 5; i++ )
-        g_objs[obj_id].if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
+        entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
+
+    entry->attackrate = 4;
+    read_combat_params(&obj->params, entry->bonus, &entry->attackrate, &entry->has_params);
+    entry->damagetype = derive_damage_type(entry->bonus);
 }
 
 int

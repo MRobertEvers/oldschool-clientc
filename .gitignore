@@ -60,4 +60,4 @@ test/ui_tree/output/
 /interfacex_*.bmp
 
 # poser-gl writes its settings into the working directory, as the reference does
-/poser-gl.settings
+poser-gl.settings

@@ -18,6 +18,9 @@
 
 #include "mock230_ws.h"
 
+/* The client's framing table, for the length check in mock230_send. */
+#include "net/rev/osrs230/packetin.h"
+
 #include <rsareabuf.h>
 
 #include <stdio.h>
@@ -49,6 +52,17 @@ enum
     OP_NPC_INFO = 104,
     OP_SERVER_TICK_END = 108,
     OP_UPDATE_STAT = 114,
+
+    /* Zones. 106 is a real rev-230 opcode; the sub-packet opcodes are assigned
+     * here and must match src/net/rev/osrs230/packetin.h, which is where the
+     * client resolves them (a zone sub-packet's opcode is looked up in the same
+     * table as a top-level one, so they cannot collide with either). */
+    OP_UPDATE_ZONE_PARTIAL_FOLLOWS = 106,
+    OP_LOC_ADD_CHANGE = 70,
+    OP_LOC_DEL = 71,
+    OP_OBJ_ADD = 120,
+    OP_OBJ_DEL = 121,
+    OP_OBJ_COUNT = 122,
 };
 
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -107,8 +121,56 @@ opcode_name(int op)
         return "SERVER_TICK_END";
     case OP_UPDATE_STAT:
         return "UPDATE_STAT";
+    case OP_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        return "UPDATE_ZONE_PARTIAL_FOLLOWS";
+    case OP_LOC_ADD_CHANGE:
+        return "LOC_ADD_CHANGE";
+    case OP_LOC_DEL:
+        return "LOC_DEL";
+    case OP_OBJ_ADD:
+        return "OBJ_ADD";
+    case OP_OBJ_DEL:
+        return "OBJ_DEL";
+    case OP_OBJ_COUNT:
+        return "OBJ_COUNT";
     default:
         return "?";
+    }
+}
+
+/*
+ * A fixed-length packet's framing comes from the client's table, not from what
+ * was written here: send one byte short and the client's reader takes the next
+ * packet's opcode as the missing field, so the stream desyncs at some unrelated
+ * packet later on and the encoder that was actually wrong is nowhere in sight.
+ * The table is right there in the client tree, so check against it rather than
+ * waiting for the symptom.
+ */
+static void
+check_frame_length(
+    int opcode,
+    int len,
+    int var)
+{
+    if( var != 0 )
+        return;
+    for( int i = 0; i < (int)(sizeof(g_packet_in_definitions_osrs230) /
+                              sizeof(g_packet_in_definitions_osrs230[0]));
+         i++ )
+    {
+        struct Osrs230PacketInDef const* def = &g_packet_in_definitions_osrs230[i];
+
+        if( def->code != opcode )
+            continue;
+        if( def->length >= 0 && def->length != len )
+            fprintf(
+                stderr,
+                "mock230: op %d (%s) wrote %d bytes, client frames it as %d\n",
+                opcode,
+                opcode_name(opcode),
+                len,
+                def->length);
+        return;
     }
 }
 
@@ -122,6 +184,8 @@ mock230_send(
 {
     uint8_t frame[64 * 1024];
     struct RSAreaBuf buf;
+
+    check_frame_length(opcode, len, var);
 
     /* Above the fd check on purpose: the selftest runs with no socket, and this
      * is the one point every encoder has already passed through with its
@@ -392,16 +456,22 @@ mock230_send_stat(
     struct Mock230Server* srv,
     int stat,
     int level,
-    int xp)
+    int xp,
+    int boosted)
 {
     /* UPDATE_STAT_V2 (7 bytes). Field order is the mock's own — see the
-     * osrs230_parse override that reads it back. */
+     * osrs230_parse override that reads it back.
+     *
+     * The boosted level is the one with a consumer: the client derives the base
+     * level from the xp and writes this into `current_level`, which is what the
+     * health orb reads for hitpoints. Sending the base twice pins the orb at
+     * full health forever, which is exactly what it used to do. */
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     rsab_p1(&buf, stat);
     rsab_p1(&buf, level);
     rsab_p4(&buf, xp);
-    rsab_p1(&buf, level); /* boosted */
+    rsab_p1(&buf, boosted);
     flush(srv, &buf, OP_UPDATE_STAT, 0);
 }
 
@@ -699,6 +769,138 @@ put_player_extended(
         rsab_p1(buf, player->hitpoints);
         rsab_p1(buf, player->max_hitpoints);
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Zones                                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A zone sub-packet does not carry a coordinate — only `pos`, the tile's
+ * offset inside an 8x8 zone as `(local_x << 4) | local_z`. Which zone that is
+ * comes from the UPDATE_ZONE_* packet before it, and the client keeps it as
+ * state until the next one. Sending a sub-packet without a zone header applies
+ * it to whatever zone was last named, which is a wrong-place bug rather than a
+ * decode failure.
+ *
+ * The base is in **classic scene-local tiles**: the client adds `scene_off_x`
+ * (its own scene base is the 64-aligned map-square corner, the server's origin
+ * is `(zone - 6) * 8`) and then `pos >> 4`. That is the same conversion every
+ * entity coordinate goes through, so getting it wrong here shows up as loot
+ * landing a few tiles from the corpse rather than as anything louder.
+ *
+ * The header is the two base bytes and nothing else — real rev-230 carries a
+ * level as well, which packetin.h deliberately drops (the mock is single-plane
+ * per scene). It has to stay in step with the length that table declares:
+ * writing a byte the client's framing does not expect makes the frame eat the
+ * opcode of whatever follows, so the stream desyncs a packet later, nowhere
+ * near here. `check_frame_length` is what catches that.
+ *
+ * Returns the `pos` byte for this tile, because the two are only correct
+ * together.
+ */
+int
+mock230_send_zone(
+    struct Mock230Server* srv,
+    int tile_x,
+    int tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = (tile_x & ~7) - mock230_scene_origin(srv->zone_x);
+    int base_z = (tile_z & ~7) - mock230_scene_origin(srv->zone_z);
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, base_x);
+    rsab_p1(&buf, base_z);
+    flush(srv, &buf, OP_UPDATE_ZONE_PARTIAL_FOLLOWS, 0);
+    return ((tile_x & 7) << 4) | (tile_z & 7);
+}
+
+void
+mock230_send_obj_add(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id,
+    int count)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, pos);
+    rsab_p2(&buf, obj_id);
+    /* The count is 16 bits on the wire; a bigger stack is drawn as its
+     * thousands abbreviation by the client, which reads the count it was
+     * given. Clamping is better than wrapping 65,536 coins to zero. */
+    rsab_p2(&buf, count > 0xffff ? 0xffff : count);
+    flush(srv, &buf, OP_OBJ_ADD, 0);
+}
+
+void
+mock230_send_obj_del(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, pos);
+    rsab_p2(&buf, obj_id);
+    flush(srv, &buf, OP_OBJ_DEL, 0);
+}
+
+void
+mock230_send_obj_count(
+    struct Mock230Server* srv,
+    int pos,
+    int obj_id,
+    int old_count,
+    int new_count)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, pos);
+    rsab_p2(&buf, obj_id);
+    rsab_p2(&buf, old_count > 0xffff ? 0xffff : old_count);
+    rsab_p2(&buf, new_count > 0xffff ? 0xffff : new_count);
+    flush(srv, &buf, OP_OBJ_COUNT, 0);
+}
+
+/* `info` packs the loc's shape and angle into one byte: (shape << 2) | angle.
+ * The client unpacks it the same way for every loc packet, which is why LOC_DEL
+ * carries it too — a tile can hold a wall and a scenery loc at once, and the
+ * shape says which one is meant. */
+void
+mock230_send_loc_add_change(
+    struct Mock230Server* srv,
+    int pos,
+    int shape,
+    int angle,
+    int loc_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, pos);
+    rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
+    rsab_p2(&buf, loc_id);
+    flush(srv, &buf, OP_LOC_ADD_CHANGE, 0);
+}
+
+void
+mock230_send_loc_del(
+    struct Mock230Server* srv,
+    int pos,
+    int shape,
+    int angle)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    rsab_p1(&buf, pos);
+    rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
+    flush(srv, &buf, OP_LOC_DEL, 0);
 }
 
 void

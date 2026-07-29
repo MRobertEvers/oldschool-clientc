@@ -205,13 +205,23 @@ SSC_SymbolsLoadPack(
 
     while( fgets(line, sizeof(line), file) )
     {
-        char* equals = strchr(line, '=');
+        char* cursor = line;
+        char* equals;
 
+        /* A generated pack carries a provenance header saying where its ids
+         * came from and how to add one. Without comment support that header
+         * has to be kept out of the file, which is where it is most useful. */
+        while( *cursor == ' ' || *cursor == '\t' )
+            cursor++;
+        if( *cursor == '#' || (cursor[0] == '/' && cursor[1] == '/') )
+            continue;
+
+        equals = strchr(cursor, '=');
         if( !equals )
             continue;
         *equals = '\0';
         strip_eol(equals + 1);
-        if( SSC_SymbolsAdd(symbols, equals + 1, (int32_t)atoi(line), kind, NULL) )
+        if( SSC_SymbolsAdd(symbols, equals + 1, (int32_t)atoi(cursor), kind, NULL) )
             loaded++;
     }
     fclose(file);

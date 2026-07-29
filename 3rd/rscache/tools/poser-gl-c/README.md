@@ -85,9 +85,12 @@ editor's framing, zoom limits and node scale were tuned against them.
   as one piece.
 - **Items** — click one to put it in the entity's hand. A sequence's
   `leftHandItem` / `rightHandItem` equip and unequip with it.
-- **Animations** — every sequence, parsed into keyframes of reference nodes. A
-  skeleton is inferred by asking which joint's rotation label set contains which
-  other's; the root is the joint whose rotation moves the most labels.
+- **Animations** — every sequence, parsed into keyframes, each of which derives a
+  rig. Nothing in the cache records a hierarchy: `pg_rig.c` recovers one by
+  asking which joint's rotation label set contains which other's, taking the root
+  to be the joint whose rotation moves the most labels. That inference is the
+  only thing in that file, and it depends on nothing else in the tool — see the
+  header for why it is worth keeping apart.
 - **Editing** — drag a joint's gizmo or type into the X/Y/Z sliders, change a
   keyframe's length, and add / copy / paste / interpolate / delete keyframes. All
   of it goes through one undoable command path, so a drag and a typed value are
@@ -160,9 +163,10 @@ drag exercises the angle projection.
 
 | | |
 |---|---|
+| `pg_rig.c` | **the rig**: framemap + frame to joints, children and hierarchy. Depends on nothing |
 | `pg_cache.c` | rscache adaptor — npcs, items, identikits, sequences, models, frame archives, and the pack |
 | `pg_model.c` | poser-gl's `ModelDefinition`: merge, bone groups, and the `animate` kernel |
-| `pg_anim.c` | sequence to keyframes, reference nodes, skeleton inference |
+| `pg_anim.c` | the sequence around the rig: keyframes, lengths, insert and remove |
 | `pg_render.c` | shaders, buffers, camera, entity / grid / bone / node draws |
 | `pg_gizmo.c` | the three manipulators and their pick volumes |
 | `pg_gui.c` | the immediate-mode widget layer |

@@ -311,6 +311,15 @@ pg_export_redo(struct PG_App* app);
 bool
 pg_pack_animation(struct PG_App* app, const char* out_directory);
 
+/**
+ * A joint's viewer-space position as a vector.
+ *
+ * The rig stores it as three floats because it depends on nothing in this tool;
+ * everything that draws or picks wants a PG_Vec3.
+ */
+struct PG_Vec3
+pg_joint_position(const struct PG_RigJoint* joint);
+
 void
 pg_app_message(struct PG_App* app, const char* title, const char* message);
 void

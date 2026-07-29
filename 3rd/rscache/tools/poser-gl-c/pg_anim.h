@@ -2,62 +2,23 @@
 #define POSER_GL_C_PG_ANIM_H
 
 /*
- * The editable animation: a sequence turned into keyframes of reference nodes.
+ * The editable animation: a sequence, its keyframes, and the rig each keyframe
+ * poses.
  *
- * A cache frame is a flat list of (transform index, x, y, z). What makes it
- * editable is the structure the reference frame implies: an ORIGIN transform
- * defines a pivot and the transforms following it, up to the next ORIGIN, move
- * around that pivot. poser-gl calls that group a reference node, treats it as a
- * joint, and infers a skeleton by asking which joint's rotation label set
- * contains which other's.
+ * Working out the rig is `pg_rig.c`'s job and none of it is here — this file is
+ * about the sequence around it: which frames it plays, for how long, and how a
+ * keyframe is copied, inserted and removed while the editor works on it.
  */
 
 #include "pg_cache.h"
-#include "pg_math.h"
 #include "pg_model.h"
+#include "pg_rig.h"
 
 #include <stdbool.h>
 
 #define PG_MAX_ANIMATION_LENGTH 9999
 /** Sequence item fields below this are not item ids. poser-gl's ITEM_OFFSET. */
 #define PG_ITEM_OFFSET 512
-
-enum PG_TransformType
-{
-    PG_TF_REFERENCE = 0,
-    PG_TF_TRANSLATION = 1,
-    PG_TF_ROTATION = 2,
-    PG_TF_SCALE = 3,
-    /* Type 5 is an alpha transform; poser-gl does not edit those and neither
-     * does this, so it is neither a reference nor a child here. */
-};
-
-const char*
-pg_transform_type_name(int type);
-/** 0 for every type but scale, whose absent components read back as 128. */
-int
-pg_transform_default_delta(int type);
-
-struct PG_Transformation
-{
-    int id; /* index into the framemap's transform list */
-    int type;
-    const int* labels; /* borrowed from the framemap */
-    int label_count;
-    int delta[3];
-
-    bool is_reference;
-
-    /* Reference-node fields. Children and parent are indices into the owning
-     * keyframe's array rather than pointers, because that array is grown by
-     * realloc while the skeleton is being built. */
-    int child_by_type[4]; /* -1 when absent */
-    int child_order[4];   /* insertion order, which the .pgl format preserves */
-    int child_count;
-    int parent; /* -1 when none */
-    struct PG_Vec3 position;
-    bool highlighted;
-};
 
 struct PG_Keyframe
 {
@@ -67,11 +28,8 @@ struct PG_Keyframe
     struct PG_FrameMapDef* framemap;
     bool modified;
 
-    struct PG_Transformation* transformations;
-    int transformation_count;
-    int transformation_capacity;
-
-    int root_node; /* index into transformations, or -1 */
+    /** The joints and hierarchy this frame implies, from pg_rig. */
+    struct PG_RigSkeleton skeleton;
 };
 
 struct PG_Animation
@@ -114,11 +72,12 @@ struct PG_Animation*
 pg_animation_copy(const struct PG_Animation* src, int new_id);
 
 /**
- * Read the sequence's frames into keyframes. A no-op once loaded.
+ * Read the sequence's frames into keyframes, deriving each one's rig. A no-op
+ * once loaded.
  *
- * `advanced_mode` widens each frame's transform set from the indices it actually
- * carries to the whole range up to its highest one, which surfaces joints the
- * animation never moves.
+ * `advanced_mode` widens the set of transforms considered from the ones the
+ * frames actually carry to the whole range up to the highest, which surfaces
+ * joints the animation never moves.
  */
 void
 pg_animation_load(struct PG_Animation* anim, struct PG_Cache* cache, bool advanced_mode);
@@ -145,31 +104,14 @@ pg_animation_remove_keyframe_at(struct PG_Animation* anim, int index);
 /* ---- keyframes ------------------------------------------------------------ */
 
 void
-pg_keyframe_init(struct PG_Keyframe* kf);
+pg_keyframe_init(struct PG_Keyframe* keyframe);
 void
-pg_keyframe_free_contents(struct PG_Keyframe* kf);
-/** Deep copy, preserving the reference/child structure and the parent links. */
+pg_keyframe_free_contents(struct PG_Keyframe* keyframe);
+/** Deep copy, including the rig. */
 void
 pg_keyframe_copy(struct PG_Keyframe* dst, const struct PG_Keyframe* src, int new_id);
-/** Infer parents and the root joint from the reference nodes' label sets. */
+/** Reset the model to its rest pose and apply every transform of the rig, in order. */
 void
-pg_keyframe_build_skeleton(struct PG_Keyframe* kf);
-/** Reset the model to its rest pose and apply every transformation in order. */
-void
-pg_keyframe_apply(const struct PG_Keyframe* kf, struct PG_ModelDef* def);
-/** The transformation with this id, or NULL. */
-struct PG_Transformation*
-pg_keyframe_find(struct PG_Keyframe* kf, int id);
-
-/** Average position of a reference node's labelled vertices, in model space. */
-void
-pg_reference_set_position(
-    struct PG_Transformation* node,
-    const struct PG_ModelDef* def,
-    float scale_divisor);
-
-/** The child of `node` with this type, or the node itself for REFERENCE. */
-struct PG_Transformation*
-pg_reference_child(struct PG_Keyframe* kf, struct PG_Transformation* node, int type);
+pg_keyframe_apply(const struct PG_Keyframe* keyframe, struct PG_ModelDef* def);
 
 #endif

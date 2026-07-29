@@ -98,6 +98,24 @@ pg_model_animate(
 void
 pg_model_reset_transformations(struct PG_ModelDef* def);
 
+/**
+ * Summed positions of every vertex the given bone labels own, and how many there
+ * were. This is what a joint's on-screen position is derived from: a bone group
+ * has no position of its own, only the vertices it moves.
+ *
+ * The sum and the count come back separately rather than as a mean because the
+ * caller folds the frame's own offset into the numerator before dividing, which
+ * is what the reference does and is not the same as adding it to the mean.
+ * Returns zero when the labels match nothing — the same condition that makes an
+ * origin transform fall back to an absolute pivot.
+ */
+int
+pg_model_label_vertex_sum(
+    const struct PG_ModelDef* def,
+    const int* labels,
+    int label_count,
+    float out_sum[3]);
+
 /** The pivot the last origin transform computed. */
 void
 pg_model_anim_offset(int* x, int* y, int* z);

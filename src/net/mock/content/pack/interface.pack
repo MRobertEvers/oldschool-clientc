@@ -1,0 +1,11 @@
+// Hand-authored: interface ids verified with tools/dump_interface against
+// cache.osrs230, not imported. OpenRune's gameval `interfaces` group names the
+// same ids, but these four were verified here first and the verification is
+// the thing worth keeping.
+231=npcchat
+217=playerchat
+219=chatmulti
+229=chatmessage
+161=gameframe
+149=inventory
+387=worn_equipment

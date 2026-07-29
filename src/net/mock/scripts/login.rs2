@@ -1,9 +1,0 @@
-// Runs once per session, in phase 7 of the tick.
-//
-// The C login burst still sends the scene, the gameframe and the containers —
-// that is engine work, not content. What belongs here is anything a server
-// operator would want to change without recompiling.
-
-[login,_]
-mes("Welcome to the rev-230 mock server.");
-mes("Scripts are live: try talking to Hans.");

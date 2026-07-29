@@ -28,8 +28,14 @@ src/torirs --manifest manifest_osrs230.ini --user test --pass test
 | env | effect |
 | --- | --- |
 | `MOCK230_VERBOSE=1` | log every packet in and out |
-| `MOCK230_CACHE=dir` | cache to read obj metadata from (default `cache.osrs230`, falling back to `../cache.osrs230`) |
-| `MOCK230_ZONE=x,z` | origin zone to spawn in (default `426,408` — Al Kharid) |
+| `MOCK230_CACHE=dir` | cache to read metadata and map squares from (default `cache.osrs230`, falling back to `../cache.osrs230`) |
+| `MOCK230_CONTENT=dir` | content tree (default `src/net/mock/content`) |
+| `MOCK230_SCRIPTS=dir` | compiled script pack (default `<content>/scripts/build`) |
+| `MOCK230_HOME=x,z` | tile to log in on (default `3222,3218` — the Lumbridge castle courtyard). The scene's origin zone is derived from it |
+
+`::` commands, for steering a session without a UI: `::talk <slot> [op]`,
+`::fight <slot>`, `::style <0-3>`, `::setlevel <stat> <level>`, `::item <id>
+[count]`, `::tele <x> <z>`, `::npc <type>`.
 
 Layout:
 
@@ -39,8 +45,18 @@ Layout:
 | `src/net/mock/mock230_ws.c` | the byte stream: raw TCP or WebSocket, decided per client |
 | `src/net/mock/mock230_world.c` | player, npcs, containers, equipment, the tick, the self-test |
 | `src/net/mock/mock230_encode.c` | every server→client packet |
-| `src/net/mock/mock230_objinfo.c` | obj name / wearpos / ops, decoded from the cache |
+| `src/net/mock/mock230_objinfo.c` | obj name / wearpos / ops / combat params, from the cache |
+| `src/net/mock/mock230_npcinfo.c` | npc name / level / ops / combat params, from the cache |
+| `src/net/mock/mock230_content.c` | the LostCity content tree — see `docs/mock230_content.md` |
+| `src/net/mock/mock230_scene.c` | collision and locs, built from the cache's map squares |
+| `src/net/mock/mock230_combat.c` | melee on OldSchool's own arithmetic |
+| `src/net/mock/mock230_pack.c` | content validator + derived-cache exporter |
 | `3rd/rsareabuf/` | the packet buffer everything encodes through |
+
+The world is **Lumbridge**, spawned from OpenRune's own spawn list, with
+collision read out of the same map squares the client draws. Content — combat
+stats, drop tables, doors, dialogue — lives in `src/net/mock/content` and is
+documented separately in [`mock230_content.md`](mock230_content.md).
 
 ---
 
@@ -127,6 +143,38 @@ appearance, movement interpolation, minimap dots, the pick set. **It is not wire
 compatible with a real OldSchool 230 server.** Everything else (`IF_OPENSUB`,
 `IF_SETEVENTS`, `UPDATE_INV_FULL`/`_PARTIAL`, `REBUILD_NORMAL`) uses the real
 RSProt layouts, alt byte orders and all.
+
+### 3.1b Zone packets are half real, half assigned
+
+`UPDATE_ZONE_PARTIAL_FOLLOWS` (106), `_FULL_FOLLOWS` (41) and
+`_PARTIAL_ENCLOSED` (38) are real rev-230 opcodes. The sub-packets that follow
+them — `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT`, `LOC_ADD_CHANGE`, `LOC_DEL` — are
+assigned here (70-72, 120-126), the same way the `IF_SET*` family's are (§3.5),
+with lc254's payload layouts because those are what `gameproto_parse.c` already
+decodes.
+
+They could not simply reuse lc254's numbering: **a zone sub-packet's opcode is
+resolved through the same table as a top-level one** (`rev->packetin_code`), and
+lc254 puts `OBJ_COUNT` on 98 and `MAP_ANIM` on 114, where rev 230 has
+`IF_SETHIDE` and `UPDATE_STAT`.
+
+The zone header is two bytes, not the three RSProt's table states: the payload
+is the zone's base as a pair of **classic scene-local tiles**, which the client
+converts by adding `scene_off_x` — its own scene base is the 64-aligned map
+square corner, the server's origin is `(zone - 6) * 8`. That is the same
+conversion every entity coordinate goes through, so getting it wrong shows up as
+loot landing a few tiles from the corpse rather than as anything louder. The
+shared parser asserts exact consumption, so a third byte aborts the client.
+
+### 3.1c `UPDATE_STAT` carries the boosted level, and that is the field with a consumer
+
+`RS_GameProtoExec` writes the packet's level straight into
+`stats->current_level`, having just let `RS_PlayerStats_SetXp` derive
+`base_level` from the xp. So the base level on the wire is redundant and the
+boosted one is what matters — the health orb reads `current_level[hitpoints]`,
+which is the same number as the player's hitpoints. Sending the base there pins
+the orb at full health for the whole session, which is exactly what it used to
+do.
 
 ### 3.2 Field widths in the info streams are revision state
 
@@ -341,25 +389,32 @@ where work goes whereas an absent one invites putting it wherever is nearest.
 ## 3.10 Content is RuneScript, not C
 
 Behaviour that a server operator would want to change lives in
-`src/net/mock/scripts/*.rs2`, compiled by `src/serverscript`'s `sscompile` and
-executed by the ServerScript VM. See `docs/serverscript.md` for the toolchain
-and `src/net/mock/scripts/README.md` for the content.
+`src/net/mock/content/scripts/`, compiled by `src/serverscript`'s `sscompile`
+and executed by the ServerScript VM. See `docs/serverscript.md` for the
+toolchain and [`mock230_content.md`](mock230_content.md) for the tree.
 
 ```
-make -C src mock230-scripts     # rebuild the pack (output is checked in)
+make -C src mock230-scripts     # build the pack — needed on a fresh checkout
 ```
 
 Wired triggers: `[login,_]` from phase 7, `[opnpc1..5,<npc>]` from an OPNPC
-packet. Resolution follows the reference — exact npc type, then category, then
-the global form.
+packet, and `[ai_queue3,<npc>]` when an npc reaches zero hitpoints — which is
+LostCity's death trigger, and where every drop table lives. Resolution follows
+the reference: exact npc type, then category, then the global form.
+
+"Attack" is deliberately *not* content. The engine reads the npc's own cache op
+list, which is the same five options the client built its right-click menu from,
+so anything OldSchool made attackable is attackable here with no per-npc script
+line and no second list to keep in step.
 
 **The fallback contract is load-bearing.** No script pack, or no script for a
 trigger, means the call site does exactly what it did before scripts existed.
 That is what keeps `make -C src test-mock230` green while content is mid-edit,
 and what makes a broken toolchain degrade the mock rather than break it.
 
-**Ids are rev-230 ids.** `scripts/pack/*.pack` maps names to ids from
-`cache.osrs230`. LostCity's own packs are 2004-era and would hand the client
+**Ids are rev-230 ids.** `content/pack/*.pack` maps names to ids valid in
+`cache.osrs230`, imported from OpenRune's gameval table and re-validated by
+`mock230_pack`. LostCity's own packs are 2004-era and would hand the client
 something unrelated.
 
 ### Suspension

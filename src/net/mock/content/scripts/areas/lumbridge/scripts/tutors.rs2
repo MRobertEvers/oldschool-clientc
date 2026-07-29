@@ -1,0 +1,63 @@
+// The Lumbridge tutors and shopkeepers.
+//
+// Ported from OpenRune's content/.../areas/lumbridge/npcs/*.kt — same npcs,
+// same opening lines — into the ~chatnpc form this tree uses. OpenRune's
+// dialogue is a Kotlin DSL with options and branches; this is the linear spine
+// of each conversation, because the mock has `p_pausebutton` but no
+// multiple-choice dialogue yet (that needs the option interfaces wiring, which
+// is a separate piece of work from the protocol side already done).
+//
+// Every one of these is `[opnpc1,<npc>]`: "Talk-to" is op 1 on all of them at
+// rev 230. The Attack case never reaches content — the engine reads the cache's
+// own op list for that.
+
+[opnpc1,cooking_tutor]
+~chatnpc(cooking_tutor, "Cooking tutor", "Hello there! Are you interested in cooking?");
+~chatnpc(cooking_tutor, "Cooking tutor", "You can cook food on a fire or a range.");
+~chatnpc(cooking_tutor, "Cooking tutor", "Try it with the raw beef a cow leaves behind.");
+if_close;
+
+[opnpc1,crafting_tutor]
+~chatnpc(crafting_tutor, "Crafting tutor", "Welcome to the crafting shop!");
+~chatnpc(crafting_tutor, "Crafting tutor", "Bring me a cowhide and I'll show you what to do with it.");
+if_close;
+
+[opnpc1,prayer_tutor]
+~chatnpc(prayer_tutor, "Prayer tutor", "Greetings, traveller.");
+~chatnpc(prayer_tutor, "Prayer tutor", "Bury the bones you find and your prayer will grow.");
+if_close;
+
+[opnpc1,doomsayer]
+~chatnpc(doomsayer, "Doomsayer", "Doom! Doom is coming!");
+~chatnpc(doomsayer, "Doomsayer", "...eventually. Probably.");
+if_close;
+
+[opnpc1,gee]
+~chatnpc(gee, "Gee", "Welcome to Lumbridge!");
+~chatnpc(gee, "Gee", "The goblins east of the river are a good place to start.");
+~chatnpc(gee, "Gee", "Mind the guards on the Al Kharid road — they hit hard.");
+if_close;
+
+[opnpc1,father_aereck]
+~chatnpc(father_aereck, "Father Aereck", "Welcome to my church.");
+~chatnpc(father_aereck, "Father Aereck", "It has stood here longer than Lumbridge itself.");
+if_close;
+
+[opnpc1,bob]
+~chatnpc(bob, "Bob", "Hello, I'm Bob. I run this axe shop.");
+~chatnpc(bob, "Bob", "Bring me anything broken and I'll see what I can do.");
+if_close;
+
+[opnpc1,shop_keeper]
+~chatnpc(shop_keeper, "Shop keeper", "Can I help you at all?");
+~chatnpc(shop_keeper, "Shop keeper", "Have a look at my wares.");
+if_close;
+
+[opnpc1,shop_assistant]
+~chatnpc(shop_assistant, "Shop assistant", "Can I help you at all?");
+if_close;
+
+[opnpc1,goblin_cook]
+~chatnpc(goblin_cook, "Goblin Cook", "You not eat my stew!");
+~chatnpc(goblin_cook, "Goblin Cook", "Is for goblins only!");
+if_close;

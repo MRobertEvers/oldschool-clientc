@@ -228,14 +228,14 @@ self_test(struct PG_App* app)
     {
         struct PG_Keyframe* keyframe =
             &anim->keyframes[pg_animation_frame_index(anim, app->frame_counter)];
-        struct PG_Transformation* target = NULL;
+        struct PG_RigJoint* target = NULL;
         int before = 0;
 
-        for( int i = 0; i < keyframe->transformation_count; i++ )
+        for( int i = 0; i < keyframe->skeleton.joint_count; i++ )
         {
-            if( keyframe->transformations[i].type == PG_TF_ROTATION )
+            if( keyframe->skeleton.joints[i].kind == PG_RIG_ROTATE )
             {
-                target = &keyframe->transformations[i];
+                target = &keyframe->skeleton.joints[i];
                 break;
             }
         }
@@ -259,7 +259,7 @@ self_test(struct PG_App* app)
 
             anim = pg_app_current_animation(app);
             keyframe = &anim->keyframes[pg_animation_frame_index(anim, app->frame_counter)];
-            target = pg_keyframe_find(keyframe, id);
+            target = pg_rig_skeleton_find(&keyframe->skeleton, id);
             if( !target || target->delta[0] != before + 37 )
             {
                 fprintf(stderr, "self-test: transform did not apply\n");
@@ -268,7 +268,7 @@ self_test(struct PG_App* app)
             pg_app_undo(app);
             anim = pg_app_current_animation(app);
             keyframe = &anim->keyframes[pg_animation_frame_index(anim, app->frame_counter)];
-            target = pg_keyframe_find(keyframe, id);
+            target = pg_rig_skeleton_find(&keyframe->skeleton, id);
             if( !target || target->delta[0] != before )
             {
                 fprintf(stderr, "self-test: transform did not undo\n");

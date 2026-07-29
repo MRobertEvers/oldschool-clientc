@@ -147,6 +147,7 @@ POSER_SRCS := \
 	$(TOOLS)/poser-gl-c/pg_gl.c \
 	$(TOOLS)/poser-gl-c/pg_font.c \
 	$(TOOLS)/poser-gl-c/pg_model.c \
+	$(TOOLS)/poser-gl-c/pg_rig.c \
 	$(TOOLS)/poser-gl-c/pg_cache.c \
 	$(TOOLS)/poser-gl-c/pg_anim.c \
 	$(TOOLS)/poser-gl-c/pg_render.c \

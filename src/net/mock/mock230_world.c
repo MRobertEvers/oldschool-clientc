@@ -14,6 +14,9 @@
  */
 #include "mock230.h"
 
+#include "mock230_content.h"
+#include "mock230_scene.h"
+#include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
 #include "ssvm_provider.h"
 
@@ -28,6 +31,28 @@
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
 /* ------------------------------------------------------------------ */
+
+/* The tile a session logs in on. See mock230_world_set_home. */
+static int g_home_x = 3222;
+static int g_home_z = 3218;
+
+/* Where the scene reads its map squares from. Set once beside the other cache
+ * loaders; kept here rather than threaded through every rebuild path because
+ * the mock opens exactly one cache. */
+static char g_cache_dir[512] = "cache.osrs230";
+
+void
+mock230_world_set_cache_dir(const char* dir)
+{
+    snprintf(g_cache_dir, sizeof(g_cache_dir), "%s", dir);
+}
+
+const char*
+mock230_world_cache_dir(void)
+{
+    return g_cache_dir;
+}
+
 
 /* xorshift32: a session replays identically for a given seed, which matters
  * when a screenshot test has to land on the same frame twice. */
@@ -261,8 +286,18 @@ steps_push(
  * The client's move packet carries up to 25 waypoints of the path it already
  * routed, which for a short walk is every tile and for a long one is a
  * truncated prefix. Either way consecutive waypoints can be more than a tile
- * apart, so each pair is interpolated the way a RuneScape actor walks:
- * diagonally while both axes still differ, then straight.
+ * apart, so the gap has to be filled in.
+ *
+ * The filling is a real route through the scene's collision, not the
+ * straight-line interpolation this used to do: the client routes around a wall
+ * and sends the turning points, and interpolating between two turning points in
+ * a straight line cuts the corner the client walked around. The player then
+ * stands inside the castle wall, and every subsequent step disagrees with what
+ * is on screen.
+ *
+ * An unreachable waypoint falls back to the straight line rather than to
+ * nothing. A server that silently refuses to move is much harder to diagnose
+ * than one that walks somewhere slightly wrong, and this is a mock.
  */
 static void
 steps_walk_to(
@@ -272,6 +307,17 @@ steps_walk_to(
 {
     int cur_x = player->step_count > 0 ? player->steps[player->step_count - 1].x : player->x;
     int cur_z = player->step_count > 0 ? player->steps[player->step_count - 1].z : player->z;
+    int path_x[MOCK230_STEP_MAX];
+    int path_z[MOCK230_STEP_MAX];
+    int steps = mock230_scene_route(player->level, cur_x, cur_z, x, z, path_x, path_z,
+                                    MOCK230_STEP_MAX);
+
+    if( steps >= 0 )
+    {
+        for( int i = 0; i < steps; i++ )
+            steps_push(player, path_x[i], path_z[i]);
+        return;
+    }
 
     while( cur_x != x || cur_z != z )
     {
@@ -369,6 +415,17 @@ maybe_rebuild(struct Mock230Server* srv)
     srv->zone_z = player->z >> 3;
     srv->rebuild_pending = 1;
     player->place_dirty = 1;
+    /* A rebuild resets the client's zones, so everything it was told about has
+     * to be said again. Cleared here, where the rebuild is *decided*, rather
+     * than where it is sent: phase 8 flushes ground objs and phase 10 sends the
+     * rebuild, so clearing at send time would undo a flush that already
+     * happened this tick. */
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        srv->ground[i].sent = 0;
+    /* The server's collision window moves with the client's scene. A door
+     * opened inside the old window and still inside the new one is re-sent by
+     * phase 10, which is why mock230_scene_build keeps the changed list. */
+    mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
     /* Tracked npcs deliberately survive: the client shifts every kept entity
      * by the base-tile delta when it rebuilds (App_WorldRebuildShift), so their
      * slots stay valid. Dropping and re-adding them would instead re-spawn
@@ -385,8 +442,10 @@ npc_spawn(
     int type,
     int x,
     int z,
-    int wander_radius)
+    int level)
 {
+    const struct Mock230NpcDef* def;
+
     /* A wider id would not fail loudly — it would truncate to a different,
      * probably valid, npc. rev 230 states 14 bits, which covers the whole
      * OldSchool npc space; the guard exists for the day that changes. */
@@ -400,6 +459,13 @@ npc_spawn(
         return;
     }
 
+    /* Content first, engine defaults second. A spawn is allowed to name an npc
+     * no config block describes — it gets 10 hitpoints and unarmed animations,
+     * which is enough to be a target rather than a crash. */
+    def = mock230_content_npc(type);
+    if( !def )
+        def = mock230_content_npc_default();
+
     for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
@@ -410,19 +476,17 @@ npc_spawn(
         npc->type = type;
         npc->x = x;
         npc->z = z;
+        npc->level = level;
         npc->spawn_x = x;
         npc->spawn_z = z;
-        npc->wander_radius = wander_radius;
+        npc->spawn_level = level;
+        npc->def = def;
+        npc->wander_radius = def->nomove ? 0 : def->wanderrange;
         npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
         npc->step_dir = -1;
         npc->face_entity = -1;
 
-        /* Combat. Hitpoints scale off the cache's combat level so a goblin and
-         * a guard are not equally tough; the formula is the mock's own, since
-         * rev-230 npc configs carry no server-side hitpoints field. */
-        npc->base_hitpoints = mock230_npcinfo(type)->combat_level > 0
-                                  ? mock230_npcinfo(type)->combat_level * 2
-                                  : 5;
+        npc->base_hitpoints = def->hitpoints > 0 ? def->hitpoints : 1;
         npc->hitpoints = npc->base_hitpoints;
         npc->max_hitpoints = npc->base_hitpoints;
         npc->combat_target = -1;
@@ -430,14 +494,31 @@ npc_spawn(
         npc->respawn_tick = -1;
         npc->timer_script = -1;
 
-        /* Derived from the cache's sequence names, not from a table of magic
-         * numbers — see mock230_seqinfo.c. -1 means "play nothing", which is
-         * the right answer for an npc whose name follows no convention. */
-        npc->attack_seq = mock230_seq_for_npc(type, "_attack");
-        npc->block_seq = mock230_seq_for_npc(type, "_block");
-        npc->death_seq = mock230_seq_for_npc(type, "_death");
+        /*
+         * Animations come from the content block, which names them by symbol.
+         * The old convention-based lookup (`<lowercased npc name><suffix>`) is
+         * still the fallback for an npc nothing describes: it is right often
+         * enough to be worth keeping and -1 — "play nothing" — where it is not.
+         */
+        npc->attack_seq = def->attack_anim;
+        npc->block_seq = def->defend_anim;
+        npc->death_seq = def->death_anim;
+        if( def == mock230_content_npc_default() )
+        {
+            int derived = mock230_seq_for_npc(type, "_attack");
+            if( derived >= 0 )
+                npc->attack_seq = derived;
+            derived = mock230_seq_for_npc(type, "_block");
+            if( derived >= 0 )
+                npc->block_seq = derived;
+            derived = mock230_seq_for_npc(type, "_death");
+            if( derived >= 0 )
+                npc->death_seq = derived;
+        }
         return;
     }
+
+    fprintf(stderr, "mock230: no free npc slot for type %d at %d,%d\n", type, x, z);
 }
 
 /* One tile of idle roaming, on the xrsps/RSMod timer: an idle npc re-rolls a
@@ -474,10 +555,155 @@ advance_npcs(struct Mock230Server* srv)
         dir = mock230_step_direction(step_x - npc->x, step_z - npc->z);
         if( dir < 0 )
             continue;
+        /* Roaming used to walk npcs through walls, which is more visible than
+         * the player doing it: a goblin wandering out of a fenced pen and
+         * across a river reads as a broken server long before anyone checks
+         * the pathfinding. */
+        if( !mock230_scene_can_step(npc->level, npc->x, npc->z, dir) )
+            continue;
         npc->x = step_x;
         npc->z = step_z;
         npc->step_dir = dir;
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Ground objs                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Objs on the floor.
+ *
+ * Two kinds, and the distinction is LostCity's: a *spawn* comes from a map
+ * square's `==== OBJ ====` section and comes back on a timer after it is taken;
+ * a *drop* is left by a kill and expires. Collapsing the two would mean either
+ * a world that empties permanently or loot that never goes away.
+ *
+ * The client is told about one only while it is within the scene, and told
+ * again after a rebuild — REBUILD_NORMAL resets its zones, so `sent` is
+ * cleared there rather than being trusted across it.
+ */
+
+int
+mock230_world_obj_add(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration)
+{
+    if( obj_id < 0 || count <= 0 )
+        return -1;
+
+    /* Stack onto an existing pile of the same obj. A stackable obj has to
+     * merge — three separate coin piles on one tile is not a thing the client
+     * can draw — and merging a non-stackable one is wrong, so the count is
+     * only combined when the cache says it stacks. */
+    if( mock230_objinfo(obj_id)->stackable )
+    {
+        for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        {
+            struct Mock230GroundObj* obj = &srv->ground[i];
+
+            if( !obj->active || obj->obj_id != obj_id || obj->x != x || obj->z != z ||
+                obj->level != level )
+                continue;
+            obj->count += count;
+            obj->sent = 0; /* re-sent as an OBJ_COUNT by phase 8 */
+            return i;
+        }
+    }
+
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        struct Mock230GroundObj* obj = &srv->ground[i];
+
+        if( obj->active )
+            continue;
+        memset(obj, 0, sizeof(*obj));
+        obj->active = 1;
+        obj->obj_id = obj_id;
+        obj->count = count;
+        obj->x = x;
+        obj->z = z;
+        obj->level = level;
+        obj->despawn_tick = duration > 0 ? srv->tick + duration : -1;
+        obj->respawn_tick = -1;
+        obj->is_spawn = duration < 0;
+        return i;
+    }
+    return -1;
+}
+
+/** Tell the client about every ground obj inside the scene it does not know
+ *  about, and take back the ones that left. */
+static void
+flush_ground(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        struct Mock230GroundObj* obj = &srv->ground[i];
+        int in_scene;
+
+        if( !obj->active )
+        {
+            /* A taken spawn comes back where it was. */
+            if( obj->respawn_tick >= 0 && srv->tick >= obj->respawn_tick )
+            {
+                obj->active = 1;
+                obj->respawn_tick = -1;
+                obj->sent = 0;
+            }
+            continue;
+        }
+        if( obj->despawn_tick >= 0 && srv->tick >= obj->despawn_tick )
+        {
+            if( obj->sent )
+            {
+                int pos = mock230_send_zone(srv, obj->x, obj->z);
+                mock230_send_obj_del(srv, pos, obj->obj_id);
+            }
+            obj->active = 0;
+            continue;
+        }
+
+        in_scene = obj->level == player->level && mock230_scene_contains(obj->x, obj->z);
+        if( in_scene && !obj->sent )
+        {
+            int pos = mock230_send_zone(srv, obj->x, obj->z);
+
+            mock230_send_obj_add(srv, pos, obj->obj_id, obj->count);
+            obj->sent = 1;
+        }
+        else if( !in_scene && obj->sent )
+        {
+            obj->sent = 0;
+        }
+    }
+}
+
+/** Remove a ground obj, telling the client and arming its respawn if it was a
+ *  map spawn. */
+static void
+ground_take(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230GroundObj* obj = &srv->ground[slot];
+
+    if( obj->sent )
+    {
+        int pos = mock230_send_zone(srv, obj->x, obj->z);
+
+        mock230_send_obj_del(srv, pos, obj->obj_id);
+    }
+    obj->active = 0;
+    obj->sent = 0;
+    obj->respawn_tick = obj->is_spawn ? srv->tick + MOCK230_LOOT_TICKS : -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -606,10 +832,32 @@ handle_opheld(
     }
     if( verb && strcmp(verb, "Drop") == 0 )
     {
+        /* Dropping puts the obj on the floor rather than deleting it, which is
+         * the whole difference between an inventory and a bin. It expires like
+         * any other drop, so a session cannot litter Lumbridge indefinitely. */
+        mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
+                              player->level, MOCK230_LOOT_TICKS);
         inv_set(player, slot, -1, 0);
         say(srv, "You drop the %s.", info->name);
         return;
     }
+    /*
+     * OPHELD5 with no verb behind it is the client's synthesised Drop row.
+     *
+     * A rev-230 obj record does not carry a "Drop" op — bones list only
+     * "Bury" — because the client adds the row itself, always at index 5
+     * (rs_minimenu_build.c add_inv_slot_rows). Waiting for a `verb` that says
+     * "Drop" means waiting forever.
+     */
+    if( !verb && op_num == 5 )
+    {
+        mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
+                              player->level, MOCK230_LOOT_TICKS);
+        inv_set(player, slot, -1, 0);
+        say(srv, "You drop the %s.", info->name);
+        return;
+    }
+
     /* No verb for this index, but the item is wearable: the cache's op list is
      * sparse for a lot of items, and refusing to equip a helmet because its
      * "Wear" landed on a different index would be worse than acting on it. */
@@ -697,23 +945,87 @@ handle_opnpc(
 
     /* Content first. [opnpc<n>,<npc>] is resolved the way the reference does
      * it — exact npc type, then category, then the global form — and only if
-     * nothing matches does the hardcoded greeting run. That fallback is what
-     * lets the mock work with no script pack at all. */
+     * nothing matches does the engine's own behaviour run. That fallback is
+     * what lets the mock work with no script pack at all. */
     if( mock230_scripts_run_trigger(
             srv, SS_TRIGGER_OPNPC1 + (op_num - 1), npc->type, -1, slot) )
         return;
+
+    /*
+     * "Attack" is engine behaviour, not content.
+     *
+     * The verb comes from the npc's own cache record — the same five ops the
+     * client built its right-click menu from — so anything OldSchool made
+     * attackable is attackable here, with no per-npc script line and no
+     * separate list to keep in step with the client's. Which op index carries
+     * it varies (a goblin's Attack is op 2, a guard's is op 1), which is
+     * exactly why the index is not hardcoded.
+     */
+    {
+        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+        const char* verb = (op_num >= 1 && op_num <= 5) ? info->ops[op_num - 1] : NULL;
+
+        if( verb && strcmp(verb, "Attack") == 0 )
+        {
+            mock230_combat_engage(srv, slot);
+            return;
+        }
+    }
 
     npc->face_entity = MOCK230_PLAYER_TERMINATOR; /* the local player */
     snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
     npc->masks |= MOCK230_NMASK_FACE_ENTITY | MOCK230_NMASK_SAY;
 }
 
-/* OPLOC / OPOBJ: p2 x, p2 z, p2 id. The mock has no loc or ground-item state,
- * so it walks the player over and says something. */
+/*
+ * Move the player a level, which is all a staircase or a ladder does.
+ *
+ * The tile does not change, only the level. That is right for every ladder and
+ * every spiral staircase in Lumbridge, and wrong for the handful of stairs
+ * elsewhere that land you somewhere else — those need per-loc destinations,
+ * which is content this tree does not have yet.
+ */
 static void
-handle_op_at_tile(
+climb(
     struct Mock230Server* srv,
-    const char* what,
+    int delta)
+{
+    struct Mock230Player* player = &srv->player;
+    int level = player->level + delta;
+
+    if( level < 0 || level > 3 )
+    {
+        say(srv, "You can't go any further.");
+        return;
+    }
+    steps_clear(player);
+    player->level = level;
+    player->place_dirty = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+    /* Every npc and ground obj the client holds is on the old level, and it has
+     * no way to know they left. A rebuild is heavy-handed but it is exactly
+     * what the reference does when a player changes plane. */
+    srv->rebuild_pending = 1;
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        srv->npcs[i].tracked = 0;
+    srv->tracked_count = 0;
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        srv->ground[i].sent = 0;
+}
+
+/*
+ * OPOBJ<n>: p2 x, p2 z, p2 objId — picking something up off the floor.
+ *
+ * The walk and the take are one action here rather than a queued interaction:
+ * the mock has no interaction model, so the player arrives instantly in game
+ * terms and the client sees the walk happen underneath. Getting that wrong in
+ * the other direction (take first, walk after) would let a player vacuum up
+ * Lumbridge from the castle roof.
+ */
+static void
+handle_opobj(
+    struct Mock230Server* srv,
     const uint8_t* payload,
     int len)
 {
@@ -721,12 +1033,13 @@ handle_op_at_tile(
     struct RSAreaBuf buf;
     int tile_x;
     int tile_z;
-    int id;
+    int obj_id;
+    int free_slot;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
     tile_x = rsab_g2(&buf);
     tile_z = rsab_g2(&buf);
-    id = rsab_g2(&buf);
+    obj_id = rsab_g2(&buf);
     if( !rsab_ok(&buf) )
         return;
 
@@ -734,7 +1047,119 @@ handle_op_at_tile(
     player->dest_x = tile_x;
     player->dest_z = tile_z;
     steps_walk_to(player, tile_x, tile_z);
-    say(srv, "Nothing interesting happens. (%s %d at %d,%d)", what, id, tile_x, tile_z);
+
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        struct Mock230GroundObj* obj = &srv->ground[i];
+
+        if( !obj->active || obj->obj_id != obj_id || obj->x != tile_x ||
+            obj->z != tile_z || obj->level != player->level )
+            continue;
+
+        free_slot = inv_first_free(player);
+        if( free_slot < 0 )
+        {
+            say(srv, "You don't have enough inventory space.");
+            return;
+        }
+        inv_set(player, free_slot, obj->obj_id, obj->count);
+        say(srv, "You pick up the %s.", mock230_objinfo(obj_id)->name);
+        ground_take(srv, i);
+        return;
+    }
+    say(srv, "You can't reach that.");
+}
+
+/*
+ * OPLOC<n>: p2 x, p2 z, p2 locId — doors, gates, stairs and ladders.
+ *
+ * Two generic rules cover all of them, and neither needs a per-loc table:
+ *
+ * - A loc whose content block says `category=door_closed` (or `door_opened`)
+ *   swaps for its `param=next_loc_stage` partner. The pairing is data, from
+ *   OpenRune's curated door table plus name-derived pairs; see
+ *   content/scripts/doors/configs/doors.loc.
+ * - A loc whose *cache* menu text says "Climb-up" or "Climb-down" moves the
+ *   player a level. The direction is already in the cache, so content does not
+ *   restate it.
+ */
+static void
+handle_oploc(
+    struct Mock230Server* srv,
+    int op_num,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = &srv->player;
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int loc_id;
+    int slot;
+    struct Mock230SceneLoc* loc;
+    const struct Mock230LocDef* def;
+    const char* verb;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    loc_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+
+    mock230_world_walk_beside(srv, tile_x, tile_z);
+
+    slot = mock230_scene_find_loc(tile_x, tile_z, player->level, loc_id);
+    loc = mock230_scene_loc(slot);
+    if( !loc )
+    {
+        say(srv, "Nothing interesting happens.");
+        return;
+    }
+
+    def = mock230_content_loc(loc->loc_id);
+    if( def && def->next_loc_stage >= 0 &&
+        (def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED ||
+         def->category == MOCK230_LOC_CATEGORY_DOOR_OPENED) )
+    {
+        int opening = def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED;
+
+        if( !mock230_scene_replace_loc(slot, def->next_loc_stage, loc->angle) )
+        {
+            say(srv, "Nothing interesting happens.");
+            return;
+        }
+        {
+            int pos = mock230_send_zone(srv, loc->x, loc->z);
+
+            mock230_send_loc_add_change(srv, pos, loc->shape, loc->angle, loc->loc_id);
+        }
+        if( srv->verbose )
+            fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
+                    def->symbol ? def->symbol : "door", tile_x, tile_z);
+        return;
+    }
+
+    verb = mock230_scene_loc_op(loc->loc_id, op_num);
+    if( verb && strcmp(verb, "Climb-up") == 0 )
+    {
+        climb(srv, +1);
+        return;
+    }
+    if( verb && strcmp(verb, "Climb-down") == 0 )
+    {
+        climb(srv, -1);
+        return;
+    }
+    if( verb && strcmp(verb, "Climb") == 0 )
+    {
+        /* An unqualified "Climb" is the middle of a staircase, which offers
+         * both directions. Up is the reasonable default and the qualified ops
+         * are on the same loc for anyone who wants the other one. */
+        climb(srv, +1);
+        return;
+    }
+    say(srv, "Nothing interesting happens.");
 }
 
 /* ::commands, so a session can be steered without a UI. */
@@ -773,6 +1198,61 @@ handle_cheat(
             if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1),
                                              srv->npcs[slot].type, -1, slot) )
                 say(srv, "npc %d has no [opnpc%d] script.", srv->npcs[slot].type, op_num);
+        }
+        return;
+    }
+
+    if( strncmp(text, "style", 5) == 0 )
+    {
+        /*
+         * `::style <0-3>` sets the attack style.
+         *
+         * The combat tab is the real way in, and it is not wired: at rev 230
+         * the style lives in varp 43, which the tab's CS2 writes on a button
+         * click — and the mock has no server-side handler for that interface's
+         * buttons. Rather than pretend, the style is settable here and the varp
+         * is mirrored so the tab renders the right selection.
+         */
+        int style = 0;
+
+        (void)sscanf(text, "style %d", &style);
+        if( style < 0 || style > 3 )
+            style = 0;
+        player->attack_style = style;
+        if( player->varps[MOCK230_VARP_ATTACK_STYLE] != style )
+        {
+            player->varps[MOCK230_VARP_ATTACK_STYLE] = style;
+            if( player->varp_changed_count < MOCK230_VARP_DIRTY_MAX )
+                player->varp_changed[player->varp_changed_count++] =
+                    MOCK230_VARP_ATTACK_STYLE;
+        }
+        say(srv, "Attack style: %s.",
+            style == MOCK230_STYLE_ACCURATE      ? "accurate"
+            : style == MOCK230_STYLE_AGGRESSIVE  ? "aggressive"
+            : style == MOCK230_STYLE_DEFENSIVE   ? "defensive"
+                                                 : "controlled");
+        return;
+    }
+
+    if( strncmp(text, "setlevel", 8) == 0 )
+    {
+        /* `::setlevel <stat> <level>` — the combat formulas are only
+         * interesting if the inputs can be moved. */
+        int stat = 0;
+        int level = 1;
+
+        if( sscanf(text, "setlevel %d %d", &stat, &level) == 2 && stat >= 0 &&
+            stat < MOCK230_STAT_COUNT && level >= 1 && level <= 99 )
+        {
+            player->stat_level[stat] = level;
+            player->stat_boosted[stat] = level;
+            if( stat == MOCK230_STAT_HITPOINTS )
+            {
+                player->hitpoints = level;
+                mock230_combat_sync_hitpoints(player);
+            }
+            mock230_combat_stat_mark(player, stat);
+            say(srv, "Set stat %d to %d.", stat, level);
         }
         return;
     }
@@ -872,7 +1352,7 @@ mock230_world_handle(
     case PKTOUT_NAME_OPLOC3:
     case PKTOUT_NAME_OPLOC4:
     case PKTOUT_NAME_OPLOC5:
-        handle_op_at_tile(srv, "loc", payload, len);
+        handle_oploc(srv, name - PKTOUT_NAME_OPLOC1 + 1, payload, len);
         break;
 
     case PKTOUT_NAME_OPOBJ1:
@@ -880,7 +1360,7 @@ mock230_world_handle(
     case PKTOUT_NAME_OPOBJ3:
     case PKTOUT_NAME_OPOBJ4:
     case PKTOUT_NAME_OPOBJ5:
-        handle_op_at_tile(srv, "obj", payload, len);
+        handle_opobj(srv, payload, len);
         break;
 
     /* The client sends the packed (interface << 16) | child uid at full width
@@ -933,8 +1413,66 @@ mock230_world_handle(
 }
 
 /* ------------------------------------------------------------------ */
+/* Death                                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * An npc reached zero hitpoints.
+ *
+ * Content first: `[ai_queue3,<npc>]` is LostCity's death trigger, and its
+ * scripts are the drop table — a sequence of `obj_add(npc_coord, ...)` calls
+ * under a `random(128)` roll, exactly as the reference writes them. When
+ * nothing is bound, the config's `param=death_drop` still drops (bones for
+ * almost everything), so an npc with no script is not a silent kill.
+ */
+void
+mock230_world_npc_died(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Npc* npc = &srv->npcs[slot];
+
+    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type, -1, slot) )
+        return;
+
+    if( npc->def && npc->def->death_drop >= 0 )
+        mock230_world_obj_add(srv, npc->def->death_drop, 1, npc->x, npc->z, npc->level,
+                              MOCK230_LOOT_TICKS);
+}
+
+void
+mock230_world_player_respawn(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = &srv->player;
+
+    steps_clear(player);
+    player->x = g_home_x;
+    player->z = g_home_z;
+    player->level = 0;
+    player->death_tick = -1;
+    player->place_dirty = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+    player->hitpoints = player->stat_level[MOCK230_STAT_HITPOINTS];
+    mock230_combat_sync_hitpoints(player);
+    /* Nothing is lost. A mock that drops your inventory on death is a mock
+     * nobody uses twice, and item protection is a whole system of its own. */
+    mock230_send_message(srv, "You wake up in Lumbridge.");
+    maybe_rebuild(srv);
+}
+
+/* ------------------------------------------------------------------ */
 /* Login + tick                                                        */
 /* ------------------------------------------------------------------ */
+
+void
+mock230_world_set_home(
+    int tile_x,
+    int tile_z)
+{
+    g_home_x = tile_x;
+    g_home_z = tile_z;
+}
 
 void
 mock230_world_init(
@@ -949,14 +1487,38 @@ mock230_world_init(
     srv->rng = 0x5eed1234u;
     srv->tick = 0;
 
+    /* Collision before anything is placed: a spawn on a blocked tile is worth
+     * knowing about, and the walk helpers consult the scene from their first
+     * call. */
+    mock230_scene_build(mock230_world_cache_dir(), zone_x, zone_z);
+
     memset(player, 0, sizeof(*player));
-    /* Start in the middle of the scene. */
-    player->x = mock230_scene_origin(zone_x) + MOCK230_SCENE_TILES / 2;
-    player->z = mock230_scene_origin(zone_z) + MOCK230_SCENE_TILES / 2;
-    player->hitpoints = MOCK230_PLAYER_MAX_HP;
-    player->max_hitpoints = MOCK230_PLAYER_MAX_HP;
+    /* On the home tile, not in the middle of the scene: the scene is 104 tiles
+     * of whatever the origin zone happens to cover, and standing in the middle
+     * of it puts you somewhere arbitrary. */
+    player->x = g_home_x;
+    player->z = g_home_z;
     player->combat_target = -1;
+    player->death_tick = -1;
     player->level = 0;
+
+    /*
+     * A fresh account: every skill at 1 except hitpoints, which starts at 10.
+     * That is OldSchool's own starting state, and it is what makes the combat
+     * formulas mean anything — a level-1 character with a bronze scimitar
+     * really does take a while to kill a goblin.
+     */
+    for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+    {
+        player->stat_level[stat] = 1;
+        player->stat_boosted[stat] = 1;
+        player->stat_xp_tenths[stat] = 0;
+    }
+    player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
+    player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = 11540; /* 1154 xp = level 10 */
+    player->hitpoints = 10;
+    mock230_combat_sync_hitpoints(player);
+    player->attack_style = MOCK230_STYLE_ACCURATE;
     player->dest_x = -1;
     player->dest_z = -1;
     player->place_dirty = 1;
@@ -1001,40 +1563,44 @@ mock230_world_init(
             inv_set(player, (int)i, kit[i].obj_id, kit[i].count);
     }
 
-    /* NPC roster around the spawn: humans that roam plus a stationary greeter.
-     * Ids verified present in cache.osrs230, and deliberately spanning both
-     * sides of 2047 — everything above it only survives because rev 230 states
-     * a 14-bit npc-type field (GameProtoRevTable.npc_type_bits). Written into
-     * the classic 11-bit field, 3106 ("Man") keeps its low 11 bits and lands on
-     * npc 1058 instead; neither end reports anything. */
+    /*
+     * The npc roster comes from the content tree's map squares — LostCity's
+     * `==== NPC ====` sections, which are OpenRune's Lumbridge spawn list
+     * transcribed by tools/spawn_import.py.
+     *
+     * Every spawn in the tree is created, not only the ones near the start
+     * tile: the client is only ever told about npcs within 15 tiles, but the
+     * player can walk, and an npc that does not exist until you approach it
+     * would pop into being with full hitpoints in front of you.
+     */
     memset(srv->npcs, 0, sizeof(srv->npcs));
     srv->tracked_count = 0;
     {
-        static const struct
+        int count = 0;
+        const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&count);
+
+        for( int i = 0; i < count; i++ )
+            npc_spawn(srv, spawns[i].npc_id, spawns[i].x, spawns[i].z, spawns[i].level);
+
+        if( count == 0 )
         {
-            int type;
-            int dx;
-            int dz;
-            int radius;
-        } roster[] = {
-            { 3105, 2,  1,  0 }, /* Hans — stands still, the greeter */
-            { 3106, -3, 2,  4 }, /* Man */
-            { 3107, 4,  -2, 4 }, /* Man */
-            { 3108, -2, -4, 4 }, /* Man */
-            { 3111, 1,  5,  4 }, /* Woman */
-            { 3112, -5, -1, 4 }, /* Woman */
-            { 3114, 6,  3,  3 }, /* Farmer */
-            { 397,  -6, 4,  5 }, /* Guard */
-            { 655,  5,  -6, 5 }, /* Goblin */
-            { 2699, -4, -7, 6 }, /* Sheep */
-        };
-        for( size_t i = 0; i < sizeof(roster) / sizeof(roster[0]); i++ )
-            npc_spawn(
-                srv,
-                roster[i].type,
-                player->x + roster[i].dx,
-                player->z + roster[i].dz,
-                roster[i].radius);
+            /* No content tree. One npc beside the player keeps every
+             * npc-facing path — talking, fighting, NPC_INFO itself — reachable
+             * rather than dead, the same way the script fallbacks do. */
+            npc_spawn(srv, 3105, player->x + 2, player->z + 1, player->level);
+        }
+    }
+
+    /* Ground objs, from the same map squares. Duration -1 marks them spawns,
+     * which come back after they are taken. */
+    memset(srv->ground, 0, sizeof(srv->ground));
+    {
+        int count = 0;
+        const struct Mock230MapObjSpawn* spawns = mock230_content_obj_spawns(&count);
+
+        for( int i = 0; i < count; i++ )
+            mock230_world_obj_add(srv, spawns[i].obj_id, spawns[i].count, spawns[i].x,
+                                  spawns[i].z, spawns[i].level, -1);
     }
 }
 
@@ -1099,8 +1665,9 @@ mock230_world_login(struct Mock230Server* srv)
     /* 4. Player state. */
     mock230_send_run_energy(srv, 100);
     mock230_send_run_weight(srv, 0);
-    for( int stat = 0; stat < 23; stat++ )
-        mock230_send_stat(srv, stat, 1, 121);
+    for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+        mock230_send_stat(srv, stat, player->stat_level[stat],
+                          player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
 
     /* 5. Containers, in full. Deltas take over from the next tick. */
     mock230_send_inv_full(
@@ -1240,7 +1807,7 @@ phase_logins(struct Mock230Server* srv)
 static void
 phase_zones(struct Mock230Server* srv)
 {
-    (void)srv;
+    flush_ground(srv);
 }
 
 /**
@@ -1269,6 +1836,22 @@ phase_clients_out(struct Mock230Server* srv)
     {
         mock230_send_rebuild_normal(srv);
         srv->rebuild_pending = 0;
+        /* Doors. REBUILD_NORMAL rebuilds the scene from the
+         * cache, which puts every opened door back the way the map square has
+         * it — so each one has to be re-opened. Without this, walking far
+         * enough to trigger a rebuild and coming back finds every door you
+         * opened shut again, and the server still believing they are open. */
+        for( int slot = mock230_scene_next_changed_loc(0); slot >= 0;
+             slot = mock230_scene_next_changed_loc(slot + 1) )
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+            int pos;
+
+            if( !loc || loc->level != player->level )
+                continue;
+            pos = mock230_send_zone(srv, loc->x, loc->z);
+            mock230_send_loc_add_change(srv, pos, loc->shape, loc->angle, loc->loc_id);
+        }
         /* The scene moved under the player, so the step directions computed
          * before it are meaningless. */
         player->move_count = 0;
@@ -1299,6 +1882,18 @@ phase_clients_out(struct Mock230Server* srv)
         mock230_send_varp_small(srv, varp, player->varps[varp]);
     }
 
+    /* Stats. UPDATE_STAT carries the boosted level as well as the base one, and
+     * the boosted hitpoints level is what the health orb draws — so every hit
+     * taken has to reach the client here, not only every level gained. */
+    for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+    {
+        if( (player->stat_dirty & (1u << stat)) == 0 )
+            continue;
+        mock230_send_stat(srv, stat, player->stat_level[stat],
+                          player->stat_xp_tenths[stat] / 10,
+                          player->stat_boosted[stat]);
+    }
+
     if( srv->clear_map_flag )
         mock230_send_unset_map_flag(srv);
 
@@ -1311,6 +1906,7 @@ phase_cleanup(struct Mock230Server* srv)
 {
     struct Mock230Player* player = &srv->player;
 
+    player->stat_dirty = 0;
     player->inv_dirty = 0;
     player->worn_dirty = 0;
     player->varp_changed_count = 0;
@@ -1363,6 +1959,55 @@ static int g_selftest_failures;
     } while( 0 )
 
 /* Find the backpack slot holding `obj_id`, or -1. */
+/*
+ * Put the player on a tile, standing still and out of combat.
+ *
+ * Every section of the selftest runs against the same server, so one that ends
+ * mid-walk or mid-fight changes what the next one measures — a queued step
+ * lengthens PLAYER_INFO's bit section, and an aggressive npc nearby writes
+ * masks nobody asked for. Resetting is cheaper than ordering the sections.
+ */
+static void
+selftest_park_player(
+    struct Mock230Server* srv,
+    int tile_x,
+    int tile_z)
+{
+    struct Mock230Player* player = &srv->player;
+
+    steps_clear(player);
+    player->x = tile_x;
+    player->z = tile_z;
+    player->level = 0;
+    player->running = 0;
+    player->dest_x = -1;
+    player->dest_z = -1;
+    player->combat_target = -1;
+    player->death_tick = -1;
+    player->hitpoints = player->max_hitpoints;
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        srv->npcs[i].combat_target = -1;
+    /* Moving the player is a teleport, and a teleport may need the scene to
+     * follow. Without this the collision window and the ground-obj visibility
+     * test still describe wherever the last section left off. */
+    player->place_dirty = 1;
+    maybe_rebuild(srv);
+}
+
+/** Slot holding the first active npc of this type, or -1. */
+static int
+selftest_find_npc(
+    const struct Mock230Server* srv,
+    int npc_type)
+{
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active && srv->npcs[i].type == npc_type )
+            return i;
+    }
+    return -1;
+}
+
 static int
 selftest_find(
     const struct Mock230Player* player,
@@ -1417,10 +2062,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: script-driven triggers\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
 
         if( !loaded )
         {
@@ -1433,6 +2078,7 @@ mock230_world_selftest(void)
         {
             uint8_t payload[2];
             int before;
+            int hans;
 
             /* [login,_] should run in phase 7, not during the login burst. */
             srv.login_pending = 1;
@@ -1445,16 +2091,20 @@ mock230_world_selftest(void)
 
             /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
              * so both the script's effect and the varp flush are observable. */
+            hans = selftest_find_npc(&srv, 3105);
+            SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
             before = player->varps[1];
-            payload[0] = 0;
-            payload[1] = 0; /* npc slot 0 is Hans */
+            payload[0] = (uint8_t)(hans >> 8);
+            payload[1] = (uint8_t)(hans & 0xff);
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
             SELFTEST_CHECK(player->varps[1] == before + 1,
                            "the script should bump %%mock_greeting_count, got %d",
                            player->varps[1]);
-            SELFTEST_CHECK(strcmp(srv.npcs[0].say, "Hello there, adventurer!") == 0,
-                           "npc_say should set Hans's chat, got \"%s\"", srv.npcs[0].say);
+            SELFTEST_CHECK(hans >= 0 &&
+                               strcmp(srv.npcs[hans].say, "Hello there, adventurer!") == 0,
+                           "npc_say should set Hans's chat, got \"%s\"",
+                           hans >= 0 ? srv.npcs[hans].say : "");
 
             mock230_world_tick(&srv);
             mock230_capture_end(&srv);
@@ -1473,10 +2123,10 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: script suspension\n");
     {
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
 
         if( !loaded )
         {
@@ -1545,10 +2195,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: npc chat dialogue\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "src/net/mock/scripts/build");
+        int loaded = mock230_scripts_load(&srv, "src/net/mock/content/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../src/net/mock/scripts/build");
+            loaded = mock230_scripts_load(&srv, "../src/net/mock/content/scripts/build");
 
         if( !loaded )
         {
@@ -1561,7 +2211,8 @@ mock230_world_selftest(void)
              * ships hidden, so without it the dialogue is built and never
              * drawn. */
             static const int k_dialogue[] = { 95, 97, 94, 98, 6 };
-            uint8_t payload[2] = { 0, 0 }; /* npc slot 0 is Hans */
+            int hans = selftest_find_npc(&srv, 3105);
+            uint8_t payload[2] = { (uint8_t)(hans >> 8), (uint8_t)(hans & 0xff) };
             uint8_t resume[4];
             int continue_uid = (231 << 16) | 5;
 
@@ -1624,12 +2275,13 @@ mock230_world_selftest(void)
         static struct Mock230Capture capture;
         int goblin = -1;
 
-        /* The goblin roster entry, whatever slot it landed in. */
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-        {
-            if( srv.npcs[i].active && srv.npcs[i].type == 655 )
-                goblin = i;
-        }
+        /* The goblin roster entry, whatever slot it landed in. 3028 is the id
+         * OpenRune's gameval table calls `npcs.goblin`, checked against
+         * cache.osrs230 — which does name 3028 "Goblin". The mock's old roster
+         * used 655, which cache.osrs230 also names "Goblin" but which OpenRune
+         * calls `goblin_red_soldier_2`: two different monsters with the same
+         * display name, and the reason ids get validated rather than trusted. */
+        goblin = selftest_find_npc(&srv, 3028);
         SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
 
         if( goblin >= 0 )
@@ -1715,6 +2367,283 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: combat arithmetic\n");
+    {
+        /*
+         * The formula inputs, not the outcome. Every one of these is a number
+         * read out of cache.osrs230's own param tables, and the whole combat
+         * system is built on the claim that they mean what OpenRune's
+         * ParamMapper says they mean. If a future cache moves them, this is
+         * where it shows up — rather than as fights that feel slightly off.
+         */
+        const struct Mock230ObjInfo* scimitar = mock230_objinfo(1321);
+        const struct Mock230NpcInfo* guard = mock230_npcinfo(3254);
+
+        SELFTEST_CHECK(scimitar->has_params, "the bronze scimitar has cache params");
+        SELFTEST_CHECK(scimitar->bonus[MOCK230_PARAM_SLASHATTACK] == 7,
+                       "bronze scimitar slashattack should be +7, got %d",
+                       scimitar->bonus[MOCK230_PARAM_SLASHATTACK]);
+        SELFTEST_CHECK(scimitar->bonus[MOCK230_PARAM_STRENGTHBONUS] == 6,
+                       "bronze scimitar strengthbonus should be +6, got %d",
+                       scimitar->bonus[MOCK230_PARAM_STRENGTHBONUS]);
+        SELFTEST_CHECK(scimitar->attackrate == 4,
+                       "bronze scimitar attackrate should be 4 ticks, got %d",
+                       scimitar->attackrate);
+        SELFTEST_CHECK(scimitar->damagetype == MOCK230_DAMAGE_SLASH,
+                       "a scimitar should derive as a slash weapon, got %d",
+                       scimitar->damagetype);
+        SELFTEST_CHECK(guard->bonus[MOCK230_PARAM_SLASHDEFENCE] == 25,
+                       "the guard's slashdefence should be +25, got %d",
+                       guard->bonus[MOCK230_PARAM_SLASHDEFENCE]);
+
+        /* An obj with no params at all must stay distinguishable from one whose
+         * bonuses are genuinely zero: the first is unarmed, the second is a bad
+         * weapon, and they time differently. */
+        SELFTEST_CHECK(!mock230_objinfo(995)->has_params,
+                       "coins should carry no combat params");
+
+        /* Attackability is the cache's own op list, which is what the client's
+         * right-click menu reads. */
+        SELFTEST_CHECK(mock230_combat_attackable(3028), "a goblin is attackable");
+        SELFTEST_CHECK(!mock230_combat_attackable(3105), "Hans is not");
+    }
+
+    fprintf(stderr, "mock230 selftest: experience and levels\n");
+    {
+        int before_hp = player->hitpoints;
+
+        player->stat_level[MOCK230_STAT_ATTACK] = 1;
+        player->stat_boosted[MOCK230_STAT_ATTACK] = 1;
+        player->stat_xp_tenths[MOCK230_STAT_ATTACK] = 0;
+        player->stat_dirty = 0;
+
+        /* 83 points is level 2 exactly — the first entry of the OldSchool
+         * table, and the one worth pinning because the table is built rather
+         * than transcribed. */
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, 820);
+        SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 1,
+                       "82 xp is still level 1, got %d",
+                       player->stat_level[MOCK230_STAT_ATTACK]);
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, 10);
+        SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 2,
+                       "83 xp is level 2, got %d",
+                       player->stat_level[MOCK230_STAT_ATTACK]);
+        SELFTEST_CHECK((player->stat_dirty & (1u << MOCK230_STAT_ATTACK)) != 0,
+                       "a changed stat should be flushed");
+
+        /* The hitpoints stat and the player's hitpoints are one number. */
+        SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_HITPOINTS] == player->hitpoints,
+                       "the hitpoints stat should track the player's hitpoints (%d vs %d)",
+                       player->stat_boosted[MOCK230_STAT_HITPOINTS], player->hitpoints);
+        SELFTEST_CHECK(player->hitpoints == before_hp, "and xp should not heal");
+    }
+
+    fprintf(stderr, "mock230 selftest: collision and routing\n");
+    {
+        /*
+         * Lumbridge castle's ground floor. The exact tiles matter less than the
+         * property: a route the server produces is a walk of single steps, each
+         * of which the collision map itself agrees is legal. A straight-line
+         * interpolation through a wall satisfies the first and fails the
+         * second, which is the bug this replaces.
+         */
+        int path_x[MOCK230_STEP_MAX];
+        int path_z[MOCK230_STEP_MAX];
+        int steps;
+
+        SELFTEST_CHECK(mock230_scene_collision(0) != NULL,
+                       "the scene should have collision for level 0");
+        SELFTEST_CHECK(mock230_scene_contains(3222, 3218),
+                       "the Lumbridge home tile is inside the scene");
+
+        steps = mock230_scene_route(0, 3222, 3218, 3234, 3226, path_x, path_z,
+                                    MOCK230_STEP_MAX);
+        SELFTEST_CHECK(steps > 0, "a route across the courtyard exists, got %d", steps);
+        if( steps > 0 )
+        {
+            int at_x = 3222;
+            int at_z = 3218;
+            int contiguous = 1;
+
+            for( int i = 0; i < steps; i++ )
+            {
+                int dir = mock230_step_direction(path_x[i] - at_x, path_z[i] - at_z);
+
+                if( dir < 0 || !mock230_scene_can_step(0, at_x, at_z, dir) )
+                {
+                    contiguous = 0;
+                    break;
+                }
+                at_x = path_x[i];
+                at_z = path_z[i];
+            }
+            SELFTEST_CHECK(contiguous, "every step of a route is a legal single step");
+            SELFTEST_CHECK(at_x == 3234 && at_z == 3226,
+                           "and it arrives, at %d,%d", at_x, at_z);
+        }
+
+        /*
+         * Terrain and locs actually blocked something.
+         *
+         * Counted rather than probed at a named tile: which tile is a wall is a
+         * fact about one cache revision, and a test that pins it fails for the
+         * wrong reason the day the map changes. What must hold is that a
+         * Lumbridge scene is not an open field — the castle alone is hundreds
+         * of blocked tiles.
+         */
+        {
+            int blocked = 0;
+
+            for( int x = 0; x < COLLISION_SIZE; x++ )
+            {
+                for( int z = 0; z < COLLISION_SIZE; z++ )
+                {
+                    if( collision_map_tile(mock230_scene_collision(0), x, z) !=
+                        COLL_FLAG_OPEN )
+                        blocked++;
+                }
+            }
+            /* The border ring is always BOUNDS: 4 * 104 - 4 = 412 tiles. Real
+             * scenery has to be well clear of that. */
+            SELFTEST_CHECK(blocked > 1000,
+                           "a Lumbridge scene should block far more than its border, "
+                           "got %d tiles",
+                           blocked);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ground objs\n");
+    {
+        static struct Mock230Capture capture;
+        int slot;
+        int free_before;
+
+        /* Map spawns landed. OpenRune's Lumbridge item list includes a knife
+         * at 3205,3212. */
+        slot = -1;
+        for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        {
+            if( srv.ground[i].active && srv.ground[i].obj_id == 946 &&
+                srv.ground[i].x == 3205 && srv.ground[i].z == 3212 )
+                slot = i;
+        }
+        SELFTEST_CHECK(slot >= 0, "the knife spawn from m50_50.jm2 should exist");
+        SELFTEST_CHECK(slot < 0 || srv.ground[slot].is_spawn,
+                       "and be marked a spawn rather than a drop");
+
+        /* A drop reaches the client as a zone header plus an OBJ_ADD. Both, in
+         * that order: a sub-packet with no zone before it applies to whatever
+         * zone was named last. */
+        selftest_park_player(&srv, 3222, 3218);
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_obj_add(&srv, 526 /* bones */, 1, 3222, 3218, 0,
+                              MOCK230_LOOT_TICKS);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        {
+            static const int k_drop[] = { 106 /* UPDATE_ZONE */, 120 /* OBJ_ADD */ };
+
+            SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_drop, 2),
+                           "a drop should send its zone then its OBJ_ADD");
+        }
+
+        /* Picking it up moves it into the backpack and tells the client it is
+         * gone. */
+        selftest_park_player(&srv, 3222, 3218);
+        free_before = inv_first_free(player);
+        {
+            uint8_t payload[6] = { (uint8_t)(3222 >> 8), (uint8_t)3222,
+                                   (uint8_t)(3218 >> 8), (uint8_t)3218,
+                                   (uint8_t)(526 >> 8),  (uint8_t)526 };
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+            mock230_capture_end(&srv);
+        }
+        SELFTEST_CHECK(free_before >= 0 && player->inv[free_before].obj_id == 526,
+                       "taking an obj puts it in the backpack");
+        SELFTEST_CHECK(mock230_capture_find(&capture, 121 /* OBJ_DEL */, 0) >= 0,
+                       "and tells the client it is gone");
+
+        /* Dropping it puts it back on the floor rather than deleting it. */
+        if( free_before >= 0 && player->inv[free_before].obj_id == 526 )
+        {
+            /*
+             * Drop is OPHELD5 with no cache verb behind it.
+             *
+             * rev-230 obj records do not carry a "Drop" op at all — bones list
+             * only "Bury". The client synthesises the row and sends it as
+             * OPHELD5 (rs_minimenu_build.c add_inv_slot_rows), so the server
+             * has to recognise the *index*, not a verb it will never see.
+             */
+            int on_floor = 0;
+            uint8_t payload[6] = { (uint8_t)(526 >> 8),         (uint8_t)526,
+                                   (uint8_t)(free_before >> 8), (uint8_t)free_before,
+                                   0,                           0 };
+
+            SELFTEST_CHECK(mock230_objinfo(526)->if_ops[4] == NULL,
+                           "the cache should NOT name a Drop op — the client adds it");
+
+            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD5, payload, 6);
+            for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+            {
+                if( srv.ground[i].active && srv.ground[i].obj_id == 526 &&
+                    srv.ground[i].x == player->x && srv.ground[i].z == player->z )
+                    on_floor = 1;
+            }
+            SELFTEST_CHECK(on_floor, "dropping an obj leaves it on the floor");
+            SELFTEST_CHECK(player->inv[free_before].obj_id == -1,
+                           "and takes it out of the backpack");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: doors\n");
+    {
+        static struct Mock230Capture capture;
+        /* 1535 `poordoor` at 3226,3223 — a wall loc on Lumbridge's ground
+         * floor, paired with 1536 `poordooropen` by OpenRune's curated table. */
+        int slot = mock230_scene_find_loc(3226, 3223, 0, 1535);
+
+        SELFTEST_CHECK(slot >= 0, "the castle door at 3226,3223 should be in the scene");
+        if( slot >= 0 )
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+            const struct Mock230LocDef* def = mock230_content_loc(1535);
+            uint8_t payload[6] = { (uint8_t)(3226 >> 8), (uint8_t)3226,
+                                   (uint8_t)(3223 >> 8), (uint8_t)3223,
+                                   (uint8_t)(1535 >> 8), (uint8_t)1535 };
+
+            SELFTEST_CHECK(def != NULL, "doors.loc should describe loc 1535");
+            SELFTEST_CHECK(def && def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED,
+                           "as a closed door");
+            SELFTEST_CHECK(def && def->next_loc_stage == 1536,
+                           "opening into 1536, got %d", def ? def->next_loc_stage : -1);
+
+            player->level = 0;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(loc->loc_id == 1536, "opening swaps the loc, got %d",
+                           loc->loc_id);
+            SELFTEST_CHECK(loc->changed, "and marks it changed so a rebuild re-sends it");
+            {
+                static const int k_open[] = { 106 /* UPDATE_ZONE */, 70 /* LOC_ADD_CHANGE */ };
+
+                SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_open, 2),
+                               "and tells the client, zone first");
+            }
+
+            /* Closing it again is the same rule read backwards, which is the
+             * whole point of storing the pairing on both halves. */
+            payload[4] = (uint8_t)(1536 >> 8);
+            payload[5] = (uint8_t)1536;
+            mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            SELFTEST_CHECK(loc->loc_id == 1535, "and closing swaps it back, got %d",
+                           loc->loc_id);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: extended info masks\n");
     {
         static struct Mock230Capture capture;
@@ -1726,6 +2655,10 @@ mock230_world_selftest(void)
          * with SPOTANIM set silently loses it; writing two without 0x80 makes
          * the client read the first field as mask bits and misparse the whole
          * rest of the extended section. Neither shows up as a crash. */
+        /* The byte offsets below assume an idle, unengaged player: a queued
+         * step or a fight in progress lengthens the bit section and moves the
+         * mask. Earlier sections leave both behind. */
+        selftest_park_player(&srv, player->x, player->z);
         player->place_dirty = 0;
         player->move_count = 0;
         player->masks = MOCK230_PMASK_SEQUENCE | MOCK230_PMASK_SPOTANIM;
@@ -1783,8 +2716,48 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: movement\n");
     {
-        int start_x = player->x;
-        int start_z = player->z;
+        /*
+         * Movement is about how many queued steps a tick consumes and how a
+         * step is spelled on the wire, not about routing — so it needs a patch
+         * of ground with nothing in it. Lumbridge has plenty, but which tiles
+         * are clear is a fact about the cache, so the patch is *found* rather
+         * than named. A test that hardcodes an open tile starts failing the day
+         * someone puts a crate on it.
+         */
+        int start_x = -1;
+        int start_z = -1;
+
+        for( int ox = -20; ox <= 20 && start_x < 0; ox++ )
+        {
+            for( int oz = -20; oz <= 20; oz++ )
+            {
+                int candidate_x = 3222 + ox;
+                int candidate_z = 3218 + oz;
+                int clear = 1;
+
+                if( !mock230_scene_contains(candidate_x, candidate_z + 5) )
+                    continue;
+                for( int step = 0; step < 5; step++ )
+                {
+                    if( !mock230_scene_can_step(0, candidate_x + step, candidate_z + step,
+                                                2 /* north-east */) )
+                        clear = 0;
+                }
+                if( clear )
+                {
+                    start_x = candidate_x;
+                    start_z = candidate_z;
+                    break;
+                }
+            }
+        }
+        SELFTEST_CHECK(start_x >= 0, "Lumbridge should have a clear five-tile diagonal");
+        if( start_x < 0 )
+        {
+            start_x = player->x;
+            start_z = player->z;
+        }
+        selftest_park_player(&srv, start_x, start_z);
 
         steps_clear(player);
         player->running = 0;
@@ -1921,8 +2894,18 @@ mock230_world_selftest(void)
             srv.tick++;
         }
         SELFTEST_CHECK(moved > 0, "at least one npc roamed over 200 ticks");
-        SELFTEST_CHECK(srv.npcs[0].wander_radius == 0 && srv.npcs[0].x == srv.npcs[0].spawn_x,
-                       "a zero-radius npc never moves");
+        {
+            /* Hans is `moverestrict=nomove` in the content tree, which is what
+             * a zero wander radius has to come out as. Found by type rather
+             * than by slot: slot order follows the map files now. */
+            int hans = selftest_find_npc(&srv, 3105);
+
+            SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
+            if( hans >= 0 )
+                SELFTEST_CHECK(srv.npcs[hans].wander_radius == 0 &&
+                                   srv.npcs[hans].x == srv.npcs[hans].spawn_x,
+                               "a nomove npc never moves");
+        }
     }
 
     if( g_selftest_failures )

@@ -14,6 +14,8 @@
 
 #include "mock230.h"
 
+#include "mock230_content.h"
+
 #include "ss_meta.h"
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -1350,6 +1352,110 @@ mock230_script_command(
     case SS_OP_MAP_CLOCK:
         SSVM_PushInt(state, srv->tick);
         return 1;
+
+    /*
+     * `map_members` gates the members-only branches in LostCity's drop tables,
+     * which are ported here verbatim. The mock is a free world, so this is a
+     * constant — but it has to *exist*, because the alternative is deleting
+     * every `if (map_members = ^true)` from content that is otherwise a
+     * character-for-character copy of the reference's.
+     */
+    case SS_OP_MAP_MEMBERS:
+        SSVM_PushInt(state, 0);
+        return 1;
+
+    case SS_OP_RANDOM:
+    {
+        int32_t bound;
+
+        if( !SSVM_PopInt(state, &bound) )
+            return 1;
+        /* random(n) is 0..n-1, matching the reference. A zero or negative
+         * bound yields 0 rather than aborting: content computing a bound from
+         * a table size should not take the server down when the table is
+         * empty. */
+        SSVM_PushInt(state, bound > 0 ? mock230_random(srv, 0, bound - 1) : 0);
+        return 1;
+    }
+
+    /* ---- ground objs ---------------------------------------------- */
+
+    /*
+     * `obj_add(coord, obj, count, duration)` — the command every drop table in
+     * LostCity's content is written against. Duration is in ticks
+     * (`^lootdrop_duration` is 200); a non-positive one means a permanent
+     * spawn, which is how the map squares' own objs are placed.
+     */
+    case SS_OP_OBJ_ADD:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_world_obj_add(srv, values[1], values[2], coord_x(values[0]),
+                              coord_z(values[0]), coord_level(values[0]),
+                              values[3] > 0 ? values[3] : -1);
+        return 1;
+    }
+
+    /* ---- stats ----------------------------------------------------- */
+
+    case SS_OP_STAT:
+    {
+        int32_t stat;
+
+        if( !SSVM_PopInt(state, &stat) )
+            return 1;
+        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        /* `stat` is the *boosted* level in the reference — what a level check
+         * in content wants to know is what you can do right now. */
+        SSVM_PushInt(state, player->stat_boosted[stat]);
+        return 1;
+    }
+
+    case SS_OP_STAT_ADVANCE:
+    {
+        int32_t stat;
+        int32_t experience;
+
+        if( !SSVM_PopInt(state, &experience) )
+            return 1;
+        if( !SSVM_PopInt(state, &stat) )
+            return 1;
+        /* The reference's xp argument is already in tenths. */
+        mock230_combat_add_xp(srv, stat, experience);
+        return 1;
+    }
+
+    /*
+     * `npc_param(<param>)` reads a param off the active npc's type.
+     *
+     * Only the combat params exist here, and only because the drop tables need
+     * `death_drop`. A param the content tree does not model pushes 0 rather
+     * than aborting: the reference's own params default, and content that asks
+     * for one this engine has never heard of should degrade rather than stop.
+     */
+    case SS_OP_NPC_PARAM:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+        int32_t param;
+
+        if( !SSVM_PopInt(state, &param) )
+            return 1;
+        if( npc && npc->def &&
+            param == mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop") )
+            SSVM_PushInt(state, npc->def->death_drop);
+        else
+            SSVM_PushInt(state, 0);
+        return 1;
+    }
 
     /* ---- audio ---------------------------------------------------- */
 

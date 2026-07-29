@@ -176,15 +176,15 @@ encode_keyframe(struct Writer* out, const struct PG_Keyframe* keyframe)
     int reference_count = 0;
 
     w2(out, keyframe->framemap ? keyframe->framemap->id : -1);
-    for( int i = 0; i < keyframe->transformation_count; i++ )
-        if( keyframe->transformations[i].is_reference )
+    for( int i = 0; i < keyframe->skeleton.joint_count; i++ )
+        if( keyframe->skeleton.joints[i].is_origin )
             reference_count++;
     w1(out, reference_count);
 
-    for( int i = 0; i < keyframe->transformation_count; i++ )
+    for( int i = 0; i < keyframe->skeleton.joint_count; i++ )
     {
-        const struct PG_Transformation* reference = &keyframe->transformations[i];
-        if( !reference->is_reference )
+        const struct PG_RigJoint* reference = &keyframe->skeleton.joints[i];
+        if( !reference->is_origin )
             continue;
         w2(out, reference->id);
         for( int k = 0; k < 3; k++ )
@@ -192,10 +192,10 @@ encode_keyframe(struct Writer* out, const struct PG_Keyframe* keyframe)
         w1(out, reference->child_count);
         for( int c = 0; c < reference->child_count; c++ )
         {
-            const struct PG_Transformation* child =
-                &keyframe->transformations[reference->child_order[c]];
+            const struct PG_RigJoint* child =
+                &keyframe->skeleton.joints[reference->child_order[c]];
             w2(out, child->id);
-            w1(out, child->type);
+            w1(out, child->kind);
             for( int k = 0; k < 3; k++ )
                 w2(out, child->delta[k]);
         }
@@ -366,99 +366,72 @@ pg_import_pgl(struct PG_App* app, const char* path)
         framemap->id = r2s(&in);
         reference_count = r1(&in);
 
+        /*
+         * A .pgl carries the joints and their children but no hierarchy, so the
+         * rig is assembled here entry by entry and linked at the end — the same
+         * inference a cache frame goes through, minus the part that finds the
+         * joints, which the file already answers.
+         */
         for( int r = 0; r < reference_count && !in.failed; r++ )
         {
-            int reference_id = r2s(&in);
-            int delta[3];
+            int joint_id = r2s(&in);
             int child_count;
-            struct PG_Transformation reference;
-            int reference_index;
+            struct PG_RigJoint* joint;
+            int joint_index;
 
+            joint = pg_rig_skeleton_push(&keyframe.skeleton);
+            if( !joint )
+            {
+                in.failed = true;
+                break;
+            }
+            joint_index = keyframe.skeleton.joint_count - 1;
+            joint->id = joint_id;
+            joint->kind = PG_RIG_ORIGIN;
+            joint->is_origin = true;
             for( int k = 0; k < 3; k++ )
-                delta[k] = r2s(&in);
+                joint->delta[k] = r2s(&in);
+            if( joint_id >= 0 && joint_id < framemap->length )
+            {
+                joint->labels = framemap->maps[joint_id];
+                joint->label_count = framemap->map_lengths[joint_id];
+            }
             child_count = r1(&in);
-
-            memset(&reference, 0, sizeof(reference));
-            reference.id = reference_id;
-            reference.type = PG_TF_REFERENCE;
-            reference.is_reference = true;
-            reference.parent = -1;
-            for( int t = 0; t < 4; t++ )
-            {
-                reference.child_by_type[t] = -1;
-                reference.child_order[t] = -1;
-            }
-            if( reference_id >= 0 && reference_id < framemap->length )
-            {
-                reference.labels = framemap->maps[reference_id];
-                reference.label_count = framemap->map_lengths[reference_id];
-            }
-            memcpy(reference.delta, delta, sizeof(delta));
-
-            /* Grown by hand rather than through the keyframe helper, which is
-             * private to the animation module; the layout is the same. */
-            {
-                struct PG_Transformation* grown = realloc(
-                    keyframe.transformations,
-                    (size_t)(keyframe.transformation_count + 1) * sizeof(*grown));
-                if( !grown )
-                {
-                    in.failed = true;
-                    break;
-                }
-                keyframe.transformations = grown;
-                keyframe.transformation_capacity = keyframe.transformation_count + 1;
-                keyframe.transformations[keyframe.transformation_count] = reference;
-                reference_index = keyframe.transformation_count++;
-            }
 
             for( int c = 0; c < child_count && !in.failed; c++ )
             {
                 int child_id = r2s(&in);
-                int child_type = r1(&in);
-                struct PG_Transformation child;
-                struct PG_Transformation* grown;
+                int child_kind = r1(&in);
+                int delta[3];
+                struct PG_RigJoint* child;
 
-                memset(&child, 0, sizeof(child));
-                child.id = child_id;
-                child.type = child_type;
-                child.parent = -1;
-                for( int t = 0; t < 4; t++ )
-                {
-                    child.child_by_type[t] = -1;
-                    child.child_order[t] = -1;
-                }
                 for( int k = 0; k < 3; k++ )
-                    child.delta[k] = r2s(&in);
-                if( child_id >= 0 && child_id < framemap->length )
-                {
-                    child.labels = framemap->maps[child_id];
-                    child.label_count = framemap->map_lengths[child_id];
-                }
-                if( child_type < PG_TF_TRANSLATION || child_type > PG_TF_SCALE )
+                    delta[k] = r2s(&in);
+                /* Read the entry whatever its kind, then drop the ones the rig
+                 * has no place for — the stream has to be consumed either way. */
+                if( child_kind < PG_RIG_TRANSLATE || child_kind > PG_RIG_SCALE )
                     continue;
 
-                grown = realloc(
-                    keyframe.transformations,
-                    (size_t)(keyframe.transformation_count + 1) * sizeof(*grown));
-                if( !grown )
+                child = pg_rig_skeleton_push(&keyframe.skeleton);
+                if( !child )
                 {
                     in.failed = true;
                     break;
                 }
-                keyframe.transformations = grown;
-                keyframe.transformation_capacity = keyframe.transformation_count + 1;
-                keyframe.transformations[keyframe.transformation_count] = child;
-                keyframe.transformations[reference_index].child_by_type[child_type] =
-                    keyframe.transformation_count;
-                keyframe.transformations[reference_index]
-                    .child_order[keyframe.transformations[reference_index].child_count++] =
-                    keyframe.transformation_count;
-                keyframe.transformation_count++;
+                child->id = child_id;
+                child->kind = child_kind;
+                memcpy(child->delta, delta, sizeof(delta));
+                if( child_id >= 0 && child_id < framemap->length )
+                {
+                    child->labels = framemap->maps[child_id];
+                    child->label_count = framemap->map_lengths[child_id];
+                }
+                pg_rig_joint_attach(
+                    &keyframe.skeleton, joint_index, keyframe.skeleton.joint_count - 1);
             }
         }
 
-        pg_keyframe_build_skeleton(&keyframe);
+        pg_rig_skeleton_link(&keyframe.skeleton);
         pg_animation_insert_keyframe(anim, &keyframe, anim->keyframe_count);
         pg_keyframe_free_contents(&keyframe);
     }
@@ -536,11 +509,11 @@ pg_export_dat(struct PG_App* app, const char* path)
         if( !keyframe->modified )
             continue;
         w2(&out, written_index++);
-        w1(&out, keyframe->transformation_count);
+        w1(&out, keyframe->skeleton.joint_count);
 
-        for( int t = 0; t < keyframe->transformation_count; t++ )
+        for( int t = 0; t < keyframe->skeleton.joint_count; t++ )
         {
-            const struct PG_Transformation* transformation = &keyframe->transformations[t];
+            const struct PG_RigJoint* transformation = &keyframe->skeleton.joints[t];
             int mask;
 
             /* Ignored masks for the transform indices this keyframe skipped, so
@@ -673,17 +646,17 @@ pg_pack_animation(struct PG_App* app, const char* out_directory)
                 frame_ids[i] = keyframe->frame_id;
                 continue;
             }
-            frames[slot].count = keyframe->transformation_count;
-            frames[slot].indices = calloc((size_t)keyframe->transformation_count, sizeof(int));
-            frames[slot].delta_x = calloc((size_t)keyframe->transformation_count, sizeof(int));
-            frames[slot].delta_y = calloc((size_t)keyframe->transformation_count, sizeof(int));
-            frames[slot].delta_z = calloc((size_t)keyframe->transformation_count, sizeof(int));
-            for( int t = 0; t < keyframe->transformation_count; t++ )
+            frames[slot].count = keyframe->skeleton.joint_count;
+            frames[slot].indices = calloc((size_t)keyframe->skeleton.joint_count, sizeof(int));
+            frames[slot].delta_x = calloc((size_t)keyframe->skeleton.joint_count, sizeof(int));
+            frames[slot].delta_y = calloc((size_t)keyframe->skeleton.joint_count, sizeof(int));
+            frames[slot].delta_z = calloc((size_t)keyframe->skeleton.joint_count, sizeof(int));
+            for( int t = 0; t < keyframe->skeleton.joint_count; t++ )
             {
-                frames[slot].indices[t] = keyframe->transformations[t].id;
-                frames[slot].delta_x[t] = keyframe->transformations[t].delta[0];
-                frames[slot].delta_y[t] = keyframe->transformations[t].delta[1];
-                frames[slot].delta_z[t] = keyframe->transformations[t].delta[2];
+                frames[slot].indices[t] = keyframe->skeleton.joints[t].id;
+                frames[slot].delta_x[t] = keyframe->skeleton.joints[t].delta[0];
+                frames[slot].delta_y[t] = keyframe->skeleton.joints[t].delta[1];
+                frames[slot].delta_z[t] = keyframe->skeleton.joints[t].delta[2];
             }
             frame_ids[i] = ((archive_id & 0xFFFF) << 16) | (slot & 0xFFFF);
             slot++;

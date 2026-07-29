@@ -346,10 +346,23 @@ osrs230_parse(
     case PKT_NAME_UPDATE_STAT:
     {
         struct Osrs230Cursor cur = { data, len, 0, 0 };
+        int base;
+
         out->_update_stat.stat = c_g1(&cur);
-        out->_update_stat.level = c_g1(&cur);
+        base = c_g1(&cur);
         out->_update_stat.xp = c_g4(&cur);
-        (void)c_g1(&cur); /* boosted level: no client-side consumer yet */
+        /*
+         * The BOOSTED level is what `.level` carries, not the base one.
+         *
+         * RS_GameProtoExec writes it straight into `stats->current_level`,
+         * having just let RS_PlayerStats_SetXp derive `base_level` from the xp
+         * — so the base level on the wire is redundant and the boosted one is
+         * the field with a consumer. The health orb reads current_level for
+         * hitpoints, which is the same number as the player's hitpoints; sending
+         * the base here pins the orb at full health for the whole session.
+         */
+        out->_update_stat.level = c_g1(&cur);
+        (void)base;
         return cur.over ? 0 : 1;
     }
 

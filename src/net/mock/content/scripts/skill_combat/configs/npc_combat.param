@@ -1,0 +1,20 @@
+// NPC-only combat parameters. LostCity's
+// content/scripts/skill_combat/configs/npc_combat.param, subset.
+
+[attack_anim]
+type=seq
+default=human_unarmedpunch
+
+[death_anim]
+type=seq
+default=human_death
+
+// What the npc leaves behind on death, always, on top of its drop table.
+[death_drop]
+type=namedobj
+default=bones
+
+// Tiles at which an aggressive npc picks a fight. 0 means it never starts one.
+[huntrange]
+type=int
+default=0

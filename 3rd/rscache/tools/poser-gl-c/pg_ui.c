@@ -391,7 +391,7 @@ draw_editor_panel(struct PG_App* app, float x, float y, float w, float h)
     struct PG_Gui* gui = &app->gui;
     struct PG_Animation* anim = pg_app_current_animation(app);
     struct PG_Keyframe* keyframe = NULL;
-    struct PG_Transformation* node = NULL;
+    struct PG_RigJoint* node = NULL;
     static const char* actions[] = { "Add", "Copy", "Paste", "Lerp", "Del" };
     static const char* types[] = { "Move", "Rot", "Scale" };
     static const char* coords[] = { "X", "Y", "Z" };
@@ -454,7 +454,7 @@ draw_editor_panel(struct PG_App* app, float x, float y, float w, float h)
     panel(gui, x, y + 95.0f, w, h - 95.0f, "Node Transformer");
 
     if( keyframe && app->selected_node_id >= 0 )
-        node = pg_keyframe_find(keyframe, app->selected_node_id);
+        node = pg_rig_skeleton_find(&keyframe->skeleton, app->selected_node_id);
 
     if( node )
         snprintf(label, sizeof(label), "Selected: %d", node->id);
@@ -464,8 +464,8 @@ draw_editor_panel(struct PG_App* app, float x, float y, float w, float h)
 
     for( int i = 0; i < 3; i++ )
     {
-        int type = PG_TF_TRANSLATION + i;
-        bool enabled = node && node->child_by_type[type] >= 0;
+        int type = PG_RIG_TRANSLATE + i;
+        bool enabled = node && node->child_by_kind[type] >= 0;
         if( pg_gui_toggle(
                 gui, ID_TYPES + i, x + 6.0f + (float)i * type_w, y + 134.0f, type_w - 2.0f,
                 20.0f, types[i], app->selected_type == type, enabled) )
@@ -476,17 +476,17 @@ draw_editor_panel(struct PG_App* app, float x, float y, float w, float h)
                 app->gizmo_enabled = true;
                 pg_gizmo_set(
                     &app->gizmo,
-                    type == PG_TF_ROTATION
+                    type == PG_RIG_ROTATE
                         ? PG_GIZMO_ROTATION
-                        : (type == PG_TF_SCALE ? PG_GIZMO_SCALE : PG_GIZMO_TRANSLATION),
-                    node->position);
+                        : (type == PG_RIG_SCALE ? PG_GIZMO_SCALE : PG_GIZMO_TRANSLATION),
+                    pg_joint_position(node));
             }
         }
     }
 
     {
-        struct PG_Transformation* target =
-            node ? pg_reference_child(keyframe, node, app->selected_type) : NULL;
+        struct PG_RigJoint* target =
+            node ? pg_rig_joint_child(&keyframe->skeleton, node, app->selected_type) : NULL;
         for( int i = 0; i < 3; i++ )
         {
             int value = target ? target->delta[i] : 0;

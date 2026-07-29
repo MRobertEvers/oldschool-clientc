@@ -21,7 +21,41 @@
 static struct Mock230NpcInfo* g_npcs;
 static int g_npc_count;
 
-static const struct Mock230NpcInfo k_unknown = { NULL, -1, 0 };
+static const struct Mock230NpcInfo k_unknown = { .name = NULL, .combat_level = -1, .size = 0 };
+
+/*
+ * Combat bonuses out of the npc record's param table — the same ids as the obj
+ * table (0..11 bonuses, 14 attack rate); see mock230_objinfo.c for why those
+ * numbers are trustworthy. cache.osrs230's Guard (3254) reads stabdefence +18,
+ * slashdefence +25, crushdefence +19, strengthbonus +5 and attackrate 4, which
+ * is the whole reason a guard is a real fight and a man is not.
+ */
+static void
+read_combat_params(
+    const struct RSCache_Params* params,
+    struct Mock230NpcInfo* out)
+{
+    for( int i = 0; i < params->count; i++ )
+    {
+        int key = params->keys[i];
+        int value;
+
+        if( params->kinds[i] != 0 || !params->values[i] )
+            continue;
+        value = *(const int*)params->values[i];
+
+        if( key >= 0 && key < 12 )
+        {
+            out->bonus[key] = value;
+            out->has_params = 1;
+        }
+        else if( key == 14 )
+        {
+            out->attackrate = value;
+            out->has_params = 1;
+        }
+    }
+}
 
 int
 mock230_npcinfo_load(const char* cache_dir)
@@ -104,6 +138,7 @@ mock230_npcinfo_load(const char* cache_dir)
         g_npcs[i].name = NULL;
         g_npcs[i].combat_level = -1;
         g_npcs[i].size = 1;
+        g_npcs[i].attackrate = 4;
     }
 
     for( int i = 0; i < archive->file_count; i++ )
@@ -122,6 +157,9 @@ mock230_npcinfo_load(const char* cache_dir)
             g_npcs[id].name = strdup(npc->name);
         g_npcs[id].combat_level = npc->combat_level;
         g_npcs[id].size = npc->size > 0 ? npc->size : 1;
+        for( int op = 0; op < 5; op++ )
+            g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
+        read_combat_params(&npc->params, &g_npcs[id]);
         RSCache_Dat2ConfigNpcFree(npc);
     }
 
@@ -147,7 +185,11 @@ mock230_npcinfo_free(void)
     if( g_npcs )
     {
         for( int i = 0; i < g_npc_count; i++ )
+        {
             free((void*)g_npcs[i].name);
+            for( int op = 0; op < 5; op++ )
+                free((void*)g_npcs[i].ops[op]);
+        }
         free(g_npcs);
     }
     g_npcs = NULL;

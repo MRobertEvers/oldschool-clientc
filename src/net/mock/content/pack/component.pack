@@ -1,0 +1,10 @@
+// Hand-authored. A component symbol is the packed (interface << 16) | child
+// uid the rev-230 protocol addresses a component by; OpenRune's gameval
+// `components` group stores the bare child id, so importing it would need the
+// interface id folded back in for every entry. Four symbols is not worth that.
+//
+// 231 root 506x129 — verified with tools/dump_interface.
+15138818=chat_head
+15138820=chat_name
+15138821=chat_continue
+15138822=chat_body

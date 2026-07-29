@@ -1,0 +1,13 @@
+// Combat content.
+//
+// There is very little of it, and that is the design: the engine owns
+// hitpoints, hitsplats, the accuracy and max-hit rolls, death, respawn and
+// swing timing, because those have to be consistent. What is attackable is not
+// content either — it is whatever the cache's own npc record offers an "Attack"
+// op for, which is the same test the client's right-click menu makes.
+//
+// Content decides who is aggressive and how hard they hit, and those live in
+// the area's .npc config. What belongs here is anything a fight should *say*.
+
+[opnpc1,goblin]
+npc_say("Ye be dead soon!");
