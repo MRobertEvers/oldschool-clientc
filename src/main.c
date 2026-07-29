@@ -780,6 +780,11 @@ frame_loop_step(void)
             static int hk_init = 0;
             static long hk_frame = -1;
             static int hk_key = -1;
+            /* Platform-neutral code for the same key when it has one (letters
+             * and digits). A real press fills both arrays, and the debug world
+             * hotkeys read this one — pressing only the OSRS side would make a
+             * hotkey/spawn-key collision untestable. */
+            static enum LibToriRS_KeyCode hk_plain = TORIRSK_UNKNOWN;
             if( !hk_init )
             {
                 hk_init = 1;
@@ -800,6 +805,14 @@ frame_loop_step(void)
                     hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
                     hk_frame = at;
                     hk_key = LibToriRS_OsrsKeyFromName(name);
+                    hk_plain = TORIRSK_UNKNOWN;
+                    if( name[0] && !name[1] )
+                    {
+                        if( name[0] >= 'a' && name[0] <= 'z' )
+                            hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_A + (name[0] - 'a'));
+                        else if( name[0] >= '0' && name[0] <= '9' )
+                            hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
+                    }
                     fprintf(stderr, "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
                             name, hk_key, hk_frame);
                 }
@@ -809,12 +822,19 @@ frame_loop_step(void)
             if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
             {
                 if( frame_count == hk_frame )
+                {
                     CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
+                    if( hk_plain != TORIRSK_UNKNOWN )
+                        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)hk_plain);
+                }
                 else if( frame_count >= hk_frame + 2 )
                 {
                     CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
+                    if( hk_plain != TORIRSK_UNKNOWN )
+                        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)hk_plain);
                     hk_frame = -1;
                     hk_key = -1;
+                    hk_plain = TORIRSK_UNKNOWN;
                 }
             }
         }

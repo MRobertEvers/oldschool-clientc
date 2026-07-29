@@ -555,23 +555,25 @@ against the repacked cache matches the original's line for line. The *container*
 bytes differ, because the payload is recompressed on the way in — use `--binary` if
 you need container-level byte-exactness.
 
-### Readable forms for five of them
+### Readable forms for six of them
 
-`--assets` decodes five kinds into something you can open and edit, and leaves the
+`--assets` decodes six kinds into something you can open and edit, and leaves the
 rest as their payload. `cachepack --list-assets` prints which is which.
 
 | kind | form | round-trips |
 |---|---|---|
 | `maps` | `.jm2`, LostCity's format — `==== MAP ====` tiles, `==== LOC ====` scenery | all 2,934 squares |
-| `interfaces` | `.if`, one `[com <id>]` block per component | all 968 |
+| `interfaces` | `.if`, one `[com_<id>]` block per component | all 968 |
+| `worldmap/areas` | `.wma` per area, `.wmc` per composite map | all 104 |
 | `textures` | `.texture`, a text record | all 210 |
 | `scripts` | `.cs2` source, via the library's own decompiler | 5,586 of 9,725 |
 | `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
 
-Two of these needed encoders the library did not have, and both are now in it and
-measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact, 4,968,456
-locs) and `RSCache_Dat2ComponentEncodeIf3`, which dispatches IF1 and IF3
-(**74,719 / 74,719 components byte-exact** across osrs239, osrs230 and osrs184).
+Three of these needed encoders the library did not have, and all three are now in
+it and measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact,
+4,968,456 locs), `RSCache_Dat2ComponentEncodeIf3`, which dispatches IF1 and IF3
+(**74,719 / 74,719 components byte-exact** across osrs239, osrs230 and osrs184),
+and `RSCache_WorldMapAreaEncode` / `EncodeIcons` (**207 / 207 files byte-exact**).
 
 **Declining is normal and nothing is lost.** A record the decoder cannot handle
 falls back to its raw payload under a different extension — 4,139 clientscripts do,
@@ -591,6 +593,18 @@ A few things worth knowing:
 - **Height comes from `authored_height`.** The terrain decode rewrites `height` for
   every tile, so by the time anyone sees it there is nothing writable left
   (EXCEPTIONS.md B8).
+- **The world map table is not labelled, so the codec proves what it decodes.**
+  idx19 holds 54 archives and nothing says which is the area list, which is the
+  compositemaps and which is the ground PNGs. Rather than hardcode the layout, each
+  record is decoded, re-encoded and compared against the bytes it came from; text is
+  written only on a byte-exact match, and anything else falls back to raw. That
+  found the layout by itself — archive 0 is 52 areas, archive 1 is 52 compositemaps,
+  archive 2 is 52 PNGs, and 51 single-file archives decode as neither.
+- **A jm2's foreign sections belong to somebody else.** MAP and LOC are the cache's;
+  `==== NPC ====` and `==== OBJ ====` are a server's spawns living in the same file
+  (which is how LostCity keeps them). Unpacking over an existing `.jm2` preserves
+  every section it does not own, and packing skips them — so a content tree can hold
+  both halves of a square without either tool eating the other's work.
 - **Sprite palettes are written out, not re-derived.** Two entries can hold the
   same colour, so RGB does not determine the index. Alpha rides in the BMP, which
   is 32-bit BGRA.

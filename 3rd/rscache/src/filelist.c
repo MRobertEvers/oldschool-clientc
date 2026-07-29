@@ -36,8 +36,23 @@ RSCache_FileListNewFromDecode(
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, data, data_size);
 
-    filelist->files = malloc(num_files * sizeof(char*));
-    filelist->file_sizes = malloc(num_files * sizeof(int));
+    /*
+     * Everything the error path frees is declared and nulled here.
+     *
+     * `files` in particular must be calloc'd: the per-file allocation loop below
+     * can fail partway, and RSCache_FileListFree walks the whole array — with
+     * malloc it would reach entries that were never assigned and free whatever
+     * the heap left there. A malformed group is the normal way in (one produced
+     * by a broken encoder, say), so this is a crash on bad input rather than on
+     * memory pressure.
+     */
+    int** chunk_sizes = NULL;
+    int* sizes = NULL;
+    int* file_offsets = NULL;
+    int chunks = 0;
+
+    filelist->files = calloc((size_t)num_files, sizeof(char*));
+    filelist->file_sizes = calloc((size_t)num_files, sizeof(int));
     if( !filelist->files || !filelist->file_sizes )
     {
         free(filelist->files);
@@ -45,7 +60,6 @@ RSCache_FileListNewFromDecode(
         free(filelist);
         return NULL;
     }
-    memset(filelist->file_sizes, 0, num_files * sizeof(int));
     filelist->file_count = num_files;
 
     if( num_files == 1 )
@@ -64,10 +78,17 @@ RSCache_FileListNewFromDecode(
     }
 
     buffer.position = buffer.size - 1;
-    int chunks = g1(&buffer);
+    chunks = g1(&buffer);
     buffer.position = 0;
 
-    int** chunk_sizes = malloc((size_t)chunks * sizeof(int*));
+    /* The size table is `chunks * num_files` int32s plus the count byte, and it
+     * has to fit inside the payload. A group whose trailer says otherwise is
+     * malformed, and reading it would walk off the front of the buffer. */
+    if( chunks <= 0 ||
+        (uint64_t)chunks * (uint64_t)num_files * 4u + 1u > (uint64_t)buffer.size )
+        goto error;
+
+    chunk_sizes = malloc((size_t)chunks * sizeof(int*));
     if( !chunk_sizes )
         goto error;
 
@@ -81,10 +102,9 @@ RSCache_FileListNewFromDecode(
         }
     }
 
-    int* sizes = malloc((size_t)num_files * sizeof(int));
+    sizes = calloc((size_t)num_files, sizeof(int));
     if( !sizes )
         goto error;
-    memset(sizes, 0, (size_t)num_files * sizeof(int));
 
     buffer.position = buffer.size - 1 - (uint32_t)chunks * (uint32_t)num_files * 4u;
     for( int chunk = 0; chunk < chunks; chunk++ )
@@ -99,13 +119,18 @@ RSCache_FileListNewFromDecode(
         }
     }
 
-    int* file_offsets = calloc((size_t)num_files, sizeof(int));
+    file_offsets = calloc((size_t)num_files, sizeof(int));
     if( !file_offsets )
         goto error;
 
     for( int id = 0; id < num_files; id++ )
     {
-        filelist->files[id] = malloc((size_t)sizes[id]);
+        /* Deltas are signed and summed, so a malformed table can produce a
+         * negative or absurd length. Refuse rather than hand malloc a size_t
+         * cast of it. */
+        if( sizes[id] < 0 || (uint64_t)sizes[id] > (uint64_t)buffer.size )
+            goto error;
+        filelist->files[id] = malloc((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
         if( !filelist->files[id] )
             goto error;
     }

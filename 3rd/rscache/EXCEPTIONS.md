@@ -1856,10 +1856,10 @@ definitions, each with its own id and its own line in LostCity's `texture.pack`)
 the archive's payload whole, which costs nothing — the payload is the container's own
 file table plus the files — and takes the tree from 352,849 files to 117,086.
 
-### H8. Two encoders the library was missing, written for the readable asset forms
+### H8. Three encoders the library was missing, written for the readable asset forms
 
-`--assets` can decode maps and interfaces into text only because both directions
-exist. Neither did before.
+`--assets` can decode maps, interfaces and the world map into text only because both
+directions exist. None did before.
 
 **`RSCache_MapLocsEncode`.** The loc stream is two nested runs of *unsigned*
 deltas, so entries have to leave sorted by `(loc_id, packed position)` or a delta
@@ -1890,15 +1890,50 @@ Three things it had to get right, and one it caught:
   assert on an IF1 type-2 widget, which carries 20 inventory slots and five object
   ops no IF3 component has. The bound covers both layouts.
 
-### H9. Readable asset forms, and what each one costs
+**`RSCache_WorldMapAreaEncode` and `RSCache_WorldMapAreaEncodeIcons`.** Two fields
+the area decode reads and never uses (a 32-bit int after `origin`, a byte before
+`is_main`) had to become struct fields, or every record re-encoded two zeros where
+the cache had values — the B8 pattern again. The compositemap needed one more:
+`data0_count`, the index where the first region block ends. The two blocks are
+stored back to back and each record repeats its own kind, but the stream is free to
+disagree with the split, so re-deriving it from the records would be a guess.
+`EncodeIcons` also takes the same `RSCache_WorldMapFlags` the decode used, because
+OSRS >= 238 drops the trailing group/file BigSmart pair from every record and
+writing it anyway shifts everything after it. **207 / 207 files byte-exact.**
 
-Five kinds decode to something editable; the rest stay payload. All five round-trip,
+### H9. The world map table is unlabelled, so the codec validates rather than assumes
+
+idx19 is 54 archives and nothing in the cache says which holds what. The obvious
+move — hardcode "archive 0 is areas, archive 1 is compositemaps" — is a claim about
+one cache dressed up as a decoder.
+
+Instead each record is decoded, immediately re-encoded, and compared against the
+bytes it came from. Text is written only on a byte-exact match; anything else
+declines to its raw payload. The layout then reported itself: archive 0 is 52 area
+records, archive 1 is 52 compositemaps, archive 2 is 52 PNGs, and the remaining 51
+single-file archives match neither decoder and stay `.bin`.
+
+The cost is decoding twice on export, which is nothing at 748 KB. What it buys is
+that a cache laid out differently produces correct output rather than confident
+nonsense, and that a decoder bug shows up as "declined" rather than as a text file
+that packs back into different bytes.
+
+One thing this caught that a semantic round trip would not: the area's background
+colour is `0xFF000000`, and writing it as `%06X` dropped the alpha byte. The text
+re-read as `0x000000`, re-encoded a different colour, and the source fixed point
+still held because the loss was symmetric. Only the payload comparison against the
+original cache found it.
+
+### H10. Readable asset forms, and what each one costs
+
+Six kinds decode to something editable; the rest stay payload. All six round-trip,
 and the whole tree is a fixed point at 137,652 files with an identical client boot.
 
 | kind | form | note |
 |---|---|---|
 | maps | `.jm2` | terrain + locs; the three undecoded per-square files ride alongside as `.extra<N>.bin` |
-| interfaces | `.if` | one `[com <id>]` block per component |
+| interfaces | `.if` | one `[com_<id>]` block per component |
+| worldmap/areas | `.wma`, `.wmc` | areas and compositemaps; the ground layer stays PNG |
 | textures | `.texture` | text, because an OldSchool texture is a **record**, not a bitmap |
 | scripts | `.cs2` | via the existing decompiler; 5,586 of 9,725 |
 | sprites | `.bmp` + `pack.meta` | palette recorded, not re-derived; alpha rides in the 32-bit BMP |
@@ -1909,6 +1944,15 @@ without name tables. Sharing one extension between the decoded and raw forms was
 real bug during development: every script fell back, kept the `.cs2` name, and the
 output looked like successful decompilation of garbage. They are now `.cs2` and
 `.bin`.
+
+**A jm2 is shared with something that is not this tool.** MAP and LOC are the
+cache's sections; a content tree also keeps a square's npc and obj spawns in the same
+file, the way LostCity does. So the codec owns two sections and treats every other as
+foreign: on export it reads the existing file first and carries the foreign sections
+through verbatim, and on import it skips them rather than trying to read
+`0 41 42: 3045` as a tile. A file with no MAP or LOC section at all declines, because
+encoding it would put a blank square into the cache — which reads as a hole in the
+world rather than as the absence it is.
 
 One bug worth recording because the symptom pointed nowhere near the cause: passing
 the param config's type *character* to `RSCache_CS2_NamesSetParamType` instead of

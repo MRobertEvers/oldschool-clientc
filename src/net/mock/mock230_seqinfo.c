@@ -102,7 +102,11 @@ mock230_seqinfo_load(const char* cache_dir)
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
 
-    fprintf(stderr, "mock230: sequence names loaded (%d named)\n", loaded);
+    /* OldSchool stopped writing debug names into sequence records, and rev 239
+     * has none at all. That is not an error: pack/seq.pack names all 14,413 of
+     * them, and mock230_seq_by_name falls through to it. */
+    fprintf(stderr, "mock230: sequence debug names loaded (%d named%s)\n", loaded,
+            loaded ? "" : " — falling back to pack/seq.pack");
     return loaded;
 }
 

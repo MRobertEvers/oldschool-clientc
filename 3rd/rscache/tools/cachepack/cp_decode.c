@@ -283,7 +283,7 @@ texture_read(
 /* ---- interfaces ---------------------------------------------------------- */
 
 /*
- * One `.if` per interface, one `[com <id>]` block per component — LostCity's
+ * One `.if` per interface, one `[com_<id>]` block per component — LostCity's
  * shape, because an interface is a thing you read whole.
  *
  * The archive is not exploded into a file per component (see the register), so
@@ -552,7 +552,7 @@ interface_write(
         return 0;
     }
     fprintf(out, "// Interface %d — %d components.\n", record_id, files->file_count);
-    fprintf(out, "// One [com <id>] block per component; `if3` selects the field set.\n\n");
+    fprintf(out, "// One [com_<id>] block per component; `if3` selects the field set.\n\n");
 
     struct CP_Lines lines;
     cp_lines_init(&lines);
@@ -981,7 +981,7 @@ interface_read(
     for( int i = 0; i < file.count && ok; i++ )
     {
         const struct CP_Config* block = &file.configs[i];
-        /* The block name is `com <id>`; the id is data, not position, so a hole
+        /* The block name is `com_<id>`; the id is data, not position, so a hole
          * in the component list survives the round trip. */
         int file_id = 0;
         if( sscanf(block->debugname, "com_%d", &file_id) != 1 )

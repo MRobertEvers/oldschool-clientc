@@ -73,7 +73,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_FRAMEMAP] = {
         "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, NULL },
     [CP_ASSET_INTERFACE] = {
-        "interfaces", "interface", "if", RSCACHE_DAT2_TABLE_INTERFACES, 0,
+        "interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0,
         &cp_codec_interface },
     [CP_ASSET_SYNTH] = {
         "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, NULL },
@@ -86,7 +86,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_SPRITE] = {
         "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "texture", "texture", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE,
+        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE,
         &cp_codec_texture },
     [CP_ASSET_BINARY] = {
         "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, NULL },
@@ -130,6 +130,37 @@ static const struct CP_AssetCodec*
 asset_codec(const struct CP_Asset* asset)
 {
     return g_raw_assets ? NULL : asset->codec;
+}
+
+/**
+ * A codec's extension must differ from the raw fallback's.
+ *
+ * They share a directory and a stem, so if they share an extension too then a
+ * record whose decode declines writes its raw payload over the same name — and on
+ * import, `read` declines, the caller falls back to the raw path, and the *text*
+ * gets packed into the cache as if it were the payload. The archive that produces
+ * is malformed in a way nothing downstream is expecting: it took out
+ * RSCache_FileListNewFromDecode with a free of an unallocated pointer.
+ *
+ * Checked once at startup because it is a property of the register, not of any
+ * cache — a new codec row that gets it wrong should fail immediately and loudly
+ * rather than the first time a record declines.
+ */
+static void
+assert_extensions_distinct(void)
+{
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        const struct CP_Asset* asset = &g_assets[i];
+        if( asset->codec && strcmp(asset->codec->ext, asset->ext) == 0 )
+        {
+            fprintf(stderr,
+                    "cachepack: %s writes .%s both decoded and raw — a declined "
+                    "record would be packed back as its own text\n",
+                    asset->dir, asset->ext);
+            abort();
+        }
+    }
 }
 
 const struct CP_Asset*
@@ -702,6 +733,8 @@ cp_assets_export(
     struct CP_Ctx* ctx,
     const char* assets_csv)
 {
+    assert_extensions_distinct();
+
     unsigned mask = 0;
     if( !parse_asset_list(assets_csv, &mask) )
         return 0;
@@ -1074,6 +1107,8 @@ cp_assets_import(
     struct CP_Ctx* ctx,
     const char* out_cache_dir)
 {
+    assert_extensions_distinct();
+
     int total = 0;
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
