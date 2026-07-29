@@ -3393,6 +3393,26 @@ mock230_world_selftest(void)
          * content tree" case shows up as a failure instead of as a server that
          * silently addresses component 0.
          */
+        /*
+         * The player pool's invariants.
+         *
+         * `world` and `session` are set by mock230_world_attach_session and must
+         * survive mock230_world_init's memset of the player — losing `session`
+         * leaves a logged-in player every encoder silently writes nothing for,
+         * and losing `world` crashes the first encoder that reaches through it.
+         * Neither is a compile error, and the second only crashes once a packet
+         * is actually sent.
+         */
+        SELFTEST_CHECK(srv.player == &srv.players[0],
+                       "the primary player is the pool's first slot");
+        SELFTEST_CHECK(srv.player_count == 1, "and the world holds one player, got %d",
+                       srv.player_count);
+        SELFTEST_CHECK(srv.player->world == &srv,
+                       "the player points back at its world after world_init");
+        SELFTEST_CHECK(srv.player->pid == 0, "with pid 0, got %d", srv.player->pid);
+        SELFTEST_CHECK(srv.player->session == NULL,
+                       "and no session — this world has no client");
+
         SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
 
         /*

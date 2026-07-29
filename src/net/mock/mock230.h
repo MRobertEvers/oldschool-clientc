@@ -2,26 +2,58 @@
 #define SRC_NET_MOCK_MOCK230_H
 
 /*
- * Mock OSRS rev-230 game server: shared state and the seam between its four
- * translation units.
+ * OSRS rev-230 game server: shared state, and the seam between its files.
+ *
+ * NOT a mock any more, whatever the filenames say. It is the server this
+ * project runs, and the `mock230_` prefix is a misnomer twice over — it also
+ * reads a rev-239 cache while speaking the rev-230 wire. Renaming is on the
+ * roadmap (docs/osrs230_mockserver.md §6.1) and has not happened yet.
  *
  *   mock230_main.c       the listening socket and the 600 ms tick loop
  *   mock230_transport.c  where bytes come from — a socket, or an in-process queue
  *   mock230_ws.c         the socket byte stream: raw TCP or WebSocket, sniffed
  *   mock230_session.c    login handshake + ISAAC + inbound framing, as a state machine
  *   mock230_embed.c      the server hosted inside another process, no socket at all
- *   mock230_world.c      game state — movement, NPCs, containers, equipment
+ *   mock230_save.c       player persistence, one ini per player
+ *   mock230_boot.c       the loader order, which is load-bearing
+ *   mock230_world.c      game state — movement, NPCs, containers, interactions
  *   mock230_encode.c     every server->client packet
+ *   mock230_scripts.c    the ServerScript host seam (166 of 396 opcodes)
+ *   mock230_content.c    the LostCity content tree: packs, configs, map spawns
  *   mock230_objinfo.c    obj metadata (name / wearpos / stackable) from the cache
+ *
+ * ── How the three structures relate ──────────────────────────────────
+ *
+ *   Mock230Server   the WORLD. npcs, ground objs, scene, tick, scripts, and a
+ *                   pool of players. One per process today.
+ *   Mock230Player   a PLAYER. Its own inventory, stats, varps, interaction —
+ *                   plus `world`, `session` and `pid`, so it is addressable on
+ *                   its own. This is the struct that gets saved.
+ *   Mock230Session  a CONNECTION. Transport, both ISAAC ciphers, the login
+ *                   state machine, the inbound frame reader. No game state.
+ *
+ * These were one struct until the split. `srv->player` is a *pointer* into
+ * `srv->players[]`, so field access is `srv->player->x`, and the session hangs
+ * off the player rather than the world — a packet is addressed to a player, and
+ * with more than one, "send the inventory" has to know whose.
+ *
+ * `MOCK230_PLAYER_MAX` is 1. What the pool has bought so far is that the player
+ * is a standalone, saveable entity; what it has NOT bought is multiplayer. That
+ * still needs the encoders to take a player rather than the world, the tick
+ * phases to iterate the pool, and PLAYER_INFO to encode players other than the
+ * local one. Do not assume a second player works because the array is there.
+ *
+ * ── Authority ────────────────────────────────────────────────────────
  *
  * The server is authoritative in the way a real one is: the client asks to
  * walk, to wear, to swap two inventory slots, and nothing moves until a packet
- * comes back saying it did. That is the whole point of the mock — it exercises
- * the client's server-driven paths rather than its local-prediction ones.
+ * comes back saying it did. That exercises the client's server-driven paths
+ * rather than its local-prediction ones.
  *
  * Wire encoding lives entirely in mock230_encode.c and goes through
- * 3rd/rsareabuf. See docs/osrs230_mockserver.md for the protocol notes and for
- * which parts deviate from a real rev-230 server.
+ * 3rd/rsareabuf. See docs/osrs230_mockserver.md for the protocol notes, the
+ * transport seam (§3.13b), the interaction model (§3.13c), the dispatch tables
+ * and opcode gap report (§3.13d), and the roadmap (§6.1).
  */
 
 /*
@@ -1061,6 +1093,19 @@ void
 mock230_world_set_home(
     int tile_x,
     int tile_z);
+
+/**
+ * Bind the primary player and hand it its session.
+ *
+ * **Call before mock230_world_init**, and before anything encodes: the session
+ * exists as soon as the handshake does, the world does not, and an encoder with
+ * no `srv->player` has nowhere to write. `session` may be NULL — a world with no
+ * client, which is what the selftest runs.
+ */
+void
+mock230_world_attach_session(
+    struct Mock230Server* srv,
+    struct Mock230Session* session);
 
 /**
  * Copy the login name onto the player. **Call after mock230_world_init**, which
