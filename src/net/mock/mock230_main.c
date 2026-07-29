@@ -117,7 +117,7 @@ serve(
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);
-    srv->session = &session;
+    mock230_world_attach_session(srv, &session);
 
     next_tick = now_ms() + MOCK230_TICK_MS;
 
@@ -169,7 +169,7 @@ serve(
     mock230_bank_shutdown(srv);
     mock230_scripts_free(srv);
     mock230_session_free(&session);
-    srv->session = NULL;
+    srv->player->session = NULL;
 }
 
 int

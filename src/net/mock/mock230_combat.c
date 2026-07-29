@@ -146,7 +146,7 @@ hitsplat_block(void)
 void
 mock230_combat_stop_player(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
 
     player->combat_target = -1;
     if( player->face_entity != -1 )
@@ -247,7 +247,7 @@ mock230_combat_add_xp(
     int stat,
     int tenths)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int before;
 
     if( stat < 0 || stat >= MOCK230_STAT_COUNT || tenths <= 0 )
@@ -442,7 +442,7 @@ mock230_combat_hit_npc(
         npc->death_tick = srv->tick + MOCK230_DEATH_TICKS;
         npc->next_roam_tick = srv->tick + MOCK230_RESPAWN_TICKS;
         mock230_combat_stop_npc(srv, slot);
-        if( srv->player.combat_target == slot )
+        if( srv->player->combat_target == slot )
             mock230_combat_stop_player(srv);
         /* The drop table is content: [ai_queue3,<npc>] with obj_add calls, the
          * same shape as LostCity's. mock230_scripts.c runs it and falls back to
@@ -457,7 +457,7 @@ mock230_combat_hit_player(
     int type,
     int amount)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
 
     if( amount > player->hitpoints )
         amount = player->hitpoints;
@@ -519,7 +519,7 @@ mock230_combat_engage(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc;
 
     if( slot < 0 || slot >= MOCK230_NPC_MAX )
@@ -576,7 +576,7 @@ player_attack_seq(const struct Mock230Player* player)
 void
 mock230_combat_player_tick(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc;
     int style;
     int damage_type;
@@ -706,7 +706,7 @@ maybe_aggress(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc = &srv->npcs[slot];
     int npc_level;
 
@@ -732,7 +732,7 @@ mock230_combat_npc_tick(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc = &srv->npcs[slot];
     int attack_roll;
     int defence_roll;

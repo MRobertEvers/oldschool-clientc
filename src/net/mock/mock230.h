@@ -62,6 +62,20 @@ enum
     MOCK230_WORN_SLOTS = 14,
 
     /*
+     * Players this world can hold.
+     *
+     * One today: a session still attaches only to `players[0]`, and PLAYER_INFO
+     * still writes the local player and then the terminator. What the pool buys
+     * now is that `struct Mock230Player` is addressable on its own — which is
+     * what both a second connection and a save file need, and what a single
+     * embedded field made impossible.
+     *
+     * The wire's own ceiling is 2047 (the 11-bit pid field), so this is a memory
+     * decision rather than a protocol one: a player is ~25 KB, most of it varps.
+     */
+    MOCK230_PLAYER_MAX = 1,
+
+    /*
      * Container ids, interface ids and component uids are NOT here. They are
      * the cache's numbers, not this server's, so they come from the content
      * tree by name — see mock230_ids.h. What stays in this file is what sizes
@@ -684,6 +698,22 @@ struct Mock230Npc
 
 struct Mock230Player
 {
+    /*
+     * The world this player is in, and where its bytes go.
+     *
+     * Both used to live on `struct Mock230Server` — the session as a field, the
+     * world implicitly by being the same struct. They are here because a packet
+     * is addressed to *a player*: with more than one, "send the inventory" has
+     * to know whose. `session` is NULL for a player with no client attached,
+     * which is what the selftest runs and what makes every encoder exercisable
+     * without a socket.
+     */
+    struct Mock230Server* world;
+    struct Mock230Session* session;
+
+    /** Index in the world's pool, and the pid the wire carries. */
+    int pid;
+
     int x, z, level;
     /** Whether this tick's steps are being run rather than walked. Derived
      *  each tick from `run_toggle` and whether any energy is left. */
@@ -856,14 +886,28 @@ struct Mock230Server
      * an in-process host replaces: the world cannot tell whether the session
      * behind this pointer is a socket or a pair of byte queues.
      */
-    struct Mock230Session* session;
+    /*
+     * The players in this world.
+     *
+     * A pool rather than a single embedded `struct Mock230Player`. That field
+     * made "the server", "the world" and "this connection" one struct, so a
+     * second player was not a change but a rewrite of every signature — and it
+     * is also exactly the struct that wants saving, so persistence was blocked
+     * behind the same thing.
+     *
+     * `player` points at the primary. Everything that said `srv->player->x` says
+     * `srv->player->x`; the session now hangs off the player, not the world.
+     */
+    struct Mock230Player players[MOCK230_PLAYER_MAX];
+    int player_count;
+    struct Mock230Player* player;
+
     int tick;
 
     /** Origin zone of the scene the client currently holds. Absolute tile of
      *  scene-local (0,0) is (zone - 6) * 8. */
     int zone_x, zone_z;
 
-    struct Mock230Player player;
     struct Mock230Npc npcs[MOCK230_NPC_MAX];
 
     /** Ordered list of npc slots the client is tracking, which is exactly the

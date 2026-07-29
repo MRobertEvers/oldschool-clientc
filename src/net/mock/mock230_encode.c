@@ -229,10 +229,11 @@ mock230_send(
 
     /* No session is a world with no client — the selftest. Everything above
      * this point still ran, so the capture saw the packet. */
-    if( !srv->session || !mock230_session_alive(srv->session) )
+    if( !srv->player || !srv->player->session ||
+        !mock230_session_alive(srv->player->session) )
         return;
     rsab_wrap(&buf, frame, sizeof(frame));
-    rsab_p1(&buf, (opcode + isaac_next(srv->session->cipher_out)) & 0xff);
+    rsab_p1(&buf, (opcode + isaac_next(srv->player->session->cipher_out)) & 0xff);
     if( var == 1 )
         rsab_p1(&buf, len);
     else if( var == 2 )
@@ -244,8 +245,8 @@ mock230_send(
         fprintf(stderr, "mock230: frame overflow for op %d (%d bytes)\n", opcode, len);
         return;
     }
-    if( mock230_session_send(srv->session, frame, (int)rsab_len(&buf)) < 0 )
-        mock230_session_kill(srv->session);
+    if( mock230_session_send(srv->player->session, frame, (int)rsab_len(&buf)) < 0 )
+        mock230_session_kill(srv->player->session);
 
     if( srv->verbose )
         fprintf(
@@ -1024,7 +1025,7 @@ void
 mock230_send_player_info(struct Mock230Server* srv)
 {
     struct RSAreaBuf buf;
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int local_x = player->x - mock230_scene_origin(srv->zone_x);
     int local_z = player->z - mock230_scene_origin(srv->zone_z);
     int extended = player->masks != 0;
@@ -1153,7 +1154,7 @@ void
 mock230_send_npc_info(struct Mock230Server* srv)
 {
     struct RSAreaBuf buf;
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     /* Extended blocks are appended in the order the bit section queued them,
      * so remember that order while writing the bits. */
     int queued[MOCK230_NPC_MAX];

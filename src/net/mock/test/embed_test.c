@@ -167,8 +167,8 @@ main(void)
     if( world )
     {
         check(world->tick > 0, "the world ticked");
-        check(world->player.x > 0 && world->player.z > 0, "the player is on a tile");
-        check(strcmp(world->player.display_name, "embed") == 0,
+        check(world->player->x > 0 && world->player->z > 0, "the player is on a tile");
+        check(strcmp(world->player->display_name, "embed") == 0,
               "the login name reached the player");
     }
 

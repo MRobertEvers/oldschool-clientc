@@ -288,7 +288,7 @@ mock230_bank_set_varbit(
     int varbit_id,
     int value)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int basevar;
     int lsb;
     int msb;
@@ -335,7 +335,7 @@ mock230_bank_get_varbit(
     if( basevar < 0 || basevar >= MOCK230_VARP_COUNT )
         return 0;
     mask = (msb - lsb) >= 31 ? 0xffffffffu : (((1u << (msb - lsb + 1)) - 1u));
-    return (int)(((uint32_t)srv->player.varps[basevar] >> lsb) & mask);
+    return (int)(((uint32_t)srv->player->varps[basevar] >> lsb) & mask);
 }
 
 /* ------------------------------------------------------------------ */
@@ -487,7 +487,7 @@ mock230_bank_count(
     struct Mock230Server* srv,
     int obj_id)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int slot = bank_slot_of(bank, obj_id);
 
     return slot >= 0 ? bank->slots[slot].count : 0;
@@ -515,7 +515,7 @@ mock230_bank_count(
 static void
 bank_transmit(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int used = 0;
 
     for( int i = 0; i < bank->size; i++ )
@@ -529,7 +529,7 @@ bank_transmit(struct Mock230Server* srv)
 void
 mock230_bank_flush(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
 
     if( !bank->dirty )
         return;
@@ -548,7 +548,7 @@ mock230_bank_flush(struct Mock230Server* srv)
 static void
 bank_push_settings(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
     /* Tab index -> the varbit holding that tab's size. A keyed table rather
      * than `first + index`: see interface_bank/configs/bank.enum. */
@@ -608,15 +608,14 @@ bank_push_settings(struct Mock230Server* srv)
 static void
 bank_set_events(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
     const int ops_1_to_10 = 0x7fe;
     const int op_1 = 1 << 1;
     const int drag_depth_1 = 1 << 17;
     const int drag_target = 1 << 20;
     const int k_buttons[] = {
-        ids->com_bankmain_swap,        ids->com_bankmain_insert,
-        ids->com_bankmain_item_mode,   ids->com_bankmain_note_mode,
+        ids->com_bankmain_swap_insert, ids->com_bankmain_note,
         ids->com_bankmain_qty_1,       ids->com_bankmain_qty_5,
         ids->com_bankmain_qty_10,      ids->com_bankmain_qty_x,
         ids->com_bankmain_qty_all,     ids->com_bankmain_deposit_inv,
@@ -635,7 +634,7 @@ bank_set_events(struct Mock230Server* srv)
 void
 mock230_bank_open(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
 
     if( bank->open )
@@ -670,7 +669,7 @@ mock230_bank_open(struct Mock230Server* srv)
      * inv container the client already holds — but its paint hook only runs on
      * a transmit, so it has to be re-sent or the panel mounts empty. */
     bank_transmit(srv);
-    mock230_send_inv_full(srv, ids->com_bankside_items, ids->inv_backpack, srv->player.inv,
+    mock230_send_inv_full(srv, ids->com_bankside_items, ids->inv_backpack, srv->player->inv,
                           MOCK230_INV_SLOTS);
     bank->dirty = 0;
 }
@@ -678,7 +677,7 @@ mock230_bank_open(struct Mock230Server* srv)
 void
 mock230_bank_close(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
 
     if( !bank->open )
@@ -692,7 +691,7 @@ mock230_bank_close(struct Mock230Server* srv)
      * panel, and it was never unmounted — but its container binding is, so the
      * backpack has to be re-sent against the tab's own component or the tab
      * comes back empty. */
-    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, srv->player.inv,
+    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, srv->player->inv,
                           MOCK230_INV_SLOTS);
 
     /* The reference compacts on close as well, in a queued script, so a bank
@@ -735,7 +734,7 @@ bank_add(
     int obj_id,
     int count)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int slot;
 
     if( obj_id < 0 || count <= 0 )
@@ -764,7 +763,7 @@ mock230_bank_deposit(
     int inv_slot,
     int amount)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int obj_id;
     int held;
     int banked;
@@ -826,7 +825,7 @@ mock230_bank_deposit_worn(
     int worn_slot,
     int amount)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int obj_id;
     int banked;
 
@@ -863,7 +862,7 @@ mock230_bank_withdraw(
     int bank_slot,
     int amount)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct Mock230Bank* bank = &player->bank;
     int obj_id;
     int form;
@@ -916,7 +915,7 @@ mock230_bank_withdraw(
 int
 mock230_bank_deposit_all_inv(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int moved = 0;
 
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
@@ -931,7 +930,7 @@ mock230_bank_deposit_all_inv(struct Mock230Server* srv)
 int
 mock230_bank_deposit_all_worn(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int moved = 0;
 
     for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
@@ -949,7 +948,7 @@ mock230_bank_move_slot(
     int from,
     int to)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
 
     if( from < 0 || from >= bank->size || to < 0 || to >= bank->size || from == to )
         return;
@@ -981,7 +980,7 @@ mock230_bank_move_slot(
 void
 mock230_bank_reorganize(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int write = 0;
 
     for( int read = 0; read < bank->size; read++ )
@@ -1041,7 +1040,7 @@ mock230_bank_quantity_for_op(
     int available,
     int side)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
     int mode = bank->quantity_mode;
     int requested = bank->requested_quantity;
@@ -1152,7 +1151,7 @@ set_quantity_mode(
     struct Mock230Server* srv,
     int mode)
 {
-    srv->player.bank.quantity_mode = mode;
+    srv->player->bank.quantity_mode = mode;
     mock230_bank_set_varbit(srv, mock230_ids()->varbit_bank_quantity_type, mode);
 }
 
@@ -1163,21 +1162,21 @@ handle_side_click(
     int sub,
     int op)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
-    int obj_id = sub < MOCK230_INV_SLOTS ? srv->player.inv[sub].obj_id : -1;
+    struct Mock230Bank* bank = &srv->player->bank;
+    int obj_id = sub < MOCK230_INV_SLOTS ? srv->player->inv[sub].obj_id : -1;
     int held = 0;
     int amount;
 
     if( obj_id < 0 )
         return 1;
     if( mock230_objinfo(obj_id)->stackable )
-        held = srv->player.inv[sub].count;
+        held = srv->player->inv[sub].count;
     else
         /* Deposit-All on a non-stackable obj means every one of them, not the
          * one slot's count of 1. */
         for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-            if( srv->player.inv[i].obj_id == obj_id )
-                held += srv->player.inv[i].count;
+            if( srv->player->inv[i].obj_id == obj_id )
+                held += srv->player->inv[i].count;
 
     amount = mock230_bank_quantity_for_op(srv, op, held, 1);
     if( amount == MOCK230_BANK_ASK )
@@ -1201,7 +1200,7 @@ handle_main_click(
     int sub,
     int op)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int amount;
 
     if( !bank->open || sub < 0 || sub >= bank->size )
@@ -1232,7 +1231,7 @@ mock230_bank_handle_button(
     int obj,
     int op)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
 
     (void)obj;
@@ -1250,15 +1249,23 @@ mock230_bank_handle_button(
     if( uid == ids->com_bankmain_items )
         return handle_main_click(srv, sub, op);
 
-    if( uid == ids->com_bankmain_swap || uid == ids->com_bankmain_insert )
+    /*
+     * One component, so the click toggles rather than selects.
+     *
+     * `swap_insert` and `note` each carry `op1=*`: the label is whatever a
+     * clientscript writes from the varbit, so the *same* uid arrives whichever
+     * state the button is showing. Reading the new state off which of two ids
+     * was clicked only worked when there were two, and there never were.
+     */
+    if( uid == ids->com_bankmain_swap_insert )
     {
-        bank->insert_mode = uid == ids->com_bankmain_insert;
+        bank->insert_mode = !bank->insert_mode;
         mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
         return 1;
     }
-    if( uid == ids->com_bankmain_item_mode || uid == ids->com_bankmain_note_mode )
+    if( uid == ids->com_bankmain_note )
     {
-        bank->note_mode = uid == ids->com_bankmain_note_mode;
+        bank->note_mode = !bank->note_mode;
         mock230_bank_set_varbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
         return 1;
     }
@@ -1287,7 +1294,7 @@ mock230_bank_resume_countdialog(
     struct Mock230Server* srv,
     int amount)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     int kind = bank->pending_kind;
     int slot = bank->pending_slot;
 
@@ -1310,7 +1317,7 @@ mock230_bank_resume_countdialog(
 void
 mock230_bank_init(struct Mock230Server* srv)
 {
-    struct Mock230Bank* bank = &srv->player.bank;
+    struct Mock230Bank* bank = &srv->player->bank;
     const struct Mock230Ids* ids = mock230_ids();
     int size = mock230_bank_inv_size(ids->inv_bank);
 
@@ -1350,7 +1357,7 @@ mock230_bank_init(struct Mock230Server* srv)
 void
 mock230_bank_shutdown(struct Mock230Server* srv)
 {
-    free(srv->player.bank.slots);
-    srv->player.bank.slots = NULL;
-    srv->player.bank.size = 0;
+    free(srv->player->bank.slots);
+    srv->player->bank.slots = NULL;
+    srv->player->bank.size = 0;
 }

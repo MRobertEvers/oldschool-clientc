@@ -63,16 +63,16 @@ mock230_prayer_protecting(
 static void
 prayer_changed(struct Mock230Server* srv)
 {
-    srv->player.masks |= MOCK230_PMASK_APPEARANCE;
+    srv->player->masks |= MOCK230_PMASK_APPEARANCE;
 }
 
 void
 mock230_prayer_clear(struct Mock230Server* srv)
 {
-    if( srv->player.prayer_active == 0 )
+    if( srv->player->prayer_active == 0 )
         return;
-    srv->player.prayer_active = 0;
-    srv->player.prayer_drain_acc = 0;
+    srv->player->prayer_active = 0;
+    srv->player->prayer_drain_acc = 0;
     prayer_changed(srv);
 }
 
@@ -81,7 +81,7 @@ mock230_prayer_toggle(
     struct Mock230Server* srv,
     int prayer)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     const struct Mock230PrayerDef* def = mock230_content_prayer(prayer);
 
     if( !def )
@@ -128,7 +128,7 @@ mock230_prayer_toggle(
 void
 mock230_prayer_tick(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     int count = mock230_content_prayer_count();
     int rate = 0;
     int resistance;

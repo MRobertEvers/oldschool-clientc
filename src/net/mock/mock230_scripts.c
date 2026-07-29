@@ -16,6 +16,7 @@
 
 #include "mock230_content.h"
 #include "mock230_ids.h"
+#include "mock230_session.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -222,8 +223,8 @@ mock230_scripts_free(struct Mock230Server* srv)
      * pointer. The resume buttons go with it — they only mean anything to the
      * script that registered them.
      */
-    srv->player.active_script = NULL;
-    srv->player.resume_button_count = 0;
+    srv->player->active_script = NULL;
+    srv->player->resume_button_count = 0;
 
     if( srv->script_env )
     {
@@ -244,8 +245,8 @@ mock230_scripts_free(struct Mock230Server* srv)
 static void
 release_parked(struct Mock230Server* srv, struct SSVM_State* state)
 {
-    if( srv->player.active_script == state )
-        srv->player.active_script = NULL;
+    if( srv->player->active_script == state )
+        srv->player->active_script = NULL;
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
     {
         if( srv->npcs[i].active_script == state )
@@ -282,13 +283,13 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         /* One parked script per player. A second would need somewhere to live
          * and, more importantly, would let two scripts interleave writes to the
          * same player — the reference has the same single slot. */
-        if( srv->player.active_script && srv->player.active_script != state )
+        if( srv->player->active_script && srv->player->active_script != state )
         {
             fprintf(stderr, "mock230: dropping a script that suspended while another waits\n");
             SSVM_StateRelease(state);
             return 0;
         }
-        srv->player.active_script = state;
+        srv->player->active_script = state;
         return 1;
 
     case SSVM_NPC_SUSPENDED:
@@ -374,7 +375,7 @@ run_script_id(
     if( !state )
         return 0;
 
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, &srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
     {
@@ -391,7 +392,7 @@ run_script_id(
 void
 mock230_scripts_resume_player(struct Mock230Server* srv)
 {
-    struct SSVM_State* state = srv->player.active_script;
+    struct SSVM_State* state = srv->player->active_script;
 
     if( !state || !srv->scripts_ok )
         return;
@@ -399,7 +400,7 @@ mock230_scripts_resume_player(struct Mock230Server* srv)
      * the clock, so the tick must leave those alone. */
     if( state->execution != SSVM_SUSPENDED )
         return;
-    if( srv->tick < srv->player.delayed_until )
+    if( srv->tick < srv->player->delayed_until )
         return;
 
     run_or_park(srv, state);
@@ -452,7 +453,7 @@ mock230_scripts_process_queues(struct Mock230Server* srv)
 
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
     {
-        struct Mock230Queued* entry = &srv->player.queue[i];
+        struct Mock230Queued* entry = &srv->player->queue[i];
         int script_id;
         int32_t arg;
 
@@ -476,7 +477,7 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
 
     for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
     {
-        struct Mock230Timer* timer = &srv->player.timers[i];
+        struct Mock230Timer* timer = &srv->player->timers[i];
 
         if( !timer->active || timer->interval <= 0 )
             continue;
@@ -510,7 +511,7 @@ mock230_scripts_resume_button(
     struct Mock230Server* srv,
     int component_uid)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     struct SSVM_State* state = player->active_script;
 
     if( !srv->scripts_ok || !state )
@@ -571,7 +572,7 @@ mock230_scripts_run_trigger(
     /* Every trigger the mock fires is on behalf of the one player, and the
      * engine grants protected access because these all arrive as a direct
      * response to player input. */
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, &srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
 
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
@@ -621,17 +622,17 @@ container_for(
     if( inv_id == mock230_ids()->inv_backpack )
     {
         *out_slots = MOCK230_INV_SLOTS;
-        return srv->player.inv;
+        return srv->player->inv;
     }
     if( inv_id == mock230_ids()->inv_worn )
     {
         *out_slots = MOCK230_WORN_SLOTS;
-        return srv->player.worn;
+        return srv->player->worn;
     }
     if( inv_id == mock230_ids()->inv_bank )
     {
-        *out_slots = srv->player.bank.size;
-        return srv->player.bank.slots;
+        *out_slots = srv->player->bank.size;
+        return srv->player->bank.slots;
     }
     *out_slots = 0;
     return NULL;
@@ -646,14 +647,14 @@ container_dirty(
     int slot)
 {
     if( inv_id == mock230_ids()->inv_backpack && slot >= 0 && slot < MOCK230_INV_SLOTS )
-        srv->player.inv_dirty |= 1u << slot;
+        srv->player->inv_dirty |= 1u << slot;
     else if( inv_id == mock230_ids()->inv_worn && slot >= 0 && slot < MOCK230_WORN_SLOTS )
     {
-        srv->player.worn_dirty |= 1u << slot;
-        srv->player.masks |= MOCK230_PMASK_APPEARANCE;
+        srv->player->worn_dirty |= 1u << slot;
+        srv->player->masks |= MOCK230_PMASK_APPEARANCE;
     }
     else if( inv_id == mock230_ids()->inv_bank )
-        srv->player.bank.dirty = 1;
+        srv->player->bank.dirty = 1;
 }
 
 int
@@ -663,7 +664,7 @@ mock230_script_command(
     int dot)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
 
     (void)dot;
 
@@ -1055,6 +1056,114 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
         SSVM_PushStr(state, mock230_objinfo(obj_id)->name);
+        return 1;
+    }
+
+    /*
+     * Config queries.
+     *
+     * Every one of these is a read off a table the boot loaders already decoded
+     * — `Mock230ObjInfo`, `Mock230NpcInfo`, the content packs — which is the
+     * reason this batch is safe to add in bulk. What is *not* here is as
+     * deliberate: `oc_param`/`nc_param`/`lc_param` are `runtime_typed`, meaning
+     * the param's declared type decides whether the result lands on the int
+     * stack or the string stack, and no decoder here keeps a general per-record
+     * param table to answer that from. `oc_cost`, `oc_members`, `oc_tradeable`
+     * and `oc_desc`/`nc_desc` are simply not decoded — the obj record's examine
+     * text is read by nothing here, and a dat2 npc record has no description at
+     * all (it is server-driven at this revision).
+     *
+     * An opcode that cannot be answered from real data is better left to the
+     * VM's loud stub than implemented with a plausible guess: the stub says so,
+     * and a guess does not.
+     */
+    case SS_OP_OC_DEBUGNAME:
+    {
+        int32_t obj_id;
+        const char* symbol;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        /* The *content* name (`bronze_scimitar`), not the display name
+         * ("Bronze scimitar"). That is what makes it a debug name: it is the
+         * symbol a script would have written. */
+        symbol = mock230_content_symbol_name(MOCK230_PACK_OBJ, obj_id);
+        SSVM_PushStr(state, symbol ? symbol : "null");
+        return 1;
+    }
+
+    case SS_OP_INV_DEBUGNAME:
+    {
+        int32_t inv_id;
+        const char* symbol;
+
+        if( !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        symbol = mock230_content_symbol_name(MOCK230_PACK_INV, inv_id);
+        SSVM_PushStr(state, symbol ? symbol : "null");
+        return 1;
+    }
+
+    case SS_OP_NC_NAME:
+    {
+        int32_t npc_type;
+
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        SSVM_PushStr(state, mock230_npcinfo(npc_type)->name);
+        return 1;
+    }
+
+    case SS_OP_NC_DEBUGNAME:
+    {
+        int32_t npc_type;
+        const char* symbol;
+
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_type);
+        SSVM_PushStr(state, symbol ? symbol : "null");
+        return 1;
+    }
+
+    case SS_OP_NC_OP:
+    {
+        int32_t npc_type;
+        int32_t op_num;
+        const struct Mock230NpcInfo* info;
+
+        if( !SSVM_PopInt(state, &op_num) || !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        info = mock230_npcinfo(npc_type);
+        /* 1-based, as every other op index on the wire and in content is. An
+         * absent op is the empty string rather than an abort: asking whether an
+         * npc offers op 4 is a normal thing for content to do. */
+        if( op_num < 1 || op_num > 5 || !info->ops[op_num - 1] )
+            SSVM_PushStr(state, "");
+        else
+            SSVM_PushStr(state, info->ops[op_num - 1]);
+        return 1;
+    }
+
+    case SS_OP_NC_SIZE:
+    {
+        int32_t npc_type;
+
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        SSVM_PushInt(state, mock230_npcinfo(npc_type)->size);
+        return 1;
+    }
+
+    case SS_OP_NC_VISLEVEL:
+    {
+        int32_t npc_type;
+
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        /* The level the client prints beside the name, which is the record's
+         * own `combat_level` — not anything derived from the npc's stats. */
+        SSVM_PushInt(state, mock230_npcinfo(npc_type)->combat_level);
         return 1;
     }
 
@@ -1653,6 +1762,91 @@ mock230_script_command(
      * no-op rather than a reset. Food is (n, 0); an altar is (base - current,
      * 0); a percentage restore is (0, n).
      */
+    /*
+     * stat_boost / stat_drain: the two directions of a temporary level change.
+     *
+     * Same `(stat, constant, percent)` shape as stat_heal below, and the same
+     * `constant + base * percent / 100` arithmetic — that is the reference's
+     * formula and the reason a super attack potion is written `(5, 15)` rather
+     * than as a number of levels.
+     *
+     * The difference from stat_heal is which direction the clamp faces. A boost
+     * may take the boosted level *above* base and must not be undone by a second
+     * boost that computes a smaller target; a drain may take it below and must
+     * not go under zero. stat_heal restores toward base and clamps at it.
+     *
+     * `stat_add` and `stat_sub` are deliberately NOT here despite the identical
+     * arity. Their reference semantics — whether they move the base level or the
+     * boosted one — is not something this repo pins down, and an opcode
+     * implemented from a guess is silent when it is wrong, where the VM's stub
+     * is loud.
+     */
+    case SS_OP_STAT_BOOST:
+    case SS_OP_STAT_DRAIN:
+    {
+        int32_t values[3];
+        int base;
+        int current;
+        int target;
+        int boosting = opcode == SS_OP_STAT_BOOST;
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "%s %d is not a skill", SSVM_OpcodeName(opcode), values[0]);
+            return 1;
+        }
+
+        base = player->stat_level[values[0]];
+        current = player->stat_boosted[values[0]];
+        target = values[1] + base * values[2] / 100;
+        target = boosting ? current + target : current - target;
+        if( target < 0 )
+            target = 0;
+        if( boosting && target < current )
+            target = current;
+        if( !boosting && target > current )
+            target = current;
+        if( target == current )
+            return 1;
+
+        player->stat_boosted[values[0]] = target;
+        /* Hitpoints are two views of one number — the stat the skills tab
+         * prints and the health orb's `hitpoints`. */
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+            player->hitpoints = target;
+        mock230_combat_stat_mark(player, values[0]);
+        return 1;
+    }
+
+    case SS_OP_STAT_TOTAL:
+    {
+        int total = 0;
+
+        /* Base levels, not boosted: the total-level number is what the skills
+         * tab prints, and a potion does not change it. */
+        for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+            total += player->stat_level[stat];
+        SSVM_PushInt(state, total);
+        return 1;
+    }
+
+    /*
+     * p_logout: end the session.
+     *
+     * Killing the session is the whole of it — the socket loop and the embedded
+     * pump both exit on a dead session, and the teardown that follows is what
+     * saves the player. Doing anything more here would duplicate that path.
+     */
+    case SS_OP_P_LOGOUT:
+        if( srv->player && srv->player->session )
+            mock230_session_kill(srv->player->session);
+        return 1;
+
     case SS_OP_STAT_HEAL:
     {
         int32_t values[3];
@@ -1938,8 +2132,8 @@ mock230_script_command(
         {
             int slot = -1;
 
-            for( int i = 0; i < srv->player.bank.size; i++ )
-                if( srv->player.bank.slots[i].obj_id == obj_id )
+            for( int i = 0; i < srv->player->bank.size; i++ )
+                if( srv->player->bank.slots[i].obj_id == obj_id )
                     slot = i;
             if( slot < 0 )
                 return 1;
@@ -1947,11 +2141,11 @@ mock230_script_command(
              * `inv_moveitem_cert` means "as a note" wherever it is called
              * from. Set the flag, move, put it back. */
             {
-                int saved = srv->player.bank.note_mode;
+                int saved = srv->player->bank.note_mode;
 
-                srv->player.bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
+                srv->player->bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
                 mock230_bank_withdraw(srv, slot, (int)count);
-                srv->player.bank.note_mode = saved;
+                srv->player->bank.note_mode = saved;
             }
             return 1;
         }
@@ -1959,7 +2153,7 @@ mock230_script_command(
         {
             for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
             {
-                if( srv->player.inv[i].obj_id != obj_id )
+                if( srv->player->inv[i].obj_id != obj_id )
                     continue;
                 count -= mock230_bank_deposit(srv, i, (int)count);
             }
@@ -1972,7 +2166,7 @@ mock230_script_command(
              * slot the player may not have. */
             for( int i = 0; i < MOCK230_WORN_SLOTS && count > 0; i++ )
             {
-                if( srv->player.worn[i].obj_id != obj_id )
+                if( srv->player->worn[i].obj_id != obj_id )
                     continue;
                 count -= mock230_bank_deposit_worn(srv, i, (int)count);
             }
@@ -2032,8 +2226,8 @@ mock230_script_command(
                 if( items[i].obj_id >= 0 )
                     used = i + 1;
             slots = used;
-            srv->player.bank.open = 1;
-            srv->player.bank.dirty = 0;
+            srv->player->bank.open = 1;
+            srv->player->bank.dirty = 0;
         }
         mock230_send_inv_full(srv, (int)component, (int)inv_id, items, slots);
         return 1;
@@ -2046,7 +2240,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &component) )
             return 1;
         if( MOCK230_COM_GROUP(component) == mock230_ids()->iface_bankmain )
-            srv->player.bank.open = 0;
+            srv->player->bank.open = 0;
         return 1;
     }
 
@@ -2213,12 +2407,12 @@ mock230_scripts_resume_countdialog(
     struct Mock230Server* srv,
     int32_t value)
 {
-    struct SSVM_State* state = srv->player.active_script;
+    struct SSVM_State* state = srv->player->active_script;
 
     if( !srv->scripts_ok || !state )
         return 0;
     if( state->execution != SSVM_COUNTDIALOG )
         return 0;
-    srv->player.last_int = value;
+    srv->player->last_int = value;
     return run_or_park(srv, state);
 }

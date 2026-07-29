@@ -65,7 +65,7 @@ mock230_embed_start(void)
     mock230_transport_memory(&embed->transport, &embed->ends, &embed->to_server,
                              &embed->to_client);
     mock230_session_init(&embed->session, &embed->transport, embed->srv.verbose);
-    embed->srv.session = &embed->session;
+    mock230_world_attach_session(&embed->srv, &embed->session);
 
     g_embed_live = 1;
     return embed;

@@ -27,7 +27,7 @@ mock230_equipment_bonus(
     const struct Mock230Server* srv,
     int param)
 {
-    const struct Mock230Player* player = &srv->player;
+    const struct Mock230Player* player = srv->player;
     int total = 0;
 
     if( param < 0 || param >= MOCK230_PARAM_BONUS_COUNT )
@@ -70,7 +70,7 @@ mock230_equipment_may_wear(
             continue;
         /* Base, not boosted: a potion does not let you wield what you could not
          * wield sober. */
-        if( srv->player.stat_level[stat] >= level )
+        if( srv->player->stat_level[stat] >= level )
             continue;
 
         /*
@@ -155,7 +155,7 @@ put_speed(
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     const struct Mock230Ids* ids = mock230_ids();
     int rate;
 
@@ -210,7 +210,7 @@ mock230_equipment_refresh_stats(struct Mock230Server* srv)
 void
 mock230_equipment_open_stats(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = &srv->player;
+    struct Mock230Player* player = srv->player;
     const struct Mock230Ids* ids = mock230_ids();
 
     if( player->equip_stats_open )
@@ -246,9 +246,9 @@ mock230_equipment_open_stats(struct Mock230Server* srv)
 void
 mock230_equipment_close_stats(struct Mock230Server* srv)
 {
-    if( !srv->player.equip_stats_open )
+    if( !srv->player->equip_stats_open )
         return;
-    srv->player.equip_stats_open = 0;
+    srv->player->equip_stats_open = 0;
     mock230_send_if_closesub(srv, mock230_ids()->com_gameframe_mainmodal);
 }
 

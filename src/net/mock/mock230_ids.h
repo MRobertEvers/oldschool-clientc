@@ -90,10 +90,19 @@ struct Mock230Ids
 
     /** The bank's item grid and the buttons along its bottom. */
     int com_bankmain_items;
-    int com_bankmain_swap;
-    int com_bankmain_insert;
-    int com_bankmain_item_mode;
-    int com_bankmain_note_mode;
+    /*
+     * One component each, not two.
+     *
+     * These were four ids taken from another server's name table, and all four
+     * were wrong: `swap`/`insert` and `item_mode`/`note_mode` read as pairs of
+     * buttons, but rev 230's bank has a single toggle for each — `swap_insert`
+     * (child 23) and `note` (child 25), both carrying `op1=*` because the label
+     * is set by a clientscript from the varbit. The four ids pointed at
+     * `potionstore_container`, `banktags_header_separator` and two `_graphic`
+     * children that have no op at all.
+     */
+    int com_bankmain_swap_insert;
+    int com_bankmain_note;
     int com_bankmain_qty_1;
     int com_bankmain_qty_5;
     int com_bankmain_qty_10;

@@ -10,8 +10,8 @@
  *
  * Coverage by layer:
  *     63  VM core
- *     92  host commands
- *    155  total, of 396 declared opcodes
+ *    103  host commands
+ *    166  total, of 396 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 155
+#define MOCK230_OPCODE_COVERAGE_COUNT 166
 #define MOCK230_OPCODE_DECLARED_COUNT 396
 
 /*
@@ -96,6 +96,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2069, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2071, /* SS_OP_P_COUNTDIALOG (host commands) */
     2072, /* SS_OP_P_DELAY (host commands) */
+    2076, /* SS_OP_P_LOGOUT (host commands) */
     2079, /* SS_OP_P_OPNPC (host commands) */
     2084, /* SS_OP_P_PAUSEBUTTON (host commands) */
     2087, /* SS_OP_P_STOPACTION (host commands) */
@@ -109,8 +110,11 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2107, /* SS_OP_SPOTANIM_PL (host commands) */
     2110, /* SS_OP_STAT_ADVANCE (host commands) */
     2111, /* SS_OP_STAT_BASE (host commands) */
+    2112, /* SS_OP_STAT_BOOST (host commands) */
+    2113, /* SS_OP_STAT_DRAIN (host commands) */
     2114, /* SS_OP_STAT_HEAL (host commands) */
     2115, /* SS_OP_STAT_RANDOM (host commands) */
+    2117, /* SS_OP_STAT_TOTAL (host commands) */
     2118, /* SS_OP_STAT (host commands) */
     2125, /* SS_OP_UID (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
@@ -127,13 +131,20 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2542, /* SS_OP_NPC_TYPE (host commands) */
     2547, /* SS_OP_SPOTANIM_NPC (host commands) */
     3500, /* SS_OP_OBJ_ADD (host commands) */
+    4001, /* SS_OP_NC_DEBUGNAME (host commands) */
+    4003, /* SS_OP_NC_NAME (host commands) */
+    4004, /* SS_OP_NC_OP (host commands) */
+    4006, /* SS_OP_NC_SIZE (host commands) */
+    4007, /* SS_OP_NC_VISLEVEL (host commands) */
     4200, /* SS_OP_OC_CATEGORY (host commands) */
     4201, /* SS_OP_OC_CERT (host commands) */
+    4203, /* SS_OP_OC_DEBUGNAME (host commands) */
     4207, /* SS_OP_OC_NAME (host commands) */
     4210, /* SS_OP_OC_STACKABLE (host commands) */
     4212, /* SS_OP_OC_UNCERT (host commands) */
     4302, /* SS_OP_INV_ADD (host commands) */
     4305, /* SS_OP_INV_CLEAR (host commands) */
+    4306, /* SS_OP_INV_DEBUGNAME (host commands) */
     4307, /* SS_OP_INV_DEL (host commands) */
     4308, /* SS_OP_INV_DELSLOT (host commands) */
     4313, /* SS_OP_INV_FREESPACE (host commands) */
