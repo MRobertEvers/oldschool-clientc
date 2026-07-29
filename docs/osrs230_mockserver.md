@@ -28,8 +28,8 @@ src/torirs --manifest manifest_osrs230.ini --user test --pass test
 | env | effect |
 | --- | --- |
 | `MOCK230_VERBOSE=1` | log every packet in and out |
-| `MOCK230_CACHE=dir` | cache to read metadata and map squares from (default `cache.osrs230`, falling back to `../cache.osrs230`) |
-| `MOCK230_CONTENT=dir` | content tree (default `OSRS-Content/mock230`) |
+| `MOCK230_CACHE=dir` | cache to read metadata and map squares from (default `cache.osrs239`, falling back to `../cache.osrs239`) |
+| `MOCK230_CONTENT=dir` | content tree (default `OSRS-Content/osrs239-content`) |
 | `MOCK230_SCRIPTS=dir` | compiled script pack (default `<content>/scripts/build`) |
 | `MOCK230_HOME=x,z` | tile to log in on (default `3222,3218` — the Lumbridge castle courtyard). The scene's origin zone is derived from it |
 
@@ -56,7 +56,7 @@ Layout:
 
 The world is **Lumbridge**, spawned from OpenRune's own spawn list, with
 collision read out of the same map squares the client draws. Content — combat
-stats, drop tables, doors, dialogue — lives in `OSRS-Content/mock230` and is
+stats, drop tables, doors, dialogue — lives in `OSRS-Content/osrs239-content` and is
 documented separately in [`mock230_content.md`](mock230_content.md). The HUD
 that fighting drives — hitsplats, the skills tab, npc level suffixes, facing,
 the combat tab — is in [`combat_hud.md`](combat_hud.md).
@@ -392,7 +392,7 @@ where work goes whereas an absent one invites putting it wherever is nearest.
 ## 3.10 Content is RuneScript, not C
 
 Behaviour that a server operator would want to change lives in
-`OSRS-Content/mock230/scripts/`, compiled by `src/serverscript`'s `sscompile`
+`OSRS-Content/osrs239-content/server/scripts/`, compiled by `src/serverscript`'s `sscompile`
 and executed by the ServerScript VM. See `docs/serverscript.md` for the
 toolchain and [`mock230_content.md`](mock230_content.md) for the tree.
 
@@ -416,7 +416,7 @@ That is what keeps `make -C src test-mock230` green while content is mid-edit,
 and what makes a broken toolchain degrade the mock rather than break it.
 
 **Ids are rev-230 ids.** `content/pack/*.pack` maps names to ids valid in
-`cache.osrs230`, imported from OpenRune's gameval table and re-validated by
+`cache.osrs239`, taken from the cache's own gameval table and re-validated by
 `mock230_pack`. LostCity's own packs are 2004-era and would hand the client
 something unrelated.
 
@@ -564,7 +564,7 @@ has to stay consistent — hitpoints, hitsplats, death, respawn, swing timing �
 and content decides who is attackable.
 
 ```
-[opnpc2,goblin]      // action 31 is "Attack" in cache.osrs230
+[opnpc2,goblin]      // action 31 is "Attack" in cache.osrs239
 p_opnpc(2);
 ```
 

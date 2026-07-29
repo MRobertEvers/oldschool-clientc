@@ -1100,6 +1100,35 @@ const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interfa
 #define CP_MAP_TERRAIN_FILE 0
 #define CP_MAP_LOCS_FILE 1
 
+/** True when both halves re-encode to exactly the bytes they were decoded from. */
+static int
+map_reencodes_exactly(
+    const struct RSCache_MapTerrain* terrain,
+    const struct RSCache_MapLocs* locs,
+    int flags,
+    const struct RSCache_FileList* files,
+    int terrain_index,
+    int locs_index)
+{
+    int ok = 0;
+    uint32_t terrain_bound = RSCache_MapTerrainEncodeBoundFor(terrain, flags);
+    uint8_t* terrain_bytes = malloc(terrain_bound ? terrain_bound : 1);
+    uint32_t locs_bound = RSCache_MapLocsEncodeBound(locs);
+    uint8_t* locs_bytes = malloc(locs_bound ? locs_bound : 1);
+    if( terrain_bytes && locs_bytes )
+    {
+        uint32_t tn = RSCache_MapTerrainEncode(terrain, flags, terrain_bytes, terrain_bound);
+        uint32_t ln = RSCache_MapLocsEncode(locs, locs_bytes, locs_bound);
+        ok = tn == (uint32_t)files->file_sizes[terrain_index] &&
+             ln == (uint32_t)files->file_sizes[locs_index] &&
+             memcmp(terrain_bytes, files->files[terrain_index], tn) == 0 &&
+             memcmp(locs_bytes, files->files[locs_index], ln) == 0;
+    }
+    free(terrain_bytes);
+    free(locs_bytes);
+    return ok;
+}
+
 /** MAP and LOC are the cache's; anything else in the file belongs to the server. */
 static int
 map_section_is_ours(const char* banner)
@@ -1192,12 +1221,33 @@ map_write(
         return 0;
     }
 
+    int flags = RSCache_MapTerrainFlags(&ctx->profile);
     struct RSCache_MapTerrain* terrain = RSCache_MapTerrainNewFromDecodeFlags(
         files->files[terrain_index], files->file_sizes[terrain_index], 0, 0,
-        RSCache_MapTerrainFlags(&ctx->profile) | RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP);
+        flags | RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP);
     struct RSCache_MapLocs* locs =
         RSCache_MapLocsNewDecode(files->files[locs_index], files->file_sizes[locs_index]);
     if( !terrain || !locs )
+    {
+        RSCache_MapTerrainFree(terrain);
+        RSCache_MapLocsFree(locs);
+        RSCache_FileListFree(files);
+        return 0;
+    }
+
+    /*
+     * Prove the decode before writing text for it.
+     *
+     * The tile loop is a fixed 4 x 64 x 64 with no header saying so, and a buffer
+     * read past the end returns zeros — so a file that is not a terrain stream
+     * decodes to a plausible empty square rather than failing. Archive 25287's
+     * file 0 is three bytes, and it produced a 32 KB "square" of nothing.
+     *
+     * Re-encoding and comparing costs one pass over 54 KB and makes the guarantee
+     * exact: a `.jm2` this writes packs back to the bytes it came from, and
+     * anything else falls back to the raw payload.
+     */
+    if( !map_reencodes_exactly(terrain, locs, flags, files, terrain_index, locs_index) )
     {
         RSCache_MapTerrainFree(terrain);
         RSCache_MapLocsFree(locs);
@@ -1220,6 +1270,21 @@ map_write(
     }
 
     fprintf(out, "==== MAP ====\n");
+    /*
+     * Bytes past the last tile. The tile loop is a fixed 4 x 64 x 64 and the
+     * client stops when it has read them all, so nothing interprets these — but
+     * every OldSchool 239 square has one, non-zero in 1,612 of 2,934, and a
+     * re-encode without it is a byte short of the original. Hex on one line
+     * because it is one byte almost everywhere; the one square with 9,564 of them
+     * gets a long line rather than a second mechanism.
+     */
+    if( terrain->trailing_size > 0 )
+    {
+        fprintf(out, "trailing=");
+        for( int i = 0; i < terrain->trailing_size; i++ )
+            fprintf(out, "%02x", terrain->trailing[i]);
+        fprintf(out, "\n");
+    }
     for( int level = 0; level < RSCACHE_MAP_TERRAIN_LEVELS; level++ )
     {
         for( int x = 0; x < RSCACHE_MAP_TERRAIN_X; x++ )
@@ -1365,8 +1430,43 @@ map_read(
         if( section == CP_JM2_FOREIGN || section == CP_JM2_NONE )
             continue;
 
-        int level = 0, x = 0, z = 0;
+        /* A `key=value` line inside MAP is a header, not a tile. */
+        char* equals = strchr(line, '=');
         char* colon = strchr(line, ':');
+        if( equals && (!colon || equals < colon) )
+        {
+            *equals = '\0';
+            const char* value = equals + 1;
+            if( strcmp(line, "trailing") == 0 )
+            {
+                size_t digits = strlen(value);
+                terrain->trailing_size = (int)(digits / 2);
+                terrain->trailing = malloc(digits / 2 ? digits / 2 : 1);
+                if( !terrain->trailing )
+                {
+                    terrain->trailing_size = 0;
+                    ok = 0;
+                    break;
+                }
+                for( int i = 0; i < terrain->trailing_size; i++ )
+                {
+                    unsigned byte = 0;
+                    if( sscanf(value + i * 2, "%2x", &byte) != 1 )
+                    {
+                        ok = 0;
+                        break;
+                    }
+                    terrain->trailing[i] = (uint8_t)byte;
+                }
+            }
+            else
+            {
+                ok = 0;
+            }
+            continue;
+        }
+
+        int level = 0, x = 0, z = 0;
         if( !colon || sscanf(line, "%d %d %d", &level, &x, &z) != 3 )
         {
             ok = 0;
@@ -1462,7 +1562,7 @@ map_read(
     if( ok )
     {
         int flags = RSCache_MapTerrainFlags(&ctx->profile);
-        uint32_t terrain_bound = RSCache_MapTerrainEncodeBound(flags);
+        uint32_t terrain_bound = RSCache_MapTerrainEncodeBoundFor(terrain, flags);
         uint8_t* terrain_bytes = malloc(terrain_bound);
         uint32_t terrain_size =
             terrain_bytes ? RSCache_MapTerrainEncode(terrain, flags, terrain_bytes, terrain_bound)

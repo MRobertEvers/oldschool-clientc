@@ -124,6 +124,17 @@ struct RSCache_MapTerrain
     int map_z;
     struct RSCache_MapFloor
         tiles_xyz[RSCACHE_MAP_TERRAIN_X * RSCACHE_MAP_TERRAIN_Z * RSCACHE_MAP_TERRAIN_LEVELS];
+    /**
+     * Bytes past the last tile, kept verbatim (owned).
+     *
+     * The tile loop is a fixed 4 x 64 x 64 and stops when it has read them all,
+     * so anything after that the client never looks at — and every OldSchool 239
+     * square has one such byte, non-zero in 1,612 of 2,934. One square (archive
+     * 16457) has 9,564. Nothing here interprets them; they exist so a re-encode
+     * is the same file, which it is not without them (EXCEPTIONS.md B8).
+     */
+    uint8_t* trailing;
+    int trailing_size;
 };
 
 #define RSCACHE_CHUNK_TILE_COUNT                                                                   \
@@ -232,6 +243,15 @@ RSCache_MapTerrainEncode(
 /** Worst-case output size for RSCache_MapTerrainEncode at the given width flag. */
 uint32_t
 RSCache_MapTerrainEncodeBound(int flags);
+
+/**
+ * The bound for one particular terrain, which is the flag-only bound plus
+ * whatever unread tail it carries. Use this when encoding a decoded square.
+ */
+uint32_t
+RSCache_MapTerrainEncodeBoundFor(
+    const struct RSCache_MapTerrain* map_terrain,
+    int flags);
 
 struct RSCache_MapTerrain*
 RSCache_MapTerrainNewDecode(

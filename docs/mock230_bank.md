@@ -15,8 +15,8 @@ ones are two staircases up from the spawn tile.
 | file | contents |
 | --- | --- |
 | `src/net/mock/mock230_bank.c` | the container, the settings, the arithmetic, the wire |
-| `OSRS-Content/mock230/scripts/interface_bank/` | the ported LostCity content |
-| `OSRS-Content/mock230/pack/varbit.pack` | the bank's varbit ids (new namespace) |
+| `OSRS-Content/osrs239-content/server/scripts/interface_bank/` | the ported LostCity content |
+| `OSRS-Content/osrs239-content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
 | `src/ui/uitree_obj_cell.c` | the one client-side change this needed (§6) |
 
 Tests: `make -C src test-mock230` covers varbit packing, deposit/withdraw,
@@ -42,7 +42,7 @@ because its client has no CS2; this one describes only state.
 
 | what | id | how it was established |
 | --- | --- | --- |
-| bank interface | `12` | `tools/dump_interface cache.osrs230 --dat2 --iface 12` |
+| bank interface | `12` | `tools/dump_interface cache.osrs239 --dat2 --iface 12` |
 | bank side panel | `15` | same |
 | bank container | `95` | `inv-names.tsv`, and the client's own `INV_MANAGER_CONTAINER_BANK` |
 | bank capacity | `1220` | config group 5 (inv), read at startup — **not** written down |

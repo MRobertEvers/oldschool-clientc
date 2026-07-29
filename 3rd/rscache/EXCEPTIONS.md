@@ -1861,6 +1861,23 @@ file table plus the files — and takes the tree from 352,849 files to 117,086.
 `--assets` can decode maps, interfaces and the world map into text only because both
 directions exist. None did before.
 
+**`RSCache_MapTerrainEncode` dropped a byte on every square.** The tile loop is a
+fixed 4 × 64 × 64 and the stream carries no length, so the decoder stops when it has
+read the last tile — and every OldSchool 239 square has one byte after that, non-zero
+in 1,612 of 2,934. One square (archive 16457) has 9,564. Nothing reads them, which
+is exactly why nothing noticed: the loss was symmetric, so the source fixed point
+still held and only a payload comparison against the original cache found it. They
+are now kept on `RSCache_MapTerrain.trailing` and written back — the B8 pattern
+again — and appear in the jm2 as `trailing=<hex>` in the MAP header.
+
+The same measurement found the other half: **a buffer read past the end returns
+zeros**, so a file that is not a terrain stream decodes to a plausible *empty square*
+rather than failing. Archive 25287's file 0 is three bytes and produced a 32 KB
+square of nothing. The codec now re-encodes both halves and compares them against
+the bytes they came from, writing a `.jm2` only on an exact match; that square falls
+back to `.map` and the other 2,933 are guaranteed exact. **14,702 / 14,702 map files
+byte-identical**, against 11,767 before.
+
 **`RSCache_MapLocsEncode`.** The loc stream is two nested runs of *unsigned*
 deltas, so entries have to leave sorted by `(loc_id, packed position)` or a delta
 cannot be spelled. The encoder sorts rather than demanding it of the caller: a
@@ -1960,6 +1977,29 @@ What the malformed archives then hit was two real defects in the library:
 Neither is reachable from a well-formed cache, which is why neither showed up until
 the tool wrote a bad one.
 
+### G6. Opcode 210, and what "established" bought *(Resolved)*
+
+Booting the client on `cache.osrs239` aborted in `CS2VM2_Op_StackMetaStub`: the
+rev-239 gameframe scripts call opcode 210, which neither `Opcodes.kt` nor
+`Command.kt` lists and `src/cs2vm2` had no stack signature for. The decompiler
+refused the script for the same reason.
+
+`cs2 infer-arity` settled it without a reference client: ten call sites across the
+cache, every one solving to a six-int pop with nothing pushed, and no other
+candidate surviving at any of them. Recorded in both tables — `local_commands.py`
+for the decompiler and `gen_opcode_stack.py` for the VM — because the README's own
+rule is that there is one answer to "what is opcode N".
+
+What it does is still unknown. The VM pops the six and does nothing, which is
+stack-correct and behaviourally a no-op; script 8489 now reads
+`_210(2372, $int0, 2373, $int1, 0, 0)`. Three more scripts decompile than before
+(5,589 of 9,725), and the client boots, logs in and renders.
+
+Worth noting what the method *did not* give: the trace made the first argument look
+like a component, which would have been a natural thing to write into the signature.
+The decompile shows the component belonged to the preceding gosub. The arity is
+evidence; the types would have been a guess, so they are plain `INT`.
+
 ### H11. Readable asset forms, and what each one costs
 
 Six kinds decode to something editable; the rest stay payload. Five of the six are
@@ -1968,24 +2008,24 @@ tool's — see the measurement below the table.
 
 | kind | form | note |
 |---|---|---|
-| maps | `.jm2` | terrain + locs; the three undecoded per-square files ride alongside as `.extra<N>.bin` |
+| maps | `.jm2` | terrain + locs, 2,933 of 2,934 squares; the three undecoded per-square files ride alongside as `.extra<N>.bin` |
 | interfaces | `.if` | one `[com_<id>]` block per component |
 | worldmap/areas | `.wma`, `.wmc` | areas and compositemaps; the ground layer stays PNG |
 | textures | `.texture` | text, because an OldSchool texture is a **record**, not a bitmap |
-| scripts | `.cs2` | via the existing decompiler; 5,586 of 9,725 |
+| scripts | `.cs2` | via the existing decompiler; 5,589 of 9,725 |
 | sprites | `.bmp` + `pack.meta` | palette recorded, not re-derived; alpha rides in the 32-bit BMP |
 
 **Scripts are the one readable form that is not a fixed point.** Measured on
-`cache.osrs239`: all 4,139 scripts that decline decompilation round-trip
-byte-exactly. Of the 5,586 that decompile, **2,818 re-encode to different bytes** —
+`cache.osrs239`: all 4,136 scripts that decline decompilation round-trip
+byte-exactly. Of the 5,589 that decompile, **~2,818 re-encode to different bytes** —
 the compiler produces valid, equivalent bytecode, not the original bytecode — and
 on a second unpack 68 of them stop decompiling and 3 decompile to different source.
-5,515 / 5,586 (98.7%) source fixed point, exact for every other kind. This is G1/G2
+~98.7% source fixed point, exact for every other kind. This is G1/G2
 showing up at the tool level; `--raw-assets` trades the readable forms for an exact
 tree.
 
 **Declining is a first-class outcome.** A record the codec cannot express writes its
-raw payload under a different extension instead — 4,139 clientscripts take that path
+raw payload under a different extension instead — 4,136 clientscripts take that path
 without name tables. Sharing one extension between the decoded and raw forms was a
 real bug during development: every script fell back, kept the `.cs2` name, and the
 output looked like successful decompilation of garbage. They are now `.cs2` and

@@ -468,6 +468,22 @@ RSCache_MapTerrainNewFromDecodeFlags(
         }
     }
 
+    /*
+     * Whatever the tile loop did not reach. The client stops here too, so this is
+     * not data anyone reads — but it is data the file has, and dropping it makes
+     * every re-encoded square one byte short of the original.
+     */
+    if( buffer.position < buffer.size )
+    {
+        map_terrain->trailing_size = (int)(buffer.size - buffer.position);
+        map_terrain->trailing = malloc((size_t)map_terrain->trailing_size);
+        if( map_terrain->trailing )
+            memcpy(map_terrain->trailing, buffer.data + buffer.position,
+                   (size_t)map_terrain->trailing_size);
+        else
+            map_terrain->trailing_size = 0;
+    }
+
     /* fixup_terrain sets is_fixedup itself. */
     if( !(flags & RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP) )
         fixup_terrain(map_terrain, map_x, map_z);
@@ -498,6 +514,17 @@ RSCache_MapTerrainEncodeBound(int flags)
 }
 
 uint32_t
+RSCache_MapTerrainEncodeBoundFor(
+    const struct RSCache_MapTerrain* map_terrain,
+    int flags)
+{
+    uint32_t bound = RSCache_MapTerrainEncodeBound(flags);
+    if( map_terrain && map_terrain->trailing_size > 0 )
+        bound += (uint32_t)map_terrain->trailing_size;
+    return bound;
+}
+
+uint32_t
 RSCache_MapTerrainEncode(
     const struct RSCache_MapTerrain* map_terrain,
     int flags,
@@ -506,7 +533,7 @@ RSCache_MapTerrainEncode(
 {
     if( !map_terrain || !out )
         return 0;
-    if( out_capacity < RSCache_MapTerrainEncodeBound(flags) )
+    if( out_capacity < RSCache_MapTerrainEncodeBoundFor(map_terrain, flags) )
         return 0;
 
     bool u16 = !(flags & RSCACHE_MAP_TERRAIN_DECODE_U8);
@@ -564,6 +591,9 @@ RSCache_MapTerrainEncode(
         }
     }
 
+    if( map_terrain->trailing && map_terrain->trailing_size > 0 )
+        pbuf(&buffer, map_terrain->trailing, (uint32_t)map_terrain->trailing_size);
+
     return buffer.position;
 }
 
@@ -582,7 +612,10 @@ void
 RSCache_MapTerrainFree(struct RSCache_MapTerrain* map_terrain)
 {
     if( map_terrain )
+    {
+        free(map_terrain->trailing);
         free(map_terrain);
+    }
 }
 
 struct RSCache_MapLocs*

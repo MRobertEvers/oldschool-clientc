@@ -2,7 +2,7 @@
 """
 Import door / gate pairings as a LostCity `.loc` config plus its pack file.
 
-    tools/door_import.py --content OSRS-Content/mock230
+    tools/door_import.py --content OSRS-Content/osrs239-content
 
 Two loc ids look identical to a cache reader — one closed, one open — and
 nothing in the cache says which pairs with which. LostCity records the pairing

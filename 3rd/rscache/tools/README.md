@@ -364,6 +364,35 @@ Notes on what does and does not carry over:
 - **Records that do not decode byte-exactly are refused**, per record rather
   than per revision, since the decoder's short consume is its own signal that it
   stopped on an opcode it does not know.
+- **A `sharelight` loc cannot be spawned at runtime — the exporter strips the
+  flag from every explicit `--loc` request.** The reference client's
+  `LocType.getModel` passes `!sharelight` into `calculateNormals`, so a
+  sharelight model's face colours are never baked there: it is left waiting
+  for the static scene build's normal-merge pass, which is the only place that
+  lighting exists. A loc placed in the map gets that pass; a zone `LOC_ADD`
+  arriving at runtime never does, and the loc draws with its faces simply not
+  there. `LOC_ANIM` breaks the same way, because `ClientLocAnim` re-derives
+  its model through `getModel` every frame. This is authentic 2004 behaviour —
+  Jagex never runtime-spawned a sharelight loc, so the path was never exercised
+  — and it is why the rule is: whatever a script will `loc_add` or `loc_change`
+  must be exported dynamic-safe, while map statics keep their flag and light
+  correctly. Lessons that made this expensive to find:
+    - A lenient renderer hides it completely. torirs lights dynamic locs
+      unconditionally, so the same cache rendered perfectly there and
+      half-invisible in the faithful client. When two clients disagree, debug
+      in the strict one.
+    - The model file will look innocent, because it is. The exported OB2 was
+      byte-parsed with the reference client's own layout — indices, colours,
+      alphas, priorities all clean — before the fault moved to the lighting
+      path. When a clean-round-tripping model renders in one client and not
+      another, suspect the build/lighting pipeline, not the data.
+    - The tell that pins it in minutes: the identical loc renders when placed
+      statically in the jm2 and loses its faces when `loc_add`'d. One
+      comparison, no pixel forensics.
+    - The flag survives re-exports silently. `sharelight=yes` comes from the
+      source config (OSRS opcode 22), so every fresh export reintroduces it
+      unless the exporter owns the strip — which is why it is a rule in
+      `lc_map.c` and not a hand edit.
 
 Assets whose gameplay fields LostCity needs (npc combat stats, hunt modes,
 params) are *not* emitted — those are authored beside the generated config and
@@ -562,11 +591,11 @@ rest as their payload. `cachepack --list-assets` prints which is which.
 
 | kind | form | round-trips |
 |---|---|---|
-| `maps` | `.jm2`, LostCity's format — `==== MAP ====` tiles, `==== LOC ====` scenery | all 2,934 squares |
+| `maps` | `.jm2`, LostCity's format — `==== MAP ====` tiles, `==== LOC ====` scenery | 2,933 of 2,934 squares |
 | `interfaces` | `.if`, one `[com_<id>]` block per component | all 968 |
 | `worldmap/areas` | `.wma` per area, `.wmc` per composite map | all 104 |
 | `textures` | `.texture`, a text record | all 210 |
-| `scripts` | `.cs2` source, via the library's own decompiler | 5,586 of 9,725 |
+| `scripts` | `.cs2` source, via the library's own decompiler | 5,589 of 9,725 |
 | `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
 
 Three of these needed encoders the library did not have, and all three are now in
@@ -576,7 +605,7 @@ it and measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact,
 and `RSCache_WorldMapAreaEncode` / `EncodeIcons` (**207 / 207 files byte-exact**).
 
 **Declining is normal and nothing is lost.** A record the decoder cannot handle
-falls back to its raw payload under a different extension — 4,139 clientscripts do,
+falls back to its raw payload under a different extension — 4,136 clientscripts do,
 which is why `scripts/` holds both `.cs2` and `.bin`. `--raw-assets` turns the
 decoders off entirely.
 
@@ -600,6 +629,19 @@ A few things worth knowing:
   written only on a byte-exact match, and anything else falls back to raw. That
   found the layout by itself — archive 0 is 52 areas, archive 1 is 52 compositemaps,
   archive 2 is 52 PNGs, and 51 single-file archives decode as neither.
+- **A square's last byte is data, and the tile loop never reads it.** The terrain
+  stream is a fixed 4 × 64 × 64 with no header, so the decoder stops when it has
+  read every tile — and every OldSchool 239 square has one byte after that, non-zero
+  in 1,612 of 2,934 (one square has 9,564). It is kept on the struct and written
+  back as `trailing=<hex>` in the MAP header; without it every re-encoded square is
+  a byte short.
+- **The map codec proves each decode before writing text for it.** A buffer read
+  past the end returns zeros, so a file that is not a terrain stream decodes to a
+  plausible empty square rather than failing — archive 25287's three-byte file 0
+  became a 32 KB square of nothing. Both halves are re-encoded and compared against
+  the bytes they came from, and only a byte-exact match gets a `.jm2`. That one
+  square falls back to `.map`, and the other 2,933 are guaranteed to pack back to
+  what they were: **14,702 / 14,702 map files byte-identical.**
 - **A jm2's foreign sections belong to somebody else.** MAP and LOC are the cache's;
   `==== NPC ====` and `==== OBJ ====` are a server's spawns living in the same file
   (which is how LostCity keeps them). Unpacking over an existing `.jm2` preserves
@@ -611,7 +653,7 @@ A few things worth knowing:
 - **CS2 name tables are optional but worth having.** Without them a decompile is
   correct but reads `obj_995` rather than `coins_995`, and the four types with no
   numeric spelling (`boolean`, `stat`, `maparea`, `fontmetrics`) fail outright —
-  which is most of the 4,139 fallbacks. Point `CACHEPACK_CS2_NAMES` at a clone of
+  which is most of the 4,136 fallbacks. Point `CACHEPACK_CS2_NAMES` at a clone of
   [RuneStar/cs2](https://github.com/RuneStar/cs2)'s resources directory.
 
 Measured end to end on `cache.osrs239`: unpack → pack → unpack returns every file
@@ -619,11 +661,11 @@ byte-identical **except the decompiled clientscripts**, and the client's boot lo
 against the repacked cache matches the original's line for line.
 
 The exception is worth stating precisely, because it is the CS2 layer's and not
-this tool's. All 4,139 scripts that decline decompilation round-trip byte-exactly
-as `.bin`. Of the 5,586 that decompile, 2,818 re-encode to *different bytes* — the
+this tool's. All 4,136 scripts that decline decompilation round-trip byte-exactly
+as `.bin`. Of the 5,589 that decompile, ~2,818 re-encode to *different bytes* — the
 compiler does not reproduce the original bytecode — and on the second unpack 68 of
 them no longer decompile at all and 3 decompile to different source. So the source
-fixed point is 5,515 / 5,586 (98.7%) for scripts and exact for everything else.
+fixed point is ~98.7% for scripts and exact for everything else.
 `--raw-assets` gives an exact tree at the cost of the readable forms.
 
 ### Raw containers

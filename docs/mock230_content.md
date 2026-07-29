@@ -8,7 +8,7 @@ config can be pasted in either direction and mean the same thing.
 
 The ids are not LostCity's. They come from **OpenRune**, whose gameval table
 names every id in a modern OldSchool cache, and every one of them is re-checked
-against `cache.osrs230` before it is trusted. See §4.
+against `cache.osrs239` before it is trusted. See §4.
 
 `build/` is excluded by the repo's `.gitignore`, so **a fresh checkout has no
 compiled script pack** until `mock230-scripts` runs. The mock still works
@@ -30,40 +30,46 @@ src/build/mock230_pack -v        # ... and list every definition
 
 ## 1. Layout
 
+The content tree is shared with the unpacked cache — see `OSRS-Content/README.md`.
+`pack/` and `maps/` belong to both halves; `server/` is the part that never enters
+a cache.
+
 ```
-OSRS-Content/mock230/
-  pack/                      id=name, one file per namespace
-    npc.pack obj.pack loc.pack seq.pack        generated (tools/gameval_import.py)
-    door.pack                                  generated (tools/door_import.py)
-    interface.pack component.pack varbit.pack  generated (tools/gameval_import.py)
-    varp.pack                                  generated
-    inv.pack stat.pack param.pack              hand-authored
-    varp_mock.pack hitsplat.pack               hand-authored
+OSRS-Content/osrs239-content/
+  pack/                      id=name, one file per namespace — written by cachepack
+    npc.pack obj.pack loc.pack seq.pack        the cache's own gameval names
+    interface.pack component.pack varbit.pack
+    varp.pack inv.pack param.pack hitsplat.pack
   maps/
-    m50_50.jm2 …             ==== NPC ==== / ==== OBJ ==== spawn sections
-  scripts/
-    areas/lumbridge/configs/lumbridge.npc      combat blocks
-    areas/lumbridge/scripts/*.rs2              dialogue
-    skill_combat/configs/combat.param          LostCity's param names, verbatim
-    skill_combat/configs/npc_combat.param
-    skill_combat/combat.rs2
-    doors/configs/doors.loc                    generated + cache-validated
-    drop tables/scripts/*.rs2                  [ai_queue3] drop tables
-    drop tables/configs/lootdrop.constant
-    interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
-    interface_bank/configs/bank.varp           the varps its varbits live in
-    interface_bank/configs/bank.constant       quantity modes
-    interface_bank/configs/bank.enum           tab index -> tab-size varbit
-    skill_prayer/configs/prayers.prayer        the 29 prayers
-    skill_prayer/configs/prayers.constant      overhead icon indices
-    player/configs/worn.enum                   worn-tab cell -> wear slot
-    player/login.rs2
-    build/                                     compiled script pack (gitignored)
+    m50_50.jm2 …             ==== MAP ==== / ==== LOC ==== from the cache,
+                             ==== NPC ==== / ==== OBJ ==== spawns from the server
+  server/
+    pack/
+      stat.pack              skills; no cache table holds them
+      varp_mock.pack         aliases for varps this world repurposed
+    scripts/
+      areas/lumbridge/configs/lumbridge.npc      combat blocks
+      areas/lumbridge/scripts/*.rs2              dialogue
+      skill_combat/configs/combat.param          LostCity's param names, verbatim
+      skill_combat/configs/npc_combat.param
+      skill_combat/combat.rs2
+      doors/configs/doors.loc                    generated + cache-validated
+      drop tables/scripts/*.rs2                  [ai_queue3] drop tables
+      drop tables/configs/lootdrop.constant
+      interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
+      interface_bank/configs/bank.varp           the varps its varbits live in
+      interface_bank/configs/bank.constant       quantity modes
+      interface_bank/configs/bank.enum           tab index -> tab-size varbit
+      skill_prayer/configs/prayers.prayer        the 29 prayers
+      skill_prayer/configs/prayers.constant      overhead icon indices
+      player/configs/worn.enum                   worn-tab cell -> wear slot
+      player/login.rs2
+      build/                                     compiled script pack (gitignored)
 ```
 
-The tree is **read at boot**, not packed. LostCity compiles its configs into the
+`server/` is **read at boot**, not packed. LostCity compiles its configs into the
 cache its *client* serves, because its content invents npcs and locs. Nothing
-here invents one: every npc, obj and loc already exists in `cache.osrs230`
+here invents one: every npc, obj and loc already exists in `cache.osrs239`
 exactly as OldSchool ships it, so a config block is an **overlay** carrying only
 what a cache cannot state. Reading the text costs about a millisecond and takes
 a build step out of the edit loop.
@@ -259,7 +265,7 @@ An OldSchool obj or npc record carries its equipment bonuses in its own **param
 table**: ids 0–11 are the twelve bonuses in the order `Mock230CombatParam`
 names them, and 14 is the attack rate in ticks. OpenRune's
 `cache/src/main/kotlin/org/alter/ParamMapper.kt` documents the mapping;
-`cache.osrs230` was checked against it before anything was built on it:
+`cache.osrs239` was checked against it before anything was built on it:
 
 ```
 obj 1321 Bronze scimitar   [1]=7 (slashattack)  [10]=6 (strengthbonus)  [14]=4
@@ -287,7 +293,7 @@ content refers to it by — and writes the `.pack` files.
 
 ```
 tools/gameval_import.py --search npcs goblin
-tools/gameval_import.py --names tools/gameval_import.names --out OSRS-Content/mock230/pack
+tools/gameval_import.py --names tools/gameval_import.names --out OSRS-Content/osrs239-content/pack
 ```
 
 `tools/gameval_import.names` is the request list; a symbol not in it is not
@@ -297,7 +303,7 @@ imported, which keeps the packs a readable subset rather than 3 MB of text.
 that moved between them does not fail loudly — it resolves to a *different* npc,
 which spawns and fights and looks entirely plausible. The worked example is
 `npcs.goblin`: id 3028 at both revisions, while the mock's original roster used
-655, which `cache.osrs230` also calls "Goblin" and OpenRune calls
+655, which `cache.osrs239` also calls "Goblin" and OpenRune calls
 `goblin_red_soldier_2`. Two monsters, one display name.
 
 So `mock230_pack` checks every one, and prints the cache's combat level beside

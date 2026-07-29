@@ -23,7 +23,12 @@ byte selects the "." (active-component) form.
 from __future__ import annotations
 
 # id -> NAME. Names are lowercased for output.
-LOCAL_NAMES: dict[int, str] = {}
+LOCAL_NAMES: dict[int, str] = {
+    # First seen in OldSchool 239's gameframe scripts; neither vendored table
+    # names it, and its meaning is still unknown. Named so the decompiler can
+    # print it — the signature below is what lets it get that far.
+    210: "_210",
+}
 
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
@@ -34,6 +39,13 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # CC_COPY 105 = { int_in 3 }: parent, src_sub, dst_sub. Clones a dynamic
     # child into another slot under the same parent and makes the copy active.
     "CC_COPY": (["COMPONENT", "COMSUBID", "COMSUBID"], [], True),
+    # _210 = { int_in 6 }. Established by `cs2 infer-arity` over cache.osrs239,
+    # not by a client: ten call sites, every one solving to the same six-int pop
+    # with nothing pushed, no other candidate surviving at any of them. The types
+    # are plain INT because the method establishes counts, not meanings — the
+    # first argument is a component in every site traced, but one shape is not a
+    # signature. src/cs2vm2 carries the same counts, and drops the arguments.
+    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
     # 4016 / 4017 = { int_in 2, int_out 1 }.
     "MIN": (["INT", "INT"], ["INT"], False),
     "MAX": (["INT", "INT"], ["INT"], False),

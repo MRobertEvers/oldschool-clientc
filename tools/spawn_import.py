@@ -2,7 +2,7 @@
 """
 Import OpenRune's Lumbridge spawns as LostCity `.jm2` map files.
 
-    tools/spawn_import.py --out OSRS-Content/mock230/maps
+    tools/spawn_import.py --out OSRS-Content/osrs239-content/maps
 
 OpenRune declares spawns in Kotlin
 (`content/.../areas/lumbridge/spawns/SpawnPlugin.kt`) as `spawnNpc(npc =
