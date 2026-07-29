@@ -14,6 +14,36 @@ struct cs2_dfa
     int error_capacity;
 };
 
+
+/*
+ * Spell a set of types into a caller buffer, for the "irreconcilable" failures.
+ *
+ * A contradiction is only ever actionable if you know which two types met — the
+ * conflict is almost always one command's argument declared at the wrong type,
+ * and the pair names it. Without them the message says a decompile failed and
+ * nothing about where to look.
+ */
+static const char*
+cs2_type_set_text(
+    const enum RSCache_CS2_Type* types,
+    int count,
+    char* out,
+    size_t capacity)
+{
+    size_t written = 0;
+    out[0] = '\0';
+    for( int i = 0; i < count && written + 1 < capacity; i++ )
+    {
+        const char* literal = RSCache_CS2_TypeLiteral(types[i]);
+        int n = snprintf(out + written, capacity - written, "%s%s", written ? "/" : "",
+                         literal ? literal : "?");
+        if( n < 0 )
+            break;
+        written += (size_t)n;
+    }
+    return out;
+}
+
 static void
 cs2_dfa_fail(struct cs2_dfa* dfa, const char* fmt, ...)
 {
@@ -841,7 +871,14 @@ cs2_calc_types(struct cs2_dfa* dfa)
                 RSCache_CS2_TypeIntersection(candidates, candidate_count);
             if( result == RSCACHE_CS2_TYPE_NONE )
             {
-                cs2_dfa_fail(dfa, "a value is used at two irreconcilable types");
+                char in_text[128];
+                char out_text[128];
+                cs2_dfa_fail(dfa,
+                             "a value is used at two irreconcilable types: "
+                             "defined as %s, used as %s",
+                             cs2_type_set_text(in_types, in_count, in_text, sizeof(in_text)),
+                             cs2_type_set_text(out_types, out_count, out_text,
+                                               sizeof(out_text)));
                 RSCache_CS2_VecFree(&unresolved.items);
                 return false;
             }

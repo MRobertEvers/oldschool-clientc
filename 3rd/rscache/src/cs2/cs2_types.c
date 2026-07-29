@@ -321,6 +321,9 @@ RSCache_CS2_ScriptNameFormat(
 
 static struct RSCache_CS2_Prototype cs2_prototypes[RSCACHE_CS2_PROTO_COUNT_] = {
     [RSCACHE_CS2_PROTO_INT] = CS2_PLAIN(INT),
+    /* Type deliberately NONE — see the enum. The identifier is still `int` so an
+     * otherwise-unconstrained local prints as `$int0` rather than losing a name. */
+    [RSCACHE_CS2_PROTO_UNKNOWNINT] = { RSCACHE_CS2_TYPE_NONE, "int" },
     [RSCACHE_CS2_PROTO_STRING] = CS2_PLAIN(STRING),
     [RSCACHE_CS2_PROTO_COMPONENT] = CS2_PLAIN(COMPONENT),
     [RSCACHE_CS2_PROTO_BOOLEAN] = CS2_PLAIN(BOOLEAN),
@@ -419,6 +422,8 @@ RSCache_CS2_ProtoGet(enum RSCache_CS2_ProtoId id)
 enum RSCache_CS2_ProtoId
 RSCache_CS2_ProtoForType(enum RSCache_CS2_Type type)
 {
+    if( type == RSCACHE_CS2_TYPE_NONE )
+        return RSCACHE_CS2_PROTO_NONE;
     for( int i = 0; i < RSCACHE_CS2_PROTO_COUNT_; i++ )
     {
         if( cs2_prototypes[i].type != type )
@@ -435,5 +440,9 @@ bool
 RSCache_CS2_ProtoIsDefault(enum RSCache_CS2_ProtoId id)
 {
     const struct RSCache_CS2_Prototype* p = RSCache_CS2_ProtoGet(id);
+    /* UNKNOWNINT has no type to compare an identifier against, and it adds none
+     * beyond what the solver will settle on, so it is default by definition. */
+    if( p->type == RSCACHE_CS2_TYPE_NONE )
+        return true;
     return strcmp(p->identifier, RSCache_CS2_TypeLiteral(p->type)) == 0;
 }

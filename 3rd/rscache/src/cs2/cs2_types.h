@@ -276,6 +276,22 @@ enum RSCache_CS2_ProtoId
     RSCACHE_CS2_PROTO_WINDOWMODE,
     RSCACHE_CS2_PROTO_CLIENTTYPE,
 
+    /**
+     * An int-stack argument whose *type* is not known.
+     *
+     * The client's stack table records how many ints and strings an opcode moves
+     * and nothing about what they mean, so a signature taken from it can assert
+     * arity and no more. Writing `int` there is a claim the table cannot support,
+     * and a false one often enough to matter: 996 of osrs239's decompile failures
+     * were a value the signature called `int` meeting a use that called it
+     * `component`, which the type lattice — correctly — refuses to reconcile.
+     *
+     * Its type is NONE, which the solver reads as "contributes no constraint", so
+     * the value takes whatever type its other uses give it. A value with no other
+     * use falls out as `int` anyway, at the solver's last step.
+     */
+    RSCACHE_CS2_PROTO_UNKNOWNINT,
+
     RSCACHE_CS2_PROTO_COUNT_,
     RSCACHE_CS2_PROTO_NONE = -1,
 };

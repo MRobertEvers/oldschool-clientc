@@ -346,8 +346,15 @@ def main() -> int:
             name = meta_names.get(opcode, f"_{opcode}")
             by_id[opcode] = name.lower()
             by_name[name] = opcode
-        args = ["INT"] * int_in + ["STRING"] * str_in
-        defs = ["INT"] * int_out + ["STRING"] * str_out
+        # UNKNOWNINT, not INT: the table says how many int-stack slots move and
+        # nothing about what they hold, and typing them `int` is a claim it cannot
+        # support. It was also wrong often enough to matter -- 996 of osrs239's
+        # decompile failures were one of these meeting a `component`, which the
+        # lattice refuses to reconcile because the reference refuses to. NONE
+        # instead means "no constraint", so the value takes the type its other
+        # uses give it, or falls out as `int` if it has none.
+        args = ["UNKNOWNINT"] * int_in + ["STRING"] * str_in
+        defs = ["UNKNOWNINT"] * int_out + ["STRING"] * str_out
         # The active-component forms take their operand as a flag, exactly as
         # the cc_* commands Command.kt does describe.
         dot = 100 <= opcode < 2000

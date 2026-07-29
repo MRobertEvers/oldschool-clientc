@@ -1856,6 +1856,42 @@ definitions, each with its own id and its own line in LostCity's `texture.pack`)
 the archive's payload whole, which costs nothing — the payload is the container's own
 file table plus the files — and takes the tree from 352,849 files to 117,086.
 
+### G7. OldSchool stopped typing hook arguments, and the strict freeze took 1,102 scripts *(Deviation, deliberate)*
+
+A hook passes its callee's arguments with a descriptor string — one type letter
+each — and the reference freezes the callee's parameter to each letter. This port
+did the same, faithfully, and 1,102 of osrs239's 9,725 scripts died of it: every
+`component/int`, `graphic/int`, `enum/int` and `struct/int` contradiction in the
+failure tally, 996 of them `component` against `int`.
+
+The cause is not in either implementation. Script 119 is four instructions in both
+RuneStar's cache and rev 239, with an unchanged body that hands its argument to
+`if_sethide`'s component slot — and its descriptor reads `I` (component) in the
+old cache and `i` (int) in the new one. Running this decompiler on RuneStar's own
+`input/119` decompiles it; on rev 239's it fails. **OldSchool stopped putting the
+real type in hook descriptors and started writing `i`.**
+
+So `int` in a modern descriptor is no longer a claim, it is the absence of one, and
+freezing it asserts knowledge the byte does not carry. It is now the one letter
+that does not freeze: the callee's parameter is left to the solver, which types it
+from the body's use, or falls back to `int` at its last step if the body says
+nothing either. Every other letter still means what it says.
+
+Two controls, because a type solver that fails less is not obviously right:
+
+- **The reference comparison did not move.** Decompiling RuneStar's own cache and
+  diffing against their published output stays at **6,489 identical / 2 different**,
+  the same figure it has held through every previous change — as it must, since the
+  deviation only fires on a letter their cache almost never wrote.
+- **The 91 already-working scripts it did change, it improved.** All 91 are
+  parameters that read `int` before and now read `component`, in scripts that go on
+  to call `if_getx($component0)` and `if_setontimer(null, $component2)`. The old
+  output was not wrong syntax; it was the wrong type, printed confidently.
+
+7,878 -> 9,042 of 9,725. The same measurement retired the last of the
+`identifier 'keychar' does not belong to type 'int'` failures, which were the same
+contradiction reaching the identifier solver instead of the type solver.
+
 ### H8. Three encoders the library was missing, written for the readable asset forms
 
 `--assets` can decode maps, interfaces and the world map into text only because both
@@ -1993,7 +2029,7 @@ rule is that there is one answer to "what is opcode N".
 What it does is still unknown. The VM pops the six and does nothing, which is
 stack-correct and behaviourally a no-op; script 8489 now reads
 `_210(2372, $int0, 2373, $int1, 0, 0)`. Three more scripts decompile than before
-(5,589 of 9,725), and the client boots, logs in and renders.
+(5,589 of 9,725 at the time), and the client boots, logs in and renders.
 
 Worth noting what the method *did not* give: the trace made the first argument look
 like a component, which would have been a natural thing to write into the signature.
@@ -2012,20 +2048,20 @@ tool's — see the measurement below the table.
 | interfaces | `.if` | one `[com_<id>]` block per component |
 | worldmap/areas | `.wma`, `.wmc` | areas and compositemaps; the ground layer stays PNG |
 | textures | `.texture` | text, because an OldSchool texture is a **record**, not a bitmap |
-| scripts | `.cs2` | via the existing decompiler; 5,589 of 9,725 |
+| scripts | `.cs2` | via the existing decompiler; 9,042 of 9,725 with name tables |
 | sprites | `.bmp` + `pack.meta` | palette recorded, not re-derived; alpha rides in the 32-bit BMP |
 
 **Scripts are the one readable form that is not a fixed point.** Measured on
-`cache.osrs239`: all 4,136 scripts that decline decompilation round-trip
-byte-exactly. Of the 5,589 that decompile, **~2,818 re-encode to different bytes** —
+`cache.osrs239`: all 683 scripts that decline decompilation round-trip
+byte-exactly. Of the 9,042 that decompile, most **re-encode to different bytes** —
 the compiler produces valid, equivalent bytecode, not the original bytecode — and
-on a second unpack 68 of them stop decompiling and 3 decompile to different source.
-~98.7% source fixed point, exact for every other kind. This is G1/G2
+on a second unpack 754 of them stop decompiling and 68 decompile to different
+source. **8,220 / 9,042 (90.9%)** source fixed point, exact for every other kind. This is G1/G2
 showing up at the tool level; `--raw-assets` trades the readable forms for an exact
 tree.
 
 **Declining is a first-class outcome.** A record the codec cannot express writes its
-raw payload under a different extension instead — 4,136 clientscripts take that path
+raw payload under a different extension instead — 683 clientscripts take that path
 without name tables. Sharing one extension between the decoded and raw forms was a
 real bug during development: every script fell back, kept the `.cs2` name, and the
 output looked like successful decompilation of garbage. They are now `.cs2` and

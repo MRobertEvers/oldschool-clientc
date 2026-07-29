@@ -595,7 +595,7 @@ rest as their payload. `cachepack --list-assets` prints which is which.
 | `interfaces` | `.if`, one `[com_<id>]` block per component | all 968 |
 | `worldmap/areas` | `.wma` per area, `.wmc` per composite map | all 104 |
 | `textures` | `.texture`, a text record | all 210 |
-| `scripts` | `.cs2` source, via the library's own decompiler | 5,589 of 9,725 |
+| `scripts` | `.cs2` source, via the library's own decompiler | 9,042 of 9,725 (with name tables) |
 | `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
 
 Three of these needed encoders the library did not have, and all three are now in
@@ -605,7 +605,7 @@ it and measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact,
 and `RSCache_WorldMapAreaEncode` / `EncodeIcons` (**207 / 207 files byte-exact**).
 
 **Declining is normal and nothing is lost.** A record the decoder cannot handle
-falls back to its raw payload under a different extension — 4,136 clientscripts do,
+falls back to its raw payload under a different extension — 683 clientscripts do,
 which is why `scripts/` holds both `.cs2` and `.bin`. `--raw-assets` turns the
 decoders off entirely.
 
@@ -653,7 +653,7 @@ A few things worth knowing:
 - **CS2 name tables are optional but worth having.** Without them a decompile is
   correct but reads `obj_995` rather than `coins_995`, and the four types with no
   numeric spelling (`boolean`, `stat`, `maparea`, `fontmetrics`) fail outright —
-  which is most of the 4,136 fallbacks. Point `CACHEPACK_CS2_NAMES` at a clone of
+  which is 2,274 scripts on its own. Point `CACHEPACK_CS2_NAMES` at a clone of
   [RuneStar/cs2](https://github.com/RuneStar/cs2)'s resources directory.
 
 Measured end to end on `cache.osrs239`: unpack → pack → unpack returns every file
@@ -661,11 +661,12 @@ byte-identical **except the decompiled clientscripts**, and the client's boot lo
 against the repacked cache matches the original's line for line.
 
 The exception is worth stating precisely, because it is the CS2 layer's and not
-this tool's. All 4,136 scripts that decline decompilation round-trip byte-exactly
-as `.bin`. Of the 5,589 that decompile, ~2,818 re-encode to *different bytes* — the
-compiler does not reproduce the original bytecode — and on the second unpack 68 of
-them no longer decompile at all and 3 decompile to different source. So the source
-fixed point is ~98.7% for scripts and exact for everything else.
+this tool's. All 683 scripts that decline decompilation round-trip byte-exactly
+as `.bin`. Of the 9,042 that decompile, most re-encode to *different bytes* — the
+compiler produces valid, equivalent bytecode, not the original — and on the second
+unpack 754 of them no longer decompile at all and 68 decompile to different source.
+So the source fixed point is **8,220 / 9,042 (90.9%)** for scripts and exact for
+everything else.
 `--raw-assets` gives an exact tree at the cost of the readable forms.
 
 ### Raw containers

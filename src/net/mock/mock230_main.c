@@ -433,12 +433,15 @@ main(
 {
     struct Mock230Server srv;
     static struct Mock230Conn conn; /* 128 KB of buffers — not on the stack */
-    int port = argc > 1 ? atoi(argv[1]) : MOCK230_DEFAULT_PORT;
+    /* --selftest: run the game logic with no socket and exit. Detected before
+     * the port parse because atoi("--selftest") is 0. */
+    int selftest = argc > 1 && strcmp(argv[1], "--selftest") == 0;
+    int port = (argc > 1 && !selftest) ? atoi(argv[1]) : MOCK230_DEFAULT_PORT;
     int home_x = DEFAULT_HOME_X;
     int home_z = DEFAULT_HOME_Z;
     int zone_x;
     int zone_z;
-    int listener;
+    int listener = -1;
     int reuse = 1;
     struct sockaddr_in addr;
     const char* cache_dir = getenv("MOCK230_CACHE");
@@ -448,6 +451,40 @@ main(
         sscanf(home_env, "%d,%d", &home_x, &home_z);
     zone_x = home_x >> 3;
     zone_z = home_z >> 3;
+
+    /*
+     * Bind and listen *before* the loaders, not after. They take over a second
+     * to read the cache and the content tree, and a client launched alongside
+     * this process (run-live.sh starts both) dials the port well inside that
+     * window. A socket that is listening but not yet accepting parks the
+     * connection in the backlog until the loop below reaches accept(); a socket
+     * that does not exist yet answers RST, and the client's connect is a
+     * one-shot — a refusal is terminal, so the whole session comes up with no
+     * world and only the cache-configured interface drawn.
+     *
+     * A bind failure still means "someone else holds this port", and now says so
+     * a second sooner, which is what run-live.sh's already-running check reads.
+     */
+    if( !selftest )
+    {
+        listener = socket(AF_INET, SOCK_STREAM, 0);
+        if( listener < 0 )
+        {
+            perror("socket");
+            return 1;
+        }
+        setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = htons((uint16_t)port);
+        if( bind(listener, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
+        {
+            perror("bind");
+            return 1;
+        }
+        listen(listener, 1);
+    }
 
     mock230_world_set_cache_dir(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
     mock230_objinfo_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
@@ -466,31 +503,14 @@ main(
     mock230_bank_load(cache_dir ? cache_dir : MOCK230_CACHE_DIR_DEFAULT);
     mock230_world_set_home(home_x, home_z);
 
-    /* --selftest: run the game logic with no socket and exit. */
-    if( argc > 1 && strcmp(argv[1], "--selftest") == 0 )
+    if( selftest )
     {
         int failures = mock230_world_selftest();
         mock230_objinfo_free();
         return failures ? 1 : 0;
     }
 
-    listener = socket(AF_INET, SOCK_STREAM, 0);
-    if( listener < 0 )
-    {
-        perror("socket");
-        return 1;
-    }
-    setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons((uint16_t)port);
-    if( bind(listener, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
-    {
-        perror("bind");
-        return 1;
-    }
-    listen(listener, 1);
+    /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr, "mock230: listening on 127.0.0.1:%d (home %d,%d — zone %d,%d)\n", port,
             home_x, home_z, zone_x, zone_z);
 

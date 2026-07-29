@@ -221,6 +221,28 @@ cs2_assign_expr_to_protos(
             from->count);
         return;
     }
+    /* `CS2_TRACE_PROTOS=1` names the command behind each type constraint, which is
+     * the only way to find which signature a type contradiction came from. Read
+     * once: this is on the path of every argument of every command. */
+    static int trace = -1;
+    if( trace < 0 )
+        trace = getenv("CS2_TRACE_PROTOS") != NULL;
+    if( trace )
+    {
+        for( int i = 0; i < count; i++ )
+        {
+            const struct RSCache_CS2_Prototype* proto = RSCache_CS2_ProtoGet(protos[i]);
+            const char* literal = proto && proto->type != RSCACHE_CS2_TYPE_NONE
+                                      ? RSCache_CS2_TypeLiteral(proto->type)
+                                      : "?";
+            fprintf(stderr, "PROTO script=%d pc=%d op=%d (%s) arg%d=%s\n", interp->script_id,
+                    interp->pc, cs2_opcode(interp),
+                    RSCache_CS2_CommandName(cs2_opcode(interp))
+                        ? RSCache_CS2_CommandName(cs2_opcode(interp))
+                        : "?",
+                    i, literal);
+        }
+    }
     if( !RSCache_CS2_TypingAssignLists(from, to) )
         cs2_fail(
             interp,
@@ -236,6 +258,15 @@ cs2_assign_element_to_proto(
     struct RSCache_CS2_Expr* element,
     enum RSCache_CS2_ProtoId proto)
 {
+    if( getenv("CS2_TRACE_PROTOS") )
+    {
+        const struct RSCache_CS2_Prototype* p = RSCache_CS2_ProtoGet(proto);
+        fprintf(stderr, "PROTO1 script=%d pc=%d op=%d (%s) -> %s\n", interp->script_id,
+                interp->pc, cs2_opcode(interp),
+                RSCache_CS2_CommandName(cs2_opcode(interp))
+                    ? RSCache_CS2_CommandName(cs2_opcode(interp)) : "?",
+                p && p->type != RSCACHE_CS2_TYPE_NONE ? RSCache_CS2_TypeLiteral(p->type) : "?");
+    }
     struct RSCache_CS2_Typing* from = RSCache_CS2_TypingsOfElement(cs2_typings(interp), element);
     struct RSCache_CS2_Typing* to = RSCache_CS2_TypingsOfProto(cs2_typings(interp), proto);
     if( from != to && !RSCache_CS2_TypingAssign(from, to) )
@@ -471,6 +502,8 @@ struct cs2_hook_desc
 static bool
 cs2_parse_hook_desc(const char* desc, struct cs2_hook_desc* out)
 {
+    if( getenv("CS2_TRACE_PROTOS") )
+        fprintf(stderr, "HOOKDESC \"%s\"\n", desc ? desc : "(null)");
     memset(out, 0, sizeof(*out));
     size_t len = desc ? strlen(desc) : 0;
     out->triggers = len > 0 && desc[len - 1] == 'Y';
@@ -691,8 +724,27 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
             args_typing->count);
         return NULL;
     }
+    /*
+     * Freeze the callee's parameter types from the descriptor — except `int`.
+     *
+     * A hook descriptor used to carry the real type of each argument, and the
+     * reference freezes all of them. OldSchool has since stopped: the same script
+     * 119 reads `I` (component) in the cache RuneStar decompiled and `i` (int) in
+     * rev 239, with an unchanged body that hands the argument to if_sethide's
+     * component slot. Freezing `int` there asserts a type the byte no longer
+     * carries, and the contradiction it creates took out 1,102 of osrs239's
+     * scripts — every `component/int`, `graphic/int`, `enum/int` failure.
+     *
+     * `int` is the one descriptor value that is now indistinguishable from "not
+     * stated", so it is the one that does not freeze. The parameter is left for
+     * the solver, which types it from the body's use of it, or falls back to
+     * `int` at its last step if the body says nothing either. Every other
+     * descriptor letter still means what it says and still freezes.
+     */
     for( int i = 0; i < desc.count; i++ )
     {
+        if( desc.types[i] == RSCACHE_CS2_TYPE_INT )
+            continue;
         if( RSCache_CS2_TypingFreezeType(args_typing->items[i], desc.types[i]) )
             continue;
         cs2_fail(
