@@ -1,6 +1,7 @@
 #include "rscache_profile.h"
 
 #include "dat2disk.h"
+#include "datatypes/dat2_configs.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -176,6 +177,92 @@ RSCache_RecordAddressFor(
         default:
             break;
         }
+    }
+
+    /*
+     * The OldSchool config-group layout: one table, one group per config kind, ids
+     * indexing files directly.
+     *
+     * This used to return `group = -1` for every type, which the header already
+     * described as falling back to this layout — it did not. Every OldSchool caller
+     * compensated by carrying its own type-to-group table and reading only
+     * `group_shift` from here: `tools/cachepack/cp_common.c:53` checks the shard
+     * width and then addresses with `CP_Type.config_kind`. That second table is the
+     * kind of duplicate this function exists to remove, and a caller without one had
+     * no way to address a record at all.
+     *
+     * Types with no config group of their own — models, sprites, maps, and the dat1
+     * families — keep `group = -1`, which is still "this function cannot address it".
+     */
+    switch( type )
+    {
+    case RSCACHE_TYPE_UNDERLAY:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_UNDERLAY;
+        break;
+    case RSCACHE_TYPE_IDK:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_IDENTKIT;
+        break;
+    case RSCACHE_TYPE_OVERLAY:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_OVERLAY;
+        break;
+    case RSCACHE_TYPE_INV:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_INV;
+        break;
+    case RSCACHE_TYPE_LOC:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_LOCS;
+        break;
+    case RSCACHE_TYPE_ENUM:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_ENUM;
+        break;
+    case RSCACHE_TYPE_NPC:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_NPC;
+        break;
+    case RSCACHE_TYPE_OBJ:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_OBJECT;
+        break;
+    case RSCACHE_TYPE_PARAM:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_PARAMS;
+        break;
+    case RSCACHE_TYPE_SEQUENCE:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_SEQUENCE;
+        break;
+    case RSCACHE_TYPE_SPOTANIM:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_SPOTANIM;
+        break;
+    case RSCACHE_TYPE_VARBIT:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_VARBIT;
+        break;
+    case RSCACHE_TYPE_VARCLIENT_STRING:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_VARCLIENT_STRING;
+        break;
+    case RSCACHE_TYPE_VARPLAYER:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_VARPLAYER;
+        break;
+    case RSCACHE_TYPE_VARCLIENT:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_VARCLIENT;
+        break;
+    case RSCACHE_TYPE_HITSPLAT:
+        /* Group 32 is hitsplat in OldSchool and BasType in RS2 — same numeric id,
+         * different records. The RS2 branch above returns before reaching here. */
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_HITSPLAT;
+        break;
+    case RSCACHE_TYPE_HEALTHBAR:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR;
+        break;
+    case RSCACHE_TYPE_STRUCT:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_STRUCT;
+        break;
+    case RSCACHE_TYPE_MAPELEMENT:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_AREA;
+        break;
+    case RSCACHE_TYPE_DBROW:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_DBROW;
+        break;
+    case RSCACHE_TYPE_DBTABLE:
+        addr.group = RSCACHE_DAT2_CONFIG_KIND_DBTABLE;
+        break;
+    default:
+        break;
     }
 
     return addr;

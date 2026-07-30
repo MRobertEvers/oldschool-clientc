@@ -3,6 +3,8 @@
 
 #include "../rsbuffer.h"
 
+#include <stdbool.h>
+
 /**
  * An inventory type (config group 5): how many slots a container has.
  *
@@ -31,6 +33,19 @@ void
 RSCache_Dat2ConfigInvDecode(
     struct RSCache_Dat2ConfigInv* entry,
     struct RSCache_Buffer* buffer);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point: a server-side record that embeds this one calls this first
+ * and handles only what comes back false. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat2ConfigInvDecodeOp(
+    struct RSCache_Dat2ConfigInv* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
 
 /** Decode one dat2 record and record `_consumed`. Stops on an unknown opcode rather
  *  than guessing its width, which leaves `_consumed` short — the signal the

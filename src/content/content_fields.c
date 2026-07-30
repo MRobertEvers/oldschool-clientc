@@ -286,6 +286,49 @@ ContentFields_Load(
 
         if( strcmp(element._keyval.name, "scope") == 0 )
             current->scope = parse_scope(element._keyval.value, current->scope);
+        /*
+         * `server = opcode:<n>:<wire>` — the field's home in the server pack.
+         *
+         * Parsed here rather than compiled in because these opcodes are ours to
+         * choose: nothing outside this project reads a server pack, so a tree may
+         * renumber them. `<n>` below 64 is refused, since that band belongs to
+         * client records and overlapping it would make the two indistinguishable.
+         */
+        else if( strcmp(element._keyval.name, "server") == 0 )
+        {
+            const char* v = element._keyval.value;
+
+            if( strncmp(v, "opcode:", 7) == 0 )
+            {
+                char wire[16] = "u1";
+                int opcode = 0;
+
+                if( sscanf(v + 7, "%d:%15s", &opcode, wire) >= 1 )
+                {
+                    if( opcode < 64 || opcode > 255 )
+                    {
+                        fprintf(stderr,
+                                "fields/%s.ini: [%s.%s] server opcode %d is outside "
+                                "64..255 — below 64 is the client band\n",
+                                type, type, current->name, opcode);
+                    }
+                    else
+                    {
+                        current->server = CONTENT_SERVER_OPCODE;
+                        current->opcode = opcode;
+                        current->wire = strcmp(wire, "u2") == 0   ? CONTENT_WIRE_U2
+                                        : strcmp(wire, "u4") == 0 ? CONTENT_WIRE_U4
+                                        : strcmp(wire, "string") == 0
+                                            ? CONTENT_WIRE_STRING
+                                            : CONTENT_WIRE_U1;
+                    }
+                }
+            }
+            else if( strcmp(v, "drop") == 0 )
+            {
+                current->server = CONTENT_SERVER_DROP;
+            }
+        }
         else if( strcmp(element._keyval.name, "client") == 0 )
             current->client = parse_client(element._keyval.value, current->param_name,
                                            sizeof(current->param_name), current->client);

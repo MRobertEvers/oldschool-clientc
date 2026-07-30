@@ -1,6 +1,7 @@
 #include "cachepack.h"
 
 #include "checksum.h"
+#include "cp_merge.h"
 #include "cp_walk.h"
 
 #include "cache_edit.h"
@@ -101,6 +102,43 @@ pack_type(
     int found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
     struct CP_ConfigFile file;
 
+    /*
+     * Merge every layer into one record set, then report what the overlay
+     * contributed.
+     *
+     * The encode below still runs from `found[0]` alone. That is deliberate for
+     * this phase: the merged record holds keys no cache field can express —
+     * `hitpoints`, `respawnrate`, `huntmode` — and handing those to `cp_npc.c`
+     * would fail or, worse, be ignored. Routing them is the field register's job
+     * and the server pack's destination. What the merge buys now is the *count*:
+     * how many records an overlay touches, which is the set the byte-identity bar
+     * has to confine changes to when the encode does start using it.
+     */
+    if( found_count > 1 )
+    {
+        struct CP_MergeSet merged;
+        int ok = 1;
+
+        memset(&merged, 0, sizeof(merged));
+        for( int i = 0; i < found_count && ok; i++ )
+        {
+            struct CP_ConfigFile layer;
+
+            if( !cp_config_file_load(&layer, found[i]) )
+                continue;
+            ok = cp_merge_add(&merged, &layer, i == 0 ? 0 : 1, found[i]);
+            cp_config_file_free(&layer);
+        }
+        if( !ok )
+        {
+            cp_merge_free(&merged);
+            return 0;
+        }
+        printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name,
+               merged.count, merged.overlaid_count, found_count - 1);
+        cp_merge_free(&merged);
+    }
+
     if( found_count <= 0 || !cp_config_file_load(&file, found[0]) )
     {
         /* A type the source tree does not carry is not an error: a partial unpack
@@ -193,10 +231,23 @@ cp_pack_run(
      * what makes that a one-line change rather than a rewrite.
      */
     {
-        static const char* const ROOTS[] = { "configs" };
-        static const int RANKS[] = { 0 };
+        /*
+         * Two roots, two ranks. `configs/` is the machine export; `server/scripts`
+         * is what a person authored on top of it, and a later rank overlays an
+         * earlier one.
+         *
+         * Rank 1 is **found and reported, not yet merged**. The two layers state
+         * the same types in *different grammars* — `configs/all.npc` uses the key
+         * names `cp_npc.c` encodes, while `lumbridge.npc` uses LostCity's
+         * (`hitpoints=`, `respawnrate=`, `huntmode=`), which no cache record has a
+         * field for. Merging them per key without routing those through the field
+         * register first would hand the encoder keys it cannot express. So this
+         * phase measures the overlap and changes no bytes.
+         */
+        static const char* const ROOTS[] = { "configs", "server/scripts" };
+        static const int RANKS[] = { 0, 1 };
 
-        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 1);
+        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
     }
 
     printf("Packing configs from %s\n", ctx->srcdir);

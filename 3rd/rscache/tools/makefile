@@ -98,6 +98,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_binary.c \
 	$(TOOLS)/cachepack/cp_assets.c \
 	$(TOOLS)/cachepack/cp_walk.c \
+	$(TOOLS)/cachepack/cp_merge.c \
 	$(TOOLS)/cachepack/cp_decode.c \
 	$(TOOLS)/cachepack/config/cp_flo.c \
 	$(TOOLS)/cachepack/config/cp_var.c \

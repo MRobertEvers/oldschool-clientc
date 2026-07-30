@@ -76,12 +76,47 @@ enum ContentFieldClient
     CONTENT_CLIENT_ERROR,
 };
 
+/** How the field reaches the *server pack*, if at all. */
+enum ContentFieldServer
+{
+    /** Not written to the server pack. Default. */
+    CONTENT_SERVER_DROP = 0,
+    /** A first-class opcode in the server record, at `opcode`, width `wire`. */
+    CONTENT_SERVER_OPCODE,
+};
+
+/** Width of a server opcode's payload. */
+enum ContentFieldWire
+{
+    CONTENT_WIRE_U1 = 0,
+    CONTENT_WIRE_U2,
+    CONTENT_WIRE_U4,
+    CONTENT_WIRE_STRING,
+};
+
 struct ContentField
 {
     /** `hitpoints` — the key as configs and the field register spell it. */
     char name[48];
     enum ContentFieldScope scope;
     enum ContentFieldClient client;
+    /**
+     * Where the field lands in the server pack, and under which opcode.
+     *
+     * **These numbers are ours, and deliberately live in data.** The client cache's
+     * opcodes are Jagex's and cannot move; the server pack is written and read by
+     * this project alone, so nothing outside it can be broken by renumbering. A
+     * table compiled into C would make the one set we *can* change the one set a
+     * content tree cannot.
+     *
+     * Spelled `server = opcode:<n>:<wire>` in `fields/<type>.ini`, so adding a
+     * server field is a register row rather than an edit to an encoder's switch.
+     * Numbers below 64 are reserved: that is the band LostCity's *client* records
+     * use, and keeping it clear means a server record can never be mistaken for one.
+     */
+    enum ContentFieldServer server;
+    int opcode;
+    enum ContentFieldWire wire;
     /** For `CONTENT_CLIENT_PARAM`: the param's *name*, resolved through
      *  `pack/param.pack` at bake time. A name and not a number, because which
      *  number `hitpoints` is is the pack file's business and it has already been

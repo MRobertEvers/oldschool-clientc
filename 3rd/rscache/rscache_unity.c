@@ -78,6 +78,7 @@
 #include "src/datatypes/dat2_font_metrics.c"
 #include "src/datatypes/dat1_config_component.c"
 #include "src/datatypes/dat1_version_list.c"
+#include "src/opcode_codec.c"
 /* Revision modules last: they sit above the datatypes and name the codecs they
  * bind, so they must see every datatype header. */
 #include "src/revisions/revisions.c"

@@ -3,6 +3,29 @@
 #include <assert.h>
 #include <stdlib.h>
 
+bool
+RSCache_Dat2ConfigInvDecodeOp(
+    struct RSCache_Dat2ConfigInv* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* inv has no era-dependent opcode. */
+    switch( opcode )
+    {
+    case 2:
+        entry->size = g2(buffer);
+        return true;
+    case 249:
+        RSCache_BufferReadParams(buffer, &entry->params);
+        return true;
+    default:
+        /* Declining stops the stream rather than guessing a width — see the
+         * header. The caller's short `_consumed` is the signal. */
+        return false;
+    }
+}
+
 void
 RSCache_Dat2ConfigInvDecode(
     struct RSCache_Dat2ConfigInv* entry,
@@ -20,12 +43,8 @@ RSCache_Dat2ConfigInvDecode(
         if( opcode == 0 )
             break;
 
-        if( opcode == 2 )
-            entry->size = g2(buffer);
-        else if( opcode == 249 )
-            RSCache_BufferReadParams(buffer, &entry->params);
-        else
-            break; /* Stop rather than guess a width — see the header. */
+        if( !RSCache_Dat2ConfigInvDecodeOp(entry, opcode, buffer, 0) )
+            break;
     }
 }
 
