@@ -10,8 +10,8 @@
 #include <string.h>
 #include <strings.h>
 
-static void
-init_object(struct RSCache_Dat2ConfigObj* object);
+void
+RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object);
 
 int
 RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
@@ -76,7 +76,7 @@ RSCache_Dat2ConfigObjEncodeFlags(
      * omitted. Opcodes are written in ascending order, which is how the packer
      * emits them, so most records come back byte-exact. */
     struct RSCache_Dat2ConfigObj defaults;
-    init_object(&defaults);
+    RSCache_Dat2ConfigObjInit(&defaults);
 
 #define OBJ_P_IF(condition, opcode_value, write_body)                                              \
     do                                                                                             \
@@ -369,7 +369,7 @@ RSCache_Dat2ConfigObjEncodeFlags(
     OBJ_P_IF(object->ambient != defaults.ambient, 113, p1b(&buffer, object->ambient));
     /* The decoder multiplies the stored byte by 5, so divide going back out. */
     OBJ_P_IF(object->contrast != defaults.contrast, 114, p1b(&buffer, object->contrast / 5));
-    OBJ_P_IF(object->team != defaults.team, 115, p2(&buffer, object->team));
+    OBJ_P_IF(object->team != defaults.team, 115, p1(&buffer, object->team));
     OBJ_P_IF(object->bought_id != defaults.bought_id, 139, p2(&buffer, object->bought_id));
     OBJ_P_IF(
         object->bought_template_id != defaults.bought_template_id,
@@ -410,8 +410,8 @@ RSCache_Dat2ConfigObjEncodeFlags(
     return buffer.position;
 }
 
-static void
-init_object(struct RSCache_Dat2ConfigObj* object)
+void
+RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object)
 {
     memset(object, 0, sizeof(struct RSCache_Dat2ConfigObj));
 
@@ -479,7 +479,7 @@ RSCache_Dat2ConfigObjNewDecode(
 {
     struct RSCache_Dat2ConfigObj* object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
     assert(object);
-    init_object(object);
+    RSCache_Dat2ConfigObjInit(object);
     RSCache_Dat2ConfigObjDecodeInplaceFlags(object, buffer, buffer_size, 0);
     return object;
 }
@@ -495,14 +495,14 @@ RSCache_Dat2ConfigObjNewDecodeProfile(
     assert(cache);
     object = malloc(sizeof(struct RSCache_Dat2ConfigObj));
     assert(object);
-    init_object(object);
+    RSCache_Dat2ConfigObjInit(object);
     RSCache_Dat2ConfigObjDecodeInplaceFlags(
         object, buffer, buffer_size, RSCache_Dat2ConfigObjFlags(cache));
     return object;
 }
 
 void
-RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object)
+RSCache_Dat2ConfigObjFreeInplace(struct RSCache_Dat2ConfigObj* object)
 {
     int i;
 
@@ -532,6 +532,14 @@ RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object)
     free(object->params.keys);
     free(object->params.values);
     free(object->params.kinds);
+}
+
+void
+RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object)
+{
+    if( !object )
+        return;
+    RSCache_Dat2ConfigObjFreeInplace(object);
     free(object);
 }
 
@@ -542,6 +550,339 @@ RSCache_Dat2ConfigObjDecodeInplace(
     int data_size)
 {
     RSCache_Dat2ConfigObjDecodeInplaceFlags(object, data, data_size, 0);
+}
+
+bool
+RSCache_Dat2ConfigObjDecodeOp(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+        switch( opcode )
+        {
+        case 1:
+            object->inventory_model_id = g2(buffer);
+            break;
+        case 2:
+            free(object->name);
+            object->name = gcstring(buffer);
+            break;
+        case 3:
+            free(object->examine);
+            object->examine = gcstring(buffer);
+            break;
+        case 4:
+            object->zoom2d = g2(buffer);
+            break;
+        case 5:
+            object->xan2d = g2(buffer);
+            break;
+        case 6:
+            object->yan2d = g2(buffer);
+            break;
+        case 7:
+            object->offset_x2d = g2b(buffer);
+            break;
+        case 8:
+            object->offset_y2d = g2b(buffer);
+            break;
+        case 9:
+            free(gcstring(buffer));
+            break;
+        case 11:
+            object->stacking_behaviour = 1;
+            break;
+        case 12:
+            object->cost = g4(buffer);
+            break;
+        case 13:
+            object->wearpos_1 = g1b(buffer);
+            break;
+        case 14:
+            object->wearpos_2 = g1b(buffer);
+            break;
+        case 15:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) )
+                return false;
+            object->tradeable = false;
+            break;
+        case 16:
+            object->is_members = true;
+            break;
+        case 23:
+            object->male_model_0 = g2(buffer);
+            object->male_offset = g1(buffer);
+            break;
+        case 24:
+            object->male_model_1 = g2(buffer);
+            break;
+        case 25:
+            object->female_model_0 = g2(buffer);
+            object->female_offset = g1(buffer);
+            break;
+        case 26:
+            object->female_model_1 = g2(buffer);
+            break;
+        case 27:
+            object->wearpos_3 = g1(buffer);
+            break;
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        {
+            int idx = opcode - 30;
+            free(object->actions[idx]);
+            object->actions[idx] = gcstring(buffer);
+            if( object->actions[idx] && strcasecmp(object->actions[idx], "Hidden") == 0 )
+            {
+                free(object->actions[idx]);
+                object->actions[idx] = NULL;
+            }
+            break;
+        }
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 39:
+            free(object->if_actions[opcode - 35]);
+            object->if_actions[opcode - 35] = gcstring(buffer);
+            break;
+        case 40:
+        {
+            int recolor_count = g1(buffer);
+            object->recolors_from = malloc(recolor_count * sizeof(int));
+            object->recolors_to = malloc(recolor_count * sizeof(int));
+            for( int i = 0; i < recolor_count; i++ )
+            {
+                object->recolors_from[i] = g2(buffer);
+                object->recolors_to[i] = g2(buffer);
+            }
+            object->recolor_count = recolor_count;
+            break;
+        }
+        case 41:
+        {
+            int retexture_count = g1(buffer);
+            object->retextures_from = malloc(retexture_count * sizeof(int));
+            object->retextures_to = malloc(retexture_count * sizeof(int));
+            for( int i = 0; i < retexture_count; i++ )
+            {
+                object->retextures_from[i] = g2(buffer);
+                object->retextures_to[i] = g2(buffer);
+            }
+            object->retexture_count = retexture_count;
+            break;
+        }
+        case 42:
+            object->shift_click_drop_index = g1b(buffer);
+            break;
+        case 43:
+        {
+            int action_id = g1(buffer);
+            bool valid = action_id >= 0 && action_id < 5;
+            if( valid && !object->sub_actions[action_id] )
+            {
+                object->sub_actions[action_id] = (char**)malloc(20 * sizeof(char*));
+                memset(object->sub_actions[action_id], 0, 20 * sizeof(char*));
+            }
+
+            while( true )
+            {
+                int sub_action_id = g1(buffer) - 1;
+                if( sub_action_id == -1 )
+                    break;
+                char* string = gcstring(buffer);
+                if( valid && sub_action_id >= 0 && sub_action_id < 20 )
+                    object->sub_actions[action_id][sub_action_id] = string;
+                else
+                    free(string);
+            }
+            break;
+        }
+        case 44:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->inventory_model_id = g4(buffer);
+            break;
+        case 45:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->male_model_0 = g4(buffer);
+            object->male_offset = g1(buffer);
+            break;
+        case 46:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->male_model_1 = g4(buffer);
+            break;
+        case 47:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->male_model_2 = g4(buffer);
+            break;
+        case 48:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->female_model_0 = g4(buffer);
+            object->female_offset = g1(buffer);
+            break;
+        case 49:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->female_model_1 = g4(buffer);
+            break;
+        case 50:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->female_model_2 = g4(buffer);
+            break;
+        case 51:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->male_head_model = g4(buffer);
+            break;
+        case 52:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->male_head_model_2 = g4(buffer);
+            break;
+        case 53:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->female_head_model = g4(buffer);
+            break;
+        case 54:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
+                return false;
+            object->female_head_model_2 = g4(buffer);
+            break;
+        case 65:
+            object->ge_tradeable = true;
+            break;
+        case 75:
+            object->weight = g2b(buffer);
+            break;
+        case 78:
+            object->male_model_2 = g2(buffer);
+            break;
+        case 79:
+            object->female_model_2 = g2(buffer);
+            break;
+        case 90:
+            object->male_head_model = g2(buffer);
+            break;
+        case 91:
+            object->female_head_model = g2(buffer);
+            break;
+        case 92:
+            object->male_head_model_2 = g2(buffer);
+            break;
+        case 93:
+            object->female_head_model_2 = g2(buffer);
+            break;
+        case 94:
+            object->category = g2(buffer);
+            break;
+        case 95:
+            object->zan2d = g2(buffer);
+            break;
+        case 97:
+            object->noted_id = g2(buffer);
+            break;
+        case 98:
+            object->noted_template = g2(buffer);
+            break;
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+        case 108:
+        case 109:
+            object->count_obj[opcode - 100] = g2(buffer);
+            object->count_co[opcode - 100] = g2(buffer);
+            break;
+        case 110:
+            object->resize_x = g2(buffer);
+            break;
+        case 111:
+            object->resize_y = g2(buffer);
+            break;
+        case 112:
+            object->resize_z = g2(buffer);
+            break;
+        case 113:
+            object->ambient = g1b(buffer);
+            break;
+        case 114:
+            object->contrast = g1b(buffer) * 5;
+            break;
+        case 115:
+            /*
+             * One byte, not two.
+             *
+             * This read `g2` and swallowed the following opcode byte, so every
+             * record carrying a team misparsed from here on. It stayed invisible
+             * because the misparse usually landed on a zero and was taken for the
+             * terminator: 79 obj records in osrs239 stopped 85-107 bytes early
+             * with no error, and nothing measured obj's consumption because the
+             * struct has no `_consumed` field.
+             *
+             * Settled against the reference decoder rather than guessed — its
+             * opcode 115 uses the `& 255` single-byte read, where the u16 opcodes
+             * either side of it (110-112) use the two-byte one.
+             */
+            object->team = g1(buffer);
+            break;
+        case 139:
+            object->bought_id = g2(buffer);
+            break;
+        case 140:
+            object->bought_template_id = g2(buffer);
+            break;
+        case 148:
+            object->placeholder_id = g2(buffer);
+            break;
+        case 149:
+            object->placeholder_template_id = g2(buffer);
+            break;
+        case 160:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2) )
+                return false;
+            object->stacking_behaviour = 2;
+            break;
+        case 200:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return false;
+            RSCache_EntityOpsDecodeSubOp(&object->entity_ops, buffer);
+            break;
+        case 201:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return false;
+            RSCache_EntityOpsDecodeCondOp(&object->entity_ops, buffer);
+            break;
+        case 202:
+            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
+                return false;
+            RSCache_EntityOpsDecodeCondSubOp(&object->entity_ops, buffer);
+            break;
+        case 249:
+            RSCache_BufferReadParams(buffer, &object->params);
+            break;
+        default:
+            /* Unknown payload length: stop rather than misalign later fields. */
+            return false;
+        }
+
+    /* Fell out of the switch: a case handled this opcode. */
+    return true;
 }
 
 void
@@ -556,7 +897,7 @@ RSCache_Dat2ConfigObjDecodeInplaceFlags(
     assert(object);
     RSCache_BufferInit(&buffer, (uint8_t*)(data), (uint32_t)(data_size));
 
-    init_object(object);
+    RSCache_Dat2ConfigObjInit(object);
 
     while( true )
     {
@@ -567,312 +908,48 @@ RSCache_Dat2ConfigObjDecodeInplaceFlags(
         if( opcode == 0 )
             return;
 
-        switch( opcode )
-        {
-        case 1:
-            object->inventory_model_id = g2(&buffer);
-            break;
-        case 2:
-            free(object->name);
-            object->name = gcstring(&buffer);
-            break;
-        case 3:
-            free(object->examine);
-            object->examine = gcstring(&buffer);
-            break;
-        case 4:
-            object->zoom2d = g2(&buffer);
-            break;
-        case 5:
-            object->xan2d = g2(&buffer);
-            break;
-        case 6:
-            object->yan2d = g2(&buffer);
-            break;
-        case 7:
-            object->offset_x2d = g2b(&buffer);
-            break;
-        case 8:
-            object->offset_y2d = g2b(&buffer);
-            break;
-        case 9:
-            free(gcstring(&buffer));
-            break;
-        case 11:
-            object->stacking_behaviour = 1;
-            break;
-        case 12:
-            object->cost = g4(&buffer);
-            break;
-        case 13:
-            object->wearpos_1 = g1b(&buffer);
-            break;
-        case 14:
-            object->wearpos_2 = g1b(&buffer);
-            break;
-        case 15:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) )
-                return;
-            object->tradeable = false;
-            break;
-        case 16:
-            object->is_members = true;
-            break;
-        case 23:
-            object->male_model_0 = g2(&buffer);
-            object->male_offset = g1(&buffer);
-            break;
-        case 24:
-            object->male_model_1 = g2(&buffer);
-            break;
-        case 25:
-            object->female_model_0 = g2(&buffer);
-            object->female_offset = g1(&buffer);
-            break;
-        case 26:
-            object->female_model_1 = g2(&buffer);
-            break;
-        case 27:
-            object->wearpos_3 = g1(&buffer);
-            break;
-        case 30:
-        case 31:
-        case 32:
-        case 33:
-        case 34:
-        {
-            int idx = opcode - 30;
-            free(object->actions[idx]);
-            object->actions[idx] = gcstring(&buffer);
-            if( object->actions[idx] && strcasecmp(object->actions[idx], "Hidden") == 0 )
-            {
-                free(object->actions[idx]);
-                object->actions[idx] = NULL;
-            }
-            break;
-        }
-        case 35:
-        case 36:
-        case 37:
-        case 38:
-        case 39:
-            free(object->if_actions[opcode - 35]);
-            object->if_actions[opcode - 35] = gcstring(&buffer);
-            break;
-        case 40:
-        {
-            int recolor_count = g1(&buffer);
-            object->recolors_from = malloc(recolor_count * sizeof(int));
-            object->recolors_to = malloc(recolor_count * sizeof(int));
-            for( int i = 0; i < recolor_count; i++ )
-            {
-                object->recolors_from[i] = g2(&buffer);
-                object->recolors_to[i] = g2(&buffer);
-            }
-            object->recolor_count = recolor_count;
-            break;
-        }
-        case 41:
-        {
-            int retexture_count = g1(&buffer);
-            object->retextures_from = malloc(retexture_count * sizeof(int));
-            object->retextures_to = malloc(retexture_count * sizeof(int));
-            for( int i = 0; i < retexture_count; i++ )
-            {
-                object->retextures_from[i] = g2(&buffer);
-                object->retextures_to[i] = g2(&buffer);
-            }
-            object->retexture_count = retexture_count;
-            break;
-        }
-        case 42:
-            object->shift_click_drop_index = g1b(&buffer);
-            break;
-        case 43:
-        {
-            int action_id = g1(&buffer);
-            bool valid = action_id >= 0 && action_id < 5;
-            if( valid && !object->sub_actions[action_id] )
-            {
-                object->sub_actions[action_id] = (char**)malloc(20 * sizeof(char*));
-                memset(object->sub_actions[action_id], 0, 20 * sizeof(char*));
-            }
-
-            while( true )
-            {
-                int sub_action_id = g1(&buffer) - 1;
-                if( sub_action_id == -1 )
-                    break;
-                char* string = gcstring(&buffer);
-                if( valid && sub_action_id >= 0 && sub_action_id < 20 )
-                    object->sub_actions[action_id][sub_action_id] = string;
-                else
-                    free(string);
-            }
-            break;
-        }
-        case 44:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->inventory_model_id = g4(&buffer);
-            break;
-        case 45:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->male_model_0 = g4(&buffer);
-            object->male_offset = g1(&buffer);
-            break;
-        case 46:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->male_model_1 = g4(&buffer);
-            break;
-        case 47:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->male_model_2 = g4(&buffer);
-            break;
-        case 48:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->female_model_0 = g4(&buffer);
-            object->female_offset = g1(&buffer);
-            break;
-        case 49:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->female_model_1 = g4(&buffer);
-            break;
-        case 50:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->female_model_2 = g4(&buffer);
-            break;
-        case 51:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->male_head_model = g4(&buffer);
-            break;
-        case 52:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->male_head_model_2 = g4(&buffer);
-            break;
-        case 53:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->female_head_model = g4(&buffer);
-            break;
-        case 54:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
-                return;
-            object->female_head_model_2 = g4(&buffer);
-            break;
-        case 65:
-            object->ge_tradeable = true;
-            break;
-        case 75:
-            object->weight = g2b(&buffer);
-            break;
-        case 78:
-            object->male_model_2 = g2(&buffer);
-            break;
-        case 79:
-            object->female_model_2 = g2(&buffer);
-            break;
-        case 90:
-            object->male_head_model = g2(&buffer);
-            break;
-        case 91:
-            object->female_head_model = g2(&buffer);
-            break;
-        case 92:
-            object->male_head_model_2 = g2(&buffer);
-            break;
-        case 93:
-            object->female_head_model_2 = g2(&buffer);
-            break;
-        case 94:
-            object->category = g2(&buffer);
-            break;
-        case 95:
-            object->zan2d = g2(&buffer);
-            break;
-        case 97:
-            object->noted_id = g2(&buffer);
-            break;
-        case 98:
-            object->noted_template = g2(&buffer);
-            break;
-        case 100:
-        case 101:
-        case 102:
-        case 103:
-        case 104:
-        case 105:
-        case 106:
-        case 107:
-        case 108:
-        case 109:
-            object->count_obj[opcode - 100] = g2(&buffer);
-            object->count_co[opcode - 100] = g2(&buffer);
-            break;
-        case 110:
-            object->resize_x = g2(&buffer);
-            break;
-        case 111:
-            object->resize_y = g2(&buffer);
-            break;
-        case 112:
-            object->resize_z = g2(&buffer);
-            break;
-        case 113:
-            object->ambient = g1b(&buffer);
-            break;
-        case 114:
-            object->contrast = g1b(&buffer) * 5;
-            break;
-        case 115:
-            object->team = g2(&buffer);
-            break;
-        case 139:
-            object->bought_id = g2(&buffer);
-            break;
-        case 140:
-            object->bought_template_id = g2(&buffer);
-            break;
-        case 148:
-            object->placeholder_id = g2(&buffer);
-            break;
-        case 149:
-            object->placeholder_template_id = g2(&buffer);
-            break;
-        case 160:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2) )
-                return;
-            object->stacking_behaviour = 2;
-            break;
-        case 200:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
-                return;
-            RSCache_EntityOpsDecodeSubOp(&object->entity_ops, &buffer);
-            break;
-        case 201:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
-                return;
-            RSCache_EntityOpsDecodeCondOp(&object->entity_ops, &buffer);
-            break;
-        case 202:
-            if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
-                return;
-            RSCache_EntityOpsDecodeCondSubOp(&object->entity_ops, &buffer);
-            break;
-        case 249:
-            RSCache_BufferReadParams(&buffer, &object->params);
-            break;
-        default:
-            /* Unknown payload length: stop rather than misalign later fields. */
+        if( !RSCache_Dat2ConfigObjDecodeOp(object, opcode, &buffer, (unsigned)flags) )
             return;
+    }
+}
+uint32_t
+RSCache_Dat2ConfigObjEncodeBound(const struct RSCache_Dat2ConfigObj* object)
+{
+    /*
+     * Same shape as the npc and loc bounds: one flat allowance covering all 82
+     * scalar opcodes, then every variable-length part measured from the record.
+     * Checked against a canary on every obj in the cache by `test_opcode_codec`.
+     */
+    uint32_t need = 2048u;
+    int i;
+
+    if( !object )
+        return need;
+
+    need += (uint32_t)object->recolor_count * 4u + 2u;
+    need += (uint32_t)object->retexture_count * 4u + 2u;
+
+    if( object->name )
+        need += (uint32_t)strlen(object->name) + 2u;
+    if( object->examine )
+        need += (uint32_t)strlen(object->examine) + 2u;
+    for( i = 0; i < 5; i++ )
+    {
+        if( object->actions[i] )
+            need += (uint32_t)strlen(object->actions[i]) + 2u;
+        if( object->if_actions[i] )
+            need += (uint32_t)strlen(object->if_actions[i]) + 2u;
+        if( object->sub_actions[i] )
+        {
+            for( int sub = 0; sub < 20; sub++ )
+            {
+                if( object->sub_actions[i][sub] )
+                    need += (uint32_t)strlen(object->sub_actions[i][sub]) + 4u;
+            }
         }
     }
+
+    need += RSCache_EntityOpsBound(&object->entity_ops);
+    need += 1u + RSCache_BufferParamsBound(&object->params);
+    return need;
 }

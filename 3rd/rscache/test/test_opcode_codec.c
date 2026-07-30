@@ -340,10 +340,27 @@ main(int argc, char** argv)
 
     check_server_subclass(&profile);
 
+    /*
+     * Zero, for every registered type.
+     *
+     * This briefly stood at 132 — obj records that stopped 85-107 bytes early
+     * with no error. The cause was opcode 115 (`team`) decoding as a u16 when it
+     * is a single byte: the read swallowed the next opcode byte, the stream
+     * slipped, and decoding continued plausibly until it hit a payload byte that
+     * happened to be zero and took it for the terminator. The 53 records that
+     * looked like an unhandled "opcode 87" were the same bug — 87 was a payload
+     * byte being read as an opcode, not a real opcode at all.
+     *
+     * Both symptoms had been in the tree the whole time and neither was visible,
+     * because `RSCache_Dat2ConfigObj` has no `_consumed` field and nothing else
+     * measured obj's consumption. That is the entire argument for this bar: a
+     * decoder that stops on the wrong byte still returns a plausible record.
+     */
+    check(total_short == 0, "every record is consumed to its last byte");
+
     check(registered > 0, "the registry is not empty");
     check(types_with_records > 0, "at least one codec found records to check");
     check(total_records > 0, "records were decoded through the interface");
-    check(total_short == 0, "every record is consumed to its last byte");
     check(total_bound == 0, "no encode exceeded its own bound");
     check(total_encode_failed == 0, "no encode failed at its own bound");
 

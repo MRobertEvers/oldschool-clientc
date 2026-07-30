@@ -3,6 +3,7 @@
 #include "datatypes/dat2_config_healthbar.h"
 #include "datatypes/dat2_config_hitsplat.h"
 #include "datatypes/dat2_config_inv.h"
+#include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_param.h"
@@ -350,6 +351,30 @@ WRAP_FREE(
     struct RSCache_Dat2ConfigLoc,
     RSCache_Dat2ConfigLocFreeInplace)
 
+WRAP_INIT(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjInit)
+WRAP_FLAGS(
+    obj,
+    RSCache_Dat2ConfigObjFlags)
+WRAP_DECODE_OP(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjDecodeOp)
+WRAP_ENCODE_PROFILE(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjEncodeProfile)
+WRAP_BOUND(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjEncodeBound)
+WRAP_FREE(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjFreeInplace)
+
 /* ---- the table ----------------------------------------------------------- */
 
 /*
@@ -381,6 +406,21 @@ WRAP_FREE(
       .record_size = sizeof(STRUCT),                                                               \
       .record_init = cpc_##TAG##_init,                                                             \
       .record_finish = cpc_##TAG##_finish,                                                         \
+      .record_free = FREE,                                                                         \
+      .flags_for = cpc_##TAG##_flags,                                                              \
+      .decode_op = cpc_##TAG##_decode_op,                                                          \
+      .decode = NULL,                                                                              \
+      .encode = cpc_##TAG##_encode,                                                                \
+      .encode_bound = cpc_##TAG##_bound }
+
+/** Era-gated, with nothing to fix up once the stream ends. */
+#define ROW_ERA_NOFINISH(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                     \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
       .record_free = FREE,                                                                         \
       .flags_for = cpc_##TAG##_flags,                                                              \
       .decode_op = cpc_##TAG##_decode_op,                                                          \
@@ -474,6 +514,13 @@ static const struct RSCache_OpcodeCodec k_codecs[] = {
         struct RSCache_Dat2ConfigLoc,
         loc,
         cpc_loc_free),
+    ROW_ERA_NOFINISH(
+        "obj",
+        RSCACHE_TYPE_OBJ,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigObj,
+        obj,
+        cpc_obj_free),
 };
 
 #define CODEC_COUNT ((int)(sizeof(k_codecs) / sizeof(k_codecs[0])))

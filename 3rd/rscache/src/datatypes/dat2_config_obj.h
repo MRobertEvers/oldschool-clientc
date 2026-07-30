@@ -155,6 +155,39 @@ RSCache_Dat2ConfigObjNewDecodeProfile(
     char* buffer,
     int buffer_size);
 
+/**
+ * Set the type's defaults on a record. Must run before any DecodeOp.
+ *
+ * Allocates the default name, so a record it has touched must be released even
+ * if nothing was decoded into it.
+ */
+void
+RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point a server-side obj record delegates through. See
+ * `opcode_codec.h`. `flags` is not optional: opcodes 160 and 200-202 exist only
+ * from rev 237/239 and are refused below that.
+ */
+bool
+RSCache_Dat2ConfigObjDecodeOp(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+/** Release what the record owns, leaving the struct to the caller. Split out of
+ *  `Free` so a caller holding the record by value can release it without the
+ *  double free `Free` would cause. */
+void
+RSCache_Dat2ConfigObjFreeInplace(struct RSCache_Dat2ConfigObj* object);
+
+/** An upper bound on what `RSCache_Dat2ConfigObjEncodeProfile` will write. */
+uint32_t
+RSCache_Dat2ConfigObjEncodeBound(const struct RSCache_Dat2ConfigObj* object);
+
 void
 RSCache_Dat2ConfigObjFree(struct RSCache_Dat2ConfigObj* object);
 
