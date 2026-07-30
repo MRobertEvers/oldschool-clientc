@@ -72,6 +72,17 @@ $(BUILD)/xteas.o: $(THIRD)/xteas/xteas.c | $(BUILD)
 $(BUILD)/%: test/%.c $(LIB_OBJS) | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -o $@ $< $(LIB_OBJS)
 
+# The pack-file suite is the exception: `pack/<ns>.pack` is text, so it links
+# tools/port_lostcity/lc_pack.c and none of the cache library. It lives here
+# rather than under tools/ because the file format is the contract between the
+# tools and the content tree, and a contract wants a test that runs on every
+# `make test` — not only when someone remembers to build the tools.
+$(BUILD)/lc_pack.o: tools/port_lostcity/lc_pack.c | $(BUILD)
+	$(CC) $(CFLAGS) -Itools/port_lostcity -c $< -o $@
+
+$(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
+	$(CC) $(CFLAGS) -Itest -Itools/port_lostcity -o $@ $< $(BUILD)/lc_pack.o
+
 # The bzip2 encoder is ours, so it is also checked against the reference bzip2
 # binary — our own decoder agreeing with our own encoder is not proof.
 $(BUILD)/bzip_interop_helper: test/bzip_interop_helper.c $(BUILD)/bzip_encode.o | $(BUILD)
@@ -91,6 +102,8 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 	done; \
 	echo "==> bzip2 interop"; \
 	sh test/test_bzip_interop.sh $(BUILD)/bzip_interop_helper || status=1; \
+	echo "==> cachepack fidelity"; \
+	sh test/test_cachepack_fidelity.sh $(CACHE_ROOT) || status=1; \
 	exit $$status
 
 clean:

@@ -19,6 +19,7 @@ usage(void)
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
         "                   [--assets] [--binary]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
+        "                   [--assets[=models,sprites]] [--tmp DIR]\n"
         "\n"
         "  unpack  writes pack/<type>.pack (id=name, seeded from the cache's gameval\n"
         "          table), configs/all.<type> (text records) and meta.ini.\n"
@@ -32,7 +33,10 @@ usage(void)
         "          Server overlays (combat params, door stages) are baked with\n"
         "          mock230_pack --cache-out in the parent repo — see OSRS-Content README.\n"
         "  verify  round-trips every record through the text and reports exact /\n"
-        "          same-length / differing counts per type.\n"
+        "          same-length / differing counts per type. With --assets, also\n"
+        "          round-trips the asset tables through their friendly forms in a\n"
+        "          scratch directory and holds each one to its own bar. Exits\n"
+        "          non-zero when a bar is missed.\n"
         "\n"
         "Options:\n"
         "  --types a,b     restrict to these config types (default: all)\n"
@@ -47,6 +51,8 @@ usage(void)
         "                  payload. Use when a decoded form is in the way.\n"
         "  --binary        also move the non-config tables, as raw container bytes.\n"
         "                  On unpack, --binary=5,7 limits it to those idx files.\n"
+        "  --tmp DIR       scratch directory for `verify --assets` (default\n"
+        "                  build/cachepack_verify). Never the content tree.\n"
         "  --warn N        cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
         "  --list          print the config types this build knows and exit\n"
         "  --list-assets   print the asset kinds this build knows and exit\n");
@@ -80,8 +86,7 @@ list_assets(void)
         char decoded[16];
         snprintf(decoded, sizeof(decoded), "%s",
                  asset->codec ? asset->codec->ext : "-");
-        printf("%-19s %-14s .%-7s %-9s %s%s\n", asset->dir, asset->pack, asset->ext, decoded,
-               (asset->flags & CP_ASSET_MULTIFILE) ? "multi-file " : "",
+        printf("%-19s %-14s .%-7s %-9s %s\n", asset->dir, asset->pack, asset->ext, decoded,
                (asset->flags & CP_ASSET_ENCRYPTED) ? "xtea" : "");
     }
     printf("\n`raw` is the fallback extension; PNG, JPEG, GIF, MIDI, Ogg and the four\n"
@@ -194,6 +199,7 @@ main(int argc, char** argv)
     const char* types_csv = NULL;
     const char* binary_tables = NULL;
     const char* asset_kinds = NULL;
+    const char* tmp_dir = "build/cachepack_verify";
     int want_binary = 0;
     int want_assets = 0;
     int warn_limit = 20;
@@ -248,6 +254,8 @@ main(int argc, char** argv)
             compare_rev = argv[++i];
         else if( strcmp(arg, "--types") == 0 )
             types_csv = argv[++i];
+        else if( strcmp(arg, "--tmp") == 0 )
+            tmp_dir = argv[++i];
         else if( strcmp(arg, "--warn") == 0 )
             warn_limit = atoi(argv[++i]);
         else
@@ -314,6 +322,7 @@ main(int argc, char** argv)
             return 1;
         }
         ctx.cache_open = true;
+        snprintf(ctx.cache_dir, sizeof(ctx.cache_dir), "%s", cache_dir);
         tool_print_profile(cache_dir, &ctx.profile);
 
         if( strcmp(command, "unpack") == 0 && compare_dir )
@@ -364,6 +373,10 @@ main(int argc, char** argv)
         else
         {
             rc = cp_verify_run(&ctx, &sel) ? 0 : 1;
+            /* Both halves run even when the first fails, so one invocation reports
+             * every table that missed its bar rather than only the earliest. */
+            if( want_assets && !cp_assets_verify(&ctx, asset_kinds, tmp_dir) )
+                rc = 1;
         }
     }
     else if( strcmp(command, "pack") == 0 )

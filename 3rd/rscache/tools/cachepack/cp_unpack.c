@@ -376,6 +376,49 @@ unpack_type(
     return 1;
 }
 
+/**
+ * CRC-32 and byte count of one file, streamed.
+ *
+ * A `main_file_cache.dat2` runs to a gigabyte or more, so this reads in chunks
+ * rather than mapping the file. Returns 0 when the file cannot be read, which is
+ * reported rather than treated as a checksum of zero — "no checksum" and "this
+ * checksum" are different claims.
+ */
+static int
+file_digest(
+    const char* path,
+    uint32_t* out_crc,
+    unsigned long long* out_size)
+{
+    FILE* in = fopen(path, "rb");
+    if( !in )
+        return 0;
+
+    uint8_t* chunk = malloc(1u << 20);
+    if( !chunk )
+    {
+        fclose(in);
+        return 0;
+    }
+
+    uint32_t crc = 0;
+    unsigned long long total = 0;
+    size_t got;
+    while( (got = fread(chunk, 1, 1u << 20, in)) > 0 )
+    {
+        crc = RSCache_Crc32(crc, chunk, got);
+        total += got;
+    }
+    int ok = ferror(in) == 0;
+    free(chunk);
+    fclose(in);
+    if( !ok )
+        return 0;
+    *out_crc = crc;
+    *out_size = total;
+    return 1;
+}
+
 static void
 write_meta(struct CP_Ctx* ctx)
 {
@@ -394,6 +437,39 @@ write_meta(struct CP_Ctx* ctx)
     fprintf(out, "quirks = %u\n", ctx->profile.quirks);
     if( ctx->rev_name[0] )
         fprintf(out, "rev_name = %s\n", ctx->rev_name);
+
+    /*
+     * Which cache this tree was decoded from.
+     *
+     * The export border is crossed exactly once and whatever the decoder does not
+     * model is dropped there, so the pristine cache is archived and the tree is
+     * treated as derived (docs/CONTENT_PACK_PLAN.md §0). That only pays off if
+     * "derived from which one" survives — a revision number does not distinguish
+     * two builds of the same rev, and nothing else in the tree records it. The
+     * checksum is over `main_file_cache.dat2` alone: the idx files are an index
+     * over it, so a dat2 that matches is the same data.
+     */
+    if( ctx->cache_dir[0] )
+    {
+        char dat2[1300];
+        uint32_t crc = 0;
+        unsigned long long size = 0;
+
+        fprintf(out, "\n[source]\n");
+        fprintf(out, "dir = %s\n", ctx->cache_dir);
+        snprintf(dat2, sizeof(dat2), "%s/main_file_cache.dat2", ctx->cache_dir);
+        if( file_digest(dat2, &crc, &size) )
+        {
+            fprintf(out, "dat2_size = %llu\n", size);
+            fprintf(out, "dat2_crc32 = %08x\n", crc);
+        }
+        else
+        {
+            fprintf(out, "; main_file_cache.dat2 could not be read — no checksum\n");
+            fprintf(stderr, "cachepack: cannot checksum %s; meta.ini records no dat2 identity\n",
+                    dat2);
+        }
+    }
     fclose(out);
 }
 
@@ -444,6 +520,7 @@ cp_unpack_run(
     if( !cp_names_save(&ctx->names, ctx->srcdir) )
         return 0;
     write_meta(ctx);
+    cp_names_report_coverage(ctx);
 
     printf("Done. %d short decodes, %d unresolved names.\n", ctx->warn_short_decode,
            ctx->warn_unresolved_name);

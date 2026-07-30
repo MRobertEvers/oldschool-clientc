@@ -252,6 +252,8 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
+	net/mock/mock230_db.c \
+	net/mock/mock230_ops_db.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_prayer.c \
@@ -901,8 +903,19 @@ test-mock230-bank: mock230-bank
 # to its hardcoded C behaviour — but it does mean no dialogue and no drop
 # tables. Ids are rev-230 ids from cache.osrs230, NOT LostCity's.
 MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
+# Allocate first, then compile.
+#
+# A `.enum` or `.dbtable` block declares a record by name and the compiler needs a
+# number, so tools/ss_allocate.py has to have run before sscompile sees the tree —
+# otherwise the first script that names one fails to compile. It only ever appends
+# below its marker, so running it on every build is idempotent.
+#
+# `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
+# `names/` is the layer it replaced and may not exist; sscompile skips a missing
+# --pack directory with a warning rather than failing, so both layouts build.
 mock230-scripts: sscompile
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/server/scripts \
 		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
 		--pack $(MOCK230_CONTENT_DIR)/pack --pack $(MOCK230_CONTENT_DIR)/names
@@ -911,6 +924,7 @@ mock230-scripts: sscompile
 # the same content and cache readers but none of the socket or tick code, and it
 # is run by hand rather than as part of a build.
 MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
+	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
 	content/content_register.c $(INI_SRC)

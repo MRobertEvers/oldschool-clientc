@@ -72,6 +72,39 @@ main(void)
 
     check(ContentRegister_Find(&reg, "nonesuch") == NULL, "an unknown namespace is NULL");
 
+    /* ---- names authority vs gameval evidence ------------------------- */
+
+    /*
+     * The invariant, and the reason it is a check rather than a correction:
+     * `names = cache` means "cachepack regenerates this file wholesale", and the
+     * only thing that can generate it is a gameval archive. Three namespaces once
+     * claimed it without one — `param`, `hitsplat` and `synth` — which is how
+     * `pack/param.pack` lost all 58 of its header lines to a single unpack.
+     */
+    check(ContentRegister_Validate(&reg) == 0, "the defaults agree with their gameval evidence");
+
+    ns = ContentRegister_Find(&reg, "param");
+    check(ns && ns->gameval_archive < 0, "no gameval archive names params");
+    check(ns && ns->names == CONTENT_NAMES_AUTHORED, "so param names are authored");
+
+    ns = ContentRegister_Find(&reg, "hitsplat");
+    check(ns && ns->gameval_archive < 0 && ns->names == CONTENT_NAMES_AUTHORED,
+          "and hitsplat's too");
+    ns = ContentRegister_Find(&reg, "synth");
+    check(ns && ns->gameval_archive < 0 && ns->names == CONTENT_NAMES_AUTHORED,
+          "and synth's too");
+
+    /* The other direction: archive 10 names dbtables, so they are not authored. */
+    ns = ContentRegister_Find(&reg, "dbtable");
+    check(ns && ns->gameval_archive == 10, "gameval archive 10 names dbtables");
+    check(ns && ns->names == CONTENT_NAMES_CACHE, "so dbtable names come from the cache");
+    check(ns && ns->ids == CONTENT_IDS_CACHE, "and so do its ids");
+
+    /* Archive 14 carries an interface *and* its components in one record, so it
+     * is the evidence for two namespaces rather than one. */
+    ns = ContentRegister_Find(&reg, "component");
+    check(ns && ns->gameval_archive == 14, "components are named by archive 14 as well");
+
     /* The compiler's whole filename table is this one call. */
     ns = ContentRegister_ForPackFile(&reg, "varbit.pack");
     check(ns && strcmp(ns->name, "varbit") == 0, "varbit.pack resolves to varbit");
@@ -126,6 +159,17 @@ main(void)
 
         check(ContentRegister_Find(&reg, "else") == NULL,
               "a section that is not [namespace:*] is ignored");
+
+        /* This file declares varp's names as imported, and archive 3 names varps.
+         * A check that only ever passed would prove nothing, so this asserts it
+         * catches the contradiction the file actually contains. */
+        check(ContentRegister_Validate(&reg) == 1,
+              "declaring `imported` for a cache-named namespace is a violation");
+
+        /* And a namespace the defaults never had must not be taken to mean
+         * gameval archive 0, which is obj. */
+        ns = ContentRegister_Find(&reg, "brandnew");
+        check(ns && ns->gameval_archive == -1, "an added namespace is unnamed by the cache");
     }
 
     /* ---- missing file ------------------------------------------------ */

@@ -229,6 +229,7 @@ cp_verify_run(
 {
     printf("Seeding names from the cache's gameval table...\n");
     cp_names_seed_from_cache(ctx);
+    cp_names_report_coverage(ctx);
 
     printf("%-11s %8s   %8s %8s %8s   %8s %8s\n", "type", "records", "exact", "same-len",
            "differ", "codec-ex", "lost-here");

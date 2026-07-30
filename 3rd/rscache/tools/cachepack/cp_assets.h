@@ -41,13 +41,22 @@
 
 #include "cachepack.h"
 
-/**
- * The files inside an archive are separate assets, so it becomes a directory.
+/*
+ * There is no member-level flag, and the space is left deliberately empty.
  *
- * The exception rather than the rule — see the register in cp_assets.c for why
- * an animset stays one file.
+ * A pack file indexes **archives**, full stop: `pack/interface.pack` has
+ * `12=bankmain`, not a line per component. An archive whose members are separate
+ * assets names them inside its *own file*, by block header — which is what the
+ * interface codec has always done (`[com_12]`) and what the texture codec now does
+ * (`[mat_47]`). One id space per pack file, and the member list lives with the
+ * member data.
+ *
+ * What used to be here was `CP_ASSET_MULTIFILE`, which exploded such an archive
+ * into a directory of `<file_id>.<ext>`. That put a member's id in its filename and
+ * nowhere else, and made the importer recover the member set — and its order — by
+ * listing the directory. Stated here rather than just deleted, so the next person to
+ * want either shape finds the reason neither is there.
  */
-#define CP_ASSET_MULTIFILE 0x1
 /**
  * Map archives are XTEA-encrypted before OldSchool 237. Their payload only
  * exists once decrypted, and re-encrypting on the way back needs the same key —
@@ -103,6 +112,24 @@ struct CP_AssetCodec
         int** out_file_ids,
         int* out_file_count,
         int* out_size);
+    /**
+     * 1 when the friendly form is a *recompilation* rather than a re-encoding, so
+     * the payload legitimately comes back a different length.
+     *
+     * Last in the struct because every codec initialises positionally; only
+     * `script` sets it, and the distinction is the whole reason the field exists.
+     * A sprite's friendly form is the same pixels in a different byte order, so a
+     * length change there is a lost field. A clientscript's friendly form is
+     * decompiled *source*, and compiling source back produces whatever the
+     * compiler chooses — its own jump widths, switch-table layout and string
+     * ordering. Holding that to a length bar would be holding one compiler to
+     * reproducing another's output.
+     *
+     * What the script table is held to instead is semantic equality, measured
+     * where it can be: `3rd/rscache/test/test_cs2.c` decompiles, compiles and
+     * decompiles again, and 6,489 of 6,491 comparable scripts come back identical.
+     */
+    int semantic_only;
 };
 
 struct CP_Asset
@@ -135,6 +162,24 @@ struct CP_Asset
 
 const struct CP_Asset*
 cp_asset(enum CP_AssetId id);
+
+/**
+ * Round-trip every asset table through the tree's form and report the fidelity.
+ *
+ * `tmpdir` is scratch: the friendly forms are written there and read straight
+ * back, so the content tree is never touched. `assets_csv` restricts the run to
+ * named kinds, as `--assets=` does.
+ *
+ * Returns 1 when every table met its bar. The bar differs per table and is
+ * explained at the implementation — the short version is that only a *length*
+ * change fails, because a same-length mismatch is byte ordering and loses nothing
+ * (EXCEPTIONS.md B3).
+ */
+int
+cp_assets_verify(
+    struct CP_Ctx* ctx,
+    const char* assets_csv,
+    const char* tmpdir);
 
 int
 cp_asset_by_name(const char* dir);

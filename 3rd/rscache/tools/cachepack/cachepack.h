@@ -160,18 +160,28 @@ cp_type_by_name(const char* name);
 
 /* ---- names -------------------------------------------------------------- */
 
+/*
+ * One pack file per namespace.
+ *
+ * There used to be two arrays per kind — `pack/<ns>.pack` for what the cache's
+ * gameval table said and `names/<ns>.pack` for what a human wrote — and the reason
+ * was entirely the save path: `cp_names_save` wrote the first straight back out,
+ * so an authored name merged into it would be spliced into a file the next unpack
+ * regenerates. That hazard is gone (docs/CONTENT_PACK_PLAN.md §1): a pack save now
+ * preserves comments and *merges*, so re-seeding a namespace from the cache cannot
+ * take an authored line with it. Hence one array.
+ *
+ * Two rules keep the merged file honest, and both are already where they need to
+ * be rather than here:
+ *
+ *   - `cp_register_may_write_pack` refuses to write a namespace the tree declares
+ *     authored, so `pack/param.pack` is never rewritten at all.
+ *   - `seed_pack_from_gameval` never renames an id the pack already lists, so an
+ *     authored name that replaces a cache name survives a re-seed.
+ */
 struct CP_Names
 {
     struct LC_Pack packs[CP_TYPE_COUNT];
-    /**
-     * `names/<type>.pack` — the tree's hand-written names.
-     *
-     * Separate from `packs` on purpose. `cp_names_save` writes `packs` straight
-     * back out to `pack/<type>.pack`, so an authored name merged into it would
-     * be spliced into the machine-owned file on the next unpack — the exact
-     * corruption keeping the two files apart exists to prevent.
-     */
-    struct LC_Pack authored[CP_TYPE_COUNT];
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
@@ -185,8 +195,6 @@ struct CP_Names
      * which it is holding.
      */
     struct LC_Pack asset_packs[CP_ASSET_COUNT];
-    /** The same, for the asset kinds. Read for both directions, never written. */
-    struct LC_Pack asset_authored[CP_ASSET_COUNT];
 };
 
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */
@@ -218,6 +226,17 @@ cp_names_free(struct CP_Names* names);
  */
 void
 cp_names_seed_from_cache(
+    struct CP_Ctx* ctx);
+
+/**
+ * Print, per namespace, how many ids carry a name someone chose.
+ *
+ * `<ns>_<id>` filler does not count — it is the id spelled twice, and counting it
+ * would report full coverage of a table nobody has examined. Needs an open cache
+ * for the denominator; a no-op without one.
+ */
+void
+cp_names_report_coverage(
     struct CP_Ctx* ctx);
 
 /** Name for `id`, or NULL when the pack does not list it. */
@@ -303,6 +322,15 @@ struct CP_Ctx
 
     /** `--rev` string, used as the `_unpack/<rev_name>/` directory name. */
     char rev_name[64];
+
+    /**
+     * `--cache`, so `unpack` can record *which* cache the tree was derived from.
+     *
+     * The tree is the source of truth and the cache it came from is archived
+     * unchanged (docs/CONTENT_PACK_PLAN.md §0), which only works if "derived
+     * from which one" is answerable later without guessing. Empty for `pack`.
+     */
+    char cache_dir[1024];
 
     struct CP_Names names;
     char srcdir[1024];

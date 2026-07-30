@@ -2706,6 +2706,11 @@ mock230_world_init(
     player->combat_target = -1;
     player->death_tick = -1;
     player->level = 0;
+    /* The memset above leaves this 0, which is a real dbtable id — so a
+     * `db_findnext` with no query would iterate table 0 instead of reporting
+     * that nothing was selected. Same class as `session->pending_opcode`. */
+    player->db_query_table = -1;
+    player->db_query_index = -1;
 
     /*
      * A fresh account: every skill at 1 except hitpoints, which starts at 10.

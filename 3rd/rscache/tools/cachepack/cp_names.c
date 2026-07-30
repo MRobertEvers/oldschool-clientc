@@ -30,6 +30,14 @@ cp_names_load(
     /* What the tree says about who owns each namespace. Consulted only when
      * *writing*; loading is unconditional. */
     cp_register_load(srcdir);
+    /* A tree whose declaration contradicts the codec tables is refused here
+     * rather than acted on: either answer silently loses something, and which
+     * one is not recoverable afterwards. */
+    if( cp_register_check() != 0 )
+    {
+        fprintf(stderr, "cachepack: content.ini disagrees with the codec tables; refusing\n");
+        return 0;
+    }
 
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
     {
@@ -43,43 +51,12 @@ cp_names_load(
         }
     }
 
-    /*
-     * Layer 1, into a pack of its own.
-     *
-     * Kept separate from `packs` rather than overlaid onto it, and the reason is
-     * the save path: `cp_names_save` writes `packs` straight back out to layer
-     * 0, so an authored name merged in here would be spliced into the
-     * machine-owned file on the next unpack — which is precisely the corruption
-     * the two-layer split exists to stop.
-     *
-     * So layer 1 is consulted for name -> id (`cp_name_find`), which is what
-     * `cachepack pack` needs in order to resolve a config block headed
-     * `[bankmain]`, and is deliberately NOT consulted for id -> name, so unpack
-     * output and the layer-0 file are both unchanged by its presence.
-     */
-    for( int i = 0; i < CP_TYPE_COUNT; i++ )
-    {
-        const struct CP_Type* t = cp_type(i);
-        char path[1200];
-        snprintf(path, sizeof(path), "%s/names/%s.pack", srcdir, t->name);
-        if( !lc_pack_load(&names->authored[i], path, t->name, 1) )
-        {
-            fprintf(stderr, "cachepack: failed to read %s\n", path);
-            return 0;
-        }
-    }
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
         const struct CP_Asset* asset = cp_asset(i);
         char path[1200];
         snprintf(path, sizeof(path), "%s/pack/%s.pack", srcdir, asset->pack);
         if( !lc_pack_load(&names->asset_packs[i], path, asset->pack, 1) )
-        {
-            fprintf(stderr, "cachepack: failed to read %s\n", path);
-            return 0;
-        }
-        snprintf(path, sizeof(path), "%s/names/%s.pack", srcdir, asset->pack);
-        if( !lc_pack_load(&names->asset_authored[i], path, asset->pack, 1) )
         {
             fprintf(stderr, "cachepack: failed to read %s\n", path);
             return 0;
@@ -112,7 +89,7 @@ cp_names_save(
          * A namespace declaring `names` as anything but `cache` has no
          * machine-owned layer 0 to regenerate: `stat` and `category` have no
          * cache table at all, and `component` has no gameval archive, so every
-         * one of its names is imported and lives in `names/component.pack`.
+         * one of its names is imported and lives in `pack/component.pack`.
          */
         if( !cp_register_may_write_pack(cp_type(i)->name) )
             continue;
@@ -127,6 +104,39 @@ cp_names_save(
             return 0;
         }
     }
+    /*
+     * Asset packs are written **in full**, and neither the sparse rule nor the
+     * register gate applies to them. Both exclusions were wrong, and together they
+     * were a data-loss bug rather than untidiness.
+     *
+     * For a config type the pack file is an *overlay* on an index that exists
+     * anyway: `configs/all.<type>` carries a `[name]` block per record, so a
+     * `param_2633` line stores nothing the file does not already say, and 2,598 of
+     * them buried the 36 names that mean something. Omitting filler there is
+     * right.
+     *
+     * For an asset table the pack file **is** the index. There is no second file
+     * listing the archives, and `cp_assets_import` walks the pack precisely
+     * because the pack is the id authority. So:
+     *
+     *   - Sparse deleted the file outright when every name was `<ns>_<id>` filler,
+     *     which is every unnamed table. `pack/font.pack`, `pack/model.pack`,
+     *     `pack/map.pack` and a dozen more simply did not exist, and
+     *     `cachepack pack --assets` then wrote *zero* archives for each of them —
+     *     silently, because a pack with no lines has nothing to walk.
+     *   - The register gate refused to write a namespace declared `authored`,
+     *     which is most asset tables. But `names = authored` is a claim about who
+     *     chooses a *name*, not about who records an *id*, and the two live in one
+     *     file. Adding a line for an id that has none cannot destroy an authored
+     *     name: a save merges, and `seed_pack_from_gameval` never renames an id the
+     *     pack already lists. The gate was protecting against a hazard the writer
+     *     no longer has.
+     *
+     * The cost is real and worth stating: `pack/model.pack` is 61,615 lines. That
+     * is what an explicit index over 61,615 models costs, and the alternative was
+     * an index that lived in the filenames — which for a renamed model
+     * (`models/npc/goblin.model`) does not encode the id at all.
+     */
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
         /* An asset pack with nothing in it means that table was never exported.
@@ -134,11 +144,9 @@ cp_names_save(
          * different claim. */
         if( names->asset_packs[i].max == 0 )
             continue;
-        if( !cp_register_may_write_pack(cp_asset(i)->pack) )
-            continue;
         char path[1200];
         snprintf(path, sizeof(path), "%s/%s.pack", dir, cp_asset(i)->pack);
-        if( !lc_pack_save_sparse(&names->asset_packs[i], path) )
+        if( !lc_pack_save(&names->asset_packs[i], path) )
         {
             fprintf(stderr, "cachepack: failed to write %s\n", path);
             return 0;
@@ -151,15 +159,9 @@ void
 cp_names_free(struct CP_Names* names)
 {
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
-    {
         lc_pack_free(&names->packs[i]);
-        lc_pack_free(&names->authored[i]);
-    }
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
-    {
         lc_pack_free(&names->asset_packs[i]);
-        lc_pack_free(&names->asset_authored[i]);
-    }
 }
 
 /*
@@ -302,9 +304,10 @@ seed_pack_from_gameval(
          * every id; thereafter it is whatever a previous unpack of the same
          * cache already wrote, which is the same answer.
          *
-         * Layer 1 is deliberately not consulted here: an authored name that
-         * shadows a cache name is an *alias*, and suppressing the cache's own
-         * line would make the alias the only way to spell the record.
+         * With one file per namespace this rule is also what protects an
+         * *authored* name: `varp 843` reads `varp_weapon_category  // cache:
+         * randomhitsound` because this world repurposed the id, and a re-seed
+         * leaves it alone rather than putting the cache's name back.
          */
         if( fid >= 0 && fid < pack->capacity && pack->names && pack->names[fid] )
             continue;
@@ -378,6 +381,11 @@ seed_interface_names(
     int interfaces = 0;
     int coms = 0;
     int malformed = 0;
+    /* This record's component names so far, for the per-interface uniquify below.
+     * Reused across records to keep the allocation out of the loop. */
+    char** seen = NULL;
+    int seen_count = 0;
+    int seen_capacity = 0;
 
     for( int f = 0; f < files->file_count; f++ )
     {
@@ -385,6 +393,10 @@ seed_interface_names(
         const unsigned char* bytes = (const unsigned char*)files->files[f];
         int len = files->file_sizes[f];
         int at = 0;
+
+        for( int c = 0; c < seen_count; c++ )
+            free(seen[c]);
+        seen_count = 0;
 
         if( len <= 0 )
             continue;
@@ -397,9 +409,9 @@ seed_interface_names(
             continue;
         at++;
 
-        /* Layer 0 is regenerated, but never renamed: a previous unpack of the
-         * same cache already wrote this, and an authored rename lives in
-         * layer 1 where nothing here can reach it. */
+        /* Re-seeded, but never renamed: a previous unpack of the same cache
+         * already wrote this, and an authored rename in the same file must
+         * survive the re-seed rather than be put back. */
         if( !(iface >= 0 && iface < pack->capacity && pack->names && pack->names[iface]) )
         {
             char unique[256];
@@ -430,15 +442,67 @@ seed_interface_names(
              * same thing — and the qualification is not decoration: 96 of these
              * interfaces have a component called `universe` and 40 have one
              * called `frame`.
+             *
+             * Qualifying by interface is not enough on its own, though: one
+             * interface can name two of its own children the same thing. In
+             * cache.osrs239 `cws_doomsayer` does it nine times — two components
+             * each called `fairy_rings`, `genie_cave`, `mort_myre` and so on — and
+             * a pack file that binds one name to two ids resolves to whichever the
+             * loader reads first. So the same `i2`/`i3` suffix the interface names
+             * already use applies here, which makes the second one addressable
+             * rather than shadowed.
              */
             char full[520];
             snprintf(full, sizeof(full), "%s:%s", iface_name, child_name);
+            /*
+             * Uniquified against *this interface's* children rather than the whole
+             * pack, which is not a shortcut — it is the same answer. Every name
+             * here is `<iface>:<child>` and the interface names are themselves
+             * unique, so two children can only collide inside one record. Scanning
+             * all 26,491 instead would be 350 million string compares for the same
+             * result.
+             */
+            for( int attempt = 2; attempt < 10000; attempt++ )
+            {
+                int taken = 0;
+                for( int c = 0; c < seen_count; c++ )
+                {
+                    if( strcmp(seen[c], full) == 0 )
+                    {
+                        taken = 1;
+                        break;
+                    }
+                }
+                if( !taken )
+                    break;
+                snprintf(full, sizeof(full), "%s:%si%d", iface_name, child_name, attempt);
+            }
+            if( seen_count == seen_capacity )
+            {
+                int next = seen_capacity ? seen_capacity * 2 : 64;
+                char** grown = realloc(seen, (size_t)next * sizeof(char*));
+                if( grown )
+                {
+                    seen = grown;
+                    seen_capacity = next;
+                }
+            }
+            if( seen_count < seen_capacity )
+            {
+                seen[seen_count] = strdup(full);
+                if( seen[seen_count] )
+                    seen_count++;
+            }
             lc_pack_set(&components, (iface << 16) | child, full);
             coms++;
         }
         if( at + 2 > len || ((bytes[at] << 8) | bytes[at + 1]) != 0xffff )
             malformed++;
     }
+
+    for( int c = 0; c < seen_count; c++ )
+        free(seen[c]);
+    free(seen);
 
     if( malformed )
         fprintf(stderr, "cachepack: %d of %d interface name records did not end cleanly\n",
@@ -529,6 +593,129 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
         seed_pack_from_gameval(ctx, gv_table, asset->gameval_archive, asset->pack,
                                &ctx->names.asset_packs[a], rt->ids, rt->id_count);
     }
+
+    /*
+     * Then the names that come from the *configs* rather than from a name table.
+     *
+     * A model has no gameval archive, so the only evidence of what it is is the
+     * record that references it: `cp_assets_name_models` walks the npc, obj, loc,
+     * idk and spotanim groups and names each model after its first claimant, which
+     * is how a model lands at `models/npc/goblin.model`. Maps are named from their
+     * coordinates the same way.
+     *
+     * This used to run only inside `cp_assets_export`, and that was the second half
+     * of the index bug. The export wrote `models/npc/goblin.model` and the sparse
+     * write then deleted `pack/model.pack`, so the name→id mapping existed *only*
+     * in a path that does not contain the id — and 53,390 of osrs239's 61,615
+     * models became unpackable. Deriving the names whenever the index is built,
+     * rather than only when files are written, is what makes that recoverable:
+     * they come back from the configs on the next unpack.
+     */
+    cp_assets_name_models(ctx);
+    cp_assets_name_maps(ctx);
+
+    /*
+     * Then a line for **every** archive id in every asset table, named or not.
+     *
+     * The pack file is an asset table's *index*, and an index has to list what
+     * exists. Leaving the unnamed ids out looked harmless because a filler name is
+     * a function of the id — but it is only recoverable from a *filename*, and two
+     * things break that:
+     *
+     *   - a renamed asset has no id in its path at all. `cp_assets_name_models`
+     *     names models after the configs that reference them, so a model lands at
+     *     `models/npc/goblin.model` and nothing but a pack line says it is 1234.
+     *   - the sparse write deletes a file whose every line is filler, which is
+     *     every table the cache does not name. `pack/model.pack`, `pack/font.pack`
+     *     and `pack/map.pack` therefore did not exist — and `cp_assets_import`
+     *     walks the pack, so `cachepack pack --assets` wrote *zero* archives for
+     *     each of them, silently, because there was nothing to walk.
+     *
+     * Runs after the gameval pass on purpose: `cp_asset_name_ensure` does not
+     * rename, so filling first would lock every sprite to `sprite_<id>` and shut
+     * the cache's own names out.
+     */
+    for( int a = 0; a < CP_ASSET_COUNT; a++ )
+    {
+        const struct CP_Asset* asset = cp_asset(a);
+        int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+        if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+            continue;
+        struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+        if( !rt )
+            continue;
+        struct LC_Pack* pack = &ctx->names.asset_packs[a];
+        int filled = 0;
+
+        for( int i = 0; i < rt->id_count; i++ )
+        {
+            int id = rt->ids[i];
+            if( id >= 0 && id < pack->capacity && pack->names && pack->names[id] )
+                continue;
+            /*
+             * `lc_pack_set` rather than `cp_asset_name_ensure`, because the latter
+             * uniquifies and `uniquify` is a linear scan of the pack: over 61,615
+             * models that is 1.9 billion string compares for an answer already
+             * known. A `<ns>_<id>` name cannot collide with another one — it
+             * encodes the id — and a *real* name that happens to look like one is
+             * caught at boot by the duplicate-name check rather than here.
+             */
+            char name[256];
+            snprintf(name, sizeof(name), "%s_%d", asset->pack, id);
+            lc_pack_set(pack, id, name);
+            filled++;
+        }
+        if( filled )
+            printf("  %-11s %6d unnamed %s ids indexed\n", "index", filled, asset->pack);
+    }
+}
+
+/*
+ * How much of this cache has a name someone chose.
+ *
+ * A useful number precisely because it is mostly small. For the namespaces the
+ * cache names itself it is near 100% and says nothing; for `model`, `synth` and
+ * `map` the pack file *is* the name table rather than an overlay on one, so the
+ * ratio is a literal progress metric — 61,615 models, and however many of them
+ * anyone has bothered to identify.
+ *
+ * Filler is excluded on purpose: `model_1234` is the id spelled twice and
+ * counting it would report 100% coverage of a table nobody has looked at.
+ */
+void
+cp_names_report_coverage(struct CP_Ctx* ctx)
+{
+    if( !ctx->cache_open )
+        return;
+
+    printf("Naming coverage (names someone chose / records in the cache)\n");
+    for( int t = 0; t < CP_TYPE_COUNT; t++ )
+    {
+        int* ids = NULL;
+        int count = 0;
+        cp_record_ids(ctx, t, &ids, &count);
+        free(ids);
+        if( count <= 0 )
+            continue;
+        int named = lc_pack_named_count(&ctx->names.packs[t]);
+        printf("  %-16s %7d / %7d  %3d%%%s\n", cp_type(t)->name, named, count,
+               count ? named * 100 / count : 0,
+               ctx->names.from_gameval[t] ? "  (from the cache's own table)" : "");
+    }
+    for( int a = 0; a < CP_ASSET_COUNT; a++ )
+    {
+        const struct CP_Asset* asset = cp_asset(a);
+        int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+        if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk->tables[table_id] )
+            continue;
+        int count = ctx->cache.disk->tables[table_id]->id_count;
+        if( count <= 0 )
+            continue;
+        int named = lc_pack_named_count(&ctx->names.asset_packs[a]);
+        printf("  %-16s %7d / %7d  %3d%%%s\n", asset->pack, named, count,
+               count ? named * 100 / count : 0,
+               asset->gameval_archive >= 0 ? "  (from the cache's own table)" : "");
+    }
 }
 
 const char*
@@ -537,25 +724,12 @@ cp_name_get(
     enum CP_TypeId type,
     int id)
 {
-    /*
-     * Layer 1 wins, same rule as the runtime's.
-     *
-     * It has to: `param` has no gameval archive, so layer 0 is 2,598 lines of
-     * `param_<id>` and the 36 names that mean anything all live in
-     * `names/param.pack`. Reading layer 0 first would head every unpacked block
-     * `[param_0]` instead of `[stabattack]`.
-     *
-     * Safe with respect to `cp_names_save`, which writes `names.packs` and has
-     * no path to `names.authored` — so preferring layer 1 for reads cannot leak
-     * an authored name into the machine-owned file.
-     */
-    struct LC_Pack* authored = &ctx->names.authored[type];
-    struct LC_Pack* pack;
+    /* One file, so one lookup. There is no precedence question left to answer:
+     * `pack/param.pack` holds the 36 authored names *and* nothing else, because
+     * the filler resolves from `cp_name_find`'s synthetic rule instead of being
+     * stored. */
+    struct LC_Pack* pack = &ctx->names.packs[type];
 
-    if( id >= 0 && id < authored->capacity && authored->names && authored->names[id] )
-        return authored->names[id];
-
-    pack = &ctx->names.packs[type];
     if( id < 0 || id >= pack->capacity || !pack->names )
         return NULL;
     return pack->names[id];
@@ -583,14 +757,8 @@ cp_name_find(
     enum CP_TypeId type,
     const char* name)
 {
-    /* Authored first: a config block headed `[bankmain]` names interface 12 by
-     * the name this tree gave it, which layer 0 does not carry. Layer 0 still
-     * resolves, so the cache's own `interface_12` keeps working too. */
-    int id = lc_pack_find(&ctx->names.authored[type], name);
+    int id = lc_pack_find(&ctx->names.packs[type], name);
 
-    if( id >= 0 )
-        return id;
-    id = lc_pack_find(&ctx->names.packs[type], name);
     if( id >= 0 )
         return id;
     /*
@@ -599,8 +767,8 @@ cp_name_find(
      * `param_2633` is what `cp_name_ensure` invents for a record the cache does
      * not name, and it is a function of the id — so it resolves without a pack
      * line, and the 2,598 lines that used to store it are gone. Tried last, so
-     * a real name that happens to look synthetic (a layer-1 `4=npc_9`) still
-     * wins wherever it is written down.
+     * a real name that happens to look synthetic (`4=npc_9`) still wins wherever
+     * it is written down.
      */
     return lc_pack_synthetic_id(cp_type(type)->name, name);
 }
@@ -613,16 +781,8 @@ cp_asset_name_get(
     enum CP_AssetId asset,
     int id)
 {
-    /* Layer 1 wins, exactly as it does for a config type. An asset kind needs
-     * it for the same reason: `hitsplat` and the handful of interfaces this
-     * world renamed are authored names over ids the cache states. */
-    struct LC_Pack* authored = &ctx->names.asset_authored[asset];
-    struct LC_Pack* pack;
+    struct LC_Pack* pack = &ctx->names.asset_packs[asset];
 
-    if( id >= 0 && id < authored->capacity && authored->names && authored->names[id] )
-        return authored->names[id];
-
-    pack = &ctx->names.asset_packs[asset];
     if( id < 0 || id >= pack->capacity || !pack->names )
         return NULL;
     return pack->names[id];
@@ -662,11 +822,8 @@ cp_asset_name_find(
     enum CP_AssetId asset,
     const char* name)
 {
-    int id = lc_pack_find(&ctx->names.asset_authored[asset], name);
+    int id = lc_pack_find(&ctx->names.asset_packs[asset], name);
 
-    if( id >= 0 )
-        return id;
-    id = lc_pack_find(&ctx->names.asset_packs[asset], name);
     if( id >= 0 )
         return id;
     /* `interface_412.if` on disk is interface 412 by construction, so the file

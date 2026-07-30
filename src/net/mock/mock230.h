@@ -869,6 +869,21 @@ struct Mock230Player
     int last_verb;
     int32_t last_int;
 
+    /*
+     * The db query `db_listall` selects and `db_findnext` walks.
+     *
+     * **`db_query_table` must be initialised to -1, not memset to 0**, because 0
+     * is a real dbtable id — the same trap as `session->pending_opcode`. Zeroed,
+     * a `db_findnext` with no query would quietly iterate table 0 instead of
+     * reporting that nothing was selected.
+     *
+     * On the player rather than on the script state (where the reference keeps
+     * it) so a script that suspends between two rows resumes on the same query
+     * without the park having to carry it.
+     */
+    int db_query_table;
+    int db_query_index;
+
     /** The name typed at the login screen, which is what `displayname` returns.
      *  Nothing else in the mock has a use for it — there is one player and the
      *  wire never carries a name — but a dialogue that puts the player's words
@@ -1497,6 +1512,25 @@ mock230_scripts_run_script(
 /** The host command seam: every opcode the VM does not implement itself. */
 int
 mock230_script_command(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/*
+ * Per-domain opcode handlers (`mock230_ops_*.c`).
+ *
+ * `mock230_script_command` offers each the opcode in turn; each returns 1 when it
+ * handled it and 0 to pass. That is the same "1 means handled" contract the VM's
+ * host callback already uses, so a domain file is a host callback in miniature
+ * rather than a new mechanism — and `gen_opcode_coverage.py` globs these files, so
+ * adding one cannot silently under-report coverage.
+ *
+ * The split is docs/osrs230_mockserver.md §6.1 step 2's remaining half. It is
+ * being done by *adding* domains rather than by moving the existing switch, so
+ * every step stays verifiable against a green selftest.
+ */
+int
+mock230_ops_db(
     struct SSVM_State* state,
     int opcode,
     int dot);

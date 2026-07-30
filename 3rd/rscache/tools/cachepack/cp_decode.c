@@ -43,6 +43,23 @@
 
 /* ---- shared file helpers ------------------------------------------------ */
 
+/** mkdir -p for a codec that writes a directory of files. */
+static int
+ensure_dir_path(const char* path)
+{
+    char buf[1800];
+    snprintf(buf, sizeof(buf), "%s", path);
+    for( char* p = buf + 1; *p; p++ )
+    {
+        if( *p != '/' )
+            continue;
+        *p = '\0';
+        mkdir(buf, 0755);
+        *p = '/';
+    }
+    return mkdir(buf, 0755) == 0 || errno == EEXIST ? 0 : -1;
+}
+
 static int
 write_text_file(
     const char* path,
@@ -92,36 +109,59 @@ slurp(
     return data;
 }
 
-/** mkdir -p for a codec that writes a directory of files. */
+
+/* ---- member packs -------------------------------------------------------- */
+
+/*
+ * `<archive>.compack` / `<archive>.filepack` — an archive's member list, beside the
+ * archive's own file in the table's folder.
+ *
+ * A multi-file archive is several assets under one id, and something has to say
+ * which member is which. Three things were tried before this and each put the
+ * answer somewhere that is not a file anyone can read:
+ *
+ *   - a directory of `<file_id>.<ext>`, so the id was in a *filename* and the
+ *     member set came back from `readdir`;
+ *   - probing `<stem>.extra2.bin` .. `.extra255.bin`, so the archive an import
+ *     produced depended on what the filesystem happened to hold;
+ *   - the id encoded in a block header (`[mat_47]`), which works but makes the
+ *     header a number when it wants to be a name.
+ *
+ * The member pack is the answer stated plainly: `<file id>=<member>`, in the format
+ * every other pack file in the tree already uses, so it reads and writes with
+ * `lc_pack_load`/`lc_pack_save` and gets comment preservation and merge semantics
+ * for free.
+ *
+ *   compack   the archive has a text form, and `<member>` is a block name inside it
+ *             (`textures/texture_0.compack` says `0=mat_0`, and
+ *             `textures/texture_0.texture` holds `[mat_0]`)
+ *   filepack  it does not, and `<member>` is a filename beside it
+ *
+ * Ids ascending is the order the container stores its payload in and the order the
+ * reference table's child list is read in, which is what a pack file gives for free.
+ */
+
 static int
-ensure_dir_path(const char* path)
+member_pack_load(
+    struct LC_Pack* pack,
+    const char* path_stem,
+    const char* kind,
+    const char* label)
 {
-    char buf[1800];
-    snprintf(buf, sizeof(buf), "%s", path);
-    for( char* p = buf + 1; *p; p++ )
-    {
-        if( *p != '/' )
-            continue;
-        *p = '\0';
-        mkdir(buf, 0755);
-        *p = '/';
-    }
-    return mkdir(buf, 0755) == 0 || errno == EEXIST ? 0 : -1;
+    char path[1750];
+    snprintf(path, sizeof(path), "%s.%s", path_stem, kind);
+    return lc_pack_load(pack, path, label, 1);
 }
 
 static int
-read_file_bytes(
-    const char* path,
-    uint8_t** out_data,
-    int* out_size)
+member_pack_save(
+    const struct LC_Pack* pack,
+    const char* path_stem,
+    const char* kind)
 {
-    int size = 0;
-    uint8_t* data = slurp(path, &size);
-    if( !data )
-        return 0;
-    *out_data = data;
-    *out_size = size;
-    return 1;
+    char path[1750];
+    snprintf(path, sizeof(path), "%s.%s", path_stem, kind);
+    return lc_pack_save(pack, path);
 }
 
 /* ---- textures ------------------------------------------------------------ */
@@ -135,6 +175,51 @@ read_file_bytes(
  * rendering something the cache never stored.
  */
 
+/*
+ * One file per texture archive, one block per material.
+ *
+ * The whole table lives in a single archive whose 210 members are the materials a
+ * model actually references, so the *member* is the asset and the archive is a
+ * container. This codec therefore owns the container: it decodes the member list on
+ * the way out and rebuilds it on the way in, exactly as the interface codec does for
+ * an interface's components.
+ *
+ * That replaced a directory of `<file_id>.texture` files, and the difference is not
+ * presentation: the importer had to recover which members an archive held — and in
+ * what order — by listing the directory.
+ *
+ * The member list is `textures/texture_0.compack`, beside the archive's own file:
+ *
+ *     0=mat_0
+ *     1=mat_1
+ *
+ * so a block header is a *name* and the compack ties it to a file id. Rename a
+ * material to `lava` in both and nothing else changes. `pack/texture.pack` stays
+ * what it always was — one line for the one archive, the way
+ * `pack/interface.pack` is one line per interface.
+ */
+
+static void
+emit_texture_lines(
+    const struct RSCache_Dat2Texture* texture,
+    struct CP_Lines* lines)
+{
+    cp_lines_addf(lines, "averagehsl=%d", texture->average_hsl);
+    if( texture->opaque )
+        cp_lines_addf(lines, "opaque=yes");
+    /* One line per sprite: its id, its type and its transform travel together
+     * because the three arrays are parallel and a hand-edit that desynchronised
+     * them would be silently wrong. */
+    for( int i = 0; i < texture->sprite_ids_count; i++ )
+        cp_lines_addf(lines, "sprite%d=%d,%d,%d", i + 1, texture->sprite_ids[i],
+                      texture->sprite_types ? texture->sprite_types[i] : 0,
+                      texture->transforms ? texture->transforms[i] : 0);
+    if( texture->animation_direction )
+        cp_lines_addf(lines, "direction=%d", texture->animation_direction);
+    if( texture->animation_speed )
+        cp_lines_addf(lines, "speed=%d", texture->animation_speed);
+}
+
 static int
 texture_write(
     struct CP_Ctx* ctx,
@@ -145,92 +230,104 @@ texture_write(
     int file_count,
     const char* path_stem)
 {
-    struct RSCache_Dat2Texture* texture =
-        RSCache_Dat2TextureNewDecodeProfile(&ctx->profile, (char*)payload, size);
-    if( !texture )
+    if( file_count <= 0 )
         return 0;
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode((char*)payload, size, file_count);
+    if( !files )
+        return 0;
+
+    char path[1700];
+    snprintf(path, sizeof(path), "%s.texture", path_stem);
+    FILE* out = fopen(path, "wb");
+    if( !out )
+    {
+        RSCache_FileListFree(files);
+        return 0;
+    }
+    fprintf(out, "// Texture archive %d — %d materials.\n", record_id, files->file_count);
+    fprintf(out, "// One block per material; %s.compack ties each block name to its\n",
+            strrchr(path_stem, '/') ? strrchr(path_stem, '/') + 1 : path_stem);
+    fprintf(out, "// file id in the archive.\n\n");
+
+    /* The member list, merged over whatever the tree already had — so a material
+     * someone renamed keeps its name across a re-export. */
+    struct LC_Pack members;
+    member_pack_load(&members, path_stem, "compack", "mat");
 
     struct CP_Lines lines;
     cp_lines_init(&lines);
-    cp_lines_addf(&lines, "averagehsl=%d", texture->average_hsl);
-    if( texture->opaque )
-        cp_lines_addf(&lines, "opaque=yes");
-    /* One line per sprite: its id, its type and its transform travel together
-     * because the three arrays are parallel and a hand-edit that desynchronised
-     * them would be silently wrong. */
-    for( int i = 0; i < texture->sprite_ids_count; i++ )
-        cp_lines_addf(&lines, "sprite%d=%d,%d,%d", i + 1, texture->sprite_ids[i],
-                      texture->sprite_types ? texture->sprite_types[i] : 0,
-                      texture->transforms ? texture->transforms[i] : 0);
-    if( texture->animation_direction )
-        cp_lines_addf(&lines, "direction=%d", texture->animation_direction);
-    if( texture->animation_speed )
-        cp_lines_addf(&lines, "speed=%d", texture->animation_speed);
+    int written = 0;
+    for( int f = 0; f < files->file_count; f++ )
+    {
+        int file_id = file_ids ? file_ids[f] : f;
+        const char* name = NULL;
+        char fallback[32];
 
-    char path[1700];
-    snprintf(path, sizeof(path), "%s.texture", path_stem);
-    int ok = write_text_file(path, &lines, NULL);
+        if( file_id >= 0 && file_id < members.capacity && members.names )
+            name = members.names[file_id];
+        if( !name )
+        {
+            snprintf(fallback, sizeof(fallback), "mat_%d", file_id);
+            name = fallback;
+            lc_pack_set(&members, file_id, name);
+        }
+
+        if( files->file_sizes[f] <= 0 )
+        {
+            /* A zero-length member is a hole the archive still counts; it has to
+             * come back as one or every later material shifts an id. */
+            fprintf(out, "[%s]\nempty=yes\n\n", name);
+            written++;
+            continue;
+        }
+        struct RSCache_Dat2Texture* texture = RSCache_Dat2TextureNewDecodeProfile(
+            &ctx->profile, files->files[f], files->file_sizes[f]);
+        if( !texture )
+            continue;
+        cp_lines_clear(&lines);
+        emit_texture_lines(texture, &lines);
+        fprintf(out, "[%s]\n", name);
+        for( int i = 0; i < lines.count; i++ )
+            fprintf(out, "%s\n", lines.lines[i]);
+        fputc('\n', out);
+        written++;
+        RSCache_Dat2TextureFree(texture);
+    }
     cp_lines_free(&lines);
-    RSCache_Dat2TextureFree(texture);
-    return ok;
+    fclose(out);
+    if( written > 0 )
+        member_pack_save(&members, path_stem, "compack");
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return written > 0;
 }
 
-static uint8_t*
-texture_read(
+/** One material from one block. Returns 0 on a line the grammar does not have. */
+static int
+read_texture_block(
     struct CP_Ctx* ctx,
-    int record_id,
-    const char* path_stem,
-    int** out_file_ids,
-    int* out_file_count,
+    const struct CP_Config* block,
+    int file_id,
+    uint8_t** out_bytes,
     int* out_size)
 {
-    char path[1700];
-    snprintf(path, sizeof(path), "%s.texture", path_stem);
-    struct CP_ConfigFile file;
-    int text_size = 0;
-    uint8_t* text = slurp(path, &text_size);
-    if( !text )
-        return NULL;
-
-    /* The text layer wants a `[name]` block; a per-file record has no name of its
-     * own, so one is supplied to reuse the same parser. */
-    char* wrapped = malloc((size_t)text_size + 32);
-    if( !wrapped )
-    {
-        free(text);
-        return NULL;
-    }
-    int prefix = snprintf(wrapped, 32, "[texture]\n");
-    memcpy(wrapped + prefix, text, (size_t)text_size);
-    free(text);
-
-    int parsed = cp_config_file_load_memory(&file, wrapped, (size_t)(prefix + text_size),
-                                            "texture");
-    free(wrapped);
-    if( !parsed || file.count != 1 )
-    {
-        if( parsed )
-            cp_config_file_free(&file);
-        return NULL;
-    }
-
     struct RSCache_Dat2Texture texture;
     memset(&texture, 0, sizeof(texture));
-    texture._id = record_id;
+    texture._id = file_id;
 
     struct CP_IntList ids = { 0 }, types = { 0 }, transforms = { 0 };
     int ok = 1;
-    for( int i = 0; i < file.configs[0].count && ok; i++ )
+    for( int i = 0; i < block->count && ok; i++ )
     {
-        const char* key = file.configs[0].lines[i].key;
-        const char* value = file.configs[0].lines[i].value;
+        const char* key = block->lines[i].key;
+        const char* value = block->lines[i].value;
         int index = cp_indexed_key(key, "sprite");
         if( index >= 0 )
         {
             char scratch[128];
             char* fields[3];
-            if( strlen(value) >= sizeof(scratch) ||
-                cp_split(value, scratch, fields, 3) != 3 )
+            if( strlen(value) >= sizeof(scratch) || cp_split(value, scratch, fields, 3) != 3 )
             {
                 ok = 0;
                 break;
@@ -251,9 +348,7 @@ texture_read(
         else if( strcmp(key, "speed") == 0 )
             ok = cp_parse_int(value, &texture.animation_speed);
     }
-    cp_config_file_free(&file);
 
-    uint8_t* payload = NULL;
     if( ok )
     {
         texture.sprite_ids = ids.items;
@@ -264,38 +359,142 @@ texture_read(
         uint8_t buffer[512];
         uint32_t written =
             RSCache_Dat2TextureEncodeProfile(&ctx->profile, &texture, buffer, sizeof(buffer));
-        if( written > 0 )
+        if( written == 0 )
+            ok = 0;
+        else
         {
-            payload = malloc(written);
-            if( payload )
+            *out_bytes = malloc(written);
+            if( !*out_bytes )
+                ok = 0;
+            else
             {
-                memcpy(payload, buffer, written);
+                memcpy(*out_bytes, buffer, written);
                 *out_size = (int)written;
             }
         }
     }
+
     cp_intlist_free(&ids);
     cp_intlist_free(&types);
     cp_intlist_free(&transforms);
+    return ok;
+}
+
+static uint8_t*
+texture_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    char path[1700];
+    snprintf(path, sizeof(path), "%s.texture", path_stem);
+    struct CP_ConfigFile file;
+    if( !cp_config_file_load(&file, path) )
+        return NULL;
+
+    /*
+     * The compack is the member list: it says which file id each block is, and its
+     * ascending ids are the order the container gets. Without it there is nothing
+     * tying a block to a number, so this is a failure rather than a guess — an
+     * invented id would shift every later material and every model referencing one
+     * past that point would draw the wrong texture.
+     */
+    struct LC_Pack members;
+    member_pack_load(&members, path_stem, "compack", "mat");
+    if( members.max == 0 )
+    {
+        fprintf(stderr, "cachepack: %s: no .compack beside it — cannot tell which "
+                        "material is which file\n",
+                path);
+        cp_config_file_free(&file);
+        return NULL;
+    }
+
+    struct RSCache_FileList list;
+    memset(&list, 0, sizeof(list));
+    list.file_count = file.count;
+    list.files = calloc((size_t)file.count, sizeof(char*));
+    list.file_sizes = calloc((size_t)file.count, sizeof(int));
+    int* ids = calloc((size_t)file.count, sizeof(int));
+    uint8_t* payload = NULL;
+    int ok = list.files && list.file_sizes && ids;
+
+    for( int i = 0; i < file.count && ok; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+        int file_id = lc_pack_find(&members, block->debugname);
+        if( file_id < 0 )
+        {
+            fprintf(stderr, "cachepack: %s: [%s] is not in the .compack\n", path,
+                    block->debugname);
+            ok = 0;
+            break;
+        }
+        /* Position is the container's order and the id is data, so a hole in the
+         * material list survives the round trip. */
+        ids[i] = file_id;
+
+        if( cp_config_get(block, "empty") )
+        {
+            list.files[i] = NULL;
+            list.file_sizes[i] = 0;
+            continue;
+        }
+
+        uint8_t* bytes = NULL;
+        int size = 0;
+        if( !read_texture_block(ctx, block, file_id, &bytes, &size) )
+        {
+            fprintf(stderr, "cachepack: %s: material [%s] failed to encode\n", path,
+                    block->debugname);
+            ok = 0;
+            break;
+        }
+        list.files[i] = (char*)bytes;
+        list.file_sizes[i] = size;
+    }
+
+    if( ok )
+    {
+        uint32_t bound = RSCache_FileListEncodeBound(&list);
+        payload = malloc(bound ? bound : 1);
+        if( payload )
+        {
+            uint32_t written = RSCache_FileListEncode(&list, payload, bound);
+            if( written == 0 )
+            {
+                free(payload);
+                payload = NULL;
+            }
+            else
+            {
+                *out_size = (int)written;
+                *out_file_ids = ids;
+                *out_file_count = file.count;
+                ids = NULL;
+            }
+        }
+    }
+
+    for( int i = 0; i < list.file_count; i++ )
+        free(list.files[i]);
+    free(list.files);
+    free(list.file_sizes);
+    free(ids);
+    lc_pack_free(&members);
+    cp_config_file_free(&file);
     return payload;
 }
 
 /* ---- interfaces ---------------------------------------------------------- */
 
 /*
- * One `.if` per interface, one `[com_<id>]` block per component — LostCity's
- * shape, because an interface is a thing you read whole.
- *
- * The archive is not exploded into a file per component (see the register), so
- * this codec receives the whole archive payload, walks its file list, and writes
- * every component into one text file. The reverse rebuilds the file list, which
- * is why each block carries its own component id rather than relying on order.
- *
- * Only the fields the decoder keeps are written, and IF1 and IF3 keep different
- * ones — so the block leads with `if3` and the reader dispatches on it, exactly
- * as the byte decoder dispatches on the 255 marker.
+ * A component emits only what differs from a component decoded from nothing, so the
+ * defaults stay the decoder's rather than becoming a second copy here.
  */
-
 #define IF_EMIT_INT(field, key)                                                               \
     do                                                                                        \
     {                                                                                         \
@@ -317,6 +516,23 @@ texture_read(
             cp_lines_add_str(out, key, comp->field);                                          \
     } while( 0 )
 
+static int
+append_escaped_arg(
+    char* buf,
+    int written,
+    int cap,
+    const char* text)
+{
+    for( const char* scan = text; *scan && written < cap - 2; scan++ )
+    {
+        if( *scan == ',' || *scan == '\\' )
+            buf[written++] = '\\';
+        buf[written++] = *scan;
+    }
+    buf[written] = '\0';
+    return written;
+}
+
 static void
 emit_script_vars(
     struct CP_Lines* out,
@@ -330,14 +546,19 @@ emit_script_vars(
      * carries a type byte per argument and an int 5 is not a string "5". */
     char buf[4096];
     int written = 0;
+    buf[0] = '\0';
     for( int32_t i = 0; i < len && written < (int)sizeof(buf) - 64; i++ )
     {
         if( args[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
             written += snprintf(buf + written, sizeof(buf) - (size_t)written, i ? ",i:%d" : "i:%d",
                                 args[i].value.i);
         else
-            written += snprintf(buf + written, sizeof(buf) - (size_t)written, i ? ",s:%s" : "s:%s",
-                                args[i].value.s ? args[i].value.s : "");
+        {
+            written += snprintf(buf + written, sizeof(buf) - (size_t)written, i ? ",s:" : "s:");
+            written = append_escaped_arg(buf, written, (int)sizeof(buf), args[i].value.s
+                                                                            ? args[i].value.s
+                                                                            : "");
+        }
     }
     cp_lines_add_str(out, key, buf);
 }
@@ -593,6 +814,38 @@ interface_write(
 
 /* ---- interfaces: reading the text back ---------------------------------- */
 
+/**
+ * The next argument separator: a comma that `append_escaped_arg` did not escape.
+ *
+ * Splitting on every comma is what broke here — a hook string argument can hold
+ * one. The escapes are also collapsed in place, so the caller gets the argument's
+ * real text.
+ */
+static char*
+split_script_var(char* cursor)
+{
+    char* read = cursor;
+    char* write = cursor;
+
+    while( *read )
+    {
+        if( *read == '\\' && read[1] )
+        {
+            *write++ = read[1];
+            read += 2;
+            continue;
+        }
+        if( *read == ',' )
+        {
+            *write = '\0';
+            return read + 1;
+        }
+        *write++ = *read++;
+    }
+    *write = '\0';
+    return NULL;
+}
+
 /** `i:5` / `s:text` — the wire carries a type byte per argument, so the text does
  *  too. An int 5 and a string "5" are different bytes and different behaviour. */
 static int
@@ -614,9 +867,7 @@ parse_script_vars(
     char* cursor = buf;
     while( cursor )
     {
-        char* comma = strchr(cursor, ',');
-        if( comma )
-            *comma = '\0';
+        char* next = split_script_var(cursor);
         if( count == capacity )
         {
             int next = capacity * 2;
@@ -646,7 +897,7 @@ parse_script_vars(
             }
         }
         count++;
-        cursor = comma ? comma + 1 : NULL;
+        cursor = next;
     }
     *out = args;
     *out_len = count;
@@ -1065,8 +1316,8 @@ interface_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_texture = { "texture", texture_write, texture_read };
-const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interface_read };
+const struct CP_AssetCodec cp_codec_texture = { "texture", texture_write, texture_read, 0 };
+const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interface_read, 0 };
 
 /* ---- maps ---------------------------------------------------------------- */
 
@@ -1083,10 +1334,17 @@ const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interfa
  * this" (EXCEPTIONS.md B8).
  *
  * **A maps archive is five files, not two.** Terrain is file 0 and locs file 1,
- * but osrs239 squares also carry files 2, 3 and 4 that nothing here decodes. They
- * are written beside the `.jm2` as `.extra<N>.bin` and put back on import, because
- * a "readable map format" that silently dropped a third of the archive would be a
+ * but osrs239 squares also carry files 2, 3 and 4 that nothing here decodes — a
+ * "readable map format" that silently dropped a third of the archive would be a
  * worse trade than no readable format at all.
+ *
+ * They live in the `.jm2` as `==== EXTRA <id> ====` sections holding the bytes as
+ * hex, one section per member, in the order the archive stores them. They used to be
+ * separate `<stem>.extra<N>.bin` files, and that was the same mistake the texture
+ * table made: the member's id was in its *filename*, and the importer recovered the
+ * member set by probing `extra2` through `extra255` — so which files an archive held
+ * came from the filesystem rather than from anything stated. The hex costs little:
+ * 8,799 extras across 2,934 squares total 677 KB, median 2 bytes, largest 228.
  *
  * **The jm2 is shared with the server, and only two of its sections are ours.**
  * A square's `==== NPC ====` and `==== OBJ ====` spawns are content too, but they
@@ -1332,27 +1590,27 @@ map_write(
             fprintf(out, "%d %d %d: %d %d %d\n", loc->chunk_pos_level, loc->chunk_pos_x,
                     loc->chunk_pos_z, loc->loc_id, loc->shape_select, loc->orientation);
     }
+    /*
+     * Every member the jm2 has no section of its own for, kept verbatim as hex and
+     * **in archive order**. The banner carries the member id, so the import needs no
+     * filenames and no probing: it replays these in the order it reads them.
+     */
+    for( int f = 0; f < files->file_count; f++ )
+    {
+        int id = file_ids ? file_ids[f] : f;
+        if( id == CP_MAP_TERRAIN_FILE || id == CP_MAP_LOCS_FILE )
+            continue;
+        fprintf(out, "\n==== EXTRA %d ====\n", id);
+        for( int i = 0; i < files->file_sizes[f]; i++ )
+            fprintf(out, "%02x", (unsigned char)files->files[f][i]);
+        fputc('\n', out);
+    }
     if( foreign )
     {
         fprintf(out, "\n%s", foreign);
         free(foreign);
     }
     fclose(out);
-
-    /* Everything the jm2 has no section for, kept verbatim. */
-    for( int f = 0; f < files->file_count; f++ )
-    {
-        int id = file_ids ? file_ids[f] : f;
-        if( id == CP_MAP_TERRAIN_FILE || id == CP_MAP_LOCS_FILE )
-            continue;
-        snprintf(path, sizeof(path), "%s.extra%d.bin", path_stem, id);
-        FILE* extra = fopen(path, "wb");
-        if( extra )
-        {
-            fwrite(files->files[f], 1, (size_t)files->file_sizes[f], extra);
-            fclose(extra);
-        }
-    }
 
     RSCache_MapTerrainFree(terrain);
     RSCache_MapLocsFree(locs);
@@ -1398,10 +1656,26 @@ map_read(
         CP_JM2_NONE,
         CP_JM2_MAP,
         CP_JM2_LOC,
+        CP_JM2_EXTRA,
         CP_JM2_FOREIGN
     } section = CP_JM2_NONE;
     int seen_ours = 0;
     int ok = 1;
+
+    /*
+     * The archive's other members, in the order the file lists them.
+     *
+     * Read here rather than probed from `<stem>.extra<N>.bin` filenames, so the
+     * member set and its order are stated by the file. 256 is the container's own
+     * ceiling on a map archive and no cache read here comes near it.
+     */
+    struct
+    {
+        int id;
+        uint8_t* bytes;
+        int size;
+    } extras[256];
+    int extra_count = 0;
     char* cursor = text;
     while( cursor && *cursor && ok )
     {
@@ -1417,13 +1691,65 @@ map_read(
             continue;
         if( line[0] == '=' )
         {
+            int extra_id = 0;
             if( strstr(line, "LOC") )
                 section = CP_JM2_LOC;
             else if( strstr(line, "MAP") )
                 section = CP_JM2_MAP;
+            else if( sscanf(line, "==== EXTRA %d ====", &extra_id) == 1 )
+            {
+                section = CP_JM2_EXTRA;
+                if( extra_count < (int)(sizeof(extras) / sizeof(extras[0])) )
+                {
+                    extras[extra_count].id = extra_id;
+                    extras[extra_count].bytes = NULL;
+                    extras[extra_count].size = 0;
+                    extra_count++;
+                }
+                else
+                {
+                    fprintf(stderr, "cachepack: %s: more than %d EXTRA sections\n", path,
+                            (int)(sizeof(extras) / sizeof(extras[0])));
+                    ok = 0;
+                }
+            }
             else
                 section = CP_JM2_FOREIGN;
             seen_ours |= section != CP_JM2_FOREIGN;
+            continue;
+        }
+        if( section == CP_JM2_EXTRA )
+        {
+            /* One hex line per member. A zero-length member is a blank line, which
+             * the blank-line skip above has already eaten — and that is right: the
+             * banner is what records that the member exists. */
+            size_t digits = strlen(line);
+            if( digits % 2 != 0 )
+            {
+                fprintf(stderr, "cachepack: %s: EXTRA %d has an odd hex length\n", path,
+                        extras[extra_count - 1].id);
+                ok = 0;
+                continue;
+            }
+            uint8_t* bytes = malloc(digits / 2 ? digits / 2 : 1);
+            if( !bytes )
+            {
+                ok = 0;
+                continue;
+            }
+            for( size_t i = 0; i < digits / 2; i++ )
+            {
+                unsigned byte = 0;
+                if( sscanf(line + i * 2, "%2x", &byte) != 1 )
+                {
+                    ok = 0;
+                    break;
+                }
+                bytes[i] = (uint8_t)byte;
+            }
+            free(extras[extra_count - 1].bytes);
+            extras[extra_count - 1].bytes = bytes;
+            extras[extra_count - 1].size = (int)(digits / 2);
             continue;
         }
         /* A server-only section: its lines look like tile lines and are not. */
@@ -1575,20 +1901,21 @@ map_read(
 
         if( terrain_size && locs_size )
         {
-            /* Rebuild the whole archive: terrain, locs, then whatever extras the
-             * export set aside, each back under its own id. */
+            /*
+             * Rebuild the whole archive: terrain, locs, then the EXTRA sections the
+             * file listed, each back under the id its banner stated and in the order
+             * the file gave them.
+             *
+             * This used to probe `<stem>.extra2.bin` through `.extra255.bin` and
+             * take whatever the filesystem happened to hold, which meant the archive
+             * an import produced depended on a directory rather than on anything the
+             * tree stated. Most squares are five files and the table also holds one
+             * 37-file archive, so the count was never assumable either way — now it
+             * is simply read.
+             */
             struct RSCache_FileList list;
             memset(&list, 0, sizeof(list));
-            /* Most squares are five files, but the maps table also holds one
-             * 37-file archive, so the extras are counted rather than assumed. */
-            int capacity = 2;
-            for( int extra = 2; extra < 256; extra++ )
-            {
-                snprintf(path, sizeof(path), "%s.extra%d.bin", path_stem, extra);
-                struct stat probe;
-                if( stat(path, &probe) == 0 )
-                    capacity = extra + 1;
-            }
+            int capacity = 2 + extra_count;
             list.files = calloc((size_t)capacity, sizeof(char*));
             list.file_sizes = calloc((size_t)capacity, sizeof(int));
             int* ids = calloc((size_t)capacity, sizeof(int));
@@ -1602,17 +1929,13 @@ map_read(
                 ids[1] = CP_MAP_LOCS_FILE;
                 list.file_count = 2;
 
-                for( int extra = 2; extra < capacity; extra++ )
+                for( int extra = 0; extra < extra_count; extra++ )
                 {
-                    snprintf(path, sizeof(path), "%s.extra%d.bin", path_stem, extra);
-                    uint8_t* bytes = NULL;
-                    int bytes_size = 0;
-                    if( !read_file_bytes(path, &bytes, &bytes_size) )
-                        continue; /* a gap in the ids is legal and skipped */
-                    list.files[list.file_count] = (char*)bytes;
-                    list.file_sizes[list.file_count] = bytes_size;
-                    ids[list.file_count] = extra;
+                    list.files[list.file_count] = (char*)extras[extra].bytes;
+                    list.file_sizes[list.file_count] = extras[extra].size;
+                    ids[list.file_count] = extras[extra].id;
                     list.file_count++;
+                    extras[extra].bytes = NULL; /* the list owns them now */
                 }
 
                 uint32_t bound = RSCache_FileListEncodeBound(&list);
@@ -1645,12 +1968,17 @@ map_read(
         free(locs_bytes);
     }
 
+    /* Anything the FileList did not take ownership of — the path where parsing or
+     * encoding failed before the members were handed over. */
+    for( int extra = 0; extra < extra_count; extra++ )
+        free(extras[extra].bytes);
+
     RSCache_MapTerrainFree(terrain);
     RSCache_MapLocsFree(locs);
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_map = { "jm2", map_write, map_read };
+const struct CP_AssetCodec cp_codec_map = { "jm2", map_write, map_read, 0 };
 
 /* ---- clientscripts ------------------------------------------------------- */
 
@@ -1884,7 +2212,9 @@ script_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_script = { "cs2", script_write, script_read };
+/* Trailing 1 is `semantic_only`: the friendly form is source, and compiling source
+ * back gives this compiler's bytes rather than Jagex's. See cp_assets.h. */
+const struct CP_AssetCodec cp_codec_script = { "cs2", script_write, script_read, 1 };
 
 /* ---- sprites ------------------------------------------------------------- */
 
@@ -2207,7 +2537,7 @@ sprite_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_sprite = { "bmp", sprite_write, sprite_read };
+const struct CP_AssetCodec cp_codec_sprite = { "bmp", sprite_write, sprite_read, 0 };
 
 /* ---- world map ----------------------------------------------------------- */
 
@@ -2599,4 +2929,4 @@ worldmap_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_worldmap = { "wma", worldmap_write, worldmap_read };
+const struct CP_AssetCodec cp_codec_worldmap = { "wma", worldmap_write, worldmap_read, 0 };

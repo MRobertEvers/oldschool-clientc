@@ -294,10 +294,10 @@ SSC_SymbolsLoadConstants(
  * kinds each one becomes. Unlisted packs load as SSC_SYM_UNKNOWN, which still
  * resolves for an unqualified reference.
  *
- * The filename table this replaced had `varp_mock.pack` hardcoded — the one
- * place in the compiler that knew a *specific tree's* layer-1 filename. That is
- * exactly the coupling the register removes: layer 1 is now `names/<ns>.pack`
- * for every namespace, so there is nothing tree-specific left to list.
+ * The filename table this replaced had `varp_mock.pack` hardcoded — the one place
+ * in the compiler that knew a *specific tree's* filename. That is exactly the
+ * coupling the register removes: a namespace is one file, `pack/<ns>.pack`
+ * (docs/CONTENT_PACK_PLAN.md §3), so there is nothing tree-specific left to list.
  */
 static enum SSC_SymbolKind
 kind_for_namespace(const char* ns)

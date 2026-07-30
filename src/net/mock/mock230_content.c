@@ -18,10 +18,12 @@
 
 #include "mock230_content.h"
 
+#include "content/content_register.h"
 #include "mock230.h"
 
 #include <ctype.h>
 #include <dirent.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,13 +53,31 @@ mock230_content_error_count(void)
     return g_errors;
 }
 
+void
+mock230_content_report_error(
+    const char* fmt,
+    ...)
+{
+    va_list args;
+
+    /* Same prefix and the same counter as CONTENT_ERROR, so a bad line in a
+     * `.dbtable` read by mock230_db.c is indistinguishable from a bad line in a
+     * `.npc` read here — which is the point. A second reader with its own error
+     * channel is a reader whose failures do not stop the server. */
+    fprintf(stderr, "mock230: content: ");
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    g_errors++;
+}
+
 /* ------------------------------------------------------------------ */
 /* Text helpers                                                        */
 /* ------------------------------------------------------------------ */
 
 /** Strip a `//` comment and surrounding whitespace, in place. */
-static char*
-clean_line(char* line)
+char*
+mock230_content_clean_line(char* line)
 {
     char* comment = strstr(line, "//");
     size_t length;
@@ -73,8 +93,8 @@ clean_line(char* line)
 }
 
 /** Split `key=value` in place. Returns the value, or NULL when there is no `=`. */
-static char*
-split_key_value(char* line)
+char*
+mock230_content_split_key_value(char* line)
 {
     char* equals = strchr(line, '=');
 
@@ -93,8 +113,8 @@ split_key_value(char* line)
 }
 
 /** `[name]` section header; returns the name in place, or NULL. */
-static char*
-section_header(char* line)
+char*
+mock230_content_section_header(char* line)
 {
     size_t length = strlen(line);
 
@@ -109,46 +129,33 @@ section_header(char* line)
 /* ------------------------------------------------------------------ */
 
 /*
- * A namespace has two files, and the difference between them is *who wrote the
- * name* — a machine or a person.
+ * One file per namespace: `pack/<ns>.pack`, `id=name` per line.
  *
- *   pack/<ns>.pack     the cache's own names. Regenerated wholesale by
- *                      `cachepack unpack` out of the cache's gameval table, so
- *                      anything hand-written here is deleted by the next run.
+ * There used to be two — `pack/` for what the cache's gameval table said and
+ * `names/` for what a human wrote — and the reason was never that a namespace has
+ * two name domains. It was that a pack *save* emitted nothing but `id=name` lines,
+ * so any tool regenerating `pack/varp.pack` deleted every comment in it and every
+ * line it had not generated. `pack/param.pack` lost all 58 of its header lines to
+ * one `cachepack unpack`, and that header was the record of which param-id claims
+ * had been checked against a cache and how.
  *
- *   names/<ns>.pack    names a human chose. Never machine-written. This is the
- *                      only place that can hold the three things the cache file
- *                      structurally cannot:
- *                        - a *second* name for an id the cache already names
- *                        - a *replacement* for a cache name this world repurposed
- *                        - a name for an id the cache never names at all
+ * That hazard is fixed at the writer rather than worked around by the directory
+ * layout (docs/CONTENT_PACK_PLAN.md §1): a pack save preserves comments and
+ * *merges*, so one file can hold the cache's names and this world's. Where the two
+ * disagree about an id, the authored name is the line and the cache's is a
+ * trailing note:
  *
- * The reason both exist: `pack/varp.pack` is a function of the cache — `115` is
- * `bankcert` because that is what the cache calls it, not because anyone chose
- * it — and the file format is one name per id. So `115=bank_withdrawnotes`
- * cannot live there, and the old answer was to hand-splice authored lines into
- * a file that gets regenerated. Separating them makes the cache file
- * disposable: `rm -rf pack/ && cachepack unpack` is safe, and every name left in
- * `names/` is one somebody wrote on purpose.
+ *     843=varp_weapon_category  // cache: randomhitsound
  *
- * Both files resolve name -> id, so `bankcert` and `bank_withdrawnotes` both
- * work. The authored name wins for id -> name, because the canonical name of an
- * id this world repurposed is the one this world gave it.
- *
- * See docs/CONTENT_ARCHITECTURE.md.
+ * The one thing a single file cannot hold is an *alias* — a second name for an id
+ * the cache already names — because a line binds one name to one id. That is a
+ * deliberate loss, decided per case during the migration; no alias in this tree
+ * needed keeping, and `validate_symbols` refuses a file that tries.
  */
-enum
-{
-    PACK_SOURCE_CACHE = 0,
-    PACK_SOURCE_AUTHORED = 1,
-};
-
 struct PackEntry
 {
     char* name;
     int id;
-    /** Where the name came from: the cache, or a human. */
-    int source;
 };
 
 struct Pack
@@ -164,8 +171,7 @@ static void
 pack_add(
     struct Pack* pack,
     const char* name,
-    int id,
-    int source)
+    int id)
 {
     if( pack->count == pack->capacity )
     {
@@ -179,36 +185,33 @@ pack_add(
     }
     pack->entries[pack->count].name = strdup(name);
     pack->entries[pack->count].id = id;
-    pack->entries[pack->count].source = source;
     pack->count++;
 }
 
 static int
 pack_load(
     struct Pack* pack,
-    const char* path,
-    int source)
+    const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
     int loaded = 0;
 
-    /* A missing file is not an error. The authored file is optional for every
-     * namespace, and the cache file does not exist at all for the server-only
-     * ones — nothing in the cache names the skills. */
+    /* A missing file is not an error: a namespace nothing has named yet has no
+     * file at all, which is a different claim from an empty one. */
     if( !file )
         return 0;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* name;
 
         if( !*line )
             continue;
-        name = split_key_value(line);
+        name = mock230_content_split_key_value(line);
         if( !name || !*name )
             continue;
-        pack_add(pack, name, atoi(line), source);
+        pack_add(pack, name, atoi(line));
         loaded++;
     }
     fclose(file);
@@ -232,26 +235,12 @@ mock230_content_symbol(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return -1;
 
-    /*
-     * Both files resolve name -> id, authored first.
-     *
-     * The cache's names keep working on purpose: `bankcert` is what the cache
-     * calls varp 115 and `bank_withdrawnotes` is what this world calls it, and
-     * a config or script may reasonably say either. Searching authored first
-     * only matters when the two disagree, and the loader has already refused to
-     * start in that case (see validate_name_sources).
-     */
+    /* One file, one pass. There is no precedence question left: a name means one
+     * id or the loader refused to start (see validate_symbols). */
     pack = &g_packs[kind];
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].source == PACK_SOURCE_AUTHORED &&
-            strcmp(pack->entries[i].name, name) == 0 )
-            return pack->entries[i].id;
-    }
-    for( int i = 0; i < pack->count; i++ )
-    {
-        if( pack->entries[i].source == PACK_SOURCE_CACHE &&
-            strcmp(pack->entries[i].name, name) == 0 )
+        if( strcmp(pack->entries[i].name, name) == 0 )
             return pack->entries[i].id;
     }
     return -1;
@@ -267,17 +256,9 @@ mock230_content_symbol_name(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return NULL;
     pack = &g_packs[kind];
-    /* The authored name wins for id -> name: the canonical name of an id this
-     * world repurposed is the one this world gave it, not the cache's. */
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].source == PACK_SOURCE_AUTHORED &&
-            pack->entries[i].id == symbol_id )
-            return pack->entries[i].name;
-    }
-    for( int i = 0; i < pack->count; i++ )
-    {
-        if( pack->entries[i].source == PACK_SOURCE_CACHE && pack->entries[i].id == symbol_id )
+        if( pack->entries[i].id == symbol_id )
             return pack->entries[i].name;
     }
     return NULL;
@@ -288,96 +269,190 @@ static const char*
 pack_kind_name(enum Mock230PackKind kind);
 
 /**
- * Refuse to start on a namespace whose two files disagree.
+ * Refuse to start on a symbol table that answers a name two ways.
  *
- * Two rules, both LostCity's (`packConfigs()`), and both describing hazards this
- * tree has already written down in prose rather than checked:
+ * Two rules, both LostCity's (`packConfigs()`), and neither of them about how many
+ * *files* a namespace has — which is why both survived the collapse to one file
+ * per namespace while the third rule (an authored name shadowing a cache name in a
+ * different file) simply stopped being expressible:
  *
- * 1. **An authored name may not shadow a *different* id's cache name.** If
- *    `pack/` says `115=bankcert` and `names/` says `843=bankcert`, then
- *    `bankcert` in a script means one thing to a reader and another to the
- *    loader. A second name for the *same* id is the entire point of the
- *    authored file and is fine;
- *    aliasing a different one is a typo that would otherwise resolve silently.
+ * 1. **A name means one id within a namespace.** Two lines binding `bankcert` to
+ *    115 and to 843 make it mean one thing to a reader and another to the loader,
+ *    and last-one-wins is not a resolution. This is also the check that catches
+ *    the one thing the single-file format cannot hold: an alias for an id the
+ *    cache already names, which a migration might try to reintroduce.
  *
- * 2. **varp and varbit share one RuneScript name domain.** `%name` does not say
- *    which of the two it is, so a name meaning varp 115 and varbit 4 cannot
- *    coexist however separate their pack files look.
+ * 2. **varp, varbit, varn and vars share one RuneScript name domain.** `%name`
+ *    does not say which of the four it is, so a name meaning varp 115 and varbit 4
+ *    cannot coexist however separate their pack files look. The membership comes
+ *    from the register's `vardomain` column rather than a list here, so adding a
+ *    namespace to the domain is one declaration.
  *
  * Returns the number of collisions; each is reported through the content error
  * count, so `mock230_pack` fails on them too.
  */
-static int
-validate_name_sources(void)
+/**
+ * One symbol, tagged with the namespace it came from, for the collision sort.
+ *
+ * Sorted rather than compared pairwise, and that is not a micro-optimisation: the
+ * merged tables are large — 62,194 locs, 26,491 components — and the pairwise form
+ * of this check is billions of `strcmp`s before the server prints its first line.
+ */
+struct SymbolRow
 {
-    /* varp and varbit only. `varn`/`vars` would join this list when they exist;
-     * the other namespaces each have their own domain. */
-    static const enum Mock230PackKind k_shared_domain[] = {
-        MOCK230_PACK_VARP,
-        MOCK230_PACK_VARBIT,
-    };
+    const char* name;
+    int id;
+    int kind;
+};
+
+static int
+compare_symbol_row(
+    const void* lhs,
+    const void* rhs)
+{
+    const struct SymbolRow* left = lhs;
+    const struct SymbolRow* right = rhs;
+    int order = strcmp(left->name, right->name);
+
+    if( order != 0 )
+        return order;
+    /* Ties by id so the report is stable, and so a name listed twice for the same
+     * id lands adjacent and reads as redundant rather than ambiguous. */
+    return left->id - right->id;
+}
+
+/** Sorted copy of one or more namespaces' rows. Caller frees. */
+static struct SymbolRow*
+collect_rows(
+    const int* kinds,
+    int kind_count,
+    int* out_count)
+{
+    int total = 0;
+
+    for( int k = 0; k < kind_count; k++ )
+        total += g_packs[kinds[k]].count;
+    *out_count = total;
+    if( total == 0 )
+        return NULL;
+
+    struct SymbolRow* rows = malloc((size_t)total * sizeof(*rows));
+    if( !rows )
+        return NULL;
+    int at = 0;
+    for( int k = 0; k < kind_count; k++ )
+    {
+        const struct Pack* pack = &g_packs[kinds[k]];
+        for( int i = 0; i < pack->count; i++ )
+        {
+            rows[at].name = pack->entries[i].name;
+            rows[at].id = pack->entries[i].id;
+            rows[at].kind = kinds[k];
+            at++;
+        }
+    }
+    qsort(rows, (size_t)total, sizeof(*rows), compare_symbol_row);
+    return rows;
+}
+
+static int
+validate_symbols(const struct ContentRegister* reg)
+{
     int collisions = 0;
+    int shared[MOCK230_PACK_COUNT];
+    int shared_count = 0;
 
     for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
     {
-        const struct Pack* pack = &g_packs[kind];
+        int only[1] = { kind };
+        int count = 0;
+        struct SymbolRow* rows = collect_rows(only, 1, &count);
+        const struct ContentNamespace* ns =
+            ContentRegister_Find(reg, pack_kind_name((enum Mock230PackKind)kind));
 
-        for( int i = 0; i < pack->count; i++ )
+        if( ns && ns->shared_var_domain )
+            shared[shared_count++] = kind;
+
+        for( int i = 1; i < count; i++ )
         {
-            if( pack->entries[i].source != PACK_SOURCE_AUTHORED )
+            if( strcmp(rows[i].name, rows[i - 1].name) != 0 )
                 continue;
-            for( int j = 0; j < pack->count; j++ )
-            {
-                if( pack->entries[j].source != PACK_SOURCE_CACHE )
-                    continue;
-                if( pack->entries[j].id == pack->entries[i].id )
-                    continue; /* a second name for the same id — the point */
-                if( strcmp(pack->entries[j].name, pack->entries[i].name) != 0 )
-                    continue;
-                CONTENT_ERROR(
-                    "names/%s.pack: `%s` = %d shadows pack/%s.pack's `%s` = %d\n",
-                    pack_kind_name((enum Mock230PackKind)kind), pack->entries[i].name,
-                    pack->entries[i].id, pack_kind_name((enum Mock230PackKind)kind),
-                    pack->entries[j].name, pack->entries[j].id);
-                collisions++;
-            }
+            if( rows[i].id == rows[i - 1].id )
+                continue; /* the same line twice is redundant, not ambiguous */
+            CONTENT_ERROR("pack/%s.pack: `%s` is both %d and %d — a name means one id\n",
+                          pack_kind_name((enum Mock230PackKind)kind), rows[i].name,
+                          rows[i - 1].id, rows[i].id);
+            collisions++;
         }
+        free(rows);
     }
 
-    for( size_t a = 0; a < sizeof(k_shared_domain) / sizeof(k_shared_domain[0]); a++ )
+    /* The `%name` domain, as the register declares it: all its namespaces sorted
+     * together, so a name appearing under two of them lands adjacent. */
+    if( shared_count > 1 )
     {
-        for( size_t b = a + 1; b < sizeof(k_shared_domain) / sizeof(k_shared_domain[0]); b++ )
-        {
-            const struct Pack* left = &g_packs[k_shared_domain[a]];
-            const struct Pack* right = &g_packs[k_shared_domain[b]];
+        int count = 0;
+        struct SymbolRow* rows = collect_rows(shared, shared_count, &count);
 
-            for( int i = 0; i < left->count; i++ )
-            {
-                for( int j = 0; j < right->count; j++ )
-                {
-                    if( strcmp(left->entries[i].name, right->entries[j].name) != 0 )
-                        continue;
-                    CONTENT_ERROR("`%s` is both %s %d and %s %d — one RuneScript name "
-                                  "domain covers both\n",
-                                  left->entries[i].name,
-                                  pack_kind_name(k_shared_domain[a]), left->entries[i].id,
-                                  pack_kind_name(k_shared_domain[b]), right->entries[j].id);
-                    collisions++;
-                }
-            }
+        for( int i = 1; i < count; i++ )
+        {
+            if( strcmp(rows[i].name, rows[i - 1].name) != 0 )
+                continue;
+            if( rows[i].kind == rows[i - 1].kind )
+                continue; /* already reported by the per-namespace pass */
+            CONTENT_ERROR("`%s` is both %s %d and %s %d — one RuneScript name domain "
+                          "covers both\n",
+                          rows[i].name, pack_kind_name((enum Mock230PackKind)rows[i - 1].kind),
+                          rows[i - 1].id, pack_kind_name((enum Mock230PackKind)rows[i].kind),
+                          rows[i].id);
+            collisions++;
         }
+        free(rows);
     }
 
     return collisions;
 }
 
-/** The pack file a kind is spelled with, for diagnostics. */
+/**
+ * The namespace a kind is spelled with: `pack/<name>.pack`, and the register row.
+ *
+ * One table rather than two. This used to name only the thirteen kinds a
+ * diagnostic had ever mentioned, with the other eight left NULL, while a second
+ * list inside `mock230_content_load` said which files to read — so a kind could be
+ * loadable and unnameable, or named and never loaded, and nothing compared them.
+ * Every kind is spelled here and the loader walks this.
+ */
+const char*
+mock230_content_pack_name(enum Mock230PackKind kind)
+{
+    return pack_kind_name(kind);
+}
+
 static const char*
 pack_kind_name(enum Mock230PackKind kind)
 {
     static const char* k_names[MOCK230_PACK_COUNT] = {
-        "npc",  "obj",  "loc",       "seq",   "spotanim", "inv",   "varp",
-        "varbit", "interface", "component", "stat", "param", "hitsplat",
+        [MOCK230_PACK_NPC] = "npc",
+        [MOCK230_PACK_OBJ] = "obj",
+        [MOCK230_PACK_LOC] = "loc",
+        [MOCK230_PACK_SEQ] = "seq",
+        [MOCK230_PACK_SPOTANIM] = "spotanim",
+        [MOCK230_PACK_INV] = "inv",
+        [MOCK230_PACK_VARP] = "varp",
+        [MOCK230_PACK_VARBIT] = "varbit",
+        [MOCK230_PACK_INTERFACE] = "interface",
+        [MOCK230_PACK_COMPONENT] = "component",
+        [MOCK230_PACK_STAT] = "stat",
+        [MOCK230_PACK_PARAM] = "param",
+        [MOCK230_PACK_HITSPLAT] = "hitsplat",
+        [MOCK230_PACK_ENUM] = "enum",
+        [MOCK230_PACK_STRUCT] = "struct",
+        [MOCK230_PACK_DBTABLE] = "dbtable",
+        [MOCK230_PACK_DBROW] = "dbrow",
+        [MOCK230_PACK_CATEGORY] = "category",
+        [MOCK230_PACK_HUNT] = "hunt",
+        [MOCK230_PACK_VARN] = "varn",
+        [MOCK230_PACK_VARS] = "vars",
     };
 
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
@@ -540,6 +615,28 @@ mock230_content_enum(const char* symbol)
             return &g_enum_defs[i];
     }
     return NULL;
+}
+
+const struct Mock230EnumDef*
+mock230_content_enum_by_id(int enum_id)
+{
+    const char* symbol;
+
+    if( enum_id < 0 )
+        return NULL;
+    /*
+     * Id -> name -> def, rather than storing the id on the def.
+     *
+     * The name is the only thing a `.enum` block states; the id comes from
+     * `pack/enum.pack`, which is loaded by the time any config is read. Going
+     * through the pack keeps one answer to "what number is this enum" — the
+     * alternative, resolving it while parsing and caching it on the def, is a
+     * second answer that silently disagrees when a pack is regenerated.
+     */
+    symbol = mock230_content_symbol_name(MOCK230_PACK_ENUM, enum_id);
+    if( !symbol )
+        return NULL;
+    return mock230_content_enum(symbol);
 }
 
 const struct Mock230VarpDef*
@@ -726,7 +823,7 @@ load_npc_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -734,7 +831,7 @@ load_npc_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             int npc_id = mock230_content_symbol(MOCK230_PACK_NPC, header);
@@ -754,7 +851,7 @@ load_npc_config(const char* path)
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
@@ -876,7 +973,7 @@ load_obj_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -884,7 +981,7 @@ load_obj_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             /* Flush the block that just ended before starting the next one. The
@@ -900,7 +997,7 @@ load_obj_config(const char* path)
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
@@ -942,7 +1039,7 @@ load_constant_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* value;
 
         line_number++;
@@ -954,7 +1051,7 @@ load_constant_config(const char* path)
                           line_number);
             continue;
         }
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: `%s` has no `=`\n", path, line_number, line);
@@ -996,6 +1093,11 @@ pack_kind_for_type(const char* name)
         { "component", MOCK230_PACK_COMPONENT },
         { "stat", MOCK230_PACK_STAT },       { "param", MOCK230_PACK_PARAM },
         { "hitsplat", MOCK230_PACK_HITSPLAT },
+        { "enum", MOCK230_PACK_ENUM },       { "struct", MOCK230_PACK_STRUCT },
+        { "dbtable", MOCK230_PACK_DBTABLE }, { "dbrow", MOCK230_PACK_DBROW },
+        { "category", MOCK230_PACK_CATEGORY },
+        { "hunt", MOCK230_PACK_HUNT },
+        { "varn", MOCK230_PACK_VARN },       { "vars", MOCK230_PACK_VARS },
     };
 
     for( size_t i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
@@ -1006,6 +1108,30 @@ pack_kind_for_type(const char* name)
     /* `int` and anything else unlisted: the operand is a literal, not a
      * symbol. MOCK230_PACK_COUNT is the sentinel for that. */
     return MOCK230_PACK_COUNT;
+}
+
+/*
+ * Whether a declared `.enum` side holds text.
+ *
+ * Separate from pack_kind_for_type because that answers "which pack does this
+ * resolve against", and `int` and `string` both answer "none". The RuneScript
+ * `enum` opcode needs the other question answered, because the output type picks
+ * which stack it pushes onto.
+ */
+static int
+type_is_string(const char* name)
+{
+    return strcmp(name, "string") == 0;
+}
+
+/** Expand a leading `^constant`, or return the text unchanged. NULL when the
+ *  constant does not resolve. */
+static const char*
+enum_text(const char* text)
+{
+    if( *text != '^' )
+        return text;
+    return mock230_content_constant(text);
 }
 
 /** Resolve one side of a `val=` line: a symbol when the declared type names a
@@ -1052,7 +1178,7 @@ load_enum_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -1060,7 +1186,7 @@ load_enum_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
@@ -1070,10 +1196,14 @@ load_enum_config(const char* path)
             def->symbol = strdup(header);
             def->input_kind = MOCK230_PACK_COUNT;
             def->output_kind = MOCK230_PACK_COUNT;
+            /* The reference's own defaults, so a key with no entry yields what
+             * its content expects rather than a zero that means "found". */
+            def->default_int = 0;
+            def->default_text = "null";
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -1082,18 +1212,37 @@ load_enum_config(const char* path)
         }
 
         if( strcmp(line, "inputtype") == 0 )
+        {
             def->input_kind = pack_kind_for_type(value);
+            def->input_is_string = type_is_string(value);
+        }
         else if( strcmp(line, "outputtype") == 0 )
+        {
             def->output_kind = pack_kind_for_type(value);
+            def->output_is_string = type_is_string(value);
+        }
         else if( strcmp(line, "default") == 0 )
-            continue; /* carried by the reference; nothing here reads it */
+        {
+            const char* expanded = enum_text(value);
+
+            if( !expanded )
+            {
+                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);
+                continue;
+            }
+            if( def->output_is_string )
+                def->default_text = strdup(expanded);
+            else
+                def->default_int = atoi(expanded);
+        }
         else if( strcmp(line, "val") == 0 )
         {
             char* comma = strchr(value, ',');
             int key_ok = 0;
             int value_ok = 0;
             int key;
-            int mapped;
+            int mapped = 0;
+            const char* text = NULL;
 
             if( !comma )
             {
@@ -1102,7 +1251,27 @@ load_enum_config(const char* path)
             }
             *comma = '\0';
             key = enum_operand(def->input_kind, value, &key_ok);
-            mapped = enum_operand(def->output_kind, comma + 1, &value_ok);
+            /*
+             * A string-valued enum keeps the text. It cannot go through
+             * enum_operand, which resolves or atoi()s — and atoi() of
+             * "Nothing interesting happens." is 0, so every message in
+             * displaymessage.enum would silently become the same one.
+             *
+             * Commas are not escaped in the reference's grammar, so the value is
+             * everything after the *first* comma; a message containing one still
+             * arrives whole.
+             */
+            if( def->output_is_string )
+            {
+                text = enum_text(comma + 1);
+                value_ok = text != NULL;
+                if( value_ok )
+                    text = strdup(text);
+            }
+            else
+            {
+                mapped = enum_operand(def->output_kind, comma + 1, &value_ok);
+            }
             if( !key_ok )
                 CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);
             if( !value_ok )
@@ -1117,6 +1286,7 @@ load_enum_config(const char* path)
                 continue;
             }
             def->values[def->count].key = key;
+            def->values[def->count].text = text;
             def->values[def->count].value = mapped;
             def->count++;
         }
@@ -1144,7 +1314,7 @@ load_varp_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -1152,7 +1322,7 @@ load_varp_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             int varp_id = mock230_content_symbol(MOCK230_PACK_VARP, header);
@@ -1174,7 +1344,7 @@ load_varp_config(const char* path)
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -1234,7 +1404,7 @@ load_loc_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -1242,7 +1412,7 @@ load_loc_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             int loc_id = mock230_content_symbol(MOCK230_PACK_LOC, header);
@@ -1265,7 +1435,7 @@ load_loc_config(const char* path)
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -1449,7 +1619,7 @@ load_prayer_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         char* header;
         char* value;
 
@@ -1457,7 +1627,7 @@ load_prayer_config(const char* path)
         if( !*line )
             continue;
 
-        header = section_header(line);
+        header = mock230_content_section_header(line);
         if( header )
         {
             def = prayer_begin(header);
@@ -1468,7 +1638,7 @@ load_prayer_config(const char* path)
             continue;
         }
 
-        value = split_key_value(line);
+        value = mock230_content_split_key_value(line);
         if( !value || !def )
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
                           line_number);
@@ -1527,7 +1697,7 @@ load_jm2(
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = clean_line(raw);
+        char* line = mock230_content_clean_line(raw);
         int level, local_x, local_z, id, count;
 
         line_number++;
@@ -1683,54 +1853,7 @@ init_defaults(void)
 int
 mock230_content_load(const char* dir)
 {
-    /*
-     * The namespace register.
-     *
-     * One row per namespace rather than one per *file*, because a namespace is
-     * two files for one name domain (see the Packs section above): the cache's
-     * in `pack/<ns>.pack`, the authored in `names/<ns>.pack`. A namespace the
-     * cache does not name — `stat` — simply has no `pack/` file,
-     * and a missing pack loads as zero symbols rather than as an error.
-     *
-     * This is also step 2 of docs/CONTENT_ARCHITECTURE.md in embryo: when the
-     * `content.ini` register lands, this table is what it replaces, and the same
-     * rows are what sscompile and cachepack should be reading instead of their
-     * own filename tables.
-     */
-    static const struct
-    {
-        const char* ns;
-        enum Mock230PackKind kind;
-    } k_namespaces[] = {
-        { "npc",       MOCK230_PACK_NPC       },
-        { "obj",       MOCK230_PACK_OBJ       },
-        { "loc",       MOCK230_PACK_LOC       },
-        { "seq",       MOCK230_PACK_SEQ       },
-        { "spotanim",  MOCK230_PACK_SPOTANIM  },
-        { "inv",       MOCK230_PACK_INV       },
-        { "varp",      MOCK230_PACK_VARP      },
-        { "varbit",    MOCK230_PACK_VARBIT    },
-        { "interface", MOCK230_PACK_INTERFACE },
-        { "component", MOCK230_PACK_COMPONENT },
-        { "param",     MOCK230_PACK_PARAM     },
-        { "hitsplat",  MOCK230_PACK_HITSPLAT  },
-        { "stat",      MOCK230_PACK_STAT      },
-    };
-    /*
-     * Where the authored names used to live.
-     *
-     * Kept so a content tree that has not moved its files yet still loads —
-     * these are read as authored, which is what they always were in spirit.
-     * They go away once every tree ships `names/`.
-     */
-    static const struct
-    {
-        const char* file;
-        enum Mock230PackKind kind;
-    } k_legacy_authored[] = {
-        { "server/pack/stat.pack",      MOCK230_PACK_STAT },
-        { "server/pack/varp_mock.pack", MOCK230_PACK_VARP },
-    };
+    struct ContentRegister reg;
     char path[1024];
     DIR* probe;
     int symbols = 0;
@@ -1758,32 +1881,29 @@ mock230_content_load(const char* dir)
     closedir(probe);
 
     /*
-     * Cache names first, then authored, then the pre-`names/` locations.
+     * The register, then one file per namespace.
      *
-     * Order is not resolution — the lookups pick by source, not by position —
-     * but loading in this order keeps the diagnostics readable: an authored name
-     * is reported against the cache name it collides with, and the cache name
-     * has to be present for that to say anything useful.
+     * `ContentRegister_Load` overlays the tree's `content.ini` onto the built-in
+     * defaults and never fails, so a tree without one still boots. What *does*
+     * refuse to boot is a tree whose declaration contradicts itself — a namespace
+     * claiming `names = cache` with no gameval archive behind it tells cachepack it
+     * may rewrite a hand-written file, and that has already cost this tree
+     * `pack/param.pack`'s 58-line header once.
      */
-    for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
+    ContentRegister_Load(&reg, dir);
+    if( ContentRegister_Validate(&reg) != 0 )
+        CONTENT_ERROR("content.ini contradicts the gameval evidence; see above\n");
+
+    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
     {
-        snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, k_namespaces[i].ns);
-        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_SOURCE_CACHE);
-    }
-    for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
-    {
-        snprintf(path, sizeof(path), "%s/names/%s.pack", dir, k_namespaces[i].ns);
-        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_SOURCE_AUTHORED);
-    }
-    for( size_t i = 0; i < sizeof(k_legacy_authored) / sizeof(k_legacy_authored[0]); i++ )
-    {
-        snprintf(path, sizeof(path), "%s/%s", dir, k_legacy_authored[i].file);
-        symbols += pack_load(&g_packs[k_legacy_authored[i].kind], path, PACK_SOURCE_AUTHORED);
+        snprintf(path, sizeof(path), "%s/pack/%s.pack", dir,
+                 pack_kind_name((enum Mock230PackKind)kind));
+        symbols += pack_load(&g_packs[kind], path);
     }
 
-    /* A namespace whose two files disagree is refused here rather than
+    /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */
-    validate_name_sources();
+    validate_symbols(&reg);
 
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */

@@ -152,4 +152,24 @@ mock230_scene_contains(
     int x,
     int z);
 
+/**
+ * Does this absolute tile block walking? (RuneScript `map_blocked`.)
+ *
+ * The reference is `isFlagged(x, z, level, CollisionFlag.WALK_BLOCKED)`, and
+ * that composite is `COLL_FLAG_WALK_BLOCKED` here — so both ends read one
+ * CollisionMap rather than keeping two models that can drift.
+ *
+ * **A tile outside the built scene reports blocked**, which is the safe
+ * direction and not the obvious one. Content asks this before dropping a fire or
+ * choosing a wander target, so "I do not know" has to mean "do not", or the
+ * caller happily places things in map that was never loaded. Returning walkable
+ * would also make the flag test the *only* thing standing between a script and
+ * `collision_map_tile`'s bounds assert.
+ */
+int
+mock230_scene_walk_blocked(
+    int level,
+    int x,
+    int z);
+
 #endif

@@ -10,8 +10,9 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    103  host commands
- *    166  total, of 396 declared opcodes
+ *    109  host commands
+ *      7  host commands (db)
+ *    179  total, of 396 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -19,7 +20,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 166
+#define MOCK230_OPCODE_COVERAGE_COUNT 179
 #define MOCK230_OPCODE_DECLARED_COUNT 396
 
 /*
@@ -66,8 +67,11 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1001, /* SS_OP_COORDY (host commands) */
     1002, /* SS_OP_COORDZ (host commands) */
     1003, /* SS_OP_DISTANCE (host commands) */
+    1004, /* SS_OP_INZONE (host commands) */
+    1007, /* SS_OP_MAP_BLOCKED (host commands) */
     1008, /* SS_OP_MAP_CLOCK (host commands) */
     1013, /* SS_OP_MAP_MEMBERS (host commands) */
+    1015, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
     1016, /* SS_OP_MOVECOORD (host commands) */
     1021, /* SS_OP_WORLD_DELAY (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
@@ -159,7 +163,10 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4324, /* SS_OP_INV_SIZE (host commands) */
     4326, /* SS_OP_INV_STOPTRANSMIT (host commands) */
     4327, /* SS_OP_INV_TOTAL (host commands) */
+    4328, /* SS_OP_INV_TOTALCAT (host commands) */
     4331, /* SS_OP_INV_TRANSMIT (host commands) */
+    4400, /* SS_OP_ENUM (host commands) */
+    4401, /* SS_OP_ENUM_GETOUTPUTCOUNT (host commands) */
     4500, /* SS_OP_APPEND_NUM (VM core) */
     4501, /* SS_OP_APPEND (VM core) */
     4502, /* SS_OP_APPEND_SIGNNUM (VM core) */
@@ -198,6 +205,13 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4623, /* SS_OP_GETBIT_RANGE (VM core) */
     4624, /* SS_OP_SETBIT_RANGE_TOINT (VM core) */
     4628, /* SS_OP_ABS (VM core) */
+    7501, /* SS_OP_DB_FINDNEXT (host commands (db)) */
+    7502, /* SS_OP_DB_GETFIELD (host commands (db)) */
+    7503, /* SS_OP_DB_GETFIELDCOUNT (host commands (db)) */
+    7504, /* SS_OP_DB_LISTALL_WITH_COUNT (host commands (db)) */
+    7505, /* SS_OP_DB_GETROWTABLE (host commands (db)) */
+    7506, /* SS_OP_DB_FINDBYINDEX (host commands (db)) */
+    7510, /* SS_OP_DB_LISTALL (host commands (db)) */
     10001, /* SS_OP_ERROR (host commands) */
 };
 

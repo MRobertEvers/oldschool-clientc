@@ -53,17 +53,23 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
  * holds 4,229 files and not a quarter of a million), and an animation frame is
  * not independently useful: the animset is the unit anyone edits, loads or names.
  *
- * So CP_ASSET_MULTIFILE is now the exception, kept only where the files inside
- * really are separate assets that something addresses one at a time:
+ * **No archive explodes into a directory any more.** It used to, for the three
+ * tables whose members really are separate assets — and the shape was wrong for a
+ * reason that took a while to see: a member written as `<file_id>.<ext>` carries its
+ * id in its *filename* and nowhere else, so it cannot be renamed, and the importer
+ * had to recover the member set by listing the directory. Which files an archive
+ * contained, and in what order, was whatever `readdir` returned.
  *
- *   textures  one archive, 210 material definitions, each with its own id and
- *             its own line in LostCity's texture.pack
- *   dbindex   the master index and one file per indexed column
+ * The interface codec had the right answer all along: one file, a `[com_<id>]` block
+ * per component, and `read` hands the member list back through `*out_file_ids` in
+ * *file order*. So a table whose members are assets gets a codec that does that
+ * (`texture`), and a table whose members are opaque bytes stores the archive's
+ * payload whole (`dbindex`, `worldmaparea`) — which round-trips byte for byte,
+ * because the payload *is* the container's file table plus the files.
  *
- * Everything else stores the archive's payload whole. That costs nothing in
- * fidelity — the payload is the container's own file table plus the files, and it
- * round-trips byte for byte either way — and it takes the tree from 352,849 files
- * to 117,000.
+ * A pack file still indexes **archives** either way — `pack/texture.pack` is one
+ * line for the one archive, exactly as `pack/interface.pack` is one line per
+ * interface. The members are named by their block headers inside the archive's file.
  */
 
 /* clang-format off */
@@ -90,7 +96,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_SPRITE] = {
         "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, 12, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, CP_ASSET_MULTIFILE, -1,
+        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, 0, -1,
         &cp_codec_texture },
     [CP_ASSET_BINARY] = {
         "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, -1, NULL },
@@ -107,14 +113,19 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
         "worldmap/geography", "worldmapgeo", "wmg",
         RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, -1, NULL },
+    /* No codec: `RSCache_WorldMapAreaDecodeInplace` does not model most of the
+     * section types this cache uses, so 103 of the table's 104 members decline it.
+     * A friendly form that is unavailable 99% of the time is not worth the archive
+     * being split to reach it — the whole payload round-trips byte for byte. */
     [CP_ASSET_WORLDMAP_AREA] = {
-        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP,
-        CP_ASSET_MULTIFILE, -1, &cp_codec_worldmap },
+        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, 0, -1, NULL },
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "worldmapground", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
+    /* One file per dbtable, holding the master index and the per-column files. No
+     * codec, so the payload is written whole and is byte-exact. */
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_MULTIFILE, -1, NULL },
+        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, 0, -1, NULL },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
 };
@@ -304,8 +315,15 @@ name_model(
 {
     if( model_id < 0 )
         return;
-    if( cp_asset_name_get(ctx, CP_ASSET_MODEL, model_id) )
-        return; /* first claim wins */
+    /*
+     * First *real* claim wins. `model_1234` is not a claim — it is the id spelled
+     * twice, which is what the index writes for an id nothing has identified — so
+     * it must not block a name derived from the configs. Anything else is someone's
+     * decision and is left alone.
+     */
+    const char* existing = cp_asset_name_get(ctx, CP_ASSET_MODEL, model_id);
+    if( existing && lc_pack_synthetic_id("model", existing) != model_id )
+        return;
     char name[300];
     snprintf(name, sizeof(name), "%s/%s%s", dir, base, suffix ? suffix : "");
     cp_asset_name_set(ctx, CP_ASSET_MODEL, model_id, name);
@@ -508,8 +526,12 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
     for( int i = 0; i < rt->id_count; i++ )
     {
         int id = rt->ids[i];
-        if( cp_asset_name_get(ctx, CP_ASSET_MAP, id) )
-            continue; /* the tree already named it */
+        /* The tree already named it — unless the "name" is `map_<id>` filler,
+         * which is the index recording that nothing has identified the square yet
+         * and must not block the identification. Same rule as `name_model`. */
+        const char* existing = cp_asset_name_get(ctx, CP_ASSET_MAP, id);
+        if( existing && lc_pack_synthetic_id("map", existing) != id )
+            continue;
         char name[32];
         name[0] = '\0';
         if( identified )
@@ -586,6 +608,132 @@ parse_asset_list(
     return 1;
 }
 
+/**
+ * Is any prefix of this path a name the index lists?
+ *
+ * `rel` is a file's path under the table's root, e.g. `npc/goblin.model`,
+ * `m15_32.extra2.bin`, `bankmain/12.bmp`, `texture_0/47.texture`. The export names
+ * a file after a pack entry and then decorates it — an extension, a second
+ * extension, a directory of members or of sprite frames — so a file belongs to the
+ * table exactly when some prefix of its path is an entry.
+ *
+ * Prefixes are tried longest-first by cutting at each `/` and `.` from the right,
+ * which is deliberately generous: the cost of a false *orphan* is telling someone
+ * to delete real content, and the cost of a false *match* is one unreported stale
+ * file. Only the first is worth avoiding.
+ */
+static int
+path_belongs(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId id,
+    const char* rel)
+{
+    char stem[1600];
+    snprintf(stem, sizeof(stem), "%s", rel);
+
+    for( ;; )
+    {
+        /*
+         * Resolve the stem to an id, then check the id still *answers to that name*.
+         *
+         * `cp_asset_name_find` alone is not enough, and the difference is the whole
+         * check: it falls back to `<ns>_<id>`, so `interface_0.if` resolves to id 0
+         * whatever the index calls interface 0 today. That is right for reading a
+         * reference and wrong for deciding whether a file is live — it accepted 934
+         * of the tree's 942 stale interface files, which were named
+         * `interface_<id>` before archive 14 was decoded.
+         */
+        int found = cp_asset_name_find(ctx, id, stem);
+        if( found >= 0 )
+        {
+            const char* current = cp_asset_name_get(ctx, id, found);
+            if( current && strcmp(current, stem) == 0 )
+                return 1;
+        }
+        /* A multi-file member is `<archive>/<member>`; its archive is the entry, and
+         * the loop reaches that by cutting the member off. */
+        char* cut = NULL;
+        for( char* scan = stem; *scan; scan++ )
+        {
+            if( *scan == '/' || *scan == '.' )
+                cut = scan;
+        }
+        if( !cut )
+            return 0;
+        *cut = '\0';
+        if( !stem[0] )
+            return 0;
+    }
+}
+
+/**
+ * Report files under `root` that no index entry accounts for.
+ *
+ * A rename leaves the old file behind: re-exporting interfaces under the cache's
+ * own names wrote 968 files and left 942 older-named ones next to them, and nothing
+ * said so. That matters beyond untidiness — the tree stops being a faithful
+ * statement of the cache, and the next reader cannot tell which of two plausible
+ * files is live.
+ *
+ * Reported, never deleted. The prefix rule below is generous on purpose, and a tool
+ * that removes content on a heuristic is a worse trade than a line of output.
+ */
+static void
+report_orphans(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId id,
+    const char* root)
+{
+    /* Depth-first, iteratively: the asset tree is at most two levels deep, but a
+     * recursive walk over 61,615 models is a lot of stack for no reason. */
+    char dirs[64][1400];
+    int depth = 0;
+    int orphans = 0;
+    char first[1500] = "";
+
+    snprintf(dirs[depth++], sizeof(dirs[0]), "%s", root);
+    while( depth > 0 )
+    {
+        char here[1400];
+        snprintf(here, sizeof(here), "%s", dirs[--depth]);
+        DIR* handle = opendir(here);
+        struct dirent* entry;
+
+        if( !handle )
+            continue;
+        while( (entry = readdir(handle)) )
+        {
+            if( entry->d_name[0] == '.' )
+                continue;
+            char path[1500];
+            snprintf(path, sizeof(path), "%s/%s", here, entry->d_name);
+            struct stat info;
+            if( stat(path, &info) != 0 )
+                continue;
+            if( S_ISDIR(info.st_mode) )
+            {
+                if( depth < (int)(sizeof(dirs) / sizeof(dirs[0])) )
+                    snprintf(dirs[depth++], sizeof(dirs[0]), "%s", path);
+                continue;
+            }
+            /* Relative to the table's root, which is what an index entry names. */
+            const char* rel = path + strlen(root);
+            while( *rel == '/' )
+                rel++;
+            if( path_belongs(ctx, id, rel) )
+                continue;
+            if( !orphans )
+                snprintf(first, sizeof(first), "%s", rel);
+            orphans++;
+        }
+        closedir(handle);
+    }
+
+    if( orphans )
+        printf("  %-19s %6d file(s) no index entry accounts for, e.g. %s\n", "  orphaned",
+               orphans, first);
+}
+
 static int
 export_one(
     struct CP_Ctx* ctx,
@@ -636,8 +784,7 @@ export_one(
         char path[1500];
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
-        int multifile = (asset->flags & CP_ASSET_MULTIFILE) && archive->file_count > 1;
-        if( codec && codec->write && !multifile )
+        if( codec && codec->write )
         {
             snprintf(path, sizeof(path), "%s/%s", root, name);
             char* slash = strrchr(path, '/');
@@ -660,47 +807,6 @@ export_one(
             ctx->warn_unknown_key++;
         }
 
-        if( multifile )
-        {
-            /* Several files under one id: the archive becomes a directory, so the
-             * file ids inside it stay addressable and the round trip can put them
-             * back in the same archive. */
-            struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
-                archive->data, archive->data_size, archive->file_count);
-            if( files )
-            {
-                snprintf(path, sizeof(path), "%s/%s", root, name);
-                if( ensure_dir_recursive(path) == 0 )
-                {
-                    for( int f = 0; f < files->file_count; f++ )
-                    {
-                        int file_id = archive->file_ids ? archive->file_ids[f] : f;
-                        const uint8_t* payload = (const uint8_t*)files->files[f];
-                        int payload_size = files->file_sizes[f];
-                        if( codec && codec->write )
-                        {
-                            snprintf(path, sizeof(path), "%s/%s/%d", root, name, file_id);
-                            if( codec->write(ctx, file_id, payload, payload_size, NULL, 1,
-                                             path) )
-                            {
-                                written++;
-                                bytes += payload_size;
-                                continue;
-                            }
-                        }
-                        const char* ext = cp_asset_extension(id, payload, payload_size);
-                        snprintf(path, sizeof(path), "%s/%s/%d.%s", root, name, file_id, ext);
-                        if( write_file(path, payload, payload_size) )
-                        {
-                            written++;
-                            bytes += payload_size;
-                        }
-                    }
-                }
-                RSCache_FileListFree(files);
-            }
-        }
-        else
         {
             const uint8_t* payload = (const uint8_t*)archive->data;
             int payload_size = archive->data_size;
@@ -728,6 +834,7 @@ export_one(
     }
 
     printf("  %-19s %6d files, %lld bytes\n", asset->dir, written, bytes);
+    report_orphans(ctx, id, root);
     *out_bytes += bytes;
     return written;
 }
@@ -775,12 +882,14 @@ cp_assets_export(
  * exists on disk still has a pack line, and that line is the id it goes to.
  */
 
-struct CP_AssetFile
-{
-    int file_id;
-    uint8_t* data;
-    int size;
-};
+/* Forward: the fidelity pass reuses the import side's file reader, because
+ * measuring a different code path than the build runs would measure the wrong
+ * thing. */
+static int
+read_file(
+    const char* path,
+    uint8_t** out_data,
+    int* out_size);
 
 static int
 read_file(
@@ -810,156 +919,6 @@ read_file(
     *out_data = data;
     *out_size = (int)size;
     return 1;
-}
-
-/** Strip the extension so a file's basename can be matched against the pack. */
-static void
-basename_no_ext(
-    const char* filename,
-    char* out,
-    int out_size)
-{
-    snprintf(out, (size_t)out_size, "%s", filename);
-    char* dot = strrchr(out, '.');
-    if( dot )
-        *dot = '\0';
-}
-
-static int
-compare_file_id(
-    const void* lhs,
-    const void* rhs)
-{
-    return ((const struct CP_AssetFile*)lhs)->file_id -
-           ((const struct CP_AssetFile*)rhs)->file_id;
-}
-
-/**
- * Rebuild one archive's payload from a directory of numbered files.
- *
- * The file ids have to come back sorted: the container stores them ascending and
- * the reference table's child list is read in the same order, so an archive
- * assembled in readdir order decodes with every file under the wrong id.
- */
-static uint8_t*
-build_multifile_payload(
-    struct CP_Ctx* ctx,
-    enum CP_AssetId asset_id,
-    const char* dir,
-    int** out_ids,
-    int* out_count,
-    int* out_size)
-{
-    const struct CP_AssetCodec* codec = asset_codec(cp_asset(asset_id));
-    DIR* handle = opendir(dir);
-    if( !handle )
-        return NULL;
-
-    struct CP_AssetFile* files = NULL;
-    int count = 0, capacity = 0;
-    struct dirent* entry;
-    while( (entry = readdir(handle)) )
-    {
-        if( entry->d_name[0] == '.' )
-            continue;
-        char stem[256];
-        basename_no_ext(entry->d_name, stem, sizeof(stem));
-        char* end = NULL;
-        long file_id = strtol(stem, &end, 10);
-        if( end == stem || *end )
-            continue;
-
-        char path[1600];
-        uint8_t* data = NULL;
-        int size = 0;
-        if( codec && codec->read )
-        {
-            /* The member's friendly form sits at `<dir>/<id>` without an
-             * extension, which is where the exporter put it. */
-            int* ignored_ids = NULL;
-            int ignored_count = 0;
-            snprintf(path, sizeof(path), "%s/%d", dir, (int)file_id);
-            data = codec->read(ctx, (int)file_id, path, &ignored_ids, &ignored_count, &size);
-            free(ignored_ids);
-        }
-        if( !data )
-        {
-            snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-            if( !read_file(path, &data, &size) )
-                continue;
-        }
-
-        if( count == capacity )
-        {
-            int next = capacity ? capacity * 2 : 16;
-            struct CP_AssetFile* grown = realloc(files, (size_t)next * sizeof(*grown));
-            if( !grown )
-            {
-                free(data);
-                break;
-            }
-            files = grown;
-            capacity = next;
-        }
-        files[count].file_id = (int)file_id;
-        files[count].data = data;
-        files[count].size = size;
-        count++;
-    }
-    closedir(handle);
-
-    if( count == 0 )
-    {
-        free(files);
-        return NULL;
-    }
-    qsort(files, (size_t)count, sizeof(*files), compare_file_id);
-
-    struct RSCache_FileList list;
-    memset(&list, 0, sizeof(list));
-    list.file_count = count;
-    list.files = malloc((size_t)count * sizeof(char*));
-    list.file_sizes = malloc((size_t)count * sizeof(int));
-    int* ids = malloc((size_t)count * sizeof(int));
-    uint8_t* payload = NULL;
-    if( list.files && list.file_sizes && ids )
-    {
-        for( int i = 0; i < count; i++ )
-        {
-            list.files[i] = (char*)files[i].data;
-            list.file_sizes[i] = files[i].size;
-            ids[i] = files[i].file_id;
-        }
-        uint32_t bound = RSCache_FileListEncodeBound(&list);
-        payload = malloc(bound ? bound : 1);
-        if( payload )
-        {
-            uint32_t written = RSCache_FileListEncode(&list, payload, bound);
-            if( written == 0 )
-            {
-                free(payload);
-                payload = NULL;
-            }
-            else
-            {
-                *out_size = (int)written;
-            }
-        }
-    }
-
-    for( int i = 0; i < count; i++ )
-        free(files[i].data);
-    free(files);
-    free(list.files);
-    free(list.file_sizes);
-    if( !payload )
-    {
-        free(ids);
-        return NULL;
-    }
-    *out_ids = ids;
-    *out_count = count;
-    return payload;
 }
 
 /**
@@ -1048,18 +1007,14 @@ import_one(
         int file_count = 0;
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
-        if( codec && codec->read && !(asset->flags & CP_ASSET_MULTIFILE) )
+        if( codec && codec->read )
             payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
 
         if( payload )
         {
-            /* handled by the codec */
-        }
-        else if( (asset->flags & CP_ASSET_MULTIFILE) && stat(base, &info) == 0 &&
-            S_ISDIR(info.st_mode) )
-        {
-            payload = build_multifile_payload(ctx, id, base, &file_ids, &file_count,
-                                              &payload_size);
+            /* Handled by the codec, which also hands back the member list — in *file
+             * order*, so the container and the reference table's child list agree
+             * with what the file states rather than with a sort. */
         }
         else
         {
@@ -1121,4 +1076,232 @@ cp_assets_import(
     }
     printf("Imported %d asset archives.\n", total);
     return 1;
+}
+
+/* ---- fidelity ----------------------------------------------------------- */
+
+/*
+ * The bar for the asset half of the tree, and it is not the same bar for every
+ * table (docs/CONTENT_PACK_PLAN.md §0.2).
+ *
+ * **Whole-cache byte-identity is the wrong bar and is not used.** It is
+ * unreachable for a reason that loses nothing: Jagex's packer does not write
+ * config opcodes in ascending order and the encoders do, so records come back at
+ * identical length with different byte order (EXCEPTIONS.md B3). Chasing it would
+ * raise one column and change nothing observable.
+ *
+ * What the tables here divide into:
+ *
+ *   pass-through   No codec and one payload per archive: the file *is* the
+ *                  payload, so there is nothing between the bytes on disk and the
+ *                  bytes in the cache and nothing that could lose a field. These
+ *                  are reported as pass-through rather than measured, because a
+ *                  measurement of an identity function is theatre.
+ *
+ *   round-tripped  A codec. It re-derives the payload from its friendly form and
+ *                  can therefore lose or reorder bytes — including, for a codec
+ *                  that owns an archive's whole member list, losing a member. These
+ *                  are measured, and the enforced bar is `differ == 0`: a length
+ *                  change is a field (or a member) that did not survive, while a
+ *                  same-length mismatch is ordering and costs nothing.
+ *
+ * Sprites are the worked example of why the bar is length rather than bytes: they
+ * measure 100% same-length and 24-29% exact, because the decoder does not retain
+ * the per-sprite flags byte and always writes row-major. Nothing is lost; the
+ * bytes are simply in a different order.
+ */
+
+struct CP_AssetFidelity
+{
+    /** Archives examined. An archive counts once, as one payload, however many
+     *  members its codec writes into one file. */
+    int records;
+    int exact;
+    /** Same length, different bytes: ordering, not loss. */
+    int same_len;
+    /** Different length: a field did not survive. This is the one that fails. */
+    int differ;
+    /** Went through the friendly codec rather than the raw fallback. */
+    int via_codec;
+    /** The codec declined and the raw payload was used — normal, and counted so
+     *  a `via_codec` of zero is distinguishable from a codec that never ran. */
+    int declined;
+    /** Could not be loaded at all: an XTEA-encrypted map with no key. A property
+     *  of the dump, not of the codec, so it is excluded from the bar. */
+    int unreadable;
+};
+
+/** Round-trip one single-payload archive through its codec. */
+static void
+verify_codec_archive(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId id,
+    struct RSCache_Dat2DiskArchive* archive,
+    const char* stem,
+    struct CP_AssetFidelity* fid)
+{
+    const struct CP_AssetCodec* codec = asset_codec(cp_asset(id));
+
+    fid->records++;
+    if( !codec->write(ctx, archive->archive_id, (const uint8_t*)archive->data, archive->data_size,
+                      archive->file_ids, archive->file_count, stem) )
+    {
+        /* Declined. The exporter writes the raw payload instead, which is exact by
+         * construction, so this is a pass rather than a gap — 4,139 of osrs239's
+         * 9,725 clientscripts take that path. */
+        fid->declined++;
+        fid->exact++;
+        return;
+    }
+    fid->via_codec++;
+
+    int* ids = NULL;
+    int count = 0;
+    int size = 0;
+    uint8_t* rebuilt = codec->read(ctx, archive->archive_id, stem, &ids, &count, &size);
+    if( !rebuilt )
+    {
+        /* Written but not readable back is a real defect: the exporter would have
+         * put the friendly form in the tree and the build would then fall back to
+         * a raw file that is not there. */
+        fid->differ++;
+        return;
+    }
+    if( size != archive->data_size )
+        fid->differ++;
+    else if( memcmp(rebuilt, archive->data, (size_t)size) == 0 )
+        fid->exact++;
+    else
+        fid->same_len++;
+    free(rebuilt);
+    free(ids);
+}
+
+static int
+verify_one_asset(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId id,
+    const char* tmpdir)
+{
+    const struct CP_Asset* asset = cp_asset(id);
+    int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+    {
+        printf("  %-19s %8s  absent from this cache\n", asset->dir, "-");
+        return 1;
+    }
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+    if( !rt )
+    {
+        printf("  %-19s %8s  no reference table\n", asset->dir, "-");
+        return 1;
+    }
+
+    const struct CP_AssetCodec* codec = asset_codec(asset);
+    if( !codec )
+    {
+        /* Nothing sits between the file and the payload. Stated, not measured. */
+        printf("  %-19s %8d  pass-through (payload is the file)\n", asset->dir, rt->id_count);
+        return 1;
+    }
+
+    char root[1500];
+    snprintf(root, sizeof(root), "%s/%s", tmpdir, asset->pack);
+    if( ensure_dir_recursive(root) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", root);
+        return 0;
+    }
+
+    struct CP_AssetFidelity fid;
+    memset(&fid, 0, sizeof(fid));
+
+    for( int a = 0; a < rt->id_count; a++ )
+    {
+        int archive_id = rt->ids[a];
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(ctx->cache.disk, table_id, archive_id);
+        if( !archive )
+        {
+            fid.unreadable++;
+            continue;
+        }
+        if( !RSCache_Dat2DiskArchiveInitMetadata(ctx->cache.disk, archive) )
+        {
+            RSCache_Dat2DiskArchiveFree(archive);
+            fid.unreadable++;
+            continue;
+        }
+
+        char path[1600];
+        if( codec->write && codec->read )
+        {
+            snprintf(path, sizeof(path), "%s/%d", root, archive_id);
+            verify_codec_archive(ctx, id, archive, path, &fid);
+        }
+        else
+        {
+            /* A codec with only one half: the raw payload is what gets written. */
+            fid.records++;
+            fid.exact++;
+        }
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
+
+    /*
+     * A semantic-only codec is exempt, and the exemption is reported rather than
+     * folded away — a table nobody is holding to a byte bar should look different
+     * in the output from one that met it.
+     */
+    int semantic = codec && codec->semantic_only;
+    printf("  %-19s %8d %8d %8d %8d   %6d %6d %6d%s\n", asset->dir, fid.records, fid.exact,
+           fid.same_len, fid.differ, fid.via_codec, fid.declined, fid.unreadable,
+           semantic ? "  (semantic bar; see test_cs2)" : fid.differ ? "  <-- length changed" : "");
+    return semantic || fid.differ == 0;
+}
+
+int
+cp_assets_verify(
+    struct CP_Ctx* ctx,
+    const char* assets_csv,
+    const char* tmpdir)
+{
+    assert_extensions_distinct();
+
+    unsigned mask = 0;
+    if( !parse_asset_list(assets_csv, &mask) )
+        return 0;
+    int all = mask == 0;
+
+    /* The same naming pass the export does, so a codec that writes into a
+     * name-derived path is exercised the way the build exercises it. */
+    if( all || (mask & (1u << CP_ASSET_MODEL)) )
+        cp_assets_name_models(ctx);
+    if( all || (mask & (1u << CP_ASSET_MAP)) )
+        cp_assets_name_maps(ctx);
+
+    if( ensure_dir_recursive(tmpdir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create the scratch directory %s\n", tmpdir);
+        return 0;
+    }
+    printf("Asset fidelity (scratch: %s)\n", tmpdir);
+    printf("  %-19s %8s %8s %8s %8s   %6s %6s %6s\n", "table", "records", "exact", "same-len",
+           "differ", "codec", "declin", "unread");
+
+    int ok = 1;
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        if( !all && !(mask & (1u << i)) )
+            continue;
+        if( !verify_one_asset(ctx, i, tmpdir) )
+            ok = 0;
+    }
+
+    printf("\n`differ` is the only column that fails a run: it means the payload came back a\n"
+           "different length, i.e. a field did not survive. `same-len` is byte ordering —\n"
+           "sprites are 100%% same-length and 24-29%% exact, and lose nothing.\n"
+           "`unread` is almost always an XTEA-encrypted map square whose key is not in\n"
+           "xteas.json; that is a property of the dump, not of the codec.\n");
+    return ok;
 }

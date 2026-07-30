@@ -1,5 +1,7 @@
 #include "cp_register.h"
 
+#include "cachepack.h"
+#include "cp_assets.h"
 #include "ini.h"
 
 #include <stdio.h>
@@ -20,6 +22,57 @@ struct CP_RegisterEntry
 
 static struct CP_RegisterEntry g_entries[CP_REGISTER_MAX];
 static int g_count;
+
+/**
+ * The gameval archive naming `ns`, or -1 — from the codec tables themselves.
+ *
+ * The fourth column of `cp_types.c` and `cp_assets.c` is the only statement of
+ * this fact cachepack has, so reading it here rather than restating it is what
+ * keeps the register's default from being a third table that can drift.
+ *
+ * Returns -2 for a namespace neither table knows, which is a different answer
+ * from "known, and unnamed": `stat` is not cachepack's to have an opinion about,
+ * and treating it as unnamed would silently pass a check it was never in scope
+ * for.
+ */
+static int
+gameval_archive_for(const char* ns)
+{
+    /*
+     * Named by archive 14 alongside the interfaces, but not a table of its own.
+     *
+     * One archive-14 record holds an interface's name *and* every one of its
+     * components as `u16 child` + name pairs, so components are as
+     * machine-generated as interfaces are — they simply have no reference table
+     * to appear in. Without this row the derived default would call
+     * `component.pack` authored and stop regenerating it.
+     */
+    if( strcmp(ns, "component") == 0 )
+        return 14;
+
+    for( int i = 0; i < CP_TYPE_COUNT; i++ )
+    {
+        if( strcmp(cp_type(i)->name, ns) == 0 )
+            return cp_type(i)->gameval_archive;
+    }
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+    {
+        if( strcmp(cp_asset(i)->pack, ns) == 0 )
+            return cp_asset(i)->gameval_archive;
+    }
+    return -2;
+}
+
+static const struct CP_RegisterEntry*
+find_entry(const char* ns)
+{
+    for( int i = 0; i < g_count; i++ )
+    {
+        if( strcmp(g_entries[i].name, ns) == 0 )
+            return &g_entries[i];
+    }
+    return NULL;
+}
 
 /*
  * Trim in place and drop an inline comment.
@@ -124,12 +177,47 @@ cp_register_load(const char* srcdir)
 bool
 cp_register_may_write_pack(const char* ns)
 {
+    const struct CP_RegisterEntry* entry = find_entry(ns);
+
+    if( entry )
+        return entry->machine_owned;
+    /*
+     * Undeclared falls back to the fact, not to yes.
+     *
+     * A namespace is machine-owned exactly when there is a gameval archive to
+     * generate it from. `-2` (neither table knows the namespace) means cachepack
+     * does not generate it either, so it is not cachepack's to rewrite.
+     */
+    return gameval_archive_for(ns) >= 0;
+}
+
+int
+cp_register_check(void)
+{
+    int violations = 0;
+
     for( int i = 0; i < g_count; i++ )
     {
-        if( strcmp(g_entries[i].name, ns) == 0 )
-            return g_entries[i].machine_owned;
+        const char* ns = g_entries[i].name;
+        int archive = gameval_archive_for(ns);
+
+        if( archive == -2 )
+            continue; /* not a table cachepack has */
+        if( g_entries[i].machine_owned == (archive >= 0) )
+            continue;
+
+        if( g_entries[i].machine_owned )
+            fprintf(stderr,
+                    "cachepack: content.ini declares `%s` as `names = cache`, but no gameval "
+                    "archive names it — regenerating pack/%s.pack would delete names nothing "
+                    "can put back\n",
+                    ns, ns);
+        else
+            fprintf(stderr,
+                    "cachepack: content.ini declares `%s` as authored, but gameval archive %d "
+                    "names it — the cache's own names will never be imported\n",
+                    ns, archive);
+        violations++;
     }
-    /* Undeclared means machine-owned, which is what cachepack assumed before the
-     * register existed. */
-    return true;
+    return violations;
 }

@@ -8,6 +8,7 @@
 #include "mock230.h"
 #include "mock230_bank.h"
 #include "mock230_content.h"
+#include "mock230_db.h"
 #include "mock230_ids.h"
 
 #include <stdio.h>
@@ -95,7 +96,13 @@ mock230_boot_load(const struct Mock230BootConfig* config)
      *    step 1 decoded. */
     mock230_content_load(config->content_dir);
 
-    /* 3. Every interface, component and varbit the engine addresses is a name
+    /* 3. The db tables, which resolve their own ids and their `^constants` out
+     *    of what step 2 loaded. Separate from step 2 because a `.dbrow` also
+     *    resolves obj/npc/loc names, so it needs the whole symbol space, not
+     *    just the packs. */
+    mock230_db_load(config->content_dir);
+
+    /* 4. Every interface, component and varbit the engine addresses is a name
      *    in that tree. */
     mock230_ids_resolve();
 
@@ -115,5 +122,9 @@ mock230_boot_free(void)
     mock230_npcinfo_free();
     mock230_seqinfo_free();
     mock230_varbit_free();
+    /* Before the content, which owns the `^constants` a dbrow's values expanded
+     * from — the strdup'd copies are ours, but the diagnostics on a double free
+     * are much clearer when teardown mirrors load order. */
+    mock230_db_free();
     mock230_content_free();
 }

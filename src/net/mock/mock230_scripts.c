@@ -16,6 +16,7 @@
 
 #include "mock230_content.h"
 #include "mock230_ids.h"
+#include "mock230_scene.h"
 #include "mock230_session.h"
 
 #include "ss_meta.h"
@@ -668,6 +669,11 @@ mock230_script_command(
 
     (void)dot;
 
+    /* Per-domain handlers first. Each returns 1 when it owns the opcode; see the
+     * note on mock230_ops_db in mock230.h for why the split grows this way. */
+    if( mock230_ops_db(state, opcode, dot) )
+        return 1;
+
     switch( opcode )
     {
     /* ---- messaging ------------------------------------------------ */
@@ -975,6 +981,41 @@ mock230_script_command(
         for( int i = 0; items && i < slots; i++ )
         {
             if( items[i].obj_id == values[1] )
+                total += items[i].count;
+        }
+        SSVM_PushInt(state, total);
+        return 1;
+    }
+
+    case SS_OP_INV_TOTALCAT:
+    {
+        int32_t values[2];
+        int slots = 0;
+        struct Mock230Item* items;
+        int total = 0;
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        /*
+         * Category 0 is the decoder's "no category stated", so it matches every
+         * uncategorised obj in the game. pack/category.pack says content must
+         * not bind to it; counting it here would be the same mistake with a
+         * quieter symptom, so refuse instead.
+         */
+        if( values[1] <= 0 )
+        {
+            SSVM_Abort(state, "inv_totalcat with category %d (0 means unset)", values[1]);
+            return 1;
+        }
+        items = container_for(srv, values[0], &slots);
+        for( int i = 0; items && i < slots; i++ )
+        {
+            if( items[i].obj_id < 0 )
+                continue;
+            if( mock230_objinfo(items[i].obj_id)->category == values[1] )
                 total += items[i].count;
         }
         SSVM_PushInt(state, total);
@@ -1664,6 +1705,161 @@ mock230_script_command(
     case SS_OP_MAP_MEMBERS:
         SSVM_PushInt(state, 0);
         return 1;
+
+    /*
+     * A rectangle test, and the argument order is the trap.
+     *
+     * `inzone(from, to, pos)` pushes three coords, so they pop in reverse: pos
+     * first. Getting that backwards makes the test read "is `from` inside the
+     * rectangle (to, pos)", which is true often enough to look like it works.
+     *
+     * The reference tests all three axes including level, and its own comparison
+     * assumes `from` is the south-west corner and `to` the north-east. A caller
+     * that passes them the other way round gets an empty rectangle rather than a
+     * diagnostic, in the reference too.
+     */
+    case SS_OP_INZONE:
+    {
+        int32_t corner_sw;
+        int32_t corner_ne;
+        int32_t pos;
+        int inside;
+
+        if( !SSVM_PopInt(state, &pos) || !SSVM_PopInt(state, &corner_ne) ||
+            !SSVM_PopInt(state, &corner_sw) )
+            return 1;
+        inside = coord_x(pos) >= coord_x(corner_sw) && coord_x(pos) <= coord_x(corner_ne) &&
+                 coord_z(pos) >= coord_z(corner_sw) && coord_z(pos) <= coord_z(corner_ne) &&
+                 coord_level(pos) >= coord_level(corner_sw) &&
+                 coord_level(pos) <= coord_level(corner_ne);
+        SSVM_PushInt(state, inside);
+        return 1;
+    }
+
+    /*
+     * Does this tile block walking?
+     *
+     * The reference is `isFlagged(x, z, level, CollisionFlag.WALK_BLOCKED)`, and
+     * `COLL_FLAG_WALK_BLOCKED` in collision_map.h is that same composite
+     * (LOC | FLOOR | ANTIMACRO). Reading it off the CollisionMap the scene
+     * already built means the server and the client answer this from one model
+     * rather than two that can drift.
+     *
+     * A tile outside the built scene reports *blocked*. That is the safe
+     * direction: content asks this before dropping a fire or picking a wander
+     * target, and "unknown" has to mean "don't" or the loop spawns things in
+     * unloaded map.
+     */
+    case SS_OP_MAP_BLOCKED:
+    {
+        int32_t coord;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state, mock230_scene_walk_blocked(coord_level(coord),
+                                                       coord_x(coord),
+                                                       coord_z(coord)));
+        return 1;
+    }
+
+    /*
+     * How many players stand inside a rectangle.
+     *
+     * One player for now — but the count, not a boolean, because the content
+     * that asks (`~playercount_coord_pair_table`) compares it against a
+     * threshold. The reference walks the zones the rectangle covers; this walks
+     * the player pool, which is the same answer while the pool is small and is
+     * what the zone map (§6.1 step 3) will replace.
+     */
+    case SS_OP_MAP_PLAYERCOUNT:
+    {
+        int32_t corner_sw;
+        int32_t corner_ne;
+        int count = 0;
+
+        if( !SSVM_PopInt(state, &corner_ne) || !SSVM_PopInt(state, &corner_sw) )
+            return 1;
+        for( int i = 0; i < srv->player_count; i++ )
+        {
+            const struct Mock230Player* other = &srv->players[i];
+
+            if( other->level < coord_level(corner_sw) ||
+                other->level > coord_level(corner_ne) )
+                continue;
+            if( other->x < coord_x(corner_sw) || other->x > coord_x(corner_ne) )
+                continue;
+            if( other->z < coord_z(corner_sw) || other->z > coord_z(corner_ne) )
+                continue;
+            count++;
+        }
+        SSVM_PushInt(state, count);
+        return 1;
+    }
+
+    /* ---- enums ----------------------------------------------------- */
+
+    /*
+     * `enum(inputtype, outputtype, enum, key)`.
+     *
+     * The declared output type decides **which stack** the result goes on, so
+     * this is one of the few host commands where getting a type wrong does not
+     * produce a wrong number — it produces a wrong *stack depth*, and every
+     * value the script reads afterwards is somebody else's. That is why the
+     * reference validates the declared types against the enum's own and why this
+     * aborts rather than guessing.
+     *
+     * A key with no entry yields the enum's `default=`, not an error: the
+     * reference's content relies on that for sparse tables.
+     */
+    case SS_OP_ENUM:
+    {
+        int32_t values[4];
+        const struct Mock230EnumDef* def;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        def = mock230_content_enum_by_id(values[2]);
+        if( !def )
+        {
+            SSVM_Abort(state, "enum %d is not defined by any .enum config", values[2]);
+            return 1;
+        }
+        for( int i = 0; i < def->count; i++ )
+        {
+            if( def->values[i].key != values[3] )
+                continue;
+            if( def->output_is_string )
+                SSVM_PushStr(state, def->values[i].text ? def->values[i].text : "");
+            else
+                SSVM_PushInt(state, def->values[i].value);
+            return 1;
+        }
+        if( def->output_is_string )
+            SSVM_PushStr(state, def->default_text ? def->default_text : "null");
+        else
+            SSVM_PushInt(state, def->default_int);
+        return 1;
+    }
+
+    case SS_OP_ENUM_GETOUTPUTCOUNT:
+    {
+        int32_t enum_id;
+        const struct Mock230EnumDef* def;
+
+        if( !SSVM_PopInt(state, &enum_id) )
+            return 1;
+        def = mock230_content_enum_by_id(enum_id);
+        if( !def )
+        {
+            SSVM_Abort(state, "enum_getoutputcount on undefined enum %d", enum_id);
+            return 1;
+        }
+        SSVM_PushInt(state, def->count);
+        return 1;
+    }
 
     case SS_OP_RANDOM:
     {

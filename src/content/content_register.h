@@ -58,7 +58,7 @@ enum ContentNameAuthority
 
 struct ContentNamespace
 {
-    /** `varp`, `npc`, `stat`. The pack file is `<name>.pack` in both layers. */
+    /** `varp`, `npc`, `stat`. The pack file is `pack/<name>.pack`. */
     char name[48];
     enum ContentIdAuthority ids;
     enum ContentNameAuthority names;
@@ -66,6 +66,48 @@ struct ContentNamespace
      *  that set it — varp/varbit/varn/vars all answer to `%name`, so a name
      *  cannot mean one of each. */
     int shared_var_domain;
+    /**
+     * Archive id in the cache's gameval table (OSRS idx 24) that names this
+     * namespace, or -1 when the cache names nothing here.
+     *
+     * Stated in the register because it is the *evidence* for the `names`
+     * column, and keeping the two apart is what let three namespaces claim
+     * `names = cache` while having no archive to be generated from — which told
+     * cachepack it could rewrite `pack/param.pack`, and the save path then
+     * deleted the 58-line header justifying every name in it.
+     *
+     * With both facts in one row the invariant is checkable without either side
+     * having to see the other's table: `names == CONTENT_NAMES_CACHE` if and
+     * only if `gameval_archive >= 0`. `ContentRegister_Validate` is that check.
+     */
+    int gameval_archive;
+    /**
+     * The first id this tree may allocate in the namespace, or 0 for one where
+     * allocating is meaningless.
+     *
+     * Adding an npc or a model means picking a number the client's cache does not
+     * use. With the cache pinned to one revision (docs/CONTENT_PACK_PLAN.md §0,
+     * decision 1) the largest id it states is a *constant*, so this needs no
+     * headroom gate — only somewhere to start, written down where both the
+     * allocator and the boot check can see it.
+     *
+     * A round number above the cache's maximum rather than `max + 1`, so an id in
+     * a log reads as ours at a glance. `param` is the exception at 2634, which is
+     * exactly `max + 1`: those ids are already allocated and referenced by
+     * content, and renumbering them again would be a second migration for no gain.
+     *
+     * **Zero means do not allocate**, and three kinds of namespace mean it:
+     *
+     *   - the id is composed from something else, so a counter cannot produce a
+     *     valid one — `map` is `(x << 8) | z`, `component` is
+     *     `(interface << 16) | child`, a `dbrow` is addressed through its table;
+     *   - the wire fixes it (`stat`);
+     *   - nobody has stated a base yet, which is the safe default. Refusing to
+     *     allocate is recoverable; allocating on top of a real record is the
+     *     failure `pack/param.pack` shipped for a while, when nine server params
+     *     sat on ids the cache already defined.
+     */
+    int server_base;
 };
 
 enum
@@ -98,6 +140,23 @@ ContentRegister_Load(
 /** The defaults, without touching the filesystem. */
 int
 ContentRegister_Defaults(struct ContentRegister* reg);
+
+/**
+ * Refuse a register whose `names` authority contradicts its gameval evidence.
+ *
+ * One rule: a namespace claims `names = cache` if and only if a gameval archive
+ * names it. Claiming it without one tells cachepack to regenerate a file that has
+ * no generator, and the save path used to delete every comment in it; denying it
+ * with one leaves the cache's own names unimported and every id spelled
+ * `<type>_<id>`.
+ *
+ * The failure is a *class* rather than an instance — it recurs every time someone
+ * adds a namespace — which is why this is a check and not a one-off correction.
+ * Each violation is printed with the namespace and both facts. Returns the number
+ * of violations, so 0 means agreement.
+ */
+int
+ContentRegister_Validate(const struct ContentRegister* reg);
 
 /**
  * Trim an ini key or value in place, and drop an inline `;`/`#` comment.

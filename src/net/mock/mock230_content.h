@@ -31,6 +31,34 @@
 #include <stdint.h>
 
 /* ------------------------------------------------------------------ */
+/* Config text                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The three-line grammar every LostCity config shares: `[section]` headers,
+ * `key=value` lines, `//` comments.
+ *
+ * Exported because this file is no longer the only reader — mock230_db.c reads
+ * `.dbtable`/`.dbrow` with the same grammar, and a second copy of "trim a line"
+ * is how two readers of one format start disagreeing about whether a trailing
+ * space is significant.
+ *
+ * All three edit in place and return a pointer into the caller's buffer.
+ */
+
+/** Strip a `//` comment and surrounding whitespace, in place. */
+char*
+mock230_content_clean_line(char* line);
+
+/** Split `key=value` in place. Returns the value, or NULL when there is no `=`. */
+char*
+mock230_content_split_key_value(char* line);
+
+/** `[name]` section header; returns the name in place, or NULL. */
+char*
+mock230_content_section_header(char* line);
+
+/* ------------------------------------------------------------------ */
 /* Symbols                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -49,8 +77,42 @@ enum Mock230PackKind
     MOCK230_PACK_STAT,
     MOCK230_PACK_PARAM,
     MOCK230_PACK_HITSPLAT,
+    /*
+     * The server's own namespaces.
+     *
+     * Nothing in the cache names an enum, struct or dbtable the *server* defines,
+     * so their ids are allocated one past the largest id the cache's own group
+     * holds — `tools/ss_allocate.py`, LostCity's `pack.max++` rule. They share
+     * `pack/<ns>.pack` with the cache's own names where the cache has any
+     * (dbtable, dbrow) and own the file outright where it does not (enum, struct).
+     * See docs/CONTENT_PACK_PLAN.md §4.
+     *
+     * `category` is the odd one and is here for the opposite reason: the id is the
+     * cache's (an obj record's config opcode 94) and only the *name* is ours, so
+     * it has a pack file and no allocator.
+     */
+    MOCK230_PACK_ENUM,
+    MOCK230_PACK_STRUCT,
+    MOCK230_PACK_DBTABLE,
+    MOCK230_PACK_DBROW,
+    MOCK230_PACK_CATEGORY,
+    MOCK230_PACK_HUNT,
+    MOCK230_PACK_VARN,
+    MOCK230_PACK_VARS,
     MOCK230_PACK_COUNT
 };
+
+/**
+ * The namespace a kind is spelled with: `pack/<name>.pack`, and the row
+ * `ContentRegister_Find` answers to. Never NULL.
+ *
+ * Exported because the register is keyed by namespace name and the runtime is keyed
+ * by kind, and something has to bridge the two. One table does it (see the
+ * implementation); a second spelling of the same list is how a kind ends up
+ * loadable and unnameable.
+ */
+const char*
+mock230_content_pack_name(enum Mock230PackKind kind);
 
 /** Id for a symbol, or -1. `null` resolves to -1 without a diagnostic, which is
  *  what LostCity's `default=null` params mean. */
@@ -293,13 +355,18 @@ mock230_content_varp(int varp_id);
  */
 enum
 {
-    MOCK230_ENUM_VALUE_MAX = 64,
+    MOCK230_ENUM_VALUE_MAX = 256,
 };
 
 struct Mock230EnumValue
 {
     int key;
     int value;
+    /** The output when the enum declares `outputtype=string`, else NULL. Owned
+     *  by the def. `value` is meaningless for those entries — read the flag on
+     *  the def, never the pointer, or an enum of empty strings looks like an
+     *  enum of ints. */
+    const char* text;
 };
 
 struct Mock230EnumDef
@@ -307,6 +374,22 @@ struct Mock230EnumDef
     const char* symbol;
     enum Mock230PackKind input_kind;
     enum Mock230PackKind output_kind;
+    /*
+     * Whether each side is *text* rather than a number.
+     *
+     * `input_kind`/`output_kind` cannot carry this: they name the pack a side
+     * resolves against, and both `int` and `string` resolve against no pack at
+     * all, so both arrive as MOCK230_PACK_COUNT. The RuneScript `enum` opcode
+     * has to know the difference because the output type decides which *stack*
+     * it pushes onto — get it wrong and every later value in the script is read
+     * off the wrong stack.
+     */
+    int input_is_string;
+    int output_is_string;
+    /** `default=`. What a key with no entry yields — 0 / "null" in the
+     *  reference, and the reason a missing key is not an error. */
+    int default_int;
+    const char* default_text;
     struct Mock230EnumValue values[MOCK230_ENUM_VALUE_MAX];
     int count;
 };
@@ -314,6 +397,16 @@ struct Mock230EnumDef
 /** An enum by name, or NULL. */
 const struct Mock230EnumDef*
 mock230_content_enum(const char* symbol);
+
+/**
+ * An enum by the id the `enum` namespace gives its name, or NULL.
+ *
+ * This is the lookup RuneScript needs and the C consumers do not: a compiled
+ * script carries the *number* tools/ss_allocate.py assigned, never the name. The
+ * two lookups are the same table read two ways rather than two tables.
+ */
+const struct Mock230EnumDef*
+mock230_content_enum_by_id(int enum_id);
 
 /* ------------------------------------------------------------------ */
 /* Loc definitions (doors, gates, stairs)                              */
@@ -460,5 +553,17 @@ mock230_content_free(void);
 /** Diagnostics: what the last load rejected. Zero means the tree is clean. */
 int
 mock230_content_error_count(void);
+
+/**
+ * Report a rejected config line from *another* reader, counting it here.
+ *
+ * `mock230_db.c` reads `.dbtable`/`.dbrow` and has to fail the same way this file
+ * does, or a tree with a broken dbrow starts anyway and the fight is quietly
+ * wrong. One counter, one prefix, one exit status.
+ */
+void
+mock230_content_report_error(
+    const char* fmt,
+    ...);
 
 #endif

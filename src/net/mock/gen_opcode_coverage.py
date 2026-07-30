@@ -29,9 +29,19 @@ REPO = SRC.parent
 
 # (path, human label). The label reaches the generated comment so a reader can
 # see which layer covers what without opening either file.
+#
+# The per-domain `mock230_ops_*.c` files are *globbed* rather than listed. A
+# hand-kept list of dispatch sources is the same staleness this generator exists
+# to remove, one level up: adding an ops file and forgetting to list it here
+# would silently under-report coverage, so the gap report would name an opcode
+# that is in fact implemented and `test-mock230` would fail on content that is
+# fine. The glob cannot forget.
 SOURCES = [
     (SRC / "serverscript" / "ssvm.c", "VM core"),
     (SRC / "net" / "mock" / "mock230_scripts.c", "host commands"),
+] + [
+    (path, f"host commands ({path.stem.replace('mock230_ops_', '')})")
+    for path in sorted((SRC / "net" / "mock").glob("mock230_ops_*.c"))
 ]
 
 OPCODE_HEADER = SRC / "serverscript" / "ss_opcode.h"

@@ -88,11 +88,22 @@ main(int argc, char** argv)
     for( i = 0; i < pack_count; i++ )
     {
         int loaded = SSC_SymbolsLoadPackDir(&symbols, packs[i]);
+
+        /*
+         * A missing --pack directory warns rather than fails.
+         *
+         * It used to be fatal, which looked careful and was not: a content tree
+         * splits its names across several directories and the *set* of them
+         * changes as the tree is reorganised, so one that has not been created
+         * yet stopped the build for every tree, including the ones that never
+         * had it. Nothing can pass silently either way — a name that does not
+         * resolve is still a hard compile error a few lines below, so the only
+         * thing tolerating this loses is a worse diagnostic for a typo'd path.
+         */
         if( loaded < 0 )
         {
-            fprintf(stderr, "sscompile: no symbol packs at %s\n", packs[i]);
-            SSC_SymbolsFree(&symbols);
-            return 1;
+            fprintf(stderr, "sscompile: no symbol packs at %s (skipping)\n", packs[i]);
+            continue;
         }
         symbol_count += loaded;
     }

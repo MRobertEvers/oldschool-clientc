@@ -91,6 +91,25 @@ mock230_scene_contains(
            z < g_base_z + SCENE_TILES;
 }
 
+int
+mock230_scene_walk_blocked(
+    int level,
+    int x,
+    int z)
+{
+    struct CollisionMap* collision;
+
+    if( !mock230_scene_contains(x, z) )
+        return 1;
+    collision = mock230_scene_collision(level);
+    if( !collision )
+        return 1;
+    return (collision_map_tile(collision, x - g_base_x, z - g_base_z) &
+            COLL_FLAG_WALK_BLOCKED)
+               ? 1
+               : 0;
+}
+
 struct Mock230SceneLoc*
 mock230_scene_loc(int slot)
 {
