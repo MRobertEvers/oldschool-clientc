@@ -6,6 +6,7 @@ extern const struct CP_AssetCodec cp_codec_map;
 extern const struct CP_AssetCodec cp_codec_script;
 extern const struct CP_AssetCodec cp_codec_sprite;
 extern const struct CP_AssetCodec cp_codec_worldmap;
+extern const struct CP_AssetCodec cp_codec_worldmapgeo;
 
 #include "archive.h"
 #include "checksum.h"
@@ -112,9 +113,19 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
         "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
     [CP_ASSET_PATCH] = {
         "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, -1, NULL },
+    /*
+     * 2,057 of osrs239's 2,101 geography archives hold one file and 44 hold two or
+     * three, so the table is split: a one-file archive is still a bare `.wmg` and a
+     * multi-file one becomes a directory plus a filepack.
+     *
+     * Storing a multi-file archive whole made its `.wmg` the concatenation of its
+     * members *plus the container's own trailer*, which is why exactly those 44 were
+     * the only files a correct tile decoder could not read to exact consumption. The
+     * grammar was never the problem; the container was.
+     */
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
-        "worldmap/geography", "worldmapgeo", "wmg",
-        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, -1, NULL },
+        "worldmap/geography", "worldmapgeo", "bin",
+        RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, CP_ASSET_SPLIT, -1, &cp_codec_worldmapgeo },
     /*
      * Two of its archives have a text form and two do not, so it carries both a
      * codec and the split flag: the codec gets first refusal on `details` and

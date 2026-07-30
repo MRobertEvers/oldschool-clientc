@@ -45,6 +45,25 @@ inherit comment preservation and merge semantics. **Ascending ids are the order 
 container gets**, which is the order its payload and the reference table's child
 list must agree on.
 
+**The index lists every member, including the ones a codec claims.** Codec and split
+are not alternatives applied per table; they are applied in order, per member, and one
+archive can need both. A map square is five files and its filepack names all five —
+two at text paths the codec owns, three at `.bin`:
+
+```
+0=m15_32.jm2      terrain
+1=m15_32.jl2      locs
+2=m15_32/2.bin
+```
+
+Locs used to be a second section of the jm2, which made one path stand for two members
+and left the filepack starting at `2=` — the two members with a text form were the only
+ones the index did not name. They are their own file now, so the rule holds without an
+exception: every member is addressable and the index says where it is.
+
+Codec first, split second, on export, on import and in the fidelity pass; those three
+disagreed once, and the packer silently shipped 52 of 54 worldmap archives.
+
 **3. `configs/all.<type>` — config records.** `[name]` blocks of `key=value`, one
 per record, resolved against `pack/<type>.pack`.
 
@@ -56,7 +75,7 @@ per record, resolved against `pack/<type>.pack`.
 |---|---|---|
 | `interface` | `interfaces/bankmain.if` — one block per component | `interfaces/bankmain.compack` |
 | `texture` | `textures/texture_0.texture` — one block per material | `textures/texture_0.compack` |
-| `map` | `maps/m15_32.jm2` — terrain and locs as text | `maps/m15_32.filepack` → `maps/m15_32/2.bin` |
+| `map` | `maps/m15_32.jm2` terrain, `maps/m15_32.jl2` locs | `maps/m15_32.filepack` — all five members |
 | `dbindex` | `dbindex/dbindex_0/0.dbidx` — one file per column | `dbindex/dbindex_0.filepack` |
 | `worldmaparea` | `worldmap/areas/details.wma` — a block per map | `details.compack` |
 | ” | `worldmap/areas/compositetexture/main.png` | `compositetexture.filepack` |
@@ -145,7 +164,8 @@ list.
 Extensions come from the payload's own magic, not from the era: an OldSchool model
 gets `.model` and a real OB2 gets `.ob2`, table 10 gets `.jpg` and table 20 `.png`,
 and the music tables get `.jmid` rather than a `.mid` no player would open — they
-open `17 07 f6 02`, Jagex's container, not MIDI. A codec's extension must differ
+open `17 07 f6 02`, Jagex's container, not MIDI. `.jl2` is this tool's own: a map
+square's locs, in the jm2's grammar, split out so file 1 has a path of its own. A codec's extension must differ
 from the raw fallback's, checked at startup, or a record that declines its codec
 would be packed back as its own text.
 

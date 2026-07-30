@@ -1354,8 +1354,10 @@ const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interfa
 /* ---- maps ---------------------------------------------------------------- */
 
 /*
- * LostCity's `.jm2`: a `==== MAP ====` section of tiles and a `==== LOC ====`
- * section of scenery, both keyed `<level> <x> <z>:`.
+ * LostCity's `.jm2`: a `==== MAP ====` section of tiles keyed `<level> <x> <z>:`,
+ * and beside it a `.jl2` holding the square's `==== LOC ====` scenery in the same
+ * grammar. LostCity keeps both in one file; here they are two, because they are two
+ * members of the archive and the filepack names members.
  *
  * Two things this has to get right that the format does not make obvious.
  *
@@ -1370,22 +1372,26 @@ const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interfa
  * "readable map format" that silently dropped a third of the archive would be a
  * worse trade than no readable format at all.
  *
- * They are files beside the `.jm2`, listed in `<stem>.filepack` — the same index a
- * `dbindex` archive gets, for the same reason: terrain and locs have a text form and
- * live in the jm2, these do not and are bytes.
+ * All five are listed in `<stem>.filepack` — the same index a `dbindex` archive gets.
+ * Files 0 and 1 point at the `.jm2` and the `.jl2`, the rest at `.bin`; what differs
+ * is whether a member has a text form, not whether the index knows about it.
  *
  * They used to be `<stem>.extra<N>.bin` with no index at all, so the member's id was
  * in its *filename* and the importer recovered the member set by probing `extra2`
  * through `extra255` — which meant the archive an import produced depended on what
  * the filesystem happened to hold. The filepack states it instead.
  *
- * **The jm2 is shared with the server, and only two of its sections are ours.**
+ * **The jm2 is shared with the server, and only one of its sections is ours.**
  * A square's `==== NPC ====` and `==== OBJ ====` spawns are content too, but they
  * live on the server and never enter the cache — LostCity keeps them in the same
- * file as the terrain, and so does this. So the codec owns MAP and LOC and treats
- * every other section as somebody else's: preserved verbatim when unpacking over
- * an existing file, skipped when packing. Without that, unpacking would delete
- * the server's spawns and packing would try to read `0 1 63: 1265` as a tile.
+ * file as the terrain, and so does this. So the codec owns MAP and treats every
+ * other section as somebody else's: preserved verbatim when unpacking over an
+ * existing file, skipped when packing. Without that, unpacking would delete the
+ * server's spawns and packing would try to read `0 1 63: 1265` as a tile.
+ *
+ * The spawns stay with the terrain rather than moving to the `.jl2` because they are
+ * the square's, not file 1's — and because `maps/m<x>_<z>.jm2` is the path the server
+ * already scans.
  */
 
 #define CP_MAP_TERRAIN_FILE 0
@@ -1420,7 +1426,13 @@ map_reencodes_exactly(
     return ok;
 }
 
-/** MAP and LOC are the cache's; anything else in the file belongs to the server. */
+/**
+ * MAP is the cache's; anything else in the jm2 belongs to the server.
+ *
+ * LOC is still named here even though locs now live in the `.jl2`, because a jm2
+ * written before the split still has a LOC section and carrying it forward as
+ * "foreign" would duplicate every loc into the server's half of the file.
+ */
 static int
 map_section_is_ours(const char* banner)
 {
@@ -1612,7 +1624,32 @@ map_write(
         }
     }
 
-    fprintf(out, "\n==== LOC ====\n");
+    if( foreign )
+    {
+        fprintf(out, "\n%s", foreign);
+        free(foreign);
+    }
+    fclose(out);
+
+    /*
+     * Locs are file 1, so they are their own file and their own filepack entry.
+     *
+     * They used to be a second section of the jm2, which made one path on disk stand
+     * for two members of the archive — the filepack then started at `2=` and the two
+     * members with a text form were the only ones the index did not name. Splitting
+     * them costs a file and buys the rule back: every member is addressable, and the
+     * index says where each one is.
+     */
+    snprintf(path, sizeof(path), "%s.jl2", path_stem);
+    out = fopen(path, "wb");
+    if( !out )
+    {
+        RSCache_MapTerrainFree(terrain);
+        RSCache_MapLocsFree(locs);
+        RSCache_FileListFree(files);
+        return 0;
+    }
+    fprintf(out, "==== LOC ====\n");
     for( int i = 0; i < locs->locs_count; i++ )
     {
         const struct RSCache_MapLoc* loc = &locs->locs[i];
@@ -1622,11 +1659,6 @@ map_write(
         else
             fprintf(out, "%d %d %d: %d %d %d\n", loc->chunk_pos_level, loc->chunk_pos_x,
                     loc->chunk_pos_z, loc->loc_id, loc->shape_select, loc->orientation);
-    }
-    if( foreign )
-    {
-        fprintf(out, "\n%s", foreign);
-        free(foreign);
     }
     fclose(out);
 
@@ -1657,8 +1689,21 @@ map_write(
             const char* member = NULL;
             char fallback[160];
 
+            /*
+             * Terrain and locs are listed like everything else — they have a text
+             * form, so the index points at the `.jm2` and the `.jl2` rather than at
+             * a `.bin`, and the loop below does not rewrite them.
+             */
             if( id == CP_MAP_TERRAIN_FILE || id == CP_MAP_LOCS_FILE )
+            {
+                char text[200];
+
+                snprintf(text, sizeof(text), "%s.%s", stem_name,
+                         id == CP_MAP_TERRAIN_FILE ? "jm2" : "jl2");
+                lc_pack_set(&extras, id, text);
+                listed++;
                 continue;
+            }
             if( id >= 0 && id < extras.capacity && extras.names )
                 member = extras.names[id];
             if( !member )
@@ -1709,6 +1754,53 @@ map_read(
     char* text = (char*)slurp(path, &text_size);
     if( !text )
         return NULL;
+
+    /*
+     * Locs are their own file, so the two are read together and parsed by one pass —
+     * the section machine below already keys off the banner, and a `.jl2` is nothing
+     * but a `==== LOC ====` section.
+     *
+     * A tree exported before the split still has LOC inside its jm2. Appending would
+     * then read every loc twice, so that case is refused rather than silently
+     * doubled: it is a tree in a state no export produces, and guessing which half is
+     * authoritative would be worse than saying so.
+     */
+    {
+        char jl2_path[1700];
+        int jl2_size = 0;
+        char* jl2;
+
+        snprintf(jl2_path, sizeof(jl2_path), "%s.jl2", path_stem);
+        jl2 = (char*)slurp(jl2_path, &jl2_size);
+        if( jl2 )
+        {
+            if( strstr(text, "==== LOC ====") )
+            {
+                fprintf(stderr,
+                        "cachepack: %s has a LOC section and %s exists — locs are in "
+                        "two places; delete the section from the jm2\n",
+                        path, jl2_path);
+                free(jl2);
+                free(text);
+                return NULL;
+            }
+            char* joined = (char*)malloc((size_t)text_size + (size_t)jl2_size + 2);
+            if( !joined )
+            {
+                free(jl2);
+                free(text);
+                return NULL;
+            }
+            memcpy(joined, text, (size_t)text_size);
+            joined[text_size] = '\n';
+            memcpy(joined + text_size + 1, jl2, (size_t)jl2_size);
+            joined[text_size + 1 + jl2_size] = '\0';
+            free(text);
+            free(jl2);
+            text = joined;
+            text_size = text_size + 1 + jl2_size;
+        }
+    }
 
     struct RSCache_MapTerrain* terrain = calloc(1, sizeof(*terrain));
     struct RSCache_MapLocs* locs = calloc(1, sizeof(*locs));
@@ -1963,6 +2055,12 @@ map_read(
                     int bytes_size = 0;
 
                     if( !member )
+                        continue;
+                    /* 0 and 1 are listed in the filepack too, but they name the jm2
+                     * and the jl2 — already decoded above into terrain and locs, and
+                     * reading them here as raw bytes would add the same two members
+                     * a second time. */
+                    if( extra == CP_MAP_TERRAIN_FILE || extra == CP_MAP_LOCS_FILE )
                         continue;
                     snprintf(path, sizeof(path), "%s/%s", root_dir, member);
                     if( !read_file_bytes(path, &bytes, &bytes_size) )
@@ -3370,5 +3468,783 @@ worldmap_read(
     return payload;
 }
 
+
+
+/* ------------------------------------------------------------------ */
+/* worldmap geography                                                  */
+/* ------------------------------------------------------------------ */
+/*
+ * A world-map geography file is a bare sequence of tiles — no header, no count, no
+ * dimensions. What ends it is the end of the file, so the decoder reads until the
+ * bytes run out, and "exact consumption" is the only thing that says the grammar is
+ * right. 1,981 of osrs239's members come to 4,096 tiles (a 64 x 64 square) and 165
+ * to a multiple of 64 (whole 8 x 8 zones); nothing lands anywhere else.
+ *
+ * One tile:
+ *
+ *     u8  flags       bit0 short form, bit1 overlay, bit2 locs, bits 3-4 levels-1
+ *     flags == 0      an empty tile, and nothing follows
+ *
+ *   short form (bit0):
+ *     u16 overlay     only when bit1
+ *     u16 underlay
+ *
+ *   long form:
+ *     u16 underlay
+ *     when bit1:      u8 count, then count x { u16 overlay; u8 shape<<2|rot if != 0 }
+ *     when bit2:      levels x { u8 count, then count x { u32 loc; u8 shape<<2|rot } }
+ *
+ * **The loc id is a plain u32, not a smart.** The deobfuscated client reads it with
+ * its 2-or-4-byte "bigsmart", and following that put 883 of 2,101 files into a state
+ * where they ran out of bytes mid-tile and 355 parsed by luck. Reading it as a u32
+ * takes that to 2,057 of 2,057 — every single-file archive, exactly. The deob is a
+ * later revision than this cache, and the field was widened somewhere between them;
+ * where the two disagree the bytes win.
+ *
+ * The other 44 archives hold two or three files, and they only became readable once
+ * the table was split (`CP_ASSET_SPLIT`): stored whole, a `.wmg` was its members
+ * concatenated *plus the container's trailer*, so no tile decoder could have read
+ * it. Those 44 were the entire residue — the grammar was never the problem.
+ *
+ * Bits 5-7 of the flags byte are never set anywhere in the table, and the levels
+ * bits are meaningful even when bit2 is clear (83,922 tiles), so `levels` is written
+ * out rather than derived from the presence of a loc list.
+ */
+
+#define CP_GEO_MAX_LEVELS 4
+
+struct CP_GeoLoc
+{
+    uint32_t id;
+    uint8_t attr;
+};
+
+struct CP_GeoOverlay
+{
+    uint16_t id;
+    uint8_t attr; /* unread when id == 0: the encoder writes no byte for it */
+};
+
+struct CP_GeoTile
+{
+    uint8_t flags;
+    uint16_t underlay;
+    uint16_t overlay; /* short form only */
+    int overlay_count;
+    struct CP_GeoOverlay* overlays;
+    int loc_count[CP_GEO_MAX_LEVELS];
+    struct CP_GeoLoc* locs[CP_GEO_MAX_LEVELS];
+};
+
+struct CP_GeoFile
+{
+    struct CP_GeoTile* tiles;
+    int tile_count;
+};
+
+static void
+geo_file_free(struct CP_GeoFile* file)
+{
+    for( int i = 0; i < file->tile_count; i++ )
+    {
+        free(file->tiles[i].overlays);
+        for( int lv = 0; lv < CP_GEO_MAX_LEVELS; lv++ )
+            free(file->tiles[i].locs[lv]);
+    }
+    free(file->tiles);
+    memset(file, 0, sizeof(*file));
+}
+
+/** Reads tiles until the bytes run out. 0 when a read would pass the end. */
+static int
+geo_decode(const uint8_t* data, int size, struct CP_GeoFile* out)
+{
+    int pos = 0, capacity = 0;
+
+    memset(out, 0, sizeof(*out));
+    while( pos < size )
+    {
+        struct CP_GeoTile* tile;
+        int levels;
+
+        if( out->tile_count == capacity )
+        {
+            int next = capacity ? capacity * 2 : 256;
+            struct CP_GeoTile* grown =
+                (struct CP_GeoTile*)realloc(out->tiles, (size_t)next * sizeof(*grown));
+            if( !grown )
+                goto fail;
+            out->tiles = grown;
+            capacity = next;
+        }
+        tile = &out->tiles[out->tile_count++];
+        memset(tile, 0, sizeof(*tile));
+
+        tile->flags = data[pos++];
+        if( tile->flags == 0 )
+            continue;
+        if( tile->flags & 0xE0 )
+            goto fail; /* never set in any osrs239 member; a set bit means drift */
+
+        if( tile->flags & 1 )
+        {
+            if( tile->flags & 2 )
+            {
+                if( pos + 2 > size )
+                    goto fail;
+                tile->overlay = (uint16_t)((data[pos] << 8) | data[pos + 1]);
+                pos += 2;
+            }
+            if( pos + 2 > size )
+                goto fail;
+            tile->underlay = (uint16_t)((data[pos] << 8) | data[pos + 1]);
+            pos += 2;
+            continue;
+        }
+
+        levels = ((tile->flags & 24) >> 3) + 1;
+        if( pos + 2 > size )
+            goto fail;
+        tile->underlay = (uint16_t)((data[pos] << 8) | data[pos + 1]);
+        pos += 2;
+
+        if( tile->flags & 2 )
+        {
+            if( pos >= size )
+                goto fail;
+            tile->overlay_count = data[pos++];
+            if( tile->overlay_count )
+            {
+                tile->overlays = (struct CP_GeoOverlay*)calloc((size_t)tile->overlay_count,
+                                                               sizeof(*tile->overlays));
+                if( !tile->overlays )
+                    goto fail;
+            }
+            for( int i = 0; i < tile->overlay_count; i++ )
+            {
+                if( pos + 2 > size )
+                    goto fail;
+                tile->overlays[i].id = (uint16_t)((data[pos] << 8) | data[pos + 1]);
+                pos += 2;
+                if( tile->overlays[i].id != 0 )
+                {
+                    if( pos >= size )
+                        goto fail;
+                    tile->overlays[i].attr = data[pos++];
+                }
+            }
+        }
+
+        if( tile->flags & 4 )
+        {
+            for( int lv = 0; lv < levels; lv++ )
+            {
+                if( pos >= size )
+                    goto fail;
+                tile->loc_count[lv] = data[pos++];
+                if( tile->loc_count[lv] )
+                {
+                    tile->locs[lv] = (struct CP_GeoLoc*)calloc((size_t)tile->loc_count[lv],
+                                                               sizeof(**tile->locs));
+                    if( !tile->locs[lv] )
+                        goto fail;
+                }
+                for( int i = 0; i < tile->loc_count[lv]; i++ )
+                {
+                    if( pos + 5 > size )
+                        goto fail;
+                    tile->locs[lv][i].id =
+                        ((uint32_t)data[pos] << 24) | ((uint32_t)data[pos + 1] << 16) |
+                        ((uint32_t)data[pos + 2] << 8) | (uint32_t)data[pos + 3];
+                    tile->locs[lv][i].attr = data[pos + 4];
+                    pos += 5;
+                }
+            }
+        }
+    }
+    return pos == size;
+
+fail:
+    geo_file_free(out);
+    return 0;
+}
+
+/** Writes what `geo_decode` read, byte for byte. Returns bytes written, 0 on error. */
+static int
+geo_encode(const struct CP_GeoFile* file, uint8_t* out, int capacity)
+{
+    int pos = 0;
+
+#define CP_GEO_PUT(byte)                                                                 \
+    do                                                                                   \
+    {                                                                                    \
+        if( pos >= capacity )                                                            \
+            return 0;                                                                    \
+        out[pos++] = (uint8_t)(byte);                                                    \
+    } while( 0 )
+
+    for( int i = 0; i < file->tile_count; i++ )
+    {
+        const struct CP_GeoTile* tile = &file->tiles[i];
+        int levels = ((tile->flags & 24) >> 3) + 1;
+
+        CP_GEO_PUT(tile->flags);
+        if( tile->flags == 0 )
+            continue;
+        if( tile->flags & 1 )
+        {
+            if( tile->flags & 2 )
+            {
+                CP_GEO_PUT(tile->overlay >> 8);
+                CP_GEO_PUT(tile->overlay & 0xff);
+            }
+            CP_GEO_PUT(tile->underlay >> 8);
+            CP_GEO_PUT(tile->underlay & 0xff);
+            continue;
+        }
+        CP_GEO_PUT(tile->underlay >> 8);
+        CP_GEO_PUT(tile->underlay & 0xff);
+        if( tile->flags & 2 )
+        {
+            CP_GEO_PUT(tile->overlay_count);
+            for( int e = 0; e < tile->overlay_count; e++ )
+            {
+                CP_GEO_PUT(tile->overlays[e].id >> 8);
+                CP_GEO_PUT(tile->overlays[e].id & 0xff);
+                if( tile->overlays[e].id != 0 )
+                    CP_GEO_PUT(tile->overlays[e].attr);
+            }
+        }
+        if( tile->flags & 4 )
+        {
+            for( int lv = 0; lv < levels; lv++ )
+            {
+                CP_GEO_PUT(tile->loc_count[lv]);
+                for( int e = 0; e < tile->loc_count[lv]; e++ )
+                {
+                    uint32_t id = tile->locs[lv][e].id;
+                    CP_GEO_PUT(id >> 24);
+                    CP_GEO_PUT(id >> 16);
+                    CP_GEO_PUT(id >> 8);
+                    CP_GEO_PUT(id);
+                    CP_GEO_PUT(tile->locs[lv][e].attr);
+                }
+            }
+        }
+    }
+#undef CP_GEO_PUT
+    return pos;
+}
+
+/**
+ * One tile per line, empty tiles skipped, so a 4,096-tile square that is mostly one
+ * repeated overlay is a few hundred lines rather than four thousand.
+ *
+ * The index is the tile's position in the sequence and is written explicitly, which
+ * is what lets the empty ones be omitted: on the way back in, a gap is empty tiles.
+ * `shape;rot` is `attr >> 2` and `attr & 3`, the same spelling the jm2 uses.
+ */
+static void
+geo_emit(FILE* out, const struct CP_GeoFile* file)
+{
+    fprintf(out,
+            "==== GEOGRAPHY ====\n"
+            "// One line per non-empty tile, `<index>: <fields>`. A missing index is an\n"
+            "// empty tile. 4096 is a 64x64 square; a multiple of 64 is that many 8x8\n"
+            "// zones.\n"
+            "//\n"
+            "//   s          short form: an underlay and at most one overlay\n"
+            "//   u<n>       underlay\n"
+            "//   o<n>       overlay (short form)\n"
+            "//   lv<n>      how many loc levels the flags declare, 1-4\n"
+            "//   ov:<list>  overlay list, `id;shape;rot` or bare `0` for an empty slot\n"
+            "//   L<n>:<l>   locs on level n, `id;shape;rot`; `L<n>:` alone is none\n"
+            "\n"
+            /*
+             * Stated, not counted from the lines.
+             *
+             * Empty tiles are omitted, so the trailing ones leave no trace — and a
+             * geography file is a bare stream with no count of its own, so a text form
+             * that stopped at the last non-empty tile would encode a shorter member and
+             * the cache would take it. 179 of 2,101 members end in an empty tile.
+             */
+            "tiles=%d\n",
+            file->tile_count);
+    for( int i = 0; i < file->tile_count; i++ )
+    {
+        const struct CP_GeoTile* tile = &file->tiles[i];
+        int levels = ((tile->flags & 24) >> 3) + 1;
+
+        if( tile->flags == 0 )
+            continue;
+        fprintf(out, "%d:", i);
+        if( tile->flags & 1 )
+        {
+            fprintf(out, " s u%u", tile->underlay);
+            if( tile->flags & 2 )
+                fprintf(out, " o%u", tile->overlay);
+            fprintf(out, "\n");
+            continue;
+        }
+        fprintf(out, " u%u lv%d", tile->underlay, levels);
+        if( tile->flags & 2 )
+        {
+            fprintf(out, " ov:");
+            for( int e = 0; e < tile->overlay_count; e++ )
+            {
+                if( e )
+                    fprintf(out, ",");
+                if( tile->overlays[e].id == 0 )
+                    fprintf(out, "0");
+                else
+                    fprintf(out, "%u;%u;%u", tile->overlays[e].id,
+                            tile->overlays[e].attr >> 2, tile->overlays[e].attr & 3);
+            }
+        }
+        if( tile->flags & 4 )
+        {
+            for( int lv = 0; lv < levels; lv++ )
+            {
+                fprintf(out, " L%d:", lv);
+                for( int e = 0; e < tile->loc_count[lv]; e++ )
+                {
+                    if( e )
+                        fprintf(out, ",");
+                    fprintf(out, "%u;%u;%u", tile->locs[lv][e].id,
+                            tile->locs[lv][e].attr >> 2, tile->locs[lv][e].attr & 3);
+                }
+            }
+        }
+        fprintf(out, "\n");
+    }
+}
+
+/** Reads back what `geo_emit` wrote. 0 on any line it cannot account for. */
+static int
+geo_parse(char* text, struct CP_GeoFile* out)
+{
+    char* cursor = text;
+    int capacity = 0;
+
+    memset(out, 0, sizeof(*out));
+    while( cursor && *cursor )
+    {
+        char* newline = strchr(cursor, '\n');
+        char* line = cursor;
+        char* colon;
+        int index;
+        struct CP_GeoTile tile;
+        int levels = 1;
+        char* token;
+
+        if( newline )
+            *newline = '\0';
+        cursor = newline ? newline + 1 : NULL;
+
+        while( *line == ' ' || *line == '\t' )
+            line++;
+        if( !*line || line[0] == '=' || (line[0] == '/' && line[1] == '/') )
+            continue;
+
+        if( strncmp(line, "tiles=", 6) == 0 )
+        {
+            int stated = atoi(line + 6);
+
+            if( stated < 0 )
+                goto fail;
+            while( out->tile_count < stated )
+            {
+                if( out->tile_count == capacity )
+                {
+                    int next = capacity ? capacity * 2 : 256;
+                    struct CP_GeoTile* grown = (struct CP_GeoTile*)realloc(
+                        out->tiles, (size_t)next * sizeof(*grown));
+                    if( !grown )
+                        goto fail;
+                    out->tiles = grown;
+                    capacity = next;
+                }
+                memset(&out->tiles[out->tile_count++], 0, sizeof(*out->tiles));
+            }
+            continue;
+        }
+
+        colon = strchr(line, ':');
+        if( !colon )
+            goto fail;
+        *colon = '\0';
+        index = atoi(line);
+        if( index < 0 )
+            goto fail;
+
+        memset(&tile, 0, sizeof(tile));
+        /* Grow to the stated index: the gap is empty tiles, which is why they can be
+         * left out of the file at all. */
+        while( out->tile_count <= index )
+        {
+            if( out->tile_count == capacity )
+            {
+                int next = capacity ? capacity * 2 : 256;
+                struct CP_GeoTile* grown =
+                    (struct CP_GeoTile*)realloc(out->tiles, (size_t)next * sizeof(*grown));
+                if( !grown )
+                    goto fail;
+                out->tiles = grown;
+                capacity = next;
+            }
+            memset(&out->tiles[out->tile_count++], 0, sizeof(*out->tiles));
+        }
+
+        for( token = strtok(colon + 1, " \t"); token; token = strtok(NULL, " \t") )
+        {
+            if( strcmp(token, "s") == 0 )
+                tile.flags |= 1;
+            else if( token[0] == 'u' )
+                tile.underlay = (uint16_t)strtoul(token + 1, NULL, 10);
+            else if( token[0] == 'o' && token[1] != 'v' )
+            {
+                tile.flags |= 2;
+                tile.overlay = (uint16_t)strtoul(token + 1, NULL, 10);
+            }
+            else if( strncmp(token, "lv", 2) == 0 )
+                levels = atoi(token + 2);
+            else if( strncmp(token, "ov:", 3) == 0 )
+            {
+                char* entry = token + 3;
+
+                tile.flags |= 2;
+                while( *entry )
+                {
+                    char* comma = strchr(entry, ',');
+                    unsigned id = 0, shape = 0, rot = 0;
+                    struct CP_GeoOverlay* grown;
+
+                    if( comma )
+                        *comma = '\0';
+                    if( sscanf(entry, "%u;%u;%u", &id, &shape, &rot) != 3 &&
+                        sscanf(entry, "%u", &id) != 1 )
+                        goto fail;
+                    grown = (struct CP_GeoOverlay*)realloc(
+                        tile.overlays, (size_t)(tile.overlay_count + 1) * sizeof(*grown));
+                    if( !grown )
+                        goto fail;
+                    tile.overlays = grown;
+                    tile.overlays[tile.overlay_count].id = (uint16_t)id;
+                    tile.overlays[tile.overlay_count].attr = (uint8_t)(shape * 4 + rot);
+                    tile.overlay_count++;
+                    entry = comma ? comma + 1 : entry + strlen(entry);
+                }
+            }
+            else if( token[0] == 'L' )
+            {
+                char* body = strchr(token, ':');
+                int lv;
+
+                if( !body )
+                    goto fail;
+                *body++ = '\0';
+                lv = atoi(token + 1);
+                if( lv < 0 || lv >= CP_GEO_MAX_LEVELS )
+                    goto fail;
+                tile.flags |= 4;
+                while( *body )
+                {
+                    char* comma = strchr(body, ',');
+                    unsigned id = 0, shape = 0, rot = 0;
+                    struct CP_GeoLoc* grown;
+
+                    if( comma )
+                        *comma = '\0';
+                    if( sscanf(body, "%u;%u;%u", &id, &shape, &rot) != 3 )
+                        goto fail;
+                    grown = (struct CP_GeoLoc*)realloc(
+                        tile.locs[lv], (size_t)(tile.loc_count[lv] + 1) * sizeof(*grown));
+                    if( !grown )
+                        goto fail;
+                    tile.locs[lv] = grown;
+                    tile.locs[lv][tile.loc_count[lv]].id = id;
+                    tile.locs[lv][tile.loc_count[lv]].attr = (uint8_t)(shape * 4 + rot);
+                    tile.loc_count[lv]++;
+                    body = comma ? comma + 1 : body + strlen(body);
+                }
+            }
+            else
+                goto fail;
+        }
+        if( levels < 1 || levels > CP_GEO_MAX_LEVELS )
+            goto fail;
+        if( !(tile.flags & 1) )
+            tile.flags |= (uint8_t)((levels - 1) << 3);
+        out->tiles[index] = tile;
+    }
+    return 1;
+
+fail:
+    geo_file_free(out);
+    return 0;
+}
+
+/**
+ * The tile count is not in the file, so a text form that ends early would encode a
+ * short member and the cache would take it. Every member is re-encoded and compared
+ * before its text is kept — the same guarantee the jm2 gets, for the same reason.
+ */
+static int
+geo_roundtrips(const struct CP_GeoFile* file, const uint8_t* original, int size)
+{
+    uint8_t* check = (uint8_t*)malloc((size_t)size ? (size_t)size : 1);
+    int written;
+    int same;
+
+    if( !check )
+        return 0;
+    written = geo_encode(file, check, size);
+    same = written == size && memcmp(check, original, (size_t)size) == 0;
+    free(check);
+    return same;
+}
+
+static int
+geo_write(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const uint8_t* payload,
+    int size,
+    const int* file_ids,
+    int file_count,
+    const char* path_stem)
+{
+    struct RSCache_FileList* files = NULL;
+    const uint8_t* single = payload;
+    int single_size = size;
+    struct LC_Pack members;
+    char root_dir[1700];
+    const char* stem_name;
+    int wrote = 0;
+
+    (void)ctx;
+    (void)record_id;
+
+    if( file_count > 1 )
+    {
+        files = RSCache_FileListNewFromDecode((char*)payload, size, file_count);
+        if( !files )
+            return 0;
+    }
+
+    snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
+    {
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+    }
+    stem_name = strrchr(path_stem, '/');
+    stem_name = stem_name ? stem_name + 1 : path_stem;
+    cp_member_pack_load(&members, path_stem, "filepack", "worldmapgeo");
+
+    for( int f = 0; f < (files ? files->file_count : 1); f++ )
+    {
+        const uint8_t* bytes = files ? (const uint8_t*)files->files[f] : single;
+        int bytes_size = files ? files->file_sizes[f] : single_size;
+        int id = file_ids ? file_ids[f] : f;
+        struct CP_GeoFile decoded;
+        char path[1900];
+        char member[256];
+        FILE* out;
+
+        if( !geo_decode(bytes, bytes_size, &decoded) )
+            goto give_up;
+        if( !geo_roundtrips(&decoded, bytes, bytes_size) )
+        {
+            geo_file_free(&decoded);
+            goto give_up;
+        }
+        if( files )
+            snprintf(member, sizeof(member), "%s/%d.wmg", stem_name, id);
+        else
+            snprintf(member, sizeof(member), "%s.wmg", stem_name);
+        snprintf(path, sizeof(path), "%s/%s", root_dir, member);
+        if( files )
+        {
+            char dir[1900];
+            snprintf(dir, sizeof(dir), "%s/%s", root_dir, stem_name);
+            ensure_dir_path(dir);
+        }
+        out = fopen(path, "wb");
+        if( !out )
+        {
+            geo_file_free(&decoded);
+            goto give_up;
+        }
+        geo_emit(out, &decoded);
+        fclose(out);
+        geo_file_free(&decoded);
+        if( files )
+            lc_pack_set(&members, id, member);
+        wrote++;
+    }
+
+    if( files && wrote )
+        cp_member_pack_save(&members, path_stem, "filepack");
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return wrote > 0;
+
+give_up:
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return 0;
+}
+
+static uint8_t*
+geo_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    char root_dir[1700];
+    struct LC_Pack members;
+    struct RSCache_FileList list;
+    int* ids = NULL;
+    uint8_t* payload = NULL;
+    int capacity;
+
+    (void)ctx;
+    (void)record_id;
+
+    snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
+    {
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+    }
+    cp_member_pack_load(&members, path_stem, "filepack", "worldmapgeo");
+
+    memset(&list, 0, sizeof(list));
+    capacity = members.max > 0 ? members.max + 1 : 1;
+    list.files = (char**)calloc((size_t)capacity, sizeof(char*));
+    list.file_sizes = (int*)calloc((size_t)capacity, sizeof(int));
+    ids = (int*)calloc((size_t)capacity, sizeof(int));
+    if( !list.files || !list.file_sizes || !ids )
+        goto done;
+
+    for( int id = 0; id < capacity; id++ )
+    {
+        const char* member = NULL;
+        char member_path[1900];
+        char fallback[256];
+        int text_size = 0;
+        char* text;
+        struct CP_GeoFile decoded;
+        uint8_t* bytes;
+        int written, bound;
+
+        if( members.max > 0 )
+        {
+            if( id >= members.capacity || !members.names || !members.names[id] )
+                continue;
+            member = members.names[id];
+        }
+        else
+        {
+            /* A one-file archive has no filepack: the member is the `.wmg` itself. */
+            const char* stem_name = strrchr(path_stem, '/');
+            snprintf(fallback, sizeof(fallback), "%s.wmg",
+                     stem_name ? stem_name + 1 : path_stem);
+            member = fallback;
+        }
+        snprintf(member_path, sizeof(member_path), "%s/%s", root_dir, member);
+        text = (char*)slurp(member_path, &text_size);
+        if( !text )
+            goto done;
+        if( !geo_parse(text, &decoded) )
+        {
+            free(text);
+            goto done;
+        }
+        free(text);
+
+        /* One tile is at most 1 + 2 + 1 + 255*3 + 4*(1 + 255*5) — bounded, so a
+         * generous per-tile allowance beats a second encode pass to measure. */
+        bound = decoded.tile_count * 6 + 1;
+        for( int i = 0; i < decoded.tile_count; i++ )
+        {
+            bound += decoded.tiles[i].overlay_count * 3;
+            for( int lv = 0; lv < CP_GEO_MAX_LEVELS; lv++ )
+                bound += 1 + decoded.tiles[i].loc_count[lv] * 5;
+        }
+        bytes = (uint8_t*)malloc((size_t)bound);
+        if( !bytes )
+        {
+            geo_file_free(&decoded);
+            goto done;
+        }
+        written = geo_encode(&decoded, bytes, bound);
+        geo_file_free(&decoded);
+        if( written <= 0 )
+        {
+            free(bytes);
+            goto done;
+        }
+        list.files[list.file_count] = (char*)bytes;
+        list.file_sizes[list.file_count] = written;
+        ids[list.file_count] = id;
+        list.file_count++;
+        if( members.max <= 0 )
+            break;
+    }
+
+    if( list.file_count == 0 )
+        goto done;
+    if( list.file_count == 1 )
+    {
+        /* A single-file archive's payload is the file, with no FileList framing. */
+        payload = (uint8_t*)list.files[0];
+        *out_size = list.file_sizes[0];
+        list.files[0] = NULL;
+        *out_file_count = 1;
+        *out_file_ids = ids;
+        ids = NULL;
+    }
+    else
+    {
+        uint32_t bound = RSCache_FileListEncodeBound(&list);
+        payload = (uint8_t*)malloc(bound ? bound : 1);
+        if( payload )
+        {
+            uint32_t written = RSCache_FileListEncode(&list, payload, bound);
+            if( written == 0 )
+            {
+                free(payload);
+                payload = NULL;
+            }
+            else
+            {
+                *out_size = (int)written;
+                *out_file_count = list.file_count;
+                *out_file_ids = ids;
+                ids = NULL;
+            }
+        }
+    }
+
+done:
+    for( int i = 0; i < list.file_count; i++ )
+        free(list.files[i]);
+    free(list.files);
+    free(list.file_sizes);
+    free(ids);
+    lc_pack_free(&members);
+    return payload;
+}
+
+const struct CP_AssetCodec cp_codec_worldmapgeo = { "wmg", geo_write, geo_read, 0 };
 
 const struct CP_AssetCodec cp_codec_worldmap = { "wma", worldmap_write, worldmap_read, 0 };
