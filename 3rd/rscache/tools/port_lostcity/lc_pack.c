@@ -626,7 +626,8 @@ static int
 pack_write(
     const struct LC_Pack* pack,
     const char* path,
-    int sparse)
+    int sparse,
+    int quiet)
 {
     assert(pack && path);
 
@@ -695,6 +696,9 @@ pack_write(
      * touched by the explicit path, so a non-zero `-N` is always something
      * someone asked for.
      */
+    if( quiet )
+        return 1;
+
     char delta[64] = "";
     if( pack->added && pack->removed )
         snprintf(delta, sizeof(delta), " (+%d, -%d)", pack->added, pack->removed);
@@ -712,7 +716,15 @@ lc_pack_save(
     const struct LC_Pack* pack,
     const char* path)
 {
-    return pack_write(pack, path, 0);
+    return pack_write(pack, path, 0, 0);
+}
+
+int
+lc_pack_save_quiet(
+    const struct LC_Pack* pack,
+    const char* path)
+{
+    return pack_write(pack, path, 0, 1);
 }
 
 int
@@ -720,7 +732,7 @@ lc_pack_save_sparse(
     const struct LC_Pack* pack,
     const char* path)
 {
-    return pack_write(pack, path, 1);
+    return pack_write(pack, path, 1, 0);
 }
 
 void

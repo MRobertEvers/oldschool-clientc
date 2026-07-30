@@ -166,6 +166,19 @@ lc_pack_save(
     const char* path);
 
 /**
+ * The same, without the per-write report line.
+ *
+ * For a *member* pack — `textures/texture_0.compack`, one per archive — the report
+ * is noise rather than news: 969 interfaces mean 969 lines saying a file with no
+ * changes in it did not change. The namespace packs still report, because there are
+ * a few dozen of them and a write to one is worth seeing.
+ */
+int
+lc_pack_save_quiet(
+    const struct LC_Pack* pack,
+    const char* path);
+
+/**
  * The same, omitting every line whose name is `<type>_<id>` and which carries no
  * comment.
  *

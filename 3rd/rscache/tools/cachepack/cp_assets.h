@@ -41,21 +41,32 @@
 
 #include "cachepack.h"
 
+/**
+ * Split the archive's members into files, indexed by a `<archive>.filepack`.
+ *
+ * For a multi-file archive with no text form: the members are written as separate
+ * files under `<dir>/<archive>/`, and `<dir>/<archive>.filepack` — beside the
+ * archive, in the table's own folder — states `<file id>=<path>` for each.
+ *
+ * The filepack is what makes the split safe. Without it the member's id lived in
+ * its *filename* and the importer recovered the member set by listing a directory,
+ * so which files an archive held came from the filesystem rather than from anything
+ * the tree stated. With it, the same shape is fine: names are free, ids are stated,
+ * and ascending ids give the container the order it wants.
+ *
+ * A table whose members *do* have a text form uses a `.compack` instead — one file
+ * of named blocks, plus `<file id>=<block name>`. See `member_pack_load` in
+ * cp_decode.c for both.
+ */
+#define CP_ASSET_SPLIT 0x1
+
 /*
- * There is no member-level flag, and the space is left deliberately empty.
+ * Note on what a pack file indexes.
  *
  * A pack file indexes **archives**, full stop: `pack/interface.pack` has
- * `12=bankmain`, not a line per component. An archive whose members are separate
- * assets names them inside its *own file*, by block header — which is what the
- * interface codec has always done (`[com_12]`) and what the texture codec now does
- * (`[mat_47]`). One id space per pack file, and the member list lives with the
- * member data.
- *
- * What used to be here was `CP_ASSET_MULTIFILE`, which exploded such an archive
- * into a directory of `<file_id>.<ext>`. That put a member's id in its filename and
- * nowhere else, and made the importer recover the member set — and its order — by
- * listing the directory. Stated here rather than just deleted, so the next person to
- * want either shape finds the reason neither is there.
+ * `12=bankmain`, not a line per component. An archive's members are indexed beside
+ * the archive itself, by a `.compack` or a `.filepack`, so there is one id space per
+ * file and the member list lives with the member data.
  */
 /**
  * Map archives are XTEA-encrypted before OldSchool 237. Their payload only
@@ -159,6 +170,30 @@ struct CP_Asset
     /** Friendly form, or NULL to always write the raw payload. */
     const struct CP_AssetCodec* codec;
 };
+
+/**
+ * `<archive>.compack` / `<archive>.filepack` — an archive's member list.
+ *
+ * `kind` is `"compack"` or `"filepack"`; `path_stem` is the archive's path without
+ * an extension, so the index lands beside it in the table's own folder. A missing
+ * file loads as an empty pack, which is how an archive gets its first index.
+ *
+ * Plain pack files, so they read and write through `lc_pack_*` and inherit comment
+ * preservation and merge semantics — a member someone renamed keeps its name across
+ * a re-export.
+ */
+int
+cp_member_pack_load(
+    struct LC_Pack* pack,
+    const char* path_stem,
+    const char* kind,
+    const char* label);
+
+int
+cp_member_pack_save(
+    const struct LC_Pack* pack,
+    const char* path_stem,
+    const char* kind);
 
 const struct CP_Asset*
 cp_asset(enum CP_AssetId id);

@@ -60,12 +60,13 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
  * had to recover the member set by listing the directory. Which files an archive
  * contained, and in what order, was whatever `readdir` returned.
  *
- * The interface codec had the right answer all along: one file, a `[com_<id>]` block
- * per component, and `read` hands the member list back through `*out_file_ids` in
- * *file order*. So a table whose members are assets gets a codec that does that
- * (`texture`), and a table whose members are opaque bytes stores the archive's
- * payload whole (`dbindex`, `worldmaparea`) — which round-trips byte for byte,
- * because the payload *is* the container's file table plus the files.
+ * The fix was not to stop splitting — it was to *state* the split. A table whose
+ * members have a text form gets one file of named blocks plus a `.compack` tying
+ * each block to a file id (`texture`, `interface`); one whose members are opaque
+ * bytes gets a directory of files plus a `.filepack` tying each file to a file id
+ * (`dbindex`, `worldmaparea`). Either way the member list is a file someone can read
+ * and edit, ascending ids give the container its order, and a member can be renamed
+ * without moving an id.
  *
  * A pack file still indexes **archives** either way — `pack/texture.pack` is one
  * line for the one archive, exactly as `pack/interface.pack` is one line per
@@ -118,14 +119,16 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * A friendly form that is unavailable 99% of the time is not worth the archive
      * being split to reach it — the whole payload round-trips byte for byte. */
     [CP_ASSET_WORLDMAP_AREA] = {
-        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, 0, -1, NULL },
+        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
+        NULL },
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "worldmapground", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
     /* One file per dbtable, holding the master index and the per-column files. No
      * codec, so the payload is written whole and is byte-exact. */
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, 0, -1, NULL },
+        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_SPLIT, -1,
+        NULL },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
 };
@@ -784,6 +787,65 @@ export_one(
         char path[1500];
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
+
+        if( (asset->flags & CP_ASSET_SPLIT) && archive->file_count > 0 )
+        {
+            /*
+             * No text form, several members: each becomes a file under
+             * `<dir>/<archive>/`, and `<dir>/<archive>.filepack` states which file id
+             * each one is. The filepack sits in the table's folder beside the
+             * archive, which is where every other index for this archive lives.
+             */
+            struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
+                archive->data, archive->data_size, archive->file_count);
+            if( files )
+            {
+                struct LC_Pack members;
+                char stem[1600];
+                snprintf(stem, sizeof(stem), "%s/%s", root, name);
+                cp_member_pack_load(&members, stem, "filepack", asset->pack);
+                if( ensure_dir_recursive(stem) == 0 )
+                {
+                    for( int f = 0; f < files->file_count; f++ )
+                    {
+                        int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                        const uint8_t* member = (const uint8_t*)files->files[f];
+                        int member_size = files->file_sizes[f];
+                        const char* listed = NULL;
+                        char fallback[128];
+
+                        if( file_id >= 0 && file_id < members.capacity && members.names )
+                            listed = members.names[file_id];
+                        if( !listed )
+                        {
+                            snprintf(fallback, sizeof(fallback), "%s/%d.%s", name, file_id,
+                                     cp_asset_extension(id, member, member_size));
+                            listed = fallback;
+                            lc_pack_set(&members, file_id, listed);
+                        }
+                        snprintf(path, sizeof(path), "%s/%s", root, listed);
+                        char* slash = strrchr(path, '/');
+                        if( slash )
+                        {
+                            *slash = '\0';
+                            ensure_dir_recursive(path);
+                            *slash = '/';
+                        }
+                        if( write_file(path, member, member_size) )
+                        {
+                            written++;
+                            bytes += member_size;
+                        }
+                    }
+                    cp_member_pack_save(&members, stem, "filepack");
+                }
+                lc_pack_free(&members);
+                RSCache_FileListFree(files);
+            }
+            RSCache_Dat2DiskArchiveFree(archive);
+            continue;
+        }
+
         if( codec && codec->write )
         {
             snprintf(path, sizeof(path), "%s/%s", root, name);
@@ -1007,14 +1069,89 @@ import_one(
         int file_count = 0;
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
-        if( codec && codec->read )
+
+        if( asset->flags & CP_ASSET_SPLIT )
+        {
+            /*
+             * Rebuilt from the filepack, not from a directory listing: it says which
+             * file each member is and its ascending ids are the order the container
+             * gets. A member it lists and the disk does not is reported — writing a
+             * shorter archive would put every later member under the wrong id.
+             */
+            struct LC_Pack members;
+            cp_member_pack_load(&members, base, "filepack", asset->pack);
+            if( members.max > 0 )
+            {
+                struct RSCache_FileList list;
+                memset(&list, 0, sizeof(list));
+                list.files = calloc((size_t)members.max, sizeof(char*));
+                list.file_sizes = calloc((size_t)members.max, sizeof(int));
+                int* ids = calloc((size_t)members.max, sizeof(int));
+                int missing = 0;
+
+                if( list.files && list.file_sizes && ids )
+                {
+                    for( int member = 0; member < members.max; member++ )
+                    {
+                        const char* listed = members.names[member];
+                        uint8_t* bytes = NULL;
+                        int bytes_size = 0;
+                        char member_path[1700];
+
+                        if( !listed )
+                            continue;
+                        snprintf(member_path, sizeof(member_path), "%s/%s", root, listed);
+                        if( !read_file(member_path, &bytes, &bytes_size) )
+                        {
+                            missing++;
+                            continue;
+                        }
+                        list.files[list.file_count] = (char*)bytes;
+                        list.file_sizes[list.file_count] = bytes_size;
+                        ids[list.file_count] = member;
+                        list.file_count++;
+                    }
+                    if( missing )
+                        cp_warn(ctx, &ctx->warn_unresolved_name,
+                                "cachepack: %s/%s.filepack lists %d member(s) that are not on "
+                                "disk\n",
+                                asset->dir, name, missing);
+                    if( list.file_count > 0 )
+                    {
+                        uint32_t bound = RSCache_FileListEncodeBound(&list);
+                        payload = malloc(bound ? bound : 1);
+                        uint32_t encoded =
+                            payload ? RSCache_FileListEncode(&list, payload, bound) : 0;
+                        if( encoded == 0 )
+                        {
+                            free(payload);
+                            payload = NULL;
+                        }
+                        else
+                        {
+                            payload_size = (int)encoded;
+                            file_ids = ids;
+                            file_count = list.file_count;
+                            ids = NULL;
+                        }
+                    }
+                }
+                for( int f = 0; f < list.file_count; f++ )
+                    free(list.files[f]);
+                free(list.files);
+                free(list.file_sizes);
+                free(ids);
+            }
+            lc_pack_free(&members);
+        }
+        else if( codec && codec->read )
             payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
 
         if( payload )
         {
-            /* Handled by the codec, which also hands back the member list — in *file
-             * order*, so the container and the reference table's child list agree
-             * with what the file states rather than with a sort. */
+            /* Handled above, and the member list came back with it — in *file order*,
+             * so the container and the reference table's child list agree with what
+             * the tree states rather than with a sort. */
         }
         else
         {
@@ -1131,6 +1268,103 @@ struct CP_AssetFidelity
     int unreadable;
 };
 
+/**
+ * Round-trip one split archive: members to files plus a filepack, then back.
+ *
+ * Measured rather than assumed even though nothing transcodes, because the split and
+ * the reassembly are a real transformation — the FileList is decoded and re-encoded,
+ * and a member the filepack failed to record would come back missing.
+ */
+static void
+verify_split_archive(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId id,
+    struct RSCache_Dat2DiskArchive* archive,
+    const char* root,
+    int archive_id,
+    struct CP_AssetFidelity* fid)
+{
+    const struct CP_Asset* asset = cp_asset(id);
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+
+    fid->records++;
+    if( !files )
+    {
+        fid->unreadable++;
+        return;
+    }
+
+    char stem[1600];
+    char dir[1700];
+    snprintf(stem, sizeof(stem), "%s/%d", root, archive_id);
+    snprintf(dir, sizeof(dir), "%s/%d", root, archive_id);
+    struct LC_Pack members;
+    memset(&members, 0, sizeof(members));
+    snprintf(members.type, sizeof(members.type), "%s", asset->pack);
+
+    if( ensure_dir_recursive(dir) == 0 )
+    {
+        for( int f = 0; f < files->file_count; f++ )
+        {
+            int file_id = archive->file_ids ? archive->file_ids[f] : f;
+            char listed[128];
+            char path[1800];
+            snprintf(listed, sizeof(listed), "%d/%d.%s", archive_id, file_id,
+                     cp_asset_extension(id, (const uint8_t*)files->files[f],
+                                        files->file_sizes[f]));
+            lc_pack_set(&members, file_id, listed);
+            snprintf(path, sizeof(path), "%s/%s", root, listed);
+            write_file(path, (const uint8_t*)files->files[f], files->file_sizes[f]);
+        }
+        cp_member_pack_save(&members, stem, "filepack");
+    }
+    RSCache_FileListFree(files);
+
+    /* Read it back the way the build does. */
+    struct LC_Pack back;
+    cp_member_pack_load(&back, stem, "filepack", asset->pack);
+    struct RSCache_FileList list;
+    memset(&list, 0, sizeof(list));
+    list.files = calloc((size_t)(back.max > 0 ? back.max : 1), sizeof(char*));
+    list.file_sizes = calloc((size_t)(back.max > 0 ? back.max : 1), sizeof(int));
+    for( int member = 0; member < back.max; member++ )
+    {
+        uint8_t* bytes = NULL;
+        int bytes_size = 0;
+        char path[1800];
+
+        if( !back.names[member] )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", root, back.names[member]);
+        if( !read_file(path, &bytes, &bytes_size) )
+            continue;
+        list.files[list.file_count] = (char*)bytes;
+        list.file_sizes[list.file_count] = bytes_size;
+        list.file_count++;
+    }
+
+    uint32_t bound = RSCache_FileListEncodeBound(&list);
+    uint8_t* rebuilt = malloc(bound ? bound : 1);
+    uint32_t written = rebuilt ? RSCache_FileListEncode(&list, rebuilt, bound) : 0;
+    if( written == 0 )
+        fid->differ++;
+    else if( (int)written != archive->data_size )
+        fid->differ++;
+    else if( memcmp(rebuilt, archive->data, (size_t)written) == 0 )
+        fid->exact++;
+    else
+        fid->same_len++;
+
+    free(rebuilt);
+    for( int f = 0; f < list.file_count; f++ )
+        free(list.files[f]);
+    free(list.files);
+    free(list.file_sizes);
+    lc_pack_free(&back);
+    lc_pack_free(&members);
+}
+
 /** Round-trip one single-payload archive through its codec. */
 static void
 verify_codec_archive(
@@ -1198,7 +1432,8 @@ verify_one_asset(
     }
 
     const struct CP_AssetCodec* codec = asset_codec(asset);
-    if( !codec )
+    int split = (asset->flags & CP_ASSET_SPLIT) != 0;
+    if( !codec && !split )
     {
         /* Nothing sits between the file and the payload. Stated, not measured. */
         printf("  %-19s %8d  pass-through (payload is the file)\n", asset->dir, rt->id_count);
@@ -1234,11 +1469,11 @@ verify_one_asset(
         }
 
         char path[1600];
-        if( codec->write && codec->read )
-        {
-            snprintf(path, sizeof(path), "%s/%d", root, archive_id);
+        snprintf(path, sizeof(path), "%s/%d", root, archive_id);
+        if( split )
+            verify_split_archive(ctx, id, archive, root, archive_id, &fid);
+        else if( codec->write && codec->read )
             verify_codec_archive(ctx, id, archive, path, &fid);
-        }
         else
         {
             /* A codec with only one half: the raw payload is what gets written. */

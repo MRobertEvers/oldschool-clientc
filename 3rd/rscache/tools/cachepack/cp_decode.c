@@ -109,6 +109,23 @@ slurp(
     return data;
 }
 
+/** Whole file as bytes, for a member a codec stores verbatim. Caller frees. */
+static int
+read_file_bytes(
+    const char* path,
+    uint8_t** out_data,
+    int* out_size)
+{
+    int size = 0;
+    uint8_t* data = slurp(path, &size);
+
+    if( !data )
+        return 0;
+    *out_data = data;
+    *out_size = size;
+    return 1;
+}
+
 
 /* ---- member packs -------------------------------------------------------- */
 
@@ -141,8 +158,8 @@ slurp(
  * reference table's child list is read in, which is what a pack file gives for free.
  */
 
-static int
-member_pack_load(
+int
+cp_member_pack_load(
     struct LC_Pack* pack,
     const char* path_stem,
     const char* kind,
@@ -153,15 +170,15 @@ member_pack_load(
     return lc_pack_load(pack, path, label, 1);
 }
 
-static int
-member_pack_save(
+int
+cp_member_pack_save(
     const struct LC_Pack* pack,
     const char* path_stem,
     const char* kind)
 {
     char path[1750];
     snprintf(path, sizeof(path), "%s.%s", path_stem, kind);
-    return lc_pack_save(pack, path);
+    return lc_pack_save_quiet(pack, path);
 }
 
 /* ---- textures ------------------------------------------------------------ */
@@ -253,7 +270,7 @@ texture_write(
     /* The member list, merged over whatever the tree already had — so a material
      * someone renamed keeps its name across a re-export. */
     struct LC_Pack members;
-    member_pack_load(&members, path_stem, "compack", "mat");
+    cp_member_pack_load(&members, path_stem, "compack", "mat");
 
     struct CP_Lines lines;
     cp_lines_init(&lines);
@@ -297,7 +314,7 @@ texture_write(
     cp_lines_free(&lines);
     fclose(out);
     if( written > 0 )
-        member_pack_save(&members, path_stem, "compack");
+        cp_member_pack_save(&members, path_stem, "compack");
     lc_pack_free(&members);
     RSCache_FileListFree(files);
     return written > 0;
@@ -403,7 +420,7 @@ texture_read(
      * past that point would draw the wrong texture.
      */
     struct LC_Pack members;
-    member_pack_load(&members, path_stem, "compack", "mat");
+    cp_member_pack_load(&members, path_stem, "compack", "mat");
     if( members.max == 0 )
     {
         fprintf(stderr, "cachepack: %s: no .compack beside it — cannot tell which "
@@ -773,7 +790,14 @@ interface_write(
         return 0;
     }
     fprintf(out, "// Interface %d — %d components.\n", record_id, files->file_count);
-    fprintf(out, "// One [com_<id>] block per component; `if3` selects the field set.\n\n");
+    fprintf(out, "// One block per component; %s.compack ties each block name to its\n",
+            strrchr(path_stem, '/') ? strrchr(path_stem, '/') + 1 : path_stem);
+    fprintf(out, "// file id in the archive. `if3` selects the field set.\n\n");
+
+    /* Merged over whatever the tree already had, so a component someone renamed
+     * keeps its name across a re-export. */
+    struct LC_Pack members;
+    cp_member_pack_load(&members, path_stem, "compack", "com");
 
     struct CP_Lines lines;
     cp_lines_init(&lines);
@@ -781,11 +805,23 @@ interface_write(
     for( int f = 0; f < files->file_count; f++ )
     {
         int file_id = file_ids ? file_ids[f] : f;
+        const char* name = NULL;
+        char fallback[32];
+
+        if( file_id >= 0 && file_id < members.capacity && members.names )
+            name = members.names[file_id];
+        if( !name )
+        {
+            snprintf(fallback, sizeof(fallback), "com_%d", file_id);
+            name = fallback;
+            lc_pack_set(&members, file_id, name);
+        }
+
         if( files->file_sizes[f] <= 0 )
         {
             /* A zero-length member is a hole the archive still counts; it has to
              * come back as one or every later component shifts an id. */
-            fprintf(out, "[com_%d]\nempty=yes\n\n", file_id);
+            fprintf(out, "[%s]\nempty=yes\n\n", name);
             written++;
             continue;
         }
@@ -795,9 +831,7 @@ interface_write(
             continue;
         cp_lines_clear(&lines);
         emit_component(ctx, comp, &reference, &lines);
-        char header[64];
-        snprintf(header, sizeof(header), "[com_%d]\n", file_id);
-        fprintf(out, "%s", header);
+        fprintf(out, "[%s]\n", name);
         for( int i = 0; i < lines.count; i++ )
             fprintf(out, "%s\n", lines.lines[i]);
         fputc('\n', out);
@@ -806,6 +840,9 @@ interface_write(
     }
     cp_lines_free(&lines);
     fclose(out);
+    if( written > 0 )
+        cp_member_pack_save(&members, path_stem, "compack");
+    lc_pack_free(&members);
     RSCache_Dat2ComponentFree(&reference);
     RSCache_FileListFree(files);
     return written > 0;
@@ -1214,6 +1251,19 @@ interface_read(
     if( !cp_config_file_load(&file, path) )
         return NULL;
 
+    /* The member list. Without it nothing ties a block to a file id, and an invented
+     * id would shift every later component — so this is a failure, not a guess. */
+    struct LC_Pack members;
+    cp_member_pack_load(&members, path_stem, "compack", "com");
+    if( members.max == 0 )
+    {
+        fprintf(stderr, "cachepack: %s: no .compack beside it — cannot tell which "
+                        "component is which file\n",
+                path);
+        cp_config_file_free(&file);
+        return NULL;
+    }
+
     int table = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_INTERFACES);
     struct RSCache_ReferenceTable* reftable =
         table == RSCACHE_DAT2_DISK_TABLE_ABSENT ? NULL : ctx->cache.disk->tables[table];
@@ -1232,12 +1282,12 @@ interface_read(
     for( int i = 0; i < file.count && ok; i++ )
     {
         const struct CP_Config* block = &file.configs[i];
-        /* The block name is `com_<id>`; the id is data, not position, so a hole
-         * in the component list survives the round trip. */
-        int file_id = 0;
-        if( sscanf(block->debugname, "com_%d", &file_id) != 1 )
+        /* The id is data, not position, so a hole in the component list survives the
+         * round trip. */
+        int file_id = lc_pack_find(&members, block->debugname);
+        if( file_id < 0 )
         {
-            fprintf(stderr, "cachepack: %s: bad component header [%s]\n", path,
+            fprintf(stderr, "cachepack: %s: [%s] is not in the .compack\n", path,
                     block->debugname);
             ok = 0;
             break;
@@ -1312,6 +1362,7 @@ interface_read(
     free(list.files);
     free(list.file_sizes);
     free(ids);
+    lc_pack_free(&members);
     cp_config_file_free(&file);
     return payload;
 }
@@ -1338,13 +1389,14 @@ const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interfa
  * "readable map format" that silently dropped a third of the archive would be a
  * worse trade than no readable format at all.
  *
- * They live in the `.jm2` as `==== EXTRA <id> ====` sections holding the bytes as
- * hex, one section per member, in the order the archive stores them. They used to be
- * separate `<stem>.extra<N>.bin` files, and that was the same mistake the texture
- * table made: the member's id was in its *filename*, and the importer recovered the
- * member set by probing `extra2` through `extra255` — so which files an archive held
- * came from the filesystem rather than from anything stated. The hex costs little:
- * 8,799 extras across 2,934 squares total 677 KB, median 2 bytes, largest 228.
+ * They are files beside the `.jm2`, listed in `<stem>.filepack` — the same index a
+ * `dbindex` archive gets, for the same reason: terrain and locs have a text form and
+ * live in the jm2, these do not and are bytes.
+ *
+ * They used to be `<stem>.extra<N>.bin` with no index at all, so the member's id was
+ * in its *filename* and the importer recovered the member set by probing `extra2`
+ * through `extra255` — which meant the archive an import produced depended on what
+ * the filesystem happened to hold. The filepack states it instead.
  *
  * **The jm2 is shared with the server, and only two of its sections are ours.**
  * A square's `==== NPC ====` and `==== OBJ ====` spawns are content too, but they
@@ -1590,27 +1642,70 @@ map_write(
             fprintf(out, "%d %d %d: %d %d %d\n", loc->chunk_pos_level, loc->chunk_pos_x,
                     loc->chunk_pos_z, loc->loc_id, loc->shape_select, loc->orientation);
     }
-    /*
-     * Every member the jm2 has no section of its own for, kept verbatim as hex and
-     * **in archive order**. The banner carries the member id, so the import needs no
-     * filenames and no probing: it replays these in the order it reads them.
-     */
-    for( int f = 0; f < files->file_count; f++ )
-    {
-        int id = file_ids ? file_ids[f] : f;
-        if( id == CP_MAP_TERRAIN_FILE || id == CP_MAP_LOCS_FILE )
-            continue;
-        fprintf(out, "\n==== EXTRA %d ====\n", id);
-        for( int i = 0; i < files->file_sizes[f]; i++ )
-            fprintf(out, "%02x", (unsigned char)files->files[f][i]);
-        fputc('\n', out);
-    }
     if( foreign )
     {
         fprintf(out, "\n%s", foreign);
         free(foreign);
     }
     fclose(out);
+
+    /*
+     * Every member the jm2 has no section for, kept verbatim as files and listed in
+     * `<stem>.filepack`. Terrain and locs are not listed: they are the jm2, and an
+     * index entry for them would name a file that does not exist.
+     */
+    {
+        struct LC_Pack extras;
+        const char* stem_name = strrchr(path_stem, '/');
+        char root_dir[1700];
+        int listed = 0;
+
+        /* Filepack entries are relative to the table's folder, the same as every
+         * other member index, so a member can be moved anywhere under it. */
+        snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+        stem_name = stem_name ? stem_name + 1 : path_stem;
+        cp_member_pack_load(&extras, path_stem, "filepack", "map");
+        for( int f = 0; f < files->file_count; f++ )
+        {
+            int id = file_ids ? file_ids[f] : f;
+            const char* member = NULL;
+            char fallback[160];
+
+            if( id == CP_MAP_TERRAIN_FILE || id == CP_MAP_LOCS_FILE )
+                continue;
+            if( id >= 0 && id < extras.capacity && extras.names )
+                member = extras.names[id];
+            if( !member )
+            {
+                snprintf(fallback, sizeof(fallback), "%s/%d.bin", stem_name, id);
+                member = fallback;
+                lc_pack_set(&extras, id, member);
+            }
+            snprintf(path, sizeof(path), "%s/%s", root_dir, member);
+            char* slash = strrchr(path, '/');
+            if( slash )
+            {
+                *slash = '\0';
+                ensure_dir_path(path);
+                *slash = '/';
+            }
+            FILE* extra = fopen(path, "wb");
+            if( extra )
+            {
+                fwrite(files->files[f], 1, (size_t)files->file_sizes[f], extra);
+                fclose(extra);
+                listed++;
+            }
+        }
+        if( listed )
+            cp_member_pack_save(&extras, path_stem, "filepack");
+        lc_pack_free(&extras);
+    }
 
     RSCache_MapTerrainFree(terrain);
     RSCache_MapLocsFree(locs);
@@ -1656,26 +1751,29 @@ map_read(
         CP_JM2_NONE,
         CP_JM2_MAP,
         CP_JM2_LOC,
-        CP_JM2_EXTRA,
         CP_JM2_FOREIGN
     } section = CP_JM2_NONE;
     int seen_ours = 0;
     int ok = 1;
 
     /*
-     * The archive's other members, in the order the file lists them.
+     * The archive's other members, from `<stem>.filepack`.
      *
-     * Read here rather than probed from `<stem>.extra<N>.bin` filenames, so the
-     * member set and its order are stated by the file. 256 is the container's own
-     * ceiling on a map archive and no cache read here comes near it.
+     * Read from an index rather than probed from `<stem>.extra<N>.bin` filenames, so
+     * the member set and its order are stated by the tree instead of by whatever the
+     * filesystem holds.
      */
-    struct
+    struct LC_Pack extras;
+    char root_dir[1700];
+    cp_member_pack_load(&extras, path_stem, "filepack", "map");
+    snprintf(root_dir, sizeof(root_dir), "%s", path_stem);
     {
-        int id;
-        uint8_t* bytes;
-        int size;
-    } extras[256];
-    int extra_count = 0;
+        char* cut = strrchr(root_dir, '/');
+        if( cut )
+            *cut = '\0';
+        else
+            snprintf(root_dir, sizeof(root_dir), ".");
+    }
     char* cursor = text;
     while( cursor && *cursor && ok )
     {
@@ -1691,65 +1789,13 @@ map_read(
             continue;
         if( line[0] == '=' )
         {
-            int extra_id = 0;
             if( strstr(line, "LOC") )
                 section = CP_JM2_LOC;
             else if( strstr(line, "MAP") )
                 section = CP_JM2_MAP;
-            else if( sscanf(line, "==== EXTRA %d ====", &extra_id) == 1 )
-            {
-                section = CP_JM2_EXTRA;
-                if( extra_count < (int)(sizeof(extras) / sizeof(extras[0])) )
-                {
-                    extras[extra_count].id = extra_id;
-                    extras[extra_count].bytes = NULL;
-                    extras[extra_count].size = 0;
-                    extra_count++;
-                }
-                else
-                {
-                    fprintf(stderr, "cachepack: %s: more than %d EXTRA sections\n", path,
-                            (int)(sizeof(extras) / sizeof(extras[0])));
-                    ok = 0;
-                }
-            }
             else
                 section = CP_JM2_FOREIGN;
             seen_ours |= section != CP_JM2_FOREIGN;
-            continue;
-        }
-        if( section == CP_JM2_EXTRA )
-        {
-            /* One hex line per member. A zero-length member is a blank line, which
-             * the blank-line skip above has already eaten — and that is right: the
-             * banner is what records that the member exists. */
-            size_t digits = strlen(line);
-            if( digits % 2 != 0 )
-            {
-                fprintf(stderr, "cachepack: %s: EXTRA %d has an odd hex length\n", path,
-                        extras[extra_count - 1].id);
-                ok = 0;
-                continue;
-            }
-            uint8_t* bytes = malloc(digits / 2 ? digits / 2 : 1);
-            if( !bytes )
-            {
-                ok = 0;
-                continue;
-            }
-            for( size_t i = 0; i < digits / 2; i++ )
-            {
-                unsigned byte = 0;
-                if( sscanf(line + i * 2, "%2x", &byte) != 1 )
-                {
-                    ok = 0;
-                    break;
-                }
-                bytes[i] = (uint8_t)byte;
-            }
-            free(extras[extra_count - 1].bytes);
-            extras[extra_count - 1].bytes = bytes;
-            extras[extra_count - 1].size = (int)(digits / 2);
             continue;
         }
         /* A server-only section: its lines look like tile lines and are not. */
@@ -1915,7 +1961,7 @@ map_read(
              */
             struct RSCache_FileList list;
             memset(&list, 0, sizeof(list));
-            int capacity = 2 + extra_count;
+            int capacity = 2 + (extras.max > 0 ? extras.max : 0);
             list.files = calloc((size_t)capacity, sizeof(char*));
             list.file_sizes = calloc((size_t)capacity, sizeof(int));
             int* ids = calloc((size_t)capacity, sizeof(int));
@@ -1929,13 +1975,26 @@ map_read(
                 ids[1] = CP_MAP_LOCS_FILE;
                 list.file_count = 2;
 
-                for( int extra = 0; extra < extra_count; extra++ )
+                for( int extra = 0; extra < extras.max; extra++ )
                 {
-                    list.files[list.file_count] = (char*)extras[extra].bytes;
-                    list.file_sizes[list.file_count] = extras[extra].size;
-                    ids[list.file_count] = extras[extra].id;
+                    const char* member = extras.names ? extras.names[extra] : NULL;
+                    uint8_t* bytes = NULL;
+                    int bytes_size = 0;
+
+                    if( !member )
+                        continue;
+                    snprintf(path, sizeof(path), "%s/%s", root_dir, member);
+                    if( !read_file_bytes(path, &bytes, &bytes_size) )
+                    {
+                        fprintf(stderr, "cachepack: %s.filepack lists %s, which is not on "
+                                        "disk\n",
+                                path_stem, member);
+                        continue;
+                    }
+                    list.files[list.file_count] = (char*)bytes;
+                    list.file_sizes[list.file_count] = bytes_size;
+                    ids[list.file_count] = extra;
                     list.file_count++;
-                    extras[extra].bytes = NULL; /* the list owns them now */
                 }
 
                 uint32_t bound = RSCache_FileListEncodeBound(&list);
@@ -1968,11 +2027,7 @@ map_read(
         free(locs_bytes);
     }
 
-    /* Anything the FileList did not take ownership of — the path where parsing or
-     * encoding failed before the members were handed over. */
-    for( int extra = 0; extra < extra_count; extra++ )
-        free(extras[extra].bytes);
-
+    lc_pack_free(&extras);
     RSCache_MapTerrainFree(terrain);
     RSCache_MapLocsFree(locs);
     return payload;
