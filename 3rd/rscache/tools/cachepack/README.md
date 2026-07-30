@@ -120,7 +120,7 @@ spelling and only the reader's knowledge told them apart.
 | `interface` | `interfaces/bankmain.if` — one block per component, named by the cache | `interfaces/bankmain.compack` |
 | `texture` | `textures/texture_0.texture` — one block per material | `textures/texture_0.compack` |
 | `map` | `maps/m15_32.jm2` terrain, `maps/m15_32.jl2` locs | `maps/m15_32.filepack` — all five members |
-| `dbindex` | `dbindex/dbindex_0/0.dbidx` — one file per column | `dbindex/dbindex_0.filepack` |
+| `dbindex` | `dbindex/dbindex_0.dbi` — one block per column | `dbindex/dbindex_0.compack` |
 | `worldmaparea` | `worldmap/areas/details.wma` — a block per map | `details.compack` |
 | ” | `worldmap/areas/compositetexture/main.png` | `compositetexture.filepack` |
 | `worldmapgeo` | `worldmap/geography/worldmapgeo_10016.wmg` — one line per tile | `worldmapgeo_10137.filepack` (multi-file only) |
@@ -214,6 +214,36 @@ is a tile's flags.
 **The area decoder's "unknown section type 91 / 219 / 249" flood was the same class of
 mistake** — it was being run over every member of every archive, PNG bytes included.
 Those were never section types; they were a compressed image read as a section list.
+
+### The db indexes are text
+
+Table 21 is what `DB_FIND` scans. For one dbtable, file 0 is the master — every row
+id, which `DB_FINDALL` returns — and file N is the index for column N-1.
+
+    [column_33]
+    base=0:int
+    base=1:int
+    index=0:0:23,46,51,57
+    index=1:32000:61
+
+A column with several typed fields gets one tuple position per field, which is why
+column 33 of table 0 has two: its declared types are 17 and 0.
+
+`base=` is written for **every** position including the empty ones — `dbindex_188`
+file 2 is seven empty int slots and nothing else, so the positions are the only thing
+in that file. A position with no `index=` line has entry_count 0. Entries keep their
+binary order, because `DB_FIND` scans linearly and sorting them would change what the
+cache says. Ints print signed to match dbrow; strings are quoted, since a value can
+contain the `:` that separates the fields.
+
+This is **derived** data — a projection of the dbrows — so the readable form is for
+inspection and CS2 debugging rather than as a source of truth. It still round-trips
+byte-exactly (147/147): like the jm2 and the geography, a member is written as text
+only once re-encoding it has reproduced the original bytes, and anything else falls
+back to bytes plus a filepack.
+
+osrs239's indexes are all `int`. The decoder handles `long` and `string`, so the text
+form does too, but nothing in this cache exercises those paths.
 
 ### Which shape a table gets
 

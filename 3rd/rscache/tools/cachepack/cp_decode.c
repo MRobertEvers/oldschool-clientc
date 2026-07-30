@@ -3,6 +3,7 @@
 #include "dat2disk.h"
 #include "bmp.h"
 #include "datatypes/clientscript.h"
+#include "datatypes/dat2_config_db.h"
 #include "datatypes/dat2_config_param.h"
 #include "datatypes/dat2_worldmap.h"
 #include "datatypes/maps.h"
@@ -4260,6 +4261,527 @@ done:
     lc_pack_free(&members);
     return payload;
 }
+
+
+/* ------------------------------------------------------------------ */
+/* dbindex                                                             */
+/* ------------------------------------------------------------------ */
+/*
+ * A dbtable's inverted indexes: what `DB_FIND` scans to answer "which rows have
+ * this value in this column".
+ *
+ * The archive is one table's worth. File 0 is the master — every row id, which is
+ * what `DB_FINDALL` returns — and file N is the index for column N-1. So
+ * `dbindex_0` file 34 is column 33 of table 0 (quest).
+ *
+ * One file:
+ *
+ *     varint2 tuple_size          how many field positions this column indexes
+ *     repeat tuple_size:
+ *       u8      base_type         0 int, 1 long, 2 string
+ *       varint2 entry_count
+ *       repeat entry_count:
+ *         value                   g4 / g8 / NUL-terminated string, per base_type
+ *         varint2 row_count
+ *         repeat row_count: varint2 row_id
+ *
+ * A column with several typed fields gets several tuple positions, which is why
+ * column 33 has `tuple_size=2` — its declared types are 17 and 0.
+ *
+ * The text form is one file per archive, blocks per member, in the shape textures
+ * and interfaces use:
+ *
+ *     [column_33]
+ *     base=0:int
+ *     base=1:int
+ *     index=0:0:23,46,51
+ *     index=1:32000:61
+ *
+ * `base=` is written for *every* tuple position including the empty ones —
+ * `dbindex_188` file 2 is seven empty int slots and nothing else, so the positions
+ * are the only thing that file contains. A position with no `index=` line has
+ * entry_count 0. Entries stay in binary order because `DB_FIND` scans linearly and
+ * sorting them would change what the cache says.
+ *
+ * Ints print signed, matching dbrow, so 0xffffffff reads as -1. Strings are quoted,
+ * because a raw one could contain the `:` that separates the fields.
+ *
+ * **This is derived data, not authored content.** It is a projection of the dbrows,
+ * so the readable form is for inspection and CS2 debugging rather than a source of
+ * truth — but it still round-trips byte-exactly, and is only written when it does.
+ */
+
+static const char*
+dbindex_base_name(int base_type)
+{
+    switch( base_type )
+    {
+    case RSCACHE_DB_BASE_LONG:
+        return "long";
+    case RSCACHE_DB_BASE_STRING:
+        return "string";
+    default:
+        return "int";
+    }
+}
+
+static int
+dbindex_base_type(const char* name)
+{
+    if( strcmp(name, "long") == 0 )
+        return RSCACHE_DB_BASE_LONG;
+    if( strcmp(name, "string") == 0 )
+        return RSCACHE_DB_BASE_STRING;
+    if( strcmp(name, "int") == 0 )
+        return RSCACHE_DB_BASE_INT;
+    return -1;
+}
+
+/** Bytes for one decoded index file. 0 when it would not fit in `capacity`. */
+static int
+dbindex_encode(
+    const struct RSCache_DbIndexFile* file,
+    uint8_t* out,
+    int capacity)
+{
+    struct RSCache_Buffer buf;
+
+    RSCache_BufferInit(&buf, out, (uint32_t)capacity);
+    RSCache_BufferWriteVarInt2(&buf, file->tuple_size);
+    for( int tp = 0; tp < file->tuple_size; tp++ )
+    {
+        const struct RSCache_DbIndexTuple* tuple = &file->tuples[tp];
+
+        RSCache_BufferP1(&buf, tuple->base_type);
+        RSCache_BufferWriteVarInt2(&buf, tuple->entry_count);
+        for( int e = 0; e < tuple->entry_count; e++ )
+        {
+            const struct RSCache_DbIndexEntry* ent = &tuple->entries[e];
+
+            switch( tuple->base_type )
+            {
+            case RSCACHE_DB_BASE_STRING:
+                for( const char* c = ent->string_value ? ent->string_value : ""; *c; c++ )
+                    RSCache_BufferP1(&buf, (uint8_t)*c);
+                RSCache_BufferP1(&buf, 0);
+                break;
+            case RSCACHE_DB_BASE_LONG:
+                RSCache_BufferP8(&buf, ent->long_value);
+                break;
+            default:
+                RSCache_BufferP4(&buf, ent->int_value);
+                break;
+            }
+            RSCache_BufferWriteVarInt2(&buf, ent->row_count);
+            for( int r = 0; r < ent->row_count; r++ )
+                RSCache_BufferWriteVarInt2(&buf, ent->row_ids[r]);
+        }
+    }
+    if( buf.position > (uint32_t)capacity )
+        return 0;
+    return (int)buf.position;
+}
+
+static void
+dbindex_emit(FILE* out, const struct RSCache_DbIndexFile* file)
+{
+    for( int tp = 0; tp < file->tuple_size; tp++ )
+        fprintf(out, "base=%d:%s\n", tp, dbindex_base_name(file->tuples[tp].base_type));
+    for( int tp = 0; tp < file->tuple_size; tp++ )
+    {
+        const struct RSCache_DbIndexTuple* tuple = &file->tuples[tp];
+
+        for( int e = 0; e < tuple->entry_count; e++ )
+        {
+            const struct RSCache_DbIndexEntry* ent = &tuple->entries[e];
+
+            fprintf(out, "index=%d:", tp);
+            switch( tuple->base_type )
+            {
+            case RSCACHE_DB_BASE_STRING:
+                fprintf(out, "\"");
+                for( const char* c = ent->string_value ? ent->string_value : ""; *c; c++ )
+                {
+                    if( *c == '"' || *c == '\\' )
+                        fprintf(out, "\\");
+                    fprintf(out, "%c", *c);
+                }
+                fprintf(out, "\"");
+                break;
+            case RSCACHE_DB_BASE_LONG:
+                fprintf(out, "%lld", (long long)ent->long_value);
+                break;
+            default:
+                fprintf(out, "%d", ent->int_value);
+                break;
+            }
+            fprintf(out, ":");
+            for( int r = 0; r < ent->row_count; r++ )
+                fprintf(out, "%s%d", r ? "," : "", ent->row_ids[r]);
+            fprintf(out, "\n");
+        }
+    }
+}
+
+/** Grow `file` so tuple position `tp` exists. 0 on allocation failure. */
+static int
+dbindex_ensure_tuple(struct RSCache_DbIndexFile* file, int tp)
+{
+    struct RSCache_DbIndexTuple* grown;
+
+    if( tp < 0 || tp > 4096 )
+        return 0;
+    if( tp < file->tuple_size )
+        return 1;
+    grown = (struct RSCache_DbIndexTuple*)realloc(file->tuples,
+                                                  (size_t)(tp + 1) * sizeof(*grown));
+    if( !grown )
+        return 0;
+    file->tuples = grown;
+    memset(&file->tuples[file->tuple_size], 0,
+           (size_t)(tp + 1 - file->tuple_size) * sizeof(*grown));
+    file->tuple_size = tp + 1;
+    return 1;
+}
+
+/**
+ * Reads one member's block back. 0 on any line it cannot account for.
+ *
+ * `value` is parsed by the position's declared base type, so a `base=` line must
+ * come before the `index=` lines that use it — which is how the emitter writes them
+ * and the only order in which a string containing `:` is unambiguous.
+ */
+static int
+dbindex_parse_block(const struct CP_Config* block, struct RSCache_DbIndexFile* out)
+{
+    memset(out, 0, sizeof(*out));
+    for( int i = 0; i < block->count; i++ )
+    {
+        const char* key = block->lines[i].key;
+        char* value = block->lines[i].value;
+
+        if( strcmp(key, "base") == 0 )
+        {
+            char type_name[32];
+            int tp = -1;
+
+            if( sscanf(value, "%d:%31s", &tp, type_name) != 2 )
+                goto fail;
+            if( !dbindex_ensure_tuple(out, tp) )
+                goto fail;
+            out->tuples[tp].base_type = dbindex_base_type(type_name);
+            if( out->tuples[tp].base_type < 0 )
+                goto fail;
+        }
+        else if( strcmp(key, "index") == 0 )
+        {
+            struct RSCache_DbIndexTuple* tuple;
+            struct RSCache_DbIndexEntry* grown;
+            struct RSCache_DbIndexEntry* ent;
+            char* cursor = value;
+            int tp = (int)strtol(cursor, &cursor, 10);
+
+            if( *cursor != ':' || !dbindex_ensure_tuple(out, tp) )
+                goto fail;
+            cursor++;
+            tuple = &out->tuples[tp];
+            grown = (struct RSCache_DbIndexEntry*)realloc(
+                tuple->entries, (size_t)(tuple->entry_count + 1) * sizeof(*grown));
+            if( !grown )
+                goto fail;
+            tuple->entries = grown;
+            ent = &tuple->entries[tuple->entry_count++];
+            memset(ent, 0, sizeof(*ent));
+
+            if( tuple->base_type == RSCACHE_DB_BASE_STRING )
+            {
+                char* text;
+                int len = 0;
+
+                if( *cursor != '"' )
+                    goto fail;
+                cursor++;
+                text = (char*)malloc(strlen(cursor) + 1);
+                if( !text )
+                    goto fail;
+                while( *cursor && *cursor != '"' )
+                {
+                    if( *cursor == '\\' && cursor[1] )
+                        cursor++;
+                    text[len++] = *cursor++;
+                }
+                text[len] = '\0';
+                if( *cursor != '"' )
+                {
+                    free(text);
+                    goto fail;
+                }
+                cursor++;
+                ent->string_value = text;
+            }
+            else if( tuple->base_type == RSCACHE_DB_BASE_LONG )
+                ent->long_value = (int64_t)strtoll(cursor, &cursor, 10);
+            else
+                ent->int_value = (int)strtol(cursor, &cursor, 10);
+
+            if( *cursor != ':' )
+                goto fail;
+            cursor++;
+            /* An empty tail is a value with no rows, which the encoder writes as
+             * row_count 0 — not the same as the line being absent. */
+            while( *cursor )
+            {
+                int* rows = (int*)realloc(ent->row_ids,
+                                          (size_t)(ent->row_count + 1) * sizeof(int));
+
+                if( !rows )
+                    goto fail;
+                ent->row_ids = rows;
+                ent->row_ids[ent->row_count++] = (int)strtol(cursor, &cursor, 10);
+                if( *cursor == ',' )
+                    cursor++;
+                else if( *cursor )
+                    goto fail;
+            }
+        }
+        else
+            goto fail;
+    }
+    return 1;
+
+fail:
+    RSCache_Dat2DbIndexFileFreeInplace(out);
+    return 0;
+}
+
+static int
+dbindex_write(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const uint8_t* payload,
+    int size,
+    const int* file_ids,
+    int file_count,
+    const char* path_stem)
+{
+    struct RSCache_FileList* files = NULL;
+    struct LC_Pack members;
+    char path[1900];
+    FILE* out;
+    int wrote = 0;
+
+    (void)ctx;
+    (void)record_id;
+
+    files = file_count > 1 ? RSCache_FileListNewFromDecode((char*)payload, size, file_count)
+                           : NULL;
+    if( file_count > 1 && !files )
+        return 0;
+
+    cp_member_pack_load(&members, path_stem, "compack", "col");
+    snprintf(path, sizeof(path), "%s.dbi", path_stem);
+    out = fopen(path, "wb");
+    if( !out )
+    {
+        lc_pack_free(&members);
+        RSCache_FileListFree(files);
+        return 0;
+    }
+    fprintf(out,
+            "// A dbtable's inverted indexes — what DB_FIND scans.\n"
+            "//\n"
+            "// [master] is file 0, every row id in the table, which DB_FINDALL returns.\n"
+            "// [column_N] is file N+1, the index for that column. A column with several\n"
+            "// typed fields gets one tuple position per field.\n"
+            "//\n"
+            "//   base=<pos>:<int|long|string>   declared for every position, empty or not\n"
+            "//   index=<pos>:<value>:<row>,...  entries in binary order; DB_FIND is linear\n"
+            "//\n"
+            "// Derived from the dbrows rather than authored — a readable view, not a\n"
+            "// source of truth. %s.compack ties each block to its file id.\n\n",
+            strrchr(path_stem, '/') ? strrchr(path_stem, '/') + 1 : path_stem);
+
+    for( int f = 0; f < (files ? files->file_count : 1); f++ )
+    {
+        const uint8_t* bytes = files ? (const uint8_t*)files->files[f] : payload;
+        int bytes_size = files ? files->file_sizes[f] : size;
+        int id = file_ids ? file_ids[f] : f;
+        struct RSCache_DbIndexFile decoded;
+        uint8_t* check;
+        int written;
+        char member[64];
+
+        RSCache_Dat2DbIndexFileDecodeInplace(&decoded, id, bytes, bytes_size);
+        /*
+         * Proved before it is written, like the jm2 and the geography: a stream this
+         * does not understand still decodes to a plausible empty index, and the text
+         * for it would encode a *shorter* member that the cache would accept.
+         */
+        check = (uint8_t*)malloc((size_t)bytes_size ? (size_t)bytes_size : 1);
+        written = check ? dbindex_encode(&decoded, check, bytes_size) : 0;
+        if( written != bytes_size || memcmp(check, bytes, (size_t)bytes_size) != 0 )
+        {
+            free(check);
+            RSCache_Dat2DbIndexFileFreeInplace(&decoded);
+            fclose(out);
+            remove(path);
+            lc_pack_free(&members);
+            RSCache_FileListFree(files);
+            return 0;
+        }
+        free(check);
+
+        if( id == 0 )
+            snprintf(member, sizeof(member), "master");
+        else
+            snprintf(member, sizeof(member), "column_%d", id - 1);
+        fprintf(out, "[%s]\n", member);
+        dbindex_emit(out, &decoded);
+        fprintf(out, "\n");
+        lc_pack_set(&members, id, member);
+        RSCache_Dat2DbIndexFileFreeInplace(&decoded);
+        wrote++;
+    }
+    fclose(out);
+    if( wrote )
+        cp_member_pack_save(&members, path_stem, "compack");
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return wrote > 0;
+}
+
+static uint8_t*
+dbindex_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    char path[1900];
+    struct CP_ConfigFile file;
+    struct LC_Pack members;
+    struct RSCache_FileList list;
+    int* ids = NULL;
+    uint8_t* payload = NULL;
+
+    (void)ctx;
+    (void)record_id;
+
+    snprintf(path, sizeof(path), "%s.dbi", path_stem);
+    if( !cp_config_file_load(&file, path) )
+        return NULL;
+    cp_member_pack_load(&members, path_stem, "compack", "col");
+    if( members.max == 0 )
+    {
+        fprintf(stderr, "cachepack: %s: no .compack beside it — cannot tell which "
+                        "block is which file\n",
+                path);
+        cp_config_file_free(&file);
+        lc_pack_free(&members);
+        return NULL;
+    }
+
+    memset(&list, 0, sizeof(list));
+    list.files = (char**)calloc((size_t)file.count, sizeof(char*));
+    list.file_sizes = (int*)calloc((size_t)file.count, sizeof(int));
+    ids = (int*)calloc((size_t)file.count, sizeof(int));
+    if( !list.files || !list.file_sizes || !ids )
+        goto done;
+
+    for( int i = 0; i < file.count; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+        struct RSCache_DbIndexFile decoded;
+        int id = lc_pack_find(&members, block->debugname);
+        uint8_t* bytes;
+        int bound, written;
+
+        if( id < 0 )
+        {
+            fprintf(stderr, "cachepack: %s: [%s] is not in the .compack\n", path,
+                    block->debugname);
+            goto done;
+        }
+        if( !dbindex_parse_block(block, &decoded) )
+        {
+            fprintf(stderr, "cachepack: %s: [%s] did not parse\n", path,
+                    block->debugname);
+            goto done;
+        }
+        /* Every field is bounded: a varint2 is at most 5 bytes, a value at most 8
+         * plus a string's own length. */
+        bound = 8 + decoded.tuple_size * 8;
+        for( int tp = 0; tp < decoded.tuple_size; tp++ )
+        {
+            for( int e = 0; e < decoded.tuples[tp].entry_count; e++ )
+            {
+                const struct RSCache_DbIndexEntry* ent = &decoded.tuples[tp].entries[e];
+
+                bound += 16 + ent->row_count * 5;
+                if( ent->string_value )
+                    bound += (int)strlen(ent->string_value);
+            }
+        }
+        bytes = (uint8_t*)malloc((size_t)bound);
+        written = bytes ? dbindex_encode(&decoded, bytes, bound) : 0;
+        RSCache_Dat2DbIndexFileFreeInplace(&decoded);
+        if( written <= 0 )
+        {
+            free(bytes);
+            goto done;
+        }
+        list.files[list.file_count] = (char*)bytes;
+        list.file_sizes[list.file_count] = written;
+        ids[list.file_count] = id;
+        list.file_count++;
+    }
+
+    if( list.file_count == 1 )
+    {
+        payload = (uint8_t*)list.files[0];
+        *out_size = list.file_sizes[0];
+        list.files[0] = NULL;
+        *out_file_count = 1;
+        *out_file_ids = ids;
+        ids = NULL;
+    }
+    else if( list.file_count > 1 )
+    {
+        uint32_t bound = RSCache_FileListEncodeBound(&list);
+        payload = (uint8_t*)malloc(bound ? bound : 1);
+        if( payload )
+        {
+            uint32_t written = RSCache_FileListEncode(&list, payload, bound);
+
+            if( written == 0 )
+            {
+                free(payload);
+                payload = NULL;
+            }
+            else
+            {
+                *out_size = (int)written;
+                *out_file_count = list.file_count;
+                *out_file_ids = ids;
+                ids = NULL;
+            }
+        }
+    }
+
+done:
+    for( int i = 0; i < list.file_count; i++ )
+        free(list.files[i]);
+    free(list.files);
+    free(list.file_sizes);
+    free(ids);
+    lc_pack_free(&members);
+    cp_config_file_free(&file);
+    return payload;
+}
+
+const struct CP_AssetCodec cp_codec_dbindex = { "dbi", dbindex_write, dbindex_read, 0 };
 
 const struct CP_AssetCodec cp_codec_worldmapgeo = { "wmg", geo_write, geo_read, 0 };
 

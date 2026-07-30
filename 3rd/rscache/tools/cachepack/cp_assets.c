@@ -7,6 +7,7 @@ extern const struct CP_AssetCodec cp_codec_script;
 extern const struct CP_AssetCodec cp_codec_sprite;
 extern const struct CP_AssetCodec cp_codec_worldmap;
 extern const struct CP_AssetCodec cp_codec_worldmapgeo;
+extern const struct CP_AssetCodec cp_codec_dbindex;
 
 #include "archive.h"
 #include "checksum.h"
@@ -142,11 +143,17 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "20_worldmapground", "worldmapground", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
-    /* One file per dbtable, holding the master index and the per-column files. No
-     * codec, so the payload is written whole and is byte-exact. */
+    /*
+     * One archive per dbtable: the master index and one file per indexed column.
+     *
+     * The codec renders all of them as blocks in a single `.dbi`, so this is the
+     * texture/interface shape rather than the dbindex-of-.bin-files it used to be.
+     * `CP_ASSET_SPLIT` stays as the fallback: a member the codec cannot prove a
+     * byte-exact round-trip for still lands as bytes plus a filepack.
+     */
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "21_dbtableindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_SPLIT, -1,
-        NULL },
+        "dbindex", "21_dbtableindex", "dbindex", "bin", RSCACHE_DAT2_TABLE_DBTABLE_INDEX,
+        CP_ASSET_SPLIT, -1, &cp_codec_dbindex },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
 };
