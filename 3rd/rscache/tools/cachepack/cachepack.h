@@ -41,6 +41,7 @@
 
 #include "asset_access.h"
 #include "cp_text.h"
+#include "cp_walk.h"
 #include "lc_pack.h"
 
 #include <stdbool.h>
@@ -211,6 +212,9 @@ struct CP_Names
     struct LC_Pack components;
 };
 
+/** How many files of one extension a pack run will consider. */
+#define CP_PACK_MAX_SOURCES 256
+
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */
 int
 cp_names_load(
@@ -321,6 +325,9 @@ struct CP_Ctx
     struct RSCache profile;
     struct Tool_Dat2Cache cache; /* open only for unpack/verify */
     bool cache_open;
+
+    /** Source files found by extension, built once per pack run (cp_walk.h). */
+    struct CP_Walk walk;
 
     /**
      * Previous revision's cache, opened for LC-style unpack diffs.

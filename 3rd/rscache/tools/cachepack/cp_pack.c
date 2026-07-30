@@ -1,6 +1,7 @@
 #include "cachepack.h"
 
 #include "checksum.h"
+#include "cp_walk.h"
 
 #include "cache_edit.h"
 #include "cache_write.h"
@@ -83,10 +84,24 @@ pack_type(
         return 1;
     }
 
-    char path[1200];
-    snprintf(path, sizeof(path), "%s/configs/all.%s", ctx->srcdir, type->name);
+    /*
+     * Found by walking, not by constructing a path.
+     *
+     * `configs/all.<type>` was the only place a config record could live, and the
+     * packer knew that as a `snprintf`. Discovery by extension is what lets a
+     * second layer exist at all — the `server/scripts` tree states the same types in
+     * the same grammar — so the path stops being knowledge the packer holds and
+     * becomes something the tree answers.
+     *
+     * Still one file per type at this phase: `configs/` is the only root, so this
+     * finds exactly what the `snprintf` found and the packed bytes are unchanged.
+     * That is the bar for the change.
+     */
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
     struct CP_ConfigFile file;
-    if( !cp_config_file_load(&file, path) )
+
+    if( found_count <= 0 || !cp_config_file_load(&file, found[0]) )
     {
         /* A type the source tree does not carry is not an error: a partial unpack
          * is a normal thing to want, and the base cache still holds those records. */
@@ -171,6 +186,18 @@ cp_pack_run(
     struct RSCache_Dat2Edit* edit = RSCache_Dat2EditNew(ctx->cache.disk);
     if( !edit )
         return 0;
+
+    /*
+     * One walk for the whole run. `configs/` alone for now — `server/scripts/`
+     * joins it as rank 1 when the merge lands, and the roots being a list here is
+     * what makes that a one-line change rather than a rewrite.
+     */
+    {
+        static const char* const ROOTS[] = { "configs" };
+        static const int RANKS[] = { 0 };
+
+        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 1);
+    }
 
     printf("Packing configs from %s\n", ctx->srcdir);
     int total = 0, failed = 0;
