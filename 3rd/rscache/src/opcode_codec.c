@@ -2,8 +2,13 @@
 
 #include "datatypes/dat2_config_healthbar.h"
 #include "datatypes/dat2_config_hitsplat.h"
+#include "datatypes/dat2_config_db.h"
+#include "datatypes/dat2_config_enum.h"
+#include "datatypes/dat2_config_idk.h"
+#include "datatypes/dat2_config_mapelement.h"
 #include "datatypes/dat2_config_inv.h"
 #include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_config_sequence.h"
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_param.h"
@@ -91,6 +96,25 @@
  * `&server->base`, so it must stay concretely typed rather than being generated
  * only in this erased shape.
  */
+/**
+ * As WRAP_DECODE_INPLACE, for a type whose struct carries no `_consumed`.
+ *
+ * dbrow and dbtable are not opcode streams in the usual sense — their payload is
+ * a column table, validated byte-exact by `test_db_encode` — so consumption is
+ * reported as the full record rather than measured. Named distinctly so it is
+ * visible which types are not being held to the consumption bar.
+ */
+#define WRAP_DECODE_INPLACE_NOCONSUMED(TAG, STRUCT, FN)                                            \
+    static int cpc_##TAG##_decode(                                                                 \
+        const struct RSCache* cache, void* record, const uint8_t* src, int size)                   \
+    {                                                                                              \
+        (void)cache;                                                                               \
+        if( !record || !src || size < 0 )                                                          \
+            return -1;                                                                             \
+        FN((STRUCT*)record, src, size);                                                            \
+        return size;                                                                               \
+    }
+
 #define WRAP_DECODE_OP(TAG, STRUCT, FN)                                                            \
     static bool cpc_##TAG##_decode_op(                                                             \
         void* record, int opcode, struct RSCache_Buffer* buffer, unsigned flags)                   \
@@ -375,6 +399,127 @@ WRAP_FREE(
     struct RSCache_Dat2ConfigObj,
     RSCache_Dat2ConfigObjFreeInplace)
 
+WRAP_INIT(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkInit)
+WRAP_DECODE_OP(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkDecodeOp)
+WRAP_ENCODE(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkEncode)
+WRAP_BOUND(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkEncodeBound)
+
+/*
+ * seq keeps the whole-record path rather than taking a `decode_op`.
+ *
+ * It has *three* decoders — `decode_sequence_v1/v2/v3`, selected by codec version
+ * — so a per-opcode split is three splits, and the opcode numbering differs
+ * between them. Nothing needs to subclass seq: the server pack carries npc, loc
+ * and obj. This is a deferral, not a structural limit like `enum`'s; if a
+ * server-side seq ever needs fields, the split is still available.
+ */
+WRAP_INIT_ZERO(
+    seq,
+    struct RSCache_Dat2ConfigSequence)
+WRAP_BOUND(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceEncodeBound)
+WRAP_ENCODE_PROFILE(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceEncode)
+WRAP_FREE(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceFreeInplace)
+
+static int
+cpc_seq_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    struct RSCache_Dat2ConfigSequence* def = (struct RSCache_Dat2ConfigSequence*)record;
+
+    if( !def || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigSequenceDecodeProfile(def, cache, (char*)src, size);
+    return def->_consumed;
+}
+
+/*
+ * enum keeps the whole-record path, and unlike seq this is structural rather than
+ * a deferral: its decoder accumulates keys and values in *function locals* across
+ * opcodes 5/6/7 and commits them to the record only after the loop ends. A
+ * per-opcode handler has no stack frame to hold them, so splitting it would mean
+ * moving four accumulators into the record — a change to the type, not a
+ * refactor of the decoder.
+ */
+WRAP_INIT_ZERO(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum)
+WRAP_DECODE_INPLACE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumDecodeInplace)
+WRAP_ENCODE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumEncode)
+WRAP_BOUND(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumEncodeBound)
+WRAP_FREE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumFreeInplace)
+
+WRAP_INIT_ZERO(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowDecodeInplace)
+WRAP_ENCODE(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowEncode)
+WRAP_BOUND(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowEncodeBound)
+WRAP_FREE(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowFreeInplace)
+
+WRAP_INIT_ZERO(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableDecodeInplace)
+WRAP_ENCODE(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableEncode)
+WRAP_BOUND(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableEncodeBound)
+WRAP_FREE(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableFreeInplace)
+
 /* ---- the table ----------------------------------------------------------- */
 
 /*
@@ -521,6 +666,41 @@ static const struct RSCache_OpcodeCodec k_codecs[] = {
         struct RSCache_Dat2ConfigObj,
         obj,
         cpc_obj_free),
+    ROW(
+        "idk",
+        RSCACHE_TYPE_IDK,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigIdk,
+        idk,
+        NULL),
+    ROW_WHOLE(
+        "seq",
+        RSCACHE_TYPE_SEQUENCE,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigSequence,
+        seq,
+        cpc_seq_free),
+    ROW_WHOLE(
+        "enum",
+        RSCACHE_TYPE_ENUM,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigEnum,
+        cfgenum,
+        cpc_cfgenum_free),
+    ROW_WHOLE(
+        "dbrow",
+        RSCACHE_TYPE_DBROW,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigDbRow,
+        dbrow,
+        cpc_dbrow_free),
+    ROW_WHOLE(
+        "dbtable",
+        RSCACHE_TYPE_DBTABLE,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigDbTable,
+        dbtable,
+        cpc_dbtable_free),
 };
 
 #define CODEC_COUNT ((int)(sizeof(k_codecs) / sizeof(k_codecs[0])))

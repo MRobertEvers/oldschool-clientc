@@ -15,6 +15,11 @@ struct RSCache_Dat2ConfigEnum
     int64_t* long_values;
     char** string_values;
     int count;
+    /** Bytes consumed. Equal to the record size for a fully understood record.
+     *
+     *  Added with the stop-on-unknown fix: this decoder skipped opcodes it did
+     *  not know, so it had no way to report that it had lost the thread. */
+    int _consumed;
 };
 
 void
@@ -41,5 +46,9 @@ RSCache_Dat2ConfigEnumFree(struct RSCache_Dat2ConfigEnum* entry);
 
 void
 RSCache_Dat2ConfigEnumFreeInplace(struct RSCache_Dat2ConfigEnum* entry);
+
+/** An upper bound on what `RSCache_Dat2ConfigEnumEncode` will write. */
+uint32_t
+RSCache_Dat2ConfigEnumEncodeBound(const struct RSCache_Dat2ConfigEnum* entry);
 
 #endif

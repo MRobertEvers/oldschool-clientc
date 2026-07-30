@@ -21,7 +21,14 @@ RSCache_Dat2ConfigEnumDecodeInplace(
 
     if( !entry )
         return;
-    if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
+    /*
+     * The lone-terminator case is *not* special-cased out any more. Returning
+     * early for a 1-byte `00` record skipped setting `_consumed`, so every empty
+     * enum — 3,270 of the 5,862 in osrs239 — reported a short read while decoding
+     * perfectly. The loop below handles that record correctly on its own: it
+     * reads opcode 0, stops, and records one byte consumed.
+     */
+    if( !data || data_size <= 0 )
         return;
 
     RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)data_size);
@@ -130,10 +137,22 @@ RSCache_Dat2ConfigEnumDecodeInplace(
             entry->default_long = g8(&buf);
             break;
         default:
-            break;
+            /*
+             * Stop, where this used to skip and carry on.
+             *
+             * `break` here left the *switch*, not the loop, so an unknown opcode
+             * was stepped over and its payload read as the next opcode — the
+             * record then decoded from a false position with nothing to show for
+             * it. That is exactly how a real width bug hid in
+             * `dat2_config_obj.c` opcode 115. Stopping keeps whatever was decoded
+             * and leaves `_consumed` short, which is the signal.
+             */
+            goto decode_done;
         }
     }
 
+decode_done:
+    entry->_consumed = (int)buf.position;
     entry->keys = keys;
     entry->int_values = int_values;
     entry->long_values = long_values;
@@ -271,4 +290,28 @@ RSCache_Dat2ConfigEnumFree(struct RSCache_Dat2ConfigEnum* entry)
         return;
     RSCache_Dat2ConfigEnumFreeInplace(entry);
     free(entry);
+}
+
+uint32_t
+RSCache_Dat2ConfigEnumEncodeBound(const struct RSCache_Dat2ConfigEnum* entry)
+{
+    /* Scalars (opcodes 1-4, 8) plus, per entry, a 4-byte key and its value: 4
+     * bytes for an int, 8 for a long, or the string plus terminator. */
+    uint32_t need = 64u;
+    int i;
+
+    if( !entry )
+        return need;
+    if( entry->default_string )
+        need += (uint32_t)strlen(entry->default_string) + 2u;
+    need += (uint32_t)entry->count * 12u + 8u;
+    if( entry->string_values )
+    {
+        for( i = 0; i < entry->count; i++ )
+        {
+            if( entry->string_values[i] )
+                need += (uint32_t)strlen(entry->string_values[i]) + 1u;
+        }
+    }
+    return need;
 }

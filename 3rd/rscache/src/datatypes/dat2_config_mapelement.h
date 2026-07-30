@@ -43,4 +43,8 @@ RSCache_MapElementEncode(
 void
 RSCache_MapElementFreeInplace(struct RSCache_MapElement* entry);
 
+/** An upper bound on what `RSCache_MapElementEncode` will write. */
+uint32_t
+RSCache_MapElementEncodeBound(const struct RSCache_MapElement* entry);
+
 #endif

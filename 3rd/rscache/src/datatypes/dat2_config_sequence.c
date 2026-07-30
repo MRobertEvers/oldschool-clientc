@@ -1442,3 +1442,25 @@ RSCache_Dat1ConfigSequenceFree(struct RSCache_Dat1ConfigSequence* seq)
     free(seq->walkmerge);
     free(seq);
 }
+
+uint32_t
+RSCache_Dat2ConfigSequenceEncodeBound(const struct RSCache_Dat2ConfigSequence* def)
+{
+    /*
+     * Same shape as the npc/loc/obj bounds: one flat allowance covering every
+     * scalar opcode, then the variable-length parts measured from the record.
+     * Checked against a canary on all 14,413 seq records by `test_opcode_codec`.
+     */
+    uint32_t need = 512u;
+
+    if( !def )
+        return need;
+    /* frame ids and lengths are emitted as a pair per frame, worst case g4 each,
+     * plus the interleave-leave table which carries one more entry than frames. */
+    need += (uint32_t)def->frame_count * 12u + 8u;
+    need += (uint32_t)(def->frame_count + 1) * 4u + 4u;
+    need += (uint32_t)def->chat_frame_id_count * 4u + 4u;
+    if( def->debug_name )
+        need += (uint32_t)strlen(def->debug_name) + 2u;
+    return need;
+}

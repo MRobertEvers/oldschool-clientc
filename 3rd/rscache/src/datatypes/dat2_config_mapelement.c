@@ -187,3 +187,17 @@ RSCache_MapElementFreeInplace(struct RSCache_MapElement* entry)
     free(entry->name);
     memset(entry, 0, sizeof(*entry));
 }
+
+uint32_t
+RSCache_MapElementEncodeBound(const struct RSCache_MapElement* entry)
+{
+    /* The decoder retains four fields; the encoder emits only those, so a flat
+     * allowance plus the two strings covers it. */
+    uint32_t need = 64u;
+
+    if( !entry )
+        return need;
+    if( entry->name )
+        need += (uint32_t)strlen(entry->name) + 2u;
+    return need;
+}

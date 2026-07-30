@@ -25,8 +25,8 @@ RSCache_Dat2ConfigIdkFree(struct RSCache_Dat2ConfigIdk* idk)
     free(idk);
 }
 
-static void
-init_idk(struct RSCache_Dat2ConfigIdk* idk)
+void
+RSCache_Dat2ConfigIdkInit(struct RSCache_Dat2ConfigIdk* idk)
 {
     memset(idk, 0, sizeof(struct RSCache_Dat2ConfigIdk));
     idk->body_part_id = -1;
@@ -128,72 +128,52 @@ RSCache_Dat2ConfigIdkEncode(
     return buffer.position;
 }
 
-void
-RSCache_Dat2ConfigIdkDecodeInplace(
+bool
+RSCache_Dat2ConfigIdkDecodeOp(
     struct RSCache_Dat2ConfigIdk* idk,
-    char* buffer,
-    int buffer_size)
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
 {
-    struct RSCache_Buffer rsbuf;
-    RSCache_BufferInit(&rsbuf, (uint8_t*)buffer, (uint32_t)(buffer_size));
-
-    init_idk(idk);
-
-    while( true )
-    {
-        if( rsbuf.position >= rsbuf.size )
-        {
-            printf(
-                "RSCache_Dat2ConfigIdkDecodeInplace: Buffer position %d exceeded data size %d\n",
-                rsbuf.position,
-                rsbuf.size);
-            return;
-        }
-
-        int opcode = g1(&rsbuf);
-        if( opcode == 0 )
-        {
-            break;
-        }
-
+    (void)flags; /* No era-dependent opcode in this type. */
         switch( opcode )
         {
         case 1:
-            idk->body_part_id = g1(&rsbuf);
+            idk->body_part_id = g1(buffer);
             break;
         case 2:
-            idk->model_ids_count = g1(&rsbuf);
+            idk->model_ids_count = g1(buffer);
             idk->model_ids = malloc(idk->model_ids_count * sizeof(int));
             for( int i = 0; i < idk->model_ids_count; i++ )
-                idk->model_ids[i] = g2(&rsbuf);
+                idk->model_ids[i] = g2(buffer);
             break;
         case 3:
             idk->is_not_selectable = true;
             break;
         case 5:
-            idk->model_ids_count = g1(&rsbuf);
+            idk->model_ids_count = g1(buffer);
             idk->model_ids = malloc(idk->model_ids_count * sizeof(int));
             for( int i = 0; i < idk->model_ids_count; i++ )
-                idk->model_ids[i] = g4(&rsbuf);
+                idk->model_ids[i] = g4(buffer);
             break;
         case 40:
-            idk->recolor_count = g1(&rsbuf);
+            idk->recolor_count = g1(buffer);
             idk->recolors_from = malloc(idk->recolor_count * sizeof(int));
             idk->recolors_to = malloc(idk->recolor_count * sizeof(int));
             for( int i = 0; i < idk->recolor_count; i++ )
             {
-                idk->recolors_from[i] = g2(&rsbuf);
-                idk->recolors_to[i] = g2(&rsbuf);
+                idk->recolors_from[i] = g2(buffer);
+                idk->recolors_to[i] = g2(buffer);
             }
             break;
         case 41:
-            idk->retexture_count = g1(&rsbuf);
+            idk->retexture_count = g1(buffer);
             idk->retextures_from = malloc(idk->retexture_count * sizeof(int));
             idk->retextures_to = malloc(idk->retexture_count * sizeof(int));
             for( int i = 0; i < idk->retexture_count; i++ )
             {
-                idk->retextures_from[i] = g2(&rsbuf);
-                idk->retextures_to[i] = g2(&rsbuf);
+                idk->retextures_from[i] = g2(buffer);
+                idk->retextures_to[i] = g2(buffer);
             }
             break;
         case 60:
@@ -207,7 +187,7 @@ RSCache_Dat2ConfigIdkDecodeInplace(
         case 68:
         case 69:
         {
-            idk->if_model_ids[opcode - 60] = g2(&rsbuf);
+            idk->if_model_ids[opcode - 60] = g2(buffer);
             break;
         }
         case 70:
@@ -221,9 +201,63 @@ RSCache_Dat2ConfigIdkDecodeInplace(
         case 78:
         case 79:
         {
-            idk->if_model_ids[opcode - 70] = g4(&rsbuf);
+            idk->if_model_ids[opcode - 70] = g4(buffer);
             break;
         }
+            default:
+            /*
+             * There was no `default` here at all: an unknown opcode fell straight
+             * through the switch and the loop read its payload as the next opcode,
+             * decoding from a false position with no error and no short read to
+             * show for it. That is the same failure that hid a real width bug in
+             * `dat2_config_obj.c` opcode 115 — see its note. Stopping is the only
+             * safe answer when a payload width is unknown.
+             */
+            return false;
         }
+
+    /* Fell out of the switch: a case handled this opcode. */
+    return true;
+}
+
+void
+RSCache_Dat2ConfigIdkDecodeInplace(
+    struct RSCache_Dat2ConfigIdk* idk,
+    char* buffer,
+    int buffer_size)
+{
+    struct RSCache_Buffer rsbuf;
+
+    RSCache_BufferInit(&rsbuf, (uint8_t*)buffer, (uint32_t)(buffer_size));
+    RSCache_Dat2ConfigIdkInit(idk);
+
+    while( true )
+    {
+        if( rsbuf.position >= rsbuf.size )
+            break;
+
+        int opcode = g1(&rsbuf);
+        if( opcode == 0 )
+            break;
+
+        if( !RSCache_Dat2ConfigIdkDecodeOp(idk, opcode, &rsbuf, 0) )
+            break;
     }
+    idk->_consumed = (int)rsbuf.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigIdkEncodeBound(const struct RSCache_Dat2ConfigIdk* idk)
+{
+    /* Opcodes 1/3 are tiny; the variable parts are the model list, the recolour
+     * and retexture pairs, and the ten if-model slots. Worst case g4 per model. */
+    uint32_t need = 64u;
+
+    if( !idk )
+        return need;
+    need += (uint32_t)idk->model_ids_count * 4u + 2u;
+    need += (uint32_t)idk->recolor_count * 4u + 2u;
+    need += (uint32_t)idk->retexture_count * 4u + 2u;
+    need += 10u * 5u;
+    return need;
 }

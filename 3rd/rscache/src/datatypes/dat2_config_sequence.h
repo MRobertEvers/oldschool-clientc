@@ -126,6 +126,10 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
     uint8_t* out,
     uint32_t out_capacity);
 
+/** An upper bound on what `RSCache_Dat2ConfigSequenceEncode` will write. */
+uint32_t
+RSCache_Dat2ConfigSequenceEncodeBound(const struct RSCache_Dat2ConfigSequence* def);
+
 /** Decode using the codec version the profile selects. */
 void
 RSCache_Dat2ConfigSequenceDecodeProfile(
