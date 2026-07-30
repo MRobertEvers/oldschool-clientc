@@ -181,6 +181,44 @@ struct RSCache_Dat2ConfigNpc
 int
 RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache);
 
+/**
+ * Set the type's defaults on an already-zeroed record.
+ *
+ * Over thirty fields, and not optional: `size` is 1, every animation is -1,
+ * the scales are 128, `rotation_speed` is 32, `overlap_tint_hsl` is 39188 and
+ * every stat is 1. A record decoded without this looks plausible and re-encodes
+ * to different bytes, which is the only symptom it has.
+ */
+void
+RSCache_Dat2ConfigNpcInit(struct RSCache_Dat2ConfigNpc* npc);
+
+/**
+ * Fix up the record once its stream is exhausted.
+ *
+ * `footprint_size` falls back to a value derived from `size`, which is only
+ * knowable after the last opcode. Must run after decoding, by any path.
+ */
+void
+RSCache_Dat2ConfigNpcFinish(struct RSCache_Dat2ConfigNpc* npc, unsigned flags);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point a server-side npc record delegates through: embed this
+ * struct at offset zero, call this first, and handle only what comes back false.
+ * See `opcode_codec.h`.
+ *
+ * `flags` must come from `RSCache_Dat2ConfigNpcFlags` — opcode 102 changes shape
+ * at rev 210, and six further era gates ride on the same word. Passing 0 decodes
+ * a modern cache wrongly and silently.
+ */
+bool
+RSCache_Dat2ConfigNpcDecodeOp(
+    struct RSCache_Dat2ConfigNpc* npc,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
 struct RSCache_Dat2ConfigNpc*
 RSCache_Dat2ConfigNpcNewDecodeProfile(
     const struct RSCache* cache,
@@ -230,6 +268,16 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     const struct RSCache_Dat2ConfigNpc* npc,
     uint8_t* out,
     uint32_t out_capacity);
+
+/** An upper bound on what `RSCache_Dat2ConfigNpcEncodeProfile` will write. */
+uint32_t
+RSCache_Dat2ConfigNpcEncodeBound(const struct RSCache_Dat2ConfigNpc* npc);
+
+/** Release what the record owns, leaving the struct itself to the caller.
+ *  Split out of `Free` so a caller holding the record by value — as the codec
+ *  interface does — can release it without the double free `Free` would cause. */
+void
+RSCache_Dat2ConfigNpcFreeInplace(struct RSCache_Dat2ConfigNpc* npc);
 
 void
 RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc);

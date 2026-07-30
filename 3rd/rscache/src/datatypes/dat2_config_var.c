@@ -1,5 +1,6 @@
 #include "dat2_config_var.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,14 +11,10 @@ RSCache_Dat2ConfigVarbitDecode(
     struct RSCache_Dat2ConfigVarbit* entry,
     struct RSCache_Buffer* buffer)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry != NULL);
+    assert(buffer != NULL);
 
-    /* -1, not 0: a varbit that named no base variable is not one pointing at
-     * varplayer 0. Matches Client-TS VarBitType. */
-    entry->basevar = -1;
-    entry->startbit = 0;
-    entry->endbit = 0;
+    RSCache_Dat2ConfigVarbitInit(entry);
 
     for( ;; )
     {
@@ -28,24 +25,47 @@ RSCache_Dat2ConfigVarbitDecode(
         if( opcode == 0 )
             break;
 
-        if( opcode == 1 )
-        {
-            entry->basevar = g2(buffer);
-            entry->startbit = g1(buffer);
-            entry->endbit = g1(buffer);
-        }
-        else if( opcode == 10 )
-        {
-            char* name = gcstring(buffer);
-            free(entry->debugname);
-            entry->debugname = name;
-        }
-        else
-        {
-            /* Stop rather than guess a width — see the header. */
+        if( !RSCache_Dat2ConfigVarbitDecodeOp(entry, opcode, buffer, 0) )
             break;
-        }
     }
+}
+
+void
+RSCache_Dat2ConfigVarbitInit(struct RSCache_Dat2ConfigVarbit* entry)
+{
+    assert(entry != NULL);
+    /* -1, not 0: a varbit that named no base variable is not one pointing at
+     * varplayer 0. Matches Client-TS VarBitType. Held out of the decode loop so a
+     * per-opcode caller cannot skip it — see `opcode_codec.h`. */
+    entry->basevar = -1;
+    entry->startbit = 0;
+    entry->endbit = 0;
+}
+
+bool
+RSCache_Dat2ConfigVarbitDecodeOp(
+    struct RSCache_Dat2ConfigVarbit* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    if( opcode == 1 )
+    {
+        entry->basevar = g2(buffer);
+        entry->startbit = g1(buffer);
+        entry->endbit = g1(buffer);
+        return true;
+    }
+    if( opcode == 10 )
+    {
+        char* name = gcstring(buffer);
+        free(entry->debugname);
+        entry->debugname = name;
+        return true;
+    }
+    /* Stop rather than guess a width — see the header. */
+    return false;
 }
 
 void
@@ -54,8 +74,7 @@ RSCache_Dat2ConfigVarbitDecodeInplace(
     const void* data,
     int data_size)
 {
-    if( !entry )
-        return;
+    assert(entry != NULL);
     if( !data || data_size <= 0 )
     {
         entry->basevar = -1;
@@ -143,8 +162,8 @@ RSCache_Dat2ConfigVarplayerDecode(
     struct RSCache_Dat2ConfigVarplayer* entry,
     struct RSCache_Buffer* buffer)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry != NULL);
+    assert(buffer != NULL);
 
     for( ;; )
     {
@@ -155,11 +174,25 @@ RSCache_Dat2ConfigVarplayerDecode(
         if( opcode == 0 )
             break;
 
-        if( opcode == 5 )
-            entry->clientcode = g2(buffer);
-        else
+        if( !RSCache_Dat2ConfigVarplayerDecodeOp(entry, opcode, buffer, 0) )
             break;
     }
+}
+
+bool
+RSCache_Dat2ConfigVarplayerDecodeOp(
+    struct RSCache_Dat2ConfigVarplayer* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    if( opcode == 5 )
+    {
+        entry->clientcode = g2(buffer);
+        return true;
+    }
+    return false;
 }
 
 void
@@ -168,10 +201,9 @@ RSCache_Dat2ConfigVarplayerDecodeInplace(
     const void* data,
     int data_size)
 {
-    if( !entry )
-        return;
-    if( !data || data_size <= 0 )
-        return;
+    assert(entry != NULL);
+    assert(data != NULL);
+    assert(data_size > 0);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
@@ -192,8 +224,9 @@ RSCache_Dat2ConfigVarplayerEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out || out_capacity < 4u )
-        return 0;
+    assert(entry != NULL);
+    assert(out != NULL);
+    assert(out_capacity >= 4u);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
@@ -221,8 +254,8 @@ RSCache_Dat2ConfigVarclientDecode(
     struct RSCache_Dat2ConfigVarclient* entry,
     struct RSCache_Buffer* buffer)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry != NULL);
+    assert(buffer != NULL);
 
     for( ;; )
     {
@@ -233,20 +266,31 @@ RSCache_Dat2ConfigVarclientDecode(
         if( opcode == 0 )
             break;
 
-        if( opcode == 2 )
-        {
-            entry->persist = 1;
-        }
-        else if( opcode == 3 )
-        {
-            entry->opcode_3 = g2(buffer);
-            entry->has_opcode_3 = true;
-        }
-        else
-        {
+        if( !RSCache_Dat2ConfigVarclientDecodeOp(entry, opcode, buffer, 0) )
             break;
-        }
     }
+}
+
+bool
+RSCache_Dat2ConfigVarclientDecodeOp(
+    struct RSCache_Dat2ConfigVarclient* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    if( opcode == 2 )
+    {
+        entry->persist = 1;
+        return true;
+    }
+    if( opcode == 3 )
+    {
+        entry->opcode_3 = g2(buffer);
+        entry->has_opcode_3 = true;
+        return true;
+    }
+    return false;
 }
 
 void
@@ -255,10 +299,9 @@ RSCache_Dat2ConfigVarclientDecodeInplace(
     const void* data,
     int data_size)
 {
-    if( !entry )
-        return;
-    if( !data || data_size <= 0 )
-        return;
+    assert(entry != NULL);
+    assert(data != NULL);
+    assert(data_size > 0);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
@@ -279,8 +322,9 @@ RSCache_Dat2ConfigVarclientEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out || out_capacity < 5u )
-        return 0;
+    assert(entry != NULL);
+    assert(out != NULL);
+    assert(out_capacity >= 5u);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);

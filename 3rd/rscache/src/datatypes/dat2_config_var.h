@@ -123,6 +123,41 @@ RSCache_Dat2ConfigVarbitDecodeInplace(
     const void* data,
     int data_size);
 
+/**
+ * Set the type's non-zero defaults on an already-zeroed record.
+ *
+ * Must run before any `DecodeOp` call: `basevar` defaults to -1, because a varbit
+ * that named no base variable is not one pointing at varplayer 0.
+ */
+void
+RSCache_Dat2ConfigVarbitInit(struct RSCache_Dat2ConfigVarbit* entry);
+
+/*
+ * Per-opcode handlers. True when consumed, false when unknown — false being the
+ * extension point a server-side record delegates through. See `opcode_codec.h`.
+ */
+
+bool
+RSCache_Dat2ConfigVarbitDecodeOp(
+    struct RSCache_Dat2ConfigVarbit* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+bool
+RSCache_Dat2ConfigVarplayerDecodeOp(
+    struct RSCache_Dat2ConfigVarplayer* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+bool
+RSCache_Dat2ConfigVarclientDecodeOp(
+    struct RSCache_Dat2ConfigVarclient* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
 void
 RSCache_Dat2ConfigVarplayerDecode(
     struct RSCache_Dat2ConfigVarplayer* entry,

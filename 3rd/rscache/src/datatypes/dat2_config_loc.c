@@ -161,8 +161,8 @@ RSCache_Dat2ConfigLocDecodeInplace(
     decode_loc(loc, data, data_size, flags);
 }
 
-static void
-init_loc(struct RSCache_Dat2ConfigLoc* loc)
+void
+RSCache_Dat2ConfigLocInit(struct RSCache_Dat2ConfigLoc* loc)
 {
     memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
 
@@ -280,7 +280,7 @@ RSCache_Dat2ConfigLocEncodeFlags(
     RSCache_BufferInit(&buffer, out, out_capacity);
 
     struct RSCache_Dat2ConfigLoc defaults;
-    init_loc(&defaults);
+    RSCache_Dat2ConfigLocInit(&defaults);
 
     /* Opcode 1 carries one model per shape; opcode 5 carries several models under a
      * single group and no shapes. The decoder distinguishes them by whether it
@@ -749,39 +749,32 @@ loc_skip_models_rs2(struct RSCache_Buffer* buffer)
     return true;
 }
 
-static void
-decode_loc(
+/*
+ * One opcode of a loc record.
+ *
+ * Lifted verbatim out of `decode_loc`'s loop: every case body is unchanged except
+ * that `goto decode_done` — the bail-out for an opcode whose payload width is
+ * unknown — became `return false`, which stops the stream the same way. Falling
+ * out of the switch means the opcode was handled.
+ *
+ * `flags` is not optional: opcode 1 takes a different shape under RS2, and
+ * `gstringfl` reads strings differently per era.
+ */
+bool
+RSCache_Dat2ConfigLocDecodeOp(
     struct RSCache_Dat2ConfigLoc* loc,
-    char* data,
-    int data_size,
-    int flags)
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
 {
-    struct RSCache_Buffer buffer;
-    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
-
-    int actions_count = 0;
-
-    init_loc(loc);
-
-    while( true )
-    {
-        if( buffer.position >= buffer.size )
-            break;
-
-        int opcode = g1(&buffer) & 0xFF;
-        if( opcode == 0 )
-        {
-            break;
-        }
-
         switch( opcode )
         {
         case 1:
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
             {
-                if( !loc_read_models_rs2(loc, &buffer) )
-                    goto decode_done;
+                if( !loc_read_models_rs2(loc, buffer) )
+                    return false;
                 break;
             }
             /**
@@ -789,7 +782,7 @@ decode_loc(
              *
              * The map loc will specify which shape to use in it.
              */
-            int count = g1(&buffer);
+            int count = g1(buffer);
             if( count == 0 )
                 break;
 
@@ -801,17 +794,17 @@ decode_loc(
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
-                loc->models[i][0] = LOC_READ_MODEL_ID(&buffer, flags);
-                loc->shapes[i] = g1(&buffer);
+                loc->models[i][0] = LOC_READ_MODEL_ID(buffer, flags);
+                loc->shapes[i] = g1(buffer);
                 loc->lengths[i] = 1;
             }
             break;
         }
         case 2:
-            loc->name = gstringfl(&buffer, flags);
+            loc->name = gstringfl(buffer, flags);
             break;
         case 3:
-            loc->desc = gstringfl(&buffer, flags);
+            loc->desc = gstringfl(buffer, flags);
             break;
         case 5:
         {
@@ -821,10 +814,10 @@ decode_loc(
                  * dropped, which is what the reference does with both — it only needs the
                  * stream to stay aligned. Storing the first keeps the models a world
                  * render actually draws. */
-                if( !loc_read_models_rs2(loc, &buffer) )
-                    goto decode_done;
-                if( !loc_skip_models_rs2(&buffer) )
-                    goto decode_done;
+                if( !loc_read_models_rs2(loc, buffer) )
+                    return false;
+                if( !loc_skip_models_rs2(buffer) )
+                    return false;
                 break;
             }
             /**
@@ -832,7 +825,7 @@ decode_loc(
              * Generally, always just draw the models.
              * shape_select is not used here.
              */
-            int count = g1(&buffer);
+            int count = g1(buffer);
             if( count == 0 )
                 break;
 
@@ -845,7 +838,7 @@ decode_loc(
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
             {
-                int model_id = LOC_READ_MODEL_ID(&buffer, flags);
+                int model_id = LOC_READ_MODEL_ID(buffer, flags);
                 loc->models[0][i] = model_id;
             }
             break;
@@ -853,9 +846,9 @@ decode_loc(
         case 6:
         {
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS) )
-                goto decode_done;
+                return false;
             /* Like opcode 1, but model ids are g4. */
-            int count = g1(&buffer);
+            int count = g1(buffer);
             if( count == 0 )
                 break;
 
@@ -867,8 +860,8 @@ decode_loc(
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
-                loc->models[i][0] = g4(&buffer);
-                loc->shapes[i] = g1(&buffer);
+                loc->models[i][0] = g4(buffer);
+                loc->shapes[i] = g1(buffer);
                 loc->lengths[i] = 1;
             }
             break;
@@ -876,9 +869,9 @@ decode_loc(
         case 7:
         {
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS) )
-                goto decode_done;
+                return false;
             /* Like opcode 5, but model ids are g4. */
-            int count = g1(&buffer);
+            int count = g1(buffer);
             if( count == 0 )
                 break;
 
@@ -889,14 +882,14 @@ decode_loc(
             loc->lengths = (int*)malloc(1 * sizeof(int));
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
-                loc->models[0][i] = g4(&buffer);
+                loc->models[0][i] = g4(buffer);
             break;
         }
         case 14:
-            loc->size_x = g1(&buffer);
+            loc->size_x = g1(buffer);
             break;
         case 15:
-            loc->size_z = g1(&buffer);
+            loc->size_z = g1(buffer);
             break;
         case 17:
             loc->blocks_walk = 0;
@@ -906,7 +899,7 @@ decode_loc(
             loc->blocks_projectiles = 0;
             break;
         case 19:
-            loc->is_interactive = g1(&buffer);
+            loc->is_interactive = g1(buffer);
             break;
         case 21:
             loc->contoured_ground = 0;
@@ -920,7 +913,7 @@ decode_loc(
             break;
         case 24:
         {
-            int seq_id = LOC_READ_MODEL_ID(&buffer, flags);
+            int seq_id = LOC_READ_MODEL_ID(buffer, flags);
             if( seq_id == 65535 )
             {
                 seq_id = -1;
@@ -935,10 +928,10 @@ decode_loc(
             loc->blocks_walk = 1;
             break;
         case 28:
-            loc->wall_width = g1(&buffer);
+            loc->wall_width = g1(buffer);
             break;
         case 29:
-            loc->ambient = g1b(&buffer);
+            loc->ambient = g1b(buffer);
             break;
         case 30:
         case 31:
@@ -951,8 +944,8 @@ decode_loc(
         case 38:
         {
             int action_index = opcode - 30;
-            char* action = gstringfl(&buffer, flags);
-            actions_count++;
+            char* action = gstringfl(buffer, flags);
+            loc->_actions_seen++;
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
             {
@@ -972,11 +965,11 @@ decode_loc(
              * multiplier used to be 25 unconditionally, which made every dat1
              * loc five times as attenuated as the reference. */
             loc->contrast =
-                g1b(&buffer) * ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25);
+                g1b(buffer) * ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25);
             break;
         case 40:
         {
-            int count = g1(&buffer);
+            int count = g1(buffer);
             loc->recolor_count = count;
             if( count > 0 )
             {
@@ -984,15 +977,15 @@ decode_loc(
                 loc->recolors_to = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->recolors_from[i] = g2(&buffer);
-                    loc->recolors_to[i] = g2(&buffer);
+                    loc->recolors_from[i] = g2(buffer);
+                    loc->recolors_to[i] = g2(buffer);
                 }
             }
             break;
         }
         case 41:
         {
-            int count = g1(&buffer);
+            int count = g1(buffer);
             loc->retexture_count = count;
             if( count > 0 )
             {
@@ -1000,21 +993,21 @@ decode_loc(
                 loc->retextures_to = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->retextures_from[i] = g2(&buffer);
-                    loc->retextures_to[i] = g2(&buffer);
+                    loc->retextures_from[i] = g2(buffer);
+                    loc->retextures_to[i] = g2(buffer);
                 }
             }
             break;
         }
         case 44:
         case 45:
-            g2(&buffer); // Skip unsigned short
+            g2(buffer); // Skip unsigned short
             break;
         case 60:
-            loc->map_function_id = g2(&buffer);
+            loc->map_function_id = g2(buffer);
             break;
         case 61:
-            g2(&buffer); // Skip unsigned short
+            g2(buffer); // Skip unsigned short
             break;
         case 62:
             loc->mirrored = 1;
@@ -1023,29 +1016,29 @@ decode_loc(
             loc->shadowed = 0;
             break;
         case 65:
-            loc->resize_x = g2(&buffer);
+            loc->resize_x = g2(buffer);
             break;
         case 66:
-            loc->resize_height = g2(&buffer);
+            loc->resize_height = g2(buffer);
             break;
         case 67:
-            loc->resize_z = g2(&buffer);
+            loc->resize_z = g2(buffer);
             break;
         case 68:
             // Client-TS from LostCity call this mapScene
-            loc->map_scene_id = g2(&buffer);
+            loc->map_scene_id = g2(buffer);
             break;
         case 69:
-            loc->force_approach = g1(&buffer);
+            loc->force_approach = g1(buffer);
             break;
         case 70:
-            loc->offset_x = g2b(&buffer);
+            loc->offset_x = g2b(buffer);
             break;
         case 71:
-            loc->offset_y = g2b(&buffer);
+            loc->offset_y = g2b(buffer);
             break;
         case 72:
-            loc->offset_z = g2b(&buffer);
+            loc->offset_z = g2b(buffer);
             break;
         case 73:
             loc->obstructs_ground = 1;
@@ -1054,18 +1047,18 @@ decode_loc(
             loc->break_routefinding = 1;
             break;
         case 75:
-            loc->support_items = g1(&buffer);
+            loc->support_items = g1(buffer);
             break;
         case 77:
         case 92:
         {
-            loc->transform_varbit = g2(&buffer);
+            loc->transform_varbit = g2(buffer);
             if( loc->transform_varbit == 65535 )
             {
                 loc->transform_varbit = -1;
             }
 
-            loc->transform_varp = g2(&buffer);
+            loc->transform_varp = g2(buffer);
             if( loc->transform_varp == 65535 )
             {
                 loc->transform_varp = -1;
@@ -1074,20 +1067,20 @@ decode_loc(
             int var3 = -1;
             if( opcode == 92 )
             {
-                var3 = LOC_READ_MODEL_ID(&buffer, flags);
+                var3 = LOC_READ_MODEL_ID(buffer, flags);
                 if( var3 == 65535 )
                 {
                     var3 = -1;
                 }
             }
 
-            int count = g1(&buffer);
+            int count = g1(buffer);
             loc->transform_count = count + 2;
             loc->transforms = malloc((count + 2) * sizeof(int));
 
             for( int i = 0; i <= count; i++ )
             {
-                int transform = LOC_READ_MODEL_ID(&buffer, flags);
+                int transform = LOC_READ_MODEL_ID(buffer, flags);
                 if( transform == 65535 )
                 {
                     transform = -1;
@@ -1106,36 +1099,36 @@ decode_loc(
          */
         case 78:
         {
-            loc->ambient_sound_id = g2(&buffer);
-            loc->ambient_sound_distance = g1(&buffer);
+            loc->ambient_sound_id = g2(buffer);
+            loc->ambient_sound_distance = g1(buffer);
             if( !(flags &
                   (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
-                loc->ambient_sound_retain = g1(&buffer);
+                loc->ambient_sound_retain = g1(buffer);
             break;
         }
         case 79:
         {
-            loc->ambient_sound_ticks_min = g2(&buffer);
-            loc->ambient_sound_ticks_max = g2(&buffer);
-            loc->ambient_sound_distance = g1(&buffer);
+            loc->ambient_sound_ticks_min = g2(buffer);
+            loc->ambient_sound_ticks_max = g2(buffer);
+            loc->ambient_sound_distance = g1(buffer);
             if( !(flags &
                   (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
-                loc->ambient_sound_retain = g1(&buffer);
-            int count = g1(&buffer);
+                loc->ambient_sound_retain = g1(buffer);
+            int count = g1(buffer);
             loc->ambient_sound_id_count = count;
             if( count > 0 )
             {
                 loc->ambient_sound_ids = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->ambient_sound_ids[i] = g2(&buffer);
+                    loc->ambient_sound_ids[i] = g2(buffer);
                 }
             }
             break;
         }
         case 81:
         {
-            loc->contoured_ground = g1(&buffer) * 256;
+            loc->contoured_ground = g1(buffer) * 256;
             loc->contour_ground_type = 2;
             loc->contour_ground_param = loc->contoured_ground;
             break;
@@ -1145,7 +1138,7 @@ decode_loc(
              * flag with no payload (LocType.decodeOpcode branches on `game === "oldschool"`
              * and reads nothing otherwise). Its map function is opcode 60 or 107. */
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
-                loc->map_function_id = g2(&buffer);
+                loc->map_function_id = g2(buffer);
             break;
         case 88:
         case 90:
@@ -1170,24 +1163,24 @@ decode_loc(
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
             {
                 if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
-                    loc->sound_distance_fade_curve = g1(&buffer);
+                    loc->sound_distance_fade_curve = g1(buffer);
                 else
-                    g1(&buffer);
+                    g1(buffer);
             }
             break;
         case 93:
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
             {
-                loc->sound_fade_in_curve = g1(&buffer);
-                loc->sound_fade_in_duration = g2(&buffer);
-                loc->sound_fade_out_curve = g1(&buffer);
-                loc->sound_fade_out_duration = g2(&buffer);
+                loc->sound_fade_in_curve = g1(buffer);
+                loc->sound_fade_in_duration = g2(buffer);
+                loc->sound_fade_out_curve = g1(buffer);
+                loc->sound_fade_out_duration = g2(buffer);
             }
             else
             {
                 loc->contour_ground_type = 3;
-                loc->contour_ground_param = g2b(&buffer);
+                loc->contour_ground_param = g2b(buffer);
             }
             break;
         }
@@ -1201,18 +1194,18 @@ decode_loc(
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
             {
-                loc->sound_visibility = g1(&buffer);
+                loc->sound_visibility = g1(buffer);
             }
             else
             {
                 loc->contour_ground_type = 5;
-                g2(&buffer);
+                g2(buffer);
             }
             break;
         }
         case 96:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
-                loc->raise = g1(&buffer);
+                loc->raise = g1(buffer);
             break;
         case 99:
         case 104:
@@ -1227,31 +1220,31 @@ decode_loc(
             /* Skip various data - just read the bytes */
             if( opcode == 99 )
             {
-                g1(&buffer);
-                g2(&buffer);
+                g1(buffer);
+                g2(buffer);
             }
             else if( opcode == 104 || opcode == 178 )
             {
-                g1(&buffer);
+                g1(buffer);
             }
             else if( opcode == 163 )
             {
-                g1b(&buffer);
-                g1b(&buffer);
-                g1b(&buffer);
-                g1b(&buffer);
+                g1b(buffer);
+                g1b(buffer);
+                g1b(buffer);
+                g1b(buffer);
             }
             else if( opcode == 167 || opcode == 173 )
             {
-                g2(&buffer);
+                g2(buffer);
                 if( opcode == 173 )
                 {
-                    g2(&buffer);
+                    g2(buffer);
                 }
             }
             else if( opcode == 170 || opcode == 171 )
             {
-                gushortsmart(&buffer);
+                gushortsmart(buffer);
             }
             else if( opcode == 190 || opcode == 191 )
             {
@@ -1259,44 +1252,44 @@ decode_loc(
                  * RS2-era LocType (the reference notes both as "unknown starts 731", i.e.
                  * after 643); a byte each in the OldSchool era. */
                 if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
-                    g1(&buffer);
+                    g1(buffer);
             }
             break;
         case 100:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
-                RSCache_EntityOpsDecodeSubOp(&loc->entity_ops, &buffer);
+                RSCache_EntityOpsDecodeSubOp(&loc->entity_ops, buffer);
             }
             else
             {
                 /* RS2 / pre-237: skip payload (g1 + g2). */
-                g1(&buffer);
-                g2(&buffer);
+                g1(buffer);
+                g2(buffer);
             }
             break;
         case 101:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
-                RSCache_EntityOpsDecodeCondOp(&loc->entity_ops, &buffer);
+                RSCache_EntityOpsDecodeCondOp(&loc->entity_ops, buffer);
             }
             else
             {
-                g1(&buffer);
+                g1(buffer);
             }
             break;
         case 102:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
-                RSCache_EntityOpsDecodeCondSubOp(&loc->entity_ops, &buffer);
+                RSCache_EntityOpsDecodeCondSubOp(&loc->entity_ops, buffer);
             }
             else
             {
-                loc->map_scene_id = g2(&buffer);
+                loc->map_scene_id = g2(buffer);
             }
             break;
         case 106:
         {
-            int count = g1(&buffer);
+            int count = g1(buffer);
             loc->random_seq_id_count = count;
             if( count > 0 )
             {
@@ -1304,14 +1297,14 @@ decode_loc(
                 loc->random_seq_delays = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->random_seq_ids[i] = LOC_READ_MODEL_ID(&buffer, flags);
-                    loc->random_seq_delays[i] = g1(&buffer);
+                    loc->random_seq_ids[i] = LOC_READ_MODEL_ID(buffer, flags);
+                    loc->random_seq_delays[i] = g1(buffer);
                 }
             }
             break;
         }
         case 107:
-            loc->map_function_id = g2(&buffer);
+            loc->map_function_id = g2(buffer);
             break;
         case 150:
         case 151:
@@ -1320,7 +1313,7 @@ decode_loc(
         case 154:
         {
             int action_index = opcode - 150;
-            char* action = gstringfl(&buffer, flags);
+            char* action = gstringfl(buffer, flags);
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
             {
@@ -1335,35 +1328,42 @@ decode_loc(
         }
         case 160:
         {
-            int count = g1(&buffer);
+            int count = g1(buffer);
             loc->campaign_id_count = count;
             if( count > 0 )
             {
                 loc->campaign_ids = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->campaign_ids[i] = g2(&buffer);
+                    loc->campaign_ids[i] = g2(buffer);
                 }
             }
             break;
         }
         case 249:
-            RSCache_BufferReadParams(&buffer, &loc->params);
+            RSCache_BufferReadParams(buffer, &loc->params);
             break;
         default:
             fprintf(
                 stderr,
                 "RSCache_Dat2ConfigLocDecode: unimplemented opcode %d at offset %d\n",
                 opcode,
-                buffer.position - 1);
+                buffer->position - 1);
             /* Unknown payload length: the stream is misaligned from here on;
              * stop rather than churn garbage into later fields. */
-            goto decode_done;
+            return false;
         }
-    }
 
-decode_done:
-    loc->_consumed = (int)buffer.position;
+    /* Fell out of the switch: a case handled this opcode. */
+    return true;
+}
+
+void
+RSCache_Dat2ConfigLocFinish(struct RSCache_Dat2ConfigLoc* loc, unsigned flags)
+{
+    (void)flags;
+    if( !loc )
+        return;
 
     if( loc->break_routefinding )
     {
@@ -1375,9 +1375,91 @@ decode_done:
     {
         loc->is_interactive =
             (loc->models != NULL) && ((loc->shapes == NULL) || (loc->shapes[0] == 10));
-        if( actions_count > 0 )
-        {
+        /*
+         * `_actions_seen`, not a count of non-NULL `actions[]`. An action spelled
+         * "hidden" is counted and *then* stored as NULL, so a loc whose only action
+         * is hidden has zero non-NULL slots but is still interactive. Counting the
+         * array would silently make those locs unclickable.
+         */
+        if( loc->_actions_seen > 0 )
             loc->is_interactive = true;
-        }
     }
+}
+
+static void
+decode_loc(
+    struct RSCache_Dat2ConfigLoc* loc,
+    char* data,
+    int data_size,
+    int flags)
+{
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+
+    RSCache_Dat2ConfigLocInit(loc);
+
+    while( true )
+    {
+        if( buffer.position >= buffer.size )
+            break;
+
+        int opcode = g1(&buffer) & 0xFF;
+        if( opcode == 0 )
+            break;
+
+        if( !RSCache_Dat2ConfigLocDecodeOp(loc, opcode, &buffer, (unsigned)flags) )
+            break;
+    }
+
+    loc->_consumed = (int)buffer.position;
+    RSCache_Dat2ConfigLocFinish(loc, (unsigned)flags);
+}
+
+uint32_t
+RSCache_Dat2ConfigLocEncodeBound(const struct RSCache_Dat2ConfigLoc* loc)
+{
+    /*
+     * A ceiling, on the same principle as the npc bound: one flat allowance
+     * covering every scalar opcode, then each variable-length part measured from
+     * the record. 100 opcodes at worst 1 code byte plus 8 of payload is under 900,
+     * so 2048 leaves better than a 2x margin.
+     *
+     * `test_opcode_codec` writes a canary past this bound and checks it on every
+     * loc in the cache, so an inadequate figure fails the suite rather than
+     * corrupting the heap.
+     */
+    uint32_t need = 2048u;
+    int i;
+
+    if( !loc )
+        return need;
+
+    /* Opcode 1/5/6/7 carry one model list per shape; worst case g4 per id, plus a
+     * shape byte and per-list count. */
+    need += (uint32_t)loc->shapes_and_model_count * 8u + 4u;
+    if( loc->lengths )
+    {
+        for( i = 0; i < loc->shapes_and_model_count; i++ )
+            need += (uint32_t)loc->lengths[i] * 4u + 2u;
+    }
+    need += (uint32_t)loc->recolor_count * 4u + 2u;
+    need += (uint32_t)loc->retexture_count * 4u + 2u;
+    need += (uint32_t)loc->transform_count * 2u + 8u;
+    need += (uint32_t)loc->ambient_sound_id_count * 2u + 4u;
+    need += (uint32_t)loc->random_seq_id_count * 4u + 4u;
+    need += (uint32_t)loc->campaign_id_count * 2u + 4u;
+
+    if( loc->name )
+        need += (uint32_t)strlen(loc->name) + 2u;
+    if( loc->desc )
+        need += (uint32_t)strlen(loc->desc) + 2u;
+    for( i = 0; i < 10; i++ )
+    {
+        if( loc->actions[i] )
+            need += (uint32_t)strlen(loc->actions[i]) + 2u;
+    }
+
+    need += RSCache_EntityOpsBound(&loc->entity_ops);
+    need += 1u + RSCache_BufferParamsBound(&loc->params);
+    return need;
 }

@@ -109,6 +109,20 @@ struct RSCache_OpcodeCodec
      */
     void (*record_init)(void* record);
 
+    /**
+     * Fix up the record once the stream is exhausted, or NULL.
+     *
+     * Some types cannot finish decoding opcode by opcode: npc derives
+     * `footprint_size` from `size` when rev 231 is in force and no opcode 126
+     * supplied one, which is only knowable after the last opcode is read.
+     *
+     * This is not a nicety. Without it a record decoded through this interface
+     * differs from one decoded by the type's own entry point, and the difference
+     * shows up only as a re-encode that no longer matches — npc dropped from 99
+     * byte-exact records to 0 when this hook was missing.
+     */
+    void (*record_finish)(void* record, unsigned flags);
+
     /** Release anything the record owns. The record itself is the caller's. */
     void (*record_free)(void* record);
 

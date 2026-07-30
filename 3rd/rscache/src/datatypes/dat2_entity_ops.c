@@ -235,3 +235,47 @@ RSCache_EntityOpsHasAnyOp(const struct RSCache_EntityOps* ops)
     }
     return false;
 }
+
+uint32_t
+RSCache_EntityOpsBound(const struct RSCache_EntityOps* ops)
+{
+    /*
+     * Derived from RSCache_EntityOpsEncode above, field for field, so the two
+     * cannot drift: an opcode byte per record written, then that record's fixed
+     * scalars, then its NUL-terminated string.
+     *
+     *   ops slot     1 + str
+     *   sub op       1 + 1 + 1                     + str
+     *   cond op      1 + 1 + 2 + 2 + 4 + 4         + str
+     *   cond sub op  1 + 1 + 2 + 2 + 2 + 4 + 4     + str
+     */
+    uint32_t need = 0;
+    int i;
+
+    if( !ops )
+        return 0;
+    for( i = 0; i < RSCACHE_ENTITY_OPS_SLOTS; i++ )
+    {
+        if( ops->ops[i] )
+            need += 1u + (uint32_t)strlen(ops->ops[i]) + 1u;
+    }
+    for( i = 0; i < ops->sub_ops_count; i++ )
+    {
+        const char* text = ops->sub_ops[i].text;
+
+        need += 3u + (text ? (uint32_t)strlen(text) : 0u) + 1u;
+    }
+    for( i = 0; i < ops->cond_ops_count; i++ )
+    {
+        const char* text = ops->cond_ops[i].text;
+
+        need += 14u + (text ? (uint32_t)strlen(text) : 0u) + 1u;
+    }
+    for( i = 0; i < ops->cond_sub_ops_count; i++ )
+    {
+        const char* text = ops->cond_sub_ops[i].text;
+
+        need += 16u + (text ? (uint32_t)strlen(text) : 0u) + 1u;
+    }
+    return need;
+}

@@ -102,4 +102,8 @@ RSCache_EntityOpsEncode(
 bool
 RSCache_EntityOpsHasAnyOp(const struct RSCache_EntityOps* ops);
 
+/** Exactly the bytes `RSCache_EntityOpsEncode` will write, derived from it. */
+uint32_t
+RSCache_EntityOpsBound(const struct RSCache_EntityOps* ops);
+
 #endif

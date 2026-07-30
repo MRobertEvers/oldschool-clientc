@@ -1,5 +1,6 @@
 #include "dat2_config_param.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -90,8 +91,9 @@ RSCache_Dat2ConfigParamDecodeInplace(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry )
-        return;
+    assert(entry != NULL);
+    assert(data != NULL);
+    assert(data_size > 0);
     entry->auto_disable = 1;
     if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
         return;
@@ -103,33 +105,66 @@ RSCache_Dat2ConfigParamDecodeInplace(
         int opcode = g1(&buf);
         if( opcode == 0 )
             break;
-        switch( opcode )
-        {
-        case 1:
-            entry->type = rscache_param_jagex_char(g1(&buf));
+        if( !RSCache_Dat2ConfigParamDecodeOp(entry, opcode, &buf, 0) )
             break;
-        case 2:
-            entry->default_int = g4(&buf);
-            break;
-        case 4:
-            entry->auto_disable = 0;
-            break;
-        case 5:
-        {
-            char* s = gcstring(&buf);
-            free(entry->default_string);
-            entry->default_string = s;
-            break;
-        }
-        case 7:
-            entry->default_long = (long long)g8(&buf);
-            break;
-        case 8:
-            entry->type = rscache_param_char_for_type_id(g1(&buf));
-            break;
-        default:
-            break;
-        }
+    }
+    entry->_consumed = (int)buf.position;
+}
+
+void
+RSCache_Dat2ConfigParamInit(struct RSCache_Dat2ConfigParam* entry)
+{
+    assert(entry != NULL);
+    /* Opcode 4 *clears* this, so the default has to be 1 — a zeroed record would
+     * read as auto-disable off for every param that never mentions it. Held out
+     * of the decode loop so a per-opcode caller cannot miss it. */
+    entry->auto_disable = 1;
+}
+
+bool
+RSCache_Dat2ConfigParamDecodeOp(
+    struct RSCache_Dat2ConfigParam* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    switch( opcode )
+    {
+    case 1:
+        entry->type = rscache_param_jagex_char(g1(buffer));
+        return true;
+    case 2:
+        entry->default_int = g4(buffer);
+        return true;
+    case 4:
+        entry->auto_disable = 0;
+        return true;
+    case 5:
+    {
+        char* str = gcstring(buffer);
+        free(entry->default_string);
+        entry->default_string = str;
+        return true;
+    }
+    case 7:
+        entry->default_long = (long long)g8(buffer);
+        return true;
+    case 8:
+        entry->type = rscache_param_char_for_type_id(g1(buffer));
+        return true;
+    default:
+        /*
+         * Stop, where this decoder used to skip and carry on.
+         *
+         * Skipping cannot be right: an unknown opcode's payload width is unknown,
+         * so the next `g1` reads a payload byte as an opcode and the rest of the
+         * record decodes from a false position. Every other type in this library
+         * stops for that reason. Verified unobservable on osrs239 — the exact and
+         * differ counts are unchanged — because no param record there carries an
+         * opcode this decoder does not know.
+         */
+        return false;
     }
 }
 
@@ -139,8 +174,9 @@ RSCache_Dat2ConfigParamEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
+    assert(entry != NULL);
+    assert(out != NULL);
+    assert(out_capacity >= 4u);
 
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, out, out_capacity);
@@ -185,8 +221,7 @@ RSCache_Dat2ConfigParamEncode(
 void
 RSCache_Dat2ConfigParamFreeInplace(struct RSCache_Dat2ConfigParam* entry)
 {
-    if( !entry )
-        return;
+    assert(entry != NULL);
     free(entry->default_string);
     entry->default_string = NULL;
 }
@@ -194,8 +229,22 @@ RSCache_Dat2ConfigParamFreeInplace(struct RSCache_Dat2ConfigParam* entry)
 void
 RSCache_Dat2ConfigParamFree(struct RSCache_Dat2ConfigParam* entry)
 {
-    if( !entry )
-        return;
+    assert(entry != NULL);
     RSCache_Dat2ConfigParamFreeInplace(entry);
     free(entry);
+}
+
+uint32_t
+RSCache_Dat2ConfigParamEncodeBound(const struct RSCache_Dat2ConfigParam* entry)
+{
+    assert(entry != NULL);
+    /*
+     * Every opcode this type can emit, summed rather than sampled: 1 (+u8),
+     * 2 (+u32), 4 (bare), 7 (+u64), 8 (+u8), 5 (+string), then the terminator.
+     */
+    uint32_t need = (1u + 1u) + (1u + 4u) + 1u + (1u + 8u) + (1u + 1u) + 1u;
+
+    if( entry->default_string )
+        need += 1u + (uint32_t)strlen(entry->default_string) + 1u;
+    return need;
 }

@@ -99,6 +99,28 @@ RSCache_Dat2ConfigHealthbarDecodeInplace(
     const void* data,
     int data_size);
 
+/**
+ * Set the type's non-zero defaults on an already-zeroed record.
+ *
+ * Must run before any `DecodeOp` call: both sprite ids default to -1 because
+ * sprite 0 is real and cannot double as "absent".
+ */
+void
+RSCache_Dat2ConfigHealthbarInit(struct RSCache_Dat2ConfigHealthbar* entry);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point: a server-side record that embeds this one calls this first
+ * and handles only what comes back false. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat2ConfigHealthbarDecodeOp(
+    struct RSCache_Dat2ConfigHealthbar* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
 /** Byte-exact on every record in the corpus. Returns bytes written, or 0. */
 uint32_t
 RSCache_Dat2ConfigHealthbarEncode(

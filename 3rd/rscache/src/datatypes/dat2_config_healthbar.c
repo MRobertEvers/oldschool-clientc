@@ -8,9 +8,7 @@ RSCache_Dat2ConfigHealthbarDecode(
     if( !entry || !buffer )
         return;
 
-    /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite". */
-    entry->sprite_id_a = -1;
-    entry->sprite_id_b = -1;
+    RSCache_Dat2ConfigHealthbarInit(entry);
 
     for( ;; )
     {
@@ -21,38 +19,61 @@ RSCache_Dat2ConfigHealthbarDecode(
         if( opcode == 0 )
             break;
 
-        switch( opcode )
-        {
-        case 2:
-            entry->opcode_2 = g1(buffer);
-            entry->has_opcode_2 = true;
-            break;
-        case 3:
-            entry->opcode_3 = g1(buffer);
-            entry->has_opcode_3 = true;
-            break;
-        case 5:
-            entry->opcode_5 = g2(buffer);
-            entry->has_opcode_5 = true;
-            break;
-        case 7:
-            entry->sprite_id_a = g2(buffer);
-            break;
-        case 8:
-            entry->sprite_id_b = g2(buffer);
-            break;
-        case 11:
-            entry->opcode_11 = g2(buffer);
-            entry->has_opcode_11 = true;
-            break;
-        case 14:
-            entry->opcode_14 = g1(buffer);
-            entry->has_opcode_14 = true;
-            break;
-        default:
-            /* Unknown opcode: stop rather than guess its width. See the header. */
+        if( !RSCache_Dat2ConfigHealthbarDecodeOp(entry, opcode, buffer, 0) )
             return;
-        }
+    }
+}
+
+void
+RSCache_Dat2ConfigHealthbarInit(struct RSCache_Dat2ConfigHealthbar* entry)
+{
+    if( !entry )
+        return;
+    /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite". Kept out of
+     * the loop so a per-opcode caller cannot miss it — see the hitsplat note. */
+    entry->sprite_id_a = -1;
+    entry->sprite_id_b = -1;
+}
+
+bool
+RSCache_Dat2ConfigHealthbarDecodeOp(
+    struct RSCache_Dat2ConfigHealthbar* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    switch( opcode )
+    {
+    case 2:
+        entry->opcode_2 = g1(buffer);
+        entry->has_opcode_2 = true;
+        return true;
+    case 3:
+        entry->opcode_3 = g1(buffer);
+        entry->has_opcode_3 = true;
+        return true;
+    case 5:
+        entry->opcode_5 = g2(buffer);
+        entry->has_opcode_5 = true;
+        return true;
+    case 7:
+        entry->sprite_id_a = g2(buffer);
+        return true;
+    case 8:
+        entry->sprite_id_b = g2(buffer);
+        return true;
+    case 11:
+        entry->opcode_11 = g2(buffer);
+        entry->has_opcode_11 = true;
+        return true;
+    case 14:
+        entry->opcode_14 = g1(buffer);
+        entry->has_opcode_14 = true;
+        return true;
+    default:
+        /* Unknown opcode: stop rather than guess its width. See the header. */
+        return false;
     }
 }
 

@@ -86,9 +86,10 @@ RSCache_Dat2ConfigInvFreeInplace(struct RSCache_Dat2ConfigInv* entry)
 uint32_t
 RSCache_Dat2ConfigInvEncodeBound(const struct RSCache_Dat2ConfigInv* entry)
 {
-    /* Size opcode (1+2) + terminator, plus a generous params allowance. */
-    (void)entry;
-    return 4u + 4096u;
+    /* Size opcode (1+2), params opcode (1) + its payload, terminator (1). */
+    if( !entry )
+        return 5u;
+    return 5u + RSCache_BufferParamsBound(&entry->params);
 }
 
 uint32_t

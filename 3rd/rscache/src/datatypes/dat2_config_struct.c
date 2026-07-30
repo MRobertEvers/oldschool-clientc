@@ -24,9 +24,33 @@ RSCache_Dat2ConfigStructDecodeInplace(
         int opcode = g1(&buf);
         if( opcode == 0 )
             break;
-        if( opcode == 249 )
-            RSCache_BufferReadParams(&buf, &entry->params);
+        if( !RSCache_Dat2ConfigStructDecodeOp(entry, opcode, &buf, 0) )
+            break;
     }
+}
+
+/* Declared in the header; defined here beside the loop it was lifted out of. */
+bool
+RSCache_Dat2ConfigStructDecodeOp(
+    struct RSCache_Dat2ConfigStruct* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    if( opcode == 249 )
+    {
+        RSCache_BufferReadParams(buffer, &entry->params);
+        return true;
+    }
+    /*
+     * Stop, where this decoder used to ignore the opcode and carry on. An unknown
+     * opcode's payload width is unknown, so continuing reads a payload byte as the
+     * next opcode and decodes the remainder from a false position — the reason
+     * every other type here stops. Verified unobservable on osrs239: all 3,988
+     * struct records carry only opcode 249.
+     */
+    return false;
 }
 
 uint32_t
@@ -82,4 +106,13 @@ RSCache_Dat2ConfigStructFree(struct RSCache_Dat2ConfigStruct* entry)
         return;
     RSCache_Dat2ConfigStructFreeInplace(entry);
     free(entry);
+}
+
+uint32_t
+RSCache_Dat2ConfigStructEncodeBound(const struct RSCache_Dat2ConfigStruct* entry)
+{
+    /* Params opcode (1) + its payload, then the terminator (1). */
+    if( !entry )
+        return 2u;
+    return 2u + RSCache_BufferParamsBound(&entry->params);
 }

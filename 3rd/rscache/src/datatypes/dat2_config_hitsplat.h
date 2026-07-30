@@ -106,6 +106,29 @@ RSCache_Dat2ConfigHitsplatDecode(
     struct RSCache_Dat2ConfigHitsplat* entry,
     struct RSCache_Buffer* buffer);
 
+/**
+ * Set the type's non-zero defaults on an already-zeroed record.
+ *
+ * Must run before any `DecodeOp` call. `sprite_id` defaults to -1 because sprite
+ * 0 is a real sprite and cannot double as "absent"; a record decoded without this
+ * draws splat sprite 0 instead of none, with nothing else to show for it.
+ */
+void
+RSCache_Dat2ConfigHitsplatInit(struct RSCache_Dat2ConfigHitsplat* entry);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point: a server-side record that embeds this one calls this first
+ * and handles only what comes back false. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat2ConfigHitsplatDecodeOp(
+    struct RSCache_Dat2ConfigHitsplat* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
 /** Decode one dat2 record and record `_consumed`. Stops on an unknown opcode rather
  *  than guessing its width, leaving `_consumed` short — the harness asserts on that. */
 void

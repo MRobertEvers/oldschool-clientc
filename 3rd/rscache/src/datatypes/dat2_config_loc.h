@@ -191,6 +191,16 @@ struct RSCache_Dat2ConfigLoc
     /** Bytes consumed by the last decode (diagnostic: exact-consumption
      * scans compare this against the file size to detect misalignment). */
     int _consumed;
+    /**
+     * How many action opcodes (30..38) the decode saw, including any spelled
+     * "hidden".
+     *
+     * Not derivable from `actions[]`: a "hidden" action is counted and then
+     * stored as NULL, so counting non-NULL slots undercounts and would leave
+     * those locs non-interactive. Loop state that the post-decode fixup needs,
+     * so it lives in the record rather than in the decoder's stack frame.
+     */
+    int _actions_seen;
 };
 
 #define RSCACHE_CONFIG_LOC_DECODE_DAT2 0
@@ -300,10 +310,41 @@ RSCache_Dat2ConfigLocEncodeFlags(
     uint8_t* out,
     uint32_t out_capacity);
 
+/** An upper bound on what `RSCache_Dat2ConfigLocEncode` will write. */
+uint32_t
+RSCache_Dat2ConfigLocEncodeBound(const struct RSCache_Dat2ConfigLoc* loc);
+
 void
 RSCache_Dat2ConfigLocFree(struct RSCache_Dat2ConfigLoc* loc);
 void
 RSCache_Dat2ConfigLocFreeInplace(struct RSCache_Dat2ConfigLoc* loc);
+
+/** Set the type's non-zero defaults on a record. Must run before any DecodeOp. */
+void
+RSCache_Dat2ConfigLocInit(struct RSCache_Dat2ConfigLoc* loc);
+
+/**
+ * Fix up the record once its stream is exhausted.
+ *
+ * `blocks_walk`/`blocks_projectiles` collapse when `break_routefinding` is set,
+ * and `is_interactive` is derived from the models, shapes and action count. None
+ * of it is knowable opcode by opcode.
+ */
+void
+RSCache_Dat2ConfigLocFinish(struct RSCache_Dat2ConfigLoc* loc, unsigned flags);
+
+/**
+ * Handle one opcode, advancing `buffer`. True when consumed, false when unknown.
+ *
+ * The extension point a server-side loc record delegates through. See
+ * `opcode_codec.h`.
+ */
+bool
+RSCache_Dat2ConfigLocDecodeOp(
+    struct RSCache_Dat2ConfigLoc* loc,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
 
 void
 RSCache_Dat2ConfigLocDecodeInplace(

@@ -420,18 +420,11 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     return buffer.position;
 }
 
-struct RSCache_Dat2ConfigNpc*
-RSCache_Dat2ConfigNpcNewDecodeProfile(
-    const struct RSCache* cache,
-    char* data,
-    int data_size)
+void
+RSCache_Dat2ConfigNpcInit(struct RSCache_Dat2ConfigNpc* npc)
 {
-    struct RSCache_Dat2ConfigNpc* npc = calloc(1, sizeof(struct RSCache_Dat2ConfigNpc));
     if( !npc )
-    {
-        printf("RSCache_Dat2ConfigNpcNewDecode: Failed to allocate memory for NPCType\n");
-        return NULL;
-    }
+        return;
     /* Match RuneLite NpcDefinition defaults so "absent" and "present at default"
      * stay distinguishable, and so clear-opcodes 93/107/109 are reproducible. */
     npc->bas_type_id = -1;
@@ -467,6 +460,33 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
     for( int i = 0; i < 6; i++ )
         npc->stats[i] = 1;
     RSCache_EntityOpsInit(&npc->entity_ops);
+}
+
+void
+RSCache_Dat2ConfigNpcFinish(struct RSCache_Dat2ConfigNpc* npc, unsigned flags)
+{
+    if( !npc )
+        return;
+    /* Only knowable once the stream is exhausted: opcode 126 may or may not have
+     * supplied a footprint, and the fallback is derived from `size`, which an
+     * earlier or later opcode 12 could have changed. */
+    if( (flags & RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT) && npc->footprint_size == -1 )
+        npc->footprint_size = (int)(0.4f * (float)(npc->size * 128));
+}
+
+struct RSCache_Dat2ConfigNpc*
+RSCache_Dat2ConfigNpcNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size)
+{
+    struct RSCache_Dat2ConfigNpc* npc = calloc(1, sizeof(struct RSCache_Dat2ConfigNpc));
+    if( !npc )
+    {
+        printf("RSCache_Dat2ConfigNpcNewDecode: Failed to allocate memory for NPCType\n");
+        return NULL;
+    }
+    RSCache_Dat2ConfigNpcInit(npc);
 
     int flags = RSCache_Dat2ConfigNpcFlags(cache);
 
@@ -475,14 +495,13 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
 
     decode_npc_type(npc, flags, &buffer);
 
-    if( (flags & RSCACHE_CONFIG_NPC_DECODE_REV231_FOOTPRINT) && npc->footprint_size == -1 )
-        npc->footprint_size = (int)(0.4f * (float)(npc->size * 128));
+    RSCache_Dat2ConfigNpcFinish(npc, (unsigned)flags);
 
     return npc;
 }
 
 void
-RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
+RSCache_Dat2ConfigNpcFreeInplace(struct RSCache_Dat2ConfigNpc* npc)
 {
     if( !npc )
         return;
@@ -508,6 +527,14 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
     free(npc->params.keys);
     free(npc->params.values);
     free(npc->params.kinds);
+}
+
+void
+RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
+{
+    if( !npc )
+        return;
+    RSCache_Dat2ConfigNpcFreeInplace(npc);
     free(npc);
 }
 
@@ -519,38 +546,32 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
  * @param npc
  * @param buffer
  */
-static void
-decode_npc_type(
+/*
+ * One opcode of an npc record.
+ *
+ * Lifted verbatim out of `decode_npc_type`'s loop: every case body is unchanged,
+ * because `break` in a switch case already means "leave the switch", and falling
+ * out of the switch here means the opcode was handled. Only two things differ —
+ * a bail-out inside a case returns false instead of returning from the whole
+ * decode, and the gated debug line lost its `(previous %d)` field, which was loop
+ * state a per-opcode handler has no access to.
+ *
+ * `flags` is not optional. Opcode 102 *changes shape* at rev 210 and six further
+ * gates ride on the same word (see RSCache_Dat2ConfigNpcFlags), so a caller that
+ * passes 0 decodes a modern cache wrongly and silently.
+ */
+bool
+RSCache_Dat2ConfigNpcDecodeOp(
     struct RSCache_Dat2ConfigNpc* npc,
-    int flags,
-    struct RSCache_Buffer* buffer)
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
 {
-    assert(npc);
-    assert(buffer);
-    assert(buffer->data);
-
     bool rev210_head_icons = (flags & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
     bool rs2 = (flags & RSCACHE_CONFIG_NPC_DECODE_RS2) != 0;
 
-    int prev_opcode = -1;
-    while( 1 )
-    {
-        if( buffer->position >= buffer->size )
-        {
-            printf(
-                "decode_npc_type: Buffer position %d exceeded data size %d\n",
-                buffer->position,
-                buffer->size);
-            return;
-        }
-
-        int opcode = g1(buffer);
-        if( opcode == 0 )
-        {
-            // printf("decode_npc_type: Reached end of data (opcode 0)\n");
-            npc->_consumed = (int)buffer->position;
-            return;
-        }
+    (void)rev210_head_icons;
+    (void)rs2;
 
         switch( opcode )
         {
@@ -559,14 +580,14 @@ decode_npc_type(
             if( buffer->position >= buffer->size )
             {
                 printf("decode_npc_type: Buffer overflow in case 1\n");
-                return;
+                return false;
             }
             int length = g1(buffer);
             npc->models = malloc(length * sizeof(int));
             if( !npc->models )
             {
                 printf("decode_npc_type: Failed to allocate models array of size %d\n", length);
-                return;
+                return false;
             }
             npc->models_count = length;
 
@@ -579,7 +600,7 @@ decode_npc_type(
                     free(npc->models);
                     npc->models = NULL;
                     npc->models_count = 0;
-                    return;
+                    return false;
                 }
                 npc->models[idx] = g2(buffer);
             }
@@ -597,13 +618,13 @@ decode_npc_type(
             if( buffer->position + str_len >= buffer->size )
             {
                 printf("decode_npc_type: Buffer overflow while reading name string\n");
-                return;
+                return false;
             }
             npc->name = malloc(str_len + 1);
             if( !npc->name )
             {
                 printf("decode_npc_type: Failed to allocate name string of length %d\n", str_len);
-                return;
+                return false;
             }
             memset(npc->name, 0, str_len + 1);
             greadto(buffer, npc->name, str_len + 1, str_len + 1);
@@ -663,7 +684,7 @@ decode_npc_type(
             }
             if( buffer->position + str_len >= buffer->size )
             {
-                return;
+                return false;
             }
             npc->actions[idx] = malloc(str_len + 1);
             greadto(buffer, npc->actions[idx], str_len + 1, str_len + 1);
@@ -1178,7 +1199,7 @@ decode_npc_type(
             if( buffer->position >= buffer->size )
             {
                 npc->_consumed = (int)buffer->position;
-                return;
+                return false;
             }
             buffer->position++; /* the terminator */
             break;
@@ -1247,15 +1268,48 @@ decode_npc_type(
             if( getenv("RSCACHE_NPC_DEBUG") )
                 fprintf(
                     stderr,
-                    "decode_npc_type: unimplemented opcode %d (previous %d) at offset %d\n",
+                    "npc: unimplemented opcode %d at offset %d\n",
                     opcode,
-                    prev_opcode,
                     (int)buffer->position - 1);
+            npc->_consumed = (int)buffer->position;
+            return false;
+        }
+        }
+
+    /* Fell out of the switch: a case handled this opcode. */
+    return true;
+}
+
+static void
+decode_npc_type(
+    struct RSCache_Dat2ConfigNpc* npc,
+    int flags,
+    struct RSCache_Buffer* buffer)
+{
+    assert(npc);
+    assert(buffer);
+    assert(buffer->data);
+
+    while( 1 )
+    {
+        if( buffer->position >= buffer->size )
+        {
+            printf(
+                "decode_npc_type: Buffer position %d exceeded data size %d\n",
+                buffer->position,
+                buffer->size);
+            return;
+        }
+
+        int opcode = g1(buffer);
+        if( opcode == 0 )
+        {
             npc->_consumed = (int)buffer->position;
             return;
         }
-        }
-        prev_opcode = opcode;
+
+        if( !RSCache_Dat2ConfigNpcDecodeOp(npc, opcode, buffer, (unsigned)flags) )
+            return;
     }
 }
 
@@ -1396,4 +1450,50 @@ RSCache_Dat2ConfigNpcPrint(const struct RSCache_Dat2ConfigNpc* npc)
         }
     }
     printf("\n");
+}
+uint32_t
+RSCache_Dat2ConfigNpcEncodeBound(const struct RSCache_Dat2ConfigNpc* npc)
+{
+    /*
+     * A ceiling, not an exact size, and deliberately so: this type has 98 opcodes
+     * and several are era-gated, so an exact figure would have to reproduce the
+     * encoder's whole branch structure and would go stale the next time an opcode
+     * is added. Instead the scalar opcodes get one flat allowance large enough for
+     * all of them, and every *variable-length* part is measured from the record.
+     *
+     * The flat part: 98 opcodes at worst 1 byte of code plus 8 of payload is under
+     * 900, so 2048 is roughly a 2x margin and still trivial next to a record.
+     *
+     * Adequacy is not taken on trust — `test_opcode_codec` writes a canary past
+     * the bound and checks it on every npc in the cache, so a record that outgrew
+     * this would fail the suite rather than corrupt the heap.
+     */
+    uint32_t need = 2048u;
+    int i;
+
+    if( !npc )
+        return need;
+
+    /* Model id arrays: worst case g4 per entry, plus a count byte and opcode. */
+    need += (uint32_t)npc->models_count * 4u + 2u;
+    need += (uint32_t)npc->chathead_models_count * 4u + 2u;
+    /* Recolour and retexture pairs: two u16 each. */
+    need += (uint32_t)npc->recolor_count * 4u + 2u;
+    need += (uint32_t)npc->retexture_count * 4u + 2u;
+    /* Head icons: a u16 pair per entry in the widest shape. */
+    need += (uint32_t)npc->head_icon_count * 6u + 2u;
+    /* The varp/varbit config list: a u16 per entry, plus its header. */
+    need += (uint32_t)npc->configs_count * 2u + 8u;
+
+    if( npc->name )
+        need += (uint32_t)strlen(npc->name) + 2u;
+    for( i = 0; i < 5; i++ )
+    {
+        if( npc->actions[i] )
+            need += (uint32_t)strlen(npc->actions[i]) + 2u;
+    }
+
+    need += RSCache_EntityOpsBound(&npc->entity_ops);
+    need += 1u + RSCache_BufferParamsBound(&npc->params);
+    return need;
 }

@@ -20,8 +20,7 @@ RSCache_Dat2ConfigHitsplatDecode(
     if( !entry || !buffer )
         return;
 
-    /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite". */
-    entry->sprite_id = -1;
+    RSCache_Dat2ConfigHitsplatInit(entry);
 
     for( ;; )
     {
@@ -32,50 +31,78 @@ RSCache_Dat2ConfigHitsplatDecode(
         if( opcode == 0 )
             break;
 
-        switch( opcode )
-        {
-        case 5:
-            entry->sprite_id = g2(buffer);
-            break;
-        case 8:
-            entry->opcode_8 = g2(buffer);
-            entry->has_opcode_8 = true;
-            break;
-        case 9:
-            entry->opcode_9 = g2(buffer);
-            entry->has_opcode_9 = true;
-            break;
-        case 11:
-            entry->opcode_11 = 1;
-            break;
-        case 13:
-            entry->opcode_13 = g2(buffer);
-            entry->has_opcode_13 = true;
-            break;
-        case 18:
-            /* An 11-byte composite, kept raw — see the header. */
-            if( buffer->position + RSCACHE_HITSPLAT_OPCODE_18_BYTES > buffer->size )
-                return;
-            memcpy(
-                entry->opcode_18,
-                buffer->data + buffer->position,
-                RSCACHE_HITSPLAT_OPCODE_18_BYTES);
-            buffer->position += RSCACHE_HITSPLAT_OPCODE_18_BYTES;
-            entry->has_opcode_18 = true;
-            break;
-        case 49:
-            entry->opcode_49 = g1(buffer);
-            entry->has_opcode_49 = true;
-            break;
-        default:
-            /* Unknown opcode: stop rather than guess a width. Opcode 18 is exactly
-             * why that matters — a wrong width there makes the whole record misparse
-             * with no other symptom. */
+        if( !RSCache_Dat2ConfigHitsplatDecodeOp(entry, opcode, buffer, 0) )
             return;
-        }
-
-        hitsplat_note_opcode(entry, opcode);
     }
+}
+
+void
+RSCache_Dat2ConfigHitsplatInit(struct RSCache_Dat2ConfigHitsplat* entry)
+{
+    if( !entry )
+        return;
+    /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite".
+     *
+     * This lived inside the decode loop until the per-opcode split, which is a
+     * shape that loses it silently: a codec that only ever calls `DecodeOp` would
+     * leave `sprite_id` at 0 and every splat would draw sprite 0. Anything that
+     * decodes this type must run this first — `opcode_codec.h`'s `record_init`
+     * exists for exactly this. */
+    entry->sprite_id = -1;
+}
+
+bool
+RSCache_Dat2ConfigHitsplatDecodeOp(
+    struct RSCache_Dat2ConfigHitsplat* entry,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* No era-dependent opcode in this type. */
+    switch( opcode )
+    {
+    case 5:
+        entry->sprite_id = g2(buffer);
+        break;
+    case 8:
+        entry->opcode_8 = g2(buffer);
+        entry->has_opcode_8 = true;
+        break;
+    case 9:
+        entry->opcode_9 = g2(buffer);
+        entry->has_opcode_9 = true;
+        break;
+    case 11:
+        entry->opcode_11 = 1;
+        break;
+    case 13:
+        entry->opcode_13 = g2(buffer);
+        entry->has_opcode_13 = true;
+        break;
+    case 18:
+        /* An 11-byte composite, kept raw — see the header. */
+        if( buffer->position + RSCACHE_HITSPLAT_OPCODE_18_BYTES > buffer->size )
+            return false;
+        memcpy(
+            entry->opcode_18,
+            buffer->data + buffer->position,
+            RSCACHE_HITSPLAT_OPCODE_18_BYTES);
+        buffer->position += RSCACHE_HITSPLAT_OPCODE_18_BYTES;
+        entry->has_opcode_18 = true;
+        break;
+    case 49:
+        entry->opcode_49 = g1(buffer);
+        entry->has_opcode_49 = true;
+        break;
+    default:
+        /* Unknown opcode: stop rather than guess a width. Opcode 18 is exactly
+         * why that matters — a wrong width there makes the whole record misparse
+         * with no other symptom. */
+        return false;
+    }
+
+    hitsplat_note_opcode(entry, opcode);
+    return true;
 }
 
 void

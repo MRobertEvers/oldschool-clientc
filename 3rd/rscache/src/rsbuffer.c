@@ -915,6 +915,39 @@ RSCache_BufferReadParams(
     }
 }
 
+uint32_t
+RSCache_BufferParamsBound(const struct RSCache_Params* params)
+{
+    int count = params ? params->count : 0;
+    /* The count byte itself. */
+    uint32_t need = 1u;
+
+    for( int i = 0; i < count; i++ )
+    {
+        uint8_t kind = params->kinds ? params->kinds[i] : (uint8_t)RSCACHE_PARAM_INT;
+
+        /* kind + 3-byte key, then the payload. */
+        need += 1u + 3u;
+        if( kind == RSCACHE_PARAM_STRING )
+        {
+            const char* str = params->values && params->values[i]
+                                  ? (const char*)params->values[i]
+                                  : "";
+
+            need += (uint32_t)strlen(str) + 1u;
+        }
+        else if( kind == RSCACHE_PARAM_LONG )
+        {
+            need += 8u;
+        }
+        else
+        {
+            need += 4u;
+        }
+    }
+    return need;
+}
+
 void
 RSCache_BufferWriteParams(
     struct RSCache_Buffer* buffer,

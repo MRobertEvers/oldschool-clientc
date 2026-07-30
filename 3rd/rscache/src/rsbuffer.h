@@ -225,6 +225,18 @@ void
 RSCache_BufferReadParams(
     struct RSCache_Buffer* buffer,
     struct RSCache_Params* params);
+/**
+ * Exactly the bytes `RSCache_BufferWriteParams` will write.
+ *
+ * Derived from the writer rather than guessed: the count byte, then per entry a
+ * kind byte, a 3-byte key and a payload of 4 (int), 8 (long) or `strlen + 1`
+ * (string). Types carrying params used to allow a flat constant instead — `inv`
+ * reserved 4096 — which is a bound that does not depend on what it bounds and
+ * silently truncates the first record that outgrows it.
+ */
+uint32_t
+RSCache_BufferParamsBound(const struct RSCache_Params* params);
+
 /** Inverse of RSCache_BufferReadParams. Param order is preserved, so a decode
  *  followed by an encode reproduces the original bytes. */
 void
