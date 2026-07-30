@@ -175,6 +175,26 @@ still an index entry), `unpack` records every archive id whether or not anything
 named it, and the naming passes that derive model and map names from the configs run
 whenever the index is built rather than only when files are written.
 
+## Adding an asset
+
+Drop the file in the table's directory, give it a name in `pack/<ns>.pack` at or
+above the namespace's declared allocation base (`server_base` in
+`src/content/content_register.c` — 100000 for models), and reference it from a
+config. `pack --assets` writes the payload **and extends the reference table**.
+
+That last part is the whole of it. A dat2 archive is reachable only through its
+reference table, so an id the table does not list is invisible to the client — and
+the packer used to warn and move on:
+
+    cachepack: idx7 archive 100000 is not listed in the reference table —
+               writing the bytes but leaving the table alone
+
+which reads as cosmetic, because the payload really was written and the per-table
+count really did go up. Adding one model wrote 61,616 archives and shipped 61,615.
+`cp_reference_sync` now grows both arrays — `archives`, indexed by archive id with
+`index == -1` in the gaps, and `ids`, the ascending list the encoder walks, since
+only ids in `ids` are written.
+
 ## Orphans
 
 A rename leaves the old file behind. `unpack` reports files under a table's folder

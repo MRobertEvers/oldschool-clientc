@@ -27,11 +27,18 @@
  * disjoint and unifying them was additive on both sides rather than a conflict to
  * resolve.
  *
- * A field the client's own record carries — `name`, `size`, the thirteen
- * animations, `vislevel` — is not listed. Those are `cp_npc.c`'s business: the
- * client encoder writes 43 of them and this register has nothing to add. Listing
- * them as `scope = client, client = native` would be true and would make the file
- * a second copy of a table that is already correct.
+ * The fields the client's own record carries *are* listed, as
+ * `scope = client, client = native`, and that is not a second copy of `cp_npc.c`'s
+ * emitter — it is what lets the config parser stop hardcoding them. LostCity authors
+ * `name=` and `op1=` because it *builds* the npc record; ours comes from the cache,
+ * so those keys are inert here. They used to be a `k_from_cache[]` array in
+ * `mock230_content.c` that the parser checked before rejecting a key, which meant
+ * "the client already states this" lived in C where a content author could not see
+ * it or add to it.
+ *
+ * Only the ones a config might plausibly carry are listed. The full 43 keys
+ * `cp_npc.c` emits are the encoder's business; a field nobody has written in a
+ * config has nothing to declare.
  */
 
 struct FieldDefault
@@ -77,6 +84,24 @@ static const struct FieldDefault k_defaults[] = {
     { "npc", "nomove",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,  ""              },
 
     /*
+     * Stated by the client's own record, so an overlay that repeats one is patching
+     * the cache rather than adding to it — which the loader now says out loud
+     * instead of silently accepting.
+     */
+    { "npc", "name",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "desc",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "vislevel",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "size",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "category",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "walkanim",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "readyanim",     CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "op1",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "op2",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "op3",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "op4",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "op5",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+
+    /*
      * A door's other half.
      *
      * The cache states which locs exist and what they look like; nothing in it says
@@ -85,6 +110,11 @@ static const struct FieldDefault k_defaults[] = {
      * one generic rule.
      */
     { "loc", "next_loc_stage", CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "next_loc_stage" },
+
+    /* As above: stated by the client's own record, so an overlay repeating one is
+     * patching the cache. */
+    { "loc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
 };
 
 static void

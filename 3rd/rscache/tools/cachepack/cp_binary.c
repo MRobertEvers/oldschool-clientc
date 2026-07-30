@@ -297,11 +297,58 @@ cp_reference_sync(
         archive = &rt->archives[archive_id];
     if( !archive )
     {
-        fprintf(stderr,
-                "cachepack: idx%d archive %d is not listed in the reference table — writing "
-                "the bytes but leaving the table alone\n",
-                table_id, archive_id);
-        return 1;
+        /*
+         * A new archive: extend the table rather than write bytes nothing points at.
+         *
+         * This used to warn and return, and the warning was easy to read as
+         * cosmetic — the payload really was written and the per-table count really
+         * did go up. But a dat2 archive is only reachable through its reference
+         * table, so an id the table does not list is invisible to the client. Adding
+         * a model at the declared allocation base wrote 61,616 archives and shipped
+         * 61,615.
+         *
+         * Two arrays have to grow together: `archives` is indexed *by archive id*
+         * with `index == -1` in the gaps, and `ids` is the ascending list the
+         * encoder walks. Only ids in `ids` are written.
+         */
+        if( archive_id < 0 )
+            return 1;
+        if( archive_id >= rt->archive_count )
+        {
+            int next = archive_id + 1;
+            struct RSCache_ReferenceTableArchive* grown =
+                realloc(rt->archives, (size_t)next * sizeof(*grown));
+            if( !grown )
+                return 0;
+            memset(grown + rt->archive_count, 0,
+                   (size_t)(next - rt->archive_count) * sizeof(*grown));
+            for( int i = rt->archive_count; i < next; i++ )
+                grown[i].index = -1;
+            rt->archives = grown;
+            rt->archive_count = next;
+        }
+
+        int* ids = realloc(rt->ids, (size_t)(rt->id_count + 1) * sizeof(int));
+        if( !ids )
+            return 0;
+        rt->ids = ids;
+        /* Ascending, because that is the order the encoder writes and the decoder
+         * reads back as a delta chain. */
+        int at = rt->id_count;
+        while( at > 0 && rt->ids[at - 1] > archive_id )
+        {
+            rt->ids[at] = rt->ids[at - 1];
+            at--;
+        }
+        rt->ids[at] = archive_id;
+        rt->id_count++;
+
+        archive = &rt->archives[archive_id];
+        memset(archive, 0, sizeof(*archive));
+        archive->index = archive_id;
+        *out_dirty = 1;
+        fprintf(stderr, "cachepack: idx%d archive %d added to the reference table\n", table_id,
+                archive_id);
     }
 
     int trailer = 0;

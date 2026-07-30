@@ -18,6 +18,7 @@
 
 #include "mock230_content.h"
 
+#include "content/content_fields.h"
 #include "content/content_register.h"
 #include "mock230.h"
 
@@ -33,6 +34,13 @@
 /* ------------------------------------------------------------------ */
 
 static int g_errors;
+
+/* The npc field register, loaded once per content load. Read by the config parser
+ * to decide what an unrecognised key means. */
+static struct ContentFields g_npc_fields;
+static struct ContentFields g_loc_fields;
+/* How many overlay lines restated something the client's own record carries. */
+static int g_client_key_overlays;
 
 /*
  * Every rejection prints and counts. A content tree that half-loads is the
@@ -792,19 +800,36 @@ npc_config_key(
         (void)apply_param(def, value, where);
     else
     {
-        /* Keys LostCity authors because it *builds* the npc record. Ours comes
-         * from the cache, so these are inert here — accepted so a config can be
-         * shared with a LostCity tree unchanged, but never silently: a `name=`
-         * that does nothing is worth knowing about. */
-        static const char* const k_from_cache[] = { "name",   "desc",     "vislevel",
-                                                    "op1",    "op2",      "op3",
-                                                    "op4",    "op5",      "walkanim",
-                                                    "readyanim", "category", "size",
-                                                    NULL };
-        for( int i = 0; k_from_cache[i]; i++ )
+        /*
+         * A key the ladder above does not handle. The field register decides what
+         * that means, rather than a list in this file.
+         *
+         * LostCity authors `name=` and `op1=` because it *builds* the npc record;
+         * ours comes from the cache, so those keys are inert — accepted so a config
+         * can be shared with a LostCity tree unchanged. That used to be a
+         * `k_from_cache[]` array right here, which put "the client already states
+         * this" in C where a content author could neither see it nor add to it.
+         *
+         * Declared `scope = client` now says something more useful than "ignored":
+         * the overlay is *patching the cache*, and that is worth a line rather than
+         * silence. Anything the register does not declare at all is still an error.
+         */
+        const struct ContentField* field = ContentFields_Find(&g_npc_fields, key);
+
+        if( field && field->scope == CONTENT_SCOPE_CLIENT )
         {
-            if( strcmp(key, k_from_cache[i]) == 0 )
-                return;
+            g_client_key_overlays++;
+            return;
+        }
+        if( field )
+        {
+            /* Declared, but this parser has no field for it — a register row that
+             * has run ahead of the struct. Worth saying, because the value is being
+             * dropped. */
+            CONTENT_ERROR("%s: `%s` is declared in fields/npc.ini but this build has "
+                          "nowhere to put it\n",
+                          where, key);
+            return;
         }
         CONTENT_ERROR("%s: unknown key `%s`\n", where, key);
     }
@@ -1462,10 +1487,19 @@ load_loc_config(const char* path)
                 continue;
             }
             *comma = '\0';
-            if( strcmp(value, "next_loc_stage") != 0 )
             {
-                CONTENT_ERROR("%s:%d: unknown loc param `%s`\n", path, line_number, value);
-                continue;
+                /* Which params a loc may carry is the field register's to say, not a
+                 * name spelled twice. A row declared `client = param:<name>` is one
+                 * the encoder knows how to bake, so it is one this parser accepts. */
+                const struct ContentField* field = ContentFields_Find(&g_loc_fields, value);
+
+                if( !field || field->client != CONTENT_CLIENT_PARAM )
+                {
+                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build bakes — "
+                                  "declare it in fields/loc.ini as `client = param:<name>`\n",
+                                  path, line_number, value);
+                    continue;
+                }
             }
             g_pending = grow(g_pending, &g_pending_capacity, g_pending_count,
                              sizeof(*g_pending));
@@ -1473,9 +1507,20 @@ load_loc_config(const char* path)
             g_pending[g_pending_count].symbol = strdup(comma + 1);
             g_pending_count++;
         }
-        else if( strcmp(line, "name") != 0 && strcmp(line, "desc") != 0 )
+        else
         {
-            CONTENT_ERROR("%s:%d: unknown key `%s`\n", path, line_number, line);
+            /* Same rule as the npc ladder above: the register decides what a key the
+             * parser does not handle means. */
+            const struct ContentField* field = ContentFields_Find(&g_loc_fields, line);
+
+            if( field && field->scope == CONTENT_SCOPE_CLIENT )
+                g_client_key_overlays++;
+            else if( field )
+                CONTENT_ERROR("%s:%d: `%s` is declared in fields/loc.ini but this build "
+                              "has nowhere to put it\n",
+                              path, line_number, line);
+            else
+                CONTENT_ERROR("%s:%d: unknown key `%s`\n", path, line_number, line);
         }
     }
     fclose(file);
@@ -1891,6 +1936,9 @@ mock230_content_load(const char* dir)
      * `pack/param.pack`'s 58-line header once.
      */
     ContentRegister_Load(&reg, dir);
+    ContentFields_Load(&g_npc_fields, dir, "npc");
+    ContentFields_Load(&g_loc_fields, dir, "loc");
+    g_client_key_overlays = 0;
     if( ContentRegister_Validate(&reg) != 0 )
         CONTENT_ERROR("content.ini contradicts the gameval evidence; see above\n");
 
@@ -1936,6 +1984,11 @@ mock230_content_load(const char* dir)
                 symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
                 g_prayer_def_count, requires_total, requires_from_cache, g_npc_spawn_count,
                 g_obj_spawn_count, g_errors ? ", WITH ERRORS" : "");
+        if( g_client_key_overlays )
+            fprintf(stderr,
+                    "mock230: %d config line(s) restate a field the client's own record "
+                    "carries — the cache already says it, so the overlay is inert\n",
+                    g_client_key_overlays);
     }
     return g_npc_def_count;
 }
