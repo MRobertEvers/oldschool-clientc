@@ -376,7 +376,7 @@ mock230_objinfo(int obj_id);
  * record would cost 2 MB to say "none" 32,000 times.
  *
  * Two sources feed it and neither is sufficient alone — see
- * tools/kronos_item_import.py and docs/mock230_content.md §5:
+ * docs/mock230_content.md §5:
  *
  *   - cache.osrs239's own params 434/436 and 435/437, read at decode time.
  *     Room for exactly two, and only trustworthy for a *combat* skill: the same

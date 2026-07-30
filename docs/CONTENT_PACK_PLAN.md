@@ -266,7 +266,7 @@ That single property replaces what the directory split was buying.
   **preserved**, not dropped. Deletion goes exclusively through
   `lc_pack_remove` (`lc_pack.h:126`), which is explicit and already recomputes
   `max`.
-- Audit every writer for truncating opens. `tools/gameval_import.py` is the
+- Audit every writer for truncating opens. the cache's own gameval table is the
   known offender (it opened outputs with `"w"`, truncating `configs/all.npc.compack` from
   16,292 lines to 39); `docs/mock230_content.md:518-526` says it now merges —
   verify that, and add a test rather than trusting the doc.

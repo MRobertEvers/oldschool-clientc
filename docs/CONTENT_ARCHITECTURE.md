@@ -151,7 +151,7 @@ been paid or is queued up for the next cache.
 | file | written by | policy | provenance marker |
 |---|---|---|---|
 | `configs/all.npc.compack` | `cachepack unpack` | regenerate, preserve existing names | none |
-| `pack/component.pack` | `tools/gameval_import.py` | **truncate and rewrite** | header comment |
+| `pack/component.pack` | the cache's own gameval table | **truncate and rewrite** | header comment |
 | `configs/all.param.compack` | both | cachepack regenerates; the names are hand-authored | 58 comment lines |
 | `pack/3_interfaces.pack` | `cachepack unpack` | regenerate; 34 names hand-spliced | none |
 
@@ -166,13 +166,13 @@ PACK_FOR_NAMESPACE = { "npcs": "npc", "items": "obj", "objects": "loc",
                        "varcs": "varc" }
 ```
 
-and `tools/gameval_import.names` currently requests eight of them — 39 `npcs`,
+and `the cache's own gameval table` currently requests eight of them — 39 `npcs`,
 36 `items`, 12 `objects`, 23 `sequences`, 21 `varbits`, 11 `varp`, 34
 `interfaces`, 116 `components`. So the documented command in
 `docs/mock230_content.md` §5:
 
 ```sh
-tools/gameval_import.py --names tools/gameval_import.names \
+the cache's own gameval table --names the cache's own gameval table \
     --out OSRS-Content/osrs239-content/pack
 ```
 
@@ -574,7 +574,7 @@ be careful" is a check that never runs.
 
 ## 6.2 Step 3, as landed — and what a real import tried to do
 
-`tools/gameval_import.py` now:
+the cache's own gameval table now:
 
 - **refuses a `pack/` output** (non-zero exit, with the reason), because layer 0
   is regenerated wholesale by `cachepack unpack`;
@@ -598,7 +598,7 @@ layer 0 where a collision is invisible by construction:
 | `varp:bankcert as bank_withdrawnotes` | varp 115 | varbit 3958 is varp 115 bit 0 | re-created the §6.1 whole-varp bug |
 | `varp:bankinsert as bank_insertmode` | varp 304 | varbit 3959 is varp 304 bit 0 | likewise |
 
-All four requests are deleted from `tools/gameval_import.names`, each with the
+All four requests are deleted from `the cache's own gameval table`, each with the
 reason in place, so the next person to read the list sees why the obvious alias
 is absent.
 

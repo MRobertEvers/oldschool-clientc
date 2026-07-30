@@ -144,6 +144,16 @@ SSC_SymbolsAdd(
     enum SSC_SymbolKind kind,
     const char* text);
 
+/**
+ * The symbol kind a register namespace supplies, or SSC_SYM_UNKNOWN.
+ *
+ * Public so a test can assert the invariant that matters: every kind the compiler
+ * can emit has at least one namespace mapping to it. Renaming a register row
+ * orphaned SSC_SYM_INTERFACE once and nothing noticed.
+ */
+enum SSC_SymbolKind
+SSC_SymbolKindForNamespace(const char* ns);
+
 /** Loads an `id=name` pack file. Returns the number of entries, or -1. */
 int
 SSC_SymbolsLoadPack(
@@ -180,6 +190,16 @@ void
 SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols);
 
 /** Loads every `*.constant` under a directory tree. */
+/**
+ * Component symbols, composed as `(interface << 16) | child` from
+ * `<content_dir>/interfaces/<name>.compack`. Call *after* the pack directories:
+ * it reads the interface symbols they load. Returns the number added.
+ */
+int
+SSC_SymbolsLoadComponentDir(
+    struct SSC_Symbols* symbols,
+    const char* content_dir);
+
 int
 SSC_SymbolsLoadConstantDir(
     struct SSC_Symbols* symbols,

@@ -326,3 +326,185 @@ RSCache_Dat2DbIndexFileFreeInplace(struct RSCache_DbIndexFile* entry)
     entry->tuples = NULL;
     entry->tuple_size = 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Encoders                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Bytes a column's own header and value block can take, an upper bound. */
+static uint32_t
+column_bound(const struct RSCache_DbColumn* col)
+{
+    uint32_t need = 1 + 1 + (uint32_t)col->type_count * 3; /* id, count, smart types */
+
+    need += 3; /* tuple_count, as a smart */
+    for( int t = 0; t < col->tuple_count; t++ )
+    {
+        for( int i = 0; i < col->type_count; i++ )
+        {
+            const struct RSCache_DbValue* v = &col->values[(t * col->type_count) + i];
+
+            if( v->is_string )
+                need += (uint32_t)(v->string_value ? strlen(v->string_value) : 0) + 1;
+            else
+                need += 4;
+        }
+    }
+    return need;
+}
+
+static uint32_t
+columns_bound(const struct RSCache_DbColumn* cols, int count)
+{
+    uint32_t need = 1 + 1; /* alloc, 0xff terminator */
+
+    for( int c = 0; c < count; c++ )
+    {
+        if( cols[c].present )
+            need += column_bound(&cols[c]);
+    }
+    return need;
+}
+
+/**
+ * Inverse of `decode_columns`.
+ *
+ * Columns are emitted in ascending id, which is the order the decoder's
+ * id-indexed array can express — it stores a column *at* its id, so the order the
+ * source listed them in is not recoverable from the struct. Every record in
+ * cache.osrs239 round-trips byte-exactly under that reading, which is what makes
+ * it safe rather than merely plausible.
+ */
+static bool
+encode_columns(
+    struct RSCache_Buffer* buf,
+    const struct RSCache_DbColumn* cols,
+    int count,
+    bool is_table)
+{
+    RSCache_BufferP1(buf, count);
+    for( int c = 0; c < count; c++ )
+    {
+        const struct RSCache_DbColumn* col = &cols[c];
+        bool has_values;
+
+        if( !col->present )
+            continue;
+        has_values = col->values != NULL;
+        /* Only a table encodes the flag; a row's columns always carry values. */
+        RSCache_BufferP1(buf, is_table && has_values ? (c | 0x80) : c);
+        RSCache_BufferP1(buf, col->type_count);
+        for( int i = 0; i < col->type_count; i++ )
+            RSCache_BufferWriteUnsignedShortSmart(buf, col->types[i]);
+
+        if( is_table && !has_values )
+            continue;
+        RSCache_BufferWriteUnsignedShortSmart(buf, col->tuple_count);
+        for( int t = 0; t < col->tuple_count; t++ )
+        {
+            for( int i = 0; i < col->type_count; i++ )
+            {
+                const struct RSCache_DbValue* v = &col->values[(t * col->type_count) + i];
+
+                if( v->is_string )
+                {
+                    const char* s = v->string_value ? v->string_value : "";
+
+                    for( ; *s; s++ )
+                        RSCache_BufferP1(buf, (uint8_t)*s);
+                    RSCache_BufferP1(buf, 0);
+                }
+                else
+                {
+                    RSCache_BufferP4(buf, v->int_value);
+                }
+            }
+        }
+    }
+    RSCache_BufferP1(buf, 0xff);
+    return true;
+}
+
+uint32_t
+RSCache_Dat2ConfigDbRowEncodeBound(const struct RSCache_Dat2ConfigDbRow* entry)
+{
+    uint32_t need = 1 + 1 + 5; /* opcode 3, opcode 4 + varint2, terminator */
+
+    if( !entry )
+        return 1;
+    if( entry->columns )
+        need += columns_bound(entry->columns, entry->column_count);
+    return need + 8;
+}
+
+uint32_t
+RSCache_Dat2ConfigDbRowEncode(
+    const struct RSCache_Dat2ConfigDbRow* entry,
+    uint8_t* out,
+    uint32_t capacity)
+{
+    struct RSCache_Buffer buf;
+
+    if( !entry || !out )
+        return 0;
+    RSCache_BufferInit(&buf, out, capacity);
+
+    /*
+     * Opcode 4 before opcode 3 — the table id, then the columns.
+     *
+     * The decoder accepts either order, so this is not derivable from it; the
+     * bytes are the only authority. Emitting 3 first produced a record of exactly
+     * the right length with the two blocks transposed, which is invisible to any
+     * semantic check and caught immediately by byte comparison: 15,418 of 16,711
+     * rows differed, and the 1,293 that passed were the ones with no table id.
+     */
+    if( entry->table_id >= 0 )
+    {
+        RSCache_BufferP1(&buf, 4);
+        RSCache_BufferWriteVarInt2(&buf, entry->table_id);
+    }
+    if( entry->columns && entry->column_count > 0 )
+    {
+        RSCache_BufferP1(&buf, 3);
+        encode_columns(&buf, entry->columns, entry->column_count, false);
+    }
+    RSCache_BufferP1(&buf, 0);
+    if( buf.position > capacity )
+        return 0;
+    return buf.position;
+}
+
+uint32_t
+RSCache_Dat2ConfigDbTableEncodeBound(const struct RSCache_Dat2ConfigDbTable* entry)
+{
+    uint32_t need = 1 + 1; /* opcode 1, terminator */
+
+    if( !entry )
+        return 1;
+    if( entry->columns )
+        need += columns_bound(entry->columns, entry->column_count);
+    return need + 8;
+}
+
+uint32_t
+RSCache_Dat2ConfigDbTableEncode(
+    const struct RSCache_Dat2ConfigDbTable* entry,
+    uint8_t* out,
+    uint32_t capacity)
+{
+    struct RSCache_Buffer buf;
+
+    if( !entry || !out )
+        return 0;
+    RSCache_BufferInit(&buf, out, capacity);
+
+    if( entry->columns && entry->column_count > 0 )
+    {
+        RSCache_BufferP1(&buf, 1);
+        encode_columns(&buf, entry->columns, entry->column_count, true);
+    }
+    RSCache_BufferP1(&buf, 0);
+    if( buf.position > capacity )
+        return 0;
+    return buf.position;
+}

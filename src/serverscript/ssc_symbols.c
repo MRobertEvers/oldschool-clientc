@@ -299,8 +299,8 @@ SSC_SymbolsLoadConstants(
  * coupling the register removes: a namespace is one file, `pack/<ns>.pack`
  * (docs/CONTENT_PACK_PLAN.md §3), so there is nothing tree-specific left to list.
  */
-static enum SSC_SymbolKind
-kind_for_namespace(const char* ns)
+enum SSC_SymbolKind
+SSC_SymbolKindForNamespace(const char* ns)
 {
     static const struct
     {
@@ -313,6 +313,16 @@ kind_for_namespace(const char* ns)
         { "inv",       SSC_SYM_INV       },
         { "seq",       SSC_SYM_SEQ       },
         { "spotanim",  SSC_SYM_SPOTANIM  },
+        /*
+         * A namespace whose pack lists the archives of a cache index carries that
+         * index in its name. The old spellings stay as aliases: another tree's
+         * `content.ini` may still declare them, and an alias costs one line where
+         * a missing one costs every symbol of that kind — which is exactly what
+         * happened when these three were renamed and this table was not.
+         */
+        { "3_interfaces",     SSC_SYM_INTERFACE },
+        { "4_soundeffects",   SSC_SYM_SYNTH     },
+        { "12_clientscripts", SSC_SYM_SCRIPT    },
         { "interface", SSC_SYM_INTERFACE },
         { "component", SSC_SYM_COMPONENT },
         { "varp",      SSC_SYM_VARP      },
@@ -338,6 +348,27 @@ kind_for_namespace(const char* ns)
     return SSC_SYM_UNKNOWN;
 }
 
+/**
+ * 1 when this index names the *archives* of a cache index rather than records
+ * inside one — `pack/7_models.pack`, `pack/2_configs.pack`. The register states it
+ * as `cache_index`, so this reads the fact rather than pattern-matching the name.
+ */
+static int
+pack_is_archive_level(const char* filename)
+{
+    static struct ContentRegister registry;
+    static int loaded;
+    const struct ContentNamespace* ns;
+
+    if( !loaded )
+    {
+        ContentRegister_Defaults(&registry);
+        loaded = 1;
+    }
+    ns = ContentRegister_ForPackFile(&registry, filename);
+    return ns && ns->cache_index >= 0;
+}
+
 static enum SSC_SymbolKind
 kind_for_pack(const char* filename)
 {
@@ -359,7 +390,7 @@ kind_for_pack(const char* filename)
     ns = ContentRegister_ForPackFile(&registry, filename);
     if( !ns )
         return SSC_SYM_UNKNOWN;
-    return kind_for_namespace(ns->name);
+    return SSC_SymbolKindForNamespace(ns->name);
 }
 
 static int
@@ -389,15 +420,141 @@ SSC_SymbolsLoadPackDir(
     {
         char path[1024];
         int count;
+        enum SSC_SymbolKind kind;
 
-        if( !has_suffix(entry->d_name, ".pack") )
-            continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        count = SSC_SymbolsLoadPack(symbols, path, kind_for_pack(entry->d_name));
+        /*
+         * Recurse. `SSC_SymbolsLoadConstantDir` below already does, and this one
+         * not doing so is why nothing under a subdirectory was ever reachable.
+         */
+        if( entry->d_type == DT_DIR )
+        {
+            if( entry->d_name[0] != '.' )
+            {
+                int nested = SSC_SymbolsLoadPackDir(symbols, path);
+
+                if( nested > 0 )
+                    loaded += nested;
+            }
+            continue;
+        }
+        /*
+         * Two extensions, because there are two levels of index: `pack/7_models.pack`
+         * names the archives of a cache index, `configs/all.npc.compack` names the
+         * records inside one archive. Both are `id=name` and both are ours to read.
+         * Filtering on `.pack` alone silently dropped every config type.
+         */
+        if( !has_suffix(entry->d_name, ".pack") && !has_suffix(entry->d_name, ".compack") )
+            continue;
+        kind = kind_for_pack(entry->d_name);
+        /*
+         * An *archive-level* index whose names the language cannot refer to is not
+         * a symbol source.
+         *
+         * `pack/` holds one index per cache index. Some of those do name symbols —
+         * `3_interfaces.pack` is archive-level and interfaces are addressable — but
+         * most name things RuneScript has no way to mention: 61,615 models, 8,534
+         * sprites, and `2_configs.pack`, whose twenty entries are config *group*
+         * names. Loading those files every name under SSC_SYM_UNKNOWN, where an
+         * unqualified lookup can pick one up: `2_configs.pack` says `5=inv` while
+         * `configs/all.inv.compack` says `93=inv`, and the wrong one won — silently,
+         * in ten places across the compiled scripts.
+         *
+         * The test is both halves. A member-level index with no kind (`hitsplat`)
+         * still loads, because its names *are* referenced and resolve unqualified.
+         */
+        if( kind == SSC_SYM_UNKNOWN && pack_is_archive_level(entry->d_name) )
+            continue;
+        count = SSC_SymbolsLoadPack(symbols, path, kind);
         if( count > 0 )
             loaded += count;
     }
     closedir(handle);
+    return loaded;
+}
+
+/**
+ * Component symbols, composed the way the client addresses a component.
+ *
+ * There is no `pack/component.pack` to read — it was removed once the cache's own
+ * component names went into `interfaces/<name>.compack`, which is the member index
+ * over exactly those children. A compack binds a *local* child id, so loading one
+ * directly would bind `items` to 12 rather than to bankmain's twelfth child. The id
+ * is `(interface << 16) | child`, and composing it needs both files:
+ * `pack/3_interfaces.pack` says `bankmain` is 12, the compack says `items` is child
+ * 12, and the symbol is 786444.
+ *
+ * Call after the pack directories, since it reads the interface symbols they load.
+ * Mirrors `load_component_symbols` in `src/net/mock/mock230_content.c` — the server
+ * was taught this and the compiler was not, which is why every component reference
+ * in RuneScript stopped resolving.
+ */
+int
+SSC_SymbolsLoadComponentDir(
+    struct SSC_Symbols* symbols,
+    const char* content_dir)
+{
+    int loaded = 0;
+    int scanned = 0;
+
+    /* Snapshot the interface ids first: loading children appends to `entries`,
+     * which may realloc it out from under a live pointer. */
+    for( int i = 0; i < symbols->count; i++ )
+    {
+        if( symbols->entries[i].kind == SSC_SYM_INTERFACE )
+            scanned++;
+    }
+    if( scanned == 0 )
+        return 0;
+
+    struct
+    {
+        char name[SSC_MAX_NAME];
+        int id;
+    }* ifaces = calloc((size_t)scanned, sizeof(*ifaces));
+    int count = 0;
+
+    if( !ifaces )
+        return 0;
+    for( int i = 0; i < symbols->count && count < scanned; i++ )
+    {
+        if( symbols->entries[i].kind != SSC_SYM_INTERFACE )
+            continue;
+        snprintf(ifaces[count].name, sizeof(ifaces[count].name), "%s",
+                 symbols->entries[i].name);
+        ifaces[count].id = symbols->entries[i].value;
+        count++;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SSC_Symbols children;
+        char path[1024];
+
+        if( ifaces[i].id < 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/interfaces/%s.compack", content_dir,
+                 ifaces[i].name);
+        SSC_SymbolsInit(&children);
+        if( SSC_SymbolsLoadPack(&children, path, SSC_SYM_COMPONENT) > 0 )
+        {
+            for( int c = 0; c < children.count; c++ )
+            {
+                char full[SSC_MAX_NAME];
+
+                if( children.entries[c].value < 0 || children.entries[c].value > 0xffff )
+                    continue;
+                snprintf(full, sizeof(full), "%s:%s", ifaces[i].name,
+                         children.entries[c].name);
+                if( SSC_SymbolsAdd(symbols, full,
+                                   (ifaces[i].id << 16) | children.entries[c].value,
+                                   SSC_SYM_COMPONENT, NULL) )
+                    loaded++;
+            }
+        }
+        SSC_SymbolsFree(&children);
+    }
+    free(ifaces);
     return loaded;
 }
 

@@ -462,7 +462,9 @@ cp_pack_run(
 int
 cp_verify_run(
     struct CP_Ctx* ctx,
-    const struct CP_Selection* sel);
+    const struct CP_Selection* sel,
+    /** Where to write `<type>.digests` (`<id>=<crc32>` per record), or NULL. */
+    const char* digest_dir);
 
 /**
  * Decode a record and encode it straight back, no text in between.

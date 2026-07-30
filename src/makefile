@@ -918,7 +918,8 @@ mock230-scripts: sscompile
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/server/scripts \
 		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
-		--pack $(MOCK230_CONTENT_DIR)/pack --pack $(MOCK230_CONTENT_DIR)/names
+		--pack $(MOCK230_CONTENT_DIR)/pack \
+		--pack $(MOCK230_CONTENT_DIR)/configs
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
@@ -952,6 +953,32 @@ test-mock230-coverage:
 # resolution. Its failure mode is silence — a misspelled content.ini loads
 # perfectly with everything it meant to declare ignored — so the assertions that
 # matter are the ones proving the file was read.
+# Every content bar in one command.
+#
+# There was no aggregate target, and that is the second reason the sscompile
+# regression stayed invisible for a day: each bar was a separate thing to remember
+# to run, so the one that would have caught it was simply never run. A regression
+# that only shows up in a command nobody types is not covered.
+#
+# Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
+# takes minutes; it is the other half and is run on its own.
+.PHONY: test-content
+test-content: test-content-register test-ss-symbols mock230-scripts mock230-pack
+	@echo "--- content: validating the tree against the cache ---"
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
+	@echo "test-content: all content bars passed"
+
+# The compiler's symbol table, against the register and the live tree.
+#
+# Exists because `pack/npc.pack` moving to `configs/all.npc.compack` and three
+# namespaces being renamed silently cost sscompile almost every symbol, and the
+# stale `script.dat` on disk meant the server kept booting. The corpus tests run
+# against a vendored LostCity tree and cannot see any of that.
+test-ss-symbols: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test \
+		serverscript/test/ssc_symbols_test.c $(SSC_SRCS)
+	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(MOCK230_CONTENT_DIR)
+
 test-content-register: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
 		content/test/content_register_test.c content/content_register.c $(INI_SRC)

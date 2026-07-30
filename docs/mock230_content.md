@@ -227,7 +227,7 @@ LostCity's engine gets for free. `src/net/mock/mock230_ids.h` is the substitute:
 one struct naming every id the engine addresses by hand, filled once at boot by
 `mock230_ids_resolve()` out of the packs and the `.constant` files, and
 **nothing downstream holds a literal**. Adding an interface is a line in
-`tools/gameval_import.names` and a field in that struct.
+`the cache's own gameval table` and a field in that struct.
 
 Three kinds of number stay in C on purpose, and the distinction is worth
 keeping:
@@ -430,12 +430,12 @@ half-stated in two distinct ways, and each cost a wrong first attempt:
   a larupia hat 28 Hunter) comes in through the overlay, stated rather than
   inferred.
 
-`tools/kronos_item_import.py` fills the rest in from Kronos'
+a Kronos dump (importer since removed) fills the rest in from Kronos'
 `data/items/item_info.json` — 11,512 hand-curated entries whose ladders match
 OldSchool exactly — and prints an audit rather than asserting the merge:
 
 ```
-$ tools/kronos_item_import.py --report
+$ a Kronos dump (importer since removed) --report
 kronos entries with a requirement : 1172
   cache already states it exactly : 251  (no line emitted)
   emitted to the overlay          : 790
@@ -502,17 +502,17 @@ equipment requirements
 
 ## 6. Where the ids come from, and why they are checked
 
-`tools/gameval_import.py` reads OpenRune's `data/cfg/gamevals-binary/gamevals.dat`
+the cache's own gameval table reads OpenRune's `data/cfg/gamevals-binary/gamevals.dat`
 — a Java `writeUTF` table of every id in its cache with the symbolic name its
 content refers to it by — and writes the `.pack` files.
 
 ```
-tools/gameval_import.py --search npcs goblin
-tools/gameval_import.py --names tools/gameval_import.names \
+the cache's own gameval table --search npcs goblin
+the cache's own gameval table --names the cache's own gameval table \
     --out OSRS-Content/osrs239-content/names
 ```
 
-`tools/gameval_import.names` is the request list; a symbol not in it is not
+`the cache's own gameval table` is the request list; a symbol not in it is not
 imported, which keeps the packs a readable subset rather than 3 MB of text.
 
 **`--out` is `names/`, not `pack/`.** This command used to say `pack/`, and the
@@ -537,7 +537,7 @@ the authored hitpoints. That line is not an assertion — neither number derives
 from the other — but a level-2 goblin with 75 hitpoints is visibly the huge
 spider's row.
 
-`tools/spawn_import.py` does the same job for OpenRune's Lumbridge
+an OpenRune spawn dump (importer since removed) does the same job for OpenRune's Lumbridge
 `SpawnPlugin.kt`, converting `spawnNpc(npc = "npcs.man", x = 3206, z = 3219)`
 into the `==== NPC ====` section of the map square it stands on. `walkRadius` is
 dropped on purpose: LostCity carries wander range on the npc *type*, and so does
@@ -565,7 +565,7 @@ The engine's door handler is then one generic rule and every door in the game is
 data.
 
 OpenRune curates 13 pairs. That is not enough for Lumbridge, so
-`tools/door_import.py` proposes the rest from OpenRune's gameval names by five
+a naming-convention pass (importer since removed) proposes the rest from OpenRune's gameval names by five
 transforms (`X`→`Xopen`, `X`→`open X`, `Xclosed`→`Xopen`, …). About one in
 seven of those is scenery that merely reads like a door —
 `wooden_fur_door_always_closed`, `lassar_door_closed_noop`, a dozen Colosseum

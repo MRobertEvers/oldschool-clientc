@@ -65,6 +65,45 @@ RSCache_Dat2ConfigDbRowDecodeInplace(
 void
 RSCache_Dat2ConfigDbRowFreeInplace(struct RSCache_Dat2ConfigDbRow* entry);
 
+/*
+ * Encoders.
+ *
+ * These types were decode-only for a long time — `cachepack` carried a
+ * `CP_TYPE_NO_ENCODER` flag for them, so 16,712 dbrows and 247 dbtables exported
+ * as text that could never be packed back. The gap was not a design choice: the
+ * decode was derived and validated, and the *column packing* was left unverified,
+ * so no encoder was written.
+ *
+ * Both are exact inverses of the decoders above and are held to byte-identity
+ * against every record in the cache.
+ *
+ * One asymmetry is worth stating because it is the only place the round trip can
+ * lose something. On a DBTABLE a column's 0x80 flag says "a value block follows";
+ * a column with the flag set and zero tuples decodes to exactly the same struct as
+ * a column with the flag clear. The encoder writes the flag when the column has a
+ * value block (`values != NULL`), which is the reading that reproduces this cache.
+ */
+
+/** Bytes needed for `entry`, an upper bound. */
+uint32_t
+RSCache_Dat2ConfigDbRowEncodeBound(const struct RSCache_Dat2ConfigDbRow* entry);
+
+/** Encode into `out`. Returns bytes written, or 0 when `capacity` is too small. */
+uint32_t
+RSCache_Dat2ConfigDbRowEncode(
+    const struct RSCache_Dat2ConfigDbRow* entry,
+    uint8_t* out,
+    uint32_t capacity);
+
+uint32_t
+RSCache_Dat2ConfigDbTableEncodeBound(const struct RSCache_Dat2ConfigDbTable* entry);
+
+uint32_t
+RSCache_Dat2ConfigDbTableEncode(
+    const struct RSCache_Dat2ConfigDbTable* entry,
+    uint8_t* out,
+    uint32_t capacity);
+
 void
 RSCache_Dat2ConfigDbTableDecodeInplace(
     struct RSCache_Dat2ConfigDbTable* entry,

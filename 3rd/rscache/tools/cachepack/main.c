@@ -202,6 +202,8 @@ main(int argc, char** argv)
     const char* tmp_dir = "build/cachepack_verify";
     int want_binary = 0;
     int want_assets = 0;
+    int check_only = 0;
+    const char* digest_dir = NULL;
     int warn_limit = 20;
 
     for( int i = 2; i < argc; i++ )
@@ -219,6 +221,10 @@ main(int argc, char** argv)
         }
         else if( strcmp(arg, "--binary") == 0 )
             want_binary = 1;
+        else if( strcmp(arg, "--digests") == 0 && i + 1 < argc )
+            digest_dir = argv[++i];
+        else if( strcmp(arg, "--check-only") == 0 )
+            check_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
         else if( strcmp(arg, "--raw-assets") == 0 )
@@ -372,7 +378,7 @@ main(int argc, char** argv)
         }
         else
         {
-            rc = cp_verify_run(&ctx, &sel) ? 0 : 1;
+            rc = cp_verify_run(&ctx, &sel, digest_dir) ? 0 : 1;
             /* Both halves run even when the first fails, so one invocation reports
              * every table that missed its bar rather than only the earliest. */
             if( want_assets && !cp_assets_verify(&ctx, asset_kinds, tmp_dir) )
@@ -381,16 +387,45 @@ main(int argc, char** argv)
     }
     else if( strcmp(command, "pack") == 0 )
     {
-        if( !out_dir )
+        /*
+         * `--check-only` answers "does every indexed archive have a file behind
+         * it" without writing anything. A full pack copies the base cache and
+         * emits 116,450 archives, which is too heavy to run on every `make test`
+         * — it was OOM-killed the first time this bar ran that way.
+         */
+        if( !out_dir && !check_only )
         {
             fprintf(stderr, "cachepack: --out is required for pack\n");
             cp_names_free(&ctx.names);
             return 1;
         }
-        rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
+        if( check_only )
+        {
+            /* `cp_pack_run` is what normally opens the cache, and check-only skips
+             * it — so open it here. The reference table is what says which archives
+             * exist, which is half the question this mode answers. */
+            const char* probe = base_dir ? base_dir : cache_dir;
+
+            if( !probe )
+            {
+                fprintf(stderr, "cachepack: --check-only needs --base or --cache\n");
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            if( !tool_dat2_open(probe, &ctx.profile, &ctx.cache) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            ctx.cache_open = true;
+            snprintf(ctx.cache_dir, sizeof(ctx.cache_dir), "%s", probe);
+            rc = 0;
+        }
+        else
+            rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
         if( want_assets && ctx.cache_open )
         {
-            if( !cp_assets_import(&ctx, out_dir) )
+            if( !cp_assets_import(&ctx, check_only ? NULL : out_dir) )
                 rc = 1;
         }
         if( want_binary && ctx.cache_open )

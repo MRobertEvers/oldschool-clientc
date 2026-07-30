@@ -129,10 +129,47 @@ struct pack_edit
     int dirty;
 };
 
-static void
+/*
+ * Where a namespace's index lives, probed rather than assumed.
+ *
+ * There are two levels and they are in different directories:
+ * `pack/7_models.pack` names the archives of a cache index, while
+ * `configs/all.npc.compack` names the records inside one archive. This tool used
+ * to build `pack/<type>.pack` unconditionally — which for a config type meant
+ * `packfile <tree> add npc foo --apply` would *create* a brand new `pack/npc.pack`
+ * shadowing the real index, seeded from nothing.
+ *
+ * So: take whichever exists. If neither does, say so and write nothing — this
+ * tool edits an index, and inventing one at a guessed path is how the shadow got
+ * made. Returns 0 when there is nothing to edit.
+ */
+static int
 pack_path(char* dst, size_t cap, const char* content_dir, const char* type)
 {
-    snprintf(dst, cap, "%s/pack/%s.pack", content_dir, type);
+    char candidate[1024];
+    FILE* probe;
+
+    snprintf(candidate, sizeof(candidate), "%s/configs/all.%s.compack", content_dir, type);
+    probe = fopen(candidate, "rb");
+    if( probe )
+    {
+        fclose(probe);
+        snprintf(dst, cap, "%s", candidate);
+        return 1;
+    }
+    snprintf(candidate, sizeof(candidate), "%s/pack/%s.pack", content_dir, type);
+    probe = fopen(candidate, "rb");
+    if( probe )
+    {
+        fclose(probe);
+        snprintf(dst, cap, "%s", candidate);
+        return 1;
+    }
+    fprintf(stderr,
+            "packfile: no index for `%s` — looked for %s/configs/all.%s.compack and "
+            "%s/pack/%s.pack\n",
+            type, content_dir, type, content_dir, type);
+    return 0;
 }
 
 static int
@@ -143,7 +180,8 @@ pack_edit_open(
     int allow_missing)
 {
     memset(edit, 0, sizeof(*edit));
-    pack_path(edit->path, sizeof(edit->path), content_dir, type);
+    if( !pack_path(edit->path, sizeof(edit->path), content_dir, type) )
+        return 0;
     return lc_pack_load(&edit->pack, edit->path, type, allow_missing);
 }
 
@@ -334,8 +372,16 @@ check_pack(
     int* out_entries)
 {
     char path[1024];
-    pack_path(path, sizeof(path), content_dir, type);
-    FILE* file = fopen(path, "rb");
+    FILE* file;
+
+    /* `check` reports rather than edits, so a namespace with no index is a line
+     * of output, not an error. pack_path already printed which paths it tried. */
+    if( !pack_path(path, sizeof(path), content_dir, type) )
+    {
+        printf("  %-10s (no file)\n", type);
+        return 0;
+    }
+    file = fopen(path, "rb");
     if( !file )
     {
         printf("  %-10s (no file)\n", type);

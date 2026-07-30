@@ -97,6 +97,7 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 		case "$$bin" in \
 		*test_roundtrip) ./$$bin "$(CACHE_ROOT)" || status=1 ;; \
 		*test_cs2) ./$$bin "$(CACHE_ROOT)" || status=1 ;; \
+		*test_db_encode) ./$$bin "$(CACHE_ROOT)/cache.osrs239" || status=1 ;; \
 		*) ./$$bin || status=1 ;; \
 		esac; \
 	done; \

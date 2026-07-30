@@ -95,10 +95,10 @@ static const struct CP_Type g_types[CP_TYPE_COUNT] = {
         "mapelement", RSCACHE_TYPE_MAPELEMENT, RSCACHE_DAT2_CONFIG_KIND_AREA, -1, CP_TYPE_LOSSY,
         cp_unpack_mapelement, cp_pack_mapelement },
     [CP_TYPE_DBROW] = {
-        "dbrow", RSCACHE_TYPE_DBROW, RSCACHE_DAT2_CONFIG_KIND_DBROW, 9, CP_TYPE_NO_ENCODER,
+        "dbrow", RSCACHE_TYPE_DBROW, RSCACHE_DAT2_CONFIG_KIND_DBROW, 9, 0,
         cp_unpack_dbrow, cp_pack_dbrow },
     [CP_TYPE_DBTABLE] = {
-        "dbtable", RSCACHE_TYPE_DBTABLE, RSCACHE_DAT2_CONFIG_KIND_DBTABLE, 10, CP_TYPE_NO_ENCODER,
+        "dbtable", RSCACHE_TYPE_DBTABLE, RSCACHE_DAT2_CONFIG_KIND_DBTABLE, 10, 0,
         cp_unpack_dbtable, cp_pack_dbtable },
 };
 /* clang-format on */

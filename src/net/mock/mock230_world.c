@@ -2813,7 +2813,7 @@ mock230_world_init(
     /*
      * The npc roster comes from the content tree's map squares — LostCity's
      * `==== NPC ====` sections, which are OpenRune's Lumbridge spawn list
-     * transcribed by tools/spawn_import.py.
+     * transcribed from OpenRune once and authored here since.
      *
      * Every spawn in the tree is created, not only the ones near the start
      * tile: the client is only ever told about npcs within 15 tiles, but the
@@ -4840,7 +4840,7 @@ mock230_world_selftest(void)
         /*
          * The requirement table is merged from two sources that disagree with
          * each other (the cache's own params and the Kronos import — see
-         * tools/kronos_item_import.py), so what is worth pinning here is that
+         * a Kronos dump), so what is worth pinning here is that
          * the *merge* comes out right at both ends: a rune scimitar's Attack 40
          * comes from the cache, and a mithril scimitar's Attack 20 comes from
          * the overlay. mock230_pack checks the whole ladder; this checks that

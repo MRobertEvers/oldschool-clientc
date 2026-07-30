@@ -37,10 +37,12 @@ main(int argc, char** argv)
     int pack_count = 0;
     const char* constants = NULL;
     char pack_default[1024];
+    char configs_default[1024];
     struct SSC_Symbols symbols;
     struct SSC_Compiler* compiler;
     struct SSC_Diag diag;
     int symbol_count = 0;
+    int component_count = 0;
     int constant_count = 0;
     int dbcolumn_count = 0;
     int i;
@@ -78,8 +80,16 @@ main(int argc, char** argv)
 
     if( pack_count == 0 )
     {
-        snprintf(pack_default, sizeof(pack_default), "%s/../pack", src);
+        /*
+         * Both levels of index, because a tree keeps them in different places:
+         * `pack/` names the archives of each cache index, `configs/` names the
+         * records inside them. `--src` points at `server/scripts`, so the tree
+         * root is two levels up.
+         */
+        snprintf(pack_default, sizeof(pack_default), "%s/../../pack", src);
         packs[pack_count++] = pack_default;
+        snprintf(configs_default, sizeof(configs_default), "%s/../../configs", src);
+        packs[pack_count++] = configs_default;
     }
     if( !constants )
         constants = src;
@@ -107,12 +117,26 @@ main(int argc, char** argv)
         }
         symbol_count += loaded;
     }
+    /*
+     * Components, after the packs because they compose against the interface ids
+     * those load. There is no `pack/component.pack`: a component's name lives in
+     * `interfaces/<name>.compack` and its id is `(interface << 16) | child`.
+     *
+     * The tree root is two levels above `--src`, which points at server/scripts.
+     */
+    {
+        char content_root[1024];
+
+        snprintf(content_root, sizeof(content_root), "%s/../..", src);
+        component_count = SSC_SymbolsLoadComponentDir(&symbols, content_root);
+    }
     constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
     dbcolumn_count = SSC_SymbolsLoadDbTableDir(&symbols, constants);
     SSC_SymbolsSeedBuiltins(&symbols);
 
-    printf("symbols: %d from packs, %d constants, %d db columns\n", symbol_count,
-           constant_count < 0 ? 0 : constant_count, dbcolumn_count < 0 ? 0 : dbcolumn_count);
+    printf("symbols: %d from packs, %d components, %d constants, %d db columns\n",
+           symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
+           dbcolumn_count < 0 ? 0 : dbcolumn_count);
 
     compiler = SSC_New(&symbols);
     if( !compiler )

@@ -1151,6 +1151,39 @@ read_file(
     uint8_t** out_data,
     int* out_size);
 
+/** 1 when `path` can be opened for reading. */
+static int
+file_exists(const char* path)
+{
+    FILE* f = fopen(path, "rb");
+
+    if( !f )
+        return 0;
+    fclose(f);
+    return 1;
+}
+
+/**
+ * 1 when the cache's reference table actually lists this archive.
+ *
+ * An index entry can name an archive the cache never had: `3_interfaces.pack`
+ * carries 969 names against 968 archives, because gameval archive 14 names one
+ * this revision does not ship. `archives` is indexed by archive id with
+ * `index == -1` in the gaps — the convention `cp_reference_sync` maintains.
+ */
+static int
+archive_in_cache(struct CP_Ctx* ctx, int table_id, int archive_id)
+{
+    struct RSCache_ReferenceTable* rt;
+
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk )
+        return 0;
+    rt = ctx->cache.disk->tables[table_id];
+    if( !rt || !rt->archives || archive_id < 0 || archive_id >= rt->archive_count )
+        return 0;
+    return rt->archives[archive_id].index >= 0;
+}
+
 static int
 read_file(
     const char* path,
@@ -1229,10 +1262,14 @@ import_one(
     struct CP_Ctx* ctx,
     enum CP_AssetId id,
     const char* out_cache_dir,
-    int* out_files)
+    int* out_files,
+    int* out_missing)
 {
     const struct CP_Asset* asset = cp_asset(id);
     int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+    int missing = 0;
+    int declined = 0;
+    int phantom = 0;
     if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return 1;
 
@@ -1372,14 +1409,74 @@ import_one(
         }
 
         if( !payload )
+        {
+            /*
+             * Nothing was read for an archive the index lists. Three different
+             * things look identical here and only one of them is a defect, so they
+             * are told apart rather than lumped into one count.
+             *
+             * This used to be a bare `continue`, which is a silent data path:
+             * `pack --base` copies the base cache first, so a skipped archive keeps
+             * the *base* bytes, and the output is byte-indistinguishable from one
+             * where the file was found and unchanged. Rename an extension and the
+             * tree's version stops shipping with nothing said. Two branches up, the
+             * filepack path already warns that it "lists N member(s) that are not on
+             * disk" — the asymmetry was the bug.
+             */
+            char probe[1700];
+            int on_disk = 0;
+
+            if( asset->codec )
+            {
+                snprintf(probe, sizeof(probe), "%s.%s", base, asset->codec->ext);
+                on_disk = file_exists(probe);
+            }
+            if( on_disk )
+            {
+                /* The friendly form is there; the codec would not turn it back into
+                 * bytes. For `script` that is the documented semantic bar — 219 of
+                 * osrs239's clientscripts decompile but do not recompile — and
+                 * keeping the base cache's bytes is the right answer. Reported
+                 * because "the tree's copy was not used" should never be silent. */
+                declined++;
+            }
+            else if( archive_in_cache(ctx, table_id, archive_id) )
+            {
+                /* The cache has this archive and the tree has no file for it. This
+                 * is the real defect the bar exists to catch. */
+                missing++;
+                if( missing <= 5 )
+                    fprintf(stderr, "cachepack: %s/%s is indexed and in the cache, "
+                                    "but no file is on disk\n",
+                            asset->dir, name);
+            }
+            else
+            {
+                /* The index names an archive the cache does not have either —
+                 * `3_interfaces.pack` carries 969 names for 968 archives because
+                 * gameval archive 14 names one this revision never shipped. Nothing
+                 * to write and nothing wrong. */
+                phantom++;
+            }
+            free(file_ids);
             continue;
+        }
 
         uint32_t* key = NULL;
         if( asset->flags & CP_ASSET_ENCRYPTED )
             key = RSCache_Dat2DiskArchiveXteaKey(ctx->cache.disk, table_id, archive_id);
 
-        if( put_archive(ctx, out_cache_dir, table_id, archive_id, payload, payload_size,
-                        file_ids, file_count, key, &dirty) )
+        if( !out_cache_dir )
+        {
+            /* --check-only: the question is whether a file backs every indexed
+             * archive, and that has already been answered by getting here. Writing
+             * would copy a 180 MB cache and emit 116,450 archives, which is far too
+             * much for a routine test run — it was OOM-killed when this bar first
+             * ran as a full pack. */
+            written++;
+        }
+        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, payload,
+                             payload_size, file_ids, file_count, key, &dirty) )
         {
             written++;
         }
@@ -1391,11 +1488,20 @@ import_one(
         free(file_ids);
     }
 
-    if( dirty && !cp_reference_write(ctx, out_cache_dir, table_id) )
+    if( dirty && out_cache_dir && !cp_reference_write(ctx, out_cache_dir, table_id) )
         return 0;
-    if( written )
+    if( written && out_cache_dir )
         printf("  %-19s %6d archives%s\n", asset->dir, written,
                dirty ? " (reference table updated)" : "");
+    if( missing || declined || phantom )
+    {
+        /* `import_one` is reached by `pack --assets` and by nothing else — `verify`
+         * never calls it — so this is the only place the on-disk set is checked
+         * against the index at all. */
+        printf("  %-19s %6d missing, %d codec-declined, %d not in cache\n", asset->dir,
+               missing, declined, phantom);
+        *out_missing += missing;
+    }
     *out_files += written;
     return 1;
 }
@@ -1408,13 +1514,19 @@ cp_assets_import(
     assert_extensions_distinct();
 
     int total = 0;
+    int missing = 0;
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
-        if( !import_one(ctx, i, out_cache_dir, &total) )
+        if( !import_one(ctx, i, out_cache_dir, &total, &missing) )
             return 0;
     }
-    printf("Imported %d asset archives.\n", total);
-    return 1;
+    /*
+     * Always printed, including the zero, so a bar can grep for the line rather
+     * than for its absence — an absent line and a passing run look identical.
+     */
+    printf("%s %d asset archives, %d indexed but missing.\n",
+           out_cache_dir ? "Imported" : "Checked", total, missing);
+    return missing == 0;
 }
 
 /* ---- fidelity ----------------------------------------------------------- */

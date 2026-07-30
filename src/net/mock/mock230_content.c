@@ -984,8 +984,10 @@ load_npc_config(const char* path)
  * config comes to disagree with the client.
  *
  * What it cannot state is the level you need to *wear* the thing, except for a
- * subset and never more than two of them. See docs/mock230_content.md §5 and
- * tools/kronos_item_import.py.
+ * subset and never more than two of them. See docs/mock230_content.md §5.
+ *
+ * The values were transcribed from a Kronos server dump by an importer that no
+ * longer exists; they are authored content now and this tree is their home.
  *
  *     [mithril_scimitar]
  *     param=levelrequire,attack,20

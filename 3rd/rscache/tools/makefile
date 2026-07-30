@@ -14,7 +14,14 @@ INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) \
 	-I$(THIRD)/bmp -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini \
 	-I$(TOOLS)/common
 
-CFLAGS  ?= -std=c11 -g -O0 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
+# -O3, not -O0. These tools are not debugged more often than they are run: a
+# verify walks 173,002 config records and an asset pass 11,857 archives, and at
+# -O0 that is slow enough to look hung. `-g` stays, so a crash is still
+# debuggable, and the vendored deps were already built -O3 (DEP_CFLAGS below) —
+# only the tools' own code was unoptimised.
+#
+# Override with `make CFLAGS=...` when stepping through something.
+CFLAGS  ?= -std=c11 -g -O3 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 CFLAGS  += $(INCLUDES)
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 

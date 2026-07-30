@@ -59,16 +59,33 @@ TRIGGERS = re.compile(
     r'inv_buttond|ai_\w+|op\w+|ap\w+|mapzone\w*|zone\w*)$')
 
 
+def namespace_for(filename):
+    """The namespace a pack filename belongs to, or None.
+
+    Two levels of index live in two directories and two spellings.
+    `pack/7_models.pack` names the archives of a cache index; the leading number is
+    part of the name. `configs/all.npc.compack` names the records inside one
+    archive, and the type is between the two dots. Reading only `.pack` skipped
+    every config type, which is most of them.
+    """
+    if filename.endswith('.compack'):
+        stem = filename[:-len('.compack')]
+        return stem[len('all.'):] if stem.startswith('all.') else None
+    if filename.endswith('.pack'):
+        return filename[:-len('.pack')]
+    return None
+
+
 def load_packs(dirs):
-    """name -> set of namespaces, from every <ns>.pack in every directory."""
+    """name -> set of namespaces, from every index file in every directory."""
     names = defaultdict(set)
     for d in dirs:
         if not os.path.isdir(d):
             continue
         for f in sorted(os.listdir(d)):
-            if not f.endswith('.pack'):
+            ns = namespace_for(f)
+            if ns is None:
                 continue
-            ns = f[:-len('.pack')]
             path = os.path.join(d, f)
             with open(path, encoding='utf-8', errors='replace') as handle:
                 for line in handle:

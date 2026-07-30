@@ -70,9 +70,12 @@ rm -rf "$TMP"
 echo "cachepack-fidelity: configs + $ASSETS against $CACHE"
 echo "   not covered here: maps (scratch size), scripts (semantic bar — see test_cs2)"
 
+# `--digests` rides along on the verify that was going to run anyway — measured at
+# 20.42s with and without, so it is free.
+mkdir -p "$TMP.digests"
 if tools/cachepack/cachepack verify \
         --cache "$CACHE" --rev "$REV" --src "$SRC" \
-        --assets="$ASSETS" --tmp "$TMP" >"$TMP.log" 2>&1; then
+        --assets="$ASSETS" --tmp "$TMP" --digests "$TMP.digests" >"$TMP.log" 2>&1; then
     status=0
 else
     status=1
@@ -89,6 +92,66 @@ if [ "$status" -ne 0 ]; then
     grep -E "lost-here|length changed|content.ini" "$TMP.log" | head -20
     exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# The import bar: every archive the index lists has a file behind it.
+#
+# `verify` never calls `cp_assets_import`, so until this ran, the whole import
+# path — the candidate-extension list and its fallthrough — was exercised by no
+# test at all. That fallthrough is silent by construction: `pack --base` copies
+# the base cache first, so an archive whose file was not found keeps the *base*
+# bytes and looks identical to one that was found and unchanged. A renamed
+# extension would stop shipping the tree's copy with nothing said.
+#
+# Only `missing` fails. Two other causes are counted separately because neither
+# is a defect:
+#   codec-declined  the friendly form is on disk and the codec would not turn it
+#                   back into bytes. 219 clientscripts decompile and do not
+#                   recompile — that is the documented semantic bar, and keeping
+#                   the cache's own bytes is the right answer.
+#   not in cache    the index names an archive the cache never had.
+#                   `3_interfaces.pack` has 969 names for 968 archives, because
+#                   gameval archive 14 names one this revision does not ship.
+echo "cachepack-fidelity: import — every indexed archive has a file"
+if tools/cachepack/cachepack pack \
+        --src "$SRC" --base "$CACHE" --rev "$REV" \
+        --assets --check-only >"$TMP.import.log" 2>&1; then
+    grep -E "missing, .* codec-declined" "$TMP.import.log" | sed 's/^/   /'
+    grep -E "^Imported" "$TMP.import.log" | sed 's/^/   /'
+else
+    echo "cachepack-fidelity: FAILED — an indexed archive has no file on disk"
+    grep -E "no file is on disk|missing," "$TMP.import.log" | head -20
+    exit 1
+fi
+rm -f "$TMP.import.log"
+
+# ---------------------------------------------------------------------------
+# Per-record digests against the committed golden.
+#
+# `test/digests/<type>.digests` is `<id>=<crc32>` over the bytes `pack` would
+# write, snapshotted while the packer's output is still a pure function of
+# `configs/all.<type>`. Once a server overlay is merged in before encoding, the
+# only way to show an *unoverlaid* record did not move is a snapshot taken before
+# the merge existed — one captured afterwards proves nothing.
+#
+# Per record rather than a whole-cache hash, because the assertion this feeds is
+# set containment over record ids: a whole-cache hash says a byte moved and not
+# which record moved it.
+GOLDEN="test/digests"
+if [ -d "$GOLDEN" ]; then
+    if diff -rq "$GOLDEN" "$TMP.digests" >"$TMP.digests.diff" 2>&1; then
+        echo "cachepack-fidelity: digests — $(cat "$GOLDEN"/*.digests | wc -l | tr -d ' ') records unchanged"
+    else
+        echo "cachepack-fidelity: FAILED — packed records changed against the golden"
+        echo "   (if the change is intended, regenerate with"
+        echo "    cachepack verify ... --digests $GOLDEN)"
+        head -20 "$TMP.digests.diff"
+        exit 1
+    fi
+else
+    echo "cachepack-fidelity: no digest golden at $GOLDEN — skipping"
+fi
+rm -rf "$TMP.digests" "$TMP.digests.diff"
 
 rm -rf "$TMP"
 echo "cachepack-fidelity: all bars met"

@@ -1,5 +1,7 @@
 #include "cachepack.h"
 
+#include "checksum.h"
+
 #include "cache_edit.h"
 #include "cache_write.h"
 #include "dat2disk.h"
@@ -225,7 +227,8 @@ cp_pack_run(
 int
 cp_verify_run(
     struct CP_Ctx* ctx,
-    const struct CP_Selection* sel)
+    const struct CP_Selection* sel,
+    const char* digest_dir)
 {
     printf("Seeding names from the cache's gameval table...\n");
     cp_names_seed_from_cache(ctx);
@@ -257,6 +260,30 @@ cp_verify_run(
             continue;
         }
         cp_codec_fn codec = cp_codec_roundtrip(t);
+
+        /*
+         * A per-record digest of the bytes `pack` would write.
+         *
+         * Captured now, while the packer's output is still a pure function of
+         * `configs/all.<type>`. Once a server overlay is merged in before encoding,
+         * the only way to show that an *unoverlaid* record did not move is to
+         * compare against a snapshot taken before the merge existed — a golden
+         * captured afterwards proves nothing.
+         *
+         * Per record, not a whole-cache hash: a whole-cache hash says a byte moved
+         * and not which record moved it, and the assertion this feeds is set
+         * containment over record ids.
+         */
+        FILE* digests = NULL;
+        if( digest_dir )
+        {
+            char path[1200];
+
+            snprintf(path, sizeof(path), "%s/%s.digests", digest_dir, type->name);
+            digests = fopen(path, "wb");
+            if( !digests )
+                fprintf(stderr, "cachepack: cannot write %s\n", path);
+        }
 
         struct CP_Group group;
         if( !cp_group_open(ctx, t, &group) )
@@ -312,6 +339,9 @@ cp_verify_run(
 
             uint32_t written = type->pack(ctx, id, &file.configs[0], buffer, 64 * 1024);
             records++;
+            if( digests && written )
+                fprintf(digests, "%d=%08x\n", id,
+                        RSCache_Crc32Buffer(buffer, (size_t)written));
             int text_ok = written == (uint32_t)size &&
                           memcmp(buffer, record, (size_t)size) == 0;
             if( text_ok )
@@ -328,6 +358,8 @@ cp_verify_run(
             cp_config_file_free(&file);
         }
 
+        if( digests )
+            fclose(digests);
         cp_lines_free(&lines);
         cp_group_free(&group);
 

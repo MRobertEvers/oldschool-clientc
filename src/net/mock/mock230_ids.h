@@ -11,12 +11,12 @@
  * cannot get that for free — but it can get the same *property*, which is that
  * the numbers live in one place, beside a name, checked against the cache.
  *
- * So: the `.pack` files under content/pack state the ids, the table below names
- * the ones the engine needs, and `mock230_ids_resolve` fills it in once. Nothing downstream
- * holds a literal. Adding an interface means adding a line to
- * tools/gameval_import.names and a field here, and a symbol that has moved
- * between revisions fails loudly at boot instead of quietly addressing the
- * wrong component.
+ * So: the index files state the ids, the table below names the ones the engine
+ * needs, and `mock230_ids_resolve` fills it in once. Nothing downstream holds a
+ * literal. Adding an interface means a line in `pack/3_interfaces.pack` — which
+ * `cachepack unpack` seeds from the cache's own gameval table — and a field here;
+ * a symbol that has moved between revisions then fails loudly at boot instead of
+ * quietly addressing the wrong component.
  *
  * Two kinds of number are deliberately NOT here:
  *

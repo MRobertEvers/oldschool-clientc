@@ -240,7 +240,7 @@ validate_spawns(void)
  *     is the one line of this report worth reading at a glance; a source swapped
  *     for a worse one shows up as a number out of order rather than as silence.
  *
- * See tools/kronos_item_import.py for where the numbers come from and
+ * The numbers were transcribed from a Kronos dump once and are authored now;
  * docs/mock230_content.md §5 for why neither source is trusted alone.
  */
 static void
@@ -373,9 +373,9 @@ door_rejected(int loc_id)
 /*
  * Rewrite doors.loc without the pairs the cache rejected.
  *
- * This is the step that turns tools/door_import.py's guesswork into data. It
- * derives 400-odd pairs from naming conventions, which is the only way to get
- * past OpenRune's 13 curated ones; about one in seven of those turns out to be
+ * This is the step that turns the door pairings' guesswork into data. They were
+ * derived from naming conventions — the only way past OpenRune's 13 curated ones —
+ * and about one in seven of those turns out to be
  * scenery that merely reads like a door (`wooden_fur_door_always_closed`,
  * `lassar_door_closed_noop`, a dozen Colosseum gates). Deriving broadly and
  * then deleting whatever the cache disagrees with is more honest than either
@@ -636,7 +636,7 @@ validate_doors(
      * Every door pair, checked against the cache.
      *
      * Most of them are *derived* — proposed from OpenRune's gameval names by
-     * tools/door_import.py, which cannot tell a real pair from a naming
+     * a naming convention, which cannot tell a real pair from a
      * coincidence. This is the check that makes that guesswork safe: a closed
      * door has an Open action and its partner does not, and a pair that fails
      * either half is reported so it can be dropped from the config rather than
@@ -1198,7 +1198,7 @@ usage(void)
             "  --cache-out DIR  write a derived cache with server overlays baked in:\n"
             "                   npc combat params and loc next_loc_stage\n"
             "  --prune-doors    rewrite doors.loc without the pairs the cache\n"
-            "                   rejects — run this after tools/door_import.py\n"
+            "                   rejects\n"
             "  -v               list every definition as it is checked\n");
 }
 
