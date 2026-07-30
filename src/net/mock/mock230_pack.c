@@ -30,6 +30,7 @@
  * drop tables) stays in `server/` and is not baked.
  */
 
+#include "content/content_fields.h"
 #include "content/content_register.h"
 #include "mock230.h"
 #include "mock230_content.h"
@@ -38,6 +39,7 @@
 #include <rscache.h>
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +52,10 @@
 static int g_errors;
 static int g_warnings;
 static int g_verbose;
+/* The tree being checked. Set once from `--content`, because the field register is
+ * read per record and threading a path through the encoders would touch every
+ * signature between here and the baker for no gain. */
+static const char* g_content_dir = "OSRS-Content/osrs239-content";
 
 static void
 report_error(const char* fmt, ...)
@@ -773,11 +779,68 @@ copy_cache(
 
 /* Param ids the export writes, resolved from content/pack/param.pack so the
  * baked cache and the text tree name the same fields. */
-struct BakedParam
+/*
+ * Which struct field each authored name is, so the field register can reach it.
+ *
+ * The register states *which* fields project into params and under what name
+ * (`src/content/content_fields.c`); this states where the value lives. Two tables,
+ * and neither repeats the other — one is content's business and lives in a file a
+ * content author can edit, the other is a property of the C struct and cannot.
+ *
+ * What this replaces is a single table that did both, in C, so adding a projected
+ * field meant editing a struct, a parser and a baker, and forgetting the third
+ * produced a field that loaded, worked in the mock, and never reached the cache.
+ */
+struct FieldOffset
 {
     const char* name;
-    int value;
+    size_t offset;
 };
+
+static const struct FieldOffset k_npc_fields[] = {
+    { "hitpoints",   offsetof(struct Mock230NpcDef, hitpoints)   },
+    { "attack",      offsetof(struct Mock230NpcDef, attack)      },
+    { "strength",    offsetof(struct Mock230NpcDef, strength)    },
+    { "defence",     offsetof(struct Mock230NpcDef, defence)     },
+    { "magic",       offsetof(struct Mock230NpcDef, magic)       },
+    { "ranged",      offsetof(struct Mock230NpcDef, ranged)      },
+    { "respawnrate", offsetof(struct Mock230NpcDef, respawnrate) },
+    { "wanderrange", offsetof(struct Mock230NpcDef, wanderrange) },
+    { "nomove",      offsetof(struct Mock230NpcDef, nomove)      },
+    { "huntrange",   offsetof(struct Mock230NpcDef, huntrange)   },
+    { "attackrate",  offsetof(struct Mock230NpcDef, attackrate)  },
+    { "attackrange", offsetof(struct Mock230NpcDef, attackrange) },
+    { "damagetype",  offsetof(struct Mock230NpcDef, damagetype)  },
+    { "attack_anim", offsetof(struct Mock230NpcDef, attack_anim) },
+    { "defend_anim", offsetof(struct Mock230NpcDef, defend_anim) },
+    { "death_anim",  offsetof(struct Mock230NpcDef, death_anim)  },
+    { "death_drop",  offsetof(struct Mock230NpcDef, death_drop)  },
+};
+
+static const struct FieldOffset k_loc_fields[] = {
+    { "next_loc_stage", offsetof(struct Mock230LocDef, next_loc_stage) },
+};
+
+/** The int this field holds on `record`, or 0 when the table does not know it. */
+static int
+field_value(
+    const struct FieldOffset* table,
+    size_t table_count,
+    const char* name,
+    const void* record,
+    int* out_found)
+{
+    *out_found = 0;
+    for( size_t i = 0; i < table_count; i++ )
+    {
+        if( strcmp(table[i].name, name) != 0 )
+            continue;
+        *out_found = 1;
+        return *(const int*)((const char*)record + table[i].offset);
+    }
+    return 0;
+}
+
 
 /** Add or replace an int param on a decoded record. */
 static void
@@ -811,6 +874,68 @@ param_set(
 }
 
 /*
+ * Fold one record's authored fields into its param table, as the register says.
+ *
+ * `bake_npc_params` and `bake_loc_params` were two functions doing this from two
+ * hardcoded lists; this is one, driven by `fields/<type>.ini`. A negative value is
+ * "unset" for every field here — a param of -1 is not a value the client can use,
+ * and `death_drop` spells "drops nothing" that way.
+ */
+static void
+bake_params(
+    struct RSCache_Params* params,
+    const char* type,
+    const void* record,
+    const struct FieldOffset* offsets,
+    size_t offset_count)
+{
+    struct ContentFields fields;
+
+    if( !record )
+        return;
+    ContentFields_Load(&fields, g_content_dir, type);
+
+    for( int i = 0; i < fields.count; i++ )
+    {
+        const struct ContentField* field = &fields.entries[i];
+        int found = 0;
+        int value = field_value(offsets, offset_count, field->name, record, &found);
+
+        if( field->client == CONTENT_CLIENT_ERROR )
+        {
+            /* Declared as "must be expressible", and it is not. Reported at bake
+             * time, which is the whole point of the disposition: the alternative is
+             * finding out in game that a field never reached the client. */
+            if( found && value != 0 )
+                report_error("%s.%s is declared `client = error` and has a value (%d) — "
+                             "give it a param or declare it `drop`",
+                             type, field->name, value);
+            continue;
+        }
+        if( field->client != CONTENT_CLIENT_PARAM )
+            continue; /* native is the encoder's, drop is server-only */
+        if( !found )
+        {
+            report_warning("%s.%s projects into param `%s` but no struct field holds "
+                           "it — add it to k_%s_fields",
+                           type, field->name, field->param_name, type);
+            continue;
+        }
+        if( value < 0 )
+            continue;
+
+        int key = mock230_content_symbol(MOCK230_PACK_PARAM, field->param_name);
+        if( key < 0 )
+        {
+            report_warning("pack/param.pack has no id for `%s` — %s.%s not baked",
+                           field->param_name, type, field->name);
+            continue;
+        }
+        param_set(params, key, value);
+    }
+}
+
+/*
  * Write an npc's authored combat block into its param table.
  *
  * The equipment bonuses are already there — OldSchool puts them at param ids
@@ -818,58 +943,6 @@ param_set(
  * are skipped rather than written: a param that is present and -1 reads back as
  * "drops object -1", where an absent one correctly reads as "nothing was said".
  */
-static void
-bake_npc_params(
-    struct RSCache_Dat2ConfigNpc* npc,
-    const struct Mock230NpcDef* def)
-{
-    const struct BakedParam baked[] = {
-        { "hitpoints",   def->hitpoints   },
-        { "attacklevel", def->attack      },
-        { "strengthlevel", def->strength  },
-        { "defencelevel", def->defence    },
-        { "respawnrate", def->respawnrate },
-        { "wanderrange", def->wanderrange },
-        { "huntrange",   def->huntrange   },
-        { "attackrate",  def->attackrate  },
-        { "death_drop",  def->death_drop  },
-        { "attack_anim", def->attack_anim },
-        { "defend_anim", def->defend_anim },
-        { "death_anim",  def->death_anim  },
-    };
-
-    for( size_t i = 0; i < sizeof(baked) / sizeof(baked[0]); i++ )
-    {
-        int key = mock230_content_symbol(MOCK230_PACK_PARAM, baked[i].name);
-
-        if( key < 0 )
-        {
-            report_warning("param.pack has no id for `%s` — not baked", baked[i].name);
-            continue;
-        }
-        if( baked[i].value < 0 )
-            continue;
-        param_set(&npc->params, key, baked[i].value);
-    }
-}
-
-static void
-bake_loc_params(
-    struct RSCache_Dat2ConfigLoc* loc,
-    const struct Mock230LocDef* def)
-{
-    int key;
-
-    if( !def || def->next_loc_stage < 0 )
-        return;
-    key = mock230_content_symbol(MOCK230_PACK_PARAM, "next_loc_stage");
-    if( key < 0 )
-    {
-        report_warning("param.pack has no id for `next_loc_stage` — not baked");
-        return;
-    }
-    param_set(&loc->params, key, def->next_loc_stage);
-}
 
 /*
  * Re-encode one config group with overlays folded into params.
@@ -1001,7 +1074,8 @@ bake_one_npc(
     npc = RSCache_Dat2ConfigNpcNewDecodeProfile(profile, (char*)data, size);
     if( !npc )
         return 0;
-    bake_npc_params(npc, def);
+    bake_params(&npc->params, "npc", def, k_npc_fields,
+                sizeof(k_npc_fields) / sizeof(k_npc_fields[0]));
     *out_size = RSCache_Dat2ConfigNpcEncodeProfile(profile, npc, out, out_cap);
     RSCache_Dat2ConfigNpcFree(npc);
     if( *out_size == 0 )
@@ -1031,7 +1105,8 @@ bake_one_loc(
     loc = RSCache_Dat2ConfigLocNewDecodeProfile(profile, (char*)data, size);
     if( !loc )
         return 0;
-    bake_loc_params(loc, def);
+    bake_params(&loc->params, "loc", def, k_loc_fields,
+                sizeof(k_loc_fields) / sizeof(k_loc_fields[0]));
     *out_size = RSCache_Dat2ConfigLocEncode(profile, loc, out, out_cap);
     RSCache_Dat2ConfigLocFree(loc);
     if( *out_size == 0 )
@@ -1140,7 +1215,10 @@ main(
     for( int i = 1; i < argc; i++ )
     {
         if( strcmp(argv[i], "--content") == 0 && i + 1 < argc )
+        {
             content = argv[++i];
+            g_content_dir = content;
+        }
         else if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc )
             cache = argv[++i];
         else if( strcmp(argv[i], "--cache-out") == 0 && i + 1 < argc )

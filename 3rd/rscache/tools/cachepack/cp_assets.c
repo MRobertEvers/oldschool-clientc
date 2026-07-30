@@ -19,6 +19,7 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_spotanim.h"
 #include "datatypes/dat2_configs.h"
+#include "datatypes/dat2_worldmap.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -564,6 +565,107 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
     printf("  named %d map squares m<x>_<z>\n", count);
 }
 
+/* ---- the world map ------------------------------------------------------- */
+
+/*
+ * File id -> map name, from decoding the details archive. See the header.
+ *
+ * A flat table rather than a pack file because it is not an index anyone edits: it
+ * is a *decode result*, re-derived on every run from the only place the names are
+ * written down. What the tree keeps is the compack/filepack the export writes from
+ * it, which is where a rename would go.
+ */
+enum
+{
+    CP_WORLDMAP_MAX_MAPS = 256,
+};
+static char g_worldmap_names[CP_WORLDMAP_MAX_MAPS][64];
+
+const char*
+cp_assets_worldmap_member(int file_id)
+{
+    if( file_id < 0 || file_id >= CP_WORLDMAP_MAX_MAPS || !g_worldmap_names[file_id][0] )
+        return NULL;
+    return g_worldmap_names[file_id];
+}
+
+void
+cp_assets_name_worldmap(struct CP_Ctx* ctx)
+{
+    if( !ctx->cache_open )
+        return;
+    const struct CP_Asset* asset = cp_asset(CP_ASSET_WORLDMAP_AREA);
+    int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk->tables[table_id] )
+        return;
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+
+    /*
+     * The kinds, in the order `class305` declares them. Only the first three are
+     * whole archives here; `labels` is one archive per map and `area` is declared
+     * by the client and never referenced, so neither gets a fixed slot.
+     */
+    static const char* const k_kinds[] = { "details", "compositemap", "compositetexture" };
+    struct LC_Pack* pack = &ctx->names.asset_packs[CP_ASSET_WORLDMAP_AREA];
+    int named = 0;
+
+    for( int i = 0; i < rt->id_count; i++ )
+    {
+        int archive_id = rt->ids[i];
+        char name[64];
+
+        if( archive_id >= 0 && archive_id < pack->capacity && pack->names &&
+            pack->names[archive_id] &&
+            lc_pack_synthetic_id(asset->pack, pack->names[archive_id]) != archive_id )
+            continue; /* someone named it; a re-seed never renames */
+
+        if( archive_id < (int)(sizeof(k_kinds) / sizeof(k_kinds[0])) )
+            snprintf(name, sizeof(name), "%s", k_kinds[archive_id]);
+        else
+            snprintf(name, sizeof(name), "labels_%d", archive_id);
+        lc_pack_set(pack, archive_id, name);
+        named++;
+    }
+
+    /* Then the maps, from the details archive itself. */
+    memset(g_worldmap_names, 0, sizeof(g_worldmap_names));
+    int maps = 0;
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(ctx->cache.disk, table_id, 0);
+    if( archive && RSCache_Dat2DiskArchiveInitMetadata(ctx->cache.disk, archive) )
+    {
+        struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
+            archive->data, archive->data_size, archive->file_count);
+        if( files )
+        {
+            for( int f = 0; f < files->file_count; f++ )
+            {
+                int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                struct RSCache_WorldMapArea area;
+
+                memset(&area, 0, sizeof(area));
+                if( RSCache_WorldMapAreaDecodeInplace(&area, file_id, files->files[f],
+                                                      files->file_sizes[f]) &&
+                    area.internal_name && area.internal_name[0] && file_id >= 0 &&
+                    file_id < CP_WORLDMAP_MAX_MAPS )
+                {
+                    snprintf(g_worldmap_names[file_id], sizeof(g_worldmap_names[0]), "%s",
+                             area.internal_name);
+                    maps++;
+                }
+                RSCache_WorldMapAreaFreeInplace(&area);
+            }
+            RSCache_FileListFree(files);
+        }
+    }
+    if( archive )
+        RSCache_Dat2DiskArchiveFree(archive);
+
+    if( named || maps )
+        printf("  %-11s %6d world-map archives, %d maps named from the details\n", "worldmap",
+               named, maps);
+}
+
 /* ---- export ------------------------------------------------------------- */
 
 static int
@@ -818,7 +920,21 @@ export_one(
                             listed = members.names[file_id];
                         if( !listed )
                         {
-                            snprintf(fallback, sizeof(fallback), "%s/%d.%s", name, file_id,
+                            /* The world map names its members after the maps, so a
+                             * compositemap member is `compositemap/main.bin` rather
+                             * than `1/0.bin`. Every other table has nothing to say
+                             * and falls back to the file id. */
+                            const char* member_name =
+                                id == CP_ASSET_WORLDMAP_AREA
+                                    ? cp_assets_worldmap_member(file_id)
+                                    : NULL;
+                            char stem_buf[32];
+                            if( !member_name )
+                            {
+                                snprintf(stem_buf, sizeof(stem_buf), "%d", file_id);
+                                member_name = stem_buf;
+                            }
+                            snprintf(fallback, sizeof(fallback), "%s/%s.%s", name, member_name,
                                      cp_asset_extension(id, member, member_size));
                             listed = fallback;
                             lc_pack_set(&members, file_id, listed);
@@ -918,6 +1034,8 @@ cp_assets_export(
         cp_assets_name_models(ctx);
     if( all || (mask & (1u << CP_ASSET_MAP)) )
         cp_assets_name_maps(ctx);
+    if( all || (mask & (1u << CP_ASSET_WORLDMAP_AREA)) )
+        cp_assets_name_worldmap(ctx);
 
     long long total_bytes = 0;
     int total_files = 0;
@@ -1514,6 +1632,8 @@ cp_assets_verify(
         cp_assets_name_models(ctx);
     if( all || (mask & (1u << CP_ASSET_MAP)) )
         cp_assets_name_maps(ctx);
+    if( all || (mask & (1u << CP_ASSET_WORLDMAP_AREA)) )
+        cp_assets_name_worldmap(ctx);
 
     if( ensure_dir_recursive(tmpdir) != 0 )
     {

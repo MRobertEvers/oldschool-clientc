@@ -278,4 +278,34 @@ cp_assets_name_models(struct CP_Ctx* ctx);
 void
 cp_assets_name_maps(struct CP_Ctx* ctx);
 
+/**
+ * Name the world-map table's four archives, and its members after the maps.
+ *
+ * Table 19 is laid out **kind by kind**, not map by map: the archive is one of the
+ * five names `class305` lists and the *file* is one map. In cache.osrs239 that is
+ *
+ *     archive  0        details            52 files, one per map
+ *     archive  1        compositemap       52 files
+ *     archive  2        compositetexture   52 PNGs
+ *     archives 3..54    labels             one file each, all empty (`00 00`)
+ *
+ * which is why the tree used to hold `worldmaparea_0/0.bin`: nothing knew that
+ * archive 0 was the details and file 0 was `main`, so both halves of the address
+ * were numbers. Worse, the area decoder was run over *every* member — including
+ * PNG bytes — which is where the "unknown section type 91 / 219 / 249" flood came
+ * from. Those were never section types; they were a PNG being read as a section
+ * list.
+ *
+ * The map names come from decoding archive 0, because that is the only place they
+ * are written down: a details record carries `main` / `Gielinor Surface`. The other
+ * archives list the same file ids, so one decode names every member of all four.
+ */
+void
+cp_assets_name_worldmap(struct CP_Ctx* ctx);
+
+/** The map a world-map member belongs to (`main`), or NULL. Filled by
+ *  `cp_assets_name_worldmap`; used as the default member name on export. */
+const char*
+cp_assets_worldmap_member(int file_id);
+
 #endif

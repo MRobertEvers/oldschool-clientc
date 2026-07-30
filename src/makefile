@@ -258,7 +258,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_prayer.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
-	net/mock/mock230_embed.c content/content_register.c $(INI_SRC) \
+	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
@@ -584,7 +584,7 @@ test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 # The compiler is a superset: it links the VM sources so a test can compile a
 # script and immediately run it.
 SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
-	content/content_register.c $(INI_SRC) \
+	content/content_register.c content/content_fields.c $(INI_SRC) \
 	serverscript/ssc_compile.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
@@ -927,7 +927,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
-	content/content_register.c $(INI_SRC)
+	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \

@@ -613,6 +613,7 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
      */
     cp_assets_name_models(ctx);
     cp_assets_name_maps(ctx);
+    cp_assets_name_worldmap(ctx);
 
     /*
      * Then a line for **every** archive id in every asset table, named or not.
