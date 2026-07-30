@@ -4,6 +4,7 @@
 #include "bmp.h"
 #include "datatypes/clientscript.h"
 #include "datatypes/dat2_config_db.h"
+#include "datatypes/dat2_font_metrics.h"
 #include "datatypes/dat2_config_param.h"
 #include "datatypes/dat2_worldmap.h"
 #include "datatypes/maps.h"
@@ -4780,6 +4781,168 @@ done:
     cp_config_file_free(&file);
     return payload;
 }
+
+
+/* ------------------------------------------------------------------ */
+/* font metrics                                                        */
+/* ------------------------------------------------------------------ */
+/*
+ * Table 13 holds **metrics, not glyphs** — 256 advance widths and an ascent, and
+ * nothing else. Every one of osrs239's 21 files is exactly 257 bytes, which is
+ * `RSCACHE_DAT2_FONT_METRICS_V1_SIZE`.
+ *
+ * The pictures are in the sprite table: `p11_full`, `p12_full`, `b12_full` and the
+ * rest are sprite archives of 194 members, one per character, and those already
+ * export as BMPs — `sprites/p11_full/65.bmp` is a 5x8 capital A. So there is nothing
+ * here to render; what this table needs is for its numbers to be readable.
+ *
+ *     ascent=11
+ *     advance=65:5     // 'A'
+ *
+ * A width of 0 is written too, because the position is what gives the byte meaning
+ * and a 257-byte file with lines missing would encode short. Printable characters
+ * get their glyph in a trailing comment, which is the whole point of the exercise:
+ * `advance=32:4` says nothing and `advance=32:4  // ' '` says it is the space.
+ *
+ * V2 (263 bytes, a two-byte header and the ascent at 258) is not written by this
+ * cache. The reader handles it; this codec declines it rather than guessing at the
+ * six bytes it would have to reproduce.
+ */
+
+static int
+font_write(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const uint8_t* payload,
+    int size,
+    const int* file_ids,
+    int file_count,
+    const char* path_stem)
+{
+    struct RSCache_Dat2FontMetrics metrics;
+    char path[1900];
+    FILE* out;
+
+    (void)ctx;
+    (void)record_id;
+    (void)file_ids;
+
+    /* One payload, and only the layout this cache actually uses: anything else
+     * falls through to the raw bytes rather than being half-described. */
+    if( file_count > 1 || size != RSCACHE_DAT2_FONT_METRICS_V1_SIZE )
+        return 0;
+    if( !RSCache_Dat2FontMetricsDecodeCodec(payload, size, RSCACHE_CODEC_FONT_METRICS_V1,
+                                            &metrics) )
+        return 0;
+
+    snprintf(path, sizeof(path), "%s.fm", path_stem);
+    out = fopen(path, "wb");
+    if( !out )
+        return 0;
+    fprintf(out,
+            "// Font metrics — advance widths, not glyphs.\n"
+            "//\n"
+            "// The pictures live in the sprite table: p11_full, p12_full, b12_full and\n"
+            "// friends are sprite archives with one member per character, already\n"
+            "// exported as BMP. sprites/p11_full/65.bmp is a capital A.\n"
+            "//\n"
+            "//   ascent          baseline offset, one byte\n"
+            "//   advance=<c>:<n> how far the pen moves after character c\n\n");
+    /* A block header, because cp_config_file_load rejects a property before any
+     * `[name]` — there is one font per file, so one block. */
+    fprintf(out, "[metrics]\n");
+    fprintf(out, "ascent=%d\n\n", metrics.ascent);
+    for( int c = 0; c < 256; c++ )
+    {
+        fprintf(out, "advance=%d:%d", c, metrics.advance[c]);
+        if( c > 32 && c < 127 )
+            fprintf(out, "  // '%c'", (char)c);
+        else if( c == 32 )
+            fprintf(out, "  // ' '");
+        fprintf(out, "\n");
+    }
+    fclose(out);
+    return 1;
+}
+
+static uint8_t*
+font_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    char path[1900];
+    struct CP_ConfigFile file;
+    uint8_t* payload;
+    int ascent = -1;
+    int seen[256];
+
+    (void)ctx;
+    (void)record_id;
+    (void)out_file_ids;
+
+    snprintf(path, sizeof(path), "%s.fm", path_stem);
+    if( !cp_config_file_load(&file, path) )
+        return NULL;
+    payload = (uint8_t*)calloc(RSCACHE_DAT2_FONT_METRICS_V1_SIZE, 1);
+    if( !payload )
+    {
+        cp_config_file_free(&file);
+        return NULL;
+    }
+    memset(seen, 0, sizeof(seen));
+
+    /* One `[metrics]` block per file. */
+    for( int i = 0; i < file.count; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+
+        for( int line = 0; line < block->count; line++ )
+        {
+            const char* key = block->lines[line].key;
+            const char* value = block->lines[line].value;
+
+            if( strcmp(key, "ascent") == 0 )
+                ascent = atoi(value);
+            else if( strcmp(key, "advance") == 0 )
+            {
+                int c = -1, width = 0;
+
+                if( sscanf(value, "%d:%d", &c, &width) != 2 || c < 0 || c > 255 ||
+                    width < 0 || width > 255 )
+                    goto fail;
+                payload[c] = (uint8_t)width;
+                seen[c] = 1;
+            }
+            else
+                goto fail;
+        }
+    }
+    /* Every position, or the file describes a different font than it came from. */
+    for( int c = 0; c < 256; c++ )
+    {
+        if( !seen[c] )
+            goto fail;
+    }
+    if( ascent < 0 || ascent > 255 )
+        goto fail;
+    payload[256] = (uint8_t)ascent;
+    *out_size = RSCACHE_DAT2_FONT_METRICS_V1_SIZE;
+    *out_file_count = 1;
+    cp_config_file_free(&file);
+    return payload;
+
+fail:
+    fprintf(stderr, "cachepack: %s: expected `ascent` and 256 `advance` lines\n", path);
+    free(payload);
+    cp_config_file_free(&file);
+    return NULL;
+}
+
+const struct CP_AssetCodec cp_codec_font = { "fm", font_write, font_read, 0 };
 
 const struct CP_AssetCodec cp_codec_dbindex = { "dbi", dbindex_write, dbindex_read, 0 };
 

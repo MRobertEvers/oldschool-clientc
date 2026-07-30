@@ -8,6 +8,7 @@ extern const struct CP_AssetCodec cp_codec_sprite;
 extern const struct CP_AssetCodec cp_codec_worldmap;
 extern const struct CP_AssetCodec cp_codec_worldmapgeo;
 extern const struct CP_AssetCodec cp_codec_dbindex;
+extern const struct CP_AssetCodec cp_codec_font;
 
 #include "archive.h"
 #include "checksum.h"
@@ -109,7 +110,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_SCRIPT] = {
         "scripts", "12_clientscripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
     [CP_ASSET_FONT] = {
-        "fonts", "13_fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, -1, NULL },
+        "fonts", "13_fonts", "font", "bin", RSCACHE_DAT2_TABLE_FONTS, 0, -1, &cp_codec_font },
     [CP_ASSET_SAMPLE] = {
         "samples", "14_musicsamples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
     [CP_ASSET_PATCH] = {
@@ -813,13 +814,28 @@ report_orphans(
     enum CP_AssetId id,
     const char* root)
 {
-    /* Depth-first, iteratively: the asset tree is at most two levels deep, but a
-     * recursive walk over 61,615 models is a lot of stack for no reason. */
-    char dirs[64][1400];
+    /*
+     * Depth-first, iteratively: a recursive walk over 61,615 models is a lot of
+     * stack for no reason.
+     *
+     * The stack grows. It used to be `char dirs[64][1400]` on the reasoning that
+     * "the asset tree is at most two levels deep" — but a DFS stack holds the
+     * *breadth* it has discovered, not the depth. `sprites/` is 8,534 sibling
+     * directories, so the first pass pushed 64 and silently dropped the rest, and
+     * the report said 42 orphans where there were 8,554. Two runs disagreeing on
+     * which files were orphaned is what made it visible; a wrong count on its own
+     * looks exactly like a right one.
+     */
+    char (*dirs)[1400] = NULL;
     int depth = 0;
+    int capacity = 0;
     int orphans = 0;
     char first[1500] = "";
 
+    dirs = malloc(sizeof(*dirs) * 64);
+    if( !dirs )
+        return;
+    capacity = 64;
     snprintf(dirs[depth++], sizeof(dirs[0]), "%s", root);
     while( depth > 0 )
     {
@@ -841,8 +857,21 @@ report_orphans(
                 continue;
             if( S_ISDIR(info.st_mode) )
             {
-                if( depth < (int)(sizeof(dirs) / sizeof(dirs[0])) )
-                    snprintf(dirs[depth++], sizeof(dirs[0]), "%s", path);
+                if( depth == capacity )
+                {
+                    int next = capacity * 2;
+                    char (*grown)[1400] = realloc(dirs, sizeof(*dirs) * (size_t)next);
+
+                    if( !grown )
+                    {
+                        closedir(handle);
+                        free(dirs);
+                        return;
+                    }
+                    dirs = grown;
+                    capacity = next;
+                }
+                snprintf(dirs[depth++], sizeof(dirs[0]), "%s", path);
                 continue;
             }
             /* Relative to the table's root, which is what an index entry names. */
@@ -853,11 +882,22 @@ report_orphans(
                 continue;
             if( !orphans )
                 snprintf(first, sizeof(first), "%s", rel);
+            /*
+             * Every path, not just a count and an example, when asked.
+             *
+             * A count is enough to notice the problem and not enough to act on it:
+             * deleting requires knowing exactly which files, and re-deriving the rule
+             * outside this function gets it wrong — a reimplementation that missed
+             * the `<ns>_<id>` fallback called 20,266 of these orphaned instead of 42.
+             */
+            if( getenv("CACHEPACK_LIST_ORPHANS") )
+                printf("    orphan %s/%s\n", cp_asset(id)->dir, rel);
             orphans++;
         }
         closedir(handle);
     }
 
+    free(dirs);
     if( orphans )
         printf("  %-19s %6d file(s) no index entry accounts for, e.g. %s\n", "  orphaned",
                orphans, first);

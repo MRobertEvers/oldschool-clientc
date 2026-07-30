@@ -132,7 +132,7 @@ spelling and only the reader's knowledge told them apart.
 | `synth` | `synth/synth_0.synth` | — one payload |
 | `song` `jingle` | `songs/song_0.jmid` | — one payload |
 | `sample` `patch` | `samples/sample_0.sample` | — one payload |
-| `font` | `fonts/font_494.fm` | — one payload |
+| `font` | `fonts/font_494.fm` — advance widths as text | — one payload |
 | `binary` | `binary/binary_0.jpg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |
@@ -244,6 +244,27 @@ back to bytes plus a filepack.
 
 osrs239's indexes are all `int`. The decoder handles `long` and `string`, so the text
 form does too, but nothing in this cache exercises those paths.
+
+### Fonts are metrics, not glyphs
+
+Table 13 is 256 advance widths and an ascent — every one of osrs239's 21 files is
+exactly 257 bytes, `RSCACHE_DAT2_FONT_METRICS_V1_SIZE`. There is no image in it.
+
+    [metrics]
+    ascent=35
+    advance=32:4   // ' '
+    advance=65:8   // 'A'
+
+**The pictures are in the sprite table.** `p11_full`, `p12_full`, `b12_full` and the
+rest are sprite archives with one member per character, and those already export as
+BMP — `sprites/p11_full/65.bmp` is a 5x8 capital A. So nothing here needed rendering;
+what the table needed was for its numbers to be readable, and a printable character
+gets its glyph in a trailing comment because `advance=32:4` alone says nothing.
+
+Every position is written even when the width is 0: the position is what gives the
+byte its meaning, and a file with lines missing would encode short. V2 (263 bytes,
+two-byte header, ascent at 258) is not written by this cache, so the codec declines it
+rather than guessing at the six bytes it would have to reproduce.
 
 ### Which shape a table gets
 

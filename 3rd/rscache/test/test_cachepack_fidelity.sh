@@ -56,10 +56,15 @@ fi
 # Maps and scripts are left out of the default run and that is stated rather than
 # hidden: `maps` explodes 2,934 squares into five files each and `scripts`
 # decompiles 9,725 clientscripts, which together make the scratch tree larger and
-# slower than a routine `make test` should be. Scripts are also on the *semantic*
+# slower than a routine `make test` should be.
+#
+# Everything with a *codec* is covered, because a codec is where a round trip can
+# silently stop being exact. `fonts` costs 21 files and `worldmap/geography` 2,101,
+# and both were unguarded until a font codec shipped whose text form did not parse
+# back — caught by running the bar by hand, which is not a system. Scripts are also on the *semantic*
 # bar rather than the byte one — compiling decompiled source back gives this
 # compiler's bytes, not Jagex's — and that bar is measured by test_cs2.
-ASSETS=interfaces,sprites,textures,dbindex,worldmap/areas
+ASSETS=interfaces,sprites,textures,dbindex,worldmap/areas,worldmap/geography,fonts
 
 rm -rf "$TMP"
 echo "cachepack-fidelity: configs + $ASSETS against $CACHE"
