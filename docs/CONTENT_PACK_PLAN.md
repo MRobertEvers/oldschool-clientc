@@ -1,22 +1,64 @@
 # Implementation plan — one pack file per namespace, two encoders
 
 A step-by-step plan for the content pipeline described in
-[`CONTENT_ARCHITECTURE.md`](CONTENT_ARCHITECTURE.md), narrowed by two scoping
-decisions that remove most of that document's machinery:
+[`CONTENT_ARCHITECTURE.md`](CONTENT_ARCHITECTURE.md), narrowed by four scoping
+decisions that remove most of that document's machinery.
+
+---
+
+## 0. Scope and decisions
+
+### The four decisions
 
 1. **The client cache is frozen.** One revision, pinned. Absorbing future
    official caches is out of scope, so nothing here defends against ids moving.
 2. **Content is authored in its own schema.** dat2 emission is a *backend*, not
    the shape content is written in. "The cache cannot express this" is a normal,
    declared condition rather than a bug.
+3. **A one-time full export establishes the baseline.** The cache is exported to
+   an asset/config tree once; that tree is thereafter the editing surface and the
+   conceptual source of truth. Builds run tree → cache, never the reverse.
+4. **Nothing is secret.** Gamevals and server params may be emitted into the
+   client cache. This collapses what would otherwise be two cache audiences into
+   one (§5.4).
 
-Both decisions delete work. What survives is smaller and sharper than §4 of the
-architecture doc, and the ordering below is chosen so each phase is independently
-useful and independently revertible.
+All four decisions delete work. What survives is smaller and sharper than §4 of
+the architecture doc, and the ordering below is chosen so each phase is
+independently useful and independently revertible.
 
----
+### The substrate rule
 
-## 0. Scope
+Decision 3 does **not** mean building a cache from an empty directory. The tool
+has no such mode — `cp_pack.c:21-28`: *"pack starts from a base cache … Use
+`--base` to copy first; without it the cache at `--out` is edited in place."*
+
+That is the right shape, not a limitation to work around:
+
+> **The tree is the source of truth for everything it states. The pristine cache
+> is the substrate for everything it does not.**
+
+Anything the tree does not emit — `dbtable`/`dbrow`, unmodeled opcodes on records
+never touched, whole tables nobody has exported yet — falls through from the base
+untouched (`cp_pack.c:86-89`). This is what makes decision 3 affordable: the tree
+becomes authoritative incrementally, without total round-trip fidelity as a
+prerequisite.
+
+### Archive the original — policy, not suggestion
+
+**Keep the pristine cache Jagex shipped, forever, and treat the tree as
+derived.** Decoding happens exactly once, at the export border, and whatever the
+decoder does not model is dropped there (§10). The cost of that is bounded and
+mostly invisible — but it is not zero, and it has already come due once:
+
+> loc opcode 69, `force_approach`, left the lossy list on 2026-07-29 because the
+> client's pathfinder approach test needs it. **2,459 of `cache.osrs230`'s locs
+> carry it.** (`3rd/rscache/EXCEPTIONS.md:185`)
+
+A field sat safely on the "nothing reads this" list until the client grew a
+feature that needed it. That will happen again. With the original archived, a
+promoted opcode means re-exporting one type; without it, the data is gone. This
+is a file in cold storage, so the mitigation costs nothing — which is exactly why
+there is no excuse for skipping it.
 
 ### Goal
 
@@ -43,12 +85,26 @@ Cut by decision 1, and listed so nobody re-adds them by reflex:
 `--compare` stays in the tool — it costs nothing and is useful ad hoc. It just
 stops being a step anything depends on.
 
+**Future cache releases are handled case by case**, deliberately. Decision 3 makes
+that cheaper than it sounds: once the tree is the source of truth, absorbing a new
+cache stops being a cache-diff problem and becomes a **tree-diff** problem —
+export the new cache into a second tree, `diff -r` against yours, merge what you
+want by hand. That is ordinary reviewable text, and a better artifact than
+`all.<type>.merge` ever was. No machinery required, which is why the case-by-case
+choice is a real strategy rather than a deferral.
+
 ### Non-goals
 
-- No `dbtable`/`dbrow` authoring. Both are `CP_TYPE_NO_ENCODER`
-  (`3rd/rscache/tools/cachepack/cp_types.c:98`), so cachepack refuses to write
-  them and the base records pass through untouched. Writing that encoder is a
-  separate piece of work; see [Risks](#7-risks-and-open-questions).
+- **No `dbtable`/`dbrow` authoring.** Both are `CP_TYPE_NO_ENCODER`
+  (`cp_types.c:98`, `:101`), so cachepack refuses to write them. Under the
+  substrate rule that is harmless — the base records pass through untouched — so
+  this stays a non-goal rather than becoming a blocker. Writing the encoder is
+  separate work, needed only if authored content must *create* dbtable rows.
+- **No up-front campaign to close decoder loss.** The lossy decoders (§10) are
+  not a prerequisite for anything here. Promote an opcode when a feature needs
+  it, exactly as `force_approach` was promoted — lazily, with the original cache
+  as the recovery path. A phase to model all ~24 loc opcodes ahead of demand
+  would be work spent against a need nobody has stated.
 - No change to the wire protocol or to `src/net/rev/*`.
 
 ---
@@ -71,51 +127,72 @@ Credit where the substrate is already in place, so no phase below rebuilds it.
 | server-side record overlay (config block over cache record) | `src/net/mock/mock230_content.c` | done |
 | base-cache copy + per-record re-encode | `mock230_pack.c:596`, `:737`; `cp_pack.c:145` | done |
 | param baking (npc combat, loc door stages) | `bake_npc_params`, `mock230_pack.c:684`; `bake_loc_params`, `:719` | done, to be replaced by Phase 5 |
+| **semantic** round-trip at 100% for every type, every cache | `EXCEPTIONS.md:169-172` | done — this is what makes decision 3 safe |
+| FileList encoder, for emitting gamevals back (§5.5) | `RSCache_FileListEncode`, `3rd/rscache/src/filelist.h:37` | done |
 
 So the work below is mostly **consolidation and declaration**, not new
 subsystems.
 
 ---
 
-## 2. Phase 0 — the safety net
+## 2. Phase 0 — baseline and safety net
 
 Do this first. Nothing depends on it, and everything after is safer with it.
 
-### 0.1 Byte-identity bake test
+### 0.1 Establish the baseline: full export
 
-**Why now.** `npc`, `obj`, `loc`, `seq`, `enum` and `mapelement` are
-`CP_TYPE_LOSSY` (`cp_types.c:56-95`): the decoder drops fields it does not
-model, so re-encoding a record from text produces "a shorter, valid record"
-(`cp_types.c:32-36`). The existing mitigation is to copy the base bytes and
-re-encode **only** records that have an overlay (`mock230_pack.c:737`,
-`cp_pack.c:86`). That rule is load-bearing and currently unverified.
-
-A frozen base cache makes the check trivial to state: **bake with zero content
-overlays, and the output must be byte-identical to the input.**
+The one-time border crossing of decision 3. Export every table cachepack
+supports into the tree, commit the result, and archive the source cache
+alongside it (per §0 policy).
 
 **Changes**
 
-- New test, `src/net/mock/test/test_bake_identity.c` (or alongside the existing
-  cachepack tests in `3rd/rscache/test/`).
-- Run `mock230_pack --cache-out` against an empty/absent content tree.
-- Compare every file in the output against the base: `main_file_cache.dat2`,
-  `.idx255`, `idx0..idx31`, `xteas.json` (the copy set is
-  `mock230_pack.c:601-603`).
-- Then the same for `cachepack pack --base` with no `configs/` present.
+- `cachepack unpack` over all config types and all asset tables into the content
+  tree — `configs/`, `assets/<type>/`, `pack/<ns>.pack`.
+- Commit the tree. This is the baseline every later phase builds on.
+- Record the source cache's identity in the tree — revision, and a checksum of
+  `main_file_cache.dat2` — so "which cache is this tree derived from" is
+  answerable later without guessing.
 
-**Skip-if-absent.** No cache is committed (`.gitignore:11` is `cache.*/`), so
-the test must skip cleanly when `MOCK230_CACHE` resolves to nothing — matching
-how `3rd/rscache/test/test_sound.c` handles its corpus. A skipped test must say
-so loudly rather than pass silently.
+**Do not chase completeness here.** A table nobody has exported yet falls through
+from the substrate, so a partial export is a working state, not a broken one. Add
+tables as content needs them.
 
-**Exit criteria**
+### 0.2 Fidelity bars, split by table kind
 
-- `make -C src test-bake-identity` passes against a real cache and skips without
-  one.
-- Deliberately breaking the per-record guard (force re-encode of every npc)
-  makes it fail. Verify this by hand once; do not commit the broken variant.
+**Why now.** The build's correctness rests on a rule that is currently
+unverified: re-encode only what the tree states, and let everything else fall
+through from the substrate (`mock230_pack.c:737`, `cp_pack.c:86`).
 
-### 0.2 Pack round-trip test
+**Whole-cache byte-identity is the wrong bar and must not be used.** It is
+unreachable for reasons that lose nothing: Jagex's packer does not write opcodes
+in ascending order and the encoders do (`EXCEPTIONS.md:200`, B3), so records come
+back at identical length with different byte order. `idk` measures 41% exact and
+**100% same-length** — purely reordering. Matching Jagex's ordering is explicitly
+not worth chasing.
+
+The bar therefore differs per table kind:
+
+| kind | bar | rationale |
+|---|---|---|
+| opaque asset tables — `model` `synth` `song` `sample` `patch` `binary` `animset` `base` `font` `jingle` | **byte-identical** | bytes out, bytes in; no codec to lose anything |
+| codec'd assets — `sprite` `map` `script` | same-length + semantic | e.g. sprites are 100% same-length, 24–29% exact; the shortfall is byte ordering only |
+| config types | **semantic 100%**, and cachepack's `lost-here` = 0 | already achieved today (`EXCEPTIONS.md:169-172`); byte-exactness ignored by design |
+| whole cache | **the client boots and renders identically** | the only end-to-end statement that means anything |
+
+**Changes**
+
+- New test asserting each row above, run against a real cache.
+- The per-record guard is what it is really testing: force a re-encode of every
+  npc and the config row must fail. Verify by hand once; do not commit the broken
+  variant.
+
+**Skip-if-absent.** No cache is committed (`.gitignore:11` is `cache.*/`), so the
+test must skip cleanly when `MOCK230_CACHE` resolves to nothing — matching how
+`3rd/rscache/test/test_sound.c` handles its corpus. A skipped test must say so
+loudly rather than pass silently.
+
+### 0.3 Pack round-trip test
 
 **Changes**
 
@@ -196,7 +273,7 @@ That single property replaces what the directory split was buying.
 
 **Exit criteria**
 
-- Phase 0.2's round-trip test passes, comments included.
+- Phase 0.3's round-trip test passes, comments included.
 - New test: save a pack that is missing ids present on disk → those ids survive.
 - New test: `param.pack`'s header survives a full unpack. This is the regression
   that motivated the whole phase.
@@ -437,32 +514,71 @@ current "accepted and ignored" behaviour becomes "declared `scope = client`, so
 this overlay is patching the cache" — a different and much more interesting
 thing to report.
 
-### 5.4 One baker, three audiences
+### 5.4 One baker, two outputs
 
 Today two tools write a derived cache and explicitly do not compose:
 `cachepack pack --base` (whole config records, from `configs/all.<type>`) and
 `mock230_pack --cache-out` (params only, from `server/` overlays). See
 `3rd/rscache/tools/cachepack/main.c:29-33` and `CONTENT_ARCHITECTURE.md` §3.5.
 
-Collapse to one baker emitting three outputs from one merged record:
+Collapse to one baker emitting **two** outputs from one merged record:
 
 | output | contents | audience |
 |---|---|---|
-| **client cache** | `native` fields + `param:N` projections marked client-safe | shipped; players read it |
+| **cache** | `native` fields + every `param:N` projection + gamevals (§5.5) | the client, `tools/dump_npc`, any other server |
 | **server defs** | every field | the engine, in process |
-| **portable cache** | client cache + all `param:N` projections | `tools/dump_npc`, other servers |
 
-The client/portable split matters: `--cache-out` currently bakes `hitpoints`→2100
-and **`death_drop`→2000** into the param table (`docs/mock230_content.md:616`
-shows `dump_npc` reading them back). A param in a cache is readable by anyone
-holding the cache, so the file players download must not be the same artifact.
-Give `param:N` an audience qualifier.
+Decision 4 is what makes this two rather than three. An earlier draft split the
+cache into a client artifact and a portable/tooling one, because `--cache-out`
+bakes `hitpoints`→2100 and `death_drop`→2000 into the param table
+(`docs/mock230_content.md:616` shows `dump_npc` reading them back) and a param is
+readable by anyone holding the cache. With secrecy explicitly not a goal, that
+split buys nothing and costs a whole second artifact — so `param:N` needs no
+audience qualifier, and the cache players download is the same self-describing
+file the tools read.
 
-**Preserve the per-record rule.** Only records with an overlay get re-encoded;
-untouched records keep their original bytes. Phase 0.1's test guards this.
+`drop` still exists and still matters: it is for fields with no sensible cache
+representation at all — drop tables, dialogue, RuneScript — not for fields being
+withheld.
+
+**Preserve the per-record rule.** Only records the tree states get re-encoded;
+everything else falls through from the substrate. Phase 0.2's config-row bar
+guards this.
 
 **`bake_npc_params` and `bake_loc_params` disappear** — ~100 lines re-deriving
 what the register now states.
+
+### 5.5 Emit gamevals from the pack files
+
+The cache's own symbol table (`GAMEVALS`, OSRS idx 24) is where layer 0 came from
+in the first place, and nothing prevents writing it back: the format is a
+FileList — file id = record id, file contents = the name string — and
+`RSCache_FileListEncode` / `…EncodeBound` already exist (`3rd/rscache/src/filelist.h:37`,
+`:44`). Emitting one archive per namespace from `pack/<ns>.pack` makes the cache
+**self-describing**: anything pointed at the cache alone recovers your names
+without the content tree.
+
+**The client never reads it** — nothing outside cachepack opens
+`RSCACHE_DAT2_TABLE_GAMEVALS` — so this cannot break the client, which also makes
+it safe to add late or omit entirely.
+
+Four things to know:
+
+- **Not a faithful round trip.** `sanitise_name` (`cp_names.c:172`) collapses
+  anything outside `[A-Za-z0-9_.+-]` to `_`, and `uniquify` (`:198`) appends
+  `i2`/`i3` on collision. Regenerating overwrites Jagex's original strings with
+  your normalised ones. Fine for a cache you own — and another reason the
+  pristine original stays archived.
+- **Archive 14 is nested.** It names interfaces *and* their components in one
+  record: `<interface name> \0`, then repeating `u16 child_id  <component name>
+  \0`, terminated by `0xffff` (`cp_names.c:330`). Emitting it means re-merging
+  `pack/interface.pack` and `pack/component.pack` into that shape.
+- **Sparse in, sparse out.** Filler names are not stored in the pack file, so
+  unnamed ids simply get no entry. Correct and harmless.
+- **The 90% verification becomes vacuous.** `seed_pack_from_gameval` rejects an
+  archive when fewer than 90% of its ids match real records (`cp_names.c:283`).
+  A self-generated archive passes by construction; do not read that as
+  validation.
 
 ---
 
@@ -500,7 +616,8 @@ The symbol table is shared by construction already: `ssc_symbols.c:342` reads
 ## 9. Ordering and dependencies
 
 ```
-Phase 0  safety net            ─── independent, do first
+Phase 0  baseline + safety net ─── independent, do first
+         0.1 full export, 0.2 fidelity bars, 0.3 pack round-trip
    │
 Phase 1  comment-preserving,   ─── blocks 3 (collapsing layers is unsafe without it)
          merging pack writes
@@ -525,14 +642,49 @@ where the design becomes visible to someone authoring content.
 
 ## 10. Risks and open questions
 
-**`dbtable`/`dbrow` cannot be written.** `CP_TYPE_NO_ENCODER` (`cp_types.c:98`,
-`:101`) — cachepack refuses and the base records pass through. Modern OSRS
-content leans on dbtables, so if authored content needs them, an encoder is
-prerequisite work not costed here.
+### What the export border drops
 
-**`enum` is `CP_TYPE_LOSSY`** (`cp_types.c:59`). If enums are load-bearing for
-content, establish what the decoder drops before trusting a round trip. Phase
-0.1's test will catch damage but not tell you what was lost.
+Decoding happens **once**, at Phase 0.1. This is a one-time toll, not a
+compounding error: every build after the export is encode-only, so nothing
+degrades further. The question is therefore not "is the round trip faithful" but
+"do these specific fields matter" — and for most of the list, demonstrably not
+(`EXCEPTIONS.md:169-186`).
+
+| type | dropped at the border | matters? |
+|---|---|---|
+| npc | opcodes 93, 107, 109 — clear-flags never set true | no; *"No client code reads those three fields"* |
+| param | which opcode delivered the type (1 vs 8); the resulting char is kept | no |
+| obj | opcode 9 (a discarded string); `"Hidden"` action and `"null"` name normalised to NULL | no |
+| enum | opcodes 1, 7, 8 | unlikely; check if enums become load-bearing |
+| spotanim | recolour/retexture slots past 6 | unlikely |
+| sequence | v1 frame-sound `retain`/`weight`; opcode 100's blend table | unlikely |
+| sprites | the per-sprite flags byte — 100% same-length, 24–29% exact | no; ordering only |
+| texture v1 | a `count-1` run re-encoded as zeros | no |
+| **loc** | **~24 opcodes** (25, 44, 45, 61, 88/90/91/96–105, 163–191, the boolean-flag block) plus opcode 95's pre-220 payload | **the real exposure** — see below |
+| **mapelement** | ~24 opcodes; only sprite, name, text size and category kept — 0% byte-exact by construction | **the other one** |
+
+`loc` and `mapelement` are the exposure, and the mitigation is not an
+up-front modelling campaign — it is the archived original (§0). Promote an opcode
+when a feature needs it, as `force_approach` was promoted on 2026-07-29 for the
+pathfinder approach test, and re-export that type. Note npc opcode 127
+(`basTypeId`) is already flagged as *"the one worth promoting later"*: it
+redirects an npc's idle and walk sequences through a separate type.
+
+**Why an unknown opcode cannot be preserved opaquely.** A config record is an
+opcode stream in which each opcode's payload length is implied by the opcode
+itself. Not knowing what opcode 25 means is not knowing how many bytes it
+consumes, so it cannot be skipped and re-emitted verbatim. Hence
+`EXCEPTIONS.md:1065`: *"a decoder that continues past an unknown opcode destroys
+the evidence needed to fix it."* Modelling a field is the only way to keep it —
+there is no escape hatch, and no point looking for one.
+
+### Other risks
+
+**`dbtable`/`dbrow` cannot be written.** `CP_TYPE_NO_ENCODER` (`cp_types.c:98`,
+`:101`) — cachepack refuses and the base records pass through. Harmless under the
+substrate rule, and the reason it stays a non-goal. It becomes real work only if
+authored content must *create* dbtable rows: that is absence, not degradation,
+and would show up as a missing table rather than a thinner record.
 
 **Aliases do not survive the single-file collapse.** `names[id]` is one name per
 id. Phase 3.1 must decide each case explicitly; there is no mechanism that keeps
