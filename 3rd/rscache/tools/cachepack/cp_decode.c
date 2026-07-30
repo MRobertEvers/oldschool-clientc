@@ -43,42 +43,6 @@
 
 /* ---- shared file helpers ------------------------------------------------ */
 
-/** mkdir -p for a codec that writes a directory of files. */
-static int
-ensure_dir_path(const char* path)
-{
-    char buf[1800];
-    snprintf(buf, sizeof(buf), "%s", path);
-    for( char* p = buf + 1; *p; p++ )
-    {
-        if( *p != '/' )
-            continue;
-        *p = '\0';
-        mkdir(buf, 0755);
-        *p = '/';
-    }
-    return mkdir(buf, 0755) == 0 || errno == EEXIST ? 0 : -1;
-}
-
-static int
-write_text_file(
-    const char* path,
-    const struct CP_Lines* lines,
-    const char* header)
-{
-    FILE* out = fopen(path, "wb");
-    if( !out )
-    {
-        fprintf(stderr, "cachepack: cannot write %s: %s\n", path, strerror(errno));
-        return 0;
-    }
-    if( header )
-        fprintf(out, "%s", header);
-    for( int i = 0; i < lines->count; i++ )
-        fprintf(out, "%s\n", lines->lines[i]);
-    fclose(out);
-    return 1;
-}
 
 static uint8_t*
 slurp(
@@ -126,6 +90,23 @@ read_file_bytes(
     return 1;
 }
 
+
+/** mkdir -p for a codec that writes a directory of files. */
+static int
+ensure_dir_path(const char* path)
+{
+    char buf[1800];
+    snprintf(buf, sizeof(buf), "%s", path);
+    for( char* p = buf + 1; *p; p++ )
+    {
+        if( *p != '/' )
+            continue;
+        *p = '\0';
+        mkdir(buf, 0755);
+        *p = '/';
+    }
+    return mkdir(buf, 0755) == 0 || errno == EEXIST ? 0 : -1;
+}
 
 /* ---- member packs -------------------------------------------------------- */
 
@@ -2661,149 +2642,96 @@ worldmap_try_composite(
     return exact;
 }
 
-static int
-worldmap_write(
-    struct CP_Ctx* ctx,
-    int record_id,
-    const uint8_t* payload,
-    int size,
-    const int* file_ids,
-    int file_count,
-    const char* path_stem)
+/*
+ * The world-map table is laid out **kind by kind**: the archive is one of the five
+ * names `class305` declares and the file is one map. So a codec here owns a whole
+ * archive of maps, not one record — the same shape the interface and texture codecs
+ * have, and for the same reason.
+ *
+ * Only two of the archives have a text form. `compositetexture` is PNGs and
+ * `labels` is empty, and both fall through to the raw payload; running the area
+ * decoder over them is what produced the "unknown section type 91 / 219 / 249"
+ * flood, because a PNG read as a section list says whatever its pixels say.
+ */
+enum
 {
-    char path[1800];
-    struct RSCache_WorldMapArea area;
+    CP_WORLDMAP_ARCHIVE_DETAILS = 0,
+    CP_WORLDMAP_ARCHIVE_COMPOSITE = 1,
+};
 
-    if( worldmap_try_area(ctx, record_id, payload, size, &area) )
+static void
+worldmap_emit_area(
+    const struct RSCache_WorldMapArea* area,
+    struct CP_Lines* lines)
+{
+    cp_lines_add_str(lines, "internal", area->internal_name);
+    cp_lines_add_str(lines, "external", area->external_name);
+    cp_lines_addf(lines, "origin=%d", area->origin);
+    /* All eight digits: the cache's background is 0xFF000000, and a %06X here
+     * would write the alpha away and re-encode a different colour. */
+    cp_lines_addf(lines, "background=0x%08X", (unsigned)area->background_colour);
+    cp_lines_addf(lines, "main=%s", area->is_main ? "yes" : "no");
+    cp_lines_addf(lines, "zoom=%d", area->zoom);
+    /* Two fields the client never reads; kept so the record re-encodes. */
+    cp_lines_addf(lines, "unknown_int=%d", area->unknown_int);
+    cp_lines_addf(lines, "unknown_byte=%d", area->unknown_byte);
+    for( int i = 0; i < area->section_count; i++ )
     {
-        struct CP_Lines lines;
-        cp_lines_init(&lines);
-        cp_lines_add_str(&lines, "internal", area.internal_name);
-        cp_lines_add_str(&lines, "external", area.external_name);
-        cp_lines_addf(&lines, "origin=%d", area.origin);
-        /* All eight digits: the cache's background is 0xFF000000, and a %06X here
-         * would write the alpha away and re-encode a different colour. */
-        cp_lines_addf(&lines, "background=0x%08X", (unsigned)area.background_colour);
-        cp_lines_addf(&lines, "main=%s", area.is_main ? "yes" : "no");
-        cp_lines_addf(&lines, "zoom=%d", area.zoom);
-        /* Two fields the client never reads; kept so the record re-encodes. */
-        cp_lines_addf(&lines, "unknown_int=%d", area.unknown_int);
-        cp_lines_addf(&lines, "unknown_byte=%d", area.unknown_byte);
-        for( int i = 0; i < area.section_count; i++ )
-        {
-            const struct RSCache_WorldMapSection* section = &area.sections[i];
-            cp_lines_addf(&lines,
-                          "section%d=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-                          i + 1, section->type, section->min_plane, section->planes,
-                          section->src_region_x, section->src_region_y,
-                          section->src_region_x_end, section->src_region_y_end,
-                          section->src_chunk_x_low, section->src_chunk_y_low,
-                          section->src_chunk_x_high, section->src_chunk_y_high,
-                          section->dst_region_x, section->dst_region_y,
-                          section->dst_region_x_end, section->dst_region_y_end,
-                          section->dst_chunk_x_low, section->dst_chunk_y_low,
-                          section->dst_chunk_x_high);
-            cp_lines_addf(&lines, "section%d_dst_chunk_y_high=%d", i + 1,
-                          section->dst_chunk_y_high);
-        }
-        snprintf(path, sizeof(path), "%s.wma", path_stem);
-        int ok = write_text_file(path, &lines,
-                                 "// World map area. `section<N>` fields are, in order:\n"
-                                 "// type, min_plane, planes, then the source side and the\n"
-                                 "// destination side; a section only uses the ones its type\n"
-                                 "// declares (see RSCACHE_WORLDMAP_SECTION_*).\n");
-        cp_lines_free(&lines);
-        RSCache_WorldMapAreaFreeInplace(&area);
-        return ok;
+        const struct RSCache_WorldMapSection* section = &area->sections[i];
+        cp_lines_addf(lines,
+                      "section%d=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                      i + 1, section->type, section->min_plane, section->planes,
+                      section->src_region_x, section->src_region_y,
+                      section->src_region_x_end, section->src_region_y_end,
+                      section->src_chunk_x_low, section->src_chunk_y_low,
+                      section->src_chunk_x_high, section->src_chunk_y_high,
+                      section->dst_region_x, section->dst_region_y,
+                      section->dst_region_x_end, section->dst_region_y_end,
+                      section->dst_chunk_x_low, section->dst_chunk_y_low,
+                      section->dst_chunk_x_high);
+        cp_lines_addf(lines, "section%d_dst_chunk_y_high=%d", i + 1,
+                      section->dst_chunk_y_high);
     }
-
-    if( worldmap_try_composite(ctx, payload, size, &area) )
-    {
-        struct CP_Lines lines;
-        cp_lines_init(&lines);
-        cp_lines_addf(&lines, "data0=%d", area.data0_count);
-        for( int i = 0; i < area.region_count; i++ )
-        {
-            const struct RSCache_WorldMapRegion* region = &area.regions[i];
-            cp_lines_addf(&lines, "region%d=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", i + 1,
-                          region->kind, region->min_plane, region->planes,
-                          region->src_region_x, region->src_region_y, region->src_chunk_x,
-                          region->src_chunk_y, region->dst_region_x, region->dst_region_y,
-                          region->dst_chunk_x, region->dst_chunk_y, region->group_id,
-                          region->file_id);
-        }
-        for( int i = 0; i < area.icon_count; i++ )
-            cp_lines_addf(&lines, "icon%d=%d,%d,%s", i + 1, area.icons[i].element,
-                          area.icons[i].coord, area.icons[i].hidden ? "yes" : "no");
-        snprintf(path, sizeof(path), "%s.wmc", path_stem);
-        int ok = write_text_file(
-            &path[0], &lines,
-            "// World map composite. `data0` is where the first region block ends —\n"
-            "// the two blocks are stored back to back and the split is not derivable.\n"
-            "// region: kind,min_plane,planes,src_rx,src_ry,src_cx,src_cy,dst_rx,dst_ry,\n"
-            "//         dst_cx,dst_cy,group,file\n"
-            "// icon:   element,coord,hidden\n");
-        cp_lines_free(&lines);
-        RSCache_WorldMapAreaFreeInplace(&area);
-        return ok;
-    }
-
-    return 0; /* PNGs and the rest keep their payload */
 }
 
-static uint8_t*
-worldmap_read(
-    struct CP_Ctx* ctx,
-    int record_id,
-    const char* path_stem,
-    int** out_file_ids,
-    int* out_file_count,
-    int* out_size)
+static void
+worldmap_emit_composite(
+    const struct RSCache_WorldMapArea* area,
+    struct CP_Lines* lines)
 {
-    char path[1800];
-    int is_composite = 0;
-    snprintf(path, sizeof(path), "%s.wma", path_stem);
-    int text_size = 0;
-    uint8_t* text = slurp(path, &text_size);
-    if( !text )
+    cp_lines_addf(lines, "data0=%d", area->data0_count);
+    for( int i = 0; i < area->region_count; i++ )
     {
-        snprintf(path, sizeof(path), "%s.wmc", path_stem);
-        text = slurp(path, &text_size);
-        is_composite = 1;
+        const struct RSCache_WorldMapRegion* region = &area->regions[i];
+        cp_lines_addf(lines, "region%d=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", i + 1,
+                      region->kind, region->min_plane, region->planes,
+                      region->src_region_x, region->src_region_y, region->src_chunk_x,
+                      region->src_chunk_y, region->dst_region_x, region->dst_region_y,
+                      region->dst_chunk_x, region->dst_chunk_y, region->group_id,
+                      region->file_id);
     }
-    if( !text )
-        return NULL;
+    for( int i = 0; i < area->icon_count; i++ )
+        cp_lines_addf(lines, "icon%d=%d,%d,%s", i + 1, area->icons[i].element,
+                      area->icons[i].coord, area->icons[i].hidden ? "yes" : "no");
+}
 
-    char* wrapped = malloc((size_t)text_size + 16);
-    if( !wrapped )
-    {
-        free(text);
-        return NULL;
-    }
-    int prefix = snprintf(wrapped, 16, "[wm]\n");
-    memcpy(wrapped + prefix, text, (size_t)text_size);
-    free(text);
-    struct CP_ConfigFile file;
-    int parsed =
-        cp_config_file_load_memory(&file, wrapped, (size_t)(prefix + text_size), "worldmap");
-    free(wrapped);
-    if( !parsed || file.count != 1 )
-    {
-        if( parsed )
-            cp_config_file_free(&file);
-        return NULL;
-    }
-
-    struct RSCache_WorldMapArea area;
-    memset(&area, 0, sizeof(area));
-    area.id = record_id;
+/** One map's block into `area`. Returns 0 on a line the grammar does not have. */
+static int
+worldmap_read_block(
+    const struct CP_Config* block,
+    int record_id,
+    struct RSCache_WorldMapArea* area)
+{
     int section_capacity = 0, region_capacity = 0, icon_capacity = 0;
     int ok = 1;
 
-    for( int i = 0; i < file.configs[0].count && ok; i++ )
+    memset(area, 0, sizeof(*area));
+    area->id = record_id;
+
+    for( int i = 0; i < block->count && ok; i++ )
     {
-        const char* key = file.configs[0].lines[i].key;
-        const char* value = file.configs[0].lines[i].value;
+        const char* key = block->lines[i].key;
+        const char* value = block->lines[i].value;
         char scratch[512];
         char* fields[20];
         int index;
@@ -2812,39 +2740,39 @@ worldmap_read(
         {
             char buf[512];
             cp_unescape(value, buf, sizeof(buf));
-            area.internal_name = strdup(buf);
+            area->internal_name = strdup(buf);
         }
         else if( strcmp(key, "external") == 0 )
         {
             char buf[512];
             cp_unescape(value, buf, sizeof(buf));
-            area.external_name = strdup(buf);
+            area->external_name = strdup(buf);
         }
         else if( strcmp(key, "origin") == 0 )
-            ok = cp_parse_int(value, &area.origin);
+            ok = cp_parse_int(value, &area->origin);
         else if( strcmp(key, "background") == 0 )
         {
             /* 0xFF000000 does not fit a signed int, so it goes through the wider
              * parse and lands as the same 32 bits the cache holds. */
             int64_t colour = 0;
             ok = cp_parse_i64(value, &colour);
-            area.background_colour = (int)(uint32_t)colour;
+            area->background_colour = (int)(uint32_t)colour;
         }
         else if( strcmp(key, "main") == 0 )
-            ok = cp_parse_bool(value, &area.is_main);
+            ok = cp_parse_bool(value, &area->is_main);
         else if( strcmp(key, "zoom") == 0 )
-            ok = cp_parse_int(value, &area.zoom);
+            ok = cp_parse_int(value, &area->zoom);
         else if( strcmp(key, "unknown_int") == 0 )
-            ok = cp_parse_int(value, &area.unknown_int);
+            ok = cp_parse_int(value, &area->unknown_int);
         else if( strcmp(key, "unknown_byte") == 0 )
-            ok = cp_parse_int(value, &area.unknown_byte);
+            ok = cp_parse_int(value, &area->unknown_byte);
         else if( strcmp(key, "data0") == 0 )
-            ok = cp_parse_int(value, &area.data0_count);
+            ok = cp_parse_int(value, &area->data0_count);
         else if( strstr(key, "_dst_chunk_y_high") )
         {
             index = atoi(key + 7) - 1;
-            if( index >= 0 && index < area.section_count )
-                ok = cp_parse_int(value, &area.sections[index].dst_chunk_y_high);
+            if( index >= 0 && index < area->section_count )
+                ok = cp_parse_int(value, &area->sections[index].dst_chunk_y_high);
         }
         else if( (index = cp_indexed_key(key, "section")) >= 0 )
         {
@@ -2857,7 +2785,7 @@ worldmap_read(
             {
                 int next = index + 8;
                 struct RSCache_WorldMapSection* grown =
-                    realloc(area.sections, (size_t)next * sizeof(*grown));
+                    realloc(area->sections, (size_t)next * sizeof(*grown));
                 if( !grown )
                 {
                     ok = 0;
@@ -2865,10 +2793,10 @@ worldmap_read(
                 }
                 memset(grown + section_capacity, 0,
                        (size_t)(next - section_capacity) * sizeof(*grown));
-                area.sections = grown;
+                area->sections = grown;
                 section_capacity = next;
             }
-            struct RSCache_WorldMapSection* s = &area.sections[index];
+            struct RSCache_WorldMapSection* s = &area->sections[index];
             int* slots[18] = { &s->type,
                                &s->min_plane,
                                &s->planes,
@@ -2889,8 +2817,8 @@ worldmap_read(
                                &s->dst_chunk_x_high };
             for( int f = 0; f < 18 && ok; f++ )
                 ok = cp_parse_int(fields[f], slots[f]);
-            if( index + 1 > area.section_count )
-                area.section_count = index + 1;
+            if( index + 1 > area->section_count )
+                area->section_count = index + 1;
         }
         else if( (index = cp_indexed_key(key, "region")) >= 0 )
         {
@@ -2903,7 +2831,7 @@ worldmap_read(
             {
                 int next = index + 16;
                 struct RSCache_WorldMapRegion* grown =
-                    realloc(area.regions, (size_t)next * sizeof(*grown));
+                    realloc(area->regions, (size_t)next * sizeof(*grown));
                 if( !grown )
                 {
                     ok = 0;
@@ -2911,10 +2839,10 @@ worldmap_read(
                 }
                 memset(grown + region_capacity, 0,
                        (size_t)(next - region_capacity) * sizeof(*grown));
-                area.regions = grown;
+                area->regions = grown;
                 region_capacity = next;
             }
-            struct RSCache_WorldMapRegion* r = &area.regions[index];
+            struct RSCache_WorldMapRegion* r = &area->regions[index];
             int* slots[13] = { &r->kind,         &r->min_plane,    &r->planes,
                                &r->src_region_x, &r->src_region_y, &r->src_chunk_x,
                                &r->src_chunk_y,  &r->dst_region_x, &r->dst_region_y,
@@ -2922,8 +2850,8 @@ worldmap_read(
                                &r->file_id };
             for( int f = 0; f < 13 && ok; f++ )
                 ok = cp_parse_int(fields[f], slots[f]);
-            if( index + 1 > area.region_count )
-                area.region_count = index + 1;
+            if( index + 1 > area->region_count )
+                area->region_count = index + 1;
         }
         else if( (index = cp_indexed_key(key, "icon")) >= 0 )
         {
@@ -2936,7 +2864,7 @@ worldmap_read(
             {
                 int next = index + 32;
                 struct RSCache_WorldMapIcon* grown =
-                    realloc(area.icons, (size_t)next * sizeof(*grown));
+                    realloc(area->icons, (size_t)next * sizeof(*grown));
                 if( !grown )
                 {
                     ok = 0;
@@ -2944,44 +2872,301 @@ worldmap_read(
                 }
                 memset(grown + icon_capacity, 0,
                        (size_t)(next - icon_capacity) * sizeof(*grown));
-                area.icons = grown;
+                area->icons = grown;
                 icon_capacity = next;
             }
-            ok = cp_parse_int(fields[0], &area.icons[index].element) &&
-                 cp_parse_int(fields[1], &area.icons[index].coord) &&
-                 cp_parse_bool(fields[2], &area.icons[index].hidden);
-            if( index + 1 > area.icon_count )
-                area.icon_count = index + 1;
+            ok = cp_parse_int(fields[0], &area->icons[index].element) &&
+                 cp_parse_int(fields[1], &area->icons[index].coord) &&
+                 cp_parse_bool(fields[2], &area->icons[index].hidden);
+            if( index + 1 > area->icon_count )
+                area->icon_count = index + 1;
         }
     }
-    cp_config_file_free(&file);
+    return ok;
+}
 
-    uint8_t* payload = NULL;
-    if( ok )
+static int
+worldmap_write(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const uint8_t* payload,
+    int size,
+    const int* file_ids,
+    int file_count,
+    const char* path_stem)
+{
+    int composite;
+    const char* ext;
+
+    if( record_id == CP_WORLDMAP_ARCHIVE_DETAILS )
     {
-        uint32_t bound = is_composite ? RSCache_WorldMapAreaEncodeIconsBound(&area)
-                                      : RSCache_WorldMapAreaEncodeBound(&area);
-        payload = malloc(bound ? bound : 1);
-        uint32_t written = 0;
-        if( payload )
+        composite = 0;
+        ext = "wma";
+    }
+    else if( record_id == CP_WORLDMAP_ARCHIVE_COMPOSITE )
+    {
+        composite = 1;
+        ext = "wmc";
+    }
+    else
+    {
+        return 0; /* PNGs and the empty label archives keep their payload */
+    }
+    if( file_count <= 0 )
+        return 0;
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode((char*)payload, size, file_count);
+    if( !files )
+        return 0;
+
+    /*
+     * Decode everything before writing anything.
+     *
+     * A partial text file would be worse than none: the members it dropped would
+     * come back missing, and every later map would shift an id. So a single member
+     * this decoder cannot read declines the whole archive, and the raw payload is
+     * written instead.
+     */
+    struct RSCache_WorldMapArea* areas =
+        calloc((size_t)files->file_count, sizeof(*areas));
+    if( !areas )
+    {
+        RSCache_FileListFree(files);
+        return 0;
+    }
+    int decoded = 0;
+    for( ; decoded < files->file_count; decoded++ )
+    {
+        int file_id = file_ids ? file_ids[decoded] : decoded;
+        int got = composite ? worldmap_try_composite(ctx, (const uint8_t*)files->files[decoded],
+                                                     files->file_sizes[decoded], &areas[decoded])
+                            : worldmap_try_area(ctx, file_id,
+                                                (const uint8_t*)files->files[decoded],
+                                                files->file_sizes[decoded], &areas[decoded]);
+        if( !got )
+            break;
+    }
+    if( decoded < files->file_count )
+    {
+        for( int i = 0; i < decoded; i++ )
+            RSCache_WorldMapAreaFreeInplace(&areas[i]);
+        free(areas);
+        RSCache_FileListFree(files);
+        return 0;
+    }
+
+    /* The member list, merged over whatever the tree already had. */
+    struct LC_Pack members;
+    cp_member_pack_load(&members, path_stem, "compack", "map");
+
+    char path[1800];
+    snprintf(path, sizeof(path), "%s.%s", path_stem, ext);
+    FILE* out = fopen(path, "wb");
+    if( !out )
+    {
+        for( int i = 0; i < files->file_count; i++ )
+            RSCache_WorldMapAreaFreeInplace(&areas[i]);
+        free(areas);
+        lc_pack_free(&members);
+        RSCache_FileListFree(files);
+        return 0;
+    }
+
+    if( composite )
+        fprintf(out,
+                "// World map composites — %d maps.\n"
+                "// One block per map; the .compack ties each block name to its file id.\n"
+                "// `data0` is where the first region block ends — the two blocks are stored\n"
+                "// back to back and the split is not derivable.\n"
+                "// region: kind,min_plane,planes,src_rx,src_ry,src_cx,src_cy,dst_rx,dst_ry,\n"
+                "//         dst_cx,dst_cy,group,file\n"
+                "// icon:   element,coord,hidden\n\n",
+                files->file_count);
+    else
+        fprintf(out,
+                "// World map areas — %d maps.\n"
+                "// One block per map; the .compack ties each block name to its file id.\n"
+                "// `section<N>` fields are, in order: type, min_plane, planes, then the\n"
+                "// source side and the destination side; a section only uses the ones its\n"
+                "// type declares (see RSCACHE_WORLDMAP_SECTION_*).\n\n",
+                files->file_count);
+
+    struct CP_Lines lines;
+    cp_lines_init(&lines);
+    for( int f = 0; f < files->file_count; f++ )
+    {
+        int file_id = file_ids ? file_ids[f] : f;
+        const char* name = NULL;
+        char fallback[64];
+
+        if( file_id >= 0 && file_id < members.capacity && members.names )
+            name = members.names[file_id];
+        if( !name )
         {
-            written = is_composite ? RSCache_WorldMapAreaEncodeIcons(
-                                         &area, RSCache_WorldMapFlags(&ctx->profile), payload,
-                                         bound)
-                                   : RSCache_WorldMapAreaEncode(&area, payload, bound);
+            /* The map's own name, which only the details archive states — so the
+             * composite archive gets it too, and both files read as maps rather
+             * than as numbers. */
+            const char* map = cp_assets_worldmap_member(file_id);
+            snprintf(fallback, sizeof(fallback), "%s", map ? map : "");
+            if( !fallback[0] )
+                snprintf(fallback, sizeof(fallback), "map_%d", file_id);
+            name = fallback;
+            lc_pack_set(&members, file_id, name);
         }
+
+        cp_lines_clear(&lines);
+        if( composite )
+            worldmap_emit_composite(&areas[f], &lines);
+        else
+            worldmap_emit_area(&areas[f], &lines);
+        fprintf(out, "[%s]\n", name);
+        for( int i = 0; i < lines.count; i++ )
+            fprintf(out, "%s\n", lines.lines[i]);
+        fputc('\n', out);
+    }
+    cp_lines_free(&lines);
+    fclose(out);
+    cp_member_pack_save(&members, path_stem, "compack");
+
+    for( int i = 0; i < files->file_count; i++ )
+        RSCache_WorldMapAreaFreeInplace(&areas[i]);
+    free(areas);
+    lc_pack_free(&members);
+    RSCache_FileListFree(files);
+    return 1;
+}
+
+static uint8_t*
+worldmap_read(
+    struct CP_Ctx* ctx,
+    int record_id,
+    const char* path_stem,
+    int** out_file_ids,
+    int* out_file_count,
+    int* out_size)
+{
+    int composite;
+    const char* ext;
+
+    if( record_id == CP_WORLDMAP_ARCHIVE_DETAILS )
+    {
+        composite = 0;
+        ext = "wma";
+    }
+    else if( record_id == CP_WORLDMAP_ARCHIVE_COMPOSITE )
+    {
+        composite = 1;
+        ext = "wmc";
+    }
+    else
+    {
+        return NULL;
+    }
+
+    char path[1800];
+    snprintf(path, sizeof(path), "%s.%s", path_stem, ext);
+    struct CP_ConfigFile file;
+    if( !cp_config_file_load(&file, path) )
+        return NULL;
+
+    struct LC_Pack members;
+    cp_member_pack_load(&members, path_stem, "compack", "map");
+    if( members.max == 0 )
+    {
+        fprintf(stderr, "cachepack: %s: no .compack beside it — cannot tell which map is "
+                        "which file\n",
+                path);
+        cp_config_file_free(&file);
+        return NULL;
+    }
+
+    struct RSCache_FileList list;
+    memset(&list, 0, sizeof(list));
+    list.files = calloc((size_t)file.count, sizeof(char*));
+    list.file_sizes = calloc((size_t)file.count, sizeof(int));
+    int* ids = calloc((size_t)file.count, sizeof(int));
+    uint8_t* payload = NULL;
+    int ok = list.files && list.file_sizes && ids;
+    int flags = RSCache_WorldMapFlags(&ctx->profile);
+
+    for( int i = 0; i < file.count && ok; i++ )
+    {
+        const struct CP_Config* block = &file.configs[i];
+        int file_id = lc_pack_find(&members, block->debugname);
+        struct RSCache_WorldMapArea area;
+
+        if( file_id < 0 )
+        {
+            fprintf(stderr, "cachepack: %s: [%s] is not in the .compack\n", path,
+                    block->debugname);
+            ok = 0;
+            break;
+        }
+        ids[i] = file_id;
+
+        if( !worldmap_read_block(block, file_id, &area) )
+        {
+            fprintf(stderr, "cachepack: %s: map [%s] has a line this grammar does not "
+                            "have\n",
+                    path, block->debugname);
+            RSCache_WorldMapAreaFreeInplace(&area);
+            ok = 0;
+            break;
+        }
+
+        uint32_t bound = composite ? RSCache_WorldMapAreaEncodeIconsBound(&area)
+                                   : RSCache_WorldMapAreaEncodeBound(&area);
+        uint8_t* bytes = malloc(bound ? bound : 1);
+        uint32_t written = 0;
+        if( bytes )
+            written = composite ? RSCache_WorldMapAreaEncodeIcons(&area, flags, bytes, bound)
+                                : RSCache_WorldMapAreaEncode(&area, bytes, bound);
+        RSCache_WorldMapAreaFreeInplace(&area);
         if( written == 0 )
         {
-            free(payload);
-            payload = NULL;
+            free(bytes);
+            fprintf(stderr, "cachepack: %s: map [%s] failed to encode\n", path,
+                    block->debugname);
+            ok = 0;
+            break;
         }
-        else
+        list.files[i] = (char*)bytes;
+        list.file_sizes[i] = (int)written;
+        list.file_count++;
+    }
+
+    if( ok )
+    {
+        uint32_t bound = RSCache_FileListEncodeBound(&list);
+        payload = malloc(bound ? bound : 1);
+        if( payload )
         {
-            *out_size = (int)written;
+            uint32_t written = RSCache_FileListEncode(&list, payload, bound);
+            if( written == 0 )
+            {
+                free(payload);
+                payload = NULL;
+            }
+            else
+            {
+                *out_size = (int)written;
+                *out_file_ids = ids;
+                *out_file_count = file.count;
+                ids = NULL;
+            }
         }
     }
-    RSCache_WorldMapAreaFreeInplace(&area);
+
+    for( int i = 0; i < list.file_count; i++ )
+        free(list.files[i]);
+    free(list.files);
+    free(list.file_sizes);
+    free(ids);
+    lc_pack_free(&members);
+    cp_config_file_free(&file);
     return payload;
 }
+
 
 const struct CP_AssetCodec cp_codec_worldmap = { "wma", worldmap_write, worldmap_read, 0 };

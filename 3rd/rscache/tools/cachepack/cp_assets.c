@@ -115,13 +115,19 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
         "worldmap/geography", "worldmapgeo", "wmg",
         RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, 0, -1, NULL },
-    /* No codec: `RSCache_WorldMapAreaDecodeInplace` does not model most of the
-     * section types this cache uses, so 103 of the table's 104 members decline it.
-     * A friendly form that is unavailable 99% of the time is not worth the archive
-     * being split to reach it — the whole payload round-trips byte for byte. */
+    /*
+     * Two of its archives have a text form and two do not, so it carries both a
+     * codec and the split flag: the codec gets first refusal on `details` and
+     * `compositemap`, and `compositetexture` (PNGs) and `labels` fall through to
+     * files plus a filepack.
+     *
+     * The codec used to be told it decoded 1 member in 104. It was being handed
+     * every member of every archive, PNG bytes included — the archive is the *kind*
+     * here, not one map.
+     */
     [CP_ASSET_WORLDMAP_AREA] = {
         "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
-        NULL },
+        &cp_codec_worldmap },
     [CP_ASSET_WORLDMAP_GROUND] = {
         "worldmap/ground", "worldmapground", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
@@ -890,6 +896,36 @@ export_one(
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
 
+        if( codec && codec->write )
+        {
+            snprintf(path, sizeof(path), "%s/%s", root, name);
+            char* slash = strrchr(path, '/');
+            if( slash )
+            {
+                *slash = '\0';
+                ensure_dir_recursive(path);
+                *slash = '/';
+            }
+            if( codec->write(ctx, archive_id, (const uint8_t*)archive->data, archive->data_size,
+                             archive->file_ids, archive->file_count, path) )
+            {
+                written++;
+                bytes += archive->data_size;
+                RSCache_Dat2DiskArchiveFree(archive);
+                continue;
+            }
+            /* Declined: fall through and write the raw payload, so a record the
+             * codec cannot express is still carried rather than dropped. */
+            ctx->warn_unknown_key++;
+        }
+
+        /*
+         * Then the split, for an archive the codec declined.
+         *
+         * A table can have both. The world map's `details` and `compositemap`
+         * archives read as text and its `compositetexture` PNGs do not, and only the
+         * codec knows which is which — declining is how it says "not this one".
+         */
         if( (asset->flags & CP_ASSET_SPLIT) && archive->file_count > 0 )
         {
             /*
@@ -962,28 +998,6 @@ export_one(
             continue;
         }
 
-        if( codec && codec->write )
-        {
-            snprintf(path, sizeof(path), "%s/%s", root, name);
-            char* slash = strrchr(path, '/');
-            if( slash )
-            {
-                *slash = '\0';
-                ensure_dir_recursive(path);
-                *slash = '/';
-            }
-            if( codec->write(ctx, archive_id, (const uint8_t*)archive->data, archive->data_size,
-                             archive->file_ids, archive->file_count, path) )
-            {
-                written++;
-                bytes += archive->data_size;
-                RSCache_Dat2DiskArchiveFree(archive);
-                continue;
-            }
-            /* Declined: fall through and write the raw payload, so a record the
-             * codec cannot express is still carried rather than dropped. */
-            ctx->warn_unknown_key++;
-        }
 
         {
             const uint8_t* payload = (const uint8_t*)archive->data;
@@ -1188,7 +1202,13 @@ import_one(
 
         const struct CP_AssetCodec* codec = asset_codec(asset);
 
-        if( asset->flags & CP_ASSET_SPLIT )
+        /* Codec first, then the split — the same order the export and the fidelity
+         * pass use. A table can have both, and only the codec knows which of its
+         * archives it owns. */
+        if( codec && codec->read )
+            payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
+
+        if( !payload && (asset->flags & CP_ASSET_SPLIT) )
         {
             /*
              * Rebuilt from the filepack, not from a directory listing: it says which
@@ -1262,8 +1282,6 @@ import_one(
             }
             lc_pack_free(&members);
         }
-        else if( codec && codec->read )
-            payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
 
         if( payload )
         {
@@ -1483,9 +1501,9 @@ verify_split_archive(
     lc_pack_free(&members);
 }
 
-/** Round-trip one single-payload archive through its codec. */
+/** The read half, for an archive whose friendly form has already been written. */
 static void
-verify_codec_archive(
+verify_codec_written(
     struct CP_Ctx* ctx,
     enum CP_AssetId id,
     struct RSCache_Dat2DiskArchive* archive,
@@ -1493,29 +1511,18 @@ verify_codec_archive(
     struct CP_AssetFidelity* fid)
 {
     const struct CP_AssetCodec* codec = asset_codec(cp_asset(id));
-
-    fid->records++;
-    if( !codec->write(ctx, archive->archive_id, (const uint8_t*)archive->data, archive->data_size,
-                      archive->file_ids, archive->file_count, stem) )
-    {
-        /* Declined. The exporter writes the raw payload instead, which is exact by
-         * construction, so this is a pass rather than a gap — 4,139 of osrs239's
-         * 9,725 clientscripts take that path. */
-        fid->declined++;
-        fid->exact++;
-        return;
-    }
-    fid->via_codec++;
-
     int* ids = NULL;
     int count = 0;
     int size = 0;
+
+    fid->records++;
+    fid->via_codec++;
     uint8_t* rebuilt = codec->read(ctx, archive->archive_id, stem, &ids, &count, &size);
     if( !rebuilt )
     {
-        /* Written but not readable back is a real defect: the exporter would have
-         * put the friendly form in the tree and the build would then fall back to
-         * a raw file that is not there. */
+        /* Written but not readable back is a real defect: the exporter would have put
+         * the friendly form in the tree and the build would then fall back to a raw
+         * file that is not there. */
         fid->differ++;
         return;
     }
@@ -1528,6 +1535,7 @@ verify_codec_archive(
     free(rebuilt);
     free(ids);
 }
+
 
 static int
 verify_one_asset(
@@ -1588,10 +1596,14 @@ verify_one_asset(
 
         char path[1600];
         snprintf(path, sizeof(path), "%s/%d", root, archive_id);
-        if( split )
+        /* Codec first, then the split — the same order the export uses, so this
+         * measures the path the build actually takes. A table can have both. */
+        if( codec && codec->write && codec->read &&
+            codec->write(ctx, archive_id, (const uint8_t*)archive->data, archive->data_size,
+                         archive->file_ids, archive->file_count, path) )
+            verify_codec_written(ctx, id, archive, path, &fid);
+        else if( split )
             verify_split_archive(ctx, id, archive, root, archive_id, &fid);
-        else if( codec->write && codec->read )
-            verify_codec_archive(ctx, id, archive, path, &fid);
         else
         {
             /* A codec with only one half: the raw payload is what gets written. */

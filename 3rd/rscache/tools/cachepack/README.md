@@ -58,7 +58,8 @@ per record, resolved against `pack/<type>.pack`.
 | `texture` | `textures/texture_0.texture` — one block per material | `textures/texture_0.compack` |
 | `map` | `maps/m15_32.jm2` — terrain and locs as text | `maps/m15_32.filepack` → `maps/m15_32/2.bin` |
 | `dbindex` | `dbindex/dbindex_0/0.dbidx` — one file per column | `dbindex/dbindex_0.filepack` |
-| `worldmaparea` | `worldmap/areas/worldmaparea_0/0.bin` | `worldmap/areas/worldmaparea_0.filepack` |
+| `worldmaparea` | `worldmap/areas/details.wma` — a block per map | `details.compack` |
+| ” | `worldmap/areas/compositetexture/main.png` | `compositetexture.filepack` |
 | `sprite` | `sprites/<name>/0.bmp` — one BMP per frame | `sprites/<name>/pack.meta` |
 | `script` | `scripts/<name>.cs2`, or `.bin` where it does not decompile | — one payload |
 | `model` | `models/npc/goblin.model` | — one payload |
@@ -76,6 +77,32 @@ per record, resolved against `pack/<type>.pack`.
 "one payload" means the archive is stored whole, so there is no member list to
 index and nothing between the bytes on disk and the bytes in the cache. That is the
 default and it applies to seventeen of the twenty tables.
+
+### The world map is laid out kind by kind
+
+Table 19 is the one table whose *archive* is not an asset. The archive is one of the
+five names `class305` declares and the **file** is one map:
+
+| archive | kind | on disk |
+|---|---|---|
+| 0 | `details` | `details.wma` — `[main]`, `[ancient_cavern]`, … |
+| 1 | `compositemap` | `compositemap.wmc` — same blocks, region and icon lists |
+| 2 | `compositetexture` | `compositetexture/<map>.png` |
+| 3–54 | `labels` | one file each; empty (`00 00`) in this cache |
+
+So it carries a codec *and* the split flag: the codec owns the two archives with a
+text form and declines the rest, which fall through to files plus a filepack. The
+codec gets first refusal on export, on import and in the fidelity pass — three
+places that must agree, and did not until each was fixed in turn.
+
+The map names come from decoding archive 0, because a details record is the only
+place they are written down (`main` / `Gielinor Surface`). All four archives list the
+same file ids, so one decode names every member of every archive.
+
+**This is also where the "unknown section type 91 / 219 / 249" flood came from.** The
+area decoder was being run over every member of every archive — PNG bytes included.
+Those were never section types; they were a compressed image being read as a section
+list.
 
 ### Which shape a table gets
 
