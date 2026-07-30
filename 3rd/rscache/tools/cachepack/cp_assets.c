@@ -78,41 +78,41 @@ extern const struct CP_AssetCodec cp_codec_worldmapgeo;
 /* clang-format off */
 static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_FRAME] = {
-        "animsets", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0, -1, NULL },
+        "animsets", "0_animations", "animset", "anim", RSCACHE_DAT2_TABLE_ANIMATIONS, 0, -1, NULL },
     [CP_ASSET_FRAMEMAP] = {
-        "framemaps", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, -1, NULL },
+        "framemaps", "1_skeletons", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, -1, NULL },
     [CP_ASSET_INTERFACE] = {
-        "interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0, 14,
+        "interfaces", "3_interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0, 14,
         &cp_codec_interface },
     [CP_ASSET_SYNTH] = {
-        "synth", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, -1, NULL },
+        "synth", "4_soundeffects", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, -1, NULL },
     [CP_ASSET_MAP] = {
-        "maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED, -1, &cp_codec_map },
+        "maps", "5_maps", "map", "map", RSCACHE_DAT2_TABLE_MAPS, CP_ASSET_ENCRYPTED, -1, &cp_codec_map },
     /* Archive 11 names 1,196 tracks and the music table holds 881, so the
      * verifier rejects it — 881 songs plus 315 jingles is exactly 1,196, so it
      * names both tables in one id space and neither table alone can check it.
      * Unclaimed rather than half-trusted; nothing content-side names a song. */
     [CP_ASSET_SONG] = {
-        "songs", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0, -1, NULL },
+        "songs", "6_musictracks", "song", "jmid", RSCACHE_DAT2_TABLE_MUSIC_TRACKS, 0, -1, NULL },
     [CP_ASSET_MODEL] = {
-        "models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0, -1, NULL },
+        "models", "7_models", "model", "model", RSCACHE_DAT2_TABLE_MODELS, 0, -1, NULL },
     [CP_ASSET_SPRITE] = {
-        "sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, 12, &cp_codec_sprite },
+        "sprites", "8_sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, 12, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, 0, -1,
+        "textures", "9_textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, 0, -1,
         &cp_codec_texture },
     [CP_ASSET_BINARY] = {
-        "binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, -1, NULL },
+        "binary", "10_binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, -1, NULL },
     [CP_ASSET_JINGLE] = {
-        "jingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, -1, NULL },
+        "jingles", "11_musicjingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, -1, NULL },
     [CP_ASSET_SCRIPT] = {
-        "scripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
+        "scripts", "12_clientscripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
     [CP_ASSET_FONT] = {
-        "fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, -1, NULL },
+        "fonts", "13_fonts", "font", "fm", RSCACHE_DAT2_TABLE_FONTS, 0, -1, NULL },
     [CP_ASSET_SAMPLE] = {
-        "samples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
+        "samples", "14_musicsamples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
     [CP_ASSET_PATCH] = {
-        "patches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, -1, NULL },
+        "patches", "15_musicpatches", "patch", "patch", RSCACHE_DAT2_TABLE_MUSIC_PATCHES, 0, -1, NULL },
     /*
      * 2,057 of osrs239's 2,101 geography archives hold one file and 44 hold two or
      * three, so the table is split: a one-file archive is still a bare `.wmg` and a
@@ -124,7 +124,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * grammar was never the problem; the container was.
      */
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
-        "worldmap/geography", "worldmapgeo", "bin",
+        "worldmap/geography", "18_worldmapgeography", "worldmapgeo", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, CP_ASSET_SPLIT, -1, &cp_codec_worldmapgeo },
     /*
      * Two of its archives have a text form and two do not, so it carries both a
@@ -137,18 +137,18 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * here, not one map.
      */
     [CP_ASSET_WORLDMAP_AREA] = {
-        "worldmap/areas", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
+        "worldmap/areas", "19_worldmap", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
         &cp_codec_worldmap },
     [CP_ASSET_WORLDMAP_GROUND] = {
-        "worldmap/ground", "worldmapground", "bin",
+        "worldmap/ground", "20_worldmapground", "worldmapground", "bin",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
     /* One file per dbtable, holding the master index and the per-column files. No
      * codec, so the payload is written whole and is byte-exact. */
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_SPLIT, -1,
+        "dbindex", "21_dbtableindex", "dbindex", "dbidx", RSCACHE_DAT2_TABLE_DBTABLE_INDEX, CP_ASSET_SPLIT, -1,
         NULL },
     [CP_ASSET_ANIMAYA] = {
-        "animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
+        "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
 };
 /* clang-format on */
 
@@ -633,7 +633,7 @@ cp_assets_name_worldmap(struct CP_Ctx* ctx)
 
         if( archive_id >= 0 && archive_id < pack->capacity && pack->names &&
             pack->names[archive_id] &&
-            lc_pack_synthetic_id(asset->pack, pack->names[archive_id]) != archive_id )
+            lc_pack_synthetic_id(asset->filler, pack->names[archive_id]) != archive_id )
             continue; /* someone named it; a re-seed never renames */
 
         if( archive_id < (int)(sizeof(k_kinds) / sizeof(k_kinds[0])) )

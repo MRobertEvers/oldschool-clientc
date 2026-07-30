@@ -47,7 +47,7 @@ usage(const char* argv0)
         "  %s <content_dir> patch  <file.ini>                 [--apply]\n"
         "  %s <content_dir> check  [type]...\n"
         "\n"
-        "  <type>     pack basename, e.g. npc for pack/npc.pack\n"
+        "  <type>     pack basename, e.g. npc for configs/all.npc.compack\n"
         "  add        appends at the next id past the highest listed one, and is\n"
         "             idempotent: a name already listed keeps the id it has. The\n"
         "             id=name form binds an explicit id and refuses an id in use\n"

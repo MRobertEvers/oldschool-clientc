@@ -22,7 +22,7 @@ or `TORIRS_SPAWN_PROJ_MODEL` / `_SEQ`). Precedence is env > manifest >
 built-in default.
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
-(its `content/scripts/**/*.if` + `content/pack/interface.pack` are the ground
+(its `content/scripts/**/*.if` + `content/pack/3_interfaces.pack` are the ground
 truth for interface layout/ids). Companion doc: `docs/LIVE_SERVER_HANDOFF.md`.
 
 ---

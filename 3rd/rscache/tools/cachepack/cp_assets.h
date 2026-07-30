@@ -147,9 +147,22 @@ struct CP_Asset
 {
     /** Directory under the source tree, e.g. "models". */
     const char* dir;
-    /** Pack file basename, e.g. "model" -> `pack/model.pack`. Singular, matching
-     *  LostCity's, because a pack file names one thing per line. */
+    /** Pack file basename, e.g. "7_models" -> `pack/7_models.pack`. Carries the
+     *  cache index, because this file lists that index's archives. */
     const char* pack;
+    /**
+     * What an unnamed id is spelled with: `model_412`, `animset_0`.
+     *
+     * Deliberately *not* derived from `pack`. Filler is a file name as well as a
+     * pack line — an unnamed model is `models/model_412.model` — so tying it to
+     * the pack's name means renaming the pack renames 48,000 exported files.
+     * Renaming `pack/model.pack` to `pack/7_models.pack` did exactly that before
+     * this field existed, and left a duplicate of every one of them behind.
+     *
+     * So the pack file is named for the cache index and the filler keeps the short
+     * singular form. Two names, because they name two different things.
+     */
+    const char* filler;
     /** Fallback extension, used when the payload is not a format we detect. */
     const char* ext;
     /** enum RSCache_Dat2Table — resolved to an on-disk id per cache. */

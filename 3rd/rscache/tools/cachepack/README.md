@@ -18,16 +18,40 @@ Everything in the tree is addressed by a number the client's cache fixes, and ev
 one of those numbers is written down in a file. Nothing is recovered by listing a
 directory or by parsing a filename.
 
-**1. `pack/<ns>.pack` — archives.** One line per archive, `id=name`, for every
-config type and every asset table. This is the id authority: `cp_assets_import`
-walks the pack, so an archive with no pack line is not written. One file per
-namespace, hand-ownable — comments and blank lines survive a rewrite, and a save
-merges rather than truncating (`lc_pack.h`).
+**1. `pack/<index>_<name>.pack` — archives.** One line per archive, `id=name`, for
+every cache index. This is the id authority: `cp_assets_import` walks the pack, so an
+archive with no pack line is not written. One file per namespace, hand-ownable —
+comments and blank lines survive a rewrite, and a save merges rather than truncating
+(`lc_pack.h`).
+
+**The index is in the name** because `pack/` holds two kinds of file that otherwise
+look identical, both `id=name`. `7_models.pack` lists the archives of cache index 7;
+`npc.pack` lists records *inside* archive 9 of index 2. A leading number means the
+first kind and nothing else does, and `ContentRegister_Validate` enforces it against
+the register's `cache_index` so the name cannot drift from the fact.
+
+It also cost nothing to notice, once written down, that **index 2 had no archive
+index at all**. Its archives are the config groups, and `configs/all.npc.compack` names the
+records in archive 9 rather than the archive — so the twenty config groups were the
+only archives in the cache that nothing named. `2_configs.pack` is that file:
 
 ```
-pack/interface.pack     12=bankmain
-pack/texture.pack       0=texture_0
-pack/model.pack         0=npc/royal_dwarf_citizen1_head
+6=loc
+9=npc
+10=obj
+```
+
+The ids are not consecutive; the gaps are groups this revision has no decoder for.
+
+Filler ids keep the short singular form — `model_412`, not `7_models_412` — because
+filler is a *file* name too (`models/model_412.model`). Deriving it from the pack name
+renamed 48,000 exported files and left a duplicate of each one behind, so the two are
+separate fields (`CP_Asset.pack` and `CP_Asset.filler`).
+
+```
+pack/3_interfaces.pack     12=bankmain
+pack/9_textures.pack       0=texture_0
+pack/7_models.pack         0=npc/royal_dwarf_citizen1_head
 ```
 
 **2. A member index — the files inside one archive.** A multi-file archive needs
@@ -37,6 +61,7 @@ table's own folder:
 | index | when | contents |
 |---|---|---|
 | `<archive>.compack` | the members have a text form, so they are blocks in one file | `<file id>=<block name>` |
+| ” | every config type included: `configs/all.seq.compack` over `configs/all.seq` | `2=swarm_block` |
 | `<archive>.filepack` | they do not, so they are files | `<file id>=<path under the table's folder>` |
 | `pack.meta` | a sprite pack, whose "members" are frames of one member | `count=`, `sprite<N>=…` |
 
@@ -64,8 +89,15 @@ exception: every member is addressable and the index says where it is.
 Codec first, split second, on export, on import and in the fidelity pass; those three
 disagreed once, and the packer silently shipped 52 of 54 worldmap archives.
 
-**3. `configs/all.<type>` — config records.** `[name]` blocks of `key=value`, one
-per record, resolved against `pack/<type>.pack`.
+**3. `configs/all.<type>` — config records.** `[name]` blocks of `key=value`, one per
+record, indexed by `configs/all.<type>.compack`.
+
+That index is level 2, not a third kind. A config record is a *file* of a config
+archive — `[swarm_walk]` is file 0 of archive 12 — so what binds `0=swarm_walk` is a
+member index with exactly the contract above, and it belongs beside the archive it
+indexes. It used to be `pack/seq.pack`, which put it in `pack/` under the
+archive-level name and extension, so one directory held both levels under one
+spelling and only the reader's knowledge told them apart.
 
 ---
 
@@ -79,6 +111,7 @@ per record, resolved against `pack/<type>.pack`.
 | `dbindex` | `dbindex/dbindex_0/0.dbidx` — one file per column | `dbindex/dbindex_0.filepack` |
 | `worldmaparea` | `worldmap/areas/details.wma` — a block per map | `details.compack` |
 | ” | `worldmap/areas/compositetexture/main.png` | `compositetexture.filepack` |
+| `worldmapgeo` | `worldmap/geography/worldmapgeo_10016.wmg` — one line per tile | `worldmapgeo_10137.filepack` (multi-file only) |
 | `sprite` | `sprites/<name>/0.bmp` — one BMP per frame | `sprites/<name>/pack.meta` |
 | `script` | `scripts/<name>.cs2`, or `.bin` where it does not decompile | — one payload |
 | `model` | `models/npc/goblin.model` | — one payload |
@@ -89,13 +122,12 @@ per record, resolved against `pack/<type>.pack`.
 | `sample` `patch` | `samples/sample_0.sample` | — one payload |
 | `font` | `fonts/font_494.fm` | — one payload |
 | `binary` | `binary/binary_0.jpg` | — one payload |
-| `worldmapgeo` | `worldmap/geography/worldmapgeo_10016.wmg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |
 
 "one payload" means the archive is stored whole, so there is no member list to
 index and nothing between the bytes on disk and the bytes in the cache. That is the
-default and it applies to seventeen of the twenty tables.
+default and it applies to sixteen of the twenty tables.
 
 ### The world map is laid out kind by kind
 
@@ -108,6 +140,8 @@ five names `class305` declares and the **file** is one map:
 | 1 | `compositemap` | `compositemap.wmc` — same blocks, region and icon lists |
 | 2 | `compositetexture` | `compositetexture/<map>.png` |
 | 3–54 | `labels` | `labels_10.wml` — `label<N>=name,x,y,size` |
+
+Table 18, the geography, is separate from all of this and is covered below.
 
 So it carries a codec *and* the split flag: the codec owns the two archives with a
 text form and declines the rest, which fall through to files plus a filepack. The
@@ -131,22 +165,43 @@ off the bytes and confirmed by exact consumption — 548 labels, 10,261 bytes, z
 remainder — which is also what separates a labels file from a PNG, since both will
 happily yield a plausible count and some strings.
 
-### What is still binary
+### Geography is text too
 
-`worldmap/geography` — 2,101 `.wmg` files of per-tile data, which `class295.method5572`
-decodes. The grammar is *mostly* read: flags byte, then `(flags & 1)` selects a short
-form (optional overlay `u16`, underlay `u16`) and the long form carries an underlay,
-an optional overlay list and an optional loc list over `((flags & 24) >> 3) + 1`
-levels. 355 of the 2,101 files parse to exact consumption as a bare 64×64 grid with
-no header; the rest either drift or run out, so at least one case is still misread.
-The deob's containers declare a 3-byte header for a square (`class281`) and 5 for a
-zone (`class289`), and neither shape fits the standalone files — the record header
-appears to live in the compositemap stream rather than in the geography file.
+`worldmap/geography` is a bare stream of tiles — no header, no count, no dimensions.
+What ends it is the end of the file, so **exact consumption is the only evidence the
+grammar is right**, and it is a sharp test: 2,146 of 2,146 members now decode, encode
+back byte-identically, and land on either 4,096 tiles (a 64×64 square, 1,981 of them)
+or a multiple of 64 (whole 8×8 zones, 165). Nothing lands anywhere else.
 
-**This is also where the "unknown section type 91 / 219 / 249" flood came from.** The
-area decoder was being run over every member of every archive — PNG bytes included.
-Those were never section types; they were a compressed image being read as a section
-list.
+    tiles=4096
+    0: s u0 o454
+    232: u0 lv1 ov:448;0;0 L0:60453;10;2
+
+`s` is the short form, `u`/`o` underlay and overlay, `lv` the declared loc levels,
+`ov:` the overlay list and `L<n>:` the locs on level n as `id;shape;rot`. Empty tiles
+are omitted, which is why `tiles=` is stated rather than counted: 179 members end in
+an empty tile, and a file that stopped at its last non-empty one would encode short
+and the cache would take it.
+
+Two things had to be right that the deob does not give you:
+
+- **The loc id is a plain `u32`.** `class295.method5572` reads it with the 2-or-4-byte
+  bigsmart, and following that, 883 of 2,101 files ran out of bytes mid-tile while 355
+  parsed by luck. As a `u32` it is 2,057 of 2,057 — every single-file archive, exactly.
+  The deob is a later revision than this cache and the field was widened between them.
+  Where the two disagree the bytes win.
+- **The other 44 archives hold two or three files.** Stored whole, a `.wmg` was its
+  members concatenated *plus the container's trailer*, so no tile decoder could ever
+  have read it. Splitting the table made all 44 readable at once. They were the entire
+  residue — the grammar was never the problem, the container was.
+
+The deob's 3-byte square header (`class281`) and 5-byte zone header (`class289`) are
+also later additions: nothing in osrs239 carries them, and the first byte of every file
+is a tile's flags.
+
+**The area decoder's "unknown section type 91 / 219 / 249" flood was the same class of
+mistake** — it was being run over every member of every archive, PNG bytes included.
+Those were never section types; they were a compressed image read as a section list.
 
 ### Which shape a table gets
 
@@ -154,10 +209,13 @@ list.
    container's file table plus its files, so it round-trips byte for byte and an
    index would have nothing to say. An animset holds hundreds of frames and is still
    this case: the animset is the unit anyone edits, loads or names.
-2. **Do its members have a text form?** Then one file of named blocks plus a
-   `.compack`. Interfaces and textures.
-3. **Otherwise** — files plus a `.filepack`. `dbindex`, `worldmaparea`, and a map
-   square's members past terrain and locs.
+2. **Do its members have a text form?** Then the index names where each one is, and
+   the only question left is whether a member is a *block* or a *document*.
+   - Blocks in one file plus a `.compack`, when a member is a record among many —
+     interfaces and textures.
+   - One file each plus a `.filepack`, when a member is a document in its own right —
+     a map square's terrain and locs, a geography member's tiles.
+3. **Otherwise** — files plus a `.filepack`. `dbindex`, `worldmaparea`.
 
 ### What the extensions mean
 
@@ -183,7 +241,7 @@ Three earlier shapes each put the member↔id mapping somewhere that is not a fi
   header a number when it wants to be a name.
 
 None of these is visible as a mistake until something goes wrong. The failure that
-made it concrete: `pack/model.pack` was deleted by the sparse-write rule (every name
+made it concrete: `pack/7_models.pack` was deleted by the sparse-write rule (every name
 in it was `<ns>_<id>` filler), and because `cp_assets_import` walks the pack,
 `cachepack pack --assets` then wrote **zero** models — silently, because a pack with
 no lines has nothing to walk. 53,390 of the 61,615 models had also been exported to

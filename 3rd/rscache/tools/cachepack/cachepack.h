@@ -121,7 +121,7 @@ struct CP_Ctx;
 struct CP_Type
 {
     /** Source file extension and pack basename, e.g. "npc" -> `all.npc`,
-     *  `pack/npc.pack`. */
+     *  `configs/all.npc.compack`. */
     const char* name;
     /** Which rscache datatype, for RSCache_RecordAddressFor. */
     enum RSCache_Type rs_type;
@@ -175,7 +175,7 @@ cp_type_by_name(const char* name);
  * be rather than here:
  *
  *   - `cp_register_may_write_pack` refuses to write a namespace the tree declares
- *     authored, so `pack/param.pack` is never rewritten at all.
+ *     authored, so `configs/all.param.compack` is never rewritten at all.
  *   - `seed_pack_from_gameval` never renames an id the pack already lists, so an
  *     authored name that replaces a cache name survives a re-seed.
  */
@@ -681,5 +681,14 @@ CP_DECLARE_TYPE(dbrow)
 CP_DECLARE_TYPE(dbtable)
 
 #undef CP_DECLARE_TYPE
+
+
+/** Path of a config type's member index, `configs/all.<type>.compack`. */
+void
+cp_config_member_index(
+    char* out,
+    size_t out_size,
+    const char* srcdir,
+    const char* type);
 
 #endif

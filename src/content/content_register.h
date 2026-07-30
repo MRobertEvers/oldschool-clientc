@@ -58,7 +58,18 @@ enum ContentNameAuthority
 
 struct ContentNamespace
 {
-    /** `varp`, `npc`, `stat`. The pack file is `pack/<name>.pack`. */
+    /**
+     * `varp`, `npc`, `stat`, `0_animations`.
+     *
+     * A namespace whose pack lists the *archives* of a cache index carries that
+     * index in its name and lives in `pack/<name>.pack`, so `pack/` sorts into the
+     * shape the cache actually has and a reader never has to know that "animset"
+     * means index 0 or that "base" means the framemaps.
+     *
+     * A namespace that lists the *records inside* one archive is a member index and
+     * lives beside what it indexes, as `configs/all.<name>.compack`. See
+     * `cache_index`.
+     */
     char name[48];
     enum ContentIdAuthority ids;
     enum ContentNameAuthority names;
@@ -73,7 +84,7 @@ struct ContentNamespace
      * Stated in the register because it is the *evidence* for the `names`
      * column, and keeping the two apart is what let three namespaces claim
      * `names = cache` while having no archive to be generated from — which told
-     * cachepack it could rewrite `pack/param.pack`, and the save path then
+     * cachepack it could rewrite `configs/all.param.compack`, and the save path then
      * deleted the 58-line header justifying every name in it.
      *
      * With both facts in one row the invariant is checkable without either side
@@ -104,10 +115,30 @@ struct ContentNamespace
      *   - the wire fixes it (`stat`);
      *   - nobody has stated a base yet, which is the safe default. Refusing to
      *     allocate is recoverable; allocating on top of a real record is the
-     *     failure `pack/param.pack` shipped for a while, when nine server params
+     *     failure `configs/all.param.compack` shipped for a while, when nine server params
      *     sat on ids the cache already defined.
      */
     int server_base;
+    /**
+     * The cache index whose *archives* this namespace's pack file lists, or -1.
+     *
+     * Two levels of pack file exist and they were previously told apart only by
+     * knowing which was which. `pack/7_models.pack` names the archives of index 7;
+     * `configs/all.npc.compack` names records *inside* archive 9 of index 2. Both are
+     * `id=name` and neither said which it was.
+     *
+     * Stating the index does three things: it puts the number in the file name, it
+     * makes "is this archive-level?" a field rather than a guess, and it is the
+     * evidence for the name — `ContentRegister_Validate` checks that a namespace
+     * with an index is spelled `<index>_<name>` and that one without carries no
+     * numeric prefix, so the two can never drift apart.
+     *
+     * Config *types* are member-level and set -1, even though their records live in
+     * index 2: the archive-level pack for that index is `2_configs`, which names the
+     * twenty config groups. Before that existed, index 2 was the one table in the
+     * cache with no archive index at all.
+     */
+    int cache_index;
 };
 
 enum
@@ -180,8 +211,14 @@ ContentRegister_Find(
     const struct ContentRegister* reg,
     const char* name);
 
-/** The namespace a pack *filename* belongs to (`varp.pack` -> `varp`), or NULL.
- *  This is what replaces the compiler's filename table. */
+/**
+ * The namespace a pack *filename* belongs to, or NULL. This is what replaces the
+ * compiler's filename table.
+ *
+ * Both levels of index resolve: `7_models.pack` -> `7_models`, the archive index of
+ * cache index 7, and `all.varp.compack` -> `varp`, the member index of one config
+ * archive.
+ */
 const struct ContentNamespace*
 ContentRegister_ForPackFile(
     const struct ContentRegister* reg,

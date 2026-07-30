@@ -50,7 +50,7 @@ resolve_id(
     }
     fprintf(
         stderr,
-        "cachepack: %s [%s] has no id — add a line to pack/%s.pack\n",
+        "cachepack: %s [%s] has no id — add a line to configs/all.%s.compack\n",
         cp_type(type)->name,
         debugname,
         cp_type(type)->name);

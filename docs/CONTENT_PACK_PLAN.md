@@ -212,7 +212,7 @@ The cost is already measured, at `cp_names.c:105-113`:
 
 > `lc_pack_save` emits nothing but `id=name` lines, so rewriting a pack whose
 > names a human wrote destroys the prose justifying them — which is measurable:
-> `pack/param.pack` lost all 58 of its comment lines to one unpack, and that
+> `configs/all.param.compack` lost all 58 of its comment lines to one unpack, and that
 > header is the record of which param-id claims were checked against a cache and
 > how.
 
@@ -267,7 +267,7 @@ That single property replaces what the directory split was buying.
   `lc_pack_remove` (`lc_pack.h:126`), which is explicit and already recomputes
   `max`.
 - Audit every writer for truncating opens. `tools/gameval_import.py` is the
-  known offender (it opened outputs with `"w"`, truncating `pack/npc.pack` from
+  known offender (it opened outputs with `"w"`, truncating `configs/all.npc.compack` from
   16,292 lines to 39); `docs/mock230_content.md:518-526` says it now merges —
   verify that, and add a test rather than trusting the doc.
 
@@ -349,7 +349,7 @@ authored names.
 
 - `names/<ns>.pack` → merge into `pack/<ns>.pack`.
 - `server/pack/stat.pack` and `server/pack/varp_mock.pack` → `pack/stat.pack`
-  and `pack/varp.pack` (these are the two legacy layer-1 locations listed at
+  and `configs/all.varp.compack` (these are the two legacy layer-1 locations listed at
   `mock230_content.c:1717-1722`).
 - Where an authored line **overrides** a cache name for the same id, the merged
   file keeps the authored name and carries the cache's name as a trailing
@@ -400,7 +400,7 @@ Only `sprite` (archive 12) and `interface` (archive 14) are seeded. This is why
 the authored side is not optional: for models and sounds, the pack file *is* the
 name table, not an overlay on one.
 
-**Useful side effect.** Lines in `pack/model.pack` versus models in the cache is
+**Useful side effect.** Lines in `pack/7_models.pack` versus models in the cache is
 a literal progress metric — "how much of this have I named". Print it.
 
 ---
@@ -435,7 +435,7 @@ the register. Allocate upward from it with `lc_pack_alloc`.
 
 ### 4.3 Renumber the bogus server params
 
-`pack/param.pack` claims ids `2000+` are "invented by this server for things no
+`configs/all.param.compack` claims ids `2000+` are "invented by this server for things no
 cache states … above every real param id so they cannot collide". They are not:
 `cache.osrs239` has 2,634 param records covering **0–2633**, so every server id
 (2000–2008, 2100–2105) is a param the cache already defines
@@ -572,7 +572,7 @@ Four things to know:
 - **Archive 14 is nested.** It names interfaces *and* their components in one
   record: `<interface name> \0`, then repeating `u16 child_id  <component name>
   \0`, terminated by `0xffff` (`cp_names.c:330`). Emitting it means re-merging
-  `pack/interface.pack` and `pack/component.pack` into that shape.
+  `pack/3_interfaces.pack` and `pack/component.pack` into that shape.
 - **Sparse in, sparse out.** Filler names are not stored in the pack file, so
   unnamed ids simply get no entry. Correct and harmless.
 - **The 90% verification becomes vacuous.** `seed_pack_from_gameval` rejects an

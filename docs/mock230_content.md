@@ -310,7 +310,7 @@ some:
   never learns there are two packets.
 
 There is no varp id in any header. `com_mode` is resolved through
-`pack/varp.pack` at the one place the engine needs it (the attack style, which
+`configs/all.varp.compack` at the one place the engine needs it (the attack style, which
 the combat formulas read back) — so the engine and the scripts name the same
 thing, and the id lives in one file.
 
@@ -395,7 +395,7 @@ The bonuses in §4 are not the half of it. An OldSchool obj record also carries
 the name, the description, the model and its recolours, the 2D transforms, the
 `cost` (so alchemy values are `× 6/10` and `× 4/10`, never authored), the weight,
 stackability, the four stack variants, all three wear positions, the category,
-the inventory ops, and the note/placeholder links. `pack/param.pack` names four
+the inventory ops, and the note/placeholder links. `configs/all.param.compack` names four
 more that nothing was reading: ranged strength (12 on ammunition, **189** on worn
 gear — two ids for one equipment-stats row, and naming only the one OpenRune
 documents would silently zero every arrow in the game), attack range (13), and
@@ -517,7 +517,7 @@ imported, which keeps the packs a readable subset rather than 3 MB of text.
 
 **`--out` is `names/`, not `pack/`.** This command used to say `pack/`, and the
 script opened every output with `"w"` — so running it as documented truncated
-`pack/npc.pack` from 16,292 lines to 39 and `pack/varp.pack` from 5,705 to 11,
+`configs/all.npc.compack` from 16,292 lines to 39 and `configs/all.varp.compack` from 5,705 to 11,
 after which a `cachepack unpack` refilled them from the cache and reverted every
 alias the import had just made. An imported name is an *authored* name from a
 foreign revision, so it belongs in layer 1; `pack/` is regenerated wholesale from
@@ -601,7 +601,7 @@ an npc the cache makes attackable, and that every door pair holds up (§6).
 
 `--cache-out DIR` writes a **derived cache**: the source cache copied, with
 server-authoritative overlays folded into each record's param table using the
-ids in `pack/param.pack`:
+ids in `configs/all.param.compack`:
 
 - **npc** combat blocks (hitpoints, attacklevel, death_drop, anims, …)
 - **loc** door stages (`next_loc_stage`)

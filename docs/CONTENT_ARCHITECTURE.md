@@ -24,7 +24,7 @@ is stated rather than papered over.
 
 > Why are there two `varp` packs?
 
-Because `pack/varp.pack` is a **function of the cache** and cannot express what
+Because `configs/all.varp.compack` is a **function of the cache** and cannot express what
 `server/pack/varp_mock.pack` needs to say. Concretely, unpacking `cache.osrs239`
 into an empty tree produces:
 
@@ -38,7 +38,7 @@ into an empty tree produces:
 — those are the cache's own gameval names, not anybody's choice. The server
 needs three things that file structurally cannot hold:
 
-| need | example | why `pack/varp.pack` can't |
+| need | example | why `configs/all.varp.compack` can't |
 |---|---|---|
 | a **second** name for a named id | `115=bank_withdrawnotes` beside `bankcert` | `LC_Pack` is `names[id]` — one name per id |
 | an **override** of a cache name | `843=varp_weapon_category`, because this world repurposed it | `cachepack` regenerates the file; the override would be reverted or, worse, kept and indistinguishable from a cache name |
@@ -49,13 +49,13 @@ applied to exactly one namespace, and the same three needs elsewhere were solved
 by hand-editing the machine-owned file instead:
 
 ```
-$ grep -v '=interface_' pack/interface.pack | head -3
+$ grep -v '=interface_' pack/3_interfaces.pack | head -3
 12=bankmain          # authored, spliced into a cachepack-generated file
 15=bankside
 84=equipment_stats
 ```
 
-`pack/varp.pack` and `server/pack/varp_mock.pack` are not two namespaces. They
+`configs/all.varp.compack` and `server/pack/varp_mock.pack` are not two namespaces. They
 are **two layers of one namespace**, and that is the abstraction the tree is
 missing.
 
@@ -150,10 +150,10 @@ been paid or is queued up for the next cache.
 
 | file | written by | policy | provenance marker |
 |---|---|---|---|
-| `pack/npc.pack` | `cachepack unpack` | regenerate, preserve existing names | none |
+| `configs/all.npc.compack` | `cachepack unpack` | regenerate, preserve existing names | none |
 | `pack/component.pack` | `tools/gameval_import.py` | **truncate and rewrite** | header comment |
-| `pack/param.pack` | both | cachepack regenerates; the names are hand-authored | 58 comment lines |
-| `pack/interface.pack` | `cachepack unpack` | regenerate; 34 names hand-spliced | none |
+| `configs/all.param.compack` | both | cachepack regenerates; the names are hand-authored | 58 comment lines |
+| `pack/3_interfaces.pack` | `cachepack unpack` | regenerate; 34 names hand-spliced | none |
 
 `gameval_import.py` opens its outputs with `"w"` and maps eleven namespaces, nine
 of which `cachepack` also owns:
@@ -176,7 +176,7 @@ tools/gameval_import.py --names tools/gameval_import.names \
     --out OSRS-Content/osrs239-content/pack
 ```
 
-**truncates `pack/npc.pack` from 16,292 lines to 39**, `varp.pack` from 5,705 to
+**truncates `configs/all.npc.compack` from 16,292 lines to 39**, `varp.pack` from 5,705 to
 11, and so on. A following `cachepack unpack` refills them from the cache's own
 gamevals — which silently *reverts* every alias the import just made. Neither
 ordering is correct, and the tree survives today only because OpenRune and the
@@ -189,7 +189,7 @@ cache happen to agree on the names actually requested (both call npc 3028
 `lc_pack_save()` emits nothing but `id=name` lines. Measured, on a copy:
 
 ```
-$ cp pack/param.pack $PROBE/pack/param.pack
+$ cp configs/all.param.compack $PROBE/configs/all.param.compack
 before: 58 comment lines, 2692 total
 $ cachepack unpack --cache cache.osrs239 --rev osrs239 --src $PROBE --types param
 after:  0 comment lines, 2634 total
@@ -202,7 +202,7 @@ the record of which param-id claims were checked against a cache and how.
 
 ### 3.3 The "invented" server param ids are not invented
 
-`pack/param.pack` states:
+`configs/all.param.compack` states:
 
 > `2000+` invented by this server for things no cache states — `death_drop`, the
 > combat animations, `respawnrate`. **They live above every real param id so they
@@ -289,10 +289,10 @@ names/<ns>.pack     layer 1 — human-owned. Never machine-written. Holds exactl
 and `server/pack/category.pack` become `names/stat.pack` and
 `names/category.pack` — no `pack/stat.pack` exists to layer over, which is
 correct and needs no special case. The 34 hand-spliced lines in
-`pack/interface.pack` and the 58-comment header of `pack/param.pack` move to
+`pack/3_interfaces.pack` and the 58-comment header of `configs/all.param.compack` move to
 `names/interface.pack` and `names/param.pack`.
 
-The payoff is that **layer 0 becomes disposable**. Today `pack/npc.pack` is the
+The payoff is that **layer 0 becomes disposable**. Today `configs/all.npc.compack` is the
 accumulated residue of every unpack ever run and nobody can tell a leftover from
 an authored name; after the split, `rm -rf pack/ && cachepack unpack` is a safe,
 idempotent operation and every surviving name in `names/` is one a human wrote.
@@ -584,7 +584,7 @@ be careful" is a check that never runs.
   Verified idempotent: two runs produce a byte-identical file.
 
 The documented command in `docs/mock230_content.md` §5 pointed at `pack/` and
-opened every output `"w"`, so running it truncated `pack/npc.pack` from 16,292
+opened every output `"w"`, so running it truncated `configs/all.npc.compack` from 16,292
 lines to 39. That is now impossible rather than merely discouraged.
 
 **Running the corrected import for real caught three things the layer validator
@@ -684,7 +684,7 @@ Measured on a copy of the tree, `cachepack unpack --types param,npc`:
 
 | pack | before | after |
 |---|---|---|
-| `pack/npc.pack` | 16,292 lines | 16,292 — still regenerated |
+| `configs/all.npc.compack` | 16,292 lines | 16,292 — still regenerated |
 | `pack/stat.pack` | absent | **not created** (names = authored) |
 | `pack/category.pack` | absent | **not created** |
 | `pack/component.pack` | absent | **not created** (names = imported) |
@@ -692,7 +692,7 @@ Measured on a copy of the tree, `cachepack unpack --types param,npc`:
 
 ### param stops pretending to have a layer 0
 
-The same run still took `pack/param.pack` from 2,692 lines / 58 comments to
+The same run still took `configs/all.param.compack` from 2,692 lines / 58 comments to
 2,634 / 0 — §3.2's exact complaint, because `param` was declared `names = cache`.
 Counting showed why that declaration was wrong: of 2,634 entries, **2,598 were
 `param_<id>` placeholders and 36 were real names.** The cache has no gameval
@@ -701,7 +701,7 @@ there was never a machine-owned layer 0 to regenerate — only noise wrapped aro
 the 36 names, and a header explaining them that regeneration deleted.
 
 So `param` is now `names = authored`: the 36 names and all 58 prose lines live in
-`names/param.pack`, and `pack/param.pack` is gone. The runtime's symbol count
+`names/param.pack`, and `configs/all.param.compack` is gone. The runtime's symbol count
 drops by exactly 2,598, which is the check that only placeholders were lost.
 
 This is what §4.1 meant by *layer 0 becomes disposable*. Three namespaces —
@@ -711,7 +711,7 @@ matter of which tool wrote the file last.
 
 ### Still open in this area
 
-- The 34 hand-spliced names in `pack/interface.pack` are duplicated into
+- The 34 hand-spliced names in `pack/3_interfaces.pack` are duplicated into
   `names/interface.pack` (same ids, so the layer validator permits it) but have
   not been removed from layer 0. That needs a clean `cachepack unpack --types
   interface`, which rewrites 968 lines and wants its own review.

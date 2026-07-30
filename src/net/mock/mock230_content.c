@@ -142,8 +142,8 @@ mock230_content_section_header(char* line)
  * There used to be two — `pack/` for what the cache's gameval table said and
  * `names/` for what a human wrote — and the reason was never that a namespace has
  * two name domains. It was that a pack *save* emitted nothing but `id=name` lines,
- * so any tool regenerating `pack/varp.pack` deleted every comment in it and every
- * line it had not generated. `pack/param.pack` lost all 58 of its header lines to
+ * so any tool regenerating `configs/all.varp.compack` deleted every comment in it and every
+ * line it had not generated. `configs/all.param.compack` lost all 58 of its header lines to
  * one `cachepack unpack`, and that header was the record of which param-id claims
  * had been checked against a cache and how.
  *
@@ -448,7 +448,8 @@ pack_kind_name(enum Mock230PackKind kind)
         [MOCK230_PACK_INV] = "inv",
         [MOCK230_PACK_VARP] = "varp",
         [MOCK230_PACK_VARBIT] = "varbit",
-        [MOCK230_PACK_INTERFACE] = "interface",
+        /* The archive index of cache index 3; see content_register.h `cache_index`. */
+        [MOCK230_PACK_INTERFACE] = "3_interfaces",
         [MOCK230_PACK_COMPONENT] = "component",
         [MOCK230_PACK_STAT] = "stat",
         [MOCK230_PACK_PARAM] = "param",
@@ -458,14 +459,34 @@ pack_kind_name(enum Mock230PackKind kind)
         [MOCK230_PACK_DBTABLE] = "dbtable",
         [MOCK230_PACK_DBROW] = "dbrow",
         [MOCK230_PACK_CATEGORY] = "category",
-        [MOCK230_PACK_HUNT] = "hunt",
-        [MOCK230_PACK_VARN] = "varn",
-        [MOCK230_PACK_VARS] = "vars",
     };
 
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return "?";
     return k_names[kind];
+}
+
+/**
+ * 1 when this kind's records are files of a config archive, so its index is a
+ * `.compack` beside `configs/all.<type>` rather than a pack in `pack/`.
+ *
+ * The four that are not: interfaces are cache index 3 and get an archive-level
+ * pack; components are named across every one of those archives at once; `stat` is
+ * fixed by the wire; `category` is an obj field the cache numbers and nothing names.
+ */
+static int
+pack_kind_is_config(enum Mock230PackKind kind)
+{
+    switch( kind )
+    {
+    case MOCK230_PACK_INTERFACE:
+    case MOCK230_PACK_COMPONENT:
+    case MOCK230_PACK_STAT:
+    case MOCK230_PACK_CATEGORY:
+        return 0;
+    default:
+        return 1;
+    }
 }
 
 int
@@ -636,7 +657,7 @@ mock230_content_enum_by_id(int enum_id)
      * Id -> name -> def, rather than storing the id on the def.
      *
      * The name is the only thing a `.enum` block states; the id comes from
-     * `pack/enum.pack`, which is loaded by the time any config is read. Going
+     * `configs/all.enum.compack`, which is loaded by the time any config is read. Going
      * through the pack keeps one answer to "what number is this enum" — the
      * alternative, resolving it while parsing and caching it on the def, is a
      * second answer that silently disagrees when a pack is regenerated.
@@ -864,7 +885,7 @@ load_npc_config(const char* path)
             def = NULL;
             if( npc_id < 0 )
             {
-                CONTENT_ERROR("%s:%d: `%s` is not in pack/npc.pack\n", path, line_number,
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.npc.compack\n", path, line_number,
                               header);
                 continue;
             }
@@ -1017,7 +1038,7 @@ load_obj_config(const char* path)
             count = 0;
             obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, header);
             if( obj_id < 0 )
-                CONTENT_ERROR("%s:%d: `%s` is not in pack/obj.pack\n", path, line_number,
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.obj.compack\n", path, line_number,
                               header);
             continue;
         }
@@ -1121,8 +1142,6 @@ pack_kind_for_type(const char* name)
         { "enum", MOCK230_PACK_ENUM },       { "struct", MOCK230_PACK_STRUCT },
         { "dbtable", MOCK230_PACK_DBTABLE }, { "dbrow", MOCK230_PACK_DBROW },
         { "category", MOCK230_PACK_CATEGORY },
-        { "hunt", MOCK230_PACK_HUNT },
-        { "varn", MOCK230_PACK_VARN },       { "vars", MOCK230_PACK_VARS },
     };
 
     for( size_t i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
@@ -1355,7 +1374,7 @@ load_varp_config(const char* path)
             def = NULL;
             if( varp_id < 0 )
             {
-                CONTENT_ERROR("%s:%d: `%s` is not in pack/varp.pack\n", path, line_number,
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.varp.compack\n", path, line_number,
                               header);
                 continue;
             }
@@ -1445,7 +1464,7 @@ load_loc_config(const char* path)
             def = NULL;
             if( loc_id < 0 )
             {
-                CONTENT_ERROR("%s:%d: `%s` is not in pack/loc.pack\n", path, line_number,
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.loc.compack\n", path, line_number,
                               header);
                 continue;
             }
@@ -1535,7 +1554,7 @@ resolve_loc_stages(void)
         int target = mock230_content_symbol(MOCK230_PACK_LOC, g_pending[i].symbol);
 
         if( target < 0 )
-            CONTENT_ERROR("next_loc_stage `%s` is not in pack/loc.pack\n",
+            CONTENT_ERROR("next_loc_stage `%s` is not in configs/all.loc.compack\n",
                           g_pending[i].symbol);
         else if( index >= 0 && index < g_loc_def_count )
             g_loc_defs[index].next_loc_stage = target;
@@ -1933,7 +1952,7 @@ mock230_content_load(const char* dir)
      * refuse to boot is a tree whose declaration contradicts itself — a namespace
      * claiming `names = cache` with no gameval archive behind it tells cachepack it
      * may rewrite a hand-written file, and that has already cost this tree
-     * `pack/param.pack`'s 58-line header once.
+     * `configs/all.param.compack`'s 58-line header once.
      */
     ContentRegister_Load(&reg, dir);
     ContentFields_Load(&g_npc_fields, dir, "npc");
@@ -1944,8 +1963,23 @@ mock230_content_load(const char* dir)
 
     for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
     {
-        snprintf(path, sizeof(path), "%s/pack/%s.pack", dir,
-                 pack_kind_name((enum Mock230PackKind)kind));
+        /*
+         * Two levels of index, two places.
+         *
+         * A config record is a *file* of a config archive — `[swarm_walk]` is file 0
+         * of archive 12 — so what binds `0=swarm_walk` is a member index and lives
+         * beside the archive it indexes, as `configs/all.seq.compack`. `pack/` holds
+         * the other level: one file per cache index, naming that index's archives.
+         *
+         * Both are `id=name` and used to share a name and a directory, which is why
+         * the distinction had to be known rather than read.
+         */
+        const char* name = pack_kind_name((enum Mock230PackKind)kind);
+
+        if( pack_kind_is_config((enum Mock230PackKind)kind) )
+            snprintf(path, sizeof(path), "%s/configs/all.%s.compack", dir, name);
+        else
+            snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
         symbols += pack_load(&g_packs[kind], path);
     }
 

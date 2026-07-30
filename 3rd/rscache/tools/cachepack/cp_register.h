@@ -25,7 +25,7 @@
  * (`cp_types.c` / `cp_assets.c`, fourth column). That is the same rule
  * `ContentRegister_Validate` holds the server-side register to, derived here
  * rather than transcribed — a transcription is a third table that can drift, and
- * drift in this particular table is what deleted `pack/param.pack`'s header.
+ * drift in this particular table is what deleted `configs/all.param.compack`'s header.
  *
  * A tree that ships no `content.ini` therefore gets correct behaviour rather than
  * the old unconditional yes.

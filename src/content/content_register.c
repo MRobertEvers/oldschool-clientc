@@ -48,50 +48,58 @@
  * `ContentRegister_Validate` is what stops them.
  */
 static const struct ContentNamespace k_defaults[] = {
-    /* name               ids                    names                     shared  gameval    base */
+    /* name                    ids                    names                     shared  gameval    base   idx */
+    /* ---- the archive index of every cache table ----------------------- */
+    /*
+     * One row per cache index, naming its archives. `2_configs` is the config
+     * table's, and its "archives" are the config groups — npc is archive 9,
+     * obj 10, loc 6. Every other table had one of these and index 2 did not,
+     * which made the config groups the only archives in the cache that nothing
+     * named.
+     */
+    { "2_configs",             CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,   2 },
+
     /* ---- config types the cache names -------------------------------- */
-    { "npc",            CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   1,  20000 },
-    { "obj",            CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   0,  40000 },
-    { "loc",            CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   6,  70000 },
-    { "seq",            CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   7,  20000 },
-    { "spotanim",       CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   8,   6000 },
-    { "inv",            CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   2,   2000 },
+    { "npc",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   1,  20000,  -1 },
+    { "obj",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   0,  40000,  -1 },
+    { "loc",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   6,  70000,  -1 },
+    { "seq",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   7,  20000,  -1 },
+    { "spotanim",              CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   8,   6000,  -1 },
+    { "inv",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   2,   2000,  -1 },
     /* Both from archive 14, which carries an interface and its children in one
      * record. `component` ids are `(interface << 16) | child`. */
-    { "interface",      CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,   2000 },
-    { "component",      CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,      0 },
+    { "3_interfaces",          CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,   2000,   3 },
+    { "component",             CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,      0,  -1 },
     /* The cache names these and fixes their ids; neither has an encoder, so
      * authored content cannot create one either way. */
-    { "dbrow",          CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   9,      0 },
-    { "dbtable",        CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  10,    259 },
+    { "dbrow",                 CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   9,      0,  -1 },
+    { "dbtable",               CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  10,    259,  -1 },
     /* ---- config types the cache does not name ------------------------ */
     /* Every name here is filler or authored. Declaring any of them `cache` is
      * what licensed cachepack to rewrite the file and drop its comments. */
-    { "param",          CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2634 },
-    { "hitsplat",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    200 },
-    { "healthbar",      CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    200 },
-    { "mapelement",     CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000 },
-    { "underlay",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400 },
-    { "overlay",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    800 },
-    { "idk",            CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400 },
+    { "param",                 CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2634,  -1 },
+    { "hitsplat",              CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    200,  -1 },
+    { "healthbar",             CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    200,  -1 },
+    { "mapelement",            CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000,  -1 },
+    { "underlay",              CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400,  -1 },
+    { "overlay",               CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    800,  -1 },
+    { "idk",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400,  -1 },
     /* The obj record's own `category` field states the number (opcode 94) but
      * nothing names them. */
-    { "category",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
+    { "category",              CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,  -1 },
     /* ---- ours to number --------------------------------------------- */
-    { "enum",           CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,   5995 },
-    { "struct",         CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,   8000 },
+    { "enum",                  CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,   5995,  -1 },
+    { "struct",                CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,   8000,  -1 },
     /* One namespace, two destinations: server RS2 compiles to the engine's own
      * bytecode pack and never enters the cache; client CS2 goes into the script
      * asset table and does. See docs/CONTENT_PACK_PLAN.md §6.2. */
-    { "script",         CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,  12000 },
+    { "12_clientscripts",      CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 0,  -1,  12000,  12 },
     /* The wire fixes this one — UPDATE_STAT carries the index. */
-    { "stat",           CONTENT_IDS_PROTOCOL, CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
+    { "stat",                  CONTENT_IDS_PROTOCOL, CONTENT_NAMES_AUTHORED, 0,  -1,      0,  -1 },
     /* ---- the four that answer to `%name` ---------------------------- */
-    { "varp",           CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   3,   8000 },
-    { "varbit",         CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   4,  25000 },
-    { "varn",           CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 1,  -1,      0 },
-    { "vars",           CONTENT_IDS_SERVER,   CONTENT_NAMES_AUTHORED, 1,  -1,      0 },
-    { "varc",           CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  15,   2000 },
+    { "varp",                  CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   3,   8000,  -1 },
+    { "varbit",                CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   4,  25000,  -1 },
+    { "varc",                  CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  15,   2000,  -1 },
     /* ---- asset tables ------------------------------------------------ */
     /*
      * Idx-addressed rather than config records, but the same three axes apply:
@@ -102,26 +110,26 @@ static const struct ContentNamespace k_defaults[] = {
      * authored side is not optional, and why lines in `pack/model.pack` versus
      * models in the cache is a literal "how much of this have I named" metric.
      */
-    { "sprite",         CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  12,  20000 },
-    { "model",          CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1, 100000 },
-    { "synth",          CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,  20000 },
+    { "8_sprites",             CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  12,  20000,   8 },
+    { "7_models",              CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1, 100000,   7 },
+    { "4_soundeffects",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,  20000,   4 },
     /* Archive 11 names songs and jingles together, so neither table can verify
      * it alone; unclaimed rather than half-trusted. */
-    { "song",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000 },
-    { "jingle",         CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000 },
-    { "sample",         CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000 },
-    { "patch",          CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000 },
-    { "texture",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000 },
-    { "animset",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,  20000 },
-    { "base",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   8000 },
-    { "animaya",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000 },
-    { "map",            CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
-    { "font",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    100 },
-    { "binary",         CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    100 },
-    { "dbindex",        CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400 },
-    { "worldmapgeo",    CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
-    { "worldmaparea",   CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
-    { "worldmapground", CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0 },
+    { "6_musictracks",         CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000,   6 },
+    { "11_musicjingles",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000,  11 },
+    { "14_musicsamples",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000,  14 },
+    { "15_musicpatches",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000,  15 },
+    { "9_textures",            CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   1000,   9 },
+    { "0_animations",          CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,  20000,   0 },
+    { "1_skeletons",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   8000,   1 },
+    { "22_animayas",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,   2000,  22 },
+    { "5_maps",                CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,   5 },
+    { "13_fonts",              CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    100,  13 },
+    { "10_binary",             CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    100,  10 },
+    { "21_dbtableindex",       CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,    400,  21 },
+    { "18_worldmapgeography",  CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,  18 },
+    { "19_worldmap",           CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,  19 },
+    { "20_worldmapground",     CONTENT_IDS_CACHE,    CONTENT_NAMES_AUTHORED, 0,  -1,      0,  20 },
 };
 
 /* Silently truncating the defaults would drop namespaces off the end of the
@@ -165,6 +173,37 @@ ContentRegister_Validate(const struct ContentRegister* reg)
                     "base of %d — the wire fixes these ids, so there is nothing to allocate\n",
                     ns->name, ns->server_base);
             violations++;
+        }
+
+        /*
+         * The index is in the name, so the two can disagree. Checking it is what
+         * makes the name trustworthy: a reader who sees `7_models.pack` should not
+         * have to verify that models really are index 7, and a member-level pack
+         * must not look archive-level by carrying a number.
+         */
+        {
+            char prefix[16];
+            int len = snprintf(prefix, sizeof(prefix), "%d_", ns->cache_index);
+            int numeric = ns->name[0] >= '0' && ns->name[0] <= '9';
+
+            if( ns->cache_index >= 0 && strncmp(ns->name, prefix, (size_t)len) != 0 )
+            {
+                fprintf(stderr,
+                        "content.ini: namespace `%s` lists the archives of cache index %d, so "
+                        "its pack file must be `pack/%d_<name>.pack` — the index belongs in "
+                        "the name where a reader can see it\n",
+                        ns->name, ns->cache_index, ns->cache_index);
+                violations++;
+            }
+            else if( ns->cache_index < 0 && numeric )
+            {
+                fprintf(stderr,
+                        "content.ini: namespace `%s` is spelled with a leading index but "
+                        "declares none — a numeric prefix means the pack lists the archives "
+                        "of a cache index, and this one lists members\n",
+                        ns->name);
+                violations++;
+            }
         }
 
         if( claims_cache == has_archive )
@@ -216,7 +255,26 @@ ContentRegister_ForPackFile(
     if( !filename )
         return NULL;
     dot = strrchr(filename, '.');
-    if( !dot || strcmp(dot, ".pack") != 0 )
+    if( !dot )
+        return NULL;
+    /*
+     * Two extensions, because there are two levels of index. `pack/7_models.pack`
+     * lists the archives of a cache index; `configs/all.seq.compack` lists the
+     * records inside one archive, and is a member index like every other `.compack`.
+     */
+    if( strcmp(dot, ".compack") == 0 )
+    {
+        /* `all.seq.compack` -> `seq`: the type is between the two dots. */
+        const char* prefix = strstr(filename, "all.");
+
+        if( prefix != filename )
+            return NULL;
+        filename += 4;
+        dot = strrchr(filename, '.');
+        if( !dot )
+            return NULL;
+    }
+    else if( strcmp(dot, ".pack") != 0 )
         return NULL;
     length = (size_t)(dot - filename);
     if( length == 0 || length >= sizeof(stem) )
@@ -372,6 +430,7 @@ ContentRegister_Load(
             {
                 current = &reg->entries[reg->count++];
                 memset(current, 0, sizeof(*current));
+                current->cache_index = -1; /* member-level unless the file says otherwise */
                 snprintf(current->name, sizeof(current->name), "%s", name);
                 /* Zero would mean "gameval archive 0", which is obj. A namespace
                  * the defaults never had is unnamed by the cache until it says
@@ -405,6 +464,10 @@ ContentRegister_Load(
         else if( strcmp(element._keyval.name, "base") == 0 )
             current->server_base =
                 strcmp(element._keyval.value, "none") == 0 ? 0 : atoi(element._keyval.value);
+        /* `index = none` for a member-level pack, which is the default. */
+        else if( strcmp(element._keyval.name, "index") == 0 )
+            current->cache_index =
+                strcmp(element._keyval.value, "none") == 0 ? -1 : atoi(element._keyval.value);
     }
 
     free(data);

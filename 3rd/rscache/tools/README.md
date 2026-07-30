@@ -425,7 +425,7 @@ back into a cache.
 
 ```sh
 cachepack unpack --cache cache.osrs230 --rev osrs230 --src /tmp/src230
-# -> /tmp/src230/pack/npc.pack      3028=goblin
+# -> /tmp/src230/configs/all.npc.compack      3028=goblin
 #    /tmp/src230/configs/all.npc    [goblin] name=Goblin  model1=24458 ...
 #    /tmp/src230/meta.ini           the identity, so `pack` needs no --rev
 

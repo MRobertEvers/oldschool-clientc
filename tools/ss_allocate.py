@@ -16,7 +16,7 @@ about four files in.
 
 Three rules, and each one is a bug this tree has already paid for once:
 
-**The base is layer 0's high-water mark, not a round number.** `pack/param.pack`
+**The base is layer 0's high-water mark, not a round number.** `configs/all.param.compack`
 first allocated from 2000 because "surely nothing is up here"; cache.osrs239
 defines params 0..2633 with no gaps, so nine names silently aliased real ones.
 The base here is one past the largest id layer 0 holds, counting both
@@ -29,7 +29,7 @@ new name and a stale line, not a renumber.
 
 **Everything above the marker line is human.** This only ever rewrites below the
 marker, so a hand-written header survives a regeneration — which is exactly what
-`cachepack unpack` destroying `pack/param.pack`'s header taught
+`cachepack unpack` destroying `configs/all.param.compack`'s header taught
 (docs/CONTENT_ARCHITECTURE.md §3.2).
 
 **Output goes to `pack/<ns>.pack`** — the one file per namespace that
@@ -59,9 +59,16 @@ MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-
 # absent: an obj's category is a *cache* field (config opcode 94), so those ids
 # are read off the cache and cannot be allocated. See pack/category.pack.
 SERVER_NAMESPACES = (
-    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'varn', 'vars', 'hunt',
-    'mesanim', 'inv',
+    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv',
 )
+
+
+# Config records are files of a config archive, so their index is a member index
+# beside the archive — `configs/all.seq.compack` — not a pack in `pack/`, which
+# holds one file per cache index naming that index's archives. Every namespace this
+# script allocates into is a config type.
+def pack_path(tree, ns):
+    return os.path.join(tree, 'configs', f'all.{ns}.compack')
 
 
 def read_pack(path):
@@ -70,12 +77,12 @@ def read_pack(path):
     The raw lines are kept because the write is an *append*, not a regeneration.
     An earlier version parsed the file into a header plus a mapping and rebuilt it
     from those two, which quietly rewrote every line it did not need to touch:
-    `pack/dbtable.pack`'s per-table notes ("A list of (coord, coord) pairs, read
+    `configs/all.dbtable.compack`'s per-table notes ("A list of (coord, coord) pairs, read
     by ~inzone_coord_pair_table…") detached from the tables they describe, and a
     trailing `// cache: x` note on a line this tool did not own disappeared.
 
     That is the same failure `cachepack unpack` committed against
-    `pack/param.pack`, and it has the same fix on both sides: never rewrite a line
+    `configs/all.param.compack`, and it has the same fix on both sides: never rewrite a line
     you were not asked to change.
     """
     raw, mapping = [], {}
@@ -110,8 +117,7 @@ def other_layers(tree, ns):
     """
     known = {}
     highest = -1
-    for layer in (os.path.join(tree, 'pack', f'{ns}.pack'),
-                  os.path.join(tree, 'names', f'{ns}.pack')):
+    for layer in (pack_path(tree, ns),):
         if not os.path.exists(layer):
             continue
         with open(layer, encoding='utf-8', errors='replace') as handle:
@@ -128,7 +134,7 @@ def other_layers(tree, ns):
                 highest = max(highest, int(ident))
 
     # cachepack writes unnamed records as `[<ns>_<id>]`, and those ids are just
-    # as real as a named one — enum has no pack/enum.pack at all, so this is the
+    # as real as a named one — enum has no configs/all.enum.compack at all, so this is the
     # only evidence of how far the cache's enum group reaches.
     config = os.path.join(tree, 'configs', f'all.{ns}')
     if os.path.exists(config):
@@ -180,7 +186,7 @@ def id_authority(tree, ns):
     This decides whether a layer-1 line with no config block behind it is worth
     reporting. For a namespace the *server* owns, such a line is a stale
     allocation — the config was renamed or deleted. For one the *cache* owns,
-    it is the normal case: `pack/param.pack` names cache params 0-14 and 434-437
+    it is the normal case: `configs/all.param.compack` names cache params 0-14 and 434-437
     by hand, and no `.param` in this tree declares them because the cache does.
     Reporting those as stale every run trains the reader to ignore the column.
     """
@@ -278,7 +284,7 @@ def main():
         declared = declared_blocks(scripts_root, ns)
         if not declared:
             continue
-        path = os.path.join(args.tree, 'pack', f'{ns}.pack')
+        path = pack_path(args.tree, ns)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         raw, mapping = read_pack(path)
         elsewhere, highest = other_layers(args.tree, ns)
@@ -303,7 +309,7 @@ def main():
         # cache itself defines, so allocating `stabattack` a fresh id above the
         # high-water mark silently detaches every weapon in the game from its
         # attack bonus. This tool did exactly that once, the moment the authored
-        # `pack/param.pack` went missing, and the output looked like a normal
+        # `configs/all.param.compack` went missing, and the output looked like a normal
         # run — 22 tidy new ids.
         #
         # So: report and fail. A cache-owned name that does not resolve wants
@@ -317,7 +323,7 @@ def main():
                 for name in unknown:
                     print(f'            ! {name}')
                 print(f'            read the id off the cache and add it to '
-                      f'pack/{ns}.pack')
+                      f'configs/all.{ns}.compack')
                 failed = True
             continue
 

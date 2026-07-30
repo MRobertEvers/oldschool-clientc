@@ -24,7 +24,7 @@
  * instead — see `gameval_archive` there. 5 and 13 are absent from this cache.
  *
  * All four were unclaimed until the layer split, and the cost was that
- * `pack/interface.pack` and `pack/varc.pack` were `<type>_<id>` filler standing
+ * `pack/interface.pack` and `configs/all.varc.compack` were `<type>_<id>` filler standing
  * in for names the cache had all along.
  *
  * ## What each flag costs

@@ -78,7 +78,7 @@ main(void)
      * The invariant, and the reason it is a check rather than a correction:
      * `names = cache` means "cachepack regenerates this file wholesale", and the
      * only thing that can generate it is a gameval archive. Three namespaces once
-     * claimed it without one — `param`, `hitsplat` and `synth` — which is how
+     * claimed it without one — `param`, `hitsplat` and the sound effects — which is how
      * `pack/param.pack` lost all 58 of its header lines to a single unpack.
      */
     check(ContentRegister_Validate(&reg) == 0, "the defaults agree with their gameval evidence");
@@ -90,9 +90,26 @@ main(void)
     ns = ContentRegister_Find(&reg, "hitsplat");
     check(ns && ns->gameval_archive < 0 && ns->names == CONTENT_NAMES_AUTHORED,
           "and hitsplat's too");
-    ns = ContentRegister_Find(&reg, "synth");
+    ns = ContentRegister_Find(&reg, "4_soundeffects");
     check(ns && ns->gameval_archive < 0 && ns->names == CONTENT_NAMES_AUTHORED,
-          "and synth's too");
+          "and the sound effects' too");
+
+    /* ---- the index is in the name ------------------------------------ */
+    /*
+     * `pack/` holds two kinds of file that look identical: one names the archives
+     * of a cache index, the other names records inside one archive. The index in
+     * the name is what tells them apart, so it is checked rather than trusted.
+     */
+    ns = ContentRegister_Find(&reg, "7_models");
+    check(ns && ns->cache_index == 7, "models are the archives of cache index 7");
+    ns = ContentRegister_Find(&reg, "2_configs");
+    check(ns && ns->cache_index == 2, "and the config groups are index 2's archives");
+    ns = ContentRegister_Find(&reg, "npc");
+    check(ns && ns->cache_index < 0,
+          "an npc record is a member of one of them, not an archive");
+    check(ContentRegister_Find(&reg, "animset") == NULL,
+          "`animset` is gone: index 0 is the animations");
+    check(ContentRegister_Find(&reg, "varn") == NULL, "and varn was never read");
 
     /* The other direction: archive 10 names dbtables, so they are not authored. */
     ns = ContentRegister_Find(&reg, "dbtable");

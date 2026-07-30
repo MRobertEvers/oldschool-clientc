@@ -35,12 +35,12 @@ An earlier version also wrote `<content>/pack/door.pack` — a second symbol fil
 for the `loc` namespace, on the reasoning that "two generators writing one file is
 how a generated file gets edited by hand". Both halves of that are now wrong. The
 file was read by nothing (no loader knows a `door` namespace, so every name in it
-resolved through `pack/loc.pack` anyway), and one file per namespace is the rule
+resolved through `configs/all.loc.compack` anyway), and one file per namespace is the rule
 (docs/CONTENT_PACK_PLAN.md §3) — with a pack writer that merges rather than
 truncating, which is what the second file was working around.
 
 So instead of writing names, this *checks* them: every name it emits must already
-resolve in `pack/loc.pack`. It will, because both come from the same gameval
+resolve in `configs/all.loc.compack`. It will, because both come from the same gameval
 table, and a name that does not is a mismatch worth hearing about rather than
 papering over with a second file.
 """
@@ -172,10 +172,10 @@ def main():
     os.makedirs(os.path.dirname(loc_path), exist_ok=True)
 
     # Every emitted name has to resolve in the one symbol file for the namespace.
-    # Reported rather than fixed: an id this tool believes and `pack/loc.pack` does
+    # Reported rather than fixed: an id this tool believes and `configs/all.loc.compack` does
     # not means the two are reading different caches, and writing a second pack
     # line would hide that instead of settling it.
-    loc_pack = os.path.join(args.content, "pack", "loc.pack")
+    loc_pack = os.path.join(args.content, "configs", "all.loc.compack")
     known = {}
     if os.path.exists(loc_pack):
         with open(loc_pack, encoding="utf-8", errors="replace") as handle:
@@ -188,12 +188,12 @@ def main():
                     known.setdefault(re.sub(r"\s*//.*$", "", name).strip(), int(ident))
     missing = sorted(name for name in symbols if name not in known)
     mismatched = sorted(
-        f"{name}: doors say {symbols[name]}, pack/loc.pack says {known[name]}"
+        f"{name}: doors say {symbols[name]}, configs/all.loc.compack says {known[name]}"
         for name in symbols
         if name in known and known[name] != symbols[name]
     )
     for name in missing:
-        print(f"  ! {name} = {symbols[name]} is not in pack/loc.pack")
+        print(f"  ! {name} = {symbols[name]} is not in configs/all.loc.compack")
     for line in mismatched:
         print(f"  ! {line}")
 
@@ -214,7 +214,7 @@ def main():
         f"({len(sections[0][1])} curated pairs, "
         f"{len(sections[1][1]) if len(sections) > 1 else 0} derived, "
         f"{len(symbols)} symbols, "
-        f"{len(missing) + len(mismatched)} unresolved against pack/loc.pack)"
+        f"{len(missing) + len(mismatched)} unresolved against configs/all.loc.compack)"
     )
     return 1 if (missing or mismatched) else 0
 

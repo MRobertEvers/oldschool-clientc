@@ -20,6 +20,28 @@
 #define cp_mkdir(p) mkdir(p, 0755)
 #endif
 
+/**
+ * Where a config type's member index lives: `configs/all.<type>.compack`.
+ *
+ * A config record is a *file* of a config archive — `[swarm_walk]` is file 0 of
+ * archive 12 — so the file binding `0=swarm_walk` is a member index, the same kind
+ * of thing as `interfaces/bankmain.compack` and `textures/texture_0.compack`. It
+ * used to be `configs/all.seq.compack`, which put it beside the archive-level packs and gave
+ * it their extension, so `pack/` held both levels of index under one name and only
+ * the reader's knowledge told them apart.
+ *
+ * Beside the archive it indexes, like every other member index.
+ */
+void
+cp_config_member_index(
+    char* out,
+    size_t out_size,
+    const char* srcdir,
+    const char* type)
+{
+    snprintf(out, out_size, "%s/configs/all.%s.compack", srcdir, type);
+}
+
 int
 cp_names_load(
     struct CP_Names* names,
@@ -43,7 +65,7 @@ cp_names_load(
     {
         const struct CP_Type* t = cp_type(i);
         char path[1200];
-        snprintf(path, sizeof(path), "%s/pack/%s.pack", srcdir, t->name);
+        cp_config_member_index(path, sizeof(path), srcdir, t->name);
         if( !lc_pack_load(&names->packs[i], path, t->name, 1) )
         {
             fprintf(stderr, "cachepack: failed to read %s\n", path);
@@ -56,7 +78,7 @@ cp_names_load(
         const struct CP_Asset* asset = cp_asset(i);
         char path[1200];
         snprintf(path, sizeof(path), "%s/pack/%s.pack", srcdir, asset->pack);
-        if( !lc_pack_load(&names->asset_packs[i], path, asset->pack, 1) )
+        if( !lc_pack_load(&names->asset_packs[i], path, asset->filler, 1) )
         {
             fprintf(stderr, "cachepack: failed to read %s\n", path);
             return 0;
@@ -78,27 +100,28 @@ cp_names_save(
         char path[1200];
 
         /*
-         * Only layer 0, and only where layer 0 is ours.
+         * Every record, named or not.
          *
-         * `lc_pack_save` emits nothing but `id=name` lines, so rewriting a pack
-         * whose names a human wrote destroys the prose justifying them — which
-         * is measurable: `pack/param.pack` lost all 58 of its comment lines to
-         * one unpack, and that header is the record of which param-id claims
-         * were checked against a cache and how.
+         * This was sparse: a record the cache does not name is emitted as the block
+         * `[mapelement_0]`, so `0=mapelement_0` restates the header and used to be
+         * left out — 93,000 of this tree's 306,818 index lines. The id was then
+         * recoverable only by *parsing the name back*, which is the same mistake the
+         * asset tables made when a model's id lived in `models/npc/goblin.model` and
+         * nowhere else. Six config types had no index file at all as a result.
          *
-         * A namespace declaring `names` as anything but `cache` has no
-         * machine-owned layer 0 to regenerate: `stat` and `category` have no
-         * cache table at all, and `component` has no gameval archive, so every
-         * one of its names is imported and lives in `pack/component.pack`.
+         * An index that omits what it can re-derive is an index with a second,
+         * unwritten rule. The order is explicit now, for every record.
+         *
+         * Writing them cannot lose an authored name or its prose: a save is a merge
+         * (`lc_pack.h`), the in-memory pack was loaded from this same file, and
+         * `cp_name_ensure` only ever fills an id that has no name. That is what makes
+         * it safe to drop the `cp_register_may_write_pack` gate here — the gate was
+         * against *regenerating* a hand-written file, and adding a line for an id
+         * that has none is not that. `configs/all.param.compack`'s 58-line header
+         * survives, which is the case that put the gate there.
          */
-        if( !cp_register_may_write_pack(cp_type(i)->name) )
-            continue;
-
-        snprintf(path, sizeof(path), "%s/%s.pack", dir, cp_type(i)->name);
-        /* Sparse: a `<type>_<id>` line says the id twice and resolves without
-         * being stored (cp_name_find). Writing them cost this tree 93,000 of
-         * its 306,818 pack lines. */
-        if( !lc_pack_save_sparse(&names->packs[i], path) )
+        cp_config_member_index(path, sizeof(path), srcdir, cp_type(i)->name);
+        if( !lc_pack_save(&names->packs[i], path) )
         {
             fprintf(stderr, "cachepack: failed to write %s\n", path);
             return 0;
@@ -151,6 +174,56 @@ cp_names_save(
             fprintf(stderr, "cachepack: failed to write %s\n", path);
             return 0;
         }
+    }
+
+    /*
+     * The config table's archive index.
+     *
+     * Every other cache index has a pack naming its archives; index 2's archives are
+     * the config *groups*, and nothing named them — `configs/all.npc.compack` names the records
+     * inside archive 9, not the archive. So the twenty groups were the only archives
+     * in the cache with no index entry anywhere, and "which archive is a seq in?" was
+     * answerable only by reading `cp_types.c`.
+     *
+     * Written from the same table the decoders are driven by, so it cannot drift from
+     * what the tool actually reads.
+     */
+    {
+        struct LC_Pack configs;
+        char path[1200];
+
+        snprintf(path, sizeof(path), "%s/2_configs.pack", dir);
+        if( !lc_pack_load(&configs, path, "configs", 1) )
+        {
+            fprintf(stderr, "cachepack: failed to read %s\n", path);
+            return 0;
+        }
+        /* Only when the file has none: a save lets the caller's comments win, so
+         * setting this unconditionally would overwrite an edited header every run —
+         * which is how `configs/all.param.compack` lost its 58 lines the first time. */
+        if( !configs.preamble )
+            configs.preamble = strdup(
+                "// The archives of cache index 2, the config table. Each one holds the\n"
+                "// records of a single config type, and `pack/<type>.pack` names those\n"
+                "// records — this file names the archives they live in.\n"
+                "//\n"
+                "// The id is what the client addresses the group by, which is why they are\n"
+                "// not consecutive: the gaps are groups this revision has no decoder for.\n"
+                "\n");
+        for( int i = 0; i < CP_TYPE_COUNT; i++ )
+        {
+            const struct CP_Type* type = cp_type(i);
+
+            if( type->config_kind >= 0 )
+                lc_pack_set(&configs, type->config_kind, type->name);
+        }
+        if( !lc_pack_save(&configs, path) )
+        {
+            fprintf(stderr, "cachepack: failed to write %s\n", path);
+            lc_pack_free(&configs);
+            return 0;
+        }
+        lc_pack_free(&configs);
     }
     return 1;
 }
@@ -662,7 +735,7 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
              * caught at boot by the duplicate-name check rather than here.
              */
             char name[256];
-            snprintf(name, sizeof(name), "%s_%d", asset->pack, id);
+            snprintf(name, sizeof(name), "%s_%d", asset->filler, id);
             lc_pack_set(pack, id, name);
             filled++;
         }
@@ -726,7 +799,7 @@ cp_name_get(
     int id)
 {
     /* One file, so one lookup. There is no precedence question left to answer:
-     * `pack/param.pack` holds the 36 authored names *and* nothing else, because
+     * `configs/all.param.compack` holds the 36 authored names *and* nothing else, because
      * the filler resolves from `cp_name_find`'s synthetic rule instead of being
      * stored. */
     struct LC_Pack* pack = &ctx->names.packs[type];
@@ -758,20 +831,18 @@ cp_name_find(
     enum CP_TypeId type,
     const char* name)
 {
-    int id = lc_pack_find(&ctx->names.packs[type], name);
-
-    if( id >= 0 )
-        return id;
     /*
-     * Last: the name is its own id.
+     * The index, and only the index.
      *
-     * `param_2633` is what `cp_name_ensure` invents for a record the cache does
-     * not name, and it is a function of the id — so it resolves without a pack
-     * line, and the 2,598 lines that used to store it are gone. Tried last, so
-     * a real name that happens to look synthetic (`4=npc_9`) still wins wherever
-     * it is written down.
+     * This used to fall back to reading the id out of the name — `param_2633` is a
+     * function of 2633, so it resolved without a line. That made the *spelling of a
+     * block header* load-bearing: rename `[param_2633]` and the record silently moves
+     * or disappears, and an index that omits every such record is not an index.
+     *
+     * Every record has a line now (`cp_names_save`), so a miss here is a real miss
+     * and is reported as one rather than guessed at.
      */
-    return lc_pack_synthetic_id(cp_type(type)->name, name);
+    return lc_pack_find(&ctx->names.packs[type], name);
 }
 
 /* ---- asset names -------------------------------------------------------- */
@@ -812,7 +883,7 @@ cp_asset_name_ensure(
     if( existing )
         return existing;
     char name[256];
-    snprintf(name, sizeof(name), "%s_%d", cp_asset(asset)->pack, id);
+    snprintf(name, sizeof(name), "%s_%d", cp_asset(asset)->filler, id);
     cp_asset_name_set(ctx, asset, id, name);
     return cp_asset_name_get(ctx, asset, id);
 }
@@ -829,5 +900,5 @@ cp_asset_name_find(
         return id;
     /* `interface_412.if` on disk is interface 412 by construction, so the file
      * repacks with no pack line behind it. */
-    return lc_pack_synthetic_id(cp_asset(asset)->pack, name);
+    return lc_pack_synthetic_id(cp_asset(asset)->filler, name);
 }
