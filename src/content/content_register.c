@@ -66,8 +66,14 @@ static const struct ContentNamespace k_defaults[] = {
     { "seq",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   7,  20000,  -1 },
     { "spotanim",              CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   8,   6000,  -1 },
     { "inv",                   CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   2,   2000,  -1 },
-    /* Both from archive 14, which carries an interface and its children in one
-     * record. `component` ids are `(interface << 16) | child`. */
+    /*
+     * Both from archive 14, which carries an interface and its children in one
+     * record. `component` ids are `(interface << 16) | child`, and that is how they
+     * are *addressed* rather than stored: there is no `pack/component.pack`. The
+     * names live in `interfaces/<name>.compack`, the member index over exactly
+     * those children, and the id composes from the interface's id and the child's.
+     * A file keyed on the composed id was a second index over the same members.
+     */
     { "3_interfaces",          CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,   2000,   3 },
     { "component",             CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,      0,  -1 },
     /* The cache names these and fixes their ids; neither has an encoder, so

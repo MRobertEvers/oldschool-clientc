@@ -195,6 +195,20 @@ struct CP_Names
      * which it is holding.
      */
     struct LC_Pack asset_packs[CP_ASSET_COUNT];
+    /**
+     * The cache's own component names, keyed by `(interface << 16) | child`.
+     *
+     * Decoded from gameval archive 14, the same record that names interfaces, and
+     * held here so the interface codec can use them as block names — which is what
+     * lets `interfaces/<name>.compack` be the only index over an interface's
+     * members.
+     *
+     * It used to be written straight out as `pack/component.pack` and never kept,
+     * on the reasoning that nothing in cachepack resolves a component. True, but it
+     * meant two files indexed the same members: the compack said `0=com_0` and
+     * `component.pack` said `786432=bankmain:infinite`, one filler and one named.
+     */
+    struct LC_Pack components;
 };
 
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */
@@ -690,5 +704,12 @@ cp_config_member_index(
     size_t out_size,
     const char* srcdir,
     const char* type);
+
+/** The cache's name for one interface child, `bankmain:items`, or NULL. */
+const char*
+cp_component_name(
+    struct CP_Ctx* ctx,
+    int interface_id,
+    int child_id);
 
 #endif

@@ -24,6 +24,18 @@ archive with no pack line is not written. One file per namespace, hand-ownable �
 comments and blank lines survive a rewrite, and a save merges rather than truncating
 (`lc_pack.h`).
 
+**Components have no pack file of their own.** A component is a child of an
+interface, so `interfaces/bankmain.compack` — the member index over exactly those
+children — carries the cache's own names for them, and the id is composed the way the
+client composes it: `(interface << 16) | child`. `pack/component.pack` used to hold
+26,491 lines of `786432=bankmain:infinite` while the compack beside the interface said
+`0=com_0`: two indexes over the same members, one named and one filler.
+
+Composing from the two files that remain is also more accurate than the file was. It
+drops 41 entries for `hosidius_strip_rewards`, which gameval archive 14 names but this
+cache has no interface archive for, and adds 28 real components the archive holds and
+the gameval table never named. Of the 26,450 in both, **zero** changed name.
+
 **The index is in the name** because `pack/` holds two kinds of file that otherwise
 look identical, both `id=name`. `7_models.pack` lists the archives of cache index 7;
 `npc.pack` lists records *inside* archive 9 of index 2. A leading number means the
@@ -105,7 +117,7 @@ spelling and only the reader's knowledge told them apart.
 
 | table | on disk | member index |
 |---|---|---|
-| `interface` | `interfaces/bankmain.if` — one block per component | `interfaces/bankmain.compack` |
+| `interface` | `interfaces/bankmain.if` — one block per component, named by the cache | `interfaces/bankmain.compack` |
 | `texture` | `textures/texture_0.texture` — one block per material | `textures/texture_0.compack` |
 | `map` | `maps/m15_32.jm2` terrain, `maps/m15_32.jl2` locs | `maps/m15_32.filepack` — all five members |
 | `dbindex` | `dbindex/dbindex_0/0.dbidx` — one file per column | `dbindex/dbindex_0.filepack` |
@@ -248,10 +260,25 @@ no lines has nothing to walk. 53,390 of the 61,615 models had also been exported
 content-derived paths like `models/npc/goblin.model`, which contain no id at all, so
 the mapping was recoverable only by re-deriving the names from the configs.
 
-Hence the rules now in force: an asset pack is written **in full** (a filler line is
-still an index entry), `unpack` records every archive id whether or not anything has
-named it, and the naming passes that derive model and map names from the configs run
-whenever the index is built rather than only when files are written.
+**The config indexes had the same bug in a quieter form.** A record the cache does not
+name is emitted as the block `[mapelement_0]`, so `0=mapelement_0` restates the header
+and was left out — 93,000 of this tree's 306,818 index lines, and six config types with
+no index file at all. Nothing broke, because `cp_name_find` read the id back out of the
+name. That is the same trade as the id living in `models/npc/goblin.model`: it works
+until a block is renamed, and it means the index is not the authority — the *spelling
+of a header* is.
+
+Hence the one rule now in force everywhere: **every index is written in full, and
+nothing is ever recovered from a name.** A filler line is still an index entry; `unpack`
+records every archive id and every record id whether or not anything has named it;
+`cp_name_find` looks in the index and reports a miss rather than guessing; and the
+naming passes that derive model and map names from the configs run whenever the index
+is built rather than only when files are written.
+
+Writing config filler cannot lose an authored name or the prose around it: a save is a
+merge, the in-memory pack was loaded from the same file, and a filler line is only ever
+added for an id that has none. `configs/all.param.compack` keeps its 75-line header
+through a full rewrite, which is the case that once justified not writing at all.
 
 ## Adding an asset
 

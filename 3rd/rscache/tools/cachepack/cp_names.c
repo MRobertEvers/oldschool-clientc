@@ -228,6 +228,20 @@ cp_names_save(
     return 1;
 }
 
+const char*
+cp_component_name(
+    struct CP_Ctx* ctx,
+    int interface_id,
+    int child_id)
+{
+    const struct LC_Pack* pack = &ctx->names.components;
+    int id = (interface_id << 16) | child_id;
+
+    if( interface_id < 0 || child_id < 0 || id < 0 || id >= pack->capacity || !pack->names )
+        return NULL;
+    return pack->names[id];
+}
+
 void
 cp_names_free(struct CP_Names* names)
 {
@@ -235,6 +249,7 @@ cp_names_free(struct CP_Names* names)
         lc_pack_free(&names->packs[i]);
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
         lc_pack_free(&names->asset_packs[i]);
+    lc_pack_free(&names->components);
 }
 
 /*
@@ -447,9 +462,9 @@ seed_interface_names(
         return 0;
     }
 
-    struct LC_Pack components;
-    memset(&components, 0, sizeof(components));
-    snprintf(components.type, sizeof(components.type), "%s", "component");
+    struct LC_Pack* components = &ctx->names.components;
+    memset(components, 0, sizeof(*components));
+    snprintf(components->type, sizeof(components->type), "%s", "component");
 
     int interfaces = 0;
     int coms = 0;
@@ -566,7 +581,7 @@ seed_interface_names(
                 if( seen[seen_count] )
                     seen_count++;
             }
-            lc_pack_set(&components, (iface << 16) | child, full);
+            lc_pack_set(components, (iface << 16) | child, full);
             coms++;
         }
         if( at + 2 > len || ((bytes[at] << 8) | bytes[at + 1]) != 0xffff )
@@ -581,23 +596,15 @@ seed_interface_names(
         fprintf(stderr, "cachepack: %d of %d interface name records did not end cleanly\n",
                 malformed, files->file_count);
 
-    int wrote = 0;
-    if( cp_register_may_write_pack("component") )
-    {
-        /* Seeding runs before cp_names_save, so on a tree whose `pack/` has
-         * been cleared this is the first thing to need the directory. */
-        char dir[1300];
-        snprintf(dir, sizeof(dir), "%s/pack", srcdir);
-        cp_mkdir(dir);
-
-        char path[1400];
-        snprintf(path, sizeof(path), "%s/component.pack", dir);
-        wrote = lc_pack_save_sparse(&components, path);
-    }
-    printf("  %-11s %6d interfaces, %d components%s\n", "gameval", interfaces, coms,
-           wrote ? " -> pack/component.pack" : "");
-
-    lc_pack_free(&components);
+    /*
+     * Not written anywhere of its own: these names become the block names in each
+     * interface's `.compack`, which is already the index over exactly these members.
+     * `pack/component.pack` was a second index over the same thing, and the global
+     * id it keyed on is `(interface << 16) | child` — recoverable from the two files
+     * that remain, which is how the client composes it in the first place.
+     */
+    printf("  %-11s %6d interfaces, %d components -> interfaces/<name>.compack\n",
+           "gameval", interfaces, coms);
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
     return 1;

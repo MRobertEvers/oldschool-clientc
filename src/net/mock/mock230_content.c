@@ -226,6 +226,60 @@ pack_load(
     return loaded;
 }
 
+/**
+ * Build the component symbols the way the client addresses a component: an
+ * interface id in the high 16 bits and a child id in the low 16.
+ *
+ * There is no `pack/component.pack` to read. There used to be — 26,491 lines of
+ * `786432=bankmain:infinite` — and it was a second index over members that
+ * `interfaces/bankmain.compack` already indexes, one named and one filler. The
+ * compack carries the cache's own names now, so the id composes from the two files
+ * that remain: `pack/3_interfaces.pack` says `bankmain` is 12, the compack says
+ * `infinite` is child 0, and `(12 << 16) | 0` is 786432.
+ *
+ * Composed at load into the same flat table the other namespaces use, so a lookup
+ * stays one pass and `mock230_ids.c` still asks for `"bankmain:items"`.
+ */
+static int
+load_component_symbols(const char* dir)
+{
+    const struct Pack* interfaces = &g_packs[MOCK230_PACK_INTERFACE];
+    int loaded = 0;
+
+    for( int i = 0; i < interfaces->count; i++ )
+    {
+        const char* iface_name = interfaces->entries[i].name;
+        int iface_id = interfaces->entries[i].id;
+        struct Pack children;
+        char path[1024];
+
+        if( iface_id < 0 || !iface_name )
+            continue;
+        memset(&children, 0, sizeof(children));
+        snprintf(path, sizeof(path), "%s/interfaces/%s.compack", dir, iface_name);
+        if( pack_load(&children, path) == 0 )
+        {
+            free(children.entries);
+            continue;
+        }
+        for( int c = 0; c < children.count; c++ )
+        {
+            char full[512];
+
+            if( children.entries[c].id < 0 || children.entries[c].id > 0xffff )
+                continue;
+            snprintf(full, sizeof(full), "%s:%s", iface_name, children.entries[c].name);
+            pack_add(&g_packs[MOCK230_PACK_COMPONENT], full,
+                     (iface_id << 16) | children.entries[c].id);
+            loaded++;
+        }
+        for( int c = 0; c < children.count; c++ )
+            free(children.entries[c].name);
+        free(children.entries);
+    }
+    return loaded;
+}
+
 int
 mock230_content_symbol(
     enum Mock230PackKind kind,
@@ -984,7 +1038,7 @@ obj_config_key(
     stat = mock230_content_symbol(MOCK230_PACK_STAT, skill_name);
     if( stat < 0 )
     {
-        CONTENT_ERROR("%s: `%s` is not in server/pack/stat.pack\n", where, skill_name);
+        CONTENT_ERROR("%s: `%s` is not in pack/stat.pack\n", where, skill_name);
         return;
     }
     if( level <= 0 || level > 99 )
@@ -1976,12 +2030,16 @@ mock230_content_load(const char* dir)
          */
         const char* name = pack_kind_name((enum Mock230PackKind)kind);
 
+        if( kind == MOCK230_PACK_COMPONENT )
+            continue; /* composed below, from the interfaces and their compacks */
         if( pack_kind_is_config((enum Mock230PackKind)kind) )
             snprintf(path, sizeof(path), "%s/configs/all.%s.compack", dir, name);
         else
             snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
         symbols += pack_load(&g_packs[kind], path);
     }
+    /* After the loop: it needs the interface pack to already be loaded. */
+    symbols += load_component_symbols(dir);
 
     /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */

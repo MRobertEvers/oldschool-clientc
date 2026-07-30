@@ -47,7 +47,7 @@ mock230_equipment_may_wear(
     struct Mock230Server* srv,
     int obj_id)
 {
-    /* The wire's own skill order, which is `server/pack/stat.pack`. Only the
+    /* The wire's own skill order, which is `pack/stat.pack`. Only the
      * name is needed here and only for the message, so this is a label table
      * rather than a second copy of the pack — the *ids* still come from it. */
     static const char* const k_stat_names[MOCK230_STAT_COUNT] = {

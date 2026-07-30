@@ -787,13 +787,29 @@ interface_write(
     {
         int file_id = file_ids ? file_ids[f] : f;
         const char* name = NULL;
-        char fallback[32];
+        char fallback[256];
 
         if( file_id >= 0 && file_id < members.capacity && members.names )
             name = members.names[file_id];
         if( !name )
         {
-            snprintf(fallback, sizeof(fallback), "com_%d", file_id);
+            /*
+             * The cache's own name for this child, from gameval archive 14 —
+             * `bankmain:items` for `(12 << 16) | 12`. The interface is already the
+             * file, so only the part after the colon is the block name.
+             *
+             * This is what makes the compack the single index over an interface's
+             * members. It used to fall straight to `com_<id>` and the real names
+             * lived in a second file, `pack/component.pack`, keyed by the composed
+             * id — two indexes over the same members, one filler and one named.
+             */
+            const char* gameval = ctx ? cp_component_name(ctx, record_id, file_id) : NULL;
+            const char* child = gameval ? strchr(gameval, ':') : NULL;
+
+            if( child && child[1] )
+                snprintf(fallback, sizeof(fallback), "%s", child + 1);
+            else
+                snprintf(fallback, sizeof(fallback), "com_%d", file_id);
             name = fallback;
             lc_pack_set(&members, file_id, name);
         }
