@@ -94,6 +94,15 @@ struct CP_AssetCodec
     /** Extension this codec writes, for the report and for `--list-assets`. */
     const char* ext;
     /**
+     * A second extension the same codec writes, or NULL.
+     *
+     * The map codec writes `.jm2` for a square's terrain and `.jl2` for its locs,
+     * and with one field only the first was ever declared — so `.jl2` appeared in
+     * no table at all, was invisible to the uniqueness check, and was not among the
+     * extensions import knows to look for.
+     */
+    const char* ext2;
+    /**
      * 1 = written, 0 = decline and let the raw payload be written instead.
      *
      * `file_ids`/`file_count` describe the archive's members, because a codec for

@@ -1366,8 +1366,8 @@ interface_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_texture = { "texture", texture_write, texture_read, 0 };
-const struct CP_AssetCodec cp_codec_interface = { "if", interface_write, interface_read, 0 };
+const struct CP_AssetCodec cp_codec_texture = { "texture", NULL, texture_write, texture_read, 0 };
+const struct CP_AssetCodec cp_codec_interface = { "if", NULL, interface_write, interface_read, 0 };
 
 /* ---- maps ---------------------------------------------------------------- */
 
@@ -2130,7 +2130,7 @@ map_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_map = { "jm2", map_write, map_read, 0 };
+const struct CP_AssetCodec cp_codec_map = { "jm2", "jl2", map_write, map_read, 0 };
 
 /* ---- clientscripts ------------------------------------------------------- */
 
@@ -2366,7 +2366,7 @@ script_read(
 
 /* Trailing 1 is `semantic_only`: the friendly form is source, and compiling source
  * back gives this compiler's bytes rather than Jagex's. See cp_assets.h. */
-const struct CP_AssetCodec cp_codec_script = { "cs2", script_write, script_read, 1 };
+const struct CP_AssetCodec cp_codec_script = { "cs2", NULL, script_write, script_read, 1 };
 
 /* ---- sprites ------------------------------------------------------------- */
 
@@ -2689,7 +2689,7 @@ sprite_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_sprite = { "bmp", sprite_write, sprite_read, 0 };
+const struct CP_AssetCodec cp_codec_sprite = { "bmp", NULL, sprite_write, sprite_read, 0 };
 
 /* ---- world map ----------------------------------------------------------- */
 
@@ -4942,10 +4942,12 @@ fail:
     return NULL;
 }
 
-const struct CP_AssetCodec cp_codec_font = { "fm", font_write, font_read, 0 };
+const struct CP_AssetCodec cp_codec_font = { "fm", NULL, font_write, font_read, 0 };
 
-const struct CP_AssetCodec cp_codec_dbindex = { "dbi", dbindex_write, dbindex_read, 0 };
+const struct CP_AssetCodec cp_codec_dbindex = { "dbi", NULL, dbindex_write, dbindex_read, 0 };
 
-const struct CP_AssetCodec cp_codec_worldmapgeo = { "wmg", geo_write, geo_read, 0 };
+const struct CP_AssetCodec cp_codec_worldmapgeo = { "wmg", NULL, geo_write, geo_read, 0 };
 
-const struct CP_AssetCodec cp_codec_worldmap = { "wma", worldmap_write, worldmap_read, 0 };
+/* Also writes `.wmc` (compositemap) and `.wml` (labels); `ext2` holds the one
+ * that shares the archive-level slot. */
+const struct CP_AssetCodec cp_codec_worldmap = { "wma", "wmc", worldmap_write, worldmap_read, 0 };

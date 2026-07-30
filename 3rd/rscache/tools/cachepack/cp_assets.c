@@ -84,7 +84,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_FRAMEMAP] = {
         "framemaps", "1_skeletons", "base", "base", RSCACHE_DAT2_TABLE_SKELETONS, 0, -1, NULL },
     [CP_ASSET_INTERFACE] = {
-        "interfaces", "3_interfaces", "interface", "bin", RSCACHE_DAT2_TABLE_INTERFACES, 0, 14,
+        "interfaces", "3_interfaces", "interface", "ifb", RSCACHE_DAT2_TABLE_INTERFACES, 0, 14,
         &cp_codec_interface },
     [CP_ASSET_SYNTH] = {
         "synth", "4_soundeffects", "synth", "synth", RSCACHE_DAT2_TABLE_SOUND_EFFECTS, 0, -1, NULL },
@@ -101,16 +101,16 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
     [CP_ASSET_SPRITE] = {
         "sprites", "8_sprites", "sprite", "sprite", RSCACHE_DAT2_TABLE_SPRITES, 0, 12, &cp_codec_sprite },
     [CP_ASSET_TEXTURE] = {
-        "textures", "9_textures", "texture", "bin", RSCACHE_DAT2_TABLE_TEXTURES, 0, -1,
+        "textures", "9_textures", "texture", "texb", RSCACHE_DAT2_TABLE_TEXTURES, 0, -1,
         &cp_codec_texture },
     [CP_ASSET_BINARY] = {
         "binary", "10_binary", "binary", "bin", RSCACHE_DAT2_TABLE_BINARY, 0, -1, NULL },
     [CP_ASSET_JINGLE] = {
         "jingles", "11_musicjingles", "jingle", "jmid", RSCACHE_DAT2_TABLE_MUSIC_JINGLES, 0, -1, NULL },
     [CP_ASSET_SCRIPT] = {
-        "scripts", "12_clientscripts", "script", "bin", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
+        "scripts", "12_clientscripts", "script", "cs2b", RSCACHE_DAT2_TABLE_CLIENTSCRIPT, 0, -1, &cp_codec_script },
     [CP_ASSET_FONT] = {
-        "fonts", "13_fonts", "font", "bin", RSCACHE_DAT2_TABLE_FONTS, 0, -1, &cp_codec_font },
+        "fonts", "13_fonts", "font", "fmb", RSCACHE_DAT2_TABLE_FONTS, 0, -1, &cp_codec_font },
     [CP_ASSET_SAMPLE] = {
         "samples", "14_musicsamples", "sample", "sample", RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, -1, NULL },
     [CP_ASSET_PATCH] = {
@@ -126,7 +126,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * grammar was never the problem; the container was.
      */
     [CP_ASSET_WORLDMAP_GEOGRAPHY] = {
-        "worldmap/geography", "18_worldmapgeography", "worldmapgeo", "bin",
+        "worldmap/geography", "18_worldmapgeography", "worldmapgeo", "wmgb",
         RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, CP_ASSET_SPLIT, -1, &cp_codec_worldmapgeo },
     /*
      * Two of its archives have a text form and two do not, so it carries both a
@@ -139,10 +139,10 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * here, not one map.
      */
     [CP_ASSET_WORLDMAP_AREA] = {
-        "worldmap/areas", "19_worldmap", "worldmaparea", "bin", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
+        "worldmap/areas", "19_worldmap", "worldmaparea", "wmab", RSCACHE_DAT2_TABLE_WORLDMAP, CP_ASSET_SPLIT, -1,
         &cp_codec_worldmap },
     [CP_ASSET_WORLDMAP_GROUND] = {
-        "worldmap/ground", "20_worldmapground", "worldmapground", "bin",
+        "worldmap/ground", "20_worldmapground", "worldmapground", "wmgr",
         RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, 0, -1, NULL },
     /*
      * One archive per dbtable: the master index and one file per indexed column.
@@ -153,7 +153,7 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
      * byte-exact round-trip for still lands as bytes plus a filepack.
      */
     [CP_ASSET_DBINDEX] = {
-        "dbindex", "21_dbtableindex", "dbindex", "bin", RSCACHE_DAT2_TABLE_DBTABLE_INDEX,
+        "dbindex", "21_dbtableindex", "dbindex", "dbib", RSCACHE_DAT2_TABLE_DBTABLE_INDEX,
         CP_ASSET_SPLIT, -1, &cp_codec_dbindex },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
@@ -190,19 +190,96 @@ asset_codec(const struct CP_Asset* asset)
  * cache — a new codec row that gets it wrong should fail immediately and loudly
  * rather than the first time a record declines.
  */
+/** Every extension a table can write: its codec's one or two, then the raw one. */
+static int
+asset_extensions(const struct CP_Asset* asset, const char* out[3])
+{
+    int n = 0;
+
+    if( asset->codec )
+    {
+        out[n++] = asset->codec->ext;
+        if( asset->codec->ext2 )
+            out[n++] = asset->codec->ext2;
+    }
+    out[n++] = asset->ext;
+    return n;
+}
+
+/*
+ * No extension belongs to two tables, and no table writes one extension two ways.
+ *
+ * This used to compare a codec's extension against its *own* row's raw fallback
+ * and nothing else — so `.bin` being the fallback for nine tables and `.jmid` for
+ * two passed silently. Those were harmless only because each table happens to own
+ * a distinct directory, and nothing enforced that either.
+ *
+ * The pair `.jmid` on songs and jingles is the one sanctioned collision: they are
+ * the same Jagex MIDI container, and naming one of them after a format it does not
+ * contain would be the mistake `.ob2`-for-`.model` was avoided for. It is allowed
+ * by name here so that adding a second such pair is a deliberate edit rather than a
+ * silent pass.
+ */
+static int
+extension_pair_allowed(const char* a, const char* b, const char* ext)
+{
+    if( strcmp(ext, "jmid") != 0 )
+        return 0;
+    return (strcmp(a, "songs") == 0 && strcmp(b, "jingles") == 0) ||
+           (strcmp(a, "jingles") == 0 && strcmp(b, "songs") == 0);
+}
+
 static void
 assert_extensions_distinct(void)
 {
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
-        const struct CP_Asset* asset = &g_assets[i];
-        if( asset->codec && strcmp(asset->codec->ext, asset->ext) == 0 )
+        const struct CP_Asset* a = &g_assets[i];
+        const char* mine[3];
+        int n = asset_extensions(a, mine);
+
+        for( int x = 0; x < n; x++ )
         {
-            fprintf(stderr,
-                    "cachepack: %s writes .%s both decoded and raw — a declined "
-                    "record would be packed back as its own text\n",
-                    asset->dir, asset->ext);
-            abort();
+            for( int y = x + 1; y < n; y++ )
+            {
+                if( strcmp(mine[x], mine[y]) == 0 )
+                {
+                    fprintf(stderr,
+                            "cachepack: %s writes .%s two ways — a declined record "
+                            "would be packed back as its own text\n",
+                            a->dir, mine[x]);
+                    abort();
+                }
+            }
+        }
+
+        for( int j = i + 1; j < CP_ASSET_COUNT; j++ )
+        {
+            const struct CP_Asset* b = &g_assets[j];
+            const char* theirs[3];
+            int m = asset_extensions(b, theirs);
+
+            if( strcmp(a->dir, b->dir) == 0 )
+            {
+                fprintf(stderr, "cachepack: %s and %s share a directory\n", a->pack,
+                        b->pack);
+                abort();
+            }
+            for( int x = 0; x < n; x++ )
+            {
+                for( int y = 0; y < m; y++ )
+                {
+                    if( strcmp(mine[x], theirs[y]) != 0 )
+                        continue;
+                    if( extension_pair_allowed(a->dir, b->dir, mine[x]) )
+                        continue;
+                    fprintf(stderr,
+                            "cachepack: .%s is written by both %s and %s — an "
+                            "extension must name one thing\n",
+                            mine[x], a->dir, b->dir);
+                    abort();
+                }
+            }
         }
     }
 }
@@ -1394,17 +1471,28 @@ import_one(
         }
         else
         {
-            /* Single file: the extension is whatever the export chose, so try the
-             * ones this asset can produce rather than assuming one. */
-            static const char* const CANDIDATES[] = { NULL, "png", "jpg", "gif", "mid",
-                                                      "ogg",  "ob2", "ob3", "model" };
+            /*
+             * Single file: try every extension this table can produce.
+             *
+             * **A codec extension is deliberately not in this list.** The codec's own
+             * `read` has already had first refusal on `<base>.<codec ext>`; if it
+             * declined, that file is its *friendly* form and reading it here as a raw
+             * payload would pack decompiled text into the cache as though it were
+             * bytecode. Declining and keeping the cache's own bytes is the correct
+             * answer, and the `codec-declined` counter is how it is reported rather
+             * than hidden. (I added the codec extensions here and had to take them
+             * back out — the exclusion is the design, not an oversight.)
+             */
+            static const char* const SNIFFED[] = { "png", "jpg", "gif", "mid",
+                                                   "ogg", "ob2", "ob3", "model" };
             char path[1700];
-            for( size_t c = 0; c < sizeof(CANDIDATES) / sizeof(CANDIDATES[0]); c++ )
+
+            snprintf(path, sizeof(path), "%s.%s", base, asset->ext);
+            read_file(path, &payload, &payload_size);
+            for( size_t c = 0; c < sizeof(SNIFFED) / sizeof(SNIFFED[0]) && !payload; c++ )
             {
-                const char* ext = CANDIDATES[c] ? CANDIDATES[c] : asset->ext;
-                snprintf(path, sizeof(path), "%s.%s", base, ext);
-                if( read_file(path, &payload, &payload_size) )
-                    break;
+                snprintf(path, sizeof(path), "%s.%s", base, SNIFFED[c]);
+                read_file(path, &payload, &payload_size);
             }
         }
 
