@@ -2643,6 +2643,102 @@ worldmap_try_composite(
 }
 
 /*
+ * The `labels` archives — a map's place names.
+ *
+ * `u16 count`, then per label a NUL-terminated name, `u16 x`, `u16 y` and a `u8`
+ * size class. The coordinates are world coordinates (Lumbridge reads 3239, 3234)
+ * and a `/` in a name is a line break, which is why `Kingdom of/Misthalin` looks
+ * the way it does.
+ *
+ * 50 of osrs239's 51 label archives are two bytes — a count of zero. The
+ * fifty-first holds 548 labels in 10,261 bytes and consumes to the byte, which is
+ * what makes this layout a reading rather than a guess.
+ */
+struct CP_WorldMapLabel
+{
+    char* name;
+    int x;
+    int y;
+    int size;
+};
+
+static void
+worldmap_labels_free(
+    struct CP_WorldMapLabel* labels,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+        free(labels[i].name);
+    free(labels);
+}
+
+/**
+ * Decode a labels file, or return -1.
+ *
+ * Exact consumption is the test. A PNG or a composite stream will happily produce
+ * a plausible count and some strings, and the only thing that separates those from
+ * a real labels file is landing on the last byte.
+ */
+static int
+worldmap_try_labels(
+    const uint8_t* payload,
+    int size,
+    struct CP_WorldMapLabel** out_labels)
+{
+    struct RSCache_Buffer buf;
+
+    *out_labels = NULL;
+    if( size < 2 )
+        return -1;
+    RSCache_BufferInit(&buf, (uint8_t*)payload, (uint32_t)size);
+    int count = g2(&buf);
+    if( count < 0 || count > 100000 )
+        return -1;
+    if( count == 0 )
+        return buf.position == (uint32_t)size ? 0 : -1;
+
+    struct CP_WorldMapLabel* labels = calloc((size_t)count, sizeof(*labels));
+    if( !labels )
+        return -1;
+    for( int i = 0; i < count; i++ )
+    {
+        uint32_t start = buf.position;
+        while( buf.position < (uint32_t)size && buf.data[buf.position] )
+            buf.position++;
+        if( buf.position >= (uint32_t)size || buf.position - start > 255 )
+        {
+            worldmap_labels_free(labels, i);
+            return -1;
+        }
+        int length = (int)(buf.position - start);
+        labels[i].name = malloc((size_t)length + 1);
+        if( !labels[i].name )
+        {
+            worldmap_labels_free(labels, i);
+            return -1;
+        }
+        memcpy(labels[i].name, buf.data + start, (size_t)length);
+        labels[i].name[length] = '\0';
+        buf.position++; /* the NUL */
+        if( buf.position + 5 > (uint32_t)size )
+        {
+            worldmap_labels_free(labels, i + 1);
+            return -1;
+        }
+        labels[i].x = g2(&buf);
+        labels[i].y = g2(&buf);
+        labels[i].size = g1(&buf);
+    }
+    if( buf.position != (uint32_t)size )
+    {
+        worldmap_labels_free(labels, count);
+        return -1;
+    }
+    *out_labels = labels;
+    return count;
+}
+
+/*
  * The world-map table is laid out **kind by kind**: the archive is one of the five
  * names `class305` declares and the file is one map. So a codec here owns a whole
  * archive of maps, not one record — the same shape the interface and texture codecs
@@ -2910,7 +3006,36 @@ worldmap_write(
     }
     else
     {
-        return 0; /* PNGs and the empty label archives keep their payload */
+        /*
+         * Everything else is either labels or a PNG, and the labels decode is what
+         * tells them apart: exact consumption. A single-file archive's payload is
+         * the file itself, with no FileList framing.
+         */
+        struct CP_WorldMapLabel* labels = NULL;
+        int count = file_count == 1 ? worldmap_try_labels(payload, size, &labels) : -1;
+        if( count < 0 )
+            return 0; /* a PNG, or a labels file this does not read */
+
+        char label_path[1800];
+        snprintf(label_path, sizeof(label_path), "%s.wml", path_stem);
+        FILE* labels_out = fopen(label_path, "wb");
+        if( !labels_out )
+        {
+            worldmap_labels_free(labels, count);
+            return 0;
+        }
+        fprintf(labels_out,
+                "// World map labels — %d of them.\n"
+                "// label<N> = name,x,y,size. The coordinates are world coordinates and a\n"
+                "// `/` in a name is a line break, so `Kingdom of/Misthalin` is two lines.\n"
+                "// size is the text class: 0 small, 1 medium, 2 large.\n\n",
+                count);
+        for( int i = 0; i < count; i++ )
+            fprintf(labels_out, "label%d=%s,%d,%d,%d\n", i + 1, labels[i].name, labels[i].x,
+                    labels[i].y, labels[i].size);
+        fclose(labels_out);
+        worldmap_labels_free(labels, count);
+        return 1;
     }
     if( file_count <= 0 )
         return 0;
@@ -3061,7 +3186,84 @@ worldmap_read(
     }
     else
     {
-        return NULL;
+        /* Labels: one file per archive, so no member list and no compack. */
+        char label_path[1800];
+        snprintf(label_path, sizeof(label_path), "%s.wml", path_stem);
+        struct CP_ConfigFile labels_file;
+        int label_text = 0;
+        uint8_t* label_bytes = slurp(label_path, &label_text);
+        if( !label_bytes )
+            return NULL;
+
+        char* wrapped = malloc((size_t)label_text + 16);
+        if( !wrapped )
+        {
+            free(label_bytes);
+            return NULL;
+        }
+        int prefix = snprintf(wrapped, 16, "[labels]\n");
+        memcpy(wrapped + prefix, label_bytes, (size_t)label_text);
+        free(label_bytes);
+        int parsed = cp_config_file_load_memory(&labels_file, wrapped,
+                                                (size_t)(prefix + label_text), "labels");
+        free(wrapped);
+        if( !parsed || labels_file.count != 1 )
+        {
+            if( parsed )
+                cp_config_file_free(&labels_file);
+            return NULL;
+        }
+
+        const struct CP_Config* block = &labels_file.configs[0];
+        struct RSCache_Buffer out;
+        if( !RSCache_BufferInitAlloc(&out, 4096) )
+        {
+            cp_config_file_free(&labels_file);
+            return NULL;
+        }
+        p2(&out, block->count);
+        int ok = 1;
+        for( int i = 0; i < block->count && ok; i++ )
+        {
+            char scratch[512];
+            char* fields[4];
+            const char* value = block->lines[i].value;
+            int x = 0, y = 0, size = 0;
+
+            if( cp_indexed_key(block->lines[i].key, "label") < 0 )
+            {
+                ok = 0;
+                break;
+            }
+            if( strlen(value) >= sizeof(scratch) || cp_split(value, scratch, fields, 4) != 4 ||
+                !cp_parse_int(fields[1], &x) || !cp_parse_int(fields[2], &y) ||
+                !cp_parse_int(fields[3], &size) )
+            {
+                ok = 0;
+                break;
+            }
+            for( const char* c = fields[0]; *c; c++ )
+                p1(&out, (uint8_t)*c);
+            p1(&out, 0);
+            p2(&out, x);
+            p2(&out, y);
+            p1(&out, size);
+        }
+        cp_config_file_free(&labels_file);
+        if( !ok )
+        {
+            RSCache_BufferRelease(&out);
+            fprintf(stderr, "cachepack: %s: a label line is not name,x,y,size\n", label_path);
+            return NULL;
+        }
+        uint8_t* payload = malloc(out.position ? out.position : 1);
+        if( payload )
+        {
+            memcpy(payload, out.data, out.position);
+            *out_size = (int)out.position;
+        }
+        RSCache_BufferRelease(&out);
+        return payload;
     }
 
     char path[1800];

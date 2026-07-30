@@ -88,7 +88,7 @@ five names `class305` declares and the **file** is one map:
 | 0 | `details` | `details.wma` — `[main]`, `[ancient_cavern]`, … |
 | 1 | `compositemap` | `compositemap.wmc` — same blocks, region and icon lists |
 | 2 | `compositetexture` | `compositetexture/<map>.png` |
-| 3–54 | `labels` | one file each; empty (`00 00`) in this cache |
+| 3–54 | `labels` | `labels_10.wml` — `label<N>=name,x,y,size` |
 
 So it carries a codec *and* the split flag: the codec owns the two archives with a
 text form and declines the rest, which fall through to files plus a filepack. The
@@ -98,6 +98,31 @@ places that must agree, and did not until each was fixed in turn.
 The map names come from decoding archive 0, because a details record is the only
 place they are written down (`main` / `Gielinor Surface`). All four archives list the
 same file ids, so one decode names every member of every archive.
+
+The `labels` archives are one file each, so they carry no member index at all — a
+`.filepack` naming one entry says nothing, and splitting a single-member archive is
+what produced 51 one-line filepacks beside 51 one-file directories. 50 of osrs239's
+51 are a bare `00 00`; the fifty-first holds 548 place names:
+
+    label1=Lumbridge,3239,3234,1
+    label3=Kingdom of/Misthalin,3217,3321,2
+
+The coordinates are world coordinates and `/` is a line break. The layout was read
+off the bytes and confirmed by exact consumption — 548 labels, 10,261 bytes, zero
+remainder — which is also what separates a labels file from a PNG, since both will
+happily yield a plausible count and some strings.
+
+### What is still binary
+
+`worldmap/geography` — 2,101 `.wmg` files of per-tile data, which `class295.method5572`
+decodes. The grammar is *mostly* read: flags byte, then `(flags & 1)` selects a short
+form (optional overlay `u16`, underlay `u16`) and the long form carries an underlay,
+an optional overlay list and an optional loc list over `((flags & 24) >> 3) + 1`
+levels. 355 of the 2,101 files parse to exact consumption as a bare 64×64 grid with
+no header; the rest either drift or run out, so at least one case is still misread.
+The deob's containers declare a 3-byte header for a square (`class281`) and 5 for a
+zone (`class289`), and neither shape fits the standalone files — the record header
+appears to live in the compositemap stream rather than in the geography file.
 
 **This is also where the "unknown section type 91 / 219 / 249" flood came from.** The
 area decoder was being run over every member of every archive — PNG bytes included.

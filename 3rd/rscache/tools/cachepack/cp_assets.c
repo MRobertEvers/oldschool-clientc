@@ -926,7 +926,15 @@ export_one(
          * archives read as text and its `compositetexture` PNGs do not, and only the
          * codec knows which is which — declining is how it says "not this one".
          */
-        if( (asset->flags & CP_ASSET_SPLIT) && archive->file_count > 0 )
+        /*
+         * Splitting needs more than one member.
+         *
+         * A single-member archive has no member list worth stating: its payload *is*
+         * the file, and a `.filepack` naming one entry is a file that says nothing.
+         * The world map has 51 single-member `labels` archives, and splitting them
+         * produced 51 one-line filepacks beside 51 one-file directories.
+         */
+        if( (asset->flags & CP_ASSET_SPLIT) && archive->file_count > 1 )
         {
             /*
              * No text form, several members: each becomes a file under
