@@ -1,10 +1,23 @@
-# The OSRS rev-230 mock server
+# The OSRS rev-230 server
 
-A standalone server that speaks enough of the rev-230 protocol to drive the
-real client: log in, load a scene, walk around, watch npcs roam, switch sidebar
-tabs, equip items and rearrange the backpack. It exists so the client's
-**server-driven** paths can be exercised without a real server — the paths that
-never run offline, because offline the client has nothing to obey.
+> **This is not a mock, whatever the filenames say.** It began as one and the
+> `mock230_` prefix stuck; it is now the server this project runs, and it is
+> being grown into a full one modelled on LostCity — content in content files,
+> engine holding no ids. The prefix is a misnomer twice over, since it reads a
+> rev-**239** cache while speaking the rev-**230** wire. Renaming is on the
+> roadmap (§6.1) and has not happened.
+>
+> Read §3.13b–d and §6.1 before changing anything structural. The short version:
+> the transport is a seam (a socket *or* an in-process queue pair), the login
+> handshake is a non-blocking state machine, packets and script opcodes dispatch
+> through tables, and the player is a standalone saveable entity in a pool of
+> one — which is not the same as multiplayer working.
+
+A server that speaks enough of the rev-230 protocol to drive the real client:
+log in, load a scene, walk around, watch npcs roam, switch sidebar tabs, equip
+items, rearrange the backpack, bank, fight, and persist across sessions. It
+exercises the client's **server-driven** paths — the ones that never run
+offline, because offline the client has nothing to obey.
 
 ```
 ./run-live.sh     manifest_osrs230.ini testc test   # native  — starts the mock
@@ -833,6 +846,69 @@ Two traps worth recording:
 `make -C src test-mock230` asserts the shipped tree has zero gaps, so content
 written against an opcode the engine lacks fails the build rather than a player.
 
+### What is deliberately unimplemented
+
+166 of 396 as of this writing. The gap is not uniform, and four groups are
+blocked on data rather than on effort — worth knowing before picking one up:
+
+| family | why not |
+|---|---|
+| `oc_param`, `nc_param`, `lc_param` | **`runtime_typed`**: the param's declared type decides whether the result lands on the int stack or the string stack. No decoder here keeps a general per-record param table to answer that from. This is the one blocking the equipment/combat migration, and it is a *decoder* change, not an opcode one. |
+| `oc_cost`, `oc_members`, `oc_tradeable`, `oc_desc`, `nc_desc` | not decoded. A dat2 npc record has no description at all — it is server-driven at this revision. |
+| `oc_op` | `known = 0` in the meta table: no signature exists, so the VM correctly refuses to execute it rather than guessing an arity. |
+| `stat_add`, `stat_sub` | same arity as `stat_boost`, but nothing in this repo pins whether they move the *base* level or the *boosted* one. |
+
+The rule the last batch followed, and which the next one should: **an opcode that
+cannot be answered from real data is better left to the VM's loud stub than
+implemented from a plausible guess.** The stub says it is missing; a wrong
+implementation is silent. `oc_desc` was written and then removed on exactly this
+ground when `Mock230ObjInfo` turned out to carry no description field.
+
+## 3.15 Player persistence is an ini per player
+
+`src/net/mock/mock230_save.c`. One file per player under `saves/`
+(`MOCK230_SAVES=dir` overrides), written on session teardown and read at login
+after `mock230_world_init` has seeded the defaults it overlays.
+
+```ini
+[player]
+version = 1
+name = embed
+x = 3222
+[stats]
+; <stat> = <level> <boosted> <xp_tenths>
+3 = 10 10 11540
+[inv]
+; <slot> = <obj> <count>
+4 = 1321 1
+```
+
+Ini rather than a binary blob because a save is content a human has to be able
+to read and fix: a corrupt binary save is a bug report with no evidence in it. It
+also means a save survives a struct change — an unknown key is skipped and a
+missing one keeps its default, so adding a field does not invalidate every
+existing save. `version` is bumped only when a key changes *meaning*, which is
+the one case a reader cannot detect for itself.
+
+Three things about it are load-bearing:
+
+- **What persists is content's decision.** A varp is written only when its
+  `.varp` config says `scope=perm` — LostCity's rule, and the field
+  `Mock230VarpDef.scope_perm` had been parsed off those configs and read by
+  nothing since that reader was written. An *undeclared* varp is server
+  bookkeeping and is deliberately not saved, matching the transmit gate's
+  default.
+- **Write-then-rename.** A crash mid-write leaves the previous save intact
+  rather than a truncated one, which for a save file is the difference between
+  losing a session and losing a character.
+- **The name is sanitised to `[a-z0-9_]`.** It comes off the login screen, so it
+  is attacker-controlled; `../../etc/passwd` is a valid login name and must not
+  become a path. Characters outside the set are *dropped* rather than mapped, so
+  `..` cannot survive as `__`.
+
+The save order matters at teardown: it runs before `mock230_bank_shutdown`,
+which frees the container the save is about to read.
+
 ## 3.14 The world map is the server's, start to finish
 
 `src/net/mock/mock230_worldmap.c`. The orb on the minimap has no client-side
@@ -960,17 +1036,26 @@ against.
 
 ### 6.1 Becoming a full server, in dependency order
 
-The transport seam (§3.13b) and the interaction model (§3.13c) are the first two
-steps of this and are done. What is left, in the order each unblocks the next:
+The transport seam (§3.13b), the interaction model (§3.13c) and the dispatch
+tables (§3.13d) are done. What is left, in the order each unblocks the next:
 
-1. **Finish the session/world/player split.** Net state is out of
-   `struct Mock230Server` and lives on `Mock230Session`; what remains is the
-   player. `srv->player` is still a single embedded struct, so a second player
-   is not a change but a rewrite of every signature that takes `srv`. The shape
-   wanted is `M2World { players[], npcs, zones, ... }` with the player passed
-   down rather than reached through the world. Do it before the content grows —
-   it gets more expensive every week, and *what is saveable is exactly
-   `M2Player`*, so persistence wants the same struct.
+1. **Finish multiplayer.** The *storage* half of the split is done: the world
+   holds `players[MOCK230_PLAYER_MAX]` with a `player` pointer, and each player
+   carries `world`, `session` and `pid`, so `Mock230Player` is a standalone,
+   saveable entity — which is what let persistence land (§3.15).
+
+   `MOCK230_PLAYER_MAX` is **1**, and raising it is not enough. Three things
+   still assume one player:
+
+   - **the encoders**, which take `struct Mock230Server*` and reach
+     `srv->player->session`. They need to take a player. That is 81 declarations
+     and ~90 call sites, and it is the bulk of the remaining work;
+   - **the tick phases**, which act on `srv->player` rather than iterating the
+     pool;
+   - **`PLAYER_INFO`**, which writes the local player and then the terminator —
+     it has no path for encoding anyone else.
+
+   Do not assume a second player works because the array exists.
 2. ~~**Dispatch tables, twice.**~~ — **done**, see §3.13d. Inbound packets are a
    45-entry table; the opcode gap report is generated from the `case` labels and
    runs at load. What is *not* done is splitting the 1,550-line host `switch`

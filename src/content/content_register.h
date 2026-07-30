@@ -42,12 +42,12 @@ enum ContentIdAuthority
     CONTENT_IDS_PROTOCOL,
 };
 
-/** Where layer 0 (`pack/<ns>.pack`) comes from. */
+/** Where the *generated* names (`pack/<ns>.pack`) come from. */
 enum ContentNameAuthority
 {
-    /** The cache's own gameval table; cachepack regenerates it wholesale. */
+    /** The cache's own gameval table; cachepack regenerates the file wholesale. */
     CONTENT_NAMES_CACHE = 0,
-    /** Humans wrote them; there is no layer 0 to regenerate. */
+    /** Humans wrote them; there is no generated file at all. */
     CONTENT_NAMES_AUTHORED,
     /** Crawled out of the configs — LostCity does this for `category`. */
     CONTENT_NAMES_DERIVED,

@@ -109,36 +109,46 @@ section_header(char* line)
 /* ------------------------------------------------------------------ */
 
 /*
- * A namespace is two layers, not two directories. See
- * docs/CONTENT_ARCHITECTURE.md §4.1.
+ * A namespace has two files, and the difference between them is *who wrote the
+ * name* — a machine or a person.
  *
- *   layer 0   pack/<ns>.pack    machine-owned. Regenerated wholesale by
- *                               cachepack from the cache's gameval table.
- *                               Never hand-edited; comments here get eaten.
- *   layer 1   names/<ns>.pack   human-owned. Never machine-written. Holds the
- *                               three things layer 0 structurally cannot say:
- *                                 alias     a second name for a named id
- *                                 override  replace layer 0's name for an id
- *                                 fill      name an id layer 0 leaves unnamed
+ *   pack/<ns>.pack     the cache's own names. Regenerated wholesale by
+ *                      `cachepack unpack` out of the cache's gameval table, so
+ *                      anything hand-written here is deleted by the next run.
  *
- * `pack/varp.pack` is a *function of the cache* — `115=bankcert` is the cache's
- * own gameval, not anybody's choice — and `LC_Pack` is `names[id]`, one name per
- * id. So `115=bank_withdrawnotes` cannot live there, and the old answer was to
- * hand-splice authored lines into a file `cachepack unpack` regenerates. This
- * makes layer 0 disposable: `rm -rf pack/ && cachepack unpack` becomes safe, and
- * every surviving name in `names/` is one a human wrote.
+ *   names/<ns>.pack    names a human chose. Never machine-written. This is the
+ *                      only place that can hold the three things the cache file
+ *                      structurally cannot:
+ *                        - a *second* name for an id the cache already names
+ *                        - a *replacement* for a cache name this world repurposed
+ *                        - a name for an id the cache never names at all
+ *
+ * The reason both exist: `pack/varp.pack` is a function of the cache — `115` is
+ * `bankcert` because that is what the cache calls it, not because anyone chose
+ * it — and the file format is one name per id. So `115=bank_withdrawnotes`
+ * cannot live there, and the old answer was to hand-splice authored lines into
+ * a file that gets regenerated. Separating them makes the cache file
+ * disposable: `rm -rf pack/ && cachepack unpack` is safe, and every name left in
+ * `names/` is one somebody wrote on purpose.
+ *
+ * Both files resolve name -> id, so `bankcert` and `bank_withdrawnotes` both
+ * work. The authored name wins for id -> name, because the canonical name of an
+ * id this world repurposed is the one this world gave it.
+ *
+ * See docs/CONTENT_ARCHITECTURE.md.
  */
 enum
 {
-    PACK_LAYER_CACHE = 0,
-    PACK_LAYER_AUTHORED = 1,
+    PACK_SOURCE_CACHE = 0,
+    PACK_SOURCE_AUTHORED = 1,
 };
 
 struct PackEntry
 {
     char* name;
     int id;
-    int layer;
+    /** Where the name came from: the cache, or a human. */
+    int source;
 };
 
 struct Pack
@@ -155,7 +165,7 @@ pack_add(
     struct Pack* pack,
     const char* name,
     int id,
-    int layer)
+    int source)
 {
     if( pack->count == pack->capacity )
     {
@@ -169,7 +179,7 @@ pack_add(
     }
     pack->entries[pack->count].name = strdup(name);
     pack->entries[pack->count].id = id;
-    pack->entries[pack->count].layer = layer;
+    pack->entries[pack->count].source = source;
     pack->count++;
 }
 
@@ -177,15 +187,15 @@ static int
 pack_load(
     struct Pack* pack,
     const char* path,
-    int layer)
+    int source)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
     int loaded = 0;
 
-    /* A missing pack is not an error: layer 1 is optional for every namespace,
-     * and layer 0 does not exist at all for the server-only ones (`stat` has no
-     * gameval archive to be regenerated from). */
+    /* A missing file is not an error. The authored file is optional for every
+     * namespace, and the cache file does not exist at all for the server-only
+     * ones — nothing in the cache names the skills. */
     if( !file )
         return 0;
     while( fgets(raw, sizeof(raw), file) )
@@ -198,7 +208,7 @@ pack_load(
         name = split_key_value(line);
         if( !name || !*name )
             continue;
-        pack_add(pack, name, atoi(line), layer);
+        pack_add(pack, name, atoi(line), source);
         loaded++;
     }
     fclose(file);
@@ -223,24 +233,24 @@ mock230_content_symbol(
         return -1;
 
     /*
-     * Both layers resolve name -> id, authored first.
+     * Both files resolve name -> id, authored first.
      *
-     * Layer 0's names keep working on purpose: `bankcert` is what the cache
+     * The cache's names keep working on purpose: `bankcert` is what the cache
      * calls varp 115 and `bank_withdrawnotes` is what this world calls it, and
      * a config or script may reasonably say either. Searching authored first
      * only matters when the two disagree, and the loader has already refused to
-     * start in that case (see validate_name_layers).
+     * start in that case (see validate_name_sources).
      */
     pack = &g_packs[kind];
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].layer == PACK_LAYER_AUTHORED &&
+        if( pack->entries[i].source == PACK_SOURCE_AUTHORED &&
             strcmp(pack->entries[i].name, name) == 0 )
             return pack->entries[i].id;
     }
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].layer == PACK_LAYER_CACHE &&
+        if( pack->entries[i].source == PACK_SOURCE_CACHE &&
             strcmp(pack->entries[i].name, name) == 0 )
             return pack->entries[i].id;
     }
@@ -257,17 +267,17 @@ mock230_content_symbol_name(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return NULL;
     pack = &g_packs[kind];
-    /* Layer 1 wins for id -> name: the canonical name of an id this world
-     * repurposed is the one this world gave it, not the cache's. */
+    /* The authored name wins for id -> name: the canonical name of an id this
+     * world repurposed is the one this world gave it, not the cache's. */
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].layer == PACK_LAYER_AUTHORED &&
+        if( pack->entries[i].source == PACK_SOURCE_AUTHORED &&
             pack->entries[i].id == symbol_id )
             return pack->entries[i].name;
     }
     for( int i = 0; i < pack->count; i++ )
     {
-        if( pack->entries[i].layer == PACK_LAYER_CACHE && pack->entries[i].id == symbol_id )
+        if( pack->entries[i].source == PACK_SOURCE_CACHE && pack->entries[i].id == symbol_id )
             return pack->entries[i].name;
     }
     return NULL;
@@ -278,15 +288,16 @@ static const char*
 pack_kind_name(enum Mock230PackKind kind);
 
 /**
- * Refuse to start on a namespace whose two layers disagree.
+ * Refuse to start on a namespace whose two files disagree.
  *
  * Two rules, both LostCity's (`packConfigs()`), and both describing hazards this
  * tree has already written down in prose rather than checked:
  *
  * 1. **An authored name may not shadow a *different* id's cache name.** If
- *    layer 0 says `115=bankcert` and layer 1 says `843=bankcert`, then
+ *    `pack/` says `115=bankcert` and `names/` says `843=bankcert`, then
  *    `bankcert` in a script means one thing to a reader and another to the
- *    loader. Aliasing the *same* id is the entire point of layer 1 and is fine;
+ *    loader. A second name for the *same* id is the entire point of the
+ *    authored file and is fine;
  *    aliasing a different one is a typo that would otherwise resolve silently.
  *
  * 2. **varp and varbit share one RuneScript name domain.** `%name` does not say
@@ -297,7 +308,7 @@ pack_kind_name(enum Mock230PackKind kind);
  * count, so `mock230_pack` fails on them too.
  */
 static int
-validate_name_layers(void)
+validate_name_sources(void)
 {
     /* varp and varbit only. `varn`/`vars` would join this list when they exist;
      * the other namespaces each have their own domain. */
@@ -313,14 +324,14 @@ validate_name_layers(void)
 
         for( int i = 0; i < pack->count; i++ )
         {
-            if( pack->entries[i].layer != PACK_LAYER_AUTHORED )
+            if( pack->entries[i].source != PACK_SOURCE_AUTHORED )
                 continue;
             for( int j = 0; j < pack->count; j++ )
             {
-                if( pack->entries[j].layer != PACK_LAYER_CACHE )
+                if( pack->entries[j].source != PACK_SOURCE_CACHE )
                     continue;
                 if( pack->entries[j].id == pack->entries[i].id )
-                    continue; /* an alias for the same id — the point of layer 1 */
+                    continue; /* a second name for the same id — the point */
                 if( strcmp(pack->entries[j].name, pack->entries[i].name) != 0 )
                     continue;
                 CONTENT_ERROR(
@@ -1676,9 +1687,9 @@ mock230_content_load(const char* dir)
      * The namespace register.
      *
      * One row per namespace rather than one per *file*, because a namespace is
-     * two layers of one name domain (see the Packs section above): layer 0 in
-     * `pack/<ns>.pack`, layer 1 in `names/<ns>.pack`. A namespace with no cache
-     * table — `stat`, which no gameval archive names — simply has no layer 0,
+     * two files for one name domain (see the Packs section above): the cache's
+     * in `pack/<ns>.pack`, the authored in `names/<ns>.pack`. A namespace the
+     * cache does not name — `stat` — simply has no `pack/` file,
      * and a missing pack loads as zero symbols rather than as an error.
      *
      * This is also step 2 of docs/CONTENT_ARCHITECTURE.md in embryo: when the
@@ -1706,11 +1717,11 @@ mock230_content_load(const char* dir)
         { "stat",      MOCK230_PACK_STAT      },
     };
     /*
-     * Where layer 1 used to live, before it was a layer.
+     * Where the authored names used to live.
      *
      * Kept so a content tree that has not moved its files yet still loads —
-     * these are read at layer 1, which is what they always were in spirit. They
-     * go away once the tree ships `names/`.
+     * these are read as authored, which is what they always were in spirit.
+     * They go away once every tree ships `names/`.
      */
     static const struct
     {
@@ -1747,32 +1758,32 @@ mock230_content_load(const char* dir)
     closedir(probe);
 
     /*
-     * Layer 0 first, then layer 1, then the pre-`names/` locations.
+     * Cache names first, then authored, then the pre-`names/` locations.
      *
-     * Order is not resolution — the lookups pick by layer, not by position — but
-     * loading in this order keeps the diagnostics readable: an authored name is
-     * reported against the cache name it collides with, and the cache name has
-     * to be present for that to say anything useful.
+     * Order is not resolution — the lookups pick by source, not by position —
+     * but loading in this order keeps the diagnostics readable: an authored name
+     * is reported against the cache name it collides with, and the cache name
+     * has to be present for that to say anything useful.
      */
     for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
     {
         snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, k_namespaces[i].ns);
-        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_LAYER_CACHE);
+        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_SOURCE_CACHE);
     }
     for( size_t i = 0; i < sizeof(k_namespaces) / sizeof(k_namespaces[0]); i++ )
     {
         snprintf(path, sizeof(path), "%s/names/%s.pack", dir, k_namespaces[i].ns);
-        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_LAYER_AUTHORED);
+        symbols += pack_load(&g_packs[k_namespaces[i].kind], path, PACK_SOURCE_AUTHORED);
     }
     for( size_t i = 0; i < sizeof(k_legacy_authored) / sizeof(k_legacy_authored[0]); i++ )
     {
         snprintf(path, sizeof(path), "%s/%s", dir, k_legacy_authored[i].file);
-        symbols += pack_load(&g_packs[k_legacy_authored[i].kind], path, PACK_LAYER_AUTHORED);
+        symbols += pack_load(&g_packs[k_legacy_authored[i].kind], path, PACK_SOURCE_AUTHORED);
     }
 
-    /* A namespace whose two layers disagree is refused here rather than
+    /* A namespace whose two files disagree is refused here rather than
      * resolved silently later. */
-    validate_name_layers();
+    validate_name_sources();
 
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */

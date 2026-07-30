@@ -446,6 +446,306 @@ prune_doors(const char* content)
     return 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Pins                                                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `names/pins.ini` — every symbol this server names, and the id it resolved to.
+ *
+ * The stated risk of absorbing a new cache is **id drift**: the same display
+ * name on a different record, which spawns and fights and looks entirely
+ * plausible. `goblin` was the worked example — 3028 at two revisions while the
+ * roster had 655, which the cache also calls "Goblin".
+ *
+ * A diff between two caches is the wrong place to look for that: rev 239 over
+ * rev 235 changes thousands of npcs and the server names a few dozen. The pin
+ * file is the intersection made explicit, so `cachepack unpack --compare` can
+ * report *the six that matter* rather than 1,877 that do not.
+ *
+ * The closure is computed by reading `server/` as text and looking every token
+ * up in every pack. That over-approximates — a word that happens to be a symbol
+ * gets pinned too — and over-approximating is the safe direction: a pin that
+ * nothing needs costs a line, a missing pin costs a silent rebind.
+ */
+struct Pin
+{
+    enum Mock230PackKind kind;
+    char name[128];
+    int id;
+};
+
+static struct Pin* g_pins;
+static int g_pin_count;
+static int g_pin_capacity;
+
+static void
+pin_add(
+    enum Mock230PackKind kind,
+    const char* name,
+    int id)
+{
+    for( int i = 0; i < g_pin_count; i++ )
+    {
+        if( g_pins[i].kind == kind && strcmp(g_pins[i].name, name) == 0 )
+            return;
+    }
+    if( g_pin_count == g_pin_capacity )
+    {
+        int capacity = g_pin_capacity ? g_pin_capacity * 2 : 256;
+        struct Pin* grown = realloc(g_pins, (size_t)capacity * sizeof(*grown));
+
+        if( !grown )
+            return;
+        g_pins = grown;
+        g_pin_capacity = capacity;
+    }
+    g_pins[g_pin_count].kind = kind;
+    snprintf(g_pins[g_pin_count].name, sizeof(g_pins[g_pin_count].name), "%s", name);
+    g_pins[g_pin_count].id = id;
+    g_pin_count++;
+}
+
+/** Every token in one file, looked up in every namespace. */
+static void
+pin_scan_file(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char line[4096];
+
+    if( !file )
+        return;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* comment = strstr(line, "//");
+        char* cursor;
+
+        if( comment )
+            *comment = '\0';
+        cursor = line;
+        while( *cursor )
+        {
+            char token[128];
+            int length = 0;
+
+            /* A symbol is `[A-Za-z0-9_]` plus the `:` that qualifies a
+             * component (`bankmain:items`), which is the one name shape that
+             * is not a bare identifier. */
+            while( *cursor && !(isalnum((unsigned char)*cursor) || *cursor == '_') )
+                cursor++;
+            while( *cursor && (isalnum((unsigned char)*cursor) || *cursor == '_' ||
+                               (*cursor == ':' && isalpha((unsigned char)cursor[1]))) )
+            {
+                if( length < (int)sizeof(token) - 1 )
+                    token[length++] = *cursor;
+                cursor++;
+            }
+            token[length] = '\0';
+            if( length < 2 )
+                continue;
+
+            for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+            {
+                int id = mock230_content_symbol((enum Mock230PackKind)kind, token);
+
+                if( id >= 0 )
+                    pin_add((enum Mock230PackKind)kind, token, id);
+            }
+        }
+    }
+    fclose(file);
+}
+
+static void
+pin_scan_dir(const char* dir)
+{
+    DIR* handle = opendir(dir);
+    struct dirent* entry;
+
+    if( !handle )
+        return;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char path[1024];
+        struct stat info;
+
+        if( entry->d_name[0] == '.' || strcmp(entry->d_name, "build") == 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+        if( stat(path, &info) != 0 )
+            continue;
+        if( S_ISDIR(info.st_mode) )
+            pin_scan_dir(path);
+        else
+            pin_scan_file(path);
+    }
+    closedir(handle);
+}
+
+/** The namespace a pin is written under, matching `content.ini`'s spelling. */
+static const char*
+pin_kind_name(enum Mock230PackKind kind)
+{
+    switch( kind )
+    {
+    case MOCK230_PACK_NPC:       return "npc";
+    case MOCK230_PACK_OBJ:       return "obj";
+    case MOCK230_PACK_LOC:       return "loc";
+    case MOCK230_PACK_SEQ:       return "seq";
+    case MOCK230_PACK_SPOTANIM:  return "spotanim";
+    case MOCK230_PACK_INV:       return "inv";
+    case MOCK230_PACK_VARP:      return "varp";
+    case MOCK230_PACK_VARBIT:    return "varbit";
+    case MOCK230_PACK_INTERFACE: return "interface";
+    case MOCK230_PACK_COMPONENT: return "component";
+    case MOCK230_PACK_STAT:      return "stat";
+    case MOCK230_PACK_PARAM:     return "param";
+    case MOCK230_PACK_HITSPLAT:  return "hitsplat";
+    default:                     return NULL;
+    }
+}
+
+static int
+write_pins(const char* content)
+{
+    char scripts[1024];
+    char path[1024];
+    FILE* out;
+    int written = 0;
+
+    snprintf(scripts, sizeof(scripts), "%s/server", content);
+    pin_scan_dir(scripts);
+    /* The maps carry the npc and obj spawns, which name records too. */
+    snprintf(scripts, sizeof(scripts), "%s/maps", content);
+    pin_scan_dir(scripts);
+
+    /* Plus the engine's own table: C addresses these by name and no content
+     * file mentions them, so a text scan alone would miss every one — and they
+     * are the ids a bump is most likely to move under us. */
+    {
+        int count = 0;
+        const struct Mock230SymbolRef* refs = mock230_ids_symbols(&count);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = mock230_content_symbol(refs[i].kind, refs[i].name);
+
+            if( id >= 0 )
+                pin_add(refs[i].kind, refs[i].name, id);
+        }
+    }
+
+    snprintf(path, sizeof(path), "%s/names/pins.ini", content);
+    out = fopen(path, "wb");
+    if( !out )
+    {
+        report_error("cannot write %s", path);
+        return 0;
+    }
+    fprintf(out,
+            "; Generated by `mock230_pack --write-pins`. Do not edit.\n"
+            ";\n"
+            "; Every symbol this server names, and the id it resolves to against\n"
+            "; the cache in meta.ini. `cachepack unpack --compare` reads this to\n"
+            "; report which of a new cache's changes land on something content\n"
+            "; actually refers to — see docs/CONTENT_ARCHITECTURE.md §5.\n"
+            ";\n"
+            "; The closure over-approximates: it is every token in server/ and\n"
+            "; maps/ that resolves in any namespace, so a word that happens to be\n"
+            "; a symbol is pinned too. That is the safe direction — a spurious pin\n"
+            "; costs a line of review, a missing one costs a silent rebind.\n");
+
+    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    {
+        const char* section = pin_kind_name((enum Mock230PackKind)kind);
+        int first = 1;
+
+        if( !section )
+            continue;
+        for( int i = 0; i < g_pin_count; i++ )
+        {
+            if( g_pins[i].kind != (enum Mock230PackKind)kind )
+                continue;
+            if( first )
+            {
+                fprintf(out, "\n[%s]\n", section);
+                first = 0;
+            }
+            fprintf(out, "%s = %d\n", g_pins[i].name, g_pins[i].id);
+            written++;
+        }
+    }
+    fclose(out);
+    fprintf(stderr, "pins\n        %d symbol(s) -> %s\n", written, path);
+    return 1;
+}
+
+/*
+ * A server-allocated param id has to clear the cache's own high-water mark.
+ *
+ * This block used to start at 2000 with the note "above every real param id so
+ * they cannot collide with one". cache.osrs239's param group holds 2,634
+ * records covering 0..2633 with no gaps, so all fifteen of them named a param
+ * the cache already defines — `hitpoints` sat on 2100, which is a real record,
+ * and `mock230_pack --cache-out` wrote over it.
+ *
+ * The check is not "are they above 2000", it is "are they above whatever this
+ * cache actually goes up to", which is the only version that survives a bump.
+ */
+static void
+validate_server_params(struct RSCache_Dat2Disk* disk)
+{
+    int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_PARAMS);
+    /* Every field the server invents. Ordered as the pack file lists them, so a
+     * failure names the first one that overlaps rather than an arbitrary one. */
+    static const char* const k_server_params[] = {
+        "death_drop", "attack_anim",  "defend_anim",  "death_anim",   "huntrange",
+        "attackrange", "damagetype",  "next_loc_stage", "slashattack_anim",
+        "hitpoints",  "attacklevel",  "strengthlevel", "defencelevel", "respawnrate",
+        "wanderrange",
+    };
+    int high_water = 0;
+
+    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
+    {
+        report_warning("no param config archive — server param ids unchecked");
+        if( archive )
+            RSCache_Dat2DiskArchiveFree(archive);
+        return;
+    }
+    for( int i = 0; i < archive->file_count; i++ )
+    {
+        int id = archive->file_ids ? archive->file_ids[i] : i;
+        if( id + 1 > high_water )
+            high_water = id + 1;
+    }
+    RSCache_Dat2DiskArchiveFree(archive);
+
+    int collisions = 0;
+    for( size_t i = 0; i < sizeof(k_server_params) / sizeof(k_server_params[0]); i++ )
+    {
+        int id = mock230_content_symbol(MOCK230_PACK_PARAM, k_server_params[i]);
+
+        if( id < 0 )
+        {
+            report_error("names/param.pack has no id for `%s`", k_server_params[i]);
+            continue;
+        }
+        if( id < high_water )
+        {
+            report_error("param `%s` is %d, which the cache already defines "
+                         "(its params run 0..%d) — allocate from %d",
+                         k_server_params[i], id, high_water - 1, high_water);
+            collisions++;
+        }
+    }
+    fprintf(stderr, "server params\n        %d allocated, cache holds 0..%d%s\n",
+            (int)(sizeof(k_server_params) / sizeof(k_server_params[0])), high_water - 1,
+            collisions ? ", WITH COLLISIONS" : "");
+}
+
 static void
 validate_doors(
     struct RSCache_Dat2Disk* disk,
@@ -1044,6 +1344,7 @@ main(
         if( disk )
         {
             RSCache_Dat2DiskSetProfile(disk, &profile);
+            validate_server_params(disk);
             validate_doors(disk, &profile);
             RSCache_Dat2DiskFree(disk);
             if( prune )

@@ -34,8 +34,8 @@ cp_register_load(const char* srcdir);
  * May cachepack write `pack/<ns>.pack`?
  *
  * False when the tree declared the namespace's names as authored, derived or
- * imported. Layer 1 (`names/<ns>.pack`) is never cachepack's to write under any
- * circumstances and is not asked about.
+ * imported. `names/<ns>.pack` — the hand-written file — is never cachepack's to
+ * write under any circumstances and is not asked about.
  */
 bool
 cp_register_may_write_pack(const char* ns);
