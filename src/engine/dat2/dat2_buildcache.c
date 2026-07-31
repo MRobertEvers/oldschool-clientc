@@ -890,7 +890,15 @@ dat2_buildcache_objects_init_from_filelist(
         if( dat2_buildcache_object_get(dat2_buildcache, id) )
             continue;
 
-        object = RSCache_Dat2ConfigObjNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        /* Profile, not flags-0 — same reason as the loc decode below. A rev-239
+         * obj record can carry opcodes 160 and 200-202, and the flags-0 decoder
+         * treats an unknown opcode as "stop, do not misalign", so every field
+         * after the first one of those is silently dropped. `params` (249) is
+         * written last, so it was the field that always went. */
+        object = RSCache_Dat2ConfigObjNewDecodeProfile(
+            CacheProvider_Profile(&dat2_buildcache->base),
+            filelist->files[i],
+            filelist->file_sizes[i]);
         if( !object )
             continue;
 

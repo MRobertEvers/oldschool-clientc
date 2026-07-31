@@ -76,6 +76,22 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     5505: (0, 0, 1, 0),  # CAM_GETANGLE_XA -> pitch
     5506: (0, 0, 1, 0),  # CAM_GETANGLE_YA -> yaw
     3328: (0, 0, 1, 0),  # idle-time getter (script 5327 logout warning polls it)
+    # Account-standing getters in the 3300 family. All three are no-arg and push
+    # one int (`listOf()` -> `listOf(INT/BOOLEAN/FLAGS)` in the vendored
+    # Command.kt the cs2 tool reads); none of the name heuristics above match
+    # them, so they were the only holes left in 3300..3327 and STAFFMODLEVEL
+    # aborted the boot from script 73 (the chat-input handler, which gates
+    # `::`/backtick command parsing on it).
+    #
+    # Stubs, deliberately: nothing in this port has the value. The rev-230 login
+    # response the mock server sends is the bare `2` with no staff-level tail
+    # (loginproto.c decodes one for the 2004 handshake, but that value stops at
+    # `struct LoginProto` and no generation forwards it), so the honest answer is
+    # "not staff, no world flags" — the same 0 rs_minimenu_build.c already
+    # assumes when it omits the staff-only report row.
+    3316: (0, 0, 1, 0),  # STAFFMODLEVEL -> staff rights level (stub: 0)
+    3323: (0, 0, 1, 0),  # PLAYERMOD -> is-player-moderator bool (stub: 0)
+    3324: (0, 0, 1, 0),  # WORLDFLAGS -> world flag bits (stub: 0)
     # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards them to
     # the host (CS2VM_HOST_REQUEST_MINIMAP), so they never reach StackMetaStub —
     # these document the contracts. Setters pop one value; GETZOOM pushes the zoom

@@ -612,11 +612,22 @@ decoders off entirely.
 "Cannot handle" now means both halves. The script codec **compiles its own
 output back before accepting it**, and declines the record if that fails. It did
 not, and the two counts disagreed: 9,433 scripts decompile but only 9,368 of
-those sources compile, so `pack` wrote 9,660 archives out of 9,725 and lost 65
-scripts with nothing but a count to say so. A friendly form is only
-friendly if it is also the whole record; verifying at export makes the tree
-lossless by construction rather than by the two halves happening to agree, and
-`unpack` then `pack` restores all 9,725.
+those sources compile.
+
+The cache was never short — `pack --base` copies the base first, so a declined
+archive keeps the base cache's bytes. What was wrong is subtler and worse: a
+`.cs2` the compiler cannot read is a file you can edit, pack, and watch ship the
+*original* bytes, with nothing but a counter to say your change was dropped.
+Verifying at export means every `.cs2` in the tree is one the compiler accepts,
+so editing it takes effect, and the 357 records that cannot promise that are
+`.cs2b` and visibly bytecode.
+
+**Pack the way you unpacked.** Verification uses whatever `CACHEPACK_CS2_NAMES`
+was set to at unpack time, and a source full of `coins_995` will not compile
+without those tables: packing the same tree with the variable unset declines
+4,991 records rather than 357. Coverage does not depend on the tables (see
+`--names` below) — only the spellings do — so unpacking without them is equally
+fine, as long as packing matches.
 
 A few things worth knowing:
 

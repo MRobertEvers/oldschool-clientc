@@ -386,13 +386,16 @@ RSCache_ClientScriptNewFromDecodeFlags(
     assert(data);
     assert(data_size > 0);
 
-    bool legacy = flags == RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+    bool legacy = (flags & RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY) != 0;
     int footer_size = legacy ? CS2_SCRIPT_TRAILER_FOOTER_LEGACY : CS2_SCRIPT_TRAILER_FOOTER_MODERN;
 
     struct RSCache_ClientScript* decoded =
         cs2_script_try_decode_footer(script_id, data, data_size, footer_size, legacy);
     if( decoded )
         return decoded;
+
+    if( flags & RSCACHE_CLIENTSCRIPT_DECODE_QUIET )
+        return NULL;
 
     fprintf(
         stderr,

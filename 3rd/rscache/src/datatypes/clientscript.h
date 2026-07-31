@@ -11,6 +11,17 @@
 #define RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY 1
 
 /**
+ * OR into the decode flags to suppress the "decode failed" diagnostic.
+ *
+ * For a caller that tries one trailer family and falls back to the other: the
+ * first attempt refusing is the normal path, not an error, and reporting it
+ * names a script that goes on to load fine. The second attempt should stay loud.
+ *
+ * Decode-only. `RSCache_ClientScriptEncodeFlags` never sees this bit.
+ */
+#define RSCACHE_CLIENTSCRIPT_DECODE_QUIET 2
+
+/**
  * Trailer flag for this cache.
  *
  * OSRS >= 237 uses the modern 16-byte trailer (long locals/args). Everything

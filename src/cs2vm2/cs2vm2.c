@@ -6330,8 +6330,10 @@ static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
     { 2314, { 2, 0, 0, 0, 1 } },
     /* 2703: count of a widget's dynamic children (Class46.aClass46Array798). */
     { 2703, { 1, 0, 1, 0, 1 } },
-    { 3316, { 0, 0, 1, 0, 1 } }, /* STAFFMODLEVEL */
-    { 3323, { 0, 0, 1, 0, 1 } }, /* PLAYERMOD */
+    /* 3316 STAFFMODLEVEL and 3323 PLAYERMOD used to sit here. Both now carry the
+     * same signature in the canonical table (gen_opcode_stack.py's MANUAL_STACK),
+     * and the two eras agree on it, so an overlay entry would only shadow an
+     * identical one. */
     { 3329, { 0, 0, 1, 0, 1 } }, /* Class50_Sub2.aBoolean5233 */
     { 3335, { 0, 0, 1, 0, 1 } }, /* language index (Class348_Sub33.anInt6967) */
     { 3340, { 0, 0, 1, 0, 1 } }, /* Class175.aBoolean2329 */

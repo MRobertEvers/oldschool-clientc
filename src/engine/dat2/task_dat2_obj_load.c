@@ -38,8 +38,22 @@ obj_adapt_member(
     struct RSCache_Dat2ConfigObj* rscache_obj;
     struct ToriRS_Objtype* torirs_obj;
 
-    rscache_obj = RSCache_Dat2ConfigObjNewDecode(
-        group->filelist->files[pos], group->filelist->file_sizes[pos]);
+    /*
+     * Profile, not flags-0. `RSCache_Dat2ConfigObjNewDecode` decodes with no
+     * revision flags at all, and the obj decoder's `default:` case is
+     * `return false` — stop rather than misalign. A rev-239 record carrying
+     * opcode 160 (stackable=2) or 200-202 (EntityOps) therefore stopped there,
+     * and since `params` is opcode 249 it was always past the stop: every
+     * objtype in this client reached the CS2 VM with param_count == 0, so
+     * `oc_param` answered the ParamType default for all of them. The prayer
+     * book is built from `oc_param(<prayer obj>, param_1751)`, so it rendered
+     * as an empty panel. Every other config type here already decodes with the
+     * profile; obj was the one that did not.
+     */
+    rscache_obj = RSCache_Dat2ConfigObjNewDecodeProfile(
+        CacheProvider_Profile(&dat2_buildcache->base),
+        group->filelist->files[pos],
+        group->filelist->file_sizes[pos]);
     if( !rscache_obj )
         return 0;
     rscache_obj->_id = obj_id;

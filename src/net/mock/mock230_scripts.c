@@ -3406,24 +3406,37 @@ mock230_script_command(
      * whatever else shares it, which for the bank is always something: the
      * withdraw-as-note flag and the current tab are both in varp 115.
      */
+    /*
+     * The varbit id is the *operand*, exactly as it is for PUSH_VARP/POP_VARP —
+     * `%name` compiles to one instruction carrying the id, with `1 << 16` set
+     * for the `.%name` secondary-player form (ssc_compile.c `resolve_variable`).
+     *
+     * Both of these used to pop the id off the int stack instead. That is not a
+     * near miss: PUSH_VARBIT pops nothing per ss_meta.gen.h, so it underflowed;
+     * POP_VARBIT popped the *value* and read it as the id, then underflowed
+     * looking for a value that was never there. Every `%varbit` in the tree
+     * aborted its script at the first mention, and because [login,_] is where
+     * opening state is set, one such line took the whole login script with it.
+     */
     case SS_OP_PUSH_VARBIT:
     {
-        int32_t varbit_id;
+        int varbit_id = state->script->int_operands[state->pc] & 0xffff;
 
-        if( !SSVM_PopInt(state, &varbit_id) )
-            return 1;
-        SSVM_PushInt(state, mock230_bank_get_varbit(srv, (int)varbit_id));
+        SSVM_PushInt(state, mock230_varbit_get(player, varbit_id));
         return 1;
     }
 
     case SS_OP_POP_VARBIT:
     {
-        int32_t varbit_id;
+        int varbit_id = state->script->int_operands[state->pc] & 0xffff;
         int32_t value;
 
-        if( !SSVM_PopInt(state, &varbit_id) || !SSVM_PopInt(state, &value) )
+        if( !SSVM_PopInt(state, &value) )
             return 1;
-        mock230_bank_set_varbit(srv, (int)varbit_id, (int)value);
+        /* A varbit the cache does not place has no varp to write, so the write
+         * would vanish. Loud, like every other unresolvable id here. */
+        if( mock230_varbit_set(srv, varbit_id, (int)value) < 0 )
+            SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;
     }
 

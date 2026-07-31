@@ -2158,9 +2158,23 @@ defects rather than parser ones and are not fixed here.
 
 **`cachepack` no longer depends on the two halves agreeing.** The script codec
 compiles its own output before accepting it and declines the record if that
-fails, so the raw bytecode is written instead and the tree is lossless by
-construction: `unpack` then `pack` restores all 9,725 archives, against 9,660
-before.
+fails, writing the raw bytecode instead.
+
+What that buys is *not* a complete cache — `pack --base` copies the base first,
+so a declined archive already kept the base cache's bytes and nothing was ever
+missing. It buys the tree meaning what it says. A `.cs2` that will not compile
+is a file you can edit, pack, and watch ship the original bytes with nothing but
+a counter to say so — the same silent-substitution defect `cp_assets.c` calls
+out two branches up. After the change every `.cs2` in the tree is one the
+compiler accepts, so editing it takes effect; the 357 records that cannot make
+that promise are `.cs2b` and are visibly bytecode.
+
+**The promise is conditional on the name tables.** Verification runs at unpack
+with whatever `CACHEPACK_CS2_NAMES` pointed at, and a source full of
+`coins_995` and `~wom_item_move` does not compile without them: packing the same
+tree with the variable unset declines 4,991 records instead of 357. Unpack and
+pack the same way, or unpack without names — coverage is identical either way
+(G5), only the spellings differ.
 
 ### G10. Two opcodes changed arity between eras, and the table has one slot *(Open)*
 
