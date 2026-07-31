@@ -43,6 +43,9 @@ RSCache_CS2_ScriptReturnTypes(
  * ---------------------------------------------------------------------- */
 
 #define CS2_INTERP_MAX_STACK_TYPES 256
+/* Array slots are a script-local index; the client allocates few, but nothing
+ * in the format caps them, so an out-of-range slot falls back to int. */
+#define CS2_INTERP_MAX_ARRAYS 256
 
 struct cs2_interp
 {
@@ -58,6 +61,25 @@ struct cs2_interp
     /* Element ACCESS expressions, bottom-first. */
     struct RSCache_CS2_Vec stack;
     int stack_counter;
+
+    /*
+     * Which stack each array slot's elements live on, or -1 for "not said
+     * here".
+     *
+     * `push_array_int` and `pop_array_int` are named for the int case and the
+     * reference hardcodes it, but the element type is `define_array`'s operand
+     * and it is not always `int`: 27 of osrs239's scripts store `join_string`
+     * results into an array of strings.
+     *
+     * The definition is often not in this script at all — arrays outlive a
+     * `gosub`, so a proc stores into one its caller defined and the decompiler,
+     * which works one script at a time, never sees the `define_array`. So the
+     * store falls back to the type of the value actually on the stack. That
+     * cannot desynchronise anything: `pop_array_int` takes one value whichever
+     * stack it is on, and popping it as an int was the only thing making it a
+     * refusal.
+     */
+    int array_stack[CS2_INTERP_MAX_ARRAYS];
 
     bool failed;
     char* error;
@@ -94,6 +116,15 @@ static int
 cs2_opcode(struct cs2_interp* interp)
 {
     return interp->script->opcodes[interp->pc];
+}
+
+/** The element stack `define_array` recorded for a slot, or -1 if it did not. */
+static int
+cs2_array_stack(struct cs2_interp* interp, int slot)
+{
+    if( slot < 0 || slot >= CS2_INTERP_MAX_ARRAYS )
+        return -1;
+    return interp->array_stack[slot];
 }
 
 static int
@@ -1417,6 +1448,9 @@ cs2_translate(struct cs2_interp* interp)
                 operand & 0xFF);
             return NULL;
         }
+        int slot = operand >> 16;
+        if( slot >= 0 && slot < CS2_INTERP_MAX_ARRAYS )
+            interp->array_stack[slot] = RSCache_CS2_TypeStackType(element_type);
         cs2_assign_element_to_proto(interp, length, RSCACHE_CS2_PROTO_LENGTH);
         if( !RSCache_CS2_TypingFreezeType(
                 RSCache_CS2_TypingsOfElement(cs2_typings(interp), array), element_type) )
@@ -1450,7 +1484,10 @@ cs2_translate(struct cs2_interp* interp)
                 interp->fs, RSCACHE_CS2_VAR_ARRAY, interp->script_id, cs2_operand_int(interp)),
             NULL);
         struct RSCache_CS2_Expr* pair[2] = { array, index };
-        enum RSCache_CS2_StackType stack_type = RSCACHE_CS2_STACK_INT;
+        int declared = cs2_array_stack(interp, cs2_operand_int(interp));
+        enum RSCache_CS2_StackType stack_type = declared < 0
+                                                    ? RSCACHE_CS2_STACK_INT
+                                                    : (enum RSCache_CS2_StackType)declared;
         struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
             arena,
             &stack_type,
@@ -1458,7 +1495,7 @@ cs2_translate(struct cs2_interp* interp)
             RSCACHE_CS2_OP_PUSH_ARRAY_INT,
             RSCache_CS2_ExprFromList(arena, pair, 2),
             false);
-        struct RSCache_CS2_Expr* definition = cs2_push(interp, RSCACHE_CS2_STACK_INT, NULL);
+        struct RSCache_CS2_Expr* definition = cs2_push(interp, stack_type, NULL);
         cs2_assign_element_to_proto(interp, index, RSCACHE_CS2_PROTO_INDEX);
         struct RSCache_CS2_Typing* operation_typing =
             RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0];
@@ -1471,7 +1508,10 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_POP_ARRAY_INT:
     {
-        struct RSCache_CS2_Expr* value = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
+        int declared = cs2_array_stack(interp, cs2_operand_int(interp));
+        struct RSCache_CS2_Expr* value = cs2_pop(
+            interp, declared < 0 ? cs2_peek_stack_type_at(interp, 0)
+                                 : (enum RSCache_CS2_StackType)declared);
         struct RSCache_CS2_Expr* index = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
         struct RSCache_CS2_Expr* array = RSCache_CS2_ExprAccess(
             arena,
@@ -1627,6 +1667,11 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
     interp->pc = 0;
     interp->stack_counter = 0;
     RSCache_CS2_VecClear(&interp->stack);
+    /* Array slots are script-local, so the recorded element stacks are too:
+     * carrying one script's `def_stringarray0` into the next would pop the
+     * wrong stack in a script that never defined slot 0. */
+    for( int i = 0; i < CS2_INTERP_MAX_ARRAYS; i++ )
+        interp->array_stack[i] = -1;
     interp->return_type_count = RSCache_CS2_ScriptReturnTypes(
         script, interp->return_types, CS2_INTERP_MAX_STACK_TYPES);
 

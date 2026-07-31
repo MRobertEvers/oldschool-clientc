@@ -120,10 +120,17 @@ queue 152    opnpcu 93   ai_timer 87  ai_opplayer2 84 mapzoneexit 73
   own model, so every model behind every referenced item is already in the
   destination cache — in the modern, higher-detail form.
 - The same holds for `spotanim` (262/262 ids identical) and `inv` (156/156).
-- Maps: the content places nothing. **1,582 coordinate literals across 147 map
-  squares**, all absolute world tiles — they *read* geography, they do not ship
-  it. Shipping a `.jm2` would overwrite modern Lumbridge with 2004 Lumbridge and
-  break the collision the client already draws.
+- Maps: shipping a `.jm2`'s **terrain** would overwrite modern Lumbridge with
+  2004 Lumbridge and break the collision the client already draws. The scripts
+  only *read* geography — 1,582 coordinate literals across 147 map squares, all
+  absolute world tiles.
+
+  **But a `.jm2` is not only terrain, and the half that is not does port.**
+  265 of LostCity's 458 squares carry `==== NPC ====` / `==== OBJ ====` spawn
+  sections: **6,263 npc spawns and 1,082 obj spawns**, which are server content
+  and the largest single body of it in the tree after the scripts. An earlier
+  draft of this document counted them as part of the asset it says not to port,
+  which was wrong. They are inventoried in §4 and their destination is §10.2.
 
 **The twist: 1,696 of the "LostCity" assets came out of osrs239 in the first
 place.** This fork has already been fed by `3rd/rscache/tools/port_lostcity` —
@@ -173,6 +180,8 @@ in a `.rs2` or config counts as referenced. `ref_rs2` restricts to `.rs2`.
 | `category` | — | 122 | 1 | **121** | — |
 | `interface` | — | 1,415 | 35 | **1,380** | — |
 | `varn` / `vars` / `hunt` / `mesanim` | 31 | 109 | 0 | **109** | — |
+| **spawns — npc** | 6,263 lines | — | **6,126 (97.8 %)** | **137 lines / 24 names** | n/a |
+| **spawns — obj** | 1,082 lines | — | **1,082 (100 %)** | **0** | n/a |
 
 Read the rows in three groups.
 
@@ -563,7 +572,8 @@ Worth stating because it bounds what a port can ever achieve:
 | `.idk` `.flo` | 5 / 183 | **needs rework** | 0 % name resolution though ids agree — pure naming gap, small |
 | `.if` interfaces | 159 / 1,202 | **cannot port; rebuild, drop or stub per interface** | §7.3 |
 | `.rs2` scripts | 1,265 | **50 % ports with id remapping; 44 % blocked on interfaces; the rest on opcodes** | §5, §6, §7.3 |
-| assets (5,810 files) | | **do not port** | §3 |
+| **spawns inside `.jm2`** | 269 squares / 7,345 lines | **ports with id remapping — into `.spawn` files, never into a `.jm2`** | 97.8 % / 100 % resolve; §10.2 |
+| assets (5,810 files) — *terrain half of `.jm2` included* | | **do not port** | §3 |
 | `_unpack/` `_test/` | | **do not port** | machine-generated; harness |
 
 ---
@@ -756,6 +766,88 @@ section made "the goblin should have hit back" fail purely by ticking the world
 a few more times first. That is a pre-existing fragility, not this section's bug,
 but any future selftest inserted above the combat one can flip it.
 
+### Spawns moved out of the map squares
+
+**Spawns are server-only content and now live in a server-only file.** They used
+to sit in the `==== NPC ====` / `==== OBJ ====` sections of
+`maps/m<x>_<z>.jm2`, beside the terrain, which is what LostCity does and what
+does not transfer: LostCity *authors* its cache from its content tree, so its
+`.jm2` is a source file it owns end to end. This tree *receives* a cache and
+`maps/*.jm2` is cachepack's output. Three costs came with the mismatch:
+
+1. `cp_decode.c` needed a standing exception — "the codec owns MAP and treats
+   every other section as somebody else's" — so that an unpack would not delete
+   the spawns. A codec carrying an exception for content it must not touch is
+   the problem, not the fix.
+2. `maps/` could not be deleted and re-unpacked, which is exactly what
+   `CONTENT_ARCHITECTURE.md` §4.1 means by *layer 0 becomes disposable*.
+3. **Spawns were the last place in the tree carrying bare ids.** `0 8 13: 4626`
+   cannot be checked against anything, cannot be renamed, and after a cache bump
+   points at whatever now occupies 4626.
+
+**(3) had already gone wrong, and rewriting the ids as names is what exposed
+it.** Two of the 63 read strangely, and the cache says they are as strange as
+they look:
+
+```
+sos_pest_giantspider1   npc 2477   "Giant spider"   combat level 50
+poh_giantspider         npc  134   "Huge spider"    combat level 81
+giantspider1            npc 3017   "Giant spider"   combat level  2
+```
+
+The Lumbridge Swamp is standing a level-81 Huge spider and a level-50 Pest
+Control spider among the level-2 ones, while `m50_50` uses 3017 for the same
+creature four squares away. They were **migrated unchanged**: a migration that
+also changes values cannot be verified, and the check that this one worked is
+that the resolved spawn set is identical to what the `.jm2` files produced (63
+npc, 12 obj, every id/x/z/level equal — asserted). Correcting them is a separate
+decision, and it is now a decision somebody can *see*.
+
+#### The format, and the rule for every future port
+
+`server/scripts/**/*.spawn`, walked like `.npc` and `.varp`:
+
+```
+==== NPC ====
+cook                         3208 3213 0
+
+==== OBJ ====
+bones                        3210 3215 0 28
+```
+
+The `====` markers are the ones the `.jm2` used, kept so the file reads the same
+way to anyone who knows that format. Two things differ, and both are the point:
+**names, not ids** (resolved against `configs/all.npc.compack` /
+`all.obj.compack`, and an unresolved one is a load error), and **absolute world
+tiles**, not `local_x local_z` within a square, because the file is no longer
+keyed by a square.
+
+> **Porting rule.** A LostCity `.jm2`'s terrain is an asset and is not ported.
+> Its `==== NPC ====` and `==== OBJ ====` sections are content and **are**, into
+> a `.spawn` file beside the area's other configs — never back into a `.jm2`.
+> Convert `level local_x local_z: id` to `<name> <x> <z> <level>`, with
+> `x = map_x * 64 + local_x`, and re-resolve every id to a name through
+> *LostCity's* pack and then to osrs239's table. 97.8 % of the npc spawns and
+> 100 % of the obj spawns land; the 24 names that do not are the same
+> npc-naming-drift tail as §4, so a `.spawn` file is also where that tail
+> becomes visible instead of becoming a wrong creature.
+
+Both failure paths are loud, and deliberately so. A `.jm2` that still has a spawn
+section is an error naming the file and the fix rather than a silent skip —
+otherwise an unmigrated tree boots with **zero spawns and no message**, which
+reads as a scene bug rather than a content one:
+
+```
+maps/m50_50.jm2:6227: `0 8 13: 4626` is a spawn, and spawns are server
+content — move this square's ==== NPC ==== / ==== OBJ ==== sections into a
+.spawn file under server/scripts/
+```
+
+`cp_decode.c`'s preservation rule is now vacuous rather than load-bearing.
+Removing it is a one-line follow-up for whoever owns cachepack; it is harmless
+where it is, and it is the last thing standing between `maps/` and being
+genuinely disposable.
+
 ### Still red, and not from this work
 
 `make -C src test-mock230` has two failures that predate all of it and belong to
@@ -841,9 +933,14 @@ From the brief, with what each one costs given the measurements:
    and that merge is a prerequisite of the first slice rather than a detail —
    a second `[opnpc1,bob]` is a duplicate-trigger conflict, not an override.
 
-I would add one:
+I would add two:
 
-5. **A display-name diff is reviewed for every resolved record before it lands.**
+5. **No content file carries a bare id.** Spawns were the last exception and are
+   no longer one (§10.2). The rule is what makes bars 1 and 3 mean anything: an
+   id has nothing to resolve, so it cannot fail to resolve, so a gate that only
+   checks names cannot see it. `sos_pest_giantspider1` is what that costs.
+
+6. **A display-name diff is reviewed for every resolved record before it lands.**
    §4.1. Name resolution proves a spelling exists; only this proves it means the
    same thing, and `goblin_armed`/`goblin_cook` are the precedent for what it
    costs when nobody looks.

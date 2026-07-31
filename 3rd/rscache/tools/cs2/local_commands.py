@@ -161,6 +161,50 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7604": (["STRING"], ["INT"], False),
     # 6809: 3 witness(es), unique.
     "_6809": (["INT"], ["STRING"], False),
+    # ---------------------------------------------------------------
+    # Round 3, solved by `cs2 infer-arity` against cache.osrs239 after the DB
+    # family stopped mis-shaping the stack (LOCAL_KINDS below). That fix is what
+    # made these solvable: db_getfield's wrong push count desynchronised the
+    # scripts these opcodes appear in, so every candidate arity failed and the
+    # solver reported "no arity works" for opcodes whose arity was in fact
+    # pinned.
+    #
+    # Single-witness solutions where the tool reported `unique`: exactly one
+    # (int in, str in, int out, str out) let the script interpret to its end
+    # with every `return` matching the arity its own epilogue declares.
+    "_2214": (["INT", "INT"], [], False),
+    "_2215": (["INT", "INT"], [], False),
+    "_1129": (["STRING"], [], False),
+    "_1214": (["INT"], [], False),
+    "_6531": ([], ["INT", "INT"], False),
+    "_7819": (["STRING"], ["INT"], False),
+    "_7824": (["INT"], [], False),
+    # Solved jointly, and each of these was reached from more than one partner:
+    # 1704 balances at three ints in and nothing out against 222, 1703 and 8003
+    # across eleven scripts, and no other arity does in any of them. The rest
+    # agree across two pairings each.
+    "_1704": (["INT", "INT", "INT"], [], False),
+    "_2929": (["INT", "INT", "INT", "INT", "STRING"], [], False),
+    "_1506": ([], ["INT"], False),
+    "_213": ([], ["INT"], False),
+    "_214": ([], ["INT"], False),
+    "_222": ([], [], False),
+    "_63": ([], ["STRING"], False),
+    "_8003": (["STRING"], ["INT"], False),
+    "_8021": (["INT", "INT"], ["STRING"], False),
+    # Round 4, after round 3 turned two-unknown scripts into one-unknown ones.
+    "_7400": (["INT", "STRING"], [], False),
+    "_7802": (["STRING"], ["INT"], False),
+    "_209": ([], ["INT"], False),
+    "_1140": (["INT"], [], False),
+    "_1141": (["INT"], [], False),
+    # 8022 was not solved by search -- it appears alongside other unknowns in
+    # every script -- but its call sites settle it on their own. In script 8153
+    # it occurs three times in a row at a statement boundary, each time as
+    # exactly three `push_constant_int`/`push_int_local` followed by
+    # `pop_string_local`, and 38 further sites have the same shape. Three ints
+    # in, one string out is the only reading, and it is worth 40 scripts.
+    "_8022": (["INT", "INT", "INT"], ["STRING"], False),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

@@ -1836,20 +1836,136 @@ load_jm2(
                 section = JM2_MAP;
             continue;
         }
-        if( section != JM2_NPC && section != JM2_OBJ )
-            continue;
-
-        count = 1;
-        if( sscanf(line, "%d %d %d: %d %d", &level, &local_x, &local_z, &id, &count) < 4 )
+        /*
+         * Spawns used to live here and no longer do — see
+         * `server/scripts/areas/lumbridge/configs/lumbridge.spawn` for the whole
+         * argument. What is left is the refusal, and it has to be loud.
+         *
+         * If this simply stopped reading them, a tree that had not migrated
+         * would load with **zero spawns and no message**: an empty world that
+         * looks like a scene bug rather than a content one. So an old-format
+         * section is an error naming the file and the fix, which fails
+         * `mock230_pack` instead of booting an empty Lumbridge.
+         */
+        if( section == JM2_NPC || section == JM2_OBJ )
         {
-            CONTENT_ERROR("%s:%d: expected `level x z: id [count]`\n", path, line_number);
+            CONTENT_ERROR("%s:%d: `%s` is a spawn, and spawns are server content — "
+                          "move this square's ==== NPC ==== / ==== OBJ ==== sections "
+                          "into a .spawn file under server/scripts/\n",
+                          path, line_number, line);
             continue;
         }
-        if( local_x < 0 || local_x > 63 || local_z < 0 || local_z > 63 || level < 0 ||
-            level > 3 )
+        (void)map_x;
+        (void)map_z;
+        (void)level;
+        (void)local_x;
+        (void)local_z;
+        (void)id;
+        (void)count;
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
+/* .spawn configs                                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Where the world's npcs and ground objs stand.
+ *
+ *     ==== NPC ====
+ *     cook                         3208 3213 0
+ *
+ *     ==== OBJ ====
+ *     bones                        3210 3215 0 28
+ *
+ * Names rather than ids, and absolute world tiles rather than a square-local
+ * pair, which is the whole reason this is not a `.jm2` section any more. The
+ * `====` markers are kept from that format so the file reads the same way.
+ *
+ * A name that does not resolve is an error. That is not politeness: a spawn was
+ * the last place in this tree carrying a bare id, so it was the last place a
+ * cache bump could silently repoint at a different creature — and it already
+ * had (`sos_pest_giantspider1`, level 50, standing in the Lumbridge Swamp).
+ */
+static void
+load_spawn_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[512];
+    enum Jm2Section section = JM2_NONE;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char name[128];
+        int x;
+        int z;
+        int level;
+        int count;
+        int id;
+        int fields;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        if( strncmp(line, "====", 4) == 0 )
         {
-            CONTENT_ERROR("%s:%d: %d %d %d is outside the map square\n", path, line_number,
-                          level, local_x, local_z);
+            if( strstr(line, "NPC") )
+                section = JM2_NPC;
+            else if( strstr(line, "OBJ") )
+                section = JM2_OBJ;
+            else
+            {
+                CONTENT_ERROR("%s:%d: `%s` — a .spawn file has ==== NPC ==== and "
+                              "==== OBJ ==== sections and nothing else\n",
+                              path, line_number, line);
+                section = JM2_NONE;
+            }
+            continue;
+        }
+        if( section == JM2_NONE )
+        {
+            CONTENT_ERROR("%s:%d: `%s` before any ==== NPC ==== / ==== OBJ ==== header\n",
+                          path, line_number, line);
+            continue;
+        }
+
+        count = 1;
+        fields = sscanf(line, "%127s %d %d %d %d", name, &x, &z, &level, &count);
+        if( fields < 4 )
+        {
+            CONTENT_ERROR("%s:%d: expected `<name> <x> <z> <level>%s`, got `%s`\n",
+                          path, line_number,
+                          section == JM2_OBJ ? " [count]" : "", line);
+            continue;
+        }
+        if( section == JM2_NPC && fields > 4 )
+        {
+            CONTENT_ERROR("%s:%d: an npc spawn has no count\n", path, line_number);
+            continue;
+        }
+        if( level < 0 || level > 3 )
+        {
+            CONTENT_ERROR("%s:%d: level %d is not 0..3\n", path, line_number, level);
+            continue;
+        }
+        if( count < 1 )
+        {
+            CONTENT_ERROR("%s:%d: count %d is not at least 1\n", path, line_number, count);
+            continue;
+        }
+
+        id = mock230_content_symbol(section == JM2_NPC ? MOCK230_PACK_NPC : MOCK230_PACK_OBJ,
+                                    name);
+        if( id < 0 )
+        {
+            CONTENT_ERROR("%s:%d: `%s` is not in configs/all.%s.compack\n", path, line_number,
+                          name, section == JM2_NPC ? "npc" : "obj");
             continue;
         }
 
@@ -1858,8 +1974,8 @@ load_jm2(
             g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
                                 sizeof(*g_npc_spawns));
             g_npc_spawns[g_npc_spawn_count].npc_id = id;
-            g_npc_spawns[g_npc_spawn_count].x = map_x * 64 + local_x;
-            g_npc_spawns[g_npc_spawn_count].z = map_z * 64 + local_z;
+            g_npc_spawns[g_npc_spawn_count].x = x;
+            g_npc_spawns[g_npc_spawn_count].z = z;
             g_npc_spawns[g_npc_spawn_count].level = level;
             g_npc_spawn_count++;
         }
@@ -1869,8 +1985,8 @@ load_jm2(
                                 sizeof(*g_obj_spawns));
             g_obj_spawns[g_obj_spawn_count].obj_id = id;
             g_obj_spawns[g_obj_spawn_count].count = count;
-            g_obj_spawns[g_obj_spawn_count].x = map_x * 64 + local_x;
-            g_obj_spawns[g_obj_spawn_count].z = map_z * 64 + local_z;
+            g_obj_spawns[g_obj_spawn_count].x = x;
+            g_obj_spawns[g_obj_spawn_count].z = z;
             g_obj_spawns[g_obj_spawn_count].level = level;
             g_obj_spawn_count++;
         }
@@ -2061,6 +2177,9 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
     walk_configs(path, ".prayer", load_prayer_config);
+    /* After the configs: a spawn names an npc or an obj, and the name has to
+     * resolve against the packs the loader has already read. */
+    walk_configs(path, ".spawn", load_spawn_config);
     resolve_loc_stages();
 
     snprintf(path, sizeof(path), "%s/maps", dir);

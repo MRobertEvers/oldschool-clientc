@@ -3,6 +3,7 @@
 #include "datatypes/dat2_config_db.h"
 #include "datatypes/dat2_configs.h"
 #include "filelist.h"
+#include "reference_table.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,16 @@ tool_db_columns_load(struct RSCache_Dat2Disk* disk)
 {
     int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
     if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return NULL;
+
+    /* Asked for, not assumed. The DBTABLE group arrived with OldSchool's client
+     * database and no earlier cache has one, so loading it blind made every
+     * pre-2022 cache print the library's "failed to read dat2 index entry" on
+     * stdout — into the middle of the decompiled source, since that is where a
+     * single-script decompile goes. */
+    struct RSCache_ReferenceTable* reference = disk->tables[table];
+    if( !reference || RSCACHE_DAT2_CONFIG_KIND_DBTABLE >= reference->archive_count ||
+        reference->archives[RSCACHE_DAT2_CONFIG_KIND_DBTABLE].index < 0 )
         return NULL;
 
     struct RSCache_Dat2DiskArchive* archive =

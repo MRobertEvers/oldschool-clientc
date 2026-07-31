@@ -11,6 +11,7 @@
 #include "cs2/cs2_compile.h"
 #include "cs2/cs2_decompile.h"
 #include "cs2/cs2_names.h"
+#include "cs2_db_columns.h"
 #include "filelist.h"
 #include "reference_table.h"
 #include "datatypes/dat2_component.h"
@@ -2166,6 +2167,10 @@ struct cp_cs2_state
     int capacity;
     struct RSCache_CS2_Names names;
     int names_loaded;
+    /* dbtable column types, for the `db_*` commands. Without these a script
+     * reading a multi-field column loses its operand-stack shape and is
+     * declined — 80 of osrs239's, script 7603 among them. */
+    struct ToolDbColumns* db_columns;
 };
 
 static struct cp_cs2_state g_cs2;
@@ -2258,6 +2263,7 @@ cs2_state_ready(struct CP_Ctx* ctx)
     if( names_dir )
         RSCache_CS2_NamesLoadDirectory(&g_cs2.names, names_dir);
     cs2_load_param_types(&g_cs2);
+    g_cs2.db_columns = tool_db_columns_load(ctx->cache.disk);
     g_cs2.names_loaded = 1;
     return 1;
 }
@@ -2281,6 +2287,8 @@ script_write(
     options.scripts.load = cs2_load_script;
     options.param_types.user = &g_cs2;
     options.param_types.load = cs2_load_param_type;
+    options.db_columns.user = g_cs2.db_columns;
+    options.db_columns.load = tool_db_columns_lookup;
     options.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
 
     char error[512] = "";

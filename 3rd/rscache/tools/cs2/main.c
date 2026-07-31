@@ -149,6 +149,19 @@ store_load(void* user, int script_id)
             return NULL;
         entry->script =
             RSCache_ClientScriptNewFromArchive(archive, script_id, store->trailer_flags);
+        /* Keep the payload, as raw mode does. `roundtrip` compares the compiled
+         * bytes against these, and in cache mode there were none to compare
+         * against — so it reported "0 same-length, 0 exact" for every cache and
+         * the mode that matters most to cachepack measured nothing at all. */
+        if( entry->script && archive->data_size > 0 )
+        {
+            entry->bytes = (uint8_t*)malloc((size_t)archive->data_size);
+            if( entry->bytes )
+            {
+                memcpy(entry->bytes, archive->data, (size_t)archive->data_size);
+                entry->byte_count = archive->data_size;
+            }
+        }
         RSCache_Dat2DiskArchiveFree(archive);
     }
     return entry->script ? &entry->script->script : NULL;
