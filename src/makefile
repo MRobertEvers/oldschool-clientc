@@ -962,8 +962,8 @@ test-mock230-coverage:
 #
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
-.PHONY: test-content
-test-content: test-content-register test-ss-symbols mock230-scripts mock230-pack
+.PHONY: test-servercodec test-content
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-pack
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
 	@echo "test-content: all content bars passed"
@@ -978,6 +978,19 @@ test-ss-symbols: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test \
 		serverscript/test/ssc_symbols_test.c $(SSC_SRCS)
 	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(MOCK230_CONTENT_DIR)
+
+# The npc server-band codec, and its agreement with `fields/npc.ini`.
+#
+# The round trip is the easy half. The half that matters is the cross-check: the
+# register declares each field's opcode and width, and the codec holds a C table
+# saying the same. If they drift, the packer writes a field under one opcode and
+# the server reads it under another — and nothing errors, because both streams
+# are well-formed. The value just lands somewhere else.
+test-servercodec: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/servercodec_test \
+		net/mock/test/mock230_servercodec_test.c net/mock/mock230_servercodec.c
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test \
+		OSRS-Content/osrs239-content/fields/npc.ini
 
 test-content-register: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
