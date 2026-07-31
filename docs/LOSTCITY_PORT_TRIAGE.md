@@ -279,6 +279,17 @@ Two of these families are already documented as *deliberately* unimplemented in
   string stack; no decoder here keeps a per-record param type table to answer
   from. This is one decoder change that unblocks 605 call sites and 117 files —
   **the single highest-leverage item in this whole document.**
+  **`oc_param` (351 of the 605) and `nc_param` are now done — see §10.3.** The
+  claim that the data did not exist turned out to be stale twice over:
+  `configs/all.param` has carried the type of every param all along, unpacked by
+  cachepack and read by nothing, and the npc records' params were already being
+  decoded and discarded inside `mock230_npcinfo.c`.
+
+  `nc_param` is the *smallest* of the four by call sites — this table's own
+  numbers leave it 6, against 351 for `oc_param`, 133 for `loc_param` and 115 for
+  `struct_param`. It was done next because it was nearly free, not because it
+  unblocked much. The two that carry the remaining 248 uses are the expensive
+  ones: neither the loc nor the struct config table is decoded at runtime at all.
 - **`stat_add` / `stat_sub` (82 uses).** Nothing in this repo pins whether they
   move the base level or the boosted one. That is one fact, from one reference,
   not a week.
@@ -786,22 +797,68 @@ does not transfer: LostCity *authors* its cache from its content tree, so its
    points at whatever now occupies 4626.
 
 **(3) had already gone wrong, and rewriting the ids as names is what exposed
-it.** Two of the 63 read strangely, and the cache says they are as strange as
-they look:
+it.** Six of the 63 carry a prefix naming a content area nowhere near Lumbridge
+— `sos_pest_` (Pest Control), `poh_` (player-owned house), `godwars_`,
+`dragonslayer_`. The migration was done first and **byte-identically** (63 npc,
+12 obj, every id/x/z/level equal to what the `.jm2` files produced — asserted),
+because a migration that also changes values cannot be verified. The corrections
+came after, as their own reviewable step.
+
+#### How the six were judged
+
+A prefix alone proves nothing — plenty of OldSchool variants are legitimately
+used outside the area they are named for. Three independent tests, and only a
+spawn failing all three was changed:
+
+1. the name carries a foreign content-area prefix;
+2. its combat level is out of line with the plain variant of the same creature
+   this roster already spawns nearby;
+3. **LostCity spawns the plain variant within a few tiles of it.**
+
+Test 3 is what turns a suspicion into a finding, and it is available for free:
+LostCity's own `maps/*.jm2` hold a 2004 roster for the same ground, built by
+different people from different data. It is the same move that made §10.1's
+equipment comparison worth anything — *a second source you did not write*.
+
+Four failed all three and were corrected:
+
+| was | npc | display | level | LostCity nearby | now |
+|---|---:|---|---:|---|---|
+| `sos_pest_giantspider1` | 2477 | Giant spider | 50 | `giantspider1` at 2 tiles | `giantspider1` |
+| `poh_giantspider` | 134 | **Huge spider** | 81 | `giantspider1` at 3 tiles | `giantspider1` |
+| `godwars_goblin4` | 2248 | Goblin | 15 | `goblin` at 1 tile | `goblin` |
+| `godwars_goblin2` | 2246 | Goblin | 12 | `goblin` at 1 tile | `goblin` |
+
+The Lumbridge Swamp had a level-81 Huge spider and a level-50 Pest Control
+spider standing among the level-2 ones, and the goblin camp east of the river
+had a level-15 and a level-12 God Wars goblin in it. Each corrected line carries
+what it used to be, so the change is auditable rather than invisible.
+
+**Two were left alone, and that is the more important half.** The
+`dragonslayer_giantrat_*` pair (npc 3969/3970, "Zombie rat", level 3) passes
+test 1 and arguably test 2, and fails test 3 outright: LostCity spawns *nothing*
+within six tiles of either. With no second source there is no basis to say what
+they should be, and "it looks wrong" is not one. They are marked `SUSPECT` in
+place. Guessing there would be this document's own failure mode, committed by
+the person fixing it.
+
+#### The check is now permanent
+
+`mock230_pack` warns when a spawn's name carries a foreign-area prefix **and the
+un-prefixed creature is also spawned in this world**. Having both is what says
+one of them is probably a mis-import; a prefix on its own is not enough, so once
+God Wars is a real area with its own `.spawn` file, `godwars_goblin2` standing
+there alone stays silent — which is correct.
 
 ```
-sos_pest_giantspider1   npc 2477   "Giant spider"   combat level 50
-poh_giantspider         npc  134   "Huge spider"    combat level 81
-giantspider1            npc 3017   "Giant spider"   combat level  2
+warn  sos_pest_giantspider1 is spawned here and so is `giantspider1` — a name
+      qualified by another content area beside the plain one is usually an
+      id-imported roster; check both against a second source
 ```
 
-The Lumbridge Swamp is standing a level-81 Huge spider and a level-50 Pest
-Control spider among the level-2 ones, while `m50_50` uses 3017 for the same
-creature four squares away. They were **migrated unchanged**: a migration that
-also changes values cannot be verified, and the check that this one worked is
-that the resolved spawn set is identical to what the `.jm2` files produced (63
-npc, 12 obj, every id/x/z/level equal — asserted). Correcting them is a separate
-decision, and it is now a decision somebody can *see*.
+A warning, never an error: it is a prompt to go and find a second source, not a
+fact. It is silent on the shipped tree and was verified to fire by putting one
+of the four back.
 
 #### The format, and the rule for every future port
 
@@ -831,6 +888,26 @@ keyed by a square.
 > 100 % of the obj spawns land; the 24 names that do not are the same
 > npc-naming-drift tail as §4, so a `.spawn` file is also where that tail
 > becomes visible instead of becoming a wrong creature.
+>
+> **Then read the names you just wrote.** Migrate first and byte-identically, so
+> the move is checkable; correct afterwards as a separate step. Any name
+> qualified by a content area — `sos_pest_`, `poh_`, `godwars_`, `raids_`,
+> `slayer_`, a quest prefix — is a question, not a verdict: change it only when
+> a **second roster covering the same ground** agrees, and mark it `SUSPECT` in
+> place when none does. `mock230_pack` will prompt you; it cannot decide for you.
+
+**Two second sources exist and both are cheap.** They are the reason §10.1 and
+§10.2 each found a real defect instead of restating what was already believed:
+
+| what | second source | what it caught |
+|---|---|---|
+| equipment requirements | LostCity's `levelrequire/` vs the Kronos import | 30 items the import had no row for — a whole *shape* (poisoned variants, med helms) |
+| Lumbridge spawns | LostCity's `maps/*.jm2` roster vs the OpenRune import | 4 npcs from the wrong content area, up to level 81 in a level-2 swamp |
+
+Neither was found by reading the destination harder. **Whenever a port has a
+second source for the same fact, spend it** — and where it has none (the two
+`dragonslayer_giantrat_*` spawns), say so and stop, rather than substituting
+judgement for evidence.
 
 Both failure paths are loud, and deliberately so. A `.jm2` that still has a spawn
 section is an error naming the file and the fix rather than a silent skip —
@@ -847,6 +924,122 @@ content — move this square's ==== NPC ==== / ==== OBJ ==== sections into a
 Removing it is a one-line follow-up for whoever owns cachepack; it is harmless
 where it is, and it is the last thing standing between `maps/` and being
 genuinely disposable.
+
+### `oc_param` — §9 step 4a, and the blocker that was not one
+
+§5.1 called the param family "blocked on data rather than on effort", quoting
+`osrs230_mockserver.md` §3.13d: *no decoder here keeps a general per-record param
+table to answer that from*. That was true of the decoders. It was **not true of
+the tree** — `configs/all.param` has carried the declared type of all 2,634
+params the whole time, unpacked by cachepack and read by nothing, because
+`configs/` is write-only (`CONTENT_ARCHITECTURE.md` §3.5).
+
+So the highest-leverage item in this document was gated on a file that already
+existed. That is worth stating plainly: **the blocker was a stale belief, and
+nothing in the tree would have corrected it** — the data sat one directory away
+from the code that said it was missing.
+
+Landed:
+
+- **`mock230_obj_param`** — every param on every obj record, 53,853 rows kept
+  from the decode pass as one flat sorted array (1.26 MB, printed at load so it
+  is not a claim). Per-obj vectors would be 11,712 allocations for the same
+  bytes, and this tree has already been through one pass of shrinking the boot
+  heap. Boot RSS is 130 MB, so the table is about 1 %.
+- **`mock230_content_param_type`** — the declarations, from `configs/all.param`.
+  This is the **first runtime reader of anything in `configs/`**, which makes
+  §3.5's "write-only" one third less true.
+- **`SS_OP_OC_PARAM`**, typed by the declaration, because that is what the script
+  was compiled against: a script that wrote `oc_param($obj, some_string_param)`
+  has a string local waiting, and pushing an int leaves the two stacks out of
+  step for the rest of the script rather than failing at the call.
+
+Three details worth keeping:
+
+- **1,517 of the 2,634 params declare no type at all** — the config's type
+  opcode is optional. For those the value's own stored kind decides, and that is
+  not a guess: the record says whether it wrote four bytes or a NUL-terminated
+  string. Measured, no param that any obj actually carries is undeclared, so the
+  path is defensive rather than load-bearing today.
+- **A declaration that disagrees with the stored kind aborts.** Which half to
+  believe is not the opcode's call to make.
+- **An obj that does not carry the param pushes 0**, matching the reference —
+  `oc_param($obj, specwep) = ^true` is asked of every weapon and only
+  special-attack weapons answer it.
+
+#### The bug the test caught, which is the reason the test exists
+
+The first version appended param rows in decode order and claimed the array was
+"sorted by construction, because the decode loop walks obj ids in order". Obj
+ids yes; a *record's own* params, no — the cache writes them in its own order.
+A binary search over an almost-sorted array does not crash, it misses:
+`oc_param(magic_longbow, rangeattack)` returned nothing where the cache says 69,
+which reads as "this obj has no such param" — a perfectly ordinary state that
+content handles by pushing 0. It would have been wrong everywhere and loud
+nowhere. There is now an explicit `qsort`.
+
+The string half caught the other one. The test first compared with
+`if ($verb ! "Rub")`, which compiles to an int comparison and underflowed the
+int stack. The version that survives assigns to a `def_string` local *first* —
+that pops the string stack, so a value pushed onto the wrong stack aborts
+immediately — and only then compares. **An int-stack assertion on a string param
+passes even when the value is on the wrong stack**, which is precisely the
+failure `runtime_typed` names, so a test that could not tell them apart would
+have been worse than none.
+
+Both are driven by `[proc,selftest_oc_param]` and
+`[proc,selftest_oc_param_string]` in `server/scripts/selftest.rs2`, against
+`cache.osrs239`'s own values (`magic_longbow` rangeattack 69, attackrate 6;
+`amulet_of_glory` param_451 `"Rub"`).
+
+`nc_param`, `lc_param` and `struct_param` are the same shape over the npc, loc
+and struct tables. They are deliberately **not** in this change: the machinery
+is what was hard, and doing three more at speed on the back of it is how a
+plausible-but-wrong implementation gets in.
+
+### 10.3a `nc_param`, and the third mutation
+
+`nc_param` landed next, over `mock230_npc_param` — 29,869 rows in 700 KB, the
+same flat sorted array and the same explicit `qsort`. No new decoding: the npc
+records' params were already being walked by `read_combat_params`, which kept
+fourteen keys and dropped the rest.
+
+The stack choice is now one shared `push_typed_param` rather than a copy per
+table. Two tables with two copies of the declared-vs-stored disagreement is two
+places for it to be handled differently, and that disagreement is the only thing
+in the family worth being loud about.
+
+Three mutations were run against the new tests, because §10.3's whole lesson is
+that a test which cannot fail is worse than none:
+
+| mutation | what it broke |
+|---|---|
+| drop the `qsort` | 2 assertions — the table check and `[proc,selftest_nc_param]` (stops at case 0) |
+| force every result onto the int stack | both string procs, `oc_param`'s *and* `nc_param`'s |
+| treat only `type=i` as int-typed, not "anything but `s`" | `[proc,selftest_nc_param]` alone, stopping at case 3 |
+
+The third is the one worth keeping. `param_46` is declared `type=o` — an obj id —
+and the VM has one int stack for every non-string type, so it must land there
+exactly as a plain `i` does. **No `oc_param` assertion catches that mutation**:
+that suite only ever exercises `i` and `s`, so a handler special-casing `i`
+passes it completely. The npc suite covers it because `dagcave_ranged_boss`
+carries both a `type=o` param and the table's only string param.
+
+Values are `cache.osrs239`'s own (`goblin` strengthbonus −15 and param_50 2,
+`dagcave_ranged_boss` param_46 6729 and param_510 `"Dagannoth Kings (Echo)"`).
+The negatives are deliberate — every bonus a goblin carries is −15, so a table
+that read the field unsigned would still answer something.
+
+**Not fixed, and it affects `oc_param` too:** neither reads the `default=` a
+param's `configs/all.param` block may state. 469 params declare one and 365 of
+those are `-1`, so an absent row on one of them reports 0 where the reference
+reports −1. See `docs/osrs230_mockserver.md` §3.13d.
+
+While regenerating the coverage table for `NC_PARAM`, `gen_opcode_coverage.py`
+also added `4209 OC_PARAM`: the checked-in header had been stale since `oc_param`
+landed. `make -C src test-mock230-coverage` was the target that would have said
+so, and the failure direction is the safe one — it under-reported an implemented
+opcode rather than hiding a missing one.
 
 ### Still red, and not from this work
 

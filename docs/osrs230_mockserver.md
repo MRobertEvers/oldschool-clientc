@@ -853,7 +853,7 @@ blocked on data rather than on effort — worth knowing before picking one up:
 
 | family | why not |
 |---|---|
-| `oc_param`, `nc_param`, `lc_param` | **`runtime_typed`**: the param's declared type decides whether the result lands on the int stack or the string stack. No decoder here keeps a general per-record param table to answer that from. This is the one blocking the equipment/combat migration, and it is a *decoder* change, not an opcode one. |
+| ~~`oc_param`~~, ~~`nc_param`~~, `lc_param`, `struct_param` | **`runtime_typed`**: the param's declared type decides whether the result lands on the int stack or the string stack. **`oc_param` and `nc_param` are done** — `mock230_obj_param` keeps all 53,853 rows the cache states (1.26 MB) and `mock230_npc_param` the npc table's 29,869 (700 KB), both sorted and binary-searched, and `mock230_content_param_type` reads the declarations out of `configs/all.param`, making that the first runtime reader of anything in `configs/`. `lc_param` and `struct_param` are the same shape over the loc and struct tables, and neither of those is decoded at runtime at all — see below. See `docs/LOSTCITY_PORT_TRIAGE.md` §10.3. |
 | `oc_cost`, `oc_members`, `oc_tradeable`, `oc_desc`, `nc_desc` | not decoded. A dat2 npc record has no description at all — it is server-driven at this revision. |
 | `oc_op` | `known = 0` in the meta table: no signature exists, so the VM correctly refuses to execute it rather than guessing an arity. |
 | `stat_add`, `stat_sub` | same arity as `stat_boost`, but nothing in this repo pins whether they move the *base* level or the *boosted* one. |
@@ -863,6 +863,28 @@ cannot be answered from real data is better left to the VM's loud stub than
 implemented from a plausible guess.** The stub says it is missing; a wrong
 implementation is silent. `oc_desc` was written and then removed on exactly this
 ground when `Mock230ObjInfo` turned out to carry no description field.
+
+There is a second rule the `nc_param` change added, and it points the other way:
+**check whether the blocker is still true before quoting it.** The row above had
+called all four blocked on data. For the npc half the data was never missing —
+`read_combat_params` in `mock230_npcinfo.c` had been walking those exact param
+rows since it was written and discarding all but fourteen keys, one line from
+where the table now goes. The change was ~120 lines and no new decoding at all.
+
+### What `oc_param` and `nc_param` still get wrong
+
+**Param defaults are not read.** `configs/all.param` states a `default=` on 469
+params and a `defaultstr=` on 311; 365 of the int defaults are `-1`.
+`load_param_types` reads only the `type=` line, so a record that does not carry
+the param reports 0 where the reference reports the declared default. For the
+majority of params — no `default=` line, so the default is 0 — the two agree,
+which is why nothing has caught it.
+
+That is a real wrong answer, not a gap: `-1` and `0` are both plausible ids, so a
+caller cannot tell it happened. Fixing it is small and shared — `load_param_types`
+gains two lines and `push_typed_param` in `mock230_scripts.c` takes the default
+instead of 0 — but it changes `oc_param`'s shipped behaviour, so it is recorded
+here rather than folded into a change scoped to the npc table.
 
 ## 3.15 Player persistence is an ini per player
 

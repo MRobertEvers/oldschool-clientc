@@ -132,6 +132,17 @@ struct cs2_cc_compiler
     enum RSCache_CS2_Type return_types[128];
     int return_type_count;
 
+    /*
+     * Nesting depth inside a `calc(...)`.
+     *
+     * Arithmetic is only legal inside `calc`, and the generator writes the
+     * wrapper once at the outside: a nested command's own arguments are printed
+     * bare, as in `calc(400 - interpolate(0, invpow($int21 - 334, 2), ...))`.
+     * So an int argument parsed while inside a calc has to accept operators
+     * that would be a syntax error anywhere else — which is what this counts.
+     */
+    int calc_depth;
+
     bool failed;
     char* error;
     int error_capacity;
@@ -604,6 +615,47 @@ cs2_cc_declare_local(
     return index;
 }
 
+/**
+ * Declare a local the source reads but never assigns.
+ *
+ * Legal bytecode: a script's locals start zeroed and empty, so `push_string_local
+ * 0` with no prior store is an ordinary thing to write, and the decompiler prints
+ * it as `$string0`. The compiler used to refuse — 44 of osrs239's own scripts
+ * decompiled to source it would not take back.
+ *
+ * Everything needed is in the printed name. `cs2_cc_split_local_name` already
+ * recovers the slot; the identifier before it names the type, which is what says
+ * whether the local lives in the int bank or the string bank. Growing the frame
+ * to cover the slot is correct rather than generous — the original script's
+ * trailer counted it too, or the read would have been out of range.
+ */
+static int
+cs2_cc_declare_local_from_name(struct cs2_cc_compiler* cc, const char* name)
+{
+    int slot = 0;
+    bool is_array = false;
+    if( !cs2_cc_split_local_name(name, &slot, &is_array) )
+        return -1;
+
+    char identifier[128];
+    size_t length = strlen(name);
+    size_t digits = 0;
+    while( digits < length && isdigit((unsigned char)name[length - 1 - digits]) )
+        digits++;
+    size_t head = length - digits;
+    if( is_array )
+        head -= 5; /* drop the "array" suffix; `$intarray0` is an int array */
+    if( head == 0 || head >= sizeof(identifier) )
+        return -1;
+    memcpy(identifier, name, head);
+    identifier[head] = '\0';
+
+    enum RSCache_CS2_Type type = RSCache_CS2_TypeOfIdentifier(identifier);
+    if( type == RSCACHE_CS2_TYPE_NONE )
+        type = RSCACHE_CS2_TYPE_INT;
+    return cs2_cc_declare_local(cc, name, type, false);
+}
+
 /* -------------------------------------------------------------------------
  * Constant resolution
  * ---------------------------------------------------------------------- */
@@ -825,6 +877,9 @@ cs2_cc_resolve_named(
 
 static void
 cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected);
+
+static void
+cs2_cc_calc(struct cs2_cc_compiler* cc, int max_precedence);
 
 static void
 cs2_cc_statement(struct cs2_cc_compiler* cc);
@@ -1063,6 +1118,19 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
     }
     case CS2_CC_TOK_IDENT:
     {
+        /* `null` is -1 on the int stack whatever type it stands for. A string
+         * argument is never spelled this way — an empty one is `""` — so there
+         * is no ambiguity about which bank it comes from. */
+        if( strcmp(text, "null") == 0 )
+            return RSCACHE_CS2_TYPE_INT;
+
+        /* `calc(...)` is arithmetic and arithmetic is int. It is not a command,
+         * so nothing below claims it, and a callback argument written as one
+         * (`script221(event_com, event_comsubid, $int3, calc(clientclock + 10))`)
+         * was the single largest remaining reason a hook would not compile. */
+        if( strcmp(text, "calc") == 0 )
+            return RSCACHE_CS2_TYPE_INT;
+
         /* A command answers with what it pushes. */
         int opcode = RSCache_CS2_CommandOfName(text);
         const struct RSCache_CS2_CommandInfo* info =
@@ -1106,6 +1174,17 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
         int coord = 0;
         if( cs2_cc_parse_coord(text, &coord) )
             return RSCACHE_CS2_TYPE_COORD;
+
+        /* `coins_995` and friends: the name is ambiguous between obj, loc, npc,
+         * model, struct and seq, which is why the unique tables above skip them
+         * — but every one of those is an *int*, and int is all a descriptor
+         * letter has to get right. The client reads the letter to know which
+         * stack an argument came off; among the int types the choice is a
+         * naming hint. Saying so recovers a large share of the hooks that used
+         * to refuse. */
+        int suffixed = 0;
+        if( cs2_cc_parse_id_suffixed(text, &suffixed) )
+            return RSCACHE_CS2_TYPE_INT;
         return RSCACHE_CS2_TYPE_NONE;
     }
     case CS2_CC_TOK_GLOBAL:
@@ -1152,7 +1231,10 @@ cs2_cc_command_arguments(
         enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
         if( written < info->arg_count )
             expected = RSCache_CS2_ProtoGet(RSCache_CS2_CommandArg(info, written))->type;
-        cs2_cc_expression(cc, expected);
+        if( cc->calc_depth > 0 && expected != RSCACHE_CS2_TYPE_STRING )
+            cs2_cc_calc(cc, 6);
+        else
+            cs2_cc_expression(cc, expected);
         written++;
     }
     if( !cc->failed && !cs2_cc_at_punct(cc, ')') )
@@ -1243,6 +1325,70 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
             cs2_cc_enter_fragment(cc, args_text, &saved);
             while( cc->token.kind != CS2_CC_TOK_END && !cc->failed )
             {
+                /* `.cc_getid` — the active-component form of a command, written
+                 * as an argument. The '.' is punctuation, so the inference below
+                 * sees it and gives up; what types the argument is the command
+                 * after it, exactly as for the plain form. */
+                if( cs2_cc_at_punct(cc, '.') && cs2_cc_peek(cc)->kind == CS2_CC_TOK_IDENT )
+                {
+                    enum RSCache_CS2_Type dotted = cs2_cc_infer_type(
+                        cc, cs2_cc_peek(cc)->text, CS2_CC_TOK_IDENT);
+                    if( dotted != RSCACHE_CS2_TYPE_NONE && RSCache_CS2_TypeDesc(dotted) != 0 )
+                    {
+                        if( descriptor_length >= (int)sizeof(descriptor) - 2 )
+                        {
+                            cs2_cc_fail(cc, "callback takes too many arguments");
+                            cs2_cc_leave_fragment(cc, &saved);
+                            return;
+                        }
+                        descriptor[descriptor_length++] = (char)RSCache_CS2_TypeDesc(dotted);
+                        cs2_cc_expression(cc, dotted);
+                        if( !cs2_cc_accept_punct(cc, ',') )
+                            break;
+                        continue;
+                    }
+                }
+
+                /* A `~proc` argument contributes one letter per value it
+                 * returns, and the return types are in the callee rather than
+                 * here. The callee is loadable — `options.scripts` is the same
+                 * source the decompiler uses to type a proc call — and its
+                 * trailing constant pushes say which stack each result lands
+                 * on, which is all a descriptor letter has to record. */
+                if( cs2_cc_at_punct(cc, '~') && cc->options->scripts.load )
+                {
+                    const struct cs2_cc_token* callee_name = cs2_cc_peek(cc);
+                    int callee = -1;
+                    if( callee_name->kind == CS2_CC_TOK_IDENT &&
+                        cs2_cc_resolve_script(
+                            cc, callee_name->text, RSCACHE_CS2_TRIGGER_PROC, &callee) )
+                    {
+                        const struct RSCache_CS2_Script* script =
+                            cc->options->scripts.load(cc->options->scripts.user, callee);
+                        enum RSCache_CS2_StackType returns[64];
+                        int count =
+                            script ? RSCache_CS2_ScriptReturnTypes(script, returns, 64) : 0;
+                        if( count > 0 )
+                        {
+                            for( int i = 0; i < count; i++ )
+                            {
+                                if( descriptor_length >= (int)sizeof(descriptor) - 2 )
+                                {
+                                    cs2_cc_fail(cc, "callback takes too many arguments");
+                                    cs2_cc_leave_fragment(cc, &saved);
+                                    return;
+                                }
+                                descriptor[descriptor_length++] =
+                                    returns[i] == RSCACHE_CS2_STACK_STRING ? 's' : 'i';
+                            }
+                            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+                            if( !cs2_cc_accept_punct(cc, ',') )
+                                break;
+                            continue;
+                        }
+                    }
+                }
+
                 enum RSCache_CS2_Type type =
                     cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
                 /* `event_*` values stand in for a value supplied when the hook
@@ -1536,6 +1682,8 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         const char* name = cc->token.text;
         int index = cs2_cc_find_local(cc, name);
         if( index < 0 )
+            index = cs2_cc_declare_local_from_name(cc, name);
+        if( index < 0 )
         {
             cs2_cc_fail(cc, "'$%s' is used before it is defined", name);
             return;
@@ -1604,7 +1752,9 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             cs2_cc_next(cc);
             if( !cs2_cc_expect_punct(cc, '(') )
                 return;
+            cc->calc_depth++;
             cs2_cc_calc(cc, 6);
+            cc->calc_depth--;
             cs2_cc_expect_punct(cc, ')');
             return;
         }
@@ -1648,6 +1798,25 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
                 cc,
                 RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
                 (interface_id << 16) | (cc->token.int_value & 0xFFFF));
+            cs2_cc_next(cc);
+            return;
+        }
+
+        /* A type literal wins over a command of the same spelling.
+         *
+         * `enum(int, enum, enum_2070, $int5)` is legal source and the second
+         * argument is the *type* `enum`, not a nested call — but `enum` is also
+         * opcode 3408, so the command branch below claimed it and then demanded
+         * the '(' that a type literal does not have. 108 scripts failed to
+         * compile on that one collision. Only where a type is what the context
+         * asked for, so an `enum(...)` in any other position still parses as the
+         * command. */
+        if( expected == RSCACHE_CS2_TYPE_TYPE &&
+            RSCache_CS2_TypeOfLiteral(name) != RSCACHE_CS2_TYPE_NONE )
+        {
+            cs2_cc_emit(
+                cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
+                RSCache_CS2_TypeDesc(RSCache_CS2_TypeOfLiteral(name)));
             cs2_cc_next(cc);
             return;
         }
@@ -1909,7 +2078,15 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
         int key_count;
         const char* body;
     };
-    struct cs2_cc_case cases[256];
+    /* 256 was not enough: `[proc,skill_guide_build]` and three others carry
+     * more, the same way the decoder's switch tables had to stop being `[32]`
+     * of `[256]`. Heap, because 1,024 of these is 2 MB of stack. */
+    struct cs2_cc_case* cases = (struct cs2_cc_case*)calloc(1024, sizeof(*cases));
+    if( !cases )
+    {
+        cs2_cc_fail(cc, "out of memory for a switch");
+        return;
+    }
     int case_count = 0;
     const char* default_body = NULL;
 
@@ -1924,10 +2101,10 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
         }
         else
         {
-            if( case_count == (int)(sizeof(cases) / sizeof(cases[0])) )
+            if( case_count == 1024 )
             {
                 cs2_cc_fail(cc, "too many switch cases");
-                return;
+                goto done;
             }
             entry = &cases[case_count++];
             entry->key_count = 0;
@@ -1945,12 +2122,20 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                     ok = cs2_cc_resolve_caret(cc, cc->token.text, &value);
                 }
                 else if(
+                    subject_type == RSCACHE_CS2_TYPE_COMPONENT &&
                     cc->token.kind == CS2_CC_TOK_IDENT &&
                     cs2_cc_peek(cc)->kind == CS2_CC_TOK_PUNCT &&
                     cs2_cc_peek(cc)->punct == ':' )
                 {
                     /* `interface:component` — the only case label that is not a
-                     * single token. */
+                     * single token.
+                     *
+                     * Gated on the subject's type because the ':' that ends the
+                     * label list looks identical one token ahead. `case
+                     * obj_22731, obj_22734, obj_22743 :` sent its *last* label
+                     * down this path, which consumed the terminator and then
+                     * demanded a component index; 41 scripts failed on it, and
+                     * only a `switch_component` can carry this form at all. */
                     int interface_id = 0;
                     ok = RSCache_CS2_NamesLookupId(
                              cs2_cc_names(cc),
@@ -1975,7 +2160,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                 if( !ok )
                 {
                     cs2_cc_fail(cc, "case label is not a resolvable constant");
-                    return;
+                    goto done;
                 }
                 if( entry->key_count < (int)(sizeof(entry->keys) / sizeof(entry->keys[0])) )
                     entry->keys[entry->key_count++] = value;
@@ -1985,7 +2170,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
             }
         }
         if( !cs2_cc_expect_punct(cc, ':') )
-            return;
+            goto done;
 
         /* Capture the body and skip past it, to be compiled on the second pass. */
         struct RSCache_CS2_StrBuf body;
@@ -2050,7 +2235,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
             entry->body = text;
     }
     if( !cs2_cc_expect_punct(cc, '}') || cc->failed )
-        return;
+        goto done;
 
     struct cs2_cc_jumps ends;
     ends.count = 0;
@@ -2062,7 +2247,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
         cs2_cc_statements_until(cc, 0);
         cs2_cc_leave_fragment(cc, &saved);
         if( cc->failed )
-            return;
+            goto done;
     }
     cs2_cc_jumps_add(cc, &ends, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
 
@@ -2080,7 +2265,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
                 if( !entries->keys || !entries->targets )
                 {
                     cs2_cc_fail(cc, "out of memory");
-                    return;
+                    goto done;
                 }
                 entries->capacity = capacity;
             }
@@ -2102,6 +2287,8 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     }
 
     cs2_cc_jumps_patch(cc, &ends, cc->ops.count);
+done:
+    free(cases);
 }
 
 /** `return;` / `return(a, b);` */
@@ -2273,7 +2460,12 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
 
         if( array_store )
         {
+            /* An array outlives a `gosub`, so a proc stores into one its caller
+             * defined and this script holds no `def_`. The name still says which
+             * slot and which element type. */
             int index = cs2_cc_find_local(cc, targets[0].text);
+            if( index < 0 )
+                index = cs2_cc_declare_local_from_name(cc, targets[0].text);
             if( index < 0 || !cc->locals[index].is_array )
             {
                 cs2_cc_fail(cc, "'$%s' is not an array", targets[0].text);

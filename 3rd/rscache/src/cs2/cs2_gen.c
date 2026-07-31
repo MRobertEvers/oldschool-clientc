@@ -121,6 +121,14 @@ static const char*
 cs2_variable_literal(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
 {
     struct RSCache_CS2_Typing* typing = cs2_typing_of_variable(writer, variable);
+    /* A local nothing constrained has no type, and `RSCache_CS2_TypeLiteral`
+     * spells that `?` — which is honest in a diagnostic and unusable in source:
+     * 22 scripts decompiled to a signature reading `[clientscript,x](? $int0)`
+     * that the compiler could not read back. The bank it lives in is known even
+     * when the type is not, and that is what `int` and `string` name. */
+    if( typing->type == RSCACHE_CS2_TYPE_NONE )
+        return RSCache_CS2_VarStackType(variable->kind) == RSCACHE_CS2_STACK_STRING ? "string"
+                                                                                   : "int";
     return RSCache_CS2_TypeLiteral(typing->type);
 }
 

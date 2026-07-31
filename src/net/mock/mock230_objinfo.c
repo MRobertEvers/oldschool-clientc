@@ -281,6 +281,137 @@ derive_damage_type(const int* bonus)
     return best;
 }
 
+/* ------------------------------------------------------------------ */
+/* The obj param table                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Every param on every obj record, kept so `oc_param` can answer.
+ *
+ * `docs/osrs230_mockserver.md` §3.13d listed `oc_param` as blocked on data
+ * rather than effort: the param's declared *type* decides whether the result
+ * lands on the int stack or the string stack, "and no decoder here keeps a
+ * general per-record param table to answer that from". This is that table. The
+ * type half now exists too, in `configs/all.param` — see
+ * `mock230_content_param_type`.
+ *
+ * Flat and sorted rather than per-obj lists: 53,853 rows across 11,712 objs, so
+ * one array of 12-byte rows is ~630 KB and a lookup is two binary searches'
+ * worth of comparisons. Per-obj vectors would be 11,712 allocations for the same
+ * data, and this tree has already been through one pass of shrinking the boot
+ * heap (docs — memtrace).
+ *
+ * It is sorted explicitly after the load, not "by construction". The decode loop
+ * does walk obj ids in order, but a *record's own* params arrive in whatever
+ * order the cache wrote them and that is not ascending by key — which the first
+ * version of this got wrong, and the symptom was `oc_param(magic_longbow,
+ * rangeattack)` returning nothing at all rather than 69. A binary search over
+ * an almost-sorted array is exactly the bug that looks like missing data.
+ *
+ * String values are strdup'd because the record they came from is freed
+ * immediately after `record()` returns. 2,722 of the rows are strings.
+ */
+struct ObjParam
+{
+    int32_t obj_id;
+    int32_t key;
+    /** The int value, or 0 when this row is a string. */
+    int32_t ival;
+    /** Owned. NULL unless the cache marked this entry a string. */
+    char* sval;
+};
+
+static struct ObjParam* g_obj_params;
+static int g_obj_param_count;
+static int g_obj_param_capacity;
+
+static int
+compare_obj_param(
+    const void* a,
+    const void* b)
+{
+    const struct ObjParam* left = (const struct ObjParam*)a;
+    const struct ObjParam* right = (const struct ObjParam*)b;
+
+    if( left->obj_id != right->obj_id )
+        return left->obj_id < right->obj_id ? -1 : 1;
+    if( left->key != right->key )
+        return left->key < right->key ? -1 : 1;
+    return 0;
+}
+
+static void
+add_param(
+    int obj_id,
+    int key,
+    int ival,
+    const char* sval)
+{
+    struct ObjParam* row;
+
+    if( g_obj_param_count == g_obj_param_capacity )
+    {
+        int capacity = g_obj_param_capacity ? g_obj_param_capacity * 2 : 4096;
+        struct ObjParam* grown =
+            (struct ObjParam*)realloc(g_obj_params, (size_t)capacity * sizeof(*grown));
+
+        if( !grown )
+            return;
+        g_obj_params = grown;
+        g_obj_param_capacity = capacity;
+    }
+    row = &g_obj_params[g_obj_param_count++];
+    row->obj_id = obj_id;
+    row->key = key;
+    row->ival = ival;
+    row->sval = sval ? strdup(sval) : NULL;
+}
+
+static void
+read_params(
+    int obj_id,
+    const struct RSCache_Params* params)
+{
+    for( int i = 0; i < params->count; i++ )
+    {
+        if( !params->values[i] )
+            continue;
+        if( params->kinds[i] == RSCACHE_PARAM_STRING )
+            add_param(obj_id, params->keys[i], 0, (const char*)params->values[i]);
+        else if( params->kinds[i] == RSCACHE_PARAM_INT )
+            add_param(obj_id, params->keys[i], *(const int*)params->values[i], NULL);
+        /*
+         * RSCACHE_PARAM_LONG is dropped rather than truncated. An 8-byte value
+         * squeezed into the VM's 32-bit int stack is a wrong answer that looks
+         * like a right one; a missing param reports as "not set", which is a
+         * state content already has to handle. cache.osrs239 emits none.
+         */
+    }
+}
+
+const struct Mock230ObjParam*
+mock230_obj_param(
+    int obj_id,
+    int param_id)
+{
+    int low = 0;
+    int high = g_obj_param_count - 1;
+
+    while( low <= high )
+    {
+        int mid = (low + high) / 2;
+        struct ObjParam* row = &g_obj_params[mid];
+
+        if( row->obj_id < obj_id || (row->obj_id == obj_id && row->key < param_id) )
+            low = mid + 1;
+        else if( row->obj_id > obj_id || (row->obj_id == obj_id && row->key > param_id) )
+            high = mid - 1;
+        else
+            return (const struct Mock230ObjParam*)row;
+    }
+    return NULL;
+}
+
 static void
 record(
     int obj_id,
@@ -334,6 +465,10 @@ record(
     entry->attackrate = 4;
     read_combat_params(&obj->params, entry->bonus, &entry->attackrate, &entry->has_params);
     read_requirements(obj_id, &obj->params, entry->wearpos >= 0);
+    /* The whole param list, not only the fields above. Sorted by construction:
+     * the decode loop walks obj ids in order and a record's own params arrive
+     * in key order. */
+    read_params(obj_id, &obj->params);
     entry->damagetype = derive_damage_type(entry->bonus);
 }
 
@@ -438,6 +573,10 @@ mock230_objinfo_load(const char* cache_dir)
         loaded++;
     }
 
+    /* The param table is binary-searched, so it has to actually be ordered —
+     * see the note on `struct ObjParam`. */
+    qsort(g_obj_params, (size_t)g_obj_param_count, sizeof(*g_obj_params), compare_obj_param);
+
     /* A note takes its name from the item it stands for — its own record says
      * `null`. Borrowing it here rather than at every call site means a message
      * about a note reads as "Swordfish" instead of "item". */
@@ -455,7 +594,10 @@ mock230_objinfo_load(const char* cache_dir)
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
-    fprintf(stderr, "mock230: obj metadata loaded (%d records from %s)\n", loaded, cache_dir);
+    fprintf(stderr,
+            "mock230: obj metadata loaded (%d records from %s, %d params in %zu KB)\n",
+            loaded, cache_dir, g_obj_param_count,
+            ((size_t)g_obj_param_count * sizeof(struct ObjParam)) / 1024);
     return loaded;
 }
 
@@ -477,6 +619,13 @@ mock230_objinfo_free(void)
     g_require_count = 0;
     g_require_capacity = 0;
     g_require_from_cache = 0;
+
+    for( int i = 0; i < g_obj_param_count; i++ )
+        free(g_obj_params[i].sval);
+    free(g_obj_params);
+    g_obj_params = NULL;
+    g_obj_param_count = 0;
+    g_obj_param_capacity = 0;
 }
 
 const struct Mock230ObjInfo*

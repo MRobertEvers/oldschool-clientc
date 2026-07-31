@@ -57,6 +57,131 @@ read_combat_params(
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* The npc param table                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Every param on every npc record, kept so `nc_param` can answer.
+ *
+ * `read_combat_params` above already walks this exact list and throws all but
+ * fourteen keys away. That is the whole gap `docs/osrs230_mockserver.md` §3.13d
+ * called "blocked on data": the data was being decoded and discarded one line
+ * from here, and the type half it also wanted has been in `configs/all.param`
+ * since cachepack first unpacked it.
+ *
+ * Flat and sorted, for the reasons `mock230_objinfo.c` records at length: one
+ * array of 16-byte rows beats a vector per record when most records have
+ * between five and ten params, and the lookup is a binary search.
+ *
+ * Sorted explicitly, *not* by construction. The decode loop walks npc ids in
+ * ascending order but a record's own params arrive in whatever order the cache
+ * wrote them, which is not ascending by key — the obj table shipped with that
+ * bug and it presents as missing data rather than as wrong data, because a
+ * binary search over an almost-sorted array simply fails to find things.
+ *
+ * String values are strdup'd: the record they came from is freed as soon as the
+ * decode loop moves on.
+ */
+struct NpcParam
+{
+    int32_t npc_id;
+    int32_t key;
+    int32_t ival;
+    char* sval;
+};
+
+static struct NpcParam* g_npc_params;
+static int g_npc_param_count;
+static int g_npc_param_capacity;
+
+static int
+compare_npc_param(
+    const void* a,
+    const void* b)
+{
+    const struct NpcParam* left = (const struct NpcParam*)a;
+    const struct NpcParam* right = (const struct NpcParam*)b;
+
+    if( left->npc_id != right->npc_id )
+        return left->npc_id < right->npc_id ? -1 : 1;
+    if( left->key != right->key )
+        return left->key < right->key ? -1 : 1;
+    return 0;
+}
+
+static void
+add_param(
+    int npc_id,
+    int key,
+    int ival,
+    const char* sval)
+{
+    struct NpcParam* row;
+
+    if( g_npc_param_count == g_npc_param_capacity )
+    {
+        int capacity = g_npc_param_capacity ? g_npc_param_capacity * 2 : 4096;
+        struct NpcParam* grown =
+            (struct NpcParam*)realloc(g_npc_params, (size_t)capacity * sizeof(*grown));
+
+        if( !grown )
+            return;
+        g_npc_params = grown;
+        g_npc_param_capacity = capacity;
+    }
+    row = &g_npc_params[g_npc_param_count++];
+    row->npc_id = npc_id;
+    row->key = key;
+    row->ival = ival;
+    row->sval = sval ? strdup(sval) : NULL;
+}
+
+static void
+read_params(
+    int npc_id,
+    const struct RSCache_Params* params)
+{
+    for( int i = 0; i < params->count; i++ )
+    {
+        if( !params->values[i] )
+            continue;
+        if( params->kinds[i] == RSCACHE_PARAM_STRING )
+            add_param(npc_id, params->keys[i], 0, (const char*)params->values[i]);
+        else if( params->kinds[i] == RSCACHE_PARAM_INT )
+            add_param(npc_id, params->keys[i], *(const int*)params->values[i], NULL);
+        /*
+         * RSCACHE_PARAM_LONG is dropped rather than truncated, same call as the
+         * obj table: eight bytes squeezed onto a 32-bit stack is a wrong answer
+         * that looks right, where a missing param reports as "not set" — a state
+         * content already handles. cache.osrs239's npc table emits none.
+         */
+    }
+}
+
+const struct Mock230NpcParam*
+mock230_npc_param(
+    int npc_id,
+    int param_id)
+{
+    int low = 0;
+    int high = g_npc_param_count - 1;
+
+    while( low <= high )
+    {
+        int mid = (low + high) / 2;
+        struct NpcParam* row = &g_npc_params[mid];
+
+        if( row->npc_id < npc_id || (row->npc_id == npc_id && row->key < param_id) )
+            low = mid + 1;
+        else if( row->npc_id > npc_id || (row->npc_id == npc_id && row->key > param_id) )
+            high = mid - 1;
+        else
+            return (const struct Mock230NpcParam*)row;
+    }
+    return NULL;
+}
+
 int
 mock230_npcinfo_load(const char* cache_dir)
 {
@@ -160,8 +285,14 @@ mock230_npcinfo_load(const char* cache_dir)
         for( int op = 0; op < 5; op++ )
             g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
         read_combat_params(&npc->params, &g_npcs[id]);
+        /* The whole list, not only the fourteen keys above. */
+        read_params(id, &npc->params);
         RSCache_Dat2ConfigNpcFree(npc);
     }
+
+    /* Binary-searched, so it has to actually be ordered — see `struct
+     * NpcParam`. */
+    qsort(g_npc_params, (size_t)g_npc_param_count, sizeof(*g_npc_params), compare_npc_param);
 
     /* Read the count before the free, not after: the archive owns it. The
      * first version of this printed "0 records" from freed memory while the
@@ -173,8 +304,10 @@ mock230_npcinfo_load(const char* cache_dir)
         RSCache_Dat2DiskArchiveFree(archive);
         RSCache_Dat2DiskFree(disk);
 
-        fprintf(stderr, "mock230: npc metadata loaded (%d records from %s)\n", loaded,
-                cache_dir);
+        fprintf(stderr,
+                "mock230: npc metadata loaded (%d records from %s, %d params in %zu KB)\n",
+                loaded, cache_dir, g_npc_param_count,
+                ((size_t)g_npc_param_count * sizeof(struct NpcParam)) / 1024);
     }
     return 1;
 }
@@ -194,6 +327,13 @@ mock230_npcinfo_free(void)
     }
     g_npcs = NULL;
     g_npc_count = 0;
+
+    for( int i = 0; i < g_npc_param_count; i++ )
+        free(g_npc_params[i].sval);
+    free(g_npc_params);
+    g_npc_params = NULL;
+    g_npc_param_count = 0;
+    g_npc_param_capacity = 0;
 }
 
 const struct Mock230NpcInfo*

@@ -595,7 +595,7 @@ rest as their payload. `cachepack --list-assets` prints which is which.
 | `interfaces` | `.if`, one `[com_<id>]` block per component | all 968 |
 | `worldmap/areas` | `.wma` per area, `.wmc` per composite map | all 104 |
 | `textures` | `.texture`, a text record | all 210 |
-| `scripts` | `.cs2` source, via the library's own decompiler | 9,042 of 9,725 (with name tables) |
+| `scripts` | `.cs2` source, via the library's own decompiler | 9,245 of 9,725 |
 | `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
 
 Three of these needed encoders the library did not have, and all three are now in
@@ -605,9 +605,18 @@ it and measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact,
 and `RSCache_WorldMapAreaEncode` / `EncodeIcons` (**207 / 207 files byte-exact**).
 
 **Declining is normal and nothing is lost.** A record the decoder cannot handle
-falls back to its raw payload under a different extension — 683 clientscripts do,
-which is why `scripts/` holds both `.cs2` and `.bin`. `--raw-assets` turns the
+falls back to its raw payload under a different extension — 480 clientscripts do,
+which is why `scripts/` holds both `.cs2` and `.cs2b`. `--raw-assets` turns the
 decoders off entirely.
+
+"Cannot handle" now means both halves. The script codec **compiles its own
+output back before accepting it**, and declines the record if that fails. It did
+not, and the two counts disagreed: 9,310 scripts decompiled but only 9,245 of
+those sources would compile, so `pack` wrote 9,660 archives out of 9,725 and
+lost 65 scripts with nothing but a count to say so. A friendly form is only
+friendly if it is also the whole record; verifying at export makes the tree
+lossless by construction rather than by the two halves happening to agree, and
+`unpack` then `pack` restores all 9,725.
 
 A few things worth knowing:
 
@@ -702,9 +711,11 @@ container appends rather than compacts (EXCEPTIONS.md B4).
 ## `cs2` — decompile and compile clientscripts
 
 ```sh
-cs2 decompile (--cache DIR --rev NAME | --raw DIR) [--names DIR] [--out DIR] [id …]
-cs2 compile   --src (DIR) [--names DIR] [--out DIR]
-cs2 roundtrip (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
+cs2 decompile   (--cache DIR --rev NAME | --raw DIR) [--names DIR] [--out DIR] [id …]
+cs2 compile     --src (DIR) [--names DIR] [--out DIR]
+cs2 roundtrip   (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
+cs2 disassemble (--cache DIR --rev NAME | --raw DIR) [id …]
+cs2 infer-arity (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
 ```
 
 Turns a cache's table 12 into CS2 source and back. The language layer itself
@@ -722,10 +733,7 @@ NAMES=~/cs2/src/main/resources/org/runestar/cs2
 # -> decompiled/[clientscript,tob_partydetails_kickmember].cs2
 ```
 
-Omit the id list to decompile every script in the cache. **Omitting `--names`,
-though, is what produces `FAIL 2319: no source spelling for 1 as int-bool`** —
-`1` is `^true`, and `true` lives only in `boolean-names.tsv`. See `--names`
-below; that failure is by design, not a decode error.
+Omit the id list to decompile every script in the cache.
 
 Two script sources, because they answer different questions:
 
@@ -740,10 +748,103 @@ Two script sources, because they answer different questions:
   check.
 
 `--names` points at a directory of RuneStar's `*-names.tsv` files. They are
-optional and purely legibility — without them a decompile is still correct, just
-`obj_995` instead of `coins_995`. Four types are the exception: `boolean`,
-`stat`, `maparea` and `fontmetrics` have no numeric spelling in the language at
-all, so a script using an id those tables do not name cannot be printed.
+optional and **purely legibility** — with or without them the same 9,308 of
+cache.osrs239's 9,725 scripts decompile; the difference is `coins_995` against
+`obj_995`.
+
+That used to be untrue, and the gap was large. `boolean`, `stat`, `maparea` and
+`fontmetrics` were held to be exhaustively named — an id their table did not
+carry could not be printed and the script was refused. Without a TSV to hand
+that took **3,612 scripts instead of 683**, which is the state `cachepack` ran
+in, since it has no name directory to point at. Two changes closed it:
+
+- `false` and `true` are seeded into the boolean table at init. They are not
+  corpus data; they are the language's own words for 0 and 1, and
+  `boolean-names.tsv` is exactly two lines long.
+- The other three fall back to `<type>_<id>`. That *is* a spelling — the
+  compiler already reads it back for every unique-id type, and it round-trips
+  exactly. Refusing also cost 12 scripts even *with* the tables loaded, because
+  a live cache outruns a community one: `stat_23` is Sailing and `maparea_42` a
+  region added since RuneStar's tables were last written.
+
+`char`, `area` and `mapelement` print as plain numbers for the same reason,
+joining `newvar`, `spotanim` and `player_uid` (EXCEPTIONS.md G5).
+
+### The DB family, and stack shapes that live in the data
+
+Script 7603 would not decompile: `opcode 9 left 1 values on the operand stack`.
+The op it named is a `branch_less_than` forty instructions past the cause.
+
+`db_getfield`, `db_find` and their siblings do not have a fixed signature. A
+`dbcolumn` literal packs
+
+```
+(table << 12) | (column << 4) | (field + 1)
+```
+
+and **field 0 means "the whole tuple"**. So `db_getfield` on `0xa6200` pushes
+four values, of that column's four types, while the same opcode on `0xa6204` —
+the same table, the same column, field 3 — pushes one. The generated table
+carried three in and one out for both, which is right for a single-field column
+and desynchronises the stack of every script that reads a wider one. That took
+80 scripts.
+
+Established by consumption rather than assumed: `0xa6200` is followed by four
+int pops at all 26 of its call sites, `0xa6204` by exactly one at all 11 of its,
+`0x170` by two and `0x90` by three. The `+1` is what distinguishes "field 0"
+from "all of it", and `src/game/rs_cs2_host.c` had it as a plain index — the
+client had the same bug, unnoticed because nothing checked the arity.
+
+The find family was wrong the other way: **three** arguments, not two. All 142
+call sites in cache.osrs239 push `(dbcolumn, value, 0)`, and the script does not
+balance without the third.
+
+Both now have their own command kinds and resolve the shape from the dbtable
+config, which the caller supplies through
+`RSCache_CS2_DecompileOptions.db_columns` — the same arrangement `param_types`
+uses, and for the same reason: it is a property of the cache, not of the opcode.
+`tools/common/cs2_db_columns.c` is the provider both this tool and `cachepack`
+use, so there is one reading of what a column holds.
+
+One caveat is recorded in that file: a dbtable's field types are ScriptVarType
+*ordinals*, not the descriptor characters CS2 uses elsewhere — table 78 column 1
+is `0 36 36 23` — and only the string ordinal (36) is established. So the
+provider answers `int` or `string` and no finer. That is all the shape depends
+on; a narrower claim would be a guess.
+
+Two smaller shape fixes came out of the same pass:
+
+- `pop_array_int` is not always an int. The element type is `define_array`'s
+  operand, and arrays outlive a `gosub`, so a proc stores into one its caller
+  defined and the definition is not in this script at all. The store now takes
+  whatever stack the value is on, which cannot desynchronise anything — it is
+  one value either way — and recovered 15 scripts that stored `join_string`
+  results.
+- A local whose type nothing constrained printed as `?`, giving signatures like
+  `[clientscript,x](? $int0)` that the compiler could not read back. It prints
+  as its bank now, `int` or `string`.
+
+### `disassemble` — the raw op listing
+
+```sh
+cs2 disassemble --cache cache.osrs239 --rev osrs239 7603
+;  script 7603  locals 11i/10s/0l  args 1i/0s/0l  ops 126  switches 1
+    57     33 push_int_local                            -3  2
+    58      0 push_constant_int                         -3  319504
+    59     33 push_int_local                            -3  9
+    60   7502 db_getfield                  (3)->1       -3  0
+    61     34 pop_int_local                             -3  4
+    62     36 pop_string_local                          -3  1
+```
+
+One line per op: pc, opcode, name, the signature the tables hold, a running
+operand-stack depth, and the operand.
+
+It exists because a stack failure never names the op that caused it. `opcode 9
+left 1 values on the operand stack` reports the op that *noticed* — the extra
+value was pushed somewhere above. Reading the listing beside the pops that
+follow is how the culprit is found, and it is what identified the DB family
+below. `UNKNOWN` in the signature column marks an op with no recorded arity.
 
 `roundtrip` is the standing gate on the compiler: decompile, compile the result,
 and compare against the bytes the cache held. It reports the same
@@ -765,6 +866,36 @@ diff -r A C                       # A == C is the bar
 That is what found the three compiler bugs recorded in EXCEPTIONS.md G2 — a
 call resolving to the wrong script, `&`/`|` precedence, and duplicated string
 text — none of which the byte comparison had isolated.
+
+Two things that hid behind that gate for a long time:
+
+- **`roundtrip --cache` compared nothing.** Only `--raw` mode kept the original
+  bytes, so against a cache the tool reported "0 same-length, 0 exact" for every
+  run — a plausible-looking line that measured no bytes at all. The mode that
+  matters most to `cachepack` is the one that was blind.
+- **The compiler was well behind the decompiler**, and the gap only shows on a
+  full `pack`. It has closed: on cache.osrs239, 8,531 of 9,310 decompiled
+  sources compiled; now 9,245 do. What the difference was, in order of size:
+
+  | cause | scripts |
+  |---|---|
+  | a hook argument written as `calc(...)` — arithmetic is int, and nothing said so | 287 |
+  | the `.cc_getid` active-component form as a hook argument | 128 |
+  | `enum(int, enum, …)` — the type literal `enum` lost to the *command* `enum`, which then demanded a `(` | 108 |
+  | infix arithmetic inside a nested call inside `calc(...)`, which the generator prints bare | 80 |
+  | a `~proc` hook argument, whose descriptor letters live in the callee's return types | ~50 |
+  | a local read before it is assigned, which is legal — locals start empty | 44 |
+  | `case obj_1, obj_2, obj_3 :` — the last label was parsed as `interface:component` and ate the terminator | 41 |
+  | an array store to an array a *caller* defined | 19 |
+  | more than 256 cases in one switch | 4 |
+
+  The hook-descriptor rows are EXCEPTIONS.md G3, and the answer turned out to be
+  smaller than G3 expected. The descriptor letter's only operational job is to
+  say which stack an argument came off. `null` is -1 on the int stack; an
+  ambiguous `coins_995` is an int whichever of the six types claims it; and a
+  `~proc` call's stack types are readable straight from the callee's bytecode
+  via `RSCache_CS2_ScriptReturnTypes`. None of that needed the whole-directory
+  pre-pass G3 described.
 
 ### Regenerating the command table
 

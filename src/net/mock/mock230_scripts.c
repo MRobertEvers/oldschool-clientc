@@ -658,6 +658,80 @@ container_dirty(
         srv->player->bank.dirty = 1;
 }
 
+/*
+ * Push a param onto the stack its *declaration* calls for.
+ *
+ * Shared by `oc_param` and `nc_param` because the choice of stack is the entire
+ * difficulty of the `runtime_typed` family and it does not vary by table — only
+ * the lookup does. Duplicating it would mean two places for the declared-vs-
+ * stored disagreement to be handled differently, and that disagreement is the
+ * one thing here worth being loud about.
+ *
+ * `sval`/`ival` are the stored value and `present` says whether the record
+ * carried the param at all; a caller with no row passes present = 0 and the
+ * other two are ignored.
+ */
+static void
+push_typed_param(
+    struct SSVM_State* state,
+    int param_id,
+    const char* sval,
+    int32_t ival,
+    int present,
+    const char* record_kind,
+    int record_id)
+{
+    char declared = mock230_content_param_type(param_id);
+
+    /*
+     * Which stack the result goes on is decided by the declaration, because
+     * that is what the script was compiled against: a script that wrote
+     * `nc_param($npc, some_string_param)` has a string-typed local waiting for
+     * it, and pushing an int would leave the two stacks out of step for the
+     * rest of the script rather than fail here.
+     *
+     * 1,517 of cache.osrs239's 2,634 param records declare no type at all — the
+     * config's type opcode is optional. For those the *value's own* stored kind
+     * is the answer and it is not a guess: the record says whether it wrote
+     * four bytes or a NUL-terminated string.
+     */
+    if( !declared && present )
+        declared = sval ? 's' : 'i';
+
+    if( declared == 's' )
+    {
+        if( present && !sval )
+        {
+            /* Declared a string, stored as an int. The record is wrong, and
+             * which half to believe is not this opcode's call to make. */
+            SSVM_Abort(state, "param %d is declared a string but %s %d stores an int",
+                       param_id, record_kind, record_id);
+            return;
+        }
+        SSVM_PushStr(state, present ? sval : "");
+        return;
+    }
+
+    if( present && sval )
+    {
+        SSVM_Abort(state, "param %d is declared an int but %s %d stores a string",
+                   param_id, record_kind, record_id);
+        return;
+    }
+    /*
+     * A record that does not carry the param pushes 0 rather than aborting.
+     * That is the reference's behaviour for an undeclared default and content
+     * relies on it — `oc_param($obj, specwep) = ^true` is asked of every weapon,
+     * and only special-attack weapons carry the row.
+     *
+     * It is *not* the reference's behaviour for the 469 params whose
+     * `configs/all.param` block states a `default=` (365 of them -1). Those are
+     * read by nothing here yet, so an absent one of those reports 0 where the
+     * reference reports -1. See docs/osrs230_mockserver.md §3.13d.
+     */
+    SSVM_PushInt(state, present ? ival : 0);
+}
+
 int
 mock230_script_command(
     struct SSVM_State* state,
@@ -1105,19 +1179,60 @@ mock230_script_command(
      *
      * Every one of these is a read off a table the boot loaders already decoded
      * — `Mock230ObjInfo`, `Mock230NpcInfo`, the content packs — which is the
-     * reason this batch is safe to add in bulk. What is *not* here is as
-     * deliberate: `oc_param`/`nc_param`/`lc_param` are `runtime_typed`, meaning
-     * the param's declared type decides whether the result lands on the int
-     * stack or the string stack, and no decoder here keeps a general per-record
-     * param table to answer that from. `oc_cost`, `oc_members`, `oc_tradeable`
-     * and `oc_desc`/`nc_desc` are simply not decoded — the obj record's examine
-     * text is read by nothing here, and a dat2 npc record has no description at
-     * all (it is server-driven at this revision).
+     * reason this batch is safe to add in bulk. `oc_cost`, `oc_members`,
+     * `oc_tradeable` and `oc_desc`/`nc_desc` are still absent — simply not
+     * decoded; the obj record's examine text is read by nothing here, and a
+     * dat2 npc record has no description at all (it is server-driven at this
+     * revision).
      *
      * An opcode that cannot be answered from real data is better left to the
      * VM's loud stub than implemented with a plausible guess: the stub says so,
      * and a guess does not.
+     *
+     * `oc_param` used to be in that list — `runtime_typed`, "and no decoder here
+     * keeps a general per-record param table to answer that from". Both halves
+     * of that now exist (`mock230_obj_param`, `mock230_content_param_type`), so
+     * it is implemented below, and `nc_param` with it over `mock230_npc_param`.
+     * `lc_param` / `struct_param` are the same shape over the loc and struct
+     * tables, and are left out of this change rather than done badly at speed:
+     * neither table is decoded at runtime at all, where the npc one already was
+     * — `read_combat_params` had been walking these very rows and discarding
+     * all but fourteen keys.
      */
+    case SS_OP_OC_PARAM:
+    {
+        int32_t obj_id;
+        int32_t param_id;
+        const struct Mock230ObjParam* row;
+
+        if( !SSVM_PopInt(state, &param_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+
+        row = mock230_obj_param(obj_id, param_id);
+        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
+                         row != NULL, "obj", obj_id);
+        return 1;
+    }
+
+    case SS_OP_NC_PARAM:
+    {
+        int32_t npc_id;
+        int32_t param_id;
+        const struct Mock230NpcParam* row;
+
+        if( !SSVM_PopInt(state, &param_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &npc_id) )
+            return 1;
+
+        row = mock230_npc_param(npc_id, param_id);
+        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
+                         row != NULL, "npc", npc_id);
+        return 1;
+    }
+
     case SS_OP_OC_DEBUGNAME:
     {
         int32_t obj_id;

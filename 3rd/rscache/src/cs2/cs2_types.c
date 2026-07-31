@@ -436,6 +436,23 @@ RSCache_CS2_ProtoForType(enum RSCache_CS2_Type type)
     return RSCACHE_CS2_PROTO_NONE;
 }
 
+enum RSCache_CS2_Type
+RSCache_CS2_TypeOfIdentifier(const char* identifier)
+{
+    if( !identifier || !*identifier )
+        return RSCACHE_CS2_TYPE_NONE;
+    enum RSCache_CS2_Type literal = RSCache_CS2_TypeOfLiteral(identifier);
+    if( literal != RSCACHE_CS2_TYPE_NONE )
+        return literal;
+    for( int i = 0; i < RSCACHE_CS2_PROTO_COUNT_; i++ )
+    {
+        if( cs2_prototypes[i].identifier &&
+            strcmp(cs2_prototypes[i].identifier, identifier) == 0 )
+            return cs2_prototypes[i].type;
+    }
+    return RSCACHE_CS2_TYPE_NONE;
+}
+
 bool
 RSCache_CS2_ProtoIsDefault(enum RSCache_CS2_ProtoId id)
 {

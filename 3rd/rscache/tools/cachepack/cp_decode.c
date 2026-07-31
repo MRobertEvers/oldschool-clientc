@@ -2300,6 +2300,40 @@ script_write(
         return 0; /* declined: the caller writes the bytecode instead */
     }
 
+    /*
+     * Compiled back before it is accepted.
+     *
+     * A friendly form is only friendly if it is also the *whole* record. A
+     * script that decompiles into source this compiler cannot read is not a
+     * readable script — it is a hole, and `pack` would drop the archive with
+     * nothing but a count to say so. 65 of osrs239's took that path.
+     *
+     * So the export runs the import: compile the source, and where that fails,
+     * decline the record exactly as an undecompilable one is declined and let
+     * the caller write the bytecode. The tree is then lossless by construction
+     * rather than by the two halves happening to agree, and the declined count
+     * means one thing instead of two.
+     */
+    struct RSCache_CS2_CompileOptions verify;
+    memset(&verify, 0, sizeof(verify));
+    verify.scripts = options.scripts;
+    verify.param_types = options.param_types;
+    verify.names = options.names;
+
+    struct RSCache_ClientScript check;
+    memset(&check, 0, sizeof(check));
+    char verify_error[512] = "";
+    bool round_trips =
+        RSCache_CS2_Compile(source, &verify, &check, verify_error, sizeof(verify_error));
+    if( round_trips )
+        RSCache_ClientScriptFreeInplace(&check);
+    if( !round_trips )
+    {
+        free(source);
+        free(name);
+        return 0;
+    }
+
     char path[1700];
     snprintf(path, sizeof(path), "%s.cs2", path_stem);
     FILE* out = fopen(path, "wb");

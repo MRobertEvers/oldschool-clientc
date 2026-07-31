@@ -309,6 +309,22 @@ RSCache_CS2_ProtoGet(enum RSCache_CS2_ProtoId id);
 enum RSCache_CS2_ProtoId
 RSCache_CS2_ProtoForType(enum RSCache_CS2_Type type);
 
+/**
+ * The type a printed identifier stands for — the inverse of what the generator
+ * writes into a local's name.
+ *
+ * `int` and every other type literal answer for themselves; the named
+ * prototypes answer with the type they carry, so `opbase` is a `string` and
+ * `width` an `int`. NONE when nothing claims the spelling.
+ *
+ * The compiler needs this to declare a local the source reads without ever
+ * assigning: a script may push `$string0` having written nothing to it, which is
+ * legal — locals start empty — and its name is then the only thing that says
+ * which bank it lives in.
+ */
+enum RSCache_CS2_Type
+RSCache_CS2_TypeOfIdentifier(const char* identifier);
+
 /** True when the prototype adds no identifier beyond its type's own literal. */
 bool
 RSCache_CS2_ProtoIsDefault(enum RSCache_CS2_ProtoId id);

@@ -702,7 +702,16 @@ pack_server_names(
 
         snprintf(path, sizeof(path), "%s/pack/%s.pack", ctx->srcdir, groups[g].name);
         memset(&pack, 0, sizeof(pack));
-        if( !lc_pack_load(&pack, path, groups[g].name, 1) || pack.max < 0 )
+        /* `pack.names` is the test, not `pack.max`. A missing file is a normal
+         * state and `lc_pack_load` reports it by returning a zeroed struct — so
+         * `max` comes back as 0, not as the -1 this guard was written for, and
+         * the loop below dereferenced a NULL `names`. `cachepack pack` on any
+         * tree with no `server/pack/<name>.pack` segfaulted here.
+         *
+         * The bound is `<` too: `max` is one past the highest listed id, so
+         * `<=` read one entry beyond it — in bounds only as long as `capacity`
+         * happened to exceed `max`. */
+        if( !lc_pack_load(&pack, path, groups[g].name, 1) || !pack.names || pack.max <= 0 )
         {
             /* Absent is a normal state, not a failure: a tree that has not named
              * a namespace yet simply has no table to emit. */
@@ -710,8 +719,8 @@ pack_server_names(
             continue;
         }
 
-        ids = (int*)malloc(sizeof(*ids) * (size_t)(pack.max + 1));
-        names = (const char**)malloc(sizeof(*names) * (size_t)(pack.max + 1));
+        ids = (int*)malloc(sizeof(*ids) * (size_t)pack.max);
+        names = (const char**)malloc(sizeof(*names) * (size_t)pack.max);
         if( !ids || !names )
         {
             free(ids);
@@ -722,7 +731,7 @@ pack_server_names(
         /* Sparse in, sparse out. An id the pack does not list gets no entry —
          * the same rule `lc_pack_save_sparse` follows, and the reason the table
          * carries its ids rather than implying them from position. */
-        for( int id = 0; id <= pack.max; id++ )
+        for( int id = 0; id < pack.max; id++ )
         {
             if( !pack.names[id] )
                 continue;

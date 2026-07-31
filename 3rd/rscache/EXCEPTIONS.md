@@ -1704,16 +1704,44 @@ means some *known* opcode's recorded signature has drifted from what revision
 230 actually does. The same solver could be pointed at signed opcodes to find
 which — not done here.
 
-### G5. Name tables are optional, and four types make them mandatory *(Gap)*
+### G5. Name tables are optional, and four types made them mandatory *(Resolved)*
 
 Ids are what a cache stores; names are community-recovered and ship in RuneStar's
 `*-names.tsv`. They are loaded at run time and not vendored — 2.1 MB of data that
 belongs to a corpus, not to a codec — so a decompile without them is correct but
 reads `obj_995` rather than `coins_995`.
 
-The exception is `boolean`, `stat`, `maparea` and `fontmetrics`, which have no
-numeric spelling in the language at all. An id those four tables do not name
-cannot be printed, and the script is refused.
+The exception *was* `boolean`, `stat`, `maparea` and `fontmetrics`, which have
+no numeric spelling in the language. An id those four tables did not name could
+not be printed and the script was refused — which made a corpus of names a
+*correctness* dependency rather than a legibility one, and quietly halved what
+`cachepack` could decompile, since it has no name directory to point at. Against
+cache.osrs239: **3,612 failures without the tables against 683 with them.**
+
+Resolved, and the two halves have different reasons.
+
+`false` and `true` are now seeded in `RSCache_CS2_NamesInit`. They are not
+community-recovered data — they are the language's own words for 0 and 1, and
+`boolean-names.tsv` is two lines long. A loaded TSV still overwrites them. That
+alone was 2,472 scripts.
+
+`stat`, `maparea` and `fontmetrics` fall back to `<literal>_<id>`. The claim
+that they have no numeric spelling was simply wrong: `cs2_cc_parse_id_suffixed`
+already reads that form back for every unique-id type, so it round-trips
+exactly. And refusing was not even protective — it still took 12 scripts *with*
+the tables loaded, because a live cache outruns a community table. `stat_23` is
+Sailing; `maparea_42` is a region added since those TSVs were last written. A
+listing that says `stat_23` is exact. One that refuses the script says nothing.
+
+`boolean` alone still refuses a value outside its table, and that is deliberate:
+0 and 1 are both always named, so a third value is not a missing name — it is a
+slot the type solver put a non-boolean in, and `boolean_7` would hide it.
+
+`char`, `area` and `mapelement` print as plain numbers, joining `newvar`,
+`spotanim` and `player_uid` below under the same argument.
+
+Coverage is now identical with and without the tables: 9,308 of osrs239's 9,725
+either way.
 
 Two further departures from upstream, both strictly more capable:
 
@@ -2035,6 +2063,103 @@ Worth noting what the method *did not* give: the trace made the first argument l
 like a component, which would have been a natural thing to write into the signature.
 The decompile shows the component belonged to the preceding gosub. The arity is
 evidence; the types would have been a guess, so they are plain `INT`.
+
+### G8. The DB family's stack shape is in the data, not the opcode *(Resolved)*
+
+Script 7603 failed with `opcode 9 pc 47: left 1 values on the operand stack`.
+Opcode 9 is `branch_less_than`, and it had nothing to do with it — a stack
+failure names the op that *noticed*, not the one that lied.
+
+A `dbcolumn` literal packs
+
+    (table << 12) | (column << 4) | (field + 1)
+
+and field 0 means **the whole tuple**. `db_getfield(row, 0xa6200, i)` therefore
+pushes four values, of that column's four types, while `db_getfield(row,
+0xa6204, i)` — same table, same column, field 3 — pushes one. The generated
+table carried three in and one out for both, which is correct for a single-field
+column and desynchronises every script that reads a wider one: 80 of them.
+
+The `+1` is the whole point and it was not known. `db_unpack_column` in
+`src/game/rs_cs2_host.c` read the low nibble as a plain field index, which makes
+"the whole tuple" indistinguishable from "field 0" — so the client had the same
+defect, unnoticed because nothing there checks arity. The memory of that work
+recorded "dbcolumn packing unverified"; this is the verification.
+
+**Established by consumption, not by reading a client.** Over every call site in
+cache.osrs239: `0xa6200` is followed by four int pops at all 26 of its sites,
+`0xa6204` by exactly one at all 11, `0x170` by two, `0x90` by three. No fixed
+signature serves the first two, which name the same column.
+
+The find family was wrong the other way. `db_find`, `db_find_with_count`,
+`db_find_filter` and `db_find_filter_with_count` take **three** arguments, not
+two: all 142 call sites push `(dbcolumn, value, 0)` and no script balances
+without the third. What the third means is not known; the count is.
+
+Both now have their own command kinds and resolve their shape from the dbtable
+config, supplied by the caller through
+`RSCache_CS2_DecompileOptions.db_columns` — the same arrangement `param_types`
+uses, for the same reason: it is a property of the cache, not of the opcode.
+`tools/common/cs2_db_columns.c` is the one provider, shared by `cs2` and
+`cachepack`.
+
+**One gap inside the fix.** A dbtable's field types are ScriptVarType
+*ordinals*, not the descriptor characters CS2 uses elsewhere — table 78 column 1
+is `0 36 36 23`, which as descriptors would be NUL, `$`, `$` and end-of-medium.
+Only the string ordinal (36) is established, exhaustively, so the provider
+answers `int` or `string` and no finer. That is all the shape depends on. Running
+the ordinals through `RSCache_CS2_TypeOfDescAuto` — the obvious thing, and what
+the first cut did — returns "no such type" for every one of them, which reads as
+"column unknown" and falls straight back to the single int this exists to
+remove.
+
+Two smaller shape corrections came out of the same pass:
+
+- **`pop_array_int` is not always an int.** The element type is `define_array`'s
+  operand, and an array outlives a `gosub` — so a proc stores into one its
+  caller defined and this script holds no definition at all. The store now takes
+  whatever stack the value is on, which cannot desynchronise anything (one value
+  either way) and recovered 15 scripts storing `join_string` results.
+- **A local nothing constrained printed as `?`.** `[clientscript,x](? $int0)` is
+  not source. It prints as its bank now.
+
+Against cache.osrs239 the whole of section G's work moves **6,113 -> 9,308**
+decompiled of 9,725 (and 9,042 -> 9,308 for a caller that has RuneStar's name
+tables). `test_cs2` is unmoved at 6,489 identical / 2 different against the
+reference, and its `decompiled` figure rose 7,467 -> 7,485.
+
+### G9. The compiler was measured by a gate that measured nothing *(Resolved)*
+
+`cs2 roundtrip` is the standing correctness gate, and in `--cache` mode it
+compared the compiled bytes against nothing: only `--raw` kept the originals, so
+every cache run printed "0 same-length, 0 exact" — a line that looks like a
+result. The mode `cachepack` depends on was the blind one.
+
+With it fixed the compiler turned out to be well behind the decompiler: 8,531 of
+9,310 sources compiled. That is not cosmetic, because `cachepack pack` drops an
+archive whose source will not compile — a repacked osrs239 was missing 65
+scripts. Nine causes, all in `tools/README.md`; the largest was a hook argument
+written as `calc(...)`, which is arithmetic and therefore `int`, with nothing
+saying so.
+
+G3 predicted the hook-descriptor problem would need a whole-directory pre-pass
+building script id -> argument types. It did not. The descriptor letter's only
+operational job is to name the *stack* an argument came off, and all three of
+G3's defeating cases answer at that resolution: `null` is -1 on the int stack, an
+ambiguous `coins_995` is an int whichever of the six types claims it, and a
+`~proc` call's stack types are readable from the callee's bytecode through
+`RSCache_CS2_ScriptReturnTypes`, which already existed.
+
+Now 9,245 of 9,310. The residue is 65 scripts whose *decompiled source* is not
+valid CS2 — a statement that is a bare local, an array passed to a proc without
+its `$`, and a callback string containing nested quotes. Those are generator
+defects rather than parser ones and are not fixed here.
+
+**`cachepack` no longer depends on the two halves agreeing.** The script codec
+compiles its own output before accepting it and declines the record if that
+fails, so the raw bytecode is written instead and the tree is lossless by
+construction: `unpack` then `pack` restores all 9,725 archives, against 9,660
+before.
 
 ### H11. Readable asset forms, and what each one costs
 

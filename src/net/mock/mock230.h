@@ -361,6 +361,28 @@ void
 mock230_objinfo_free(void);
 
 /** Never NULL: unknown ids report a placeholder name and wearpos -1. */
+/**
+ * One param off an obj record, as the cache stored it.
+ *
+ * `sval` is non-NULL exactly when the cache marked the entry a string, and that
+ * is not the same question as what `configs/all.param` *declares* the param's
+ * type to be. A caller pushing onto a typed stack must go by the declaration
+ * (`mock230_content_param_type`), because that is what the script was compiled
+ * against; this struct says what is actually there. When they disagree the
+ * record is wrong and saying so beats guessing which to believe.
+ */
+struct Mock230ObjParam
+{
+    int32_t obj_id;
+    int32_t key;
+    int32_t ival;
+    char* sval;
+};
+
+/** The param, or NULL when this obj does not carry it. */
+const struct Mock230ObjParam*
+mock230_obj_param(int obj_id, int param_id);
+
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
@@ -449,6 +471,26 @@ struct Mock230NpcInfo
     int attackrate;
     int has_params;
 };
+
+/**
+ * One param off an npc record, as the cache stored it.
+ *
+ * Same shape and same rule as `struct Mock230ObjParam`: `sval` is non-NULL
+ * exactly when the cache marked the entry a string, and that is a different
+ * question from what `configs/all.param` *declares* the param to be. Go by the
+ * declaration when choosing a stack, by this when reading the value.
+ */
+struct Mock230NpcParam
+{
+    int32_t npc_id;
+    int32_t key;
+    int32_t ival;
+    char* sval;
+};
+
+/** The param, or NULL when this npc does not carry it. */
+const struct Mock230NpcParam*
+mock230_npc_param(int npc_id, int param_id);
 
 /** Decode the npc config table once. Returns 0 when the cache is absent, in
  *  which case every lookup reports a placeholder name and the mock still runs. */

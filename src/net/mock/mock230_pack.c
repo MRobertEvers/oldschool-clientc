@@ -214,6 +214,61 @@ validate_spawns(void)
                 "%s has a combat block but the cache gives it no Attack op, so "
                 "nothing can fight it",
                 symbol ? symbol : info->name);
+
+        /*
+         * A spawn whose name belongs to somewhere else.
+         *
+         * OldSchool's gameval table qualifies most npcs by the content that
+         * introduced them, so a roster imported by id rather than by name can
+         * end up standing `sos_pest_giantspider1` — Pest Control's level-50
+         * one — in the Lumbridge Swamp beside the level-2 `giantspider1`, and
+         * nothing says so. That is precisely what it was doing, four times over,
+         * until spawns moved to a name-keyed file
+         * (docs/LOSTCITY_PORT_TRIAGE.md §10.2).
+         *
+         * The signal is narrow on purpose. A prefix alone means nothing — plenty
+         * of variants are legitimately used outside the area they are named for —
+         * so this fires only when the *un-prefixed* creature is also spawned in
+         * this world. Having both is what says one of them is probably a
+         * mis-import. Once God Wars is a real area with its own `.spawn` file,
+         * `godwars_goblin2` standing there alone is silent, which is correct.
+         *
+         * A warning, never an error: it is a prompt to check a second source
+         * (LostCity's own roster covers the same ground), not a fact.
+         */
+        if( symbol )
+        {
+            static const char* const k_area_prefixes[] = {
+                "sos_pest_", "sos_fam_", "poh_", "godwars_", "barrows_",
+                "raids_", "nightmare_", "dragonslayer_", "slayer_",
+            };
+
+            for( size_t k = 0; k < sizeof(k_area_prefixes) / sizeof(k_area_prefixes[0]); k++ )
+            {
+                size_t length = strlen(k_area_prefixes[k]);
+                const char* base;
+                int base_id;
+
+                if( strncmp(symbol, k_area_prefixes[k], length) != 0 )
+                    continue;
+                base = symbol + length;
+                base_id = mock230_content_symbol(MOCK230_PACK_NPC, base);
+                if( base_id < 0 )
+                    break;
+                for( int j = 0; j < npc_count; j++ )
+                {
+                    if( npcs[j].npc_id != base_id )
+                        continue;
+                    report_warning(
+                        "%s is spawned here and so is `%s` — a name qualified by "
+                        "another content area beside the plain one is usually an "
+                        "id-imported roster; check both against a second source",
+                        symbol, base);
+                    break;
+                }
+                break;
+            }
+        }
     }
 
     for( int i = 0; i < obj_count; i++ )

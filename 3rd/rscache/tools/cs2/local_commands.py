@@ -205,6 +205,13 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # `pop_string_local`, and 38 further sites have the same shape. Three ints
     # in, one string out is the only reading, and it is worth 40 scripts.
     "_8022": (["INT", "INT", "INT"], ["STRING"], False),
+    # Round 5. The search converges here: rounds 6 and 7 solve nothing new.
+    "_7801": (["STRING"], ["INT"], False),
+    "_1143": (["INT"], [], False),
+    # Round 6. Round 7 solves nothing new: the search has converged, and what
+    # remains needs an opcode identified in a client rather than inferred (G4).
+    "_1628": ([], ["INT"], False),
+    "_1139": (["INT"], [], False),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

@@ -10,9 +10,9 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    109  host commands
+ *    111  host commands
  *      7  host commands (db)
- *    179  total, of 396 declared opcodes
+ *    181  total, of 396 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 179
+#define MOCK230_OPCODE_COVERAGE_COUNT 181
 #define MOCK230_OPCODE_DECLARED_COUNT 396
 
 /*
@@ -138,12 +138,14 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4001, /* SS_OP_NC_DEBUGNAME (host commands) */
     4003, /* SS_OP_NC_NAME (host commands) */
     4004, /* SS_OP_NC_OP (host commands) */
+    4005, /* SS_OP_NC_PARAM (host commands) */
     4006, /* SS_OP_NC_SIZE (host commands) */
     4007, /* SS_OP_NC_VISLEVEL (host commands) */
     4200, /* SS_OP_OC_CATEGORY (host commands) */
     4201, /* SS_OP_OC_CERT (host commands) */
     4203, /* SS_OP_OC_DEBUGNAME (host commands) */
     4207, /* SS_OP_OC_NAME (host commands) */
+    4209, /* SS_OP_OC_PARAM (host commands) */
     4210, /* SS_OP_OC_STACKABLE (host commands) */
     4212, /* SS_OP_OC_UNCERT (host commands) */
     4302, /* SS_OP_INV_ADD (host commands) */

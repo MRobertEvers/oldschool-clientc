@@ -964,7 +964,9 @@ emit_gameval_archive(
     uint32_t container_size;
     int rc;
 
-    if( pack->max < 0 )
+    /* Same rule as pack_server_names: `max` is one past the highest id, and a
+     * pack that loaded nothing has a NULL `names`. */
+    if( !pack->names || pack->max <= 0 )
         return 0;
 
     memset(&list, 0, sizeof(list));
@@ -979,7 +981,7 @@ emit_gameval_archive(
         return 0;
     }
 
-    for( int id = 0; id <= pack->max; id++ )
+    for( int id = 0; id < pack->max; id++ )
     {
         if( !pack->names[id] )
             continue;

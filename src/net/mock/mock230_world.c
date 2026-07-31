@@ -3784,9 +3784,9 @@ mock230_world_selftest(void)
              * drawn. */
             static const int k_dialogue[] = { 95, 97, 94, 98, 6 };
             int hans = selftest_find_npc(&srv, 3105);
+            int continue_uid = (231 << 16) | 5;
             uint8_t payload[2] = { (uint8_t)(hans >> 8), (uint8_t)(hans & 0xff) };
             uint8_t resume[4];
-            int continue_uid = (231 << 16) | 5;
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, payload, 2);
@@ -5308,6 +5308,183 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
     }
 
+    fprintf(stderr, "mock230 selftest: oc_param\n");
+    {
+        /*
+         * `oc_param` reads a param off an obj record and pushes it onto whichever
+         * stack the param's *declared* type calls for. Both halves are new:
+         * `mock230_obj_param` keeps all 53,853 rows the cache states, and
+         * `mock230_content_param_type` reads the declarations out of
+         * `configs/all.param` — which makes this the first runtime reader of
+         * anything in `configs/`, a directory CONTENT_ARCHITECTURE.md §3.5
+         * describes as write-only.
+         *
+         * Nothing in this tree calls it. It is implemented for the port (351
+         * call sites across 117 LostCity files), so the only way to know it
+         * works is to drive it — and the string case has to be popped *as a
+         * string*, because an int-stack assertion would pass even with the value
+         * on the wrong stack, which is the exact failure `runtime_typed` names.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int longbow = mock230_content_symbol(MOCK230_PACK_OBJ, "magic_longbow");
+            int rangeattack = mock230_content_symbol(MOCK230_PACK_PARAM, "rangeattack");
+            int verb = mock230_content_symbol(MOCK230_PACK_PARAM, "param_451");
+            int glory = mock230_content_symbol(MOCK230_PACK_OBJ, "amulet_of_glory");
+            const struct Mock230ObjParam* row;
+
+            /* The table itself, before the opcode over it. */
+            SELFTEST_CHECK(longbow > 0 && rangeattack > 0,
+                           "magic_longbow and rangeattack resolve by name");
+            row = mock230_obj_param(longbow, rangeattack);
+            SELFTEST_CHECK(row && row->ival == 69 && !row->sval,
+                           "magic_longbow's rangeattack is the cache's 69, as an int");
+            SELFTEST_CHECK(mock230_content_param_type(rangeattack) == 'i',
+                           "and configs/all.param declares it 'i', got '%c'",
+                           mock230_content_param_type(rangeattack));
+            row = mock230_obj_param(glory, verb);
+            SELFTEST_CHECK(row && row->sval && strcmp(row->sval, "Rub") == 0,
+                           "amulet_of_glory's param_451 is the string \"Rub\"");
+            SELFTEST_CHECK(mock230_content_param_type(verb) == 's',
+                           "and it is declared 's', got '%c'",
+                           mock230_content_param_type(verb));
+            /* The absent row. Not an error — the reference pushes 0. */
+            SELFTEST_CHECK(mock230_obj_param(longbow, verb) == NULL,
+                           "a param the obj does not carry is absent, not zero-valued");
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_oc_param] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 3,
+                               "oc_param should clear all three int cases, got %d",
+                               player->varps[2]);
+            }
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param_string]");
+            SELFTEST_CHECK(script != NULL,
+                           "[proc,selftest_oc_param_string] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 2,
+                               "a string param should reach the string stack and read "
+                               "back as \"Rub\", got %d", player->varps[2]);
+            }
+
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: nc_param\n");
+    {
+        /*
+         * The same opcode over the npc table, and a separate section rather
+         * than more checks in the one above because the two read different
+         * tables — a shared section could not say which of them broke.
+         *
+         * The npc half was never blocked on decoding: `read_combat_params` in
+         * mock230_npcinfo.c has always walked exactly these rows and kept the
+         * fourteen keys it recognised. All that was missing was keeping the
+         * rest. §3.13d called the family "blocked on data" and the data was one
+         * line away, which is the reason this section exists at all — the
+         * blocker was worth re-checking rather than quoting.
+         *
+         * cache.osrs239's values, and negative ones on purpose: a goblin's
+         * bonuses are all -15, so a table that read the field unsigned would
+         * still answer something.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+            int boss = mock230_content_symbol(MOCK230_PACK_NPC, "dagcave_ranged_boss");
+            int strengthbonus = mock230_content_symbol(MOCK230_PACK_PARAM, "strengthbonus");
+            int kings = mock230_content_symbol(MOCK230_PACK_PARAM, "param_510");
+            int obj_typed = mock230_content_symbol(MOCK230_PACK_PARAM, "param_46");
+            const struct Mock230NpcParam* row;
+
+            /* The table itself, before the opcode over it. */
+            SELFTEST_CHECK(goblin > 0 && boss > 0 && strengthbonus > 0,
+                           "goblin, dagcave_ranged_boss and strengthbonus resolve by name");
+            row = mock230_npc_param(goblin, strengthbonus);
+            SELFTEST_CHECK(row && row->ival == -15 && !row->sval,
+                           "a goblin's strengthbonus is the cache's -15, as an int");
+            row = mock230_npc_param(boss, kings);
+            SELFTEST_CHECK(row && row->sval &&
+                               strcmp(row->sval, "Dagannoth Kings (Echo)") == 0,
+                           "dagcave_ranged_boss's param_510 is the string it says it is");
+            SELFTEST_CHECK(mock230_content_param_type(kings) == 's',
+                           "and configs/all.param declares it 's', got '%c'",
+                           mock230_content_param_type(kings));
+            /*
+             * A declared type that is neither 'i' nor 's'. `param_46` is 'o',
+             * an obj id, and the VM has one int stack for every non-string
+             * type — so this has to reach the int stack the same way a plain
+             * 'i' does.
+             */
+            SELFTEST_CHECK(mock230_content_param_type(obj_typed) == 'o',
+                           "param_46 is declared 'o', got '%c'",
+                           mock230_content_param_type(obj_typed));
+            /* The absent row, and the sortedness the binary search needs. A
+             * goblin carries no rangeattack, and asking for a key below every
+             * key it does carry is the lookup an unsorted table gets wrong. */
+            SELFTEST_CHECK(
+                mock230_npc_param(
+                    goblin, mock230_content_symbol(MOCK230_PACK_PARAM, "rangeattack")) == NULL,
+                "a param the npc does not carry is absent, not zero-valued");
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_nc_param]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_nc_param] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 4,
+                               "nc_param should clear all four int cases, got %d",
+                               player->varps[2]);
+            }
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_nc_param_string]");
+            SELFTEST_CHECK(script != NULL,
+                           "[proc,selftest_nc_param_string] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 2,
+                               "a string param should reach the string stack and read back "
+                               "as \"Dagannoth Kings (Echo)\", got %d", player->varps[2]);
+            }
+
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: cook's assistant\n");
     {
         /*
@@ -5361,7 +5538,6 @@ mock230_world_selftest(void)
             int milk = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_milk");
             int egg = mock230_content_symbol(MOCK230_PACK_OBJ, "egg");
             int flour = mock230_content_symbol(MOCK230_PACK_OBJ, "pot_flour");
-            int continue_uid = (231 << 16) | 5;
             int cook_slot;
 
             SELFTEST_CHECK(cook_type > 0 && cookquest > 0 && milk > 0 && egg > 0 && flour > 0,

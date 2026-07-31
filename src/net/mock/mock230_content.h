@@ -521,6 +521,18 @@ struct Mock230MapObjSpawn
 const struct Mock230MapNpcSpawn*
 mock230_content_npc_spawns(int* count);
 
+/**
+ * What `configs/all.param` declares param `param_id`'s value to be, as the
+ * cache's own one-character type code, or 0 when nothing declares it.
+ *
+ * Only `'s'` is a string. Every other letter is an integer of some flavour —
+ * `i` plain, `d` a coord, `o` an obj, `1` a boolean — and the VM has one int
+ * stack for all of them. The distinction is the whole reason the `*_param`
+ * opcodes are marked `runtime_typed`.
+ */
+char
+mock230_content_param_type(int param_id);
+
 const struct Mock230MapObjSpawn*
 mock230_content_obj_spawns(int* count);
 

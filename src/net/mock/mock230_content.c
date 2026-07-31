@@ -1995,6 +1995,115 @@ load_spawn_config(const char* path)
 }
 
 /* ------------------------------------------------------------------ */
+/* Param types                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * What each param id's value *is*, from `configs/all.param`.
+ *
+ * The reason this exists is `oc_param` and its three siblings, which the
+ * opcode meta marks `runtime_typed`: the declared type of the param decides
+ * whether the result lands on the VM's int stack or its string stack. Without
+ * it the opcode cannot be implemented at all, only guessed at — which is why
+ * `docs/osrs230_mockserver.md` §3.13d listed the whole family as blocked on
+ * data rather than on effort.
+ *
+ * It also makes `configs/` stop being write-only. `CONTENT_ARCHITECTURE.md`
+ * §3.5's complaint was that `configs/all.<type>` is 8.6 MB of text whose only
+ * consumer is `cachepack pack`; this is the first runtime reader of any of it.
+ *
+ * The type is one character, the cache's own code. Only `s` is a string; every
+ * other letter is some flavour of integer as far as the stacks are concerned
+ * (`i` plain, `d` a coordinate, `o` an obj, `1` a boolean, and so on), and the
+ * VM has one int stack for all of them.
+ */
+static char* g_param_types;
+static int g_param_type_count;
+
+char
+mock230_content_param_type(int param_id)
+{
+    if( param_id < 0 || param_id >= g_param_type_count )
+        return 0;
+    return g_param_types[param_id];
+}
+
+static int
+load_param_types(const char* content_dir)
+{
+    char path[1024];
+    FILE* file;
+    char raw[512];
+    int current = -1;
+    int loaded = 0;
+    int highest = -1;
+
+    snprintf(path, sizeof(path), "%s/configs/all.param", content_dir);
+    file = fopen(path, "rb");
+    if( !file )
+    {
+        /*
+         * Not fatal, and deliberately so: a tree without the unpacked config
+         * text still boots, and every `oc_param` call then reports an unknown
+         * type rather than inventing one. Silence here would be the wrong
+         * trade, so it says what it lost.
+         */
+        fprintf(stderr,
+                "mock230: no configs/all.param — oc_param cannot type its result\n");
+        return 0;
+    }
+
+    /* Indexed by param id directly, sized off the highest the pack names. The
+     * pack is already loaded at this point — it is layer 0 of the `param`
+     * namespace and comes off `configs/all.param.compack`. */
+    {
+        const struct Pack* pack = &g_packs[MOCK230_PACK_PARAM];
+
+        for( int i = 0; i < pack->count; i++ )
+            if( pack->entries[i].id > highest )
+                highest = pack->entries[i].id;
+    }
+    if( highest < 0 )
+    {
+        fclose(file);
+        return 0;
+    }
+    g_param_type_count = highest + 1;
+    g_param_types = (char*)calloc((size_t)g_param_type_count, 1);
+    if( !g_param_types )
+    {
+        g_param_type_count = 0;
+        fclose(file);
+        return 0;
+    }
+
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char* header;
+        char* value;
+
+        if( !*line )
+            continue;
+        header = mock230_content_section_header(line);
+        if( header )
+        {
+            current = mock230_content_symbol(MOCK230_PACK_PARAM, header);
+            continue;
+        }
+        if( current < 0 || current >= g_param_type_count )
+            continue;
+        value = mock230_content_split_key_value(line);
+        if( !value || strcmp(line, "type") != 0 )
+            continue;
+        g_param_types[current] = value[0];
+        loaded++;
+    }
+    fclose(file);
+    return loaded;
+}
+
+/* ------------------------------------------------------------------ */
 /* Walking the tree                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -2167,6 +2276,15 @@ mock230_content_load(const char* dir)
      * configs (each block starts from a copy of it). */
     init_defaults();
 
+    /* Before the configs: nothing under server/ reads a param type yet, but the
+     * ordering is the one that stays right when something does. */
+    {
+        int param_types = load_param_types(dir);
+
+        if( param_types )
+            fprintf(stderr, "mock230: %d param types from configs/all.param\n", param_types);
+    }
+
     snprintf(path, sizeof(path), "%s/server/scripts", dir);
     /* Constants first: every other grammar may write `^name` where a number
      * goes, and an unexpanded caret is a load error rather than a zero. */
@@ -2248,6 +2366,10 @@ mock230_content_free(void)
     free(g_constants);
     g_constants = NULL;
     g_constant_count = g_constant_capacity = 0;
+    free(g_param_types);
+    g_param_types = NULL;
+    g_param_type_count = 0;
+
     free(g_npc_spawns);
     g_npc_spawns = NULL;
     g_npc_spawn_count = g_npc_spawn_capacity = 0;
