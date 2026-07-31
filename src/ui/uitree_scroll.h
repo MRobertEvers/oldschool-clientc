@@ -96,6 +96,26 @@ UITree_ComponentEstablishesSurface(struct UITreeComponent const* component);
  * surface) and returns true; otherwise returns false and the caller keeps its
  * inherited clip and surface. `surface` may be NULL (treated as unbounded).
  */
+/**
+ * True when a clipping component has collapsed to nothing (zero or negative
+ * width/height) and its children must therefore be pruned, not drawn.
+ *
+ * This is the case UITree_LayerChildClip cannot express: in that API an empty
+ * rect means "unbounded", so it has to refuse a degenerate box, and a caller
+ * that only asks it ends up drawing the subtree at full size against whatever
+ * clip it inherited. That is exactly what a rev-230 orb is — the "empty" half
+ * of the fill is a 26x0 layer over a 26x26 sprite, and the CS2 that owns the
+ * fill level expresses "full" by setting that layer's height to 0.
+ *
+ * Every walker (emit, hit-test, hover, drop) must check this before descending,
+ * or hitboxes and pixels disagree.
+ */
+bool
+UITree_LayerCullsChildren(
+    struct UITreeComponent const* component,
+    int box_w,
+    int box_h);
+
 bool
 UITree_LayerChildClip(
     struct UITreeComponent const* component,

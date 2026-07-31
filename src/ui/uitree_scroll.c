@@ -47,6 +47,15 @@ UITree_ComponentEstablishesSurface(struct UITreeComponent const* component)
 }
 
 bool
+UITree_LayerCullsChildren(
+    struct UITreeComponent const* component,
+    int box_w,
+    int box_h)
+{
+    return UITree_ComponentClipsChildren(component) && (box_w <= 0 || box_h <= 0);
+}
+
+bool
 UITree_LayerChildClip(
     struct UITreeComponent const* component,
     struct UITreeScrollClip const* surface,
@@ -59,6 +68,12 @@ UITree_LayerChildClip(
 {
     struct UITreeScrollClip const empty = { 0, 0, 0, 0 };
 
+    /* A collapsed clipping layer cannot be answered with a rect: an empty rect
+     * means "unbounded" in this API, which is the opposite of what a zero-sized
+     * clip means. Callers must ask UITree_LayerCullsChildren first and prune the
+     * subtree; reaching here with a degenerate box and taking the inherited clip
+     * is what drew the orb "empty" overlays at full size over the fills, so
+     * every minimap orb was a black circle. */
     if( !UITree_ComponentClipsChildren(component) || box_w <= 0 || box_h <= 0 )
         return false;
 

@@ -1177,6 +1177,84 @@ uitree_emit_inv_number(int amount, char* buf, size_t cap)
         snprintf(buf, cap, "%dM", amount / 1000000);
 }
 
+/*
+ * The stack count over a single item widget.
+ *
+ * The TYPE_INV grid draws its own counts per slot (below), but rev 230 has no
+ * TYPE_INV inventory: the gameframe's CS2 `cc_create`s one widget per slot and
+ * hangs the obj on it with SETOBJECT, so the count has to be drawn here or
+ * nowhere. It was nowhere — every stack in the backpack, the bank and the shop
+ * drew its icon with no number on it.
+ *
+ * `icon` is the desc just appended for the item, so the number inherits every
+ * offset the icon took (scroll, drag, ghosting) by construction. Same
+ * conventions as the grid path: p11 yellow with a drop shadow, baseline at
+ * slotY+9 (our text box top sits one line above the baseline).
+ */
+static void
+emit_obj_stack_count(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitDesc const* icon,
+    struct UITreeEmitClip const* parent_clip)
+{
+    int obj_id = c->item_id;
+    int obj_count = c->item_count > 0 ? c->item_count : 1;
+    int font_id;
+    int stackable = 0;
+    char namebuf[4] = { 0 };
+    struct UITreeEmitDesc count_desc;
+
+    if( !host || obj_id <= 0 )
+        return;
+    /* Only the two kinds that actually carry an obj icon; a plain SETGRAPHIC
+     * sprite that happens to sit on a node with a stale item_id must not
+     * sprout a number. */
+    if( icon->kind != UITREE_EMIT_CC_OBJ &&
+        !(icon->kind == UITREE_EMIT_SPRITE && c->item_scene_id > 0) )
+        return;
+
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_INV_COUNT_FONT };
+        font_id = UITree_Host(host, &req);
+    }
+    if( font_id < 0 )
+        return;
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_OBJ_NAME,
+            .u.get_obj_name.obj_id = obj_id,
+            .u.get_obj_name.out = namebuf,
+            .u.get_obj_name.cap = (int)sizeof(namebuf),
+            .u.get_obj_name.out_stackable = &stackable,
+        };
+        UITree_Host(host, &req);
+    }
+    if( !stackable && obj_count == 1 )
+        return;
+
+    memset(&count_desc, 0, sizeof(count_desc));
+    count_desc.kind = UITREE_EMIT_TEXT;
+    count_desc.node_index = idx;
+    count_desc.component_id = c->component_id;
+    count_desc.x = icon->x;
+    count_desc.y = icon->y + 9 - 12;
+    count_desc.w = icon->w > 0 ? icon->w : 36;
+    count_desc.h = 14;
+    count_desc.font_id = font_id;
+    count_desc.color = 0xFFFF00;
+    count_desc.text_shadowed = 1;
+    count_desc.trans = icon->trans;
+    uitree_emit_inv_number(obj_count, count_desc.text_formatted, sizeof(count_desc.text_formatted));
+    count_desc.text = "";
+    count_desc.scroll_off_x = icon->scroll_off_x;
+    count_desc.scroll_off_y = icon->scroll_off_y;
+    count_desc.clip = *parent_clip;
+    emit_buffer_append(out, &count_desc);
+}
+
 /** Expand TYPE_INV grid into per-slot sprites via host GET_INV_SOURCE_SLOT. */
 static void
 emit_rs_inv_slots(
@@ -1661,6 +1739,12 @@ emit_walk_node(
         struct UITreeScrollClip surf = { surface_clip->x, surface_clip->y, surface_clip->w,
                                          surface_clip->h };
         struct UITreeScrollClip cc, cs;
+        /* Collapsed clipping layer: its children are clipped away entirely.
+         * Returning here also skips this node's own draw, which costs nothing —
+         * the types that clip (RS_LAYER, sidebar, chat, inv grid) paint no
+         * content of their own. */
+        if( UITree_LayerCullsChildren(c, w, h) )
+            return;
         if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
         {
             layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
@@ -1768,6 +1852,7 @@ emit_walk_node(
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
                 desc.clip.x + desc.clip.w);
         emit_buffer_append(out, &desc);
+        emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);
     }
 
     /* Sweep 0 draws the container's own children, sweep 1 the InterfaceParent

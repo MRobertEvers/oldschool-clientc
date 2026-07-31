@@ -50,10 +50,23 @@ struct CS2VM2_Frame
     int return_ints[8];
 };
 
-/* Matches the reference client's Interpreter_frames[50]. Recursive scripts do
- * exist — the world map's label sort (1491) recurses once per element — so a
- * shallower stack turns a legal script into an error. */
-#define CS2VM_MAX_FRAMES 50
+/*
+ * Call depth. Recursive scripts are ordinary here — the sorts are written as
+ * quicksorts that recurse once per partition (the world map's label sort 1491,
+ * the spellbook's 2621) — so this is a real limit, not a paranoia bound.
+ *
+ * It was 50, on the belief that it matched the reference's Interpreter frame
+ * array. The cache says otherwise: 2621 reaches depth 70 sorting the rev-239
+ * standard spellbook, so 50 aborted it and the magic tab drew nothing but its
+ * Filters button. 70 is not a ceiling either — the depth is O(spells) in the
+ * worst case and the other books are larger — so this sits well above what was
+ * measured rather than at it.
+ *
+ * Frames are fat (CS2VM_MAX_LOCALS ints plus string pointers, ~12 KB each) and
+ * there are CS2VM2_MAX_THREADS of them, so this is ~6 MB of the VM — worth
+ * knowing before raising it much further.
+ */
+#define CS2VM_MAX_FRAMES 128
 #define CS2VM_MAX_CYCLES 1000000
 #define CS2VM2_MAX_ARRAYS 128
 #define CS2VM2_ARRAY_CAPACITY 256

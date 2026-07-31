@@ -32,13 +32,20 @@
  *
  * The ORB IS NOT, and that is the interesting part.
  *
- * OpenRune's gameval table calls 160:55 `orbs:worldmap`. At rev 230 the orb's
- * inner graphic is 160:53 — `orbs_worldmap_setup` (proc 1700), the script that
- * installs "Floating World Map" (op 2) and "Fullscreen World Map" (op 3) on it,
- * says so, and 160:53 is `wiki_icon` in OpenRune's rev-235 table. Two
- * components were inserted between the revisions. Importing the name would
- * silently arm the wiki button instead, so this one stays a literal with its
- * evidence beside it, which is what a symbol cannot give here.
+ * This was 160:53 for a while, on the reasoning that OpenRune's rev-235 table
+ * names 160:55 `orbs:worldmap` and 160:53 `wiki_icon`, so components must have
+ * been inserted between the revisions and the rev-230 orb must be the lower id.
+ * That reasoning was backwards, and the cache this server actually reads says
+ * so twice over:
+ *
+ *   - `interfaces/orbs.compack` names 53 `wiki_icon_graphic` and 55 `worldmap`;
+ *   - `orb_worldmap`'s onload (script 1492 -> proc 1700) installs "Floating
+ *     World Map" (op 2) and "Fullscreen World Map" (op 3) on its *third*
+ *     argument, which the onload passes as 10485815 = 160:55.
+ *
+ * Arming 53 armed the wiki button, so the orb stayed inert and the map never
+ * opened. The literal stays — a gameval symbol from a different revision is
+ * what caused this — but it is now the one the cache's own script names.
  *
  * `worldmap_transmitdata` (1749) is a *client* script id, which no pack in this
  * tree carries; it is three ints into varcint 188/1078/401, and only the first
@@ -47,7 +54,7 @@
 enum
 {
     MOCK230_ORB_IFACE = 160,
-    MOCK230_ORB_WORLDMAP_CHILD = 53,
+    MOCK230_ORB_WORLDMAP_CHILD = 55,
     MOCK230_ORB_WORLDMAP_UID = (MOCK230_ORB_IFACE << 16) | MOCK230_ORB_WORLDMAP_CHILD,
 
     MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA = 1749,

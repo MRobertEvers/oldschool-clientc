@@ -1197,7 +1197,19 @@ CS2VM2_Op_GosubWithParams(
     assert(vm->vm->host_exec);
 
     if( vm->frame_sp >= CS2VM_MAX_FRAMES )
+    {
+        /* Say so. A blown call stack otherwise surfaces as "script N failed at
+         * opcode 40", which reads like a bad gosub target and sent this hunt
+         * looking at the callee rather than the depth. */
+        fprintf(
+            stderr,
+            "CS2VM2: call depth %d exhausted calling script %d from script %d "
+            "(raise CS2VM_MAX_FRAMES)\n",
+            CS2VM_MAX_FRAMES,
+            operand,
+            frame->script ? frame->script->script_id : -1);
         return CS2VM_EXECNO_ERROR;
+    }
 
     struct CS2VM2_Frame* caller = frame;
     caller->return_pc = caller->pc;

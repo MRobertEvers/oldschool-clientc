@@ -153,21 +153,23 @@ mock230_content_section_header(char* line)
  * disagree about an id, the authored name is the line and the cache's is a
  * trailing note:
  *
- *     3106=goblin_green  // cache: goblin
+ *     <id>=<authored name>  // cache: <gameval name>
  *
  * The one thing a single file cannot hold is an *alias* — a second name for an id
  * the cache already names — because a line binds one name to one id. That is a
  * deliberate loss, decided per case during the migration; no alias in this tree
  * needed keeping, and `validate_symbols` refuses a file that tries.
  *
- * Which makes an override a rename, and worth spending only where the cache's
- * name is actually wrong for what the id now holds. `configs/all.varp.compack`
- * had eleven that were not: eight varps relabelled after a varbit they merely
- * carry (`843=varp_weapon_category`, `867=bank_tab_a`, …) and three holding this
- * server's scratch counters. Every one of them cost the cache's own spelling —
- * `randomhitsound` and `prayer23` resolved to nothing at all — and one of them,
- * varp 1, put a whole-varp counter on top of twelve Dwarf Cannon varbits. There
- * are no `// cache:` notes in that file now, and `--selftest` keeps it that way.
+ * Which makes an override a *rename*, not an addition, and worth spending only
+ * where the cache's name is wrong for what the id now holds. No file in this
+ * tree spends it: there is not one `// cache:` note left. There were eleven, all
+ * in `configs/all.varp.compack`, and none of them earned it — eight varps
+ * relabelled after a varbit they merely carry (`843=varp_weapon_category`,
+ * `867=bank_tab_a`, …) plus three holding this server's scratch counters. Each
+ * cost the cache's own spelling: `randomhitsound` and `prayer23` resolved to
+ * nothing while the rename stood. One of them cost more — varp 1 put a
+ * whole-varp counter on top of twelve Dwarf Cannon varbits. `--selftest` now
+ * pins the eight cache names and the three scratch ids.
  */
 struct PackEntry
 {

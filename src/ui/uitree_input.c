@@ -222,6 +222,10 @@ hit_test_interactive_recursive(
      * folds in any drag delta, matching emit's drag-shifted clip. */
     {
         struct UITreeScrollClip cc, cs;
+        /* Collapsed clipping layer: nothing under it is drawn, so nothing under
+         * it can be hit either (same rule as emit_walk_node). */
+        if( UITree_LayerCullsChildren(component, bw, bh) )
+            return 0;
         if( UITree_LayerChildClip(
                 component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
         {
@@ -429,6 +433,10 @@ collect_nodes_recursive(
 
     {
         struct UITreeScrollClip cc, cs;
+        /* Collapsed clipping layer: nothing under it is drawn, so nothing under
+         * it can be hit either (same rule as emit_walk_node). */
+        if( UITree_LayerCullsChildren(component, bw, bh) )
+            return;
         if( UITree_LayerChildClip(
                 component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
         {

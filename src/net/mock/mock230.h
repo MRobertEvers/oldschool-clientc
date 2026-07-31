@@ -868,6 +868,16 @@ struct Mock230Player
      *  numbers are IF_SETTEXTs to components that only exist while it is, so
      *  every refresh has to check this first. */
     int equip_stats_open;
+    /** What is mounted in the gameframe's two modal slots (0 = nothing).
+     *
+     *  CLOSE_MODAL is the client asking to shut whatever modal is up — the X on
+     *  a framed interface, and the Escape key. The server is what unmounts, so
+     *  without a record of what it opened the request has nowhere to go: it used
+     *  to test `bank.open` and return, which made the bank the only interface in
+     *  the game that could be closed. Anything a content script opened with
+     *  `if_openmain` stayed on screen forever. */
+    int mainmodal_group;
+    int sidemodal_group;
     /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
      *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
     int run_energy_sent;
@@ -1805,6 +1815,14 @@ void
 mock230_send_if_closesub(
     struct Mock230Server* srv,
     int uid);
+/** Record a mount into (or out of) the gameframe's modal slots. Called by the
+ *  IF_OPENSUB / IF_CLOSESUB encoders, so no opener has to remember to; `group`
+ *  is 0 for a close. CLOSE_MODAL is what reads it back. */
+void
+mock230_note_modal_mount(
+    struct Mock230Server* srv,
+    int uid,
+    int group);
 /** Open the "Enter amount" prompt. Zero payload; the answer arrives as
  *  RESUME_P_COUNTDIALOG. */
 void

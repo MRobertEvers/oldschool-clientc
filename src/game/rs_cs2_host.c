@@ -3014,6 +3014,17 @@ exec_set_on_cc_event(
  * rows, and hid all four attack-style buttons.
  * ========================================================================= */
 
+/*
+ * The low nibble selects a field of the column's tuple and it is ONE-based:
+ * 0 means the whole tuple, N means field N-1. The corpus settles it — table
+ * 166 column 32 is a 4-tuple, and `db_getfield(row, 0xA6200, i)` (nibble 0)
+ * assigns four values while `db_getfield(row, 0xA6204, i)` (nibble 4) assigns
+ * one. Reading it zero-based gets both ends wrong: the common nibble-0 case
+ * pushes one value where the script pops four, and the highest field reads as
+ * out-of-range and pushes the whole tuple.
+ */
+#define DB_TUPLE_WHOLE (-1)
+
 static void
 db_unpack_column(
     int packed,
@@ -3023,7 +3034,7 @@ db_unpack_column(
 {
     *table_id = (packed >> 12) & 0xFFFFF;
     *column_id = (packed >> 4) & 0xFF;
-    *tuple_index = packed & 0xF;
+    *tuple_index = (packed & 0xF) - 1;
 }
 
 static void
@@ -3130,9 +3141,9 @@ db_push_default(
  * from our partial cache and died on the following BRANCH_EQUALS).
  *
  * When the column is known we can still answer in the right shape: honour its
- * arity and per-field types, since a sentinel `tuple` reads the whole tuple and
- * pushes one value per component. When the column itself is missing there is no
- * type information to work from, so all we can do is answer a single integer.
+ * arity and per-field types, since a whole-tuple read (DB_TUPLE_WHOLE) pushes
+ * one value per component. When the column itself is missing there is no type
+ * information to work from, so all we can do is answer a single integer.
  */
 static int
 db_push_missing(
@@ -3172,9 +3183,11 @@ db_push_value(
     return CS2VM2_PushInt(vm, value->int_value);
 }
 
-/* DB_FIND value lookup: scan the column index's tuple position for an entry
- * matching `value` (int or string), and copy its row-id list into the iterator.
- * Sets an empty iterator when nothing matches. */
+/* DB_FIND value lookup: scan the column index for an entry matching `value`
+ * (int or string), and copy its row-id list into the iterator. A whole-tuple
+ * column (nibble 0) matches on any field, which is what makes a single-field
+ * query against a multi-field column work; a field selector searches only that
+ * field. Sets an empty iterator when nothing matches. */
 static void
 db_find_value(
     struct RS_CS2Host* host,
@@ -3186,26 +3199,33 @@ db_find_value(
     char const* value_str)
 {
     struct RSCache_DbIndexFile* file = ToriRS_DbTableIndex_Column(idx, column_id);
-    int pos;
+    int first, last;
 
     db_set_iterator(host, NULL, 0);
     if( !file || file->tuple_size <= 0 )
         return;
-    pos = (tuple_index >= 0 && tuple_index < file->tuple_size) ? tuple_index : 0;
+    if( tuple_index >= 0 && tuple_index < file->tuple_size )
+        first = last = tuple_index;
+    else
+        first = 0, last = file->tuple_size - 1;
 
-    struct RSCache_DbIndexTuple* tuple = &file->tuples[pos];
-    for( int i = 0; i < tuple->entry_count; i++ )
+    for( int pos = first; pos <= last; pos++ )
     {
-        struct RSCache_DbIndexEntry* entry = &tuple->entries[i];
-        bool match;
-        if( value_is_string || tuple->base_type == RSCACHE_DB_BASE_STRING )
-            match = entry->string_value && value_str && strcmp(entry->string_value, value_str) == 0;
-        else
-            match = (entry->int_value == value_int);
-        if( match )
+        struct RSCache_DbIndexTuple* tuple = &file->tuples[pos];
+        for( int i = 0; i < tuple->entry_count; i++ )
         {
-            db_set_iterator(host, entry->row_ids, entry->row_count);
-            return;
+            struct RSCache_DbIndexEntry* entry = &tuple->entries[i];
+            bool match;
+            if( value_is_string || tuple->base_type == RSCACHE_DB_BASE_STRING )
+                match =
+                    entry->string_value && value_str && strcmp(entry->string_value, value_str) == 0;
+            else
+                match = (entry->int_value == value_int);
+            if( match )
+            {
+                db_set_iterator(host, entry->row_ids, entry->row_count);
+                return;
+            }
         }
     }
 }

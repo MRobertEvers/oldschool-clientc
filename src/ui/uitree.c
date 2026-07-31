@@ -2802,6 +2802,10 @@ drop_target_pick_in_subtree(
      * compounded with ancestor layers. */
     {
         struct UITreeScrollClip cc, cs;
+        /* Collapsed clipping layer: nothing under it is drawn, so nothing under
+         * it can be hit either (same rule as emit_walk_node). */
+        if( UITree_LayerCullsChildren(c, w, h) )
+            return 0;
         if( UITree_LayerChildClip(
                 c, surface, x - scroll_off_x, y - scroll_off_y, w, h, &cc, &cs) )
         {

@@ -341,6 +341,7 @@ mock230_send_if_opensub(
     rsab_p2_alt2(&buf, group);
     rsab_p4_alt3(&buf, (parent << 16) | child);
     flush(srv, &buf, OP_IF_OPENSUB, 0);
+    mock230_note_modal_mount(srv, (parent << 16) | child, group);
 }
 
 void
@@ -477,6 +478,7 @@ mock230_send_if_closesub(
     open_packet(&buf, 8);
     rsab_p4(&buf, uid);
     flush(srv, &buf, OP_IF_CLOSESUB, 0);
+    mock230_note_modal_mount(srv, uid, 0);
 }
 
 /*

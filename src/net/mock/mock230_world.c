@@ -2512,9 +2512,38 @@ handle_click_world_map(
 }
 
 /*
+ * Remember what is mounted in the gameframe's two modal slots.
+ *
+ * Called from the IF_OPENSUB / IF_CLOSESUB encoders rather than from each
+ * opener, so it cannot drift: every mount the server makes goes through those
+ * two functions, including the ones content scripts drive through
+ * `if_openmain`. `group` is 0 for a close.
+ */
+void
+mock230_note_modal_mount(
+    struct Mock230Server* srv,
+    int uid,
+    int group)
+{
+    const struct Mock230Ids* ids = mock230_ids();
+
+    if( !srv || !srv->player )
+        return;
+    if( uid == ids->com_gameframe_mainmodal )
+        srv->player->mainmodal_group = group;
+    else if( uid == ids->com_gameframe_sidemodal )
+        srv->player->sidemodal_group = group;
+}
+
+/*
  * The player pressed Escape, or clicked a component whose CS2 called
  * `if_close`. The client has already torn its own copy down; the server has to
- * agree, or the next open finds the bank still marked open and sends nothing.
+ * agree, or the next open finds the interface still marked open and sends
+ * nothing.
+ *
+ * Everything but the dispatch below is content's: `[if_close,<iface>:0]` gets
+ * first refusal, exactly as it did for the bank, and only a script that does
+ * not exist falls through to the engine's own close.
  */
 static void
 handle_close_modal(
@@ -2523,17 +2552,36 @@ handle_close_modal(
     const uint8_t* payload,
     int len)
 {
+    struct Mock230Player* player = srv->player;
+    const struct Mock230Ids* ids = mock230_ids();
+    int main_group = player->mainmodal_group;
+
     (void)name;
     (void)payload;
     (void)len;
 
     if( srv->verbose )
-        fprintf(stderr, "mock230: <- CLOSE_MODAL\n");
-    if( !srv->player->bank.open )
+        fprintf(stderr, "mock230: <- CLOSE_MODAL (main=%d side=%d)\n", main_group,
+                player->sidemodal_group);
+    if( main_group <= 0 )
         return;
-    if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE,
-                                     MOCK230_COM(mock230_ids()->iface_bankmain, 0), -1, -1) )
+    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, MOCK230_COM(main_group, 0), -1, -1) )
+        return;
+
+    /* Two screens keep state of their own beyond the mount — the bank has
+     * containers and a reorganise, the equipment screen has a refresh gate — so
+     * they close through their own function. Anything else is just a mount, and
+     * dropping it is the whole of closing it. */
+    if( player->bank.open )
         mock230_bank_close(srv);
+    else if( player->equip_stats_open )
+        mock230_equipment_close_stats(srv);
+    else
+    {
+        mock230_send_if_closesub(srv, ids->com_gameframe_mainmodal);
+        if( player->sidemodal_group > 0 )
+            mock230_send_if_closesub(srv, ids->com_gameframe_sidemodal);
+    }
 }
 
 /* The number a p_countdialog collected — "Withdraw-X". */

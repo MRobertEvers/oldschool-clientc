@@ -41,7 +41,7 @@ needs three things that file structurally cannot hold:
 | need | example | why `configs/all.varp.compack` can't |
 |---|---|---|
 | a **second** name for a named id | `115=bank_withdrawnotes` beside `bankcert` | `LC_Pack` is `names[id]` — one name per id |
-| an **override** of a cache name | `843=varp_weapon_category`, because this world repurposed it | `cachepack` regenerates the file; the override would be reverted or, worse, kept and indistinguishable from a cache name |
+| an **override** of a cache name | `843=varp_weapon_category`, when this world thought it had repurposed it — see §6.5, it had not, and the override is gone | `cachepack` regenerates the file; the override would be reverted or, worse, kept and indistinguishable from a cache name |
 | a name for something the cache never names | `stat.pack`, `category.pack` | no gameval archive to seed from |
 
 So the *instinct* behind `server/pack/` is right. What is wrong is that it was
@@ -717,3 +717,57 @@ matter of which tool wrote the file last.
   interface`, which rewrites 968 lines and wants its own review.
 - `configs/` is still write-only (§3.5). The field register and the
   `{client, server}` encoder split are step 5 and unaffected by any of this.
+
+---
+
+## 6.5 The overrides were not overrides
+
+§4.1's layer 1 is for the case where the cache's name is *wrong for what the id
+now holds*. `configs/all.varp.compack` had eleven, and on inspection none of them
+was that case. All eleven are gone; the file has no `// cache:` note left.
+
+The mechanism first, because it is the part that reads backwards. A pack line is
+`names[id]`, so an authored name does not *add* a spelling — it **replaces** the
+cache's. `843=varp_weapon_category` did not mean 843 answered to both names. It
+meant `randomhitsound` answered to nothing, and `mock230 --selftest` had a check
+asserting the cache name still resolved that had simply been failing.
+
+**Eight were relabelling, not repurposing.** 843, 867, 1052, 1053, 1105, 1666,
+1793 and 3750 had been renamed after a varbit they carry —
+`varp_weapon_category`, `bank_tab_a`..`bank_tab_e`, `bank_quantity`,
+`varp_combat_level`. But a varp holding a varbit is not that varbit's variable,
+and these are shared: 867 (`prayer23`) also holds `depositbox_mode`, 1666
+(`gargboss_perm_transmit`) holds six varbits that have nothing to do with the
+bank, and 1105 (`wilderness_statistics`) holds seven from four unrelated
+systems. The content never writes any of them by name — `bank.varp` and
+`combat_tab.varp` only declare them `transmit=yes`, which the cache's own name
+does equally well. So the rename bought nothing and asserted something false: it
+is §6.1's whole-varp-write bug spelled in prose instead of code, and it is how a
+later `%bank_tab_a = ...` gets written by somebody who trusted the label.
+
+**Three were this server's scratch counters** — `mock_greeting_count`,
+`mock_quest_progress`, `lumbridge_visited` — parked on varps 1, 2 and 3, which
+the cache names `mcannonmulti`, `dropcannon` and `rockthrower`. Here one was a
+live bug rather than a mislabel. The cache packs **twelve Dwarf Cannon varbits**
+into varp 1, and a scratch counter is written whole:
+
+```
+%mock_greeting_count = calc(%mock_greeting_count + 1);
+```
+
+so greeting Hans cleared `mcannon_safety_on`, `mcannon_spring_set`, the three
+tool bits and seven more in one store. They now live on varps 6, 7 and 8, which
+the gameval table does not name and no varbit is based on — the same check
+`quest_cook.varp` documents for varp 29, and the reason to prefer an *unnamed*
+id for server-only state over a named one that happens to look free.
+
+The generalisation, since the varbit half is the part that does not announce
+itself: **the cache's varbit table is the authority on whether a varp is
+writable as a varp**, and it has to be consulted per id. Nothing about
+`mcannonmulti` suggests twelve tenants and nothing about
+`gargboss_perm_transmit` suggests the bank. `configs/all.varbit`'s `basevar=`
+column answers it directly and is the only thing that does.
+
+`--selftest` now pins all eleven: the eight cache names must resolve, the eight
+invented ones must not, and the three scratch ids are asserted against the pack
+rather than hardcoded twice.
