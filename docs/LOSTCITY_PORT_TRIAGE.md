@@ -1173,13 +1173,52 @@ The test asserts the negative for both: that `npc_settimer(0)` **stops** the
 timer, which is the only way to tell "stopped" from "not due yet", and that a
 `[ai_queue1]` does not fire early.
 
+### npc modes — the last large item
+
+`npc_setmode` was in front of 122 files, twice anything else. The opcode is one
+line; what it implies is a **standing state the npc holds across ticks**, so the
+work was giving phase 4 somewhere to run one.
+
+Measured first, which is what made it a day instead of a week: the tree's 253
+`npc_setmode` calls name eleven modes, and **162 of them are `none`/`null`** —
+"stop what you were doing". The distribution:
+
+```
+none 86   null 76   opplayer2 73   applayer2 42   playerface 16
+playerescape 14   playerfaceclose 8   playerfollow 7   patrol 4   wander 2
+```
+
+Implemented: `none`/`null`, `wander`, `playerescape`, `playerfollow`,
+`playerface`, `playerfaceclose`, and the `opplayer1..5` / `applayer1..5`
+families. That is 249 of the 253. `patrol` and the loc/obj/npc-targeted modes
+are not: they carry a *target* the mode field has nowhere to put. An unhandled
+mode warns once per npc type and falls back to `none`, because an npc quietly
+standing still is the failure that reads as "the script did not run".
+
+Two decisions worth recording:
+
+- **Wander is the default, not the absence of a mode.** An npc with a radius
+  starts on `wander`; one without starts on `none`. If roaming were what
+  happens when no mode is set, `npc_setmode(none)` would be
+  indistinguishable from "never had one" and every roster npc would carry on
+  roaming through it. The selftest asserts exactly that — park a follower, set
+  `none`, tick ten times, assert it has not moved.
+- **`opplayer<n>` is an errand, not a state.** It walks the npc to the player,
+  fires `[ai_opplayer<n>]` *once*, and drops back to `none`. An npc left in the
+  mode would re-fire its trigger every tick from then on, which is why the test
+  ticks past the arrival and asserts the count is still 1.
+
+`playerfollow` is what the test leans on, because it has a stopping condition: a
+mover that merely walks toward the player looks right for several ticks and then
+stands on top of them.
+
 ### Where the number stands
 
 §1's headline metric, re-measured after 4a and 4b:
 
 ```
-scripts using only implemented commands   636/1,265 (50.3%)  ->  840/1,265 (66.4%)
-opcodes implemented                       179/396            ->  212/396
+scripts using only implemented commands   636/1,265 (50.3%)  ->  873/1,265 (69.0%)
+opcodes implemented                       179/396            ->  214/397
 mock230 selftest failures                 2                  ->  1
 ```
 
@@ -1187,17 +1226,18 @@ The remaining blockers, re-measured:
 
 | opcode | files still blocked | note |
 |---|---:|---|
-| `npc_setmode` | 122 | needs an npc mode machine — the biggest single item left, by a factor of two |
 | `map_findsquare` | 54 | find a free tile near a coord |
 | `loc_param` | 52 | needs the runtime loc-config decode |
 | `spotanim_map` | 48 | the wire exists (`MAP_ANIM`); this is a host command over it |
 | `npc_walk` | 44 | needs npc step queues |
 | `inv_setslot` | 33 | trivial |
+| `db_find` | 23 | the db layer exists (`mock230_db.c`) |
 
-**`npc_setmode` is now the only large item left.** `playerfaceclose`, `wander`
-and `playerescape` are standing states an npc holds across ticks, and this
-server has no mode machine — `interface_chat/scripts/chat.rs2` already notes the
-gap where it works around it. Everything else on the list is a day or less.
+**Nothing large is left.** Every remaining item is a day or less, and the
+biggest single one is now a fifth the size of what `npc_setmode` was. The list
+has also stopped being dominated by one family — which is the point at which
+the useful question changes from "what is blocking scripts" to "which *content*
+do we want", i.e. §9 step 7.
 
 ### Still red, and not from this work
 
@@ -1216,6 +1256,71 @@ The second is §9 step 4b/4c arriving from another direction — `[proc,sound_ar
 `[proc,npc_findcount]` and `[proc,loc_within_distance]` are already in the tree
 and want the `loc_*`/`npc_*` families this document ranks as the skilling unlock.
 `make -C src test-content` and `mock230_pack` are both green (0 errors).
+
+### The interface half — §9 step 6, and four bugs under it
+
+The interface work this document ranks as "the wall" (§7.3) turned out to have
+four defects sitting *underneath* it, none of them interface work and all of
+them presenting as one. They are worth recording as a class, because each was
+invisible in exactly the same way: the thing that failed reported nothing, and
+what the player saw was an unrelated panel being empty.
+
+**1. `%varbit` was broken in every script in the tree.** `SS_OP_PUSH_VARBIT` and
+`SS_OP_POP_VARBIT` took the varbit id off the *int stack*; the compiler puts it
+in the *instruction operand*, exactly as it does for varp. So `PUSH_VARBIT`
+underflowed and `POP_VARBIT` read the value as the id and then underflowed
+looking for a value. No content had used a varbit yet, so nothing had noticed —
+and the first line that did took `[login,_]` down with it, silently, which meant
+the opening state (`com_mode`, `option_nodef`, `sa_energy`) also stopped being
+sent. One wrong operand source, four symptoms, none of them named a varbit.
+
+**2. The client decoded obj configs with no revision flags.** Every other config
+type in the client already used the profile-aware entry point; obj used
+`RSCache_Dat2ConfigObjNewDecode`, which passes flags 0. The obj decoder's
+`default:` case is `return false` — *stop rather than misalign* — so a rev-239
+record carrying opcode 160 or 200-202 stopped there, and `params` (opcode 249)
+is written last, so it was always past the stop. **Every objtype in the client
+reached the CS2 VM with `param_count == 0`.** The prayer book is built from
+`oc_param(<prayer obj>, param_1751)`, so it rendered as an empty panel; whatever
+else reads an obj param was wrong too and had not been looked at.
+
+**3. Nothing armed anything.** §7.3 sizes the interface gap as ids and layout.
+The larger half is permission: at rev 230 a component is inert until the server
+sends IF_SETEVENTS for it, and content had no way to say so — there is no
+reference `[command,if_setevents]` (only a commented-out nine-argument form in
+`engine.rs2:1042`, from a later dialect, that does not match the packet). Two
+commands were added in a reserved band past the reference's highest opcode:
+
+```
+11000  if_setevents(component, from, to, events)
+11001  if_opensub(component, interface, type)
+```
+
+`docs/UI_ERA_PORTING_GUIDE.md` is the companion to this: what changes across
+LostCity → Kronos → OpenRune, which reference answers which question, and the
+procedure for converting one interface script.
+
+**4. A trigger subject wider than 21 bits.** `[if_button,orbs:runbutton]` is
+`160 << 16`, and the compiled lookup key has 21 bits for its subject. The format
+is LostCity's and `test-ss-roundtrip` proves this compiler reproduces it byte for
+byte, so it was not widened: those scripts compile **name-addressed** and the
+engine resolves them by name through the same component pack the compiler read.
+`bankmain` is interface 12 and fits, which is why the bank's buttons had always
+worked and hid the limit.
+
+Landed as content, not C: `interface_orbs/` (Toggle Run and the special-attack
+bar, both armed and both answered), `interface_journal/` (the side journal's four
+tabs), and `varbit=` on all 29 prayers so the book draws the lit border from the
+cache's own `prayer_<name>` varbits rather than from a mask only the server could
+see.
+
+**Still open, and each is a client bug rather than a content one:**
+
+| symptom | what is actually wrong |
+|---|---|
+| the side journal (629) draws nothing | it mounts, its onload runs, `TORIRS_DUMP_BOUNDS=629` shows sane boxes — but `TORIRS_DUMP_TREE_EXIT` shows its children laid out at `abs=1100,185` with heights like `18x-2`. A layout defect, and the only sidebar tab whose body is a second-level mount |
+| chat lines never appear | `MESSAGE_GAME` arrives and `RS_Chat_AddMessage` stores it; the rev-230 chatbox has no `UITREE_SLOT_CHAT` node, so `app_chat_region` returns 0 and the built-in renderer draws nothing. IF3 chat lines are cc_created by clientscript |
+| `runclientscript` takes ints only | blocks `~p_choice*` (§7.4) *and* every modern panel populated by a script call rather than a var |
 
 ---
 

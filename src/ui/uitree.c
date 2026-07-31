@@ -608,6 +608,12 @@ uitree_component_free_owned(struct UITreeComponent* c)
         free((void*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
+    for( int i = 0; i < c->params_count; i++ )
+        free(c->params[i].str);
+    free(c->params);
+    c->params = NULL;
+    c->params_count = 0;
+    c->params_capacity = 0;
     struct UITreeBehavior* b = &c->behavior;
     if( b->scripts )
     {
@@ -1674,6 +1680,108 @@ UITree_ApplyHide(
 }
 
 bool
+UITree_ApplyComponentParam(
+    struct UITree* tree,
+    int component_id,
+    int param_id,
+    int value,
+    char const* str)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+
+    char* owned = NULL;
+    if( str )
+    {
+        owned = strdup(str);
+        if( !owned )
+            return false;
+    }
+
+    struct UITreeComponent* c = &tree->components[idx];
+    for( int i = 0; i < c->params_count; i++ )
+    {
+        if( c->params[i].id == param_id )
+        {
+            free(c->params[i].str);
+            c->params[i].str = owned;
+            c->params[i].value = value;
+            return true;
+        }
+    }
+
+    if( c->params_count == c->params_capacity )
+    {
+        /* Four covers the tagging the gameframe scripts actually do (the widest
+         * site writes four params onto one row), so the usual component never
+         * reallocs. */
+        int capacity = c->params_capacity ? c->params_capacity * 2 : 4;
+        struct UITreeComponentParam* grown =
+            realloc(c->params, (size_t)capacity * sizeof(*grown));
+        if( !grown )
+        {
+            free(owned);
+            return false;
+        }
+        c->params = grown;
+        c->params_capacity = capacity;
+    }
+    c->params[c->params_count].id = param_id;
+    c->params[c->params_count].value = value;
+    c->params[c->params_count].str = owned;
+    c->params_count++;
+    return true;
+}
+
+char const*
+UITree_ComponentParamGetStr(
+    struct UITree const* tree,
+    int component_id,
+    int param_id)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return NULL;
+
+    struct UITreeComponent const* c = &tree->components[idx];
+    for( int i = 0; i < c->params_count; i++ )
+    {
+        if( c->params[i].id == param_id )
+            return c->params[i].str;
+    }
+    return NULL;
+}
+
+bool
+UITree_ComponentParamGet(
+    struct UITree const* tree,
+    int component_id,
+    int param_id,
+    int* out_value)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+
+    struct UITreeComponent const* c = &tree->components[idx];
+    for( int i = 0; i < c->params_count; i++ )
+    {
+        if( c->params[i].id == param_id )
+        {
+            /* A string entry is not an int answer: the int getter has to treat it
+             * as absent so the caller falls through to the ParamType default. */
+            if( c->params[i].str )
+                return false;
+            if( out_value )
+                *out_value = c->params[i].value;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
 UITree_ApplyClickMask(
     struct UITree* tree,
     int component_id,
@@ -2189,7 +2297,7 @@ UITree_ApplyRuntimeHook(
     int script_id,
     int const* argv,
     int argc,
-    uint32_t str_mask,
+    uint64_t str_mask,
     char const* const* strs,
     int str_argc)
 {

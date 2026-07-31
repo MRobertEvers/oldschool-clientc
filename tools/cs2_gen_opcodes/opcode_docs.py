@@ -376,7 +376,34 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set object icon without qty",
         int_in=("obj_id",),
     ),
+    "CC_SETCOMPONENTPARAM": OpcodeDoc(
+        summary="Write a param onto the component's runtime param table",
+        operand="0 = active component, 1 = dot component",
+        int_in=("param_id", "value", "kind"),
+        notes=(
+            "OldSchool-era, distinct from CC_GETPARAM (1613): the table lives on "
+            "the component at runtime and starts empty (IF3 files carry no param "
+            "section). VARIABLE ARITY, so the counts above are the kind == 0 case "
+            "only: `kind` names the ParamType's type, and kind == 2 means the value "
+            "was pushed on the STRING stack, leaving just (param_id, kind) on the "
+            "int stack — script 9581 writes param 1017, declared `s`, that way. "
+            "Popping three ints unconditionally steals an unrelated int from under "
+            "it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never "
+            "reaches StackMetaStub with the wrong one."
+        ),
+    ),
     # --- CC getters (active component) ---
+    "CC_GETCOMPONENTPARAM": OpcodeDoc(
+        summary="Read a param off the component's runtime param table",
+        operand="0 = active component, 1 = dot component",
+        int_in=("param_id",),
+        int_out=("value",),
+        notes=(
+            "Answers with what CC_SETCOMPONENTPARAM wrote, else the ParamType's "
+            "default_int — which is what makes the scripts' `= -1` guards mean "
+            "\"never tagged\"."
+        ),
+    ),
     "CC_GETID": OpcodeDoc(
         summary="Get active component id",
         int_out=("active_component",),

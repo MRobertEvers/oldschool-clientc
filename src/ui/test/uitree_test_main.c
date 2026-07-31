@@ -21,6 +21,7 @@ main(void)
     test_id_index();
     test_child_subid();
     test_menu_submenus();
+    test_component_params();
 
     if( g_failures )
     {

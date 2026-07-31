@@ -1730,13 +1730,33 @@ parse_header(
             return fail(compiler, "unknown %s subject '%s' for trigger '%s'",
                         is_category ? "category" : "type", subject, trigger_name);
 
-        /* The on-disk key is an i32 with the subject at bit 10, so anything
-         * above 2^21 cannot be represented. Refusing here is the difference
-         * between a compile error and a script that silently never fires. */
-        if( symbol->value < 0 || symbol->value >= (1 << 21) )
-            return fail(compiler,
-                        "subject '%s' is %d, which does not fit the 21-bit subject field",
-                        subject, symbol->value);
+        /*
+         * The on-disk key is an i32 with the subject at bit 10, so anything at
+         * or above 2^21 cannot be represented.
+         *
+         * That is a real limit of LostCity's format and it is not widened here:
+         * the format is the reference's, `test-ss-roundtrip` proves this
+         * compiler reproduces it byte for byte, and a header change would
+         * forfeit that for one trigger family.
+         *
+         * A rev-230 interface component is `(interface << 16) | child`, so
+         * every component above interface 31 overflows — `orbs:runbutton` is
+         * 10,485,788. Those compile **name-addressed** instead: lookup_key -1
+         * puts the script in the by-name table under its full bracket name,
+         * and the engine resolves the component's name from the same pack the
+         * compiler read it from. Nothing is packed, so nothing can collide.
+         *
+         * A negative id is still an error — that is a broken symbol, not a
+         * wide one.
+         */
+        if( symbol->value < 0 )
+            return fail(compiler, "subject '%s' resolved to a negative id (%d)", subject,
+                        symbol->value);
+        if( symbol->value >= (1 << 21) )
+        {
+            *out_lookup_key = -1;
+            return 1;
+        }
 
         *out_lookup_key = (int32_t)SSVM_LookupKey(
             trigger,

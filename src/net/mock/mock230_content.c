@@ -153,12 +153,21 @@ mock230_content_section_header(char* line)
  * disagree about an id, the authored name is the line and the cache's is a
  * trailing note:
  *
- *     843=varp_weapon_category  // cache: randomhitsound
+ *     3106=goblin_green  // cache: goblin
  *
  * The one thing a single file cannot hold is an *alias* — a second name for an id
  * the cache already names — because a line binds one name to one id. That is a
  * deliberate loss, decided per case during the migration; no alias in this tree
  * needed keeping, and `validate_symbols` refuses a file that tries.
+ *
+ * Which makes an override a rename, and worth spending only where the cache's
+ * name is actually wrong for what the id now holds. `configs/all.varp.compack`
+ * had eleven that were not: eight varps relabelled after a varbit they merely
+ * carry (`843=varp_weapon_category`, `867=bank_tab_a`, …) and three holding this
+ * server's scratch counters. Every one of them cost the cache's own spelling —
+ * `randomhitsound` and `prayer23` resolved to nothing at all — and one of them,
+ * varp 1, put a whole-varp counter on top of twelve Dwarf Cannon varbits. There
+ * are no `// cache:` notes in that file now, and `--selftest` keeps it that way.
  */
 struct PackEntry
 {
@@ -1700,6 +1709,8 @@ prayer_field(
         def->groups |= prayer_group(value);
     else if( strcmp(key, "button") == 0 )
         def->button = mock230_content_symbol(MOCK230_PACK_COMPONENT, value);
+    else if( strcmp(key, "varbit") == 0 )
+        def->varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, value);
     else
         return 0;
     return 1;
@@ -1724,6 +1735,7 @@ prayer_begin(const char* symbol)
     def->drain = 1;
     def->headicon = -1;
     def->button = -1;
+    def->varbit = -1;
     return def;
 }
 
@@ -1769,6 +1781,9 @@ load_prayer_config(const char* path)
         else if( strcmp(line, "button") == 0 && def->button < 0 )
             CONTENT_ERROR("%s:%d: `%s` is not in pack/component.pack\n", path, line_number,
                           value);
+        else if( strcmp(line, "varbit") == 0 && def->varbit < 0 )
+            CONTENT_ERROR("%s:%d: `%s` is not in configs/all.varbit.compack\n", path,
+                          line_number, value);
     }
     fclose(file);
 }

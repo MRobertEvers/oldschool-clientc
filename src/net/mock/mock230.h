@@ -708,6 +708,26 @@ enum
      * the reference's default for a script that does not say.
      */
     MOCK230_AP_RANGE_DEFAULT = 10,
+    /*
+     * LostCity's `npcmode` numbering, which the compiler already seeds as
+     * builtin symbols (`SSC_SymbolsSeedBuiltins`). Restated here rather than
+     * shared, because the compiler's table is the *language's* and this is the
+     * engine's reading of it — the day a mode is added, one of the two moving
+     * without the other should be a mismatch somebody notices, not a silent
+     * renumber.
+     */
+    MOCK230_NPCMODE_NULL = -1,
+    MOCK230_NPCMODE_NONE = 0,
+    MOCK230_NPCMODE_WANDER = 1,
+    MOCK230_NPCMODE_PATROL = 2,
+    MOCK230_NPCMODE_PLAYERESCAPE = 3,
+    MOCK230_NPCMODE_PLAYERFOLLOW = 4,
+    MOCK230_NPCMODE_PLAYERFACE = 5,
+    MOCK230_NPCMODE_PLAYERFACECLOSE = 6,
+    MOCK230_NPCMODE_OPPLAYER1 = 7,
+    MOCK230_NPCMODE_OPPLAYER5 = 11,
+    MOCK230_NPCMODE_APPLAYER1 = 12,
+    MOCK230_NPCMODE_APPLAYER5 = 16,
 };
 
 struct Mock230Npc
@@ -750,6 +770,21 @@ struct Mock230Npc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+
+    /**
+     * What this npc is *doing*, from `npc_setmode` — LostCity's `npcmode`
+     * numbering, which `SSC_SymbolsSeedBuiltins` already knows:
+     * -1 null, 0 none, 1 wander, 3 playerescape, 4 playerfollow,
+     * 5 playerface, 6 playerfaceclose, 7..11 opplayer1..5,
+     * 12..16 applayer1..5.
+     *
+     * The default is *wander* for an npc with a radius and *none* otherwise,
+     * not 0 for everybody. That is what keeps `npc_setmode(none)` meaningful:
+     * if roaming were the absence of a mode, "stop" would be indistinguishable
+     * from "never had one" and every roster npc would carry on roaming through
+     * it.
+     */
+    int mode;
 
     /** Tick this npc disappears at, or -1 to stay. Set by `npc_add` with a
      *  duration; map-square spawns never carry one. */
@@ -1146,10 +1181,20 @@ mock230_world_cache_dir(void);
  * cache — config group 14, the same records the client reads.
  *
  * The mock needs them because the combat tab is built entirely from two:
- * varbit `weapon_category` (varp 843, bits 0-5) selects which of the ten button
- * layouts interface 593 builds, and `combat_level` (varp 1105, bits 24-30) is
- * the number above them. With the category unset, every style button hides and
- * the tab shows nothing but auto-retaliate — which is exactly what it did.
+ * varbit `combat_weapon_category` (bits 0-5 of varp 843, which the cache calls
+ * `randomhitsound`) selects which of the ten button layouts interface 593
+ * builds, and `combatlevel_transmit` (bits 24-30 of varp 1105,
+ * `wilderness_statistics`) is the number above them. With the category unset,
+ * every style button hides and the tab shows nothing but auto-retaliate — which
+ * is exactly what it did.
+ *
+ * Those four names are the cache's, and none of the four is the one you would
+ * guess. The varbits were `weapon_category` and `combat_level` here for a
+ * while, which are the names of nothing in this cache, and the varps were
+ * relabelled to match — which is the mistake this comment is really about. A
+ * varp holding a varbit is not that varbit's variable: 1105 also carries
+ * `kd_toggle`, `sailing_xp` and `inside_wilderness`. Look the spelling up in
+ * `configs/all.varbit` rather than deriving it from what the bit is for.
  *
  * The bit ranges are NOT authored anywhere here. Restating them in a config
  * would be a second source of truth that could disagree with the cache the
@@ -1593,6 +1638,23 @@ mock230_scripts_run_trigger(
     int type,
     int category,
     int npc_slot);
+
+/**
+ * Run `[if_button,<name of component `uid`>]`, if the tree binds one.
+ *
+ * The by-name half of the interface-button dispatch. A rev-230 component uid is
+ * `(interface << 16) | child`, and the compiled trigger key has 21 bits for its
+ * subject — enough for interface 12's bank panel, not for interface 160's orbs.
+ * Those scripts compile name-addressed (see ssc_compile.c), so the engine has to
+ * ask for them by name too. The name comes from the same component pack the
+ * compiler read, so the two cannot drift.
+ *
+ * Returns 1 when a script ran, 0 when none is bound.
+ */
+int
+mock230_scripts_run_if_button_named(
+    struct Mock230Server* srv,
+    int uid);
 
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void

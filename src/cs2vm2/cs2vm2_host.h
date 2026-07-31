@@ -185,6 +185,14 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_STRUCT_PARAM,
     CS2VM_HOST_REQUEST_CC_GETTEXT,
     CS2VM_HOST_REQUEST_CC_GETTRANS,
+    /* CC_GETCOMPONENTPARAM / CC_SETCOMPONENTPARAM (1703/1704): the component's
+     * own runtime param table, which the gameframe scripts use to tag the
+     * widgets they build and recognise them again later. Nothing but these two
+     * opcodes writes it — OldSchool IF3 files carry no param section — so a read
+     * that misses falls through to the ParamType default, which may need a load
+     * and is why the getter can yield. */
+    CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM,
+    CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM,
     CS2VM_HOST_REQUEST_IF_FIND,
     CS2VM_HOST_REQUEST_IF_GETX,
     CS2VM_HOST_REQUEST_IF_GETTEXT,
@@ -508,6 +516,23 @@ struct CS2VM_HostRequest_IF_SetOutline
 #define CS2VM_SETON_STR_ARG_MAX 4
 #define CS2VM_SETON_STR_ARG_LEN 80
 
+/*
+ * How many arguments a hook registration can carry.
+ *
+ * This is a cache fact, not a taste: the widest `if_seton*` signature in
+ * cache.osrs239 is 44 arguments (`script3040` in the side journal's onload).
+ * The cap used to be 32, which silently dropped everything past position 31 —
+ * and the dropped tail is where the panel-shaped arguments live, so
+ * `~side_journal_switchtab`'s `tab_line` component arrived as 0, its
+ * `cc_create` no-op'd, and the `cc_setsize` that followed landed on whatever
+ * the active component still was: the interface *root*. A 190x261 sidebar
+ * panel resolved to 500x1 and the whole quest tab drew off-screen.
+ *
+ * 64 leaves headroom over the 44 this cache needs. str_arg_mask is one bit per
+ * position, so it has to widen with it.
+ */
+#define CS2VM_SETON_INT_ARG_MAX 64
+
 struct CS2VM_HostRequest_IF_SetOnVarTransmit
 {
     int component_id;
@@ -515,9 +540,9 @@ struct CS2VM_HostRequest_IF_SetOnVarTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[32];
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count;
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
@@ -529,9 +554,9 @@ struct CS2VM_HostRequest_IF_SetOnInvTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[32];
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count;
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
@@ -543,9 +568,9 @@ struct CS2VM_HostRequest_IF_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[32];
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count;
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
@@ -560,9 +585,9 @@ struct CS2VM_HostRequest_CC_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[32];
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
     int int_arg_count;
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
@@ -732,6 +757,30 @@ struct CS2VM_HostRequest_CC_SetObject
 struct CS2VM_HostRequest_CC_GetId
 {
     int component_id;
+};
+
+/**
+ * CC_SETCOMPONENTPARAM's `kind` argument: which stack the value arrived on.
+ *
+ * It tracks the ParamType's own type — script 9581 writes param 1017 (declared
+ * `s` in cache.osrs239) with kind 2 and the value on the string stack, and every
+ * other write in the cache is an int param with kind 0. Only these two values
+ * are known to occur, so anything that is not STRING is read as an int.
+ */
+#define CS2_CC_COMPONENTPARAM_KIND_INT 0
+#define CS2_CC_COMPONENTPARAM_KIND_STRING 2
+
+struct CS2VM_HostRequest_CC_ComponentParam
+{
+    int component_id;
+    int param_id;
+    /** Setter only, and only when `kind` is not STRING. */
+    int value;
+    /** Setter only, and only when `kind` is STRING: the value, owned by the VM's
+     *  string pool, so a host that keeps it must copy it. */
+    char const* str_value;
+    /** Setter only. One of CS2_CC_COMPONENTPARAM_KIND_*. */
+    int kind;
 };
 
 struct CS2VM_HostRequest_IF_SetObject
@@ -1155,6 +1204,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_StructParam struct_param;
         struct CS2VM_HostRequest_CC_GetId cc_gettext;
         struct CS2VM_HostRequest_CC_GetId cc_gettrans;
+        struct CS2VM_HostRequest_CC_ComponentParam cc_component_param;
         struct CS2VM_HostRequest_TargetFind if_find;
         struct CS2VM_HostRequest_IF_GetWidth if_getx;
         struct CS2VM_HostRequest_IF_GetWidth if_gettext;

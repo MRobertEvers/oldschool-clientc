@@ -588,6 +588,40 @@ mock230_scripts_run_trigger(
     return run_or_park(srv, state);
 }
 
+int
+mock230_scripts_run_if_button_named(
+    struct Mock230Server* srv,
+    int uid)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+    const char* component;
+    char name[192];
+
+    if( !srv->scripts_ok )
+        return 0;
+
+    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+    if( !component )
+        return 0;
+
+    snprintf(name, sizeof(name), "[if_button,%s]", component);
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return 0;
+
+    state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s expects arguments a trigger cannot supply\n",
+                script->name);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    return run_or_park(srv, state);
+}
+
 /* ------------------------------------------------------------------ */
 /* Host commands                                                       */
 /* ------------------------------------------------------------------ */
@@ -1221,6 +1255,33 @@ mock230_script_command(
      * — `read_combat_params` had been walking these very rows and discarding
      * all but fourteen keys.
      */
+    case SS_OP_NPC_SETMODE:
+    {
+        int32_t mode;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &mode) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setmode with no active npc");
+            return 1;
+        }
+        /*
+         * The mode is stored, not acted on: phase 4 runs it every tick, which
+         * is what makes it a *standing state* rather than a one-shot. That
+         * distinction is the whole reason `npc_setmode` is in front of 122
+         * LostCity files and could not be faked with a one-shot face or walk.
+         *
+         * `none` and `null` both mean stop, and 162 of the tree's 253 calls are
+         * one of the two.
+         */
+        npc->mode = mode;
+        if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL )
+            npc->step_dir = -1;
+        return 1;
+    }
+
     case SS_OP_NPC_QUEUE:
     {
         int32_t queue;
@@ -2372,6 +2433,57 @@ mock230_script_command(
         mock230_send_if_sethide(srv, MOCK230_CHAT_CONTAINER_UID, 0);
         mock230_send_if_opensub(srv, MOCK230_CHAT_SLOT_UID >> 16,
                                 MOCK230_CHAT_SLOT_UID & 0xffff, group, 0);
+        return 1;
+    }
+
+    /*
+     * if_setevents(component, from, to, events) — the rev-230 command with no
+     * LostCity equivalent (src/serverscript/gen_opcode_meta.py EXTRA_OPCODES).
+     *
+     * At rev 230 a component is inert until the server arms it: the cache says
+     * a widget *has* an op, the events mask says whether picking that op is
+     * transmitted. Every "clicking it does nothing" in the gameframe is this
+     * packet not having been sent — the client resolves the verb, runs the
+     * component's own CS2 onop, and then has nothing to tell the server,
+     * because bit N of the mask was clear.
+     *
+     * `from`/`to` are the sub-id range for a grid; a plain component uses 0,0.
+     */
+    case SS_OP_IF_SETEVENTS:
+    {
+        int32_t com;
+        int32_t from;
+        int32_t to;
+        int32_t events;
+
+        /* Popped last-argument-first, like every other host command here. */
+        if( !SSVM_PopInt(state, &events) || !SSVM_PopInt(state, &to) ||
+            !SSVM_PopInt(state, &from) || !SSVM_PopInt(state, &com) )
+            return 1;
+        mock230_send_if_setevents(srv, (int)com, (int)from, (int)to, (int)events);
+        return 1;
+    }
+
+    /*
+     * if_opensub(component, interface, type) — the general form of the
+     * reference's if_openmain / if_openside / if_openoverlay.
+     *
+     * Those name one fixed slot each, which is the whole 2004 vocabulary. At
+     * rev 230 a panel mounts into an arbitrary component of whatever is already
+     * open, and panels nest — the side journal's five tabs all mount into
+     * `side_journal:tab_container`. So the slot is an argument.
+     */
+    case SS_OP_IF_OPENSUB:
+    {
+        int32_t com;
+        int32_t group;
+        int32_t type;
+
+        if( !SSVM_PopInt(state, &type) || !SSVM_PopInt(state, &group) ||
+            !SSVM_PopInt(state, &com) )
+            return 1;
+        mock230_send_if_opensub(srv, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com),
+                                (int)group, (int)type);
         return 1;
     }
 

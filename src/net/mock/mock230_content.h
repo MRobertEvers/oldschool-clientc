@@ -489,6 +489,14 @@ struct Mock230PrayerDef
     int headicon;
     /** Packed component uid of the button that toggles it. */
     int button;
+    /** The cache varbit that says this prayer is currently on, or -1.
+     *
+     *  Not decoration: the prayer book's own clientscript reads these to draw
+     *  the lit border, and the overhead-icon and quick-prayer scripts read
+     *  them too. `player->prayer_active` is the server's copy; without the
+     *  varbit the client never learns a prayer went on, so the book stays dark
+     *  no matter what the server believes. */
+    int varbit;
 };
 
 /** The prayer at `index`, or NULL. Index is the bit position in

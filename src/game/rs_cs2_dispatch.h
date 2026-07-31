@@ -34,7 +34,7 @@ RS_CS2_RunScript(
     int script_id,
     int const* int_args,
     int arg_count,
-    uint32_t str_mask,
+    uint64_t str_mask,
     char const* const* str_args,
     int str_arg_count);
 

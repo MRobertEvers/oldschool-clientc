@@ -155,5 +155,6 @@ void test_key_dispatch(void);
 void test_id_index(void);
 void test_child_subid(void);
 void test_menu_submenus(void);
+void test_component_params(void);
 
 #endif

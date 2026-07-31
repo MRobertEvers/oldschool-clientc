@@ -3296,10 +3296,10 @@ CS2VM2_Op_IF_SetOnEventHandler(
     }
 
     {
-        int int_args[32] = { 0 };
+        int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
         int int_arg_count = 0;
-        char* str_by_pos[32] = { 0 };
-        uint32_t str_arg_mask = 0;
+        char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+        uint64_t str_arg_mask = 0;
 
         if( signature && signature_parse_len > 0 )
         {
@@ -3318,7 +3318,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
                     if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                     {
                         str_by_pos[i] = v;
-                        str_arg_mask |= (uint32_t)1 << i;
+                        str_arg_mask |= (uint64_t)1 << i;
                         if( i + 1 > int_arg_count )
                             int_arg_count = i + 1;
                     }
@@ -3363,9 +3363,9 @@ CS2VM2_Op_IF_SetOnEventHandler(
         if( int_arg_count > 0 )
             memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
         out_request->str_arg_mask = str_arg_mask;
-        for( int i = 0; i < 32; i++ )
+        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )
         {
-            if( !(str_arg_mask & ((uint32_t)1 << i)) )
+            if( !(str_arg_mask & ((uint64_t)1 << i)) )
                 continue;
             if( out_request->str_arg_count < CS2VM_SETON_STR_ARG_MAX )
             {
@@ -3447,10 +3447,10 @@ CS2VM2_Op_CC_SetOnEventHandler(
     }
 
     {
-        int int_args[32] = { 0 };
+        int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
         int int_arg_count = 0;
-        char* str_by_pos[32] = { 0 };
-        uint32_t str_arg_mask = 0;
+        char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+        uint64_t str_arg_mask = 0;
 
         if( signature && signature_parse_len > 0 )
         {
@@ -3469,7 +3469,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
                     if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                     {
                         str_by_pos[i] = v;
-                        str_arg_mask |= (uint32_t)1 << i;
+                        str_arg_mask |= (uint64_t)1 << i;
                         if( i + 1 > int_arg_count )
                             int_arg_count = i + 1;
                     }
@@ -3510,9 +3510,9 @@ CS2VM2_Op_CC_SetOnEventHandler(
         if( int_arg_count > 0 )
             memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
         out_request->str_arg_mask = str_arg_mask;
-        for( int i = 0; i < 32; i++ )
+        for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )
         {
-            if( !(str_arg_mask & ((uint32_t)1 << i)) )
+            if( !(str_arg_mask & ((uint64_t)1 << i)) )
                 continue;
             if( out_request->str_arg_count < CS2VM_SETON_STR_ARG_MAX )
             {
@@ -3849,10 +3849,10 @@ CS2VM2_Op_IF_SetOnVarTransmit(
         signature_parse_len = signature_len - 1;
     }
 
-    int int_args[32] = { 0 };
+    int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
     int int_arg_count = 0;
-    char* str_by_pos[32] = { 0 };
-    uint32_t str_arg_mask = 0;
+    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    uint64_t str_arg_mask = 0;
 
     if( signature && signature_parse_len > 0 )
     {
@@ -3871,7 +3871,7 @@ CS2VM2_Op_IF_SetOnVarTransmit(
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
-                    str_arg_mask |= (uint32_t)1 << i;
+                    str_arg_mask |= (uint64_t)1 << i;
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;
                 }
@@ -3920,9 +3920,9 @@ CS2VM2_Op_IF_SetOnVarTransmit(
         sizeof(request.u.if_set_on_var_transmit.int_args));
     request.u.if_set_on_var_transmit.int_arg_count = int_arg_count;
     request.u.if_set_on_var_transmit.str_arg_mask = str_arg_mask;
-    for( int i = 0; i < 32; i++ )
+    for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )
     {
-        if( !(str_arg_mask & ((uint32_t)1 << i)) )
+        if( !(str_arg_mask & ((uint64_t)1 << i)) )
             continue;
         if( request.u.if_set_on_var_transmit.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
         {
@@ -3986,10 +3986,10 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         signature_parse_len = signature_len - 1;
     }
 
-    int int_args[32] = { 0 };
+    int int_args[CS2VM_SETON_INT_ARG_MAX] = { 0 };
     int int_arg_count = 0;
-    char* str_by_pos[32] = { 0 };
-    uint32_t str_arg_mask = 0;
+    char* str_by_pos[CS2VM_SETON_INT_ARG_MAX] = { 0 };
+    uint64_t str_arg_mask = 0;
 
     if( signature && signature_parse_len > 0 )
     {
@@ -4008,7 +4008,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
                 {
                     str_by_pos[i] = v;
-                    str_arg_mask |= (uint32_t)1 << i;
+                    str_arg_mask |= (uint64_t)1 << i;
                     if( i + 1 > int_arg_count )
                         int_arg_count = i + 1;
                 }
@@ -4057,9 +4057,9 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         sizeof(request.u.if_set_on_inv_transmit.int_args));
     request.u.if_set_on_inv_transmit.int_arg_count = int_arg_count;
     request.u.if_set_on_inv_transmit.str_arg_mask = str_arg_mask;
-    for( int i = 0; i < 32; i++ )
+    for( int i = 0; i < CS2VM_SETON_INT_ARG_MAX; i++ )
     {
-        if( !(str_arg_mask & ((uint32_t)1 << i)) )
+        if( !(str_arg_mask & ((uint64_t)1 << i)) )
             continue;
         if( request.u.if_set_on_inv_transmit.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
         {
@@ -5889,6 +5889,18 @@ CS2VM2_Op_CC_CreateSibling(
 
 int
 CS2VM2_Op_CC_GetTrans(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
+CS2VM2_Op_CC_GetComponentParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
+CS2VM2_Op_CC_SetComponentParam(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand);
@@ -8022,6 +8034,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
+    case CS2_OP_CC_GETCOMPONENTPARAM:
+        return CS2VM2_Op_CC_GetComponentParam(vm, frame, operand);
+    case CS2_OP_CC_SETCOMPONENTPARAM:
+        return CS2VM2_Op_CC_SetComponentParam(vm, frame, operand);
     case CS2_OP_IF_SETONHOLD:
         return CS2VM2_Op_IF_SetOnHold(vm, frame, operand);
     case CS2_OP_IF_SETONRELEASE:
@@ -8918,6 +8934,84 @@ CS2VM2_Op_CC_GetTrans(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETTRANS;
     request.u.cc_gettrans.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * CC_GETCOMPONENTPARAM (1703) / CC_SETCOMPONENTPARAM (1704): the component's own
+ * runtime param table.
+ *
+ * Not CC_GETPARAM (1613), which is the RS2-era read of a *file* param table.
+ * Nothing but 1704 ever writes this one: every IF3 component in an OldSchool
+ * cache consumes its bytes exactly, with no param section at the end, so the
+ * table a component is born with is empty. The gameframe scripts build a widget
+ * with cc_create, tag it (param 2365 = "what kind of row is this", 2370 = its
+ * index, ...), and later cc_find it and read the tag back to decide what to do.
+ */
+int
+CS2VM2_Op_CC_GetComponentParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int param_id;
+    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM;
+    request.u.cc_component_param.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.cc_component_param.param_id = param_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_CC_SetComponentParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int param_id;
+    int value = 0;
+    int kind;
+    char* str_value = NULL;
+
+    /* `kind` says which stack the value came in on, so it has to be popped
+     * first: 2 is a string param and the value is on the string stack, anything
+     * else is an int. Popping three ints unconditionally — which is what the
+     * arity solver's flat signature says — steals an unrelated int from under a
+     * string write and leaves the string behind. */
+    if( CS2VM2_PopInt(vm, &kind) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( kind == CS2_CC_COMPONENTPARAM_KIND_STRING )
+    {
+        if( CS2VM2_PopStr(vm, &str_value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    else if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM;
+    request.u.cc_component_param.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.cc_component_param.param_id = param_id;
+    request.u.cc_component_param.value = value;
+    request.u.cc_component_param.str_value = str_value;
+    request.u.cc_component_param.kind = kind;
 
     return vm->vm->host_exec(vm, &request);
 }

@@ -546,6 +546,16 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_struct(self);
         break;
 
+    /* A component param that misses falls through to the ParamType default, so
+     * only the ParamType half of the struct yield is wanted here (await_id -1
+     * skips the struct load). */
+    case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
+        self->await_id = -1;
+        self->await_id2 = self->pending.u.cc_component_param.param_id;
+        self->yield_plan =
+            self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
+        break;
+
     case CS2VM_HOST_REQUEST_DB:
         task_cs2_plan_db(self);
         break;
@@ -649,6 +659,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
     case CS2VM_HOST_REQUEST_CC_GETHIDE:
     case CS2VM_HOST_REQUEST_CC_GETTEXT:
+    case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:

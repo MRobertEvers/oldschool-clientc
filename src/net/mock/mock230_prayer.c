@@ -59,11 +59,30 @@ mock230_prayer_protecting(
 }
 
 /* Appearance, not a packet of its own: the overhead icon rides the appearance
- * block, so a change here has to re-send it. */
+ * block, so a change here has to re-send it.
+ *
+ * The varbits are the other half, and the one the player sees: `prayer_active`
+ * is the server's private mask, and the prayer book draws its lit border from
+ * the cache's own `prayer_<name>` varbits. Writing the mask without them left a
+ * prayer that drained points, showed an overhead icon and looked switched off.
+ * Every prayer is re-asserted rather than only the one that moved, because a
+ * toggle can switch several off through its exclusion group.
+ */
 static void
 prayer_changed(struct Mock230Server* srv)
 {
+    int count = mock230_content_prayer_count();
+
     srv->player->masks |= MOCK230_PMASK_APPEARANCE;
+    for( int i = 0; i < count; i++ )
+    {
+        const struct Mock230PrayerDef* def = mock230_content_prayer(i);
+
+        if( !def || def->varbit < 0 )
+            continue;
+        mock230_varbit_set(srv, def->varbit,
+                           (srv->player->prayer_active & (1u << i)) ? 1 : 0);
+    }
 }
 
 void

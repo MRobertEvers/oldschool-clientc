@@ -1584,6 +1584,43 @@ exec_struct_param(
     return CS2VM2_PushInt(thread, param ? param->default_int : 0);
 }
 
+/*
+ * CC_GETCOMPONENTPARAM (1703): read a component's runtime param table.
+ *
+ * A miss is the common case, not an error — the table starts empty and only
+ * CC_SETCOMPONENTPARAM fills it — and it answers with the ParamType's own
+ * default, which is what the scripts' `= -1` guards are testing for. That is the
+ * one thing here that can need a load, hence the yield. Unlike STRUCT_PARAM this
+ * never pushes a string: the opcode's arity is int-out, so a string-typed param
+ * (which no read site in cache.osrs239 asks for) answers with 0 rather than
+ * unbalancing the caller's stack.
+ */
+static int
+exec_cc_getcomponentparam(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_CC_ComponentParam request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int value = 0;
+    if( tree && UITree_ComponentParamGet(tree, request.component_id, request.param_id, &value) )
+        return CS2VM2_PushInt(thread, value);
+
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_ParamType* param =
+        provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
+    if( !param && request.param_id >= 0 )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM;
+        req.u.cc_component_param = request;
+        if( !rs_cs2_await_spent(host, req.kind, -1, request.param_id) )
+            return rs_cs2_yield_load(host, &req, -1, request.param_id);
+        /* Still missing after the load: 0 is the answer a param-less id gets. */
+    }
+    return CS2VM2_PushInt(thread, param && !param->is_string ? param->default_int : 0);
+}
+
 static int
 exec_oc_param(
     struct RS_CS2Host* host,
@@ -2952,16 +2989,29 @@ exec_set_on_cc_event(
  * then walks one row at a time.
  *
  * A dbcolumn operand packs (tableId, columnId, tupleIndex). The bit layout
- * below is the widely-referenced OSRS convention; it could not be confirmed
- * against an accessible rev-230 deobfuscation, so if a real script's DB access
- * misbehaves this is the first thing to re-check. `tupleIndex == 0xF` is the
+ * below is the widely-referenced OSRS convention. `tupleIndex == 0xF` is the
  * "whole tuple / all fields" sentinel.
  *
- * Stack convention (also unverifiable from public sources, chosen so the async
- * value-type resolution works): the dbcolumn/dbrow/dbtable handle is the last
- * argument pushed, so it is popped first; for DB_FIND the search value sits
- * below it and is popped only once the index reveals whether it is an int or a
- * string.
+ * Stack convention: arguments are popped in reverse push order, so the LAST
+ * source argument is popped first. This was previously guessed the other way
+ * round for the find family and it was wrong twice over — see below.
+ *
+ *   db_find*(dbcolumn, value, type_tag)  pops type_tag, value, dbcolumn
+ *   db_getfield(row, dbcolumn, index)    pops index, dbcolumn, row
+ *   db_getfieldcount(row, dbcolumn)      pops dbcolumn, row
+ *   db_getrow(query_index)               pops query_index
+ *
+ * `type_tag` is how the script says which stack the search value is on: 2 means
+ * the string stack, anything else the int stack. Every call site in
+ * cache.osrs239 passes a literal, so the type is static — the client never has
+ * to consult the index to know where to pop from, which is what the old
+ * comment here assumed it did.
+ *
+ * Getting this wrong is not a quiet failure. `db_find_with_count` takes three
+ * arguments and the old code popped two, so the extra one stayed on the stack
+ * and every value the rest of the script read was shifted by one; the combat
+ * tab asked the weapon-style table for category `0` (the type tag), got no
+ * rows, and hid all four attack-style buttons.
  * ========================================================================= */
 
 static void
@@ -3184,14 +3234,18 @@ exec_db(
 
     case CS2_OP_DB_GETROW:
     {
-        int row_id;
-        if( CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
+        /* Random access into the current find result — the indexed twin of
+         * DB_FINDNEXT, not a row lookup: scripts call it as
+         * `while ($i < $count) { $row = db_getrow($i); ... }`, so the argument
+         * is a position in the query and the result is a row id (-1 past the
+         * end). It used to be read as a row id and push nothing at all, which
+         * left the assignment reading whatever was under it. */
+        int index;
+        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        (void)db_row_or_yield(host, opcode, row_id, &yielded, &code);
-        if( yielded )
-            return code;
-        /* Row is now resident (or genuinely absent) — nothing else to push. */
-        return CS2VM_EXECNO_OK;
+        if( index < 0 || index >= host->db_find_count || !host->db_find_rows )
+            return CS2VM2_PushInt(vm, -1);
+        return CS2VM2_PushInt(vm, host->db_find_rows[index]);
     }
 
     case CS2_OP_DB_GETROWTABLE:
@@ -3304,30 +3358,27 @@ exec_db(
     case CS2_OP_DB_FIND_FILTER:
     case CS2_OP_DB_FIND_FILTER_WITH_COUNT:
     {
-        int column, table, col_id, tuple;
+        int column, table, col_id, tuple, type_tag;
         struct ToriRS_DbTableIndex* idx;
-        struct RSCache_DbIndexFile* file;
         bool with_count =
             (opcode == CS2_OP_DB_FIND_WITH_COUNT || opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
-        bool value_is_string = false;
+        /* A "filter" narrows the query already in flight rather than starting a
+         * new one — that is how a script queries two columns at once
+         * (`db_find_with_count(catcol, cat, 0); db_find_filter_with_count(subcol,
+         * sub, 0); db_findnext`). */
+        bool is_filter =
+            (opcode == CS2_OP_DB_FIND_FILTER || opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
+        bool value_is_string;
         int value_int = 0;
         char* value_str = NULL;
+        int* prior_rows = NULL;
+        int prior_count = 0;
 
-        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK )
+        /* Reverse push order: type tag, value, dbcolumn. The tag names the
+         * stack the value is on, so nothing here has to wait on the index. */
+        if( CS2VM2_PopInt(vm, &type_tag) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        db_unpack_column(column, &table, &col_id, &tuple);
-        idx = db_index_or_yield(host, opcode, table, &yielded, &code);
-        if( yielded )
-            return code;
-
-        /* The index is resident: use its tuple base type to pop the value with
-         * the right stack. */
-        file = idx ? ToriRS_DbTableIndex_Column(idx, col_id) : NULL;
-        if( file && file->tuple_size > 0 )
-        {
-            int pos = (tuple >= 0 && tuple < file->tuple_size) ? tuple : 0;
-            value_is_string = (file->tuples[pos].base_type == RSCACHE_DB_BASE_STRING);
-        }
+        value_is_string = (type_tag == 2);
         if( value_is_string )
         {
             if( CS2VM2_PopStr(vm, &value_str) != CS2VM_EXECNO_OK )
@@ -3337,8 +3388,43 @@ exec_db(
         {
             return CS2VM_EXECNO_ERROR;
         }
+        if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+
+        db_unpack_column(column, &table, &col_id, &tuple);
+        idx = db_index_or_yield(host, opcode, table, &yielded, &code);
+        if( yielded )
+            return code;
+
+        /* Hold the query being narrowed: db_find_value overwrites the iterator,
+         * so a filter has to intersect against a copy taken beforehand. */
+        if( is_filter && host->db_find_count > 0 && host->db_find_rows )
+        {
+            prior_count = host->db_find_count;
+            prior_rows = malloc((size_t)prior_count * sizeof(int));
+            assert(prior_rows);
+            memcpy(prior_rows, host->db_find_rows, (size_t)prior_count * sizeof(int));
+        }
 
         db_find_value(host, idx, col_id, tuple, value_is_string, value_int, value_str);
+
+        if( is_filter )
+        {
+            int kept = 0;
+            for( int i = 0; i < prior_count; i++ )
+            {
+                for( int j = 0; j < host->db_find_count; j++ )
+                {
+                    if( host->db_find_rows[j] != prior_rows[i] )
+                        continue;
+                    prior_rows[kept++] = prior_rows[i];
+                    break;
+                }
+            }
+            db_set_iterator(host, prior_rows, kept);
+            free(prior_rows);
+        }
+
         if( with_count )
             return CS2VM2_PushInt(vm, host->db_find_count);
         return CS2VM_EXECNO_OK;
@@ -4157,6 +4243,19 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
         node = rs_cs2_node(host, request->u.cc_gettrans.component_id);
         return CS2VM2_PushInt(vm, node ? node->trans : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
+        return exec_cc_getcomponentparam(host, vm, request->u.cc_component_param);
+
+    case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
+        if( tree )
+            (void)UITree_ApplyComponentParam(
+                tree,
+                request->u.cc_component_param.component_id,
+                request->u.cc_component_param.param_id,
+                request->u.cc_component_param.value,
+                request->u.cc_component_param.str_value);
+        return CS2VM_EXECNO_OK;
 
     /* ---- Ops ---- */
     case CS2VM_HOST_REQUEST_CC_SETOP:

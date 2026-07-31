@@ -936,6 +936,9 @@ npc_spawn(
         npc->spawn_level = level;
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
+        /* Wander is the *default*, not the absence of a mode — see the field's
+         * comment. An npc with no radius starts on `none`. */
+        npc->mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
         npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
         npc->step_dir = -1;
         npc->face_entity = -1;
@@ -994,6 +997,170 @@ mock230_world_npc_spawn(
     int level)
 {
     return npc_spawn(srv, type, x, z, level);
+}
+
+/*
+ * One greedy step toward (or away from) a tile.
+ *
+ * The same shape `mock230_combat.c` uses to close on the player, and
+ * deliberately no better: there is no npc pathfinder here, so a step into a
+ * wall is simply not taken and the npc tries again next tick. Giving modes a
+ * router of their own would be a second, differently-behaved mover beside the
+ * combat one.
+ */
+static void
+npc_step_towards(
+    struct Mock230Npc* npc,
+    int target_x,
+    int target_z,
+    int away)
+{
+    int sx = target_x > npc->x ? 1 : (target_x < npc->x ? -1 : 0);
+    int sz = target_z > npc->z ? 1 : (target_z < npc->z ? -1 : 0);
+    int dir;
+
+    if( away )
+    {
+        sx = -sx;
+        sz = -sz;
+    }
+    dir = mock230_step_direction(sx, sz);
+    if( dir < 0 )
+        return;
+    if( !mock230_scene_can_step(npc->level, npc->x, npc->z, dir) )
+        return;
+    npc->x += sx;
+    npc->z += sz;
+    npc->step_dir = dir;
+}
+
+/** Chebyshev tiles between an npc and the player. */
+static int
+npc_player_range(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    int dx = npc->x - player->x;
+    int dz = npc->z - player->z;
+
+    if( dx < 0 )
+        dx = -dx;
+    if( dz < 0 )
+        dz = -dz;
+    return dx > dz ? dx : dz;
+}
+
+/*
+ * `npc_setmode`, once per tick per npc.
+ *
+ * 253 of the LostCity tree's `npc_setmode` calls name eleven modes and 162 of
+ * them are `none`/`null` — "stop what you were doing" — so the machine is much
+ * smaller than the numbering suggests. What it covers, and what it does not,
+ * is stated rather than silently approximated: an unhandled mode warns once and
+ * falls back to `none`, because an npc quietly standing still is the failure
+ * that reads as "the script did not run".
+ *
+ * Returns 1 when the mode took the npc's movement for this tick, so the roam
+ * below leaves it alone.
+ */
+static int
+npc_run_mode(
+    struct Mock230Server* srv,
+    struct Mock230Npc* npc,
+    int slot)
+{
+    struct Mock230Player* player = srv->player;
+    int range;
+
+    if( !player || npc->mode == MOCK230_NPCMODE_NONE || npc->mode == MOCK230_NPCMODE_NULL )
+        return 0;
+    if( npc->mode == MOCK230_NPCMODE_WANDER )
+        return 0; /* The roam below is what wander means. */
+
+    range = npc_player_range(npc, player);
+
+    /* Every player-facing mode faces the player; only some of them move. */
+    if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
+    {
+        npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    }
+
+    switch( npc->mode )
+    {
+    case MOCK230_NPCMODE_PLAYERESCAPE:
+        if( range < 8 )
+            npc_step_towards(npc, player->x, player->z, 1);
+        return 1;
+
+    case MOCK230_NPCMODE_PLAYERFOLLOW:
+    case MOCK230_NPCMODE_PLAYERFACECLOSE:
+        if( range > 1 )
+            npc_step_towards(npc, player->x, player->z, 0);
+        return 1;
+
+    case MOCK230_NPCMODE_PLAYERFACE:
+        /* Face only. The reference's `playerface` does not move the npc, which
+         * is the whole difference from `playerfaceclose`. */
+        return 1;
+
+    default:
+        break;
+    }
+
+    /*
+     * `opplayer<n>` walks the npc to the player and runs `[ai_opplayer<n>]` on
+     * arrival; `applayer<n>` runs `[ai_applayer<n>]` as soon as it is in range
+     * without closing. Both then drop back to `none` — the mode describes an
+     * errand, not a standing state, and an npc left in it would re-fire its
+     * trigger every tick.
+     */
+    if( npc->mode >= MOCK230_NPCMODE_OPPLAYER1 && npc->mode <= MOCK230_NPCMODE_OPPLAYER5 )
+    {
+        int op = npc->mode - MOCK230_NPCMODE_OPPLAYER1;
+
+        if( range > 1 )
+        {
+            npc_step_towards(npc, player->x, player->z, 0);
+            return 1;
+        }
+        /* Cleared *before* the trigger runs, so a script that sets a new mode
+         * keeps it — the same ordering the player's interaction resolver uses
+         * and for the same reason. */
+        npc->mode = MOCK230_NPCMODE_NONE;
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
+        return 1;
+    }
+    if( npc->mode >= MOCK230_NPCMODE_APPLAYER1 && npc->mode <= MOCK230_NPCMODE_APPLAYER5 )
+    {
+        int op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
+
+        if( range > MOCK230_AP_RANGE_DEFAULT )
+        {
+            npc_step_towards(npc, player->x, player->z, 0);
+            return 1;
+        }
+        npc->mode = MOCK230_NPCMODE_NONE; /* see above */
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
+        return 1;
+    }
+
+    /* Anything else — patrol, and the loc/obj/npc-targeted modes, which carry a
+     * target this mode field has nowhere to put. Reported once per npc type so
+     * a tree using one is not silently ignored. */
+    {
+        static unsigned char warned[1 << MOCK230_NPC_TYPE_BITS];
+
+        if( npc->type >= 0 && npc->type < (int)(sizeof(warned) / sizeof(warned[0])) &&
+            !warned[npc->type] )
+        {
+            warned[npc->type] = 1;
+            fprintf(stderr, "mock230: npc mode %d is not implemented (npc %d); using none\n",
+                    npc->mode, npc->type);
+        }
+    }
+    npc->mode = MOCK230_NPCMODE_NONE;
+    return 0;
 }
 
 /* One tile of idle roaming, on the xrsps/RSMod timer: an idle npc re-rolls a
@@ -1057,6 +1224,10 @@ advance_npcs(struct Mock230Server* srv)
          * step_dir here, which also wiped the step the combat mover had just
          * produced — phase 11 does that clear, once, at the right time. */
         if( npc->combat_target >= 0 || npc->death_tick >= 0 )
+            continue;
+        if( npc_run_mode(srv, npc, slot) )
+            continue;
+        if( npc->mode != MOCK230_NPCMODE_WANDER )
             continue;
         if( npc->wander_radius <= 0 || srv->tick < npc->next_roam_tick )
             continue;
@@ -2263,6 +2434,10 @@ handle_if_button(
     srv->player->last_slot = -1;
     if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
         return;
+    /* Components above interface 31 compile name-addressed — see
+     * mock230_scripts_run_if_button_named. */
+    if( mock230_scripts_run_if_button_named(srv, uid) )
+        return;
     if( mock230_bank_handle_button(srv, uid, -1, -1, 1) )
         return;
     mock230_equipment_handle_button(srv, uid, -1, 1);
@@ -2305,6 +2480,8 @@ handle_if_button_op(
      * nor an npc. `sub` and `op` reach content through last_slot and last_verb,
      * which is where a RuneScript trigger reads them. */
     if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
+        return;
+    if( mock230_scripts_run_if_button_named(srv, uid) )
         return;
     /* (uid, sub, obj, op) — the bank needs the sub id, which is which of the
      * 1,220 dynamic children was clicked. */
@@ -2663,6 +2840,19 @@ mock230_world_set_varp(
         return;
     player->varps[varp] = value;
     mock230_world_mark_varp(player, varp);
+
+    /*
+     * `option_run` is not a variable the server merely reports — it is where
+     * the run flag lives, and content writes it (the orb's [if_button] does
+     * exactly that). Without this the engine kept its own `run_toggle` and
+     * mirrored it *out* to the varp, so a write from the other direction
+     * transmitted a lit orb and the player still walked.
+     *
+     * Keyed on the name, resolved from the content pack, like every other id
+     * the engine addresses.
+     */
+    if( varp == mock230_world_varp("option_run") )
+        player->run_toggle = value != 0;
 }
 
 void
@@ -3438,6 +3628,28 @@ mock230_world_tick(struct Mock230Server* srv)
 
 static int g_selftest_failures;
 
+/*
+ * The three varps this server keeps its own bookkeeping in.
+ *
+ * Named here because the checks below read them out of `player->varps[]`
+ * directly — the scripts address them by name, but the assertions have to index
+ * the array, and a bare `varps[7]` is unreadable and unsearchable the day the
+ * id moves. It has moved once: these were 1, 2 and 3, which the cache names
+ * `mcannonmulti`, `dropcannon` and `rockthrower`, and 1 has twelve varbits
+ * packed into it that a whole-varp write destroys. 6, 7 and 8 have no gameval
+ * name and no varbit is based on them, which is the property that matters and
+ * the one `configs/all.varbit` is the authority for.
+ *
+ * The symbol-resolution check below pins these against the pack file, so the
+ * two cannot drift apart silently.
+ */
+enum
+{
+    SELFTEST_VARP_GREETING_COUNT = 6,
+    SELFTEST_VARP_QUEST_PROGRESS = 7,
+    SELFTEST_VARP_LUMBRIDGE_VISITED = 8
+};
+
 #define SELFTEST_CHECK(cond, ...)                                                                  \
     do                                                                                             \
     {                                                                                              \
@@ -3663,14 +3875,85 @@ mock230_world_selftest(void)
                 mock230_content_symbol(MOCK230_PACK_VARBIT, "bank_quantity_type") >= 0,
             "bank_quantity_type should be a varbit only");
 
-        /* Layer 1 still does its actual job: an id this world repurposed
-         * resolves to the authored name, not the cache's. */
-        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "varp_weapon_category") == 843,
-                       "the authored alias for varp 843 should resolve, got %d",
-                       mock230_content_symbol(MOCK230_PACK_VARP, "varp_weapon_category"));
-        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "randomhitsound") == 843,
-                       "and the cache's own name for it should still resolve too, got %d",
-                       mock230_content_symbol(MOCK230_PACK_VARP, "randomhitsound"));
+        /*
+         * No varp answers to a name this world made up for it.
+         *
+         * A pack line binds one name to one id, so an authored name does not
+         * add a second spelling — it takes the cache's away. Eleven varps were
+         * relabelled after whichever varbit the content cared about
+         * (`varp_weapon_category` for 843, `bank_tab_a`..`bank_tab_e`,
+         * `bank_quantity`), and the cost was paid twice: `randomhitsound` and
+         * `prayer23` stopped resolving, and the label asserted that a shared
+         * varp belonged to one subsystem. It does not — 843 carries one bank
+         * varbit and 1105 carries seven varbits from four unrelated systems.
+         *
+         * These eight are declared transmit=yes by bank.varp and
+         * combat_tab.varp and are never written by name, so the cache's own
+         * spelling costs nothing and keeps the namespace one-to-one.
+         */
+        {
+            static const struct
+            {
+                const char* cache_name;
+                const char* invented;
+                int id;
+            } relabelled[] = {
+                { "randomhitsound", "varp_weapon_category", 843 },
+                { "prayer23", "bank_tab_a", 867 },
+                { "prayer25", "bank_tab_b", 1052 },
+                { "prayer26", "bank_tab_c", 1053 },
+                { "wilderness_statistics", "varp_combat_level", 1105 },
+                { "gargboss_perm_transmit", "bank_quantity", 1666 },
+                { "bankdeposit", "bank_tab_d", 1793 },
+                { "bank_extratab", "bank_tab_e", 3750 },
+            };
+
+            for( size_t i = 0; i < sizeof(relabelled) / sizeof(relabelled[0]); i++ )
+            {
+                SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP,
+                                                      relabelled[i].cache_name) ==
+                                   relabelled[i].id,
+                               "the cache's name for varp %d (%s) should resolve, got %d",
+                               relabelled[i].id, relabelled[i].cache_name,
+                               mock230_content_symbol(MOCK230_PACK_VARP,
+                                                      relabelled[i].cache_name));
+                SELFTEST_CHECK(
+                    mock230_content_symbol(MOCK230_PACK_VARP, relabelled[i].invented) == -1,
+                    "the invented name `%s` should be gone, got %d", relabelled[i].invented,
+                    mock230_content_symbol(MOCK230_PACK_VARP, relabelled[i].invented));
+            }
+        }
+
+        /*
+         * The three names this world really did author sit on ids the gameval
+         * table leaves blank, so they shadow nothing — and, the part that was a
+         * live bug, on varps no varbit is based on.
+         *
+         * `mock_greeting_count` used to be varp 1, which the cache calls
+         * `mcannonmulti` and packs twelve Dwarf Cannon varbits into. The
+         * counter is written whole (`%mock_greeting_count = calc(... + 1)`),
+         * because a varp is what the content thinks it is — so saying hello to
+         * Hans reset the cannon's tool, safety and railing bits together. That
+         * is CONTENT_ARCHITECTURE.md §6.1 with the roles reversed: not a varbit
+         * written as a varp, but scratch state parked on a varp that was
+         * already somebody's varbits.
+         */
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "mcannonmulti") == 1 &&
+                           mock230_content_symbol(MOCK230_PACK_VARP, "dropcannon") == 2 &&
+                           mock230_content_symbol(MOCK230_PACK_VARP, "rockthrower") == 3,
+                       "varps 1-3 should answer to the cache's names again");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_VARP, "mock_greeting_count") ==
+                               SELFTEST_VARP_GREETING_COUNT &&
+                           mock230_content_symbol(MOCK230_PACK_VARP, "mock_quest_progress") ==
+                               SELFTEST_VARP_QUEST_PROGRESS &&
+                           mock230_content_symbol(MOCK230_PACK_VARP, "lumbridge_visited") ==
+                               SELFTEST_VARP_LUMBRIDGE_VISITED,
+                       "this server's scratch varps should be %d/%d/%d, got %d/%d/%d",
+                       SELFTEST_VARP_GREETING_COUNT, SELFTEST_VARP_QUEST_PROGRESS,
+                       SELFTEST_VARP_LUMBRIDGE_VISITED,
+                       mock230_content_symbol(MOCK230_PACK_VARP, "mock_greeting_count"),
+                       mock230_content_symbol(MOCK230_PACK_VARP, "mock_quest_progress"),
+                       mock230_content_symbol(MOCK230_PACK_VARP, "lumbridge_visited"));
 
         SELFTEST_CHECK(ids->iface_gameframe == 161, "gameframe should be 161, got %d",
                        ids->iface_gameframe);
@@ -3820,7 +4103,7 @@ mock230_world_selftest(void)
              * so both the script's effect and the varp flush are observable. */
             hans = selftest_find_npc(&srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
-            before = player->varps[1];
+            before = player->varps[SELFTEST_VARP_GREETING_COUNT];
             payload[0] = (uint8_t)(hans >> 8);
             payload[1] = (uint8_t)(hans & 0xff);
             mock230_capture_begin(&srv, &capture);
@@ -3829,9 +4112,9 @@ mock230_world_selftest(void)
              * there. Hans is across the courtyard, so that is several ticks. */
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
                            "the walk to Hans should complete");
-            SELFTEST_CHECK(player->varps[1] == before + 1,
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_GREETING_COUNT] == before + 1,
                            "the script should bump %%mock_greeting_count, got %d",
-                           player->varps[1]);
+                           player->varps[SELFTEST_VARP_GREETING_COUNT]);
             /* Hans's greeting is a four-page conversation, so the script is
              * still parked on its first p_pausebutton here. Both halves matter:
              * the varp above proves the script ran, this proves it suspended
@@ -3850,7 +4133,7 @@ mock230_world_selftest(void)
              * The transmitted case is asserted in the login-burst section,
              * against a varp that really is declared.
              */
-            SELFTEST_CHECK(mock230_content_varp(1) == NULL,
+            SELFTEST_CHECK(mock230_content_varp(SELFTEST_VARP_GREETING_COUNT) == NULL,
                            "mock_greeting_count should have no varp declaration");
             SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) < 0,
                            "an undeclared varp must stay off the wire");
@@ -3890,24 +4173,24 @@ mock230_world_selftest(void)
             if( script )
             {
                 start_tick = srv.tick;
-                player->varps[2] = 0;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 mock230_scripts_run_script(&srv, script->id);
 
-                SELFTEST_CHECK(player->varps[2] == 1, "the script ran up to the delay");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1, "the script ran up to the delay");
                 SELFTEST_CHECK(player->active_script != NULL,
                                "p_delay should park the script on the player");
 
                 for( int i = 0; i < 3; i++ )
                 {
                     mock230_world_tick(&srv);
-                    SELFTEST_CHECK(player->varps[2] == 1,
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                    "still delayed at tick +%d, varp is %d", i + 1,
-                                   player->varps[2]);
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 }
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 2,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "p_delay(3) should resume on tick +4, varp is %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 SELFTEST_CHECK(player->active_script == NULL,
                                "a finished script should release its parking slot");
                 SELFTEST_CHECK(srv.tick == start_tick + 4, "four ticks elapsed");
@@ -3917,19 +4200,19 @@ mock230_world_selftest(void)
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_enqueue]");
             if( script )
             {
-                player->varps[2] = 0;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 0, "queueing should not run the script");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queueing should not run the script");
 
                 for( int i = 0; i < 3; i++ )
                 {
                     mock230_world_tick(&srv);
-                    SELFTEST_CHECK(player->varps[2] == 0, "queue not due at tick +%d", i + 1);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queue not due at tick +%d", i + 1);
                 }
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 7,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 7,
                                "the queued script should run on tick +4, varp is %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             mock230_scripts_free(&srv);
@@ -4363,7 +4646,7 @@ mock230_world_selftest(void)
 
             /* An undeclared varp is server-only. The mock's own counters have
              * no .varp config, so nothing they do reaches the client. */
-            SELFTEST_CHECK(mock230_content_varp(1) == NULL,
+            SELFTEST_CHECK(mock230_content_varp(SELFTEST_VARP_GREETING_COUNT) == NULL,
                            "mock_greeting_count should have no varp declaration");
             SELFTEST_CHECK(mock230_content_varp(com_mode) != NULL &&
                                mock230_content_varp(com_mode)->transmit,
@@ -5480,6 +5763,129 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
     }
 
+    fprintf(stderr, "mock230 selftest: npc modes\n");
+    {
+        /*
+         * `npc_setmode` was in front of 122 LostCity files, more than anything
+         * else left. The opcode is one line; what it implies is a *standing
+         * state* the npc holds across ticks, which is why phase 4 now runs one
+         * per npc per tick.
+         *
+         * `playerfollow` is the clearest thing to assert on, because it has a
+         * stopping condition: a mover that merely walks toward the player looks
+         * right for several ticks and then stands on top of them.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+            int follower = -1;
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_mode_follow]");
+            if( !script )
+            {
+                fprintf(stderr, "  SKIP  mode scripts not in this pack\n");
+            }
+            else
+            {
+                int start_range;
+                int end_range;
+
+                mock230_scripts_run_script(&srv, script->id);
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
+                        srv.npcs[i].x == 3230 )
+                        follower = i;
+                SELFTEST_CHECK(follower >= 0, "the follower should be spawned");
+
+                if( follower >= 0 )
+                {
+                    start_range = srv.npcs[follower].x - player->x;
+                    if( start_range < 0 )
+                        start_range = -start_range;
+                    SELFTEST_CHECK(srv.npcs[follower].mode == MOCK230_NPCMODE_PLAYERFOLLOW,
+                                   "npc_setmode should store the mode, got %d",
+                                   srv.npcs[follower].mode);
+
+                    for( int i = 0; i < 30; i++ )
+                        mock230_world_tick(&srv);
+                    end_range = srv.npcs[follower].x - player->x;
+                    if( end_range < 0 )
+                        end_range = -end_range;
+                    SELFTEST_CHECK(end_range < start_range,
+                                   "playerfollow should close the distance, %d -> %d",
+                                   start_range, end_range);
+                    SELFTEST_CHECK(end_range <= 1,
+                                   "and reach the player, got %d tiles", end_range);
+
+                    /* And stop there rather than walking onto them. */
+                    for( int i = 0; i < 5; i++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(srv.npcs[follower].x != player->x ||
+                                       srv.npcs[follower].z != player->z,
+                                   "playerfollow should stop beside the player, not on them");
+
+                    /* `none` has to actually stop it: park the npc, set none,
+                     * and assert it does not move. Without the wander default
+                     * this would be indistinguishable from never having set a
+                     * mode. */
+                    srv.npcs[follower].mode = MOCK230_NPCMODE_NONE;
+                    {
+                        int px = srv.npcs[follower].x;
+                        int pz = srv.npcs[follower].z;
+
+                        for( int i = 0; i < 10; i++ )
+                            mock230_world_tick(&srv);
+                        SELFTEST_CHECK(srv.npcs[follower].x == px && srv.npcs[follower].z == pz,
+                                       "mode none should hold the npc still");
+                    }
+                    srv.npcs[follower].active = 0;
+                }
+
+                script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_mode_op]");
+                if( script )
+                {
+                    int runner = -1;
+
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    mock230_scripts_run_script(&srv, script->id);
+                    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                        if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
+                            srv.npcs[i].x == 3226 )
+                            runner = i;
+                    SELFTEST_CHECK(runner >= 0, "the opplayer2 npc should be spawned");
+
+                    for( int i = 0; i < 30; i++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                                   "opplayer2 should fire [ai_opplayer2] once on arrival, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    /* The errand is over, so it must not re-fire. An npc left
+                     * in the mode would trigger every tick from then on. */
+                    for( int i = 0; i < 10; i++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                                   "and drop back to none rather than firing again, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    if( runner >= 0 )
+                        srv.npcs[runner].active = 0;
+                }
+            }
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: npc queues and timers\n");
     {
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
@@ -5501,7 +5907,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_queue] should be in the pack");
             if( script )
             {
-                player->varps[2] = 0;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 mock230_scripts_run_script(&srv, script->id);
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                     if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
@@ -5510,13 +5916,13 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(added >= 0, "the test chicken should be spawned");
 
                 /* delay 1 means tick +2, for the same +1 reason p_delay has. */
-                SELFTEST_CHECK(player->varps[2] == 0, "the queue should not fire immediately");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the queue should not fire immediately");
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 0, "nor on the next tick");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "nor on the next tick");
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 1,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                "[ai_queue1,chicken] should fire on tick +2, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_timer]");
@@ -5531,17 +5937,17 @@ mock230_world_selftest(void)
                  */
                 srv.npcs[added].timer_interval = 2;
                 srv.npcs[added].timer_clock = 0;
-                player->varps[2] = 0;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 0, "the timer should not fire early");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the timer should not fire early");
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 10,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
                                "[ai_timer,chicken] should fire on the interval, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 mock230_world_tick(&srv);
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 20,
-                               "and again one interval later, got %d", player->varps[2]);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
+                               "and again one interval later, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
                 /* npc_settimer(0) stops it, which is how content pauses a
                  * behaviour. Asserting the *absence* of a fire is the only way
@@ -5549,13 +5955,13 @@ mock230_world_selftest(void)
                 srv.npcs[added].timer_interval = 0;
                 for( int i = 0; i < 6; i++ )
                     mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[2] == 20,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
                                "a zero interval should stop the timer, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 srv.npcs[added].active = 0;
             }
 
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }
@@ -5579,7 +5985,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_uid] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
                 /*
                  * Five, not four: the run has to get *past* `session_log`. That
@@ -5587,11 +5993,11 @@ mock230_world_selftest(void)
                  * tell "implemented" from "aborted the script" is a statement
                  * after it.
                  */
-                SELFTEST_CHECK(player->varps[2] == 5,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
                                "p_finduid / the false uid / text_gender / session_log "
-                               "should all clear, got %d", player->varps[2]);
+                               "should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }
@@ -5648,12 +6054,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_iterators] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == expected,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
                                "~npc_findcount should agree with a direct walk, "
                                "script says %d and the roster has %d",
-                               player->varps[2], expected);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], expected);
             }
 
             expected = 0;
@@ -5677,15 +6083,15 @@ mock230_world_selftest(void)
                            "[proc,selftest_loc_iterator] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == expected,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
                                "loc_findallzone should agree with a direct walk, "
                                "script says %d and the zone has %d",
-                               player->varps[2], expected);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], expected);
             }
 
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }
@@ -5721,11 +6127,11 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_find] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 4,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
                                "npc_find/stat/range should all clear, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             before = 0;
@@ -5739,10 +6145,10 @@ mock230_world_selftest(void)
             {
                 int after = 0;
 
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 3,
-                               "add/tele/del should all clear, got %d", player->varps[2]);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                               "add/tele/del should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                     if( srv.npcs[i].active )
                         after++;
@@ -5779,7 +6185,7 @@ mock230_world_selftest(void)
                                "and be gone once the duration expires");
             }
 
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }
@@ -5820,11 +6226,11 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_loc] should be in the pack");
             if( script && slot >= 0 )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 4,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
                                "find/type/coord/change should all clear, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
                 loc = mock230_scene_loc(slot);
                 SELFTEST_CHECK(loc && loc->loc_id == remains,
@@ -5853,11 +6259,11 @@ mock230_world_selftest(void)
             {
                 int added;
 
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 1,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                "loc_add should leave the new loc active, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 /*
                  * The slot, not `mock230_scene_find_loc`. That function returns
                  * the first loc on the tile when no id matches — the ternary at
@@ -5946,11 +6352,11 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_oc_param] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 3,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
                                "oc_param should clear all three int cases, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param_string]");
@@ -5958,14 +6364,14 @@ mock230_world_selftest(void)
                            "[proc,selftest_oc_param_string] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 2,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "a string param should reach the string stack and read "
-                               "back as \"Rub\", got %d", player->varps[2]);
+                               "back as \"Rub\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }
@@ -6041,11 +6447,11 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_nc_param] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 4,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
                                "nc_param should clear all four int cases, got %d",
-                               player->varps[2]);
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_nc_param_string]");
@@ -6053,14 +6459,14 @@ mock230_world_selftest(void)
                            "[proc,selftest_nc_param_string] should be in the pack");
             if( script )
             {
-                player->varps[2] = -1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[2] == 2,
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "a string param should reach the string stack and read back "
-                               "as \"Dagannoth Kings (Echo)\", got %d", player->varps[2]);
+                               "as \"Dagannoth Kings (Echo)\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            player->varps[2] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
         }
     }

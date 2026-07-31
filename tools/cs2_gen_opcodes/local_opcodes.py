@@ -31,6 +31,25 @@ LOCAL_NAMES: dict[int, str] = {
     # why it routes through STRUCT_PARAM with struct -1. Vendor placeholder
     # _1613; nothing in the OldSchool numbering claims it.
     1613: "CC_GETPARAM",
+    # OldSchool-era component param store, newer than the vendored table (which
+    # stops at 1702). Not the same thing as 1613: these read and write a param
+    # table the component owns at RUNTIME, and OldSchool IF3 files carry no param
+    # section at all — every one of the 24,382 IF3 components in cache.osrs239
+    # consumes its bytes exactly with none left over. So the table starts empty
+    # and only a CC_SETCOMPONENTPARAM puts anything in it; a read that misses
+    # answers with the ParamType's own default.
+    #
+    # The gameframe scripts use it to tag the widgets they build (cc_create, tag
+    # with a "kind" param, later cc_find + read the tag back to recognise it):
+    # script 8368 creates a component and immediately writes params 2365/2366/2367,
+    # and script 8383 reads 2362 back with 1703. 153 write sites and 30 read sites
+    # across cache.osrs239.
+    #
+    # 1704's arity depends on its last argument -- see the CC_SETCOMPONENTPARAM
+    # notes in opcode_docs.py. The vendored solver's flat "three ints" is the
+    # int-param case only.
+    1703: "CC_GETCOMPONENTPARAM",
+    1704: "CC_SETCOMPONENTPARAM",
     1004: "CC_SETPINCH",  # not in vendor
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor

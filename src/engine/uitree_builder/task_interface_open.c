@@ -49,8 +49,8 @@ struct InterfaceOpenRuntimeHook
     int component_id;
     int script_id;
     int argc;
-    int argv[32];
-    uint32_t str_mask;
+    int argv[UITREE_HOOK_ARG_MAX];
+    uint64_t str_mask;
     int str_argc;
     char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
 };

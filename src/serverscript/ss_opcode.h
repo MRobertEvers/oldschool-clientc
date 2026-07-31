@@ -418,9 +418,12 @@
 #define SS_OP_GETTIMESPENT 10002
 #define SS_OP_TIMESPENT 10003
 
+#define SS_OP_IF_SETEVENTS 11000
+#define SS_OP_IF_OPENSUB 11001
+
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 10004
+#define SS_OPCODE_MAX 11002
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 396
+#define SS_OPCODE_COUNT 398
 
 #endif

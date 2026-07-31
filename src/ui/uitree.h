@@ -145,7 +145,12 @@ struct UITreeElemPosition
     uint8_t layout_resolved;
 };
 
-#define UITREE_HOOK_ARG_MAX 32
+/* Same width as an onload's argv (TORIRS_COMPONENT_HOOK_ARG_MAX) and for the
+ * same reason: the widest `if_seton*` in cache.osrs239 carries 44 arguments,
+ * and the two paths must not disagree about how many of them survive — a hook
+ * re-registered at runtime with the arguments its onload was given has to end
+ * up saying the same thing. */
+#define UITREE_HOOK_ARG_MAX 64
 
 /** %1..%5 are the placeholders the reference client substitutes in text. */
 #define UITREE_CS1_VALUE_MAX 5
@@ -161,7 +166,7 @@ struct UITreeRuntimeScriptHook
     int argv[UITREE_HOOK_ARG_MAX];
     /* Bit i set = arg position i is a string arg; strings fill strv[] in
      * position order (k-th set bit -> strv[k]). argv[i] unused there. */
-    uint32_t str_mask;
+    uint64_t str_mask;
     int str_argc;
     char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
 };
@@ -343,6 +348,25 @@ struct UITreeChatButtonConfig
     int mode_color[4];
 };
 
+/**
+ * One entry of a component's runtime param table (CS2 CC_SETCOMPONENTPARAM /
+ * CC_GETCOMPONENTPARAM, OldSchool wire 1704/1703).
+ *
+ * Runtime-only by nature, not by omission: an OldSchool IF3 file has no param
+ * section, so a component is born with an empty table and only a script can put
+ * anything in it. The gameframe scripts use it to label the widgets they build —
+ * "this row is kind 600, index 4" — and read the labels back after a cc_find to
+ * decide what a click landed on.
+ */
+struct UITreeComponentParam
+{
+    int32_t id;
+    int32_t value;
+    /** Non-NULL for a string param (CC_SETCOMPONENTPARAM kind 2), in which case
+     *  `value` is unset. Owned by the component. */
+    char* str;
+};
+
 struct UITreeComponent
 {
     enum UITreeComponentType type;
@@ -409,6 +433,12 @@ struct UITreeComponent
     /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a
      *  bound key (revconfig `hotkey=` lines). 0 = not a hotkey target. */
     uint32_t hotkey_effects;
+    /** Runtime param table (see struct UITreeComponentParam). Grown on demand and
+     *  usually empty, so it is a pointer rather than an inline array — the tree
+     *  holds thousands of components and only the ones a script tags carry one. */
+    struct UITreeComponentParam* params;
+    int params_count;
+    int params_capacity;
     int scroll_x;
     int scroll_y;
     struct UITreeElemPosition position;
@@ -1020,6 +1050,43 @@ UITree_ApplyHide(
     int component_id,
     int hide);
 
+/**
+ * Write one entry of a component's runtime param table, replacing any entry
+ * already under `param_id`. False when the component is not in the tree or the
+ * table could not grow. `str` NULL stores `value` as an int param; otherwise the
+ * string is copied and `value` is ignored.
+ */
+bool
+UITree_ApplyComponentParam(
+    struct UITree* tree,
+    int component_id,
+    int param_id,
+    int value,
+    char const* str);
+
+/**
+ * Read one int entry back. False when the component is not in the tree, has no
+ * entry under `param_id`, or that entry holds a string — the caller answers that
+ * with the ParamType default, which is what a script's `= -1` guard is testing
+ * for.
+ */
+bool
+UITree_ComponentParamGet(
+    struct UITree const* tree,
+    int component_id,
+    int param_id,
+    int* out_value);
+
+/**
+ * Read one string entry back, or NULL when there is no string entry under
+ * `param_id`. The result is owned by the component and dies with it.
+ */
+char const*
+UITree_ComponentParamGetStr(
+    struct UITree const* tree,
+    int component_id,
+    int param_id);
+
 bool
 UITree_ApplyClickMask(
     struct UITree* tree,
@@ -1194,7 +1261,7 @@ UITree_ApplyRuntimeHook(
     int script_id,
     int const* argv,
     int argc,
-    uint32_t str_mask,
+    uint64_t str_mask,
     char const* const* strs,
     int str_argc);
 

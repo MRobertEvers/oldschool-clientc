@@ -19,7 +19,7 @@ CS2VM2_TriggerArgsParse(
 
     /* Copied because the parse below rewrites the trailing 'Y'; the pool owns
      * the popped string either way. */
-    char signature_buf[64];
+    char signature_buf[CS2_TRIGGER_ARGV_MAX + 2]; /* args + 'Y' + NUL */
     strncpy(signature_buf, raw_signature, sizeof(signature_buf) - 1);
     signature_buf[sizeof(signature_buf) - 1] = '\0';
     char* signature = signature_buf;

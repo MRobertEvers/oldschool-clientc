@@ -311,7 +311,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -465,6 +465,11 @@ test-cs2-string: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_string_ops_test \
 		cs2vm2/test/string_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_string_ops_test
+
+test-cs2-component-param: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_component_param_ops_test \
+		cs2vm2/test/component_param_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_component_param_ops_test
 
 test-cs2-dialect: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_dialect_test \
@@ -714,7 +719,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
-		ui/test/uitree_test_id_index.c
+		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c
 	./$(OBJ_DIR)/uitree_test
 
 # Widget-rebuild burst benchmark (cc_deleteall + a run of cc_create). Always

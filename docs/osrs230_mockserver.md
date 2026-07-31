@@ -846,6 +846,53 @@ Two traps worth recording:
 `make -C src test-mock230` asserts the shipped tree has zero gaps, so content
 written against an opcode the engine lacks fails the build rather than a player.
 
+### 3.13e Two commands the reference does not have
+
+The opcode table is generated from LostCity's `ScriptOpcode.ts`, so an opcode
+this engine needs and the reference lacks has nowhere to come from. Two do, and
+they are both about the same thing — the rev-230 rule that **a component is inert
+until the server arms it**, which the 2004 protocol has no concept of at all.
+
+They live in `EXTRA_OPCODES` in `src/serverscript/gen_opcode_meta.py`, in a band
+one past the reference's highest id (10003) so a future LostCity opcode can never
+collide:
+
+```
+11000  if_setevents(component, from, to, events)   arm ops on a component
+11001  if_opensub(component, interface, type)      mount a panel into a slot
+```
+
+`if_setevents` is the one that matters. Without it the cache still says a widget
+*has* an op — the client hovers it, highlights it, puts the verb in the menu —
+and the click then runs the component's own clientscript and sends nothing. That
+was the whole of "the minimap orbs aren't clickable": `orbs:runbutton` carries
+`op1=Toggle Run`, clientscript 7557 flipped the client's own copy of
+`option_run`, and no packet ever left the client.
+
+`if_opensub` generalises the reference's `if_openmain` / `if_openside` /
+`if_openoverlay`, which bake one fixed slot into each command name. Three names
+is the whole 2004 vocabulary; the rev-230 gameframe has 24 slots and panels nest,
+so the target has to be an argument.
+
+The event mask is **v1**, and that is a trap worth stating: rev 230 sends
+`IfSetEvents` (i32, ops at bits 1-10) while rev 239 sends `IfSetEventsV2` (i64,
+ops moved to bits 32+). This server speaks the 230 wire against a 239 cache, so
+the v1 layout is correct even though the cache is newer, and a v2 mask over a v1
+packet arms nothing and reports no error. `^if_event_op1` and friends are in
+`server/scripts/engine_osrs230.constant`, kept out of `engine.constant` because
+that file is a byte-for-byte port of the reference's.
+
+One consequence for content authors: a component uid is `(interface << 16) |
+child`, and a compiled trigger key has 21 bits for its subject. `bankmain` is
+interface 12 and fits; `orbs:runbutton` is `160 << 16` and does not. Those
+scripts compile **name-addressed** (`ssc_compile.c`) and the engine resolves them
+through `mock230_scripts_run_if_button_named`, which asks the component pack for
+the uid's name. The on-disk format is not widened — it is LostCity's, and
+`test-ss-roundtrip` proves this compiler reproduces it byte for byte.
+
+See `docs/UI_ERA_PORTING_GUIDE.md` for how the three reference servers each
+answer a different part of this.
+
 ### What is deliberately unimplemented
 
 166 of 396 as of this writing. The gap is not uniform, and four groups are

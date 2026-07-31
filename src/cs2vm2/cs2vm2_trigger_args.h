@@ -6,7 +6,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CS2_TRIGGER_ARGV_MAX 16
+/* Wide enough for the whole cache: see CS2VM_SETON_INT_ARG_MAX. A short cap
+ * here does not merely drop the tail — the pop loop is bounded by it too, so
+ * the un-popped arguments stay on the VM stack and every value the rest of the
+ * script reads is shifted. */
+#define CS2_TRIGGER_ARGV_MAX CS2VM_SETON_INT_ARG_MAX
 #define CS2_TRIGGER_COUNT_MAX 8
 
 struct CS2TriggerArgs

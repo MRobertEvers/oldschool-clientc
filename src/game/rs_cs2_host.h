@@ -23,8 +23,9 @@ struct RS_WorldMapState;
 /** Var ids remembered per tick for transmit-hook matching; past this the tick
  *  degrades to "every hook re-runs" (correct, just not selective). */
 #define RS_CS2_HOST_VAR_CHANGED_MAX 64
-/* Must match CS2VM_HostRequest_IF_SetOnInvTransmit.int_args[32]. */
-#define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX 32
+/* Must match CS2VM_HostRequest_IF_SetOnInvTransmit.int_args — the copy below is
+ * a sizeof(dest) memcpy, so the two cannot differ. */
+#define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX CS2VM_SETON_INT_ARG_MAX
 
 struct RS_CS2InvTransmitHook
 {
@@ -34,7 +35,7 @@ struct RS_CS2InvTransmitHook
     int int_arg_count;
     /** String args by arg position (see CS2VM_HostRequest str_arg_mask docs).
      *  Replayed into the hook script's string locals on dispatch. */
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
@@ -52,7 +53,7 @@ struct RS_CS2VarTransmitHook
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
     /** String args by arg position (see CS2VM_HostRequest str_arg_mask docs). */
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
@@ -73,7 +74,7 @@ struct RS_CS2StatTransmitHook
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
-    uint32_t str_arg_mask;
+    uint64_t str_arg_mask;
     int str_arg_count;
     char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];

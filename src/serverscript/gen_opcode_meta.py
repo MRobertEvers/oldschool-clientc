@@ -104,6 +104,56 @@ MANUAL_META: dict[str, tuple[int, int, int, int]] = {
     # correct outcome — guessing an arity here would silently corrupt the stack.
 }
 
+# ---------------------------------------------------------------------------
+# Commands this engine has and the reference does not
+# ---------------------------------------------------------------------------
+#
+# LostCity's engine speaks the 2004 protocol, where every interface component
+# the cache marks as a button is clickable the moment it is drawn. At rev 230
+# the opposite holds: **nothing is clickable until the server says so**, per
+# component and per op, with IF_SETEVENTS. Without it no content script can arm
+# a widget, and every "clicking it does nothing" in the gameframe is this.
+#
+# The reference does not implement these, so `parse_engine_rs2` finds no
+# signature to derive. It is worth being exact about what it *does* have, since
+# "absent" and "commented out" are different claims:
+#
+#   engine.rs2:1042  // [command,if_setevents](component, int, int, boolean,
+#                    //                        int, int, int, boolean, boolean)
+#
+# — a commented-out nine-argument form, carried over from a later RuneScript
+# dialect that spells the mask out as separate flags. It is NOT the shape used
+# here. The wire packet is (component, start_slot, end_slot, events-bitmask),
+# and that is what this declares, matching what OpenRune's `ifSetEvents` and
+# xrsps's `set_flags_range` both send. Reproducing the nine-argument form would
+# be reproducing a declaration the reference never wired to anything, against a
+# packet that does not have those fields.
+#
+# Ids live at 11000+, one band past the reference's highest (10003), so a
+# future LostCity opcode can never collide with one of these. Format matches
+# MANUAL_META: name -> (id, int_in, str_in, int_out, str_out).
+EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
+    # if_setevents(component, from_slot, to_slot, events)
+    #
+    # `from`/`to` are the sub-id range for a grid (an inventory's 28 slots);
+    # a plain component uses 0,0. `events` is the rev-230 bitmask: bit 0 is
+    # the op-less click, bits 1..10 are ops 1..10, and the high bits are the
+    # drag/target flags.
+    "IF_SETEVENTS": (11000, 4, 0, 0, 0),
+
+    # if_opensub(component, interface, type)
+    #
+    # Mount an interface *inside* a component of an already-open one. The
+    # reference's if_openmain / if_openside / if_openoverlay are the 2004
+    # vocabulary — a handful of fixed slots named by the command — and at rev
+    # 230 that is not enough vocabulary: the gameframe alone has 24 slots, and
+    # panels nest (the side journal's five tabs all mount into 629:43). The
+    # target is an ordinary component, so it is an argument.
+    #
+    # `type` is the reference's: 0 modal, 1 overlay, 3 side-modal.
+    "IF_OPENSUB": (11001, 3, 0, 0, 0),
+}
+
 # Opcodes whose operand is the script id / an index rather than the dot flag.
 # The VM needs this to know when NOT to treat the operand as a pointer select.
 NON_DOT_OPERAND = {
@@ -415,6 +465,10 @@ def emit_meta_gen_h(
         name = by_id[value]
         sig = sigs.get(name)
         manual = MANUAL_META.get(name)
+        extra = EXTRA_OPCODES.get(name)
+
+        if extra is not None:
+            manual = extra[1:]
 
         if manual is not None:
             int_in, str_in, int_out, str_out = manual
@@ -494,6 +548,9 @@ def main() -> int:
             return 1
 
     opcodes = parse_opcodes(script_dir / "ScriptOpcode.ts")
+    for extra_name, extra_row in EXTRA_OPCODES.items():
+        assert extra_name not in opcodes, f"{extra_name} collides with a reference opcode"
+        opcodes[extra_name] = extra_row[0]
     triggers = parse_triggers(script_dir / "ServerTriggerType.ts")
     sigs = parse_engine_rs2(ref / "content/scripts/engine.rs2")
     pointers = parse_pointers(script_dir / "ScriptOpcodePointers.ts", opcodes)
