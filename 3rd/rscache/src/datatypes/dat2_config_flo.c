@@ -356,3 +356,25 @@ RSCache_Dat2ConfigUnderlayFreeInplace(struct RSCache_Dat2ConfigUnderlay* underla
         return;
     (void)underlay;
 }
+
+uint32_t
+RSCache_Dat2ConfigOverlayEncodeBound(const struct RSCache_Dat2ConfigOverlay* overlay)
+{
+    /* Every scalar opcode plus the one string field, which uses a newline
+     * terminator rather than a NUL — same length either way. */
+    uint32_t need = 64u;
+
+    if( !overlay )
+        return need;
+    if( overlay->flotype_name )
+        need += (uint32_t)strlen(overlay->flotype_name) + 2u;
+    return need;
+}
+
+uint32_t
+RSCache_Dat2ConfigUnderlayEncodeBound(const struct RSCache_Dat2ConfigUnderlay* underlay)
+{
+    /* A single opcode-1 colour, or a bare terminator. */
+    (void)underlay;
+    return 16u;
+}

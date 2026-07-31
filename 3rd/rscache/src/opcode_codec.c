@@ -3,12 +3,14 @@
 #include "datatypes/dat2_config_healthbar.h"
 #include "datatypes/dat2_config_hitsplat.h"
 #include "datatypes/dat2_config_db.h"
+#include "datatypes/dat2_config_flo.h"
 #include "datatypes/dat2_config_enum.h"
 #include "datatypes/dat2_config_idk.h"
 #include "datatypes/dat2_config_mapelement.h"
 #include "datatypes/dat2_config_inv.h"
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_sequence.h"
+#include "datatypes/dat2_config_spotanim.h"
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_param.h"
@@ -520,6 +522,119 @@ WRAP_FREE(
     struct RSCache_Dat2ConfigDbTable,
     RSCache_Dat2ConfigDbTableFreeInplace)
 
+/*
+ * The flo pair and mapelement.
+ *
+ * All three take the whole-record path for the same small reason: their decoders
+ * are era-gated at the *record* level rather than per opcode, and none of them is
+ * a candidate for server-side extension. Their `default` cases already stop on an
+ * unknown opcode, which was checked rather than assumed.
+ */
+WRAP_INIT_ZERO(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay)
+WRAP_ENCODE(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayEncode)
+WRAP_BOUND(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayEncodeBound)
+WRAP_FREE(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayFreeInplace)
+
+WRAP_INIT_ZERO(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay)
+WRAP_ENCODE(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayEncode)
+WRAP_BOUND(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayEncodeBound)
+WRAP_FREE(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayFreeInplace)
+
+WRAP_INIT_ZERO(
+    mapelement,
+    struct RSCache_MapElement)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementDecodeInplace)
+WRAP_ENCODE(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementEncode)
+WRAP_BOUND(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementEncodeBound)
+WRAP_FREE(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementFreeInplace)
+
+/* The flo decoders take era flags, so their whole-record wrappers derive them
+ * from the profile the same way `flags_for` would. */
+static int
+cpc_underlay_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    if( !record || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
+        (struct RSCache_Dat2ConfigUnderlay*)record, (char*)src, size,
+        RSCache_Dat2ConfigFloFlags(cache));
+    return size;
+}
+
+static int
+cpc_overlay_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    if( !record || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
+        (struct RSCache_Dat2ConfigOverlay*)record, (char*)src, size,
+        RSCache_Dat2ConfigFloFlags(cache));
+    return size;
+}
+
+/* spotanim's encoder is revision-gated (opcode 3 replaces 1 for models from rev
+ * 237), so its wrapper derives the revision from the profile rather than taking
+ * the revision-less entry point. */
+WRAP_INIT(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimInit)
+WRAP_DECODE_INPLACE(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimDecodeInplace)
+WRAP_BOUND(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimEncodeBound)
+WRAP_FREE(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimFreeInplace)
+
+static uint32_t
+cpc_spotanim_encode(
+    const struct RSCache* cache, const void* record, uint8_t* out, uint32_t cap)
+{
+    return RSCache_Dat2ConfigSpotanimEncodeRevision(
+        cache ? cache->revision : 0, (const struct RSCache_Dat2ConfigSpotanim*)record, out,
+        cap);
+}
+
 /* ---- the table ----------------------------------------------------------- */
 
 /*
@@ -701,6 +816,34 @@ static const struct RSCache_OpcodeCodec k_codecs[] = {
         struct RSCache_Dat2ConfigDbTable,
         dbtable,
         cpc_dbtable_free),
+    ROW_WHOLE(
+        "underlay",
+        RSCACHE_TYPE_UNDERLAY,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigUnderlay,
+        underlay,
+        cpc_underlay_free),
+    ROW_WHOLE(
+        "overlay",
+        RSCACHE_TYPE_OVERLAY,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigOverlay,
+        overlay,
+        cpc_overlay_free),
+    ROW_WHOLE(
+        "mapelement",
+        RSCACHE_TYPE_MAPELEMENT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_MapElement,
+        mapelement,
+        cpc_mapelement_free),
+    ROW_WHOLE(
+        "spotanim",
+        RSCACHE_TYPE_SPOTANIM,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigSpotanim,
+        spotanim,
+        cpc_spotanim_free),
 };
 
 #define CODEC_COUNT ((int)(sizeof(k_codecs) / sizeof(k_codecs[0])))

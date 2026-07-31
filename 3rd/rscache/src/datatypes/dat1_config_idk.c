@@ -49,6 +49,9 @@ decode_idk(struct RSCache_Buffer* inb)
             break;
         }
 
+        if( idk->opcode_count < (int)(sizeof(idk->opcodes) / sizeof(idk->opcodes[0])) )
+            idk->opcodes[idk->opcode_count++] = opcode;
+
         switch( opcode )
         {
         case 1:
@@ -125,4 +128,81 @@ RSCache_Dat1ConfigIdkFree(struct RSCache_Dat1ConfigIdk* idk)
         return;
     free(idk->models);
     free(idk);
+}
+uint32_t
+RSCache_Dat1ConfigIdkEncodeBound(const struct RSCache_Dat1ConfigIdk* idk)
+{
+    /* type, disable, terminator, plus the three ten-slot tables and the models. */
+    uint32_t need = 8u + 30u * 3u;
+
+    if( !idk )
+        return need;
+    return need + (uint32_t)idk->models_count * 2u + 2u;
+}
+
+uint32_t
+RSCache_Dat1ConfigIdkEncode(
+    const struct RSCache_Dat1ConfigIdk* idk,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    struct RSCache_Buffer buffer;
+    int i;
+
+    if( !idk || !out )
+        return 0;
+    if( out_capacity < RSCache_Dat1ConfigIdkEncodeBound(idk) )
+        return 0;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    /*
+     * The opcodes are replayed in the order the record carried them, not in
+     * ascending order.
+     *
+     * These records are not sorted: cache254's first idk runs 1, 60, 2. An
+     * ascending encoder produced the right length and the right values and still
+     * did not match a single archive, because every record's bytes were permuted.
+     * Only the decoded order reproduces the source.
+     */
+    for( i = 0; i < idk->opcode_count; i++ )
+    {
+        int opcode = idk->opcodes[i];
+
+        p1(&buffer, opcode);
+        if( opcode == 1 )
+        {
+            p1(&buffer, idk->type);
+        }
+        else if( opcode == 2 )
+        {
+            int m;
+
+            p1(&buffer, idk->models_count);
+            for( m = 0; m < idk->models_count; m++ )
+                p2(&buffer, idk->models[m]);
+        }
+        else if( opcode == 3 )
+        {
+            /* A bare flag: the opcode byte is the whole payload. */
+        }
+        else if( opcode >= 40 && opcode < 50 )
+        {
+            p2(&buffer, idk->recol_s[opcode - 40]);
+        }
+        else if( opcode >= 50 && opcode < 60 )
+        {
+            p2(&buffer, idk->recol_d[opcode - 50]);
+        }
+        else if( opcode >= 60 && opcode < 70 )
+        {
+            p2(&buffer, idk->heads[opcode - 60]);
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
 }

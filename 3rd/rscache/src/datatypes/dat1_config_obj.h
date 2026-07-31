@@ -46,6 +46,14 @@ struct RSCache_Dat1ConfigObj
     int countobj_count;
     char* op[5];  // Options 30-34
     char* iop[5]; // Inventory options 35-39
+    /**
+     * The opcodes in the order the record carried them.
+     *
+     * Replayed by the encoder. dat1 config records are not sorted — see the note
+     * in `dat1_config_idk.h` — and the order is not recoverable from the fields.
+     */
+    int opcodes[128];
+    int opcode_count;
 };
 
 struct RSCache_Dat1ConfigObjList
@@ -64,6 +72,21 @@ RSCache_Dat1ConfigObjListNewDecode(
 /** Decode a single obj from a raw data buffer. Ownership is transferred to the caller. */
 struct RSCache_Dat1ConfigObj*
 RSCache_Dat1ConfigObjDecodeOne(void* data, int size);
+
+/**
+ * Encode one dat1 obj record, replaying its decoded opcode order.
+ *
+ * Returns bytes written, or 0 on failure.
+ */
+uint32_t
+RSCache_Dat1ConfigObjEncode(
+    const struct RSCache_Dat1ConfigObj* obj,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** An upper bound on what `RSCache_Dat1ConfigObjEncode` will write. */
+uint32_t
+RSCache_Dat1ConfigObjEncodeBound(const struct RSCache_Dat1ConfigObj* obj);
 
 void
 RSCache_Dat1ConfigObjFree(struct RSCache_Dat1ConfigObj* obj);

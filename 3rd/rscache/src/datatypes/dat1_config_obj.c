@@ -80,6 +80,9 @@ RSCache_Dat1ConfigObjDecodeOne(void* data, int size)
             break;
         }
 
+        if( obj->opcode_count < (int)(sizeof(obj->opcodes) / sizeof(obj->opcodes[0])) )
+            obj->opcodes[obj->opcode_count++] = opcode;
+
         switch( opcode )
         {
         case 1:
@@ -326,4 +329,186 @@ RSCache_Dat1ConfigObjFree(struct RSCache_Dat1ConfigObj* obj)
         free(obj->iop[i]);
     }
     free(obj);
+}
+
+uint32_t
+RSCache_Dat1ConfigObjEncodeBound(const struct RSCache_Dat1ConfigObj* obj)
+{
+    uint32_t need = 64u;
+    int i;
+
+    if( !obj )
+        return need;
+    if( obj->name )
+        need += (uint32_t)strlen(obj->name) + 2u;
+    if( obj->desc )
+        need += (uint32_t)strlen(obj->desc) + 2u;
+    for( i = 0; i < 5; i++ )
+    {
+        if( obj->op[i] )
+            need += (uint32_t)strlen(obj->op[i]) + 2u;
+        if( obj->iop[i] )
+            need += (uint32_t)strlen(obj->iop[i]) + 2u;
+    }
+    need += (uint32_t)obj->recol_count * 4u + 2u;
+    need += (uint32_t)obj->countobj_count * 4u + 2u;
+    /* Every remaining opcode is at most a code byte plus four payload bytes. */
+    need += (uint32_t)obj->opcode_count * 6u;
+    return need;
+}
+
+uint32_t
+RSCache_Dat1ConfigObjEncode(
+    const struct RSCache_Dat1ConfigObj* obj,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    struct RSCache_Buffer buffer;
+    int i;
+
+    if( !obj || !out )
+        return 0;
+    if( out_capacity < RSCache_Dat1ConfigObjEncodeBound(obj) )
+        return 0;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    for( i = 0; i < obj->opcode_count; i++ )
+    {
+        int opcode = obj->opcodes[i];
+
+        p1(&buffer, opcode);
+        switch( opcode )
+        {
+        case 1:
+            p2(&buffer, obj->model);
+            break;
+        case 2:
+            pjstr(&buffer, obj->name ? obj->name : "", RSCACHE_JSTR_TERMINATOR_NEWLINE);
+            break;
+        case 3:
+            pjstr(&buffer, obj->desc ? obj->desc : "", RSCACHE_JSTR_TERMINATOR_NEWLINE);
+            break;
+        case 4:
+            p2(&buffer, obj->zoom2d);
+            break;
+        case 5:
+            p2(&buffer, obj->xan2d);
+            break;
+        case 6:
+            p2(&buffer, obj->yan2d);
+            break;
+        case 7:
+            p2b(&buffer, obj->xof2d);
+            break;
+        case 8:
+            p2b(&buffer, obj->yof2d);
+            break;
+        case 9:
+        case 11:
+        case 16:
+            /* Bare flags: the opcode byte is the whole payload. */
+            break;
+        case 10:
+            p2(&buffer, obj->code10);
+            break;
+        case 12:
+            p4(&buffer, obj->cost);
+            break;
+        case 23:
+            p2(&buffer, obj->manwear);
+            p1b(&buffer, obj->manwearOffsetY);
+            break;
+        case 24:
+            p2(&buffer, obj->manwear2);
+            break;
+        case 25:
+            p2(&buffer, obj->womanwear);
+            p1b(&buffer, obj->womanwearOffsetY);
+            break;
+        case 26:
+            p2(&buffer, obj->womanwear2);
+            break;
+        case 40:
+        {
+            int rec;
+
+            p1(&buffer, obj->recol_count);
+            for( rec = 0; rec < obj->recol_count; rec++ )
+            {
+                p2(&buffer, obj->recol_s[rec]);
+                p2(&buffer, obj->recol_d[rec]);
+            }
+            break;
+        }
+        case 78:
+            p2(&buffer, obj->manwear3);
+            break;
+        case 79:
+            p2(&buffer, obj->womanwear3);
+            break;
+        case 90:
+            p2(&buffer, obj->manhead);
+            break;
+        case 91:
+            p2(&buffer, obj->womanhead);
+            break;
+        case 92:
+            p2(&buffer, obj->manhead2);
+            break;
+        case 93:
+            p2(&buffer, obj->womanhead2);
+            break;
+        case 95:
+            p2(&buffer, obj->zan2d);
+            break;
+        case 97:
+            p2(&buffer, obj->certlink);
+            break;
+        case 98:
+            p2(&buffer, obj->certtemplate);
+            break;
+        case 110:
+            p2(&buffer, obj->resizex);
+            break;
+        case 111:
+            p2(&buffer, obj->resizey);
+            break;
+        case 112:
+            p2(&buffer, obj->resizez);
+            break;
+        case 113:
+            p1b(&buffer, obj->ambient);
+            break;
+        case 114:
+            /* The decoder multiplies by five, so the wire value is the fifth. */
+            p1b(&buffer, obj->contrast / 5);
+            break;
+        default:
+            if( opcode >= 30 && opcode < 35 )
+            {
+                const char* act = obj->op[opcode - 30];
+
+                pjstr(&buffer, act ? act : "", RSCACHE_JSTR_TERMINATOR_NEWLINE);
+            }
+            else if( opcode >= 35 && opcode < 40 )
+            {
+                const char* act = obj->iop[opcode - 35];
+
+                pjstr(&buffer, act ? act : "", RSCACHE_JSTR_TERMINATOR_NEWLINE);
+            }
+            else if( opcode >= 100 && opcode < 110 )
+            {
+                p2(&buffer, obj->countobj[opcode - 100]);
+                p2(&buffer, obj->countco[opcode - 100]);
+            }
+            else
+            {
+                return 0;
+            }
+            break;
+        }
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
 }

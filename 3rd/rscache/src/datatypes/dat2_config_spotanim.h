@@ -79,6 +79,25 @@ RSCache_Dat2ConfigSpotanimEncodeRevision(
     uint8_t* out,
     uint32_t out_capacity);
 
+/** Set the type's non-zero defaults on a record. */
+void
+RSCache_Dat2ConfigSpotanimInit(struct RSCache_Dat2ConfigSpotanim* spotanim);
+
+/** Decode into a caller-owned record. `NewDecode` is this plus an allocation. */
+void
+RSCache_Dat2ConfigSpotanimDecodeInplace(
+    struct RSCache_Dat2ConfigSpotanim* spotanim,
+    const void* data,
+    int data_size);
+
+/** An upper bound on what `RSCache_Dat2ConfigSpotanimEncode` will write. */
+uint32_t
+RSCache_Dat2ConfigSpotanimEncodeBound(const struct RSCache_Dat2ConfigSpotanim* spotanim);
+
+/** Release what the record owns, leaving the struct to the caller. */
+void
+RSCache_Dat2ConfigSpotanimFreeInplace(struct RSCache_Dat2ConfigSpotanim* spotanim);
+
 void
 RSCache_Dat2ConfigSpotanimFree(struct RSCache_Dat2ConfigSpotanim* spotanim);
 

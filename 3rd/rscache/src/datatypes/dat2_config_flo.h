@@ -119,4 +119,11 @@ RSCache_Dat2ConfigUnderlayFree(struct RSCache_Dat2ConfigUnderlay* underlay);
 void
 RSCache_Dat2ConfigUnderlayFreeInplace(struct RSCache_Dat2ConfigUnderlay* underlay);
 
+/** Upper bounds on what the encoders above will write. */
+uint32_t
+RSCache_Dat2ConfigOverlayEncodeBound(const struct RSCache_Dat2ConfigOverlay* overlay);
+
+uint32_t
+RSCache_Dat2ConfigUnderlayEncodeBound(const struct RSCache_Dat2ConfigUnderlay* underlay);
+
 #endif

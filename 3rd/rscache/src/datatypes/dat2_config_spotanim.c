@@ -229,11 +229,43 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size)
     s = calloc(1, sizeof(*s));
     if( !s )
         return NULL;
-    init_dat2_spotanim(s);
-
-    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
-    decode_dat2_spotanim(s, &buffer);
+    RSCache_Dat2ConfigSpotanimDecodeInplace(s, data, data_size);
+    (void)buffer;
     return s;
+}
+
+void
+RSCache_Dat2ConfigSpotanimInit(struct RSCache_Dat2ConfigSpotanim* spotanim)
+{
+    if( !spotanim )
+        return;
+    init_dat2_spotanim(spotanim);
+}
+
+void
+RSCache_Dat2ConfigSpotanimDecodeInplace(
+    struct RSCache_Dat2ConfigSpotanim* spotanim,
+    const void* data,
+    int data_size)
+{
+    struct RSCache_Buffer buffer;
+
+    if( !spotanim )
+        return;
+    RSCache_Dat2ConfigSpotanimInit(spotanim);
+    if( !data || data_size <= 0 )
+        return;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+    decode_dat2_spotanim(spotanim, &buffer);
+}
+
+void
+RSCache_Dat2ConfigSpotanimFreeInplace(struct RSCache_Dat2ConfigSpotanim* spotanim)
+{
+    if( !spotanim )
+        return;
+    free(spotanim->name);
+    spotanim->name = NULL;
 }
 
 void
@@ -241,6 +273,20 @@ RSCache_Dat2ConfigSpotanimFree(struct RSCache_Dat2ConfigSpotanim* spotanim)
 {
     if( !spotanim )
         return;
-    free(spotanim->name);
+    RSCache_Dat2ConfigSpotanimFreeInplace(spotanim);
     free(spotanim);
+}
+
+uint32_t
+RSCache_Dat2ConfigSpotanimEncodeBound(const struct RSCache_Dat2ConfigSpotanim* spotanim)
+{
+    /* Scalar opcodes plus the recolour/retexture pairs and the one string. */
+    uint32_t need = 128u;
+
+    if( !spotanim )
+        return need;
+    need += 10u * 4u * 2u;
+    if( spotanim->name )
+        need += (uint32_t)strlen(spotanim->name) + 2u;
+    return need;
 }
