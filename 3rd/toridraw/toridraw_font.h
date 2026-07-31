@@ -44,6 +44,23 @@ ToriDraw_FontParseHexColor(
     char const* hex,
     int len);
 
+/**
+ * Length in bytes of the markup token starting at text[i], or 0 if there is no
+ * token there. `*emit_char_out` receives the character the token renders as
+ * (`<lt>` -> '<', `<gt>` -> '>') or 0 when it renders nothing.
+ *
+ * Exposed because measuring text and drawing it must agree on what is markup:
+ * anything that walks a string to work out how wide it will be has to skip
+ * exactly the tokens the glyph walk skips. The grammar needs no font, so this
+ * takes none.
+ */
+int
+ToriDraw_FontMarkupTokenLength(
+    char const* text,
+    int len,
+    int index,
+    unsigned char* emit_char_out);
+
 typedef void (*ToriDraw_FontGlyphCallback)(
     void* ctx,
     struct ToriDraw_Font* font,

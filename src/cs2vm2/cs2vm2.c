@@ -91,30 +91,54 @@ CS2VM2_RestoreYieldCheckpoint(
     while( vm->undo_log_len > cp->undo_log_len )
     {
         struct CS2VM2_ArrayUndo const* undo = &vm->undo_log[--vm->undo_log_len];
-        if( undo->slot >= 0 && undo->slot < CS2VM2_MAX_ARRAYS &&
-            undo->index >= 0 && undo->index < CS2VM2_ARRAY_CAPACITY )
-            vm->arrays[undo->slot].values[undo->index] = undo->old_value;
+        if( undo->slot < 0 || undo->slot >= CS2VM2_MAX_ARRAYS || undo->index < 0 ||
+            undo->index >= CS2VM2_ARRAY_CAPACITY )
+            continue;
+        if( vm->arrays[undo->slot].is_string )
+            vm->arrays[undo->slot].cells.strings[undo->index] = undo->old_string;
+        else
+            vm->arrays[undo->slot].cells.ints[undo->index] = undo->old_value;
     }
 }
 
 /* Opt-in tracked array store: records the prior value so a yield restore can undo
  * it (see the undo_log contract in CS2VM2_Thread). Used by array-writing opcodes
  * whose replay-on-yield would otherwise double-apply. */
+static int
+cs2vm2_array_track(struct CS2VM2_Thread* vm, int slot, int index)
+{
+    if( slot < 0 || slot >= CS2VM2_MAX_ARRAYS || !vm->arrays[slot].defined || index < 0 ||
+        index >= vm->arrays[slot].size )
+        return 0;
+    if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
+    {
+        struct CS2VM2_ArrayUndo* undo = &vm->undo_log[vm->undo_log_len++];
+        undo->slot = (short)slot;
+        undo->index = index;
+        undo->old_value = vm->arrays[slot].cells.ints[index];
+        undo->old_string = vm->arrays[slot].cells.strings[index];
+    }
+    return 1;
+}
+
 void
 CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, int slot, int index, int value)
 {
     assert(vm);
-    if( slot < 0 || slot >= CS2VM2_MAX_ARRAYS || !vm->arrays[slot].defined ||
-        index < 0 || index >= vm->arrays[slot].size )
+    if( !cs2vm2_array_track(vm, slot, index) )
         return;
-    if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
-    {
-        vm->undo_log[vm->undo_log_len].slot = (short)slot;
-        vm->undo_log[vm->undo_log_len].index = index;
-        vm->undo_log[vm->undo_log_len].old_value = vm->arrays[slot].values[index];
-        vm->undo_log_len++;
-    }
-    vm->arrays[slot].values[index] = value;
+    vm->arrays[slot].cells.ints[index] = value;
+}
+
+/* The string twin. The pointer is pool-owned (CS2VM2_StrDup); storing it here
+ * transfers no ownership and the overwritten cell is never freed. */
+void
+CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* vm, int slot, int index, char* value)
+{
+    assert(vm);
+    if( !cs2vm2_array_track(vm, slot, index) )
+        return;
+    vm->arrays[slot].cells.strings[index] = value;
 }
 
 void
@@ -5467,7 +5491,10 @@ CS2VM2_Op_DefineArray(
 
     vm->arrays[slot].defined = 1;
     vm->arrays[slot].size = size;
-    memset(vm->arrays[slot].values, 0, sizeof(vm->arrays[slot].values));
+    /* Low half of the operand is the RuneScript element-type char; 's' is the
+     * only one that lives on the string stack. */
+    vm->arrays[slot].is_string = ((operand & 0xffff) == 's');
+    memset(&vm->arrays[slot].cells, 0, sizeof(vm->arrays[slot].cells));
     return CS2VM_EXECNO_OK;
 }
 
@@ -5485,12 +5512,18 @@ CS2VM2_Op_PushArrayInt(
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int value = 0;
-    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].defined && index >= 0 &&
-        index < vm->arrays[operand].size )
-        value = vm->arrays[operand].values[index];
+    int const in_range = operand >= 0 && operand < CS2VM2_MAX_ARRAYS &&
+                         vm->arrays[operand].defined && index >= 0 &&
+                         index < vm->arrays[operand].size;
 
-    return CS2VM2_PushInt(vm, value);
+    /* A string array reads onto the string stack — same opcode, other stack. */
+    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].is_string )
+    {
+        char* value = in_range ? vm->arrays[operand].cells.strings[index] : NULL;
+        return CS2VM2_PushStr(vm, value ? value : CS2VM2_StrEmpty(vm));
+    }
+
+    return CS2VM2_PushInt(vm, in_range ? vm->arrays[operand].cells.ints[index] : 0);
 }
 
 int
@@ -5510,6 +5543,20 @@ CS2VM2_Op_PopArrayInt(
      * asymmetric write (the spellbook sort's in-place swaps). */
     int index;
     int value;
+
+    /* A string array's value comes off the STRING stack; popping an int for it
+     * underflows the int stack and desyncs everything after. */
+    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].is_string )
+    {
+        char* text = NULL;
+        if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        CS2VM2_ArrayStoreStr(vm, operand, index, text);
+        return CS2VM_EXECNO_OK;
+    }
+
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
@@ -9207,6 +9254,7 @@ cs2vm2_thread_init(
     {
         thread->arrays[i].defined = 0;
         thread->arrays[i].size = 0;
+        thread->arrays[i].is_string = 0;
     }
 
     CS2VM2_StrPool_Init(&thread->str_pool);

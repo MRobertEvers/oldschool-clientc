@@ -75,11 +75,28 @@ struct CS2VM2_Frame
  * writes at most one cell today, so this is generous headroom. */
 #define CS2VM2_ARRAY_UNDO_MAX 64
 
+/*
+ * A script array. DEFINE_ARRAY carries the element type in the low half of its
+ * operand, and it is not decoration: an array declared `s` lives on the STRING
+ * stack, so PUSH_ARRAY_INT / POP_ARRAY_INT move string values for it. Ignoring
+ * the type made every string-array write pop an int that was never pushed —
+ * the music tab's list builder (script 9290) died on its first
+ * `$names($i) = ""`.
+ *
+ * One slot is only ever one type, so the storage is a union; string cells hold
+ * pool pointers (CS2VM2_StrDup), which the thread frees as a unit at script
+ * start and never individually.
+ */
 struct CS2VM2_Array
 {
-    int values[CS2VM2_ARRAY_CAPACITY];
+    union
+    {
+        int ints[CS2VM2_ARRAY_CAPACITY];
+        char* strings[CS2VM2_ARRAY_CAPACITY];
+    } cells;
     int size;
     int defined;
+    int is_string;
 };
 
 #define CS2VM2_CHILDREN_ITER_MAX 256
@@ -285,6 +302,7 @@ struct CS2VM2_Thread
         short slot;
         int index;
         int old_value;
+        char* old_string;
     } undo_log[CS2VM2_ARRAY_UNDO_MAX];
     int undo_log_len;
 
@@ -486,6 +504,11 @@ CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* thread);
  * value in the per-op undo log so a yield restore undoes it (see undo_log). */
 void
 CS2VM2_ArrayStore(struct CS2VM2_Thread* thread, int slot, int index, int value);
+
+/** The same, for an array declared with string elements. `value` is a pool
+ *  pointer (CS2VM2_StrDup); the cell borrows it and never frees. */
+void
+CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* thread, int slot, int index, char* value);
 
 struct CS2VM2_Thread*
 CS2VM2_ThreadMain(struct CS2VM2* vm);

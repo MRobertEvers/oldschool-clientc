@@ -251,6 +251,51 @@ Not landed, in the order they block things:
 
 ---
 
+## 4b. When the panel is the client's fault, not the server's
+
+§2.4 says "before adding a packet, find the clientscript and read what it
+consumes", and that is still the first move. But a rev-230 panel is a *program*,
+and a program the client runs slightly wrong fails in a way that looks exactly
+like a missing packet: the panel mounts, its onload runs, and it draws nothing.
+Six panels were blank for six different reasons and only one of them was a
+packet. The pattern that separates them:
+
+> **A blank panel whose interface IS mounted is a client bug until proven
+> otherwise.** Check `TORIRS_DUMP_BOUNDS=<group>` first — if the geometry is
+> absurd (a 190x261 sidebar panel resolving to 500x1) the server did its job and
+> the client mis-ran the script.
+
+The six, and what each one actually was:
+
+| symptom | cause | where |
+|---|---|---|
+| quest tab blank | runtime hook args capped at 32; the journal's hooks carry **44**, and the dropped tail held the component the hook writes to | `CS2VM_SETON_INT_ARG_MAX` |
+| combat tab has no attack styles | `db_find*` takes **three** stack arguments (column, value, type-tag), not two, and the tuple nibble is **1-based** | `exec_db`, `rs_cs2_host.c` |
+| magic tab empty but for "Filters" | the spellbook sort recurses to depth **70**; the frame cap was 50 | `CS2VM_MAX_FRAMES` |
+| orbs are black circles | the "empty" overlay is a zero-height clipping layer; a degenerate clip was treated as *no* clip instead of *clip everything* | `UITree_LayerCullsChildren` |
+| no stack numbers on items | rev 230 has no TYPE_INV grid — items are `cc_create`d widgets, and only the grid path drew counts | `emit_obj_stack_count` |
+| music tab dies | `define_array` carries an element **type**; an `s` array lives on the string stack | `CS2VM2_Array.is_string` |
+
+Three of those (hook args, DB stack shape, array types) share one shape worth
+naming: **the client silently dropped part of a script's data and the script
+carried on with a shifted stack.** The abort then surfaces at an unrelated
+opcode — script 2621 "failed at opcode 40", which reads like a bad gosub and is
+really a blown call stack. When a CS2 failure names an opcode that looks
+innocent, suspect the stack, not the opcode.
+
+And one server-side trap, which is §2.1 biting in a new place:
+
+> **A gameval symbol from a neighbouring revision is not evidence.** The world
+> map orb was armed on 160:53 because OpenRune's rev-235 table calls 160:55
+> `orbs:worldmap` and 53 `wiki_icon`, so it looked like components had been
+> inserted and the rev-230 orb must be lower. The cache disagrees twice:
+> `interfaces/orbs.compack` names 53 `wiki_icon_graphic` and 55 `worldmap`, and
+> the orb's own onload (1492 → 1700) installs "Floating World Map" on the
+> argument it passes as 10485815 = 160:55. **Read the compack and the onload;
+> they are the revision you are actually running.**
+
+---
+
 ## 5. Reading list, by question
 
 | question | file |

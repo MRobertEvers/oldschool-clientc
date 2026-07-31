@@ -261,8 +261,13 @@ enum Mock230AttackStyle
 {
     MOCK230_STYLE_ACCURATE = 0,
     MOCK230_STYLE_AGGRESSIVE = 1,
-    MOCK230_STYLE_DEFENSIVE = 2,
-    MOCK230_STYLE_CONTROLLED = 3,
+    /* The cache's order, not intuition's: DBTable 78's per-layout style rows
+     * put controlled at 2 and defensive at 3 (`combat_interface_hacksword`:
+     * 2,Lunge,(Controlled) / 3,Block,(Defensive); unarmed skips 2 entirely,
+     * which is why its Block writes com_mode=3). These were transposed once
+     * and every Block click trained shared XP. */
+    MOCK230_STYLE_CONTROLLED = 2,
+    MOCK230_STYLE_DEFENSIVE = 3,
 };
 
 enum Mock230WearPos

@@ -453,13 +453,14 @@ record(
     for( int i = 0; i < 5; i++ )
         entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
 
-    /* Opcode 94. Two things read it: the combat interface's weapon_category
-     * varbit, which picks one of the ten attack-style layouts, and the
+    /* Opcode 94, the general item category. Two things read it: the
      * `[opheld<n>,_<category>]` trigger, which is how content addresses "every
-     * bone in the cache" without listing all 38. Zero is the decoder's default
-     * *and* a legal id, so callers that need to tell "unset" from "category 0"
-     * treat 0 as unset — the same thing the text config does by omitting the
-     * key. */
+     * bone in the cache" without listing all 38, and the combat tab's varbit
+     * sync — which must NOT write it raw: the weapon_category varbit carries a
+     * different id space (the 0..35 weapon type keying DBTable 78), reached
+     * via weapon_type_from_category(). Zero is the decoder's default *and* a
+     * legal id, so callers that need to tell "unset" from "category 0" treat 0
+     * as unset — the same thing the text config does by omitting the key. */
     entry->category = obj->category;
 
     entry->attackrate = 4;

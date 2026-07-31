@@ -14,6 +14,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
+#include "toridraw_font.h"
 #include "varc/varc_manager.h"
 #include "varp/varp_manager.h"
 
@@ -352,66 +353,77 @@ rs_cs2_parent_component_id(
     return tree->components[parent].component_id;
 }
 
-static int
-rs_cs2_font_wrap_line_count(
+/*
+ * PARAWIDTH / PARAHEIGHT: how wide, and how many lines, a string wraps to.
+ *
+ * Markup is skipped, and that is the whole subtlety. These are measuring what
+ * the renderer will DRAW, and the renderer consumes `<col=…>`, `</col>`,
+ * `<lt>`, `<gt>` and `@xxx@` without emitting glyphs for them — so a byte walk
+ * that counts them measures a string far wider than the one that appears. The
+ * grammar comes from the renderer itself (ToriDraw_FontMarkupTokenLength)
+ * rather than being restated here, because a second copy is exactly how the two
+ * came to disagree.
+ *
+ * What it cost: the journal's summary panel centres each cell's icon+value pair
+ * on `parawidth(value)`. Every value is colour-tagged
+ * (`<col=0dc10d>0</col>` — 19 bytes rendering one glyph), so the measurement
+ * came back 104 instead of 6, and the icon was placed at
+ * `centre - (104 + 18 + 4)/2` — eighteen pixels off the left edge of the panel,
+ * with the number stranded at the far left of a 104-wide box.
+ */
+static void
+rs_cs2_font_wrap(
     struct ToriRS_Font const* font,
     char const* text,
-    int max_width)
+    int max_width,
+    int* out_lines,
+    int* out_width)
 {
     int lines = 1;
     int line_w = 0;
-    unsigned char c;
+    int best = 0;
+    int len;
+    int i = 0;
+
     assert(font);
+    *out_lines = 0;
+    *out_width = 0;
     if( !text || !text[0] )
-        return 0;
-    if( max_width <= 0 )
-        return 1;
-    while( (c = (unsigned char)*text++) != 0 )
+        return;
+    len = (int)strlen(text);
+
+    while( i < len )
     {
+        unsigned char emitted = 0;
+        int const token = ToriDraw_FontMarkupTokenLength(text, len, i, &emitted);
+        unsigned char ch;
         int adv;
-        if( c == '\n' )
+
+        if( token > 0 )
         {
-            lines++;
-            line_w = 0;
-            continue;
-        }
-        adv = font->draw_width[c];
-        if( line_w + adv > max_width && line_w > 0 )
-        {
-            lines++;
-            line_w = adv;
+            i += token;
+            if( !emitted )
+                continue; /* pure markup: consumes bytes, draws nothing */
+            ch = emitted;
         }
         else
-            line_w += adv;
-    }
-    return lines;
-}
-
-static int
-rs_cs2_font_wrap_max_line_width(
-    struct ToriRS_Font const* font,
-    char const* text,
-    int max_width)
-{
-    int best = 0;
-    int line_w = 0;
-    unsigned char c;
-    assert(font);
-    if( !text || !text[0] )
-        return 0;
-    while( (c = (unsigned char)*text++) != 0 )
-    {
-        int adv;
-        if( c == '\n' )
         {
+            ch = (unsigned char)text[i];
+            i++;
+        }
+
+        if( ch == '\n' )
+        {
+            lines++;
             if( line_w > best )
                 best = line_w;
             line_w = 0;
             continue;
         }
-        adv = font->draw_width[c];
+        adv = font->draw_width[ch];
         if( max_width > 0 && line_w + adv > max_width && line_w > 0 )
         {
+            lines++;
             if( line_w > best )
                 best = line_w;
             line_w = adv;
@@ -423,7 +435,35 @@ rs_cs2_font_wrap_max_line_width(
         best = line_w;
     if( max_width > 0 && best > max_width )
         best = max_width;
-    return best;
+
+    *out_lines = lines;
+    *out_width = best;
+}
+
+static int
+rs_cs2_font_wrap_line_count(
+    struct ToriRS_Font const* font,
+    char const* text,
+    int max_width)
+{
+    int lines, width;
+    if( !text || !text[0] )
+        return 0;
+    if( max_width <= 0 )
+        return 1;
+    rs_cs2_font_wrap(font, text, max_width, &lines, &width);
+    return lines;
+}
+
+static int
+rs_cs2_font_wrap_max_line_width(
+    struct ToriRS_Font const* font,
+    char const* text,
+    int max_width)
+{
+    int lines, width;
+    rs_cs2_font_wrap(font, text, max_width, &lines, &width);
+    return width;
 }
 
 static int

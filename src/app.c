@@ -3461,10 +3461,37 @@ Task_OpenSubRefresh_Run(
     }
     else
     {
-        /* IF_CLOSESUB: drop the mount record and hide the slot's content. The
-         * mount task asserts interface_id>0, so a close never routes through it. */
+        /* IF_CLOSESUB: hide the outgoing group the way a replacing mount does
+         * (hide + hide_unmounted on its roots — task_interface_open step 4,
+         * which the next mount of that group knows how to undo), then drop the
+         * mount record. Hiding the SLOT here was wrong: nothing ever un-hides
+         * a slot, so after one close every later mount into it — the same
+         * panel reopened, or a different one — laid out and never drew. The
+         * mount task asserts interface_id>0, so a close never routes through
+         * it. */
+        {
+            int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
+            if( rec >= 0 )
+            {
+                int old_group = app->tree->interface_parents[rec].group_id;
+                for( uint32_t i = 0; i < app->tree->component_count; i++ )
+                {
+                    struct UITreeComponent* c = &app->tree->components[i];
+                    if( c->freed || c->component_id < 0 )
+                        continue;
+                    if( ((c->component_id >> 16) & 0xffff) != old_group )
+                        continue;
+                    if( c->parent >= 0 &&
+                        ((app->tree->components[c->parent].component_id >> 16) & 0xffff) ==
+                            old_group )
+                        continue;
+                    if( !c->behavior.hide )
+                        c->behavior.hide_unmounted = 1;
+                    c->behavior.hide = 1;
+                }
+            }
+        }
         UITree_InterfaceParentClear(app->tree, self->target_uid);
-        UITree_ApplyHide(app->tree, self->target_uid, 1);
         /*
          * Then tell the tree a sub-interface went away.
          *
@@ -8769,13 +8796,23 @@ App_RunOnce(
          * the front) is forwarded to the server. */
         for( int e = 0; e < input->key_event_count; e++ )
         {
-            /* Escape releases chat focus (reference: Esc cancels the input
-             * line) without feeding the key to the chat handler. */
-            if( app->chat_input_active &&
-                input->key_events[e].key_typed == TORIRS_OSRSKEY_ESCAPE )
+            /* Escape does two things at once, neither gated on the other:
+             * releases chat focus (reference: Esc cancels the input line —
+             * and the line is focused by default, so gating the close on
+             * "chat unfocused" would eat the first press) and asks the server
+             * to close whatever modal is up. The close is the same
+             * CLOSE_MODAL the gameframe X's clientscript (29, if_close)
+             * raises, so what actually closes stays the server's decision and
+             * an idle Escape is a no-op there. */
+            if( input->key_events[e].key_typed == TORIRS_OSRSKEY_ESCAPE )
             {
-                app->chat_input_active = 0;
-                chat_captures = app->chat.social_input_open || app->chat.dialog_input_open;
+                if( app->chat_input_active )
+                {
+                    app->chat_input_active = 0;
+                    chat_captures =
+                        app->chat.social_input_open || app->chat.dialog_input_open;
+                }
+                app->host.close_modal_requested = true;
                 app->need_redraw = 1;
                 continue;
             }

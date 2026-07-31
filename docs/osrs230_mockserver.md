@@ -993,6 +993,34 @@ inbound, and `CLICK_WORLD_MAP` outbound. Full write-up, including how each id
 was established from the decompiled clientscripts, in
 [`worldmap_and_gameframe_fixes.md`](worldmap_and_gameframe_fixes.md).
 
+**Which component the orb is** was wrong for a long time, and the way it was
+wrong is worth keeping. It was 160:53, argued from OpenRune's rev-235 gameval
+table (which names 160:55 `orbs:worldmap` and 160:53 `wiki_icon`): components
+must have been inserted between the revisions, so the rev-230 orb must be the
+lower id. The cache this server reads says the opposite twice —
+`interfaces/orbs.compack` names 53 `wiki_icon_graphic` and 55 `worldmap`, and
+`orb_worldmap`'s onload (script 1492 → proc 1700) installs "Floating World Map"
+and "Fullscreen World Map" on the argument it passes as 10485815 = 160:55. The
+server armed the wiki button, the orb stayed inert, and the map never opened.
+A symbol table from a neighbouring revision is a hypothesis; the compack and the
+onload are the revision you are running.
+
+### 3.14b CLOSE_MODAL is not the bank's
+
+`handle_close_modal` tested `bank.open` and returned. The bank was therefore the
+only interface in the game that could be closed: the equipment screen, and
+anything a content script opened with `if_openmain`, stayed on screen for the
+rest of the session however many times the X was clicked.
+
+The server is what unmounts, so it has to know what it mounted. `IF_OPENSUB` and
+`IF_CLOSESUB` now record the group sitting in each of the gameframe's two modal
+slots (`mock230_note_modal_mount`, called from the encoders rather than from each
+opener, so no new opener can forget). CLOSE_MODAL offers the open interface's
+`[if_close]` script first — the same order the bank already had — and otherwise
+drops the mount. The bank and the equipment screen keep their own closers
+because they own state beyond the mount; everything else is just a mount, and
+dropping it is the whole of closing it.
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —

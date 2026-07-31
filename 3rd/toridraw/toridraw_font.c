@@ -265,6 +265,16 @@ font_try_consume_markup(
     return 0;
 }
 
+int
+ToriDraw_FontMarkupTokenLength(
+    char const* text,
+    int len,
+    int index,
+    unsigned char* emit_char_out)
+{
+    return font_try_consume_markup(text, len, index, 0, NULL, false, emit_char_out);
+}
+
 static int
 font_space_advance(struct ToriDraw_Font const* font)
 {

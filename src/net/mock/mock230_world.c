@@ -2775,13 +2775,66 @@ mock230_world_varp(const char* symbol)
 }
 
 /*
+ * Obj `category` (config opcode 94) → the combat tab's weapon TYPE.
+ *
+ * These are two different id spaces, and confusing them is silent: varbit 357
+ * wants the 0..35 weapon-type index that keys DBTable 78's button layouts,
+ * while opcode 94 is the general item category (scimitar 21, shortbow 64,
+ * whip 150). The spaces overlap, so writing the category straight into the
+ * varbit picked a *plausible wrong* layout — category 21 is weapon type
+ * "bladed staff", so a bronze scimitar grew autocast buttons — and every
+ * category ≥ 64 truncated through the 6-bit varbit (shortbow → 0 → the
+ * unarmed panel).
+ *
+ * The mapping is not in the cache — there is no obj→weapon-type dbtable or
+ * enum — so like OpenRune (game-api WeaponCategory.kt, which this table is
+ * transcribed from) the server states it. Unlisted categories are unarmed.
+ */
+static int
+weapon_type_from_category(int category)
+{
+    static const struct
+    {
+        short category;
+        short weapon_type;
+    } map[] = {
+        { 64, 3 },   { 106, 3 },  /* bow */
+        { 21, 9 },                /* slash sword (scimitar) */
+        { 61, 23 },               /* two-handed sword */
+        { 35, 1 },                /* axe */
+        { 92, 25 },  { 42, 25 },  /* banner */
+        { 26, 27 },  { 55, 27 },  { 15, 27 },   /* blunt */
+        { 1014, 28 },             /* bulwark */
+        { 65, 4 },                /* claws */
+        { 67, 11 },               /* pickaxe */
+        { 66, 12 },  { 273, 12 }, /* polearm */
+        { 1143, 14 }, { 1193, 14 }, { 14, 14 }, /* scythe */
+        { 36, 15 },               /* spear */
+        { 39, 16 },               /* spiked */
+        { 25, 17 },               /* stab sword */
+        { 150, 20 },              /* whip */
+        { 572, 7 },               /* chinchompa */
+        { 567, 5 }, { 37, 5 },    /* crossbow */
+        { 96, 8 },                /* gun */
+        { 24, 19 },               /* thrown */
+        { 1, 18 },                /* staff */
+        { 586, 6 },               /* salamander */
+        { 1588, 17 },             /* partisan */
+        { 975, 31 },              /* multi-style */
+    };
+    for( size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++ )
+        if( map[i].category == category )
+            return map[i].weapon_type;
+    return 0; /* unarmed */
+}
+
+/*
  * The two varbits interface 593 builds itself from.
  *
- * `weapon_category` selects which of the ten button layouts the combat tab
- * builds — the tab's own CS2 (script 7593) hides every style button when it is
- * 0, which is why an unset one shows nothing but auto-retaliate. The category
- * is a field on the weapon's cache record, so the engine reads it there rather
- * than making content restate it.
+ * `weapon_category` selects which of the button layouts the combat tab builds
+ * — the tab's own CS2 (script 7593) hides every style button when it is 0,
+ * which is why an unset one shows nothing but auto-retaliate. It carries a
+ * weapon *type*, derived above from the worn weapon's cache category.
  *
  * `combat_level` is the number printed above the buttons, by the same formula
  * the minimenu colours npc levels with.
@@ -2795,7 +2848,8 @@ mock230_world_sync_combat_varbits(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->player;
     int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-    int category = weapon >= 0 ? mock230_objinfo(weapon)->category : 0;
+    int category =
+        weapon_type_from_category(weapon >= 0 ? mock230_objinfo(weapon)->category : 0);
     int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_weapon_category");
     int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combatlevel_transmit");
     int level = mock230_combat_level(player);
