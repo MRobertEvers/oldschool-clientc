@@ -341,7 +341,7 @@ pack_server_type(
         int id = 0;
 
         cp_server_band_init(&band);
-        for( int f = 0; f < fields.count; f++ )
+        for( int f = 0; f < fields.band_count; f++ )
         {
             const struct CP_Field* field = &fields.entries[f];
             char scratch[512];
@@ -434,6 +434,232 @@ pack_server_type(
     }
     if( unnamed )
         printf("  %-11s   %d record(s) with server fields have no id\n", type->name, unnamed);
+    return 1;
+}
+
+/* ---- the client view of a merged record ---------------------------------- */
+
+/*
+ * The other half of the split: what `cp_npc.c` is allowed to see.
+ *
+ * A merged record holds both bands at once. Handing it straight to the client
+ * encoder would offer it `hitpoints` and `huntmode`, which it would report as
+ * unknown keys and drop; handing it only rank 0 would lose the authored records
+ * entirely. The register is what separates them, per key:
+ *
+ *   native   the encoder's own key — passed through untouched
+ *   param:N  not a key at all to the encoder; folded into the record's param
+ *            table under that param's *name*
+ *   drop     server-only; never reaches the encoder
+ *   error    the encoder must refuse, loudly, at build time
+ *
+ * A key the register does not mention is passed through, so a type with no
+ * `fields/<type>.ini` behaves exactly as it did before this existed. That is what
+ * keeps 15 of the 20 config types byte-identical without declaring anything.
+ */
+struct CP_ClientView
+{
+    struct CP_Config config;
+    /** Lines this view synthesised and therefore owns. The rest point into the
+     *  merged record, which outlives the view. */
+    char** owned;
+    int owned_count;
+    int owned_capacity;
+};
+
+static void
+client_view_free(struct CP_ClientView* view)
+{
+    for( int i = 0; i < view->owned_count; i++ )
+        free(view->owned[i]);
+    free(view->owned);
+    free(view->config.lines);
+    memset(view, 0, sizeof(*view));
+}
+
+static int
+view_push(
+    struct CP_ClientView* view,
+    char* key,
+    char* value,
+    int owns_value)
+{
+    if( view->config.count == view->config.capacity )
+    {
+        int next = view->config.capacity ? view->config.capacity * 2 : 32;
+        struct CP_ConfigLine* grown =
+            (struct CP_ConfigLine*)realloc(view->config.lines, (size_t)next * sizeof(*grown));
+
+        if( !grown )
+            return 0;
+        view->config.lines = grown;
+        view->config.capacity = next;
+    }
+    if( owns_value )
+    {
+        if( view->owned_count == view->owned_capacity )
+        {
+            int next = view->owned_capacity ? view->owned_capacity * 2 : 16;
+            char** grown = (char**)realloc(view->owned, (size_t)next * sizeof(*grown));
+
+            if( !grown )
+                return 0;
+            view->owned = grown;
+            view->owned_capacity = next;
+        }
+        view->owned[view->owned_count++] = value;
+    }
+    view->config.lines[view->config.count].key = key;
+    view->config.lines[view->config.count].value = value;
+    view->config.lines[view->config.count].line_no = 0;
+    view->config.count++;
+    return 1;
+}
+
+/** The param name a `param=<name>,...` line addresses. Mirrors cp_merge.c's own
+ *  `map_subkey`, which is static there for the same reason it is static here. */
+static void
+map_subkey(
+    const char* value,
+    char* out,
+    size_t out_size)
+{
+    const char* comma = strchr(value, ',');
+    size_t length = comma ? (size_t)(comma - value) : strlen(value);
+
+    if( length >= out_size )
+        length = out_size - 1;
+    memcpy(out, value, length);
+    out[length] = '\0';
+}
+
+/** Does the record already state `param=<name>,...` itself? */
+static int
+states_param(
+    const struct CP_MergedRecord* rec,
+    const char* name)
+{
+    size_t length = strlen(name);
+
+    for( int i = 0; i < rec->count; i++ )
+    {
+        const char* value = rec->lines[i].value;
+
+        if( strcmp(rec->lines[i].key, "param") != 0 )
+            continue;
+        if( strncmp(value, name, length) == 0 && value[length] == ',' )
+            return 1;
+    }
+    return 0;
+}
+
+static int
+client_view_build(
+    struct CP_Ctx* ctx,
+    const struct CP_Fields* fields,
+    const struct CP_MergedRecord* rec,
+    struct CP_ClientView* view,
+    int* out_projected,
+    int* out_errors)
+{
+    memset(view, 0, sizeof(*view));
+    view->config.debugname = rec->debugname;
+
+    for( int i = 0; i < rec->count; i++ )
+    {
+        const struct CP_Field* field = cp_fields_find(fields, rec->lines[i].key);
+
+        /*
+         * A `param=<name>,...` line is looked up by the *param name*, not by the
+         * key `param`.
+         *
+         * `obj` states exactly one authored field and states it that way:
+         * `param=levelrequire,attack,60`. The register declares `[obj.levelrequire]
+         * client = drop`, and without this the filter would see the key `param`,
+         * find no declaration, and hand `cp_obj.c` a line whose middle column is a
+         * stat name where a param kind belongs.
+         */
+        if( !field && strcmp(rec->lines[i].key, "param") == 0 )
+        {
+            char subkey[128];
+
+            map_subkey(rec->lines[i].value, subkey, sizeof(subkey));
+            field = cp_fields_find(fields, subkey);
+            /* A projected field states the param *is* how it reaches the client, so
+             * the line stays. Only `drop` and `error` strip it. */
+            if( field && field->client == CP_FIELD_CLIENT_PARAM )
+                field = NULL;
+        }
+
+        if( field )
+        {
+            if( field->client == CP_FIELD_CLIENT_ERROR )
+            {
+                fprintf(stderr,
+                        "cachepack: %s [%s]: `%s` is declared `client = error` and the record "
+                        "states it — the cache cannot express this field\n",
+                        fields->type, rec->debugname, field->name);
+                (*out_errors)++;
+                continue;
+            }
+            if( field->client != CP_FIELD_CLIENT_NATIVE )
+                continue; /* param:N is injected below; drop never reaches the encoder */
+        }
+        if( !view_push(view, rec->lines[i].key, rec->lines[i].value, 0) )
+            return 0;
+    }
+
+    /*
+     * Then the projection.
+     *
+     * Skipped when the record states the param itself: `configs/all.npc` already
+     * carries `param=attackrate,int,4` for 2,196 npcs, and injecting a second
+     * entry for the same param would write the map twice. The record's own
+     * statement is also the *merged* one, so an authored override has already won
+     * by the time this runs.
+     */
+    for( int f = 0; f < fields->count; f++ )
+    {
+        const struct CP_Field* field = &fields->entries[f];
+        char scratch[512];
+        const char* text;
+        char* line;
+        int value = 0;
+        int param_id;
+        char kind;
+
+        if( field->client != CP_FIELD_CLIENT_PARAM || !field->param_name[0] )
+            continue;
+        text = merged_value(rec, field->name, scratch, sizeof(scratch));
+        if( !text || states_param(rec, field->param_name) )
+            continue;
+        if( !resolve_field_value(ctx, field, text, &value) )
+            continue; /* already tallied by the band pass */
+
+        param_id = cp_name_find(ctx, CP_TYPE_PARAM, field->param_name);
+        if( param_id < 0 )
+        {
+            cp_warn(ctx, &ctx->warn_unresolved_name,
+                    "%s [%s]: `client = param:%s` names no param in configs/all.param.compack",
+                    fields->type, rec->debugname, field->param_name);
+            continue;
+        }
+        kind = cp_param_type_of(ctx, param_id);
+
+        line = (char*)malloc(600);
+        if( !line )
+            return 0;
+        /* The machine spelling, three fields. `cp_parse_param` accepts the
+         * two-field authored one too, but writing the kind here keeps the
+         * projection independent of whether the param's own record loaded. */
+        snprintf(line, 600, "%s,%s,%d", field->param_name, kind == 's' ? "str" : "int", value);
+        if( !view_push(view, (char*)"param", line, 1) )
+        {
+            free(line);
+            return 0;
+        }
+        (*out_projected)++;
+    }
     return 1;
 }
 
@@ -597,55 +823,14 @@ pack_type(
      */
     const char* found[CP_PACK_MAX_SOURCES];
     int found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
-    struct CP_ConfigFile file;
+    struct CP_MergeSet merged;
+    struct CP_Fields fields;
+    int projected = 0;
+    int server_only = 0;
+    int view_errors = 0;
+    int ok = 1;
 
-    /*
-     * Merge every layer into one record set, then split it in two.
-     *
-     * **The client encode below still runs from `found[0]` alone, and must.** The
-     * merged record holds keys no cache field can express — `hitpoints`,
-     * `respawnrate`, `huntmode` — and handing those to `cp_npc.c` would fail or,
-     * worse, be ignored. Keeping the client path on the machine export is also what
-     * holds the bar for this change: every byte written into the client cache is
-     * the byte that was written before, and `test/digests` is the proof.
-     *
-     * What the merge feeds now is the *server* band, which is exactly the keys the
-     * client encoder cannot take. Two destinations, one parse — the shape
-     * `opcode_codec.h` describes and LostCity's `ConfigDatIdx = { client, server }`
-     * has always had.
-     */
-    if( found_count > 0 )
-    {
-        struct CP_MergeSet merged;
-        int ok = 1;
-
-        memset(&merged, 0, sizeof(merged));
-        for( int i = 0; i < found_count && ok; i++ )
-        {
-            struct CP_ConfigFile layer;
-
-            if( !cp_config_file_load(&layer, found[i]) )
-                continue;
-            ok = cp_merge_add(&merged, &layer, i == 0 ? 0 : 1, found[i]);
-            cp_config_file_free(&layer);
-        }
-        if( !ok )
-        {
-            cp_merge_free(&merged);
-            return 0;
-        }
-        if( found_count > 1 )
-            printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name,
-                   merged.count, merged.overlaid_count, found_count - 1);
-        if( server_dir && !pack_server_type(ctx, type_id, &merged, server_dir, stats) )
-        {
-            cp_merge_free(&merged);
-            return 0;
-        }
-        cp_merge_free(&merged);
-    }
-
-    if( found_count <= 0 || !cp_config_file_load(&file, found[0]) )
+    if( found_count <= 0 )
     {
         /* A type the source tree does not carry is not an error: a partial unpack
          * is a normal thing to want, and the base cache still holds those records. */
@@ -653,37 +838,100 @@ pack_type(
         return 1;
     }
 
+    /*
+     * Merge every layer into one record set, then split it in two.
+     *
+     * Both encoders now run from the *same* merged record — the shape
+     * `opcode_codec.h` describes and LostCity's
+     * `ConfigDatIdx = { client, server }` has always had. What separates them is
+     * the field register and nothing else: `client_view_build` hands the client
+     * encoder the `native` keys plus the `param:N` projections, and the server
+     * band takes the fields with a `server = opcode:` row.
+     *
+     * A record that exists only at rank 1 is therefore written for the first
+     * time. That is what `configs/all.enum` has been missing: seven enums the
+     * server allocated from base 5995 and nothing ever encoded.
+     */
+    memset(&merged, 0, sizeof(merged));
+    for( int i = 0; i < found_count && ok; i++ )
+    {
+        struct CP_ConfigFile layer;
+
+        if( !cp_config_file_load(&layer, found[i]) )
+            continue;
+        ok = cp_merge_add(&merged, &layer, i == 0 ? 0 : 1, found[i]);
+        cp_config_file_free(&layer);
+    }
+    if( !ok )
+    {
+        cp_merge_free(&merged);
+        return 0;
+    }
+    if( found_count > 1 )
+        printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name, merged.count,
+               merged.overlaid_count, found_count - 1);
+    if( server_dir && !pack_server_type(ctx, type_id, &merged, server_dir, stats) )
+    {
+        cp_merge_free(&merged);
+        return 0;
+    }
+
+    cp_fields_load(&fields, ctx->srcdir, type->name);
+
     /* One buffer for every record. 64 KB is comfortably past the largest config
      * record in any cache measured (the widest loc is under 2 KB); an encoder that
      * needs more returns 0 rather than overrunning, and that is reported. */
     uint8_t* buffer = malloc(64 * 1024);
     if( !buffer )
     {
-        cp_config_file_free(&file);
+        cp_merge_free(&merged);
         return 0;
     }
 
-    for( int i = 0; i < file.count; i++ )
+    for( int i = 0; i < merged.count; i++ )
     {
-        const struct CP_Config* config = &file.configs[i];
+        const struct CP_MergedRecord* rec = &merged.records[i];
+        struct CP_ClientView view;
         int id = 0;
-        if( !resolve_id(ctx, type_id, config->debugname, &id) )
+        uint32_t size;
+
+        /*
+         * A record no cache layer states is *new*, and new records are opt-in.
+         *
+         * `records = client` in the type's register is the opt-in. Without it a
+         * block that exists only under `server/scripts` is taken for a server
+         * table wearing a config type's grammar, which is what the seven authored
+         * enums are: `bank_tabs` and `worn_slots` are read by
+         * `mock230_content_enum` and no client script has ever heard of them.
+         * Writing them would add records with no reader.
+         */
+        if( rec->origin_rank > 0 && !fields.records_client )
+        {
+            server_only++;
+            continue;
+        }
+        if( !resolve_id(ctx, type_id, rec->debugname, &id) )
         {
             stats->failed++;
             continue;
         }
-        uint32_t size = type->pack(ctx, id, config, buffer, 64 * 1024);
+        if( !client_view_build(ctx, &fields, rec, &view, &projected, &view_errors) )
+        {
+            client_view_free(&view);
+            stats->failed++;
+            continue;
+        }
+        size = type->pack(ctx, id, &view.config, buffer, 64 * 1024);
+        client_view_free(&view);
         if( size == 0 )
         {
-            fprintf(stderr, "cachepack: %s [%s] failed to encode\n", type->name,
-                    config->debugname);
+            fprintf(stderr, "cachepack: %s [%s] failed to encode\n", type->name, rec->debugname);
             stats->failed++;
             continue;
         }
         if( !RSCache_Dat2EditPutFile(edit, config_table, type->config_kind, id, buffer, size) )
         {
-            fprintf(stderr, "cachepack: %s [%s] failed to stage\n", type->name,
-                    config->debugname);
+            fprintf(stderr, "cachepack: %s [%s] failed to stage\n", type->name, rec->debugname);
             stats->failed++;
             continue;
         }
@@ -692,10 +940,26 @@ pack_type(
     }
 
     free(buffer);
-    cp_config_file_free(&file);
+    cp_merge_free(&merged);
 
     printf("  %-11s %6d records, %d bytes%s\n", type->name, stats->records, stats->bytes,
            stats->failed ? " (with failures)" : "");
+    if( projected )
+        printf("  %-11s   %d param(s) projected from the field register\n", type->name,
+               projected);
+    if( server_only )
+        printf("  %-11s   %d record(s) the tree adds are server-only "
+               "(no `records = client` in fields/%s.ini)\n",
+               type->name, server_only, type->name);
+    if( view_errors )
+    {
+        /* `client = error` is the disposition whose whole purpose is to fail the
+         * build rather than let a field vanish into the gap between the two
+         * encoders. Honouring it anywhere but here would defeat it. */
+        fprintf(stderr, "cachepack: %s: %d field(s) declared `client = error` were stated\n",
+                type->name, view_errors);
+        return 0;
+    }
     return 1;
 }
 
@@ -762,6 +1026,15 @@ cp_pack_run(
         printf("Note: --types restricts the server pack too; %s will hold only the "
                "selected types\n",
                server_dir);
+
+    /*
+     * The param types, before the type loop and not lazily.
+     *
+     * The register packs `loc` and `npc` before `param`, so a record stating
+     * `param=death_drop,bones` is encoded while the param table would still be
+     * empty — and `bones` is only obj 526 because `death_drop` is a `namedobj`.
+     */
+    printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));
 
     printf("Packing configs from %s\n", ctx->srcdir);
     int total = 0, failed = 0, server_total = 0;

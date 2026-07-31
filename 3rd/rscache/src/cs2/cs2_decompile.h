@@ -48,10 +48,37 @@ struct RSCache_CS2_ParamTypes
     enum RSCache_CS2_Type (*load)(void* user, int param_id);
 };
 
+/**
+ * dbtable column -> the types of its fields, for the `db_*` commands.
+ *
+ * Same shape of problem as `param_types`, one level deeper. A `dbcolumn`
+ * literal packs `(table << 12) | (column << 4) | (field + 1)`; field 0 means
+ * "the whole tuple", so `db_getfield` pushes one value or all of them, and
+ * `db_find` pops a search value whose int-vs-string stack is the indexed
+ * field's. None of that is in the bytecode — it is in the dbtable config the
+ * column names — so without this hook a script reading a multi-field column
+ * desynchronises the operand stack and is refused.
+ */
+struct RSCache_CS2_DbColumnTypes
+{
+    void* user;
+    /**
+     * Writes the column's field types in order and returns the count, or -1
+     * when the table or column is not in this cache. At most `capacity`.
+     */
+    int (*load)(
+        void* user,
+        int table_id,
+        int column_id,
+        enum RSCache_CS2_Type* out,
+        int capacity);
+};
+
 struct RSCache_CS2_DecompileOptions
 {
     struct RSCache_CS2_ScriptSource scripts;
     struct RSCache_CS2_ParamTypes param_types;
+    struct RSCache_CS2_DbColumnTypes db_columns;
     /** Optional; without it every id decompiles under a synthesised name. */
     const struct RSCache_CS2_Names* names;
 };

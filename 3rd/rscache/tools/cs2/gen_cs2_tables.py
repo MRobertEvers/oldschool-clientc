@@ -53,7 +53,7 @@ REPO_STACK = HERE.parents[3] / "src" / "cs2vm2" / "cs2vm2_opcode_stack.gen.h"
 REPO_OPCODE_META = HERE.parents[3] / "src" / "cs2vm2" / "cs2_opcode_meta.c"
 
 sys.path.insert(0, str(HERE))
-from local_commands import LOCAL_BASIC, LOCAL_NAMES  # noqa: E402
+from local_commands import LOCAL_BASIC, LOCAL_KINDS, LOCAL_NAMES  # noqa: E402
 
 # Prototype aliases Command.kt introduces at the top of the file so an enum
 # constant and a prototype of the same name can coexist.
@@ -84,6 +84,8 @@ KINDS = [
     "BASIC",
     "CLIENTSCRIPT",
     "PARAM",
+    "DB_GETFIELD",
+    "DB_FIND",
 ]
 
 
@@ -360,6 +362,16 @@ def main() -> int:
         dot = 100 <= opcode < 2000
         commands[opcode] = ("BASIC", args, defs, dot, "0")
         from_stack += 1
+
+    # Last word: an opcode whose stack shape is data-dependent has no signature
+    # to be overridden by, so this runs after every source that supplies one.
+    # The argument list stays whatever was recorded -- the translate() body pops
+    # by hand -- and only the kind changes.
+    for opcode, kind in LOCAL_KINDS.items():
+        _, args, defs, dot, extra = commands.get(opcode, ("UNKNOWN", [], [], False, "0"))
+        commands[opcode] = (kind, args, defs, dot, extra)
+        if opcode not in by_id:
+            by_id[opcode] = f"_{opcode}"
 
     max_id = max(max(by_id), max(commands))
 

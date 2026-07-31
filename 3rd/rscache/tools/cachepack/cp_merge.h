@@ -49,6 +49,16 @@ struct CP_MergedRecord
     int capacity;
     /** 1 when any rank above 0 contributed a key. */
     int overlaid;
+    /**
+     * The rank of the layer that first declared the block.
+     *
+     * Not derivable from the lines, which is the whole reason it is here: 3,280 of
+     * this cache's enums decode to a `[enum_0]` with **no keys at all**, so
+     * "does any line have rank 0" answers no for a record the cache certainly
+     * states. Getting that wrong made every empty record look tree-added and
+     * dropped them from the pack.
+     */
+    int origin_rank;
 };
 
 struct CP_MergeSet

@@ -356,6 +356,151 @@ params_push(
     return 1;
 }
 
+/* ---- the ScriptVarType alphabet ----------------------------------------- */
+
+/*
+ * Character, name, and the pack a symbolic value resolves through.
+ *
+ * Only the types this tree can actually state. A name not listed returns 0 and
+ * is reported, rather than defaulting to `int`: a param whose type is silently
+ * wrong reads its default back as a number that means something else, and a
+ * default of `bones` becoming 0 is obj 0, which exists.
+ *
+ * `stat`, `category` and `component` are deliberately absent from the ref column
+ * even though they have names: they are not cachepack config types, so there is
+ * no pack here to resolve them through. A param of those types takes a number.
+ */
+static const struct
+{
+    char code;
+    const char* name;
+    int ref; /* enum CP_TypeId, or -1 */
+} k_param_types[] = {
+    { 'i', "int", -1 },
+    { 's', "string", -1 },
+    { '1', "boolean", -1 },
+    { 'o', "obj", CP_TYPE_OBJ },
+    { 'O', "namedobj", CP_TYPE_OBJ },
+    { 'n', "npc", CP_TYPE_NPC },
+    { 'l', "loc", CP_TYPE_LOC },
+    { 'A', "seq", CP_TYPE_SEQ },
+    { 't', "spotanim", CP_TYPE_SPOTANIM },
+    { 'g', "enum", CP_TYPE_ENUM },
+    { 'J', "struct", CP_TYPE_STRUCT },
+    { 'v', "inv", CP_TYPE_INV },
+    { 'P', "param", CP_TYPE_PARAM },
+    { 'S', "stat", -1 },
+    { 'y', "category", -1 },
+    { 'I', "component", -1 },
+    { 'c', "coord", -1 },
+    { 'm', "model", -1 },
+};
+
+#define PARAM_TYPE_COUNT ((int)(sizeof(k_param_types) / sizeof(k_param_types[0])))
+
+char
+cp_param_type_char(const char* name)
+{
+    if( !name || !name[0] )
+        return 0;
+    /* The machine export writes the character itself, so a one-character name is
+     * already the answer — and must stay so, or a re-pack of the tree cachepack
+     * just wrote would refuse its own output. */
+    if( !name[1] )
+        return name[0];
+    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
+    {
+        if( strcmp(k_param_types[i].name, name) == 0 )
+            return k_param_types[i].code;
+    }
+    return 0;
+}
+
+const char*
+cp_param_type_name(char type_char)
+{
+    static char fallback[2];
+
+    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
+    {
+        if( k_param_types[i].code == type_char )
+            return k_param_types[i].name;
+    }
+    /* A type outside the alphabet above still has to survive the text round trip,
+     * so it goes back as its own character — which `cp_param_type_char` reads
+     * again unchanged. Losing it would be worse than not naming it. */
+    fallback[0] = type_char;
+    fallback[1] = '\0';
+    return fallback;
+}
+
+int
+cp_param_ref_type(char type_char)
+{
+    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
+    {
+        if( k_param_types[i].code == type_char )
+            return k_param_types[i].ref;
+    }
+    return -1;
+}
+
+char
+cp_param_type_of(
+    struct CP_Ctx* ctx,
+    int param_id)
+{
+    if( !ctx->param_types || param_id < 0 || param_id >= ctx->param_types_count )
+        return 0;
+    return ctx->param_types[param_id];
+}
+
+int
+cp_param_types_load(struct CP_Ctx* ctx)
+{
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count = cp_walk_find(&ctx->walk, "param", found, CP_PACK_MAX_SOURCES);
+    int typed = 0;
+    int capacity = 4096;
+
+    free(ctx->param_types);
+    ctx->param_types = (char*)calloc((size_t)capacity, 1);
+    ctx->param_types_count = ctx->param_types ? capacity : 0;
+    if( !ctx->param_types )
+        return 0;
+
+    for( int f = 0; f < found_count; f++ )
+    {
+        struct CP_ConfigFile file;
+
+        if( !cp_config_file_load(&file, found[f]) )
+            continue;
+        for( int b = 0; b < file.count; b++ )
+        {
+            const struct CP_Config* block = &file.configs[b];
+            const char* type_text = cp_config_get(block, "type");
+            int id = cp_name_find(ctx, CP_TYPE_PARAM, block->debugname);
+            char code;
+
+            if( !type_text || id < 0 || id >= ctx->param_types_count )
+                continue;
+            code = cp_param_type_char(type_text);
+            if( !code )
+            {
+                fprintf(stderr, "cachepack: param [%s]: unknown type `%s`\n", block->debugname,
+                        type_text);
+                continue;
+            }
+            /* A later layer restating a type overrides an earlier one, matching
+             * the merge's rank rule — `cp_walk` hands them back in rank order. */
+            ctx->param_types[id] = code;
+            typed++;
+        }
+        cp_config_file_free(&file);
+    }
+    return typed;
+}
+
 int
 cp_parse_param(
     struct CP_Ctx* ctx,
@@ -363,6 +508,9 @@ cp_parse_param(
     const char* value)
 {
     char unescaped[8192];
+    char kind_buf[16];
+    char resolved_buf[32];
+    int resolved = 0;
     cp_unescape(value, unescaped, sizeof(unescaped));
 
     char* first = strchr(unescaped, ',');
@@ -370,15 +518,55 @@ cp_parse_param(
         return 0;
     *first = '\0';
     char* second = strchr(first + 1, ',');
-    if( !second )
-        return 0;
-    *second = '\0';
-    const char* kind_text = first + 1;
-    const char* text = second + 1;
+    const char* kind_text;
+    const char* text;
 
     int param_id;
     if( !cp_resolve_ref(ctx, CP_TYPE_PARAM, unescaped, &param_id) )
         return 0;
+
+    if( second )
+    {
+        *second = '\0';
+        kind_text = first + 1;
+        text = second + 1;
+    }
+    else
+    {
+        /*
+         * The authored spelling, `param=<name>,<value>`.
+         *
+         * The machine export writes the kind because it decoded one; a person
+         * writing `param=attackrate,6` does not, and neither does LostCity's
+         * grammar. The kind is recoverable from the param's own declared type,
+         * which is exactly what that type is for — so the two forms are the same
+         * statement, and the kind column stops being something a content author
+         * has to know.
+         */
+        char code = cp_param_type_of(ctx, param_id);
+        int ref = cp_param_ref_type(code);
+
+        kind_text = code == 's' ? "str" : "int";
+        snprintf(kind_buf, sizeof(kind_buf), "%s", kind_text);
+        kind_text = kind_buf;
+        text = first + 1;
+
+        /*
+         * And a *reference* type's value is a name.
+         *
+         * `param=next_loc_stage,poordooropen` is loc 11403 because
+         * `next_loc_stage` is declared `type=loc`, and there is nowhere else that
+         * could be said — the line itself carries no type column. Resolved in
+         * place, so everything downstream sees the ordinary integer form.
+         */
+        if( ref >= 0 && !cp_parse_int(text, &resolved) )
+        {
+            if( !cp_resolve_ref(ctx, (enum CP_TypeId)ref, text, &resolved) )
+                return 0;
+            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
+            text = resolved_buf;
+        }
+    }
 
     if( strcmp(kind_text, "str") == 0 )
     {

@@ -166,6 +166,18 @@ cp_unpack_enum(
     memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigEnumDecodeInplace(&entry, record, record_size);
 
+    /*
+     * The two type characters, spelled as the ScriptVarType word.
+     *
+     * `outputstring` stays beside them and is not redundant: a record with no
+     * opcode 2 has `output_type == 0` and can still be a string enum, because the
+     * value arrays are what decide the wire opcode. Emitting only one of the two
+     * would make that record unrepresentable in the text.
+     */
+    if( entry.input_type )
+        cp_lines_addf(out, "inputtype=%s", cp_param_type_name(entry.input_type));
+    if( entry.output_type )
+        cp_lines_addf(out, "outputtype=%s", cp_param_type_name(entry.output_type));
     if( entry.output_is_string )
         cp_lines_addf(out, "outputstring=yes");
     if( entry.default_int )
@@ -232,7 +244,22 @@ cp_pack_enum(
         const char* value = config->lines[i].value;
         int ok = 1;
 
-        if( strcmp(key, "outputstring") == 0 )
+        if( strcmp(key, "inputtype") == 0 )
+        {
+            entry.input_type = cp_param_type_char(value);
+            ok = entry.input_type != 0;
+        }
+        else if( strcmp(key, "outputtype") == 0 )
+        {
+            entry.output_type = cp_param_type_char(value);
+            ok = entry.output_type != 0;
+            /* An authored enum states `outputtype=string` and never
+             * `outputstring=yes`; the flag is what picks wire opcode 5, so it has
+             * to follow from the type rather than wait for a second key. */
+            if( ok && entry.output_type == 's' )
+                entry.output_is_string = 1;
+        }
+        else if( strcmp(key, "outputstring") == 0 )
         {
             bool flag = false;
             ok = cp_parse_bool(value, &flag);

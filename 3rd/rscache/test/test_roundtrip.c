@@ -1100,6 +1100,12 @@ enum_equal(
     const struct RSCache_Dat2ConfigEnum* lhs,
     const struct RSCache_Dat2ConfigEnum* rhs)
 {
+    /* Promoted 2026-07-30 out of the lossy list; the semantic bar has to see them
+     * or a decoder that stopped keeping either would still measure 100%. */
+    if( lhs->input_type != rhs->input_type )
+        return false;
+    if( lhs->output_type != rhs->output_type )
+        return false;
     if( lhs->output_is_string != rhs->output_is_string )
         return false;
     if( lhs->default_int != rhs->default_int )

@@ -78,14 +78,43 @@ enum CP_FieldWire
     CP_FIELD_WIRE_STRING = 5,
 };
 
+/**
+ * How a field reaches the client, mirroring `content_fields.h`'s enum.
+ *
+ * The writer needs this as well as the reader does, and for a sharper reason: it
+ * is what decides whether a merged key may be handed to the client encoder at
+ * all. `hitpoints` reaching `cp_npc.c` is an unknown key; `hitpoints` reaching
+ * the record's param table is the projection working.
+ */
+enum CP_FieldClient
+{
+    /** Server-only. The client encoder never sees the key. Default. */
+    CP_FIELD_CLIENT_DROP = 0,
+    /** The record's own field; the client encoder handles the key itself. */
+    CP_FIELD_CLIENT_NATIVE,
+    /** Folded into the record's param table, under `param_name`. */
+    CP_FIELD_CLIENT_PARAM,
+    /** The encoder must refuse. No silent loss allowed. */
+    CP_FIELD_CLIENT_ERROR,
+};
+
 struct CP_Field
 {
     /** `hitpoints` — the key as a config spells it, without the `<type>.` prefix. */
     char name[48];
-    /** 64..255. Client npc opcodes run 1..147, so the reserved band is what keeps
-     *  a server record from being mistaken for a client one. */
+    /** 64..255, or 0 when the field has no server band. Client npc opcodes run
+     *  1..147, so the reserved band is what keeps a server record from being
+     *  mistaken for a client one. */
     int opcode;
+    /** `CP_FIELD_WIRE_NONE` for a field the register declares but gives no
+     *  server home — `[npc.name]` is a real declaration with nothing to encode. */
     enum CP_FieldWire wire;
+    enum CP_FieldClient client;
+    /** For `CP_FIELD_CLIENT_PARAM`: the param's *name*, resolved through the param
+     *  pack at bake time. A name and not a number, because which number
+     *  `hitpoints` is is the pack file's business and it has been renumbered once
+     *  already. */
+    char param_name[48];
     /**
      * Namespace a symbolic value is resolved through, or "" for decimal only.
      *
@@ -107,9 +136,39 @@ enum
 struct CP_Fields
 {
     char type[32];
-    /** Ascending by opcode, so a band written from them is ascending too. */
+    /**
+     * Band fields first, ascending by opcode, then everything else.
+     *
+     * Two things read this array and they want different halves. The band writer
+     * walks `[0, band_count)` and needs ascending opcodes, so two packs of the
+     * same content come out byte-identical. The client-side filter walks all
+     * `count` of them, because `[npc.name]` and `[npc.magic]` have no opcode and
+     * are still real declarations — dropping them, as an earlier cut of this file
+     * did, left the filter unable to tell a client-native key from an unknown one.
+     */
     struct CP_Field entries[CP_FIELDS_MAX];
     int count;
+    /** How many of `entries` carry a server opcode. */
+    int band_count;
+    /**
+     * Whether *records the tree adds* belong in the client cache.
+     *
+     * Spelled `records = client` in a bare `[<type>]` section. The default is no,
+     * and the default is the interesting one: a block that exists only in
+     * `server/scripts` is usually a server table wearing a config type's grammar.
+     * The seven enums this tree authors are exactly that — `bank_tabs` and
+     * `worn_slots` are read by `mock230_content_enum`, and no client script has
+     * ever heard of them — so writing them into the cache would add records with
+     * no reader, in a grammar cachepack cannot fully resolve.
+     *
+     * `param` opts in, because it must: `fields/npc.ini` projects `hitpoints`
+     * into param 2643, and a param id with no record behind it is a reference the
+     * client cannot interpret.
+     *
+     * A record that exists at rank 0 is written either way — it is already in the
+     * cache, and this is only about *new* ones.
+     */
+    int records_client;
     /** 1 when a `fields/<type>.ini` was actually read. A tree that meant to
      *  declare a projection and misspelled the file otherwise emits nothing and
      *  looks like a tree that declared nothing. */

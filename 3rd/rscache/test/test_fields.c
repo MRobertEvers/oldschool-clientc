@@ -152,7 +152,7 @@ check_against_register(
 
     cp_fields_load(&fields, dir, type);
     printf("fields: %s — the file declares %d server field(s), cp_fields loaded %d\n", type,
-           ini_count, fields.count);
+           ini_count, fields.band_count);
 
     for( int i = 0; i < ini_count; i++ )
     {
@@ -179,8 +179,11 @@ check_against_register(
     check(ini_count > 0, what);
     snprintf(what, sizeof(what), "%s: every declared field matches cp_fields exactly", type);
     check(matched == ini_count && mismatched == 0, what);
-    snprintf(what, sizeof(what), "%s: cp_fields states no field the register does not", type);
-    check(fields.count == ini_count, what);
+    /* `band_count`, not `count`: the register also declares fields with no server
+     * opcode — `[npc.name]`, `[npc.magic]` — and those are load-bearing for the
+     * client-side filter rather than rows this check is about. */
+    snprintf(what, sizeof(what), "%s: cp_fields states no band field the register does not", type);
+    check(fields.band_count == ini_count, what);
 
     /*
      * The reserved band, restated here rather than only inside cp_fields_check.
@@ -191,7 +194,7 @@ check_against_register(
     {
         int out_of_band = 0;
 
-        for( int i = 0; i < fields.count; i++ )
+        for( int i = 0; i < fields.band_count; i++ )
         {
             if( fields.entries[i].opcode < 64 || fields.entries[i].opcode > 255 )
                 out_of_band++;
@@ -210,7 +213,7 @@ check_against_register(
     {
         int ascending = 1;
 
-        for( int i = 1; i < fields.count; i++ )
+        for( int i = 1; i < fields.band_count; i++ )
         {
             if( fields.entries[i].opcode <= fields.entries[i - 1].opcode )
                 ascending = 0;
@@ -296,6 +299,7 @@ synthetic_register(struct CP_Fields* fields)
     memset(fields, 0, sizeof(*fields));
     snprintf(fields->type, sizeof(fields->type), "%s", "synthetic");
     fields->count = 3;
+    fields->band_count = 3;
     snprintf(fields->entries[0].name, sizeof(fields->entries[0].name), "%s", "huntrange");
     fields->entries[0].opcode = 202;
     fields->entries[0].wire = CP_FIELD_WIRE_U1;

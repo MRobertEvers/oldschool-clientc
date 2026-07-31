@@ -1387,6 +1387,28 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         cs2_cc_emit(cc, opcode, 0);
         return;
     }
+    if( info->kind == RSCACHE_CS2_CMD_DB_GETFIELD || info->kind == RSCACHE_CS2_CMD_DB_FIND )
+    {
+        /* Three arguments each, and no prototypes: what a db command pops and
+         * pushes is a property of the dbcolumn literal rather than of the
+         * opcode, so the generated table carries no signature to read here.
+         * Emitting is unaffected — each argument is one expression, and the
+         * search value's stack follows from how it is written. */
+        if( !cs2_cc_expect_punct(cc, '(') )
+            return;
+        for( int i = 0; i < 3 && !cc->failed; i++ )
+        {
+            if( i && !cs2_cc_expect_punct(cc, ',') )
+                return;
+            cs2_cc_expression(
+                cc,
+                i == 0 && info->kind == RSCACHE_CS2_CMD_DB_GETFIELD ? RSCACHE_CS2_TYPE_DBROW
+                                                                    : RSCACHE_CS2_TYPE_NONE);
+        }
+        cs2_cc_expect_punct(cc, ')');
+        cs2_cc_emit(cc, opcode, 0);
+        return;
+    }
     if( info->kind != RSCACHE_CS2_CMD_BASIC )
     {
         cs2_cc_fail(cc, "'%s' cannot be written as a call", name);

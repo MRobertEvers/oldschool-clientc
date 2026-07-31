@@ -143,21 +143,63 @@ parse_server(
     }
 }
 
-/** Ascending by opcode. See the band's note: a choice, for reproducible bytes. */
+/** `native` | `drop` | `error` | `param:<name>`. */
+static enum CP_FieldClient
+parse_client(
+    const char* value,
+    char* out_param,
+    size_t out_param_size,
+    enum CP_FieldClient fallback)
+{
+    if( strcmp(value, "native") == 0 )
+        return CP_FIELD_CLIENT_NATIVE;
+    if( strcmp(value, "drop") == 0 )
+        return CP_FIELD_CLIENT_DROP;
+    if( strcmp(value, "error") == 0 )
+        return CP_FIELD_CLIENT_ERROR;
+    if( strncmp(value, "param:", 6) == 0 && value[6] )
+    {
+        snprintf(out_param, out_param_size, "%s", value + 6);
+        return CP_FIELD_CLIENT_PARAM;
+    }
+    return fallback;
+}
+
+/**
+ * Band fields first and ascending, everything else after.
+ *
+ * A stable insertion sort on the key `(has-no-opcode, opcode)`. Ascending among
+ * the band is a *choice* — the reader dispatches per opcode — made so two packs
+ * of the same content are byte-identical; the split is what lets the band walk
+ * stop at `band_count` instead of testing every entry.
+ */
 static void
 sort_by_opcode(struct CP_Fields* fields)
 {
     for( int i = 1; i < fields->count; i++ )
     {
         struct CP_Field key = fields->entries[i];
+        int key_rank = key.wire == CP_FIELD_WIRE_NONE ? 1 : 0;
         int j = i - 1;
 
-        while( j >= 0 && fields->entries[j].opcode > key.opcode )
+        while( j >= 0 )
         {
+            int rank = fields->entries[j].wire == CP_FIELD_WIRE_NONE ? 1 : 0;
+
+            if( rank < key_rank )
+                break;
+            if( rank == key_rank && (key_rank == 1 || fields->entries[j].opcode <= key.opcode) )
+                break;
             fields->entries[j + 1] = fields->entries[j];
             j--;
         }
         fields->entries[j + 1] = key;
+    }
+    fields->band_count = 0;
+    for( int i = 0; i < fields->count; i++ )
+    {
+        if( fields->entries[i].wire != CP_FIELD_WIRE_NONE )
+            fields->band_count++;
     }
 }
 
@@ -175,7 +217,7 @@ cp_fields_load(
     struct INIReader reader;
     struct INIElement element;
     struct CP_Field* current = NULL;
-    int kept = 0;
+    int in_type_section = 0;
 
     memset(fields, 0, sizeof(*fields));
     snprintf(fields->type, sizeof(fields->type), "%s", type);
@@ -223,6 +265,15 @@ cp_fields_load(
 
             trim(element._section.name);
             current = NULL;
+            /* A bare `[param]` is about the *type*, not a field of it. Kept
+             * distinct from `[param.foo]` by the absent dot, so the two grammars
+             * cannot collide. */
+            if( strcmp(name, type) == 0 )
+            {
+                in_type_section = 1;
+                continue;
+            }
+            in_type_section = 0;
             if( strncmp(name, prefix, strlen(prefix)) != 0 )
                 continue;
             name += strlen(prefix);
@@ -236,7 +287,17 @@ cp_fields_load(
             }
             continue;
         }
-        if( element.kind != INI_ELEMENT_KEYVAL || !current )
+        if( element.kind != INI_ELEMENT_KEYVAL )
+            continue;
+        if( in_type_section )
+        {
+            trim(element._keyval.name);
+            trim(element._keyval.value);
+            if( strcmp(element._keyval.name, "records") == 0 )
+                fields->records_client = strcmp(element._keyval.value, "client") == 0;
+            continue;
+        }
+        if( !current )
             continue;
 
         trim(element._keyval.name);
@@ -246,33 +307,28 @@ cp_fields_load(
             parse_server(fields, current, element._keyval.value);
         else if( strcmp(element._keyval.name, "ref") == 0 )
             snprintf(current->ref, sizeof(current->ref), "%s", element._keyval.value);
-        /* `scope` and `client` are the reader's half of the register and mean
-         * nothing to a band writer. Skipped rather than rejected: an unknown key is
-         * how the two halves of one file stay independent. */
+        else if( strcmp(element._keyval.name, "client") == 0 )
+            current->client = parse_client(element._keyval.value, current->param_name,
+                                           sizeof(current->param_name), current->client);
+        /* `scope` is the reader's half and means nothing to a writer: who reads a
+         * field does not change how it is written. Skipped rather than rejected —
+         * an unknown key is how the two halves of one file stay independent. */
     }
 
     free(data);
     fields->from_file = 1;
 
     /*
-     * Drop the sections that declared no server opcode.
+     * Every declaration is kept, including the ones with no server opcode.
      *
-     * `[npc.name]` and `[npc.magic]` are real declarations — `scope = client` and
-     * `client = drop` — that this file has no opinion about. Keeping them as
-     * opcode-0 rows would put them in the band walk and in every count the report
-     * prints, where they would read as fields the pack failed to write.
+     * `[npc.name]` (`client = native`) and `[npc.magic]` (`client = drop`) carry
+     * no opcode and are still load-bearing: they are how the client-side filter
+     * tells a key the encoder handles from a key it must never see. An earlier cut
+     * of this file dropped them, which left `hitpoints` and `name`
+     * indistinguishable to everything downstream.
      */
-    for( int i = 0; i < fields->count; i++ )
-    {
-        if( fields->entries[i].wire == CP_FIELD_WIRE_NONE )
-            continue;
-        if( kept != i )
-            fields->entries[kept] = fields->entries[i];
-        kept++;
-    }
-    fields->count = kept;
     sort_by_opcode(fields);
-    return fields->count;
+    return fields->band_count;
 }
 
 int
@@ -280,7 +336,10 @@ cp_fields_check(const struct CP_Fields* fields)
 {
     int violations = fields->rejected;
 
-    for( int i = 0; i < fields->count; i++ )
+    /* `band_count`, not `count`: a declaration with no `server =` row has opcode
+     * 0 by construction and is not in the band at all. Checking it against the
+     * reserved range would fail every `[npc.name]` in the file. */
+    for( int i = 0; i < fields->band_count; i++ )
     {
         const struct CP_Field* field = &fields->entries[i];
 

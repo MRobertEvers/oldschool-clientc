@@ -25,6 +25,7 @@
 #include "datatypes/dat2_config_param.h"
 #include "datatypes/dat2_configs.h"
 #include "rscache.h"
+#include "cs2_db_columns.h"
 #include "tool_profile.h"
 
 #include <dirent.h>
@@ -319,7 +320,9 @@ usage(void)
         "usage:\n"
         "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 compile   --src (DIR|FILE) [--raw DIR] [--names DIR] [--out DIR] [id ...]\n"
-        "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [id ...]\n");
+        "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [id ...]\n"
+        "  cs2 disassemble (--cache DIR | --raw DIR) id ...\n"
+        "  cs2 infer-arity (--cache DIR | --raw DIR) [--names DIR] [id ...]\n");
 }
 
 /** Sanitise a script name into something usable as a file name. */
@@ -355,6 +358,7 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
     struct RSCache_CS2_DecompileOptions decompile_options;
@@ -363,6 +367,8 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     decompile_options.scripts.load = store_load;
     decompile_options.param_types.user = &param_source;
     decompile_options.param_types.load = param_type_load;
+    decompile_options.db_columns.user = db_columns;
+    decompile_options.db_columns.load = tool_db_columns_lookup;
     decompile_options.names = &names;
 
     if( options->out_directory )
@@ -409,6 +415,7 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     }
 
     fprintf(stderr, "decompiled %d, failed %d, total %d\n", ok, failed, id_count);
+    tool_db_columns_free(db_columns);
     RSCache_CS2_NamesFree(&names);
     return failed == 0 ? 0 : 1;
 }
@@ -641,6 +648,7 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
     struct RSCache_CS2_DecompileOptions decompile_options;
@@ -649,6 +657,8 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
     decompile_options.scripts.load = store_load;
     decompile_options.param_types.user = &param_source;
     decompile_options.param_types.load = param_type_load;
+    decompile_options.db_columns.user = db_columns;
+    decompile_options.db_columns.load = tool_db_columns_lookup;
     decompile_options.names = &names;
 
     /* Bucket each script by the single unknown opcode it uses, if there is
@@ -945,7 +955,78 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
     free(opcodes);
     free(witnesses);
     free(witness_counts);
+    tool_db_columns_free(db_columns);
     RSCache_CS2_NamesFree(&names);
+    return 0;
+}
+
+/*
+ * Raw bytecode, one op per line, with the signature the tables hold.
+ *
+ * When a decompile fails with "opcode N left K values on the operand stack" the
+ * error names the op that *noticed*, not the one that lied — the extra value was
+ * pushed somewhere above it. Reading the listing with a running stack depth is
+ * how the culprit is found, and reconstructing that by hand from a hex dump was
+ * the only way to do it before this mode existed.
+ */
+static int
+run_disassemble(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    (void)options;
+    for( int i = 0; i < id_count; i++ )
+    {
+        const struct RSCache_CS2_Script* script = store_load(store, ids[i]);
+        if( !script )
+        {
+            fprintf(stderr, "script %d is not in this cache\n", ids[i]);
+            continue;
+        }
+        printf("; script %d  locals %di/%ds/%dl  args %di/%ds/%dl  ops %d  switches %d\n",
+               script->script_id, script->local_int_count, script->local_string_count,
+               script->local_long_count, script->int_argument_count,
+               script->string_argument_count, script->long_argument_count, script->op_count,
+               script->switch_table_count);
+
+        int depth = 0;
+        for( int pc = 0; pc < script->op_count; pc++ )
+        {
+            int opcode = script->opcodes[pc];
+            const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+            const char* name = info && info->name ? info->name : "?";
+
+            char signature[64] = "";
+            if( info && info->kind == RSCACHE_CS2_CMD_BASIC )
+            {
+                snprintf(signature, sizeof(signature), "(%d)->%d", info->arg_count,
+                         info->def_count);
+                depth -= info->arg_count;
+                depth += info->def_count;
+            }
+            else if( !info || info->kind == RSCACHE_CS2_CMD_UNKNOWN )
+            {
+                snprintf(signature, sizeof(signature), "UNKNOWN");
+            }
+
+            if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+                printf("%5d  %5d %-28s %-9s %+4d  \"%s\"\n", pc, opcode, name, signature,
+                       depth,
+                       script->string_operands && script->string_operands[pc]
+                           ? script->string_operands[pc]
+                           : "");
+            else
+                printf("%5d  %5d %-28s %-9s %+4d  %d\n", pc, opcode, name, signature, depth,
+                       script->int_operands ? script->int_operands[pc] : 0);
+        }
+
+        for( int t = 0; t < script->switch_table_count; t++ )
+        {
+            printf("; switch %d:", t);
+            for( int c = 0; c < script->switch_tables[t].case_count; c++ )
+                printf(" %d->%d", script->switch_tables[t].cases[c].key,
+                       script->switch_tables[t].cases[c].target_pc);
+            printf("\n");
+        }
+    }
     return 0;
 }
 
@@ -958,6 +1039,7 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
         RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
 
     struct param_source param_source = { &names };
     struct RSCache_CS2_DecompileOptions decompile_options;
@@ -966,6 +1048,8 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
     decompile_options.scripts.load = store_load;
     decompile_options.param_types.user = &param_source;
     decompile_options.param_types.load = param_type_load;
+    decompile_options.db_columns.user = db_columns;
+    decompile_options.db_columns.load = tool_db_columns_lookup;
     decompile_options.names = &names;
 
     struct RSCache_CS2_CompileOptions compile_options;
@@ -1046,6 +1130,7 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
         compiled,
         same_length,
         exact);
+    tool_db_columns_free(db_columns);
     RSCache_CS2_NamesFree(&names);
     return 0;
 }
@@ -1171,6 +1256,8 @@ main(int argc, char** argv)
         status = run_infer(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "roundtrip") == 0 )
         status = run_roundtrip(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "disassemble") == 0 )
+        status = run_disassemble(&options, &store, ids, id_count);
     else
     {
         usage();

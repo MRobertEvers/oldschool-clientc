@@ -3340,6 +3340,44 @@ selftest_settle(
     return srv->player->interaction.kind == MOCK230_INTERACT_NONE ? max_ticks : -1;
 }
 
+/*
+ * Click "Click here to continue" until the parked script runs out of pages.
+ *
+ * It clicks whatever button is *currently registered* rather than a fixed uid,
+ * and that is not a convenience: a conversation alternating speakers alternates
+ * interfaces too — `~chatnpc` arms `chat_left:continue` (231:5) and
+ * `~chatplayer` arms `chat_right:continue` (217:5) — and a resume is matched on
+ * the full 4-byte uid, so a loop hard-coding one of them silently stalls on
+ * every page spoken by the other. Which is exactly what it did.
+ *
+ * Returns the number of clicks it took; the caller decides whether the script
+ * finishing matters.
+ */
+static int
+selftest_click_through(
+    struct Mock230Server* srv,
+    int max_pages)
+{
+    int clicks = 0;
+
+    while( clicks < max_pages && srv->player->active_script )
+    {
+        int uid;
+        uint8_t resume[4];
+
+        if( srv->player->resume_button_count <= 0 )
+            break;
+        uid = srv->player->resume_buttons[0];
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        mock230_world_handle(srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        clicks++;
+    }
+    return clicks;
+}
+
 /** Slot holding the first active npc of this type, or -1. */
 static int
 selftest_find_npc(
@@ -5269,6 +5307,208 @@ mock230_world_selftest(void)
         mock230_bank_close(&srv);
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
     }
+
+    fprintf(stderr, "mock230 selftest: cook's assistant\n");
+    {
+        /*
+         * The first quest ported from the LostCity tree, end to end
+         * (docs/LOSTCITY_PORT_TRIAGE.md §10). It is here rather than only in
+         * mock230_pack because every check below is about the *engine* acting
+         * on ported content: the pack validator proves the ids resolve, this
+         * proves the quest is playable.
+         *
+         * **It is last on purpose.** Placed earlier it made the combat section
+         * fail — "the goblin should have hit back", with the player at full
+         * health. Nothing about the quest touches combat; what it touches is
+         * the number of `mock230_world_tick` calls before that fight, and the
+         * fight's outcome depends on where the world RNG has got to. That is a
+         * pre-existing fragility in the combat check rather than anything this
+         * section does wrong, but it is real: any selftest inserted above it
+         * that ticks the world can flip it. Left recorded here rather than
+         * papered over, because the next person to add a section will hit it.
+         *
+         * Four things it pins, and each of them is a way the port could be
+         * silently wrong:
+         *
+         *   - the Cook is in the world at all. The imported roster had every
+         *     other Lumbridge Castle npc and not him, so the quest had nobody
+         *     to start it and no error anywhere said so;
+         *   - `%cookquest` is varp 29, the number the *modern* cache gives that
+         *     name. It happens to be 29 in the rev-254 tree too, and a port
+         *     that copied the number rather than re-resolving it would pass
+         *     this test for the wrong reason — so the id is looked up by name
+         *     here, exactly as the content does;
+         *   - the state machine advances 0 -> 1 -> complete, and the middle
+         *     state is reachable more than once (talking again mid-quest must
+         *     not restart it);
+         *   - the reward lands a tick late, through the queue, which is what
+         *     the reference does and the one piece of its timing that ports
+         *     verbatim.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int cook_type = mock230_content_symbol(MOCK230_PACK_NPC, "cook");
+            int cookquest = mock230_content_symbol(MOCK230_PACK_VARP, "cookquest");
+            int milk = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_milk");
+            int egg = mock230_content_symbol(MOCK230_PACK_OBJ, "egg");
+            int flour = mock230_content_symbol(MOCK230_PACK_OBJ, "pot_flour");
+            int continue_uid = (231 << 16) | 5;
+            int cook_slot;
+
+            SELFTEST_CHECK(cook_type > 0 && cookquest > 0 && milk > 0 && egg > 0 && flour > 0,
+                           "cook / cookquest / the three ingredients all resolve by name");
+
+            /* Every id the quest uses, re-resolved. The npc is the one that
+             * moved between the two trees (rev254 278 -> osrs239 4626); the
+             * other four did not, and pinning all five is what makes a future
+             * cache bump say which. */
+            SELFTEST_CHECK(cook_type == 4626, "cook is npc 4626, got %d", cook_type);
+            SELFTEST_CHECK(cookquest == 29, "cookquest is varp 29, got %d", cookquest);
+
+            cook_slot = selftest_find_npc(&srv, cook_type);
+            SELFTEST_CHECK(cook_slot >= 0, "the Cook should be spawned in Lumbridge Castle");
+
+            if( cook_slot >= 0 && cookquest > 0 )
+            {
+                uint8_t payload[2] = { (uint8_t)(cook_slot >> 8), (uint8_t)(cook_slot & 0xff) };
+                int cooking = mock230_content_symbol(MOCK230_PACK_STAT, "cooking");
+                int cooking_xp_before;
+                int saved_x;
+                int saved_z;
+                int saved_level;
+                int pages;
+
+                /* Stand next to him rather than walking: the walk is the
+                 * interaction model's test, not this one, and the Cook is
+                 * behind a castle door the router would have to open.
+                 *
+                 * Where the player *is* is shared state — the combat section
+                 * further down needs to be back among the goblins — so it is
+                 * put back at the end of the block, the same way the held-item
+                 * section restores the backpack it rewrites. */
+                saved_x = player->x;
+                saved_z = player->z;
+                saved_level = player->level;
+                mock230_world_teleport(&srv, srv.npcs[cook_slot].level,
+                                       srv.npcs[cook_slot].x + 1, srv.npcs[cook_slot].z);
+                player->varps[cookquest] = 0;
+
+                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                               "talking to the Cook should resolve the interaction");
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "[opnpc1,cook] should park on its first dialogue page");
+
+                /* Click through. The count is not asserted — a page added to
+                 * the conversation should not fail a test about the quest —
+                 * but the cap is, because a script that never finishes would
+                 * otherwise hang the suite rather than fail it. */
+                pages = selftest_click_through(&srv, 24);
+                SELFTEST_CHECK(player->active_script == NULL,
+                               "the opening conversation should finish within 24 pages "
+                               "(clicked %d)", pages);
+                SELFTEST_CHECK(player->varps[cookquest] == 1,
+                               "accepting should set %%cookquest to 1, got %d",
+                               player->varps[cookquest]);
+
+                /* Talking again with nothing in the backpack is the
+                 * in-progress branch. It must not restart the quest, and it
+                 * must not complete it either. */
+                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                pages = selftest_click_through(&srv, 24);
+                SELFTEST_CHECK(player->varps[cookquest] == 1,
+                               "talking again empty-handed should leave it in progress, got %d",
+                               player->varps[cookquest]);
+
+                /* Hand the ingredients in. */
+                {
+                    int free_slot = -1;
+                    int given = 0;
+                    const int wanted[3] = { milk, egg, flour };
+
+                    for( int i = 0; i < MOCK230_INV_SLOTS && given < 3; i++ )
+                    {
+                        if( player->inv[i].obj_id >= 0 )
+                            continue;
+                        free_slot = i;
+                        inv_set(player, free_slot, wanted[given], 1);
+                        given++;
+                    }
+                    SELFTEST_CHECK(given == 3,
+                                   "three free backpack slots for the ingredients, got %d",
+                                   given);
+                }
+
+                SELFTEST_CHECK(cooking > 0 && cooking < MOCK230_STAT_COUNT,
+                               "cooking should resolve out of pack/stat.pack, got %d", cooking);
+                if( cooking < 0 || cooking >= MOCK230_STAT_COUNT )
+                    cooking = 0;
+                cooking_xp_before = player->stat_xp_tenths[cooking];
+
+                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                pages = selftest_click_through(&srv, 24);
+
+                SELFTEST_CHECK(selftest_find(player, milk) < 0 &&
+                                   selftest_find(player, egg) < 0 &&
+                                   selftest_find(player, flour) < 0,
+                               "handing in should take all three ingredients");
+
+                /* The reward is queued, so it is deliberately NOT applied yet.
+                 * Asserting the negative is the half that catches a port which
+                 * dropped the queue and inlined the reward — which would work,
+                 * and would fire while the last dialogue page is still up. */
+                SELFTEST_CHECK(player->varps[cookquest] == 1,
+                               "the reward should still be queued, got %d",
+                               player->varps[cookquest]);
+
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[cookquest] == 2,
+                               "the queue should complete the quest on the next tick, got %d",
+                               player->varps[cookquest]);
+                SELFTEST_CHECK(player->stat_xp_tenths[cooking] == cooking_xp_before + 3000,
+                               "and award 300 Cooking xp (3000 tenths), got %d",
+                               player->stat_xp_tenths[cooking] - cooking_xp_before);
+
+                /*
+                 * The queued script is now parked on its own message box —
+                 * `~mesbox` ends in `p_pausebutton` like every other page in
+                 * the toolkit. It has to be clicked away before anything else
+                 * can talk, because there is one parking slot per player and a
+                 * second script suspending while one waits is *dropped*, not
+                 * queued (docs/osrs230_mockserver.md §3.10). Without this the
+                 * post-quest check below passes while doing nothing at all.
+                 */
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "the reward should park on its completion message");
+                pages = selftest_click_through(&srv, 8);
+                SELFTEST_CHECK(player->active_script == NULL,
+                               "and release the parking slot once dismissed (clicked %d)",
+                               pages);
+
+                /* The post-quest branch exists and does not undo anything. */
+                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                pages = selftest_click_through(&srv, 24);
+                SELFTEST_CHECK(player->varps[cookquest] == 2,
+                               "talking after completion should leave it complete, got %d",
+                               player->varps[cookquest]);
+
+                player->varps[cookquest] = 0;
+                mock230_world_teleport(&srv, saved_level, saved_x, saved_z);
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
 
     if( g_selftest_failures )
         fprintf(stderr, "mock230 selftest: %d failure(s)\n", g_selftest_failures);

@@ -88,7 +88,7 @@ map_subkey(const char* value, char* out, size_t out_size)
 }
 
 static struct CP_MergedRecord*
-find_or_add(struct CP_MergeSet* set, const char* debugname)
+find_or_add(struct CP_MergeSet* set, const char* debugname, int rank)
 {
     struct CP_MergedRecord* rec;
 
@@ -111,6 +111,7 @@ find_or_add(struct CP_MergeSet* set, const char* debugname)
     rec = &set->records[set->count++];
     memset(rec, 0, sizeof(*rec));
     rec->debugname = strdup(debugname);
+    rec->origin_rank = rank;
     return rec;
 }
 
@@ -180,7 +181,7 @@ cp_merge_add(
 
         if( rank == 0 )
             learn_arity(set, block);
-        rec = find_or_add(set, block->debugname);
+        rec = find_or_add(set, block->debugname, rank);
         if( !rec )
             return 0;
         for( int l = 0; l < block->count; l++ )

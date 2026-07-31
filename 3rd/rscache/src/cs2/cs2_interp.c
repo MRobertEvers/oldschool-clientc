@@ -185,14 +185,32 @@ cs2_pop_many(struct cs2_interp* interp, int count, struct RSCache_CS2_Expr** out
     }
 }
 
+/** The constant `depth` slots below the top, or NULL if that slot is not one. */
+static const struct RSCache_CS2_Value*
+cs2_peek_value_at(struct cs2_interp* interp, int depth)
+{
+    if( interp->stack.count <= depth )
+        return NULL;
+    struct RSCache_CS2_Expr* slot =
+        (struct RSCache_CS2_Expr*)interp->stack.items[interp->stack.count - 1 - depth];
+    return slot->has_value ? &slot->value : NULL;
+}
+
 static const struct RSCache_CS2_Value*
 cs2_peek_value(struct cs2_interp* interp)
 {
-    if( interp->stack.count == 0 )
-        return NULL;
-    struct RSCache_CS2_Expr* top =
-        (struct RSCache_CS2_Expr*)interp->stack.items[interp->stack.count - 1];
-    return top->has_value ? &top->value : NULL;
+    return cs2_peek_value_at(interp, 0);
+}
+
+/** The stack an operand occupies, whether or not it is a constant. */
+static enum RSCache_CS2_StackType
+cs2_peek_stack_type_at(struct cs2_interp* interp, int depth)
+{
+    if( interp->stack.count <= depth )
+        return RSCACHE_CS2_STACK_INT;
+    struct RSCache_CS2_Expr* slot =
+        (struct RSCache_CS2_Expr*)interp->stack.items[interp->stack.count - 1 - depth];
+    return RSCache_CS2_VarStackType(slot->variable->kind);
 }
 
 /* -------------------------------------------------------------------------
@@ -777,6 +795,187 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
     return RSCache_CS2_InsnAssignment(arena, RSCache_CS2_ExprEmpty(arena), clientscript);
 }
 
+/* -------------------------------------------------------------------------
+ * The client-database family
+ *
+ * A `dbcolumn` literal is `(table << 12) | (column << 4) | (field + 1)`, and
+ * field 0 means "the whole tuple". The +1 is not decorative: it is the only
+ * thing that distinguishes "field 0 of this column" from "all of it", and it is
+ * what makes 0xa6200 push four values where 0xa6204 pushes one.
+ *
+ * Established on cache.osrs239 by consumption. Every db_getfield whose column
+ * literal ends in 0 is followed by exactly as many pops as the column has
+ * fields (0xa6200 -> four ints at all 26 of its call sites, 0x170 -> two, 0x90
+ * -> three), and every one ending in a non-zero nibble by exactly one (0xa6204
+ * -> one int at all 11 of its). The two spellings name the same table and
+ * column, so no fixed signature can serve both.
+ * ---------------------------------------------------------------------- */
+
+#define CS2_DB_MAX_FIELDS 32
+
+/**
+ * The field types a `dbcolumn` literal selects.
+ *
+ * Returns the count, or -1 when it cannot be resolved — an unknown table, or no
+ * hook to ask. `-1` is a refusal, not an empty column: guessing the count is
+ * guessing how many values the opcode leaves behind.
+ */
+static int
+cs2_db_column_fields(
+    struct cs2_interp* interp,
+    int packed,
+    enum RSCache_CS2_Type* out,
+    int capacity)
+{
+    if( !interp->options->db_columns.load )
+        return -1;
+
+    int table_id = (packed >> 12) & 0xFFFFF;
+    int column_id = (packed >> 4) & 0xFF;
+    int field = (packed & 0xF) - 1;
+
+    enum RSCache_CS2_Type types[CS2_DB_MAX_FIELDS];
+    int count = interp->options->db_columns.load(
+        interp->options->db_columns.user, table_id, column_id, types, CS2_DB_MAX_FIELDS);
+    if( count <= 0 )
+        return -1;
+
+    if( field < 0 )
+    {
+        /* The whole tuple, in field order. */
+        if( count > capacity )
+            return -1;
+        for( int i = 0; i < count; i++ )
+            out[i] = types[i];
+        return count;
+    }
+    if( field >= count || capacity < 1 )
+        return -1;
+    out[0] = types[field];
+    return 1;
+}
+
+/** db_getfield(dbrow, dbcolumn, index) -> the column's fields. */
+static struct RSCache_CS2_Insn*
+cs2_translate_db_getfield(struct cs2_interp* interp, int opcode)
+{
+    struct RSCache_CS2_Arena* arena = cs2_arena(interp);
+
+    /* Top to bottom: index, dbcolumn, dbrow. The column has to be a literal —
+     * it is the operand that says what comes back. */
+    const struct RSCache_CS2_Value* column_value = cs2_peek_value_at(interp, 1);
+    enum RSCache_CS2_Type field_types[CS2_DB_MAX_FIELDS];
+    int field_count = -1;
+    if( column_value && column_value->stack_type == RSCACHE_CS2_STACK_INT )
+        field_count = cs2_db_column_fields(
+            interp, column_value->int_value, field_types, CS2_DB_MAX_FIELDS);
+    if( field_count < 0 )
+    {
+        /* One int is what the client's stack table recorded, and it is right for
+         * every single-field column. Keeping it as the fallback means a cache
+         * with no dbtable to hand decompiles exactly as much as it used to. */
+        field_count = 1;
+        field_types[0] = RSCACHE_CS2_TYPE_INT;
+    }
+
+    struct RSCache_CS2_Expr* popped[3];
+    cs2_pop_many(interp, 3, popped);
+    struct RSCache_CS2_Expr* arguments = RSCache_CS2_ExprFromList(arena, popped, 3);
+    /* The row argument is deliberately left untyped. Calling it a `dbrow` reads
+     * well and is even true, but nothing else in the family claims that type —
+     * db_findnext's result is a plain int in the recorded table — so freezing it
+     * here contradicts wherever the row came from and refuses the script. It
+     * bought a nicer identifier and cost 40 decompiles. */
+
+    enum RSCache_CS2_StackType stack_types[CS2_DB_MAX_FIELDS];
+    for( int i = 0; i < field_count; i++ )
+        stack_types[i] = RSCache_CS2_TypeStackType(field_types[i]);
+
+    struct RSCache_CS2_Expr* operation =
+        RSCache_CS2_ExprOperation(arena, stack_types, field_count, opcode, arguments, false);
+    struct RSCache_CS2_TypingList* operation_typing =
+        RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation);
+    for( int i = 0; i < field_count; i++ )
+    {
+        if( RSCache_CS2_TypingFreezeType(operation_typing->items[i], field_types[i]) )
+            continue;
+        cs2_fail(
+            interp,
+            "script %d pc %d: db_getfield field %d's type does not match the stack slot",
+            interp->script_id,
+            interp->pc,
+            i);
+        return NULL;
+    }
+
+    struct RSCache_CS2_Expr* pushed[CS2_DB_MAX_FIELDS];
+    cs2_push_types(interp, stack_types, field_count, pushed);
+    struct RSCache_CS2_Expr* definitions =
+        RSCache_CS2_ExprFromList(arena, pushed, field_count);
+    RSCache_CS2_TypingAssignLists(
+        operation_typing, RSCache_CS2_TypingsOfExpr(cs2_typings(interp), definitions));
+    return RSCache_CS2_InsnAssignment(arena, definitions, operation);
+}
+
+/**
+ * db_find(dbcolumn, value, 0) and its three siblings.
+ *
+ * Three arguments, not the two the client's stack table recorded: all 142 call
+ * sites in cache.osrs239 push a third operand, always the literal 0, and the
+ * script does not balance without it. The `_with_count` pair leaves the match
+ * count behind; the other two leave nothing and are read with db_findnext.
+ */
+static struct RSCache_CS2_Insn*
+cs2_translate_db_find(struct cs2_interp* interp, int opcode)
+{
+    struct RSCache_CS2_Arena* arena = cs2_arena(interp);
+
+    bool with_count = opcode == RSCACHE_CS2_OP_DB_FIND_WITH_COUNT ||
+                      opcode == RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT;
+
+    /* Top to bottom: the trailing operand, the search value, the dbcolumn. */
+    const struct RSCache_CS2_Value* column_value = cs2_peek_value_at(interp, 2);
+    enum RSCache_CS2_Type field_types[CS2_DB_MAX_FIELDS];
+    int field_count = -1;
+    if( column_value && column_value->stack_type == RSCACHE_CS2_STACK_INT )
+        field_count = cs2_db_column_fields(
+            interp, column_value->int_value, field_types, CS2_DB_MAX_FIELDS);
+    /* Whichever field the column selects, the search value is one slot: it is
+     * the *stack* it occupies that has to be right, and that is the first
+     * field's when the column names the whole tuple. Where the column cannot be
+     * resolved the slot's own type stands in, which cannot desynchronise
+     * anything — the count is fixed either way. */
+    enum RSCache_CS2_StackType value_stack =
+        field_count > 0 ? RSCache_CS2_TypeStackType(field_types[0])
+                        : cs2_peek_stack_type_at(interp, 1);
+
+    struct RSCache_CS2_Expr* trailing = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
+    struct RSCache_CS2_Expr* value = cs2_pop(interp, value_stack);
+    struct RSCache_CS2_Expr* column = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
+    if( field_count > 0 )
+    {
+        enum RSCache_CS2_ProtoId proto = RSCache_CS2_ProtoForType(field_types[0]);
+        if( proto != RSCACHE_CS2_PROTO_NONE )
+            cs2_assign_element_to_proto(interp, value, proto);
+    }
+
+    struct RSCache_CS2_Expr* items[3] = { column, value, trailing };
+    struct RSCache_CS2_Expr* arguments = RSCache_CS2_ExprFromList(arena, items, 3);
+
+    enum RSCache_CS2_StackType count_stack = RSCACHE_CS2_STACK_INT;
+    struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
+        arena, &count_stack, with_count ? 1 : 0, opcode, arguments, false);
+    if( !with_count )
+        return RSCache_CS2_InsnAssignment(arena, RSCache_CS2_ExprEmpty(arena), operation);
+
+    struct RSCache_CS2_Expr* pushed = cs2_push(interp, RSCACHE_CS2_STACK_INT, NULL);
+    struct RSCache_CS2_Typing* operation_typing =
+        RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0];
+    RSCache_CS2_TypingAssign(
+        operation_typing, RSCache_CS2_TypingsOfElement(cs2_typings(interp), pushed));
+    return RSCache_CS2_InsnAssignment(arena, pushed, operation);
+}
+
 static struct RSCache_CS2_Insn*
 cs2_translate_param(struct cs2_interp* interp, int opcode, enum RSCache_CS2_ProtoId receiver)
 {
@@ -1043,6 +1242,12 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_ENUM:
         return cs2_translate_enum(interp);
+
+    case RSCACHE_CS2_CMD_DB_GETFIELD:
+        return cs2_translate_db_getfield(interp, opcode);
+
+    case RSCACHE_CS2_CMD_DB_FIND:
+        return cs2_translate_db_find(interp, opcode);
 
     case RSCACHE_CS2_CMD_PROC:
         return cs2_translate_proc(interp);

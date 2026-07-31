@@ -39,7 +39,8 @@ COMMON_SRCS := \
 	$(TOOLS)/common/anim_affinity.c \
 	$(TOOLS)/common/port_plan.c \
 	$(TOOLS)/common/cache_write.c \
-	$(TOOLS)/common/transcode.c
+	$(TOOLS)/common/transcode.c \
+	$(TOOLS)/common/cs2_db_columns.c
 
 COMMON_OBJS := $(patsubst $(TOOLS)/common/%.c,$(BUILD)/common_%.o,$(COMMON_SRCS))
 

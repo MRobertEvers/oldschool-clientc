@@ -909,3 +909,208 @@ cp_asset_name_find(
      * repacks with no pack line behind it. */
     return lc_pack_synthetic_id(cp_asset(asset)->filler, name);
 }
+
+/* ---- emitting the gamevals back ------------------------------------------ */
+
+/*
+ * `docs/CONTENT_PACK_PLAN.md` §5.5 — write `pack/<ns>.pack` back into the cache's
+ * own symbol table, so the cache is self-describing.
+ *
+ * Layer 0 came from here in the first place, and nothing stops the trip running
+ * the other way: a gameval archive is a FileList whose file id is the record id
+ * and whose contents are the name string. Anything pointed at the cache alone
+ * then recovers your names without the content tree beside it.
+ *
+ * Four things worth knowing before reading the code, all from §5.5:
+ *
+ *   **Not a faithful round trip.** `sanitise_name` collapses anything outside
+ *   `[A-Za-z0-9_.+-]` to `_` and `uniquify` appends `i2` on a collision, so
+ *   regenerating overwrites Jagex's original strings with normalised ones. Fine
+ *   for a cache you own, and another reason the pristine original stays archived.
+ *
+ *   **Archive 14 is nested** — one record holds an interface's name *and* every
+ *   component as `u16 child` + name pairs. Emitting it means re-merging two
+ *   sources back into that shape, so it is skipped and said out loud rather than
+ *   written flat, which would destroy 26,491 component names.
+ *
+ *   **Sparse in, sparse out.** Filler names are not stored in the pack, so an
+ *   unnamed id simply gets no file. The reference table's child list carries the
+ *   ids, which is what makes that work without a dense array.
+ *
+ *   **The 90% verification becomes vacuous.** `seed_pack_from_gameval` rejects an
+ *   archive when fewer than 90% of its ids are real record ids; an archive we
+ *   generated passes by construction. Do not read a later seed as validation.
+ *
+ * The client never opens this table — nothing outside cachepack does — so this
+ * cannot break a boot, which is exactly why §5.5 calls it safe to add late.
+ */
+static int
+emit_gameval_archive(
+    struct CP_Ctx* ctx,
+    const char* out_cache_dir,
+    int table_id,
+    int archive_id,
+    const char* ns,
+    const struct LC_Pack* pack,
+    int* out_dirty)
+{
+    struct RSCache_FileList list;
+    int* ids;
+    int count = 0;
+    uint8_t* payload;
+    uint32_t bound;
+    uint32_t written;
+    uint8_t* container;
+    uint32_t container_size;
+    int rc;
+
+    if( pack->max < 0 )
+        return 0;
+
+    memset(&list, 0, sizeof(list));
+    ids = (int*)calloc((size_t)pack->max + 1, sizeof(*ids));
+    list.files = (char**)calloc((size_t)pack->max + 1, sizeof(*list.files));
+    list.file_sizes = (int*)calloc((size_t)pack->max + 1, sizeof(*list.file_sizes));
+    if( !ids || !list.files || !list.file_sizes )
+    {
+        free(ids);
+        free(list.files);
+        free(list.file_sizes);
+        return 0;
+    }
+
+    for( int id = 0; id <= pack->max; id++ )
+    {
+        if( !pack->names[id] )
+            continue;
+        ids[count] = id;
+        /* The name without its terminator: the archive stores the bytes, and the
+         * reader takes the length from the size table. */
+        list.files[count] = pack->names[id];
+        list.file_sizes[count] = (int)strlen(pack->names[id]);
+        count++;
+    }
+    list.file_count = count;
+    if( count == 0 )
+    {
+        free(ids);
+        free(list.files);
+        free(list.file_sizes);
+        return 0;
+    }
+
+    bound = RSCache_FileListEncodeBound(&list);
+    payload = (uint8_t*)malloc(bound ? bound : 1);
+    if( !payload )
+    {
+        free(ids);
+        free(list.files);
+        free(list.file_sizes);
+        return 0;
+    }
+    written = RSCache_FileListEncode(&list, payload, bound);
+    /* The members are borrowed from the pack, so only the two index arrays here
+     * are ours to release — `RSCache_FileListFree` would free the pack's names. */
+    free(list.files);
+    free(list.file_sizes);
+    if( written == 0 )
+    {
+        free(ids);
+        free(payload);
+        return 0;
+    }
+
+    bound = RSCache_ArchiveEncodeBound(written, RSCACHE_ARCHIVE_COMPRESSION_GZIP);
+    container = (uint8_t*)malloc(bound ? bound : 1);
+    if( !container )
+    {
+        free(ids);
+        free(payload);
+        return 0;
+    }
+    container_size = RSCache_ArchiveEncode(container, bound, payload, written,
+                                           RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
+    free(payload);
+    if( container_size == 0 )
+    {
+        free(ids);
+        free(container);
+        return 0;
+    }
+
+    rc = RSCache_Dat2DiskWriteArchive(out_cache_dir, table_id, archive_id, container,
+                                      (int)container_size);
+    if( rc == 0 )
+        cp_reference_sync(ctx, table_id, archive_id, container, (int)container_size, ids, count,
+                          out_dirty);
+    free(container);
+    free(ids);
+    if( rc != 0 )
+    {
+        fprintf(stderr, "cachepack: gameval archive %d (%s) failed to write\n", archive_id, ns);
+        return 0;
+    }
+    printf("  %-11s %6d name(s) -> gameval archive %d\n", ns, count, archive_id);
+    return 1;
+}
+
+int
+cp_names_emit_gamevals(
+    struct CP_Ctx* ctx,
+    const char* out_cache_dir)
+{
+    int table_id;
+    int dirty = 0;
+    int archives = 0;
+
+    if( !ctx->cache_open )
+        return 1;
+    table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_GAMEVALS);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk->tables[table_id] )
+    {
+        /* Absent in the pre-dat2 epoch, and a normal state rather than a fault. */
+        printf("Gamevals: the target cache has no symbol table; nothing emitted\n");
+        return 1;
+    }
+
+    printf("Emitting gamevals from the pack files\n");
+    for( int t = 0; t < CP_TYPE_COUNT; t++ )
+    {
+        const struct CP_Type* type = cp_type(t);
+
+        if( type->gameval_archive < 0 )
+            continue;
+        archives += emit_gameval_archive(ctx, out_cache_dir, table_id, type->gameval_archive,
+                                         type->name, &ctx->names.packs[t], &dirty);
+    }
+    for( int a = 0; a < CP_ASSET_COUNT; a++ )
+    {
+        const struct CP_Asset* asset = cp_asset(a);
+
+        if( asset->gameval_archive < 0 )
+            continue;
+        /*
+         * Archive 14 names interfaces *and* their components in one nested
+         * record. Writing the interface names flat would drop 26,491 component
+         * names that nothing else in the cache carries, so it is refused rather
+         * than half-written — the one archive this cannot regenerate.
+         */
+        if( asset->gameval_archive == 14 )
+        {
+            printf("  %-11s skipped — archive 14 is nested (interface + components) and this "
+                   "writes flat records only\n",
+                   asset->pack);
+            continue;
+        }
+        archives += emit_gameval_archive(ctx, out_cache_dir, table_id, asset->gameval_archive,
+                                         asset->pack, &ctx->names.asset_packs[a], &dirty);
+    }
+
+    if( dirty && !cp_reference_write(ctx, out_cache_dir, table_id) )
+    {
+        fprintf(stderr, "cachepack: the gameval reference table failed to write\n");
+        return 0;
+    }
+    printf("Gamevals: %d archive(s) written\n", archives);
+    return 1;
+}

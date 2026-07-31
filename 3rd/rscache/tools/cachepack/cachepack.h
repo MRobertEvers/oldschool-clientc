@@ -257,6 +257,23 @@ void
 cp_names_report_coverage(
     struct CP_Ctx* ctx);
 
+/**
+ * Write the pack files back into the cache's own symbol table (`--gamevals`).
+ *
+ * Makes the cache self-describing: anything pointed at it alone recovers your
+ * names without the content tree. Not a faithful round trip — names go out
+ * normalised — and archive 14 is refused because it is nested. See the block
+ * comment in cp_names.c, and docs/CONTENT_PACK_PLAN.md §5.5.
+ *
+ * Off by default. Nothing outside cachepack reads this table, so emitting it can
+ * neither help nor break a boot; it is for the tools and for anyone who is handed
+ * the cache on its own.
+ */
+int
+cp_names_emit_gamevals(
+    struct CP_Ctx* ctx,
+    const char* out_cache_dir);
+
 /** Name for `id`, or NULL when the pack does not list it. */
 const char*
 cp_name_get(
@@ -355,6 +372,13 @@ struct CP_Ctx
 
     struct CP_Names names;
     char srcdir[1024];
+
+    /**
+     * Param id -> declared `type=` character, or 0. Built by
+     * `cp_param_types_load` before the type loop; see it for why not lazily.
+     */
+    char* param_types;
+    int param_types_count;
 
     /** Counted, not fatal: a record the decoder did not consume to the byte has
      *  fields this tool cannot see, and the count is the headline of the report. */
@@ -641,6 +665,56 @@ cp_parse_param(
     struct CP_Ctx* ctx,
     struct RSCache_Params* params,
     const char* value);
+
+/* ---- the ScriptVarType alphabet ----------------------------------------- */
+
+/*
+ * A param record's `type` is one character, and content spells it as a word.
+ *
+ * The cache stores `i`, `o`, `A`; LostCity's configs — and this tree's, which
+ * copy them verbatim so that content written against one means the same thing in
+ * the other — write `int`, `namedobj`, `seq`. Both spellings have to parse, and
+ * the machine export keeps writing the character because that is what the record
+ * holds.
+ *
+ * The mapping matters beyond cosmetics: a *reference* type says which pack file a
+ * symbolic default resolves through. `default=bones` is obj 526 only because
+ * `death_drop` is a `namedobj`, and nothing else in the record says so.
+ */
+
+/** The `type=` character for a ScriptVarType name, or 0 when unknown. A
+ *  single-character `name` is passed through, which is how the machine export's
+ *  own spelling parses. */
+char
+cp_param_type_char(const char* name);
+
+/** The ScriptVarType name for a character, for emitting the text form. Falls
+ *  back to the character itself when the alphabet does not list it, so an
+ *  unmodelled type still round-trips rather than being dropped. */
+const char*
+cp_param_type_name(char type_char);
+
+/** The config type a value of `type_char` names, or -1 when it is not a
+ *  reference — `int` and `string` resolve through no pack. */
+int
+cp_param_ref_type(char type_char);
+
+/**
+ * Build `ctx->param_types` from every `.param` source in the tree.
+ *
+ * Run once before the type loop, not lazily, because the register packs `loc` and
+ * `npc` *before* `param` — a record that states `param=death_drop,bones` is
+ * encoded while the param table would still be empty. Returns the number of
+ * params typed.
+ */
+int
+cp_param_types_load(struct CP_Ctx* ctx);
+
+/** The declared `type=` character for a param id, or 0. */
+char
+cp_param_type_of(
+    struct CP_Ctx* ctx,
+    int param_id);
 
 /**
  * `op1..opN`, plus the rev-237 sub-ops and conditional ops.

@@ -548,12 +548,11 @@ guards this.
 **`bake_npc_params` and `bake_loc_params` disappear** — ~100 lines re-deriving
 what the register now states.
 
-#### What has landed (5b — the server half)
+#### What has landed
 
-The **server** output exists; the `param:N` projection into the cache does not
-yet (it needs 4.3's renumber, and `configs/all.param` carries none of the server
-param names today — `hitpoints`, `death_drop` and `next_loc_stage` are all absent
-from it).
+**One baker, two outputs, from one merged record.** `pack_type` builds the merge,
+`client_view_build` splits it, and both halves are written in the same pass —
+which is §5.4's shape rather than an approximation of it.
 
 - `cachepack pack` writes `<src>/server/pack` — a dat2 with no reference table,
   one archive per record at **(config kind, record id)**. `npc` lands in `idx9`,
@@ -599,33 +598,74 @@ names, 6 category names. The npc count is far above the 38 authored npcs because
 register declares `attackrate` as `scope = server` — the register is about
 fields, not layers, so a cache-sourced server field belongs in the pack too.
 
-**No client cache bytes moved**: `test/digests` holds at 189,959 records, because
-the client encode still runs from `found[0]` and only the *server* band reads the
-merged record.
+**5.4's cache half.** `cp_fields.c` reads `client = param:<name>`, and
+`client_view_build` folds the field into the record's param table under that
+param's *name*. Skipped when the record states the param itself, so the 2,196
+npcs that already carry `param=attackrate` are untouched; 169 params are
+projected across the tree. Two spellings of a `param=` line now parse — the
+machine export's `<name>,<kind>,<value>` and LostCity's `<name>,<value>` — because
+the kind and a symbolic value are both recoverable from the param's own declared
+type, which is what `cp_param_types_load` builds before the type loop.
 
-#### What 5b does not reach
+**4.3 is complete.** The 15 ids at 2634..2648 were named and had no records; they
+are authored now (`npc_combat.param`, `doors.param`) and the pack writes 2,649
+param records where it wrote 2,634. `cp_pack_param` accepts LostCity's type
+*words* (`int`, `seq`, `namedobj`, `loc`) alongside the export's single character,
+and resolves a reference type's symbolic default — `default=bones` is obj 526
+because `death_drop` is a `namedobj`, and nothing else in the record says so.
 
-- **`obj`** authors exactly one key, `param=levelrequire,<stat>,<level>`,
-  repeated up to eight times per record. That is a repeatable compound, and the
-  band grammar is one fixed-width integer per opcode. A `fields/obj.ini` cannot
-  be written without first deciding what a list-valued wire looks like.
-- **`prayer`** is not a server field on a cache record — it is a server-only
-  *record type*: no config kind, no gameval archive, no row in the register. Its
-  fields are a string (`name`), a component reference (`button`), a repeated
-  enum (`group`, 31 lines over 29 prayers) and a constant reference
-  (`headicon`). It needs a group from the reserved space *and* string and
-  repeatable wires, neither of which the `(opcode, width, int offset)` binding
-  can express.
-- **Server-allocated records.** Checked against the tree rather than inferred:
-  `enum` (all 7 blocks), `npc_combat.param` (4 blocks) and `coord_pair.dbtable`
-  (1 block) exist **only** at rank 1 and are genuinely new records; `varp` (all
-  16 blocks) and `combat.param` (all 18 blocks) exist at rank 0 and are
-  **overlays**, not new records. So the "server allocates enums and params"
-  reading holds for enum and for `npc_combat.param`, and not for varp at all.
-  Writing them needs `pack_type` to encode from the merged set rather than from
-  `found[0]` — which *does* move the digest golden — and `dbtable` is
-  `CP_TYPE_NO_ENCODER` (`cp_types.c:101`), so `coord_pair_table` cannot be
-  written at all until one exists.
+**5.5, gamevals.** `cachepack pack --gamevals` writes `pack/<ns>.pack` back into
+idx 24, 12 archives, verified by re-seeding a tree from the emitted cache alone —
+npc 3028 comes back as `goblin` with no content tree present. Archive 14 is
+refused rather than half-written: it nests 26,491 component names inside the
+interface records, and a flat write would delete them. Off by default; nothing
+outside cachepack reads the table.
+
+**New records are opt-in**, declared by `records = client` in a bare `[<type>]`
+section. Verified against the tree rather than assumed: `enum` (7 blocks) and
+`coord_pair.dbtable` exist only at rank 1 and are *server tables wearing a config
+grammar* — `bank_tabs` and `worn_slots` are read by `mock230_content_enum` and no
+client script has heard of them — so `fields/enum.ini` says `records = server` and
+they stay out. `param` opts in, because a projection referencing a param with no
+record is a reference the client cannot interpret. `varp` (16 blocks) and
+`combat.param` (18) turned out to be **overlays on cache records**, not new
+records, so the question never applied to them.
+
+#### The two client-cache changes, accounted for
+
+- **enum, 2,592 records.** Opcodes 1 and 2 — the input and output ScriptVarType
+  characters — left the lossy list, for the reason §10 gives: an opcode is
+  modelled when a feature needs it. Checked exactly: every one of the 2,592 is a
+  record carrying opcode 1 or a non-string opcode 2, with zero unexplained and
+  zero expected-but-unchanged. (`diff` initially reported 2,600 by mis-aligning 8
+  byte-identical lines among the many empty enums; a key-by-key compare is the
+  honest count.)
+- **`configs/all.obj`, 198 records.** Not a cache change — a stale *export*. Every
+  `team=` line in the tree exceeded 255 because the pre-fix decoder read opcode
+  115 as two bytes, which desynchronised the rest of each record and truncated
+  it. Re-exporting restored name, desc, params and the rest on exactly those 198,
+  and renamed 31 models the recovered `manwear` fields now reference. Digests are
+  computed from the cache, so this moved none of them.
+
+#### What is declared but not implemented
+
+Each is a register row saying where the field stands, rather than a silence:
+
+- **`obj.levelrequire`** — `client = drop`, no server band.
+  `param=levelrequire,<stat>,<level>` repeats up to eight times per record; the
+  band is one fixed-width integer per opcode. Needs a list-valued wire on both
+  the writer and `mock230_servercodec.c`.
+- **`loc.category`, `npc.huntmode`, `npc.moverestrict`** — `client = drop`, no
+  band. Their values are engine enum names (`door_closed`, `aggressive`,
+  `nomove`) with no cache namespace, so the band would need either a symbol
+  table cachepack does not have or a `ref` that does not exist.
+- **`varp.transmit` / `scope` / `protect`** — `client = drop`, no band. A band
+  needs a `Mock230VarpDef` for the reader to decode into.
+- **`prayer`** — not a field on a cache record but a server-only *record type*:
+  no config kind, no gameval archive. It would take a group from the reserved
+  128..255 space plus string and repeatable wires, since its fields are a string
+  (`name`), a component reference (`button`), a repeated enum (`group`) and a
+  constant reference (`headicon`).
 
 ### 5.5 Emit gamevals from the pack files
 

@@ -162,3 +162,29 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # 6809: 3 witness(es), unique.
     "_6809": (["INT"], ["STRING"], False),
 }
+
+# opcode -> handler kind, for commands whose stack shape is not a fixed
+# signature at all. `gen_cs2_tables.py` applies these last, over anything the
+# vendored tables or the client stack table said.
+#
+# The DB_* family is the whole of it. A `dbcolumn` literal packs
+# (table << 12) | (column << 4) | (field + 1), and field 0 means "the whole
+# tuple" -- so `db_getfield` on a four-field column pushes four values, of that
+# column's four types, while the same opcode on a single-field column pushes
+# one. The client resolves it from the dbtable config at run time
+# (src/game/rs_cs2_host.c exec_db); the decompiler resolves it from the same
+# config through RSCache_CS2_DecompileOptions.db_columns.
+#
+# Measured on cache.osrs239: 0xa6200 (table 166, column 32, whole tuple) is
+# followed by four int pops at every one of its 26 call sites, and 0xa6204
+# (the same column, field 3) by exactly one at all 11 of its. A fixed signature
+# cannot be right for both, and the one the stack table carried -- three in,
+# one out -- desynchronised the operand stack of every script that read a
+# multi-field column, which is what took script 7603 and 79 others.
+LOCAL_KINDS: dict[int, str] = {
+    7502: "DB_GETFIELD",
+    7500: "DB_FIND",
+    7507: "DB_FIND",
+    7508: "DB_FIND",
+    7510: "DB_FIND",
+}

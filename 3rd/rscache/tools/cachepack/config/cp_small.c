@@ -139,6 +139,21 @@ cp_pack_param(
     RSCache_Dat2ConfigParamDecodeInplace(&entry, cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
+    /*
+     * `type` first, in its own pass.
+     *
+     * `default` is read *through* it — `default=bones` is obj 526 only because the
+     * type is `namedobj` — so a file that happens to write `default=` above
+     * `type=` would otherwise resolve the name against a type that was still zero.
+     * The machine export writes them in order and a person need not.
+     */
+    {
+        const char* type_text = cp_config_get(config, "type");
+
+        if( type_text )
+            entry.type = cp_param_type_char(type_text);
+    }
+
     uint32_t written = 0;
     for( int i = 0; i < config->count; i++ )
     {
@@ -147,13 +162,29 @@ cp_pack_param(
         int ok = 1;
         if( strcmp(key, "type") == 0 )
         {
-            if( strlen(value) != 1 )
-                ok = 0;
-            else
-                entry.type = value[0];
+            /* Both spellings: the machine export writes `i`, content writes
+             * `int`. See cp_param_type_char for why an unknown name is refused
+             * rather than defaulted. */
+            entry.type = cp_param_type_char(value);
+            ok = entry.type != 0;
         }
         else if( strcmp(key, "default") == 0 )
-            ok = cp_parse_int(value, &entry.default_int);
+        {
+            /*
+             * A reference type's default is a name.
+             *
+             * `[death_drop] type=namedobj default=bones` is obj 526, and the only
+             * thing that says so is the type — which is why this runs after it.
+             * Falling back to `cp_parse_int` would turn `bones` into a failure and
+             * `0` into obj 0, and those are different mistakes.
+             */
+            int ref = cp_param_ref_type(entry.type);
+
+            if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
+                ok = cp_resolve_ref(ctx, (enum CP_TypeId)ref, value, &entry.default_int);
+            else
+                ok = cp_parse_int(value, &entry.default_int);
+        }
         else if( strcmp(key, "defaultlong") == 0 )
         {
             int64_t tmp = 0;

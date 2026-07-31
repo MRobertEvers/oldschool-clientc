@@ -65,6 +65,20 @@
 #define RSCACHE_CS2_OP_IF_SETONSTATTRANSMIT 2415
 /** Hook opcodes at or above this id name their target component explicitly. */
 #define RSCACHE_CS2_OP_IF_HOOK_BASE 2000
+/*
+ * The client-database family, whose stack shape is a property of the *data*.
+ *
+ * A `dbcolumn` literal packs (table, column, field+1); field 0 means "the whole
+ * tuple". So `db_getfield` pushes one value of one type, or every field of the
+ * column in order — and `db_find` pops a value whose int-vs-string stack is the
+ * indexed field's. Neither is answerable from a fixed signature, which is why
+ * these have their own kinds rather than an entry in the generated table.
+ */
+#define RSCACHE_CS2_OP_DB_FIND_WITH_COUNT 7500
+#define RSCACHE_CS2_OP_DB_GETFIELD 7502
+#define RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT 7507
+#define RSCACHE_CS2_OP_DB_FIND 7508
+#define RSCACHE_CS2_OP_DB_FIND_FILTER 7510
 #define RSCACHE_CS2_OP_ADD 4000
 #define RSCACHE_CS2_OP_SUB 4001
 #define RSCACHE_CS2_OP_MULTIPLY 4002
@@ -91,6 +105,10 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_BASIC,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
+    /** db_getfield: pops (dbrow, dbcolumn, index), pushes the column's fields. */
+    RSCACHE_CS2_CMD_DB_GETFIELD,
+    /** db_find and friends: the search value's stack comes from the column. */
+    RSCACHE_CS2_CMD_DB_FIND,
 };
 
 struct RSCache_CS2_CommandInfo

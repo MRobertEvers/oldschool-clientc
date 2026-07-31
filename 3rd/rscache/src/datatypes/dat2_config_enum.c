@@ -41,10 +41,11 @@ RSCache_Dat2ConfigEnumDecodeInplace(
         switch( opcode )
         {
         case 1:
-            (void)g1(&buf);
+            entry->input_type = (char)g1(&buf);
             break;
         case 2:
-            entry->output_is_string = g1(&buf) == (int)'s';
+            entry->output_type = (char)g1(&buf);
+            entry->output_is_string = entry->output_type == 's';
             break;
         case 3:
         {
@@ -184,11 +185,30 @@ RSCache_Dat2ConfigEnumEncode(
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, out, out_capacity);
 
-    /* Opcode 2 carries the value type as a character, and the decoder keeps only
-     * whether it was 's'. Absent opcode 2 therefore decodes to "not a string", so
-     * the field is only emitted for string enums — writing it unconditionally
-     * would append bytes to every integer enum that omitted it. */
-    if( entry->output_is_string )
+    /*
+     * Opcodes 1 and 2, the two type characters, each written only when the record
+     * carries one.
+     *
+     * Zero means "the source had no such opcode", which is a different state from
+     * "the type is int" and has to stay one: writing them unconditionally would
+     * append two opcodes to every enum that omitted them, and every one of those
+     * records would stop being byte-identical.
+     *
+     * The `output_is_string` fallback covers a record built in memory rather than
+     * decoded — `cp_pack_enum` sets the flag from `outputstring=yes` and may leave
+     * `output_type` at 0 — so the string marker still reaches the wire.
+     */
+    if( entry->input_type )
+    {
+        p1(&buf, 1);
+        p1(&buf, (int)entry->input_type);
+    }
+    if( entry->output_type )
+    {
+        p1(&buf, 2);
+        p1(&buf, (int)entry->output_type);
+    }
+    else if( entry->output_is_string )
     {
         p1(&buf, 2);
         p1(&buf, (int)'s');

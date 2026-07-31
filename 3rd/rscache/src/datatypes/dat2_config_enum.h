@@ -6,6 +6,23 @@
 struct RSCache_Dat2ConfigEnum
 {
     int id;
+    /**
+     * The ScriptVarType characters opcodes 1 and 2 carry, or 0 when absent.
+     *
+     * **Promoted out of the lossy list on 2026-07-30**, for the reason
+     * `docs/CONTENT_PACK_PLAN.md` §10 gives: an opcode is modelled when a feature
+     * needs it, and authoring an enum needs both. A record built from a content
+     * tree that omits them is one the client cannot interpret — the input type is
+     * what says whether the key is an obj id or a component id, and nothing else
+     * in the record carries that.
+     *
+     * `output_is_string` stays because it is the *encoder's* switch: which of the
+     * three value arrays is populated decides whether opcode 5, 6 or 7 is
+     * written, and that has to keep working for a record whose `output_type` is 0
+     * because the source never had opcode 2.
+     */
+    char input_type;
+    char output_type;
     int output_is_string; /* bool as int */
     int default_int;
     int64_t default_long;

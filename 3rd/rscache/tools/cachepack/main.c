@@ -53,6 +53,11 @@ usage(void)
         "                  limits it to those kinds; --list-assets prints them.\n"
         "  --raw-assets    skip the friendly decoders, so every asset writes its raw\n"
         "                  payload. Use when a decoded form is in the way.\n"
+        "  --gamevals      on pack, write pack/<ns>.pack back into the cache's own\n"
+        "                  symbol table (idx 24), so the cache is self-describing.\n"
+        "                  Names go out normalised, and archive 14 is skipped because\n"
+        "                  it nests components inside interfaces. Nothing outside\n"
+        "                  cachepack reads the table, so this cannot affect a boot.\n"
         "  --binary        also move the non-config tables, as raw container bytes.\n"
         "                  On unpack, --binary=5,7 limits it to those idx files.\n"
         "  --tmp DIR       scratch directory for `verify --assets` (default\n"
@@ -204,6 +209,7 @@ main(int argc, char** argv)
     const char* binary_tables = NULL;
     const char* asset_kinds = NULL;
     const char* tmp_dir = "build/cachepack_verify";
+    int want_gamevals = 0;
     int want_binary = 0;
     int want_assets = 0;
     int check_only = 0;
@@ -231,6 +237,8 @@ main(int argc, char** argv)
             check_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
+        else if( strcmp(arg, "--gamevals") == 0 )
+            want_gamevals = 1;
         else if( strcmp(arg, "--raw-assets") == 0 )
             cp_assets_set_raw(1);
         else if( strncmp(arg, "--assets=", 9) == 0 )
@@ -430,6 +438,14 @@ main(int argc, char** argv)
         if( want_assets && ctx.cache_open )
         {
             if( !cp_assets_import(&ctx, check_only ? NULL : out_dir) )
+                rc = 1;
+        }
+        /* After the configs and the assets, because it writes the *names* of what
+         * they wrote — and after `--binary`, which may replace the very table
+         * this is emitting into. */
+        if( want_gamevals && ctx.cache_open && !check_only )
+        {
+            if( !cp_names_emit_gamevals(&ctx, out_dir) )
                 rc = 1;
         }
         if( want_binary && ctx.cache_open )

@@ -51,6 +51,24 @@ RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
         RSCache_CS2_IntMapInit(&names->tables[i]);
     RSCache_CS2_IntMapInit(&names->script_names);
     RSCache_CS2_IntMapInit(&names->param_types);
+
+    /* `false` and `true` are seeded, not loaded.
+     *
+     * Every other table here is community-recovered data that ships in
+     * RuneStar's `*-names.tsv` and is deliberately not vendored (EXCEPTIONS.md
+     * G5). These two are not data: they are the language's own words for 0 and
+     * 1, `boolean-names.tsv` is exactly two lines long, and a `boolean` has no
+     * numeric spelling — so without them 2,472 of osrs239's scripts could not
+     * be printed at all by a caller that had no TSVs to point at. `cachepack`
+     * is such a caller, which is the whole of why this matters.
+     *
+     * A TSV that names them anyway overwrites these, as it should. */
+    RSCache_CS2_IntMapPut(
+        &names->tables[RSCACHE_CS2_NAMES_BOOLEAN], 0,
+        RSCache_CS2_ArenaStrDup(&names->arena, "false"));
+    RSCache_CS2_IntMapPut(
+        &names->tables[RSCACHE_CS2_NAMES_BOOLEAN], 1,
+        RSCache_CS2_ArenaStrDup(&names->arena, "true"));
 }
 
 void
@@ -525,17 +543,33 @@ RSCache_CS2_NamesFormatInt(
             cs2_write_id_suffixed(literal, value, out, out_capacity);
         return true;
 
-    /* No spelling at all beyond null: the language has no literal for these. */
+    /* The language has no literal for these, so the number stands — the same
+     * departure from upstream, and for the same reason, as `newvar` below.
+     * `char` 46 is one script; `area` and `mapelement` join it because the
+     * argument is identical and a bare int is what the compiler reads back. */
     case RSCACHE_CS2_TYPE_CHAR:
     case RSCACHE_CS2_TYPE_AREA:
     case RSCACHE_CS2_TYPE_MAPELEMENT:
-        if( value != -1 )
-            return false;
-        snprintf(out, (size_t)out_capacity, "null");
+        if( value == -1 )
+            snprintf(out, (size_t)out_capacity, "null");
+        else
+            snprintf(out, (size_t)out_capacity, "%d", value);
         return true;
 
-    /* Exhaustively named: a missing id means the table is incomplete, and
-     * there is no fallback spelling that would compile back. */
+    /* Named where the table has one, `<type>_<id>` where it does not.
+     *
+     * These four used to refuse outright, on the reasoning that they have no
+     * numeric spelling in the language. True of `boolean`, whose two values are
+     * now seeded (RSCache_CS2_NamesInit) so the table is never short. Not true
+     * of the other three: `<literal>_<id>` is a spelling, the compiler already
+     * reads it back for every unique-id type, and it round-trips exactly.
+     *
+     * Refusing cost more than it protected. Without a TSV to hand it took 1,756
+     * of osrs239's scripts on `fontmetrics` and `stat` alone; with one it still
+     * took 12, because a live cache outruns a community table — `stat_23` is
+     * Sailing and `maparea_42` is a map region added after RuneStar's tables
+     * were last written. A decompile that says `stat_23` is exact; one that
+     * refuses the script says nothing at all. */
     case RSCACHE_CS2_TYPE_BOOLEAN:
     case RSCACHE_CS2_TYPE_STAT:
     case RSCACHE_CS2_TYPE_MAPAREA:
@@ -559,7 +593,13 @@ RSCache_CS2_NamesFormatInt(
             snprintf(out, (size_t)out_capacity, "null");
             return true;
         }
-        return false;
+        /* `boolean` keeps refusing. Its values are 0 and 1 and both are always
+         * named, so a third one is not a missing name — it is a slot the type
+         * solver put a non-boolean in, and `boolean_7` would hide that. */
+        if( type == RSCACHE_CS2_TYPE_BOOLEAN )
+            return false;
+        cs2_write_id_suffixed(literal, value, out, out_capacity);
+        return true;
     }
 
     /* Unique ids: named if known, otherwise `<type>_<id>`. */
