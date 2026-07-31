@@ -103,6 +103,59 @@ world_collision_del_loc(
     world_collision_apply_loc(builder, map_loc, config_loc, scene_x, scene_z, 0);
 }
 
+/*
+ * Terrain blocking — the map square's own per-tile Block flag.
+ *
+ * This did not exist client-side at all: `RSCACHE_FLOFLAG_BLOCK` appeared
+ * exactly once in the whole of `src/`, and that once was the *server's*
+ * scene builder. So the client's collision map knew about locs and walls but
+ * not about water, cliff faces or any other impassable ground, and its
+ * pathfinder happily routed straight across the River Lum. The click was then
+ * sent as a run of turning points the server re-pathed leg by leg against a map
+ * that *does* block them, which is why a six-tile walk could arrive as
+ * `waypoints=16 steps=49`.
+ *
+ * No level shift here, deliberately. The reference does the LinkBelow
+ * `trueLevel--` inline in this same loop (ClientBuild.finishBuild:365-378), but
+ * this build already performs it as a separate whole-column pass in
+ * `world_collision_apply_bridges` below, which copies level i+1's flag word
+ * down on every LinkBelow column. Doing it here as well would apply it twice.
+ * That is also why this must run BEFORE the bridge pass rather than after —
+ * the push-down has to carry these flags with it.
+ */
+static void
+world_collision_apply_terrain(struct WorldBuilder* builder)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+
+    if( !builder->flag_map )
+        return;
+
+    for( int level = 0; level < COLLISION_LEVELS; level++ )
+    {
+        struct CollisionMap* cm = world->collision_maps[level];
+        int blocked = 0;
+
+        if( !cm )
+            continue;
+        for( int x = 0; x < scene_size; x++ )
+        {
+            for( int z = 0; z < scene_size; z++ )
+            {
+                if( (flag_map_get(builder->flag_map, x, z, level) & RSCACHE_FLOFLAG_BLOCK) != 0 )
+                {
+                    collision_map_add_floor(cm, x, z);
+                    blocked++;
+                }
+            }
+        }
+        if( getenv("TORIRS_TERRAIN_DEBUG") )
+            fprintf(stderr, "terrain: level %d blocked %d of %d tiles\n", level, blocked,
+                    scene_size * scene_size);
+    }
+}
+
 static void
 world_collision_apply_bridges(struct WorldBuilder* builder)
 {

@@ -941,7 +941,15 @@ mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/mock230_pack"
 
-test-mock230: mock230
+# `mock230-scripts` and not just `mock230`: combat, prayer and the interface
+# arming are content now, so an assertion about them is an assertion about
+# `script.dat`. Without this the selftest happily runs a binary built from
+# today's C against a script pack built days ago — which is not a stale-result
+# hazard in theory. Removing the prayer multiplier from
+# `[proc,combat_effective_stat]` and re-running left the suite fully green,
+# because the .rs2 edit had never been compiled. A negative control that cannot
+# go red is worse than no negative control, since it reads as proof.
+test-mock230: mock230 mock230-scripts
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM

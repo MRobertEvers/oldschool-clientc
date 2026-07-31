@@ -130,7 +130,23 @@ enum
      * ids content picked; they are the client's, so the array has to reach
      * them. rev 230 has about 5,000 varps.
      */
-    MOCK230_VARP_COUNT = 5000,
+    /* Sized off the cache, plus room for the server's own.
+     *
+     * This was 5000 and the cache's highest varp id is 5704, so every varp from
+     * 5000 up was silently dropped: mock230_world_set_varp bounds-checks and
+     * returns, so a write to one looked like it worked and transmitted nothing.
+     *
+     * The tail above the cache maximum is where `ids = server` varps land —
+     * content's own state, like the %com_* combat set, which the engine reads
+     * and never transmits. Those must be declared `transmit=no`: a real rev-230
+     * client has no varp of that id and would be told about a variable it
+     * cannot have.
+     *
+     * Still a flat per-player array (docs/osrs230_mockserver.md §6.1 wants it
+     * sparse); this makes it correct before it makes it small. */
+    MOCK230_VARP_CACHE_MAX = 5705,
+    MOCK230_VARP_SERVER_HEADROOM = 512,
+    MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
     /* One bank open writes about fifteen varps in a tick. */
     MOCK230_VARP_DIRTY_MAX = 64,
 
@@ -863,12 +879,21 @@ struct Mock230Player
     int run_toggle;
     /** 0..MOCK230_RUN_ENERGY_MAX. */
     int run_energy;
-    /** Bit per prayer, indexed like interface 541's buttons (see
-     *  mock230_prayer.h). The overhead icon is a function of this and nothing
-     *  else, which is why turning one on re-sends the appearance. */
-    uint32_t prayer_active;
-    /** Fractional prayer point spent so far, in drain-rate units. */
-    int prayer_drain_acc;
+    /* No prayer state here. The cache's `prayer_<name>` varbits ARE the
+     * state — content writes them, and nothing in the engine reads them. There
+     * used to be a `prayer_active` mask beside them, and having two copies with
+     * the C one authoritative is what kept every prayer rule in C. */
+    /** Set the moment hitpoints reach 0 and cleared when they rise again.
+     *  Gates everything a corpse must not do; how long that lasts, and what
+     *  happens during it, is `[queue,player_death]`. There was a `death_tick`
+     *  here, which meant the engine owned the length of a death. */
+    int dying;
+    /** The overhead-icon bits for the appearance block. Content's, through
+     *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
+     *  bit here, which is exactly the reference's arrangement
+     *  (`Player.headicons` + PlayerOps, and no prayer concept anywhere in its
+     *  engine). */
+    int headicons;
     /** The equipment-stats screen (interface 84) is mounted. Its eighteen
      *  numbers are IF_SETTEXTs to components that only exist while it is, so
      *  every refresh has to check this first. */
@@ -1238,6 +1263,12 @@ mock230_varbit_set(
     int varbit_id,
     int value);
 
+/** The varp a varbit is packed into, or -1. For a caller that must react to a
+ *  varp write on behalf of a varbit — the mapping `all.varbit` states, read
+ *  rather than assumed, so a different cache's packing still works. */
+int
+mock230_varbit_basevar(int varbit_id);
+
 /** Recompute the two varbits interface 593 builds itself from — the equipped
  *  weapon's category and the player's combat level. Call after anything that
  *  changes either. */
@@ -1545,9 +1576,6 @@ mock230_world_npc_died(
     struct Mock230Server* srv,
     int slot);
 
-/** Put the player back on the home tile at full health. */
-void
-mock230_world_player_respawn(struct Mock230Server* srv);
 
 /** Drop an obj on the floor. `duration` is ticks, or -1 for a permanent spawn.
  *  Returns the ground slot, or -1 when the floor is full. */
@@ -1721,6 +1749,82 @@ int
 mock230_scripts_run_script(
     struct Mock230Server* srv,
     int script_id);
+
+/** Run a named content proc immediately with int arguments (`name` includes the
+ *  brackets, e.g. "[proc,give_combat_experience]"). The seam for keeping policy
+ *  the reference expresses as a proc in content instead of as a C switch.
+ *  Returns 1 when the proc ran; 0 for a missing script or an arity mismatch. */
+int
+mock230_scripts_run_proc(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc);
+
+/** Run a named proc with an npc made active, so `npc_stat`/`npc_param`/
+ *  `npc_damage` inside it resolve to that npc. The combat swing needs it. */
+int
+mock230_scripts_run_proc_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot);
+
+/** Say a content-owned message: runs `[proc,<name>]`, optionally with one
+ *  string argument (an obj or skill name the engine had to look up). Silent
+ *  when content does not define it — never a C fallback, which is how two
+ *  copies of a sentence come to disagree. */
+void
+mock230_say(
+    struct Mock230Server* srv,
+    const char* name,
+    const char* arg);
+
+/** As above, with string arguments too — for a message content should word but
+ *  only the engine knows a name for. `strv` entries are copied by the VM's
+ *  string pool, so a caller may pass a stack buffer. */
+int
+mock230_scripts_run_proc_sv(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc);
+
+/** Value-returning, with string arguments. */
+int
+mock230_scripts_run_proc_int_sv(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc,
+    int32_t* out);
+
+/** Run a named content proc and read one int back off its stack. For rules the
+ *  reference states as a value-returning `[proc,...]` — a priority chain, a
+ *  table lookup — which cannot be a single param read. Returns 1 and writes
+ *  *out when the proc answered; 0 for a missing script, a bad arity, an abort
+ *  or a suspend, in which case the caller keeps its own default. */
+int
+mock230_scripts_run_proc_int(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    int32_t* out);
+
+/** Queue a named script (`name` includes the brackets, e.g.
+ *  "[queue,playerhit_n_retaliate]") on the player, `delay` ticks out, carrying
+ *  one int argument. Lets the engine start an exchange content finishes.
+ *  Returns 1 when queued; 0 for a missing script or a full queue. */
+int
+mock230_scripts_queue_named(
+    struct Mock230Server* srv,
+    const char* name,
+    int delay,
+    int32_t arg);
 
 /** The host command seam: every opcode the VM does not implement itself. */
 int

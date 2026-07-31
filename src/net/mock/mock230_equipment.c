@@ -79,13 +79,15 @@ mock230_equipment_may_wear(
          * about one of them, which is what the reference does rather than
          * listing them.
          */
-        mock230_send_message(srv, "You are not a high enough level to use this item.");
+        mock230_say(srv, "equip_level_generic_message", NULL);
         {
-            char line[128];
+            /* The skill name and the level are the engine's — one from the stat
+             * table, one from the obj record — and the sentence they go into is
+             * content's. */
+            int32_t args[1] = { (int32_t)level };
+            const char* strv[1] = { k_stat_names[stat] };
 
-            snprintf(line, sizeof(line), "You need to have a %s level of %d.",
-                     k_stat_names[stat], level);
-            mock230_send_message(srv, line);
+            mock230_scripts_run_proc_sv(srv, "[proc,equip_level_message]", args, 1, strv, 1);
         }
         return 0;
     }

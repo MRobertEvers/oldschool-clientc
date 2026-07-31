@@ -544,6 +544,200 @@ mock230_scripts_run_script(
     return run_script_id(srv, script_id, 0, 0, -1);
 }
 
+/*
+ * Run a named content proc immediately, with int arguments.
+ *
+ * This is the seam that lets policy live in content while the engine still owns
+ * the tick. Anything the reference expresses as a `[proc,...]` — the experience
+ * table, the swing animation, the hit formulas — should be reachable from C
+ * through here rather than reimplemented as a C `switch`, which is how those
+ * rules drift from the reference silently.
+ *
+ * Immediate, not queued: a caller mid-swing needs the effect this tick, and a
+ * queue entry would land on the next one.
+ *
+ * Missing script means do nothing and say so under MOCK230_VERBOSE — the same
+ * fallback rule the rest of this file follows.
+ */
+int
+mock230_scripts_run_proc_sv(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — engine fallback\n", name);
+        return 0;
+    }
+
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", name, argc);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    return run_or_park(srv, state);
+}
+
+/*
+ * The int-only form, which is most callers.
+ *
+ * String arguments were reachable all along — `SSVM_StateAlloc` has taken a
+ * `strv`/`strc` pair since it was written and this seam passed `NULL, 0` — and
+ * that gap quietly decided a design question: content could not be handed a
+ * name, so any message mentioning one had to be built in C. The prayer level
+ * message ("You need a Prayer level of 31 to use Ultimate Strength.") is the
+ * case that surfaced it.
+ */
+int
+mock230_scripts_run_proc(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc)
+{
+    return mock230_scripts_run_proc_sv(srv, name, args, argc, NULL, 0);
+}
+
+/*
+ * Run a named content proc and read one int back.
+ *
+ * The void form above lets content own an *action*; this lets it own an
+ * *answer*. The reference states plenty of rules as procs that return a value —
+ * `[proc,combat_defend_anim](obj $weapon, obj $shield)(seq)` is the shape: a
+ * priority chain (shield, then weapon, then unarmed) with membership
+ * conditions, which is a policy no single param read can express and which has
+ * no business being a C `if`.
+ *
+ * The result is the top of the int stack when the proc finishes. Read it BEFORE
+ * run_or_park, which releases the state on FINISHED — hence the open-coded
+ * execute here rather than reusing that helper. A proc that suspends cannot
+ * answer, so anything but FINISHED is a miss and the caller keeps its default.
+ *
+ * Returns 1 and writes *out when the proc answered; 0 otherwise.
+ */
+int
+mock230_scripts_run_proc_int_sv(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc,
+    int32_t* out)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+    enum SSVM_Exec status;
+
+    if( !srv->scripts_ok || !out )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — engine fallback\n", name);
+        return 0;
+    }
+
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", name, argc);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+
+    status = SSVM_Execute(state);
+    if( status == SSVM_ABORTED )
+        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+    if( status != SSVM_FINISHED || state->isp < 1 )
+    {
+        SSVM_StateRelease(state);
+        return 0;
+    }
+    *out = state->int_stack[state->isp - 1];
+    SSVM_StateRelease(state);
+    return 1;
+}
+
+/** The int-only form. See mock230_scripts_run_proc for why the string half
+ *  exists at all. */
+int
+mock230_scripts_run_proc_int(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    int32_t* out)
+{
+    return mock230_scripts_run_proc_int_sv(srv, name, args, argc, NULL, 0, out);
+}
+
+/*
+ * Put a named queue script on the player's queue from the engine side.
+ *
+ * `queue(...)` is a ServerScript op, so content can already do this; what this
+ * adds is the engine being able to *start* the exchange. Auto-retaliate is the
+ * case that needs it: the npc's swing happens in C, and the response is
+ * content.
+ *
+ * Absent script means do nothing, quietly. That is the documented fallback for
+ * this server — a missing script leaves the call site doing what it did before
+ * scripts existed, which here is "the player does not retaliate". Under
+ * MOCK230_VERBOSE it says so, because a silent nothing is exactly how a
+ * mistyped script name hides.
+ */
+int
+mock230_scripts_queue_named(
+    struct Mock230Server* srv,
+    const char* name,
+    int delay,
+    int32_t arg)
+{
+    const struct SSVM_Script* script;
+    struct Mock230Player* player;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — nothing queued\n", name);
+        return 0;
+    }
+
+    player = srv->player;
+    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    {
+        if( player->queue[i].active )
+            continue;
+        player->queue[i].active = 1;
+        player->queue[i].script_id = script->id;
+        /* +1 for the same reason SS_OP_QUEUE does it: the drain decrements
+         * before it fires, so delay 0 has to mean "next tick". */
+        player->queue[i].delay = delay + 1;
+        player->queue[i].arg = arg;
+        return 1;
+    }
+    return 0;
+}
+
 int
 mock230_scripts_run_trigger(
     struct Mock230Server* srv,
@@ -1012,7 +1206,7 @@ mock230_script_command(
         }
         /* No free slot. The reference drops the item on the ground; the mock
          * has no ground objects yet, so it says so rather than pretending. */
-        mock230_send_message(srv, "Your inventory is full.");
+        mock230_say(srv, "inv_full_message", NULL);
         return 1;
     }
 
@@ -3020,6 +3214,13 @@ mock230_script_command(
      * is loud.
      */
     case SS_OP_STAT_BOOST:
+    /* `stat_sub` and `stat_drain` are the same operation: subtract a flat
+     * amount plus a percentage of the base level from the boosted level. The
+     * reference has both names because content reads better one way for a
+     * poison hit and the other for prayer drain; there is nothing to
+     * distinguish in the handler, and giving `stat_sub` its own would be two
+     * copies of one rule. */
+    case SS_OP_STAT_SUB:
     case SS_OP_STAT_DRAIN:
     {
         int32_t values[3];
@@ -3639,6 +3840,37 @@ mock230_script_command(
         mock230_combat_stop_player(srv);
         return 1;
 
+    /*
+     * The overhead icons, as an int content owns outright.
+     *
+     * This is the reference's whole prayer surface in its engine: `Player.ts`
+     * has a `headicons: number` field, `PlayerOps.ts` has a get and a set, and
+     * nothing anywhere in it knows what a prayer is. Which icon a prayer draws,
+     * and when, is `~headicon_add`/`~headicon_del` in content.
+     *
+     * The write marks the appearance block, because that is where the byte
+     * rides — turning on Protect from Melee is an appearance change like
+     * putting on a helmet, and every client that can see the player learns
+     * about it through the PLAYER_INFO they were getting anyway.
+     */
+    case SS_OP_HEADICONS_GET:
+        SSVM_PushInt(state, player->headicons);
+        return 1;
+
+    case SS_OP_HEADICONS_SET:
+    {
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) )
+            return 1;
+        if( player->headicons != (int)value )
+        {
+            player->headicons = (int)value;
+            player->masks |= MOCK230_PMASK_APPEARANCE;
+        }
+        return 1;
+    }
+
     default:
         /* Not ours. The VM reports it through the loud stub, which pops and
          * pushes what the signature declares so the script survives. */
@@ -3665,5 +3897,75 @@ mock230_scripts_resume_countdialog(
     if( state->execution != SSVM_COUNTDIALOG )
         return 0;
     srv->player->last_int = value;
+    return run_or_park(srv, state);
+}
+
+/*
+ * Say a content-owned message.
+ *
+ * A thin wrapper over run_proc/run_proc_sv, because the alternative at twenty
+ * call sites is twenty four-line blocks declaring an argument array. `name` is
+ * the bare proc name — "equip_message", not "[proc,equip_message]" — since
+ * every caller of this is naming a message and the brackets are noise.
+ *
+ * Silent when the script is missing: a server with no content tree says nothing
+ * rather than falling back to a second copy of the text in C, which is the
+ * arrangement that let the two disagree in the first place.
+ */
+void
+mock230_say(
+    struct Mock230Server* srv,
+    const char* name,
+    const char* arg)
+{
+    char qualified[128];
+
+    snprintf(qualified, sizeof(qualified), "[proc,%s]", name);
+    if( arg )
+        mock230_scripts_run_proc_sv(srv, qualified, NULL, 0, &arg, 1);
+    else
+        mock230_scripts_run_proc(srv, qualified, NULL, 0);
+}
+
+/*
+ * Run a named proc with an npc made active.
+ *
+ * The combat swing needs it: `[proc,player_melee_swing]` calls `npc_stat`,
+ * `npc_param` and `npc_damage`, all of which resolve against the active npc, so
+ * the engine names the target once here rather than passing a slot number
+ * content would then have to carry through four procs.
+ *
+ * `host_tag` is the slot, stored +1 so zero means "no npc" without a second
+ * flag; the entity pointer only satisfies the VM's require-an-active-npc check.
+ * Both are needed — see mock230_scripts_run_trigger, which does the same pair.
+ */
+int
+mock230_scripts_run_proc_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — engine fallback\n", name);
+        return 0;
+    }
+    state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
+    if( !state )
+        return 0;
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    {
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
+        state->host_tag = npc_slot + 1;
+    }
     return run_or_park(srv, state);
 }

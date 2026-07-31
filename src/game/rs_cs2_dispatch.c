@@ -176,7 +176,8 @@ RS_CS2_PumpTransmits(
      * (inv_transmit_dirty). The per-hook last_seen_serial gate inside the
      * dispatch tasks keeps up-to-date hooks from re-firing, so a quiet tick
      * runs zero scripts. */
-    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty && !host->inv_transmit_dirty )
+    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty &&
+        !host->inv_transmit_dirty && !host->misc_transmit_dirty )
         return;
 
     /* Inv hooks re-run on unhide OR a container change. The container filter
@@ -214,6 +215,17 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /* Misc transmits (run energy, run weight). No trigger set to filter on —
+     * the hooks carry none — so this re-runs every registered misc hook, which
+     * is why it is gated on a real value change rather than on the unhide flag
+     * as well. There are only a couple of these hooks in the gameframe. */
+    if( host->misc_transmit_dirty )
+    {
+        task = CreateTask_CS2MiscTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     host->widgets_loaded_dirty = 0;
     host->var_transmit_dirty = 0;
     host->var_changed_count = 0;
@@ -221,4 +233,5 @@ RS_CS2_PumpTransmits(
     host->inv_transmit_dirty = 0;
     host->inv_changed_count = 0;
     host->inv_changed_all = 0;
+    host->misc_transmit_dirty = 0;
 }

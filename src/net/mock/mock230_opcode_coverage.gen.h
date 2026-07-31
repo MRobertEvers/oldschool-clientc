@@ -10,9 +10,9 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    145  host commands
+ *    148  host commands
  *      7  host commands (db)
- *    215  total, of 398 declared opcodes
+ *    218  total, of 398 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 215
+#define MOCK230_OPCODE_COVERAGE_COUNT 218
 #define MOCK230_OPCODE_DECLARED_COUNT 398
 
 /*
@@ -82,6 +82,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2017, /* SS_OP_FACESQUARE (host commands) */
     2019, /* SS_OP_FINDUID (host commands) */
     2020, /* SS_OP_GENDER (host commands) */
+    2024, /* SS_OP_HEADICONS_GET (host commands) */
+    2025, /* SS_OP_HEADICONS_SET (host commands) */
     2026, /* SS_OP_HEALENERGY (host commands) */
     2031, /* SS_OP_HUNTALL (host commands) */
     2032, /* SS_OP_HUNTNEXT (host commands) */
@@ -124,6 +126,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2113, /* SS_OP_STAT_DRAIN (host commands) */
     2114, /* SS_OP_STAT_HEAL (host commands) */
     2115, /* SS_OP_STAT_RANDOM (host commands) */
+    2116, /* SS_OP_STAT_SUB (host commands) */
     2117, /* SS_OP_STAT_TOTAL (host commands) */
     2118, /* SS_OP_STAT (host commands) */
     2125, /* SS_OP_UID (host commands) */

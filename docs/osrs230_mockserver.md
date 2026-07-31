@@ -593,21 +593,29 @@ Loop: engage → walk beside → swing every `MOCK230_ATTACK_SPEED` ticks → th
 retaliates the first time it is hit → death animation holds the corpse for
 `MOCK230_DEATH_TICKS` → despawn → respawn at the spawn tile at full health.
 
-Npc hitpoints scale off the cache's combat level (`level * 2`). That formula is
-the mock's own: rev-230 npc configs carry no server-side hitpoints field, unlike
-LostCity's `npc.dat`.
+> ⚠️ **Three claims in this section were stale and are corrected below
+> (2026-07-31). They were verified against the shipped code, not re-reasoned.**
+> Do not build anything this section says is missing without grepping for it
+> first — all three describe work that had already landed.
 
-Three deliberate omissions:
+Npc hitpoints come from the **content** `.npc` block's `hitpoints = N`
+(`mock230_content.c:861-863`, default 10 at :2201). *This section previously
+said they scale off the cache's combat level as `level * 2`; they do not, and
+the only `level * 2` in the combat code is the aggression cutoff at
+`mock230_combat.c:772`.*
 
-- **No attack animations from the engine.** The sequence ids are not derivable
-  from this cache without decoding the weapon's bas type, and a wrong seq id at
-  rev 230 is a silent no-op at best. Content can add one with `anim` /
-  `npc_anim`; the hitsplat and health bar are what carry the fight visually.
+Two deliberate omissions, and one that no longer applies:
+
+- ~~**No attack animations from the engine.**~~ **The engine does play them.**
+  `player_attack_seq` resolves the swing and `mock230_combat.c:660` plays it
+  every attack. Content can still override with `anim` / `npc_anim`.
 - **A zero-damage hit is a *block* splat, not nothing.** Otherwise a miss is
   indistinguishable from the server having dropped the swing.
-- **Player death heals to full** rather than teleporting and dropping items. The
-  mock has no respawn point, no item loss and no death interface, and inventing
-  them is a lot of behaviour nothing asked for.
+- ~~**Player death heals to full** rather than teleporting.~~ **Death
+  teleports.** The sequence is: death animation → `MOCK230_DEATH_TICKS` hold →
+  prayers cleared → teleport home → heal to full, with "Oh dear, you are dead!"
+  and "You wake up in Lumbridge." on the way. There is still no item loss and
+  no death interface, which *is* deliberate.
 
 Commands: `p_opnpc`, `npc_damage`, `damage`, `healenergy`, `uid`,
 `npc_findhero`, `npc_attackrange`. `::fight <slot>` engages an npc without a
@@ -1165,7 +1173,11 @@ tables (§3.13d) are done. What is left, in the order each unblocks the next:
    `(zx, zz, level)` holding per-zone entity lists and an event buffer is what
    makes a loc change replayable to whoever walks in later — which is the thing
    multiplayer actually needs.
-4. **Fill in the host opcodes.** ~100 of 396 are implemented. Driven by the gap
+4. **Fill in the host opcodes.** 215 of 398 are implemented (63 VM core, 145
+   host, 7 host-db — the count is generated into
+   `src/net/mock/mock230_opcode_coverage.gen.h`, so read it there rather than
+   trusting a number typed into prose; this one said "~100 of 396" long after
+   it stopped being true). Driven by the gap
    report from step 2, plus `.dbtable`/`.dbrow` support in the content reader —
    `mock230_content.h` admits prayers were flattened into a bespoke `.prayer`
    grammar to avoid writing one, and drop tables and shops want it too.

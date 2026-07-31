@@ -5712,6 +5712,89 @@ CS2VM2_Op_ArraySortAll(
     return CS2VM_EXECNO_OK;
 }
 
+/*
+ * Opcode 8007 — count the cells in [start, end) equal to a value.
+ *
+ * Stack, top first: valueType, end, start; then the search value, taken from
+ * the STRING stack when valueType names a string (2 or 115) and from the int
+ * stack when it names an int (0, 49, 105); then the array HANDLE off the
+ * string stack. `end` < 0 — or past the end — means "to the end", and
+ * `start` < 0 clamps to 0. A null handle pushes 0 rather than failing.
+ *
+ * The type code is on the stack rather than in the operand because one opcode
+ * serves both array flavours; reading it as the value (or popping the value
+ * from the wrong stack) desynchronises both stacks and surfaces much later.
+ * Reference: xrsps VarOps ARRAY_COUNT_MATCHES + Cs2ArrayObject.countMatches.
+ *
+ * This was the one unimplemented opcode the boot actually reaches — 341 times
+ * per run, silently, because the stub returned OK for anything past the
+ * generated table. See CS2VM2_Op_StackMetaStub.
+ */
+int
+CS2VM2_Op_ArrayCountMatches(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int start;
+    int end;
+    int value_type;
+    if( CS2VM2_PopInt(vm, &value_type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &end) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int want_int = 0;
+    int want_str = 0;
+    if( value_type == 2 || value_type == 115 )
+        want_str = 1;
+    else if( value_type == 0 || value_type == 49 || value_type == 105 )
+        want_int = 1;
+    /* value_type -1 is "no value": nothing is popped and nothing can match. */
+
+    int search_int = 0;
+    char* search_str = NULL;
+    if( want_int && CS2VM2_PopInt(vm, &search_int) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( want_str && CS2VM2_PopStr(vm, &search_str) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char* handle = NULL;
+    if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+    if( !array )
+        return CS2VM2_PushInt(vm, 0);
+
+    int first = start < 0 ? 0 : start;
+    int last = (end < 0 || end > array->size) ? array->size : end;
+    int matches = 0;
+
+    for( int i = first; i < last; i++ )
+    {
+        if( array->is_string )
+        {
+            char const* cell = array->cells.strings[i];
+            if( want_str && strcmp(cell ? cell : "", search_str ? search_str : "") == 0 )
+                matches++;
+        }
+        else if( want_int && array->cells.ints[i] == search_int )
+        {
+            matches++;
+        }
+    }
+
+    return CS2VM2_PushInt(vm, matches);
+}
+
 int
 CS2VM2_Op_SetBit(
     struct CS2VM2_Thread* vm,
@@ -6623,10 +6706,30 @@ CS2VM2_Op_StackMetaStub(
     assert(frame);
     (void)operand;
 
-    if( opcode < 0 || opcode >= CS2VM2_OPCODE_STACK_MAX )
-        return CS2VM_EXECNO_OK;
+    /*
+     * An opcode past the end of the generated table is UNIMPLEMENTED, not
+     * benign — so it takes the same route as one with no signature, below.
+     *
+     * This used to `return CS2VM_EXECNO_OK` here, which is the same silent
+     * no-op the `!meta.known` assert exists to prevent, except that it fired
+     * *first* and so could never be caught. The table tops out at 7602
+     * (CS2VM2_OPCODE_STACK_MAX, generated), which put the entire 8000-series —
+     * the array ops at this revision — permanently out of reach: not
+     * implemented, not asserted, and invisible to TORIRS_CS2_SURVEY, which is
+     * the tool you would reach for to find exactly this.
+     *
+     * A zeroed meta has known = 0, which is what routes it.
+     */
+    struct CS2VM2OpcodeStack meta;
 
-    struct CS2VM2OpcodeStack meta = g_cs2vm2_opcode_stack[opcode];
+    if( opcode >= 0 && opcode < CS2VM2_OPCODE_STACK_MAX )
+    {
+        meta = g_cs2vm2_opcode_stack[opcode];
+    }
+    else
+    {
+        memset(&meta, 0, sizeof(meta));
+    }
 
     /* The RS2 overlay wins where it has an entry: for the ids it names the
      * canonical signature is either absent or a different command's. */
@@ -6660,10 +6763,17 @@ CS2VM2_Op_StackMetaStub(
         }
         if( survey )
         {
+            /* Sized to the table, but `opcode` may now be past its end — the
+             * out-of-range case is exactly what this path was opened up for.
+             * Those are reported every time rather than once; a survey run is
+             * short and a duplicate line is cheaper than a second table. */
             static bool reported[CS2VM2_OPCODE_STACK_MAX];
-            if( !reported[opcode] )
+            bool in_table = (opcode >= 0 && opcode < CS2VM2_OPCODE_STACK_MAX);
+
+            if( !in_table || !reported[opcode] )
             {
-                reported[opcode] = true;
+                if( in_table )
+                    reported[opcode] = true;
                 fprintf(
                     stderr,
                     "cs2-survey: opcode %d unimplemented (script %d pc %d)\n",
@@ -8203,6 +8313,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_PopArrayInt(vm, frame, operand);
     case CS2_OP_ARRAY_SORT_ALL:
         return CS2VM2_Op_ArraySortAll(vm, frame, operand);
+    case CS2_OP_ARRAY_COUNT_MATCHES:
+        return CS2VM2_Op_ArrayCountMatches(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
     /* CC_SETTARGETVERB has no model yet, but it takes a string argument. An

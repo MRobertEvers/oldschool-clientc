@@ -18,54 +18,39 @@ struct Mock230Server;
 struct Mock230Player;
 
 /*
- * The prayers themselves are content: `skill_prayer/configs/prayers.prayer`
- * for the table and `prayers.constant` for the overhead icon indices, which
- * are read through mock230_content_prayer and mock230_prayer_headicon. The
- * prayer book's own id is in mock230_ids.
+ * Prayer is content, table and rules both:
+ * `skill_prayer/configs/prayers.prayer` states each prayer's level, drain rate,
+ * exclusion group, varbit, button and overhead icon, and
+ * `skill_prayer/scripts/prayer.rs2` owns the toggle, the checks, the drain and
+ * every message. The prayer book's own interface id is in mock230_ids.
  *
- * A prayer is identified here by its index in that file, which is the bit it
- * occupies in `player->prayer_active` — see MOCK230_PRAYER_MAX for what bounds
- * that.
+ * **The cache varbits are the state.** There is no server-side mask any more —
+ * there used to be (`player->prayer_active`), mirrored into the varbits so the
+ * book would light up, and having two copies with the C one authoritative is
+ * what kept the rules in C: whatever a script wrote, the next mirror overwrote.
+ *
+ * A prayer is identified by its index in prayers.prayer, which is only a
+ * position in that table now — not a bit in anything.
  */
 
-/** Enable each prayer button's op 1 so a click reaches the server. Part of the
- *  login burst; see mock230_equipment_arm_worn_tab for why. */
-void
-mock230_prayer_arm_buttons(struct Mock230Server* srv);
-
-/**
- * Handle a click on a prayer button. Returns 1 when the component was one.
- */
+/** Deliver a click to a prayer's button, which is the only way to toggle one:
+ *  the switch itself is `[if_button,prayerbook:prayerN]` in content. Returns 1
+ *  when content claimed it. */
 int
-mock230_prayer_handle_button(
-    struct Mock230Server* srv,
-    int component,
-    int op);
-
-/** Turn one prayer on or off by index, applying the level requirement and the
- *  conflict groups. Returns 1 if anything changed. */
-int
-mock230_prayer_toggle(
+mock230_prayer_click(
     struct Mock230Server* srv,
     int prayer);
 
-/** Drop every active prayer — death, and running out of points. */
+/** 1 when this prayer's varbit is set. */
+int
+mock230_prayer_active(
+    struct Mock230Server* srv,
+    int prayer);
+
+/** Drop every active prayer — death, and running out of points. Performed by
+ *  `[proc,prayer_deactivate_all]`; the engine only names the moment. */
 void
 mock230_prayer_clear(struct Mock230Server* srv);
-
-/** One tick of drain. */
-void
-mock230_prayer_tick(struct Mock230Server* srv);
-
-/** The appearance byte: a bit per overhead icon, 0 when none is up. */
-int
-mock230_prayer_headicon_mask(const struct Mock230Player* player);
-
-/** 1 when a prayer drawing this overhead icon is up. */
-int
-mock230_prayer_protecting(
-    const struct Mock230Player* player,
-    int headicon);
 
 /**
  * An overhead icon index by its `^headicon_prayer_*` constant, or -1.

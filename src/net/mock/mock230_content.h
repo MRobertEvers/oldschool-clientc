@@ -113,6 +113,13 @@ mock230_content_pack_name(enum Mock230PackKind kind);
 
 /** Id for a symbol, or -1. `null` resolves to -1 without a diagnostic, which is
  *  what LostCity's `default=null` params mean. */
+/** The `default=` declared for a param, resolved to an id for seq-valued ones.
+ *  -1 when the param declares none. This is what answers `oc_param` for an obj
+ *  that carries no override — and for the no-obj case, which is how unarmed
+ *  combat picks its swing. */
+int
+mock230_content_param_default(int param_id);
+
 int
 mock230_content_symbol(
     enum Mock230PackKind kind,
@@ -480,13 +487,6 @@ struct Mock230PrayerDef
     /** Display name, as the "You need a Prayer level of N to use X." message
      *  spells it. */
     char* name;
-    int level;
-    /** Drain units per tick, weighed against 60 + 2 * prayer bonus. */
-    int drain;
-    /** A mask of Mock230PrayerGroup. */
-    int groups;
-    /** Overhead sprite index, or -1 for the prayers that draw none. */
-    int headicon;
     /** Packed component uid of the button that toggles it. */
     int button;
     /** The cache varbit that says this prayer is currently on, or -1.

@@ -92,4 +92,17 @@ CreateTask_CS2VarTransmitDispatchSet(
 struct ToriRS_Task*
 CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host);
 
+/*
+ * Re-run every IF_SETONMISCTRANSMIT hook: the run-energy and run-weight orbs.
+ *
+ * Driven once per logic tick from RS_CS2_DispatchTransmits when
+ * misc_transmit_dirty is set. Unlike the var and inv dispatches there is no
+ * trigger set to filter on — a misc hook registers no ids — so this fires all
+ * of them, and the caller gates on a real value change instead. Hooks are
+ * snapshotted before the first one runs, because a hook may mutate the tree it
+ * was found in.
+ */
+struct ToriRS_Task*
+CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
+
 #endif /* TASK_CS2_RUN_H */

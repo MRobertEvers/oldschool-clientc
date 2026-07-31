@@ -313,11 +313,27 @@ RS_GameProto_Exec(
             RS_PlayerStats_RecomputeCombatLevel(ctx->stats);
         }
         break;
+    /* The reactive half, same shape as UPDATE_STAT above: the orb's CS2 binds
+     * IF_SETONMISCTRANSMIT, so without a notify it paints its build-time value
+     * and is only ever refreshed by an unrelated interface event. Gated on the
+     * value actually changing because the dispatch walks every component —
+     * and the server already change-gates these packets, so an unchanged value
+     * arriving at all is unusual. */
     case PKT_NAME_UPDATE_RUNENERGY:
-        ctx->stats->run_energy = packet->_update_run_energy.run_energy;
+        if( ctx->stats->run_energy != packet->_update_run_energy.run_energy )
+        {
+            ctx->stats->run_energy = packet->_update_run_energy.run_energy;
+            if( ctx->app )
+                RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
+        }
         break;
     case PKT_NAME_UPDATE_RUNWEIGHT:
-        ctx->stats->run_weight = packet->_update_runweight.run_weight;
+        if( ctx->stats->run_weight != packet->_update_runweight.run_weight )
+        {
+            ctx->stats->run_weight = packet->_update_runweight.run_weight;
+            if( ctx->app )
+                RS_CS2Host_NotifyMiscChanged(&ctx->app->host);
+        }
         break;
 
     /* ---- inventories ---- */

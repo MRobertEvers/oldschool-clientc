@@ -205,6 +205,14 @@ struct RS_CS2Host
     int stat_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
     int stat_changed_count;
     int stat_changed_all;
+    /** Set when a "misc" transmit value changed — run energy and run weight at
+     *  this revision. There is no id set beside it, unlike the var/inv/stat
+     *  registries: the misc hooks take no trigger arguments, so every
+     *  registered hook re-runs and a single flag is the whole state.
+     *  Wired to UPDATE_RUNENERGY / UPDATE_RUNWEIGHT via
+     *  RS_CS2Host_NotifyMiscChanged; without it the run orb showed its
+     *  build-time value until some unrelated interface event repainted it. */
+    int misc_transmit_dirty;
     /** Which container ids changed since the last dispatch, mirroring
      *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
     int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
@@ -306,6 +314,13 @@ void
 RS_CS2Host_NotifyStatChanged(
     struct RS_CS2Host* host,
     int stat_id);
+
+/** Signal that a "misc" transmit value changed — run energy or run weight —
+ *  and flag a misc-transmit re-dispatch for the tick. No id: the misc hooks
+ *  carry no trigger set, so every registered hook re-runs. Call it only when
+ *  the value ACTUALLY changed; the walk touches every component. */
+void
+RS_CS2Host_NotifyMiscChanged(struct RS_CS2Host* host);
 
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change

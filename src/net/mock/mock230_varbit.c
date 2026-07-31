@@ -199,3 +199,19 @@ mock230_varbit_set(
     mock230_world_set_varp(srv, range->basevar, (int)current);
     return range->basevar;
 }
+
+/*
+ * Which varp a varbit lives inside, or -1.
+ *
+ * Callers that need to react to a *varp* write but care about a *varbit* —
+ * mock230_prayer_varp_touched is the one — need the mapping the other way
+ * round, and hardcoding "the prayers are in varp 83" would tie that reaction to
+ * this cache. `configs/all.varbit` states it; this reads it.
+ */
+int
+mock230_varbit_basevar(int varbit_id)
+{
+    const struct VarbitRange* range = varbit_range(varbit_id);
+
+    return range ? range->basevar : -1;
+}

@@ -752,6 +752,14 @@ RS_CS2Host_NotifyStatChanged(
 }
 
 void
+RS_CS2Host_NotifyMiscChanged(struct RS_CS2Host* host)
+{
+    if( !host )
+        return;
+    host->misc_transmit_dirty = 1;
+}
+
+void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
     assert(host);
@@ -2853,6 +2861,16 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return &node->runtime_hooks.on_key;
+    case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
+        /* IF_ only — there is no CC_ misc-transmit request kind at this
+         * revision, and the CC_SETONMISCTRANSMIT opcode (1422) is parsed into
+         * the discard group rather than a request.
+         *
+         * The "misc" transmits are the ones with no registry of their own:
+         * run energy and run weight at this revision. The field existed but
+         * nothing resolved to it, so every registration was discarded and the
+         * run orb never repainted on its own. */
+        return &node->runtime_hooks.on_misc_transmit;
     default:
         return NULL;
     }
@@ -4426,7 +4444,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
-        return CS2VM_EXECNO_OK;
+        /* Was `return CS2VM_EXECNO_OK` — a well-formed request the VM had
+         * already built, thrown away. Registering it is the same call every
+         * other SetOn makes; the walker that fires them is
+         * CreateTask_CS2MiscTransmitDispatch. */
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:

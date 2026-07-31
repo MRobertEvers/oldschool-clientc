@@ -767,7 +767,7 @@ put_appearance(
      * docs/mock230_player_systems.md §4.
      */
     {
-        int headicons = mock230_prayer_headicon_mask(player);
+        int headicons = player->headicons;
         if( headicons && getenv("MOCK230_VERBOSE") )
             fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
         rsab_p1(buf, headicons);

@@ -1139,11 +1139,17 @@ Three things worth stating:
   is iterating over — a `loc_del` inside a `loc_findnext` loop is ordinary
   content.
 
-`npc_setmode` is deliberately absent and is now the single biggest blocker left
+> **Superseded, 2026-07-31.** `npc_setmode` **is implemented**
+> (`src/net/mock/mock230_scripts.c:1258`) and the `mock230 selftest: npc modes`
+> case passes. The npc mode machine this paragraph called for was built. Do not
+> quote the claim below as a live blocker — it was verified stale by re-reading
+> the source, which is the check this file's own §12 asks for.
+
+~~`npc_setmode` is deliberately absent and is now the single biggest blocker left
 (122 files). It needs an npc mode machine — `playerfaceclose`, `wander`,
 `playerescape` are standing states an npc holds across ticks — which this server
 does not have; `interface_chat/scripts/chat.rs2` already notes the gap where it
-works around it. That is a feature, not a copy of anything landed here.
+works around it. That is a feature, not a copy of anything landed here.~~
 
 ### The cheap wide ones, and npc deferred work — §9 steps 4e and 5a
 

@@ -1655,38 +1655,7 @@ mock230_content_prayer_count(void)
     return g_prayer_def_count;
 }
 
-/** `group=` takes the reference's stat names, one per line so a prayer can
- *  claim several — which Piety, Chivalry, Rigour and Augury all do. */
-static int
-prayer_group(const char* name)
-{
-    static const struct
-    {
-        const char* name;
-        int mask;
-    } k_groups[] = {
-        { "defence", MOCK230_PRAYER_GROUP_DEFENCE },
-        { "strength", MOCK230_PRAYER_GROUP_STRENGTH },
-        { "attack", MOCK230_PRAYER_GROUP_ATTACK },
-        { "ranged", MOCK230_PRAYER_GROUP_RANGED },
-        { "magic", MOCK230_PRAYER_GROUP_MAGIC },
-        { "overhead", MOCK230_PRAYER_GROUP_OVERHEAD },
-    };
 
-    for( size_t i = 0; i < sizeof(k_groups) / sizeof(k_groups[0]); i++ )
-        if( strcmp(name, k_groups[i].name) == 0 )
-            return k_groups[i].mask;
-    return 0;
-}
-
-/** A `key=value` operand that may be a `^constant`. */
-static int
-config_int(const char* text)
-{
-    const char* expanded = *text == '^' ? mock230_content_constant(text) : NULL;
-
-    return atoi(expanded ? expanded : text);
-}
 
 /** One `key=value` inside a prayer block. Returns 0 for a key it does not
  *  know, so the caller can report it with the line number. */
@@ -1701,14 +1670,6 @@ prayer_field(
         free(def->name);
         def->name = strdup(value);
     }
-    else if( strcmp(key, "level") == 0 )
-        def->level = config_int(value);
-    else if( strcmp(key, "drain") == 0 )
-        def->drain = config_int(value);
-    else if( strcmp(key, "headicon") == 0 )
-        def->headicon = config_int(value);
-    else if( strcmp(key, "group") == 0 )
-        def->groups |= prayer_group(value);
     else if( strcmp(key, "button") == 0 )
         def->button = mock230_content_symbol(MOCK230_PACK_COMPONENT, value);
     else if( strcmp(key, "varbit") == 0 )
@@ -1733,9 +1694,6 @@ prayer_begin(const char* symbol)
     memset(def, 0, sizeof(*def));
     def->symbol = strdup(symbol);
     def->name = strdup(symbol);
-    def->level = 1;
-    def->drain = 1;
-    def->headicon = -1;
     def->button = -1;
     def->varbit = -1;
     return def;
@@ -1778,8 +1736,6 @@ load_prayer_config(const char* path)
                           line_number);
         else if( !prayer_field(def, line, value) )
             CONTENT_ERROR("%s:%d: unknown prayer key `%s`\n", path, line_number, line);
-        else if( strcmp(line, "group") == 0 && !prayer_group(value) )
-            CONTENT_ERROR("%s:%d: unknown prayer group `%s`\n", path, line_number, value);
         else if( strcmp(line, "button") == 0 && def->button < 0 )
             CONTENT_ERROR("%s:%d: `%s` is not in pack/component.pack\n", path, line_number,
                           value);
@@ -2036,6 +1992,20 @@ load_spawn_config(const char* path)
  */
 static char* g_param_types;
 static int g_param_type_count;
+/* The `default=` of each param, resolved to an id for the symbol-valued types.
+ * The reference relies on these: `oc_param(null, x)` — and every obj that
+ * simply does not carry an override — answers with the param's declared
+ * default, which is how unarmed combat gets its swing animation without a
+ * special case anywhere. -1 means "no default declared". */
+static int* g_param_defaults;
+
+int
+mock230_content_param_default(int param_id)
+{
+    if( param_id < 0 || param_id >= g_param_type_count || !g_param_defaults )
+        return -1;
+    return g_param_defaults[param_id];
+}
 
 char
 mock230_content_param_type(int param_id)
@@ -2093,6 +2063,17 @@ load_param_types(const char* content_dir)
         fclose(file);
         return 0;
     }
+    g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
+    if( !g_param_defaults )
+    {
+        free(g_param_types);
+        g_param_types = NULL;
+        g_param_type_count = 0;
+        fclose(file);
+        return 0;
+    }
+    for( int i = 0; i < g_param_type_count; i++ )
+        g_param_defaults[i] = -1;
 
     while( fgets(raw, sizeof(raw), file) )
     {
@@ -2111,10 +2092,24 @@ load_param_types(const char* content_dir)
         if( current < 0 || current >= g_param_type_count )
             continue;
         value = mock230_content_split_key_value(line);
-        if( !value || strcmp(line, "type") != 0 )
+        if( !value )
             continue;
-        g_param_types[current] = value[0];
-        loaded++;
+        if( strcmp(line, "type") == 0 )
+        {
+            g_param_types[current] = value[0];
+            loaded++;
+            continue;
+        }
+        if( strcmp(line, "default") == 0 )
+        {
+            /* `type` precedes `default` in every param block, so the type is
+             * known by now and decides how to read the value: a seq-valued
+             * param names a symbol, everything else is a plain integer. */
+            if( g_param_types[current] == 's' )
+                g_param_defaults[current] = mock230_content_symbol(MOCK230_PACK_SEQ, value);
+            else
+                g_param_defaults[current] = atoi(value);
+        }
     }
     fclose(file);
     return loaded;

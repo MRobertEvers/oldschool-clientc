@@ -58,8 +58,14 @@ enum
     SSC_MAX_SWITCH_CASES = 256,
     SSC_MAX_SYMBOLS = 65536,
     SSC_MAX_NAME = 128,
-    /* `$a, $b, $c = ~proc()` — a proc may return several values at once. */
-    SSC_MAX_ASSIGN_TARGETS = 8,
+    /* `$a, $b, $c = ~proc()` — a proc may return several values at once.
+     *
+     * This was 8, which is smaller than the reference's own content needs:
+     * `[proc,equip_get_bonuses]` returns thirteen — the eleven equipment
+     * bonuses plus the prayer and range ones — and every caller unpacks all
+     * thirteen in one assignment. A round number chosen without a corpus to
+     * check it against, in other words, and it rejected a verbatim port. */
+    SSC_MAX_ASSIGN_TARGETS = 32,
     /* Values in a `queue*(...)(a, b, c)` vararg block. */
     SSC_MAX_VARARG_TYPES = 16,
 };

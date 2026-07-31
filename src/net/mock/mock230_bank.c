@@ -342,14 +342,6 @@ mock230_bank_get_varbit(
 /* Container helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-static void
-say(
-    struct Mock230Server* srv,
-    const char* text)
-{
-    mock230_send_message(srv, text);
-}
-
 static int
 inv_free_slots(const struct Mock230Player* player)
 {
@@ -750,7 +742,7 @@ bank_add(
     slot = bank_first_free(bank);
     if( slot < 0 )
     {
-        say(srv, "You don't have enough space in your bank account.");
+        mock230_say(srv, "bank_full_message", NULL);
         return 0;
     }
     bank_write(bank, slot, obj_id, count);
@@ -884,13 +876,13 @@ mock230_bank_withdraw(
     {
         /* Every obj is withdrawable; not every obj has a note form. The
          * reference says so and withdraws the item anyway. */
-        say(srv, "This item can not be withdrawn as a note.");
+        mock230_say(srv, "bank_not_notable_message", NULL);
     }
 
     space = inv_space_for(player, form, amount);
     if( space <= 0 )
     {
-        say(srv, "You don't have enough inventory space.");
+        mock230_say(srv, "bank_withdraw_no_space_message", NULL);
         return 0;
     }
     if( space < amount )
@@ -899,9 +891,9 @@ mock230_bank_withdraw(
          * different situations: one stack that will not fit versus a pile of
          * separate items that will not all fit. */
         if( mock230_objinfo(form)->stackable )
-            say(srv, "You're not going to be able to carry all that!");
+            mock230_say(srv, "bank_withdraw_too_many_message", NULL);
         else
-            say(srv, "You don't have enough inventory space to withdraw that many.");
+            mock230_say(srv, "bank_carry_message", NULL);
         amount = space;
     }
 

@@ -288,11 +288,27 @@ apply_loc_collision(
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
         if( config->blocks_walk != 0 )
         {
+            /*
+             * The UN-rotated extents, deliberately.
+             *
+             * `collision_map_loc_apply` (collision_map.c:120-125) already swaps
+             * size_x/size_z itself for COLL_ANGLE_NORTH (1) and _SOUTH (3) —
+             * which is exactly `angle & 1`. `record_loc` pre-rotates into
+             * `loc->size_x`/`loc->size_z` for the same angles, so passing those
+             * applied the swap twice and it cancelled: every non-square loc at
+             * angle 1 or 3 (rotated tables, benches, 1x2 stairs, stalls) blocked
+             * its un-rotated rectangle, i.e. the wrong tiles.
+             *
+             * Do NOT "fix" this by removing the pre-rotation in `record_loc` —
+             * `mock230_scene_find_loc` and `interaction_target` both need the
+             * rotated footprint. The two consumers want different things and
+             * this is the one that wants the raw config.
+             */
             if( add )
-                collision_map_add_loc(map, scene_x, scene_z, loc->size_x, loc->size_z,
+                collision_map_add_loc(map, scene_x, scene_z, config->size_x, config->size_z,
                                       angle, blockrange);
             else
-                collision_map_del_loc(map, scene_x, scene_z, loc->size_x, loc->size_z,
+                collision_map_del_loc(map, scene_x, scene_z, config->size_x, config->size_z,
                                       angle, blockrange);
         }
         break;
@@ -719,12 +735,21 @@ mock230_scene_can_step(
     int scene_x = x - g_base_x;
     int scene_z = z - g_base_z;
 
+    /*
+     * Unknown means DON'T. This returns "can step", so an unbuilt tile has to
+     * answer 0, not 1.
+     *
+     * `mock230_scene_walk_blocked` already answers 1 (blocked) for exactly
+     * these conditions (:102-106), and `map_blocked` documents the rule as
+     * "unknown means don't" — this function was the one dissenter, and it let
+     * the player walk straight off the edge of the built scene.
+     */
     if( !map || dir < 0 || dir > 7 )
-        return 1;
+        return 0;
     if( !mock230_scene_contains(x, z) )
-        return 1;
+        return 0;
     if( !mock230_scene_contains(x + k_step_dx[dir], z + k_step_dz[dir]) )
-        return 1;
+        return 0;
 
     switch( dir )
     {

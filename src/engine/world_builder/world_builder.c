@@ -265,6 +265,10 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
 
+    /* Terrain first, then the bridge push-down — the push-down copies whole
+     * flag words down a LinkBelow column, so it has to see the terrain flags
+     * to carry them. */
+    world_collision_apply_terrain(builder);
     world_collision_apply_bridges(builder);
     world_contour_ground(builder);
     world_builder_apply_wall_decor_offsets(builder);

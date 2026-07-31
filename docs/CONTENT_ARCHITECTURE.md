@@ -771,3 +771,120 @@ column answers it directly and is the only thing that does.
 `--selftest` now pins all eleven: the eight cache names must resolve, the eight
 invented ones must not, and the three scratch ids are asserted against the pack
 rather than hardcoded twice.
+
+---
+
+## 8. Who owns a rule — content or engine
+
+§1–§7 settle where a *name* lives. This section settles where a *rule* lives, and
+it was written after getting it wrong in one session in four separate places.
+
+### 8.1 The rule
+
+> **If LostCity states it in a `.rs2` proc or a config field, it is content's.
+> The engine may only be the thing that calls the proc and reads the field.**
+
+That is the whole test, and it is deliberately not a judgement call. It does not
+ask whether a rule "feels like mechanism". Combat max hit feels like mechanism;
+the reference computes it in `[proc,player_combat_stat]` from varps a script
+filled in, so it is content's. Hitpoints and the tick clock feel like mechanism
+too, and the reference really does keep those in the engine, so they stay.
+
+Consult the reference before deciding. The answer is in the source, not in
+intuition, and the two disagree often enough that intuition is not usable.
+
+### 8.2 The three failures this is written against
+
+Each of these shipped, and each looked reasonable at the time.
+
+**(a) A string literal in C is a rule in the engine.** `mock230_combat.c` held
+`"You feel yourself getting stronger."` and the seq name `human_sword_slash`.
+Neither is a mechanism — one is copy, one is a per-weapon data lookup — and both
+meant a server operator could not change a word without a compiler. They are now
+`[proc,combat_levelup_message]` and `oc_param($weapon, attack_anim)`.
+
+**(b) A precedence order cannot be a param read.** The C defend-anim code read
+`defend_anim` off the weapon. The reference's rule is *shield, then weapon, then
+unarmed*, so a player holding a sword and a kiteshield blocks with the shield.
+No single param read can express that, and no amount of adding params to the
+weapon would have found it — the missing thing was the ordering, and the ordering
+is `[proc,combat_defend_anim]`. **When the reference has a proc, port the proc.
+Porting only the field it reads loses the rule the proc is.**
+
+**(c) A namespace that cannot grow is a bug, not a constraint.** `content.ini`
+said `[namespace:param] ids = cache`, so the compiler correctly refused a param
+name the cache never defined. The conclusion drawn was "the unarmed Kick anim
+cannot move to content" — and it was written down as a *finding*. It was not a
+finding. `ids = cache` was wrong: the cache defines params 0..2633 and keeps
+those ids, but nothing about that forbids the server declaring a 2634th.
+`tools/ss_allocate.py` had already listed `param` in `SERVER_NAMESPACES` and been
+allocating them; the register and the allocator simply disagreed, and the register
+was the one that was wrong.
+
+The generalisation, and it is the point of this section:
+
+> **When content has nowhere to put a rule, the thing with nowhere to put it is
+> the bug.** Fix the namespace policy. Do not document the limitation and route
+> the rule back into C — that is how the engine accretes content, one reasonable
+> exception at a time.
+
+`param` and `varp` are both `ids = server` now, for exactly this reason.
+
+### 8.3 Server-allocated ids, and the two traps in them
+
+A server-allocated id is a real id in the client's number space, so:
+
+- **A server varp must be `transmit=no`.** A real rev-230 client has no varp of
+  id 5705; transmitting one tells it about a variable it cannot have. Server
+  varps are *server state* — which is precisely what the reference uses them for
+  (`%com_stabattack` and the rest of the `%com_*` block are never sent).
+- **Sizing.** `MOCK230_VARP_COUNT` was 5000 while the cache's highest varp id is
+  5704, so every varp from 5000 up was silently dropped:
+  `mock230_world_set_varp` bounds-checks and returns, so the write *looked* like
+  it worked and transmitted nothing. The bound is now
+  `MOCK230_VARP_CACHE_MAX (5705) + MOCK230_VARP_SERVER_HEADROOM (512)`.
+  Any table sized against a namespace the server can now allocate into needs the
+  same headroom, and a silent bounds-check return is the failure mode to look for.
+
+### 8.4 The checklist, before writing engine code
+
+Four questions. Any "yes" means stop and write content instead.
+
+1. Does the reference have a proc for this? → port the proc, not the field.
+2. Am I about to write a game-facing **string** in C? → `[proc,*_message]`.
+3. Am I about to write a **config-shaped constant** in C — an anim, a rate, a
+   multiplier, an id, a table row? → a param on the obj/npc, or a `.constant`.
+4. Did the compiler reject a name and am I about to work around it? → check
+   `content.ini` against `tools/ss_allocate.py`'s `SERVER_NAMESPACES`. If they
+   disagree, the register is the bug.
+
+What legitimately stays in the engine is short: the tick clock, hitpoints and
+death bookkeeping, the accuracy/max-hit *rolls* (content supplies the inputs),
+the wire encoders, the collision map, and dispatch. Everything the reference
+writes in RuneScript is content's.
+
+### 8.5 The allocator now reads the register
+
+Promoting `varp` to `ids = server` bought nothing on its own, and the reason is
+§8.2(c) a third time: `tools/ss_allocate.py` carried its **own** list of
+server-owned namespaces —
+`('enum','struct','dbtable','dbrow','param','mesanim','inv')`, no `varp` — so
+the register permitted a varp no tool would hand an id to. The same two tables
+had already disagreed the other way round, with `param` in the tuple while the
+register said `ids = cache`.
+
+So the tuple is now a *default*, and `server_namespaces(tree)` unions it with
+every `ids = server` row in `content.ini`. A union and not a replacement:
+`enum`, `struct`, `dbtable`, `dbrow`, `mesanim` and `inv` appear nowhere in
+`content.ini` — it *overlays* the built-in defaults rather than restating them —
+so deriving the list from the file alone would have silently stopped allocating
+for five namespaces. What the union adds is that a namespace the tree promotes
+is swept without anyone remembering to edit the tool.
+
+Verified end to end. `varp` now appears in the sweep at `base_was=5705`, and a
+probe block allocated `5705=__alloc_probe` — exactly `MOCK230_VARP_CACHE_MAX`,
+because the high-water rule already lands one past layer 0's maximum of 5704
+with no floor needed. Probe reverted; `--check` is clean.
+
+This was the prerequisite for the `%com_*` port
+(`[proc,player_combat_stat]`), which needs sixteen server varps.

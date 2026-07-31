@@ -245,6 +245,9 @@
  * (script 2633) sorts names carrying row-ids this way. Arrays travel as
  * handles on the string stack at this revision. */
 #define CS2_OP_ARRAY_SORT_ALL 8000
+/* Count cells in [start, end) equal to a value. `end` < 0 means "to the end".
+ * The array is a HANDLE on the string stack — see cs2-arrays-are-handles. */
+#define CS2_OP_ARRAY_COUNT_MATCHES 8007
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
 /* PUSH_VARC_STRING — Read client string varc.

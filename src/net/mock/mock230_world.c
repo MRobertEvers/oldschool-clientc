@@ -199,7 +199,7 @@ equip_from_slot(
     info = mock230_objinfo(obj_id);
     if( info->wearpos < 0 || info->wearpos >= MOCK230_WORN_SLOTS )
     {
-        say(srv, "You can't wear that.");
+        mock230_say(srv, "equip_wrong_slot_message", NULL);
         return;
     }
     /* The level requirement. Engine rather than content for the same reason
@@ -229,7 +229,7 @@ equip_from_slot(
                 free_slots++;
         if( free_slots < returning - 1 )
         {
-            say(srv, "You don't have enough inventory space to do that.");
+            mock230_say(srv, "equip_no_space_message", NULL);
             return;
         }
     }
@@ -251,7 +251,7 @@ equip_from_slot(
     }
 
     worn_set(player, info->wearpos, obj_id, count > 0 ? count : 1);
-    say(srv, "You equip the %s.", info->name);
+    mock230_say(srv, "equip_message", info->name);
 }
 
 /* Take the item off worn slot `slot` and put it back in the backpack. */
@@ -272,12 +272,12 @@ unequip_slot(
     dest = inv_first_free(player);
     if( dest < 0 )
     {
-        say(srv, "You don't have enough inventory space to do that.");
+        mock230_say(srv, "equip_no_space_message", NULL);
         return;
     }
     inv_set(player, dest, obj_id, player->worn[slot].count);
     worn_set(player, slot, -1, 0);
-    say(srv, "You remove the %s.", mock230_objinfo(obj_id)->name);
+    mock230_say(srv, "unequip_message", mock230_objinfo(obj_id)->name);
 }
 
 /* ------------------------------------------------------------------ */
@@ -343,14 +343,19 @@ steps_walk_to(
         return;
     }
 
-    while( cur_x != x || cur_z != z )
-    {
-        cur_x += sign_of(x - cur_x);
-        cur_z += sign_of(z - cur_z);
-        steps_push(player, cur_x, cur_z);
-        if( player->step_count >= MOCK230_STEP_MAX )
-            return;
-    }
+    /*
+     * Route failed, so do not move.
+     *
+     * There used to be a straight-line fallback here that stepped toward the
+     * destination one tile at a time regardless of collision. A route of -1
+     * means the flood could not reach the target, and the reason it could not
+     * is almost always a wall — so the fallback's entire job was to walk
+     * through the thing that had just refused the path, up to MOCK230_STEP_MAX
+     * tiles of it.
+     *
+     * The reference has no such fallback: an unreachable click is a click that
+     * does nothing. Leaving the step queue empty is the correct answer.
+     */
 }
 
 /*
@@ -366,10 +371,51 @@ mock230_world_walk_beside(
     int z)
 {
     struct Mock230Player* player = srv->player;
+    static const int k_off_x[4] = { -1, 1, 0, 0 };
+    static const int k_off_z[4] = { 0, 0, -1, 1 };
+    int best_x = x - sign_of(x - player->x);
+    int best_z = z - sign_of(z - player->z);
+    int best_cost = -1;
+
+    /*
+     * Pick an ORTHOGONAL neighbour of the target, not a diagonal one.
+     *
+     * This used to be `dest = target - sign(target - player)`, which lands on a
+     * diagonal whenever both axes differ — and melee cannot reach a diagonal
+     * (see in_attack_range). The player walked to the corner, the range test
+     * refused, and the fight stalled with both parties standing still: the
+     * "squaring up" step never happened.
+     *
+     * Of the four orthogonal neighbours, take the one nearest the player that
+     * it can actually stand on, so the approach still looks direct.
+     */
+    for( int i = 0; i < 4; i++ )
+    {
+        int cand_x = x + k_off_x[i];
+        int cand_z = z + k_off_z[i];
+        int dx = cand_x - player->x;
+        int dz = cand_z - player->z;
+        int cost;
+
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        cost = dx > dz ? dx : dz;
+
+        if( mock230_scene_walk_blocked(player->level, cand_x, cand_z) )
+            continue;
+        if( best_cost < 0 || cost < best_cost )
+        {
+            best_cost = cost;
+            best_x = cand_x;
+            best_z = cand_z;
+        }
+    }
 
     steps_clear(player);
-    player->dest_x = x - sign_of(x - player->x);
-    player->dest_z = z - sign_of(z - player->z);
+    player->dest_x = best_x;
+    player->dest_z = best_z;
     steps_walk_to(player, player->dest_x, player->dest_z);
 }
 
@@ -707,12 +753,35 @@ player_weight_grams(const struct Mock230Player* player)
 {
     int total = 0;
 
+    /* Stackable objs are weightless and a non-stackable stack weighs its count.
+     * Reference: Player.ts:640-645 — `if (!type || type.stackable) continue;`
+     * then `this.runweight += type.weight * item.count`. Ignoring both made a
+     * thousand coins weigh a thousand times a coin, and a stack of anything
+     * weigh one. */
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-        if( player->inv[i].obj_id >= 0 )
-            total += mock230_objinfo(player->inv[i].obj_id)->weight;
+    {
+        const struct Mock230ObjInfo* info;
+
+        if( player->inv[i].obj_id < 0 )
+            continue;
+        info = mock230_objinfo(player->inv[i].obj_id);
+        if( info->stackable )
+            continue;
+        total += info->weight * player->inv[i].count;
+    }
+    /* Worn equipment is one per slot, and worn stackables (ammo) are the same
+     * weightless case. */
     for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
-        if( player->worn[i].obj_id >= 0 )
-            total += mock230_objinfo(player->worn[i].obj_id)->weight;
+    {
+        const struct Mock230ObjInfo* info;
+
+        if( player->worn[i].obj_id < 0 )
+            continue;
+        info = mock230_objinfo(player->worn[i].obj_id);
+        if( info->stackable )
+            continue;
+        total += info->weight;
+    }
     return total;
 }
 
@@ -720,18 +789,45 @@ player_weight_grams(const struct Mock230Player* player)
  * One tick of energy, in OldSchool's own arithmetic (xrsps
  * MovementService.updateRunEnergy, which is the same formula):
  *
- *   drain per running step = 67 + 67 * min(64, weight_kg) / 64
+ *   drain per running TICK = 67 + 67 * min(64, weight_kg) / 64
  *   regen per idle/walking tick = agility / 6 + 8
  *
- * so an unencumbered player gets a hair over 74 running steps from full and a
+ * so an unencumbered player gets a hair over 149 running ticks from full and a
  * fully-laden one about half that, and standing still refills at roughly one
- * percent every eight ticks at level 1. Energy is spent per STEP, not per
- * tick: a running tick covers two tiles and costs twice as much as a walking
- * one would.
+ * percent every eight ticks at level 1.
+ *
+ * Energy is spent ONCE PER TICK, not per step. The reference charges the loss
+ * in the `else` of `stepsTaken < 2` (Player.ts:705-713), so covering two tiles
+ * *is* the base cost — multiplying by the step count charged twice for the
+ * only case that can ever reach the branch, and emptied the bar at about
+ * 1.98 %/tick instead of 0.99 %.
+ *
+ * The branch is `move_count < 2`, not `move_count == 0`: a player who runs but
+ * has only one tile left to cover regenerates, because a one-tile tick is a
+ * walk however the toggle is set.
  *
  * Reaching zero clears the toggle rather than merely refusing to run, which is
  * what makes the orb go dark instead of the player silently walking with a lit
  * orb.
+ *
+ * ⚠️ THE TWO REFERENCES DISAGREE HERE, and this is LostCity's. Recorded because
+ * this is a rev-230 server and LostCity is 2004-era behaviour:
+ *
+ *              drain per running tick            restore per idle tick
+ *   LostCity   67 + 67*kg/64  (kg 0..64)         agility/6 + 8      <- implemented
+ *   OpenRune   64 + min(g,6400)/10000            computes a value, then discards
+ *              (RunEnergy.kt:41-42)              it and adds a flat 500 (:51-55)
+ *
+ * LostCity's drain is strongly weight-dependent (67..134, a 2x span); OpenRune's
+ * is not (64..64.64), which makes carried weight almost free. The 67 + 67*w/64
+ * form is the widely-attested OldSchool one, so it is the one kept. OpenRune's
+ * restore is not usable as an authority at all — `recovery` is computed and
+ * never read, so its effective rate is a flat 500/tick regardless of Agility.
+ *
+ * The restore rate is the half worth revisiting for a modern server: OldSchool
+ * changed how Agility feeds it after 2004, and neither reference here shows the
+ * modern curve. Do not "fix" the drain to OpenRune's without checking a third
+ * source — that direction makes weight nearly meaningless.
  */
 static void
 run_energy_tick(
@@ -740,7 +836,12 @@ run_energy_tick(
 {
     struct Mock230Player* player = srv->player;
 
-    if( run_steps > 0 )
+    /* A delayed player neither burns nor recovers. Reference: Player.ts:703,
+     * `if (this.delayed) return;`. */
+    if( player->delayed_until > srv->tick )
+        return;
+
+    if( run_steps >= 2 )
     {
         int weight_kg = player_weight_grams(player) / 1000;
         int drain;
@@ -749,7 +850,7 @@ run_energy_tick(
             weight_kg = 0;
         if( weight_kg > 64 )
             weight_kg = 64;
-        drain = (67 + (67 * weight_kg) / 64) * run_steps;
+        drain = 67 + (67 * weight_kg) / 64;
 
         player->run_energy -= drain;
         if( player->run_energy <= 0 )
@@ -764,7 +865,9 @@ run_energy_tick(
 
     if( player->run_energy < MOCK230_RUN_ENERGY_MAX )
     {
-        int agility = player->stat_boosted[MOCK230_STAT_AGILITY];
+        /* Base level, not boosted: an agility potion does not speed recovery.
+         * Reference: Player.ts:707 uses `baseLevels[AGILITY]`. */
+        int agility = player->stat_level[MOCK230_STAT_AGILITY];
         if( agility < 1 )
             agility = 1;
         player->run_energy += agility / 6 + 8;
@@ -1610,7 +1713,7 @@ handle_opheld(
         mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
                               player->level, MOCK230_LOOT_TICKS);
         inv_set(player, slot, -1, 0);
-        say(srv, "You drop the %s.", info->name);
+        mock230_say(srv, "drop_message", info->name);
         return;
     }
     /*
@@ -1626,7 +1729,7 @@ handle_opheld(
         mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
                               player->level, MOCK230_LOOT_TICKS);
         inv_set(player, slot, -1, 0);
-        say(srv, "You drop the %s.", info->name);
+        mock230_say(srv, "drop_message", info->name);
         return;
     }
 
@@ -1790,7 +1893,7 @@ climb(
 
     if( level < 0 || level > 3 )
     {
-        say(srv, "You can't go any further.");
+        mock230_say(srv, "blocked_message", NULL);
         return;
     }
     steps_clear(player);
@@ -1846,16 +1949,16 @@ interaction_engine_obj(struct Mock230Server* srv)
             free_slot = inv_first_free(player);
             if( free_slot < 0 )
             {
-                say(srv, "You don't have enough inventory space.");
+                mock230_say(srv, "inv_no_space_message", NULL);
                 return;
             }
             inv_set(player, free_slot, obj->obj_id, obj->count);
         }
-        say(srv, "You pick up the %s.", mock230_objinfo(obj->obj_id)->name);
+        mock230_say(srv, "pickup_message", mock230_objinfo(obj->obj_id)->name);
         ground_take(srv, i);
         return;
     }
-    say(srv, "You can't reach that.");
+    mock230_say(srv, "cant_reach_message", NULL);
 }
 
 static void
@@ -2164,9 +2267,9 @@ handle_cheat(
                 player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
                 mock230_combat_stat_mark(player, MOCK230_STAT_PRAYER);
             }
-            mock230_prayer_toggle(srv, prayer);
+            mock230_prayer_click(srv, prayer);
             say(srv, "%s %s.", mock230_prayer_name(prayer),
-                (player->prayer_active & (1u << prayer)) ? "on" : "off");
+                mock230_prayer_active(srv, prayer) ? "on" : "off");
         }
         return;
     }
@@ -2487,9 +2590,7 @@ handle_if_button_op(
      * 1,220 dynamic children was clicked. */
     if( mock230_bank_handle_button(srv, uid, sub, -1, op_num) )
         return;
-    if( mock230_equipment_handle_button(srv, uid, sub, op_num) )
-        return;
-    mock230_prayer_handle_button(srv, uid, op_num);
+    mock230_equipment_handle_button(srv, uid, sub, op_num);
 }
 
 static void
@@ -2731,29 +2832,16 @@ mock230_world_npc_died(
                               MOCK230_LOOT_TICKS);
 }
 
-void
-mock230_world_player_respawn(struct Mock230Server* srv)
-{
-    struct Mock230Player* player = srv->player;
-
-    steps_clear(player);
-    player->x = g_home_x;
-    player->z = g_home_z;
-    player->level = 0;
-    player->death_tick = -1;
-    player->place_dirty = 1;
-    player->dest_x = -1;
-    player->dest_z = -1;
-    player->hitpoints = player->stat_level[MOCK230_STAT_HITPOINTS];
-    mock230_combat_sync_hitpoints(player);
-    /* Death drops every prayer — and with them the overhead icon, which would
-     * otherwise follow the corpse back to Lumbridge. */
-    mock230_prayer_clear(srv);
-    /* Nothing is lost. A mock that drops your inventory on death is a mock
-     * nobody uses twice, and item protection is a whole system of its own. */
-    mock230_send_message(srv, "You wake up in Lumbridge.");
-    maybe_rebuild(srv);
-}
+/*
+ * There is no player respawn function here any more.
+ *
+ * It used to teleport the player to `g_home_x`/`g_home_z`, heal them, clear the
+ * prayers and say "You wake up in Lumbridge." — a respawn point, a restore
+ * policy and a string, none of which are the engine's. All four are
+ * `[queue,player_death]` in player/death.rs2 now, built out of `p_teleport`,
+ * `stat_heal`, `healenergy` and `mes`, which are the same ops any content
+ * author has.
+ */
 
 /* ------------------------------------------------------------------ */
 /* Login + tick                                                        */
@@ -2955,6 +3043,7 @@ mock230_world_set_varp(
      */
     if( varp == mock230_world_varp("option_run") )
         player->run_toggle = value != 0;
+
 }
 
 void
@@ -3060,7 +3149,6 @@ mock230_world_init(
     player->x = g_home_x;
     player->z = g_home_z;
     player->combat_target = -1;
-    player->death_tick = -1;
     player->level = 0;
     /* The memset above leaves this 0, which is a real dbtable id — so a
      * `db_findnext` with no query would iterate table 0 instead of reporting
@@ -3294,7 +3382,6 @@ mock230_world_login(struct Mock230Server* srv)
     player->run_weight_sent = player_weight_grams(player) / 1000;
     mock230_send_run_weight(srv, player->run_weight_sent);
     mock230_equipment_arm_worn_tab(srv);
-    mock230_prayer_arm_buttons(srv);
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
         mock230_send_stat(srv, stat, player->stat_level[stat],
                           player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
@@ -3314,8 +3401,8 @@ mock230_world_login(struct Mock230Server* srv)
      * runs on the next tick. These two are the no-content fallback. */
     if( !srv->scripts_ok )
     {
-        mock230_send_message(srv, "Welcome to the mock 230 world.");
-        mock230_send_message(srv, "Click to walk. Right-click an npc to talk.");
+        
+        
     }
     srv->login_pending = 1;
 
@@ -3415,7 +3502,6 @@ phase_players(struct Mock230Server* srv)
     run_energy_tick(srv, srv->player->running ? srv->player->move_count : 0);
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
-    mock230_prayer_tick(srv);
     mock230_combat_player_tick(srv);
 }
 
@@ -3788,7 +3874,6 @@ selftest_park_player(
     player->dest_x = -1;
     player->dest_z = -1;
     player->combat_target = -1;
-    player->death_tick = -1;
     player->hitpoints = player->max_hitpoints;
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
         srv->npcs[i].combat_target = -1;
@@ -4560,6 +4645,29 @@ mock230_world_selftest(void)
         static struct Mock230Capture capture;
         int goblin = -1;
 
+        /*
+         * Combat needs the content pack, and that is new.
+         *
+         * The player's whole side of a roll comes out of `%com_*`, written by
+         * `[proc,player_combat_stat]`. With no script pack those varps are 0,
+         * the attack roll is 0, and `roll_hit` misses every swing — which is
+         * what this block showed the moment the calculation moved to content:
+         * seven failures that all read as "combat is broken" rather than as
+         * "combat is content and content is absent".
+         *
+         * That consequence is the reference's too, and it is the right one — a
+         * LostCity server with no content tree has no combat either. What used
+         * to be true, and is written into skill_combat/combat.rs2's header, is
+         * that the mock ran *at all* with no pack. It still does: it logs in,
+         * walks and renders. It just cannot fight.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+            fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
+
         /* The goblin roster entry, whatever slot it landed in. 3028 is the id
          * OpenRune's gameval table calls `npcs.goblin`, checked against
          * cache.osrs230 — which does name 3028 "Goblin". The mock's old roster
@@ -4635,6 +4743,21 @@ mock230_world_selftest(void)
             for( int i = 0; i < MOCK230_DEATH_TICKS + 2 && npc->active; i++ )
                 mock230_world_tick(&srv);
             SELFTEST_CHECK(!npc->active, "the corpse should despawn");
+
+            /*
+             * Stand well clear before waiting for the respawn.
+             *
+             * Without this the check below is racing the goblin's aggression: it
+             * respawns beside the player, attacks, the player auto-retaliates
+             * and it comes back to "full health" already down a point. That is
+             * correct behaviour, and it made this a test of two things at once
+             * — it went red when the melee swing moved to content and the RNG
+             * draw order changed, which shifted the fight by a tick and let the
+             * retaliation land inside the window.
+             */
+            player->x = npc->spawn_x + 12;
+            player->z = npc->spawn_z + 12;
+            steps_clear(player);
 
             for( int i = 0; i < MOCK230_RESPAWN_TICKS + 4 && !npc->active; i++ )
                 mock230_world_tick(&srv);
@@ -4792,24 +4915,109 @@ mock230_world_selftest(void)
                        "coins should carry no combat params");
 
         /*
-         * The splat ids, which were backwards.
+         * The splat ids, which pointed at two sprites that are not splats.
          *
-         * Config group 32 gives hitsplat 0 sprite 2270 (blue, the zero splat)
-         * and hitsplat 1 sprite 3521 (red, damage). The mock had them the other
-         * way round, so every hit drew a block and every miss drew damage —
-         * nothing failed, it just looked wrong. Asserting the ids here is the
-         * cheap half; content/pack/hitsplat.pack records how they were
-         * identified, which is the half that stops it recurring.
+         * Config group 32 gives hitsplat 26 sprite 1358 and hitsplat 28 sprite
+         * 1359 — `hitmark_0` and `hitmark_1` in the cache's own gameval
+         * archive, the blue zero splat and the red damage splat. They are a
+         * matched pair: identical `opcodeorder=8,49,5,9,13`, differing only in
+         * the sprite.
+         *
+         * These were previously asserted as 0 and 1, whose sprites are 2270
+         * (`hitmark_17`, a purple star) and 3521 (`hitmark_blocked`, a red
+         * circle-with-a-slash). So every hit drew a no-entry sign and every
+         * miss drew a purple star. Nothing failed — both are valid hitsplat
+         * records that decode and render — it just looked wrong.
+         *
+         * The ids were reached by *looking at the sprite* and calling 2270
+         * "blue" and 3521 "red", which is how a purple star and a red icon
+         * passed. Asserting the ids here is the cheap half;
+         * OSRS-Content/osrs239-content/configs/all.hitsplat.compack records
+         * that the method is the cache's gameval name and never the colour,
+         * which is the half that stops it recurring.
          */
-        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage") == 1,
-                       "hitsplat_damage should be 1 (sprite 3521, red)");
-        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block") == 0,
-                       "hitsplat_block should be 0 (sprite 2270, blue)");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage") == 28,
+                       "hitsplat_damage should be 28 (sprite 1359, gameval hitmark_1)");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block") == 26,
+                       "hitsplat_block should be 26 (sprite 1358, gameval hitmark_0)");
 
         /* Attackability is the cache's own op list, which is what the client's
          * right-click menu reads. */
         SELFTEST_CHECK(mock230_combat_attackable(3028), "a goblin is attackable");
         SELFTEST_CHECK(!mock230_combat_attackable(3105), "Hans is not");
+    }
+
+    fprintf(stderr, "mock230 selftest: the combat stat block is content's\n");
+    {
+        /*
+         * `[proc,player_combat_stat]` writes `%com_*` and the engine reads it.
+         *
+         * Two things are pinned here and they fail for different reasons. The
+         * first is that the block is populated at all: every one of these varps
+         * is server-allocated at 5705 and up, and `MOCK230_VARP_COUNT` was 5000
+         * until recently — a write past the bound is a silent return in
+         * `mock230_world_set_varp`, so an undersized table looks exactly like a
+         * script that never ran.
+         *
+         * The second is the prayer multiplier, which is the rule the C version
+         * did not have. There was no missing call to notice: `player_effective`
+         * was `level + style_bonus + 8` and simply had no term for it, so every
+         * Attack, Strength and Defence prayer in the game was inert and nothing
+         * said so. Asserting that Ultimate Strength MOVES the max hit is the
+         * check that could not have passed before the port.
+         */
+        int strength_before;
+        int strength_after;
+        int ultimate = -1;
+        int prayer_count = mock230_content_prayer_count();
+
+        player->stat_level[MOCK230_STAT_STRENGTH] = 60;
+        player->stat_boosted[MOCK230_STAT_STRENGTH] = 60;
+        player->stat_level[MOCK230_STAT_PRAYER] = 60;
+        player->stat_boosted[MOCK230_STAT_PRAYER] = 60;
+        mock230_prayer_clear(&srv);
+
+        mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+        strength_before = player->varps[mock230_world_varp("com_maxhit")];
+        SELFTEST_CHECK(strength_before > 0,
+                       "the block should be populated, com_maxhit was %d",
+                       strength_before);
+        SELFTEST_CHECK(player->varps[mock230_world_varp("com_crushattack")] > 0,
+                       "and carry an attack roll for the unarmed crush type");
+
+        /* Ultimate Strength: +15 % to the RAW strength level, before the +8 and
+         * the style bonus. Found by name rather than by index — the index is a
+         * position in prayers.prayer and moves when a prayer is inserted. */
+        for( int i = 0; i < prayer_count; i++ )
+        {
+            const struct Mock230PrayerDef* def = mock230_content_prayer(i);
+
+            if( def && def->symbol && strcmp(def->symbol, "prayer_ultimate_strength") == 0 )
+                ultimate = i;
+        }
+        SELFTEST_CHECK(ultimate >= 0, "prayers.prayer should name ultimate_strength");
+        if( ultimate >= 0 )
+        {
+            mock230_prayer_click(&srv, ultimate);
+            SELFTEST_CHECK(mock230_prayer_active(&srv, ultimate),
+                           "a level 60 prayer stat can switch Ultimate Strength on");
+            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+            strength_after = player->varps[mock230_world_varp("com_maxhit")];
+            SELFTEST_CHECK(strength_after > strength_before,
+                           "Ultimate Strength should raise the max hit: %d -> %d",
+                           strength_before, strength_after);
+            mock230_prayer_clear(&srv);
+        }
+
+        /* Server varps are server state: the client has no varp 5705, so none
+         * of these may be queued for transmission. */
+        {
+            const struct Mock230VarpDef* def =
+                mock230_content_varp(mock230_world_varp("com_maxhit"));
+
+            SELFTEST_CHECK(def && !def->transmit,
+                           "com_maxhit must be declared and must not transmit");
+        }
     }
 
     fprintf(stderr, "mock230 selftest: experience and levels\n");
@@ -5223,6 +5431,26 @@ mock230_world_selftest(void)
                                                 2 /* north-east */) )
                         clear = 0;
                 }
+                /*
+                 * The seven-tile north leg the interpolation check walks, from
+                 * where the diagonal leaves the player: (start+3, start+3).
+                 *
+                 * This used to go unchecked, and the route to it genuinely
+                 * failed — the straight-line fallback in `steps_walk_to` then
+                 * filled the queue by walking through whatever was in the way,
+                 * so the assertion passed on the strength of the bug it should
+                 * have caught. With the fallback gone an unreachable leg is an
+                 * empty queue, which is correct and which made this test fail
+                 * honestly for the first time.
+                 */
+                if( !mock230_scene_contains(candidate_x + 3, candidate_z + 10) )
+                    continue;
+                for( int step = 0; step < 7; step++ )
+                {
+                    if( !mock230_scene_can_step(0, candidate_x + 3, candidate_z + 3 + step,
+                                                1 /* north */) )
+                        clear = 0;
+                }
                 if( clear )
                 {
                     start_x = candidate_x;
@@ -5290,42 +5518,42 @@ mock230_world_selftest(void)
 
         /* The level gate reads the base level, so a level-1 character is
          * refused Protect from Melee no matter how many points they have. */
-        mock230_prayer_toggle(&srv, protect_melee);
-        SELFTEST_CHECK(player->prayer_active == 0, "a level-1 character cannot protect");
+        mock230_prayer_click(&srv, protect_melee);
+        SELFTEST_CHECK(!mock230_prayer_active(&srv, protect_melee),
+                       "a level-1 character cannot protect");
 
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-        mock230_prayer_toggle(&srv, protect_melee);
-        SELFTEST_CHECK(mock230_prayer_protecting(player, overhead_melee),
+        mock230_prayer_click(&srv, protect_melee);
+        SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "protect from melee is up");
-        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) == (1 << overhead_melee),
+        SELFTEST_CHECK(player->headicons == (1 << overhead_melee),
                        "and is the only overhead icon");
         SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
                        "turning a prayer on re-sends the appearance");
 
         /* Same group: the second defence prayer replaces the first rather than
          * stacking with it. */
-        mock230_prayer_toggle(&srv, rock_skin);
-        mock230_prayer_toggle(&srv, steel_skin);
-        SELFTEST_CHECK((player->prayer_active & (1u << rock_skin)) == 0,
+        mock230_prayer_click(&srv, rock_skin);
+        mock230_prayer_click(&srv, steel_skin);
+        SELFTEST_CHECK(!mock230_prayer_active(&srv, rock_skin),
                        "steel skin replaces rock skin");
-        SELFTEST_CHECK((player->prayer_active & (1u << steel_skin)) != 0, "steel skin is up");
-        SELFTEST_CHECK(mock230_prayer_protecting(player, overhead_melee),
+        SELFTEST_CHECK(mock230_prayer_active(&srv, steel_skin), "steel skin is up");
+        SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "and left the overhead alone — a different group");
 
         /* Drain: steel skin (12) + protect from melee (12) is 24 a tick against
          * a resistance of 60, so a point goes every third tick. */
         mock230_prayer_clear(&srv);
-        mock230_prayer_toggle(&srv, protect_melee);
+        mock230_prayer_click(&srv, protect_melee);
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-        player->prayer_drain_acc = 0;
-        mock230_prayer_tick(&srv);
+        mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99,
                        "12 units is not yet a point");
-        mock230_prayer_tick(&srv);
+        mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99, "nor is 24");
         for( int i = 0; i < 3; i++ )
-            mock230_prayer_tick(&srv);
+            mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 98,
                        "60 units is one prayer point, got %d",
                        player->stat_boosted[MOCK230_STAT_PRAYER]);
@@ -5333,9 +5561,10 @@ mock230_world_selftest(void)
         /* Running out drops everything, including the overhead. */
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
         for( int i = 0; i < 10; i++ )
-            mock230_prayer_tick(&srv);
-        SELFTEST_CHECK(player->prayer_active == 0, "running out clears every prayer");
-        SELFTEST_CHECK(mock230_prayer_headicon_mask(player) == 0, "and the overhead icon");
+            mock230_scripts_process_timers(&srv);
+        SELFTEST_CHECK(!mock230_prayer_active(&srv, protect_melee),
+                       "running out clears every prayer");
+        SELFTEST_CHECK(player->headicons == 0, "and the overhead icon");
 
         player->stat_level[MOCK230_STAT_PRAYER] = 1;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
@@ -5364,8 +5593,12 @@ mock230_world_selftest(void)
         {
             int spent = energy_before - player->run_energy;
             int weight_kg = weight / 1000 > 64 ? 64 : weight / 1000;
-            int expect = 2 * (67 + (67 * weight_kg) / 64);
-            SELFTEST_CHECK(spent == expect, "two running tiles cost %d, got %d", expect, spent);
+            /* Once per tick, NOT once per tile. Covering two tiles is the base
+             * cost, so there is no `2 *` here — the reference charges the loss
+             * in the else-branch of `stepsTaken < 2` (Player.ts:705-713). This
+             * assertion previously encoded the doubled form. */
+            int expect = 67 + (67 * weight_kg) / 64;
+            SELFTEST_CHECK(spent == expect, "a running tick costs %d, got %d", expect, spent);
         }
 
         /* Standing still refills, and never past full. */
@@ -5610,15 +5843,20 @@ mock230_world_selftest(void)
         }
         SELFTEST_CHECK(moved > 0, "at least one npc roamed over 200 ticks");
         {
-            /* Hans is `moverestrict=nomove` in the content tree, which is what
-             * a zero wander radius has to come out as. Found by type rather
-             * than by slot: slot order follows the map files now. */
-            int hans = selftest_find_npc(&srv, 3105);
+            /* Bob (10619) is `moverestrict=nomove` in the content tree, which
+             * is what a zero wander radius has to come out as. Found by type
+             * rather than by slot: slot order follows the map files now.
+             *
+             * This used to assert on Hans (3105). Hans *patrols* the castle
+             * grounds — LostCity gives him `moverestrict=outdoors` — so pinning
+             * him here was asserting a content bug rather than an engine rule.
+             * Bob stands behind an axe counter and genuinely does not move. */
+            int bob = selftest_find_npc(&srv, 10619);
 
-            SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
-            if( hans >= 0 )
-                SELFTEST_CHECK(srv.npcs[hans].wander_radius == 0 &&
-                                   srv.npcs[hans].x == srv.npcs[hans].spawn_x,
+            SELFTEST_CHECK(bob >= 0, "the roster should include Bob");
+            if( bob >= 0 )
+                SELFTEST_CHECK(srv.npcs[bob].wander_radius == 0 &&
+                                   srv.npcs[bob].x == srv.npcs[bob].spawn_x,
                                "a nomove npc never moves");
         }
     }

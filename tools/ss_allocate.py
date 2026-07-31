@@ -55,12 +55,59 @@ import sys
 
 MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-edit ---'
 
-# The namespaces whose ids are the server's to choose. `category` is deliberately
-# absent: an obj's category is a *cache* field (config opcode 94), so those ids
-# are read off the cache and cannot be allocated. See pack/category.pack.
-SERVER_NAMESPACES = (
+# The namespaces whose ids are the server's to choose, when the tree says nothing.
+# `category` is deliberately absent: an obj's category is a *cache* field (config
+# opcode 94), so those ids are read off the cache and cannot be allocated. See
+# pack/category.pack.
+#
+# This is a **default**, not the answer — `server_namespaces()` below unions it
+# with whatever `content.ini` declares. Two tables that had to agree by hand is
+# the drift the register exists to remove, and this one had already drifted:
+# `param` sat in this tuple while the register said `ids = cache`, so the
+# allocator was allocating params the compiler then refused to resolve. The
+# conclusion drawn at the time was "content cannot own this rule", which is
+# exactly backwards — see docs/CONTENT_ARCHITECTURE.md §8.2(c).
+DEFAULT_SERVER_NAMESPACES = (
     'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv',
 )
+
+# Kept for readers that import the old name.
+SERVER_NAMESPACES = DEFAULT_SERVER_NAMESPACES
+
+
+def server_namespaces(tree):
+    """Every namespace this tool should sweep: the defaults, plus the register's.
+
+    A union and not a replacement, because `content.ini` *overlays* the built-in
+    defaults rather than restating them (see its own header): `enum`, `struct`,
+    `dbtable`, `dbrow`, `mesanim` and `inv` appear nowhere in it and still have
+    server-owned ids. Deriving the list from the file alone would silently stop
+    allocating for five namespaces.
+
+    What the union adds is the other direction: a namespace the tree *promotes*
+    to `ids = server` is swept without anyone remembering to edit this file.
+    `varp` is the case that motivated it — the register was changed so content
+    could declare the `%com_*` combat stat block the reference computes in
+    `[proc,player_combat_stat]`, and until this the promotion bought nothing
+    because no tool would hand those varps an id.
+    """
+    found = set(DEFAULT_SERVER_NAMESPACES)
+    path = os.path.join(tree, 'content.ini')
+    if not os.path.exists(path):
+        return tuple(sorted(found))
+    section = None
+    with open(path, encoding='utf-8', errors='replace') as handle:
+        for line in handle:
+            line = re.sub(r'[;#].*$', '', line).strip()
+            m = re.match(r'\[namespace:([A-Za-z0-9_]+)\]$', line)
+            if m:
+                section = m.group(1)
+                continue
+            if section and '=' in line:
+                key, value = (p.strip() for p in line.split('=', 1))
+                if key == 'ids':
+                    (found.add if value == 'server' else found.discard)(section)
+    return tuple(sorted(found))
 
 
 # Config records are files of a config archive, so their index is a member index
@@ -275,7 +322,7 @@ def main():
               file=sys.stderr)
         return 2
 
-    namespaces = args.namespace or SERVER_NAMESPACES
+    namespaces = args.namespace or server_namespaces(args.tree)
     dirty = False
     # A name that cannot be allocated is a failure in its own right, not a
     # pending change — so it fails the run with or without --check.

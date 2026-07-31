@@ -1591,3 +1591,115 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
     PT_INIT(&self->pt);
     return &self->task;
 }
+
+/*
+ * Misc-transmit dispatch — the run-energy and run-weight orbs.
+ *
+ * Structurally identical to the sub-change walker above, reading
+ * `runtime_hooks.on_misc_transmit`, and it is a separate task for the same
+ * reason that one is: the snapshot has to be taken up front, because running a
+ * hook can mutate the tree underneath the walk (a hook that rebuilds its own
+ * subtree would otherwise invalidate the iteration mid-pass). The
+ * `UITree_FindByComponentId` re-check inside the loop is what covers a
+ * component reclaimed by an *earlier* hook in the same pass.
+ *
+ * Fired at most once per client tick from App_Tick, gated on a serial, because
+ * the walk touches every component in the tree.
+ */
+struct Task_CS2MiscTransmitDispatch
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+
+    struct RS_CS2Host* host;
+    struct Task_CS2SubChangeHook hooks[TASK_SUBCHANGE_HOOK_MAX];
+    int hook_count;
+    int hook_index;
+};
+
+static int
+Task_CS2MiscTransmitDispatch_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IO* io)
+{
+    struct Task_CS2MiscTransmitDispatch* self = (struct Task_CS2MiscTransmitDispatch*)task;
+
+    PT_BEGIN(&self->pt);
+
+    assert(self->host);
+
+    for( self->hook_index = 0; self->hook_index < self->hook_count; self->hook_index++ )
+    {
+        struct Task_CS2SubChangeHook const* hook = &self->hooks[self->hook_index];
+        char const* strp[UITREE_HOOK_STR_ARG_MAX];
+
+        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+            continue;
+        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+            strp[si] = hook->strv[si];
+        TASK_AWAITSELF(CreateTask_CS2RunMixed(
+            self->host,
+            hook->script_id,
+            hook->component_id,
+            hook->component_id,
+            hook->argc > 0 ? hook->argv : NULL,
+            hook->argc,
+            hook->str_mask,
+            strp,
+            hook->str_argc));
+    }
+
+    PT_END(&self->pt);
+    return 0;
+}
+
+static void
+Task_CS2MiscTransmitDispatch_Free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable Task_CS2MiscTransmitDispatch_VTable = {
+    .run = Task_CS2MiscTransmitDispatch_Run,
+    .free = Task_CS2MiscTransmitDispatch_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
+{
+    struct Task_CS2MiscTransmitDispatch* self;
+
+    assert(host);
+    self = calloc(1, sizeof(*self));
+    assert(self);
+    self->task.vtable = &Task_CS2MiscTransmitDispatch_VTable;
+    strcpy(self->task.name, "CS2MiscTransmitDispatch");
+    self->host = host;
+
+    if( host->tree )
+    {
+        for( uint32_t i = 0;
+             i < host->tree->component_count && self->hook_count < TASK_SUBCHANGE_HOOK_MAX;
+             i++ )
+        {
+            struct UITreeComponent const* node = &host->tree->components[i];
+            struct UITreeRuntimeScriptHook const* slot = &node->runtime_hooks.on_misc_transmit;
+            struct Task_CS2SubChangeHook* dst;
+
+            if( node->freed || slot->script_id <= 0 )
+                continue;
+            dst = &self->hooks[self->hook_count++];
+            dst->component_id = node->component_id;
+            dst->script_id = slot->script_id;
+            dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
+            if( dst->argc > 0 )
+                memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+            dst->str_mask = slot->str_mask;
+            dst->str_argc = slot->str_argc;
+            memcpy(dst->strv, slot->strv, sizeof(dst->strv));
+        }
+    }
+
+    PT_INIT(&self->pt);
+    return &self->task;
+}

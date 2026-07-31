@@ -132,10 +132,9 @@ mock230_save_player(
             "z = %d\n"
             "level = %d\n"
             "run_energy = %d\n"
-            "run_toggle = %d\n"
-            "prayer_active = %u\n",
+            "run_toggle = %d\n",
             MOCK230_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
-            player->run_energy, player->run_toggle, (unsigned)player->prayer_active);
+            player->run_energy, player->run_toggle);
 
     fprintf(file, "\n[stats]\n; <stat> = <level> <boosted> <xp_tenths>\n");
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
@@ -312,8 +311,10 @@ mock230_load_player(
                 player->run_energy = atoi(value);
             else if( strcmp(key, "run_toggle") == 0 )
                 player->run_toggle = atoi(value);
-            else if( strcmp(key, "prayer_active") == 0 )
-                player->prayer_active = (uint32_t)strtoul(value, NULL, 10);
+            /* `prayer_active` was a saved bitmask until prayer became
+             * content. The varbits carry it now and they ride the saved varps,
+             * so an old save's line is ignored rather than migrated — reading
+             * it would restore prayers the varps already disagree about. */
             /* An unknown key is a save from a newer server. Skipping it is the
              * whole reason this is a text format. */
             break;
