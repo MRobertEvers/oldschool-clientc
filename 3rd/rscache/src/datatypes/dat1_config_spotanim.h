@@ -22,10 +22,24 @@ struct RSCache_Dat1ConfigSpotanim
     int angle;
     int ambient;
     int contrast;
+    /**
+     * Opcode 3 — a bare flag with no payload.
+     *
+     * The decoder did not know this opcode and stopped on it, which desynced the
+     * whole archive: dat1 spotanims are one concatenated stream, so every record
+     * after the first flagged one was lost. It reads as a flag in the reference
+     * (RS2 SpotAnimType `disposeAlpha`), and that reading is what makes all 270
+     * records in cache254 decode and re-encode byte-identically.
+     */
+    bool dispose_alpha;
     /* Six slots, though the opcode ranges above are ten wide — see
      * RSCACHE_SPOTANIM_COLOUR_SLOTS. */
     int recol_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
     int recol_d[RSCACHE_SPOTANIM_COLOUR_SLOTS];
+    /** The opcodes in the order the record carried them; replayed by the encoder.
+     *  dat1 config records are not sorted — see `dat1_config_idk.h`. */
+    int opcodes[64];
+    int opcode_count;
 };
 
 /** Whole "spotanim.dat" table: entries are variable-length and only
@@ -50,5 +64,22 @@ RSCache_Dat1ConfigSpotanimDecodeInplace(
     struct RSCache_Dat1ConfigSpotanim* spotanim,
     char* data,
     int data_size);
+
+/**
+ * Encode one dat1 spotanim record, replaying its decoded opcode order.
+ *
+ * Colour slots 6..9 are *not* reproducible: the decoder consumes their value to
+ * keep the stream aligned but has only six array slots to store it in, so this
+ * writes zero for them. `test_dat1_encode` counts how many records that costs.
+ */
+uint32_t
+RSCache_Dat1ConfigSpotanimEncode(
+    const struct RSCache_Dat1ConfigSpotanim* spotanim,
+    uint8_t* out,
+    uint32_t out_capacity);
+
+/** An upper bound on what `RSCache_Dat1ConfigSpotanimEncode` will write. */
+uint32_t
+RSCache_Dat1ConfigSpotanimEncodeBound(const struct RSCache_Dat1ConfigSpotanim* spotanim);
 
 #endif

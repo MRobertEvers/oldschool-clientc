@@ -18,6 +18,7 @@ init_dat1_spotanim(struct RSCache_Dat1ConfigSpotanim* spotanim)
     spotanim->angle = 0;
     spotanim->ambient = 0;
     spotanim->contrast = 0;
+    spotanim->dispose_alpha = false;
 }
 
 int
@@ -37,10 +38,16 @@ RSCache_Dat1ConfigSpotanimDecodeInplace(
         if( opcode == 0 )
             break;
 
+        if( spotanim->opcode_count <
+            (int)(sizeof(spotanim->opcodes) / sizeof(spotanim->opcodes[0])) )
+            spotanim->opcodes[spotanim->opcode_count++] = opcode;
+
         if( opcode == 1 )
             spotanim->model = g2(&buffer);
         else if( opcode == 2 )
             spotanim->anim = g2(&buffer);
+        else if( opcode == 3 )
+            spotanim->dispose_alpha = true;
         else if( opcode == 4 )
             spotanim->resizeh = g2(&buffer);
         else if( opcode == 5 )
@@ -129,4 +136,77 @@ RSCache_Dat1ConfigSpotanimListFree(struct RSCache_Dat1ConfigSpotanimList* list)
         return;
     free(list->spotanims);
     free(list);
+}
+
+uint32_t
+RSCache_Dat1ConfigSpotanimEncodeBound(const struct RSCache_Dat1ConfigSpotanim* spotanim)
+{
+    if( !spotanim )
+        return 8u;
+    /* Every opcode is a code byte plus at most two payload bytes. */
+    return 8u + (uint32_t)spotanim->opcode_count * 3u;
+}
+
+uint32_t
+RSCache_Dat1ConfigSpotanimEncode(
+    const struct RSCache_Dat1ConfigSpotanim* spotanim,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
+    struct RSCache_Buffer buffer;
+    int i;
+
+    if( !spotanim || !out )
+        return 0;
+    if( out_capacity < RSCache_Dat1ConfigSpotanimEncodeBound(spotanim) )
+        return 0;
+    RSCache_BufferInit(&buffer, out, out_capacity);
+
+    for( i = 0; i < spotanim->opcode_count; i++ )
+    {
+        int opcode = spotanim->opcodes[i];
+
+        p1(&buffer, opcode);
+        if( opcode == 1 )
+            p2(&buffer, spotanim->model);
+        else if( opcode == 2 )
+            p2(&buffer, spotanim->anim);
+        else if( opcode == 3 )
+        {
+            /* A bare flag: the opcode byte is the whole payload. */
+        }
+        else if( opcode == 4 )
+            p2(&buffer, spotanim->resizeh);
+        else if( opcode == 5 )
+            p2(&buffer, spotanim->resizev);
+        else if( opcode == 6 )
+            p2(&buffer, spotanim->angle);
+        else if( opcode == 7 )
+            p1(&buffer, spotanim->ambient);
+        else if( opcode == 8 )
+            p1(&buffer, spotanim->contrast);
+        else if( opcode >= 40 && opcode < 50 )
+        {
+            int slot = opcode - 40;
+
+            /* Slots past the array's width were consumed and discarded by the
+             * decoder, so their value is gone. Zero keeps the stream aligned. */
+            p2(&buffer,
+               slot < RSCACHE_SPOTANIM_COLOUR_SLOTS ? spotanim->recol_s[slot] : 0);
+        }
+        else if( opcode >= 50 && opcode < 60 )
+        {
+            int slot = opcode - 50;
+
+            p2(&buffer,
+               slot < RSCACHE_SPOTANIM_COLOUR_SLOTS ? spotanim->recol_d[slot] : 0);
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    p1(&buffer, 0);
+    return buffer.position;
 }

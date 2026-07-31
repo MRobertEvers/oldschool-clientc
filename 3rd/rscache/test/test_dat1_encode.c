@@ -22,6 +22,7 @@
 #include "dat1disk.h"
 #include "datatypes/dat1_config_idk.h"
 #include "datatypes/dat1_config_obj.h"
+#include "datatypes/dat1_config_spotanim.h"
 #include "filelist.h"
 
 #include <stdio.h>
@@ -233,6 +234,63 @@ run_obj(struct RSCache_FileListDat* jag)
         "every differing obj record is one that repeats an opcode");
 }
 
+/*
+ * spotanim is laid out like idk: `<count:u16>` then the records back to back in
+ * one stream, so the whole archive is the unit of comparison.
+ */
+static void
+run_spotanim(struct RSCache_FileListDat* jag)
+{
+    int dat = RSCache_FileListDatFindFileByName(jag, "spotanim.dat");
+    struct RSCache_Dat1ConfigSpotanimList* list;
+    const uint8_t* src;
+    int size;
+    uint8_t* out;
+    uint32_t cap, written = 2;
+    int exact = 0;
+
+    if( dat < 0 )
+    {
+        printf("dat1-encode: spotanim  no spotanim.dat in this cache\n");
+        return;
+    }
+    src = (const uint8_t*)jag->files[dat];
+    size = jag->file_sizes[dat];
+    list = RSCache_Dat1ConfigSpotanimListNewDecode(jag->files[dat], size);
+    if( !list )
+    {
+        check(0, "the spotanim archive decodes");
+        return;
+    }
+
+    cap = 8u;
+    for( int i = 0; i < list->spotanims_count; i++ )
+        cap += RSCache_Dat1ConfigSpotanimEncodeBound(&list->spotanims[i]);
+    out = (uint8_t*)malloc(cap);
+    if( !out )
+        return;
+
+    out[0] = (uint8_t)((list->spotanims_count >> 8) & 0xFF);
+    out[1] = (uint8_t)(list->spotanims_count & 0xFF);
+    for( int i = 0; i < list->spotanims_count; i++ )
+    {
+        uint32_t one = RSCache_Dat1ConfigSpotanimEncode(
+            &list->spotanims[i], out + written, cap - written);
+
+        if( one == 0 )
+            break;
+        written += one;
+    }
+    if( written == (uint32_t)size && memcmp(out, src, (size_t)size) == 0 )
+        exact = 1;
+
+    printf("dat1-encode: spotanim  %d records, %u bytes written of %d source%s\n",
+           list->spotanims_count, written, size, exact ? " — byte identical" : "");
+    check(list->spotanims_count > 0, "the cache has spotanim records to check");
+    check(exact, "the spotanim archive re-encodes to its own bytes");
+    free(out);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -266,6 +324,7 @@ main(int argc, char** argv)
 
     run_idk(jag);
     run_obj(jag);
+    run_spotanim(jag);
 
     RSCache_FileListDatFree(jag);
     RSCache_Dat1DiskArchiveFree(archive);
