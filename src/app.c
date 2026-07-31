@@ -4918,6 +4918,22 @@ app_ui_hotkeys(
 {
     memset(app->hotkey_consumed, 0, sizeof(app->hotkey_consumed));
 
+    /* Escape, ahead of every gate below: it must fire with the chat line
+     * focused (the line is focused by default) and with no revconfig bindings
+     * loaded (cache chrome has none). Releases chat focus and asks the server
+     * to close whatever modal is up — the same CLOSE_MODAL the gameframe X's
+     * clientscript (29, if_close) raises, so what closes stays the server's
+     * decision and an idle Escape is a no-op there. Read off osrs_key_pressed
+     * rather than the key_events queue so CS2 KEYPRESSED-style injection (and
+     * TORIRS_SIM_HOTKEY) reach it too; a real press feeds both, and the two
+     * writes to the same request flag collapse into one packet. */
+    if( input->osrs_key_pressed[TORIRS_OSRSKEY_ESCAPE] )
+    {
+        app->chat_input_active = 0;
+        app->host.close_modal_requested = true;
+        app->need_redraw = 1;
+    }
+
     if( !app->tree || app->tree->hotkey_count <= 0 )
         return;
     /* Typing wins over every binding — otherwise "f" in a chat line, or a digit

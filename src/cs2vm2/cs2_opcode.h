@@ -237,6 +237,14 @@
  * notes: array[operand][index] = value
  */
 #define CS2_OP_POP_ARRAY_INT 46
+/* ARRAY_SORT_ALL — Sort two paired arrays by the first.
+ * int stack in:   -
+ * str stack in:   primary handle, secondary handle (secondary on top)
+ * notes: sorts primary ascending (strcmp for string arrays, numeric
+ * otherwise) and applies the same permutation to secondary. The questlist
+ * (script 2633) sorts names carrying row-ids this way. Arrays travel as
+ * handles on the string stack at this revision. */
+#define CS2_OP_ARRAY_SORT_ALL 8000
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
 /* PUSH_VARC_STRING — Read client string varc.

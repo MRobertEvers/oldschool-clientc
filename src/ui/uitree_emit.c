@@ -1215,6 +1215,13 @@ emit_obj_stack_count(
     if( icon->kind != UITREE_EMIT_CC_OBJ &&
         !(icon->kind == UITREE_EMIT_SPRITE && c->item_scene_id > 0) )
         return;
+    /* Two "never a number" signals: the _NONUM opcode variant (mode 2), and a
+     * negative count on any variant — cc_setobject($obj, -1) is how the spell
+     * tooltip asks for a bare rune icon (the script draws its own have/need
+     * text beside it). Reference: the item-sprite cache key forces the no-num
+     * mode whenever qty == -1. */
+    if( c->item_num_mode == 2 || c->item_count < 0 )
+        return;
 
     {
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_INV_COUNT_FONT };
@@ -1232,7 +1239,9 @@ emit_obj_stack_count(
         };
         UITree_Host(host, &req);
     }
-    if( !stackable && obj_count == 1 )
+    /* _ALWAYS_NUM (mode 1) numbers even a lone unstackable; the plain opcode
+     * numbers stacks only. */
+    if( c->item_num_mode != 1 && !stackable && obj_count == 1 )
         return;
 
     memset(&count_desc, 0, sizeof(count_desc));

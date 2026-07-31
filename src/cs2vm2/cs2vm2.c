@@ -101,44 +101,71 @@ CS2VM2_RestoreYieldCheckpoint(
     }
 }
 
+/* An array HANDLE is a raw pointer into vm->arrays carried in a string local
+ * (and across the string stack / gosub args, which copy the char* verbatim).
+ * Resolution validates rather than trusts: anything that is not a live,
+ * aligned pool pointer — a real string, NULL, a stale local — resolves to no
+ * array, and the op degrades to the same read-0/drop-write the old
+ * out-of-range path had. */
+static struct CS2VM2_Array*
+cs2vm2_array_from_handle(struct CS2VM2_Thread* vm, char* handle)
+{
+    ptrdiff_t off = handle - (char*)vm->arrays;
+    if( !handle || off < 0 || off >= (ptrdiff_t)sizeof(vm->arrays) )
+        return NULL;
+    if( off % (ptrdiff_t)sizeof(struct CS2VM2_Array) != 0 )
+        return NULL;
+    struct CS2VM2_Array* array = (struct CS2VM2_Array*)handle;
+    return array->defined ? array : NULL;
+}
+
+/* PUSH/POP_ARRAY_INT's operand: the string-local slot of the CURRENT frame
+ * holding the handle. */
+static struct CS2VM2_Array*
+cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slot)
+{
+    if( slot < 0 || slot >= CS2VM_MAX_LOCALS )
+        return NULL;
+    return cs2vm2_array_from_handle(vm, frame->str_locals[slot]);
+}
+
 /* Opt-in tracked array store: records the prior value so a yield restore can undo
  * it (see the undo_log contract in CS2VM2_Thread). Used by array-writing opcodes
  * whose replay-on-yield would otherwise double-apply. */
 static int
-cs2vm2_array_track(struct CS2VM2_Thread* vm, int slot, int index)
+cs2vm2_array_track(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index)
 {
-    if( slot < 0 || slot >= CS2VM2_MAX_ARRAYS || !vm->arrays[slot].defined || index < 0 ||
-        index >= vm->arrays[slot].size )
+    if( !array || !array->defined || index < 0 || index >= array->size )
         return 0;
     if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
     {
         struct CS2VM2_ArrayUndo* undo = &vm->undo_log[vm->undo_log_len++];
-        undo->slot = (short)slot;
+        undo->slot = (short)(array - vm->arrays);
         undo->index = index;
-        undo->old_value = vm->arrays[slot].cells.ints[index];
-        undo->old_string = vm->arrays[slot].cells.strings[index];
+        undo->old_value = array->cells.ints[index];
+        undo->old_string = array->cells.strings[index];
     }
     return 1;
 }
 
 void
-CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, int slot, int index, int value)
+CS2VM2_ArrayStore(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index, int value)
 {
     assert(vm);
-    if( !cs2vm2_array_track(vm, slot, index) )
+    if( !cs2vm2_array_track(vm, array, index) )
         return;
-    vm->arrays[slot].cells.ints[index] = value;
+    array->cells.ints[index] = value;
 }
 
 /* The string twin. The pointer is pool-owned (CS2VM2_StrDup); storing it here
  * transfers no ownership and the overwritten cell is never freed. */
 void
-CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* vm, int slot, int index, char* value)
+CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index, char* value)
 {
     assert(vm);
-    if( !cs2vm2_array_track(vm, slot, index) )
+    if( !cs2vm2_array_track(vm, array, index) )
         return;
-    vm->arrays[slot].cells.strings[index] = value;
+    array->cells.strings[index] = value;
 }
 
 void
@@ -543,6 +570,13 @@ CS2VM2_PushStrFrameLocal(
 {
     assert(vm);
     assert(frame);
+
+    /* An array HANDLE rides string locals and the string stack as a raw
+     * pointer — strdup'ing it would copy the struct's leading bytes as "text"
+     * and the callee's array ops would resolve nothing (the spellbook sort
+     * received exactly that and silently no-opped). Pass it through. */
+    if( cs2vm2_array_from_handle(vm, frame->str_locals[idx]) )
+        return CS2VM2_PushStr(vm, frame->str_locals[idx]);
 
     /* Push a copy, not the local's pointer: the in-place string opcodes
      * (UPPERCASE / LOWERCASE) rewrite the buffer their operand points at, which
@@ -2173,7 +2207,8 @@ int
 CS2VM2_Op_CC_SetObject(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    int operand)
+    int operand,
+    int num_mode)
 {
     assert(vm);
     assert(frame);
@@ -2191,6 +2226,7 @@ CS2VM2_Op_CC_SetObject(
     request.u.cc_set_object.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_object.obj_id = obj_id;
     request.u.cc_set_object.count = count;
+    request.u.cc_set_object.num_mode = num_mode;
 
     int result = vm->vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -2203,7 +2239,8 @@ int
 CS2VM2_Op_IF_SetObject(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    int operand)
+    int operand,
+    int num_mode)
 {
     assert(vm);
     assert(frame);
@@ -2224,6 +2261,7 @@ CS2VM2_Op_IF_SetObject(
     request.u.if_set_object.component_id = component_id;
     request.u.if_set_object.obj_id = obj_id;
     request.u.if_set_object.count = count;
+    request.u.if_set_object.num_mode = num_mode;
 
     int result = vm->vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -5480,21 +5518,38 @@ CS2VM2_Op_DefineArray(
     if( CS2VM2_PopInt(vm, &size) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int const slot = CS2VM2_ArrayDefineSlot(operand);
-    if( slot < 0 || slot >= CS2VM2_MAX_ARRAYS )
+    /* High half of the operand is the STRING LOCAL that receives the array's
+     * handle — not a global array id. Allocate from the pool and park the
+     * pointer in that local; every later PUSH/POP_ARRAY_INT resolves its own
+     * frame's local, which is what lets a proc receive an array as an
+     * ordinary string argument (the spellbook sort does). */
+    int const str_slot = CS2VM2_ArrayDefineSlot(operand);
+    if( str_slot < 0 || str_slot >= CS2VM_MAX_LOCALS )
         return CS2VM_EXECNO_OK;
+
+    if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
+    {
+        fprintf(
+            stderr,
+            "CS2VM2: array pool exhausted (%d) in script %d\n",
+            CS2VM2_MAX_ARRAYS,
+            frame->script ? frame->script->script_id : -1);
+        vm->array_alloc = CS2VM2_MAX_ARRAYS - 1; /* fail soft: reuse the last */
+    }
+    struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
 
     if( size < 0 )
         size = 0;
     if( size > CS2VM2_ARRAY_CAPACITY )
         size = CS2VM2_ARRAY_CAPACITY;
 
-    vm->arrays[slot].defined = 1;
-    vm->arrays[slot].size = size;
+    array->defined = 1;
+    array->size = size;
     /* Low half of the operand is the RuneScript element-type char; 's' is the
      * only one that lives on the string stack. */
-    vm->arrays[slot].is_string = ((operand & 0xffff) == 's');
-    memset(&vm->arrays[slot].cells, 0, sizeof(vm->arrays[slot].cells));
+    array->is_string = ((operand & 0xffff) == 's');
+    memset(&array->cells, 0, sizeof(array->cells));
+    frame->str_locals[str_slot] = (char*)array;
     return CS2VM_EXECNO_OK;
 }
 
@@ -5512,18 +5567,17 @@ CS2VM2_Op_PushArrayInt(
     if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int const in_range = operand >= 0 && operand < CS2VM2_MAX_ARRAYS &&
-                         vm->arrays[operand].defined && index >= 0 &&
-                         index < vm->arrays[operand].size;
+    struct CS2VM2_Array* array = cs2vm2_array_local(vm, frame, operand);
+    int const in_range = array && index >= 0 && index < array->size;
 
     /* A string array reads onto the string stack — same opcode, other stack. */
-    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].is_string )
+    if( array && array->is_string )
     {
-        char* value = in_range ? vm->arrays[operand].cells.strings[index] : NULL;
+        char* value = in_range ? array->cells.strings[index] : NULL;
         return CS2VM2_PushStr(vm, value ? value : CS2VM2_StrEmpty(vm));
     }
 
-    return CS2VM2_PushInt(vm, in_range ? vm->arrays[operand].cells.ints[index] : 0);
+    return CS2VM2_PushInt(vm, in_range ? array->cells.ints[index] : 0);
 }
 
 int
@@ -5544,16 +5598,18 @@ CS2VM2_Op_PopArrayInt(
     int index;
     int value;
 
+    struct CS2VM2_Array* array = cs2vm2_array_local(vm, frame, operand);
+
     /* A string array's value comes off the STRING stack; popping an int for it
      * underflows the int stack and desyncs everything after. */
-    if( operand >= 0 && operand < CS2VM2_MAX_ARRAYS && vm->arrays[operand].is_string )
+    if( array && array->is_string )
     {
         char* text = NULL;
         if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        CS2VM2_ArrayStoreStr(vm, operand, index, text);
+        CS2VM2_ArrayStoreStr(vm, array, index, text);
         return CS2VM_EXECNO_OK;
     }
 
@@ -5564,7 +5620,94 @@ CS2VM2_Op_PopArrayInt(
 
     /* Tracked store: records the prior cell value in the per-op undo log so a
      * yield inside this op cannot leave the write half-applied on replay. */
-    CS2VM2_ArrayStore(vm, operand, index, value);
+    CS2VM2_ArrayStore(vm, array, index, value);
+
+    return CS2VM_EXECNO_OK;
+}
+
+/*
+ * Opcode 8000 — sort two paired arrays by the first.
+ *
+ * Pops two array HANDLES off the string stack: secondary on top, primary
+ * beneath (the questlist pushes names then ids; xrsps VarOps 8000 is
+ * `primary.sortAllWith(secondary)`). Sorts primary ascending — strcmp for a
+ * string array, numeric otherwise — and applies the same permutation to
+ * secondary so the pairing survives. The older deob signature recorded in the
+ * decompiler's tables (one int, numbered-global arrays) predates handles and
+ * is wrong for this revision. No host call can occur mid-op, so the writes
+ * need no undo tracking. Insertion sort: the biggest caller is the 213-row
+ * questlist.
+ */
+int
+CS2VM2_Op_ArraySortAll(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    char* secondary_handle = NULL;
+    char* primary_handle = NULL;
+    if( CS2VM2_PopStr(vm, &secondary_handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopStr(vm, &primary_handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM2_Array* primary = cs2vm2_array_from_handle(vm, primary_handle);
+    struct CS2VM2_Array* secondary = cs2vm2_array_from_handle(vm, secondary_handle);
+    if( !primary )
+        return CS2VM_EXECNO_OK;
+    int const paired = secondary && secondary->size >= primary->size;
+
+    for( int i = 1; i < primary->size; i++ )
+    {
+        for( int j = i; j > 0; j-- )
+        {
+            int before;
+            if( primary->is_string )
+            {
+                char const* a = primary->cells.strings[j - 1];
+                char const* b = primary->cells.strings[j];
+                before = strcmp(a ? a : "", b ? b : "") <= 0;
+            }
+            else
+                before = primary->cells.ints[j - 1] <= primary->cells.ints[j];
+            if( before )
+                break;
+            /* cells is a union — swap through the ACTIVE member only, a
+             * char*-wide swap on an int array would clobber two int cells. */
+            if( primary->is_string )
+            {
+                char* tmp = primary->cells.strings[j - 1];
+                primary->cells.strings[j - 1] = primary->cells.strings[j];
+                primary->cells.strings[j] = tmp;
+            }
+            else
+            {
+                int tmp = primary->cells.ints[j - 1];
+                primary->cells.ints[j - 1] = primary->cells.ints[j];
+                primary->cells.ints[j] = tmp;
+            }
+            if( paired )
+            {
+                if( secondary->is_string )
+                {
+                    char* tmp = secondary->cells.strings[j - 1];
+                    secondary->cells.strings[j - 1] = secondary->cells.strings[j];
+                    secondary->cells.strings[j] = tmp;
+                }
+                else
+                {
+                    int tmp = secondary->cells.ints[j - 1];
+                    secondary->cells.ints[j - 1] = secondary->cells.ints[j];
+                    secondary->cells.ints[j] = tmp;
+                }
+            }
+        }
+    }
 
     return CS2VM_EXECNO_OK;
 }
@@ -7675,10 +7818,15 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetDragDeadZone(vm, frame, operand);
     case CS2_OP_CC_SETDRAGDEADTIME:
         return CS2VM2_Op_CC_SetDragDeadTime(vm, frame, operand);
+    /* Three opcodes, one handler, and the difference is only the count-text
+     * mode the widget keeps: 0 = draw when stackable (plain SETOBJECT),
+     * 1 = always, 2 = never (NONUM — the spell tooltip's rune icons). */
     case CS2_OP_CC_SETOBJECT:
+        return CS2VM2_Op_CC_SetObject(vm, frame, operand, 0);
     case CS2_OP_CC_SETOBJECT_ALWAYS_NUM:
+        return CS2VM2_Op_CC_SetObject(vm, frame, operand, 1);
     case CS2_OP_CC_SETOBJECT_NONUM:
-        return CS2VM2_Op_CC_SetObject(vm, frame, operand);
+        return CS2VM2_Op_CC_SetObject(vm, frame, operand, 2);
     case CS2_OP_CC_SETOP:
         return CS2VM2_Op_CC_SetOp(vm, frame, operand);
     case CS2_OP_CC_SETOPBASE:
@@ -7823,9 +7971,11 @@ CS2VM2_RunOp(
         return CS2VM_EXECNO_OK;
     }
     case CS2_OP_IF_SETOBJECT:
+        return CS2VM2_Op_IF_SetObject(vm, frame, operand, 0);
     case CS2_OP_IF_SETOBJECT_ALWAYS_NUM:
+        return CS2VM2_Op_IF_SetObject(vm, frame, operand, 1);
     case CS2_OP_IF_SETOBJECT_NONUM:
-        return CS2VM2_Op_IF_SetObject(vm, frame, operand);
+        return CS2VM2_Op_IF_SetObject(vm, frame, operand, 2);
     case CS2_OP_BRANCH_LESS_THAN:
         return CS2VM2_Op_BranchLessThan(vm, frame, operand);
     case CS2_OP_BRANCH_GREATER_THAN:
@@ -8051,6 +8201,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_PushArrayInt(vm, frame, operand);
     case CS2_OP_POP_ARRAY_INT:
         return CS2VM2_Op_PopArrayInt(vm, frame, operand);
+    case CS2_OP_ARRAY_SORT_ALL:
+        return CS2VM2_Op_ArraySortAll(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
     /* CC_SETTARGETVERB has no model yet, but it takes a string argument. An
@@ -9256,6 +9408,7 @@ cs2vm2_thread_init(
         thread->arrays[i].size = 0;
         thread->arrays[i].is_string = 0;
     }
+    thread->array_alloc = 0;
 
     CS2VM2_StrPool_Init(&thread->str_pool);
 

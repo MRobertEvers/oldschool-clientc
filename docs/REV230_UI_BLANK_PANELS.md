@@ -1,11 +1,11 @@
-# Eight blank panels, and what each of them actually was
+# Nine broken panels, and what each of them actually was
 
 > **What this is.** A rev-230 gameframe was up and drawing, and most of it was
 > wrong: the minimap orbs were black discs, five of the seven sidebar tabs were
 > empty or nearly so, the world map orb did nothing, and the only interface in
 > the game that could be closed was the bank. This is the diagnosis of each,
 > written down because the *symptoms were identical and the causes were not* —
-> and because six of the seven turned out to be client bugs in a subsystem whose
+> and because all but one turned out to be client bugs in a subsystem whose
 > failures all look like a missing packet.
 >
 > Read `docs/UI_ERA_PORTING_GUIDE.md` for the model this sits inside (what moved
@@ -21,10 +21,10 @@ client runs**. That changes what a blank panel means: it is no longer "the serve
 forgot to paint it", it is "the program did not finish". And a CS2 program that
 does not finish almost never says so at the point of failure — it says so four
 opcodes later, at something innocent, because the real damage was a *shifted
-stack*. Three of the eight bugs below are the same bug wearing different clothes:
+stack*. Three of the nine bugs below are the same bug wearing different clothes:
 **the client silently dropped part of a script's data and let the script carry
-on.** One was a genuine server bug, one was a rendering rule, one was a missing
-draw, and one is still open.
+on.** Two were genuine server bugs, one was a rendering rule, one was a missing
+draw, one was a measurement the renderer disagreed with, and one is still open.
 
 ---
 
@@ -57,7 +57,7 @@ And its corollary, which cost the most time here:
 
 ---
 
-## 2. The eight
+## 2. The nine
 
 | # | symptom | kind | cause |
 |---|---|---|---|
@@ -544,7 +544,8 @@ first, and `def_string` without the operand). The raw ops say it exactly.
 ## 4. State after this
 
 Working: all seven sidebar tabs, the four minimap orbs, item stack counts, the
-world map opening and closing, and `CLOSE_MODAL` on any interface.
+journal summary's cell layout, the world map opening and closing, and
+`CLOSE_MODAL` on any interface.
 
 Open, in the order they block things:
 

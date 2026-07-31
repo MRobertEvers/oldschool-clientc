@@ -2044,7 +2044,8 @@ UITree_ApplyObject(
     int obj_id,
     int obj_count,
     int scene_id,
-    int atlas_index)
+    int atlas_index,
+    int num_mode)
 {
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
@@ -2099,9 +2100,14 @@ UITree_ApplyObject(
     }
 
     c->item_id = obj_id;
-    c->item_count = obj_count > 0 ? obj_count : 1;
+    /* Keep the raw count: -1 is the scripts' "icon only, never a number"
+     * sentinel (the spell tooltip's rune cells are cc_setobject($rune, -1)).
+     * Clamping it to 1 here grew a yellow "1" on every stackable icon-only
+     * cell. Readers that need a drawable count clamp at their own use site. */
+    c->item_count = obj_count;
     c->item_scene_id = scene_id;
     c->item_atlas_index = atlas_index;
+    c->item_num_mode = (uint8_t)num_mode;
 
     if( c->type == UIELEM_CC_OBJ )
     {

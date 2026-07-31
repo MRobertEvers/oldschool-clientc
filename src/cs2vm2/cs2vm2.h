@@ -310,7 +310,17 @@ struct CS2VM2_Thread
     int children_iter_count;
     int children_iter_index;
 
+    /* Array pool. At this revision an array is a first-class object whose
+     * HANDLE lives in a string local: DEFINE_ARRAY's operand names the string
+     * local to store the handle in (high half) and the element type (low
+     * half), and PUSH/POP_ARRAY_INT's operand is that string-local index in
+     * the CURRENT frame — so passing the string local to a gosub passes the
+     * array (the spellbook sort receives its array as a proc argument this
+     * way; a numbered-global model sorted a different, undefined array and
+     * silently no-opped). Handles are raw pointers into this pool; array_alloc
+     * is the bump allocator, reset per top-level run like the string pool. */
     struct CS2VM2_Array arrays[CS2VM2_MAX_ARRAYS];
+    int array_alloc;
 
     /* Backing storage for every string this thread makes — stack strings, frame
      * string locals, and the strings handed to host requests. Released as a unit
@@ -503,12 +513,14 @@ CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* thread);
 /* Tracked array store — writes arrays[slot][index] = value and records the prior
  * value in the per-op undo log so a yield restore undoes it (see undo_log). */
 void
-CS2VM2_ArrayStore(struct CS2VM2_Thread* thread, int slot, int index, int value);
+CS2VM2_ArrayStore(
+    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, int value);
 
 /** The same, for an array declared with string elements. `value` is a pool
  *  pointer (CS2VM2_StrDup); the cell borrows it and never frees. */
 void
-CS2VM2_ArrayStoreStr(struct CS2VM2_Thread* thread, int slot, int index, char* value);
+CS2VM2_ArrayStoreStr(
+    struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, char* value);
 
 struct CS2VM2_Thread*
 CS2VM2_ThreadMain(struct CS2VM2* vm);

@@ -275,6 +275,7 @@ The six, and what each one actually was:
 | orbs are black circles | the "empty" overlay is a zero-height clipping layer; a degenerate clip was treated as *no* clip instead of *clip everything* | `UITree_LayerCullsChildren` |
 | no stack numbers on items | rev 230 has no TYPE_INV grid — items are `cc_create`d widgets, and only the grid path drew counts | `emit_obj_stack_count` |
 | music tab dies | `define_array` carries an element **type**; an `s` array lives on the string stack | `CS2VM2_Array.is_string` |
+| summary cells left-aligned, icons off the panel | `parawidth` measured the bytes of `<col=…>` markup the renderer never draws, so a 1-glyph value measured 104px | `rs_cs2_font_wrap` |
 
 Three of those (hook args, DB stack shape, array types) share one shape worth
 naming: **the client silently dropped part of a script's data and the script
@@ -282,6 +283,12 @@ carried on with a shifted stack.** The abort then surfaces at an unrelated
 opcode — script 2621 "failed at opcode 40", which reads like a bad gosub and is
 really a blown call stack. When a CS2 failure names an opcode that looks
 innocent, suspect the stack, not the opcode.
+
+The last row is a different lesson and just as general: at rev 230 **the colour
+is in the text**, so most strings a panel measures carry markup. Anything that
+walks a string to work out how wide it will be is a second implementation of the
+renderer and will drift from it — make it call the renderer's tokeniser
+(`ToriDraw_FontMarkupTokenLength`) rather than its own byte loop.
 
 And one server-side trap, which is §2.1 biting in a new place:
 
@@ -293,6 +300,10 @@ And one server-side trap, which is §2.1 biting in a new place:
 > the orb's own onload (1492 → 1700) installs "Floating World Map" on the
 > argument it passes as 10485815 = 160:55. **Read the compack and the onload;
 > they are the revision you are actually running.**
+
+Each of these is written up in full — symptom, dump output, the arithmetic that
+proves it, and the fix — in
+[`docs/REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md).
 
 ---
 

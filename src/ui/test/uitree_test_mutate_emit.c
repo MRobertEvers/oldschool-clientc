@@ -169,15 +169,15 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(tree->components[c2].dynamic_child_index == 2, "c2 sub_id 2");
 
         TEST_ASSERT(
-            UITree_ApplyObject(tree, tree->components[c0].component_id, 995, 1, 10, 0),
+            UITree_ApplyObject(tree, tree->components[c0].component_id, 995, 1, 10, 0, 0),
             "setobject bank slot 0");
         TEST_ASSERT(
-            UITree_ApplyObject(tree, tree->components[c1].component_id, 1333, 1, 11, 0),
+            UITree_ApplyObject(tree, tree->components[c1].component_id, 1333, 1, 11, 0, 0),
             "setobject bank slot 1");
         TEST_ASSERT(!tree->components[c2].behavior.hide, "bank child 2 not hidden by siblings");
 
         TEST_ASSERT(
-            UITree_ApplyObject(tree, tree->components[c2].component_id, 1153, 1, 12, 0),
+            UITree_ApplyObject(tree, tree->components[c2].component_id, 1153, 1, 12, 0, 0),
             "setobject bank slot 2");
         TEST_ASSERT(!tree->components[c2].behavior.hide, "bank child 2 stays visible");
         TEST_ASSERT(tree->components[c2].item_id == 1153, "bank child 2 item set");
@@ -194,18 +194,18 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(tree->components[sil].type == UIELEM_RS_GRAPHIC, "d2 is graphic");
 
         TEST_ASSERT(
-            UITree_ApplyObject(tree, tree->components[overlay].component_id, 1153, 1, 20, 0),
+            UITree_ApplyObject(tree, tree->components[overlay].component_id, 1153, 1, 20, 0, 0),
             "setobject equipment overlay");
         TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden while occupied");
         TEST_ASSERT(!tree->components[overlay].behavior.hide, "overlay visible");
 
         TEST_ASSERT(
-            UITree_ApplyObject(tree, tree->components[overlay].component_id, -1, 0, -1, 0),
+            UITree_ApplyObject(tree, tree->components[overlay].component_id, -1, 0, -1, 0, 0),
             "clear equipment overlay");
         TEST_ASSERT(tree->components[sil].behavior.hide == 0, "silhouette shown when cleared");
 
         /* SETOBJECT on static parent redirects to d1 overlay. */
-        TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0), "setobject via static parent");
+        TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0, 0), "setobject via static parent");
         TEST_ASSERT(tree->components[overlay].item_id == 1725, "redirect set overlay item");
         TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden after redirect");
     }

@@ -752,6 +752,10 @@ struct CS2VM_HostRequest_CC_SetObject
     int component_id;
     int obj_id;
     int count;
+    /** Count-text mode from which opcode variant ran: 0 = draw when
+     *  stackable (plain SETOBJECT), 1 = always (_ALWAYS_NUM),
+     *  2 = never (_NONUM). */
+    int num_mode;
 };
 
 struct CS2VM_HostRequest_CC_GetId
@@ -788,6 +792,8 @@ struct CS2VM_HostRequest_IF_SetObject
     int component_id;
     int obj_id;
     int count;
+    /** See CS2VM_HostRequest_CC_SetObject.num_mode. */
+    int num_mode;
 };
 
 struct CS2VM_HostRequest_OC_Param

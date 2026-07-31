@@ -400,6 +400,9 @@ struct UITreeComponent
     int item_count;
     int item_scene_id;
     int item_atlas_index;
+    /** Count-text rule from the SETOBJECT variant: 0 stackable-only (also the
+     *  zero-init default), 1 always, 2 never. Read by emit_obj_stack_count. */
+    uint8_t item_num_mode;
 
     int trans;
     uint8_t if3;
@@ -1176,6 +1179,9 @@ UITree_ApplyScrollPos(
     int scroll_x,
     int scroll_y);
 
+/* num_mode is the SETOBJECT opcode variant's count-text rule: 0 = draw when
+ * stackable (plain SETOBJECT, and the zero-init default for cells filled
+ * outside CS2), 1 = always (_ALWAYS_NUM), 2 = never (_NONUM). */
 bool
 UITree_ApplyObject(
     struct UITree* tree,
@@ -1183,7 +1189,8 @@ UITree_ApplyObject(
     int obj_id,
     int obj_count,
     int scene_id,
-    int atlas_index);
+    int atlas_index,
+    int num_mode);
 
 bool
 UITree_ApplyModel(

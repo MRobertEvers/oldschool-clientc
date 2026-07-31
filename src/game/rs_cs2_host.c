@@ -2055,7 +2055,8 @@ exec_set_object(
     struct CS2VM2_Thread* thread,
     int component_id,
     int obj_id,
-    int count)
+    int count,
+    int num_mode)
 {
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -2073,7 +2074,7 @@ exec_set_object(
             obj_id,
             count);
 #endif
-        (void)UITree_ApplyObject(tree, component_id, 0, 0, -1, 0);
+        (void)UITree_ApplyObject(tree, component_id, 0, 0, -1, 0, 0);
         return CS2VM_EXECNO_OK;
     }
 
@@ -2091,7 +2092,7 @@ exec_set_object(
             return rs_cs2_yield_load(host, &req, obj_id, count);
         if( !provider )
         {
-            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0);
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
             return CS2VM_EXECNO_OK;
         }
         /* Still incomplete after the load — a texture that failed, say. Build
@@ -2112,7 +2113,7 @@ exec_set_object(
         count,
         scene_id);
 #endif
-    (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index);
+    (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
     return CS2VM_EXECNO_OK;
 }
 
@@ -4193,7 +4194,8 @@ rs_cs2_host_exec_dispatch(
             vm,
             request->u.if_set_object.component_id,
             request->u.if_set_object.obj_id,
-            request->u.if_set_object.count);
+            request->u.if_set_object.count,
+            request->u.if_set_object.num_mode);
 
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
         return exec_set_object(
@@ -4201,7 +4203,8 @@ rs_cs2_host_exec_dispatch(
             vm,
             request->u.cc_set_object.component_id,
             request->u.cc_set_object.obj_id,
-            request->u.cc_set_object.count);
+            request->u.cc_set_object.count,
+            request->u.cc_set_object.num_mode);
 
     case CS2VM_HOST_REQUEST_CC_DELETEALL:
     {
