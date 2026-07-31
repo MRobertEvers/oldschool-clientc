@@ -127,6 +127,42 @@ RSCache_Dat1ConfigComponentListPeekCount(
     void* data,
     int size);
 
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * Eight fields are -1, and every one of them has a real zero: component 0 and
+ * layer 0 exist, `type` 0 is LAYER, `buttonType` 0 is "not a button" only by
+ * accident of it never being written, `anim`/`activeAnim` 0 is sequence 0, and
+ * `targetMask` 0 is a valid mask. Zero-initialising would make every component
+ * claim to be layer 0's child.
+ */
+void
+RSCache_Dat1ConfigComponentInit(struct RSCache_Dat1ConfigComponent* component);
+
+/**
+ * Decode one component — its id preamble and body — reporting bytes consumed.
+ *
+ * **Not an opcode stream.** A component is a fixed header followed by sections
+ * chosen by `type` and `buttonType`, so there is no per-opcode split to make and
+ * no terminator: the record ends where its last conditional section ends. That
+ * is why this type takes the registry's whole-record `decode` override rather
+ * than `decode_op`.
+ *
+ * One consequence of decoding a record in isolation: the `65535` preamble that
+ * sets the *layer* is sticky across a stream, so a record decoded on its own
+ * reports the layer only if it carries the preamble itself. Walk the archive
+ * with `RSCache_Dat1ConfigComponentListNewDecode` when the layer matters.
+ */
+int
+RSCache_Dat1ConfigComponentDecodeInplace(
+    struct RSCache_Dat1ConfigComponent* component,
+    const void* data,
+    int size);
+
+/** Release what the record owns, leaving the struct itself to the caller. */
+void
+RSCache_Dat1ConfigComponentFreeInplace(struct RSCache_Dat1ConfigComponent* component);
+
 void
 RSCache_Dat1ConfigComponentFree(struct RSCache_Dat1ConfigComponent* component);
 

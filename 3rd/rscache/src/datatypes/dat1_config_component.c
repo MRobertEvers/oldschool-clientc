@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void
-init_component(struct RSCache_Dat1ConfigComponent* component)
+void
+RSCache_Dat1ConfigComponentInit(struct RSCache_Dat1ConfigComponent* component)
 {
     memset(component, 0, sizeof(struct RSCache_Dat1ConfigComponent));
     component->id = -1;
@@ -509,7 +509,7 @@ config_component_list_new_decode_impl(
                 RSCache_Dat1ConfigComponentListFree(component_list);
                 return NULL;
             }
-            init_component(comp);
+            RSCache_Dat1ConfigComponentInit(comp);
             read_component_body(&buffer, comp, id, layer);
         }
         else
@@ -558,6 +558,28 @@ RSCache_Dat1ConfigComponentListNewDecodeFiltered(
 }
 
 int
+RSCache_Dat1ConfigComponentDecodeInplace(
+    struct RSCache_Dat1ConfigComponent* component,
+    const void* data,
+    int size)
+{
+    struct RSCache_Buffer buffer;
+    /* Starts at -1 rather than inheriting: a record read on its own has no
+     * predecessor to have set it. See the header. */
+    int layer = -1;
+    int id;
+
+    if( !component || !data || size <= 0 )
+        return -1;
+
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)size);
+    RSCache_Dat1ConfigComponentInit(component);
+    id = read_component_id(&buffer, &layer);
+    read_component_body(&buffer, component, id, layer);
+    return (int)buffer.position;
+}
+
+int
 RSCache_Dat1ConfigComponentListPeekCount(
     void* data,
     int size)
@@ -571,7 +593,7 @@ RSCache_Dat1ConfigComponentListPeekCount(
 }
 
 void
-RSCache_Dat1ConfigComponentFree(struct RSCache_Dat1ConfigComponent* c)
+RSCache_Dat1ConfigComponentFreeInplace(struct RSCache_Dat1ConfigComponent* c)
 {
     if( !c )
         return;
@@ -619,6 +641,23 @@ RSCache_Dat1ConfigComponentFree(struct RSCache_Dat1ConfigComponent* c)
     free(c->graphic);
     free(c->activeGraphic);
 
+    /*
+     * Re-initialised rather than merely null-cleared, and that is deliberate:
+     * every owned pointer here is paired with a count or a fixed width the
+     * frees above read (`scripts_count`, the 20 inv slots, the 5 iops), so
+     * zeroing the pointers while leaving the counts would leave a struct whose
+     * two halves disagree. A full re-init also restores the -1 defaults, which
+     * is the state a fresh record is in.
+     */
+    RSCache_Dat1ConfigComponentInit(c);
+}
+
+void
+RSCache_Dat1ConfigComponentFree(struct RSCache_Dat1ConfigComponent* c)
+{
+    if( !c )
+        return;
+    RSCache_Dat1ConfigComponentFreeInplace(c);
     free(c);
 }
 

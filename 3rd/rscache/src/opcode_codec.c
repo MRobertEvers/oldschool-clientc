@@ -17,6 +17,13 @@
 #include "datatypes/dat2_config_struct.h"
 #include "datatypes/dat2_config_var.h"
 
+#include "datatypes/dat1_config_component.h"
+#include "datatypes/dat1_config_idk.h"
+#include "datatypes/dat1_config_npc.h"
+#include "datatypes/dat1_config_obj.h"
+#include "datatypes/dat1_config_seq.h"
+#include "datatypes/dat1_config_spotanim.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -635,6 +642,167 @@ cpc_spotanim_encode(
         cap);
 }
 
+/* ---- dat1 ---------------------------------------------------------------- */
+
+/*
+ * Every row below takes `WRAP_INIT` over the type's own named `Init`, and not
+ * one of them may use `WRAP_INIT_ZERO`.
+ *
+ * The reason is the same one `WRAP_INIT`'s comment gives for hitsplat, and dat1
+ * makes it sharper: these decoders seeded their defaults at the top of their own
+ * loop, so lifting the loop out to the shared driver would have left the
+ * defaults behind. dat1 npc alone has nineteen non-zero ones — `size` 1,
+ * `resizeh`/`resizev` 128, `turnspeed` 32, five anim ids at -1 — and every one
+ * of those values is also a legitimate field value, so nothing about the decoded
+ * record would look wrong. The encoders write an opcode only where a field
+ * *differs from its default*, so a zeroing init changes which opcodes are
+ * emitted: dat2 npc dropped from 99 byte-exact records to 0 that way, with no
+ * other symptom. Comparing against zero instead of against the default is the
+ * bug; `Init` is where the default is stated once for both callers.
+ *
+ * The order of the opcode stream is data here, not a convention. dat1 config
+ * records are *not* ascending — cache254's first idk runs 1, 60, 2 — so obj,
+ * idk and spotanim record the order they decoded and their encoders replay it
+ * (the device `RSCache_Dat2ConfigHitsplat` uses). That bookkeeping lives in
+ * `decode_op` so the type's own entry point and this registry cannot disagree
+ * about it.
+ */
+
+WRAP_INIT(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjInit)
+WRAP_DECODE_OP(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjDecodeOp)
+WRAP_ENCODE(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjEncode)
+WRAP_BOUND(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjEncodeBound)
+WRAP_FREE(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjFreeInplace)
+
+WRAP_INIT(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcInit)
+WRAP_DECODE_OP(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcDecodeOp)
+WRAP_ENCODE(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcEncode)
+WRAP_BOUND(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcEncodeBound)
+WRAP_FREE(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcFreeInplace)
+
+WRAP_INIT(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkInit)
+WRAP_DECODE_OP(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkDecodeOp)
+WRAP_ENCODE(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkEncode)
+WRAP_BOUND(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkEncodeBound)
+WRAP_FREE(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkFreeInplace)
+
+WRAP_INIT(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqInit)
+WRAP_DECODE_OP(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqDecodeOp)
+WRAP_ENCODE(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqEncode)
+WRAP_BOUND(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqEncodeBound)
+WRAP_FREE(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqFreeInplace)
+
+/* No `record_free`: the dat1 spotanim record is scalars and two fixed arrays, so
+ * it owns nothing. NULL rather than an empty function, per the note at the top. */
+WRAP_INIT(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimInit)
+WRAP_DECODE_OP(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimDecodeOp)
+WRAP_ENCODE(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimEncode)
+WRAP_BOUND(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimEncodeBound)
+
+/*
+ * component is the one dat1 type that is not an opcode stream.
+ *
+ * Its record is a fixed header — id, type, buttonType, size, alpha, the overlay
+ * and comparator and script blocks — followed by sections chosen by `type` and
+ * `buttonType`. There is no code byte to dispatch on and no zero terminator; the
+ * record ends where its last conditional section ends. So there is nothing for
+ * `decode_op` to be, and it takes the whole-record `decode` override that
+ * `opcode_codec.h` describes as existing for exactly this shape.
+ *
+ * It is also the only dat1 row with no encoder. That is a statement about the
+ * type, not an omission to route around: `RSCache_OpcodeCodecCanEncode` is the
+ * check, and it answers false here.
+ */
+WRAP_INIT(
+    d1component,
+    struct RSCache_Dat1ConfigComponent,
+    RSCache_Dat1ConfigComponentInit)
+WRAP_FREE(
+    d1component,
+    struct RSCache_Dat1ConfigComponent,
+    RSCache_Dat1ConfigComponentFreeInplace)
+
+static int
+cpc_d1component_decode(
+    const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    (void)cache;
+    return RSCache_Dat1ConfigComponentDecodeInplace(
+        (struct RSCache_Dat1ConfigComponent*)record, src, size);
+}
+
 /* ---- the table ----------------------------------------------------------- */
 
 /*
@@ -703,6 +871,21 @@ cpc_spotanim_encode(
       .decode = cpc_##TAG##_decode,                                                                \
       .encode = cpc_##TAG##_encode,                                                                \
       .encode_bound = cpc_##TAG##_bound }
+
+/** As ROW_WHOLE, for a type that has no encoder — `CanEncode` answers false. */
+#define ROW_WHOLE_DECODE_ONLY(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
+      .record_free = FREE,                                                                         \
+      .flags_for = NULL,                                                                           \
+      .decode_op = NULL,                                                                           \
+      .decode = cpc_##TAG##_decode,                                                                \
+      .encode = NULL,                                                                              \
+      .encode_bound = NULL }
 
 static const struct RSCache_OpcodeCodec k_codecs[] = {
     ROW("inv",
@@ -844,6 +1027,52 @@ static const struct RSCache_OpcodeCodec k_codecs[] = {
         struct RSCache_Dat2ConfigSpotanim,
         spotanim,
         cpc_spotanim_free),
+
+    /* dat1. Same names and same types as five of the rows above — the keying is
+     * on (epoch, type), which is why both families can be registered at once
+     * without either answering for the other. See `opcode_codec.h`, "Keying". */
+    ROW(
+        "obj",
+        RSCACHE_TYPE_OBJ,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigObj,
+        d1obj,
+        cpc_d1obj_free),
+    ROW(
+        "npc",
+        RSCACHE_TYPE_NPC,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigNpc,
+        d1npc,
+        cpc_d1npc_free),
+    ROW(
+        "idk",
+        RSCACHE_TYPE_IDK,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigIdk,
+        d1idk,
+        cpc_d1idk_free),
+    ROW(
+        "seq",
+        RSCACHE_TYPE_SEQUENCE,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigSeq,
+        d1seq,
+        cpc_d1seq_free),
+    ROW(
+        "spotanim",
+        RSCACHE_TYPE_SPOTANIM,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigSpotanim,
+        d1spotanim,
+        NULL),
+    ROW_WHOLE_DECODE_ONLY(
+        "component",
+        RSCACHE_TYPE_COMPONENT,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigComponent,
+        d1component,
+        cpc_d1component_free),
 };
 
 #define CODEC_COUNT ((int)(sizeof(k_codecs) / sizeof(k_codecs[0])))

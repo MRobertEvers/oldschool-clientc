@@ -14,8 +14,8 @@
 // code 4: stretches    code 5: priority
 // code 6/7: replaceheldleft/right   code 8: maxloops
 // code 9/10: preanim_move/postanim_move   code 11: duplicatebehavior
-static void
-init_seq(struct RSCache_Dat1ConfigSeq* seq)
+void
+RSCache_Dat1ConfigSeqInit(struct RSCache_Dat1ConfigSeq* seq)
 {
     memset(seq, 0, sizeof(*seq));
     seq->loops = -1;
@@ -28,6 +28,83 @@ init_seq(struct RSCache_Dat1ConfigSeq* seq)
     seq->duplicate_behavior = -1;
 }
 
+bool
+RSCache_Dat1ConfigSeqDecodeOp(
+    struct RSCache_Dat1ConfigSeq* seq,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* dat1 seq has no era-dependent opcode. */
+
+    switch( opcode )
+    {
+    case 1:
+    {
+        seq->frame_count = g1(buffer);
+        seq->frames = calloc((size_t)seq->frame_count, sizeof(int));
+        seq->iframes = calloc((size_t)seq->frame_count, sizeof(int));
+        seq->delay = calloc((size_t)seq->frame_count, sizeof(int));
+        if( !seq->frames || !seq->iframes || !seq->delay )
+        {
+            seq->frame_count = 0;
+            return false;
+        }
+
+        for( int i = 0; i < seq->frame_count; i++ )
+        {
+            int iframe;
+            seq->frames[i] = g2(buffer);
+            iframe = g2(buffer);
+            seq->iframes[i] = iframe == 65535 ? -1 : iframe;
+            seq->delay[i] = g2(buffer);
+        }
+        break;
+    }
+    case 2:
+        seq->loops = g2(buffer);
+        break;
+    case 3:
+    {
+        int count = g1(buffer);
+        seq->walkmerge = calloc((size_t)count + 1, sizeof(int));
+        if( !seq->walkmerge )
+            return false;
+        for( int i = 0; i < count; i++ )
+            seq->walkmerge[i] = g1(buffer);
+        seq->walkmerge[count] = 9999999;
+        break;
+    }
+    case 4:
+        seq->stretches = true;
+        break;
+    case 5:
+        seq->priority = g1(buffer);
+        break;
+    case 6:
+        seq->replaceheldleft = g2(buffer);
+        break;
+    case 7:
+        seq->replaceheldright = g2(buffer);
+        break;
+    case 8:
+        seq->maxloops = g1(buffer);
+        break;
+    case 9:
+        seq->preanim_move = g1(buffer);
+        break;
+    case 10:
+        seq->postanim_move = g1(buffer);
+        break;
+    case 11:
+        seq->duplicate_behavior = g1(buffer);
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
 int
 RSCache_Dat1ConfigSeqDecodeInplace(
     struct RSCache_Dat1ConfigSeq* seq,
@@ -36,7 +113,7 @@ RSCache_Dat1ConfigSeqDecodeInplace(
 {
     struct RSCache_Buffer buffer;
 
-    init_seq(seq);
+    RSCache_Dat1ConfigSeqInit(seq);
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
     while( true )
@@ -45,69 +122,8 @@ RSCache_Dat1ConfigSeqDecodeInplace(
         if( opcode == 0 )
             break;
 
-        switch( opcode )
+        if( !RSCache_Dat1ConfigSeqDecodeOp(seq, opcode, &buffer, 0) )
         {
-        case 1:
-        {
-            seq->frame_count = g1(&buffer);
-            seq->frames = calloc((size_t)seq->frame_count, sizeof(int));
-            seq->iframes = calloc((size_t)seq->frame_count, sizeof(int));
-            seq->delay = calloc((size_t)seq->frame_count, sizeof(int));
-            if( !seq->frames || !seq->iframes || !seq->delay )
-            {
-                seq->frame_count = 0;
-                return (int)buffer.position;
-            }
-
-            for( int i = 0; i < seq->frame_count; i++ )
-            {
-                int iframe;
-                seq->frames[i] = g2(&buffer);
-                iframe = g2(&buffer);
-                seq->iframes[i] = iframe == 65535 ? -1 : iframe;
-                seq->delay[i] = g2(&buffer);
-            }
-            break;
-        }
-        case 2:
-            seq->loops = g2(&buffer);
-            break;
-        case 3:
-        {
-            int count = g1(&buffer);
-            seq->walkmerge = calloc((size_t)count + 1, sizeof(int));
-            if( !seq->walkmerge )
-                return (int)buffer.position;
-            for( int i = 0; i < count; i++ )
-                seq->walkmerge[i] = g1(&buffer);
-            seq->walkmerge[count] = 9999999;
-            break;
-        }
-        case 4:
-            seq->stretches = true;
-            break;
-        case 5:
-            seq->priority = g1(&buffer);
-            break;
-        case 6:
-            seq->replaceheldleft = g2(&buffer);
-            break;
-        case 7:
-            seq->replaceheldright = g2(&buffer);
-            break;
-        case 8:
-            seq->maxloops = g1(&buffer);
-            break;
-        case 9:
-            seq->preanim_move = g1(&buffer);
-            break;
-        case 10:
-            seq->postanim_move = g1(&buffer);
-            break;
-        case 11:
-            seq->duplicate_behavior = g1(&buffer);
-            break;
-        default:
             /* An unknown opcode desynchronises the rest of the table (entries
              * are only sequentially addressable), so stop here rather than
              * decode garbage into later ids. */

@@ -988,9 +988,10 @@ test-ss-symbols: $(OBJ_DIR)
 # are well-formed. The value just lands somewhere else.
 test-servercodec: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/servercodec_test \
-		net/mock/test/mock230_servercodec_test.c net/mock/mock230_servercodec.c
+		net/mock/test/mock230_servercodec_test.c net/mock/mock230_servercodec.c \
+		$(RSCACHE_DIR)/src/rsbuffer.c
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test \
-		OSRS-Content/osrs239-content/fields/npc.ini
+		OSRS-Content/osrs239-content/fields
 
 test-content-register: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \

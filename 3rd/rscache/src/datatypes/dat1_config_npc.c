@@ -36,8 +36,8 @@
 // static modelCache: LruCache | null = new LruCache(30);
 // ambient: number = 0;
 // contrast: number = 0;
-static void
-init_npc(struct RSCache_Dat1ConfigNpc* npc)
+void
+RSCache_Dat1ConfigNpcInit(struct RSCache_Dat1ConfigNpc* npc)
 {
     memset(npc, 0, sizeof(struct RSCache_Dat1ConfigNpc));
     npc->name = NULL;
@@ -70,45 +70,220 @@ init_npc(struct RSCache_Dat1ConfigNpc* npc)
     npc->contrast = 0;
 }
 
+bool
+RSCache_Dat1ConfigNpcDecodeOp(
+    struct RSCache_Dat1ConfigNpc* npc,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* dat1 npc has no era-dependent opcode. */
+
+    switch( opcode )
+    {
+    case 1:
+    {
+        int count = g1(buffer);
+        npc->models = malloc(count * sizeof(int));
+        npc->models_count = count;
+        for( int i = 0; i < count; i++ )
+        {
+            npc->models[i] = g2(buffer);
+        }
+        break;
+    }
+    case 2:
+    {
+        free(npc->name);
+        npc->name = gstringnewline(buffer);
+        break;
+    }
+    case 3:
+    {
+        free(npc->desc);
+        npc->desc = gstringnewline(buffer);
+        break;
+    }
+    case 12:
+    {
+        npc->size = g1b(buffer);
+        break;
+    }
+    case 13:
+    {
+        npc->readyanim = g2(buffer);
+        break;
+    }
+    case 14:
+    {
+        npc->walkanim = g2(buffer);
+        break;
+    }
+    case 16:
+    {
+        npc->animHasAlpha = true;
+        break;
+    }
+    case 17:
+    {
+        npc->walkanim = g2(buffer);
+        npc->walkanim_b = g2(buffer);
+        npc->walkanim_r = g2(buffer);
+        npc->walkanim_l = g2(buffer);
+        break;
+    }
+    case 30 ... 39:
+    {
+        char* action = gstringnewline(buffer);
+        int op_idx = opcode - 30;
+        if( op_idx >= 5 )
+        {
+            free(action);
+            break;
+        }
+        if( action != NULL )
+        {
+            char* hidden_str = "hidden";
+            int is_hidden = 1;
+            int len = strlen(action);
+            if( len == 6 )
+            {
+                for( int i = 0; i < len; i++ )
+                {
+                    if( tolower(action[i]) != hidden_str[i] )
+                    {
+                        is_hidden = 0;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                is_hidden = 0;
+            }
+
+            if( is_hidden )
+            {
+                free(action);
+                free(npc->op[op_idx]);
+                npc->op[op_idx] = NULL;
+            }
+            else
+            {
+                free(npc->op[op_idx]);
+                npc->op[op_idx] = action;
+            }
+        }
+        else
+        {
+            free(npc->op[op_idx]);
+            npc->op[op_idx] = NULL;
+        }
+        break;
+    }
+    case 40:
+    {
+        int count = g1(buffer);
+        npc->recol_s = malloc(count * sizeof(int));
+        npc->recol_d = malloc(count * sizeof(int));
+        npc->recol_count = count;
+        for( int i = 0; i < count; i++ )
+        {
+            npc->recol_s[i] = g2(buffer);
+            npc->recol_d[i] = g2(buffer);
+        }
+        break;
+    }
+    case 60:
+    {
+        int count = g1(buffer);
+        npc->heads = malloc(count * sizeof(int));
+        npc->heads_count = count;
+        for( int i = 0; i < count; i++ )
+        {
+            npc->heads[i] = g2(buffer);
+        }
+        break;
+    }
+    case 90:
+    {
+        npc->resizex = g2(buffer);
+        break;
+    }
+    case 91:
+    {
+        npc->resizey = g2(buffer);
+        break;
+    }
+    case 92:
+    {
+        npc->resizez = g2(buffer);
+        break;
+    }
+    case 93:
+    {
+        npc->minimap = false;
+        break;
+    }
+    case 95:
+    {
+        npc->vislevel = g2(buffer);
+        break;
+    }
+    case 97:
+    {
+        npc->resizeh = g2(buffer);
+        break;
+    }
+    case 98:
+    {
+        npc->resizev = g2(buffer);
+        break;
+    }
+    case 99:
+    {
+        npc->alwaysontop = true;
+        break;
+    }
+    case 100:
+    {
+        npc->ambient = g1b(buffer);
+        break;
+    }
+    case 101:
+    {
+        npc->contrast = g1b(buffer) * 5;
+        break;
+    }
+    case 102:
+    {
+        npc->headicon = g2(buffer);
+        break;
+    }
+    case 103:
+    {
+        npc->turnspeed = g2(buffer);
+        break;
+    }
+    default:
+        return false;
+    }
+    return true;
+}
+
 struct RSCache_Dat1ConfigNpc*
 RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer)
 {
     struct RSCache_Dat1ConfigNpc* npc = malloc(sizeof(struct RSCache_Dat1ConfigNpc));
-    memset(npc, 0, sizeof(struct RSCache_Dat1ConfigNpc));
 
-    init_npc(npc);
-
-    // Initialize default values
-    npc->size = 1;
-    npc->readyanim = -1;
-    npc->walkanim = -1;
-    npc->walkanim_b = -1;
-    npc->walkanim_r = -1;
-    npc->walkanim_l = -1;
-    npc->animHasAlpha = false;
-    npc->resizex = -1;
-    npc->resizey = -1;
-    npc->resizez = -1;
-    npc->minimap = true;
-    npc->vislevel = -1;
-    npc->resizeh = 128;
-    npc->resizev = 128;
-    npc->alwaysontop = false;
-    npc->headicon = -1;
-    npc->turnspeed = 32;
-    npc->ambient = 0;
-    npc->contrast = 0;
-
-    for( int i = 0; i < 5; i++ )
-    {
-        npc->op[i] = NULL;
-    }
+    RSCache_Dat1ConfigNpcInit(npc);
 
     while( true )
     {
         if( buffer->position >= buffer->size )
         {
             assert(false && "Buffer position exceeded data size");
+            RSCache_Dat1ConfigNpcFree(npc);
             return NULL;
         }
 
@@ -118,193 +293,10 @@ RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer)
             break;
         }
 
-        switch( opcode )
+        if( !RSCache_Dat1ConfigNpcDecodeOp(npc, opcode, buffer, 0) )
         {
-        case 1:
-        {
-            int count = g1(buffer);
-            npc->models = malloc(count * sizeof(int));
-            npc->models_count = count;
-            for( int i = 0; i < count; i++ )
-            {
-                npc->models[i] = g2(buffer);
-            }
-            break;
-        }
-        case 2:
-        {
-            free(npc->name);
-            npc->name = gstringnewline(buffer);
-            break;
-        }
-        case 3:
-        {
-            free(npc->desc);
-            npc->desc = gstringnewline(buffer);
-            break;
-        }
-        case 12:
-        {
-            npc->size = g1b(buffer);
-            break;
-        }
-        case 13:
-        {
-            npc->readyanim = g2(buffer);
-            break;
-        }
-        case 14:
-        {
-            npc->walkanim = g2(buffer);
-            break;
-        }
-        case 16:
-        {
-            npc->animHasAlpha = true;
-            break;
-        }
-        case 17:
-        {
-            npc->walkanim = g2(buffer);
-            npc->walkanim_b = g2(buffer);
-            npc->walkanim_r = g2(buffer);
-            npc->walkanim_l = g2(buffer);
-            break;
-        }
-        case 30 ... 39:
-        {
-            char* action = gstringnewline(buffer);
-            int op_idx = opcode - 30;
-            if( op_idx >= 5 )
-            {
-                free(action);
-                break;
-            }
-            if( action != NULL )
-            {
-                char* hidden_str = "hidden";
-                int is_hidden = 1;
-                int len = strlen(action);
-                if( len == 6 )
-                {
-                    for( int i = 0; i < len; i++ )
-                    {
-                        if( tolower(action[i]) != hidden_str[i] )
-                        {
-                            is_hidden = 0;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    is_hidden = 0;
-                }
-
-                if( is_hidden )
-                {
-                    free(action);
-                    free(npc->op[op_idx]);
-                    npc->op[op_idx] = NULL;
-                }
-                else
-                {
-                    free(npc->op[op_idx]);
-                    npc->op[op_idx] = action;
-                }
-            }
-            else
-            {
-                free(npc->op[op_idx]);
-                npc->op[op_idx] = NULL;
-            }
-            break;
-        }
-        case 40:
-        {
-            int count = g1(buffer);
-            npc->recol_s = malloc(count * sizeof(int));
-            npc->recol_d = malloc(count * sizeof(int));
-            npc->recol_count = count;
-            for( int i = 0; i < count; i++ )
-            {
-                npc->recol_s[i] = g2(buffer);
-                npc->recol_d[i] = g2(buffer);
-            }
-            break;
-        }
-        case 60:
-        {
-            int count = g1(buffer);
-            npc->heads = malloc(count * sizeof(int));
-            npc->heads_count = count;
-            for( int i = 0; i < count; i++ )
-            {
-                npc->heads[i] = g2(buffer);
-            }
-            break;
-        }
-        case 90:
-        {
-            npc->resizex = g2(buffer);
-            break;
-        }
-        case 91:
-        {
-            npc->resizey = g2(buffer);
-            break;
-        }
-        case 92:
-        {
-            npc->resizez = g2(buffer);
-            break;
-        }
-        case 93:
-        {
-            npc->minimap = false;
-            break;
-        }
-        case 95:
-        {
-            npc->vislevel = g2(buffer);
-            break;
-        }
-        case 97:
-        {
-            npc->resizeh = g2(buffer);
-            break;
-        }
-        case 98:
-        {
-            npc->resizev = g2(buffer);
-            break;
-        }
-        case 99:
-        {
-            npc->alwaysontop = true;
-            break;
-        }
-        case 100:
-        {
-            npc->ambient = g1b(buffer);
-            break;
-        }
-        case 101:
-        {
-            npc->contrast = g1b(buffer) * 5;
-            break;
-        }
-        case 102:
-        {
-            npc->headicon = g2(buffer);
-            break;
-        }
-        case 103:
-        {
-            npc->turnspeed = g2(buffer);
-            break;
-        }
-        default:
+            /* npc.dat is addressed through npc.idx, so an unknown opcode costs
+             * only this record — but it still means the layout is wrong. */
             assert(false && "Unrecognized opcode");
             break;
         }
@@ -353,7 +345,7 @@ RSCache_Dat1ConfigNpcListNewDecode(
 }
 
 void
-RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc)
+RSCache_Dat1ConfigNpcFreeInplace(struct RSCache_Dat1ConfigNpc* npc)
 {
     if( !npc )
         return;
@@ -365,6 +357,27 @@ RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc)
     free(npc->recol_d);
     for( int i = 0; i < 5; i++ )
         free(npc->op[i]);
+    /* Only the owned pointers are cleared, not the scalars: the caller still
+     * owns the struct and may read it. A second free is then a no-op. */
+    npc->name = NULL;
+    npc->desc = NULL;
+    npc->models = NULL;
+    npc->models_count = 0;
+    npc->heads = NULL;
+    npc->heads_count = 0;
+    npc->recol_s = NULL;
+    npc->recol_d = NULL;
+    npc->recol_count = 0;
+    for( int i = 0; i < 5; i++ )
+        npc->op[i] = NULL;
+}
+
+void
+RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc)
+{
+    if( !npc )
+        return;
+    RSCache_Dat1ConfigNpcFreeInplace(npc);
     free(npc);
 }
 

@@ -548,6 +548,85 @@ guards this.
 **`bake_npc_params` and `bake_loc_params` disappear** — ~100 lines re-deriving
 what the register now states.
 
+#### What has landed (5b — the server half)
+
+The **server** output exists; the `param:N` projection into the cache does not
+yet (it needs 4.3's renumber, and `configs/all.param` carries none of the server
+param names today — `hitpoints`, `death_drop` and `next_loc_stage` are all absent
+from it).
+
+- `cachepack pack` writes `<src>/server/pack` — a dat2 with no reference table,
+  one archive per record at **(config kind, record id)**. `npc` lands in `idx9`,
+  `loc` in `idx6`, matching the kinds `dat2_configs.h` gives them.
+- `3rd/rscache/tools/cachepack/cp_fields.{h,c}` reads `fields/<type>.ini`. A
+  second, small reader of a file `src/content/content_fields.c` also reads, for
+  the reason `cp_register.h:6-10` gives: cachepack links nothing from `src/`, so
+  the `.ini` is the contract rather than a shared header. It has **no built-in
+  defaults** — a writer that invents an opcode the tree did not declare writes
+  bytes nothing agreed to read.
+- `src/net/mock/mock230_servercodec.c` is generic over `(field table, record
+  base)`. Adding a type is a register file plus an offset table; `npc` and `loc`
+  are the two instances, and `mock230_servercodec_test` iterates the registry, so
+  a type registered without a `fields/<name>.ini` fails.
+- Every archive carries `'S' 'P' version kind crc32(payload)`.
+  `RSCache_Dat2DiskWriteArchive` creates the container from nothing but writes no
+  `idx255`, so there is no per-archive CRC for stale detection; the header is
+  what replaces it. `kind` distinguishes an opcode band from a name table.
+- **Sparse by presence, never by value.** The writer emits a field because the
+  tree states it, not because it differs from something — it has no defaults
+  record to compare against, and comparing against *zero* would be wrong in both
+  directions (`death_drop` defaults to -1, obj 0 is a real obj). The reader,
+  which does have defaults, compares against those.
+- **`ref = <namespace>`**, one added register key. The band is integers and
+  content is not: `param=death_drop,bones` names an obj, `param=attack_anim,
+  cow_attack` a sequence, `param=next_loc_stage,poordooropen` a loc. Nothing else
+  in the register says which pack file to resolve a value through —
+  `client = param:<name>` names the param, not the type of its value. A field
+  with no `ref` takes only a decimal literal, which is correct for
+  `huntmode = aggressive` (an engine enum with no cache namespace); those are
+  counted and reported per field rather than guessed at.
+- Server-only *namespaces* — `stat`, `category` — get name tables at **group 128
+  and up**. The space is one byte wide because every dat2 sector carries its
+  table id in a single byte (`dat2disk.c`, `data[7] = index_id & 0xFF`), so a
+  group of 256 is written as 0 and aliases another table. `dat2_configs.h` runs
+  1..39; 128 is the top half, leaving 40..127 — more than double the current
+  maximum — for OldSchool to grow into first. Same argument as the 64..255 opcode
+  band.
+
+Measured on this tree: 2,196 npc bands (2,396 fields), 776 loc bands, 23 stat
+names, 6 category names. The npc count is far above the 38 authored npcs because
+`configs/all.npc` already carries `param=attackrate` for 2,196 records and the
+register declares `attackrate` as `scope = server` — the register is about
+fields, not layers, so a cache-sourced server field belongs in the pack too.
+
+**No client cache bytes moved**: `test/digests` holds at 189,959 records, because
+the client encode still runs from `found[0]` and only the *server* band reads the
+merged record.
+
+#### What 5b does not reach
+
+- **`obj`** authors exactly one key, `param=levelrequire,<stat>,<level>`,
+  repeated up to eight times per record. That is a repeatable compound, and the
+  band grammar is one fixed-width integer per opcode. A `fields/obj.ini` cannot
+  be written without first deciding what a list-valued wire looks like.
+- **`prayer`** is not a server field on a cache record — it is a server-only
+  *record type*: no config kind, no gameval archive, no row in the register. Its
+  fields are a string (`name`), a component reference (`button`), a repeated
+  enum (`group`, 31 lines over 29 prayers) and a constant reference
+  (`headicon`). It needs a group from the reserved space *and* string and
+  repeatable wires, neither of which the `(opcode, width, int offset)` binding
+  can express.
+- **Server-allocated records.** Checked against the tree rather than inferred:
+  `enum` (all 7 blocks), `npc_combat.param` (4 blocks) and `coord_pair.dbtable`
+  (1 block) exist **only** at rank 1 and are genuinely new records; `varp` (all
+  16 blocks) and `combat.param` (all 18 blocks) exist at rank 0 and are
+  **overlays**, not new records. So the "server allocates enums and params"
+  reading holds for enum and for `npc_combat.param`, and not for varp at all.
+  Writing them needs `pack_type` to encode from the merged set rather than from
+  `found[0]` — which *does* move the digest golden — and `dbtable` is
+  `CP_TYPE_NO_ENCODER` (`cp_types.c:101`), so `coord_pair_table` cannot be
+  written at all until one exists.
+
 ### 5.5 Emit gamevals from the pack files
 
 The cache's own symbol table (`GAMEVALS`, OSRS idx 24) is where layer 0 came from

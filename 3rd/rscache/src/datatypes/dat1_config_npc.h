@@ -57,6 +57,35 @@ RSCache_Dat1ConfigNpcListNewDecode(
 struct RSCache_Dat1ConfigNpc*
 RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer);
 
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * Nineteen fields here differ from zero, and every one of them is a value the
+ * type also uses legitimately: `size` 1, the five anim ids at -1 where 0 is a
+ * real sequence, `minimap` true, `resizeh`/`resizev` 128, `turnspeed` 32 where
+ * 0 means "never turns". Zero-initialising instead would decode with no error
+ * and give every NPC sequence 0, a 0-scale model and a frozen heading.
+ */
+void
+RSCache_Dat1ConfigNpcInit(struct RSCache_Dat1ConfigNpc* npc);
+
+/**
+ * Handle one opcode, advancing `buffer` past its payload.
+ *
+ * False means "not mine", which ends the stream — the width of an unknown
+ * opcode cannot be guessed. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat1ConfigNpcDecodeOp(
+    struct RSCache_Dat1ConfigNpc* npc,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+/** Release what the record owns, leaving the struct itself to the caller. */
+void
+RSCache_Dat1ConfigNpcFreeInplace(struct RSCache_Dat1ConfigNpc* npc);
+
 void
 RSCache_Dat1ConfigNpcFree(struct RSCache_Dat1ConfigNpc* npc);
 

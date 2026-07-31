@@ -1,9 +1,11 @@
 #include "cachepack.h"
 
 #include "checksum.h"
+#include "cp_fields.h"
 #include "cp_merge.h"
 #include "cp_walk.h"
 
+#include "archive.h"
 #include "cache_edit.h"
 #include "cache_write.h"
 #include "dat2disk.h"
@@ -11,6 +13,16 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#if defined(_WIN32)
+#include <direct.h>
+#define cp_mkdir(p) _mkdir(p)
+#else
+#include <unistd.h>
+#define cp_mkdir(p) mkdir(p, 0755)
+#endif
 
 /*
  * The pack driver — LostCity's engine/tools/pack/config/PackShared.ts `packConfigs`.
@@ -66,7 +78,491 @@ struct CP_PackStats
     int records;
     int bytes;
     int failed;
+    /** The server pack's own counters — see the section below. */
+    int server_records;
+    int server_fields;
+    int server_bytes;
 };
+
+/* ---- the server pack ----------------------------------------------------- */
+
+/*
+ * `server/pack/` — the half of a record the client cache cannot hold.
+ *
+ * A cache npc record says what the client needs and nothing about hitpoints,
+ * respawn rate or hunt mode, because no client opcode exists for them. Until now
+ * those reached the server by being re-parsed out of the `.npc` files under
+ * `server/scripts` at every boot, which is the "two tools write a derived cache
+ * and they do not compose" problem of `docs/CONTENT_ARCHITECTURE.md` §3.5.
+ *
+ * So `pack` now emits both halves from the *same* merged record: the client band
+ * into the target cache, and the server band into a second dat2 under the content
+ * tree. `src/net/mock/mock230_servercodec.c` reads that band back; the opcodes and
+ * widths on both sides come from `fields/<type>.ini` and from nowhere else.
+ *
+ * ## Addressed as (config kind, record id)
+ *
+ * One archive per record, in the idx numbered by the type's config kind — the same
+ * two coordinates the client cache uses, so a server record is found by the same
+ * arithmetic as the client one it overlays. There is no reference table: nothing
+ * needs to enumerate the pack, and `RSCache_Dat2DiskWriteArchive` writes none. The
+ * per-archive header (`cp_fields.h`) carries the version and CRC that a reference
+ * table would otherwise have supplied.
+ *
+ * ## Rebuilt whole, never appended to
+ *
+ * The container appends and orphans: an archive rewritten in place leaves its old
+ * sectors behind, and a record *deleted* from the tree keeps its old archive
+ * forever. Both are wrong for an output that is purely derived, so the dat2 and
+ * its idx files are removed before the run. That is also why a `--types` run
+ * produces a partial server pack, which is said out loud rather than left to be
+ * discovered.
+ */
+
+/** mkdir -p, for the two components under srcdir. */
+static int
+ensure_dir(const char* path)
+{
+    struct stat st;
+
+    if( stat(path, &st) == 0 )
+        return S_ISDIR(st.st_mode) ? 0 : -1;
+    return cp_mkdir(path);
+}
+
+static int
+ensure_dir_p(const char* path)
+{
+    char buf[1200];
+    size_t len;
+
+    snprintf(buf, sizeof(buf), "%s", path);
+    len = strlen(buf);
+    for( size_t i = 1; i < len; i++ )
+    {
+        if( buf[i] != '/' )
+            continue;
+        buf[i] = '\0';
+        if( ensure_dir(buf) != 0 )
+            return -1;
+        buf[i] = '/';
+    }
+    return ensure_dir(path);
+}
+
+/**
+ * Clear the server pack so the run rebuilds it from nothing.
+ *
+ * Targeted rather than a recursive delete: the `.dat2` and the idx of every config
+ * kind this tool knows, and nothing else. A tree may keep other things under
+ * `server/`, and a packer that removes a directory it did not create is a packer
+ * that eventually removes the wrong one.
+ */
+static void
+server_pack_clear(const char* dir)
+{
+    char path[1200];
+    int group_count = 0;
+    const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
+
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", dir);
+    remove(path);
+    for( int i = 0; i < CP_TYPE_COUNT; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, cp_type(i)->config_kind);
+        remove(path);
+    }
+    for( int i = 0; i < group_count; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, groups[i].group);
+        remove(path);
+    }
+}
+
+/** Per-register-field tallies, so an unresolved value is reported once per field
+ *  rather than once per record — 800 door locs would otherwise print 800 lines. */
+struct CP_FieldTally
+{
+    int written;
+    int unresolved;
+    int out_of_range;
+    char sample[64];
+};
+
+/**
+ * The text stating `name` on `rec`, or NULL.
+ *
+ * Two spellings, because the two layers state the same field differently. Rank 0
+ * is the machine export and writes `param=<name>,<kind>,<value>`; rank 1 is
+ * LostCity's grammar and writes `param=<name>,<value>`. A first-class
+ * `<name>=<value>` line wins over either, since that is how the authored layer
+ * spells the fields the cache has no param for at all (`hitpoints`, `respawnrate`).
+ */
+static const char*
+merged_value(
+    const struct CP_MergedRecord* rec,
+    const char* name,
+    char* scratch,
+    size_t scratch_size)
+{
+    for( int i = 0; i < rec->count; i++ )
+    {
+        if( strcmp(rec->lines[i].key, name) == 0 )
+            return rec->lines[i].value;
+    }
+    for( int i = 0; i < rec->count; i++ )
+    {
+        const char* value;
+        const char* comma;
+        const char* second;
+
+        if( strcmp(rec->lines[i].key, "param") != 0 )
+            continue;
+        value = rec->lines[i].value;
+        comma = strchr(value, ',');
+        if( !comma || (size_t)(comma - value) != strlen(name) ||
+            strncmp(value, name, strlen(name)) != 0 )
+            continue;
+
+        /* `,int,` / `,str,` / `,long,` is the machine export's type column. Only
+         * those three, so an authored two-field row whose *value* happens to start
+         * with a comma-free word is not mistaken for one. */
+        second = strchr(comma + 1, ',');
+        if( second )
+        {
+            size_t kind = (size_t)(second - comma - 1);
+
+            if( (kind == 3 && strncmp(comma + 1, "int", 3) == 0) ||
+                (kind == 3 && strncmp(comma + 1, "str", 3) == 0) ||
+                (kind == 4 && strncmp(comma + 1, "long", 4) == 0) )
+            {
+                snprintf(scratch, scratch_size, "%s", second + 1);
+                return scratch;
+            }
+        }
+        snprintf(scratch, scratch_size, "%s", comma + 1);
+        return scratch;
+    }
+    return NULL;
+}
+
+/**
+ * A decimal literal, or a name in the namespace the register declares.
+ *
+ * `cp_resolve_ref` is deliberately not used: it warns per call site, and here the
+ * interesting report is per field over the whole type. A field with no `ref` and a
+ * symbolic value is not an error — `huntmode = aggressive` is an engine enum with
+ * no cache namespace — it is a declared gap, and the tally is how it stays visible.
+ */
+static int
+resolve_field_value(
+    struct CP_Ctx* ctx,
+    const struct CP_Field* field,
+    const char* text,
+    int* out)
+{
+    int ref_type;
+    int id;
+
+    if( cp_parse_int(text, out) )
+        return 1;
+    if( !field->ref[0] )
+        return 0;
+    ref_type = cp_type_by_name(field->ref);
+    if( ref_type < 0 )
+        return 0;
+    id = cp_name_find(ctx, (enum CP_TypeId)ref_type, text);
+    if( id < 0 )
+        return 0;
+    *out = id;
+    return 1;
+}
+
+/**
+ * Write one type's server bands.
+ *
+ * Runs off the *merged* record, not off `found[0]`: the fields here exist only in
+ * the authored layer, which is the whole reason the merge was built.
+ */
+static int
+pack_server_type(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type_id,
+    const struct CP_MergeSet* merged,
+    const char* server_dir,
+    struct CP_PackStats* stats)
+{
+    const struct CP_Type* type = cp_type(type_id);
+    struct CP_Fields fields;
+    struct CP_FieldTally tally[CP_FIELDS_MAX];
+    int unnamed = 0;
+    int bad_ref = 0;
+
+    if( cp_fields_load(&fields, ctx->srcdir, type->name) <= 0 )
+        return 1; /* nothing declared: nothing to write, and that is a valid tree */
+    if( cp_fields_check(&fields) != 0 )
+    {
+        fprintf(stderr, "cachepack: fields/%s.ini is not a register the server codec can read\n",
+                type->name);
+        return 0;
+    }
+
+    /* `ref` names a cachepack config type, and that is checked here rather than in
+     * cp_fields.c so that file stays free of the type register. A misspelling is
+     * fatal: every symbolic value for that field would silently fall through to
+     * "unresolved" and the pack would look merely incomplete. */
+    for( int i = 0; i < fields.count; i++ )
+    {
+        if( fields.entries[i].ref[0] && cp_type_by_name(fields.entries[i].ref) < 0 )
+        {
+            fprintf(stderr, "cachepack: fields/%s.ini: [%s.%s] ref = `%s` is not a config type\n",
+                    type->name, type->name, fields.entries[i].name, fields.entries[i].ref);
+            bad_ref++;
+        }
+    }
+    if( bad_ref )
+        return 0;
+
+    memset(tally, 0, sizeof(tally));
+    if( ensure_dir_p(server_dir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", server_dir);
+        return 0;
+    }
+
+    for( int r = 0; r < merged->count; r++ )
+    {
+        const struct CP_MergedRecord* rec = &merged->records[r];
+        struct CP_ServerBand band;
+        uint8_t archive[CP_SERVER_BAND_MAX + CP_SERVER_PACK_HEADER];
+        uint8_t container[CP_SERVER_BAND_MAX + CP_SERVER_PACK_HEADER + 16];
+        uint32_t payload;
+        uint32_t framed;
+        int id = 0;
+
+        cp_server_band_init(&band);
+        for( int f = 0; f < fields.count; f++ )
+        {
+            const struct CP_Field* field = &fields.entries[f];
+            char scratch[512];
+            const char* text = merged_value(rec, field->name, scratch, sizeof(scratch));
+            int value = 0;
+
+            /*
+             * Presence is the criterion — never a comparison against a default,
+             * and above all never against zero. `death_drop` defaults to -1 and obj
+             * 0 is a real obj; the reader keeps "absent" and "present and zero"
+             * apart precisely so the authored record can say either. The writer's
+             * job is to preserve that distinction, and it has no defaults record to
+             * derive it from anyway.
+             */
+            if( !text )
+                continue;
+            if( !resolve_field_value(ctx, field, text, &value) )
+            {
+                if( !tally[f].unresolved )
+                    snprintf(tally[f].sample, sizeof(tally[f].sample), "%s", text);
+                tally[f].unresolved++;
+                continue;
+            }
+            if( !cp_server_band_put(&band, field, value) )
+            {
+                if( !tally[f].out_of_range )
+                    snprintf(tally[f].sample, sizeof(tally[f].sample), "%d", value);
+                tally[f].out_of_range++;
+                continue;
+            }
+            tally[f].written++;
+        }
+        if( band.stated == 0 )
+            continue; /* the record states nothing this register knows */
+
+        if( !cp_server_band_finish(&band) )
+            continue;
+
+        id = cp_name_find(ctx, type_id, rec->debugname);
+        if( id < 0 )
+        {
+            cp_warn(ctx, &ctx->warn_unresolved_name,
+                    "%s [%s] states server fields but has no id — add a line to "
+                    "configs/all.%s.compack",
+                    type->name, rec->debugname, type->name);
+            unnamed++;
+            continue;
+        }
+
+        payload = cp_server_archive_build(&band, archive, sizeof(archive));
+        if( !payload )
+            continue;
+        /*
+         * Stored, not compressed. A band is tens of bytes; gzip's header alone is
+         * larger than most of them, and the container's own length fields already
+         * bound the read.
+         */
+        framed = RSCache_ArchiveEncode(container, sizeof(container), archive, payload,
+                                       RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
+        if( !framed )
+            continue;
+        if( RSCache_Dat2DiskWriteArchive(server_dir, type->config_kind, id, container,
+                                         (int)framed) != 0 )
+        {
+            fprintf(stderr, "cachepack: %s [%s] failed to write its server band\n", type->name,
+                    rec->debugname);
+            stats->failed++;
+            continue;
+        }
+        stats->server_records++;
+        stats->server_bytes += (int)framed;
+        stats->server_fields += band.stated;
+    }
+
+    if( stats->server_records )
+        printf("  %-11s server pack: %d record(s), %d field(s), %d bytes in idx%d\n", type->name,
+               stats->server_records, stats->server_fields, stats->server_bytes,
+               type->config_kind);
+    for( int f = 0; f < fields.count; f++ )
+    {
+        const struct CP_Field* field = &fields.entries[f];
+
+        if( tally[f].unresolved )
+            printf("  %-11s   %s: %d value(s) not written — `%s` is a name and the register "
+                   "declares no `ref` namespace for it\n",
+                   type->name, field->name, tally[f].unresolved, tally[f].sample);
+        if( tally[f].out_of_range )
+            printf("  %-11s   %s: %d value(s) not written — %s does not fit u%d\n", type->name,
+                   field->name, tally[f].out_of_range, tally[f].sample, (int)field->wire);
+    }
+    if( unnamed )
+        printf("  %-11s   %d record(s) with server fields have no id\n", type->name, unnamed);
+    return 1;
+}
+
+/**
+ * Write the name tables of the namespaces the cache has no table for.
+ *
+ * `stat` and `category` are not records the client ignores — they are types it
+ * has no concept of. They have lived as `pack/<ns>.pack` text re-read at every
+ * boot, which is the same problem the server band removed for npc, so they get
+ * the same destination: an archive in `server/pack`, at a group id from the
+ * reserved space `cp_fields.h` justifies.
+ *
+ * Flat rather than an opcode band, because that is what they are. A band is a
+ * per-record overlay carrying fields; these are one small table of `id -> name`
+ * with no fields at all, so the payload is the table and the `kind` byte in the
+ * header says which grammar it is.
+ */
+static int
+pack_server_names(
+    struct CP_Ctx* ctx,
+    const char* server_dir)
+{
+    int group_count = 0;
+    const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
+
+    for( int g = 0; g < group_count; g++ )
+    {
+        char path[1200];
+        struct LC_Pack pack;
+        int* ids;
+        const char** names;
+        int count = 0;
+        uint8_t* table;
+        uint32_t table_size;
+        uint8_t* archive;
+        uint32_t payload;
+        uint8_t* container;
+        uint32_t framed;
+        uint32_t bound;
+
+        snprintf(path, sizeof(path), "%s/pack/%s.pack", ctx->srcdir, groups[g].name);
+        memset(&pack, 0, sizeof(pack));
+        if( !lc_pack_load(&pack, path, groups[g].name, 1) || pack.max < 0 )
+        {
+            /* Absent is a normal state, not a failure: a tree that has not named
+             * a namespace yet simply has no table to emit. */
+            lc_pack_free(&pack);
+            continue;
+        }
+
+        ids = (int*)malloc(sizeof(*ids) * (size_t)(pack.max + 1));
+        names = (const char**)malloc(sizeof(*names) * (size_t)(pack.max + 1));
+        if( !ids || !names )
+        {
+            free(ids);
+            free(names);
+            lc_pack_free(&pack);
+            return 0;
+        }
+        /* Sparse in, sparse out. An id the pack does not list gets no entry —
+         * the same rule `lc_pack_save_sparse` follows, and the reason the table
+         * carries its ids rather than implying them from position. */
+        for( int id = 0; id <= pack.max; id++ )
+        {
+            if( !pack.names[id] )
+                continue;
+            ids[count] = id;
+            names[count] = pack.names[id];
+            count++;
+        }
+        if( count == 0 )
+        {
+            free(ids);
+            free(names);
+            lc_pack_free(&pack);
+            continue;
+        }
+
+        bound = 2;
+        for( int i = 0; i < count; i++ )
+            bound += 4 + (uint32_t)strlen(names[i]) + 1;
+        table = (uint8_t*)malloc(bound);
+        archive = (uint8_t*)malloc(bound + CP_SERVER_PACK_HEADER);
+        container = (uint8_t*)malloc(bound + CP_SERVER_PACK_HEADER + 16);
+        if( !table || !archive || !container )
+        {
+            free(table);
+            free(archive);
+            free(container);
+            free(ids);
+            free(names);
+            lc_pack_free(&pack);
+            return 0;
+        }
+
+        table_size = cp_server_names_encode(ids, names, count, table, bound);
+        payload = table_size
+                      ? cp_server_archive_build_payload(
+                            CP_SERVER_PAYLOAD_NAMES, table, table_size, archive,
+                            bound + CP_SERVER_PACK_HEADER)
+                      : 0;
+        framed = payload ? RSCache_ArchiveEncode(container,
+                                                 bound + CP_SERVER_PACK_HEADER + 16, archive,
+                                                 payload, RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL)
+                         : 0;
+        if( !framed ||
+            RSCache_Dat2DiskWriteArchive(server_dir, groups[g].group, 0, container, (int)framed) !=
+                0 )
+        {
+            fprintf(stderr, "cachepack: %s: failed to write its name table\n", groups[g].name);
+            free(table);
+            free(archive);
+            free(container);
+            free(ids);
+            free(names);
+            lc_pack_free(&pack);
+            return 0;
+        }
+        printf("  %-11s server pack: %d name(s), %d bytes in idx%d\n", groups[g].name, count,
+               (int)framed, groups[g].group);
+        free(table);
+        free(archive);
+        free(container);
+        free(ids);
+        free(names);
+        lc_pack_free(&pack);
+    }
+    return 1;
+}
 
 static int
 pack_type(
@@ -74,6 +570,7 @@ pack_type(
     enum CP_TypeId type_id,
     struct RSCache_Dat2Edit* edit,
     int config_table,
+    const char* server_dir,
     struct CP_PackStats* stats)
 {
     const struct CP_Type* type = cp_type(type_id);
@@ -103,18 +600,21 @@ pack_type(
     struct CP_ConfigFile file;
 
     /*
-     * Merge every layer into one record set, then report what the overlay
-     * contributed.
+     * Merge every layer into one record set, then split it in two.
      *
-     * The encode below still runs from `found[0]` alone. That is deliberate for
-     * this phase: the merged record holds keys no cache field can express —
-     * `hitpoints`, `respawnrate`, `huntmode` — and handing those to `cp_npc.c`
-     * would fail or, worse, be ignored. Routing them is the field register's job
-     * and the server pack's destination. What the merge buys now is the *count*:
-     * how many records an overlay touches, which is the set the byte-identity bar
-     * has to confine changes to when the encode does start using it.
+     * **The client encode below still runs from `found[0]` alone, and must.** The
+     * merged record holds keys no cache field can express — `hitpoints`,
+     * `respawnrate`, `huntmode` — and handing those to `cp_npc.c` would fail or,
+     * worse, be ignored. Keeping the client path on the machine export is also what
+     * holds the bar for this change: every byte written into the client cache is
+     * the byte that was written before, and `test/digests` is the proof.
+     *
+     * What the merge feeds now is the *server* band, which is exactly the keys the
+     * client encoder cannot take. Two destinations, one parse — the shape
+     * `opcode_codec.h` describes and LostCity's `ConfigDatIdx = { client, server }`
+     * has always had.
      */
-    if( found_count > 1 )
+    if( found_count > 0 )
     {
         struct CP_MergeSet merged;
         int ok = 1;
@@ -134,8 +634,14 @@ pack_type(
             cp_merge_free(&merged);
             return 0;
         }
-        printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name,
-               merged.count, merged.overlaid_count, found_count - 1);
+        if( found_count > 1 )
+            printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name,
+                   merged.count, merged.overlaid_count, found_count - 1);
+        if( server_dir && !pack_server_type(ctx, type_id, &merged, server_dir, stats) )
+        {
+            cp_merge_free(&merged);
+            return 0;
+        }
         cp_merge_free(&merged);
     }
 
@@ -226,44 +732,63 @@ cp_pack_run(
         return 0;
 
     /*
-     * One walk for the whole run. `configs/` alone for now — `server/scripts/`
-     * joins it as rank 1 when the merge lands, and the roots being a list here is
-     * what makes that a one-line change rather than a rewrite.
+     * One walk for the whole run, over two roots at two ranks. `configs/` is the
+     * machine export; `server/scripts` is what a person authored on top of it, and
+     * a later rank overlays an earlier one.
+     *
+     * The two layers state the same types in *different grammars* —
+     * `configs/all.npc` uses the key names `cp_npc.c` encodes, while `lumbridge.npc`
+     * uses LostCity's (`hitpoints=`, `respawnrate=`, `huntmode=`), which no cache
+     * record has a field for. That is now the split rather than the obstacle: the
+     * client encoder still reads only rank 0, and the keys it cannot express are
+     * routed through the field register into the server pack.
      */
     {
-        /*
-         * Two roots, two ranks. `configs/` is the machine export; `server/scripts`
-         * is what a person authored on top of it, and a later rank overlays an
-         * earlier one.
-         *
-         * Rank 1 is **found and reported, not yet merged**. The two layers state
-         * the same types in *different grammars* — `configs/all.npc` uses the key
-         * names `cp_npc.c` encodes, while `lumbridge.npc` uses LostCity's
-         * (`hitpoints=`, `respawnrate=`, `huntmode=`), which no cache record has a
-         * field for. Merging them per key without routing those through the field
-         * register first would hand the encoder keys it cannot express. So this
-         * phase measures the overlap and changes no bytes.
-         */
         static const char* const ROOTS[] = { "configs", "server/scripts" };
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
     }
 
+    /*
+     * The server pack is rebuilt from nothing on every run, so it is cleared
+     * before the first type rather than per type — a type whose records all lost
+     * their server fields must end up with no archives, not with yesterday's.
+     */
+    char server_dir[1200];
+    snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
+    server_pack_clear(server_dir);
+    if( !sel->all )
+        printf("Note: --types restricts the server pack too; %s will hold only the "
+               "selected types\n",
+               server_dir);
+
     printf("Packing configs from %s\n", ctx->srcdir);
-    int total = 0, failed = 0;
+    int total = 0, failed = 0, server_total = 0;
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
     {
         if( !sel->all && !(sel->mask & (1u << i)) )
             continue;
         struct CP_PackStats stats;
-        if( !pack_type(ctx, i, edit, config_table, &stats) )
+        if( !pack_type(ctx, i, edit, config_table, server_dir, &stats) )
         {
             RSCache_Dat2EditFree(edit);
             return 0;
         }
         total += stats.records;
         failed += stats.failed;
+        server_total += stats.server_records;
+    }
+
+    /*
+     * After the types, and unconditional on `--types`: `stat` and `category` are
+     * not config types, so no selection mask can name them and restricting the
+     * config pass has no bearing on whether their names are current.
+     */
+    if( !pack_server_names(ctx, server_dir) )
+    {
+        RSCache_Dat2EditFree(edit);
+        return 0;
     }
 
     if( total == 0 )
@@ -284,6 +809,11 @@ cp_pack_run(
 
     printf("Done. %d records written, %d failed, %d unknown keys, %d unresolved names.\n", total,
            failed, ctx->warn_unknown_key, ctx->warn_unresolved_name);
+    if( server_total )
+        printf("Server pack: %d record(s) in %s\n", server_total, server_dir);
+    else
+        printf("Server pack: nothing declared — no fields/<type>.ini states a "
+               "`server = opcode:...` row for a record the tree carries\n");
     /* A failure here is a record the target cache still holds in its old form, not
      * a corrupt one — but the caller should know the pack was partial. */
     return failed == 0;

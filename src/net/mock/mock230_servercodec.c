@@ -1,94 +1,170 @@
 #include "mock230_servercodec.h"
 
+#include "rsbuffer.h"
+
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 
 /*
- * One table, both directions.
+ * One table per type, both directions, one implementation.
  *
  * Encode and decode are generated from the same rows rather than written as two
  * switches, because two switches are exactly how a field comes to be written
  * under one opcode and read under another — a failure with no error attached,
- * since both streams are individually valid. `test_servercodec` walks this table
- * against `fields/npc.ini` so a row that drifts from the register is caught.
+ * since both streams are individually valid. `test_servercodec` walks every table
+ * here against its `fields/<type>.ini` so a row that drifts from the register is
+ * caught.
  *
  * `wire` is the width the register declares. It is not cosmetic: a field written
  * as u2 and read as u4 consumes two bytes too many and misaligns everything
  * after it, which is the same class of bug as `dat2_config_obj.c` opcode 115.
+ *
+ * ## The bytes go through RSCache_Buffer
+ *
+ * `g1/g2/g4` and their `p` inverses, rather than shifts written out here. The
+ * library states the property this codec rests on and nothing local can:
+ * *"every `g` below has a `p` that is its exact inverse"* (`rsbuffer.h`). A
+ * hand-rolled pair would be a fourth place — after the register, these tables and
+ * the packer — where the two directions can disagree about a width, and it would
+ * disagree silently, because a u2 written big-endian and read little-endian is
+ * still a perfectly well-formed stream. It also puts the bounds check on the
+ * shared cursor instead of on an `at + wire > size` this file has to keep right
+ * by itself.
  */
 
-/* Ordered by opcode so the encoded stream is ascending, which makes a pack diff
- * readable and two packs of the same content byte-identical. */
+/*
+ * Ordered by opcode so the encoded stream is ascending, which makes a pack diff
+ * readable and two packs of the same content byte-identical. Ascending is a
+ * *choice*, not a constraint — the decode below dispatches per opcode, so any
+ * order reads back identically. Worth stating because the cache's own config
+ * records are the opposite case: dat1 does not write them in opcode order, and
+ * reproducing one means recording the decoded order and replaying it.
+ */
 static const struct ServerField k_npc_fields[] = {
-    { 74, WIRE_U2, offsetof(struct Mock230NpcDef, attack), "attack" },
-    { 75, WIRE_U2, offsetof(struct Mock230NpcDef, defence), "defence" },
-    { 76, WIRE_U2, offsetof(struct Mock230NpcDef, strength), "strength" },
-    { 77, WIRE_U2, offsetof(struct Mock230NpcDef, hitpoints), "hitpoints" },
-    { 78, WIRE_U2, offsetof(struct Mock230NpcDef, ranged), "ranged" },
-    { 79, WIRE_U2, offsetof(struct Mock230NpcDef, magic), "magic" },
-    { 150, WIRE_U1, offsetof(struct Mock230NpcDef, attackrate), "attackrate" },
-    { 151, WIRE_U4, offsetof(struct Mock230NpcDef, death_drop), "death_drop" },
+    { 74,  WIRE_U2, offsetof(struct Mock230NpcDef, attack),      "attack"      },
+    { 75,  WIRE_U2, offsetof(struct Mock230NpcDef, defence),     "defence"     },
+    { 76,  WIRE_U2, offsetof(struct Mock230NpcDef, strength),    "strength"    },
+    { 77,  WIRE_U2, offsetof(struct Mock230NpcDef, hitpoints),   "hitpoints"   },
+    { 78,  WIRE_U2, offsetof(struct Mock230NpcDef, ranged),      "ranged"      },
+    { 79,  WIRE_U2, offsetof(struct Mock230NpcDef, magic),       "magic"       },
+    { 150, WIRE_U1, offsetof(struct Mock230NpcDef, attackrate),  "attackrate"  },
+    { 151, WIRE_U4, offsetof(struct Mock230NpcDef, death_drop),  "death_drop"  },
     { 152, WIRE_U4, offsetof(struct Mock230NpcDef, attack_anim), "attack_anim" },
     { 153, WIRE_U4, offsetof(struct Mock230NpcDef, defend_anim), "defend_anim" },
-    { 154, WIRE_U4, offsetof(struct Mock230NpcDef, death_anim), "death_anim" },
+    { 154, WIRE_U4, offsetof(struct Mock230NpcDef, death_anim),  "death_anim"  },
     { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
-    { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange), "huntrange" },
+    { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },
     { 204, WIRE_U2, offsetof(struct Mock230NpcDef, respawnrate), "respawnrate" },
-    { 208, WIRE_U1, offsetof(struct Mock230NpcDef, nomove), "nomove" },
-    { 209, WIRE_U1, offsetof(struct Mock230NpcDef, huntmode), "huntmode" },
+    { 208, WIRE_U1, offsetof(struct Mock230NpcDef, nomove),      "nomove"      },
+    { 209, WIRE_U1, offsetof(struct Mock230NpcDef, huntmode),    "huntmode"    },
 };
 
-#define NPC_FIELD_COUNT ((int)(sizeof(k_npc_fields) / sizeof(k_npc_fields[0])))
+/*
+ * A door's other half.
+ *
+ * The cache states which locs exist and what they look like; nothing in it says
+ * that closing `poordooropen` produces `poordoor`. `u4` and not `u2` because loc
+ * ids in this revision already run past 62,000.
+ *
+ * `category` is deliberately absent: the tree authors `category=door_closed` on
+ * these same blocks, but a loc's category is a *client* field the cache record
+ * already carries (`cp_loc.c` emits it), so it reaches the server through the
+ * decoded record rather than through this band. The register says as much —
+ * there is no `[loc.category]` row — and this table agreeing with it is what the
+ * cross-check checks.
+ */
+static const struct ServerField k_loc_fields[] = {
+    { 150, WIRE_U4, offsetof(struct Mock230LocDef, next_loc_stage), "next_loc_stage" },
+};
 
-const struct ServerField*
-Mock230_ServerNpcFields(int* out_count)
+#define FIELD_COUNT(table) ((int)(sizeof(table) / sizeof((table)[0])))
+
+static const struct ServerType k_types[] = {
+    { "npc", k_npc_fields, FIELD_COUNT(k_npc_fields), sizeof(struct Mock230NpcDef) },
+    { "loc", k_loc_fields, FIELD_COUNT(k_loc_fields), sizeof(struct Mock230LocDef) },
+};
+
+#define TYPE_COUNT ((int)(sizeof(k_types) / sizeof(k_types[0])))
+
+const struct ServerType*
+Mock230_ServerTypes(int* out_count)
 {
     if( out_count )
-        *out_count = NPC_FIELD_COUNT;
-    return k_npc_fields;
+        *out_count = TYPE_COUNT;
+    return k_types;
 }
 
+const struct ServerType*
+Mock230_ServerTypeFor(const char* name)
+{
+    if( !name )
+        return NULL;
+    for( int i = 0; i < TYPE_COUNT; i++ )
+    {
+        if( strcmp(k_types[i].name, name) == 0 )
+            return &k_types[i];
+    }
+    return NULL;
+}
+
+/*
+ * `memcpy` rather than a cast through `int*`.
+ *
+ * The offset is a byte count into a struct this file does not otherwise know, and
+ * `*(int*)((char*)rec + off)` is only defined when that offset is `int`-aligned.
+ * It always is today; a record that ever grows a `char` field before an `int` one
+ * would make it undefined behaviour that works everywhere until it does not.
+ */
 static int
-field_get(const struct Mock230NpcDef* def, const struct ServerField* field)
+field_get(
+    const void* record,
+    const struct ServerField* field)
 {
     int value;
 
-    memcpy(&value, (const char*)def + field->offset, sizeof(value));
+    memcpy(&value, (const char*)record + field->offset, sizeof(value));
     return value;
 }
 
 static void
-field_set(struct Mock230NpcDef* def, const struct ServerField* field, int value)
+field_set(
+    void* record,
+    const struct ServerField* field,
+    int value)
 {
-    memcpy((char*)def + field->offset, &value, sizeof(value));
+    memcpy((char*)record + field->offset, &value, sizeof(value));
 }
 
 uint32_t
-Mock230_ServerNpcEncodeBound(const struct Mock230NpcDef* def)
+Mock230_ServerEncodeBound(const struct ServerType* type)
 {
-    (void)def;
     /* Every field at once — an opcode byte plus its widest payload — plus the
      * terminator. Small enough that computing it per record would buy nothing. */
-    return (uint32_t)NPC_FIELD_COUNT * 5u + 1u;
+    return type ? ((uint32_t)type->count * 5u) + 1u : 0u;
 }
 
 uint32_t
-Mock230_ServerNpcEncode(
-    const struct Mock230NpcDef* def,
-    const struct Mock230NpcDef* defaults,
+Mock230_ServerEncode(
+    const struct ServerType* type,
+    const void* record,
+    const void* defaults,
     uint8_t* out,
     uint32_t out_capacity)
 {
-    uint32_t at = 0;
+    struct RSCache_Buffer buffer;
     int i;
+    assert(type != NULL);
+    assert(record != NULL);
+    assert(out != NULL);
+    assert(out_capacity >= Mock230_ServerEncodeBound(type));
 
-    if( !def || !out || out_capacity < Mock230_ServerNpcEncodeBound(def) )
-        return 0;
+    RSCache_BufferInit(&buffer, out, out_capacity);
 
-    for( i = 0; i < NPC_FIELD_COUNT; i++ )
+    for( i = 0; i < type->count; i++ )
     {
-        const struct ServerField* field = &k_npc_fields[i];
-        int value = field_get(def, field);
+        const struct ServerField* field = &type->fields[i];
+        int value = field_get(record, field);
 
         /*
          * Compared against the *engine default*, not against zero.
@@ -96,84 +172,91 @@ Mock230_ServerNpcEncode(
          * `death_drop` defaults to -1 (`param=death_drop,null`), so a
          * zero-compare would emit it for every npc that drops nothing and omit it
          * for one that drops obj 0. The default record is the only thing that
-         * knows which is which.
+         * knows which is which, and the same holds wherever 0 is a real value —
+         * `idk.type` 0 is a body part, sprite 0 is a sprite.
          */
         if( defaults && value == field_get(defaults, field) )
             continue;
 
-        out[at++] = (uint8_t)field->opcode;
+        RSCache_BufferP1(&buffer, field->opcode);
         switch( field->wire )
         {
         case WIRE_U1:
-            out[at++] = (uint8_t)(value & 0xFF);
+            /* Masked, because `p1` asserts on anything wider and a field declared
+             * u1 whose value is not is a register error, not a stream error — the
+             * packer refuses it there (`cp_server_band_put`) rather than truncating
+             * a value into a different valid id here. */
+            RSCache_BufferP1(&buffer, value & 0xFF);
             break;
         case WIRE_U2:
-            out[at++] = (uint8_t)((value >> 8) & 0xFF);
-            out[at++] = (uint8_t)(value & 0xFF);
+            RSCache_BufferP2(&buffer, value & 0xFFFF);
             break;
         case WIRE_U4:
-            out[at++] = (uint8_t)((value >> 24) & 0xFF);
-            out[at++] = (uint8_t)((value >> 16) & 0xFF);
-            out[at++] = (uint8_t)((value >> 8) & 0xFF);
-            out[at++] = (uint8_t)(value & 0xFF);
+            RSCache_BufferP4(&buffer, value);
             break;
         }
     }
 
-    out[at++] = 0;
-    return at;
+    RSCache_BufferP1(&buffer, 0);
+    return RSCache_BufferLength(&buffer);
 }
 
 int
-Mock230_ServerNpcDecode(
-    struct Mock230NpcDef* def,
+Mock230_ServerDecode(
+    const struct ServerType* type,
+    void* record,
     const uint8_t* src,
     int size)
 {
-    int at = 0;
+    struct RSCache_Buffer buffer;
 
-    if( !def || !src || size < 0 )
+    if( !type || !record || !src || size < 0 )
         return -1;
 
-    while( at < size )
+    /* Cast away const: the cursor is shared with the encoder and so takes a
+     * writable pointer, but only `g` functions run below and none of them write. */
+    RSCache_BufferInit(&buffer, (uint8_t*)src, (uint32_t)size);
+
+    while( RSCache_BufferRemaining(&buffer) > 0 )
     {
-        int opcode = src[at++];
+        uint32_t opcode_at = buffer.position;
+        int opcode = RSCache_BufferG1(&buffer);
         const struct ServerField* field = NULL;
         int value = 0;
         int i;
 
         if( opcode == 0 )
             break;
-        for( i = 0; i < NPC_FIELD_COUNT; i++ )
+        for( i = 0; i < type->count; i++ )
         {
-            if( k_npc_fields[i].opcode == opcode )
+            if( type->fields[i].opcode == opcode )
             {
-                field = &k_npc_fields[i];
+                field = &type->fields[i];
                 break;
             }
         }
         /* Unknown opcode: stop. Its payload width is unknown, so continuing would
          * read a payload byte as the next opcode — the short return is the
-         * signal, exactly as in rscache's decoders. */
+         * signal, exactly as in rscache's decoders. The cursor is rewound to the
+         * opcode itself so the return names the byte that stopped it. */
         if( !field )
-            return at - 1;
-        if( at + (int)field->wire > size )
-            return at - 1;
+            return (int)opcode_at;
+        if( RSCache_BufferRemaining(&buffer) < (uint32_t)field->wire )
+            return (int)opcode_at;
 
         switch( field->wire )
         {
         case WIRE_U1:
-            value = src[at];
+            value = RSCache_BufferG1(&buffer);
             break;
         case WIRE_U2:
-            value = (src[at] << 8) | src[at + 1];
+            value = RSCache_BufferG2(&buffer);
             break;
         case WIRE_U4:
-            value = (src[at] << 24) | (src[at + 1] << 16) | (src[at + 2] << 8) | src[at + 3];
+            value = RSCache_BufferG4(&buffer);
             break;
         }
-        at += (int)field->wire;
-        field_set(def, field, value);
+        field_set(record, field, value);
     }
-    return at;
+    return (int)RSCache_BufferLength(&buffer);
 }

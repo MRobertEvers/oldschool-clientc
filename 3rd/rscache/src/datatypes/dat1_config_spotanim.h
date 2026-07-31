@@ -11,6 +11,7 @@
  *   code 40..49: recol_s[code-40] g2   code 50..59: recol_d[code-50] g2
  *   code 0: terminator
  */
+#include "../rsbuffer.h"
 #include "dat2_config_spotanim.h"
 
 struct RSCache_Dat1ConfigSpotanim
@@ -57,6 +58,28 @@ RSCache_Dat1ConfigSpotanimListNewDecode(
 
 void
 RSCache_Dat1ConfigSpotanimListFree(struct RSCache_Dat1ConfigSpotanimList* list);
+
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * `anim` is -1 (sequence 0 is a real sequence) and `resizeh`/`resizev` are 128,
+ * the unity scale — zero there renders the effect at no size at all.
+ */
+void
+RSCache_Dat1ConfigSpotanimInit(struct RSCache_Dat1ConfigSpotanim* spotanim);
+
+/**
+ * Handle one opcode, advancing `buffer` past its payload.
+ *
+ * False means "not mine", which ends the stream — the width of an unknown
+ * opcode cannot be guessed. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat1ConfigSpotanimDecodeOp(
+    struct RSCache_Dat1ConfigSpotanim* spotanim,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
 
 /** Returns the number of bytes this entry consumed. */
 int

@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT1_CONFIG_OBJ_H
 #define RSCACHE_DATATYPES_DAT1_CONFIG_OBJ_H
 
+#include "../rsbuffer.h"
+
 #include <stdbool.h>
 
 struct RSCache_Dat1ConfigObj
@@ -72,6 +74,34 @@ RSCache_Dat1ConfigObjListNewDecode(
 /** Decode a single obj from a raw data buffer. Ownership is transferred to the caller. */
 struct RSCache_Dat1ConfigObj*
 RSCache_Dat1ConfigObjDecodeOne(void* data, int size);
+
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * Ten of them are non-zero and none is cosmetic: `zoom2d` 2000, `cost` 1,
+ * `resizex/y/z` 128, and the wearable/cert ids at -1 where 0 is model 0 and obj
+ * 0. A record that skipped this would decode with no error and render at the
+ * wrong scale, price at 0, and link every uncertificated item to obj 0.
+ */
+void
+RSCache_Dat1ConfigObjInit(struct RSCache_Dat1ConfigObj* obj);
+
+/**
+ * Handle one opcode, advancing `buffer` past its payload.
+ *
+ * False means "not mine", which ends the stream — the width of an unknown
+ * opcode cannot be guessed. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat1ConfigObjDecodeOp(
+    struct RSCache_Dat1ConfigObj* obj,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+/** Release what the record owns, leaving the struct itself to the caller. */
+void
+RSCache_Dat1ConfigObjFreeInplace(struct RSCache_Dat1ConfigObj* obj);
 
 /**
  * Encode one dat1 obj record, replaying its decoded opcode order.

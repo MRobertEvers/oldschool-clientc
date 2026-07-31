@@ -1,5 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT1_CONFIG_IDK_H
 #define RSCACHE_DATATYPES_DAT1_CONFIG_IDK_H
+
+#include "../rsbuffer.h"
+
 #include <stdbool.h>
 // Identity Kit.
 // type: number = -1;
@@ -44,6 +47,35 @@ struct RSCache_Dat1ConfigIdkList*
 RSCache_Dat1ConfigIdkListNewDecode(
     void* jagfile_idkdat_data,
     int jagfile_idkdat_data_size);
+
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * Every idk default *is* zero, which is worth stating rather than leaving to a
+ * memset: `type` 0 is a real body-part slot, not "absent", so there is nothing
+ * here to seed to -1 and no field where zero would be a wrong answer. Named so
+ * the registry's `record_init` and the list decoder share one definition — the
+ * split that cost dat2 npc 99 byte-exact records when it drifted.
+ */
+void
+RSCache_Dat1ConfigIdkInit(struct RSCache_Dat1ConfigIdk* idk);
+
+/**
+ * Handle one opcode, advancing `buffer` past its payload.
+ *
+ * False means "not mine", which ends the stream — the width of an unknown
+ * opcode cannot be guessed. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat1ConfigIdkDecodeOp(
+    struct RSCache_Dat1ConfigIdk* idk,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
+
+/** Release what the record owns, leaving the struct itself to the caller. */
+void
+RSCache_Dat1ConfigIdkFreeInplace(struct RSCache_Dat1ConfigIdk* idk);
 
 void
 RSCache_Dat1ConfigIdkFree(struct RSCache_Dat1ConfigIdk* idk);

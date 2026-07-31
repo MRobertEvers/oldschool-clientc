@@ -27,11 +27,68 @@
 //     console.log('Error unrecognised config code: ', code);
 // }
 
+void
+RSCache_Dat1ConfigIdkInit(struct RSCache_Dat1ConfigIdk* idk)
+{
+    memset(idk, 0, sizeof(struct RSCache_Dat1ConfigIdk));
+}
+
+bool
+RSCache_Dat1ConfigIdkDecodeOp(
+    struct RSCache_Dat1ConfigIdk* idk,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* dat1 idk has no era-dependent opcode. */
+
+    switch( opcode )
+    {
+    case 1:
+        idk->type = g1(buffer);
+        break;
+    case 2:
+        idk->models_count = g1(buffer);
+        idk->models = malloc(idk->models_count * sizeof(int));
+        memset(idk->models, 0, idk->models_count * sizeof(int));
+        for( int i = 0; i < idk->models_count; i++ )
+        {
+            idk->models[i] = g2(buffer);
+        }
+        break;
+    case 3:
+        idk->disable = true;
+        break;
+    case 40 ... 49:
+        idk->recol_s[opcode - 40] = g2(buffer);
+        break;
+    case 50 ... 59:
+        idk->recol_d[opcode - 50] = g2(buffer);
+        break;
+    case 60 ... 69:
+        idk->heads[opcode - 60] = g2(buffer);
+        break;
+    default:
+        return false;
+    }
+
+    /*
+     * Recorded *after* the payload, so an opcode this handler declined never
+     * reaches the encoder — replaying one it cannot write returns 0 for the
+     * whole record. The order itself is data, not derivable: cache254's first
+     * idk runs 1, 60, 2 (see the field's note in the header).
+     */
+    if( idk->opcode_count < (int)(sizeof(idk->opcodes) / sizeof(idk->opcodes[0])) )
+        idk->opcodes[idk->opcode_count++] = opcode;
+    return true;
+}
+
 static struct RSCache_Dat1ConfigIdk*
 decode_idk(struct RSCache_Buffer* inb)
 {
     struct RSCache_Dat1ConfigIdk* idk = malloc(sizeof(struct RSCache_Dat1ConfigIdk));
-    memset(idk, 0, sizeof(struct RSCache_Dat1ConfigIdk));
+
+    RSCache_Dat1ConfigIdkInit(idk);
 
     struct RSCache_Buffer buffer = *inb;
 
@@ -40,6 +97,7 @@ decode_idk(struct RSCache_Buffer* inb)
         if( buffer.position >= buffer.size )
         {
             assert(false && "Buffer position exceeded data size");
+            RSCache_Dat1ConfigIdkFree(idk);
             return NULL;
         }
 
@@ -49,36 +107,10 @@ decode_idk(struct RSCache_Buffer* inb)
             break;
         }
 
-        if( idk->opcode_count < (int)(sizeof(idk->opcodes) / sizeof(idk->opcodes[0])) )
-            idk->opcodes[idk->opcode_count++] = opcode;
-
-        switch( opcode )
+        if( !RSCache_Dat1ConfigIdkDecodeOp(idk, opcode, &buffer, 0) )
         {
-        case 1:
-            idk->type = g1(&buffer);
-            break;
-        case 2:
-            idk->models_count = g1(&buffer);
-            idk->models = malloc(idk->models_count * sizeof(int));
-            memset(idk->models, 0, idk->models_count * sizeof(int));
-            for( int i = 0; i < idk->models_count; i++ )
-            {
-                idk->models[i] = g2(&buffer);
-            }
-            break;
-        case 3:
-            idk->disable = true;
-            break;
-        case 40 ... 49:
-            idk->recol_s[opcode - 40] = g2(&buffer);
-            break;
-        case 50 ... 59:
-            idk->recol_d[opcode - 50] = g2(&buffer);
-            break;
-        case 60 ... 69:
-            idk->heads[opcode - 60] = g2(&buffer);
-            break;
-        default:
+            /* The records are one concatenated stream, so an unknown opcode
+             * loses every id after this one, not just this one. */
             assert(false && "Unrecognized opcode");
             break;
         }
@@ -122,11 +154,21 @@ RSCache_Dat1ConfigIdkListNewDecode(
 }
 
 void
-RSCache_Dat1ConfigIdkFree(struct RSCache_Dat1ConfigIdk* idk)
+RSCache_Dat1ConfigIdkFreeInplace(struct RSCache_Dat1ConfigIdk* idk)
 {
     if( !idk )
         return;
     free(idk->models);
+    idk->models = NULL;
+    idk->models_count = 0;
+}
+
+void
+RSCache_Dat1ConfigIdkFree(struct RSCache_Dat1ConfigIdk* idk)
+{
+    if( !idk )
+        return;
+    RSCache_Dat1ConfigIdkFreeInplace(idk);
     free(idk);
 }
 uint32_t

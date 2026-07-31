@@ -16,7 +16,7 @@ CC      ?= cc
 THIRD   := ..
 BUILD   := build
 
-INCLUDES := -Iinclude -Isrc -I. -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas
+INCLUDES := -Iinclude -Isrc -I. -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini
 
 # -Wno-unused-parameter: decoders take a revision they may not consult yet.
 # -Wno-pointer-sign: archives are char* on disk and uint8_t* in the buffer.
@@ -83,6 +83,21 @@ $(BUILD)/lc_pack.o: tools/port_lostcity/lc_pack.c | $(BUILD)
 $(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -Itools/port_lostcity -o $@ $< $(BUILD)/lc_pack.o
 
+# The field-register suite, for the same reason as the pack suite above:
+# `fields/<type>.ini` is the contract between the packer that writes a server band
+# and `src/net/mock/mock230_servercodec.c` that reads it, and the two disagreeing
+# is a failure with no error attached. A contract wants a test that runs on every
+# `make test`, not one that runs when someone remembers to build the tools.
+$(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+$(BUILD)/cp_fields.o: tools/cachepack/cp_fields.c | $(BUILD)
+	$(CC) $(CFLAGS) -Itools/cachepack -c $< -o $@
+
+$(BUILD)/test_fields: test/test_fields.c $(BUILD)/cp_fields.o $(BUILD)/ini.o $(LIB_OBJS) | $(BUILD)
+	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_fields.o $(BUILD)/ini.o \
+		$(LIB_OBJS)
+
 # The bzip2 encoder is ours, so it is also checked against the reference bzip2
 # binary — our own decoder agreeing with our own encoder is not proof.
 $(BUILD)/bzip_interop_helper: test/bzip_interop_helper.c $(BUILD)/bzip_encode.o | $(BUILD)
@@ -100,6 +115,7 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 		*test_db_encode) ./$$bin "$(CACHE_ROOT)/cache.osrs239" || status=1 ;; \
 		*test_opcode_codec) ./$$bin "$(CACHE_ROOT)/cache.osrs239" || status=1 ;; \
 		*test_dat1_encode) ./$$bin "$(CACHE_ROOT)/cache254" || status=1 ;; \
+		*test_fields) ./$$bin "$(CACHE_ROOT)/OSRS-Content/osrs239-content" || status=1 ;; \
 		*) ./$$bin || status=1 ;; \
 		esac; \
 	done; \

@@ -2082,6 +2082,78 @@ converting it through `RSCache_CS2_TypeOfDescAuto` mistypes every param, and the
 result is not a wrong name — it is a stack-shape mismatch that fails the decompile
 of every script touching a param. All 9,725 declined until that was fixed.
 
+### H12. The dat1 rows joined the opcode-codec registry, and measuring them was the point
+
+`opcode_codec.c` held twenty rows, all dat2. Six dat1 types — obj, idk, spotanim,
+npc, seq, component — now have rows too, so the registry answers for both epochs.
+Nothing about the dat2 side moved: every fidelity count in `make test` is
+byte-for-byte what it was, and the only line that changed is `20 codecs
+registered` becoming `26`.
+
+**The one hazard in the work, and it is not a small one.** Five of the six decoders
+seeded their defaults *at the top of their own decode loop*. Lifting the loop out to
+the shared driver leaves those behind, and `WRAP_INIT_ZERO` is exactly the wrong
+answer for all of them: dat1 npc alone has nineteen non-zero defaults — `size` 1,
+`resizeh`/`resizev` 128, `turnspeed` 32, five anim ids at -1 — and **every one of
+those values is also a legitimate field value**, so the record decodes with no error
+and nothing about it looks wrong. What breaks is downstream: the encoders write an
+opcode only where a field *differs from its default*, so a zeroing init silently
+changes which opcodes are emitted. That is the mechanism by which dat2 npc dropped
+from 99 byte-exact records to 0 when its `record_finish` hook was missing (see the
+`record_finish` note in `opcode_codec.h`), and it has no other symptom. Each type's
+defaults are now a named `Init` shared by the registry and the type's own entry
+point, so there is one definition rather than two that agree today.
+
+The same reasoning covers the *order* of the stream. dat1 config records are not in
+ascending opcode order — cache254's first idk runs 1, 60, 2 — so obj, idk and
+spotanim record the order they decoded and replay it, the device
+`RSCache_Dat2ConfigHitsplat` uses. That bookkeeping moved into `decode_op` rather
+than staying in the loop, so the entry point and the registry cannot disagree about
+it, and an opcode the handler declines is now never recorded (replaying one the
+encoder cannot write fails the whole record).
+
+**component takes the whole-record `decode` override, not `decode_op`.** It is not
+an opcode stream: a fixed header, then sections chosen by `type` and `buttonType`,
+with no code byte to dispatch on and no zero terminator — the record ends where its
+last conditional section ends. It is also the only dat1 row with no encoder, and
+`RSCache_OpcodeCodecCanEncode` answers false for it rather than the row pretending
+otherwise.
+
+**The measurement, which is new — these encoders had never been held to a bar.**
+`test_dat1_encode` covered idk, obj and spotanim; seq, npc and component were
+unmeasured. Against `cache254`, driven through the registry:
+
+| type | records | exact | differ | same-len | consumption |
+|---|---|---|---|---|---|
+| idk | 82 | **82 (100%)** | 0 | 0 | exact |
+| spotanim | 270 | **270 (100%)** | 0 | 0 | exact |
+| obj | 2978 | 2973 (99.8%) | 5 | 3 | exact |
+| seq | 1103 | 535 (48.5%) | 568 | 566 | exact |
+| npc | 1055 | **0** | 1055 | 954 | exact |
+| component | 8140 | — (no encoder) | — | — | exact |
+
+**Every record of every type consumes to its last byte**, which is the bar that
+matters most here: dat1 configs are one concatenated stream, so a single misjudged
+width would shift every later record and the walk could not land on the archive's
+end. component's 8,140 records are the largest instance of that check in the suite.
+
+npc's `0 exact` is not loss of 1,055 records, and the `same-len` column is what says
+so — B3's argument, applied to a new type. 954 of the 1,055 re-encode to the
+**identical length**, i.e. the source stated its opcodes in an order the ascending
+encoder does not reproduce. The 101 that are shorter are two already-documented
+classes, both confirmed by inspection rather than assumed:
+
+- **A repeated opcode.** npc 6 carries opcode 31 (`"Attack"`) *twice*; the struct
+  holds one string per slot, so the second overwrites the first and the encoder
+  writes it once — 8 bytes short. Same property `run_obj` already allows for in
+  obj's 5 differing records.
+- **A literal `"hidden"` action**, which the decoder normalises to NULL and the
+  encoder therefore omits. 43 of the 101. This is B2's `obj` row reappearing on
+  dat1 npc.
+
+Both are decoder-side losses that predate this work and neither is introduced by
+the registry; recording them is the whole reason the numbers are worth taking.
+
 ---
 
 ## F. Not ours
@@ -2104,6 +2176,7 @@ tree and was not touched by this work.
 | sound | 120 |
 | compression | 99 |
 | dat1_write | 46 |
+| dat1_encode | 39 |
 | config_var | 37 |
 | cache_edit | 22 |
 | font_metrics | 20 |

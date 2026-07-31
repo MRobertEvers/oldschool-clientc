@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT1_CONFIG_SEQ_H
 #define RSCACHE_DATATYPES_DAT1_CONFIG_SEQ_H
 
+#include "../rsbuffer.h"
+
 #include <stdbool.h>
 
 /*
@@ -45,6 +47,31 @@ RSCache_Dat1ConfigSeqListNewDecode(
 
 void
 RSCache_Dat1ConfigSeqListFree(struct RSCache_Dat1ConfigSeqList* list);
+
+/**
+ * Bring a zeroed allocation to this type's defaults.
+ *
+ * Seven fields are non-zero and each is a value the type also uses: `loops` -1,
+ * `priority` 5 (the gate `playAnimation` compares against, so 0 would let any
+ * anim interrupt any other), `maxloops` 99, and the held/move ids at -1 where 0
+ * is obj 0 and move-style 0. The encoder writes an opcode only where the field
+ * differs from these, so a wrong init silently changes which opcodes are emitted.
+ */
+void
+RSCache_Dat1ConfigSeqInit(struct RSCache_Dat1ConfigSeq* seq);
+
+/**
+ * Handle one opcode, advancing `buffer` past its payload.
+ *
+ * False means "not mine", which ends the stream — the width of an unknown
+ * opcode cannot be guessed. See `opcode_codec.h`.
+ */
+bool
+RSCache_Dat1ConfigSeqDecodeOp(
+    struct RSCache_Dat1ConfigSeq* seq,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags);
 
 /** Returns the number of bytes this entry consumed. */
 int

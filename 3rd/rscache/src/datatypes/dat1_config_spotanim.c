@@ -7,8 +7,8 @@
 #include <string.h>
 
 // SpotType.decode (LostCity JavaClient / Client-TS config/SpotType.ts).
-static void
-init_dat1_spotanim(struct RSCache_Dat1ConfigSpotanim* spotanim)
+void
+RSCache_Dat1ConfigSpotanimInit(struct RSCache_Dat1ConfigSpotanim* spotanim)
 {
     memset(spotanim, 0, sizeof(*spotanim));
     spotanim->model = 0;
@@ -21,6 +21,60 @@ init_dat1_spotanim(struct RSCache_Dat1ConfigSpotanim* spotanim)
     spotanim->dispose_alpha = false;
 }
 
+bool
+RSCache_Dat1ConfigSpotanimDecodeOp(
+    struct RSCache_Dat1ConfigSpotanim* spotanim,
+    int opcode,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    (void)flags; /* dat1 spotanim has no era-dependent opcode. */
+
+    if( opcode == 1 )
+        spotanim->model = g2(buffer);
+    else if( opcode == 2 )
+        spotanim->anim = g2(buffer);
+    else if( opcode == 3 )
+        spotanim->dispose_alpha = true;
+    else if( opcode == 4 )
+        spotanim->resizeh = g2(buffer);
+    else if( opcode == 5 )
+        spotanim->resizev = g2(buffer);
+    else if( opcode == 6 )
+        spotanim->angle = g2(buffer);
+    else if( opcode == 7 )
+        spotanim->ambient = g1(buffer);
+    else if( opcode == 8 )
+        spotanim->contrast = g1(buffer);
+    /* Ranges are 10 wide, arrays hold 6. Consume the value either way to keep
+     * the stream aligned, but only store it if it fits — writing
+     * unconditionally overflowed recol_s into recol_d. */
+    else if( opcode >= 40 && opcode < 50 )
+    {
+        int slot = opcode - 40;
+        int value = g2(buffer);
+        if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
+            spotanim->recol_s[slot] = value;
+    }
+    else if( opcode >= 50 && opcode < 60 )
+    {
+        int slot = opcode - 50;
+        int value = g2(buffer);
+        if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
+            spotanim->recol_d[slot] = value;
+    }
+    else
+        return false;
+
+    /* Recorded after the payload so a declined opcode never reaches the encoder,
+     * which replays this list verbatim — dat1 config records are not in
+     * ascending order. See the field's note in the header. */
+    if( spotanim->opcode_count <
+        (int)(sizeof(spotanim->opcodes) / sizeof(spotanim->opcodes[0])) )
+        spotanim->opcodes[spotanim->opcode_count++] = opcode;
+    return true;
+}
+
 int
 RSCache_Dat1ConfigSpotanimDecodeInplace(
     struct RSCache_Dat1ConfigSpotanim* spotanim,
@@ -29,7 +83,7 @@ RSCache_Dat1ConfigSpotanimDecodeInplace(
 {
     struct RSCache_Buffer buffer;
 
-    init_dat1_spotanim(spotanim);
+    RSCache_Dat1ConfigSpotanimInit(spotanim);
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
     while( true )
@@ -38,44 +92,7 @@ RSCache_Dat1ConfigSpotanimDecodeInplace(
         if( opcode == 0 )
             break;
 
-        if( spotanim->opcode_count <
-            (int)(sizeof(spotanim->opcodes) / sizeof(spotanim->opcodes[0])) )
-            spotanim->opcodes[spotanim->opcode_count++] = opcode;
-
-        if( opcode == 1 )
-            spotanim->model = g2(&buffer);
-        else if( opcode == 2 )
-            spotanim->anim = g2(&buffer);
-        else if( opcode == 3 )
-            spotanim->dispose_alpha = true;
-        else if( opcode == 4 )
-            spotanim->resizeh = g2(&buffer);
-        else if( opcode == 5 )
-            spotanim->resizev = g2(&buffer);
-        else if( opcode == 6 )
-            spotanim->angle = g2(&buffer);
-        else if( opcode == 7 )
-            spotanim->ambient = g1(&buffer);
-        else if( opcode == 8 )
-            spotanim->contrast = g1(&buffer);
-        /* Ranges are 10 wide, arrays hold 6. Consume the value either way to keep
-         * the stream aligned, but only store it if it fits — writing
-         * unconditionally overflowed recol_s into recol_d. */
-        else if( opcode >= 40 && opcode < 50 )
-        {
-            int slot = opcode - 40;
-            int value = g2(&buffer);
-            if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
-                spotanim->recol_s[slot] = value;
-        }
-        else if( opcode >= 50 && opcode < 60 )
-        {
-            int slot = opcode - 50;
-            int value = g2(&buffer);
-            if( slot < RSCACHE_SPOTANIM_COLOUR_SLOTS )
-                spotanim->recol_d[slot] = value;
-        }
-        else
+        if( !RSCache_Dat1ConfigSpotanimDecodeOp(spotanim, opcode, &buffer, 0) )
         {
             /* An unknown opcode desynchronises the rest of the table (entries
              * are only sequentially addressable), so stop here rather than
