@@ -752,7 +752,7 @@ put_appearance(
             slots[i] = k_default_kits[i];
     }
 
-    rsab_p1(buf, 0); /* gender: male */
+    rsab_p1(buf, (uint8_t)player->gender);
     /*
      * Overhead icons.
      *

@@ -212,6 +212,163 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # remains needs an opcode identified in a client rather than inferred (G4).
     "_1628": ([], ["INT"], False),
     "_1139": (["INT"], [], False),
+
+    # ---------------------------------------------------------------
+    # Settled from call sites rather than by search, against cache.osrs239.
+    #
+    # `cs2 infer-arity` needs a witness script to interpret end to end, so an
+    # opcode that only ever appears beside another unknown is invisible to it.
+    # A call site says a great deal on its own: between two statement boundaries
+    # the operand stack starts and ends empty, so where every other op in the
+    # run has a signature, the pushes before and the pops after pin what the
+    # unknown took and left. `cs2 disassemble` prints the per-op int/string
+    # effects this reads.
+    #
+    # Only opcodes where one arity survives at *every* such site are here.
+    "_1137": (["INT"], [], False),
+    "_1145": (["INT"], [], False),
+    "_1151": (["STRING", "STRING", "STRING"], [], False),
+    "_3221": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
+    # 4123 pushes a string too, which the call-site pass missed because every
+    # site it could use had a `gosub` in the same run. `--override 4123:0,3,0,1`
+    # decompiles 14 more scripts than `0,3,0,0`; nothing else in the space beats it.
+    "_4123": (["STRING", "STRING", "STRING"], ["STRING"], False),
+    "_7041": (["INT", "STRING"], [], False),
+    "_7042": (["INT", "STRING"], [], False),
+    "_7615": (["INT"], [], False),
+    "_8019": (["STRING", "STRING"], [], False),
+
+    # ---------------------------------------------------------------
+    # Read out of a deobfuscated client, not inferred.
+    #
+    # The interpreter dispatches by opcode hundred and each handler works the
+    # operand stacks directly, in fixed idioms:
+    #
+    #     field870[++Statics.field3297 - 1] = v      push int
+    #     field870[--Statics.field3297]              pop  int
+    #     Statics.field3297 -= N                     pop  N ints
+    #     field877[++Statics.field4953 - 1] = v      push string   (etc.)
+    #
+    # so an arity can be read rather than searched for. Only straight-line
+    # handlers are taken: a block with a branch may push on one path and not the
+    # other, and counting the text would report both.
+    #
+    # Checked before it was trusted. Over the opcodes both this client and the
+    # vendored tables describe, 358 agree. The rest are era drift (SOUND_SONG
+    # gained arguments between the two) or the IF_* family's shared component
+    # pop, which happens outside the per-opcode block. None of those opcodes are
+    # taken from here -- only the ones nothing else describes at all.
+    #
+    # The client is *older* than cache.osrs239: it implements 7500..7507 and
+    # 8000..8001 and nothing above, while the cache uses opcodes up to 8026. So
+    # this settles the long-established ranges and says nothing about the new
+    # ones, which is why the 7600+ and 8005+ opcodes are still unknown.
+    "_1130": (["STRING"], [], True),
+    "_1131": (["INT", "INT"], [], True),
+    "_1132": (["INT", "STRING"], [], True),
+    "_1133": (["INT"], [], True),
+    "_1134": (["INT"], [], True),
+    "_1135": (["STRING"], [], True),
+    "_1136": (["INT"], [], True),
+    "_1138": (["INT"], [], True),
+    "_1142": (["INT", "INT"], [], True),
+    "_1144": (["INT"], [], True),
+    "_1146": (["INT"], [], True),
+    "_1147": (["INT"], [], True),
+    "_1148": (["INT", "INT"], [], True),
+    "_1149": (["INT", "INT"], [], True),
+    "_1150": (["STRING"], [], True),
+    "_1207": (["INT"], [], True),
+    "_1208": (["INT"], [], True),
+    "_1209": (["INT", "INT"], [], True),
+    "_1210": (["INT"], [], True),
+    "_1434": ([], [], True),
+    "_1435": ([], [], True),
+    "_1708": ([], [], True),
+    "_2708": (["INT"], [], False),
+    "_2709": (["INT"], [], False),
+    "_3146": (["INT"], [], False),
+    "_3148": ([], [], False),
+    "_3149": ([], ["INT"], False),
+    "_3150": ([], ["INT"], False),
+    "_3151": ([], ["INT"], False),
+    "_3152": ([], ["INT"], False),
+    "_3153": ([], ["INT"], False),
+    "_3154": ([], ["INT"], False),
+    "_3155": (["STRING"], [], False),
+    "_3156": ([], [], False),
+    "_3158": ([], ["INT"], False),
+    "_3159": ([], ["INT"], False),
+    "_3160": ([], ["INT"], False),
+    "_3161": (["INT"], ["INT"], False),
+    "_3162": (["INT"], ["INT"], False),
+    "_3163": (["STRING"], ["INT"], False),
+    "_3164": (["INT"], ["STRING"], False),
+    "_3165": (["INT"], ["INT"], False),
+    "_3166": (["INT", "INT"], ["INT"], False),
+    "_3167": (["INT", "INT"], ["INT"], False),
+    # 3168: skipped, 2i/0s -> 0i/9s is a loop, not an arity
+    "_3169": ([], [], False),
+    "_3174": (["INT"], [], False),
+    "_3175": ([], ["INT"], False),
+    "_3176": ([], [], False),
+    "_3177": ([], [], False),
+    "_3178": (["STRING"], [], False),
+    "_3179": ([], [], False),
+    "_3180": (["STRING"], [], False),
+    "_3185": (["INT"], [], False),
+    "_3186": ([], ["INT"], False),
+    "_3211": ([], [], False),
+    "_3219": (["INT"], [], False),
+    "_3220": (["INT", "INT"], [], False),
+    "_3222": (["INT", "INT", "INT", "INT"], [], False),
+    "_3331": ([], ["INT"], False),
+    "_3332": (["INT"], ["INT"], False),
+    "_3333": ([], ["STRING"], False),
+    "_6764": (["INT", "INT"], ["INT", "INT"], False),
+    "_7463": (["INT"], [], False),
+    "_7900": (["INT"], [], False),
+    "_7901": ([], ["INT"], False),
+    "_8000": (["INT"], [], False),
+    "_8001": (["INT", "INT", "INT"], [], False),
+    # ---------------------------------------------------------------
+    # Stale signatures, corrected against cache.osrs239.
+    #
+    # These are opcodes the vendored tables *do* describe and describe wrongly
+    # for this revision -- G4's "some known opcode's signature has drifted"
+    # residue, finally isolated. Each was found by taking the deobfuscated
+    # client's reading, installing it with `cs2 decompile --override`, and
+    # counting: every one below decompiles strictly more scripts than the
+    # recorded signature does. The gain per opcode is noted.
+    #
+    # Mostly one shape of error -- a command that returns a pair or a quad
+    # recorded as returning one. WORLDMAP_LISTELEMENT_START reads four values,
+    # not one, which is why nothing in the world-map panel decompiled.
+    "DB_GETROW": (["INT"], ["INT"], False),                                # +19
+    "_6618": (["INT"], ["INT", "INT", "INT", "INT"], False),               # +14
+    "_6638": (["INT", "INT"], ["INT", "INT"], False),                      # +14
+    "MEC_SPRITE": (["INT"], ["INT", "INT"], False),                        # +14
+    "_6623": (["INT"], ["INT", "INT"], False),                             # +13
+    "WORLDMAP_LISTELEMENT_START": ([], ["INT", "INT", "INT", "INT"], False),  # +13
+    "WORLDMAP_LISTELEMENT_NEXT": ([], ["INT", "INT", "INT", "INT"], False),   # +13
+    "MEC_TEXT": (["INT"], ["STRING", "STRING"], False),                    # +13
+    "MEC_CATEGORY": (["INT"], ["INT", "INT"], False),                      # +10
+    "SOUND_SONG": (["INT", "INT", "INT", "INT", "INT"], [], False),        # +1
+    # ---------------------------------------------------------------
+    # Solved by scoring, against cache.osrs239.
+    #
+    # `infer-arity` needs a witness script to interpret end to end and reported
+    # "no arity works" for these; the call-site pass could not use them either,
+    # because every run they appear in has a `gosub` or another unknown in it.
+    # What settles them is the count: install a candidate with
+    # `cs2 decompile --override`, decompile only the scripts that *use* that
+    # opcode, and take the arity that decompiles the most -- accepted only where
+    # one candidate stands alone.
+    #
+    # 1703 is the largest single blocker in the cache: one int in, one int out,
+    # decompiling 45 of its 87 scripts where no other arity in the space
+    # decompiles any, and 45 more scripts across the cache besides.
+    "_1703": (["INT"], ["INT"], True),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

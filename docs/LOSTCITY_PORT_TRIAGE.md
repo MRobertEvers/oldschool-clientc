@@ -1041,6 +1041,164 @@ landed. `make -C src test-mock230-coverage` was the target that would have said
 so, and the failure direction is the safe one — it under-reported an implemented
 opcode rather than hiding a missing one.
 
+### The loc mutation family — §9 step 4b
+
+The unlock §5.2 named: every `skill_*` directory in the LostCity tree sits at
+0 % opcode readiness because every one of them is the same loop — find the
+tree/rock/altar, change it to the depleted form for N ticks, let it change back.
+
+Eight opcodes landed (189 of 396 now): `loc_find`, `loc_coord`, `loc_type`,
+`loc_angle`, `loc_shape`, `loc_change`, `loc_del`, `loc_add`. That is ~612 of
+the family's 1,033 uses.
+
+Most of the machinery already existed and was not being reached: `mock230_scene`
+had `find_loc` and `replace_loc` for doors, the wire had `LOC_ADD_CHANGE` and
+`LOC_DEL`, and the VM had `SSVM_ENT_LOC` with a `SSVM_PTR_ACTIVE_LOC`
+requirement the meta table already declared on every loc-scoped opcode. What was
+missing was three things:
+
+- **`mock230_scene_add_loc` / `_remove_loc`** — the scene could swap a loc but
+  not create or destroy one. `add_loc` reuses a slot a `loc_del` freed before
+  growing the array, because slots are never compacted (a script can hold one
+  across a suspend) and content that cycles a loc on a timer would otherwise
+  leak one per cycle.
+- **A revert queue**, drained in tick phase 8 (`zones`), where the reference
+  puts loc and obj respawn. This is the half that makes a skilling loop a
+  *loop*: without it `loc_change` is a one-way ratchet and the first player to
+  mine a rock removes it for the session. Duration 0 means never, matching the
+  reference, and the `+1` is the same one `p_delay` has.
+- **Holding the active loc by scene slot, not by pointer.** Same reason the
+  active npc is held by slot: a script can suspend between `loc_find` and
+  `loc_change` and a scene rebuild reallocates the array underneath it. The slot
+  rides in the VM's active-entity pointer as `slot + 1`, so non-NULL means "a
+  loc is active" and the VM's own requirement check works unmodified.
+
+`loc_param` is deliberately absent — it is `runtime_typed` like `oc_param` and
+needs a runtime loc-config decode that does not exist (only `mock230_pack.c`
+decodes loc configs today, for validation). That is 60k+ records at boot and a
+real memory question, not a copy of what landed here. `loc_findallzone` /
+`loc_findnext` need the ZoneMap from §7.2.
+
+#### A pre-existing oddity the test walked into
+
+`mock230_scene_find_loc` ends with
+
+```c
+return loc_id >= 0 ? fallback : fallback;
+```
+
+Both branches are the same, so **the `loc_id` argument does not filter the
+result** — the function returns the first loc on the tile whatever id you ask
+for. That is deliberate for its original caller (an OPLOC carrying a stale id
+must still resolve to the door somebody else already opened, which the comment
+above it explains) and useless for asking "is *this* loc still here". The first
+version of the `loc_add` test used it and reported the loc present after it had
+expired, because 3220,3220 carries other locs. The test now asserts on the slot
+`loc_add` returned instead.
+
+The expression is left alone: the behaviour is intended and relied on, and only
+the ternary is misleading. It is worth knowing about before anything else reaches
+for `find_loc` as an existence check.
+
+### The npc family and the find-all iterators — §9 step 4c
+
+Fifteen more opcodes, in two groups.
+
+**Addressing, lifecycle and reads** (189 → 198): `npc_find`, `npc_findexact`,
+`npc_finduid`, `npc_add`, `npc_del`, `npc_tele`, `npc_range`, `npc_stat`,
+`npc_basestat`. `npc_find` alone was in front of 139 files — it is how content
+addresses an npc that is *not* the one who triggered the script, and everything
+else in the family rides on it. The active npc is held by slot in `host_tag`,
+the same way the active loc is and for the same reason.
+
+**The find-all iterators** (198 → 205): `npc_findall`, `npc_findallany`,
+`npc_findnext`, `loc_findallzone`, `loc_findnext`, `huntall`, `huntnext`.
+
+These closed `test-mock230`'s **"the content tree should not use unimplemented
+opcodes"** failure outright — down from 8 missing opcodes to 0. That failure was
+never about the port: `[proc,npc_findcount]`, `[proc,loc_within_distance]` and
+`[proc,sound_area]` are already-committed content that could not run.
+
+So the test for them is that content. `[proc,selftest_iterators]` calls
+`~npc_findcount` and the C side counts the same goblins with its own walk; the
+two have to agree. Nothing is hardcoded, so changing the Lumbridge roster cannot
+fail it for the wrong reason.
+
+Three things worth stating:
+
+- **`*_findnext` sets the active entity**, it does not merely return an id. The
+  loop body is `while (npc_findnext = true) { if (npc_type = $npc) ... }`, so a
+  version that returned the id would run the right number of times over the
+  wrong npc.
+- **One iterator, not one per script.** The reference has the same single global
+  cursor, for the same reason there is one script-parking slot per player. A
+  script that suspends mid-loop and resumes after another has iterated sees the
+  other's list. Stated rather than fixed, because fixing it means a per-state
+  cursor the VM has no room for yet.
+- **The list is re-checked as it is walked**, because the body can kill what it
+  is iterating over — a `loc_del` inside a `loc_findnext` loop is ordinary
+  content.
+
+`npc_setmode` is deliberately absent and is now the single biggest blocker left
+(122 files). It needs an npc mode machine — `playerfaceclose`, `wander`,
+`playerescape` are standing states an npc holds across ticks — which this server
+does not have; `interface_chat/scripts/chat.rs2` already notes the gap where it
+works around it. That is a feature, not a copy of anything landed here.
+
+### The cheap wide ones, and npc deferred work — §9 steps 4e and 5a
+
+Seven more opcodes (205 → 212), none of which needed a new subsystem and which
+together bought more files than anything before them.
+
+**`finduid` / `p_finduid` / `session_log` / `gender` / `text_gender`** — 198
+files. `p_finduid`'s negative case is the whole point of it: content asks *"is
+the player I remembered still here"*, so a uid naming nobody must answer false
+rather than abort. A version that aborted would pass every positive test and
+break every caller.
+
+`text_gender` needed a fact the server did not have. The appearance encoder had
+`rsab_p1(buf, 0); /* gender: male */` — a constant standing in for state, and an
+opcode cannot be implemented against a comment. `Mock230Player.gender` now backs
+both, so the answer comes from one place. Nothing sets it (there is no
+character-design flow here) and every player is still male; what changed is that
+this is now a *field with no writer* rather than two literals that could drift.
+
+**`npc_queue` / `npc_settimer`** — 67 files, and half the state was already
+there: every npc carried `timer_script`, `timer_interval` and `timer_clock`, and
+nothing ever set or read them. Phase 4 now runs queues then timers, in the
+reference's order, dispatching by npc *type* so an npc that changed type between
+queueing and firing runs the new type's script.
+
+The test asserts the negative for both: that `npc_settimer(0)` **stops** the
+timer, which is the only way to tell "stopped" from "not due yet", and that a
+`[ai_queue1]` does not fire early.
+
+### Where the number stands
+
+§1's headline metric, re-measured after 4a and 4b:
+
+```
+scripts using only implemented commands   636/1,265 (50.3%)  ->  840/1,265 (66.4%)
+opcodes implemented                       179/396            ->  212/396
+mock230 selftest failures                 2                  ->  1
+```
+
+The remaining blockers, re-measured:
+
+| opcode | files still blocked | note |
+|---|---:|---|
+| `npc_setmode` | 122 | needs an npc mode machine — the biggest single item left, by a factor of two |
+| `map_findsquare` | 54 | find a free tile near a coord |
+| `loc_param` | 52 | needs the runtime loc-config decode |
+| `spotanim_map` | 48 | the wire exists (`MAP_ANIM`); this is a host command over it |
+| `npc_walk` | 44 | needs npc step queues |
+| `inv_setslot` | 33 | trivial |
+
+**`npc_setmode` is now the only large item left.** `playerfaceclose`, `wander`
+and `playerescape` are standing states an npc holds across ticks, and this
+server has no mode machine — `interface_chat/scripts/chat.rs2` already notes the
+gap where it works around it. Everything else on the list is a day or less.
+
 ### Still red, and not from this work
 
 `make -C src test-mock230` has two failures that predate all of it and belong to

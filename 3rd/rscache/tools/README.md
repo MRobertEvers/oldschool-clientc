@@ -595,7 +595,7 @@ rest as their payload. `cachepack --list-assets` prints which is which.
 | `interfaces` | `.if`, one `[com_<id>]` block per component | all 968 |
 | `worldmap/areas` | `.wma` per area, `.wmc` per composite map | all 104 |
 | `textures` | `.texture`, a text record | all 210 |
-| `scripts` | `.cs2` source, via the library's own decompiler | 9,245 of 9,725 |
+| `scripts` | `.cs2` source, via the library's own decompiler | 9,368 of 9,725 |
 | `sprites` | `<name>/<n>.bmp` plus `pack.meta` | all 8,534 |
 
 Three of these needed encoders the library did not have, and all three are now in
@@ -605,15 +605,15 @@ it and measured: `RSCache_MapLocsEncode` (2,933 / 2,933 loc streams byte-exact,
 and `RSCache_WorldMapAreaEncode` / `EncodeIcons` (**207 / 207 files byte-exact**).
 
 **Declining is normal and nothing is lost.** A record the decoder cannot handle
-falls back to its raw payload under a different extension — 480 clientscripts do,
+falls back to its raw payload under a different extension — 357 clientscripts do,
 which is why `scripts/` holds both `.cs2` and `.cs2b`. `--raw-assets` turns the
 decoders off entirely.
 
 "Cannot handle" now means both halves. The script codec **compiles its own
 output back before accepting it**, and declines the record if that fails. It did
-not, and the two counts disagreed: 9,310 scripts decompiled but only 9,245 of
-those sources would compile, so `pack` wrote 9,660 archives out of 9,725 and
-lost 65 scripts with nothing but a count to say so. A friendly form is only
+not, and the two counts disagreed: 9,433 scripts decompile but only 9,368 of
+those sources compile, so `pack` wrote 9,660 archives out of 9,725 and lost 65
+scripts with nothing but a count to say so. A friendly form is only
 friendly if it is also the whole record; verifying at export makes the tree
 lossless by construction rather than by the two halves happening to agree, and
 `unpack` then `pack` restores all 9,725.
@@ -748,7 +748,7 @@ Two script sources, because they answer different questions:
   check.
 
 `--names` points at a directory of RuneStar's `*-names.tsv` files. They are
-optional and **purely legibility** — with or without them the same 9,308 of
+optional and **purely legibility** — with or without them the same 9,433 of
 cache.osrs239's 9,725 scripts decompile; the difference is `coins_995` against
 `obj_995`.
 
@@ -769,6 +769,44 @@ in, since it has no name directory to point at. Two changes closed it:
 
 `char`, `area` and `mapelement` print as plain numbers for the same reason,
 joining `newvar`, `spotanim` and `player_uid` (EXCEPTIONS.md G5).
+
+### Where the remaining 292 scripts stand
+
+9,433 of cache.osrs239's 9,725 decompile, up from 6,113. What is left is 46
+opcodes with no signature anywhere, and **28 of them are numbered 7600 or
+above**. That is the whole shape of the residue:
+
+| cause | scripts |
+|---|---|
+| an opcode with no recorded signature | 183 |
+| operand-stack disagreements (underflow, leftover, wrong stack) | 56 |
+| return arity or type disagreements | 21 |
+| everything else (array element, enum descriptor, hook descriptor byte) | 32 |
+
+Three methods were used to settle an arity, in increasing order of what they
+cost to run, and all three are now exhausted on this cache:
+
+1. **`cs2 infer-arity`** — search for an arity under which a witness script
+   interprets. It now drops a witness that *no* arity satisfies rather than
+   letting it veto the opcode: such a script has a second problem and is not
+   evidence. That change alone took the report from "no arity works" on 34 of 39
+   examined opcodes to real answers.
+2. **Call sites** — between two statement boundaries the stack starts and ends
+   empty, so where every other op in a run is signed, the pushes before and pops
+   after pin the unknown. `cs2 disassemble` prints the per-op `NiMs->PiQs`
+   effects this reads.
+3. **Scoring** — install a candidate with `cs2 decompile --override`, decompile
+   only the scripts that use the opcode, and take the arity that decompiles the
+   most. Accepted only where one candidate stands alone. This is what settled
+   1703, the single largest blocker: one int in, one int out, 45 of its 87
+   scripts where nothing else decompiles any.
+
+For the rest, every candidate ties. **They need a client that implements them**,
+which is what G4 said and remains true — the deobfuscated client that supplied
+68 signatures here tops out at opcode 8001 and has no 210, so it predates this
+cache and says nothing about the 7600+ range. Guessing is not the fallback: a
+wrong pop count does not fail, it desynchronises the stack and produces a
+confident listing of a different program.
 
 ### The DB family, and stack shapes that live in the data
 
@@ -875,7 +913,7 @@ Two things that hid behind that gate for a long time:
   matters most to `cachepack` is the one that was blind.
 - **The compiler was well behind the decompiler**, and the gap only shows on a
   full `pack`. It has closed: on cache.osrs239, 8,531 of 9,310 decompiled
-  sources compiled; now 9,245 do. What the difference was, in order of size:
+  sources compiled; now 9,368 of 9,433 do. What the difference was, in order of size:
 
   | cause | scripts |
   |---|---|

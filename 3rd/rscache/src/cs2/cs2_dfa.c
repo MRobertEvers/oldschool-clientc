@@ -715,6 +715,52 @@ cs2_worklist_compact(struct cs2_worklist* list)
     list->items.count = write;
 }
 
+/**
+ * Fall back to the stack the conflicting types share.
+ *
+ * `RSCache_CS2_TypeIntersection` is the reference's lattice and reconciles two
+ * pairs; everything else it calls irreconcilable, and the script is refused. In
+ * a decompiler that is a heavy price for a light problem. A value defined as
+ * `int` and used as `graphic` is *the same value on the same stack* — what
+ * disagrees is the naming hint, and a naming hint has no effect on what the
+ * script does. Refusing loses the program to protect its labels.
+ *
+ * So where every type involved lives on one stack, that stack's plain type is
+ * the answer: `int` or `string`. Where they do not — an int used as a string —
+ * the disagreement is about the *shape*, which means some signature is wrong,
+ * and that still refuses.
+ *
+ * The same trade the port already makes for `newvar`, `spotanim` and
+ * `player_uid` (EXCEPTIONS.md G5): an exact program under a duller name beats
+ * no program at all. It was costing 30 of osrs239's scripts.
+ */
+static enum RSCache_CS2_Type
+cs2_common_stack_type(
+    const enum RSCache_CS2_Type* in_types,
+    int in_count,
+    const enum RSCache_CS2_Type* out_types,
+    int out_count)
+{
+    bool any = false;
+    enum RSCache_CS2_StackType stack = RSCACHE_CS2_STACK_INT;
+    const enum RSCache_CS2_Type* sets[2] = { in_types, out_types };
+    int counts[2] = { in_count, out_count };
+
+    for( int set = 0; set < 2; set++ )
+    {
+        for( int i = 0; i < counts[set]; i++ )
+        {
+            enum RSCache_CS2_StackType here = RSCache_CS2_TypeStackType(sets[set][i]);
+            if( any && here != stack )
+                return RSCACHE_CS2_TYPE_NONE;
+            stack = here;
+            any = true;
+        }
+    }
+    if( !any )
+        return RSCACHE_CS2_TYPE_NONE;
+    return stack == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING : RSCACHE_CS2_TYPE_INT;
+}
 static bool
 cs2_calc_types(struct cs2_dfa* dfa)
 {
@@ -776,6 +822,8 @@ cs2_calc_types(struct cs2_dfa* dfa)
             if( !complete || count == 0 )
                 continue;
             enum RSCache_CS2_Type merged = RSCache_CS2_TypeUnion(scratch, count);
+            if( merged == RSCACHE_CS2_TYPE_NONE )
+                merged = cs2_common_stack_type(scratch, count, NULL, 0);
             if( merged == RSCACHE_CS2_TYPE_NONE )
             {
                 cs2_dfa_fail(dfa, "irreconcilable types flowing into one value");
@@ -870,6 +918,8 @@ cs2_calc_types(struct cs2_dfa* dfa)
             enum RSCache_CS2_Type result =
                 RSCache_CS2_TypeIntersection(candidates, candidate_count);
             if( result == RSCACHE_CS2_TYPE_NONE )
+                result = cs2_common_stack_type(in_types, in_count, out_types, out_count);
+            if( result == RSCACHE_CS2_TYPE_NONE )
             {
                 char in_text[128];
                 char out_text[128];
@@ -957,6 +1007,8 @@ cs2_calc_types(struct cs2_dfa* dfa)
             if( count == 0 )
                 continue;
             enum RSCache_CS2_Type merged = RSCache_CS2_TypeUnion(scratch, count);
+            if( merged == RSCACHE_CS2_TYPE_NONE )
+                merged = cs2_common_stack_type(scratch, count, NULL, 0);
             if( merged == RSCACHE_CS2_TYPE_NONE )
             {
                 cs2_dfa_fail(dfa, "irreconcilable types flowing into one value");

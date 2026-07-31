@@ -81,6 +81,29 @@ mock230_scene_replace_loc(
     int loc_id,
     int angle);
 
+/**
+ * Add a loc the map square did not have (`loc_add`).
+ *
+ * Returns its slot, or -1 when the loc id is not in the cache or the tile is
+ * outside the scene. A freed slot is reused before the array grows, because
+ * slots are never compacted and content that cycles a loc on a timer would
+ * otherwise leak one per cycle.
+ */
+int
+mock230_scene_add_loc(
+    int x,
+    int z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle);
+
+/** Remove a loc (`loc_del`). Frees its collision and marks the slot changed so
+ *  a rebuild knows the square's own version is wrong. Returns 0 when `slot` is
+ *  not a live loc. */
+int
+mock230_scene_remove_loc(int slot);
+
 /** Iterate the locs a rebuild has to re-send. Returns -1 when done. */
 int
 mock230_scene_next_changed_loc(int from);

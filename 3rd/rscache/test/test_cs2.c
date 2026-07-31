@@ -34,8 +34,17 @@
  * `decompiled` is deliberately higher than the reference's own 6,491: this port
  * carries opcode arities from the client's CS2 VM that the 2021 sources predate,
  * and degrades where upstream throws. `identical` is the figure that says the
- * port is faithful; `decompiled` only says it is not *less* capable. */
-#define CS2_EXPECT_MIN_IDENTICAL 6489
+ * port is faithful; `decompiled` only says it is not *less* capable.
+ *
+ * The recorded reason for 6,489 -> 6,485, which is a *lowering*: two opcodes
+ * changed arity between this dump's era and OldSchool 239, and the table has no
+ * era dimension to hold both. `mec_category` (6695) and `_6623` each return a
+ * pair in 239 and a single value here; taking the 239 reading costs three
+ * scripts and one script respectively on this corpus and gains ten and thirteen
+ * on cache.osrs239, which is the revision the work targets. EXCEPTIONS.md G10
+ * records it and names the fix — signatures scoped by era, through the
+ * `RSCache_CS2_CommandOverride` seam that already exists for exactly this. */
+#define CS2_EXPECT_MIN_IDENTICAL 6485
 #define CS2_EXPECT_MAX_DIFFERENT 2
 #define CS2_EXPECT_MIN_DECOMPILED 7467
 

@@ -890,7 +890,7 @@ maybe_rebuild(struct Mock230Server* srv)
 /* NPCs                                                                */
 /* ------------------------------------------------------------------ */
 
-static void
+static int
 npc_spawn(
     struct Mock230Server* srv,
     int type,
@@ -910,7 +910,7 @@ npc_spawn(
             "mock230: npc type %d exceeds the %d-bit wire field; not spawned\n",
             type,
             MOCK230_NPC_TYPE_BITS);
-        return;
+        return -1;
     }
 
     /* Content first, engine defaults second. A spawn is allowed to name an npc
@@ -946,6 +946,9 @@ npc_spawn(
         npc->combat_target = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
+        /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
+         * every npc in the world would vanish on the first pass. */
+        npc->despawn_tick = -1;
         npc->timer_script = -1;
 
         /*
@@ -969,10 +972,28 @@ npc_spawn(
             if( derived >= 0 )
                 npc->death_seq = derived;
         }
-        return;
+        return slot;
     }
 
     fprintf(stderr, "mock230: no free npc slot for type %d at %d,%d\n", type, x, z);
+    return -1;
+}
+
+/*
+ * `npc_add`'s entry point. Same spawn, but content gets the slot back so the
+ * script can act on the npc it just created — the reference leaves it active,
+ * and without the slot there would be no way to say which of six identical
+ * goblins was meant.
+ */
+int
+mock230_world_npc_spawn(
+    struct Mock230Server* srv,
+    int type,
+    int x,
+    int z,
+    int level)
+{
+    return npc_spawn(srv, type, x, z, level);
 }
 
 /* One tile of idle roaming, on the xrsps/RSMod timer: an idle npc re-rolls a
@@ -983,6 +1004,49 @@ advance_npcs(struct Mock230Server* srv)
     for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
+
+        /*
+         * An `npc_add` with a duration expires here, before anything else in
+         * the phase looks at it. Clearing `active` is the ordinary NPC_INFO
+         * remove path — the same one a death uses — so the client is told the
+         * way it is told about everything else.
+         */
+        if( npc->active && npc->despawn_tick >= 0 && srv->tick >= npc->despawn_tick )
+        {
+            npc->active = 0;
+            npc->tracked = 0;
+            continue;
+        }
+
+        /*
+         * `npc_queue` and `npc_settimer`, in phase 4's own order: queues before
+         * timers, matching the reference's `npc.processQueue()` then
+         * `npc.processTimers()`. Both dispatch by npc *type*, so an npc that
+         * changed type between queueing and firing runs the new type's script —
+         * which is what `npc_changetype` is for and why the script id is not
+         * stored.
+         */
+        if( npc->active )
+        {
+            for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+            {
+                if( !npc->queue[i].active )
+                    continue;
+                if( --npc->queue[i].delay > 0 )
+                    continue;
+                npc->queue[i].active = 0;
+                mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1),
+                                            npc->type, -1, slot);
+            }
+        }
+        if( npc->active && npc->timer_interval > 0 )
+        {
+            if( ++npc->timer_clock >= npc->timer_interval )
+            {
+                npc->timer_clock = 0;
+                mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
+            }
+        }
         int step_x;
         int step_z;
         int dir;
@@ -3084,9 +3148,117 @@ phase_logins(struct Mock230Server* srv)
 }
 
 /** 8. Loc/obj respawn timers and the per-zone event flush. */
+/*
+ * Put a loc mutation back when its timer runs out.
+ *
+ * `loc_change`, `loc_del` and `loc_add` all carry a duration, and reverting is
+ * what makes a skilling loop a loop: a tree becomes a stump for N ticks and
+ * then is a tree again. The reference reverts in the zone phase and so does
+ * this, which matters for ordering — a script suspended in phase 5 cannot see
+ * a revert that has not happened yet, and a revert cannot land after the
+ * encoders in phase 10 have already described the zone.
+ *
+ * A duration of 0 means "forever": the reference treats it as no timer at all,
+ * which is what a quest permanently opening a wall wants.
+ */
+void
+mock230_world_loc_reverts(struct Mock230Server* srv)
+{
+    for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
+    {
+        struct Mock230LocRevert* entry = &srv->loc_reverts[i];
+        int pos;
+
+        if( !entry->active )
+            continue;
+        if( --entry->delay > 0 )
+            continue;
+        entry->active = 0;
+
+        pos = mock230_send_zone(srv, entry->x, entry->z);
+        if( entry->loc_id < 0 )
+        {
+            /* Undo a loc_add. */
+            if( mock230_scene_remove_loc(entry->slot) )
+                mock230_send_loc_del(srv, pos, entry->shape, entry->angle);
+        }
+        else
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(entry->slot);
+
+            /*
+             * A `loc_del` freed the slot, so putting the loc back is an *add*,
+             * not a replace. Telling the two apart by the slot's own `active`
+             * flag rather than by remembering which opcode queued it means a
+             * revert does the right thing even if something else touched the
+             * slot meanwhile.
+             */
+            if( loc && loc->active )
+            {
+                if( mock230_scene_replace_loc(entry->slot, entry->loc_id, entry->angle) )
+                    mock230_send_loc_add_change(srv, pos, entry->shape, entry->angle,
+                                                entry->loc_id);
+            }
+            else if( mock230_scene_add_loc(entry->x, entry->z, entry->level, entry->loc_id,
+                                           entry->shape, entry->angle) >= 0 )
+            {
+                mock230_send_loc_add_change(srv, pos, entry->shape, entry->angle,
+                                            entry->loc_id);
+            }
+        }
+    }
+}
+
+/*
+ * Queue a revert. `duration` of 0 is "never", matching the reference.
+ *
+ * Returns 0 when the table is full, and the caller's mutation still stands —
+ * which is the right failure: a loc that changed and never changes back is a
+ * visible bug, where refusing the change outright would make the script look
+ * broken instead.
+ */
+int
+mock230_world_loc_revert_queue(
+    struct Mock230Server* srv,
+    int slot,
+    int duration,
+    int loc_id,
+    int shape,
+    int angle,
+    int x,
+    int z,
+    int level)
+{
+    if( duration <= 0 )
+        return 1;
+    for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
+    {
+        struct Mock230LocRevert* entry = &srv->loc_reverts[i];
+
+        if( entry->active )
+            continue;
+        entry->active = 1;
+        entry->slot = slot;
+        /* +1 for the same reason p_delay has one: the rest of this tick plus
+         * `duration` more (docs/osrs230_mockserver.md §3.10). */
+        entry->delay = duration + 1;
+        entry->loc_id = loc_id;
+        entry->shape = shape;
+        entry->angle = angle;
+        entry->x = x;
+        entry->z = z;
+        entry->level = level;
+        return 1;
+    }
+    fprintf(stderr, "mock230: the loc revert table is full; %d will not change back\n",
+            loc_id);
+    return 0;
+}
+
 static void
 phase_zones(struct Mock230Server* srv)
 {
+    mock230_world_loc_reverts(srv);
     flush_ground(srv);
 }
 
@@ -5306,6 +5478,414 @@ mock230_world_selftest(void)
 
         mock230_bank_close(&srv);
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
+    }
+
+    fprintf(stderr, "mock230 selftest: npc queues and timers\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+            int added = -1;
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_queue]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_queue] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = 0;
+                mock230_scripts_run_script(&srv, script->id);
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
+                        srv.npcs[i].x == 3234 && srv.npcs[i].z == 3234 )
+                        added = i;
+                SELFTEST_CHECK(added >= 0, "the test chicken should be spawned");
+
+                /* delay 1 means tick +2, for the same +1 reason p_delay has. */
+                SELFTEST_CHECK(player->varps[2] == 0, "the queue should not fire immediately");
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 0, "nor on the next tick");
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 1,
+                               "[ai_queue1,chicken] should fire on tick +2, got %d",
+                               player->varps[2]);
+            }
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_timer]");
+            if( script && added >= 0 )
+            {
+                /*
+                 * The timer needs an *active npc* to set it on, and a proc run
+                 * by id has none — so it is armed directly. What is under test
+                 * is phase 4 firing it on the interval, which is the half that
+                 * did not exist: these three fields were on every npc already
+                 * and nothing read them.
+                 */
+                srv.npcs[added].timer_interval = 2;
+                srv.npcs[added].timer_clock = 0;
+                player->varps[2] = 0;
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 0, "the timer should not fire early");
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 10,
+                               "[ai_timer,chicken] should fire on the interval, got %d",
+                               player->varps[2]);
+                mock230_world_tick(&srv);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 20,
+                               "and again one interval later, got %d", player->varps[2]);
+
+                /* npc_settimer(0) stops it, which is how content pauses a
+                 * behaviour. Asserting the *absence* of a fire is the only way
+                 * to tell "stopped" from "not due yet". */
+                srv.npcs[added].timer_interval = 0;
+                for( int i = 0; i < 6; i++ )
+                    mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[2] == 20,
+                               "a zero interval should stop the timer, got %d",
+                               player->varps[2]);
+                srv.npcs[added].active = 0;
+            }
+
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: uid, gender, session_log\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script =
+                SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_uid]");
+
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_uid] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                /*
+                 * Five, not four: the run has to get *past* `session_log`. That
+                 * opcode returns nothing and changes nothing, so the only way to
+                 * tell "implemented" from "aborted the script" is a statement
+                 * after it.
+                 */
+                SELFTEST_CHECK(player->varps[2] == 5,
+                               "p_finduid / the false uid / text_gender / session_log "
+                               "should all clear, got %d", player->varps[2]);
+            }
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: find-all iterators\n");
+    {
+        /*
+         * `findall` + `findnext` was six of the eight opcodes `test-mock230`'s
+         * gap report was failing on, and the content that wanted them —
+         * `[proc,npc_findcount]`, `[proc,loc_within_distance]`,
+         * `[proc,sound_area]` — was already committed and unrunnable. So the
+         * blocked content is the test.
+         *
+         * Both counts are compared against a walk this file does itself rather
+         * than against a number written down, so changing the Lumbridge roster
+         * cannot fail this for the wrong reason.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+            int expected = 0;
+
+            for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            {
+                struct Mock230Npc* npc = &srv.npcs[i];
+                int dx;
+                int dz;
+
+                if( !npc->active || npc->type != goblin || npc->level != 0 )
+                    continue;
+                dx = npc->x - 3222;
+                dz = npc->z - 3218;
+                if( dx < 0 )
+                    dx = -dx;
+                if( dz < 0 )
+                    dz = -dz;
+                if( (dx > dz ? dx : dz) <= 64 )
+                    expected++;
+            }
+            SELFTEST_CHECK(expected > 0,
+                           "the roster should have goblins within 64 tiles to count");
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_iterators]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_iterators] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == expected,
+                               "~npc_findcount should agree with a direct walk, "
+                               "script says %d and the roster has %d",
+                               player->varps[2], expected);
+            }
+
+            expected = 0;
+            for( int slot = 0;; slot++ )
+            {
+                struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+                if( !loc )
+                    break;
+                if( !loc->active || loc->level != 0 )
+                    continue;
+                if( loc->x < (3212 & ~7) || loc->x >= (3212 & ~7) + 8 ||
+                    loc->z < (3215 & ~7) || loc->z >= (3215 & ~7) + 8 )
+                    continue;
+                expected++;
+            }
+            SELFTEST_CHECK(expected > 0, "the kitchen's zone should hold some locs");
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc_iterator]");
+            SELFTEST_CHECK(script != NULL,
+                           "[proc,selftest_loc_iterator] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == expected,
+                               "loc_findallzone should agree with a direct walk, "
+                               "script says %d and the zone has %d",
+                               player->varps[2], expected);
+            }
+
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: npc addressing\n");
+    {
+        /*
+         * `npc_find` is in front of 139 LostCity files, more than any other
+         * unimplemented opcode, because it is how content addresses an npc that
+         * is not the one who triggered the script.
+         *
+         * The negative case is the one worth having: a radius that should find
+         * nothing. A `npc_find` that ignores its distance argument passes every
+         * positive test in this block and is wrong in exactly the way that
+         * matters — content uses the radius to mean "beside me".
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+            int before;
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_find]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_find] should be in the pack");
+            if( script )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 4,
+                               "npc_find/stat/range should all clear, got %d",
+                               player->varps[2]);
+            }
+
+            before = 0;
+            for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                if( srv.npcs[i].active )
+                    before++;
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_add]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_add] should be in the pack");
+            if( script )
+            {
+                int after = 0;
+
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 3,
+                               "add/tele/del should all clear, got %d", player->varps[2]);
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    if( srv.npcs[i].active )
+                        after++;
+                SELFTEST_CHECK(after == before,
+                               "npc_del should leave the roster as it found it, %d -> %d",
+                               before, after);
+            }
+
+            /*
+             * The timed form. `npc_add(coord, npc, 0)` above stayed until
+             * `npc_del`; this one has to go on its own, and the negative first
+             * tick is what separates "expires" from "was never added".
+             */
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_add_timed]");
+            SELFTEST_CHECK(script != NULL,
+                           "[proc,selftest_npc_add_timed] should be in the pack");
+            if( script && chicken > 0 )
+            {
+                int found = -1;
+
+                mock230_scripts_run_script(&srv, script->id);
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
+                        srv.npcs[i].x == 3232 && srv.npcs[i].z == 3232 )
+                        found = i;
+                SELFTEST_CHECK(found >= 0, "a timed npc_add should spawn the npc");
+
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(found < 0 || srv.npcs[found].active,
+                               "and it should still be there a tick later");
+                for( int i = 0; i < 4; i++ )
+                    mock230_world_tick(&srv);
+                SELFTEST_CHECK(found < 0 || !srv.npcs[found].active,
+                               "and be gone once the duration expires");
+            }
+
+            player->varps[2] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: loc mutation\n");
+    {
+        /*
+         * find -> change -> revert, against the scene the server really builds.
+         *
+         * The revert is the assertion that matters. A `loc_change` that lands
+         * and never comes back passes any test that only checks the change, and
+         * it is a one-way ratchet in play: the first player to mine a rock
+         * removes it for the rest of the session.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* script;
+            int range = mock230_content_symbol(MOCK230_PACK_LOC, "cooksquestrange");
+            int remains = mock230_content_symbol(MOCK230_PACK_LOC, "fire_remains");
+            int slot = mock230_scene_find_loc(3212, 3215, 0, range);
+            struct Mock230SceneLoc* loc;
+
+            SELFTEST_CHECK(range > 0 && remains > 0,
+                           "cooksquestrange and fire_remains resolve by name");
+            SELFTEST_CHECK(slot >= 0,
+                           "the Lumbridge cooking range should be in the scene at 3212,3215");
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_loc] should be in the pack");
+            if( script && slot >= 0 )
+            {
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 4,
+                               "find/type/coord/change should all clear, got %d",
+                               player->varps[2]);
+
+                loc = mock230_scene_loc(slot);
+                SELFTEST_CHECK(loc && loc->loc_id == remains,
+                               "the scene should hold the changed loc, got %d",
+                               loc ? loc->loc_id : -1);
+                SELFTEST_CHECK(loc && loc->changed,
+                               "and mark the slot changed so a rebuild re-sends it");
+
+                /* duration 2 means the tick after next, for the same +1 reason
+                 * p_delay(n) resumes on tick n+1. */
+                mock230_world_tick(&srv);
+                loc = mock230_scene_loc(slot);
+                SELFTEST_CHECK(loc && loc->loc_id == remains,
+                               "still changed one tick later");
+                mock230_world_tick(&srv);
+                mock230_world_tick(&srv);
+                loc = mock230_scene_loc(slot);
+                SELFTEST_CHECK(loc && loc->loc_id == range,
+                               "and back to the cooking range once the duration expires, got %d",
+                               loc ? loc->loc_id : -1);
+            }
+
+            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc_add]");
+            SELFTEST_CHECK(script != NULL, "[proc,selftest_loc_add] should be in the pack");
+            if( script )
+            {
+                int added;
+
+                player->varps[2] = -1;
+                mock230_scripts_run_script(&srv, script->id);
+                SELFTEST_CHECK(player->varps[2] == 1,
+                               "loc_add should leave the new loc active, got %d",
+                               player->varps[2]);
+                /*
+                 * The slot, not `mock230_scene_find_loc`. That function returns
+                 * the first loc on the tile when no id matches — the ternary at
+                 * the end of it is `loc_id >= 0 ? fallback : fallback`, so the
+                 * id argument does not filter, which is deliberate for OPLOC
+                 * (a stale id must still resolve to the door somebody else
+                 * opened) and useless for asking "is *this* loc still here".
+                 * 3220,3220 has other locs on it, so the find-based version of
+                 * this check passed before the loc existed and after it was
+                 * gone.
+                 */
+                added = mock230_scene_find_loc(3220, 3220, 0, remains);
+                SELFTEST_CHECK(added >= 0, "and the loc should be in the scene");
+                SELFTEST_CHECK(added >= 0 && mock230_scene_loc(added) &&
+                                   mock230_scene_loc(added)->loc_id == remains,
+                               "at the slot loc_add returned");
+
+                /* An added loc expires by being removed again, not by turning
+                 * into something else. */
+                for( int i = 0; i < 5; i++ )
+                    mock230_world_tick(&srv);
+                SELFTEST_CHECK(added >= 0 && mock230_scene_loc(added) &&
+                                   !mock230_scene_loc(added)->active,
+                               "a loc_add with a duration should expire away again");
+            }
+
+            mock230_scripts_free(&srv);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: oc_param\n");

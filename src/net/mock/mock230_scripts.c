@@ -593,6 +593,28 @@ mock230_scripts_run_trigger(
 /* ------------------------------------------------------------------ */
 
 /*
+ * The active loc, resolved through its scene slot.
+ *
+ * Returns NULL when the slot no longer holds a live loc — which is a real
+ * state, not a bug: a script can suspend between `loc_find` and `loc_change`,
+ * and by the time it resumes somebody else may have taken the loc. The callers
+ * abort on NULL rather than acting on whatever is in the slot now.
+ */
+static struct Mock230SceneLoc*
+script_active_loc(struct SSVM_State* state)
+{
+    int slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
+    struct Mock230SceneLoc* loc;
+
+    if( slot < 0 )
+        return NULL;
+    loc = mock230_scene_loc(slot);
+    if( !loc || !loc->active )
+        return NULL;
+    return loc;
+}
+
+/*
  * The active npc, resolved through its slot rather than a stored pointer.
  *
  * A parked script outlives the tick that started it, and an npc can despawn or
@@ -1199,6 +1221,799 @@ mock230_script_command(
      * — `read_combat_params` had been walking these very rows and discarding
      * all but fourteen keys.
      */
+    case SS_OP_NPC_QUEUE:
+    {
+        int32_t queue;
+        int32_t arg;
+        int32_t delay;
+        struct Mock230Npc* npc = active_npc(state);
+
+        /* `npc_queue(2, $damage, $delay)` — queue number, argument, delay. */
+        if( !SSVM_PopInt(state, &delay) )
+            return 1;
+        if( !SSVM_PopInt(state, &arg) )
+            return 1;
+        if( !SSVM_PopInt(state, &queue) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_queue with no active npc");
+            return 1;
+        }
+        if( queue < 1 || queue > 20 )
+        {
+            SSVM_Abort(state, "npc_queue %d is outside [ai_queue1..20]", queue);
+            return 1;
+        }
+        for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+        {
+            if( npc->queue[i].active )
+                continue;
+            npc->queue[i].active = 1;
+            npc->queue[i].queue = queue;
+            /* +1 so delay 0 means "next tick", matching `queue` and `p_delay`. */
+            npc->queue[i].delay = delay + 1;
+            npc->queue[i].arg = arg;
+            return 1;
+        }
+        SSVM_Abort(state, "npc %d's queue is full", npc->type);
+        return 1;
+    }
+
+    case SS_OP_NPC_SETTIMER:
+    {
+        int32_t interval;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &interval) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_settimer with no active npc");
+            return 1;
+        }
+        /*
+         * 0 stops the timer, which content relies on — `npc_settimer(0)` is how
+         * a behaviour says "not until the action is complete". The trigger is
+         * not stored: `[ai_timer,<npc>]` is resolved when it fires, so an npc
+         * whose type changes picks up the new type's timer script.
+         */
+        npc->timer_interval = interval > 0 ? interval : 0;
+        npc->timer_clock = 0;
+        return 1;
+    }
+
+    /* ---- players by uid, logging, gendered text --------------------- */
+
+    case SS_OP_FINDUID:
+    case SS_OP_P_FINDUID:
+    {
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        /*
+         * `uid` is 1 for the one player, matching `SS_OP_UID` above. Content
+         * uses this to re-acquire a player it stashed in a varp — the shape is
+         * `if (p_finduid(%npc_aggressive_player) = true) { ... }` — so a uid
+         * that no longer names anybody has to return false rather than abort.
+         * That is the whole point of the call: it is content asking whether the
+         * player it remembers is still here.
+         *
+         * `p_finduid` differs from `finduid` by granting *protected* access, so
+         * the ops that follow it may write the player. The reference draws the
+         * same distinction and the VM already enforces it through the meta
+         * table's require bits.
+         */
+        if( uid != 1 || !srv->player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        if( opcode == SS_OP_P_FINDUID )
+            SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_SESSION_LOG:
+    {
+        const char* text = NULL;
+        int32_t level;
+
+        if( !SSVM_PopStr(state, &text) )
+            return 1;
+        if( !SSVM_PopInt(state, &level) )
+            return 1;
+        /*
+         * The reference writes these to a per-player adventure log the client
+         * can read back. There is no such log here, and inventing a file format
+         * for one is a lot of machinery for a feature nothing displays — so it
+         * goes to stderr under MOCK230_VERBOSE, which is where every other
+         * "what did content just do" line goes.
+         *
+         * Implemented rather than left to the loud stub because it is in front
+         * of 73 LostCity files (docs/LOSTCITY_PORT_TRIAGE.md §10.5) and every
+         * one of them is a quest that otherwise runs. A log line that goes
+         * nowhere costs nothing; a quest that aborts on its last statement costs
+         * the quest.
+         */
+        if( srv->verbose )
+            fprintf(stderr, "mock230: session_log(%d) %s\n", level, text ? text : "");
+        return 1;
+    }
+
+    case SS_OP_GENDER:
+        SSVM_PushInt(state, srv->player ? srv->player->gender : 0);
+        return 1;
+
+    case SS_OP_TEXT_GENDER:
+    {
+        const char* female = NULL;
+        const char* male = NULL;
+
+        /* Popped in reverse: `text_gender("sir", "lady")` pushes male first. */
+        if( !SSVM_PopStr(state, &female) )
+            return 1;
+        if( !SSVM_PopStr(state, &male) )
+            return 1;
+        SSVM_PushStr(state,
+                     (srv->player && srv->player->gender) ? (female ? female : "")
+                                                          : (male ? male : ""));
+        return 1;
+    }
+
+    /* ---- find-all iterators ---------------------------------------- */
+
+    /*
+     * `npc_findallany($coord, $distance, $checkvis)` then
+     * `while (npc_findnext = true) { ... npc_type ... }` is the shape all three
+     * of these have, and the loop body reads the *active* entity — so
+     * `*_findnext` has to set it, not merely return an id. Getting that wrong
+     * gives a loop that runs the right number of times over the wrong entity.
+     */
+    case SS_OP_NPC_FINDALL:
+    case SS_OP_NPC_FINDALLANY:
+    {
+        int32_t coord;
+        int32_t npc_type = -1;
+        int32_t distance;
+        int32_t checkvis;
+
+        if( !SSVM_PopInt(state, &checkvis) )
+            return 1;
+        if( !SSVM_PopInt(state, &distance) )
+            return 1;
+        if( opcode == SS_OP_NPC_FINDALL && !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        (void)checkvis; /* No line of sight here — see npc_find. */
+
+        srv->iterator.count = 0;
+        srv->iterator.cursor = 0;
+        srv->iterator.kind = SSVM_ENT_NPC;
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx;
+            int dz;
+
+            if( !npc->active || npc->level != coord_level(coord) )
+                continue;
+            if( opcode == SS_OP_NPC_FINDALL && npc->type != npc_type )
+                continue;
+            dx = npc->x - coord_x(coord);
+            dz = npc->z - coord_z(coord);
+            if( dx < 0 )
+                dx = -dx;
+            if( dz < 0 )
+                dz = -dz;
+            if( (dx > dz ? dx : dz) > distance )
+                continue;
+            if( srv->iterator.count <
+                (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
+                srv->iterator.slots[srv->iterator.count++] = slot;
+        }
+        return 1;
+    }
+
+    case SS_OP_NPC_FINDNEXT:
+    {
+        if( srv->iterator.kind != SSVM_ENT_NPC )
+        {
+            SSVM_Abort(state, "npc_findnext without a preceding npc_findall");
+            return 1;
+        }
+        while( srv->iterator.cursor < srv->iterator.count )
+        {
+            int slot = srv->iterator.slots[srv->iterator.cursor++];
+
+            /* Re-checked, because the list was built before the loop body ran
+             * and the body may have killed one of them. */
+            if( !srv->npcs[slot].active )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+            state->host_tag = slot + 1;
+            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    case SS_OP_LOC_FINDALLZONE:
+    {
+        int32_t coord;
+        int zone_x;
+        int zone_z;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        /* A zone is 8x8, and the coord names any tile in it. */
+        zone_x = coord_x(coord) & ~7;
+        zone_z = coord_z(coord) & ~7;
+
+        srv->iterator.count = 0;
+        srv->iterator.cursor = 0;
+        srv->iterator.kind = SSVM_ENT_LOC;
+        for( int slot = 0;; slot++ )
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+            if( !loc )
+                break;
+            if( !loc->active || loc->level != coord_level(coord) )
+                continue;
+            if( loc->x < zone_x || loc->x >= zone_x + 8 || loc->z < zone_z ||
+                loc->z >= zone_z + 8 )
+                continue;
+            if( srv->iterator.count <
+                (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
+                srv->iterator.slots[srv->iterator.count++] = slot;
+        }
+        return 1;
+    }
+
+    case SS_OP_LOC_FINDNEXT:
+    {
+        if( srv->iterator.kind != SSVM_ENT_LOC )
+        {
+            SSVM_Abort(state, "loc_findnext without a preceding loc_findallzone");
+            return 1;
+        }
+        while( srv->iterator.cursor < srv->iterator.count )
+        {
+            int slot = srv->iterator.slots[srv->iterator.cursor++];
+            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+            /* A `loc_del` in the loop body frees the slot; skip it rather than
+             * handing the body a loc that is no longer there. */
+            if( !loc || !loc->active )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    case SS_OP_HUNTALL:
+    {
+        int32_t coord;
+        int32_t distance;
+        int32_t checkvis;
+        int dx;
+        int dz;
+
+        if( !SSVM_PopInt(state, &checkvis) )
+            return 1;
+        if( !SSVM_PopInt(state, &distance) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        (void)checkvis;
+
+        /*
+         * `huntall` collects *players* in range — `[proc,sound_area]` uses it to
+         * play a sound to everyone who can hear it. `MOCK230_PLAYER_MAX` is 1
+         * (§6.1), so this finds at most one, and it is written as a loop over
+         * the pool anyway: the day a second player exists this is already
+         * right, where a hardcoded `srv->player` would be one more place to find.
+         */
+        srv->iterator.count = 0;
+        srv->iterator.cursor = 0;
+        srv->iterator.kind = SSVM_ENT_PLAYER;
+        for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+        {
+            struct Mock230Player* other = &srv->players[i];
+
+            /* `player_count` is how many of the pool are live; the mock never
+             * leaves a hole, so the first `player_count` entries are the world's
+             * players. */
+            if( i >= srv->player_count || other->level != coord_level(coord) )
+                continue;
+            dx = other->x - coord_x(coord);
+            dz = other->z - coord_z(coord);
+            if( dx < 0 )
+                dx = -dx;
+            if( dz < 0 )
+                dz = -dz;
+            if( (dx > dz ? dx : dz) > distance )
+                continue;
+            srv->iterator.slots[srv->iterator.count++] = i;
+        }
+        return 1;
+    }
+
+    case SS_OP_HUNTNEXT:
+    {
+        if( srv->iterator.kind != SSVM_ENT_PLAYER )
+        {
+            SSVM_Abort(state, "huntnext without a preceding huntall");
+            return 1;
+        }
+        while( srv->iterator.cursor < srv->iterator.count )
+        {
+            int index = srv->iterator.slots[srv->iterator.cursor++];
+            struct Mock230Player* other = &srv->players[index];
+
+            if( index >= srv->player_count )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, other);
+            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    /* ---- npcs: addressing, lifecycle and reads --------------------- */
+
+    /*
+     * `npc_find` and friends set the active npc, which every `npc_*` opcode
+     * with `require = 0x010` then acts on. The slot rides in `host_tag` (+1, so
+     * zero means none) for the same reason the loc's does: a script can suspend
+     * between finding an npc and acting on it, and a slot either still names
+     * the same npc or names none — never a different one wearing the same
+     * address.
+     */
+    case SS_OP_NPC_FIND:
+    case SS_OP_NPC_FINDEXACT:
+    {
+        int32_t coord;
+        int32_t npc_type;
+        int32_t distance = 0;
+        int32_t checkvis = 0;
+        int best = -1;
+        int best_range = 0;
+
+        if( opcode == SS_OP_NPC_FIND )
+        {
+            if( !SSVM_PopInt(state, &checkvis) )
+                return 1;
+            if( !SSVM_PopInt(state, &distance) )
+                return 1;
+        }
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        /*
+         * `checkvis` asks for line of sight. There is no LOS here — the scene
+         * has collision but nothing projects a ray through it — so the flag is
+         * accepted and ignored rather than refused. Content uses it to avoid
+         * addressing an npc through a wall; here it will occasionally find one
+         * it should not, which is a wrong answer in the direction of doing
+         * something rather than nothing.
+         */
+        (void)checkvis;
+
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx;
+            int dz;
+            int range;
+
+            if( !npc->active || npc->type != npc_type )
+                continue;
+            if( npc->level != coord_level(coord) )
+                continue;
+            dx = npc->x - coord_x(coord);
+            dz = npc->z - coord_z(coord);
+            if( dx < 0 )
+                dx = -dx;
+            if( dz < 0 )
+                dz = -dz;
+            range = dx > dz ? dx : dz;
+            if( opcode == SS_OP_NPC_FINDEXACT )
+            {
+                if( range != 0 )
+                    continue;
+            }
+            else if( range > distance )
+            {
+                continue;
+            }
+            /* Nearest wins. The reference does the same, and it is what makes
+             * `npc_find(coord, guard, 5, 0)` mean "the guard beside me" rather
+             * than "whichever guard the slot array happened to reach first". */
+            if( best < 0 || range < best_range )
+            {
+                best = slot;
+                best_range = range;
+            }
+        }
+
+        if( best < 0 )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[best]);
+        state->host_tag = best + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_NPC_FINDUID:
+    {
+        int32_t uid;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        /*
+         * An npc uid is its slot here. The reference packs a generation counter
+         * beside the index so a reused slot fails the lookup; this server has
+         * no such counter, so a uid that outlives its npc resolves to whatever
+         * took the slot. Content holding a uid across a despawn is rare and the
+         * honest fix is the counter, not a guess — this is the one place the
+         * difference is visible, so it is stated here.
+         */
+        if( uid < 0 || uid >= MOCK230_NPC_MAX || !srv->npcs[uid].active )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[uid]);
+        state->host_tag = uid + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_NPC_ADD:
+    {
+        int32_t coord;
+        int32_t npc_type;
+        int32_t duration;
+        int slot;
+
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &npc_type) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        slot = mock230_world_npc_spawn(srv, npc_type, coord_x(coord), coord_z(coord),
+                                       coord_level(coord));
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_add %d at %d,%d found no free slot", npc_type,
+                       coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        /* 0 is "stays until something removes it", matching the reference and
+         * matching every npc the map squares spawn. */
+        srv->npcs[slot].despawn_tick = duration > 0 ? srv->tick + duration : -1;
+        /* Left active, so the script can act on what it just made. */
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+        state->host_tag = slot + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        return 1;
+    }
+
+    case SS_OP_NPC_DEL:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_del with no active npc");
+            return 1;
+        }
+        /* The ordinary NPC_INFO remove path: clearing `active` is what the
+         * encoder reads, exactly as a death does. */
+        npc->active = 0;
+        npc->tracked = 0;
+        return 1;
+    }
+
+    case SS_OP_NPC_TELE:
+    {
+        int32_t coord;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_tele with no active npc");
+            return 1;
+        }
+        npc->x = coord_x(coord);
+        npc->z = coord_z(coord);
+        npc->level = coord_level(coord);
+        /* A teleport is not a step. Leaving `step_dir` set would make the
+         * client walk the npc there, which for any distance reads as the npc
+         * sliding across the map. */
+        npc->step_dir = -1;
+        return 1;
+    }
+
+    case SS_OP_NPC_RANGE:
+    {
+        int32_t coord;
+        struct Mock230Npc* npc = active_npc(state);
+        int dx;
+        int dz;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_range with no active npc");
+            return 1;
+        }
+        if( npc->level != coord_level(coord) )
+        {
+            /* Different planes are not "far", they are unreachable. The
+             * reference returns a large number rather than a real distance and
+             * content tests `> n`, so anything big is correct; this is the
+             * scene's own diagonal, which cannot be a real range. */
+            SSVM_PushInt(state, 0x7fffffff);
+            return 1;
+        }
+        dx = npc->x - coord_x(coord);
+        dz = npc->z - coord_z(coord);
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        SSVM_PushInt(state, dx > dz ? dx : dz);
+        return 1;
+    }
+
+    case SS_OP_NPC_STAT:
+    case SS_OP_NPC_BASESTAT:
+    {
+        int32_t stat;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &stat) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_stat with no active npc");
+            return 1;
+        }
+        /*
+         * Hitpoints is the only npc stat that *moves*, so it is the only one
+         * where base and current differ — everything else is the content
+         * block's authored level either way. That is not a simplification: a
+         * rev-230 npc record carries no levels at all (§3.12), so the config is
+         * the sole source and nothing drains it.
+         */
+        if( stat == MOCK230_STAT_HITPOINTS )
+        {
+            SSVM_PushInt(state, opcode == SS_OP_NPC_STAT ? npc->hitpoints
+                                                         : npc->base_hitpoints);
+            return 1;
+        }
+        if( stat == MOCK230_STAT_ATTACK )
+            SSVM_PushInt(state, npc->def->attack);
+        else if( stat == MOCK230_STAT_STRENGTH )
+            SSVM_PushInt(state, npc->def->strength);
+        else if( stat == MOCK230_STAT_DEFENCE )
+            SSVM_PushInt(state, npc->def->defence);
+        else if( stat == MOCK230_STAT_RANGED )
+            SSVM_PushInt(state, npc->def->ranged);
+        else if( stat == MOCK230_STAT_MAGIC )
+            SSVM_PushInt(state, npc->def->magic);
+        else
+            SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    /* ---- locs ------------------------------------------------------ */
+
+    /*
+     * The active loc is held by *scene slot*, not by pointer.
+     *
+     * Same reason the active npc is (see `host_tag`): a script can suspend
+     * between `loc_find` and `loc_change`, and a scene rebuild reallocates the
+     * loc array underneath it. A stored pointer would dangle; a slot either
+     * still names the same loc or names one that has changed, and the opcodes
+     * below re-read it every time.
+     *
+     * The slot rides in the VM's active-entity pointer as `slot + 1`, so a
+     * non-NULL pointer means "a loc is active" and zero means none — the same
+     * +1 convention `host_tag` uses, and it satisfies the VM's own
+     * `SSVM_PTR_ACTIVE_LOC` requirement check without a second field.
+     */
+    case SS_OP_LOC_FIND:
+    {
+        int32_t coord;
+        int32_t loc_id;
+        int slot;
+
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        slot = mock230_scene_find_loc(coord_x(coord), coord_z(coord), coord_level(coord),
+                                      loc_id);
+        if( slot < 0 )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_LOC_COORD:
+    case SS_OP_LOC_TYPE:
+    case SS_OP_LOC_ANGLE:
+    case SS_OP_LOC_SHAPE:
+    {
+        struct Mock230SceneLoc* loc = script_active_loc(state);
+
+        if( !loc )
+        {
+            SSVM_Abort(state, "the active loc is gone");
+            return 1;
+        }
+        if( opcode == SS_OP_LOC_COORD )
+            SSVM_PushInt(state, coord_pack(loc->level, loc->x, loc->z));
+        else if( opcode == SS_OP_LOC_TYPE )
+            SSVM_PushInt(state, loc->loc_id);
+        else if( opcode == SS_OP_LOC_ANGLE )
+            SSVM_PushInt(state, loc->angle);
+        else
+            SSVM_PushInt(state, loc->shape);
+        return 1;
+    }
+
+    case SS_OP_LOC_CHANGE:
+    {
+        int32_t loc_id;
+        int32_t duration;
+        struct Mock230SceneLoc* loc = script_active_loc(state);
+        int slot;
+        int was_id;
+        int shape;
+        int angle;
+        int x;
+        int z;
+        int level;
+
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !loc )
+        {
+            SSVM_Abort(state, "loc_change with no active loc");
+            return 1;
+        }
+        slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
+        was_id = loc->loc_id;
+        shape = loc->shape;
+        angle = loc->angle;
+        x = loc->x;
+        z = loc->z;
+        level = loc->level;
+
+        if( !mock230_scene_replace_loc(slot, loc_id, angle) )
+        {
+            SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
+            return 1;
+        }
+        mock230_send_loc_add_change(srv, mock230_send_zone(srv, x, z), shape, angle, loc_id);
+        mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
+        return 1;
+    }
+
+    case SS_OP_LOC_DEL:
+    {
+        int32_t duration;
+        struct Mock230SceneLoc* loc = script_active_loc(state);
+        int slot;
+        int was_id;
+        int shape;
+        int angle;
+        int x;
+        int z;
+        int level;
+
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !loc )
+        {
+            SSVM_Abort(state, "loc_del with no active loc");
+            return 1;
+        }
+        slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
+        was_id = loc->loc_id;
+        shape = loc->shape;
+        angle = loc->angle;
+        x = loc->x;
+        z = loc->z;
+        level = loc->level;
+
+        if( !mock230_scene_remove_loc(slot) )
+        {
+            SSVM_Abort(state, "loc_del on a loc that is already gone");
+            return 1;
+        }
+        mock230_send_loc_del(srv, mock230_send_zone(srv, x, z), shape, angle);
+        mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
+        return 1;
+    }
+
+    case SS_OP_LOC_ADD:
+    {
+        int32_t coord;
+        int32_t loc_id;
+        int32_t shape;
+        int32_t angle;
+        int32_t duration;
+        int slot;
+
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !SSVM_PopInt(state, &shape) )
+            return 1;
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        slot = mock230_scene_add_loc(coord_x(coord), coord_z(coord), coord_level(coord),
+                                     loc_id, shape, angle);
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "loc_add %d at %d,%d failed — unknown loc or outside the scene",
+                       loc_id, coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        mock230_send_loc_add_change(srv, mock230_send_zone(srv, coord_x(coord), coord_z(coord)),
+                                    shape, angle, loc_id);
+        /* -1 says "remove it again" rather than "put something back". */
+        mock230_world_loc_revert_queue(srv, slot, duration, -1, shape, angle, coord_x(coord),
+                                       coord_z(coord), coord_level(coord));
+        /* The reference leaves the added loc active, so the next `loc_change`
+         * or `loc_del` in the same script addresses it without a `loc_find`. */
+        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+        return 1;
+    }
+
     case SS_OP_OC_PARAM:
     {
         int32_t obj_id;

@@ -2123,10 +2123,11 @@ Two smaller shape corrections came out of the same pass:
 - **A local nothing constrained printed as `?`.** `[clientscript,x](? $int0)` is
   not source. It prints as its bank now.
 
-Against cache.osrs239 the whole of section G's work moves **6,113 -> 9,308**
-decompiled of 9,725 (and 9,042 -> 9,308 for a caller that has RuneStar's name
-tables). `test_cs2` is unmoved at 6,489 identical / 2 different against the
-reference, and its `decompiled` figure rose 7,467 -> 7,485.
+Against cache.osrs239 the whole of section G's work moves **6,113 -> 9,433**
+decompiled of 9,725 (and 9,042 -> 9,433 for a caller that has RuneStar's name
+tables; the two are now equal — see G5). `test_cs2`'s `decompiled` figure rose
+7,467 -> 7,518; its `identical` figure moved 6,489 -> 6,485 for the reason in
+G10, which is era drift rather than a loss of fidelity.
 
 ### G9. The compiler was measured by a gate that measured nothing *(Resolved)*
 
@@ -2150,7 +2151,7 @@ ambiguous `coins_995` is an int whichever of the six types claims it, and a
 `~proc` call's stack types are readable from the callee's bytecode through
 `RSCache_CS2_ScriptReturnTypes`, which already existed.
 
-Now 9,245 of 9,310. The residue is 65 scripts whose *decompiled source* is not
+Now 9,368 of 9,433. The residue is 65 scripts whose *decompiled source* is not
 valid CS2 — a statement that is a bare local, an array passed to a proc without
 its `$`, and a callback string containing nested quotes. Those are generator
 defects rather than parser ones and are not fixed here.
@@ -2160,6 +2161,32 @@ compiles its own output before accepting it and declines the record if that
 fails, so the raw bytecode is written instead and the tree is lossless by
 construction: `unpack` then `pack` restores all 9,725 archives, against 9,660
 before.
+
+### G10. Two opcodes changed arity between eras, and the table has one slot *(Open)*
+
+`mec_category` (6695) and `_6623` return a pair of values in OldSchool 239 and a
+single value in the 2021 dump `test_cs2` compares against. Both readings are
+right; they are right about different clients.
+
+`src/cs2/cs2_command.gen.h` has one row per opcode and no era dimension, so one
+of them has to lose. The 239 reading is installed, because 239 is the revision
+this work targets and it is worth 23 scripts there against 4 on the older
+corpus. `test_cs2`'s `identical` bar moves 6,489 -> 6,485 to record it, which is
+the first time that number has gone *down*.
+
+Both were found the same way: install a candidate with `cs2 decompile
+--override`, decompile the scripts that use the opcode, and count. That is also
+what says the conflict is real rather than a mistake — each signature strictly
+beats the other on its own cache and strictly loses on the other one.
+
+**The fix is not large and is not done here.** `RSCache_CS2_CommandOverride`
+already exists so "a caller with era-specific knowledge can supply one without
+touching the library", and the profile machinery already knows which revision a
+cache is. Threading an era-scoped signature table through that seam would let
+both readings coexist and would retire this entry. What is needed first is a
+survey: these two are the ones osrs239 and the 2021 corpus happen to disagree
+about *and* both exercise, and there is no reason to think they are the only
+two.
 
 ### H11. Readable asset forms, and what each one costs
 

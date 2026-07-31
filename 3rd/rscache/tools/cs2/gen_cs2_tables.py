@@ -261,6 +261,14 @@ def main() -> int:
     command_text = strip_comments((VENDOR / "Command.kt").read_text(encoding="utf-8"))
 
     by_name, by_id = parse_opcodes(opcodes_text)
+    # The VM's own metadata names opcodes Opcodes.kt never did, and
+    # `local_commands.py` should be able to spell any of them. Read before the
+    # signature tables are resolved, not after: `DB_GETROW` is named only here,
+    # so a LOCAL_BASIC entry for it used to fail with "has no opcode id".
+    meta_names = parse_opcode_meta(REPO_OPCODE_META)
+    for opcode, name in meta_names.items():
+        by_id.setdefault(opcode, name.lower())
+        by_name.setdefault(name, opcode)
     for opcode, name in LOCAL_NAMES.items():
         by_id[opcode] = name.lower()
         by_name[name] = opcode
@@ -336,7 +344,6 @@ def main() -> int:
             commands[opcode] = ("CLIENTSCRIPT", [], [], False, "0")
 
     stack = parse_stack_table(REPO_STACK)
-    meta_names = parse_opcode_meta(REPO_OPCODE_META)
     from_stack = 0
     for opcode, (int_in, str_in, int_out, str_out) in sorted(stack.items()):
         if opcode in commands:

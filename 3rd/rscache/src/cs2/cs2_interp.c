@@ -949,12 +949,16 @@ cs2_translate_db_getfield(struct cs2_interp* interp, int opcode)
 }
 
 /**
- * db_find(dbcolumn, value, 0) and its three siblings.
+ * db_find(dbcolumn, value, basetype) and its three siblings.
  *
- * Three arguments, not the two the client's stack table recorded: all 142 call
- * sites in cache.osrs239 push a third operand, always the literal 0, and the
- * script does not balance without it. The `_with_count` pair leaves the match
- * count behind; the other two leave nothing and are read with db_findnext.
+ * Three arguments, not the two the client's stack table recorded, and the third
+ * is not a mystery: it is a **base-type selector** saying which stack the search
+ * value came off. The client pops it first and runs `popValueOfType` on it — 0
+ * is int, 1 long, 2 string — then pops the value from that stack, then the
+ * dbcolumn. All 142 call sites in cache.osrs239 push it as the literal 0.
+ *
+ * The `_with_count` pair leaves the match count behind; the other two leave
+ * nothing and are read with `db_findnext`.
  */
 static struct RSCache_CS2_Insn*
 cs2_translate_db_find(struct cs2_interp* interp, int opcode)
@@ -964,31 +968,21 @@ cs2_translate_db_find(struct cs2_interp* interp, int opcode)
     bool with_count = opcode == RSCACHE_CS2_OP_DB_FIND_WITH_COUNT ||
                       opcode == RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT;
 
-    /* Top to bottom: the trailing operand, the search value, the dbcolumn. */
-    const struct RSCache_CS2_Value* column_value = cs2_peek_value_at(interp, 2);
-    enum RSCache_CS2_Type field_types[CS2_DB_MAX_FIELDS];
-    int field_count = -1;
-    if( column_value && column_value->stack_type == RSCACHE_CS2_STACK_INT )
-        field_count = cs2_db_column_fields(
-            interp, column_value->int_value, field_types, CS2_DB_MAX_FIELDS);
-    /* Whichever field the column selects, the search value is one slot: it is
-     * the *stack* it occupies that has to be right, and that is the first
-     * field's when the column names the whole tuple. Where the column cannot be
-     * resolved the slot's own type stands in, which cannot desynchronise
-     * anything — the count is fixed either way. */
-    enum RSCache_CS2_StackType value_stack =
-        field_count > 0 ? RSCache_CS2_TypeStackType(field_types[0])
-                        : cs2_peek_stack_type_at(interp, 1);
+    /* Top to bottom: the base-type selector, the search value, the dbcolumn. */
+    const struct RSCache_CS2_Value* selector = cs2_peek_value_at(interp, 0);
+    enum RSCache_CS2_StackType value_stack = RSCACHE_CS2_STACK_INT;
+    if( selector && selector->stack_type == RSCACHE_CS2_STACK_INT &&
+        selector->int_value == 2 )
+        value_stack = RSCACHE_CS2_STACK_STRING;
+    else if( !selector )
+        /* Not a literal, so the selector cannot be read. The slot's own type is
+         * then the best available answer and cannot desynchronise anything —
+         * the value is one slot whichever stack it is on. */
+        value_stack = cs2_peek_stack_type_at(interp, 1);
 
     struct RSCache_CS2_Expr* trailing = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
     struct RSCache_CS2_Expr* value = cs2_pop(interp, value_stack);
     struct RSCache_CS2_Expr* column = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
-    if( field_count > 0 )
-    {
-        enum RSCache_CS2_ProtoId proto = RSCache_CS2_ProtoForType(field_types[0]);
-        if( proto != RSCACHE_CS2_PROTO_NONE )
-            cs2_assign_element_to_proto(interp, value, proto);
-    }
 
     struct RSCache_CS2_Expr* items[3] = { column, value, trailing };
     struct RSCache_CS2_Expr* arguments = RSCache_CS2_ExprFromList(arena, items, 3);
@@ -1508,6 +1502,21 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_POP_ARRAY_INT:
     {
+        /* This script's own `define_array` where it has one, and otherwise the
+         * stack the value is actually on.
+         *
+         * Arrays outlive a `gosub`, so a proc stores into one its caller
+         * defined and the definition is not in this script at all. Falling back
+         * to the value's own stack cannot desynchronise anything — the op takes
+         * one value whichever bank it comes from — and 27 scripts need it,
+         * every one storing a `join_string` result, which can only be a string.
+         *
+         * A client old enough to predate opcodes 105 and 210 has an `int[][]`
+         * array bank and pops two ints here unconditionally, so string arrays
+         * arrived with the same batch of changes as the 7600+ opcodes this
+         * cache uses and that client does not implement. `define_array` already
+         * carried an element *type* descriptor there, which would have had
+         * nothing to select between. */
         int declared = cs2_array_stack(interp, cs2_operand_int(interp));
         struct RSCache_CS2_Expr* value = cs2_pop(
             interp, declared < 0 ? cs2_peek_stack_type_at(interp, 0)

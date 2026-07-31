@@ -755,23 +755,67 @@ run_infer(struct options* options, struct script_store* store, int* ids, int id_
         int surviving_count = 0;
 
         int tried = witness_counts[i] < 12 ? witness_counts[i] : 12;
+
+        /*
+         * A witness that no arity satisfies is not evidence against every
+         * arity — it is evidence that *that script* has a second problem.
+         *
+         * The solver used to require unanimity across all witnesses, so one
+         * such script vetoed the opcode outright and the report read "no arity
+         * works" for opcodes whose arity was in fact pinned by every other call
+         * site. On cache.osrs239 that was most of them: 34 of 39 examined.
+         *
+         * So the witness set is filtered first. A script is *usable* only if
+         * some arity lets it interpret; the intersection is then taken over the
+         * usable ones, and the count of them is what the evidence column
+         * reports. Unusable witnesses are still counted and shown, because "one
+         * site of nine agreed" and "nine of nine agreed" are different claims.
+         */
+        bool usable[12];
+        for( int w = 0; w < tried; w++ )
+            usable[w] = false;
+
+        struct cs2_candidate trial[512];
+        int trial_count = 0;
+        bool satisfies[512][12];
+
         for( int a = 0; a <= CS2_INFER_MAX_INT_IN; a++ )
         for( int b = 0; b <= CS2_INFER_MAX_STR_IN; b++ )
         for( int c = 0; c <= CS2_INFER_MAX_INT_OUT; c++ )
         for( int d = 0; d <= CS2_INFER_MAX_STR_OUT; d++ )
         {
+            if( trial_count >= 512 )
+                continue;
             struct cs2_candidate candidate = { a, b, c, d };
-            bool all = true;
-            for( int w = 0; w < tried && all; w++ )
+            int index = trial_count++;
+            trial[index] = candidate;
+            for( int w = 0; w < tried; w++ )
             {
                 char* source = cs2_try_arity(store, &decompile_options, opcodes[i], &candidate,
                                              witnesses[i][w]);
-                all = source != NULL;
+                satisfies[index][w] = source != NULL;
+                if( source )
+                    usable[w] = true;
                 free(source);
             }
-            if( all && surviving_count < 512 )
-                surviving[surviving_count++] = candidate;
         }
+
+        int usable_count = 0;
+        for( int w = 0; w < tried; w++ )
+            usable_count += usable[w] ? 1 : 0;
+
+        for( int t = 0; t < trial_count && surviving_count < 512; t++ )
+        {
+            bool all = usable_count > 0;
+            for( int w = 0; w < tried && all; w++ )
+            {
+                if( usable[w] && !satisfies[t][w] )
+                    all = false;
+            }
+            if( all )
+                surviving[surviving_count++] = trial[t];
+        }
+        witness_counts[i] = usable_count > 0 ? usable_count : witness_counts[i];
 
         const char* evidence = "";
         char solution[64] = "-";
@@ -1007,27 +1051,141 @@ run_disassemble(struct options* options, struct script_store* store, int* ids, i
             const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
             const char* name = info && info->name ? info->name : "?";
 
-            char signature[64] = "";
-            if( info && info->kind == RSCACHE_CS2_CMD_BASIC )
+            /* The signature column splits int from string.
+             *
+             * `(3)->1` is not enough to simulate the stack with, because a
+             * command taking a string argument moves a different bank — and a
+             * consumer that wants to solve an *unknown* opcode from what its
+             * neighbours do has to simulate exactly. `pop_int_local` and its
+             * siblings carry no signature at all, so their effect is stated
+             * here too rather than left for a reader to know.
+             *
+             * `DYNAMIC` marks the ops whose shape is not a property of the
+             * opcode — a hook's argument list, a `gosub`'s callee signature, a
+             * `join_string`'s count, the DB family's dbcolumn. A run containing
+             * one cannot be used as arity evidence, and saying so is the point.
+             */
+            int in_int = 0;
+            int in_str = 0;
+            int out_int = 0;
+            int out_str = 0;
+            int dynamic = 0;
+            int known = 1;
+
+            if( !info || info->kind == RSCACHE_CS2_CMD_UNKNOWN )
             {
-                snprintf(signature, sizeof(signature), "(%d)->%d", info->arg_count,
-                         info->def_count);
-                depth -= info->arg_count;
-                depth += info->def_count;
+                known = 0;
             }
-            else if( !info || info->kind == RSCACHE_CS2_CMD_UNKNOWN )
+            else if( info->kind == RSCACHE_CS2_CMD_BASIC )
             {
-                snprintf(signature, sizeof(signature), "UNKNOWN");
+                for( int a = 0; a < info->arg_count; a++ )
+                {
+                    if( RSCache_CS2_TypeStackType(
+                            RSCache_CS2_ProtoGet(RSCache_CS2_CommandArg(info, a))->type) ==
+                        RSCACHE_CS2_STACK_STRING )
+                        in_str++;
+                    else
+                        in_int++;
+                }
+                for( int d = 0; d < info->def_count; d++ )
+                {
+                    if( RSCache_CS2_TypeStackType(
+                            RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, d))->type) ==
+                        RSCACHE_CS2_STACK_STRING )
+                        out_str++;
+                    else
+                        out_int++;
+                }
+            }
+            else
+            {
+                switch( info->kind )
+                {
+                case RSCACHE_CS2_CMD_ASSIGN:
+                    /* push_* and pop_*: the opcode says which, and which bank. */
+                    switch( opcode )
+                    {
+                    case RSCACHE_CS2_OP_PUSH_CONSTANT_INT:
+                    case RSCACHE_CS2_OP_PUSH_VAR:
+                    case RSCACHE_CS2_OP_PUSH_VARBIT:
+                    case RSCACHE_CS2_OP_PUSH_INT_LOCAL:
+                    case RSCACHE_CS2_OP_PUSH_VARC_INT:
+                    case RSCACHE_CS2_OP_PUSH_VARCLANSETTING:
+                    case RSCACHE_CS2_OP_PUSH_VARCLAN:
+                        out_int = 1;
+                        break;
+                    case RSCACHE_CS2_OP_PUSH_CONSTANT_STRING:
+                    case RSCACHE_CS2_OP_PUSH_STRING_LOCAL:
+                    case RSCACHE_CS2_OP_PUSH_VARC_STRING:
+                        out_str = 1;
+                        break;
+                    case RSCACHE_CS2_OP_POP_VAR:
+                    case RSCACHE_CS2_OP_POP_VARBIT:
+                    case RSCACHE_CS2_OP_POP_INT_LOCAL:
+                    case RSCACHE_CS2_OP_POP_VARC_INT:
+                        in_int = 1;
+                        break;
+                    case RSCACHE_CS2_OP_POP_STRING_LOCAL:
+                    case RSCACHE_CS2_OP_POP_VARC_STRING:
+                        in_str = 1;
+                        break;
+                    default:
+                        dynamic = 1;
+                        break;
+                    }
+                    break;
+                case RSCACHE_CS2_CMD_DISCARD:
+                    if( info->extra == RSCACHE_CS2_STACK_STRING )
+                        in_str = 1;
+                    else
+                        in_int = 1;
+                    break;
+                case RSCACHE_CS2_CMD_PUSH_ARRAY_INT:
+                    in_int = 1;
+                    out_int = 1;
+                    break;
+                case RSCACHE_CS2_CMD_POP_ARRAY_INT:
+                    /* index plus the value, whose bank is the array's. */
+                    dynamic = 1;
+                    break;
+                case RSCACHE_CS2_CMD_DEFINE_ARRAY:
+                    in_int = 1;
+                    break;
+                case RSCACHE_CS2_CMD_BRANCH_COMPARE:
+                    in_int = 2;
+                    break;
+                case RSCACHE_CS2_CMD_SWITCH:
+                    in_int = 1;
+                    break;
+                case RSCACHE_CS2_CMD_BRANCH:
+                    break;
+                default:
+                    /* PROC, RETURN, ENUM, JOIN_STRING, CLIENTSCRIPT, PARAM,
+                     * DB_GETFIELD, DB_FIND. */
+                    dynamic = 1;
+                    break;
+                }
             }
 
+            char signature[64];
+            if( !known )
+                snprintf(signature, sizeof(signature), "UNKNOWN");
+            else if( dynamic )
+                snprintf(signature, sizeof(signature), "DYNAMIC");
+            else
+                snprintf(signature, sizeof(signature), "%di%ds->%di%ds", in_int, in_str,
+                         out_int, out_str);
+            depth -= in_int + in_str;
+            depth += out_int + out_str;
+
             if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
-                printf("%5d  %5d %-28s %-9s %+4d  \"%s\"\n", pc, opcode, name, signature,
+                printf("%5d  %5d %-28s %-11s %+4d  \"%s\"\n", pc, opcode, name, signature,
                        depth,
                        script->string_operands && script->string_operands[pc]
                            ? script->string_operands[pc]
                            : "");
             else
-                printf("%5d  %5d %-28s %-9s %+4d  %d\n", pc, opcode, name, signature, depth,
+                printf("%5d  %5d %-28s %-11s %+4d  %d\n", pc, opcode, name, signature, depth,
                        script->int_operands ? script->int_operands[pc] : 0);
         }
 
@@ -1176,6 +1334,38 @@ main(int argc, char** argv)
             options.out_directory = argv[++i];
         else if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
             options.revision_name = argv[++i];
+        else if( strcmp(argv[i], "--override") == 0 && i + 1 < argc )
+        {
+            /* `--override 3201:5,0,0,0` installs a signature ahead of the
+             * generated table, for trying one out without regenerating. What
+             * `infer-arity` does internally, exposed: the tables are assembled
+             * from several sources that can disagree, and the only way to tell
+             * which is right for a given cache is to try it and count. */
+            int op = 0;
+            int in_int = 0;
+            int in_str = 0;
+            int out_int = 0;
+            int out_str = 0;
+            if( sscanf(argv[++i], "%d:%d,%d,%d,%d", &op, &in_int, &in_str, &out_int,
+                       &out_str) != 5 )
+            {
+                fprintf(stderr, "--override wants op:ints,strs,outints,outstrs\n");
+                return 2;
+            }
+            enum RSCache_CS2_ProtoId args[32];
+            enum RSCache_CS2_ProtoId defs[32];
+            int arg_count = 0;
+            int def_count = 0;
+            for( int n = 0; n < in_int && arg_count < 32; n++ )
+                args[arg_count++] = RSCACHE_CS2_PROTO_INT;
+            for( int n = 0; n < in_str && arg_count < 32; n++ )
+                args[arg_count++] = RSCACHE_CS2_PROTO_STRING;
+            for( int n = 0; n < out_int && def_count < 32; n++ )
+                defs[def_count++] = RSCACHE_CS2_PROTO_INT;
+            for( int n = 0; n < out_str && def_count < 32; n++ )
+                defs[def_count++] = RSCACHE_CS2_PROTO_STRING;
+            RSCache_CS2_CommandOverride(op, NULL, args, arg_count, defs, def_count, false);
+        }
         else if( strcmp(argv[i], "--quiet") == 0 )
             options.quiet = true;
         else

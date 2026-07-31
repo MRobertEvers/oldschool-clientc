@@ -1231,7 +1231,15 @@ cs2_cc_command_arguments(
         enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
         if( written < info->arg_count )
             expected = RSCache_CS2_ProtoGet(RSCache_CS2_CommandArg(info, written))->type;
-        if( cc->calc_depth > 0 && expected != RSCACHE_CS2_TYPE_STRING )
+        /* Only where the argument could *be* arithmetic. `cs2_cc_calc` types its
+         * leaf `int`, which loses any narrower expectation — and a narrower
+         * expectation is what resolves a named constant. `parawidth($string0,
+         * 400, p11_full)` inside a calc took this path and then could not
+         * resolve `p11_full`, because only the argument's declared
+         * `fontmetrics` says which name table to search. Invisible without name
+         * tables loaded, and 166 scripts with them. */
+        if( cc->calc_depth > 0 &&
+            (expected == RSCACHE_CS2_TYPE_INT || expected == RSCACHE_CS2_TYPE_NONE) )
             cs2_cc_calc(cc, 6);
         else
             cs2_cc_expression(cc, expected);

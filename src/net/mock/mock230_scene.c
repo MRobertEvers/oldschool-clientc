@@ -604,6 +604,91 @@ mock230_scene_replace_loc(
 }
 
 int
+mock230_scene_add_loc(
+    int x,
+    int z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    const struct RSCache_Dat2ConfigLoc* config = loc_config(loc_id);
+    struct Mock230SceneLoc* loc;
+
+    if( !config )
+        return -1;
+    if( !mock230_scene_contains(x, z) )
+        return -1;
+
+    /*
+     * A slot a `loc_del` freed is reused before the array grows. Slots are
+     * never compacted — a script can hold one across a suspend — so without
+     * this a world that adds and removes a loc on a timer grows a slot per
+     * cycle for as long as it runs.
+     */
+    loc = NULL;
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        if( !g_locs[i].active )
+        {
+            loc = &g_locs[i];
+            break;
+        }
+    }
+    if( !loc )
+    {
+        if( g_loc_count == g_loc_capacity )
+        {
+            int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
+            struct Mock230SceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
+
+            if( !grown )
+                return -1;
+            g_locs = grown;
+            g_loc_capacity = capacity;
+        }
+        loc = &g_locs[g_loc_count++];
+    }
+
+    loc->loc_id = loc_id;
+    loc->shape = shape;
+    loc->angle = angle;
+    loc->x = x;
+    loc->z = z;
+    loc->level = level;
+    if( (angle & 1) != 0 )
+    {
+        loc->size_x = config->size_z;
+        loc->size_z = config->size_x;
+    }
+    else
+    {
+        loc->size_x = config->size_x;
+        loc->size_z = config->size_z;
+    }
+    loc->active = 1;
+    /* Added rather than swapped, but `changed` means the same thing to a
+     * rebuild: the cache's version of this square does not have it, so it has
+     * to be re-sent after REBUILD_NORMAL resets the client's scene. */
+    loc->changed = 1;
+    apply_loc_collision(loc, 1);
+    return (int)(loc - g_locs);
+}
+
+int
+mock230_scene_remove_loc(int slot)
+{
+    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+    if( !loc || !loc->active )
+        return 0;
+    apply_loc_collision(loc, 0);
+    loc->active = 0;
+    loc->changed = 1;
+    return 1;
+}
+
+int
 mock230_scene_next_changed_loc(int from)
 {
     for( int i = from < 0 ? 0 : from; i < g_loc_count; i++ )

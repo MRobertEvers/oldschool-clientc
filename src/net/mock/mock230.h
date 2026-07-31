@@ -137,6 +137,11 @@ enum
     /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
      * handful per kill, and they expire. */
     MOCK230_GROUND_MAX = 256,
+    /** Pending `[ai_queue<n>]` entries per npc. */
+    MOCK230_NPC_QUEUE_MAX = 4,
+    /** Loc mutations that can be waiting to revert at once. Generous: a busy
+     *  mining site is a dozen, and the cost is 40 bytes each. */
+    MOCK230_LOC_REVERT_MAX = 128,
     /* Ticks a dropped obj stays on the floor. LostCity's ^lootdrop_duration. */
     MOCK230_LOOT_TICKS = 200,
 
@@ -746,6 +751,26 @@ struct Mock230Npc
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
 
+    /** Tick this npc disappears at, or -1 to stay. Set by `npc_add` with a
+     *  duration; map-square spawns never carry one. */
+    int despawn_tick;
+
+    /**
+     * `npc_queue`: an `[ai_queue<n>]` waiting to fire on this npc.
+     *
+     * Four, not sixteen like the player's: the player's queue absorbs a whole
+     * session of interactions, an npc's holds the two or three steps of one
+     * behaviour. Overflow is reported rather than dropped silently.
+     */
+    struct
+    {
+        int active;
+        /** 1..20 — the `n` in `[ai_queue<n>]`. */
+        int queue;
+        int delay;
+        int arg;
+    } queue[MOCK230_NPC_QUEUE_MAX];
+
     /** [ai_timer]: re-runs every `timer_interval` ticks. -1 = none. */
     int timer_script;
     int timer_interval;
@@ -960,6 +985,17 @@ struct Mock230Player
     /** Set on death, drained by the tick: the respawn has to happen between
      *  ticks so the death animation is seen before the teleport. */
     int death_tick;
+    /**
+     * 0 male, 1 female. Read by the appearance blob and by `text_gender`.
+     *
+     * It was a literal `0` in the encoder, labelled "gender: male" by a comment
+     * beside it — a constant standing in for state, and `text_gender`
+     * cannot be implemented against a comment. Nothing sets it yet (there is no
+     * character-design flow here), so every player is male; the difference is
+     * that the answer now comes from one place instead of two.
+     */
+    int gender;
+
 };
 
 struct Mock230Server
@@ -1023,6 +1059,55 @@ struct Mock230Server
      *  once a tick is nothing, and a zone index would be the only structure in
      *  the mock that has to be kept consistent under a rebuild. */
     struct Mock230GroundObj ground[MOCK230_GROUND_MAX];
+
+    /**
+     * The `find-all then iterate` cursor.
+     *
+     * `npc_findallany` / `loc_findallzone` / `huntall` fill it and the matching
+     * `*_next` walks it, setting the active entity each step so the loop body
+     * can read `npc_type` and friends. One cursor, not one per script: the
+     * reference has the same single global iterator, and for the same reason
+     * there is one script-parking slot per player (§3.10) — two interleaved
+     * iterations would walk each other's list. A script that suspends mid-loop
+     * and is resumed after another has iterated will see the other's results,
+     * which is a real limitation and the reference's too.
+     */
+    struct
+    {
+        int slots[MOCK230_NPC_MAX];
+        int count;
+        int cursor;
+        /** Which `*_next` may read it: SSVM_ENT_NPC, _LOC or _PLAYER. */
+        int kind;
+    } iterator;
+
+    /**
+     * Loc mutations waiting to revert.
+     *
+     * `loc_change`, `loc_del` and `loc_add` all take a duration in ticks, and
+     * every skilling loop in the reference depends on it: a tree becomes a
+     * stump for N ticks and then is a tree again, and nothing re-plants it.
+     * Without the timer the world is a one-way ratchet — the first player to
+     * mine a rock removes it for the session.
+     *
+     * Reverting is phase 8's job (`zones`), which is where the reference puts
+     * loc and obj respawn, and it is a *world* list rather than a player one:
+     * the tree is still a stump after the player who cut it logs out.
+     */
+    struct Mock230LocRevert
+    {
+        int active;
+        /** Scene slot the mutation landed on. */
+        int slot;
+        /** Ticks remaining. */
+        int delay;
+        /** What to put back: -1 means "remove this loc again" (undo a loc_add). */
+        int loc_id;
+        int shape;
+        int angle;
+        /** Kept so the revert can address the zone after the slot is freed. */
+        int x, z, level;
+    } loc_reverts[MOCK230_LOC_REVERT_MAX];
 
     /** Scripts parked by world_delay, drained by phase 1. */
     struct
@@ -1386,6 +1471,15 @@ mock230_random(
     int hi);
 
 /** An npc reached zero hitpoints: run its drop table and leave the loot. */
+/** Spawn an npc and return its slot, or -1. `npc_add`'s entry point. */
+int
+mock230_world_npc_spawn(
+    struct Mock230Server* srv,
+    int type,
+    int x,
+    int z,
+    int level);
+
 void
 mock230_world_npc_died(
     struct Mock230Server* srv,
@@ -1758,6 +1852,24 @@ mock230_send_loc_del(
     int pos,
     int shape,
     int angle);
+
+/** Phase 8: put expired loc mutations back. */
+void
+mock230_world_loc_reverts(struct Mock230Server* srv);
+
+/** Schedule a revert `duration` ticks out. `duration <= 0` means never, and
+ *  `loc_id < 0` means "remove it again", which is how a `loc_add` expires. */
+int
+mock230_world_loc_revert_queue(
+    struct Mock230Server* srv,
+    int slot,
+    int duration,
+    int loc_id,
+    int shape,
+    int angle,
+    int x,
+    int z,
+    int level);
 
 void
 mock230_send_player_info(struct Mock230Server* srv);
