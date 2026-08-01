@@ -125,6 +125,11 @@ struct SSC_Symbol
     /** Constants only: the literal text, so `^player_run_off` can expand to a
      *  string as easily as to a number. */
     char* text;
+    /** Constants only: `path:line`, kept so a duplicate declaration can name
+     *  both sites. A constant is the one symbol kind whose source is a file the
+     *  author wrote rather than a generated index, so it is the one worth
+     *  carrying provenance for. */
+    char* origin;
 };
 
 struct SSC_Symbols
@@ -210,6 +215,35 @@ int
 SSC_SymbolsLoadConstantDir(
     struct SSC_Symbols* symbols,
     const char* dir);
+
+/*
+ * Refuse to compile against a symbol table that answers a name two ways.
+ *
+ * The compiler used to be *looser than the server it feeds*, in two places, and
+ * both are silent:
+ *
+ *   - **A constant declared twice.** `mock230_content.c`'s loader errors with
+ *     `is declared twice`; `SSC_SymbolsAdd` appends unconditionally and the
+ *     binary search then returns whichever copy `qsort` — which is not stable —
+ *     happened to land first. So one loader refuses the tree and the other
+ *     compiles it to an arbitrary value. Importing LostCity's 1,562 constants
+ *     is 111 names that already exist here, 14 of them with a *different*
+ *     value, so this has to be an error before that import, not after.
+ *
+ *   - **A `%name` that is two kinds at once.** `content.ini`'s `vardomain`
+ *     column declares varp/varbit/varn/vars to share one RuneScript name domain
+ *     and `mock230_content.c` enforces it; the compiler never read the column,
+ *     so `resolve_variable` silently tried VARP first. That precedence is what
+ *     `docs/LOSTCITY_PORT_TRIAGE.md` §7.5 is about: a name that is both compiles
+ *     to the whole-varp write and clobbers every varbit packed into it. The cost
+ *     of turning it on is zero today — no name is both — which is the only
+ *     moment it is free.
+ *
+ * Returns the number of problems, each already printed to stderr. Call after
+ * every load; a non-zero answer must fail the build.
+ */
+int
+SSC_SymbolsValidate(struct SSC_Symbols* symbols);
 
 /** NULL when the name is unknown. `kind` may be SSC_SYM_UNKNOWN to match any. */
 const struct SSC_Symbol*

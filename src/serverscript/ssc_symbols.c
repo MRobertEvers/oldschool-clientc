@@ -40,7 +40,10 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
         return;
 
     for( i = 0; i < symbols->count; i++ )
+    {
         free(symbols->entries[i].text);
+        free(symbols->entries[i].origin);
+    }
     free(symbols->entries);
     free(symbols->order);
     memset(symbols, 0, sizeof(*symbols));
@@ -123,6 +126,130 @@ ensure_sorted(struct SSC_Symbols* symbols)
     qsort(symbols->order, (size_t)symbols->count, sizeof(int32_t), cmp_order);
     g_sort_symbols = NULL;
     symbols->sorted = 1;
+}
+
+/**
+ * The kinds that share one RuneScript `%name` domain, as `content.ini`'s
+ * `vardomain` column declares them.
+ *
+ * Read from the register rather than listed here, for the reason §8.5 of
+ * CONTENT_ARCHITECTURE.md gives about the allocator: a second copy of a
+ * membership list is a list that silently stops agreeing. Defaults only — the
+ * compiler is handed `--pack DIR` paths, not a tree root, so it has no
+ * `content.ini` to overlay, exactly as `kind_for_pack` already assumes.
+ */
+static int
+shared_var_kinds(unsigned char* out)
+{
+    static struct ContentRegister registry;
+    static int loaded;
+    int count = 0;
+
+    if( !loaded )
+    {
+        ContentRegister_Defaults(&registry);
+        loaded = 1;
+    }
+    for( int i = 0; i < registry.count; i++ )
+    {
+        enum SSC_SymbolKind kind;
+
+        if( !registry.entries[i].shared_var_domain )
+            continue;
+        kind = SSC_SymbolKindForNamespace(registry.entries[i].name);
+        if( kind == SSC_SYM_UNKNOWN )
+            continue;
+        out[kind] = 1;
+        count++;
+    }
+    return count;
+}
+
+/** The namespace a kind is spelled with, for diagnostics. Never NULL. */
+static const char*
+kind_label(enum SSC_SymbolKind kind)
+{
+    static struct ContentRegister registry;
+    static int loaded;
+
+    if( !loaded )
+    {
+        ContentRegister_Defaults(&registry);
+        loaded = 1;
+    }
+    for( int i = 0; i < registry.count; i++ )
+    {
+        if( SSC_SymbolKindForNamespace(registry.entries[i].name) == kind )
+            return registry.entries[i].name;
+    }
+    return "?";
+}
+
+int
+SSC_SymbolsValidate(struct SSC_Symbols* symbols)
+{
+    unsigned char in_domain[SSC_SYM_KIND_COUNT];
+    int problems = 0;
+    int domain_count;
+
+    if( !symbols || symbols->count < 2 )
+        return 0;
+    memset(in_domain, 0, sizeof(in_domain));
+    domain_count = shared_var_kinds(in_domain);
+
+    ensure_sorted(symbols);
+    if( !symbols->order )
+        return 0;
+
+    for( int i = 1; i < symbols->count; i++ )
+    {
+        const struct SSC_Symbol* previous = &symbols->entries[symbols->order[i - 1]];
+        const struct SSC_Symbol* current = &symbols->entries[symbols->order[i]];
+
+        if( strcmp(previous->name, current->name) != 0 )
+            continue;
+
+        /*
+         * Rule 1 — a constant means one thing.
+         *
+         * Any second declaration, not only a disagreeing one: that is what the
+         * server's loader does, and a compiler that is more permissive than the
+         * runtime it feeds is a compiler whose output cannot be trusted to
+         * describe the tree. The two texts are printed because the interesting
+         * case is the one where they differ and nobody would have looked.
+         */
+        if( previous->kind == SSC_SYM_CONSTANT && current->kind == SSC_SYM_CONSTANT )
+        {
+            fprintf(stderr,
+                    "sscompile: `^%s` is declared twice — %s says `%s`, %s says `%s`; a "
+                    "constant means one thing\n",
+                    current->name, previous->origin ? previous->origin : "?",
+                    previous->text ? previous->text : "",
+                    current->origin ? current->origin : "?", current->text ? current->text : "");
+            problems++;
+            continue;
+        }
+
+        /*
+         * Rule 2 — `%name` says which variable, not which kind of variable.
+         *
+         * An ambiguity here is not a precedence question to settle in the
+         * resolver; it is a name that has to be spelled differently. Both kinds
+         * are named so the fix is obvious without a second lookup.
+         */
+        if( domain_count > 1 && previous->kind != current->kind &&
+            previous->kind < SSC_SYM_KIND_COUNT && current->kind < SSC_SYM_KIND_COUNT &&
+            in_domain[previous->kind] && in_domain[current->kind] )
+        {
+            fprintf(stderr,
+                    "sscompile: `%%%s` is ambiguous — %s %d and %s %d share one RuneScript "
+                    "name domain (content.ini `vardomain`), so `%%%s` cannot say which\n",
+                    current->name, kind_label(previous->kind), previous->value,
+                    kind_label(current->kind), current->value, current->name);
+            problems++;
+        }
+    }
+    return problems;
 }
 
 const struct SSC_Symbol*
@@ -249,6 +376,7 @@ SSC_SymbolsLoadConstants(
     FILE* file = fopen(path, "rb");
     char line[1024];
     int loaded = 0;
+    int line_number = 0;
 
     if( !file )
         return -1;
@@ -259,6 +387,7 @@ SSC_SymbolsLoadConstants(
         char* name;
         char* value;
 
+        line_number++;
         while( *cursor == ' ' || *cursor == '\t' )
             cursor++;
         if( *cursor != '^' )
@@ -280,7 +409,17 @@ SSC_SymbolsLoadConstants(
          * string, a coord literal or another symbol's name, and which one is
          * only decidable where it is used. */
         if( SSC_SymbolsAdd(symbols, name, 0, SSC_SYM_CONSTANT, value) )
+        {
+            char origin[1200];
+
+            /* Where it was declared, so SSC_SymbolsValidate can name both sites
+             * of a duplicate. A constant is authored text; every other symbol
+             * kind comes out of a generated index where "which line" answers
+             * nothing. */
+            snprintf(origin, sizeof(origin), "%s:%d", path, line_number);
+            symbols->entries[symbols->count - 1].origin = strdup(origin);
             loaded++;
+        }
     }
     fclose(file);
     return loaded;

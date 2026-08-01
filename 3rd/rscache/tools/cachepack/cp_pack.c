@@ -180,13 +180,23 @@ server_pack_clear(const char* dir)
 }
 
 /** Per-register-field tallies, so an unresolved value is reported once per field
- *  rather than once per record — 800 door locs would otherwise print 800 lines. */
+ *  rather than once per record — 800 door locs would otherwise print 800 lines.
+ *
+ *  `unresolved` and `no_ref` used to be one counter with one message, and the
+ *  message described only `no_ref` ("the register declares no `ref` namespace
+ *  for it"). A field that *did* declare a `ref` and named something the pack has
+ *  never heard of therefore printed a line blaming the register, was dropped
+ *  from the band, read back as *absent*, and got answered with the declared
+ *  default — a second silent default one layer below the first. They are two
+ *  different facts and only one of them is a declared gap. */
 struct CP_FieldTally
 {
     int written;
     int unresolved;
+    int no_ref;
     int out_of_range;
     char sample[64];
+    char no_ref_sample[64];
 };
 
 /**
@@ -253,6 +263,14 @@ merged_value(
  * interesting report is per field over the whole type. A field with no `ref` and a
  * symbolic value is not an error — `huntmode = aggressive` is an engine enum with
  * no cache namespace — it is a declared gap, and the tally is how it stays visible.
+ *
+ * Three answers, not two:
+ *
+ *   1   resolved (a literal, or a name the `ref` namespace holds)
+ *   0   the field declares a `ref` and the name is not in it — an error: the
+ *       author named something that does not exist and the value would vanish
+ *  -1   the field declares no `ref` at all, so nothing could have resolved it —
+ *       the declared gap
  */
 static int
 resolve_field_value(
@@ -267,10 +285,13 @@ resolve_field_value(
     if( cp_parse_int(text, out) )
         return 1;
     if( !field->ref[0] )
-        return 0;
+        return -1;
+    /* A misspelled `ref` is already fatal at the top of pack_server_type, so a
+     * type that does not resolve here cannot happen — treat it as the gap rather
+     * than blaming the author for the register's typo. */
     ref_type = cp_type_by_name(field->ref);
     if( ref_type < 0 )
-        return 0;
+        return -1;
     id = cp_name_find(ctx, (enum CP_TypeId)ref_type, text);
     if( id < 0 )
         return 0;
@@ -358,12 +379,24 @@ pack_server_type(
              */
             if( !text )
                 continue;
-            if( !resolve_field_value(ctx, field, text, &value) )
             {
-                if( !tally[f].unresolved )
-                    snprintf(tally[f].sample, sizeof(tally[f].sample), "%s", text);
-                tally[f].unresolved++;
-                continue;
+                int resolved = resolve_field_value(ctx, field, text, &value);
+
+                if( resolved < 0 )
+                {
+                    if( !tally[f].no_ref )
+                        snprintf(tally[f].no_ref_sample, sizeof(tally[f].no_ref_sample), "%s",
+                                 text);
+                    tally[f].no_ref++;
+                    continue;
+                }
+                if( !resolved )
+                {
+                    if( !tally[f].unresolved )
+                        snprintf(tally[f].sample, sizeof(tally[f].sample), "%s", text);
+                    tally[f].unresolved++;
+                    continue;
+                }
             }
             if( !cp_server_band_put(&band, field, value) )
             {
@@ -378,6 +411,17 @@ pack_server_type(
             continue; /* the record states nothing this register knows */
 
         if( !cp_server_band_finish(&band) )
+            continue;
+
+        /*
+         * `[default]` is not a record and has no id by construction: it states
+         * what a record is *before* any block describes it, and the server reads
+         * it from the text overlay (see the tree's general/configs/npc_default.npc).
+         * Counting it as an unresolved name meant the one legitimate no-id record
+         * sat permanently in the same bucket as a genuine typo, which is why that
+         * bucket could never be made fatal.
+         */
+        if( strcmp(rec->debugname, "default") == 0 )
             continue;
 
         id = cp_name_find(ctx, type_id, rec->debugname);
@@ -424,10 +468,21 @@ pack_server_type(
     {
         const struct CP_Field* field = &fields.entries[f];
 
-        if( tally[f].unresolved )
+        if( tally[f].no_ref )
             printf("  %-11s   %s: %d value(s) not written — `%s` is a name and the register "
                    "declares no `ref` namespace for it\n",
-                   type->name, field->name, tally[f].unresolved, tally[f].sample);
+                   type->name, field->name, tally[f].no_ref, tally[f].no_ref_sample);
+        if( tally[f].unresolved )
+        {
+            /* An error, and it reaches the exit status through
+             * `warn_unresolved_name`: the field is declared to resolve through a
+             * namespace and the author named something that is not in it. Silence
+             * here is a field that reads back absent and is answered by its
+             * default — indistinguishable from a record that meant the default. */
+            cp_warn(ctx, &ctx->warn_unresolved_name,
+                    "%s.%s: %d value(s) name nothing in %s — `%s` is the first",
+                    type->name, field->name, tally[f].unresolved, field->ref, tally[f].sample);
+        }
         if( tally[f].out_of_range )
             printf("  %-11s   %s: %d value(s) not written — %s does not fit u%d\n", type->name,
                    field->name, tally[f].out_of_range, tally[f].sample, (int)field->wire);
@@ -1192,7 +1247,21 @@ cp_pack_server_run(
 
     printf("Server pack: %d record(s) in %s, %d unresolved names\n", server_total, server_dir,
            ctx->warn_unresolved_name);
-    return 1;
+    /*
+     * An unresolved name is a failure, not a note.
+     *
+     * It used to `return 1` regardless, so `make mock230-servpack` was green with
+     * a band that had silently dropped whatever did not resolve — and the dropped
+     * field reads back as *absent*, which the param-defaults path answers with the
+     * declared default. That is triage §13 bar 1 one layer below the config
+     * loader: the tree said something, the pack quietly said nothing, and no exit
+     * status anywhere disagreed.
+     *
+     * The count is zero today. It was 1 before `[default]` stopped being counted
+     * as a nameless record, which is the only reason this could not be turned on
+     * until now.
+     */
+    return ctx->warn_unresolved_name == 0;
 }
 
 /* ---- verify -------------------------------------------------------------- */

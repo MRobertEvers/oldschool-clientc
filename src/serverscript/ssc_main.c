@@ -138,6 +138,24 @@ main(int argc, char** argv)
            symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
            dbcolumn_count < 0 ? 0 : dbcolumn_count);
 
+    /*
+     * Before a single line is compiled, and fatal.
+     *
+     * A table that answers a name two ways does not fail loudly later — it
+     * compiles, to whichever answer the sort happened to put first. See
+     * SSC_SymbolsValidate for the two rules and why both cost nothing today.
+     */
+    {
+        int problems = SSC_SymbolsValidate(&symbols);
+
+        if( problems )
+        {
+            fprintf(stderr, "sscompile: %d ambiguous symbol(s) — refusing to compile\n", problems);
+            SSC_SymbolsFree(&symbols);
+            return 1;
+        }
+    }
+
     compiler = SSC_New(&symbols);
     if( !compiler )
     {
