@@ -12,6 +12,7 @@ main(void)
     test_painters_tile_order();
     test_minimap_push_down();
     test_builder_lifecycle();
+    test_prerotate_placement();
 
     printf("== world_builder cache render test ==\n");
     test_world_builder_cache_render();

@@ -1976,7 +1976,7 @@ handle_opheld(
         equip_from_slot(srv, slot);
         return;
     }
-    say(srv, "Nothing interesting happens.");
+    mock230_say(srv, "nothing_interesting_message", NULL);
 }
 
 /* INV_BUTTOND: p4 componentId, p2 fromSlot, p2 toSlot, p1 mode. The client has
@@ -2060,9 +2060,15 @@ interaction_engine_npc(
         return;
     }
 
+    /*
+     * Everything else is a greeting, and the words are content's:
+     * `[proc,npc_default_chat]` (player/messages.rs2), run with this npc active
+     * so it can use `npc_say` — which is also what makes the line *visible*.
+     * The mask this used to set alone renders nowhere in this client.
+     */
     npc->face_entity = MOCK230_FACE_LOCAL_PLAYER; /* the local player */
-    snprintf(npc->say, sizeof(npc->say), "Hello there, adventurer!");
-    npc->masks |= MOCK230_NMASK_FACE_ENTITY | MOCK230_NMASK_SAY;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    mock230_scripts_run_proc_on_npc(srv, "[proc,npc_default_chat]", slot);
 }
 
 /*
@@ -2272,7 +2278,7 @@ interaction_engine_loc(
     loc = mock230_scene_loc(slot);
     if( !loc )
     {
-        say(srv, "Nothing interesting happens.");
+        mock230_say(srv, "nothing_interesting_message", NULL);
         return;
     }
 
@@ -2285,7 +2291,7 @@ interaction_engine_loc(
 
         if( !mock230_scene_replace_loc(slot, def->next_loc_stage, loc->angle) )
         {
-            say(srv, "Nothing interesting happens.");
+            mock230_say(srv, "nothing_interesting_message", NULL);
             return;
         }
         {
@@ -2330,7 +2336,7 @@ interaction_engine_loc(
         climb(srv, +1);
         return;
     }
-    say(srv, "Nothing interesting happens.");
+    mock230_say(srv, "nothing_interesting_message", NULL);
 }
 
 /*
@@ -3503,10 +3509,15 @@ mock230_world_init(
     player->db_query_column = -1;
 
     /*
-     * A fresh account: every skill at 1 except hitpoints, which starts at 10.
-     * That is OldSchool's own starting state, and it is what makes the combat
-     * formulas mean anything — a level-1 character with a bronze scimitar
-     * really does take a while to kill a goblin.
+     * Level 1 in everything, which is the *floor* rather than a starting state:
+     * a stat of level 0 is not a weak character, it is an invalid one, and the
+     * memset above would produce twenty-three of them. The reference draws the
+     * line in the same place — `PlayerLoading.load()`'s `baseLevels[i] = 1` is
+     * engine-side too.
+     *
+     * Which skills a new character starts *above* the floor is content's, and
+     * says so in `[proc,newplayer_stats]` (player/newplayer.rs2): hitpoints at
+     * 10, via the xp that means it.
      */
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
     {
@@ -3514,9 +3525,6 @@ mock230_world_init(
         player->stat_boosted[stat] = 1;
         player->stat_xp_tenths[stat] = 0;
     }
-    player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
-    player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = 11540; /* 1154 xp = level 10 */
-    player->hitpoints = 10;
     mock230_combat_sync_hitpoints(player);
     player->dest_x = -1;
     player->dest_z = -1;
@@ -3542,63 +3550,10 @@ mock230_world_init(
         player->worn[i].count = 0;
     }
 
-    /* A starting kit that covers every visible equipment slot plus a stack and
-     * a spare weapon, so equipping, swapping and dragging all have something
-     * to act on. Ids verified present in cache.osrs230. */
-    {
-        static const struct
-        {
-            int obj_id;
-            int count;
-        } kit[] = {
-            { 1155, 1     }, /* Bronze full helm — claims hair + jaw */
-            { 1117, 1     }, /* Bronze platebody — claims arms */
-            { 1075, 1     }, /* Bronze platelegs */
-            { 1189, 1     }, /* Bronze kiteshield */
-            { 1321, 1     }, /* Bronze scimitar */
-            { 841,  1     }, /* Shortbow — two-handed, so it evicts the shield */
-            { 1731, 1     }, /* Amulet of power */
-            { 1021, 1     }, /* Blue cape */
-            { 1059, 1     }, /* Leather gloves */
-            { 1061, 1     }, /* Leather boots */
-            { 1635, 1     }, /* Gold ring */
-            { 4151, 1     }, /* Abyssal whip */
-            { 995,  15000 }, /* Coins — exercises the >=255 count escape */
-            { 882,  50    }, /* Bronze arrow — a second stack */
-        };
-        for( size_t i = 0; i < sizeof(kit) / sizeof(kit[0]); i++ )
-            inv_set(player, (int)i, kit[i].obj_id, kit[i].count);
-    }
-
-    /*
-     * The bank. Seeded with a handful of objs rather than left empty, because
-     * an empty bank and a bank that failed to transmit look identical, and
-     * the withdraw side is the half that cannot be exercised from a full
-     * backpack anyway.
-     */
+    /* The containers exist empty. What goes in them the first time a character
+     * connects is content's — `[proc,newplayer_inv]` and `[proc,newplayer_bank]`
+     * in player/newplayer.rs2, called from [login,_]. */
     mock230_bank_init(srv);
-    {
-        static const struct
-        {
-            int obj_id;
-            int count;
-        } stock[] = {
-            { 995,  250000 }, /* Coins — stackable, and past the 255 escape */
-            { 1511, 100    }, /* Logs — a stack of a non-stackable obj (note 1512) */
-            { 314,  5000   }, /* Feather — stackable, and has NO note form */
-            { 373,  60     }, /* Swordfish (note 374) */
-            { 1163, 1      }, /* Rune full helm */
-            { 1127, 1      }, /* Rune platebody */
-            { 1079, 1      }, /* Rune platelegs */
-            { 1333, 1      }, /* Rune scimitar */
-        };
-        for( size_t i = 0; i < sizeof(stock) / sizeof(stock[0]); i++ )
-            if( i < (size_t)player->bank.size )
-            {
-                player->bank.slots[i].obj_id = stock[i].obj_id;
-                player->bank.slots[i].count = stock[i].count;
-            }
-    }
 
     /*
      * The npc roster comes from the content tree's map squares — LostCity's

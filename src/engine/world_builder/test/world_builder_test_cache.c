@@ -303,6 +303,11 @@ test_world_builder_cache_render(void)
         return;
     }
     RSCache_Dat2DiskSetProfile(disk, &profile);
+    /* The disk gets the profile, but the provider needs it too:
+     * CacheProvider_Profile asserts the identity is stated, and the config
+     * decoders go through it. Without this the test aborts on its first loc
+     * decode — invisible while the cache dir is absent and the test skips. */
+    CacheProvider_SetProfile(provider, &profile);
 
     if( RSCache_MapLocsEncrypted(&profile) )
     {

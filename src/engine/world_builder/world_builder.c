@@ -170,49 +170,13 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             continue;
         }
 
-        /*
-         * A multiloc's transform selects the MODEL, not the footprint.
-         *
-         * The reference resolves the transform inside getModel and leaves the
-         * caller reading sizeX/sizeY (and the anim id) off the BASE definition,
-         * so a loc that is 4x1 in the map data stays 4x1 however its varbit
-         * resolves. Taking them from the target instead re-centres the model
-         * over the wrong footprint: placement is `tile*128 + size*64`, so a 4x1
-         * placed as 1x1 lands 192 units — a tile and a half — WEST of where it
-         * belongs, with geometry that still spans four tiles. Loc 42835 is the
-         * case that surfaced it: base 4x1, varbit 1777, resolving to "Plants"
-         * (42821) which is 1x1.
-         */
-        int base_seq_id = config_loc->seq_id;
-        int base_size_x = config_loc->size_x;
-        int base_size_z = config_loc->size_z;
-
-        config_loc = world_builder_resolve_loc(builder, config_loc);
+        struct ToriRS_Location resolved_loc;
+        config_loc = world_builder_resolve_loc_for_place(builder, config_loc, &resolved_loc);
         if( !config_loc )
         {
             dbg_no_resolve++;
             continue;
         }
-
-        if( getenv("TORIRS_SCENERY_DEBUG") &&
-            (config_loc->size_x != base_size_x || config_loc->size_z != base_size_z) )
-            fprintf(
-                stderr,
-                "  multiloc footprint: loc %d base %dx%d -> target %d is %dx%d "
-                "(base wins; target size would shift it %d units west/south)\n",
-                map_loc->loc_id,
-                base_size_x,
-                base_size_z,
-                config_loc->id,
-                config_loc->size_x,
-                config_loc->size_z,
-                64 * (base_size_x - config_loc->size_x));
-
-        struct ToriRS_Location resolved_loc = *config_loc;
-        resolved_loc.seq_id = base_seq_id;
-        resolved_loc.size_x = base_size_x;
-        resolved_loc.size_z = base_size_z;
-        config_loc = &resolved_loc;
 
         int scene_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);
         int scene_z = World_ToSceneZ(world, mapz, map_loc->chunk_pos_z);
@@ -580,8 +544,13 @@ WorldBuilder_ApplyLocChange(
             World_EntityPoolGet(&world->entities.scenery, idx);
         if( old )
         {
-            struct ToriRS_Location* old_cfg =
-                CacheProvider_LocationGet(builder->cache, old->loc_id);
+            /* Resolve the same way the spawn below does, or the undo reads a
+             * different loc than the one that was added: the pool stores the
+             * BASE id, so a multiloc's collision/minimap footprint has to be
+             * re-derived through the transform to match what was applied. */
+            struct ToriRS_Location old_resolved;
+            struct ToriRS_Location* old_cfg = world_builder_resolve_loc_for_place(
+                builder, CacheProvider_LocationGet(builder->cache, old->loc_id), &old_resolved);
             if( old_cfg )
             {
                 struct ToriRS_MapLoc old_ml = {
@@ -624,7 +593,13 @@ WorldBuilder_ApplyLocChange(
     /* 2. Spawn the replacement loc (LOC_DEL passes loc_id < 0 and stops here). */
     if( loc_id >= 0 )
     {
-        struct ToriRS_Location* cfg = CacheProvider_LocationGet(builder->cache, loc_id);
+        /* Resolve the multiloc transform, exactly as the static build does. A
+         * zone LOC packet names the BASE id, and a multiloc base commonly
+         * carries no model of its own — without this the spawn silently drops
+         * (scenery_load_model finds no model ids) or draws the wrong state. */
+        struct ToriRS_Location resolved_cfg;
+        struct ToriRS_Location* cfg = world_builder_resolve_loc_for_place(
+            builder, CacheProvider_LocationGet(builder->cache, loc_id), &resolved_cfg);
         if( cfg )
         {
             struct ToriRS_MapLoc ml = {

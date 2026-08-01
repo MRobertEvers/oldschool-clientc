@@ -65,6 +65,59 @@ world_builder_resolve_loc(
     return CacheProvider_LocationGet(builder->cache, resolved_id);
 }
 
+/**
+ * Resolve a multiloc for placement.
+ *
+ * The transform selects the MODEL; the fields the placement math reads stay
+ * the BASE definition's. The reference resolves inside getModel and leaves the
+ * caller reading sizeX/sizeY and the anim id off the base — and placement is
+ * `tile*128 + size*64`, so borrowing the target's footprint re-centres the
+ * model over the wrong span (a base-4x1 loc placed as its 1x1 target lands 192
+ * units west of where it belongs, geometry still four tiles wide).
+ *
+ * The anim id follows the same rule for the same reason: the reference makes
+ * any transformed loc a DynamicObject driven by the BASE `animationId`.
+ *
+ * Writes through `storage` (caller-owned, so this allocates nothing) and
+ * returns it. NULL means the varbit selected a state with no loc — the caller
+ * must skip the instance, not fall back to the base.
+ */
+static struct ToriRS_Location*
+world_builder_resolve_loc_for_place(
+    struct WorldBuilder* builder,
+    struct ToriRS_Location* base_loc,
+    struct ToriRS_Location* storage)
+{
+    struct ToriRS_Location* resolved;
+
+    if( !base_loc )
+        return NULL;
+
+    resolved = world_builder_resolve_loc(builder, base_loc);
+    if( !resolved )
+        return NULL;
+
+    if( getenv("TORIRS_SCENERY_DEBUG") &&
+        (resolved->size_x != base_loc->size_x || resolved->size_z != base_loc->size_z) )
+        fprintf(
+            stderr,
+            "  multiloc footprint: loc %d base %dx%d -> target %d is %dx%d "
+            "(base wins; target size would shift it %d units west/south)\n",
+            base_loc->id,
+            base_loc->size_x,
+            base_loc->size_z,
+            resolved->id,
+            resolved->size_x,
+            resolved->size_z,
+            64 * (base_loc->size_x - resolved->size_x));
+
+    *storage = *resolved;
+    storage->seq_id = base_loc->seq_id;
+    storage->size_x = base_loc->size_x;
+    storage->size_z = base_loc->size_z;
+    return storage;
+}
+
 static void
 calculate_wall_decor_offset(
     struct ToriDraw_Position* position,
@@ -292,11 +345,33 @@ scenery_record_runtime_wall(
  * by value range: texture ids occupy 0..50, HSL colours are always > 50. */
 #define LOC_RECOLOUR_TEXTURE_MAX 50
 
+void
+world_builder_prerotate_placement(
+    int quarter_turns,
+    int* resize_x,
+    int* resize_z,
+    int* offset_x,
+    int* offset_z)
+{
+    /* ToriDraw_ModelOrient / Model.rotate90 is x' = z, z' = -x, so the inverse
+     * is x' = -z, z' = x. Applied once per deferred quarter turn. */
+    for( int i = 0; i < (quarter_turns & 3); i++ )
+    {
+        int const ox = -*offset_z;
+        int const sx = *resize_z;
+        *offset_z = *offset_x;
+        *offset_x = ox;
+        *resize_z = *resize_x;
+        *resize_x = sx;
+    }
+}
+
 static void
 apply_transforms(
     struct ToriRS_Location* loc,
     struct ToriDraw_Model* model,
-    int orientation)
+    int orientation,
+    int deferred_angle)
 {
     /* Client-TS LocType.getModel calls Model.recolour(src,dst), which remaps
      * faceColour; textured faces render with faceColour AS the texture id
@@ -325,14 +400,28 @@ apply_transforms(
     bool scaled = loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128;
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
 
+    /* Reference order is rotate -> resize -> translate. When the rotation is
+     * deferred to a draw-time yaw (animated locs), applying resize/offset here
+     * would put them in the unrotated frame; pre-rotate so the deferred yaw
+     * carries them where the reference puts them. Exactly right at the
+     * animation's rest pose, and a no-op for the uniform resizes and y-only
+     * offsets that every loc in the shipped caches happens to use. */
+    int resize_x = loc->resize_x;
+    int resize_z = loc->resize_z;
+    int offset_x = loc->offset_x;
+    int offset_z = loc->offset_z;
+
+    world_builder_prerotate_placement(
+        deferred_angle, &resize_x, &resize_z, &offset_x, &offset_z);
+
     if( mirrored )
         ToriDraw_ModelMirror(model);
     if( oriented )
         ToriDraw_ModelOrient(model, orientation);
     if( scaled )
-        ToriDraw_ModelScale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+        ToriDraw_ModelScale(model, resize_x, resize_z, loc->resize_height);
     if( translated )
-        ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+        ToriDraw_ModelTranslate(model, offset_x, loc->offset_y, offset_z);
 }
 
 /* TORIRS_SCENERY_DEBUG: scene elements this build actually produced. An instance
@@ -559,7 +648,12 @@ scenery_load_model(
     /* Recolour pairs partition into texture swaps (endpoints <= 50) and HSL
      * recolours (see apply_transforms). Without the texture-swap half, scenery
      * loses its recolour-driven texture and renders with the wrong texture. */
-    apply_transforms(config_loc, model, rotation);
+    /* Consume-and-clear: a shape helper that bakes its rotation never sets
+     * this, so it cannot leak into the next loc. */
+    int const deferred_angle = builder->scenery_deferred_angle;
+    builder->scenery_deferred_angle = 0;
+
+    apply_transforms(config_loc, model, rotation, deferred_angle);
 
     /* HD-only textures come OFF here, after the retexture and before lighting — the
      * position ModelData.light() does it in. 643's ground decor is the visible case:
@@ -1046,6 +1140,7 @@ scenery_add_wall_decor_inside(
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1097,6 +1192,7 @@ scenery_add_wall_decor_outside(
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1152,6 +1248,7 @@ scenery_add_wall_decor_diagonal_outside(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1205,6 +1302,7 @@ scenery_add_wall_decor_diagonal_inside(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1265,6 +1363,7 @@ scenery_add_wall_decor_diagonal_double(
         inside_yaw += 512 * inside_orientation;
     }
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? outside_orientation : 0;
     int outside_element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1278,6 +1377,7 @@ scenery_add_wall_decor_diagonal_double(
     if( outside_element_id < 0 )
         return;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? inside_orientation : 0;
     int inside_element_id = scenery_load_model(
         builder,
         map_loc,
@@ -1401,6 +1501,7 @@ scenery_add_normal(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,

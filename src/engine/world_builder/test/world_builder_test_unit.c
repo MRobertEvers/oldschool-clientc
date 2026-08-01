@@ -8,6 +8,7 @@
 #include "varp/varp_manager.h"
 #include "world/world.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <toridraw.h>
@@ -193,4 +194,70 @@ test_builder_lifecycle(void)
      * toridraw build; the scene is reclaimed at process exit. */
     VarPManager_Free(&varp);
     dat2_buildcache_free(bc);
+}
+
+/*
+ * world_builder_prerotate_placement: applying a loc's resize/offset BEFORE n
+ * quarter turns must equal applying them AFTER.
+ *
+ * This exists because nothing else can catch a sign error here — the port only
+ * defers a rotation for animated locs, and no loc in the shipped caches has an
+ * animation together with a non-uniform resize or an x/z offset, so the
+ * compensation is a no-op on every asset available to test against. The
+ * equivalence is asserted directly instead: rotate a probe point by hand with
+ * the same rule ToriDraw_ModelOrient uses (x' = z, z' = -x) and check that both
+ * orderings land on the same coordinate.
+ */
+static void
+prerotate_reference(
+    int quarter_turns,
+    int* x,
+    int* z)
+{
+    for( int i = 0; i < (quarter_turns & 3); i++ )
+    {
+        int const tmp = *x;
+        *x = *z;
+        *z = -tmp;
+    }
+}
+
+void
+test_prerotate_placement(void)
+{
+    /* Deliberately asymmetric so a swapped axis or a flipped sign cannot pass. */
+    int const probe_x = 17;
+    int const probe_z = -40;
+    int const resize_x = 200;
+    int const resize_z = 50;
+    int const offset_x = 11;
+    int const offset_z = -29;
+
+    for( int angle = 0; angle < 4; angle++ )
+    {
+        /* Reference order: rotate the vertex, THEN resize and translate. */
+        int ref_x = probe_x;
+        int ref_z = probe_z;
+        prerotate_reference(angle, &ref_x, &ref_z);
+        ref_x = ref_x * resize_x / 128 + offset_x;
+        ref_z = ref_z * resize_z / 128 + offset_z;
+
+        /* Port order: resize and translate with pre-rotated values, THEN let
+         * the deferred draw-time yaw rotate the result. */
+        int pre_rx = resize_x;
+        int pre_rz = resize_z;
+        int pre_ox = offset_x;
+        int pre_oz = offset_z;
+        world_builder_prerotate_placement(angle, &pre_rx, &pre_rz, &pre_ox, &pre_oz);
+
+        int got_x = probe_x * pre_rx / 128 + pre_ox;
+        int got_z = probe_z * pre_rz / 128 + pre_oz;
+        prerotate_reference(angle, &got_x, &got_z);
+
+        TEST_ASSERT(got_x == ref_x, "prerotate x matches rotate-then-place");
+        TEST_ASSERT(got_z == ref_z, "prerotate z matches rotate-then-place");
+        if( got_x != ref_x || got_z != ref_z )
+            printf(
+                "  angle %d: got (%d,%d) want (%d,%d)\n", angle, got_x, got_z, ref_x, ref_z);
+    }
 }

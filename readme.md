@@ -2741,6 +2741,13 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
   elsewhere means the geometry (extent on the second line) or the projection
   is responsible. One line per element, reprinted only when a position
   actually changes (e.g. across a scene rebuild).
+- `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
+  transform (multiloc) table, and the shape -> model groups the build selects
+  from. Reach for it when a loc looks like it is in the wrong place: a
+  misaligned shape/model table hands back a *different object* at the correct
+  position, and a multiloc's transform target can disagree with the base about
+  the footprint (see the multiloc note under scenery placement below) — neither
+  is visible from the placement arithmetic.
 - `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
   (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
   "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point

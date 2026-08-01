@@ -1609,10 +1609,15 @@ mock230_script_command(
                 continue;
             items[i].obj_id = values[1];
             items[i].count = values[2];
-            if( values[0] == mock230_ids()->inv_backpack )
-                player->inv_dirty |= 1u << i;
-            else
-                player->worn_dirty |= 1u << i;
+            /*
+             * Through container_dirty, which knows all three containers. The
+             * inline version this replaces read "backpack, else worn" and so
+             * marked a *worn* slot for a write to the bank — and for a bank
+             * slot past 31, shifted a 32-bit mask by its own width. The bank
+             * was never dirtied, so a script-written row reached the client
+             * only if something else transmitted the bank afterwards.
+             */
+            container_dirty(srv, values[0], i);
             return 1;
         }
         /* No free slot. The reference drops the item on the ground; the mock

@@ -16,6 +16,7 @@
  */
 #include "mock230.h"
 
+#include "mock230_content.h"
 #include "mock230_session.h"
 
 #include "net/isaac.h"
@@ -728,21 +729,22 @@ mock230_send_inv_partial(
  * head icon, 12 slots, 5 body colours, 7 movement animations, name37, combat
  * level. A slot is 0 when empty, 0x100 + idkId for a body kit, or 0x200 + objId
  * for a worn item — the same encoding PlayerModel_CollectAppearanceModelIds
- * splits on. */
-static const int k_default_kits[12] = {
-    /* head */ 0,
-    /* cape */ 0,
-    /* amulet */ 0,
-    /* weapon */ 0,
-    /* torso */ 0x100 + 18,
-    /* shield */ 0,
-    /* arms */ 0x100 + 26,
-    /* legs */ 0x100 + 36,
-    /* hair */ 0x100 + 0,
-    /* hands */ 0x100 + 33,
-    /* feet */ 0x100 + 42,
-    /* jaw */ 0x100 + 10,
-};
+ * splits on. The tag and the ordering are the wire's, so they are here; *which*
+ * kit fills a bare slot is the player's character and is content's, in
+ * `player/configs/appearance.enum`. */
+static int
+default_kit(int wearpos)
+{
+    const struct Mock230EnumDef* kits = mock230_content_enum("default_appearance");
+
+    for( int i = 0; kits && i < kits->count; i++ )
+        if( kits->values[i].key == wearpos )
+            return kits->values[i].value;
+    /* `default=-1` — no body part is drawn at this position. A tree with no
+     * such enum lands here for all twelve, which is a naked player rather than
+     * a crash, and the missing config is the thing to fix. */
+    return -1;
+}
 
 static void
 put_appearance(
@@ -769,12 +771,16 @@ put_appearance(
 
     for( int i = 0; i < 12; i++ )
     {
+        int kit;
+
         if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
             slots[i] = 0x200 + player->worn[i].obj_id;
         else if( covered[i] )
             slots[i] = 0;
+        else if( (kit = default_kit(i)) >= 0 )
+            slots[i] = 0x100 + kit;
         else
-            slots[i] = k_default_kits[i];
+            slots[i] = 0;
     }
 
     rsab_p1(buf, (uint8_t)player->gender);
