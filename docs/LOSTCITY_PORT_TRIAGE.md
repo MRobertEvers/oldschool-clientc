@@ -531,15 +531,23 @@ whole file.
 The cause is specific. In this tree, `category` means two unrelated things:
 
 - **obj category** — the record's own `category` field, config opcode 94, a
-  number the cache states. `pack/category.pack` has **6** names for it, and
+  number the cache states. `pack/category.pack` has **37** names for it as of
+  2026-08-01 (this said 6; the weapon categories were added after that count was
+  written — re-measure with `grep -c '^[0-9]' pack/category.pack`), and
   `mock230_scripts.c` reads it for `[opheld<n>,_<category>]` and `inv_totalcat`.
 - **loc category** — a two-valued door enum (`door_closed` / `door_opened`) in
-  `mock230_content.c:1546`, and nothing else.
+  `mock230_content.c:1546`, and nothing else. It is **not** a category id and
+  must never be passed as one: its two values would alias onto `category.pack`
+  ids 0 and 1 and bind unrelated scripts to every door in the world.
+  `interaction_category` in `mock230_world.c` says so at the one site where the
+  edit is tempting.
 
 **There is no npc category at all.** `SSVM_ProviderGetByTrigger` takes one and
 the fallback chain (exact type → category → global) is implemented — but *every
-npc call site in `mock230_world.c` passes `-1`*, including `AI_QUEUE3` at line
-2437. There is nothing to pass.
+npc call site in `mock230_world.c` passes `-1`*, including `AI_QUEUE3`. There is
+nothing to pass. (The obj rung is live and exercised: `[opheld<n>]` fed it
+already, and `[opobj<n>]`/`[apobj<n>]` do too since §3.18. npc and loc still
+pass -1, deliberately, and that is this item.)
 
 LostCity's content leans on npc categories heavily: `drop tables/` alone binds
 **16 of its 94 `[ai_queue3]` triggers to a category** (`_citizen`, `_cow`,
@@ -563,10 +571,19 @@ engine reads the npc's own cache op list.
 That worked while the tree bound almost nothing. Importing 634 `[opnpc1]` and
 867 `[oploc1]` triggers changes the arithmetic: **wherever content and engine
 name the same op, content now wins**, and the goblin's Attack is precisely the
-shape of thing that gets swallowed. `osrs230_mockserver.md` §6.1 step 6 already
-proposes the fix (invert the fallback, keep one, be loud). **It should land
-before the bulk import, not after** — after, a swallowed verb is one of a
-thousand new triggers instead of one of forty.
+shape of thing that gets swallowed. **It should land before the bulk import, not
+after** — after, a swallowed verb is one of a thousand new triggers instead of
+one of forty.
+
+**Landed (2026-08-01)**, `osrs230_mockserver.md` §3.18. Content winning is the
+*design* now, not a hazard: the reference's own answer to "the goblin's Attack"
+is `[opnpc2,_] @player_combat_start` in `skill_combat/`, and the engine's verb
+handling is one of seven enumerated rows in `enum Mock230Fallback`, each naming
+the blocker keeping it in C, counted at boot and pinned by the selftest. It may
+shrink; it must not grow. What that buys for the bulk import: an imported
+`[opnpc1,goblin]` that aborts no longer falls through to the engine's greeting
+and looks like it worked — an aborted script and an unbound trigger are
+different answers now, and only the second is allowed a fallback.
 
 ### 7.8 The reverse direction — what osrs239 has that LostCity content cannot say
 
@@ -622,8 +639,8 @@ are *not* content work.
     ↳ without it there is no defined way for a ported .npc to say
       "hitpoints=7" and have the cache keep its own combat params
 
-1.  Invert the fallback (§7.7)                         osrs230_mockserver §6.1 step 6
-    ↳ must precede the bulk trigger import, not follow it
+1.  Invert the fallback (§7.7)   DONE                  osrs230_mockserver §3.18
+    ↳ must precede the bulk trigger import, not follow it — and did
 
 2.  The name-resolution gate itself
     ↳ every unresolved name is a pack-time error; a display-name diff

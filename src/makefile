@@ -311,7 +311,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-servpack mock230-pack
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -624,6 +624,15 @@ test-ss-vm: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_vm_test.c
 		$(SS_SRCS) serverscript/test/ss_vm_test.c
 	./$(OBJ_DIR)/ss_vm_test
 
+# The trigger lookup order — exact type, then category, then the bare `_`, and
+# nothing after that. Synthetic scripts, because every way of getting the order
+# wrong still finds *a* script: swapping the first two rungs runs the category's
+# script for an item that had its own, which looks entirely reasonable in a log.
+test-ss-provider: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_provider_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ss_provider_test \
+		$(SS_SRCS) serverscript/test/ss_provider_test.c
+	./$(OBJ_DIR)/ss_provider_test
+
 # Static stack verifier: a CFG walk over every corpus instruction. Proves the
 # generated arity table agrees with real compiled code, and turns the VM's stack
 # size constants into measurements instead of guesses.
@@ -915,10 +924,12 @@ test-mock230-bank: mock230-bank
 # Compile the mock's own content. The content itself lives in the OSRS-Content
 # submodule, so a checkout without `git submodule update --init` has none of it.
 # The output lands in mock230/scripts/build, which that repo's .gitignore
-# excludes (`build/`), so a fresh checkout has no
-# script pack until this runs. That is not fatal — every trigger site falls back
-# to its hardcoded C behaviour — but it does mean no dialogue and no drop
-# tables. Ids are rev-230 ids from cache.osrs230, NOT LostCity's.
+# excludes (`build/`), so a fresh checkout has no script pack until this runs.
+# That IS fatal now, in the sense that matters: the engine's fallbacks are gated
+# on a pack being loaded (enum Mock230Fallback), so a server without one prints
+# a banner and then does almost nothing, rather than answering every trigger out
+# of C and playing a second, silently different game.
+# Ids are rev-230 ids from cache.osrs239, NOT LostCity's.
 MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 # Allocate first, then compile.
 #
@@ -942,8 +953,9 @@ mock230-scripts: sscompile
 # npc/loc server fields the boot reads from <content>/server/pack instead of
 # re-parsing the text overlays. `--server-only` is the cheap form — no cache is
 # copied or opened; a full `cachepack pack` writes the identical bands. Without
-# this the boot warns and falls back to the text parse, exactly as a missing
-# script pack falls back to C.
+# this the boot warns and falls back to the text parse — which is still a real
+# fallback, unlike the script pack's, whose absence now turns the engine's
+# trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
 mock230-servpack:
 	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \

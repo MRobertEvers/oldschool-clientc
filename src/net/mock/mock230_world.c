@@ -3144,9 +3144,20 @@ mock230_world_close_modal(struct Mock230Server* srv)
      * walking away from an open bank sent no IF_CLOSESUB and left it on screen.
      * That is exactly the failure mode of a fallback that should never have been
      * one, which is why it is not in `enum Mock230Fallback`.
+     *
+     * And underneath that, the reason nobody had noticed: **the subject is the
+     * interface, not a component in it.** This asked with
+     * `MOCK230_COM(main_group, 0)` — 12 << 16 for the bank — while the compiler
+     * keys `[if_close,bankmain]` on the bare interface id 12
+     * (`[if_button,bankmain:note_graphic]` is the one that keys on a packed uid,
+     * because *that* subject names a child). The two never met, so no
+     * `[if_close]` in this tree had ever run, and the suppression above was
+     * therefore invisible: it could only fire on a script that could not be
+     * found. The only cost so far was the server transmitting to a screen the
+     * player had closed.
      */
     bank_was_open = player->bank.open;
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, MOCK230_COM(main_group, 0), -1, -1);
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, main_group, -1, -1);
 
     /* One screen keeps state of its own beyond the mount — the bank, which has
      * containers and a reorganise — so it closes through its own function.
@@ -4008,12 +4019,11 @@ mock230_world_login(struct Mock230Player* player)
     mock230_world_sync_combat_varbits(srv);
 
     /* Anything a script would want to say belongs in [login], which phase 7
-     * runs on the next tick. These two are the no-content fallback. */
-    if( !srv->scripts_ok )
-    {
-        
-        
-    }
+     * runs on the next tick. There was an empty `if( !srv->scripts_ok ) {}` here
+     * — the two login messages that used to be its no-content fallback moved to
+     * `player/messages.rs2` and left the branch behind. Deleted rather than
+     * refilled: with no pack, a login that greets you is the one thing that
+     * would make an otherwise dead server look alive. */
     player->login_pending = 1;
 
     /* 6. First info tick places the player and spawns the npcs. */
@@ -9529,6 +9539,74 @@ mock230_world_selftest(void)
 
             memcpy(player->inv, saved_inv, sizeof(saved_inv));
             memcpy(player->worn, saved_worn, sizeof(saved_worn));
+        }
+        mock230_scripts_free(&srv);
+    }
+
+    /*
+     * `[if_close]` is not a fallback, and proving it needs a pack loaded.
+     *
+     * The bank stanza above closes the bank with no content bound, so it could
+     * never see this: with `[if_close,bankmain]` in the pack, `close_modal` used
+     * to run the script and `return`, and the unmount it was suppressing never
+     * happened. Walking away from an open bank left it on screen. The reference
+     * runs the close script *and then* unmounts, unconditionally
+     * (`Player.closeModal`), which is what this pins.
+     */
+    fprintf(stderr, "mock230 selftest: [if_close] does not suppress the unmount\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture capture;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[if_close,bankmain]") != NULL,
+                           "the tree should bind [if_close,bankmain] — without it this "
+                           "stanza proves nothing");
+            /*
+             * And the engine has to be able to *reach* it, which it could not:
+             * the compiler keys `[if_close,bankmain]` on the bare interface id
+             * 12 and the close asked with `MOCK230_COM(12, 0)`. The two never
+             * met, so this stanza was vacuous the first time it was written —
+             * it "passed" against a trigger that resolved to nothing.
+             *
+             * What this pins is the *convention* (subject = interface id), not
+             * the call site's expression, which nothing in one process can
+             * observe: `@closebank` is two `inv_stoptransmit`s and sends no
+             * packet, so a close that ran the script and one that did not look
+             * identical from outside. Restating the convention here is the
+             * honest amount of coverage available, and it fails if the
+             * compiler's subject encoding moves.
+             */
+            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv.scripts, SS_TRIGGER_IF_CLOSE,
+                                                     mock230_ids()->iface_bankmain,
+                                                     -1) != NULL,
+                           "and [if_close] should key on the interface id, not a com uid");
+            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv.scripts, SS_TRIGGER_IF_CLOSE,
+                                                     MOCK230_COM(mock230_ids()->iface_bankmain, 0),
+                                                     -1) == NULL,
+                           "and a com uid should find nothing — that was the bug");
+
+            mock230_bank_open(&srv);
+            SELFTEST_CHECK(player->bank.open, "the bank should be open");
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_close_modal(&srv);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(!player->bank.open,
+                           "closing should clear the open flag even with a script bound");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+                           "and the unmount must still reach the client");
         }
         mock230_scripts_free(&srv);
     }

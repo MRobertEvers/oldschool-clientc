@@ -119,7 +119,9 @@ Interpretation rules:
   `levelrequire` lesson's inverse; see triage §10.1 for when data-not-script
   *is* right: when the scripts are pure data tables wearing script syntax).
 - If the trigger fires but there is no script, the reference's answer is the
-  `_` wildcard script, not a C fallback.
+  `_` wildcard script, not a C fallback — and that is now the engine's answer
+  too (`osrs230_mockserver.md` §3.18). A trigger with no script does nothing;
+  the seven C behaviours that still stand in are enumerated and counted.
 
 ### 2.3 Where LostCity actually puts things
 
@@ -162,6 +164,11 @@ Any "yes" means write content instead of engine code:
 5. Are you about to spell a script's name in C? → dispatch a trigger
    instead. (The 9 named hooks in `mock230_scripts.c:152-164` are the
    sanctioned exceptions; do not grow that list casually.)
+6. Are you about to write C that runs "when content binds nothing"? → it is a
+   row in `enum Mock230Fallback` or it does not exist. That list is seven long,
+   each row names its blocker, and the selftest pins the count: it shrinks as
+   the opcode surface widens (§2.5), and adding to it is not a choice a content
+   port gets to make. See `osrs230_mockserver.md` §3.18.
 
 ### 2.5 The current violation worklist
 
@@ -372,8 +379,10 @@ binding. The loop:
 5. **Port the scripts**, adapting per §4.2. Compile via
    `make -C src mock230-scripts` (runs `tools/ss_allocate.py` then
    `sscompile`). Remember: a fresh checkout has **no script pack** (build
-   output is gitignored) — if every trigger falls back to C, you forgot to
-   build it.
+   output is gitignored) — the server prints a banner and then does almost
+   nothing, because the engine's fallbacks are gated on a pack being loaded.
+   That is the symptom now; it used to be a game that played fine and was not
+   the one in the content tree.
 6. **Verify in the real client, headlessly** (§7), and leave the check
    permanent (a `mock230_pack` rule, a test, or a selftest stanza).
 
@@ -526,10 +535,34 @@ that fails loudly on a stale band.*
    triage is right about it — but only **427** are zone-keyed. `mapzone` and
    `mapzoneexit` key off the map square (`>> 6`), not the zone (`>> 3`), and
    never touch this structure. Dispatching any of them is Phase 2.
-3. **Invert the script fallback** — one `_` wildcard fallback; a trigger
-   with no script does nothing, loudly. Must precede bulk trigger import
-   (triage §9 step 1) or every behavior has two implementations that can
-   disagree.
+3. ~~**Invert the script fallback**~~ — **done**, `osrs230_mockserver.md`
+   §3.18. Lookup is `ScriptProvider.getByTrigger` — exact type, then category,
+   then the bare `_`, and nothing after that — and the `_` wildcard is the only
+   fallback the design has. A trigger with no script does nothing, and says so
+   under `MOCK230_VERBOSE` for the triggers a *player* initiated, which is where
+   the reference puts the message too.
+
+   The C that still answers an unbound trigger is not deleted and not moved: it
+   is **enumerated**, seven rows in `enum Mock230Fallback`, each naming its
+   blocker, counted at boot and pinned by the selftest — it may shrink, it must
+   not grow. That is the same rule as §2.4's nine named hooks, and it is what
+   makes "widen the opcode surface, then move it" (§2.5, phase 3) auditable
+   rather than aspirational.
+
+   Three things that were indistinguishable now are not, and the third is why
+   this gated the bulk import: a script that **aborted** versus a trigger
+   nothing was bound to (they both returned 0, so a broken quest script produced
+   a plausible wrong conversation); an engine fallback versus "what happens
+   otherwise"; and a server with **no script pack**, which turned every fallback
+   on at once — so the default state of a fresh checkout was a second, complete,
+   silently different implementation of the game. It prints a banner and does
+   nothing now, verified in the client side by side with a normal login.
+
+   Two bugs fell out of reading the reference beside the code: `[if_close]` is a
+   notification, not a handler (the unmount was conditional on no script being
+   bound), and its dispatch asked with a packed component uid against a compiler
+   that keys it on the interface id — so no `[if_close]` in this tree had ever
+   run. A third was a selftest that had stopped testing anything.
 *Gate: two clients see each other fight over a door.* Met, apart from the
 fight: they see each other, a door one opens is open for the other, and it is
 still open for whoever logs in next. What is left is that combat still resolves
@@ -579,7 +612,9 @@ double misnomer; cheapest while consumers are few.
   `make -C src mock230-scripts`. Agents sharing the repo must set a private
   objdir (`PLATFORM_OBJ_BASE`) — stale-`.o` races are real.
 - **Tests:** `make -C src test-db`, `test-mock230-coverage` (fails if the
-  generated coverage header is stale), `mock230_servercodec_test`; cache
+  generated coverage header is stale), `test-ss-provider` (the trigger lookup
+  order — every way of getting it wrong still finds *a* script),
+  `mock230_servercodec_test`; cache
   fidelity `make -C 3rd/rscache test` (byte-exact round-trip is the bar;
   read `3rd/rscache/EXCEPTIONS.md` **before** touching rscache write paths);
   ServerScript conformance corpus = LostCity's 9,333 compiled scripts

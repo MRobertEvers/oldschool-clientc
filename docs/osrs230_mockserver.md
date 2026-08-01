@@ -448,15 +448,19 @@ feature without failing a build, a test or a log line outside `--verbose`. The
 by-name helpers remain for tests. `docs/CONTENT_ARCHITECTURE.md` §8.6 has the
 rule and what is left (`mock230_say`'s message procs).
 
-"Attack" is deliberately *not* content. The engine reads the npc's own cache op
-list, which is the same five options the client built its right-click menu from,
-so anything OldSchool made attackable is attackable here with no per-npc script
-line and no second list to keep in step.
+"Attack" is engine *for now*. It reads the npc's own cache op list — the same
+five options the client built its right-click menu from, so anything OldSchool
+made attackable is attackable here with no per-npc script line. The reference
+says it in `[opnpc2,_] @player_combat_start`, and this is
+`MOCK230_FALLBACK_OPNPC`: one of seven enumerated rows waiting on the opcode
+surface, not a design position (§3.18).
 
-**The fallback contract is load-bearing.** No script pack, or no script for a
-trigger, means the call site does exactly what it did before scripts existed.
-That is what keeps `make -C src test-mock230` green while content is mid-edit,
-and what makes a broken toolchain degrade the mock rather than break it.
+**The fallback contract is inverted, and §3.18 is the whole of it.** It used to
+read: no script pack, or no script for a trigger, means the call site does
+exactly what it did before scripts existed. It now reads: **a trigger with no
+script does nothing**, the `_` wildcard is the only fallback, and the C that
+still stands in is enumerated, counted at boot, and refused outright when no
+pack is loaded.
 
 **Ids are rev-230 ids.** `content/pack/*.pack` maps names to ids valid in
 `cache.osrs239`, taken from the cache's own gameval table and re-validated by
@@ -1226,7 +1230,7 @@ player), resolved once per tick in phase 5 after movement:
 | distance | what runs |
 |---|---|
 | within ap range (10) | `[apnpc<n>]` / `[aploc<n>]` / `[apobj<n>]` — if content bound one, the interaction is done and the player never closes the distance |
-| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling if nothing was bound |
+| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling **only if nothing was bound** — a script that aborted stops here, and with no script pack there is no fallback at all (§3.18) |
 | further | keep walking, try again next tick |
 
 The packet handler also attempts resolution immediately, so clicking something
@@ -1740,6 +1744,166 @@ forever. `in_range` tests level now, the same way `player_in_view` always did.
 
 ---
 
+## 3.18 The inverted fallback: a trigger with no script does nothing
+
+`mock230_scripts.c` used to open with a promise:
+
+> when no script pack is loaded, or when a trigger has no script, every call
+> site does exactly what it did before scripts existed.
+
+That was right while scripts were an experiment. For a server it means **every
+behaviour has two implementations**, and nine of the nineteen
+`mock230_scripts_run_trigger` call sites branched on the return value to pick
+between them. The lookup order was already the reference's; what was inverted
+was what happened after a miss.
+
+### Three things that were indistinguishable, and now are not
+
+**1. A content bug and a content gap.** `run_trigger` answered `0` both for "no
+script is bound" and for "a script was bound and aborted". A `[opnpc1,cook]`
+that blew up on line 3 handed the click to `interaction_engine_npc`, which
+greeted the player — so the *observable* result of a broken quest script was a
+plausible, wrong, entirely silent conversation. The return is
+`enum Mock230TriggerResult` now: `NONE`, `RAN`, `FAILED`. `0` and `1` keep their
+old meanings so the existing shape of every call site still reads correctly, and
+`FAILED` is the third answer nothing could previously express.
+
+**2. An engine fallback and "what happens otherwise".** The C that answers an
+unbound trigger is enumerated — `enum Mock230Fallback`, seven rows — and reached
+only through `mock230_scripts_fallback(srv, which, result)`. Each row carries
+what it is blocked on, and the boot prints the count (the roll under
+`MOCK230_VERBOSE`):
+
+```
+mock230: 7 engine fallback(s) still answer triggers content does not bind
+  opnpc        blocked on: combat is 858 lines of C (§6.1 step 5); the reference says it in [opnpc2,_]
+  oploc        blocked on: doors, bank booths and stairs need loc_* and a per-loc destination
+  opobj        blocked on: no obj_take / inv_add-from-ground opcode pair yet
+  opheld       blocked on: equipment is C; the reference says it in [opheld2,_] and [opheld5,_]
+  inv_button   blocked on: the bank, 1,370 lines
+  if_button    blocked on: the bank's op ladder, same blocker
+  ai_queue3    blocked on: drop tables need npc categories (triage §7.6b)
+```
+
+The count is the point. It is asserted in the selftest, it may shrink, and it
+must not grow — the same discipline as the nine named hooks
+(`PORTING_GUIDE` §2.4 item 5). Each row's blocker is §6.1 step 5's order:
+widen the opcode surface until a script can say it, move it, delete the row.
+**Nothing was moved by this change** — moving the ~3,200 blocked lines early, by
+inventing non-reference C↔script hooks, is what the order exists to prevent.
+
+**3. A server with no content and a server with content that binds nothing.**
+This is the one worth the whole change. A fresh checkout has no script pack (the
+compiler's output is gitignored), and `srv->scripts_ok` turned every fallback on
+at once — so the default state of the repository was a **second, complete,
+silently different implementation of the game**, discoverable only by finding a
+behaviour where the two disagreed. `mock230_scripts_fallback` returns 0 when
+there is no pack, and the load prints a banner:
+
+```
+mock230: ============================================================
+mock230: NO SCRIPT PACK at OSRS-Content/osrs239-content/server/scripts/build
+mock230:   cannot read .../script.dat
+mock230: The game's behaviour is content, not C. Without the pack the
+mock230: engine's fallbacks stay OFF and almost nothing will work —
+mock230: no interactions, no buttons, no dialogue, no drops.
+mock230: Build it:  make -C src mock230-scripts
+mock230: ============================================================
+```
+
+Verified in the real client (`SDL_VIDEODRIVER=dummy`, `TORIRS_EXIT_BMP`): the
+same login, side by side. With the pack, Lumbridge, fourteen items and the
+`[login,_]` messages. Without it, the world and the gameframe — which are engine
+— and an empty inventory, an empty chatbox, and clicks that do nothing. That is
+what "fails visibly" looks like, and it is strictly better than a game that
+plays.
+
+### The lookup, and the one fallback
+
+`SSVM_ProviderGetByTrigger` is `ScriptProvider.getByTrigger`: exact **type**,
+then **category**, then the bare **`_` wildcard**, and nothing after that. The
+wildcard is the only fallback the design has — the reference writes `[opnpc2,_]`,
+`[opheld2,_]` and `[opheld5,_]` for exactly the behaviours listed above.
+
+`make -C src test-ss-provider` pins the order with synthetic scripts, because
+**every way of getting it wrong still finds a script**: swap the first two rungs
+and the category's script runs for an item that had its own — the right kind of
+thing happens to the right item and the wrong script did it. Drop the third rung
+and every `_` in the tree stops firing, which reads as content nobody wrote.
+Neither is a crash, an abort, or a suspicious log line. Both mutations were run;
+both turn the test red.
+
+Two call sites use `getByTriggerSpecific` (one rung, no chain) because the
+reference does: `[login]` has no subject, and an `[if_button,_]` that swallowed
+every click on every interface is not a fallback anyone wants
+(`IfButtonHandler`).
+
+A miss reports itself under `MOCK230_VERBOSE`, in the reference's words:
+
+```
+mock230: no trigger for [aploc1,tree2]
+```
+
+Only for **player-initiated** triggers, which is also the reference's division
+(`Player.defaultOp` and the OpHeld/InvButton/IfButton handlers speak;
+`World.spawnNpc` does not). An `[ai_spawn]` miss is 2,197 npcs at world init and
+would be a wall of text rather than a diagnostic. The name comes from the same
+`pack/` file the compiler resolved the script's subject through, so a name that
+prints is a name that could have been bound.
+
+### The category rung, which only obj can answer
+
+The reference passes `type.category` for npc, loc and obj alike. Here:
+
+- **obj** — config opcode 94, a number the cache states and `pack/category.pack`
+  names. **37 names**, not the 6 the triage records — re-measured; the weapon
+  categories were added after that count was written. This is the rung
+  `[opheld1,_bones]` already binds through, and it now also feeds `[opobj<n>]`
+  and `[apobj<n>]`, which passed -1.
+- **npc** — there is no npc category in an osrs239 record at all. Not unread:
+  absent. It stays -1, and closing that is triage §7.6b / §9 step 3b — a field
+  to accept and a crawler to write, which gates `drop tables/`.
+- **loc** — `Mock230LocDef.category` exists and is **not this**: a private
+  two-valued door enum with no entry in `pack/category.pack`. Passing it would
+  alias every door onto category ids 0 and 1 and bind unrelated scripts to them.
+  It stays -1, and `interaction_category` in `mock230_world.c` says why, because
+  the tempting edit is a one-liner.
+
+### `[if_close]` was a fallback and should never have been one — and never ran
+
+Two findings, stacked, both from reading `Player.closeModal` beside the code.
+
+It runs the close trigger **and then** unmounts, unconditionally. This server had
+`if( ran ) return;`, which made a bound `[if_close]` suppress the unmount it had
+no opinion about — both of the tree's `[if_close]` scripts are one
+`inv_stoptransmit`. So it is not in `enum Mock230Fallback`; the trigger is a
+notification and the close is engine.
+
+And under that: the dispatch asked with `MOCK230_COM(main_group, 0)` while the
+compiler keys `[if_close,bankmain]` on the bare interface id **12**
+(`[if_button,bankmain:note_graphic]` is the one that keys on a packed uid,
+because *that* subject names a child). The two never met, so **no `[if_close]` in
+this tree had ever run** — invisible because the only cost so far was the server
+transmitting to a screen the player had closed.
+
+The selftest pins the unconditional unmount (mutating it back turns the stanza
+red) and, separately, the subject convention. It does not pin the call site's
+expression, and that is a real limit rather than an oversight: `@closebank`
+sends no packet, so a close that ran the script and one that did not are
+identical from outside one process.
+
+### One test that had stopped testing anything
+
+`held-item content`'s "eating at full health should not overheal" passed because
+the script was **dropped**, not because `stat_heal` clamped: `~eat_food` ends in
+`p_delay`, and the next `OPHELD1` in the same tick hit the one-parked-script-
+per-player rule. Nothing could have turned it red. It runs the delay out first
+now and asserts the food was consumed, which is the evidence the heal happened
+at all. The drop is what surfaced it — `run_or_park`'s message names both
+scripts now, having named neither.
+
+---
+
 ## 4. Client fix this work required: the inv half of the transmit loop
 
 The mock delivered container 93 correctly from the first run —
@@ -1994,13 +2158,25 @@ unblocks the next:
    op ladder conditionally on varbits, so the index alone does not say what was
    clicked — which is exactly why step 4 comes first. Widen the opcode surface
    until a script *can* say it, then move it.
-6. **Invert the fallback.** `mock230_scripts.c` promises that a missing script
-   leaves every call site doing "exactly what it did before scripts existed".
-   That was right while scripts were an experiment; for a real server it means
-   every behaviour has two implementations that can disagree, and a content bug
-   (script aborted, returned 0) is indistinguishable from an engine path. Keep
-   one fallback — the reference's `_` wildcard script — and let a trigger with
-   no script do nothing, loudly under `MOCK230_VERBOSE`.
+6. ~~**Invert the fallback.**~~ — **done**, see §3.18. The lookup is the
+   reference's (type → category → the bare `_`, and nothing after that), the
+   `_` wildcard is the only fallback the design has, and a trigger with no
+   script does nothing — loudly under `MOCK230_VERBOSE`, in the reference's own
+   words.
+
+   What survives of the C is seven enumerated rows (`enum Mock230Fallback`),
+   each naming what it is blocked on, counted at boot and pinned by the
+   selftest: it may shrink, it must not grow. Nothing was moved by the change —
+   step 5's order is the point. Three things that used to be indistinguishable
+   now are not: a script that *aborted* versus one that was never bound
+   (`enum Mock230TriggerResult`); an engine fallback versus "what happens
+   otherwise"; and — the one worth the change — a server with **no pack at
+   all**, which used to turn every fallback on at once and run a second,
+   silently different implementation of the whole game by default in a fresh
+   checkout. Two findings fell out of reading `Player.closeModal`: `[if_close]`
+   is a notification and not a handler, and its dispatch had been asking with a
+   packed com uid against a compiler that keys it on the interface id, so no
+   `[if_close]` in this tree had ever run.
 7. **Rename.** `mock230_*` is a double misnomer: it is not a mock, and it reads
    a 239 cache while speaking the 230 wire. Mechanical, and cheapest while
    there is still one consumer.

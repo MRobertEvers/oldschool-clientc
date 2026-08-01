@@ -126,6 +126,30 @@ mock230_content_symbol(
     enum Mock230PackKind kind,
     const char* name);
 
+/*
+ * The same lookup, but able to say *why* it answered -1.
+ *
+ * `mock230_content_symbol` cannot: it maps the literal `null` to -1 by design —
+ * that is what `param=death_drop,null` means — and it maps a name nothing knows
+ * to -1 as well. A caller that only sees the number cannot tell "the author said
+ * nothing" from "the author misspelled `bones`", so `param=death_drop,bones_TYPO`
+ * used to load at 0 errors and drop nothing. It reads exactly like a correct
+ * npc.
+ *
+ * That is triage §13 bar 1 — an unresolved name is a pack-time error, never a
+ * default — so every caller that resolves an *authored* name goes through this
+ * and reports on 0. Returns:
+ *
+ *   1, *out_id = -1   the literal `null`: a stated absence
+ *   1, *out_id = id   a resolved name
+ *   0, *out_id = -1   nothing in that namespace is spelled this way
+ */
+int
+mock230_content_symbol_checked(
+    enum Mock230PackKind kind,
+    const char* name,
+    int* out_id);
+
 /** Symbol for an id, or NULL. Only for diagnostics — the reverse map is a
  *  linear scan. */
 const char*

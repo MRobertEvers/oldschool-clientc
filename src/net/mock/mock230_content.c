@@ -323,6 +323,23 @@ mock230_content_symbol(
     return -1;
 }
 
+int
+mock230_content_symbol_checked(
+    enum Mock230PackKind kind,
+    const char* name,
+    int* out_id)
+{
+    *out_id = -1;
+    if( !name || !*name )
+        return 0;
+    /* The one spelling of -1 that is an answer rather than a miss. Kept here and
+     * not in the caller so "how LostCity writes nothing" is stated once. */
+    if( strcmp(name, "null") == 0 )
+        return 1;
+    *out_id = mock230_content_symbol(kind, name);
+    return *out_id >= 0;
+}
+
 const char*
 mock230_content_symbol_name(
     enum Mock230PackKind kind,
@@ -803,6 +820,33 @@ npc_def_seed_from_cache(
     }
 }
 
+/**
+ * One symbolic param value, resolved or refused.
+ *
+ * Split out so the four call sites cannot each forget the check independently,
+ * which is exactly how they came to share a bug.
+ */
+static int
+param_symbol(
+    int* out,
+    enum Mock230PackKind kind,
+    const char* param_name,
+    const char* value,
+    const char* where)
+{
+    int id;
+
+    if( !mock230_content_symbol_checked(kind, value, &id) )
+    {
+        CONTENT_ERROR("%s: param `%s` names `%s`, which is not in %s — write `null` for "
+                      "\"nothing\"\n",
+                      where, param_name, value, pack_kind_name(kind));
+        return 0;
+    }
+    *out = id;
+    return 1;
+}
+
 /** `param=<name>,<value>`. Returns 0 for a name nothing here knows, which is an
  *  error rather than a shrug: a typo'd param is a stat that silently stays at
  *  its default. */
@@ -839,14 +883,21 @@ apply_param(
         def->damagetype = atoi(value);
     else if( strcmp(text, "huntrange") == 0 )
         def->huntrange = atoi(value);
+    /*
+     * The four symbolic params. Every one of them used to take
+     * `mock230_content_symbol`'s -1 for an answer, so a misspelled seq or obj
+     * name loaded silently and the npc simply had no anim and dropped nothing —
+     * `param=death_drop,bones_TYPO` at 0 errors. `null` still means "nothing"
+     * (see mock230_content_symbol_checked); a name is now required to exist.
+     */
     else if( strcmp(text, "attack_anim") == 0 || strcmp(text, "slashattack_anim") == 0 )
-        def->attack_anim = mock230_content_symbol(MOCK230_PACK_SEQ, value);
+        return param_symbol(&def->attack_anim, MOCK230_PACK_SEQ, text, value, where);
     else if( strcmp(text, "defend_anim") == 0 )
-        def->defend_anim = mock230_content_symbol(MOCK230_PACK_SEQ, value);
+        return param_symbol(&def->defend_anim, MOCK230_PACK_SEQ, text, value, where);
     else if( strcmp(text, "death_anim") == 0 )
-        def->death_anim = mock230_content_symbol(MOCK230_PACK_SEQ, value);
+        return param_symbol(&def->death_anim, MOCK230_PACK_SEQ, text, value, where);
     else if( strcmp(text, "death_drop") == 0 )
-        def->death_drop = mock230_content_symbol(MOCK230_PACK_OBJ, value);
+        return param_symbol(&def->death_drop, MOCK230_PACK_OBJ, text, value, where);
     else
     {
         CONTENT_ERROR("%s: unknown param `%s`\n", where, text);
