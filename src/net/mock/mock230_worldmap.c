@@ -85,11 +85,11 @@ pack_coord(
 static void
 send_worldmap_tile(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int args[1];
 
     args[0] = pack_coord(player->level, player->x, player->z);
-    mock230_send_run_clientscript(srv->player, MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA, args, 1);
+    mock230_send_run_clientscript(srv->active_player, MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA, args, 1);
 }
 
 void
@@ -97,19 +97,19 @@ mock230_worldmap_login(struct Mock230Server* srv)
 {
     /* from/to are -1: these are plain widgets, not grids, so there is no cell
      * range to arm. */
-    mock230_send_if_setevents(srv->player, MOCK230_ORB_WORLDMAP_UID, -1, -1, MOCK230_ORB_EVENTS);
+    mock230_send_if_setevents(srv->active_player, MOCK230_ORB_WORLDMAP_UID, -1, -1, MOCK230_ORB_EVENTS);
     mock230_send_if_setevents(
-        srv->player, mock230_ids()->com_worldmap_esckey, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
+        srv->active_player, mock230_ids()->com_worldmap_esckey, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
     mock230_send_if_setevents(
-        srv->player, mock230_ids()->com_worldmap_close, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
-    srv->player->worldmap_open = 0;
-    srv->player->worldmap_tile_sent = -1;
+        srv->active_player, mock230_ids()->com_worldmap_close, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
+    srv->active_player->worldmap_open = 0;
+    srv->active_player->worldmap_tile_sent = -1;
 }
 
 void
 mock230_worldmap_open(struct Mock230Server* srv)
 {
-    if( srv->player->worldmap_open )
+    if( srv->active_player->worldmap_open )
         return;
     /* Order matters: the coord has to be in the varc before interface 595's
      * onload runs, or `worldmap_loadmap` opens on the main area's origin
@@ -117,13 +117,13 @@ mock230_worldmap_open(struct Mock230Server* srv)
      * so "sent first" is "applied first". */
     send_worldmap_tile(srv);
     mock230_send_if_opensub(
-        srv->player,
+        srv->active_player,
         mock230_ids()->iface_gameframe,
         MOCK230_COM_CHILD(mock230_ids()->com_gameframe_floater),
         mock230_ids()->iface_worldmap,
         1);
-    srv->player->worldmap_open = 1;
-    srv->player->worldmap_tile_sent = pack_coord(srv->player->level, srv->player->x, srv->player->z);
+    srv->active_player->worldmap_open = 1;
+    srv->active_player->worldmap_tile_sent = pack_coord(srv->active_player->level, srv->active_player->x, srv->active_player->z);
     if( srv->verbose )
         fprintf(stderr, "mock230: world map opened\n");
 }
@@ -131,10 +131,10 @@ mock230_worldmap_open(struct Mock230Server* srv)
 void
 mock230_worldmap_close(struct Mock230Server* srv)
 {
-    if( !srv->player->worldmap_open )
+    if( !srv->active_player->worldmap_open )
         return;
-    mock230_send_if_closesub(srv->player, mock230_ids()->com_gameframe_floater);
-    srv->player->worldmap_open = 0;
+    mock230_send_if_closesub(srv->active_player, mock230_ids()->com_gameframe_floater);
+    srv->active_player->worldmap_open = 0;
     if( srv->verbose )
         fprintf(stderr, "mock230: world map closed\n");
 }
@@ -151,7 +151,7 @@ mock230_worldmap_handle_button(
          * closes it, which is what the reference does and what the orb's own
          * "Close Floating panel" op expects. Ops 2 and 3 are "floating" and
          * "fullscreen"; the mock has one presentation, so both open it. */
-        if( srv->player->worldmap_open )
+        if( srv->active_player->worldmap_open )
             mock230_worldmap_close(srv);
         else if( op == 2 || op == 3 )
             mock230_worldmap_open(srv);
@@ -180,7 +180,7 @@ mock230_worldmap_click(
      * unconditional — the point of the packet here is that the round trip is
      * observable at all. */
     mock230_world_teleport(srv, level, abs_x, abs_z);
-    if( srv->player->worldmap_open )
+    if( srv->active_player->worldmap_open )
         send_worldmap_tile(srv);
 }
 
@@ -189,11 +189,11 @@ mock230_worldmap_tick(struct Mock230Server* srv)
 {
     int packed;
 
-    if( !srv->player->worldmap_open )
+    if( !srv->active_player->worldmap_open )
         return;
-    packed = pack_coord(srv->player->level, srv->player->x, srv->player->z);
-    if( packed == srv->player->worldmap_tile_sent )
+    packed = pack_coord(srv->active_player->level, srv->active_player->x, srv->active_player->z);
+    if( packed == srv->active_player->worldmap_tile_sent )
         return;
-    srv->player->worldmap_tile_sent = packed;
+    srv->active_player->worldmap_tile_sent = packed;
     send_worldmap_tile(srv);
 }

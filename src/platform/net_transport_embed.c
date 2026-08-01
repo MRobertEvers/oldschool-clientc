@@ -101,7 +101,8 @@ embed_poll(
         }
         else if( header.type == TORIRS_NET_OUT_SEND_DATA && self->embed )
         {
-            mock230_embed_write(self->embed, payload, header.length);
+            /* One client: this host is the game itself, playing alone. */
+            mock230_embed_write(self->embed, 0, payload, header.length);
         }
     }
 
@@ -128,7 +129,7 @@ embed_poll(
     }
 
     /* 3. server -> client, in bus-sized pieces */
-    while( (got = mock230_embed_read(self->embed, inbound, (int)sizeof(inbound))) > 0 )
+    while( (got = mock230_embed_read(self->embed, 0, inbound, (int)sizeof(inbound))) > 0 )
     {
         int off = 0;
 

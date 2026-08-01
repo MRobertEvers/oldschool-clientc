@@ -38,6 +38,14 @@
 static int g_home_x = 3222;
 static int g_home_z = 3218;
 
+static void
+mock230_world_build_entities(struct Mock230Server* srv);
+
+static void
+ground_forget(
+    struct Mock230Server* srv,
+    int slot);
+
 /* Where the scene reads its map squares from. Set once beside the other cache
  * loaders; kept here rather than threaded through every rebuild path because
  * the mock opens exactly one cache. */
@@ -123,7 +131,7 @@ say(
     va_start(args, fmt);
     vsnprintf(text, sizeof(text), fmt, args);
     va_end(args);
-    mock230_send_message(srv->player, text);
+    mock230_send_message(srv->active_player, text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -202,7 +210,7 @@ equip_from_slot(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int obj_id = (slot >= 0 && slot < MOCK230_INV_SLOTS) ? player->inv[slot].obj_id : -1;
     int count = (slot >= 0 && slot < MOCK230_INV_SLOTS) ? player->inv[slot].count : 0;
     const struct Mock230ObjInfo* info;
@@ -276,7 +284,7 @@ unequip_slot(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int obj_id;
     int dest;
 
@@ -459,7 +467,7 @@ mock230_world_walk_beside(
     int x,
     int z)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int best_x;
     int best_z;
 
@@ -510,9 +518,9 @@ distance_to_rect(
 void
 mock230_world_interaction_clear(struct Mock230Server* srv)
 {
-    memset(&srv->player->interaction, 0, sizeof(srv->player->interaction));
-    srv->player->interaction.kind = MOCK230_INTERACT_NONE;
-    srv->player->interaction.npc_slot = -1;
+    memset(&srv->active_player->interaction, 0, sizeof(srv->active_player->interaction));
+    srv->active_player->interaction.kind = MOCK230_INTERACT_NONE;
+    srv->active_player->interaction.npc_slot = -1;
 }
 
 void
@@ -528,7 +536,7 @@ mock230_world_interaction_set(
     int size_x,
     int size_z)
 {
-    struct Mock230Interaction* interaction = &srv->player->interaction;
+    struct Mock230Interaction* interaction = &srv->active_player->interaction;
 
     interaction->kind = kind;
     interaction->op = op;
@@ -583,7 +591,7 @@ interaction_target(
     int* out_size_x,
     int* out_size_z)
 {
-    struct Mock230Interaction* interaction = &srv->player->interaction;
+    struct Mock230Interaction* interaction = &srv->active_player->interaction;
 
     switch( interaction->kind )
     {
@@ -598,7 +606,7 @@ interaction_target(
          * whatever respawned there. */
         if( !npc->active || npc->type != interaction->target_id )
             return 0;
-        if( npc->level != srv->player->level )
+        if( npc->level != srv->active_player->level )
             return 0;
         if( npc->death_tick >= 0 )
             return 0;
@@ -679,7 +687,7 @@ interaction_engine_obj(
 void
 mock230_world_process_interaction(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct Mock230Interaction* interaction = &player->interaction;
     int target_x;
     int target_z;
@@ -886,7 +894,7 @@ run_energy_tick(
     struct Mock230Server* srv,
     int run_steps)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     /* A delayed player neither burns nor recovers. Reference: Player.ts:703,
      * `if (this.delayed) return;`. */
@@ -933,7 +941,7 @@ run_energy_tick(
 static void
 run_energy_flush(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int percent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
     /* Kilograms, not grams. UPDATE_RUNWEIGHT's value is read back by CS2's
      * RUNWEIGHT_VISIBLE, and the gameframe prints that with "kg" after it —
@@ -943,12 +951,12 @@ run_energy_flush(struct Mock230Server* srv)
     if( percent != player->run_energy_sent )
     {
         player->run_energy_sent = percent;
-        mock230_send_run_energy(srv->player, percent);
+        mock230_send_run_energy(srv->active_player, percent);
     }
     if( weight != player->run_weight_sent )
     {
         player->run_weight_sent = weight;
-        mock230_send_run_weight(srv->player, weight);
+        mock230_send_run_weight(srv->active_player, weight);
     }
 }
 
@@ -957,7 +965,7 @@ run_energy_flush(struct Mock230Server* srv)
 static void
 advance_player(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int max_tiles;
 
     /* Running is a request, not a state: the toggle says the player wants to,
@@ -993,7 +1001,7 @@ advance_player(struct Mock230Server* srv)
         steps_clear(player);
         if( player->dest_x >= 0 )
         {
-            srv->clear_map_flag = 1;
+            player->clear_map_flag = 1;
             player->dest_x = -1;
             player->dest_z = -1;
         }
@@ -1001,44 +1009,74 @@ advance_player(struct Mock230Server* srv)
 }
 
 /*
- * Re-centre the scene when the player nears its edge.
+ * Re-centre the scene when a player nears its edge.
  *
- * The client holds a 104x104 scene based at (zone - 6) * 8. Once the player is
+ * The client holds a 104x104 scene based at (zone - 6) * 8. Once a player is
  * within 16 tiles of an edge the scene has to be rebuilt around them, and
- * because a rebuild throws away every entity the client was tracking, the npc
- * list is dropped and the player re-placed absolutely on the next tick.
+ * because a rebuild throws away every entity the client was tracking, the
+ * ground-obj set is dropped and the player re-placed absolutely on the next
+ * tick.
+ *
+ * **The origin is the world's, so re-centring it re-centres it for everybody.**
+ * Every scene-local coordinate on the wire is measured from it, so a player who
+ * was not the reason for the move still has to be told, or their next
+ * PLAYER_INFO places them 40 tiles from where they are. That makes the world's
+ * one build area a genuine multiplayer limit and not just an untidiness: two
+ * players more than ~70 tiles apart pull the origin back and forth and rebuild
+ * each other's scene every tick. Zones (§6.1 step 3) are what fixes it; until
+ * then, everyone rebuilds together and it is correct rather than efficient.
  */
 static void
 maybe_rebuild(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
-    int local_x = player->x - mock230_scene_origin(srv->zone_x);
-    int local_z = player->z - mock230_scene_origin(srv->zone_z);
     int edge = MOCK230_SCENE_TILES - MOCK230_REBUILD_MARGIN;
+    struct Mock230Player* mover = NULL;
 
-    if( local_x >= MOCK230_REBUILD_MARGIN && local_x < edge &&
-        local_z >= MOCK230_REBUILD_MARGIN && local_z < edge )
+    for( int i = 0; i < srv->player_count && !mover; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+        int local_x;
+        int local_z;
+
+        if( !player->active )
+            continue;
+        local_x = player->x - mock230_scene_origin(srv->zone_x);
+        local_z = player->z - mock230_scene_origin(srv->zone_z);
+        if( local_x < MOCK230_REBUILD_MARGIN || local_x >= edge ||
+            local_z < MOCK230_REBUILD_MARGIN || local_z >= edge )
+            mover = player;
+    }
+
+    if( !mover )
         return;
 
-    srv->zone_x = player->x >> 3;
-    srv->zone_z = player->z >> 3;
-    srv->rebuild_pending = 1;
-    player->place_dirty = 1;
-    /* A rebuild resets the client's zones, so everything it was told about has
-     * to be said again. Cleared here, where the rebuild is *decided*, rather
-     * than where it is sent: phase 8 flushes ground objs and phase 10 sends the
-     * rebuild, so clearing at send time would undo a flush that already
-     * happened this tick. */
-    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
-        srv->ground[i].sent = 0;
+    srv->zone_x = mover->x >> 3;
+    srv->zone_z = mover->z >> 3;
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        player->rebuild_pending = 1;
+        player->place_dirty = 1;
+        /* A rebuild resets the client's zones, so everything it was told about
+         * has to be said again. Cleared here, where the rebuild is *decided*,
+         * rather than where it is sent: phase 8 flushes ground objs and phase 10
+         * sends the rebuild, so clearing at send time would undo a flush that
+         * already happened this tick. */
+        memset(player->ground_sent, 0, sizeof(player->ground_sent));
+    }
+
     /* The server's collision window moves with the client's scene. A door
      * opened inside the old window and still inside the new one is re-sent by
      * phase 10, which is why mock230_scene_build keeps the changed list. */
     mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
-    /* Tracked npcs deliberately survive: the client shifts every kept entity
-     * by the base-tile delta when it rebuilds (App_WorldRebuildShift), so their
-     * slots stay valid. Dropping and re-adding them would instead re-spawn
-     * into slots the client still holds. */
+    /* Tracked npcs and players deliberately survive: the client shifts every
+     * kept entity by the base-tile delta when it rebuilds
+     * (App_WorldRebuildShift), so their slots stay valid. Dropping and re-adding
+     * them would instead re-spawn into slots the client still holds. */
 }
 
 /* ------------------------------------------------------------------ */
@@ -1329,7 +1367,7 @@ npc_run_mode(
     struct Mock230Npc* npc,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int range;
 
     if( !player || npc->mode == MOCK230_NPCMODE_NONE || npc->mode == MOCK230_NPCMODE_NULL )
@@ -1487,7 +1525,6 @@ advance_npcs(struct Mock230Server* srv)
         if( npc->active && npc->despawn_tick >= 0 && srv->tick >= npc->despawn_tick )
         {
             npc->active = 0;
-            npc->tracked = 0;
             continue;
         }
 
@@ -1632,7 +1669,10 @@ mock230_world_obj_add(
                 obj->level != level )
                 continue;
             obj->count += count;
-            obj->sent = 0; /* re-sent as an OBJ_COUNT by phase 8 */
+            /* Re-sent as an OBJ_ADD by phase 8, to everyone who had the old
+             * count. (A real OBJ_COUNT would say old->new in one packet; this
+             * server re-adds, which the client accepts as a replacement.) */
+            ground_forget(srv, i);
             return i;
         }
     }
@@ -1658,17 +1698,88 @@ mock230_world_obj_add(
     return -1;
 }
 
-/** Tell the client about every ground obj inside the scene it does not know
- *  about, and take back the ones that left. */
+/*
+ * Tell everyone whose client has this obj that it is gone, and forget it.
+ *
+ * A ground obj is world state, but "has been told about it" is per client, so
+ * removing one is a broadcast rather than a send. Doing it for the active player
+ * only is what would leave a taken item drawn on the floor for everybody else,
+ * pickable, forever.
+ */
 static void
-flush_ground(struct Mock230Server* srv)
+ground_withdraw(
+    struct Mock230Server* srv,
+    int slot)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230GroundObj* obj = &srv->ground[slot];
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+        int pos;
+
+        if( !player->active || !player->ground_sent[slot] )
+            continue;
+        pos = mock230_send_zone(player, obj->x, obj->z);
+        mock230_send_obj_del(player, pos, obj->obj_id);
+        player->ground_sent[slot] = 0;
+    }
+}
+
+/** Forget without telling: for a change that phase 8 will re-send anyway. */
+static void
+ground_forget(
+    struct Mock230Server* srv,
+    int slot)
+{
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+        srv->players[i].ground_sent[slot] = 0;
+}
+
+/**
+ * Tell one client about every ground obj inside the scene it does not know
+ * about, and take back the ones that left.
+ *
+ * The *world* half — despawning and respawning — is `ground_tick`, and runs
+ * once. This runs per player, which is the whole difference: whether an obj
+ * exists is the world's answer, whether this client has been told is not.
+ */
+static void
+flush_ground(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
 
     for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
     {
         struct Mock230GroundObj* obj = &srv->ground[i];
         int in_scene;
+
+        if( !obj->active )
+            continue;
+
+        in_scene = obj->level == player->level && mock230_scene_contains(obj->x, obj->z);
+        if( in_scene && !player->ground_sent[i] )
+        {
+            int pos = mock230_send_zone(player, obj->x, obj->z);
+
+            mock230_send_obj_add(player, pos, obj->obj_id, obj->count);
+            player->ground_sent[i] = 1;
+        }
+        else if( !in_scene && player->ground_sent[i] )
+        {
+            player->ground_sent[i] = 0;
+        }
+    }
+}
+
+/** The world half: expire drops and bring taken spawns back. Once a tick, for
+ *  everybody, before the per-player flush. */
+static void
+ground_tick(struct Mock230Server* srv)
+{
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        struct Mock230GroundObj* obj = &srv->ground[i];
 
         if( !obj->active )
         {
@@ -1677,38 +1788,20 @@ flush_ground(struct Mock230Server* srv)
             {
                 obj->active = 1;
                 obj->respawn_tick = -1;
-                obj->sent = 0;
+                ground_forget(srv, i);
             }
             continue;
         }
         if( obj->despawn_tick >= 0 && srv->tick >= obj->despawn_tick )
         {
-            if( obj->sent )
-            {
-                int pos = mock230_send_zone(srv->player, obj->x, obj->z);
-                mock230_send_obj_del(srv->player, pos, obj->obj_id);
-            }
+            ground_withdraw(srv, i);
             obj->active = 0;
-            continue;
-        }
-
-        in_scene = obj->level == player->level && mock230_scene_contains(obj->x, obj->z);
-        if( in_scene && !obj->sent )
-        {
-            int pos = mock230_send_zone(srv->player, obj->x, obj->z);
-
-            mock230_send_obj_add(srv->player, pos, obj->obj_id, obj->count);
-            obj->sent = 1;
-        }
-        else if( !in_scene && obj->sent )
-        {
-            obj->sent = 0;
         }
     }
 }
 
-/** Remove a ground obj, telling the client and arming its respawn if it was a
- *  map spawn. */
+/** Remove a ground obj, telling every client that has it and arming its respawn
+ *  if it was a map spawn. */
 static void
 ground_take(
     struct Mock230Server* srv,
@@ -1716,14 +1809,8 @@ ground_take(
 {
     struct Mock230GroundObj* obj = &srv->ground[slot];
 
-    if( obj->sent )
-    {
-        int pos = mock230_send_zone(srv->player, obj->x, obj->z);
-
-        mock230_send_obj_del(srv->player, pos, obj->obj_id);
-    }
+    ground_withdraw(srv, slot);
     obj->active = 0;
-    obj->sent = 0;
     obj->respawn_tick = obj->is_spawn ? srv->tick + mock230_ids()->lootdrop_duration : -1;
 }
 
@@ -1749,7 +1836,7 @@ handle_move(
     int len,
     int trailer_len)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct RSAreaBuf buf;
     int ctrl;
     int start_x;
@@ -1851,7 +1938,7 @@ handle_opheld(
     const uint8_t* payload,
     int len)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct RSAreaBuf buf;
     int obj_id;
     int slot;
@@ -1993,7 +2080,7 @@ handle_inv_buttond(
     const uint8_t* payload,
     int len)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct RSAreaBuf buf;
     int component;
     int from_slot;
@@ -2134,7 +2221,7 @@ climb(
     struct Mock230Server* srv,
     int delta)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int level = player->level + delta;
 
     if( level < 0 || level > 3 )
@@ -2147,15 +2234,19 @@ climb(
     player->place_dirty = 1;
     player->dest_x = -1;
     player->dest_z = -1;
-    /* Every npc and ground obj the client holds is on the old level, and it has
-     * no way to know they left. A rebuild is heavy-handed but it is exactly
-     * what the reference does when a player changes plane. */
-    srv->rebuild_pending = 1;
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-        srv->npcs[i].tracked = 0;
-    srv->tracked_count = 0;
-    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
-        srv->ground[i].sent = 0;
+    /* Every npc and ground obj *this* client holds is on the old level, and it
+     * has no way to know they left. A rebuild is heavy-handed but it is exactly
+     * what the reference does when a player changes plane — and it is this
+     * player's rebuild, not the world's: nobody else moved. */
+    player->rebuild_pending = 1;
+    memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+    player->tracked_count = 0;
+    memset(player->ground_sent, 0, sizeof(player->ground_sent));
+    /* The players on the old level go the same way. `player_in_view` would drop
+     * them next tick anyway, but a rebuild has already thrown the client's list
+     * away, so a remove op would name a slot it no longer holds. */
+    memset(player->player_tracked, 0, sizeof(player->player_tracked));
+    player->tracked_player_count = 0;
 }
 
 /*
@@ -2171,7 +2262,7 @@ climb(
 static void
 interaction_engine_obj(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
     {
@@ -2228,12 +2319,12 @@ handle_opobj(
 
     mock230_world_clear_pending_action(srv);
     mock230_world_interaction_set(srv, MOCK230_INTERACT_OBJ, op_num, -1, obj_id, tile_x,
-                                  tile_z, srv->player->level, 1, 1);
+                                  tile_z, srv->active_player->level, 1, 1);
     /* Onto the tile, not beside it: a pile is picked up from on top. */
-    steps_clear(srv->player);
-    srv->player->dest_x = tile_x;
-    srv->player->dest_z = tile_z;
-    steps_walk_to(srv->player, tile_x, tile_z);
+    steps_clear(srv->active_player);
+    srv->active_player->dest_x = tile_x;
+    srv->active_player->dest_z = tile_z;
+    steps_walk_to(srv->active_player, tile_x, tile_z);
 
     mock230_world_process_interaction(srv);
 }
@@ -2294,11 +2385,10 @@ interaction_engine_loc(
             mock230_say(srv, "nothing_interesting_message", NULL);
             return;
         }
-        {
-            int pos = mock230_send_zone(srv->player, loc->x, loc->z);
-
-            mock230_send_loc_add_change(srv->player, pos, loc->shape, loc->angle, loc->loc_id);
-        }
+        /* A door is the canonical two-player case: whoever opened it is not the
+         * only person who can now walk through it. */
+        mock230_world_broadcast_loc(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
+                                    loc->loc_id);
         if( srv->verbose )
             fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
                     def->symbol ? def->symbol : "door", loc->x, loc->z);
@@ -2372,7 +2462,7 @@ handle_oploc(
 
     /* The footprint decides what counts as "beside it": a two-tile gate is
      * reachable from tiles a one-tile door is not. */
-    slot = mock230_scene_find_loc(tile_x, tile_z, srv->player->level, loc_id);
+    slot = mock230_scene_find_loc(tile_x, tile_z, srv->active_player->level, loc_id);
     loc = mock230_scene_loc(slot);
     if( loc )
     {
@@ -2383,7 +2473,7 @@ handle_oploc(
     }
 
     mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, op_num, -1, loc_id, tile_x,
-                                  tile_z, srv->player->level, size_x, size_z);
+                                  tile_z, srv->active_player->level, size_x, size_z);
     mock230_world_walk_beside(srv, tile_x, tile_z);
 
     mock230_world_process_interaction(srv);
@@ -2396,7 +2486,7 @@ handle_cheat(
     const uint8_t* payload,
     int len)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct RSAreaBuf buf;
     char text[128];
     int obj_id = 0;
@@ -2651,7 +2741,7 @@ mock230_world_teleport(
     int abs_x,
     int abs_z)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     steps_clear(player);
     player->level = level;
@@ -2836,8 +2926,8 @@ handle_if_button(
     /* Content bound to the component wins; the engine's own routers are the
      * no-content fallback, which is what keeps the bank's toggles working with
      * no script pack. */
-    srv->player->last_com = uid;
-    srv->player->last_slot = -1;
+    srv->active_player->last_com = uid;
+    srv->active_player->last_slot = -1;
     if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
         return;
     /* Components above interface 31 compile name-addressed — see
@@ -2876,9 +2966,9 @@ handle_if_button_op(
                 uid & 0xffff, sub);
     if( mock230_worldmap_handle_button(srv, uid, op_num) )
         return;
-    srv->player->last_com = uid;
-    srv->player->last_slot = sub;
-    srv->player->last_verb = op_num;
+    srv->active_player->last_com = uid;
+    srv->active_player->last_slot = sub;
+    srv->active_player->last_verb = op_num;
     /* run_trigger's parameters are (trigger, type, category, npc_slot): the
      * component uid is the type, and an interface button has neither a category
      * nor an npc. `sub` and `op` reach content through last_slot and last_verb,
@@ -2927,14 +3017,14 @@ mock230_note_modal_mount(
 {
     const struct Mock230Ids* ids = mock230_ids();
 
-    if( !srv || !srv->player )
+    if( !srv || !srv->active_player )
         return;
     if( uid == ids->com_gameframe_mainmodal )
-        srv->player->mainmodal_group = group;
+        srv->active_player->mainmodal_group = group;
     else if( uid == ids->com_gameframe_sidemodal )
-        srv->player->sidemodal_group = group;
+        srv->active_player->sidemodal_group = group;
     else if( uid == ids->com_chatbox_modal )
-        srv->player->chatmodal_group = group;
+        srv->active_player->chatmodal_group = group;
 }
 
 /*
@@ -2947,11 +3037,11 @@ mock230_note_modal_mount(
 static void
 close_chat_modal(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     if( player->chatmodal_group <= 0 )
         return;
-    mock230_send_if_closesub(srv->player, mock230_ids()->com_chatbox_modal);
+    mock230_send_if_closesub(srv->active_player, mock230_ids()->com_chatbox_modal);
     player->resume_button_count = 0;
 }
 
@@ -2962,9 +3052,9 @@ mock230_world_close_modal(struct Mock230Server* srv)
     const struct Mock230Ids* ids = mock230_ids();
     int main_group;
 
-    if( !srv || !srv->player )
+    if( !srv || !srv->active_player )
         return;
-    player = srv->player;
+    player = srv->active_player;
 
     /*
      * The parked script goes first, and unconditionally.
@@ -2995,9 +3085,9 @@ mock230_world_close_modal(struct Mock230Server* srv)
         mock230_bank_close(srv);
     else
     {
-        mock230_send_if_closesub(srv->player, ids->com_gameframe_mainmodal);
+        mock230_send_if_closesub(srv->active_player, ids->com_gameframe_mainmodal);
         if( player->sidemodal_group > 0 )
-            mock230_send_if_closesub(srv->player, ids->com_gameframe_sidemodal);
+            mock230_send_if_closesub(srv->active_player, ids->com_gameframe_sidemodal);
     }
 }
 
@@ -3028,8 +3118,8 @@ handle_close_modal(
 
     if( srv->verbose )
         fprintf(stderr, "mock230: <- CLOSE_MODAL (main=%d side=%d chat=%d)\n",
-                srv->player->mainmodal_group, srv->player->sidemodal_group,
-                srv->player->chatmodal_group);
+                srv->active_player->mainmodal_group, srv->active_player->sidemodal_group,
+                srv->active_player->chatmodal_group);
     mock230_world_close_modal(srv);
 }
 
@@ -3051,7 +3141,7 @@ handle_resume_countdialog(
         return;
     if( srv->verbose )
         fprintf(stderr, "mock230: <- RESUME_P_COUNTDIALOG %d\n", (int)value);
-    srv->player->last_int = value;
+    srv->active_player->last_int = value;
     /* A parked script owns the answer if there is one; only when nothing is
      * waiting does the engine's own pending "-X" row get it. */
     if( !mock230_scripts_resume_countdialog(srv, value) )
@@ -3131,11 +3221,21 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
 
 void
 mock230_world_handle(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int name,
     const uint8_t* payload,
     int len)
 {
+    struct Mock230Server* srv;
+
+    /* A packet from a session with no player is a packet from a connection that
+     * was refused a slot, or one still mid-handshake. Dropping it is the only
+     * safe answer: every handler below writes player state. */
+    if( !player || !player->active )
+        return;
+    srv = player->world;
+    mock230_world_set_active(srv, player);
+
     for( size_t i = 0; i < sizeof(k_packet_routes) / sizeof(k_packet_routes[0]); i++ )
     {
         if( k_packet_routes[i].name != name )
@@ -3229,7 +3329,7 @@ mock230_world_varp(const char* symbol)
 void
 mock230_world_sync_combat_varbits(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
     /*
      * Which button layout the tab draws is content's.
@@ -3293,7 +3393,7 @@ mock230_world_attack_style(const struct Mock230Server* srv)
 
     if( varp < 0 || varp >= MOCK230_VARP_COUNT )
         return MOCK230_STYLE_ACCURATE;
-    return srv->player->varps[varp];
+    return srv->active_player->varps[varp];
 }
 
 /*
@@ -3357,7 +3457,7 @@ varp_side_effects(
     int varp,
     int value)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     /*
      * `option_run` is not a variable the server merely reports — it is where
@@ -3375,7 +3475,7 @@ mock230_world_set_varp(
     int varp,
     int value)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     if( varp < 0 || varp >= MOCK230_VARP_COUNT || player->varps[varp] == value )
         return;
@@ -3411,49 +3511,127 @@ mock230_world_set_home(
 }
 
 /*
- * Bind the primary player and give it its session.
+ * Say whose turn it is. The one place `active_player` is written.
  *
- * Called by a host before mock230_world_init, because the session exists as
+ * Every subsystem that still reaches `srv->active_player` — the scripts, the
+ * bank, combat, the world map — is asking "who am I doing this for", and this is
+ * the answer. The per-player phases call it as they iterate and the session
+ * calls it before dispatching a packet, so the question always has one.
+ */
+void
+mock230_world_set_active(
+    struct Mock230Server* srv,
+    struct Mock230Player* player)
+{
+    srv->active_player = player;
+}
+
+/*
+ * Take a pool slot and give it its session.
+ *
+ * Called by a host before mock230_world_login, because the session exists as
  * soon as the handshake does and the world does not. Splitting it out is what
  * makes "a world with no client" (the selftest) and "a world with one" the same
  * code path with a NULL in one field.
+ *
+ * The slot is the pid, and slots are never reused while occupied nor compacted
+ * when freed: the wire carries the index, so moving a player would rename them
+ * to every client tracking them.
  */
-void
-mock230_world_attach_session(
+struct Mock230Player*
+mock230_world_add_player(
     struct Mock230Server* srv,
     struct Mock230Session* session)
 {
-    srv->player = &srv->players[0];
-    srv->player_count = 1;
-    srv->player->world = srv;
-    srv->player->pid = 0;
-    srv->player->session = session;
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+
+        if( player->active )
+            continue;
+        memset(player, 0, sizeof(*player));
+        player->active = 1;
+        player->world = srv;
+        player->pid = i;
+        player->session = session;
+        if( i >= srv->player_count )
+            srv->player_count = i + 1;
+        mock230_world_set_active(srv, player);
+        return player;
+    }
+
+    /* Full. Refusing loudly is the only honest answer: silently overwriting
+     * players[0] is what an implicit "the primary player" would have done. */
+    fprintf(stderr, "mock230: the world is full (%d players); refusing the connection\n",
+            MOCK230_PLAYER_MAX);
+    return NULL;
+}
+
+void
+mock230_world_remove_player(
+    struct Mock230Server* srv,
+    struct Mock230Player* player)
+{
+    if( !player || !player->active )
+        return;
+
+    /*
+     * The bank is heap-allocated per player, so a logout that only cleared
+     * `active` would leak it — and the next player into this slot would inherit
+     * the pointer through the memset in mock230_world_add_player.
+     */
+    mock230_bank_shutdown_player(player);
+    player->active = 0;
+    player->session = NULL;
+    /* Everyone else is holding this pid. Clearing `active` is what the next
+     * PLAYER_INFO reads to retire it; nothing has to be sent from here. */
+    if( srv->active_player == player )
+        mock230_world_set_active(srv, NULL);
+    /* `player_count` is a high-water mark, and it only shrinks when the tail of
+     * the pool is empty — an interior hole has to stay iterated over. */
+    while( srv->player_count > 0 && !srv->players[srv->player_count - 1].active )
+        srv->player_count--;
 }
 
 /*
  * The name the session collected at login.
  *
- * Separate from mock230_world_init, and called after it, because that function
- * memsets the player — a name written before it is a name erased by it. This is
- * the whole of why `displayname` used to come back empty.
+ * Separate from mock230_world_player_init, and called after it, because that
+ * function memsets the player — a name written before it is a name erased by it.
+ * This is the whole of why `displayname` used to come back empty.
  */
 void
 mock230_world_set_display_name(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     const char* name)
 {
     if( !name || !name[0] )
         return;
-    snprintf(srv->player->display_name, sizeof(srv->player->display_name), "%s", name);
+    snprintf(player->display_name, sizeof(player->display_name), "%s", name);
 }
 
+/*
+ * Build the world. Runs once per world, however many players log in.
+ *
+ * The guard is not an optimisation. Re-running this on a second login would
+ * respawn the npc roster on top of itself, return every taken ground spawn,
+ * rebuild the scene under the first player and reset the tick counter — none of
+ * which is visible as a crash, all of which is visible as the world lurching
+ * whenever somebody connects.
+ */
 void
 mock230_world_init(
     struct Mock230Server* srv,
     int zone_x,
     int zone_z)
 {
-    struct Mock230Player* player = srv->player;
+    if( srv->world_built )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: world already built; leaving it alone\n");
+        return;
+    }
+    srv->world_built = 1;
 
     srv->zone_x = zone_x;
     srv->zone_z = zone_z;
@@ -3465,20 +3643,38 @@ mock230_world_init(
      * call. */
     mock230_scene_build(mock230_world_cache_dir(), zone_x, zone_z);
 
+    mock230_world_build_entities(srv);
+}
+
+void
+mock230_world_reset(struct Mock230Server* srv)
+{
+    srv->world_built = 0;
+}
+
+/*
+ * Reset one player to a newly-created character.
+ *
+ * Everything here used to be the tail of mock230_world_init, which is what made
+ * a login and a world build the same event.
+ */
+void
+mock230_world_player_init(struct Mock230Player* player)
+{
     /* The bank owns a heap allocation, and the memset below is what would
      * otherwise lose the pointer to it — a re-init (which the selftest does)
      * has to release the old container before the struct is cleared. */
-    mock230_bank_shutdown(srv);
+    mock230_bank_shutdown_player(player);
 
     /*
      * The memset clears the *game* state, not the player's identity.
      *
-     * `world`, `session` and `pid` are set by mock230_world_attach_session
-     * before this runs — the session exists as soon as the handshake does, and
-     * the world does not — so they are saved across the clear. Losing `session`
-     * here leaves a logged-in player the encoders silently write nothing for;
-     * losing `world` crashes the first encoder that reaches through it. Neither
-     * is a compile error.
+     * `world`, `session`, `pid` and `active` are set by
+     * mock230_world_add_player before this runs — the session exists as soon as
+     * the handshake does, and the world does not — so they are saved across the
+     * clear. Losing `session` here leaves a logged-in player the encoders
+     * silently write nothing for; losing `world` crashes the first encoder that
+     * reaches through it. Neither is a compile error.
      */
     {
         struct Mock230Server* world = player->world;
@@ -3489,6 +3685,7 @@ mock230_world_init(
         player->world = world;
         player->session = session;
         player->pid = pid;
+        player->active = 1;
     }
     /* On the home tile, not in the middle of the scene: the scene is 104 tiles
      * of whatever the origin zone happens to cover, and standing in the middle
@@ -3553,8 +3750,16 @@ mock230_world_init(
     /* The containers exist empty. What goes in them the first time a character
      * connects is content's — `[proc,newplayer_inv]` and `[proc,newplayer_bank]`
      * in player/newplayer.rs2, called from [login,_]. */
-    mock230_bank_init(srv);
+    mock230_bank_init_player(player);
+}
 
+/*
+ * The npcs and ground objs the map squares state. Part of the world, not of a
+ * login — which is why it moved out of what is now mock230_world_player_init.
+ */
+static void
+mock230_world_build_entities(struct Mock230Server* srv)
+{
     /*
      * The npc roster comes from the content tree's map squares — LostCity's
      * `==== NPC ====` sections, which are OpenRune's Lumbridge spawn list
@@ -3566,7 +3771,6 @@ mock230_world_init(
      * would pop into being with full hitpoints in front of you.
      */
     memset(srv->npcs, 0, sizeof(srv->npcs));
-    srv->tracked_count = 0;
     {
         int count = 0;
         const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&count);
@@ -3576,10 +3780,10 @@ mock230_world_init(
 
         if( count == 0 )
         {
-            /* No content tree. One npc beside the player keeps every
+            /* No content tree. One npc beside the home tile keeps every
              * npc-facing path — talking, fighting, NPC_INFO itself — reachable
              * rather than dead, the same way the script fallbacks do. */
-            npc_spawn(srv, 3105, player->x + 2, player->z + 1, player->level);
+            npc_spawn(srv, 3105, g_home_x + 2, g_home_z + 1, 0);
         }
     }
 
@@ -3597,20 +3801,24 @@ mock230_world_init(
 }
 
 void
-mock230_world_login(struct Mock230Server* srv)
+mock230_world_login(struct Mock230Player* player)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Server* srv = player->world;
     const struct Mock230Ids* ids = mock230_ids();
+
+    /* Everything below is this player's, and several of the calls still reach
+     * the world for it. */
+    mock230_world_set_active(srv, player);
 
     /* 1. The scene. Everything after this is applied by the client behind the
      *    world load, because the packet queue is serial. */
-    mock230_send_rebuild_normal(srv->player);
+    mock230_send_rebuild_normal(player);
 
     /* 2. Gameframe root + the HUD and sidebar panels mounted into it. Child
      *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
      *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
      *    overlay. */
-    mock230_send_if_opentop(srv->player, ids->iface_gameframe);
+    mock230_send_if_opentop(player, ids->iface_gameframe);
     {
         /*
          * What goes in which slot is content: the `gameframe` enum in
@@ -3637,7 +3845,7 @@ mock230_world_login(struct Mock230Server* srv)
         }
         for( int i = 0; frame && i < frame->count; i++ )
             mock230_send_if_opensub(
-                srv->player,
+                player,
                 ids->iface_gameframe,
                 frame->values[i].key & 0xffff,
                 frame->values[i].value,
@@ -3664,11 +3872,11 @@ mock230_world_login(struct Mock230Server* srv)
      *    stream the client treats as itself, and several things it drives —
      *    the npc menu's level suffix among them — are computed the moment the
      *    first PLAYER_INFO lands. */
-    mock230_send_update_pid(srv->player, MOCK230_PLAYER_TERMINATOR);
+    mock230_send_update_pid(player, MOCK230_PLAYER_TERMINATOR);
     /* Both orb numbers, unconditionally: the per-tick flush only sends what
      * changed, and a session that starts full would otherwise never send one. */
     player->run_energy_sent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
-    mock230_send_run_energy(srv->player, player->run_energy_sent);
+    mock230_send_run_energy(player, player->run_energy_sent);
 
     /* The combat tab's varps are NOT sent here. They are ordinary varp writes
      * in [login,_] (content/scripts/player/login.rs2), declared transmit=yes in
@@ -3676,10 +3884,10 @@ mock230_world_login(struct Mock230Server* srv)
      * changed varp. A server operator changing the opening attack style should
      * not need a compiler. */
     player->run_weight_sent = player_weight_grams(player) / 1000;
-    mock230_send_run_weight(srv->player, player->run_weight_sent);
+    mock230_send_run_weight(player, player->run_weight_sent);
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
         mock230_send_stat(
-            srv->player,
+            player,
             stat,
             player->stat_level[stat],
             player->stat_xp_tenths[stat] / 10,
@@ -3687,9 +3895,9 @@ mock230_world_login(struct Mock230Server* srv)
 
     /* 5. Containers, in full. Deltas take over from the next tick. */
     mock230_send_inv_full(
-        srv->player, ids->com_inventory_items, ids->inv_backpack, player->inv, MOCK230_INV_SLOTS);
+        player, ids->com_inventory_items, ids->inv_backpack, player->inv, MOCK230_INV_SLOTS);
     mock230_send_inv_full(
-        srv->player,
+        player,
         MOCK230_COM(ids->iface_wornitems, 0),
         ids->inv_worn,
         player->worn,
@@ -3707,12 +3915,12 @@ mock230_world_login(struct Mock230Server* srv)
         
         
     }
-    srv->login_pending = 1;
+    player->login_pending = 1;
 
     /* 6. First info tick places the player and spawns the npcs. */
-    mock230_send_player_info(srv->player);
-    mock230_send_npc_info(srv->player);
-    mock230_send_tick_end(srv->player);
+    mock230_send_player_info(player);
+    mock230_send_npc_info(player);
+    mock230_send_tick_end(player);
 }
 
 /* ------------------------------------------------------------------ */
@@ -3807,10 +4015,34 @@ phase_npcs(struct Mock230Server* srv)
     advance_npcs(srv);
 }
 
+/*
+ * The per-player phases, and why they are written this way.
+ *
+ * Each one iterates the pool and calls `mock230_world_set_active` before doing
+ * anything, because most of what they call still reaches the player through the
+ * world. That is the residue of the single-player era: the loop is what makes
+ * the residue *correct* — the alternative, giving every one of those functions a
+ * `Mock230Player*`, is the same change spread over five files and can be done
+ * one subsystem at a time behind this.
+ *
+ * The pool is iterated to `player_count` and skips inactive slots, because a
+ * logout leaves a hole rather than compacting (see `Mock230Player.pid`).
+ */
+#define MOCK230_FOR_EACH_PLAYER(srv, player)                                                       \
+    for( int mock230_pid_ = 0; mock230_pid_ < (srv)->player_count; mock230_pid_++ )                \
+        if( !((player) = &(srv)->players[mock230_pid_])->active )                                  \
+        {                                                                                          \
+        }                                                                                          \
+        else
+
 /** 5. The player: delays, resumes, queues, timers, then interaction. */
 static void
-phase_players(struct Mock230Server* srv)
+phase_player(struct Mock230Player* player)
 {
+    struct Mock230Server* srv = player->world;
+
+    mock230_world_set_active(srv, player);
+
     /* Order matches the reference exactly, and it matters: a script resumed
      * here must not have a queue entry started on top of it in the same tick. */
     mock230_scripts_resume_player(srv);
@@ -3833,10 +4065,19 @@ phase_players(struct Mock230Server* srv)
     mock230_world_process_interaction(srv);
     /* Energy is spent on the steps that were actually taken, so a route that
      * ran out of tiles this tick regenerates instead of draining. */
-    run_energy_tick(srv, srv->player->running ? srv->player->move_count : 0);
+    run_energy_tick(srv, player->running ? player->move_count : 0);
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
     mock230_combat_player_tick(srv);
+}
+
+static void
+phase_players(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+        phase_player(player);
 }
 
 /** 6. Logouts, which run the [logout] trigger before dropping the player. */
@@ -3850,13 +4091,19 @@ phase_logouts(struct Mock230Server* srv)
 static void
 phase_logins(struct Mock230Server* srv)
 {
-    if( !srv->login_pending )
-        return;
-    srv->login_pending = 0;
-    /* The C burst already sent the scene, the gameframe and the containers —
-     * that is engine work. [login] is where anything an operator would want to
-     * change without recompiling belongs. */
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+    struct Mock230Player* player;
+
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        if( !player->login_pending )
+            continue;
+        player->login_pending = 0;
+        mock230_world_set_active(srv, player);
+        /* The C burst already sent the scene, the gameframe and the containers —
+         * that is engine work. [login] is where anything an operator would want
+         * to change without recompiling belongs. */
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+    }
 }
 
 /** 8. Loc/obj respawn timers and the per-zone event flush. */
@@ -3873,13 +4120,56 @@ phase_logins(struct Mock230Server* srv)
  * A duration of 0 means "forever": the reference treats it as no timer at all,
  * which is what a quest permanently opening a wall wants.
  */
+/*
+ * A loc change is a *zone* event: it happened in the world, and everyone
+ * standing where they could see it has to be told.
+ *
+ * Sending it to the active player only is the single-player shape, and it fails
+ * in a way nobody would report as a protocol bug — a door one player opens stays
+ * shut on the other's screen, and walking through it looks like the collision
+ * map disagreeing with the picture.
+ *
+ * The recipient set here is "every player on that level", not "every player in
+ * that zone", because the server has no zone index yet and the client discards a
+ * zone packet for a zone it does not hold. §6.1 step 3 replaces this with a
+ * `ZoneMap` whose events also *replay* to whoever walks in afterwards, which is
+ * the half a broadcast cannot do: a player who logs in later still sees the door
+ * shut, because the scene is rebuilt from the cache and nothing re-states the
+ * change. `mock230_scene_next_changed_loc` covers exactly that case for a
+ * rebuild, and phase 10 uses it.
+ */
+void
+mock230_world_broadcast_loc(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id)
+{
+    struct Mock230Player* player;
+
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        int pos;
+
+        if( player->level != level || !mock230_scene_contains(x, z) )
+            continue;
+        pos = mock230_send_zone(player, x, z);
+        if( loc_id < 0 )
+            mock230_send_loc_del(player, pos, shape, angle);
+        else
+            mock230_send_loc_add_change(player, pos, shape, angle, loc_id);
+    }
+}
+
 void
 mock230_world_loc_reverts(struct Mock230Server* srv)
 {
     for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
     {
         struct Mock230LocRevert* entry = &srv->loc_reverts[i];
-        int pos;
 
         if( !entry->active )
             continue;
@@ -3887,12 +4177,12 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
             continue;
         entry->active = 0;
 
-        pos = mock230_send_zone(srv->player, entry->x, entry->z);
         if( entry->loc_id < 0 )
         {
             /* Undo a loc_add. */
             if( mock230_scene_remove_loc(entry->slot) )
-                mock230_send_loc_del(srv->player, pos, entry->shape, entry->angle);
+                mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level, entry->shape,
+                                            entry->angle, -1);
         }
         else
         {
@@ -3908,14 +4198,14 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
             if( loc && loc->active )
             {
                 if( mock230_scene_replace_loc(entry->slot, entry->loc_id, entry->angle) )
-                    mock230_send_loc_add_change(
-                        srv->player, pos, entry->shape, entry->angle, entry->loc_id);
+                    mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level,
+                                                entry->shape, entry->angle, entry->loc_id);
             }
             else if( mock230_scene_add_loc(entry->x, entry->z, entry->level, entry->loc_id,
                                            entry->shape, entry->angle) >= 0 )
             {
-                mock230_send_loc_add_change(
-                    srv->player, pos, entry->shape, entry->angle, entry->loc_id);
+                mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level, entry->shape,
+                                            entry->angle, entry->loc_id);
             }
         }
     }
@@ -3970,8 +4260,14 @@ mock230_world_loc_revert_queue(
 static void
 phase_zones(struct Mock230Server* srv)
 {
+    struct Mock230Player* player;
+
     mock230_world_loc_reverts(srv);
-    flush_ground(srv);
+    /* The world's half first — an obj that despawns this tick must not be
+     * flushed *to* anyone as an add and then removed. */
+    ground_tick(srv);
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+        flush_ground(player);
 }
 
 /**
@@ -3984,26 +4280,36 @@ phase_zones(struct Mock230Server* srv)
 static void
 phase_info(struct Mock230Server* srv)
 {
+    struct Mock230Player* player;
+
     /* Derived client state, recomputed before anything is encoded. Cheap, and
      * it only writes when a value actually moved — so a quiet tick sends
      * nothing. */
-    mock230_world_sync_combat_varbits(srv);
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        mock230_world_set_active(srv, player);
+        mock230_world_sync_combat_varbits(srv);
+    }
+    /* One origin for the whole world, so this is decided once and may mark
+     * every player as owing a rebuild — see maybe_rebuild. */
     maybe_rebuild(srv);
 }
 
 /** 10. Everything the tick has to say, in the order the client expects it. */
 static void
-phase_clients_out(struct Mock230Server* srv)
+phase_client_out(struct Mock230Player* player)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Server* srv = player->world;
+
+    mock230_world_set_active(srv, player);
 
     /* A rebuild has to reach the client before the placement that depends on
      * it, and the client's serial packet queue holds every later packet until
      * the world load finishes — so ordering here is simply "rebuild first". */
-    if( srv->rebuild_pending )
+    if( player->rebuild_pending )
     {
-        mock230_send_rebuild_normal(srv->player);
-        srv->rebuild_pending = 0;
+        mock230_send_rebuild_normal(player);
+        player->rebuild_pending = 0;
         /* Doors. REBUILD_NORMAL rebuilds the scene from the
          * cache, which puts every opened door back the way the map square has
          * it — so each one has to be re-opened. Without this, walking far
@@ -4017,16 +4323,16 @@ phase_clients_out(struct Mock230Server* srv)
 
             if( !loc || loc->level != player->level )
                 continue;
-            pos = mock230_send_zone(srv->player, loc->x, loc->z);
-            mock230_send_loc_add_change(srv->player, pos, loc->shape, loc->angle, loc->loc_id);
+            pos = mock230_send_zone(player, loc->x, loc->z);
+            mock230_send_loc_add_change(player, pos, loc->shape, loc->angle, loc->loc_id);
         }
         /* The scene moved under the player, so the step directions computed
          * before it are meaningless. */
         player->move_count = 0;
     }
 
-    mock230_send_player_info(srv->player);
-    mock230_send_npc_info(srv->player);
+    mock230_send_player_info(player);
+    mock230_send_npc_info(player);
 
     /* After the containers would have changed but before they are flushed:
      * weight is a function of what is in them, and the orb should not lag a
@@ -4040,14 +4346,14 @@ phase_clients_out(struct Mock230Server* srv)
         mock230_equipment_refresh_stats(srv);
 
     mock230_send_inv_partial(
-        srv->player,
+        player,
         mock230_ids()->com_inventory_items,
         mock230_ids()->inv_backpack,
         player->inv,
         MOCK230_INV_SLOTS,
         player->inv_dirty);
     mock230_send_inv_partial(
-        srv->player,
+        player,
         MOCK230_COM(mock230_ids()->iface_wornitems, 0),
         mock230_ids()->inv_worn,
         player->worn,
@@ -4082,9 +4388,9 @@ phase_clients_out(struct Mock230Server* srv)
         if( !def || !def->transmit )
             continue;
         if( value >= -128 && value <= 127 )
-            mock230_send_varp_small(srv->player, varp, (int)value);
+            mock230_send_varp_small(player, varp, (int)value);
         else
-            mock230_send_varp_large(srv->player, varp, (int)value);
+            mock230_send_varp_large(player, varp, (int)value);
     }
 
     mock230_bank_flush(srv);
@@ -4097,30 +4403,37 @@ phase_clients_out(struct Mock230Server* srv)
         if( (player->stat_dirty & (1u << stat)) == 0 )
             continue;
         mock230_send_stat(
-            srv->player,
+            player,
             stat,
             player->stat_level[stat],
             player->stat_xp_tenths[stat] / 10,
             player->stat_boosted[stat]);
     }
 
-    if( srv->clear_map_flag )
-        mock230_send_unset_map_flag(srv->player);
+    if( player->clear_map_flag )
+        mock230_send_unset_map_flag(player);
 
-    mock230_send_tick_end(srv->player);
+    mock230_send_tick_end(player);
+}
+
+static void
+phase_clients_out(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+        phase_client_out(player);
 }
 
 /** 11. Drop everything that described only this tick. */
 static void
-phase_cleanup(struct Mock230Server* srv)
+phase_cleanup_player(struct Mock230Player* player)
 {
-    struct Mock230Player* player = srv->player;
-
     player->stat_dirty = 0;
     player->inv_dirty = 0;
     player->worn_dirty = 0;
     player->varp_changed_count = 0;
-    srv->clear_map_flag = 0;
+    player->clear_map_flag = 0;
 
     /* Extended info describes one tick only. Clearing it here rather than
      * inside the encoder means a field set after PLAYER_INFO was written still
@@ -4134,6 +4447,24 @@ phase_cleanup(struct Mock230Server* srv)
     player->masks = 0;
     player->anim_id = -1;
     player->anim_delay = 0;
+    /*
+     * `move_dirs`/`move_count` are NOT cleared here, and must not be: they are
+     * read by every *other* player's PLAYER_INFO in phase 10, and phase 5 rewrites
+     * them from scratch for whoever moves next tick. Clearing them here would be
+     * harmless with one player and would delete the steps the observers still
+     * need with two — the same class of bug as clearing `masks` inside the
+     * encoder.
+     */
+}
+
+static void
+phase_cleanup(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+        phase_cleanup_player(player);
+
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
     {
         srv->npcs[i].masks = 0;
@@ -4146,6 +4477,8 @@ phase_cleanup(struct Mock230Server* srv)
 void
 mock230_world_tick(struct Mock230Server* srv)
 {
+    struct Mock230Player* player;
+
     srv->tick++;
 
     phase_world(srv);
@@ -4159,10 +4492,19 @@ mock230_world_tick(struct Mock230Server* srv)
     /* After movement, before the info streams: the world map marker is derived
      * state, and this is the only place it can be refreshed with the tile the
      * player will actually be reported on. */
-    mock230_worldmap_tick(srv);
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        mock230_world_set_active(srv, player);
+        mock230_worldmap_tick(srv);
+    }
     phase_info(srv);
     phase_clients_out(srv);
     phase_cleanup(srv);
+
+    /* Nobody's turn between ticks. A read of `active_player` from outside a
+     * phase or a packet handler is a bug, and leaving the last player of the
+     * tick in the field is what would let it look like it worked. */
+    mock230_world_set_active(srv, NULL);
 }
 
 /* ------------------------------------------------------------------ */
@@ -4219,7 +4561,7 @@ selftest_park_player(
     int tile_x,
     int tile_z)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     steps_clear(player);
     player->x = tile_x;
@@ -4259,11 +4601,11 @@ selftest_settle(
 {
     for( int i = 0; i < max_ticks; i++ )
     {
-        if( srv->player->interaction.kind == MOCK230_INTERACT_NONE )
+        if( srv->active_player->interaction.kind == MOCK230_INTERACT_NONE )
             return i;
         mock230_world_tick(srv);
     }
-    return srv->player->interaction.kind == MOCK230_INTERACT_NONE ? max_ticks : -1;
+    return srv->active_player->interaction.kind == MOCK230_INTERACT_NONE ? max_ticks : -1;
 }
 
 /*
@@ -4317,19 +4659,19 @@ selftest_click_through(
 {
     int clicks = 0;
 
-    while( clicks < max_pages && srv->player->active_script )
+    while( clicks < max_pages && srv->active_player->active_script )
     {
         int uid;
         uint8_t resume[4];
 
-        if( srv->player->resume_button_count <= 0 )
+        if( srv->active_player->resume_button_count <= 0 )
             break;
-        uid = srv->player->resume_buttons[0];
+        uid = srv->active_player->resume_buttons[0];
         resume[0] = (uint8_t)(uid >> 24);
         resume[1] = (uint8_t)(uid >> 16);
         resume[2] = (uint8_t)(uid >> 8);
         resume[3] = (uint8_t)uid;
-        mock230_world_handle(srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        mock230_world_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
         clicks++;
     }
     return clicks;
@@ -4380,7 +4722,7 @@ selftest_prayer_on(
     struct Mock230Server* srv,
     const char* name)
 {
-    return mock230_varbit_get(srv->player,
+    return mock230_varbit_get(srv->active_player,
                               mock230_content_symbol(MOCK230_PACK_VARBIT, name)) != 0;
 }
 
@@ -4401,16 +4743,16 @@ mock230_world_selftest(void)
     struct Mock230Server srv;
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
-    int slot;
+    int slot = 0;
 
     memset(&srv, 0, sizeof(srv));
     /* No session: a world with no client. Every mock230_send still builds its
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
-    mock230_world_attach_session(&srv, NULL);
+    player = mock230_world_add_player(&srv, NULL);
     mock230_seqinfo_load(MOCK230_CACHE_DIR_DEFAULT);
     mock230_world_init(&srv, 426, 408);
-    player = srv.player;
+    mock230_world_player_init(player);
 
     fprintf(stderr, "mock230 selftest: ids resolve out of the content tree\n");
     {
@@ -4438,14 +4780,15 @@ mock230_world_selftest(void)
          * Neither is a compile error, and the second only crashes once a packet
          * is actually sent.
          */
-        SELFTEST_CHECK(srv.player == &srv.players[0],
-                       "the primary player is the pool's first slot");
+        SELFTEST_CHECK(player == &srv.players[0],
+                       "the first player takes the pool's first slot");
         SELFTEST_CHECK(srv.player_count == 1, "and the world holds one player, got %d",
                        srv.player_count);
-        SELFTEST_CHECK(srv.player->world == &srv,
-                       "the player points back at its world after world_init");
-        SELFTEST_CHECK(srv.player->pid == 0, "with pid 0, got %d", srv.player->pid);
-        SELFTEST_CHECK(srv.player->session == NULL,
+        SELFTEST_CHECK(player->world == &srv,
+                       "the player points back at its world after player_init");
+        SELFTEST_CHECK(player->pid == 0, "with pid 0, got %d", player->pid);
+        SELFTEST_CHECK(player->active, "and is marked live in the pool");
+        SELFTEST_CHECK(player->session == NULL,
                        "and no session — this world has no client");
 
         SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
@@ -4704,13 +5047,13 @@ mock230_world_selftest(void)
             int hans;
 
             /* [login,_] should run in phase 7, not during the login burst. */
-            srv.login_pending = 1;
+            player->login_pending = 1;
             mock230_capture_begin(&srv, &capture);
             mock230_world_tick(&srv);
             mock230_capture_end(&srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
                            "[login] should produce a game message");
-            SELFTEST_CHECK(srv.login_pending == 0, "the login latch should be drained");
+            SELFTEST_CHECK(player->login_pending == 0, "the login latch should be drained");
 
             /*
              * The opening fixture, which [login] seeds through
@@ -4757,7 +5100,7 @@ mock230_world_selftest(void)
             payload[0] = (uint8_t)(hans >> 8);
             payload[1] = (uint8_t)(hans & 0xff);
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             /* The click starts a walk; the script runs when the player gets
              * there. Hans is across the courtyard, so that is several ticks. */
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
@@ -4820,7 +5163,7 @@ mock230_world_selftest(void)
 
             payload[0] = (uint8_t)(hans >> 8);
             payload[1] = (uint8_t)(hans & 0xff);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
 
             /* The precondition. Both halves are asserted because the fix has to
@@ -4838,7 +5181,7 @@ mock230_world_selftest(void)
             move[2] = (uint8_t)(player->x + 3);
             move[3] = (uint8_t)(player->z >> 8);
             move[4] = (uint8_t)player->z;
-            mock230_world_handle(&srv, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+            mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
 
             SELFTEST_CHECK(player->active_script == NULL,
                            "walking away should end the parked conversation");
@@ -4856,7 +5199,7 @@ mock230_world_selftest(void)
              * one script slot, so a conversation left parked blocks every later
              * one. Talking to Hans again has to work.
              */
-            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk back should complete");
             SELFTEST_CHECK(player->active_script != NULL,
                            "and a second conversation should still be able to park");
@@ -4974,7 +5317,7 @@ mock230_world_selftest(void)
             uint8_t resume[4];
 
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, payload, 2);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC3, payload, 2);
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
                            "the walk to Hans should complete");
             mock230_capture_end(&srv);
@@ -4994,7 +5337,7 @@ mock230_world_selftest(void)
             resume[1] = (uint8_t)(((217 << 16) | 5) >> 16);
             resume[2] = (uint8_t)(((217 << 16) | 5) >> 8);
             resume[3] = (uint8_t)((217 << 16) | 5);
-            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
             SELFTEST_CHECK(player->active_script != NULL,
                            "an unregistered button must leave the script parked");
 
@@ -5005,7 +5348,7 @@ mock230_world_selftest(void)
             resume[3] = (uint8_t)continue_uid;
 
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
             mock230_capture_end(&srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
                            "clicking continue should draw the next page");
@@ -5016,7 +5359,7 @@ mock230_world_selftest(void)
             /* Page 2 is the last one Hans's "Age" reply has, so the next click
              * runs off the end of the script and into its if_close. */
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+            mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
             mock230_capture_end(&srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the script should finish after the last page");
@@ -5058,7 +5401,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(rows_uid > 0, "the content pack should name chatmenu:options");
 
                 mock230_capture_begin(&srv, &capture);
-                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, opnpc, 2);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                 SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
                 mock230_capture_end(&srv);
 
@@ -5067,7 +5410,7 @@ mock230_world_selftest(void)
                  * the RUNCLIENTSCRIPT goes out inside that call, not on the
                  * next tick. */
                 mock230_capture_begin(&srv, &capture);
-                mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
                 mock230_capture_end(&srv);
                 SELFTEST_CHECK(player->active_script != NULL,
                                "p_choice3 should park on p_pausebutton");
@@ -5129,7 +5472,7 @@ mock230_world_selftest(void)
                     button[4] = 0;
                     button[5] = 3; /* the third option */
 
-                    mock230_world_handle(&srv, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     SELFTEST_CHECK(player->last_slot == 3,
                                    "the clicked row should arrive as last_slot, got %d",
                                    player->last_slot);
@@ -5139,7 +5482,7 @@ mock230_world_selftest(void)
                 /* Whatever branch it is on, drain it so the sections after this
                  * one start from an idle player. */
                 for( int i = 0; i < 12 && player->active_script; i++ )
-                    mock230_world_handle(&srv, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                    mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
                 player->resume_button_count = 0;
             }
 
@@ -5203,7 +5546,7 @@ mock230_world_selftest(void)
                 button[4] = (uint8_t)(k_emotes[i].index >> 8);
                 button[5] = (uint8_t)k_emotes[i].index;
                 player->anim_id = -1;
-                mock230_world_handle(&srv, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
 
                 SELFTEST_CHECK(want > 0, "the cache should name `%s`", k_emotes[i].seq);
                 SELFTEST_CHECK(player->anim_id == want,
@@ -5220,7 +5563,7 @@ mock230_world_selftest(void)
             button[4] = 0;
             button[5] = 48;
             player->anim_id = -1;
-            mock230_world_handle(&srv, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
             SELFTEST_CHECK(player->anim_id == -1,
                            "an unmodelled emote should play nothing, got %d", player->anim_id);
 
@@ -5282,7 +5625,7 @@ mock230_world_selftest(void)
             held[5] = (uint8_t)(ids->com_inventory_items >> 16);
             held[6] = (uint8_t)(ids->com_inventory_items >> 8);
             held[7] = (uint8_t)ids->com_inventory_items;
-            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD1, held, 8);
 
             /* p_delay(0) parks the script for the rest of this tick, which is
              * why the effects land on the next one rather than immediately. */
@@ -5307,7 +5650,7 @@ mock230_world_selftest(void)
             inv_set(player, 0, meat, 1);
             held[0] = (uint8_t)(meat >> 8);
             held[1] = (uint8_t)(meat & 0xff);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD1, held, 8);
             SELFTEST_CHECK(player->hitpoints == 7,
                            "cooked meat should heal 3, got %d", player->hitpoints);
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
@@ -5315,7 +5658,7 @@ mock230_world_selftest(void)
             inv_set(player, 0, meat, 1);
             player->hitpoints = 10;
             player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
-            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD1, held, 8);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD1, held, 8);
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
@@ -5333,7 +5676,7 @@ mock230_world_selftest(void)
                 held[0] = (uint8_t)(sword >> 8);
                 held[1] = (uint8_t)(sword & 0xff);
                 held[3] = 3;
-                mock230_world_handle(&srv, PKTOUT_NAME_OPHELD2, held, 8);
+                mock230_world_handle(player, PKTOUT_NAME_OPHELD2, held, 8);
                 SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == sword,
                                "an unbound opheld should still fall through to Wield");
             }
@@ -5365,7 +5708,7 @@ mock230_world_selftest(void)
                     player->x = srv.npcs[guard].x + 1;
                     player->z = srv.npcs[guard].z;
                     player->level = srv.npcs[guard].level;
-                    mock230_world_handle(&srv, PKTOUT_NAME_OPNPC3, npc_payload, 2);
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC3, npc_payload, 2);
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "pickpocketing under the level requirement should "
                                    "park on its mesbox");
@@ -5638,11 +5981,12 @@ mock230_world_selftest(void)
                            "at full health, got %d of %d", npc->hitpoints, start_hp);
             SELFTEST_CHECK(npc->x == npc->spawn_x && npc->z == npc->spawn_z,
                            "at its spawn tile");
-            /* Respawn clears `tracked` so the next NPC_INFO adds it as a new
-             * entity rather than as a move of one the client already has —
-             * which by now it has done, so the observable end state is that the
-             * client has been told about it again. */
-            SELFTEST_CHECK(npc->tracked,
+            /* A respawned npc leaves every client's tracking set on the tick
+             * it goes inactive, so the next NPC_INFO adds it as a new entity
+             * rather than as a move of one the client already has — which by
+             * now it has done, so the observable end state is that this client
+             * has been told about it again. */
+            SELFTEST_CHECK(player->npc_tracked[slot],
                            "and re-added to the client's npc list");
         }
     }
@@ -5765,7 +6109,7 @@ mock230_world_selftest(void)
             move[2] = (uint8_t)(player->x + 3);
             move[3] = (uint8_t)(player->z >> 8);
             move[4] = (uint8_t)player->z;
-            mock230_world_handle(&srv, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+            mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
 
             SELFTEST_CHECK(player->combat_target == -1,
                            "walking away ends the fight");
@@ -5789,7 +6133,7 @@ mock230_world_selftest(void)
         };
 
         mock230_capture_begin(&srv, &capture);
-        mock230_world_login(&srv);
+        mock230_world_login(player);
         mock230_capture_end(&srv);
         SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_burst, 5),
                        "the login burst should place, open, identify, then fill");
@@ -5811,7 +6155,7 @@ mock230_world_selftest(void)
             int com_mode = mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
             int sa_energy = mock230_content_symbol(MOCK230_PACK_VARP, "sa_energy");
 
-            srv.login_pending = 1;
+            player->login_pending = 1;
             mock230_capture_begin(&srv, &capture);
             mock230_world_tick(&srv);
             mock230_capture_end(&srv);
@@ -6261,7 +6605,7 @@ mock230_world_selftest(void)
                                    (uint8_t)(526 >> 8),  (uint8_t)526 };
 
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
             mock230_capture_end(&srv);
         }
         SELFTEST_CHECK(free_before >= 0 && player->inv[free_before].obj_id == 526,
@@ -6291,7 +6635,7 @@ mock230_world_selftest(void)
             rsab_p2(&drop, 526);
             rsab_p2(&drop, free_before);
             rsab_p4(&drop, mock230_ids()->com_inventory_items);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
             for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
             {
                 if( srv.ground[i].active && srv.ground[i].obj_id == 526 &&
@@ -6328,7 +6672,7 @@ mock230_world_selftest(void)
                                    (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
                                    (uint8_t)(526 >> 8),   (uint8_t)526 };
 
-            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
         }
 
         SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_OBJ,
@@ -6355,7 +6699,7 @@ mock230_world_selftest(void)
             uint8_t move[5];
             struct RSAreaBuf walk;
 
-            mock230_world_handle(&srv, PKTOUT_NAME_OPOBJ1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_OBJ,
                            "the interaction is armed");
 
@@ -6363,7 +6707,7 @@ mock230_world_selftest(void)
             rsab_p1(&walk, 0);
             rsab_p2(&walk, 3224);
             rsab_p2(&walk, 3218);
-            mock230_world_handle(&srv, PKTOUT_NAME_MOVE_GAMECLICK, move, (int)rsab_len(&walk));
+            mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, (int)rsab_len(&walk));
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "and walking somewhere else abandons it");
         }
@@ -6393,7 +6737,7 @@ mock230_world_selftest(void)
 
             player->level = 0;
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* The door is across the courtyard: the click routes there and the
              * swap happens on arrival. That the walk is now part of opening a
              * door is the interaction model working. */
@@ -6415,7 +6759,7 @@ mock230_world_selftest(void)
              * whole point of storing the pairing on both halves. */
             payload[4] = (uint8_t)(1536 >> 8);
             payload[5] = (uint8_t)1536;
-            mock230_world_handle(&srv, PKTOUT_NAME_OPLOC1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* Standing beside it now, so this one resolves on the click. */
             SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
                            "closing the door should complete");
@@ -6770,7 +7114,7 @@ mock230_world_selftest(void)
 
                     player->run_toggle = 0;
                     player->varps[option_run] = 0;
-                    mock230_world_handle(&srv, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     SELFTEST_CHECK(player->varps[option_run] == 1,
                                    "clicking the run orb should set option_run, got %d",
                                    player->varps[option_run]);
@@ -6778,7 +7122,7 @@ mock230_world_selftest(void)
                                    "and arm run_toggle — a lit orb over a walking player is "
                                    "the bug this catches");
 
-                    mock230_world_handle(&srv, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     SELFTEST_CHECK(player->run_toggle == 0 && player->varps[option_run] == 0,
                                    "clicking it again should turn run off (varp %d toggle %d)",
                                    player->varps[option_run], player->run_toggle);
@@ -7093,7 +7437,7 @@ mock230_world_selftest(void)
         rsab_p2(&buf, from_slot);
         rsab_p2(&buf, to_slot);
         rsab_p1(&buf, 0);
-        mock230_world_handle(&srv, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+        mock230_world_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
 
         SELFTEST_CHECK(player->inv[from_slot].obj_id == to_obj, "slots swapped (from)");
         SELFTEST_CHECK(player->inv[to_slot].obj_id == from_obj, "slots swapped (to)");
@@ -8562,7 +8906,7 @@ mock230_world_selftest(void)
                                        srv.npcs[cook_slot].x + 1, srv.npcs[cook_slot].z);
                 player->varps[cookquest] = 0;
 
-                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
                                "talking to the Cook should resolve the interaction");
                 SELFTEST_CHECK(player->active_script != NULL,
@@ -8583,7 +8927,7 @@ mock230_world_selftest(void)
                 /* Talking again with nothing in the backpack is the
                  * in-progress branch. It must not restart the quest, and it
                  * must not complete it either. */
-                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 pages = selftest_click_through(&srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 1,
                                "talking again empty-handed should leave it in progress, got %d",
@@ -8614,7 +8958,7 @@ mock230_world_selftest(void)
                     cooking = 0;
                 cooking_xp_before = player->stat_xp_tenths[cooking];
 
-                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 pages = selftest_click_through(&srv, 24);
 
                 SELFTEST_CHECK(selftest_find(player, milk) < 0 &&
@@ -8655,7 +8999,7 @@ mock230_world_selftest(void)
                                pages);
 
                 /* The post-quest branch exists and does not undo anything. */
-                mock230_world_handle(&srv, PKTOUT_NAME_OPNPC1, payload, 2);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 pages = selftest_click_through(&srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 2,
                                "talking after completion should leave it complete, got %d",
@@ -8766,7 +9110,7 @@ mock230_world_selftest(void)
              * mounted must send nothing at all. */
             mock230_capture_reset(&capture);
             mock230_capture_begin(&srv, &capture);
-            mock230_send_if_closesub(srv.player, ids->com_gameframe_mainmodal);
+            mock230_send_if_closesub(player, ids->com_gameframe_mainmodal);
             mock230_equipment_refresh_stats(&srv);
             mock230_capture_end(&srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,

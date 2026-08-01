@@ -29,6 +29,7 @@
 
 struct Isaac;
 struct Mock230Server;
+struct Mock230Player;
 
 enum
 {
@@ -68,6 +69,17 @@ struct Mock230Session
     /** The name typed at the login screen, copied onto the player when the
      *  world comes up. */
     char display_name[32];
+
+    /**
+     * Who this connection is, once the host has given it a pool slot.
+     *
+     * NULL until then, and NULL again after a logout. The session is what
+     * *decides* which player a decoded packet belongs to — with one connection
+     * "the world's player" happened to be the right answer, and with two it is
+     * whichever one logged in first. `player->session` is the same edge read the
+     * other way, and the encoders have used it since the encoder pass.
+     */
+    struct Mock230Player* player;
 
     /*
      * A packet whose opcode has been descrambled but whose body has not all

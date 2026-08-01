@@ -117,7 +117,6 @@ serve(
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);
-    mock230_world_attach_session(srv, &session);
 
     next_tick = now_ms() + MOCK230_TICK_MS;
 
@@ -140,11 +139,18 @@ serve(
              */
             if( mock230_session_take_login(&session) )
             {
+                struct Mock230Player* player;
+
                 mock230_scripts_load(srv, config->script_dir);
                 mock230_world_init(srv, mock230_boot_zone(config->home_x),
                                    mock230_boot_zone(config->home_z));
-                mock230_world_set_display_name(srv, session.display_name);
-                mock230_world_login(srv);
+                player = mock230_world_add_player(srv, &session);
+                if( !player )
+                    break;
+                session.player = player;
+                mock230_world_player_init(player);
+                mock230_world_set_display_name(player, session.display_name);
+                mock230_world_login(player);
                 /* Anything the client sent behind its login block is still in
                  * the session buffer; decode it now that there is a world. */
                 if( !mock230_session_pump(&session, srv) )
@@ -163,13 +169,18 @@ serve(
         }
     }
 
-    /* The bank's 1,220 slots are heap-allocated per player. Nothing released
-     * them before, so every disconnect leaked them — invisible for a mock
-     * serving one session, not for a server that accepts in a loop. */
+    /*
+     * This server still accepts one connection at a time (§6.1 wants a
+     * non-blocking accept with per-connection buffering), so the world goes away
+     * with the session. `mock230_world_remove_player` releases the slot and the
+     * bank; the shutdown below is the rest of the pool, which is empty here and
+     * would not be in a multi-connection host.
+     */
+    mock230_world_remove_player(srv, session.player);
     mock230_bank_shutdown(srv);
     mock230_scripts_free(srv);
     mock230_session_free(&session);
-    srv->player->session = NULL;
+    mock230_world_reset(srv);
 }
 
 int

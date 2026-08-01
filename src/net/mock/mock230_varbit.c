@@ -190,7 +190,7 @@ mock230_varbit_set(
         return -1;
     mask = width >= 32 ? 0xffffffffu : ((1u << width) - 1u);
 
-    current = (uint32_t)srv->player->varps[range->basevar];
+    current = (uint32_t)srv->active_player->varps[range->basevar];
     current &= ~(mask << range->startbit);
     current |= ((uint32_t)value & mask) << range->startbit;
     /* Through the ordinary varp write, so the transmit gate and the

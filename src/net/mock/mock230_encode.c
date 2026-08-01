@@ -897,9 +897,24 @@ mock230_step_delta(
 static void
 put_player_extended(
     struct RSAreaBuf* buf,
-    struct Mock230Player* player)
+    struct Mock230Player* player,
+    int force_appearance)
 {
     uint32_t mask = player->masks;
+
+    /*
+     * A player entering someone's view needs their appearance whether or not
+     * they happened to change it this tick.
+     *
+     * `masks` is the player's own per-tick set, cleared in phase 11, so it says
+     * "what changed", and for an observer who has never seen this player before
+     * the answer has to be "everything they are". Without this the client spawns
+     * the default composited model and never replaces it — a player-shaped
+     * outline that walks around correctly, which is exactly the kind of bug that
+     * reads as a rendering problem.
+     */
+    if( force_appearance )
+        mask |= MOCK230_PMASK_APPEARANCE;
 
     if( mask >= 0x100 )
     {
@@ -1096,6 +1111,56 @@ mock230_send_loc_del(
     flush(player, &buf, OP_LOC_DEL, 0);
 }
 
+/*
+ * Is `other` someone `player`'s client should be tracking?
+ *
+ * The 5-bit signed deltas a new-player record carries reach -16..15, so the add
+ * radius cannot exceed 15 tiles — beyond that the coordinate wraps and the
+ * player appears on the wrong side of the observer. Removal uses the same
+ * radius, so a player walking out is dropped rather than smeared against the
+ * edge of the range.
+ */
+static int
+player_in_view(
+    const struct Mock230Player* player,
+    const struct Mock230Player* other)
+{
+    int dx;
+    int dz;
+
+    if( !other->active || other == player || other->level != player->level )
+        return 0;
+    /* A player mid-handshake has no ciphers and no position worth reporting;
+     * `place_dirty` is set by mock230_world_player_init, so the first tick after
+     * login is the first tick they can be seen on. */
+    if( !other->world )
+        return 0;
+    dx = other->x - player->x;
+    dz = other->z - player->z;
+    return dx >= -15 && dx <= 15 && dz >= -15 && dz <= 15;
+}
+
+/*
+ * PLAYER_INFO: the local player, then everyone else this client can see.
+ *
+ * Three sections, in this order, and the client's reader depends on all three
+ * being present even when empty:
+ *
+ *   1. the local player's movement (op 3 here means *teleport*, not remove);
+ *   2. an 8-bit count and then that many *already-tracked* players, in the
+ *      order this client last saw them — op 3 here means remove;
+ *   3. players entering view, each an 11-bit pid + two 5-bit deltas, closed by
+ *      the 2047 terminator.
+ *
+ * Then, byte-aligned, one extended block per entity that asked for one — **in
+ * the order the bit section queued them**, which is why `queued[]` exists rather
+ * than the encoder walking the tracked list a second time. Getting that order
+ * wrong does not drop a field, it applies one player's appearance to another.
+ *
+ * The tracked list is rebuilt into `kept[]` as it is written and swapped in at
+ * the end, because a player removed in section 2 must not be counted into the
+ * order section 3 and the extended blocks index against.
+ */
 void
 mock230_send_player_info(struct Mock230Player* player)
 {
@@ -1104,8 +1169,16 @@ mock230_send_player_info(struct Mock230Player* player)
     int local_x = player->x - mock230_scene_origin(srv->zone_x);
     int local_z = player->z - mock230_scene_origin(srv->zone_z);
     int extended = player->masks != 0;
+    /* Who gets an extended block, in bit-section order. `player` itself is
+     * spelled as its own pointer rather than as a pid, because the local player
+     * is 2047 to itself and 2047 is not a pool slot. */
+    struct Mock230Player* queued[MOCK230_PLAYER_MAX + 1];
+    int queued_new[MOCK230_PLAYER_MAX + 1];
+    int queued_count = 0;
+    int kept[MOCK230_PLAYER_MAX];
+    int kept_count = 0;
 
-    open_packet(&buf, 2048);
+    open_packet(&buf, 4096);
     rsab_bits(&buf);
 
     /* --- local player --- */
@@ -1146,22 +1219,108 @@ mock230_send_player_info(struct Mock230Player* player)
         rsab_pbit(&buf, 1, 0); /* nothing to say about the local player */
     }
 
-    /* --- tracked players: the mock is single-player --- */
-    rsab_pbit(&buf, 8, 0);
+    if( extended )
+    {
+        queued_new[queued_count] = 0;
+        queued[queued_count++] = player;
+    }
 
-    /* --- new players: none, straight to the terminator ---
-     * The terminator is not optional. Without it the client keeps reading
+    /* --- players this client is already tracking --- */
+    rsab_pbit(&buf, 8, player->tracked_player_count);
+    for( int i = 0; i < player->tracked_player_count; i++ )
+    {
+        int pid = player->tracked_players[i];
+        struct Mock230Player* other = &srv->players[pid];
+        int other_extended;
+
+        if( !player_in_view(player, other) )
+        {
+            /* Op 3 on a tracked player is "remove". It is the one op that does
+             * not keep the slot, so it must not go into `kept`. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 3);
+            player->player_tracked[pid] = 0;
+            continue;
+        }
+
+        kept[kept_count++] = pid;
+        other_extended = other->masks != 0;
+        if( other->move_count == 2 )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 2);
+            rsab_pbit(&buf, 3, other->move_dirs[0]);
+            rsab_pbit(&buf, 3, other->move_dirs[1]);
+            rsab_pbit(&buf, 1, other_extended);
+        }
+        else if( other->move_count == 1 )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 1);
+            rsab_pbit(&buf, 3, other->move_dirs[0]);
+            rsab_pbit(&buf, 1, other_extended);
+        }
+        else if( other_extended )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 0);
+        }
+        else
+        {
+            rsab_pbit(&buf, 1, 0);
+        }
+        if( other_extended )
+        {
+            queued_new[queued_count] = 0;
+            queued[queued_count++] = other;
+        }
+    }
+
+    /*
+     * --- players entering view ---
+     *
+     * A new record is unconditionally followed by an extended block carrying the
+     * appearance: the client spawns a default-looking body on the pid alone and
+     * has nothing else to replace it with.
+     */
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        struct Mock230Player* other = &srv->players[pid];
+        int dx;
+        int dz;
+
+        if( player->player_tracked[pid] || !player_in_view(player, other) )
+            continue;
+
+        dx = other->x - player->x;
+        dz = other->z - player->z;
+        rsab_pbit(&buf, 11, pid);
+        rsab_pbit(&buf, 5, dx & 0x1f);
+        rsab_pbit(&buf, 5, dz & 0x1f);
+        rsab_pbit(&buf, 1, 1); /* jump: appear on the tile, do not glide to it */
+        rsab_pbit(&buf, 1, 1); /* extended info follows — the appearance */
+
+        queued_new[queued_count] = 1;
+        queued[queued_count++] = other;
+        player->player_tracked[pid] = 1;
+        kept[kept_count++] = pid;
+    }
+
+    /* The terminator is not optional. Without it the client keeps reading
      * 11-bit ids out of whatever follows, which at best invents players and at
      * worst eats the extended-info section. */
     rsab_pbit(&buf, 11, MOCK230_PLAYER_TERMINATOR);
     rsab_bytes(&buf);
 
     /* --- extended info, byte aligned, in the order the bits queued it --- */
-    if( extended )
-        put_player_extended(&buf, player);
+    for( int i = 0; i < queued_count; i++ )
+        put_player_extended(&buf, queued[i], queued_new[i]);
 
     flush(player, &buf, OP_PLAYER_INFO, 2);
     player->place_dirty = 0;
+
+    memcpy(player->tracked_players, kept, sizeof(int) * (size_t)kept_count);
+    player->tracked_player_count = kept_count;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1229,11 +1388,10 @@ void
 mock230_send_npc_info(struct Mock230Player* player)
 {
     /*
-     * `tracked` is still the *world's* single list, so this encodes the same
-     * npc set for whoever it is addressed to. Correct while every player
-     * stands in the same scene and wrong the moment two do not — but the
-     * tracking set is a per-player thing to fix along with PLAYER_INFO, not
-     * part of this signature pass.
+     * `tracked` is the *player's* list: which npcs this client holds, and in
+     * what order, is a fact about the client. It was the world's while the pool
+     * held one, which encoded the first player's npc set — deltas and all — for
+     * whoever the packet was addressed to.
      */
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
@@ -1248,10 +1406,10 @@ mock230_send_npc_info(struct Mock230Player* player)
     rsab_bits(&buf);
 
     /* --- tracked npcs, in the client's list order --- */
-    rsab_pbit(&buf, 8, srv->tracked_count);
-    for( int i = 0; i < srv->tracked_count; i++ )
+    rsab_pbit(&buf, 8, player->tracked_count);
+    for( int i = 0; i < player->tracked_count; i++ )
     {
-        int slot = srv->tracked[i];
+        int slot = player->tracked[i];
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx = npc->x - player->x;
         int dz = npc->z - player->z;
@@ -1265,7 +1423,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * the new tracked order. */
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 3);
-            npc->tracked = 0;
+            player->npc_tracked[slot] = 0;
             continue;
         }
 
@@ -1295,7 +1453,7 @@ mock230_send_npc_info(struct Mock230Player* player)
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx, dz;
-        if( !npc->active || npc->tracked )
+        if( !npc->active || player->npc_tracked[slot] )
             continue;
         dx = npc->x - player->x;
         dz = npc->z - player->z;
@@ -1314,7 +1472,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         rsab_pbit(&buf, 1, npc_extended_pending(npc));
         if( npc_extended_pending(npc) )
             queued[queued_count++] = slot;
-        npc->tracked = 1;
+        player->npc_tracked[slot] = 1;
         kept[kept_count++] = slot;
     }
 
@@ -1326,8 +1484,8 @@ mock230_send_npc_info(struct Mock230Player* player)
 
     flush(player, &buf, OP_NPC_INFO, 2);
 
-    memcpy(srv->tracked, kept, sizeof(int) * (size_t)kept_count);
-    srv->tracked_count = kept_count;
+    memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+    player->tracked_count = kept_count;
 }
 
 /* ------------------------------------------------------------------ */

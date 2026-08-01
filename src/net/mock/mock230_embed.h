@@ -27,11 +27,26 @@
 
 #include <stdint.h>
 
+enum
+{
+    /**
+     * Connections one embedded world can hold.
+     *
+     * A *client* limit, not a world limit: several clients in one embed is the
+     * point of the array, and `mock230_embed_start` refusing a second embed is
+     * about the process-wide cache tables, not about players. Kept at or below
+     * MOCK230_PLAYER_MAX so a connection that handshakes always gets a slot.
+     */
+    MOCK230_EMBED_CLIENT_MAX = 4,
+};
+
 struct Mock230Embed;
 struct Mock230Server;
+struct Mock230Player;
 
 /**
- * Bring up the static data and open one embedded session.
+ * Bring up the static data and open one embedded world, with client 0 already
+ * connected.
  *
  * Returns NULL when the loaders failed hard enough that there is nothing to
  * serve. A missing content tree is *not* that — the server runs without one.
@@ -40,6 +55,18 @@ struct Mock230Server;
  */
 struct Mock230Embed*
 mock230_embed_start(void);
+
+/**
+ * Open another connection to the same world. Returns its client id, or -1.
+ *
+ * This is the whole of what "two players in one process" needs from the host
+ * side: a second byte-queue pair and a second session. Everything after it —
+ * the handshake, the pool slot, the login burst — is the same code the first
+ * client ran, which is what makes the test a test of the *server* rather than
+ * of a second code path.
+ */
+int
+mock230_embed_connect(struct Mock230Embed* embed);
 
 void
 mock230_embed_stop(struct Mock230Embed* embed);
@@ -55,6 +82,7 @@ mock230_embed_stop(struct Mock230Embed* embed);
 int
 mock230_embed_write(
     struct Mock230Embed* embed,
+    int client_id,
     const uint8_t* data,
     int len);
 
@@ -63,22 +91,27 @@ mock230_embed_write(
 int
 mock230_embed_read(
     struct Mock230Embed* embed,
+    int client_id,
     uint8_t* dst,
     int max);
 
 /** Bytes waiting to be read. */
 int
-mock230_embed_pending(const struct Mock230Embed* embed);
+mock230_embed_pending(
+    const struct Mock230Embed* embed,
+    int client_id);
 
 /**
  * Let the server act.
  *
- * Decodes whatever mock230_embed_write left, runs the login burst if the
- * handshake just completed, and advances one 600 ms game tick when `run_tick`
- * is set. A host with a real frame clock passes 1 every 600 ms and 0 otherwise;
- * a test passes 1 every call and runs the world as fast as it likes.
+ * Decodes whatever mock230_embed_write left for *every* client, runs the login
+ * burst for any whose handshake just completed, and advances one 600 ms game
+ * tick when `run_tick` is set. The tick is the world's and runs once however
+ * many clients are attached. A host with a real frame clock passes 1 every
+ * 600 ms and 0 otherwise; a test passes 1 every call and runs the world as fast
+ * as it likes.
  *
- * Returns 0 once the session is dead.
+ * Returns 0 once every session is dead.
  */
 int
 mock230_embed_pump(
@@ -86,12 +119,20 @@ mock230_embed_pump(
     int run_tick);
 
 /** The world, for a host that wants to assert on game state directly rather
- *  than through the wire. NULL before the handshake completes. */
+ *  than through the wire. NULL before the first handshake completes. */
 struct Mock230Server*
 mock230_embed_world(struct Mock230Embed* embed);
 
-/** 1 once the login handshake finished and the world is up. */
+/** 1 once this client's login handshake finished. */
 int
-mock230_embed_online(const struct Mock230Embed* embed);
+mock230_embed_online(
+    const struct Mock230Embed* embed,
+    int client_id);
+
+/** The pool slot this client logged in to, or NULL before it did. */
+struct Mock230Player*
+mock230_embed_player(
+    struct Mock230Embed* embed,
+    int client_id);
 
 #endif

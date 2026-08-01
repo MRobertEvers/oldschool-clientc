@@ -153,7 +153,7 @@ mock230_ops_db(
     int dot)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     (void)dot;
 

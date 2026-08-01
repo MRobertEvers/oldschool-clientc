@@ -32,23 +32,34 @@
  *   Mock230Session  a CONNECTION. Transport, both ISAAC ciphers, the login
  *                   state machine, the inbound frame reader. No game state.
  *
- * These were one struct until the split. `srv->player` is a *pointer* into
- * `srv->players[]`, so field access is `srv->player->x`, and the session hangs
- * off the player rather than the world — a packet is addressed to a player, and
- * with more than one, "send the inventory" has to know whose.
+ * These were one struct until the split. The session hangs off the player
+ * rather than the world — a packet is addressed to a player, and with more than
+ * one, "send the inventory" has to know whose.
  *
- * `MOCK230_PLAYER_MAX` is 1. What the pool has bought so far is that the player
- * is a standalone, saveable entity, and that **every encoder is addressed to
- * one**: all 33 `mock230_send_*` take a `struct Mock230Player*` and reach the
- * socket through `player->session`, never through the world. `mock230_send` is
- * the single point that still needs the world at all, for the test capture.
+ * ── `srv->active_player` is not "the player" ──────────────────────────
  *
- * What that has NOT bought is multiplayer. Two things still assume one player:
- * the tick phases act on `srv->player` instead of iterating the pool, and
- * PLAYER_INFO writes the local player and then the terminator, with no path
- * for anyone else (`mock230_send_npc_info` has the same shape one level down —
- * it encodes the world's single `tracked` set for whoever it is addressed to).
- * Do not assume a second player works because the array is there.
+ * It is **whose turn it is**: the player the phase currently running, or the
+ * packet currently being decoded, or the script currently executing is acting
+ * on. The per-player phases set it as they iterate the pool
+ * (`mock230_world_set_active`), the session sets it before dispatching a packet,
+ * and it is meaningless outside those. A subsystem that reads it is asking "who
+ * am I doing this for", which is the right question; a subsystem that reads it
+ * to mean "the player in this world" is a bug, and the field is named the way it
+ * is so that reads like one. It was called `player` while the pool held one, and
+ * every such read looked correct.
+ *
+ * The reference keeps the same thing on its script state (`activePlayer`); what
+ * is different here is that the engine paths read it off the world rather than
+ * being handed a player, which is the residue of the single-player era and is
+ * removed one subsystem at a time by giving the function a `Mock230Player*`.
+ *
+ * What is genuinely per-player now: the entity streams (PLAYER_INFO tracks
+ * other players, NPC_INFO tracks npcs per player), the scene rebuild flag, the
+ * ground-obj "already told them" set, and every encoder. What is still shared:
+ * the *scene origin* — one 104x104 build area for the whole world, so players
+ * further apart than it can cover would fight over it (`mock230_scene_build` is
+ * a singleton). See docs/osrs230_mockserver.md §6.1 step 3: zones are what
+ * removes that.
  *
  * ── Authority ────────────────────────────────────────────────────────
  *
@@ -103,16 +114,17 @@ enum
     /*
      * Players this world can hold.
      *
-     * One today: a session still attaches only to `players[0]`, and PLAYER_INFO
-     * still writes the local player and then the terminator. What the pool buys
-     * now is that `struct Mock230Player` is addressable on its own — which is
-     * what both a second connection and a save file need, and what a single
-     * embedded field made impossible.
-     *
      * The wire's own ceiling is 2047 (the 11-bit pid field), so this is a memory
      * decision rather than a protocol one: a player is ~25 KB, most of it varps.
+     * Eight is what fits comfortably in the statically-allocated world the socket
+     * server keeps and is well past what any test drives.
+     *
+     * Raising it is not what made multiplayer work and lowering it is not what
+     * would break it: the pool was already here at 1. What made it work is that
+     * the streams became per-player — see `Mock230Player.tracked_*` and
+     * `mock230_send_player_info`.
      */
-    MOCK230_PLAYER_MAX = 1,
+    MOCK230_PLAYER_MAX = 8,
 
     /*
      * Container ids, interface ids and component uids are NOT here. They are
@@ -674,8 +686,9 @@ struct Mock230GroundObj
     int respawn_tick;
     /** 1 when this came from a map square rather than from a drop. */
     int is_spawn;
-    /** Set once the client has been told; cleared by a rebuild. */
-    int sent;
+    /* `sent` was here, for the same reason `Mock230Npc.tracked` was: whether a
+     * client has been told is a fact about the client. It is
+     * `Mock230Player.ground_sent[slot]` now. */
 };
 
 /** A script waiting for its delay to run out. */
@@ -834,9 +847,13 @@ struct Mock230Npc
     int hitpoints;
     int max_hitpoints;
 
-    /** Set once the client has been told about this npc. Cleared by a rebuild,
-     *  which drops the client's whole npc list. */
-    int tracked;
+    /* `tracked` was here — one flag saying "the client knows about this npc",
+     * which with two clients is two different answers. It is
+     * `Mock230Player.npc_tracked[slot]` now, and the sites that used to clear it
+     * on despawn/respawn/death no longer need to: the encoder derives the whole
+     * set from `active` and range every tick, per player, so an npc that goes
+     * away is removed from each client's list on the tick it goes away and
+     * re-added as new when it comes back. */
 
     /** A script parked on this npc by npc_delay, resumed by phase 4. */
     struct SSVM_State* active_script;
@@ -901,8 +918,10 @@ struct Mock230Npc
     /* Combat. `hitpoints` / `max_hitpoints` are shared with the DAMAGE mask,
      * which carries the health bar the client draws above the hitsplat. */
     int base_hitpoints;
-    /** 0 = fighting the player, -1 = not in combat. Single-player mock, so
-     *  there is nothing else to target. */
+    /** Pool index (pid) of the player this npc is fighting, -1 when it is not.
+     *  It was "0 = the player" while there was one, which is the same number
+     *  and a different meaning — read `mock230_combat_npc_tick` for how a
+     *  logged-out target is answered. */
     int combat_target;
     int attack_clock;
     /** Tick the death animation started; -1 while alive. The npc stays visible
@@ -932,7 +951,23 @@ struct Mock230Player
     struct Mock230Server* world;
     struct Mock230Session* session;
 
-    /** Index in the world's pool, and the pid the wire carries. */
+    /**
+     * 1 while this slot holds a player.
+     *
+     * The pool is never compacted, so this — not `player_count` — is what says
+     * whether `players[i]` is anybody. A logout clears it and leaves the hole.
+     */
+    int active;
+
+    /**
+     * Index in the world's pool, and the pid the wire carries.
+     *
+     * The 11-bit pid field reserves 2047 for "the local player", which is why
+     * `UPDATE_PID` sends 2047 to every client: each one is 2047 to itself and
+     * `pid` to everyone else. A pool index of 2047 would therefore be two
+     * different players on one client, which `MOCK230_PLAYER_MAX` keeps
+     * unreachable rather than the pid allocator having to know.
+     */
     int pid;
 
     int x, z, level;
@@ -1023,6 +1058,44 @@ struct Mock230Player
     /** Set after a teleport or a rebuild: the next PLAYER_INFO must carry an
      *  absolute placement (move op 3) rather than a step direction. */
     int place_dirty;
+
+    /*
+     * ── What this client has been told about ─────────────────────────
+     *
+     * Every one of these is a *per-client* view of shared world state, and every
+     * one of them lived on the world while the pool held one. The rule they all
+     * follow: the world owns the fact, the player owns whether this client knows
+     * it yet. Two players standing in different places have different answers,
+     * and sharing one set encoded the first player's view to the second.
+     */
+
+    /** Ordered list of npc slots this client is tracking — exactly the order
+     *  NPC_INFO's tracked section must be written in — plus the membership test
+     *  the "entering view" scan needs. Kept as both because the list answers
+     *  "in what order" and the flags answer "at all" in O(1). */
+    int tracked[MOCK230_NPC_MAX];
+    int tracked_count;
+    uint8_t npc_tracked[MOCK230_NPC_MAX];
+
+    /** The same pair for other players. `tracked_players` holds pool indices
+     *  (pids), in the order PLAYER_INFO's tracked section writes them. */
+    int tracked_players[MOCK230_PLAYER_MAX];
+    int tracked_player_count;
+    uint8_t player_tracked[MOCK230_PLAYER_MAX];
+
+    /** Ground objs this client has been sent an OBJ_ADD for. Indexed by
+     *  `Mock230Server.ground` slot. */
+    uint8_t ground_sent[MOCK230_GROUND_MAX];
+
+    /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
+     *  else moved the world's origin, or it changed level. */
+    int rebuild_pending;
+    /** Set by the login burst, drained by phase 7, so [login] runs inside the
+     *  tick rather than ahead of it — per player, so a second login does not
+     *  re-run the first player's. */
+    int login_pending;
+    /** This client's walk ended, so its map flag comes down. */
+    int clear_map_flag;
 
     /** World map overlay state. `worldmap_tile_sent` is the packed coord the
      *  map's varc was last told about, so the per-tick refresh only fires when
@@ -1210,32 +1283,41 @@ struct Mock230Server
      * is also exactly the struct that wants saving, so persistence was blocked
      * behind the same thing.
      *
-     * `player` points at the primary. Everything that said `srv->player->x` says
-     * `srv->player->x`; the session now hangs off the player, not the world.
+     * `players[i].active` says whether a slot holds anyone; the pool is *not*
+     * compacted, because `pid` is the slot index and the wire carries it — moving
+     * a player would rename them mid-session to every client tracking them.
+     * `player_count` is therefore a high-water mark to iterate to, not a
+     * population count.
      */
     struct Mock230Player players[MOCK230_PLAYER_MAX];
     int player_count;
-    struct Mock230Player* player;
+    /** Whose turn it is — see the header comment. Never "the player". */
+    struct Mock230Player* active_player;
 
     int tick;
 
-    /** Origin zone of the scene the client currently holds. Absolute tile of
-     *  scene-local (0,0) is (zone - 6) * 8. */
+    /** 1 once mock230_world_init has built the scene and the entities. Both
+     *  hosts call that on every login, so this is what stops the second one
+     *  respawning the roster under the first player. */
+    int world_built;
+
+    /** Origin zone of the scene every client currently holds, and the window
+     *  `mock230_scene_build` keeps collision for. One per world rather than one
+     *  per player: the scene builder is a singleton, so two players far enough
+     *  apart would rebuild it under each other. §6.1 step 3 is the fix. */
     int zone_x, zone_z;
 
     struct Mock230Npc npcs[MOCK230_NPC_MAX];
 
-    /** Ordered list of npc slots the client is tracking, which is exactly the
-     *  order the tracked section of NPC_INFO must be written in. */
-    int tracked[MOCK230_NPC_MAX];
-    int tracked_count;
+    /* The npc tracking set is per *player* — `Mock230Player.tracked` — because
+     * NPC_INFO's deltas are relative to whoever is being written to. It lived
+     * here while the pool held one, and encoded the same npcs for everybody. */
 
-    /** Latched by a handler, acted on by the next tick. */
-    int rebuild_pending;
-    int clear_map_flag;
-    /** Set by the login burst, drained by phase 7 so [login] runs inside the
-     *  tick rather than ahead of it. */
-    int login_pending;
+    /* `rebuild_pending`, `login_pending` and `clear_map_flag` were here. All
+     * three describe one client's session rather than the world's state, and
+     * with a pool they have to: a second player logging in must not re-run the
+     * first one's [login], and one player's walk ending must not clear the
+     * other's map flag. They are on `Mock230Player` now. */
 
     /** Deterministic per-connection RNG so a session replays identically. */
     uint32_t rng;
@@ -1455,52 +1537,136 @@ mock230_world_set_home(
     int tile_z);
 
 /**
- * Bind the primary player and hand it its session.
+ * Take a pool slot and hand it its session.
  *
- * **Call before mock230_world_init**, and before anything encodes: the session
+ * **Call before mock230_world_login**, and before anything encodes: the session
  * exists as soon as the handshake does, the world does not, and an encoder with
- * no `srv->player` has nowhere to write. `session` may be NULL — a world with no
+ * no player has nowhere to write. `session` may be NULL — a world with no
  * client, which is what the selftest runs.
+ *
+ * Returns NULL when the pool is full, which a host must treat as "refuse this
+ * connection" rather than as a reason to overwrite somebody. The returned player
+ * is also left as `srv->active_player`, because everything the caller does next
+ * (the login burst, the display name) is that player's.
  */
-void
-mock230_world_attach_session(
+struct Mock230Player*
+mock230_world_add_player(
     struct Mock230Server* srv,
     struct Mock230Session* session);
 
 /**
- * Copy the login name onto the player. **Call after mock230_world_init**, which
- * memsets the player struct — writing the name before it is what used to make
- * `displayname` report nothing.
+ * Release a slot, and take the player out of everyone else's view.
+ *
+ * The removal is not "stop encoding them": every other client is holding a pid
+ * that has to be retired explicitly, or a later player taking the same slot
+ * inherits the corpse. `mock230_send_player_info` does the retiring; this is
+ * what tells it to, by clearing `active`.
+ */
+void
+mock230_world_remove_player(
+    struct Mock230Server* srv,
+    struct Mock230Player* player);
+
+/**
+ * Say whose turn it is.
+ *
+ * The single seam for `srv->active_player` — see the file header on why that
+ * field is not "the player". Every per-player phase calls this as it iterates,
+ * and the session calls it before dispatching a packet, so that a subsystem
+ * still reaching through the world reaches the right player rather than
+ * whichever one logged in first.
+ */
+void
+mock230_world_set_active(
+    struct Mock230Server* srv,
+    struct Mock230Player* player);
+
+/**
+ * Reset one player to a newly-created character, on the home tile.
+ *
+ * Split out of `mock230_world_init` (which now does the *world*: scene, npcs,
+ * ground objs, and runs once) because a second login must not respawn the npc
+ * roster or move everyone's scene. Preserves `world`, `session`, `pid` and
+ * `active` across the clear, all of which the caller set.
+ */
+void
+mock230_world_player_init(struct Mock230Player* player);
+
+/**
+ * Copy the login name onto the player. **Call after mock230_world_player_init**,
+ * which memsets the player struct — writing the name before it is what used to
+ * make `displayname` report nothing.
  */
 void
 mock230_world_set_display_name(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     const char* name);
 
-/** Seed the player, the npc roster and the starting inventory. */
+/**
+ * Build the world: the scene at this origin zone, the npc roster and the map
+ * squares' ground objs.
+ *
+ * **Idempotent by design, and it has to be**: both hosts call it on every login
+ * because a second player arriving must not respawn the roster, move the scene
+ * or return every taken spawn. The second and later calls do nothing and say so
+ * under `MOCK230_VERBOSE`. `mock230_world_reset` is what a test uses to get a
+ * fresh world deliberately.
+ */
 void
 mock230_world_init(
     struct Mock230Server* srv,
     int zone_x,
     int zone_z);
 
+/** Drop the world so the next mock230_world_init rebuilds it. For the selftest,
+ *  which runs many worlds in one process. */
+void
+mock230_world_reset(struct Mock230Server* srv);
+
 /** Advance one 600 ms tick: movement, npc roaming, then every packet the tick
  *  produces (rebuild, player info, npc info, container deltas, tick end). */
 void
 mock230_world_tick(struct Mock230Server* srv);
 
-/** Route one decoded client packet into the game state. `name` is a canonical
- *  PKTOUT_NAME_*; `payload`/`len` exclude the opcode and any length prefix. */
+/**
+ * Route one decoded client packet into the game state.
+ *
+ * `name` is a canonical PKTOUT_NAME_*; `payload`/`len` exclude the opcode and
+ * any length prefix. Takes the *player* rather than the world because a packet
+ * is something one client said: this is the second half of the encoder pass, on
+ * the inbound side, and it is what makes `srv->active_player` correct for the
+ * whole of the handler's work.
+ */
 void
 mock230_world_handle(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int name,
     const uint8_t* payload,
     int len);
 
-/** The on-login burst: scene, gameframe, containers, stats, first info tick. */
+/** The on-login burst for one player: scene, gameframe, containers, stats,
+ *  first info tick. */
 void
-mock230_world_login(struct Mock230Server* srv);
+mock230_world_login(struct Mock230Player* player);
+
+/**
+ * Tell everyone who can see it that a loc changed. `loc_id < 0` is a deletion.
+ *
+ * A loc mutation is world state, so it is a broadcast rather than a send: a door
+ * one player opens is open for the other. Recipients are everyone on that level
+ * whose scene contains the tile — an approximation of the zone the reference
+ * would address, and the one §6.1 step 3 replaces with a real `ZoneMap`. What a
+ * broadcast cannot do and that will: replay the event to whoever arrives later.
+ */
+void
+mock230_world_broadcast_loc(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id);
 
 /** Put the player on an absolute tile, clearing the walk and rebuilding the
  *  scene if the destination left the current one. */
@@ -1663,6 +1829,12 @@ mock230_combat_attackable(int npc_type);
  */
 void
 mock230_combat_stop_player(struct Mock230Server* srv);
+
+/** The same for a named player, which the npc-death path needs: it has to end
+ *  the fight for everyone attacking the corpse, not only for whoever's turn it
+ *  is. */
+void
+mock230_combat_stop_player_at(struct Mock230Player* player);
 void
 mock230_combat_stop_npc(
     struct Mock230Server* srv,

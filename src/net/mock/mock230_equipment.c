@@ -45,7 +45,7 @@ mock230_equipment_may_wear(
             continue;
         /* Base, not boosted: a potion does not let you wield what you could not
          * wield sober. */
-        if( srv->player->stat_level[stat] >= level )
+        if( srv->active_player->stat_level[stat] >= level )
             continue;
 
         /*
@@ -92,7 +92,7 @@ mock230_equipment_refresh_stats(struct Mock230Server* srv)
      * eighteen IF_SETTEXTs to components that do not exist while the screen is
      * down.
      */
-    if( srv->player->mainmodal_group != mock230_ids()->iface_equipment_stats )
+    if( srv->active_player->mainmodal_group != mock230_ids()->iface_equipment_stats )
         return;
     mock230_scripts_run_hook(srv, srv->hooks.equipment_refresh, NULL, 0);
 }

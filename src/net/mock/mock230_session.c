@@ -401,7 +401,11 @@ step_online(
         }
         else
         {
-            mock230_world_handle(srv, name, session->in + len_bytes, payload_len);
+            /* Addressed to whoever this connection is, not to "the world's
+             * player": with two sessions the second one's clicks used to move
+             * the first one's character. */
+            (void)srv;
+            mock230_world_handle(session->player, name, session->in + len_bytes, payload_len);
         }
 
         consume(session, len_bytes + payload_len);

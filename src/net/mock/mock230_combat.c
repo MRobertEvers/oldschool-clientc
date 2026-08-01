@@ -208,16 +208,20 @@ hitsplat_block(void)
  * at a spot on the ground since the fight before last.
  */
 void
-mock230_combat_stop_player(struct Mock230Server* srv)
+mock230_combat_stop_player_at(struct Mock230Player* player)
 {
-    struct Mock230Player* player = srv->player;
-
     player->combat_target = -1;
     if( player->face_entity != -1 )
     {
         player->face_entity = -1;
         player->masks |= MOCK230_PMASK_FACE_ENTITY;
     }
+}
+
+void
+mock230_combat_stop_player(struct Mock230Server* srv)
+{
+    mock230_combat_stop_player_at(srv->active_player);
 }
 
 void
@@ -328,7 +332,7 @@ mock230_combat_add_xp(
     int stat,
     int tenths)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     int before;
 
     if( stat < 0 || stat >= MOCK230_STAT_COUNT || tenths <= 0 )
@@ -443,9 +447,19 @@ mock230_combat_hit_npc(
      * on the opening hit is what staggers the two cadences apart. */
     if( npc->combat_target < 0 )
     {
-        npc->combat_target = 0;
+        npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
         npc->attack_clock = npc_def(npc)->attackrate / 2;
     }
+    /*
+     * FACE_ENTITY names the *local* player, which is right for the client this
+     * npc's retaliation is being encoded to and wrong for every other one — a
+     * second observer sees the goblin turn to face them. NPC_INFO carries one
+     * mask set for all recipients, so the mask cannot say "face pid N" per
+     * client; the id space (32768 + index) can, and wiring it up needs the npc
+     * masks to be per-observer. Left as the local player deliberately, and
+     * noted here rather than in a commit message: it is the visible remainder
+     * of NPC_INFO being a shared encode.
+     */
     npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
     npc->masks |= MOCK230_NMASK_FACE_ENTITY;
     /* Flinch. Overwritten below if this was the killing blow. */
@@ -468,8 +482,11 @@ mock230_combat_hit_npc(
          */
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
         mock230_combat_stop_npc(srv, slot);
-        if( srv->player->combat_target == slot )
-            mock230_combat_stop_player(srv);
+        for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+        {
+            if( srv->players[i].active && srv->players[i].combat_target == slot )
+                mock230_combat_stop_player_at(&srv->players[i]);
+        }
         /* The drop table is content: [ai_queue3,<npc>] with obj_add calls, the
          * same shape as LostCity's. mock230_scripts.c runs it and falls back to
          * the config's death_drop when nothing is bound. */
@@ -483,7 +500,7 @@ mock230_combat_hit_player(
     int type,
     int amount)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     if( amount > player->hitpoints )
         amount = player->hitpoints;
@@ -537,7 +554,7 @@ mock230_combat_hit_player(
         mock230_combat_stop_player(srv);
         for( int i = 0; i < MOCK230_NPC_MAX; i++ )
         {
-            if( srv->npcs[i].combat_target == 0 )
+            if( srv->npcs[i].combat_target == player->pid )
                 mock230_combat_stop_npc(srv, i);
         }
         mock230_scripts_queue_hook(srv, srv->hooks.player_death, 0, 0);
@@ -569,7 +586,7 @@ mock230_combat_engage(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct Mock230Npc* npc;
 
     if( slot < 0 || slot >= MOCK230_NPC_MAX )
@@ -640,7 +657,7 @@ player_attack_rate(const struct Mock230Player* player)
 void
 mock230_combat_player_approach(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct Mock230Npc* npc;
 
     if( player->dying || player->combat_target < 0 )
@@ -663,7 +680,7 @@ mock230_combat_player_approach(struct Mock230Server* srv)
 void
 mock230_combat_player_tick(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct Mock230Npc* npc;
 
     /*
@@ -795,22 +812,58 @@ target_within_maxrange(
     return 1;
 }
 
+/*
+ * The player an aggressive npc would notice, or NULL.
+ *
+ * Nearest first, which is the only tie-break that does not depend on pool
+ * order — with one player the question never arose and `srv->active_player` was
+ * the answer, which in phase 4 is nobody's turn at all and was a null
+ * dereference the moment a second player existed. The reference picks by hunt
+ * *profile* (`HuntType`, and the `.hunt` files that configure it); nearest is
+ * the placeholder until those land, and is stated here rather than implied.
+ */
+static struct Mock230Player*
+nearest_victim(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc)
+{
+    struct Mock230Player* best = NULL;
+    int best_distance = 0;
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+        int distance;
+
+        if( !player->active || player->dying || player->level != npc->level )
+            continue;
+        distance = tile_distance(player->x, player->z, npc->x, npc->z);
+        if( distance > npc->def->huntrange )
+            continue;
+        if( !best || distance < best_distance )
+        {
+            best = player;
+            best_distance = distance;
+        }
+    }
+    return best;
+}
+
 static void
 maybe_aggress(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc = &srv->npcs[slot];
+    struct Mock230Player* player;
     int npc_level;
 
     if( !npc->def || npc->def->huntmode != MOCK230_HUNT_AGGRESSIVE )
         return;
     if( npc->def->huntrange <= 0 || npc->combat_target >= 0 )
         return;
-    if( player->dying || player->level != npc->level )
-        return;
-    if( tile_distance(player->x, player->z, npc->x, npc->z) > npc->def->huntrange )
+    player = nearest_victim(srv, npc);
+    if( !player )
         return;
     /*
      * In range to notice, but outside the leash: do not start.
@@ -830,7 +883,7 @@ maybe_aggress(
     if( npc_level > 0 && mock230_combat_level(player) > npc_level * 2 )
         return;
 
-    npc->combat_target = 0;
+    npc->combat_target = player->pid;
     npc->attack_clock = 0;
 }
 
@@ -839,8 +892,8 @@ mock230_combat_npc_tick(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc = &srv->npcs[slot];
+    struct Mock230Player* player;
 
     /* Death first: a dead npc neither swings nor roams, and its corpse has to
      * outlive the killing blow long enough for the animation to play. */
@@ -858,6 +911,19 @@ mock230_combat_npc_tick(
     maybe_aggress(srv, slot);
     if( npc->combat_target < 0 )
         return;
+    /* `combat_target` is a *pid* — a pool index — not the flag "is fighting the
+     * player" it used to be while there was only one. A target who logged out
+     * leaves a hole in the pool, so the npc gives up rather than swinging at
+     * whoever takes the slot next. */
+    player = &srv->players[npc->combat_target];
+    if( !player->active )
+    {
+        mock230_combat_stop_npc(srv, slot);
+        return;
+    }
+    /* This npc's turn is the *target's* turn: everything below writes to the
+     * player it is fighting, and phase 4 runs outside any per-player loop. */
+    mock230_world_set_active(srv, player);
     if( player->dying )
     {
         mock230_combat_stop_npc(srv, slot);
@@ -978,9 +1044,9 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->attack_clock = 0;
         npc->step_dir = -1;
         npc->masks = 0;
-        /* `tracked` stays clear, so the next NPC_INFO adds it as a new entity —
-         * which is what a respawn is from the client's side. */
-        npc->tracked = 0;
+        /* Nothing to clear: each player's own `npc_tracked` set dropped this
+         * npc on the tick it went inactive, so the next NPC_INFO adds it as a
+         * new entity — which is what a respawn is from the client's side. */
         /* And `[ai_spawn]` runs again, which is where a behaviour's timer is
          * set. Without this a monster's heartbeat stops the first time it dies
          * and never comes back — the world decays one death at a time, and the

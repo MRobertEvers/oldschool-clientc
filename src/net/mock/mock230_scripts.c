@@ -82,6 +82,19 @@ mock230_scripts_load(
 {
     struct SSVM_Error err;
 
+    /*
+     * Once per world, however many players log in.
+     *
+     * Both hosts call this from their login path, and reloading on a second
+     * login frees the env out from under the *first* player's parked script —
+     * a use-after-free whose symptom is a crash several ticks later, in
+     * whichever conversation happened to be open. Reloading content while
+     * somebody is logged in is not a thing this server supports; the honest
+     * spelling of that is to refuse rather than to corrupt.
+     */
+    if( srv->scripts_ok )
+        return 1;
+
     mock230_scripts_free(srv);
 
     srv->scripts = (struct SSVM_Provider*)calloc(1, sizeof(struct SSVM_Provider));
@@ -296,9 +309,16 @@ mock230_scripts_free(struct Mock230Server* srv)
      * parked across a reload, and the next tick would then walk a freed
      * pointer. The resume buttons go with it — they only mean anything to the
      * script that registered them.
+     *
+     * Every player's, not the active one's: this runs at load and at shutdown,
+     * when there is no "whose turn it is" at all, and with a pool a second
+     * player's parked state would outlive the env it points into.
      */
-    srv->player->active_script = NULL;
-    srv->player->resume_button_count = 0;
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        srv->players[i].active_script = NULL;
+        srv->players[i].resume_button_count = 0;
+    }
 
     if( srv->script_env )
     {
@@ -319,8 +339,14 @@ mock230_scripts_free(struct Mock230Server* srv)
 static void
 release_parked(struct Mock230Server* srv, struct SSVM_State* state)
 {
-    if( srv->player->active_script == state )
-        srv->player->active_script = NULL;
+    /* Searched rather than addressed: a state can be parked on any player, and
+     * the one whose turn it is now is not necessarily the one it belongs to —
+     * a world-queued script resumes in phase 1, before anybody's turn. */
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        if( srv->players[i].active_script == state )
+            srv->players[i].active_script = NULL;
+    }
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
     {
         if( srv->npcs[i].active_script == state )
@@ -357,13 +383,13 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         /* One parked script per player. A second would need somewhere to live
          * and, more importantly, would let two scripts interleave writes to the
          * same player — the reference has the same single slot. */
-        if( srv->player->active_script && srv->player->active_script != state )
+        if( srv->active_player->active_script && srv->active_player->active_script != state )
         {
             fprintf(stderr, "mock230: dropping a script that suspended while another waits\n");
             SSVM_StateRelease(state);
             return 0;
         }
-        srv->player->active_script = state;
+        srv->active_player->active_script = state;
         return 1;
 
     case SSVM_NPC_SUSPENDED:
@@ -449,7 +475,7 @@ run_script_id(
     if( !state )
         return 0;
 
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
     {
@@ -466,7 +492,7 @@ run_script_id(
 void
 mock230_scripts_resume_player(struct Mock230Server* srv)
 {
-    struct SSVM_State* state = srv->player->active_script;
+    struct SSVM_State* state = srv->active_player->active_script;
 
     if( !state || !srv->scripts_ok )
         return;
@@ -474,7 +500,7 @@ mock230_scripts_resume_player(struct Mock230Server* srv)
      * the clock, so the tick must leave those alone. */
     if( state->execution != SSVM_SUSPENDED )
         return;
-    if( srv->tick < srv->player->delayed_until )
+    if( srv->tick < srv->active_player->delayed_until )
         return;
 
     run_or_park(srv, state);
@@ -527,7 +553,7 @@ mock230_scripts_process_queues(struct Mock230Server* srv)
 
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
     {
-        struct Mock230Queued* entry = &srv->player->queue[i];
+        struct Mock230Queued* entry = &srv->active_player->queue[i];
         int script_id;
         int32_t arg;
 
@@ -551,7 +577,7 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
 
     for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
     {
-        struct Mock230Timer* timer = &srv->player->timers[i];
+        struct Mock230Timer* timer = &srv->active_player->timers[i];
 
         if( !timer->active || timer->interval <= 0 )
             continue;
@@ -585,7 +611,7 @@ mock230_scripts_resume_button(
     struct Mock230Server* srv,
     int component_uid)
 {
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
     struct SSVM_State* state = player->active_script;
 
     if( !srv->scripts_ok || !state )
@@ -613,9 +639,9 @@ mock230_scripts_close_dialogue(struct Mock230Server* srv)
     struct Mock230Player* player;
     struct SSVM_State* state;
 
-    if( !srv || !srv->player )
+    if( !srv || !srv->active_player )
         return 0;
-    player = srv->player;
+    player = srv->active_player;
     state = player->active_script;
     if( !state )
         return 0;
@@ -679,7 +705,7 @@ mock230_scripts_run_hook_sv(
         fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     return run_or_park(srv, state);
 }
@@ -784,7 +810,7 @@ mock230_scripts_run_hook_int_sv(
         fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
 
     status = SSVM_Execute(state);
@@ -878,7 +904,7 @@ mock230_scripts_queue_hook(
     if( !srv->scripts_ok || !script )
         return 0;
 
-    player = srv->player;
+    player = srv->active_player;
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
     {
         if( player->queue[i].active )
@@ -945,7 +971,7 @@ mock230_scripts_run_trigger(
     /* Every trigger the mock fires is on behalf of the one player, and the
      * engine grants protected access because these all arrive as a direct
      * response to player input. */
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
 
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
@@ -997,7 +1023,7 @@ mock230_scripts_run_if_button_named(
                 script->name);
         return 0;
     }
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     return run_or_park(srv, state);
 }
@@ -1187,17 +1213,17 @@ container_for(
     if( inv_id == mock230_ids()->inv_backpack )
     {
         *out_slots = MOCK230_INV_SLOTS;
-        return srv->player->inv;
+        return srv->active_player->inv;
     }
     if( inv_id == mock230_ids()->inv_worn )
     {
         *out_slots = MOCK230_WORN_SLOTS;
-        return srv->player->worn;
+        return srv->active_player->worn;
     }
     if( inv_id == mock230_ids()->inv_bank )
     {
-        *out_slots = srv->player->bank.size;
-        return srv->player->bank.slots;
+        *out_slots = srv->active_player->bank.size;
+        return srv->active_player->bank.slots;
     }
     *out_slots = 0;
     return NULL;
@@ -1212,14 +1238,14 @@ container_dirty(
     int slot)
 {
     if( inv_id == mock230_ids()->inv_backpack && slot >= 0 && slot < MOCK230_INV_SLOTS )
-        srv->player->inv_dirty |= 1u << slot;
+        srv->active_player->inv_dirty |= 1u << slot;
     else if( inv_id == mock230_ids()->inv_worn && slot >= 0 && slot < MOCK230_WORN_SLOTS )
     {
-        srv->player->worn_dirty |= 1u << slot;
-        srv->player->masks |= MOCK230_PMASK_APPEARANCE;
+        srv->active_player->worn_dirty |= 1u << slot;
+        srv->active_player->masks |= MOCK230_PMASK_APPEARANCE;
     }
     else if( inv_id == mock230_ids()->inv_bank )
-        srv->player->bank.dirty = 1;
+        srv->active_player->bank.dirty = 1;
 }
 
 /*
@@ -1304,7 +1330,7 @@ mock230_script_command(
     int dot)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = srv->player;
+    struct Mock230Player* player = srv->active_player;
 
     (void)dot;
 
@@ -1323,7 +1349,7 @@ mock230_script_command(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        mock230_send_message(srv->player, text);
+        mock230_send_message(srv->active_player, text);
         return 1;
     }
 
@@ -1369,7 +1395,7 @@ mock230_script_command(
             char line[192];
 
             snprintf(line, sizeof(line), "%s: %s", mock230_npcinfo(npc->type)->name, text);
-            mock230_send_message(srv->player, line);
+            mock230_send_message(srv->active_player, line);
         }
         /* Facing the player is real and does render, so keep it. */
         npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
@@ -1982,12 +2008,12 @@ mock230_script_command(
          * same distinction and the VM already enforces it through the meta
          * table's require bits.
          */
-        if( uid != 1 || !srv->player )
+        if( uid != 1 || !srv->active_player )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         if( opcode == SS_OP_P_FINDUID )
             SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
@@ -2023,7 +2049,7 @@ mock230_script_command(
     }
 
     case SS_OP_GENDER:
-        SSVM_PushInt(state, srv->player ? srv->player->gender : 0);
+        SSVM_PushInt(state, srv->active_player ? srv->active_player->gender : 0);
         return 1;
 
     case SS_OP_TEXT_GENDER:
@@ -2037,7 +2063,7 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &male) )
             return 1;
         SSVM_PushStr(state,
-                     (srv->player && srv->player->gender) ? (female ? female : "")
+                     (srv->active_player && srv->active_player->gender) ? (female ? female : "")
                                                           : (male ? male : ""));
         return 1;
     }
@@ -2201,7 +2227,7 @@ mock230_script_command(
          * play a sound to everyone who can hear it. `MOCK230_PLAYER_MAX` is 1
          * (§6.1), so this finds at most one, and it is written as a loop over
          * the pool anyway: the day a second player exists this is already
-         * right, where a hardcoded `srv->player` would be one more place to find.
+         * right, where a hardcoded `srv->active_player` would be one more place to find.
          */
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
@@ -2432,7 +2458,6 @@ mock230_script_command(
         /* The ordinary NPC_INFO remove path: clearing `active` is what the
          * encoder reads, exactly as a death does. */
         npc->active = 0;
-        npc->tracked = 0;
         return 1;
     }
 
@@ -2630,8 +2655,7 @@ mock230_script_command(
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
         }
-        mock230_send_loc_add_change(
-            srv->player, mock230_send_zone(srv->player, x, z), shape, angle, loc_id);
+        mock230_world_broadcast_loc(srv, x, z, level, shape, angle, loc_id);
         mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
@@ -2668,7 +2692,7 @@ mock230_script_command(
             SSVM_Abort(state, "loc_del on a loc that is already gone");
             return 1;
         }
-        mock230_send_loc_del(srv->player, mock230_send_zone(srv->player, x, z), shape, angle);
+        mock230_world_broadcast_loc(srv, x, z, level, shape, angle, -1);
         mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
@@ -2701,12 +2725,8 @@ mock230_script_command(
                        loc_id, coord_x(coord), coord_z(coord));
             return 1;
         }
-        mock230_send_loc_add_change(
-            srv->player,
-            mock230_send_zone(srv->player, coord_x(coord), coord_z(coord)),
-            shape,
-            angle,
-            loc_id);
+        mock230_world_broadcast_loc(srv, coord_x(coord), coord_z(coord), coord_level(coord),
+                                    shape, angle, loc_id);
         /* -1 says "remove it again" rather than "put something back". */
         mock230_world_loc_revert_queue(srv, slot, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
@@ -3010,7 +3030,7 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_settext(srv->player, uid, text);
+        mock230_send_if_settext(srv->active_player, uid, text);
         return 1;
     }
 
@@ -3023,7 +3043,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setnpchead(srv->player, values[0], values[1]);
+        mock230_send_if_setnpchead(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -3033,7 +3053,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_setplayerhead(srv->player, uid);
+        mock230_send_if_setplayerhead(srv->active_player, uid);
         return 1;
     }
 
@@ -3046,7 +3066,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setanim(srv->player, values[0], values[1]);
+        mock230_send_if_setanim(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -3059,7 +3079,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_sethide(srv->player, values[0], values[1]);
+        mock230_send_if_sethide(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -3078,7 +3098,7 @@ mock230_script_command(
          * Mock230Ids.com_chatbox_modal.
          */
         mock230_send_if_opensub(
-            srv->player, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot), group, 0);
+            srv->active_player, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot), group, 0);
         return 1;
     }
 
@@ -3106,7 +3126,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &events) || !SSVM_PopInt(state, &to) ||
             !SSVM_PopInt(state, &from) || !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_setevents(srv->player, (int)com, (int)from, (int)to, (int)events);
+        mock230_send_if_setevents(srv->active_player, (int)com, (int)from, (int)to, (int)events);
         return 1;
     }
 
@@ -3129,7 +3149,7 @@ mock230_script_command(
             !SSVM_PopInt(state, &com) )
             return 1;
         mock230_send_if_opensub(
-            srv->player, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com), (int)group, (int)type);
+            srv->active_player, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com), (int)group, (int)type);
         return 1;
     }
 
@@ -3137,7 +3157,7 @@ mock230_script_command(
         /* Unmounting is the whole message: the same on_sub_change hook that
          * hid `chatbox:chatdisplay` on the way in brings it back when the
          * modal has no sub again (script908's else branch). */
-        mock230_send_if_closesub(srv->player, mock230_ids()->com_chatbox_modal);
+        mock230_send_if_closesub(srv->active_player, mock230_ids()->com_chatbox_modal);
         player->resume_button_count = 0;
         return 1;
 
@@ -3156,7 +3176,7 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
             !SSVM_PopInt(state, &script_id) )
             return 1;
-        mock230_send_run_clientscript_mixed(srv->player, (int)script_id, "ss", NULL, argv, 2);
+        mock230_send_run_clientscript_mixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
         return 1;
     }
 
@@ -3182,7 +3202,7 @@ mock230_script_command(
          * exists to prevent. A plain component has no sub-ids, so the wider
          * range costs it nothing.
          */
-        mock230_send_if_setevents(srv->player, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
+        mock230_send_if_setevents(srv->active_player, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
         return 1;
     }
 
@@ -3791,8 +3811,8 @@ mock230_script_command(
      * saves the player. Doing anything more here would duplicate that path.
      */
     case SS_OP_P_LOGOUT:
-        if( srv->player && srv->player->session )
-            mock230_session_kill(srv->player->session);
+        if( srv->active_player && srv->active_player->session )
+            mock230_session_kill(srv->active_player->session);
         return 1;
 
     case SS_OP_STAT_HEAL:
@@ -4080,8 +4100,8 @@ mock230_script_command(
         {
             int slot = -1;
 
-            for( int i = 0; i < srv->player->bank.size; i++ )
-                if( srv->player->bank.slots[i].obj_id == obj_id )
+            for( int i = 0; i < srv->active_player->bank.size; i++ )
+                if( srv->active_player->bank.slots[i].obj_id == obj_id )
                     slot = i;
             if( slot < 0 )
                 return 1;
@@ -4089,11 +4109,11 @@ mock230_script_command(
              * `inv_moveitem_cert` means "as a note" wherever it is called
              * from. Set the flag, move, put it back. */
             {
-                int saved = srv->player->bank.note_mode;
+                int saved = srv->active_player->bank.note_mode;
 
-                srv->player->bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
+                srv->active_player->bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
                 mock230_bank_withdraw(srv, slot, (int)count);
-                srv->player->bank.note_mode = saved;
+                srv->active_player->bank.note_mode = saved;
             }
             return 1;
         }
@@ -4101,7 +4121,7 @@ mock230_script_command(
         {
             for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
             {
-                if( srv->player->inv[i].obj_id != obj_id )
+                if( srv->active_player->inv[i].obj_id != obj_id )
                     continue;
                 count -= mock230_bank_deposit(srv, i, (int)count);
             }
@@ -4114,7 +4134,7 @@ mock230_script_command(
              * slot the player may not have. */
             for( int i = 0; i < MOCK230_WORN_SLOTS && count > 0; i++ )
             {
-                if( srv->player->worn[i].obj_id != obj_id )
+                if( srv->active_player->worn[i].obj_id != obj_id )
                     continue;
                 count -= mock230_bank_deposit_worn(srv, i, (int)count);
             }
@@ -4174,10 +4194,10 @@ mock230_script_command(
                 if( items[i].obj_id >= 0 )
                     used = i + 1;
             slots = used;
-            srv->player->bank.open = 1;
-            srv->player->bank.dirty = 0;
+            srv->active_player->bank.open = 1;
+            srv->active_player->bank.dirty = 0;
         }
-        mock230_send_inv_full(srv->player, (int)component, (int)inv_id, items, slots);
+        mock230_send_inv_full(srv->active_player, (int)component, (int)inv_id, items, slots);
         return 1;
     }
 
@@ -4188,7 +4208,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &component) )
             return 1;
         if( MOCK230_COM_GROUP(component) == mock230_ids()->iface_bankmain )
-            srv->player->bank.open = 0;
+            srv->active_player->bank.open = 0;
         return 1;
     }
 
@@ -4288,13 +4308,13 @@ mock230_script_command(
             return 1;
         }
         mock230_send_if_opensub(
-            srv->player,
+            srv->active_player,
             mock230_ids()->iface_gameframe,
             MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
             (int)main_group,
             0);
         mock230_send_if_opensub(
-            srv->player,
+            srv->active_player,
             mock230_ids()->iface_gameframe,
             MOCK230_COM_CHILD(mock230_ids()->com_gameframe_sidemodal),
             (int)side_group,
@@ -4309,7 +4329,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &group) )
             return 1;
         mock230_send_if_opensub(
-            srv->player,
+            srv->active_player,
             mock230_ids()->iface_gameframe,
             MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
             (int)group,
@@ -4326,7 +4346,7 @@ mock230_script_command(
      */
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
-        mock230_send_if_opencountdialog(srv->player);
+        mock230_send_if_opencountdialog(srv->active_player);
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
@@ -4408,13 +4428,13 @@ mock230_scripts_resume_countdialog(
     struct Mock230Server* srv,
     int32_t value)
 {
-    struct SSVM_State* state = srv->player->active_script;
+    struct SSVM_State* state = srv->active_player->active_script;
 
     if( !srv->scripts_ok || !state )
         return 0;
     if( state->execution != SSVM_COUNTDIALOG )
         return 0;
-    srv->player->last_int = value;
+    srv->active_player->last_int = value;
     return run_or_park(srv, state);
 }
 
@@ -4470,7 +4490,7 @@ mock230_scripts_run_hook_on_npc(
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
     if( !state )
         return 0;
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
     {

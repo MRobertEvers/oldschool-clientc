@@ -27,6 +27,7 @@
 #include <stdint.h>
 
 struct Mock230Server;
+struct Mock230Player;
 struct Mock230Item;
 
 /*
@@ -161,9 +162,13 @@ mock230_bank_get_varbit(
 /* ------------------------------------------------------------------ */
 
 /** Allocate the container and put every setting at its default. Called from
- *  mock230_world_init. */
+ *  mock230_world_player_init — a bank belongs to a player, not to a world. */
 void
-mock230_bank_init(struct Mock230Server* srv);
+mock230_bank_init_player(struct Mock230Player* player);
+void
+mock230_bank_shutdown_player(struct Mock230Player* player);
+
+/** Every player's, for a host tearing the world down. */
 void
 mock230_bank_shutdown(struct Mock230Server* srv);
 
@@ -226,6 +231,14 @@ void
 mock230_bank_reorganize(struct Mock230Server* srv);
 
 /** How many of an obj the bank holds. */
+/** The same, for a player who is not whoever's turn it is — which a test
+ *  asserting on two players at once needs and the active-player form cannot
+ *  express. */
+int
+mock230_bank_count_player(
+    struct Mock230Player* player,
+    int obj_id);
+
 int
 mock230_bank_count(
     struct Mock230Server* srv,
