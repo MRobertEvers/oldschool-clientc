@@ -11,8 +11,8 @@
  * Coverage by layer:
  *     63  VM core
  *    152  host commands
- *      7  host commands (db)
- *    222  total, of 399 declared opcodes
+ *      9  host commands (db)
+ *    224  total, of 399 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 222
+#define MOCK230_OPCODE_COVERAGE_COUNT 224
 #define MOCK230_OPCODE_DECLARED_COUNT 399
 
 /*
@@ -245,12 +245,14 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4623, /* SS_OP_GETBIT_RANGE (VM core) */
     4624, /* SS_OP_SETBIT_RANGE_TOINT (VM core) */
     4628, /* SS_OP_ABS (VM core) */
+    7500, /* SS_OP_DB_FIND_WITH_COUNT (host commands (db)) */
     7501, /* SS_OP_DB_FINDNEXT (host commands (db)) */
     7502, /* SS_OP_DB_GETFIELD (host commands (db)) */
     7503, /* SS_OP_DB_GETFIELDCOUNT (host commands (db)) */
     7504, /* SS_OP_DB_LISTALL_WITH_COUNT (host commands (db)) */
     7505, /* SS_OP_DB_GETROWTABLE (host commands (db)) */
     7506, /* SS_OP_DB_FINDBYINDEX (host commands (db)) */
+    7508, /* SS_OP_DB_FIND (host commands (db)) */
     7510, /* SS_OP_DB_LISTALL (host commands (db)) */
     10001, /* SS_OP_ERROR (host commands) */
     11000, /* SS_OP_IF_SETEVENTS (host commands) */

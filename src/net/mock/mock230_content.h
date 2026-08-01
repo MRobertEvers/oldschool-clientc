@@ -10,7 +10,7 @@
  *                                       .param  parameter declarations
  *                                       .loc  loc overlays (doors, stairs)
  *                                       .constant  `^name = value`
- *                                       .prayer  one block per prayer
+ *                                       .dbtable / .dbrow  (see mock230_db.h)
  *   content/maps/m<x>_<z>.jm2           `==== NPC ====` / `==== OBJ ====`
  *   content/scripts/<area>/             .rs2  behaviour (see mock230_scripts.c)
  *
@@ -487,71 +487,6 @@ struct Mock230LocDef
 
 const struct Mock230LocDef*
 mock230_content_loc(int loc_id);
-
-/* ------------------------------------------------------------------ */
-/* Prayers (`.prayer`)                                                 */
-/* ------------------------------------------------------------------ */
-
-/*
- * One block per prayer, in the order the prayer book lists them.
- *
- * LostCity keeps the same table as a `.dbrow` per prayer over a `prayers`
- * `.dbtable`, with the drain rates and headicons in `.enum`s beside it. This is
- * that table flattened into the `[symbol]` + `key=value` shape the rest of this
- * tree already uses — a `.dbtable` reader would be a second config grammar for
- * one table of 29 rows. The field names are the reference's.
- *
- * `button` is the *component* the prayer sits on, named rather than derived:
- * the book has 30 buttons and this revision fills 29 of them, so "first button
- * plus index" is a coincidence that holds today.
- */
-enum
-{
-    /** Storage ceiling, not a count: `prayer_active` is a 32-bit mask, so a
-     *  30th prayer is free and a 33rd needs a wider field. The number the
-     *  engine loops over is however many blocks the tree declares. */
-    MOCK230_PRAYER_MAX = 32,
-};
-
-/** Which stat bonus a prayer claims. Two prayers sharing any group cannot be up
- *  together, which is why this is a mask and not a group id — Piety claims
- *  three at once. */
-enum Mock230PrayerGroup
-{
-    MOCK230_PRAYER_GROUP_DEFENCE = 1 << 0,
-    MOCK230_PRAYER_GROUP_STRENGTH = 1 << 1,
-    MOCK230_PRAYER_GROUP_ATTACK = 1 << 2,
-    MOCK230_PRAYER_GROUP_RANGED = 1 << 3,
-    MOCK230_PRAYER_GROUP_MAGIC = 1 << 4,
-    MOCK230_PRAYER_GROUP_OVERHEAD = 1 << 5,
-};
-
-struct Mock230PrayerDef
-{
-    const char* symbol;
-    /** Display name, as the "You need a Prayer level of N to use X." message
-     *  spells it. */
-    char* name;
-    /** Packed component uid of the button that toggles it. */
-    int button;
-    /** The cache varbit that says this prayer is currently on, or -1.
-     *
-     *  Not decoration: the prayer book's own clientscript reads these to draw
-     *  the lit border, and the overhead-icon and quick-prayer scripts read
-     *  them too. `player->prayer_active` is the server's copy; without the
-     *  varbit the client never learns a prayer went on, so the book stays dark
-     *  no matter what the server believes. */
-    int varbit;
-};
-
-/** The prayer at `index`, or NULL. Index is the bit position in
- *  `player->prayer_active`, which is the order the blocks were read in. */
-const struct Mock230PrayerDef*
-mock230_content_prayer(int index);
-
-/** How many prayers the tree declares. */
-int
-mock230_content_prayer_count(void);
 
 /* ------------------------------------------------------------------ */
 /* Map spawns (content/maps/m<x>_<z>.jm2)                              */

@@ -16,7 +16,6 @@
  */
 #include "mock230.h"
 
-#include "mock230_prayer.h"
 #include "mock230_session.h"
 
 #include "net/isaac.h"

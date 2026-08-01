@@ -20,7 +20,7 @@
  *
  * Two kinds of number are deliberately NOT here:
  *
- *   - **Storage ceilings** (MOCK230_BANK_TABS, MOCK230_PRAYER_MAX). Those size
+ *   - **Storage ceilings** (MOCK230_BANK_TABS, MOCK230_INV_SLOTS). Those size
  *     C arrays, so they have to be compile-time constants; content decides how
  *     much of the array is used and the loader checks it fits.
  *   - **Protocol encodings** (mask bits, op numbers, IF_OPENSUB types). Those

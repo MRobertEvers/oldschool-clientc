@@ -1166,9 +1166,6 @@ struct Mock230Hooks
     const struct SSVM_Script* equip_level_message;
     const struct SSVM_Script* equipment_refresh;
     const struct SSVM_Script* equipment_open;
-
-    /* Prayer. */
-    const struct SSVM_Script* prayer_deactivate_all;
 };
 
 struct Mock230Server
@@ -1933,6 +1930,19 @@ int
 mock230_scripts_run_if_button_named(
     struct Mock230Server* srv,
     int uid);
+
+/**
+ * Run a `::command` as `[debugproc,<name>]`, with the words after it as its
+ * declared arguments. Returns 1 when content claimed the line.
+ *
+ * The reference's own arrangement — see ClientCheatHandler — and the reason a
+ * cheat need not be an engine change. `::pray 18` reaches Protect from Melee
+ * through the same `~prayer_toggle` the button does.
+ */
+int
+mock230_scripts_run_debugproc(
+    struct Mock230Server* srv,
+    const char* line);
 
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void

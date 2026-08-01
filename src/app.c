@@ -258,6 +258,88 @@ App_IfEventsGet(
     return 0;
 }
 
+/*
+ * The events governing a node, including the ones armed on its container.
+ *
+ * `IF_SETEVENTS` carries a sub-id RANGE, and that is not decoration: it is how
+ * the server arms a list whose entries do not exist yet. The emotes tab is the
+ * clearest case — interface 216's onload `cc_create`s one cell per emote, so at
+ * login there is nothing to address but the container, and the server says
+ * "slots 0..55 of `emote:contents` have op 1".
+ *
+ * `App_IfEventsGet` matches a component id exactly, so a dynamic child found
+ * nothing and every emote click was dropped by the arming gate. The right-click
+ * menu still offered "Perform Bow", because the row comes from the cache's own
+ * op list — so the tab hovered, highlighted and named the verb, and clicking did
+ * nothing at all.
+ *
+ * A dynamic child therefore asks its parent, and the sub-id has to fall inside
+ * the declared range: a container armed for slots 0..27 must not arm slot 30.
+ * A static component is unchanged — it has no parent range to inherit and its
+ * own entry is the answer.
+ */
+static void
+app_if_button_target(
+    struct App const* app,
+    int com_id,
+    int* out_com,
+    int* out_sub)
+{
+    int32_t idx;
+    struct UITreeComponent const* node;
+    int32_t parent;
+
+    *out_com = com_id;
+    *out_sub = -1;
+    if( !app || !app->tree )
+        return;
+
+    idx = UITree_FindByComponentId(app->tree, com_id);
+    if( idx < 0 )
+        return;
+    node = &app->tree->components[idx];
+    if( !node->dynamic )
+        return;
+
+    /* A dynamic child is addressed as (container, index within it) — the two
+     * fields RSProt's If3Button carries as `combinedId` and `sub`, and the whole
+     * reason `sub` exists. Its own component id is a runtime allocation the
+     * server has never heard of. */
+    parent = node->parent;
+    if( parent < 0 || (uint32_t)parent >= app->tree->component_count )
+        return;
+    *out_com = app->tree->components[parent].component_id;
+    *out_sub = node->dynamic_child_index;
+}
+
+static unsigned
+app_if_events_for_node(
+    struct App const* app,
+    int com_id)
+{
+    int target;
+    int sub;
+
+    unsigned own = (unsigned)App_IfEventsGet(app, com_id);
+
+    if( own || !app )
+        return own;
+
+    app_if_button_target(app, com_id, &target, &sub);
+    if( target == com_id )
+        return 0;
+
+    for( int i = 0; i < app->if_event_count; i++ )
+    {
+        if( app->if_events[i].com_id != target )
+            continue;
+        if( sub < app->if_events[i].from || sub > app->if_events[i].to )
+            return 0;
+        return (unsigned)app->if_events[i].events;
+    }
+    return 0;
+}
+
 static void
 app_send_if_button(void* user, int com_id);
 static void
@@ -7522,22 +7604,6 @@ app_measure_text_cb(
     return ToriDraw2D_MeasureString(font, text);
 }
 
-/* RSProt If3Button.sub: the dynamic-child index of a grid cell, or -1 when the
- * component is a plain widget. Same value CC_GETSUBID would report. */
-static int
-app_component_sub_id(
-    struct App const* app,
-    int component_id)
-{
-    int32_t idx;
-
-    assert(app);
-    idx = UITree_FindByComponentId(app->tree, component_id);
-    if( idx < 0 )
-        return -1;
-    return app->tree->components[idx].dynamic ? app->tree->components[idx].dynamic_child_index : -1;
-}
-
 /* Snapshot the armed use/target selection for the minimenu builder (reference
  * useMode/targetMode). objsel and targetsel are mutually exclusive — arming one
  * clears the other. */
@@ -8326,13 +8392,19 @@ app_minimenu_run_option(
              * row and sends nothing. */
             if( getenv("TORIRS_CLICK_DEBUG") )
                 fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
-                        opt.pick.id, App_IfEventsGet(app, opt.pick.id), app->net ? 1 : 0);
-            if( App_IfEventsGet(app, opt.pick.id) & (1 << op_num) )
+                        opt.pick.id, app_if_events_for_node(app, opt.pick.id), app->net ? 1 : 0);
+            if( app_if_events_for_node(app, opt.pick.id) & (1u << op_num) )
+            {
+                int target;
+                int sub;
+
+                app_if_button_target(app, opt.pick.id, &target, &sub);
                 APP_NET_SEND(
                     app,
                     net_out_if_button_op(
                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_num,
-                        opt.pick.id, app_component_sub_id(app, opt.pick.id)));
+                        target, sub));
+            }
         }
         hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
         if( !hook || hook->script_id <= 0 )

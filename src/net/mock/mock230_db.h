@@ -7,9 +7,11 @@
  * This is the runtime half of a thing whose compiler half already existed:
  * `ssc_symbols.c` reads `.dbtable` configs to turn `combat_style_table:damagestyle`
  * into a packed column reference, and nothing could read the *rows*. That gap is
- * why `skill_prayer` ships a bespoke `.prayer` grammar and why the ported
- * thieving content flattened its drop rates into `.constant` files — both were
- * written to avoid needing this.
+ * why `skill_prayer` shipped a bespoke `.prayer` grammar the engine parsed in C,
+ * and why the ported thieving content flattened its drop rates into `.constant`
+ * files — both were written to avoid needing this. The prayer one is gone:
+ * `skill_prayer/configs/prayers.dbtable` is an ordinary table now and no C reads
+ * it.
  *
  * Not to be confused with the *cache's* db tables, which `configs/all.dbtable`
  * holds and rev 230's CS2 reads through its own DB_* opcodes (docs/cs2vm.md).

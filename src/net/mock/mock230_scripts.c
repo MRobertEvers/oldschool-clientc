@@ -160,7 +160,6 @@ mock230_scripts_resolve_hooks(struct Mock230Server* srv)
         HOOK(equip_level_message, "[proc,equip_level_message]"),
         HOOK(equipment_refresh, "[proc,equipment_refresh]"),
         HOOK(equipment_open, "[proc,equipment_open]"),
-        HOOK(prayer_deactivate_all, "[proc,prayer_deactivate_all]"),
 #undef HOOK
     };
     int missing = 0;
@@ -1001,6 +1000,134 @@ mock230_scripts_run_if_button_named(
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     return run_or_park(srv, state);
+}
+
+/* ------------------------------------------------------------------ */
+/* ::commands                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A `::command`, dispatched to `[debugproc,<name>]`.
+ *
+ * This is how the reference writes a cheat: `ClientCheatHandler` splits the
+ * line, looks the debugproc up by name, and fills its declared parameters from
+ * the words that follow. Everything in its
+ * `content/scripts/_test/scripts/cheats/` is one of these, and none of it is in
+ * the engine.
+ *
+ * That is the point rather than a detail. A cheat is a *content* entry point —
+ * "toggle this prayer", "give me that item" — and every one written in C is a
+ * second implementation of something content already does, drifting from the
+ * shipped path exactly where it matters. `::pray` was one: it reached a prayer
+ * through a C module that knew the prayer table, so it tested that module and
+ * not the button.
+ *
+ * The argument types come from the script itself. LostCity resolves obj, npc,
+ * loc and component names here as well; this resolves whatever the content tree
+ * names, through the same packs the compiler used, and takes anything else as an
+ * int. A word that does not resolve is -1, which every reasonable script tests
+ * for anyway.
+ */
+static int
+debugproc_arg_type(
+    uint8_t type,
+    enum Mock230PackKind* out_kind)
+{
+    /* ScriptVarType.getTypeChar, the same codes ssc_symbols.c compiles with. */
+    switch( type )
+    {
+    case 105: /* int */
+    case 49:  /* boolean */
+        return 0;
+    case 115: /* string */
+        return 1;
+    case 111: /* obj */
+    case 79:  /* namedobj */
+        *out_kind = MOCK230_PACK_OBJ;
+        return 2;
+    case 110: /* npc */
+        *out_kind = MOCK230_PACK_NPC;
+        return 2;
+    case 108: /* loc */
+        *out_kind = MOCK230_PACK_LOC;
+        return 2;
+    case 73: /* component */
+        *out_kind = MOCK230_PACK_COMPONENT;
+        return 2;
+    case 97: /* interface */
+        *out_kind = MOCK230_PACK_INTERFACE;
+        return 2;
+    case 118: /* inv */
+        *out_kind = MOCK230_PACK_INV;
+        return 2;
+    case 65: /* seq */
+        *out_kind = MOCK230_PACK_SEQ;
+        return 2;
+    case 116: /* spotanim */
+        *out_kind = MOCK230_PACK_SPOTANIM;
+        return 2;
+    case 83: /* stat */
+        *out_kind = MOCK230_PACK_STAT;
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+int
+mock230_scripts_run_debugproc(
+    struct Mock230Server* srv,
+    const char* line)
+{
+    const struct SSVM_Script* script;
+    char name[192];
+    char command[64];
+    int32_t argv[SS_MAX_PARAM_TYPES];
+    const char* strv[SS_MAX_PARAM_TYPES];
+    char words[SS_MAX_PARAM_TYPES][64];
+    int argc = 0;
+    int strc = 0;
+    const char* cursor = line;
+    int length = 0;
+
+    if( !srv->scripts_ok )
+        return 0;
+
+    while( *cursor && *cursor != ' ' && length + 1 < (int)sizeof(command) )
+        command[length++] = *cursor++;
+    command[length] = '\0';
+    if( length == 0 )
+        return 0;
+
+    snprintf(name, sizeof(name), "[debugproc,%s]", command);
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return 0;
+
+    for( int i = 0; i < script->param_type_count && i < SS_MAX_PARAM_TYPES; i++ )
+    {
+        enum Mock230PackKind kind = MOCK230_PACK_COUNT;
+        int form = debugproc_arg_type(script->param_types[i], &kind);
+        char* word = words[i];
+        int taken = 0;
+
+        while( *cursor == ' ' )
+            cursor++;
+        while( *cursor && *cursor != ' ' && taken + 1 < 64 )
+            word[taken++] = *cursor++;
+        word[taken] = '\0';
+
+        if( form == 1 )
+            strv[strc++] = word;
+        else if( form == 2 )
+            argv[argc++] = taken ? mock230_content_symbol(kind, word) : -1;
+        else
+            argv[argc++] = taken ? (int32_t)strtol(word, NULL, 10) : 0;
+    }
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: %s with %d int and %d string args\n", name, argc, strc);
+    return mock230_scripts_run_proc_sv(srv, name, argv, argc, strv, strc);
 }
 
 /* ------------------------------------------------------------------ */

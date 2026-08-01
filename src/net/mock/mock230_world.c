@@ -17,7 +17,6 @@
 #include "mock230_content.h"
 #include "mock230_equipment.h"
 #include "mock230_ids.h"
-#include "mock230_prayer.h"
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
@@ -2405,6 +2404,20 @@ handle_cheat(
      * leading "::". */
     rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
 
+    /*
+     * Content first, exactly as `[if_button]` is dispatched: a `[debugproc,
+     * <name>]` in the tree claims the line before any branch below sees it.
+     *
+     * That order is what makes a cheat writable without touching the engine,
+     * and it is the reference's own — LostCity has no C-side cheat that a
+     * debugproc could not replace, and everything it ships as content is one.
+     * `::pray` used to be a branch here; it is
+     * skill_prayer/scripts/cheat_prayer.rs2 now, and it toggles a prayer
+     * through the same proc the prayer book's button does.
+     */
+    if( mock230_scripts_run_debugproc(srv, text) )
+        return;
+
     if( strncmp(text, "talk", 4) == 0 )
     {
         /*
@@ -2515,31 +2528,6 @@ handle_cheat(
             }
             mock230_combat_stat_mark(player, stat);
             say(srv, "Set stat %d to %d.", stat, level);
-        }
-        return;
-    }
-
-    if( strncmp(text, "pray", 4) == 0 )
-    {
-        /* `::pray <0-28>` — toggle a prayer by its index in interface 541's
-         * button order (18 is Protect from Melee). The prayer tab does the
-         * same thing; this is for the headless harness. */
-        int prayer = -1;
-        (void)sscanf(text, "pray %d", &prayer);
-        if( prayer >= 0 )
-        {
-            /* The mock has no altars, so a session starts at prayer level 1 and
-             * could not turn most of these on. Grant the level the prayer needs
-             * rather than adding a second cheat to do it. */
-            if( player->stat_level[MOCK230_STAT_PRAYER] < 99 )
-            {
-                player->stat_level[MOCK230_STAT_PRAYER] = 99;
-                player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-                mock230_combat_stat_mark(player, MOCK230_STAT_PRAYER);
-            }
-            mock230_prayer_click(srv, prayer);
-            say(srv, "%s %s.", mock230_prayer_name(prayer),
-                mock230_prayer_active(srv, prayer) ? "on" : "off");
         }
         return;
     }
@@ -4364,6 +4352,41 @@ selftest_find(
     return -1;
 }
 
+/*
+ * Prayer, as the selftest can reach it now that the engine has no prayer module.
+ *
+ * One name does both jobs, which is not a coincidence and is worth stating: a
+ * prayer's `^prayer_thickskin` constant and its `prayer_thickskin` varbit are
+ * the same spelling in two namespaces — the constant says *which* prayer to a
+ * script, the varbit is *whether it is on*. So the three helpers below take one
+ * name, and none of them knows anything about prayer beyond that.
+ */
+static int
+selftest_prayer(const char* name)
+{
+    return mock230_content_constant_int(name, -1);
+}
+
+static int
+selftest_prayer_on(
+    struct Mock230Server* srv,
+    const char* name)
+{
+    return mock230_varbit_get(srv->player,
+                              mock230_content_symbol(MOCK230_PACK_VARBIT, name)) != 0;
+}
+
+/** Toggle one, through the proc the prayer book's own button calls. */
+static void
+selftest_prayer_toggle(
+    struct Mock230Server* srv,
+    const char* name)
+{
+    int32_t prayer = selftest_prayer(name);
+
+    mock230_scripts_run_proc(srv, "[proc,prayer_toggle]", &prayer, 1);
+}
+
 int
 mock230_world_selftest(void)
 {
@@ -4580,15 +4603,20 @@ mock230_world_selftest(void)
                        "the quantity modes should run 0..4, got %d..%d", ids->bank_qty_1,
                        ids->bank_qty_all);
 
-        /* The two content tables that replaced C arrays. The worn one is the
-         * one that was never a straight run: the tab's eleven cells stand for
-         * wear slots 0..5, 7, 9, 10, 12, 13. */
-        SELFTEST_CHECK(mock230_content_prayer_count() == 29,
+        /* The content table that replaced a C array: the worn slots, which were
+         * never a straight run — the tab's eleven cells stand for wear slots
+         * 0..5, 7, 9, 10, 12, 13.
+         *
+         * Prayer used to be checked here too, off `mock230_content_prayer()`.
+         * The engine has no prayer table to check any more; what is left that
+         * the engine can see is the two names both ends have to agree on, and
+         * the prayer selftest below drives the rest through content. */
+        SELFTEST_CHECK(selftest_prayer("prayer_count") == 29,
                        "the tree should declare 29 prayers, got %d",
-                       mock230_content_prayer_count());
-        SELFTEST_CHECK(mock230_content_prayer(0) &&
-                           mock230_content_prayer(0)->button == MOCK230_COM(541, 9),
-                       "the first prayer should sit on 541:9");
+                       selftest_prayer("prayer_count"));
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_COMPONENT, "prayerbook:prayer1") ==
+                           MOCK230_COM(541, 9),
+                       "the first prayer button should be 541:9");
         SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 15)) == MOCK230_WEAR_HEAD,
                        "387:15 should be the helmet slot, got %d",
                        mock230_equipment_worn_slot(MOCK230_COM(387, 15)));
@@ -5910,14 +5938,12 @@ mock230_world_selftest(void)
          */
         int strength_before;
         int strength_after;
-        int ultimate = -1;
-        int prayer_count = mock230_content_prayer_count();
 
         player->stat_level[MOCK230_STAT_STRENGTH] = 60;
         player->stat_boosted[MOCK230_STAT_STRENGTH] = 60;
         player->stat_level[MOCK230_STAT_PRAYER] = 60;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 60;
-        mock230_prayer_clear(&srv);
+        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
         mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
         strength_before = player->varps[mock230_world_varp("com_maxhit")];
@@ -5928,28 +5954,20 @@ mock230_world_selftest(void)
                        "and carry an attack roll for the unarmed crush type");
 
         /* Ultimate Strength: +15 % to the RAW strength level, before the +8 and
-         * the style bonus. Found by name rather than by index — the index is a
-         * position in prayers.prayer and moves when a prayer is inserted. */
-        for( int i = 0; i < prayer_count; i++ )
-        {
-            const struct Mock230PrayerDef* def = mock230_content_prayer(i);
-
-            if( def && def->symbol && strcmp(def->symbol, "prayer_ultimate_strength") == 0 )
-                ultimate = i;
-        }
-        SELFTEST_CHECK(ultimate >= 0, "prayers.prayer should name ultimate_strength");
-        if( ultimate >= 0 )
-        {
-            mock230_prayer_click(&srv, ultimate);
-            SELFTEST_CHECK(mock230_prayer_active(&srv, ultimate),
-                           "a level 60 prayer stat can switch Ultimate Strength on");
-            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
-            strength_after = player->varps[mock230_world_varp("com_maxhit")];
-            SELFTEST_CHECK(strength_after > strength_before,
-                           "Ultimate Strength should raise the max hit: %d -> %d",
-                           strength_before, strength_after);
-            mock230_prayer_clear(&srv);
-        }
+         * the style bonus. Named through the content rather than counted here —
+         * `^prayer_ultimatestrength` is a position in the book and moves when a
+         * prayer is inserted. */
+        SELFTEST_CHECK(selftest_prayer("prayer_ultimatestrength") >= 0,
+                       "prayers.constant should name ultimatestrength");
+        selftest_prayer_toggle(&srv, "prayer_ultimatestrength");
+        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_ultimatestrength"),
+                       "a level 60 prayer stat can switch Ultimate Strength on");
+        mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+        strength_after = player->varps[mock230_world_varp("com_maxhit")];
+        SELFTEST_CHECK(strength_after > strength_before,
+                       "Ultimate Strength should raise the max hit: %d -> %d",
+                       strength_before, strength_after);
+        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
         /*
          * The weapon-type mapping, now that it is a `switch_category` in
@@ -6529,31 +6547,35 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: prayer\n");
     {
-        /* Indices into prayers.prayer, which is also the order the book lists
-         * them in. Named through the file rather than counted here so a prayer
-         * inserted into the content does not silently move what is asserted. */
-        const int protect_melee = mock230_prayer_index("prayer_protect_from_melee");
-        const int rock_skin = mock230_prayer_index("prayer_rock_skin");
-        const int steel_skin = mock230_prayer_index("prayer_steel_skin");
-        const int overhead_melee = mock230_prayer_headicon("headicon_prayer_protectfrommelee");
+        /*
+         * Every name here is content's, and none of them is an engine call any
+         * more: `^prayer_protectfrommelee` says which prayer, the varbit of the
+         * same name says whether it is on, and `[proc,prayer_toggle]` is what
+         * the book's button calls. The engine module that used to sit between
+         * this test and the content is gone — which is the point, because a
+         * test that drives the engine's copy of a rule cannot fail when the
+         * content's copy is wrong.
+         */
+        const int overhead_melee = selftest_prayer("headicon_prayer_protectfrommelee");
 
-        SELFTEST_CHECK(protect_melee >= 0 && rock_skin >= 0 && steel_skin >= 0 &&
-                           overhead_melee >= 0,
+        SELFTEST_CHECK(selftest_prayer("prayer_protectfrommelee") >= 0 &&
+                           selftest_prayer("prayer_rockskin") >= 0 &&
+                           selftest_prayer("prayer_steelskin") >= 0 && overhead_melee >= 0,
                        "the prayer content should declare the three this asserts on");
 
-        mock230_prayer_clear(&srv);
+        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
         player->stat_level[MOCK230_STAT_PRAYER] = 1;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
 
         /* The level gate reads the base level, so a level-1 character is
          * refused Protect from Melee no matter how many points they have. */
-        mock230_prayer_click(&srv, protect_melee);
-        SELFTEST_CHECK(!mock230_prayer_active(&srv, protect_melee),
+        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
+        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_protectfrommelee"),
                        "a level-1 character cannot protect");
 
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-        mock230_prayer_click(&srv, protect_melee);
+        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
         SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "protect from melee is up");
         SELFTEST_CHECK(player->headicons == (1 << overhead_melee),
@@ -6562,19 +6584,52 @@ mock230_world_selftest(void)
                        "turning a prayer on re-sends the appearance");
 
         /* Same group: the second defence prayer replaces the first rather than
-         * stacking with it. */
-        mock230_prayer_click(&srv, rock_skin);
-        mock230_prayer_click(&srv, steel_skin);
-        SELFTEST_CHECK(!mock230_prayer_active(&srv, rock_skin),
+         * stacking with it. Both claim `^prayer_group_defence` in prayers.dbrow
+         * and nothing else says they conflict. */
+        selftest_prayer_toggle(&srv, "prayer_rockskin");
+        selftest_prayer_toggle(&srv, "prayer_steelskin");
+        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_rockskin"),
                        "steel skin replaces rock skin");
-        SELFTEST_CHECK(mock230_prayer_active(&srv, steel_skin), "steel skin is up");
+        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_steelskin"), "steel skin is up");
         SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "and left the overhead alone — a different group");
 
-        /* Drain: steel skin (12) + protect from melee (12) is 24 a tick against
-         * a resistance of 60, so a point goes every third tick. */
-        mock230_prayer_clear(&srv);
-        mock230_prayer_click(&srv, protect_melee);
+        /*
+         * A combination prayer claims three groups, so Piety drops the defence
+         * prayer AND the strength one. That is what `group` being a LIST buys,
+         * and it is the case the six hand-written group procs could not state:
+         * each handler called one of them, so Piety and Ultimate Strength were
+         * up together.
+         */
+        selftest_prayer_toggle(&srv, "prayer_ultimatestrength");
+        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_ultimatestrength") &&
+                           selftest_prayer_on(&srv, "prayer_steelskin"),
+                       "strength and defence prayers stack with each other");
+        selftest_prayer_toggle(&srv, "prayer_piety");
+        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_piety"), "piety is up");
+        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_ultimatestrength") &&
+                           !selftest_prayer_on(&srv, "prayer_steelskin"),
+                       "and dropped both of the groups it claims");
+
+        /*
+         * The cheat, through the path a client's `::pray 18` takes: the engine
+         * hands the line to `[debugproc,pray]` and the content does the rest.
+         * Asserting it here is what keeps the headless harness honest — the
+         * cheat is the only way a scripted session reaches the prayer book.
+         */
+        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "pray 18"),
+                       "::pray should reach [debugproc,pray]");
+        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_protectfrommelee"),
+                       "::pray 18 is protect from melee");
+        SELFTEST_CHECK(!mock230_scripts_run_debugproc(&srv, "nosuchcheat 1"),
+                       "and a line no debugproc claims falls through to the engine");
+
+        /* Drain: protect from melee is 12 a tick against a resistance of 60, so
+         * a point goes every fifth tick. */
+        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        player->stat_level[MOCK230_STAT_PRAYER] = 99;
+        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
         mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99,
@@ -6591,7 +6646,7 @@ mock230_world_selftest(void)
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
         for( int i = 0; i < 10; i++ )
             mock230_scripts_process_timers(&srv);
-        SELFTEST_CHECK(!mock230_prayer_active(&srv, protect_melee),
+        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_protectfrommelee"),
                        "running out clears every prayer");
         SELFTEST_CHECK(player->headicons == 0, "and the overhead icon");
 

@@ -256,7 +256,6 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_db.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
 	net/mock/mock230_ids.c \
-	net/mock/mock230_prayer.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
 	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \

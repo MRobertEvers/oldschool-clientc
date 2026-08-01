@@ -32,7 +32,6 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
-#include "mock230_prayer.h"
 #include "mock230_scene.h"
 
 #include <math.h>

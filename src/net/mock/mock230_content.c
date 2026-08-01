@@ -1799,119 +1799,6 @@ resolve_loc_stages(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* .prayer configs                                                     */
-/* ------------------------------------------------------------------ */
-
-static struct Mock230PrayerDef* g_prayer_defs;
-static int g_prayer_def_count;
-static int g_prayer_def_capacity;
-
-const struct Mock230PrayerDef*
-mock230_content_prayer(int index)
-{
-    if( index < 0 || index >= g_prayer_def_count )
-        return NULL;
-    return &g_prayer_defs[index];
-}
-
-int
-mock230_content_prayer_count(void)
-{
-    return g_prayer_def_count;
-}
-
-
-
-/** One `key=value` inside a prayer block. Returns 0 for a key it does not
- *  know, so the caller can report it with the line number. */
-static int
-prayer_field(
-    struct Mock230PrayerDef* def,
-    const char* key,
-    const char* value)
-{
-    if( strcmp(key, "name") == 0 )
-    {
-        free(def->name);
-        def->name = strdup(value);
-    }
-    else if( strcmp(key, "button") == 0 )
-        def->button = mock230_content_symbol(MOCK230_PACK_COMPONENT, value);
-    else if( strcmp(key, "varbit") == 0 )
-        def->varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, value);
-    else
-        return 0;
-    return 1;
-}
-
-/** A fresh block, or NULL when the tree declares more prayers than the mask
- *  can hold. */
-static struct Mock230PrayerDef*
-prayer_begin(const char* symbol)
-{
-    struct Mock230PrayerDef* def;
-
-    if( g_prayer_def_count >= MOCK230_PRAYER_MAX )
-        return NULL;
-    g_prayer_defs =
-        grow(g_prayer_defs, &g_prayer_def_capacity, g_prayer_def_count, sizeof(*g_prayer_defs));
-    def = &g_prayer_defs[g_prayer_def_count++];
-    memset(def, 0, sizeof(*def));
-    def->symbol = strdup(symbol);
-    def->name = strdup(symbol);
-    def->button = -1;
-    def->varbit = -1;
-    return def;
-}
-
-static void
-load_prayer_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct Mock230PrayerDef* def = NULL;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = mock230_content_clean_line(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = mock230_content_section_header(line);
-        if( header )
-        {
-            def = prayer_begin(header);
-            if( !def )
-                CONTENT_ERROR("%s:%d: more than %d prayers; `prayer_active` is a "
-                              "32-bit mask\n",
-                              path, line_number, MOCK230_PRAYER_MAX);
-            continue;
-        }
-
-        value = mock230_content_split_key_value(line);
-        if( !value || !def )
-            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                          line_number);
-        else if( !prayer_field(def, line, value) )
-            CONTENT_ERROR("%s:%d: unknown prayer key `%s`\n", path, line_number, line);
-        else if( strcmp(line, "button") == 0 && def->button < 0 )
-            CONTENT_ERROR("%s:%d: `%s` is not in pack/component.pack\n", path, line_number,
-                          value);
-        else if( strcmp(line, "varbit") == 0 && def->varbit < 0 )
-            CONTENT_ERROR("%s:%d: `%s` is not in configs/all.varbit.compack\n", path,
-                          line_number, value);
-    }
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
 /* .jm2 maps                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -2497,7 +2384,6 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".npc", load_npc_config);
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
-    walk_configs(path, ".prayer", load_prayer_config);
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
     walk_configs(path, ".spawn", load_spawn_config);
@@ -2513,11 +2399,11 @@ mock230_content_load(const char* dir)
         mock230_obj_require_counts(&requires_total, &requires_from_cache);
         fprintf(stderr,
                 "mock230: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
-                "%d varp defs, %d prayers, %d equip reqs (%d from the cache), %d npc spawns, "
+                "%d varp defs, %d equip reqs (%d from the cache), %d npc spawns, "
                 "%d obj spawns%s)\n",
                 symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
-                g_prayer_def_count, requires_total, requires_from_cache, g_npc_spawn_count,
-                g_obj_spawn_count, g_errors ? ", WITH ERRORS" : "");
+                requires_total, requires_from_cache, g_npc_spawn_count, g_obj_spawn_count,
+                g_errors ? ", WITH ERRORS" : "");
         if( g_client_key_overlays )
             fprintf(stderr,
                     "mock230: %d config line(s) restate a field the client's own record "
@@ -2553,14 +2439,6 @@ mock230_content_free(void)
     free(g_enum_defs);
     g_enum_defs = NULL;
     g_enum_def_count = g_enum_def_capacity = 0;
-    for( int i = 0; i < g_prayer_def_count; i++ )
-    {
-        free((void*)g_prayer_defs[i].symbol);
-        free(g_prayer_defs[i].name);
-    }
-    free(g_prayer_defs);
-    g_prayer_defs = NULL;
-    g_prayer_def_count = g_prayer_def_capacity = 0;
     for( int i = 0; i < g_constant_count; i++ )
     {
         free(g_constants[i].name);
