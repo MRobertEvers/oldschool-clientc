@@ -167,18 +167,40 @@ Any "yes" means write content instead of engine code:
 
 Known content-in-C, verified 2026-08-01 (line numbers drift; grep the
 symbol). **Trivial moves** — each is a `[login]`-block or config edit plus
-deleting C:
+deleting C.
 
-- starting inventory `kit[]` — `mock230_world.c:3549` → `[login]` `inv_add`s
-- starting bank stock `stock[]` — `mock230_world.c:3581` (writes
-  `player->bank.slots[]` directly, bypassing the bank API — doubly wrong)
-- starting stats / hitpoints-10 — `mock230_world.c:3511`
-- fallback NPC greeting `"Hello there, adventurer!"` — `mock230_world.c:2064`
-- four raw `"Nothing interesting happens."` literals — `mock230_world.c:1979,
-  2275, 2288, 2333` (every other message goes through `mock230_say`)
-- default appearance kit `k_default_kits[12]` — `mock230_encode.c:732`
+Two things the first batch turned up, both worth knowing before the next one:
+**a move is a test**. Seeding hitpoints as xp instead of as a level made the
+engine compute the level for the first time and it came out 9, because
+`level_for_xp` summed the xp formula's terms without the reference's per-term
+`floor` — 94 of the 98 thresholds were one xp too high, invisible for as long
+as the only caller stated the level and the xp as two independent literals.
+And `mock230_save.c`'s `mock230_save_player`/`mock230_load_player` have **no
+callers anywhere** — persistence has been dead code since it was written, so
+"a returning player" is not yet a case any of this can be tested against.
+
+- ~~starting inventory `kit[]`~~ — **moved**, `[proc,newplayer_inv]`
+- ~~starting bank stock `stock[]`~~ — **moved**, `[proc,newplayer_bank]`; the
+  slots[] bypass is gone with it (`inv_add` now marks the bank through
+  `container_dirty`, which it did not — it dirtied a *worn* slot instead)
+- ~~starting stats / hitpoints-10~~ — **moved**, `[proc,newplayer_stats]`, as
+  `stat_advance(hitpoints, 11540)`. Level 1 in everything else stays engine:
+  it is the floor, not a starting state, and the reference agrees
+  (`PlayerLoading.load()`). All three are seeded from `[login,_]` via
+  `~newplayer_setup`, behind a `%newplayer_seeded` perm varp so the script is
+  idempotent — see `player/newplayer.rs2` on why the gate exists before
+  persistence does.
+- ~~fallback NPC greeting~~ — **moved**, `[proc,npc_default_chat]`, and now
+  visible: the C set only the SAY mask, which this client stores and never
+  draws.
+- ~~four raw `"Nothing interesting happens."` literals~~ — **moved**, one
+  `[proc,nothing_interesting_message]` behind `mock230_say`
+- ~~default appearance kit `k_default_kits[12]`~~ — **moved**,
+  `player/configs/appearance.enum`, read by the encoder the way
+  `mock230_equipment.c` already reads `worn_slots`
 - most of the `::` cheat ladder — `mock230_world.c:2388-2683` (`::pray`
-  already migrated to a `[debugproc]`; the rest follow the same pattern)
+  already migrated to a `[debugproc]`; the rest follow the same pattern) —
+  **still open, and the only trivial one left**
 
 **Blocked moves** (~3,200 lines: bank 1,370, combat 858, equipment, world
 map, doors, login burst) — blocked on the ServerScript opcode surface, not

@@ -1409,8 +1409,23 @@ Two halves remain, both silent in the same way the int half was:
 ## 3.15 Player persistence is an ini per player
 
 `src/net/mock/mock230_save.c`. One file per player under `saves/`
-(`MOCK230_SAVES=dir` overrides), written on session teardown and read at login
-after `mock230_world_init` has seeded the defaults it overlays.
+(`MOCK230_SAVES=dir` overrides).
+
+> **It is not wired.** `mock230_save_player` and `mock230_load_player` have no
+> callers — `grep -rn 'mock230_save_player\|mock230_load_player' src/` finds
+> the definitions and the two prototypes and nothing else — and they have had
+> none since the commit that added the file. Everything below describes a
+> format that round-trips when called directly and is called by nothing, so
+> every session still starts from the defaults. Written as intent and read as
+> fact once already, which is why this paragraph is here.
+>
+> What that costs is a *case*: "a returning player" cannot be tested. It is why
+> `[proc,newplayer_setup]` (player/newplayer.rs2) gates on a `scope=perm` varp
+> even though nothing yet makes a perm varp outlive anything — an ungated seed
+> is correct exactly until the day this file is connected.
+
+The intended order is: read at login, over the defaults `mock230_world_init`
+and `[login,_]` have already put down.
 
 ```ini
 [player]

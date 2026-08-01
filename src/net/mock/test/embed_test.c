@@ -170,6 +170,33 @@ main(void)
         check(world->player->x > 0 && world->player->z > 0, "the player is on a tile");
         check(strcmp(world->player->display_name, "embed") == 0,
               "the login name reached the player");
+
+        /*
+         * The opening fixture, over a real login rather than a direct call.
+         *
+         * `mock230_world_init` used to deal the kit, stock the bank and set the
+         * stats; all three are content now, in `[proc,newplayer_setup]`, which
+         * `[login,_]` calls in phase 7. That makes this the end-to-end check
+         * the move needs: a client that handshakes, logs in and ticks should
+         * end up holding exactly what the C used to hand it.
+         *
+         * The world selftest asserts the same three, but it calls the proc
+         * itself. Only this test proves the *trigger* runs on a real login.
+         */
+        {
+            int kit = 0;
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( world->player->inv[i].obj_id >= 0 )
+                    kit++;
+            check(kit == 14, "[login] dealt the 14-item opening kit");
+            check(mock230_bank_count(world, 995) == 250000,
+                  "[login] stocked the bank with 250000 coins");
+            check(world->player->stat_level[MOCK230_STAT_HITPOINTS] == 10,
+                  "[login] put hitpoints at level 10");
+            check(world->player->stat_level[MOCK230_STAT_ATTACK] == 1,
+                  "and left every other skill on the engine's level-1 floor");
+        }
     }
 
     /* A parsed packet proves the whole path: encoded by the server, framed,
