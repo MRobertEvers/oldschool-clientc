@@ -653,6 +653,39 @@ interaction_target(
     }
 }
 
+/*
+ * The category rung of the trigger lookup, per subject kind.
+ *
+ * `Player.getOpTrigger` passes `type.category` for npc, loc and obj alike. Here
+ * only obj can answer, and the other two are -1 on purpose:
+ *
+ * - **obj** — config opcode 94, a number the cache states and
+ *   `pack/category.pack` names (37 of them). This is the rung `[opheld1,_bones]`
+ *   already binds through, and the only one this tree exercises.
+ * - **npc** — an osrs239 npc record carries no category at all. Not "unread":
+ *   absent, which is why `struct Mock230NpcInfo` has no field for it. LostCity's
+ *   content leans on npc categories hard — 16 of `drop tables/`'s 94
+ *   `[ai_queue3]` triggers bind to one — and supplying them is a field to accept
+ *   plus a crawler to write (triage §7.6b, §9 step 3b), not something a dispatch
+ *   site can invent.
+ * - **loc** — `Mock230LocDef.category` exists and is *not this*. It is a private
+ *   two-valued door enum (`door_closed` / `door_opened`) with no entry in
+ *   `pack/category.pack`; passing it would alias every door onto category ids 0
+ *   and 1 and bind unrelated scripts to them. Wrong quietly, which is the worst
+ *   way to be wrong, so it stays -1 until locs carry the real field.
+ */
+static int
+interaction_category(const struct Mock230Interaction* interaction)
+{
+    if( interaction->kind != MOCK230_INTERACT_OBJ )
+        return -1;
+    {
+        const struct Mock230ObjInfo* info = mock230_objinfo(interaction->target_id);
+
+        return info->category > 0 ? info->category : -1;
+    }
+}
+
 /* The engine's own behaviour for an op nothing was bound to. Defined below;
  * these are what used to run inline inside the packet handlers. */
 static void
@@ -690,6 +723,7 @@ mock230_world_process_interaction(struct Mock230Server* srv)
     int size_z;
     int distance;
     int trigger;
+    int category;
 
     if( interaction->kind == MOCK230_INTERACT_NONE )
         return;
@@ -735,9 +769,15 @@ mock230_world_process_interaction(struct Mock230Server* srv)
             trigger = -1;
             break;
         }
+        /* A miss here has no fallback and needs none: "nothing bound at range"
+         * is the ordinary case for almost every interaction in the game, and
+         * what it means is "keep walking". It still reports once per
+         * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
+         * above and this runs on one tick of the walk rather than all of them. */
         if( trigger >= 0 &&
-            mock230_scripts_run_trigger(srv, trigger, interaction->target_id, -1,
-                                        interaction->npc_slot) )
+            mock230_scripts_run_trigger(srv, trigger, interaction->target_id,
+                                        interaction_category(interaction),
+                                        interaction->npc_slot) != MOCK230_TRIGGER_NONE )
         {
             steps_clear(player);
             mock230_world_interaction_clear(srv);
@@ -758,6 +798,10 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         int loc_z = interaction->z;
         int loc_level = interaction->level;
 
+        /* Read before the clear below, with everything else the dispatch needs:
+         * the interaction it is derived from does not survive to the switch. */
+        category = interaction_category(interaction);
+
         /*
          * Clear *before* running, not after. A script is allowed to start a new
          * interaction (`p_opnpc`), and clearing afterwards would throw away the
@@ -771,18 +815,24 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         switch( kind )
         {
         case MOCK230_INTERACT_NPC:
-            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1), target_id,
-                                             -1, slot) )
+            if( mock230_scripts_fallback(
+                    srv, MOCK230_FALLBACK_OPNPC,
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1),
+                                                target_id, category, slot)) )
                 interaction_engine_npc(srv, slot, op_num);
             break;
         case MOCK230_INTERACT_LOC:
-            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1), target_id,
-                                             -1, -1) )
+            if( mock230_scripts_fallback(
+                    srv, MOCK230_FALLBACK_OPLOC,
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1),
+                                                target_id, category, -1)) )
                 interaction_engine_loc(srv, op_num, target_id, loc_x, loc_z, loc_level);
             break;
         case MOCK230_INTERACT_OBJ:
-            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ1 + (op_num - 1), target_id,
-                                             -1, -1) )
+            if( mock230_scripts_fallback(
+                    srv, MOCK230_FALLBACK_OPOBJ,
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ1 + (op_num - 1),
+                                                target_id, category, -1)) )
                 interaction_engine_obj(srv);
             break;
         default:
@@ -1952,17 +2002,19 @@ handle_opheld(
      * The bank's two grids answer on the same packet, and they are not the
      * backpack: `slot` there indexes container 95 (or the side panel's copy of
      * the backpack), and `component` is what says which. Content gets first
-     * refusal through the [inv_button<n>] trigger; the engine's own router is
-     * the no-content fallback.
+     * refusal through the [inv_button<n>] trigger; the bank's own router is a
+     * declared engine fallback (MOCK230_FALLBACK_INV_BUTTON) rather than the
+     * unconditional else it used to be.
      */
     if( bank_component(component) )
     {
         player->last_slot = slot;
         player->last_com = component;
-        if( mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1 + (op_num - 1), component,
-                                        -1, -1) )
-            return;
-        mock230_bank_handle_button(srv, component, slot, obj_id, op_num);
+        if( mock230_scripts_fallback(
+                srv, MOCK230_FALLBACK_INV_BUTTON,
+                mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1 + (op_num - 1),
+                                            component, -1, -1)) )
+            mock230_bank_handle_button(srv, component, slot, obj_id, op_num);
         return;
     }
 
@@ -1998,9 +2050,17 @@ handle_opheld(
     player->last_slot = slot;
     player->last_com = component;
     player->last_verb = op_num;
-    if( op_num >= 1 && op_num <= 5 &&
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1 + (op_num - 1), obj_id,
-                                    info->category > 0 ? info->category : -1, -1) )
+    /* Everything below is MOCK230_FALLBACK_OPHELD — wear/wield and drop, which
+     * the reference states as `[opheld2,_]` and `[opheld5,_]` in
+     * `player/equip.rs2` and `player/drop.rs2`. It is C here only because
+     * equipment is (§6.1 step 5), and it does not run when a bound script
+     * aborted or when there is no pack to have bound one. */
+    if( !mock230_scripts_fallback(
+            srv, MOCK230_FALLBACK_OPHELD,
+            (op_num >= 1 && op_num <= 5)
+                ? mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1 + (op_num - 1), obj_id,
+                                              info->category > 0 ? info->category : -1, -1)
+                : MOCK230_TRIGGER_NONE) )
         return;
 
     if( verb && (strcmp(verb, "Wear") == 0 || strcmp(verb, "Wield") == 0) )
@@ -2546,9 +2606,22 @@ handle_cheat(
             op_num = 1;
         if( slot >= 0 && slot < MOCK230_NPC_MAX && srv->npcs[slot].active )
         {
-            if( !mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1),
-                                             srv->npcs[slot].type, -1, slot) )
+            /* `::talk` is a diagnostic, so it reports both misses distinctly:
+             * nothing bound, versus a script that was bound and blew up. Not a
+             * fallback — it is the cheat telling its user what happened. */
+            switch( mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1 + (op_num - 1),
+                                                srv->npcs[slot].type, -1, slot) )
+            {
+            case MOCK230_TRIGGER_NONE:
                 say(srv, "npc %d has no [opnpc%d] script.", srv->npcs[slot].type, op_num);
+                break;
+            case MOCK230_TRIGGER_FAILED:
+                say(srv, "npc %d's [opnpc%d] script failed — see the log.",
+                    srv->npcs[slot].type, op_num);
+                break;
+            default:
+                break;
+            }
         }
         return;
     }
@@ -2914,18 +2987,15 @@ handle_if_button(
     if( mock230_worldmap_handle_button(srv, uid, 1) )
         return;
 
-    /* Content bound to the component wins; the engine's own routers are the
-     * no-content fallback, which is what keeps the bank's toggles working with
-     * no script pack. */
+    /* Content bound to the component wins. The bank's router is what is left,
+     * and it is a declared fallback now rather than "what happens otherwise":
+     * it used to keep the bank's toggles working with no script pack at all,
+     * which is precisely the second implementation this stopped being. */
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = -1;
-    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
-        return;
-    /* Components above interface 31 compile name-addressed — see
-     * mock230_scripts_run_if_button_named. */
-    if( mock230_scripts_run_if_button_named(srv, uid) )
-        return;
-    mock230_bank_handle_button(srv, uid, -1, -1, 1);
+    if( mock230_scripts_fallback(srv, MOCK230_FALLBACK_IF_BUTTON,
+                                 mock230_scripts_run_if_button(srv, uid)) )
+        mock230_bank_handle_button(srv, uid, -1, -1, 1);
 }
 
 /*
@@ -2960,17 +3030,15 @@ handle_if_button_op(
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = sub;
     srv->active_player->last_verb = op_num;
-    /* run_trigger's parameters are (trigger, type, category, npc_slot): the
-     * component uid is the type, and an interface button has neither a category
-     * nor an npc. `sub` and `op` reach content through last_slot and last_verb,
-     * which is where a RuneScript trigger reads them. */
-    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1) )
-        return;
-    if( mock230_scripts_run_if_button_named(srv, uid) )
-        return;
-    /* (uid, sub, obj, op) — the bank needs the sub id, which is which of the
-     * 1,220 dynamic children was clicked. */
-    mock230_bank_handle_button(srv, uid, sub, -1, op_num);
+    /* The component uid is the trigger's subject; an interface button has
+     * neither a category nor an npc. `sub` and `op` reach content through
+     * last_slot and last_verb, which is where a RuneScript trigger reads them.
+     *
+     * (uid, sub, obj, op) — the bank fallback needs the sub id, which is which
+     * of the 1,220 dynamic children was clicked. */
+    if( mock230_scripts_fallback(srv, MOCK230_FALLBACK_IF_BUTTON,
+                                 mock230_scripts_run_if_button(srv, uid)) )
+        mock230_bank_handle_button(srv, uid, sub, -1, op_num);
 }
 
 static void
@@ -3042,6 +3110,7 @@ mock230_world_close_modal(struct Mock230Server* srv)
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
     int main_group;
+    int bank_was_open;
 
     if( !srv || !srv->active_player )
         return;
@@ -3061,19 +3130,39 @@ mock230_world_close_modal(struct Mock230Server* srv)
     main_group = player->mainmodal_group;
     if( main_group <= 0 )
         return;
-    /* Content's `[if_close,<iface>:0]` gets first refusal, exactly as it did for
-     * the bank, and only a script that does not exist falls through to the
-     * engine's own close below. */
-    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, MOCK230_COM(main_group, 0), -1, -1) )
-        return;
+
+    /*
+     * `[if_close]` is a notification, not a handler — and it was written here as
+     * a handler.
+     *
+     * The reference is unambiguous (`Player.closeModal`): it runs the close
+     * trigger *and then* clears `modalMain` and unmounts, in that order, with no
+     * branch between them. Nothing content can do prevents an interface the
+     * player closed from closing. This site read `if( ran ) return;` instead,
+     * which made the tree's two `[if_close]` scripts — both of which only
+     * `inv_stoptransmit` — suppress the unmount they had no opinion about, so
+     * walking away from an open bank sent no IF_CLOSESUB and left it on screen.
+     * That is exactly the failure mode of a fallback that should never have been
+     * one, which is why it is not in `enum Mock230Fallback`.
+     */
+    bank_was_open = player->bank.open;
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, MOCK230_COM(main_group, 0), -1, -1);
 
     /* One screen keeps state of its own beyond the mount — the bank, which has
      * containers and a reorganise — so it closes through its own function.
      * Anything else is just a mount, and dropping it is the whole of closing
      * it: the equipment screen's repaint is gated on `mainmodal_group`, which
-     * the closesub below already clears. */
-    if( player->bank.open )
+     * the closesub below already clears.
+     *
+     * Read before the trigger, because `[label,closebank]`'s own
+     * `inv_stoptransmit(bankmain:scrollbar)` clears the flag — and
+     * `mock230_bank_close` returns early on a bank it thinks is already shut,
+     * which would swallow the unmount a second way. */
+    if( bank_was_open )
+    {
+        player->bank.open = 1;
         mock230_bank_close(srv);
+    }
     else
     {
         mock230_send_if_closesub(srv->active_player, ids->com_gameframe_mainmodal);
@@ -3255,6 +3344,12 @@ mock230_world_handle(
  * under a `random(128)` roll, exactly as the reference writes them. When
  * nothing is bound, the config's `param=death_drop` still drops (bones for
  * almost everything), so an npc with no script is not a silent kill.
+ *
+ * That last sentence is the declared fallback MOCK230_FALLBACK_AI_QUEUE3, and
+ * it is here because the reference binds 16 of `drop tables/`'s 94 `[ai_queue3]`
+ * triggers to an npc *category*, which this cache does not have (triage §7.6b).
+ * The category argument below is therefore -1 and will stay -1 until §9 step 3b
+ * lands the field and the crawler.
  */
 void
 mock230_world_npc_died(
@@ -3263,7 +3358,9 @@ mock230_world_npc_died(
 {
     struct Mock230Npc* npc = &srv->npcs[slot];
 
-    if( mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type, -1, slot) )
+    if( !mock230_scripts_fallback(
+            srv, MOCK230_FALLBACK_AI_QUEUE3,
+            mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type, -1, slot)) )
         return;
 
     if( npc->def && npc->def->death_drop >= 0 )
@@ -4103,8 +4200,12 @@ phase_logins(struct Mock230Server* srv)
         mock230_world_set_active(srv, player);
         /* The C burst already sent the scene, the gameframe and the containers —
          * that is engine work. [login] is where anything an operator would want
-         * to change without recompiling belongs. */
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+         * to change without recompiling belongs.
+         *
+         * Specific, not the chain: `[login]` has no subject, so the reference
+         * asks for the global form directly (`Player.ts` getByTriggerSpecific)
+         * rather than walking two rungs that cannot exist. */
+        mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
     }
 }
 
@@ -5792,10 +5893,25 @@ mock230_world_selftest(void)
                            "cooked meat should heal 3, got %d", player->hitpoints);
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
 
+            /*
+             * `~eat_food` ends in `p_delay(^eat_delay)`, so the script above is
+             * still parked and a second one sent this tick would be *dropped* —
+             * which used to make this check pass for the wrong reason. It read
+             * "hitpoints are still 10" off a script that never ran, and no
+             * amount of breaking `stat_heal`'s clamp could have turned it red.
+             * Run the delay out first, then assert on the food as well: an
+             * eaten item is the evidence the heal was the clamped one.
+             */
+            for( int i = 0; i < 4 && player->active_script; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "the eat delay should have run out before the next bite");
             inv_set(player, 0, meat, 1);
             player->hitpoints = 10;
             player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
             mock230_world_handle(player, PKTOUT_NAME_OPHELD1, held, 8);
+            SELFTEST_CHECK(player->inv[0].obj_id == -1,
+                           "eating at full health should still cost the food");
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
@@ -7262,8 +7378,8 @@ mock230_world_selftest(void)
              * varp went out to light the orb. Only the last one was missing, so
              * only an end-to-end check finds it. `orbs:runbutton` is 160:28,
              * which is `160 << 16` and does not fit a compiled trigger key's 21
-             * bits, so it resolves through the *named* path
-             * (mock230_scripts_run_if_button_named) — the reason this needs the
+             * bits, so it resolves through the *named* half of
+             * `mock230_scripts_run_if_button` — the reason this needs the
              * script pack loaded and cannot be faked with a trigger id.
              */
             if( loaded )
@@ -9300,6 +9416,121 @@ mock230_world_selftest(void)
 
             mock230_scripts_free(&srv);
         }
+    }
+
+    /*
+     * The inverted fallback (PORTING_GUIDE §6 phase 1 item 3).
+     *
+     * Three claims, and the third is the one this exists for:
+     *
+     * 1. The engine fallbacks are enumerated, and the list shrinks. A tenth row
+     *    appearing is a second implementation of a behaviour content could have
+     *    stated, added without anybody deciding to.
+     * 2. A script that *failed* does not hand its click to C. That was the
+     *    indistinguishable case: `if( !run_trigger() )` treated an aborted
+     *    script and an unbound trigger identically, so a content bug looked
+     *    exactly like a content gap and produced a plausible-looking game.
+     * 3. **With no script pack, nothing falls back.** A fresh checkout has no
+     *    pack (the compiler's output is gitignored), and what used to happen
+     *    then was that every trigger site answered out of C — a whole parallel
+     *    server, silently different from the content tree, discoverable only by
+     *    finding a behaviour where the two disagreed. Now it visibly does
+     *    nothing.
+     */
+    fprintf(stderr, "mock230 selftest: the inverted fallback\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        /* Not a skip: claim 3 is *about* the no-pack case, so it is the half
+         * that runs either way. */
+        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 7,
+                       "the engine fallback list should still be 7 long, not %d — it may "
+                       "shrink as content grows, never grow",
+                       (int)MOCK230_FALLBACK_COUNT);
+        SELFTEST_CHECK(mock230_scripts_report_fallbacks(&srv) == MOCK230_FALLBACK_COUNT,
+                       "the boot report should name every one of them");
+
+        if( loaded )
+        {
+            const struct Mock230Ids* ids = mock230_ids();
+            int sword = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_sword");
+            uint8_t held[8];
+            static struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+            static struct Mock230Item saved_worn[MOCK230_WORN_SLOTS];
+
+            memcpy(saved_inv, player->inv, sizeof(saved_inv));
+            memcpy(saved_worn, player->worn, sizeof(saved_worn));
+
+            /* The gate itself, at all three inputs. */
+            SELFTEST_CHECK(
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_NONE) == 1,
+                "an unbound trigger should let its engine fallback run");
+            SELFTEST_CHECK(
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_RAN) == 0,
+                "a trigger content handled should not also run the fallback");
+            SELFTEST_CHECK(
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_FAILED) == 0,
+                "a script that FAILED should not hand its click to C");
+
+            /* And the tri-state that feeds it. `[opnpc5]` is bound on nothing in
+             * the tree, so goblin 3105 answers NONE rather than the RAN/aborted
+             * 0 the old two-valued return could not tell apart. */
+            SELFTEST_CHECK(mock230_scripts_run_trigger(&srv, SS_TRIGGER_OPNPC5, 3105, -1, -1) ==
+                               MOCK230_TRIGGER_NONE,
+                           "an unbound trigger should answer NONE");
+
+            SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");
+
+            /*
+             * Now the part that only means anything end to end: the same packet,
+             * once with a pack and once without.
+             *
+             * Wielding a sword is MOCK230_FALLBACK_OPHELD — the C that stands in
+             * for the reference's `[opheld2,_] ~equip(last_slot)`. With a pack it
+             * runs, because no script claims bronze_sword. Without one it must
+             * not, and that is the whole inversion in one assertion.
+             */
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, -1, 0);
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                player->worn[i].obj_id = -1;
+            inv_set(player, 3, sword, 1);
+            held[0] = (uint8_t)(sword >> 8);
+            held[1] = (uint8_t)(sword & 0xff);
+            held[2] = 0;
+            held[3] = 3;
+            held[4] = (uint8_t)(ids->com_inventory_items >> 24);
+            held[5] = (uint8_t)(ids->com_inventory_items >> 16);
+            held[6] = (uint8_t)(ids->com_inventory_items >> 8);
+            held[7] = (uint8_t)ids->com_inventory_items;
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD2, held, 8);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == sword,
+                           "with a pack loaded, an unbound opheld2 should still wield");
+
+            mock230_scripts_free(&srv);
+            SELFTEST_CHECK(!srv.scripts_ok, "and now there is no pack");
+            SELFTEST_CHECK(
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_NONE) == 0,
+                "with no pack, no fallback may run — nothing is a gap when "
+                "everything is");
+
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                player->worn[i].obj_id = -1;
+            inv_set(player, 3, sword, 1);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELD2, held, 8);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == -1,
+                           "with no pack, the same click should do nothing at all, got %d",
+                           player->worn[MOCK230_WEAR_WEAPON].obj_id);
+            SELFTEST_CHECK(player->inv[3].obj_id == sword,
+                           "and leave the sword in the backpack");
+
+            memcpy(player->inv, saved_inv, sizeof(saved_inv));
+            memcpy(player->worn, saved_worn, sizeof(saved_worn));
+        }
+        mock230_scripts_free(&srv);
     }
 
     if( g_selftest_failures )

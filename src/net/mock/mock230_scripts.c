@@ -6,10 +6,20 @@
  * dereferences them — so everything that touches game state funnels through
  * mock230_script_command below.
  *
- * The fallback contract matters as much as the feature: when no script pack is
- * loaded, or when a trigger has no script, every call site does exactly what it
- * did before scripts existed. A missing or broken toolchain degrades the mock
- * rather than breaking it.
+ * The dispatch contract, which this header used to state the other way round:
+ * **a trigger with no script does nothing.** Resolution is the reference's
+ * (`ScriptProvider.getByTrigger`) — exact type, then category, then the bare `_`
+ * wildcard, and nothing after that — and that wildcard is the only fallback the
+ * design has.
+ *
+ * What survives of the C that used to answer a missed trigger is enumerated in
+ * `enum Mock230Fallback` and gated on `mock230_scripts_fallback`, which refuses
+ * the two cases `if( !run_trigger(...) )` could not tell apart: a script that
+ * *aborted* (a bug in content, not a gap in it) and a server with no script pack
+ * at all (in which nothing is a gap, because everything is). The old promise —
+ * "a missing script leaves every call site doing exactly what it did before
+ * scripts existed" — was right while scripts were an experiment and is a second,
+ * silently disagreeing implementation of the game now that they are not.
  */
 
 #include "mock230.h"
@@ -108,9 +118,27 @@ mock230_scripts_load(
     SSVM_ErrorClear(&err);
     if( !SSVM_ProviderLoadDir(srv->scripts, dir, &err) )
     {
-        /* Not fatal, and deliberately not silent: running without content is a
-         * supported mode, but doing so by accident is a confusing afternoon. */
-        fprintf(stderr, "mock230: no scripts from %s (%s)\n", dir, err.message);
+        /*
+         * A banner, not a line, because of what it now means.
+         *
+         * This used to be a one-line warning about a supported mode: no pack,
+         * every trigger falls through to C, the mock still plays. That mode is
+         * gone — `mock230_scripts_fallback` refuses every engine fallback when
+         * `scripts_ok` is 0 — so a server that reaches here does almost nothing
+         * at all. Which is the point: the alternative was a second game running
+         * silently beside the one the content tree describes, discoverable only
+         * by finding a behaviour where the two disagreed.
+         */
+        fprintf(stderr,
+                "mock230: ============================================================\n"
+                "mock230: NO SCRIPT PACK at %s\n"
+                "mock230:   %s\n"
+                "mock230: The game's behaviour is content, not C. Without the pack the\n"
+                "mock230: engine's fallbacks stay OFF and almost nothing will work —\n"
+                "mock230: no interactions, no buttons, no dialogue, no drops.\n"
+                "mock230: Build it:  make -C src mock230-scripts\n"
+                "mock230: ============================================================\n",
+                dir, err.message);
         mock230_scripts_free(srv);
         return 0;
     }
@@ -129,6 +157,9 @@ mock230_scripts_load(
     /* Same reasoning, applied to names instead of opcodes — see the header on
      * mock230_scripts_resolve_hooks. */
     mock230_scripts_resolve_hooks(srv);
+    /* And the third list of the same kind: which behaviours are still answered
+     * from C when content binds nothing. It shrinks; that is the schedule. */
+    mock230_scripts_report_fallbacks(srv);
     return srv->scripts->loaded;
 }
 
@@ -385,7 +416,12 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
          * same player — the reference has the same single slot. */
         if( srv->active_player->active_script && srv->active_player->active_script != state )
         {
-            fprintf(stderr, "mock230: dropping a script that suspended while another waits\n");
+            fprintf(stderr,
+                    "mock230: dropping %s, which suspended while %s waits\n",
+                    state->script ? state->script->name : "?",
+                    srv->active_player->active_script->script
+                        ? srv->active_player->active_script->script->name
+                        : "?");
             SSVM_StateRelease(state);
             return 0;
         }
@@ -942,34 +978,132 @@ mock230_scripts_queue_named(
     return mock230_scripts_queue_hook(srv, script, delay, arg);
 }
 
-int
-mock230_scripts_run_trigger(
-    struct Mock230Server* srv,
+/* ------------------------------------------------------------------ */
+/* Trigger dispatch                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Which namespace a trigger's subject id is drawn from.
+ *
+ * Only so a miss can be *named*: "no trigger for [opnpc2,goblin]" is a sentence
+ * somebody can act on and "no trigger for 11/3105" is a puzzle. The reference
+ * prints the same line off `type.debugname` (Player.defaultOp, OpHeldHandler);
+ * the names here come from the same `pack/` files the compiler resolved the
+ * script's own subject through, so a name that prints is a name that could have
+ * been bound.
+ *
+ * The ap/op/ai families are laid out in contiguous runs by subject
+ * (ss_trigger.h), so this is ranges rather than 168 rows.
+ */
+static int
+trigger_subject_kind(
+    int trigger,
+    enum Mock230PackKind* out_kind)
+{
+    if( (trigger >= SS_TRIGGER_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
+        trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
+        trigger == SS_TRIGGER_AI_DESPAWN || trigger == SS_TRIGGER_AI_WALKTRIGGER ||
+        (trigger >= SS_TRIGGER_AI_QUEUE1 && trigger <= SS_TRIGGER_AI_QUEUE20) ||
+        (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5) )
+    {
+        /* The ai_* families are subjects *of an npc*, whichever entity the
+         * trigger is about — `[ai_opplayer1,goblin]` names the goblin. */
+        *out_kind = MOCK230_PACK_NPC;
+        return 1;
+    }
+    if( (trigger >= SS_TRIGGER_APOBJ1 && trigger <= SS_TRIGGER_AI_OPOBJ5) ||
+        (trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELDT) )
+    {
+        *out_kind = MOCK230_PACK_OBJ;
+        return 1;
+    }
+    if( trigger >= SS_TRIGGER_APLOC1 && trigger <= SS_TRIGGER_AI_OPLOC5 )
+    {
+        *out_kind = MOCK230_PACK_LOC;
+        return 1;
+    }
+    if( trigger == SS_TRIGGER_IF_BUTTON || trigger == SS_TRIGGER_IF_CLOSE ||
+        (trigger >= SS_TRIGGER_INV_BUTTON1 && trigger <= SS_TRIGGER_INV_BUTTOND) )
+    {
+        *out_kind = MOCK230_PACK_COMPONENT;
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Did a player ask for this, or did the engine?
+ *
+ * Only the first kind reports a miss, which is the reference's own division:
+ * `Player.defaultOp` and the OpHeld/InvButton/IfButton handlers print
+ * "No trigger for [...]" because a click that does nothing is a thing somebody
+ * is standing there waiting for. `World.spawnNpc` and `Npc.processTimers` say
+ * nothing, because an npc with no `[ai_spawn]` is every npc — 2,197 of them at
+ * world init here, which is a wall of text rather than a diagnostic.
+ *
+ * The player families are contiguous and end exactly where their `ai_` twins
+ * begin (ss_trigger.h): npc 3..16, obj 31..44, loc 59..72, player 87..100.
+ */
+static int
+trigger_is_player_initiated(int trigger)
+{
+    return (trigger >= SS_TRIGGER_APNPC1 && trigger <= SS_TRIGGER_OPNPCT) ||
+           (trigger >= SS_TRIGGER_APOBJ1 && trigger <= SS_TRIGGER_OPOBJT) ||
+           (trigger >= SS_TRIGGER_APLOC1 && trigger <= SS_TRIGGER_OPLOCT) ||
+           (trigger >= SS_TRIGGER_APPLAYER1 && trigger <= SS_TRIGGER_OPPLAYERT) ||
+           (trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELDT) ||
+           trigger == SS_TRIGGER_IF_BUTTON || trigger == SS_TRIGGER_IF_CLOSE ||
+           (trigger >= SS_TRIGGER_INV_BUTTON1 && trigger <= SS_TRIGGER_INV_BUTTOND);
+}
+
+/** `[opnpc2,goblin]`, or `[opnpc2,3105]` when the id has no name. */
+static const char*
+trigger_label(
     int trigger,
     int type,
-    int category,
+    char* buffer,
+    size_t capacity)
+{
+    enum Mock230PackKind kind = MOCK230_PACK_COUNT;
+    const char* subject = NULL;
+
+    if( type >= 0 && trigger_subject_kind(trigger, &kind) )
+        subject = mock230_content_symbol_name(kind, type);
+
+    if( subject )
+        snprintf(buffer, capacity, "[%s,%s]", SSVM_TriggerName(trigger), subject);
+    else if( type >= 0 )
+        snprintf(buffer, capacity, "[%s,%d]", SSVM_TriggerName(trigger), type);
+    else
+        snprintf(buffer, capacity, "[%s,_]", SSVM_TriggerName(trigger));
+    return buffer;
+}
+
+/*
+ * Start a script the way a trigger does: on the active player, with the npc the
+ * trigger is about, and with no arguments.
+ *
+ * Shared by the keyed and the name-addressed forms so that the two cannot come
+ * to disagree about what a trigger's execution context is — which they did in
+ * one respect already, the npc, and `[if_button,...]` never had one.
+ */
+static int
+run_trigger_script(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
     int npc_slot)
 {
-    const struct SSVM_Script* script;
-    struct SSVM_State* state;
+    struct SSVM_State* state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
 
-    if( !srv->scripts_ok )
-        return 0;
-
-    script = SSVM_ProviderGetByTrigger(srv->scripts, trigger, type, category);
-    if( !script )
-        return 0;
-
-    state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
     if( !state )
     {
         fprintf(stderr, "mock230: %s expects arguments a trigger cannot supply\n",
                 script->name);
-        return 0;
+        return MOCK230_TRIGGER_FAILED;
     }
 
-    /* Every trigger the mock fires is on behalf of the one player, and the
-     * engine grants protected access because these all arrive as a direct
+    /* Every trigger the server fires is on behalf of whoever's turn it is, and
+     * the engine grants protected access because these all arrive as a direct
      * response to player input. */
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
@@ -983,49 +1117,213 @@ mock230_scripts_run_trigger(
         state->host_tag = npc_slot + 1;
     }
 
-    return run_or_park(srv, state);
+    /* run_or_park answers 1 for ran-or-parked and 0 for every way a bound script
+     * can fail to run — aborted, no parking slot, world queue full. All of those
+     * are FAILED here: a script existed and the behaviour did not happen. */
+    return run_or_park(srv, state) ? MOCK230_TRIGGER_RAN : MOCK230_TRIGGER_FAILED;
+}
+
+/*
+ * `chain` selects getByTrigger (type -> category -> `_`) over
+ * getByTriggerSpecific (one rung, no fallback). `report` is off only for the
+ * keyed half of the if_button pair, which is not a miss until the name-addressed
+ * half has also missed.
+ */
+static int
+run_trigger_impl(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    int chain,
+    int report)
+{
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok )
+        return MOCK230_TRIGGER_NONE;
+
+    script = chain ? SSVM_ProviderGetByTrigger(srv->scripts, trigger, type, category)
+                   : SSVM_ProviderGetByTriggerSpecific(srv->scripts, trigger, type, category);
+    if( !script )
+    {
+        if( report && srv->verbose && trigger_is_player_initiated(trigger) )
+        {
+            char label[192];
+
+            /* The reference's own wording, from `Player.defaultOp`, and its own
+             * condition: a debug build says so, a production one is silent.
+             * Nothing else distinguishes a trigger that deliberately does
+             * nothing from a packet that never arrived. */
+            fprintf(stderr, "mock230: no trigger for %s\n",
+                    trigger_label(trigger, type, label, sizeof(label)));
+        }
+        return MOCK230_TRIGGER_NONE;
+    }
+
+    return run_trigger_script(srv, script, npc_slot);
 }
 
 int
-mock230_scripts_run_if_button_named(
+mock230_scripts_run_trigger(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot)
+{
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, 1, 1);
+}
+
+int
+mock230_scripts_run_trigger_specific(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot)
+{
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, 0, 1);
+}
+
+int
+mock230_scripts_run_if_button(
     struct Mock230Server* srv,
     int uid)
 {
     const struct SSVM_Script* script;
-    struct SSVM_State* state;
     const char* component;
     char name[192];
+    int result;
 
     if( !srv->scripts_ok )
-        return 0;
+        return MOCK230_TRIGGER_NONE;
+
+    /* Keyed first, and *specific*: `IfButtonHandler` uses getByTriggerSpecific,
+     * so a component with no script of its own does not fall through to some
+     * `[if_button,_]` that would then swallow every click in the game. */
+    result = run_trigger_impl(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1, 0, 0);
+    if( result != MOCK230_TRIGGER_NONE )
+        return result;
 
     component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
     if( !component )
     {
         if( srv->verbose )
-            fprintf(stderr, "mock230: if_button %d:%d has no component name\n", uid >> 16,
-                    uid & 0xffff);
-        return 0;
+            fprintf(stderr, "mock230: no trigger for [if_button,%d:%d] (no component name)\n",
+                    uid >> 16, uid & 0xffff);
+        return MOCK230_TRIGGER_NONE;
     }
 
     snprintf(name, sizeof(name), "[if_button,%s]", component);
     script = SSVM_ProviderGetByName(srv->scripts, name);
-    if( srv->verbose )
-        fprintf(stderr, "mock230: if_button named lookup `%s` -> %s\n", name,
-                script ? "found" : "missing");
     if( !script )
-        return 0;
-
-    state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
-    if( !state )
     {
-        fprintf(stderr, "mock230: %s expects arguments a trigger cannot supply\n",
-                script->name);
+        if( srv->verbose )
+            fprintf(stderr, "mock230: no trigger for %s\n", name);
+        return MOCK230_TRIGGER_NONE;
+    }
+    return run_trigger_script(srv, script, -1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Engine fallbacks                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The C that still answers a trigger nothing is bound to, named and counted.
+ *
+ * `blocked_on` is the whole reason each row is allowed to exist. It is not a
+ * comment: the boot prints it, so "why is this behaviour not content?" has an
+ * answer at the point where somebody is asking, and a row whose blocker has
+ * been cleared is visibly a row to delete.
+ *
+ * The rule this table encodes is PORTING_GUIDE §2.5's: widen the ServerScript
+ * surface until a script can say it, move the behaviour, delete the row. Adding
+ * a row goes the other way and is not a choice a content port gets to make.
+ */
+static const struct
+{
+    const char* name;
+    const char* blocked_on;
+} k_engine_fallbacks[MOCK230_FALLBACK_COUNT] = {
+    [MOCK230_FALLBACK_OPNPC] = { "opnpc",
+                                 "combat is 858 lines of C (§6.1 step 5); the "
+                                 "reference says it in [opnpc2,_]" },
+    [MOCK230_FALLBACK_OPLOC] = { "oploc",
+                                 "doors, bank booths and stairs need loc_* and a "
+                                 "per-loc destination (§6.1 step 5)" },
+    [MOCK230_FALLBACK_OPOBJ] = { "opobj",
+                                 "no obj_take / inv_add-from-ground opcode pair yet "
+                                 "(triage §9 step 4b)" },
+    [MOCK230_FALLBACK_OPHELD] = { "opheld",
+                                  "equipment is C (§6.1 step 5); the reference says "
+                                  "it in [opheld2,_] and [opheld5,_]" },
+    [MOCK230_FALLBACK_INV_BUTTON] = { "inv_button",
+                                      "the bank, 1,370 lines — see bank.rs2's own "
+                                      "header for what it waits on" },
+    [MOCK230_FALLBACK_IF_BUTTON] = { "if_button", "the bank's op ladder, same blocker" },
+    [MOCK230_FALLBACK_AI_QUEUE3] = { "ai_queue3",
+                                     "drop tables need npc categories (triage §7.6b, "
+                                     "§9 step 3b)" },
+};
+
+int
+mock230_scripts_report_fallbacks(struct Mock230Server* srv)
+{
+    /* One line by default and the roll under MOCK230_VERBOSE: the count is what
+     * anyone reading a boot log needs (it should be going down), the reasons are
+     * what somebody working on one needs. Both matter; only one of them belongs
+     * in a log that also prints twenty times during the selftest. */
+    fprintf(stderr, "mock230: %d engine fallback(s) still answer triggers content does not bind\n",
+            MOCK230_FALLBACK_COUNT);
+    if( srv->verbose )
+    {
+        for( int i = 0; i < MOCK230_FALLBACK_COUNT; i++ )
+            fprintf(stderr, "  %-12s blocked on: %s\n", k_engine_fallbacks[i].name,
+                    k_engine_fallbacks[i].blocked_on);
+    }
+    return MOCK230_FALLBACK_COUNT;
+}
+
+int
+mock230_scripts_fallback(
+    struct Mock230Server* srv,
+    enum Mock230Fallback which,
+    int result)
+{
+    const char* name;
+
+    if( which < 0 || which >= MOCK230_FALLBACK_COUNT )
+        return 0;
+    name = k_engine_fallbacks[which].name;
+
+    if( result != MOCK230_TRIGGER_NONE )
+    {
+        /* RAN needs no word — content did its job. FAILED does: the click is
+         * about to do nothing at all, and the reason is a script that aborted
+         * several lines above this in the log. Saying so is what stops that
+         * being read as an engine bug. */
+        if( result == MOCK230_TRIGGER_FAILED )
+            fprintf(stderr,
+                    "mock230: a bound script failed; the `%s` engine fallback is NOT "
+                    "running in its place\n",
+                    name);
         return 0;
     }
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
-    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    return run_or_park(srv, state);
+
+    if( !srv->scripts_ok )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: no script pack — `%s` does nothing\n", name);
+        return 0;
+    }
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: engine fallback `%s` (blocked on: %s)\n", name,
+                k_engine_fallbacks[which].blocked_on);
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */

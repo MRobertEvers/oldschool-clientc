@@ -2134,11 +2134,16 @@ mock230_world_process_interaction(struct Mock230Server* srv);
 /**
  * Load a compiled script pack.
  *
- * Returns the number of scripts, or 0 when there is no pack — which is not an
- * error. Every trigger site falls back to the C behaviour it had before
- * scripts existed, so a broken or absent toolchain degrades the mock rather
- * than breaking it. That is what keeps `make test-mock230` green on every
- * intermediate commit.
+ * Returns the number of scripts, or 0 when there is no pack — which *is* an
+ * error now, and says so in a banner. It used to be a supported mode on the
+ * grounds that "every trigger site falls back to the C behaviour it had before
+ * scripts existed"; that promise is what `enum Mock230Fallback` withdraws. A
+ * server with no pack does not answer triggers out of C, because a whole
+ * parallel implementation of the game running silently is worse than a server
+ * that visibly does nothing.
+ *
+ * Build the pack with `make -C src mock230-scripts`. A fresh checkout has none:
+ * the compiler's output is gitignored.
  */
 int
 mock230_scripts_load(
@@ -2162,13 +2167,82 @@ int
 mock230_scripts_report_gaps(struct Mock230Server* srv);
 
 /**
- * Run the script bound to a trigger, if there is one.
+ * What a trigger dispatch did — three answers where there used to be two.
  *
- * Returns 1 when a script ran to completion, 0 when none matched or it aborted
- * — in both of those cases the caller should do whatever it did before.
+ * `0` and `1` keep their meanings, so `if( run_trigger(...) )` still reads
+ * "content claimed it". What is new is the third: a script that *aborted* no
+ * longer answers 0. It used to, and that made a content bug indistinguishable
+ * from "content binds nothing here" — the two cases whose difference is the
+ * entire point of inverting the fallback. One is a gap the engine may stand in
+ * for; the other is a defect the engine must not paper over.
+ */
+enum Mock230TriggerResult
+{
+    /** Nothing bound at any rung — type, category, or the `_` wildcard. */
+    MOCK230_TRIGGER_NONE = 0,
+    /** A script ran, and either finished or parked. */
+    MOCK230_TRIGGER_RAN = 1,
+    /** A script was bound and did not complete: it aborted, declared arguments
+     *  a trigger cannot supply, or had nowhere to park. */
+    MOCK230_TRIGGER_FAILED = 2
+};
+
+/**
+ * The engine behaviours that still answer a trigger nothing is bound to.
+ *
+ * Every one is C standing in for something LostCity states in content, and every
+ * one is here only because the ServerScript surface cannot yet say it — the
+ * ~3,200 lines `osrs230_mockserver.md` §6.1 step 5 calls blocked. They are
+ * *enumerated* rather than written inline at their call sites so that the set is
+ * countable: `mock230_scripts_report_fallbacks` names them at boot, and the
+ * selftest pins how many there are. A tenth one added quietly is the failure
+ * this enum exists to prevent, in the same spirit as the nine named hooks in
+ * `mock230_scripts.c` (PORTING_GUIDE §2.4 item 5).
+ *
+ * Adding to this list is not a design choice available to a content port. The
+ * order is: widen the opcode surface until a script can say it, move it, delete
+ * the entry.
+ */
+enum Mock230Fallback
+{
+    /** `[opnpc<n>]` → "Attack" engages combat, anything else greets. */
+    MOCK230_FALLBACK_OPNPC = 0,
+    /** `[oploc<n>]` → doors, bank booths, stairs and ladders. */
+    MOCK230_FALLBACK_OPLOC,
+    /** `[opobj<n>]` → picking the pile up off the floor. */
+    MOCK230_FALLBACK_OPOBJ,
+    /** `[opheld<n>]` → wear/wield and drop. */
+    MOCK230_FALLBACK_OPHELD,
+    /** `[inv_button<n>]` on a bank component → the bank's own router. */
+    MOCK230_FALLBACK_INV_BUTTON,
+    /** `[if_button]` → the bank's op ladder. */
+    MOCK230_FALLBACK_IF_BUTTON,
+    /*
+     * `[if_close]` is deliberately not here. It was, in the sense that the
+     * engine's unmount ran only when no script was bound — and that is not what
+     * the trigger means. `Player.closeModal` runs the close script *and then*
+     * unmounts unconditionally; an interface the player closed closes. See
+     * `mock230_world_close_modal`.
+     */
+    /** `[ai_queue3]` → the npc's `death_drop` param. */
+    MOCK230_FALLBACK_AI_QUEUE3,
+    MOCK230_FALLBACK_COUNT
+};
+
+/**
+ * Run the script bound to a trigger, resolving it the way the reference does.
+ *
+ * `ScriptProvider.getByTrigger`: the exact `type`, then the `category`, then the
+ * bare `_` wildcard, and nothing after that. Pass -1 for a subject that does not
+ * apply. Returns an `enum Mock230TriggerResult`.
  *
  * `npc_slot` is the npc the trigger is about, or -1. It becomes the script's
  * active npc, which is what `npc_say` and friends operate on.
+ *
+ * A miss reports itself under `MOCK230_VERBOSE`, in the reference's own words
+ * (`no trigger for [opnpc2,goblin]`), because a trigger that does nothing is now
+ * the *designed* outcome and is otherwise indistinguishable from a dropped
+ * packet.
  */
 int
 mock230_scripts_run_trigger(
@@ -2179,19 +2253,63 @@ mock230_scripts_run_trigger(
     int npc_slot);
 
 /**
- * Run `[if_button,<name of component `uid`>]`, if the tree binds one.
+ * One rung, no chain — `ScriptProvider.getByTriggerSpecific`.
  *
- * The by-name half of the interface-button dispatch. A rev-230 component uid is
- * `(interface << 16) | child`, and the compiled trigger key has 21 bits for its
- * subject — enough for interface 12's bank panel, not for interface 160's orbs.
- * Those scripts compile name-addressed (see ssc_compile.c), so the engine has to
- * ask for them by name too. The name comes from the same component pack the
- * compiler read, so the two cannot drift.
- *
- * Returns 1 when a script ran, 0 when none is bound.
+ * `type` if it is not -1, else `category` if it is not -1, else the global form.
+ * The reference uses this where a wildcard would be actively wrong: `[login,_]`
+ * is global by construction, and an `[if_button,_]` that swallowed every click
+ * on every interface is not a fallback anyone wants.
  */
 int
-mock230_scripts_run_if_button_named(
+mock230_scripts_run_trigger_specific(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot);
+
+/**
+ * May this call site run its engine fallback for `result`?
+ *
+ * 1 only when `result` is `MOCK230_TRIGGER_NONE` *and* a script pack is loaded.
+ * Both halves are the inversion:
+ *
+ * - A `MOCK230_TRIGGER_FAILED` is not a gap in content, it is a bug in content.
+ *   Running the C body would hide it behind a plausible-looking game.
+ * - With no pack at all, nothing is a gap because everything is. A server that
+ *   answered every trigger out of C would be a second implementation of the
+ *   game, silently different from the one the content tree describes, and the
+ *   only way to notice would be to find a behaviour that disagreed. It says so
+ *   at boot and then does nothing.
+ *
+ * Reports which fallback ran, and why one did not, under `MOCK230_VERBOSE`.
+ */
+int
+mock230_scripts_fallback(
+    struct Mock230Server* srv,
+    enum Mock230Fallback which,
+    int result);
+
+/** Name every live engine fallback and what it is blocked on. Returns the
+ *  count, which is `MOCK230_FALLBACK_COUNT` and shrinks as content grows. */
+int
+mock230_scripts_report_fallbacks(struct Mock230Server* srv);
+
+/**
+ * Dispatch a click on component `uid` to `[if_button,...]`, both ways round.
+ *
+ * A rev-230 component uid is `(interface << 16) | child` and the compiled
+ * trigger key has 21 bits for its subject — enough for interface 12's bank
+ * panel, not for interface 160's orbs. Those scripts compile name-addressed
+ * (see ssc_compile.c), so the engine asks by key first and by name second. The
+ * name comes from the same component pack the compiler read, so the two cannot
+ * drift.
+ *
+ * The key lookup is `getByTriggerSpecific`, matching `IfButtonHandler`: an
+ * interface button has no category and must not fall through to a wildcard.
+ */
+int
+mock230_scripts_run_if_button(
     struct Mock230Server* srv,
     int uid);
 
