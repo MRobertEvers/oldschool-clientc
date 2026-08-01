@@ -68,6 +68,8 @@ enum
      * client resolves them (a zone sub-packet's opcode is looked up in the same
      * table as a top-level one, so they cannot collide with either). */
     OP_UPDATE_ZONE_PARTIAL_FOLLOWS = 106,
+    OP_UPDATE_ZONE_FULL_FOLLOWS = 41,
+    OP_UPDATE_ZONE_PARTIAL_ENCLOSED = 38,
     OP_LOC_ADD_CHANGE = 70,
     OP_LOC_DEL = 71,
     OP_OBJ_ADD = 120,
@@ -139,6 +141,10 @@ opcode_name(int op)
         return "VARP_LARGE";
     case OP_UPDATE_ZONE_PARTIAL_FOLLOWS:
         return "UPDATE_ZONE_PARTIAL_FOLLOWS";
+    case OP_UPDATE_ZONE_FULL_FOLLOWS:
+        return "UPDATE_ZONE_FULL_FOLLOWS";
+    case OP_UPDATE_ZONE_PARTIAL_ENCLOSED:
+        return "UPDATE_ZONE_PARTIAL_ENCLOSED";
     case OP_LOC_ADD_CHANGE:
         return "LOC_ADD_CHANGE";
     case OP_LOC_DEL:
@@ -1014,112 +1020,187 @@ put_player_extended(
  * opcode of whatever follows, so the stream desyncs a packet later, nowhere
  * near here. `check_frame_length` is what catches that.
  *
- * Returns the `pos` byte for this tile, because the two are only correct
- * together.
+ * Three headers, not one, and the difference is what the client does to its own
+ * memory of the zone:
+ *
+ *   PARTIAL_FOLLOWS (106)   name the zone. Sub-packets follow as ordinary
+ *                           packets.
+ *   FULL_FOLLOWS (41)       name the zone *and reset it* — the client drops
+ *                           every obj stack it holds there. What follows is the
+ *                           zone's whole state, which is how a client that has
+ *                           never held this zone is caught up.
+ *   PARTIAL_ENCLOSED (38)   name the zone and carry the sub-packets inside this
+ *                           packet's own payload, opcodes and all. Those inner
+ *                           opcodes are plain wire bytes — no ISAAC — resolved
+ *                           through the same table as a top-level one, which is
+ *                           why the sub-opcodes had to be assigned clear of the
+ *                           top-level ones (§3.1b). This is the shared form: one
+ *                           encode, however many clients stand in the zone.
  */
-int
-mock230_send_zone(
-    struct Mock230Player* player,
-    int tile_x,
-    int tile_z)
+
+static int
+zone_base(
+    struct Mock230Server* srv,
+    int zone_x,
+    int zone_z,
+    int* base_z)
 {
-    struct Mock230Server* srv = player->world;
+    *base_z = (zone_z * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_z);
+    return (zone_x * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_x);
+}
+
+void
+mock230_send_zone_header(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z,
+    int full)
+{
     struct RSAreaBuf buf;
-    int base_x = (tile_x & ~7) - mock230_scene_origin(srv->zone_x);
-    int base_z = (tile_z & ~7) - mock230_scene_origin(srv->zone_z);
+    int base_z;
+    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
 
     open_packet(&buf, 8);
     rsab_p1(&buf, base_x);
     rsab_p1(&buf, base_z);
-    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_FOLLOWS, 0);
-    return ((tile_x & 7) << 4) | (tile_z & 7);
+    flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
+          0);
 }
 
-void
-mock230_send_obj_add(
-    struct Mock230Player* player,
-    int pos,
-    int obj_id,
-    int count)
-{
-    struct RSAreaBuf buf;
-
-    open_packet(&buf, 8);
-    rsab_p1(&buf, pos);
-    rsab_p2(&buf, obj_id);
-    /* The count is 16 bits on the wire; a bigger stack is drawn as its
-     * thousands abbreviation by the client, which reads the count it was
-     * given. Clamping is better than wrapping 65,536 coins to zero. */
-    rsab_p2(&buf, count > 0xffff ? 0xffff : count);
-    flush(player, &buf, OP_OBJ_ADD, 0);
-}
-
-void
-mock230_send_obj_del(
-    struct Mock230Player* player,
-    int pos,
-    int obj_id)
-{
-    struct RSAreaBuf buf;
-
-    open_packet(&buf, 8);
-    rsab_p1(&buf, pos);
-    rsab_p2(&buf, obj_id);
-    flush(player, &buf, OP_OBJ_DEL, 0);
-}
-
-void
-mock230_send_obj_count(
-    struct Mock230Player* player,
-    int pos,
-    int obj_id,
-    int old_count,
-    int new_count)
-{
-    struct RSAreaBuf buf;
-
-    open_packet(&buf, 8);
-    rsab_p1(&buf, pos);
-    rsab_p2(&buf, obj_id);
-    rsab_p2(&buf, old_count > 0xffff ? 0xffff : old_count);
-    rsab_p2(&buf, new_count > 0xffff ? 0xffff : new_count);
-    flush(player, &buf, OP_OBJ_COUNT, 0);
-}
-
-/* `info` packs the loc's shape and angle into one byte: (shape << 2) | angle.
- * The client unpacks it the same way for every loc packet, which is why LOC_DEL
+/*
+ * One sub-packet's opcode and payload.
+ *
+ * Written into a caller's buffer rather than sent, because it has two consumers
+ * with the same bytes: `mock230_send_zone_sub` puts it on the wire as a packet
+ * of its own, and `mock230_zone.c` concatenates a zone's worth into the shared
+ * blob PARTIAL_ENCLOSED carries. Having one encoder is the point — the blob and
+ * the loose packet cannot describe the same event differently.
+ *
+ * The count is 16 bits on the wire; a bigger stack is drawn as its thousands
+ * abbreviation by the client, which reads the count it was given. Clamping is
+ * better than wrapping 65,536 coins to zero.
+ *
+ * `info` packs a loc's shape and angle into one byte: (shape << 2) | angle. The
+ * client unpacks it the same way for every loc packet, which is why LOC_DEL
  * carries it too — a tile can hold a wall and a scenery loc at once, and the
- * shape says which one is meant. */
-void
-mock230_send_loc_add_change(
-    struct Mock230Player* player,
-    int pos,
-    int shape,
-    int angle,
-    int loc_id)
+ * shape says which one is meant.
+ */
+static int
+zone_sub_opcode(int kind)
+{
+    switch( kind )
+    {
+    case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
+        return OP_LOC_ADD_CHANGE;
+    case MOCK230_ZONE_EV_LOC_DEL:
+        return OP_LOC_DEL;
+    case MOCK230_ZONE_EV_OBJ_ADD:
+        return OP_OBJ_ADD;
+    case MOCK230_ZONE_EV_OBJ_DEL:
+        return OP_OBJ_DEL;
+    case MOCK230_ZONE_EV_OBJ_COUNT:
+        return OP_OBJ_COUNT;
+    default:
+        return -1;
+    }
+}
+
+static int
+clamp16(int count)
+{
+    return count > 0xffff ? 0xffff : count;
+}
+
+/** The payload alone, without the opcode. */
+static int
+zone_sub_payload(
+    struct RSAreaBuf* buf,
+    const struct Mock230ZoneEvent* event)
+{
+    switch( event->kind )
+    {
+    case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        return 1;
+    case MOCK230_ZONE_EV_LOC_DEL:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        return 1;
+    case MOCK230_ZONE_EV_OBJ_ADD:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, clamp16(event->count));
+        return 1;
+    case MOCK230_ZONE_EV_OBJ_DEL:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        return 1;
+    case MOCK230_ZONE_EV_OBJ_COUNT:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, clamp16(event->old_count));
+        rsab_p2(buf, clamp16(event->count));
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+int
+mock230_encode_zone_sub(
+    uint8_t* dst,
+    int max,
+    const struct Mock230ZoneEvent* event)
 {
     struct RSAreaBuf buf;
+    int opcode = zone_sub_opcode(event->kind);
 
-    open_packet(&buf, 8);
-    rsab_p1(&buf, pos);
-    rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
-    rsab_p2(&buf, loc_id);
-    flush(player, &buf, OP_LOC_ADD_CHANGE, 0);
+    if( opcode < 0 )
+        return 0;
+    rsab_wrap(&buf, dst, (size_t)max);
+    rsab_p1(&buf, opcode);
+    if( !zone_sub_payload(&buf, event) || !rsab_ok(&buf) )
+        return 0;
+    return (int)rsab_len(&buf);
 }
 
 void
-mock230_send_loc_del(
+mock230_send_zone_sub(
     struct Mock230Player* player,
-    int pos,
-    int shape,
-    int angle)
+    const struct Mock230ZoneEvent* event)
 {
     struct RSAreaBuf buf;
+    int opcode = zone_sub_opcode(event->kind);
 
-    open_packet(&buf, 8);
-    rsab_p1(&buf, pos);
-    rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
-    flush(player, &buf, OP_LOC_DEL, 0);
+    if( opcode < 0 )
+        return;
+    open_packet(&buf, 16);
+    if( !zone_sub_payload(&buf, event) )
+        return;
+    flush(player, &buf, opcode, 0);
+}
+
+void
+mock230_send_zone_enclosed(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z,
+    const uint8_t* blob,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int base_z;
+    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
+
+    if( len <= 0 )
+        return;
+    open_packet(&buf, (size_t)len + 8);
+    rsab_p1(&buf, base_x);
+    rsab_p1(&buf, base_z);
+    rsab_pdata(&buf, blob, (size_t)len);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
 }
 
 /*
@@ -1430,10 +1511,14 @@ mock230_send_npc_info(struct Mock230Player* player)
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
      * so remember that order while writing the bits. */
-    int queued[MOCK230_NPC_MAX];
+    int queued[MOCK230_TRACKED_NPC_MAX];
     int queued_count = 0;
-    int kept[MOCK230_NPC_MAX];
+    int kept[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
+    /* The candidates for the entering-view section: whoever the ZoneMap says
+     * stands within the add radius, rather than every npc in the world. */
+    int nearby[MOCK230_TRACKED_NPC_MAX];
+    int nearby_count;
 
     open_packet(&buf, 8192);
     rsab_bits(&buf);
@@ -1446,7 +1531,13 @@ mock230_send_npc_info(struct Mock230Player* player)
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx = npc->x - player->x;
         int dz = npc->z - player->z;
-        int in_range = npc->active && dx >= -15 && dx <= 15 && dz >= -15 && dz <= 15;
+        /* Level is part of range, the same way it is in `player_in_view`. It
+         * was not, which was invisible while the entering-view scan was flat and
+         * ignored level too; now that the candidates come from the ZoneMap —
+         * which is keyed by level — an npc left tracked across a climb could
+         * never be re-added, only re-encoded forever. */
+        int in_range = npc->active && npc->level == player->level && dx >= -15 && dx <= 15 &&
+                       dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
 
         if( !in_range )
@@ -1481,9 +1572,23 @@ mock230_send_npc_info(struct Mock230Player* player)
             queued[queued_count++] = slot;
     }
 
-    /* --- npcs entering view --- */
-    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    /*
+     * --- npcs entering view ---
+     *
+     * The candidate set comes from the ZoneMap: the npcs standing in the zones
+     * the add radius touches, which is at most 5x5 zones. It used to be every
+     * slot in the world, per player, per tick — the scan that made the npc cap
+     * and the wire's tracked-count field the same number (mock230.h).
+     *
+     * The zone query is coarse (a zone is 8 tiles, the radius is 15) so the
+     * exact range test below still decides; what changed is how many npcs it is
+     * asked about.
+     */
+    nearby_count = mock230_zone_npcs_near(srv, player->x, player->z, player->level, 15, nearby,
+                                          MOCK230_TRACKED_NPC_MAX);
+    for( int i = 0; i < nearby_count; i++ )
     {
+        int slot = nearby[i];
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx, dz;
         if( !npc->active || player->npc_tracked[slot] )
@@ -1492,7 +1597,9 @@ mock230_send_npc_info(struct Mock230Player* player)
         dz = npc->z - player->z;
         if( dx < -15 || dx > 15 || dz < -15 || dz > 15 )
             continue;
-        if( kept_count >= MOCK230_NPC_MAX - 1 )
+        /* The tracked count is 8 bits, so 255 is the ceiling the *stream* has —
+         * nothing to do with how many npcs the world holds. */
+        if( kept_count >= MOCK230_TRACKED_NPC_MAX )
             break;
 
         /* 14-bit slot, 11-bit type, 5-bit signed deltas from the local player,

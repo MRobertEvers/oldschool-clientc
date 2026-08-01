@@ -492,18 +492,30 @@ Read the server band at boot · delete the second baker · fix param defaults
 that fails loudly on a stale band.*
 
 **Phase 1 — engine substrate** (`osrs230_mockserver.md` §6.1 items 1, 3, 6)
-1. Multiplayer: ~~encoders take a player~~ (**done** — 33 decls, 85 sites,
-   behaviour-identical while the pool holds one), tick phases iterate the
-   pool, `PLAYER_INFO` encodes others (and `NPC_INFO`'s `tracked` set becomes
-   per-player). Done is two embedded clients seeing each other move, in
-   `embed_test.c` — not a raised `MOCK230_PLAYER_MAX`.
+1. ~~Multiplayer~~ — **done.** Two embedded clients in one world see each
+   other move, asserted in `embed_test.c` against the *client's own*
+   PLAYER_INFO reader. The change was not the raised `MOCK230_PLAYER_MAX`: it
+   was moving every "the client has been told about this" set off the world
+   and onto the player (npc tracking, ground objs, the rebuild and login
+   latches), plus a new per-player *player* tracking set; making
+   `srv->player` into `srv->active_player`, a documented "whose turn it is"
+   seam the phases and the packet dispatcher write; splitting the world build
+   from the login so a second player does not respawn the roster; and
+   broadcasting loc changes so a door one player opens is open for the other.
+   Still single-player on purpose: the socket server accepts one connection at
+   a time, and the *scene origin* is one per world — see
+   `osrs230_mockserver.md` §6.1 step 1 for the full list, which item 2 below
+   is what closes.
 2. `ZoneMap` keyed `(zx,zz,level)` with buffered/replayable events — what
    multiplayer actually needs, and what the 806 zone-trigger uses land on.
 3. **Invert the script fallback** — one `_` wildcard fallback; a trigger
    with no script does nothing, loudly. Must precede bulk trigger import
    (triage §9 step 1) or every behavior has two implementations that can
    disagree.
-*Gate: two clients see each other fight over a door.*
+*Gate: two clients see each other fight over a door.* Half of it is met: they
+see each other, and a door one opens is open for the other. The fight still
+resolves against a shared npc mask set (§6.1 step 1's remainder), and the open
+door does not replay to whoever walks in afterwards — that is item 2.
 
 **Phase 2 — symbols and surface** (triage §9 steps 2–5)
 Name-resolution gate → constants (1,562) → npc categories (§7.6b) →

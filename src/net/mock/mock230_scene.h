@@ -40,10 +40,12 @@ struct Mock230SceneLoc
     /** 0 when a runtime change removed it. Kept rather than compacted so a
      *  door's slot stays stable while a script holds on to it. */
     int active;
-    /** 1 when this loc is not what the map square said — a door that has been
-     *  opened. A rebuild re-sends these, because REBUILD_NORMAL resets the
-     *  client's scene to the cache's version. */
-    int changed;
+    /** 1 when the map square put it here. An inactive static loc is a
+     *  *tombstone*: its slot is never handed to a `loc_add`, because the square
+     *  still has a loc on that tile and "it has been removed" has to stay
+     *  addressable. `changed` used to be here; see mock230_scene.c on why the
+     *  flag could not survive the rebuild it existed for. */
+    int is_static;
 };
 
 /**
@@ -73,8 +75,10 @@ mock230_scene_loc_op(
     int loc_id,
     int op_num);
 
-/** Replace a loc with another id (a door opening). Moves collision with it and
- *  marks the slot changed. Returns 0 when `slot` is not a live loc. */
+/** Replace a loc with another id (a door opening), moving collision with it.
+ *  An inactive static slot is revived rather than refused, which is what puts a
+ *  `loc_del`'d loc back. Returns 0 when `slot` is not a loc or `loc_id` is not
+ *  in the cache. */
 int
 mock230_scene_replace_loc(
     int slot,
@@ -98,15 +102,25 @@ mock230_scene_add_loc(
     int shape,
     int angle);
 
-/** Remove a loc (`loc_del`). Frees its collision and marks the slot changed so
- *  a rebuild knows the square's own version is wrong. Returns 0 when `slot` is
- *  not a live loc. */
+/** Remove a loc (`loc_del`), freeing its collision. A map-square loc leaves a
+ *  tombstone behind; a `loc_add`ed one frees its slot for reuse. Returns 0 when
+ *  `slot` is not a live loc. */
 int
 mock230_scene_remove_loc(int slot);
 
-/** Iterate the locs a rebuild has to re-send. Returns -1 when done. */
+/**
+ * The loc *exactly* at this tile with this shape, active or a tombstone.
+ *
+ * The mutation lookup, as against `mock230_scene_find_loc`'s click lookup: a
+ * LOC_ADD_CHANGE or LOC_DEL names a tile and a shape and the client matches on
+ * both, so the server has to address the same thing. Returns a slot, or -1.
+ */
 int
-mock230_scene_next_changed_loc(int from);
+mock230_scene_find_loc_exact(
+    int x,
+    int z,
+    int level,
+    int shape);
 
 /* ------------------------------------------------------------------ */
 /* Collision                                                           */

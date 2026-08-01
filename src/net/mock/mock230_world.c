@@ -41,11 +41,6 @@ static int g_home_z = 3218;
 static void
 mock230_world_build_entities(struct Mock230Server* srv);
 
-static void
-ground_forget(
-    struct Mock230Server* srv,
-    int slot);
-
 /* Where the scene reads its map squares from. Set once beside the other cache
  * loaders; kept here rather than threaded through every rebuild path because
  * the mock opens exactly one cache. */
@@ -1061,18 +1056,28 @@ maybe_rebuild(struct Mock230Server* srv)
             continue;
         player->rebuild_pending = 1;
         player->place_dirty = 1;
-        /* A rebuild resets the client's zones, so everything it was told about
-         * has to be said again. Cleared here, where the rebuild is *decided*,
-         * rather than where it is sent: phase 8 flushes ground objs and phase 10
-         * sends the rebuild, so clearing at send time would undo a flush that
-         * already happened this tick. */
-        memset(player->ground_sent, 0, sizeof(player->ground_sent));
+        /* REBUILD_NORMAL resets the client's scene to the cache's version, which
+         * un-opens every door it had been told about and drops every obj. So the
+         * client is treated as holding no zones at all and phase 10 re-sends
+         * each one in full. Cleared here, where the rebuild is *decided*, rather
+         * than where it is sent: phase 10 is where the zones go out, so clearing
+         * at send time would be a tick late. */
+        mock230_zone_player_reset(player);
     }
 
-    /* The server's collision window moves with the client's scene. A door
-     * opened inside the old window and still inside the new one is re-sent by
-     * phase 10, which is why mock230_scene_build keeps the changed list. */
+    /*
+     * The server's collision window moves with the client's scene.
+     *
+     * `mock230_scene_build` calls `mock230_scene_free` first, so this throws the
+     * loc array away and re-reads it from the cache — which used to mean the
+     * *server* forgot its own doors on every rebuild too, despite the comment
+     * that stood here claiming the changed list survived. It never did: the
+     * changed flags were on the freed array. The durable record is the ZoneMap's
+     * now, and re-applying it is what puts collision back where the clients
+     * believe it is.
+     */
     mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
+    mock230_world_locs_reapply(srv);
     /* Tracked npcs and players deliberately survive: the client shifts every
      * kept entity by the base-tile delta when it rebuilds
      * (App_WorldRebuildShift), so their slots stay valid. Dropping and re-adding
@@ -1185,6 +1190,11 @@ npc_spawn(
         npc->attack_seq = def->attack_anim;
         npc->block_seq = def->defend_anim;
         npc->death_seq = def->death_anim;
+
+        /* The per-tick phases walk to this rather than to MOCK230_NPC_MAX,
+         * which is a memory ceiling now and not the roster. */
+        if( slot >= srv->npc_slot_max )
+            srv->npc_slot_max = slot + 1;
         return slot;
     }
 
@@ -1512,7 +1522,7 @@ npc_run_mode(
 static void
 advance_npcs(struct Mock230Server* srv)
 {
-    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
 
@@ -1668,11 +1678,16 @@ mock230_world_obj_add(
             if( !obj->active || obj->obj_id != obj_id || obj->x != x || obj->z != z ||
                 obj->level != level )
                 continue;
-            obj->count += count;
-            /* Re-sent as an OBJ_ADD by phase 8, to everyone who had the old
-             * count. (A real OBJ_COUNT would say old->new in one packet; this
-             * server re-adds, which the client accepts as a replacement.) */
-            ground_forget(srv, i);
+            {
+                int old_count = obj->count;
+
+                obj->count += count;
+                /* OBJ_COUNT says old->new in one packet, which is what the
+                 * client's stack merge wants. This used to forget the obj on
+                 * every client so phase 8 would re-add it, which was a whole
+                 * OBJ_ADD to say a number changed. */
+                mock230_zone_obj_counted(srv, i, old_count, obj->count);
+            }
             return i;
         }
     }
@@ -1683,6 +1698,10 @@ mock230_world_obj_add(
 
         if( obj->active )
             continue;
+        /* Before the memset, while the slot is still inactive and still carries
+         * the zone it was last filed under: a slot freed and reused inside one
+         * tick would otherwise stay in the old zone's list forever. */
+        mock230_zone_obj_refile(srv, i);
         memset(obj, 0, sizeof(*obj));
         obj->active = 1;
         obj->obj_id = obj_id;
@@ -1693,87 +1712,52 @@ mock230_world_obj_add(
         obj->despawn_tick = duration > 0 ? srv->tick + duration : -1;
         obj->respawn_tick = -1;
         obj->is_spawn = duration < 0;
+        mock230_zone_obj_refile(srv, i);
+        mock230_zone_obj_added(srv, i);
         return i;
     }
     return -1;
 }
 
 /*
- * Tell everyone whose client has this obj that it is gone, and forget it.
+ * Take a ground obj out of the world and tell the zone it is gone.
  *
- * A ground obj is world state, but "has been told about it" is per client, so
- * removing one is a broadcast rather than a send. Doing it for the active player
- * only is what would leave a taken item drawn on the floor for everybody else,
- * pickable, forever.
+ * This used to be `ground_withdraw`, which walked the player pool and sent an
+ * OBJ_DEL to everyone whose `ground_sent[slot]` flag was set. It is one queued
+ * event now: the zone knows who is standing in it and the flush in phase 10
+ * decides who hears about it, which is the same answer without the server
+ * keeping a bit per obj per client.
  */
 static void
-ground_withdraw(
+ground_clear(
     struct Mock230Server* srv,
     int slot)
 {
     struct Mock230GroundObj* obj = &srv->ground[slot];
 
-    for( int i = 0; i < srv->player_count; i++ )
-    {
-        struct Mock230Player* player = &srv->players[i];
-        int pos;
-
-        if( !player->active || !player->ground_sent[slot] )
-            continue;
-        pos = mock230_send_zone(player, obj->x, obj->z);
-        mock230_send_obj_del(player, pos, obj->obj_id);
-        player->ground_sent[slot] = 0;
-    }
+    if( !obj->active )
+        return;
+    /* Queue the event while the obj is still filed in its zone — the event is
+     * addressed to the zone the obj is *in*, and unfiling first would address
+     * it to nowhere. */
+    mock230_zone_obj_removed(srv, slot);
+    obj->active = 0;
+    mock230_zone_obj_refile(srv, slot);
 }
 
-/** Forget without telling: for a change that phase 8 will re-send anyway. */
-static void
-ground_forget(
-    struct Mock230Server* srv,
-    int slot)
-{
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
-        srv->players[i].ground_sent[slot] = 0;
-}
-
-/**
- * Tell one client about every ground obj inside the scene it does not know
- * about, and take back the ones that left.
+/*
+ * `flush_ground` was here.
  *
- * The *world* half — despawning and respawning — is `ground_tick`, and runs
- * once. This runs per player, which is the whole difference: whether an obj
- * exists is the world's answer, whether this client has been told is not.
+ * It ran per player, over all 256 ground slots, every tick, comparing each obj
+ * against `mock230_scene_contains` and a per-player `ground_sent[]` bitmap.
+ * Everything it did is now a property of zones: whether a client holds a zone
+ * is one set membership test, the objs in that zone are a list, and a client
+ * that has just been handed one is caught up by `write_state` in
+ * mock230_zone.c. See mock230_zone.h.
  */
-static void
-flush_ground(struct Mock230Player* player)
-{
-    struct Mock230Server* srv = player->world;
-
-    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
-    {
-        struct Mock230GroundObj* obj = &srv->ground[i];
-        int in_scene;
-
-        if( !obj->active )
-            continue;
-
-        in_scene = obj->level == player->level && mock230_scene_contains(obj->x, obj->z);
-        if( in_scene && !player->ground_sent[i] )
-        {
-            int pos = mock230_send_zone(player, obj->x, obj->z);
-
-            mock230_send_obj_add(player, pos, obj->obj_id, obj->count);
-            player->ground_sent[i] = 1;
-        }
-        else if( !in_scene && player->ground_sent[i] )
-        {
-            player->ground_sent[i] = 0;
-        }
-    }
-}
 
 /** The world half: expire drops and bring taken spawns back. Once a tick, for
- *  everybody, before the per-player flush. */
+ *  everybody, before phase 10 flushes the zones. */
 static void
 ground_tick(struct Mock230Server* srv)
 {
@@ -1788,15 +1772,13 @@ ground_tick(struct Mock230Server* srv)
             {
                 obj->active = 1;
                 obj->respawn_tick = -1;
-                ground_forget(srv, i);
+                mock230_zone_obj_refile(srv, i);
+                mock230_zone_obj_added(srv, i);
             }
             continue;
         }
         if( obj->despawn_tick >= 0 && srv->tick >= obj->despawn_tick )
-        {
-            ground_withdraw(srv, i);
-            obj->active = 0;
-        }
+            ground_clear(srv, i);
     }
 }
 
@@ -1809,8 +1791,7 @@ ground_take(
 {
     struct Mock230GroundObj* obj = &srv->ground[slot];
 
-    ground_withdraw(srv, slot);
-    obj->active = 0;
+    ground_clear(srv, slot);
     obj->respawn_tick = obj->is_spawn ? srv->tick + mock230_ids()->lootdrop_duration : -1;
 }
 
@@ -2241,7 +2222,10 @@ climb(
     player->rebuild_pending = 1;
     memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
     player->tracked_count = 0;
-    memset(player->ground_sent, 0, sizeof(player->ground_sent));
+    /* The zones on the new level are different zones — a zone key carries the
+     * level — so this is not only "forget what you were told", it is what makes
+     * the next flush compute a new active window. */
+    mock230_zone_player_reset(player);
     /* The players on the old level go the same way. `player_in_view` would drop
      * them next tick anyway, but a rebuild has already thrown the client's list
      * away, so a remove op would name a slot it no longer holds. */
@@ -2379,19 +2363,26 @@ interaction_engine_loc(
          def->category == MOCK230_LOC_CATEGORY_DOOR_OPENED) )
     {
         int opening = def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED;
+        int x = loc->x;
+        int z = loc->z;
+        int shape = loc->shape;
+        /* The loc's own level, not the caller's: `find_interaction_loc` matched
+         * on it, and a door on a bridge deck is addressed by where it is. */
+        int loc_level = loc->level;
 
-        if( !mock230_scene_replace_loc(slot, def->next_loc_stage, loc->angle) )
+        /* A door is the canonical two-player case, and the canonical *three*-
+         * player one: whoever opens it is not the only person who can now walk
+         * through it, and the third player to arrive should not find it shut.
+         * The first half was a broadcast; the second is what the ZoneMap is. */
+        if( !mock230_world_loc_set(srv, x, z, loc_level, shape, def->next_loc_stage,
+                                   loc->angle) )
         {
             mock230_say(srv, "nothing_interesting_message", NULL);
             return;
         }
-        /* A door is the canonical two-player case: whoever opened it is not the
-         * only person who can now walk through it. */
-        mock230_world_broadcast_loc(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
-                                    loc->loc_id);
         if( srv->verbose )
             fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
-                    def->symbol ? def->symbol : "door", loc->x, loc->z);
+                    def->symbol ? def->symbol : "door", x, z);
         return;
     }
 
@@ -3650,6 +3641,13 @@ void
 mock230_world_reset(struct Mock230Server* srv)
 {
     srv->world_built = 0;
+    /* The ZoneMap is the world's memory of every runtime loc change and of
+     * where every entity stands, so a world that is being thrown away has to
+     * throw it away too — the selftest runs many worlds in one process, and a
+     * surviving map would replay the previous world's doors into the next
+     * one's. */
+    mock230_zone_free(srv);
+    srv->npc_slot_max = 0;
 }
 
 /*
@@ -3704,6 +3702,10 @@ mock230_world_player_init(struct Mock230Player* player)
     player->db_query_table = -1;
     player->db_query_index = -1;
     player->db_query_column = -1;
+    /* A memset leaves `zone_index` at 0, which is a real zone. This is what
+     * makes the first flush compute an active window rather than believe the
+     * player has been standing in the south-west corner of the map. */
+    mock230_zone_player_reset(player);
 
     /*
      * Level 1 in everything, which is the *floor* rather than a starting state:
@@ -3986,7 +3988,7 @@ phase_clients_in(struct Mock230Server* srv)
 static void
 phase_npc_events(struct Mock230Server* srv)
 {
-    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
 
@@ -4001,7 +4003,7 @@ phase_npc_events(struct Mock230Server* srv)
 static void
 phase_npcs(struct Mock230Server* srv)
 {
-    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
     {
         if( !srv->npcs[slot].active )
             continue;
@@ -4106,7 +4108,97 @@ phase_logins(struct Mock230Server* srv)
     }
 }
 
-/** 8. Loc/obj respawn timers and the per-zone event flush. */
+/** 8. Loc/obj respawn timers and the zone bookkeeping. */
+/*
+ * Every runtime loc mutation in the world goes through here.
+ *
+ * Three things have to happen together and used to happen in three places: the
+ * scene's collision has to move, the ZoneMap has to record that this tile no
+ * longer matches the map square, and the zone has to queue the wire event. The
+ * old shape did only the third — `mock230_world_broadcast_loc` walked the player
+ * pool and sent LOC_ADD_CHANGE to everyone on that level whose scene contained
+ * the tile — which is correct for whoever is standing there and silently wrong
+ * for everyone else forever, because a broadcast has no memory.
+ *
+ * The key is `(x, z, level, shape)`, which is what the wire uses: LOC_ADD_CHANGE
+ * and LOC_DEL identify a loc by its tile and its shape, and a tile can hold a
+ * wall and a piece of scenery at once.
+ */
+int
+mock230_world_loc_set(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int loc_id,
+    int angle)
+{
+    int slot = mock230_scene_find_loc_exact(x, z, level, shape);
+    struct Mock230SceneLoc* existing = mock230_scene_loc(slot);
+    /*
+     * What the cache says is here, captured before the scene is touched and
+     * only used when the ZoneMap has no record yet — a second change would ask
+     * the scene and get our own first edit back. -1 for a tile the map square
+     * has nothing on, which is how a `loc_add` is told from a `loc_change`.
+     */
+    struct Mock230ZoneLoc* known = mock230_zone_loc_find(srv, x, z, level, shape);
+    int base_id = known ? known->base_loc_id : (existing ? existing->loc_id : -1);
+    int base_angle = known ? known->base_angle : (existing ? existing->angle : 0);
+
+    if( loc_id < 0 )
+    {
+        if( !existing || !mock230_scene_remove_loc(slot) )
+            return 0;
+        /* The removed loc's own angle, not the caller's: LOC_DEL carries
+         * shape+angle and the client matches on both. */
+        angle = existing->angle;
+    }
+    else if( existing )
+    {
+        if( !mock230_scene_replace_loc(slot, loc_id, angle) )
+            return 0;
+    }
+    else if( mock230_scene_add_loc(x, z, level, loc_id, shape, angle) < 0 )
+    {
+        return 0;
+    }
+
+    mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle);
+    return 1;
+}
+
+/** One recorded change, put back onto a scene that has just been re-read from
+ *  the cache. A record outside the new window is left alone: it stays in the
+ *  ZoneMap and re-applies if the origin ever moves back. */
+static void
+reapply_loc(
+    struct Mock230ZoneLoc* loc,
+    void* user)
+{
+    int slot;
+
+    (void)user;
+    if( !mock230_scene_contains(loc->x, loc->z) )
+        return;
+    slot = mock230_scene_find_loc_exact(loc->x, loc->z, loc->level, loc->shape);
+    if( loc->loc_id < 0 )
+    {
+        mock230_scene_remove_loc(slot);
+        return;
+    }
+    if( mock230_scene_loc(slot) )
+        mock230_scene_replace_loc(slot, loc->loc_id, loc->angle);
+    else
+        mock230_scene_add_loc(loc->x, loc->z, loc->level, loc->loc_id, loc->shape, loc->angle);
+}
+
+void
+mock230_world_locs_reapply(struct Mock230Server* srv)
+{
+    mock230_zone_locs_foreach(srv, reapply_loc, NULL);
+}
+
 /*
  * Put a loc mutation back when its timer runs out.
  *
@@ -4120,50 +4212,6 @@ phase_logins(struct Mock230Server* srv)
  * A duration of 0 means "forever": the reference treats it as no timer at all,
  * which is what a quest permanently opening a wall wants.
  */
-/*
- * A loc change is a *zone* event: it happened in the world, and everyone
- * standing where they could see it has to be told.
- *
- * Sending it to the active player only is the single-player shape, and it fails
- * in a way nobody would report as a protocol bug — a door one player opens stays
- * shut on the other's screen, and walking through it looks like the collision
- * map disagreeing with the picture.
- *
- * The recipient set here is "every player on that level", not "every player in
- * that zone", because the server has no zone index yet and the client discards a
- * zone packet for a zone it does not hold. §6.1 step 3 replaces this with a
- * `ZoneMap` whose events also *replay* to whoever walks in afterwards, which is
- * the half a broadcast cannot do: a player who logs in later still sees the door
- * shut, because the scene is rebuilt from the cache and nothing re-states the
- * change. `mock230_scene_next_changed_loc` covers exactly that case for a
- * rebuild, and phase 10 uses it.
- */
-void
-mock230_world_broadcast_loc(
-    struct Mock230Server* srv,
-    int x,
-    int z,
-    int level,
-    int shape,
-    int angle,
-    int loc_id)
-{
-    struct Mock230Player* player;
-
-    MOCK230_FOR_EACH_PLAYER(srv, player)
-    {
-        int pos;
-
-        if( player->level != level || !mock230_scene_contains(x, z) )
-            continue;
-        pos = mock230_send_zone(player, x, z);
-        if( loc_id < 0 )
-            mock230_send_loc_del(player, pos, shape, angle);
-        else
-            mock230_send_loc_add_change(player, pos, shape, angle, loc_id);
-    }
-}
-
 void
 mock230_world_loc_reverts(struct Mock230Server* srv)
 {
@@ -4177,37 +4225,15 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
             continue;
         entry->active = 0;
 
-        if( entry->loc_id < 0 )
-        {
-            /* Undo a loc_add. */
-            if( mock230_scene_remove_loc(entry->slot) )
-                mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level, entry->shape,
-                                            entry->angle, -1);
-        }
-        else
-        {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(entry->slot);
-
-            /*
-             * A `loc_del` freed the slot, so putting the loc back is an *add*,
-             * not a replace. Telling the two apart by the slot's own `active`
-             * flag rather than by remembering which opcode queued it means a
-             * revert does the right thing even if something else touched the
-             * slot meanwhile.
-             */
-            if( loc && loc->active )
-            {
-                if( mock230_scene_replace_loc(entry->slot, entry->loc_id, entry->angle) )
-                    mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level,
-                                                entry->shape, entry->angle, entry->loc_id);
-            }
-            else if( mock230_scene_add_loc(entry->x, entry->z, entry->level, entry->loc_id,
-                                           entry->shape, entry->angle) >= 0 )
-            {
-                mock230_world_broadcast_loc(srv, entry->x, entry->z, entry->level, entry->shape,
-                                            entry->angle, entry->loc_id);
-            }
-        }
+        /*
+         * One call for both directions. `loc_id < 0` undoes a `loc_add`, and
+         * anything else puts a loc back whether the tile is currently empty
+         * (a `loc_del` expiring) or holding the changed form (a `loc_change`
+         * expiring) — `mock230_world_loc_set` decides which by looking, rather
+         * than by remembering which opcode armed the timer.
+         */
+        mock230_world_loc_set(srv, entry->x, entry->z, entry->level, entry->shape,
+                              entry->loc_id, entry->angle);
     }
 }
 
@@ -4222,7 +4248,6 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
 int
 mock230_world_loc_revert_queue(
     struct Mock230Server* srv,
-    int slot,
     int duration,
     int loc_id,
     int shape,
@@ -4240,7 +4265,6 @@ mock230_world_loc_revert_queue(
         if( entry->active )
             continue;
         entry->active = 1;
-        entry->slot = slot;
         /* +1 for the same reason p_delay has one: the rest of this tick plus
          * `duration` more (docs/osrs230_mockserver.md §3.10). */
         entry->delay = duration + 1;
@@ -4257,17 +4281,22 @@ mock230_world_loc_revert_queue(
     return 0;
 }
 
+/**
+ * 8. Loc reverts, obj respawns, and the zone membership reconcile.
+ *
+ * The reference's zone phase, in its order: the world's own timers first, then
+ * the zones are brought into agreement with where everything now stands. What it
+ * deliberately does *not* do any more is send anything — the per-client flush is
+ * phase 10's `mock230_zone_update_player`, which is where the reference puts
+ * `updateZones()` too.
+ */
 static void
 phase_zones(struct Mock230Server* srv)
 {
-    struct Mock230Player* player;
-
     mock230_world_loc_reverts(srv);
-    /* The world's half first — an obj that despawns this tick must not be
-     * flushed *to* anyone as an add and then removed. */
     ground_tick(srv);
-    MOCK230_FOR_EACH_PLAYER(srv, player)
-        flush_ground(player);
+    mock230_zone_sync_npcs(srv);
+    mock230_zone_sync_objs(srv);
 }
 
 /**
@@ -4310,22 +4339,13 @@ phase_client_out(struct Mock230Player* player)
     {
         mock230_send_rebuild_normal(player);
         player->rebuild_pending = 0;
-        /* Doors. REBUILD_NORMAL rebuilds the scene from the
-         * cache, which puts every opened door back the way the map square has
-         * it — so each one has to be re-opened. Without this, walking far
-         * enough to trigger a rebuild and coming back finds every door you
-         * opened shut again, and the server still believing they are open. */
-        for( int slot = mock230_scene_next_changed_loc(0); slot >= 0;
-             slot = mock230_scene_next_changed_loc(slot + 1) )
-        {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
-            int pos;
-
-            if( !loc || loc->level != player->level )
-                continue;
-            pos = mock230_send_zone(player, loc->x, loc->z);
-            mock230_send_loc_add_change(player, pos, loc->shape, loc->angle, loc->loc_id);
-        }
+        /* Doors. REBUILD_NORMAL rebuilds the client's scene from the cache,
+         * which puts every opened door back the way the map square has it. The
+         * loop that re-sent them used to live here, walking the scene's own
+         * changed list — which the rebuild had just freed, so it re-sent
+         * nothing. `mock230_zone_player_reset` (in `maybe_rebuild`, and in
+         * `climb`) marks every zone unloaded instead, and the zone flush below
+         * re-states each one from the ZoneMap. */
         /* The scene moved under the player, so the step directions computed
          * before it are meaningless. */
         player->move_count = 0;
@@ -4333,6 +4353,12 @@ phase_client_out(struct Mock230Player* player)
 
     mock230_send_player_info(player);
     mock230_send_npc_info(player);
+
+    /* Zone updates go here, between the entity streams and the containers,
+     * because that is where the reference puts `updateZones()` — and because a
+     * zone packet naming a tile is only meaningful once the client has been
+     * placed by the stream above it. */
+    mock230_zone_update_player(player);
 
     /* After the containers would have changed but before they are flushed:
      * weight is a function of what is in them, and the orb should not lag a
@@ -4469,13 +4495,17 @@ phase_cleanup(struct Mock230Server* srv)
     MOCK230_FOR_EACH_PLAYER(srv, player)
         phase_cleanup_player(player);
 
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    for( int i = 0; i < srv->npc_slot_max; i++ )
     {
         srv->npcs[i].masks = 0;
         srv->npcs[i].step_dir = -1;
         srv->npcs[i].anim_id = -1;
         srv->npcs[i].anim_delay = 0;
     }
+
+    /* The zones' event buffers, now that every client has been given them. The
+     * state they hold — loc records, obj and npc membership — is not touched. */
+    mock230_zone_reset(srv);
 }
 
 void
@@ -4670,6 +4700,65 @@ selftest_seed_new_player(struct Mock230Server* srv)
     mock230_scripts_run_proc(srv, "[proc,newplayer_setup]", NULL, 0);
     mock230_scripts_free(srv);
     return 1;
+}
+
+/*
+ * Find a zone sub-packet inside a captured UPDATE_ZONE_PARTIAL_ENCLOSED.
+ *
+ * An enclosed packet's payload is the two base bytes and then a stream of
+ * sub-packets, opcode byte and all — no ISAAC, since the client resolves those
+ * inner opcodes through the plain rev table. Walking it needs the lengths, and
+ * they are here rather than shared with the encoder on purpose: a test that
+ * asked the encoder how long its own output is would agree with itself about a
+ * field it had got wrong.
+ */
+static int
+selftest_zone_sub_length(int opcode)
+{
+    switch( opcode )
+    {
+    case 70: /* LOC_ADD_CHANGE: pos, info, id */
+        return 4;
+    case 71: /* LOC_DEL: pos, info */
+        return 2;
+    case 120: /* OBJ_ADD: pos, id, count */
+        return 5;
+    case 121: /* OBJ_DEL: pos, id */
+        return 3;
+    case 122: /* OBJ_COUNT: pos, id, old, new */
+        return 7;
+    default:
+        return -1;
+    }
+}
+
+/** 1 when some enclosed packet in the capture carries this sub-opcode. */
+static int
+selftest_enclosed_has(
+    const struct Mock230Capture* capture,
+    int sub_opcode)
+{
+    for( int i = 0; i < capture->count; i++ )
+    {
+        const struct Mock230CapturedPacket* packet = &capture->packets[i];
+        int at;
+
+        if( packet->opcode != 38 /* UPDATE_ZONE_PARTIAL_ENCLOSED */ )
+            continue;
+        at = 2; /* past the zone base */
+        while( at < packet->len )
+        {
+            int sub = packet->data[at];
+            int length = selftest_zone_sub_length(sub);
+
+            if( length < 0 )
+                break; /* an opcode this walk does not know: stop rather than guess */
+            if( sub == sub_opcode )
+                return 1;
+            at += 1 + length;
+        }
+    }
+    return 0;
 }
 
 /*
@@ -6612,21 +6701,23 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(slot < 0 || srv.ground[slot].is_spawn,
                        "and be marked a spawn rather than a drop");
 
-        /* A drop reaches the client as a zone header plus an OBJ_ADD. Both, in
-         * that order: a sub-packet with no zone before it applies to whatever
-         * zone was named last. */
+        /*
+         * A drop reaches the client inside its zone's shared blob: one
+         * UPDATE_ZONE_PARTIAL_ENCLOSED naming the zone, carrying an OBJ_ADD.
+         *
+         * It used to be two loose packets, a zone header then the sub-packet,
+         * sent at the moment of the drop. Now the event is buffered on the zone
+         * and encoded once for everyone standing in it — which is also why the
+         * tick below is load-bearing: nothing goes out until phase 10.
+         */
         selftest_park_player(&srv, 3222, 3218);
         mock230_capture_begin(&srv, &capture);
         mock230_world_obj_add(&srv, 526 /* bones */, 1, 3222, 3218, 0,
                               mock230_ids()->lootdrop_duration);
         mock230_world_tick(&srv);
         mock230_capture_end(&srv);
-        {
-            static const int k_drop[] = { 106 /* UPDATE_ZONE */, 120 /* OBJ_ADD */ };
-
-            SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_drop, 2),
-                           "a drop should send its zone then its OBJ_ADD");
-        }
+        SELFTEST_CHECK(selftest_enclosed_has(&capture, 120 /* OBJ_ADD */),
+                       "a drop should reach the client as an enclosed OBJ_ADD");
 
         /* Picking it up moves it into the backpack and tells the client it is
          * gone. */
@@ -6639,11 +6730,14 @@ mock230_world_selftest(void)
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
+            /* The take happens on the packet; the OBJ_DEL is a zone event and
+             * goes out with the tick's flush. */
+            mock230_world_tick(&srv);
             mock230_capture_end(&srv);
         }
         SELFTEST_CHECK(free_before >= 0 && player->inv[free_before].obj_id == 526,
                        "taking an obj puts it in the backpack");
-        SELFTEST_CHECK(mock230_capture_find(&capture, 121 /* OBJ_DEL */, 0) >= 0,
+        SELFTEST_CHECK(selftest_enclosed_has(&capture, 121 /* OBJ_DEL */),
                        "and tells the client it is gone");
 
         /* Dropping it puts it back on the floor rather than deleting it. */
@@ -6780,13 +6874,19 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(loc->loc_id == 1536, "opening swaps the loc, got %d",
                            loc->loc_id);
-            SELFTEST_CHECK(loc->changed, "and marks it changed so a rebuild re-sends it");
             {
-                static const int k_open[] = { 106 /* UPDATE_ZONE */, 70 /* LOC_ADD_CHANGE */ };
+                struct Mock230ZoneLoc* record =
+                    mock230_zone_loc_find(&srv, loc->x, loc->z, loc->level, loc->shape);
 
-                SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_open, 2),
-                               "and tells the client, zone first");
+                SELFTEST_CHECK(record && record->loc_id == 1536,
+                               "and records the change in the zone, got %d",
+                               record ? record->loc_id : -1);
+                SELFTEST_CHECK(record && record->base_loc_id == 1535,
+                               "remembering what the map square has, got %d",
+                               record ? record->base_loc_id : -1);
             }
+            SELFTEST_CHECK(selftest_enclosed_has(&capture, 70 /* LOC_ADD_CHANGE */),
+                           "and tells the client, in the zone's enclosed stream");
 
             /* Closing it again is the same rule read backwards, which is the
              * whole point of storing the pairing on both halves. */
@@ -8587,8 +8687,20 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(loc && loc->loc_id == remains,
                                "the scene should hold the changed loc, got %d",
                                loc ? loc->loc_id : -1);
-                SELFTEST_CHECK(loc && loc->changed,
-                               "and mark the slot changed so a rebuild re-sends it");
+                {
+                    /*
+                     * The record that survives a rebuild. It used to be a
+                     * `changed` flag on the scene loc, which the rebuild freed
+                     * along with the array it was in — so the thing the flag
+                     * existed for was the one thing it could not do.
+                     */
+                    struct Mock230ZoneLoc* record =
+                        mock230_zone_loc_find(&srv, loc->x, loc->z, loc->level, loc->shape);
+
+                    SELFTEST_CHECK(record && record->loc_id == remains,
+                                   "and record it in the zone, got %d",
+                                   record ? record->loc_id : -1);
+                }
 
                 /* duration 2 means the tick after next, for the same +1 reason
                  * p_delay(n) resumes on tick n+1. */

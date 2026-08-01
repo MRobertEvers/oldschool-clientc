@@ -88,6 +88,7 @@
 #define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239"
 
 #include "mock230_bank.h"
+#include "mock230_zone.h"
 
 #include <stdint.h>
 
@@ -100,11 +101,30 @@ struct Mock230Session;
 
 enum
 {
-    /* Lumbridge's roster is about 70 npcs across five map squares, and only
-     * the ones within 15 tiles are ever sent — but they all have to exist for
-     * the player to be able to walk to them. The tracked count is an 8-bit
-     * field on the wire, so this must stay under 256. */
-    MOCK230_NPC_MAX = 256,
+    /*
+     * Npcs this world can hold, and — separately — npcs one client can be
+     * tracking.
+     *
+     * These were one number, 256, annotated "the tracked count is an 8-bit
+     * field on the wire, so this must stay under 256". The annotation is true
+     * about the *tracked* count and says nothing about the world: the stream's
+     * slot field is 14 bits, so the wire's own ceiling on how many npcs may
+     * exist is 16383, and the reference runs at exactly that
+     * (`NODE_MAX_NPCS`, default 16383). A protocol constant was standing in for
+     * a world capacity, which is the shape of bug where raising the roster
+     * silently corrupts a packet instead of failing.
+     *
+     * So: MOCK230_NPC_MAX is a memory decision (336 bytes per npc, statically
+     * allocated in the world), MOCK230_TRACKED_NPC_MAX is the wire's. Lumbridge
+     * itself is 63 npcs.
+     *
+     * What made the world cap load-bearing was the encoder scanning every slot
+     * in the world for every client every tick; NPC_INFO asks the ZoneMap for
+     * the npcs within 15 tiles now (mock230_zone_npcs_near), so the two numbers
+     * are free to be different sizes.
+     */
+    MOCK230_NPC_MAX = 2048,
+    MOCK230_TRACKED_NPC_MAX = 255,
     /* The client sends at most 25 waypoints per move request; a walk can then
      * be interpolated over many tiles, so the step queue is larger. */
     MOCK230_STEP_MAX = 256,
@@ -687,8 +707,13 @@ struct Mock230GroundObj
     /** 1 when this came from a map square rather than from a drop. */
     int is_spawn;
     /* `sent` was here, for the same reason `Mock230Npc.tracked` was: whether a
-     * client has been told is a fact about the client. It is
-     * `Mock230Player.ground_sent[slot]` now. */
+     * client has been told is a fact about the client. The per-client answer is
+     * `Mock230Player.loaded_zones` now — see mock230_zone.h on why "does this
+     * client hold that zone" replaced "has this client seen that obj". */
+
+    /** Packed zone index **plus one** — 0 means "filed nowhere". Maintained by
+     *  `mock230_zone_sync_objs`; see `refile` for why it is offset. */
+    int zone_index;
 };
 
 /** A script waiting for its delay to run out. */
@@ -827,6 +852,11 @@ struct Mock230Npc
     const struct Mock230NpcDef* def;
     /** RSMod/xrsps parity: idle NPCs try to roam every 15-30 ticks. */
     int next_roam_tick;
+
+    /** Packed zone index **plus one** — 0 means "filed nowhere". Maintained by
+     *  `mock230_zone_sync_npcs`, which reconciles rather than hooks because an
+     *  npc's tile is written from five places. See `refile` in mock230_zone.c. */
+    int zone_index;
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
@@ -1072,8 +1102,9 @@ struct Mock230Player
     /** Ordered list of npc slots this client is tracking — exactly the order
      *  NPC_INFO's tracked section must be written in — plus the membership test
      *  the "entering view" scan needs. Kept as both because the list answers
-     *  "in what order" and the flags answer "at all" in O(1). */
-    int tracked[MOCK230_NPC_MAX];
+     *  "in what order" and the flags answer "at all" in O(1). The list is sized
+     *  by the wire (an 8-bit count), the flags by the world. */
+    int tracked[MOCK230_TRACKED_NPC_MAX];
     int tracked_count;
     uint8_t npc_tracked[MOCK230_NPC_MAX];
 
@@ -1083,9 +1114,26 @@ struct Mock230Player
     int tracked_player_count;
     uint8_t player_tracked[MOCK230_PLAYER_MAX];
 
-    /** Ground objs this client has been sent an OBJ_ADD for. Indexed by
-     *  `Mock230Server.ground` slot. */
-    uint8_t ground_sent[MOCK230_GROUND_MAX];
+    /*
+     * ── Zones ────────────────────────────────────────────────────────
+     *
+     * `ground_sent[MOCK230_GROUND_MAX]` was here: one flag per ground slot per
+     * client, rescanned flat every tick. It is gone, and what replaced it is
+     * not a smaller flag array — it is `loaded_zones`. "Has this client been
+     * told about that obj" turns out to be the wrong question; the right one is
+     * "does this client hold that zone", because the answer covers the locs and
+     * the replay too, and because it is the question the wire asks.
+     *
+     * `active_zones` is the 7x7 window around the player clipped to the build
+     * area, recomputed when `zone_index` changes. `loaded_zones` is the subset
+     * the client has been sent state for. See mock230_zone.h.
+     */
+    int active_zones[MOCK230_ZONE_ACTIVE_MAX];
+    int active_zone_count;
+    int loaded_zones[MOCK230_ZONE_ACTIVE_MAX];
+    int loaded_zone_count;
+    /** Packed zone this client was last in, or -1. */
+    int zone_index;
 
     /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
      *  else moved the world's origin, or it changed level. */
@@ -1308,6 +1356,20 @@ struct Mock230Server
     int zone_x, zone_z;
 
     struct Mock230Npc npcs[MOCK230_NPC_MAX];
+    /** One past the highest slot ever spawned into. The per-tick phases walk
+     *  this rather than the pool: the cap is a memory ceiling now, not the
+     *  roster, and iterating 2048 slots to find 63 npcs would make it read like
+     *  one. */
+    int npc_slot_max;
+
+    /**
+     * The world cut into 8x8 zones — entity lists, loc records and this tick's
+     * event buffers. Opaque; owned by mock230_zone.c, which is where the whole
+     * design is written down. This is the durable record of every loc mutation
+     * in the world, because the scene is not: it is re-read from the cache
+     * whenever the origin moves.
+     */
+    struct Mock230ZoneMap* zone_map;
 
     /* The npc tracking set is per *player* — `Mock230Player.tracked` — because
      * NPC_INFO's deltas are relative to whoever is being written to. It lived
@@ -1365,19 +1427,22 @@ struct Mock230Server
      * Reverting is phase 8's job (`zones`), which is where the reference puts
      * loc and obj respawn, and it is a *world* list rather than a player one:
      * the tree is still a stump after the player who cut it logs out.
+     *
+     * Keyed by `(x, z, level, shape)` — the wire's own key for a loc — rather
+     * than by the scene slot it used to hold. A scene slot does not survive a
+     * rebuild: `mock230_scene_build` frees the loc array and re-reads it from
+     * the cache, so a revert armed before a rebuild used to fire against
+     * whatever loc had inherited its index.
      */
     struct Mock230LocRevert
     {
         int active;
-        /** Scene slot the mutation landed on. */
-        int slot;
         /** Ticks remaining. */
         int delay;
         /** What to put back: -1 means "remove this loc again" (undo a loc_add). */
         int loc_id;
         int shape;
         int angle;
-        /** Kept so the revert can address the zone after the slot is freed. */
         int x, z, level;
     } loc_reverts[MOCK230_LOC_REVERT_MAX];
 
@@ -1650,23 +1715,36 @@ void
 mock230_world_login(struct Mock230Player* player);
 
 /**
- * Tell everyone who can see it that a loc changed. `loc_id < 0` is a deletion.
+ * Put `loc_id` on (x, z, level) with this shape, or remove what is there when
+ * `loc_id < 0`. Returns 0 when the id is not in the cache or the tile is outside
+ * the built scene, in which case nothing changed.
  *
- * A loc mutation is world state, so it is a broadcast rather than a send: a door
- * one player opens is open for the other. Recipients are everyone on that level
- * whose scene contains the tile — an approximation of the zone the reference
- * would address, and the one §6.1 step 3 replaces with a real `ZoneMap`. What a
- * broadcast cannot do and that will: replay the event to whoever arrives later.
+ * This is the one door every runtime loc mutation goes through, and it does
+ * three things that have to happen together: move the scene's collision, record
+ * the change in the ZoneMap, and queue the zone event. It replaced
+ * `mock230_world_broadcast_loc`, which did only the last of the three and did it
+ * by walking the player pool — correct for everyone standing there at the time
+ * and invisible to everyone else, forever, because a broadcast has no memory.
+ *
+ * `(x, z, level, shape)` is the key rather than a scene slot because that is
+ * what LOC_ADD_CHANGE and LOC_DEL carry, and because a scene slot does not
+ * survive a rebuild.
  */
-void
-mock230_world_broadcast_loc(
+int
+mock230_world_loc_set(
     struct Mock230Server* srv,
     int x,
     int z,
     int level,
     int shape,
-    int angle,
-    int loc_id);
+    int loc_id,
+    int angle);
+
+/** Re-apply every recorded loc change to a scene that has just been rebuilt
+ *  from the cache. Without this the server forgets its own doors whenever the
+ *  origin moves — which it did, despite a comment claiming otherwise. */
+void
+mock230_world_locs_reapply(struct Mock230Server* srv);
 
 /** Put the player on an absolute tile, clearing the walk and rebuilding the
  *  scene if the destination left the current one. */
@@ -2536,48 +2614,47 @@ mock230_send_inv_partial(
     int slot_count,
     uint32_t dirty);
 
-/* Zone updates. Every zone sub-packet is preceded by the zone it applies to;
- * `mock230_send_zone` emits that header, and the caller then sends sub-packets
- * whose `pos` is the tile's offset inside the 8x8 zone. */
-/** Names the zone containing `tile_x`/`tile_z` and returns the `pos` byte the
- *  sub-packets that follow must carry. Header and pos are only correct
- *  together, which is why one call produces both. */
+/*
+ * Zone updates.
+ *
+ * A zone sub-packet carries no coordinate — only `pos`, the tile's offset inside
+ * an 8x8 zone. Which zone that is comes from the UPDATE_ZONE_* packet before it,
+ * and the client keeps it as state, so the header and the sub-packets are only
+ * ever correct together. Callers are mock230_zone.c and nothing else.
+ */
+/** Name a zone as the target of the sub-packets that follow. `full` picks
+ *  UPDATE_ZONE_FULL_FOLLOWS, which also resets the client's memory of the zone;
+ *  otherwise UPDATE_ZONE_PARTIAL_FOLLOWS, which does not. Coordinates are in
+ *  zone units. */
+void
+mock230_send_zone_header(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z,
+    int full);
+
+/** One sub-packet, applied to whichever zone was last named. */
+void
+mock230_send_zone_sub(
+    struct Mock230Player* player,
+    const struct Mock230ZoneEvent* event);
+
+/** The same sub-packet, encoded into a caller-owned buffer instead of sent —
+ *  this is what makes a zone's shared blob shared. Returns the bytes written. */
 int
-mock230_send_zone(
-    struct Mock230Player* player,
-    int tile_x,
-    int tile_z);
+mock230_encode_zone_sub(
+    uint8_t* dst,
+    int max,
+    const struct Mock230ZoneEvent* event);
+
+/** A whole shared blob as one UPDATE_ZONE_PARTIAL_ENCLOSED. */
 void
-mock230_send_obj_add(
+mock230_send_zone_enclosed(
     struct Mock230Player* player,
-    int pos,
-    int obj_id,
-    int count);
-void
-mock230_send_obj_del(
-    struct Mock230Player* player,
-    int pos,
-    int obj_id);
-void
-mock230_send_obj_count(
-    struct Mock230Player* player,
-    int pos,
-    int obj_id,
-    int old_count,
-    int new_count);
-void
-mock230_send_loc_add_change(
-    struct Mock230Player* player,
-    int pos,
-    int shape,
-    int angle,
-    int loc_id);
-void
-mock230_send_loc_del(
-    struct Mock230Player* player,
-    int pos,
-    int shape,
-    int angle);
+    int zone_x,
+    int zone_z,
+    const uint8_t* blob,
+    int len);
 
 /** Phase 8: put expired loc mutations back. */
 void
@@ -2588,7 +2665,6 @@ mock230_world_loc_reverts(struct Mock230Server* srv);
 int
 mock230_world_loc_revert_queue(
     struct Mock230Server* srv,
-    int slot,
     int duration,
     int loc_id,
     int shape,

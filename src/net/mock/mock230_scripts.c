@@ -2625,7 +2625,6 @@ mock230_script_command(
         int32_t loc_id;
         int32_t duration;
         struct Mock230SceneLoc* loc = script_active_loc(state);
-        int slot;
         int was_id;
         int shape;
         int angle;
@@ -2642,7 +2641,6 @@ mock230_script_command(
             SSVM_Abort(state, "loc_change with no active loc");
             return 1;
         }
-        slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
         was_id = loc->loc_id;
         shape = loc->shape;
         angle = loc->angle;
@@ -2650,13 +2648,12 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_scene_replace_loc(slot, loc_id, angle) )
+        if( !mock230_world_loc_set(srv, x, z, level, shape, loc_id, angle) )
         {
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
         }
-        mock230_world_broadcast_loc(srv, x, z, level, shape, angle, loc_id);
-        mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
+        mock230_world_loc_revert_queue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
 
@@ -2664,7 +2661,6 @@ mock230_script_command(
     {
         int32_t duration;
         struct Mock230SceneLoc* loc = script_active_loc(state);
-        int slot;
         int was_id;
         int shape;
         int angle;
@@ -2679,7 +2675,6 @@ mock230_script_command(
             SSVM_Abort(state, "loc_del with no active loc");
             return 1;
         }
-        slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
         was_id = loc->loc_id;
         shape = loc->shape;
         angle = loc->angle;
@@ -2687,13 +2682,12 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_scene_remove_loc(slot) )
+        if( !mock230_world_loc_set(srv, x, z, level, shape, -1, angle) )
         {
             SSVM_Abort(state, "loc_del on a loc that is already gone");
             return 1;
         }
-        mock230_world_broadcast_loc(srv, x, z, level, shape, angle, -1);
-        mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
+        mock230_world_loc_revert_queue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
 
@@ -2717,18 +2711,17 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = mock230_scene_add_loc(coord_x(coord), coord_z(coord), coord_level(coord),
-                                     loc_id, shape, angle);
-        if( slot < 0 )
+        if( !mock230_world_loc_set(srv, coord_x(coord), coord_z(coord), coord_level(coord),
+                                   shape, loc_id, angle) )
         {
             SSVM_Abort(state, "loc_add %d at %d,%d failed — unknown loc or outside the scene",
                        loc_id, coord_x(coord), coord_z(coord));
             return 1;
         }
-        mock230_world_broadcast_loc(srv, coord_x(coord), coord_z(coord), coord_level(coord),
-                                    shape, angle, loc_id);
+        slot = mock230_scene_find_loc_exact(coord_x(coord), coord_z(coord),
+                                            coord_level(coord), shape);
         /* -1 says "remove it again" rather than "put something back". */
-        mock230_world_loc_revert_queue(srv, slot, duration, -1, shape, angle, coord_x(coord),
+        mock230_world_loc_revert_queue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         /* The reference leaves the added loc active, so the next `loc_change`
          * or `loc_del` in the same script addresses it without a `loc_find`. */

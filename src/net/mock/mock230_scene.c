@@ -369,7 +369,9 @@ record_loc(
         loc->size_z = config->size_z;
     }
     loc->active = 1;
-    loc->changed = 0;
+    /* From the map square, which is what makes its slot a tombstone rather than
+     * reusable once something removes it — see mock230_scene_add_loc. */
+    loc->is_static = 1;
 
     apply_loc_collision(loc, 1);
 }
@@ -587,6 +589,31 @@ mock230_scene_find_loc(
 }
 
 int
+mock230_scene_find_loc_exact(
+    int x,
+    int z,
+    int level,
+    int shape)
+{
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        struct Mock230SceneLoc* loc = &g_locs[i];
+
+        /* The loc's own corner and its own shape, and *not* its footprint: this
+         * is the mutation lookup, and a mutation addresses the loc the wire
+         * names rather than whatever a click landed on. An inactive slot still
+         * matches when it is a static tombstone, which is how a `loc_del` is
+         * undone. */
+        if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
+            continue;
+        if( !loc->active && !loc->is_static )
+            continue;
+        return i;
+    }
+    return -1;
+}
+
+int
 mock230_scene_replace_loc(
     int slot,
     int loc_id,
@@ -595,13 +622,20 @@ mock230_scene_replace_loc(
     struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
     const struct RSCache_Dat2ConfigLoc* config;
 
-    if( !loc || !loc->active )
+    if( !loc )
         return 0;
     config = loc_config(loc_id);
     if( !config )
         return 0;
 
-    apply_loc_collision(loc, 0);
+    /* An *inactive* slot is revived rather than refused, which is how a
+     * `loc_del` on a map-square loc is undone: the tombstone stays in the array
+     * (see mock230_scene_add_loc) precisely so the tile can be put back without
+     * the caller having to know whether it is currently there. Its collision is
+     * already gone, so there is nothing to take away first. */
+    if( loc->active )
+        apply_loc_collision(loc, 0);
+    loc->active = 1;
     loc->loc_id = loc_id;
     loc->angle = angle;
     if( (angle & 1) != 0 )
@@ -614,7 +648,6 @@ mock230_scene_replace_loc(
         loc->size_x = config->size_x;
         loc->size_z = config->size_z;
     }
-    loc->changed = 1;
     apply_loc_collision(loc, 1);
     return 1;
 }
@@ -645,7 +678,11 @@ mock230_scene_add_loc(
     loc = NULL;
     for( int i = 0; i < g_loc_count; i++ )
     {
-        if( !g_locs[i].active )
+        /* A *static* loc's slot is never reused, even when it is inactive: it
+         * is a tombstone. The map square still has a loc on that tile, so
+         * "removed" is a fact about the world that outlives the removal, and
+         * handing the slot to something else would lose it. */
+        if( !g_locs[i].active && !g_locs[i].is_static )
         {
             loc = &g_locs[i];
             break;
@@ -683,10 +720,9 @@ mock230_scene_add_loc(
         loc->size_z = config->size_z;
     }
     loc->active = 1;
-    /* Added rather than swapped, but `changed` means the same thing to a
-     * rebuild: the cache's version of this square does not have it, so it has
-     * to be re-sent after REBUILD_NORMAL resets the client's scene. */
-    loc->changed = 1;
+    /* Not from the map square, so its slot is free to be handed out again once
+     * something removes it. */
+    loc->is_static = 0;
     apply_loc_collision(loc, 1);
     return (int)(loc - g_locs);
 }
@@ -700,20 +736,20 @@ mock230_scene_remove_loc(int slot)
         return 0;
     apply_loc_collision(loc, 0);
     loc->active = 0;
-    loc->changed = 1;
     return 1;
 }
 
-int
-mock230_scene_next_changed_loc(int from)
-{
-    for( int i = from < 0 ? 0 : from; i < g_loc_count; i++ )
-    {
-        if( g_locs[i].active && g_locs[i].changed )
-            return i;
-    }
-    return -1;
-}
+/*
+ * `mock230_scene_next_changed_loc` was here, and with it the `changed` flag on
+ * every scene loc.
+ *
+ * It had one caller — phase 10, re-sending opened doors after a REBUILD_NORMAL —
+ * and it could never have worked: `mock230_scene_build` calls
+ * `mock230_scene_free` first, so by the time the rebuild's re-send ran, the
+ * array carrying the flags had been freed and re-read from the cache. The
+ * durable record of a loc mutation is `struct Mock230ZoneLoc` in the ZoneMap
+ * now, which is also what puts collision back (`mock230_world_locs_reapply`).
+ */
 
 /* ------------------------------------------------------------------ */
 /* Routing                                                             */

@@ -91,6 +91,20 @@ struct Peer
      *  reader that does not keep it cannot resolve a single one. */
     int tracked[64];
     int tracked_count;
+
+    /*
+     * Zone state, kept exactly the way the real client keeps it (see
+     * `rs_gameproto_exec.c`): a zone sub-packet carries no coordinate, only a
+     * `pos` inside whichever zone the last UPDATE_ZONE_* header named. A reader
+     * that does not carry that base between packets cannot place a single loc
+     * change, which is also why getting the base wrong is not a decode failure —
+     * it is loot landing a few tiles from the corpse.
+     */
+    int zone_base_x, zone_base_z;
+    /** The most recent LOC_ADD_CHANGE this client's stream carried, resolved to
+     *  an absolute tile, and how many it has seen. */
+    int saw_loc_count;
+    int saw_loc_x, saw_loc_z, saw_loc_id;
 };
 
 /*
@@ -121,6 +135,19 @@ seed_b(
     seed[1] = 0x51ced00d;
     seed[2] = 0x1a2b3c4d;
     seed[3] = 0x5e6f7a8b;
+}
+
+/* A third, for the client that arrives after the world has already changed. */
+static void
+seed_c(
+    void* user,
+    int32_t* seed)
+{
+    (void)user;
+    seed[0] = 0x2b2b2b2b;
+    seed[1] = 0x6c6c6c6c;
+    seed[2] = 0x77889900;
+    seed[3] = 0x0099aabb;
 }
 
 /*
@@ -236,6 +263,63 @@ absorb_player_info(
 }
 
 /*
+ * Record what a zone packet said, the way the client's own exec does.
+ *
+ * `origin_x`/`origin_z` are the absolute tile of the scene's south-west corner:
+ * the wire
+ * base is scene-local, so this is what turns "three tiles into zone 5" back into
+ * a tile the test can compare against the door's own coordinates. The three
+ * headers all set the base; only FULL_FOLLOWS also means "forget what you held
+ * here", which is what makes the replay that follows it exact.
+ */
+static void
+absorb_zone(
+    struct Peer* peer,
+    const struct RevPacket* packet,
+    int origin_x,
+    int origin_z)
+{
+    switch( packet->packet_type )
+    {
+    case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        peer->zone_base_x = packet->_update_zone_partial_follows.base_x;
+        peer->zone_base_z = packet->_update_zone_partial_follows.base_z;
+        break;
+    case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
+        peer->zone_base_x = packet->_update_zone_full_follows.base_x;
+        peer->zone_base_z = packet->_update_zone_full_follows.base_z;
+        break;
+    case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
+    {
+        const struct PktUpdateZoneEnclosed* enc = &packet->_update_zone_enclosed;
+
+        peer->zone_base_x = enc->base_x;
+        peer->zone_base_z = enc->base_z;
+        for( int i = 0; i < enc->count; i++ )
+        {
+            if( enc->entries[i].name != PKT_NAME_LOC_ADD_CHANGE )
+                continue;
+            peer->saw_loc_count++;
+            peer->saw_loc_id = enc->entries[i]._loc_add_change.loc_id;
+            peer->saw_loc_x =
+                origin_x + peer->zone_base_x + (enc->entries[i]._loc_add_change.pos >> 4);
+            peer->saw_loc_z =
+                origin_z + peer->zone_base_z + (enc->entries[i]._loc_add_change.pos & 7);
+        }
+        break;
+    }
+    case PKT_NAME_LOC_ADD_CHANGE:
+        peer->saw_loc_count++;
+        peer->saw_loc_id = packet->_loc_add_change.loc_id;
+        peer->saw_loc_x = origin_x + peer->zone_base_x + (packet->_loc_add_change.pos >> 4);
+        peer->saw_loc_z = origin_z + peer->zone_base_z + (packet->_loc_add_change.pos & 7);
+        break;
+    default:
+        break;
+    }
+}
+
+/*
  * Move one round of bytes in both directions for every peer, then let the
  * server act.
  *
@@ -252,6 +336,9 @@ pump(
     int run_tick,
     int chunk)
 {
+    struct Mock230Server* world;
+    int origin_x;
+    int origin_z;
     struct ToriRS_CmdHeader header;
     static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
     static uint8_t inbound[65536];
@@ -280,6 +367,12 @@ pump(
 
     mock230_embed_pump(embed, run_tick);
 
+    /* The scene's south-west corner, which is what the zone packets' bases are
+     * relative to. Read after the tick, because the tick is what can move it. */
+    world = mock230_embed_world(embed);
+    origin_x = world ? mock230_scene_origin(world->zone_x) : 0;
+    origin_z = world ? mock230_scene_origin(world->zone_z) : 0;
+
     /* server -> clients */
     for( int p = 0; p < peer_count; p++ )
     {
@@ -297,6 +390,8 @@ pump(
         {
             if( packet.packet_type == PKT_NAME_PLAYER_INFO )
                 absorb_player_info(peer, packet._player_info.data, packet._player_info.length);
+            else
+                absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
         }
     }
@@ -349,10 +444,29 @@ peer_walk_to(
     ToriRS_Network_SendRaw(&peer->net, buf, n);
 }
 
+/** Send a real OPLOC1 — the "Open" click on a door — through the same encoder
+ *  and the same ISAAC stream a real client uses. */
+static void
+peer_oploc(
+    struct Peer* peer,
+    int abs_x,
+    int abs_z,
+    int loc_id)
+{
+    uint8_t buf[64];
+    int n = net_out_oploc(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf), 1, abs_x,
+                          abs_z, loc_id);
+
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
 int
 main(void)
 {
-    struct Peer peers[2];
+    /* Three: alice and bob, who are here when the door opens, and carol, who is
+     * not. Carol is the whole point of the zone map. */
+    struct Peer peers[3];
     struct Mock230Embed* embed;
     struct Mock230Server* world;
     struct Mock230Player* alice;
@@ -522,6 +636,81 @@ main(void)
               "bob's client was re-told about alice after she teleported");
         check(strcmp(peers[1].saw_name, "alice") == 0, "and it was still alice");
         check(!peers[1].saw_unknown_target, "with the remove and the re-add in step");
+    }
+
+    /*
+     * ── Does a door one player opens stay open for the next one? ─────
+     *
+     * The check the ZoneMap exists for, and the half a broadcast could never
+     * do. A loc change used to be sent to whoever was standing there at the
+     * time and to nobody else, ever: the server kept no record a later client
+     * could be caught up from, and REBUILD_NORMAL hands that client a scene
+     * straight out of the cache with every door shut. So the two halves are
+     * asserted separately —
+     *
+     *   1. bob, who is already connected, is told when alice opens it. That is
+     *      the broadcast's job and it worked before.
+     *   2. carol, who connects afterwards, is told the same thing without
+     *      anybody touching the door again. That is the replay, and it is new.
+     *
+     * Both are read out of the *decoded* stream rather than off the server, for
+     * the same reason the PLAYER_INFO checks above are: the server believing the
+     * door is open proves nothing about what a client would draw.
+     *
+     * The door is the one the selftest uses — Lumbridge castle's courtyard door
+     * at 3226,3223, which the content tree pairs 1535 (closed) with 1536 (open).
+     */
+    {
+        const int door_x = 3226;
+        const int door_z = 3223;
+        const int door_closed = 1535;
+        const int door_open = 1536;
+        int third;
+        int carol_saw_before;
+
+        peers[0].saw_loc_count = 0;
+        peers[1].saw_loc_count = 0;
+
+        /* Put alice beside it and let the placement settle before she clicks —
+         * `handle_oploc` walks first and acts on arrival, so a click sent from
+         * across Lumbridge would resolve some ticks later and make the rest of
+         * this section depend on how many rounds were pumped. */
+        mock230_world_set_active(world, alice);
+        mock230_world_teleport(world, 0, door_x - 1, door_z);
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        peer_oploc(&peers[0], door_x, door_z, door_closed);
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(peers[0].saw_loc_id == door_open && peers[0].saw_loc_count > 0,
+              "alice's own client was told the door opened");
+        check(peers[0].saw_loc_x == door_x && peers[0].saw_loc_z == door_z,
+              "on the door's own tile, so the zone base survived the wire");
+        check(peers[1].saw_loc_count > 0 && peers[1].saw_loc_id == door_open,
+              "and so was bob, who was standing somewhere else entirely");
+
+        /* ── The late arrival ── */
+        third = mock230_embed_connect(embed);
+        check(third >= 0, "the embed opened a third client");
+        if( third >= 0 )
+        {
+            peer_login(&peers[2], third, seed_c, "carol");
+            carol_saw_before = peers[2].saw_loc_count;
+            for( int round = 0; round < 40; round++ )
+                pump(peers, 3, embed, round % 2 == 0, 7);
+
+            check(mock230_embed_online(embed, third), "carol handshaked into the same world");
+            check(peers[2].saw_loc_count > carol_saw_before,
+                  "carol's client was told about a loc it never saw change");
+            check(peers[2].saw_loc_id == door_open,
+                  "and it was the open door, not the closed one");
+            check(peers[2].saw_loc_x == door_x && peers[2].saw_loc_z == door_z,
+                  "on the same tile alice opened");
+
+            ToriRS_Network_Free(&peers[2].net);
+        }
     }
 
     ToriRS_Network_Free(&peers[0].net);

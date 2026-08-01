@@ -259,7 +259,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
 	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	net/mock/mock230_scene.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+	net/mock/mock230_scene.c net/mock/mock230_zone.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 
