@@ -4478,6 +4478,16 @@ void
 mock230_world_tick(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
+    /*
+     * The tick borrows `active_player` and gives it back.
+     *
+     * Every per-player phase below moves it, so without this a caller that had
+     * set it — a host between ticks, the selftest driving one player directly —
+     * would find it pointing at whoever the pool happened to end on. Restoring
+     * is not the same as it being meaningless outside a phase: it is, and a
+     * host that reads it without having set it is reading a leftover.
+     */
+    struct Mock230Player* caller_active = srv->active_player;
 
     srv->tick++;
 
@@ -4501,10 +4511,7 @@ mock230_world_tick(struct Mock230Server* srv)
     phase_clients_out(srv);
     phase_cleanup(srv);
 
-    /* Nobody's turn between ticks. A read of `active_player` from outside a
-     * phase or a packet handler is a bug, and leaving the last player of the
-     * tick in the field is what would let it look like it worked. */
-    mock230_world_set_active(srv, NULL);
+    mock230_world_set_active(srv, caller_active);
 }
 
 /* ------------------------------------------------------------------ */
@@ -4545,6 +4552,28 @@ enum
             g_selftest_failures++;                                                                 \
         }                                                                                          \
     } while( 0 )
+
+/*
+ * Put the world and the player back to a known state at a chosen origin zone.
+ *
+ * The selftest ran `mock230_world_init` for this, back when that call *was*
+ * "reset everything and put the player on the home tile". It is the world half
+ * only now, and idempotent, so a section that wants a clean world has to say so
+ * — which is the point: a second *login* must not reset the world, and a test
+ * that wants one is a different caller with a different need.
+ */
+static void
+selftest_reset_world(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z)
+{
+    mock230_world_reset(srv);
+    mock230_world_init(srv, zone_x, zone_z);
+    mock230_world_player_init(player);
+    mock230_world_set_active(srv, player);
+}
 
 /* Find the backpack slot holding `obj_id`, or -1. */
 /*
@@ -5986,7 +6015,7 @@ mock230_world_selftest(void)
              * rather than as a move of one the client already has — which by
              * now it has done, so the observable end state is that this client
              * has been told about it again. */
-            SELFTEST_CHECK(player->npc_tracked[slot],
+            SELFTEST_CHECK(player->npc_tracked[goblin],
                            "and re-added to the client's npc list");
         }
     }
@@ -7773,7 +7802,7 @@ mock230_world_selftest(void)
         int lsb = 0;
         int msb = 0;
 
-        mock230_world_init(&srv, 402, 402);
+        selftest_reset_world(&srv, player, 402, 402);
         /* 1,410 in rev 239; the bank grows with almost every OldSchool update, so
          * this is a claim about cache.osrs239 and not about banks in general. */
         SELFTEST_CHECK(mock230_bank_inv_size(ids->inv_bank) == 1410,
@@ -7815,7 +7844,7 @@ mock230_world_selftest(void)
         struct Mock230Bank* bank = &player->bank;
         int coins_before;
 
-        mock230_world_init(&srv, 402, 402);
+        selftest_reset_world(&srv, player, 402, 402);
         /* The fixture this whole section deposits and withdraws is content's
          * now — see selftest_seed_new_player. */
         if( !selftest_seed_new_player(&srv) )
@@ -7941,7 +7970,7 @@ mock230_world_selftest(void)
     {
         struct Mock230Bank* bank = &player->bank;
 
-        mock230_world_init(&srv, 402, 402);
+        selftest_reset_world(&srv, player, 402, 402);
 
         /*
          * The conditional row list from script 669. With the default quantity
@@ -7987,7 +8016,7 @@ mock230_world_selftest(void)
             10 /* UPDATE_INV_FULL */,
         };
 
-        mock230_world_init(&srv, 402, 402);
+        selftest_reset_world(&srv, player, 402, 402);
         mock230_capture_begin(&srv, &capture);
         mock230_bank_open(&srv);
         mock230_capture_end(&srv);
