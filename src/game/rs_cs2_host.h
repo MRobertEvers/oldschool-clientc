@@ -16,6 +16,46 @@ struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
+struct RS_Social;
+
+/*
+ * Outbound social requests a CS2 script made.
+ *
+ * The friends panel's buttons are pure CS2: "Add Friend" runs the cache's own
+ * onop, which opens a name prompt, and Enter runs clientscript 681, which calls
+ * friend_add / ignore_del / chat_setfilter / chat_sendprivate. Each of those
+ * has to reach the server, and this host has no network pointer — so the
+ * request is parked here and the App drains it on the next tick, which is the
+ * shape `logout_requested` and `close_modal_requested` already use. Unlike
+ * those two these carry arguments, and more than one can arrive in a tick
+ * (script 681 sends a CHAT_SETMODE and a private message in a single run), so
+ * it is a small queue rather than a flag.
+ */
+enum RS_CS2SocialSendKind
+{
+    RS_CS2_SOCIAL_SEND_NONE = 0,
+    RS_CS2_SOCIAL_SEND_FRIEND_ADD,
+    RS_CS2_SOCIAL_SEND_FRIEND_DEL,
+    RS_CS2_SOCIAL_SEND_IGNORE_ADD,
+    RS_CS2_SOCIAL_SEND_IGNORE_DEL,
+    RS_CS2_SOCIAL_SEND_CHAT_SETMODE,
+    RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE,
+};
+
+#define RS_CS2_HOST_SOCIAL_SEND_MAX 8
+#define RS_CS2_HOST_SOCIAL_NAME_LEN 32
+#define RS_CS2_HOST_SOCIAL_TEXT_LEN 200
+
+struct RS_CS2SocialSend
+{
+    int kind; /* enum RS_CS2SocialSendKind */
+    /** Target player: the four list ops and MESSAGE_PRIVATE. */
+    char name[RS_CS2_HOST_SOCIAL_NAME_LEN];
+    /** Message body: MESSAGE_PRIVATE only. */
+    char text[RS_CS2_HOST_SOCIAL_TEXT_LEN];
+    /** public / private / trade: CHAT_SETMODE only. */
+    int modes[3];
+};
 
 #define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 128
@@ -93,6 +133,18 @@ struct RS_CS2Host
      *  NULL, in which case those read 0 — which is what the skills tab used to
      *  show unconditionally. */
     struct RS_PlayerStats* stats;
+    /** The client's friend / ignore store, backing the FRIEND_* / IGNORE_*
+     *  opcodes. May be NULL, in which case friend_count answers 0 and the
+     *  panels draw their empty state — which is exactly what they did before
+     *  those opcodes had handlers at all. */
+    struct RS_Social* social;
+    /** The three chat filter modes, borrowed from RS_UISlots — the same three
+     *  ints the IF1 privacy bar cycles. A pointer rather than a copy because
+     *  CHAT_SETFILTER and the privacy bar are two writers of one value and the
+     *  second copy is the bug this avoids. NULL leaves the getters at 0. */
+    int* chat_filter_mode;
+    /** This client's world id, backing MAP_WORLD. Mirrors RS_Social.node_id.  */
+    int map_world;
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     bool has_pending;
@@ -213,6 +265,13 @@ struct RS_CS2Host
      *  RS_CS2Host_NotifyMiscChanged; without it the run orb showed its
      *  build-time value until some unrelated interface event repainted it. */
     int misc_transmit_dirty;
+    /** Set when the friend/ignore store changed — a friend's world, a list
+     *  entry, the friend-server status or the chat filter modes. No id set
+     *  beside it for the same reason as misc: IF_SETONFRIENDTRANSMIT carries no
+     *  trigger list, so every registered hook re-runs. Wired to the four social
+     *  packets via RS_CS2Host_NotifyFriendChanged. Without it the friends panel
+     *  paints once at mount and never again. */
+    int friend_transmit_dirty;
     /** Which container ids changed since the last dispatch, mirroring
      *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
     int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
@@ -289,6 +348,13 @@ struct RS_CS2Host
     int* db_find_rows;
     int db_find_count;
     int db_find_cursor;
+
+    /** Outbound social requests a CS2 script queued this tick; drained by
+     *  RS_CS2Host_TakeSocialSend. Overflow drops the newest and says so once —
+     *  silently losing a friend add would look exactly like a server bug. */
+    struct RS_CS2SocialSend social_send[RS_CS2_HOST_SOCIAL_SEND_MAX];
+    int social_send_count;
+    int social_send_head;
 };
 
 void
@@ -321,6 +387,33 @@ RS_CS2Host_NotifyStatChanged(
  *  the value ACTUALLY changed; the walk touches every component. */
 void
 RS_CS2Host_NotifyMiscChanged(struct RS_CS2Host* host);
+
+/** Give the host the client's friend/ignore store, the three chat filter modes
+ *  it shares with the privacy bar, and this client's world id. Separate from
+ *  Init for the same reason SetStats is: all three outlive a host re-init.
+ *  `filter_modes` points at RS_UISlots.chat_filter_mode — three ints indexed by
+ *  RS_UI_CHAT_FILTER_{PUBLIC,PRIVATE,TRADE}. */
+void
+RS_CS2Host_SetSocial(
+    struct RS_CS2Host* host,
+    struct RS_Social* social,
+    int* filter_modes,
+    int world);
+
+/** Signal that the friend/ignore store changed and flag a friend-transmit
+ *  re-dispatch for the tick. No id: IF_SETONFRIENDTRANSMIT carries no trigger
+ *  set, so every registered hook re-runs. Wired to UPDATE_FRIENDLIST,
+ *  UPDATE_IGNORELIST, FRIENDLIST_LOADED and CHAT_FILTER_SETTINGS. */
+void
+RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host);
+
+/** Pop the oldest queued outbound social request, FIFO. Returns false when the
+ *  queue is empty. The App drains this once per tick and turns each entry into
+ *  a packet; nothing else may consume it. */
+bool
+RS_CS2Host_TakeSocialSend(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend* out);
 
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change

@@ -261,7 +261,14 @@ enum Mock230CombatParam
     MOCK230_PARAM_RANGEDEFENCE = 9,
     MOCK230_PARAM_STRENGTHBONUS = 10,
     MOCK230_PARAM_PRAYERBONUS = 11,
-    MOCK230_PARAM_BONUS_COUNT = 12
+    MOCK230_PARAM_BONUS_COUNT = 12,
+    /*
+     * How many authored `param=` rows one npc block can carry, for the by-id
+     * copy `npc_param` reads. `apply_param` knows twenty names — the twelve
+     * bonuses plus eight singles — so this is that with room to grow, and
+     * overflow is an error rather than a silent drop.
+     */
+    MOCK230_NPCDEF_PARAM_MAX = 24
 };
 
 /* Cache param ids that are not bonuses. `ATTACKRATE` is ticks between swings;
@@ -342,6 +349,26 @@ struct Mock230NpcDef
     int death_anim;
     int death_drop; /* obj id, -1 for `param=death_drop,null` */
 
+    /*
+     * The same authored params again, filed under their param *id*.
+     *
+     * The fields above are what the engine reads; this is what `npc_param`
+     * reads, because a script names a param by id and has no way back to a C
+     * field name. Rank 1 in CONTENT_ARCHITECTURE.md §3.1's sense — an authored
+     * overlay value that overrides the cache record's own param table — so the
+     * opcode reads this first and `mock230_npc_param` second.
+     *
+     * Only params whose name the pack knows land here. `death_drop` (2634) is
+     * the one that has always been script-visible, and it was visible by having
+     * its name spelled in C.
+     */
+    struct
+    {
+        int32_t key;
+        int32_t value;
+    } params[MOCK230_NPCDEF_PARAM_MAX];
+    int param_count;
+
     /** The block stated `hitpoints=`. Everything else has a defensible
      *  default; hitpoints is the one that says "this is meant to be fought",
      *  and the difference matters to the validator — a speaking npc inherits
@@ -388,6 +415,22 @@ mock230_content_npc(int npc_id);
  *  Never NULL. */
 const struct Mock230NpcDef*
 mock230_content_npc_default(void);
+
+/**
+ * An authored `param=` row off an npc block, by param id.
+ *
+ * Returns 1 and writes `*out` when the block stated the param, 0 when it did
+ * not — which is a different answer from "the value is 0", and the caller needs
+ * both: `npc_param` reads this first (rank 1) and falls back to the cache
+ * record's own param table (rank 0), then to the param's declared `default=`.
+ *
+ * A NULL def reports 0, so the caller does not branch twice.
+ */
+int
+mock230_content_npc_param(
+    const struct Mock230NpcDef* def,
+    int param_id,
+    int32_t* out);
 
 /* Obj bonuses are not repeated here: they live on `struct Mock230ObjInfo` in
  * mock230.h, beside the wearpos fields, because both come out of the same

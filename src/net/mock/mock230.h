@@ -21,6 +21,7 @@
  *   mock230_scripts.c    the ServerScript host seam (166 of 396 opcodes)
  *   mock230_content.c    the LostCity content tree: packs, configs, map spawns
  *   mock230_objinfo.c    obj metadata (name / wearpos / stackable) from the cache
+ *   mock230_friends.c    friend / ignore / private-chat state, keyed by name
  *
  * ── How the three structures relate ──────────────────────────────────
  *
@@ -94,6 +95,51 @@
 
 struct Mock230Conn;
 struct Mock230Session;
+
+/* ------------------------------------------------------------------ */
+/* Coordinates                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * RuneScript packs a coord into one int as
+ * (level << 28) | ((mx * 64 + lx) << 14) | (mz * 64 + lz).
+ *
+ * The compiler emits coord literals this way (`ssc_lex.c`) and the host has to
+ * read them the same way, so this is a wire agreement between two halves of
+ * this repo rather than a convenience.
+ *
+ * It is stated here because it was already stated in five places —
+ * mock230_scripts.c's four file-local statics, mock230_db.c, mock230_worldmap.c,
+ * mock230_world.c and ssc_lex.c — and a per-domain opcode file that needs a
+ * coord had no way to reach any of them. Adding a sixth private copy is the
+ * drift this repo has paid for before, so the shared form lives in the header
+ * the domain files already include. **The statics in mock230_scripts.c should
+ * be deleted in favour of these**; that is a pure deletion and it needs the
+ * one-time mock230_scripts.c exception this lane does not hold.
+ */
+static inline int32_t
+mock230_coord_pack(int level, int x, int z)
+{
+    return (int32_t)(((uint32_t)level << 28) | ((uint32_t)x << 14) | (uint32_t)z);
+}
+
+static inline int
+mock230_coord_level(int32_t coord)
+{
+    return (int)(((uint32_t)coord >> 28) & 0x3);
+}
+
+static inline int
+mock230_coord_x(int32_t coord)
+{
+    return (int)(((uint32_t)coord >> 14) & 0x3fff);
+}
+
+static inline int
+mock230_coord_z(int32_t coord)
+{
+    return (int)((uint32_t)coord & 0x3fff);
+}
 
 /* ------------------------------------------------------------------ */
 /* Limits                                                              */
@@ -572,17 +618,30 @@ struct Mock230NpcInfo
      *  an npc a valid combat target — the same test the client's minimenu
      *  makes, so the two ends agree without a second attackability list. */
     const char* ops[5];
+    /**
+     * Config opcode 18 (`dat2_config_npc.c:666`) — the record's own category
+     * id, 0 when it states none. The middle rung of the trigger lookup
+     * (`SSVM_ProviderGetByTrigger`: exact type, then category, then `_`).
+     *
+     * A raw cache id, deliberately: content names one through
+     * `pack/category.pack` and compares, so no name is ever spelled in C.
+     * 9,149 of cache.osrs239's 16,292 npc records carry one, 1,585 of those on
+     * a record with no name.
+     *
+     * Two accessors read this field and each is right for its caller.
+     * `mock230_npc_category()` states once the -1 that means "no category
+     * rung", because 0 is the decoder's "unstated" *and* would be a legal id.
+     * `mock230_npcinfo_record()` is the ungated row, for the callers where a
+     * nameless multinpc instance still has to answer — `mock230_npcinfo()`
+     * gates on the record having a name, which is right for player-facing text
+     * and wrong here.
+     */
+    int category;
     /** Same param table as the obj records, same indices. cache.osrs230's
      *  Goblin (3028) reads strengthbonus -15 and five defences of -15. */
     int bonus[12];
     int attackrate;
     int has_params;
-    /** Config opcode 18, the record's own category — the middle rung of the
-     *  trigger lookup (`SSVM_ProviderGetByTrigger`: exact type, then category,
-     *  then `_`). Zero is the decoder's default for "unstated" *and* would be a
-     *  legal id, so read it through `mock230_npc_category()`, which states the
-     *  -1 that means "no category rung" once. */
-    int category;
 };
 
 /*
@@ -671,6 +730,108 @@ mock230_npcinfo(int npc_id);
  */
 int
 mock230_npcinfo_known(int npc_id);
+
+/**
+ * The decoded row, or NULL — **without** the name gate `mock230_npcinfo` puts
+ * in front of it.
+ *
+ * The gated accessor exists so a name always renders as something, and that is
+ * right for the player-facing text it was written for. It is wrong for reading
+ * a *field*: 1,585 of the 9,149 cache.osrs239 npc records that carry a category
+ * carry no name, and 177 records declare a menu op without one, so a gated read
+ * would report "no category" and "no ops" for every one of them — data that is
+ * there, hidden by a question nobody asked.
+ *
+ * Returns NULL when the id is out of range or the cache never loaded, so a
+ * caller has one branch rather than a placeholder that looks like a record.
+ */
+const struct Mock230NpcInfo*
+mock230_npcinfo_record(int npc_id);
+
+/* ------------------------------------------------------------------ */
+/* loc and struct configs (mock230_locinfo.c, mock230_structinfo.c)    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Two more config tables, for the `lc_*` / `loc_*` reads and `struct_param`.
+ *
+ * A `struct` record is a param map and nothing else, so struct exposes only
+ * params. Loc exposes params plus the three fields the script host asks for by
+ * id — name and footprint — because `lc_name`/`lc_width`/`lc_length` name a loc
+ * that need not be anywhere near the scene. Everything else about a loc really
+ * is the scene's business. The row type is the shared `struct Mock230ParamRow`
+ * (mock230_paramtable.h) rather than a per-table clone of the same four fields.
+ */
+struct Mock230ParamRow;
+
+/** The param, or NULL when this loc does not carry it. */
+const struct Mock230ParamRow*
+mock230_loc_param(int loc_id, int param_id);
+
+/**
+ * The loc's display name, or NULL when the record carries none.
+ *
+ * Borrowed, and valid until `mock230_locinfo_free`. `loc_name` / `lc_name` push
+ * the reference's `'null'` in the NULL case; 32,161 of cache.osrs239's 62,194
+ * records land there.
+ */
+const char*
+mock230_loc_name(int loc_id);
+
+/**
+ * The record's **unrotated** footprint. Writes 1x1 — the decoder's own default
+ * — for an id with no override and for an id with no record, so a caller never
+ * has to branch on whether the cache loaded.
+ *
+ * Not the same as `struct Mock230SceneLoc`'s size_x/size_z, which have already
+ * been rotated by the placed angle.
+ */
+void
+mock230_loc_footprint(int loc_id, int* out_width, int* out_length);
+
+/**
+ * Does the config group hold a record for this id? (The reference's
+ * `LocTypeValid`.)
+ *
+ * Reports 0 for everything when the cache is absent, so a caller that wants to
+ * degrade rather than abort tests `mock230_locinfo_count()` first — see
+ * `check_loc_id` in mock230_ops_loc.c.
+ */
+int
+mock230_loc_known(int loc_id);
+
+/** The param, or NULL when this struct does not carry it. */
+const struct Mock230ParamRow*
+mock230_struct_param(int struct_id, int param_id);
+
+/** Decode the loc / struct config groups once. Returns 0 when the cache is
+ *  absent, in which case every lookup reports "not carried" and the server
+ *  still runs — content then reads the param's declared default. */
+int
+mock230_locinfo_load(const char* cache_dir);
+
+void
+mock230_locinfo_free(void);
+
+int
+mock230_structinfo_load(const char* cache_dir);
+
+void
+mock230_structinfo_free(void);
+
+/** Records decoded and rows retained, for the tests and the boot line. */
+int
+mock230_locinfo_count(void);
+int
+mock230_locinfo_param_count(void);
+int
+mock230_locinfo_name_count(void);
+int
+mock230_locinfo_size_count(void);
+int
+mock230_structinfo_count(void);
+int
+mock230_structinfo_param_count(void);
 
 /* ------------------------------------------------------------------ */
 /* Packet capture (selftest only)                                      */
@@ -1295,6 +1456,25 @@ struct Mock230Player
      *  answer than the one the client already sent. */
     char display_name[32];
 
+    /*
+     * `display_name` packed base 37 — the key everything social is filed under.
+     *
+     * Cached here rather than re-packed at each use because it is the *identity*
+     * the friend service knows this player by, and the two must not be able to
+     * drift: mock230_world_set_display_name is the one place that writes both.
+     * 0 for a player whose name never arrived (the selftest's, before it is
+     * given one), which the service rejects as an invalid name.
+     */
+    int64_t name37;
+
+    /**
+     * The reference's `socialProtect`: one social packet per tick, spent by the
+     * first of the six that arrives and cleared in phase 11 (the reference
+     * clears it in `resetEntity`). Read and written only through
+     * mock230_friends_social_gate.
+     */
+    int social_protect;
+
     /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
      * above, since the mask is what carries them to the client. */
     /** Npc slot being fought, or -1. */
@@ -1368,6 +1548,29 @@ struct Mock230Hooks
     const struct SSVM_Script* equip_level_message;
     const struct SSVM_Script* equipment_refresh;
     const struct SSVM_Script* equipment_open;
+
+    /*
+     * Friend presence.
+     *
+     * The reference has no equivalent and never could: its 2004 client derived
+     * "X has logged in." for itself from the world-id transitions in
+     * UPDATE_FRIENDLIST, so no server ever worded it. At rev 230 the client
+     * dropped that derivation and the notification arrives as a server
+     * MESSAGE_GAME — which makes the sentence the server's to say, and a
+     * sentence the server says is content's to word
+     * (CONTENT_ARCHITECTURE.md §8.2(a)).
+     *
+     * Both take one string, the display name. The engine supplies the name
+     * because only the engine knows it; it supplies nothing else, and in
+     * particular it does not decide whether anything is said at all — a tree
+     * that does not define these procs is a tree whose players are not
+     * notified, which is a policy a content author can now choose.
+     *
+     * Addressed per *follower*: see social_notify_followers in
+     * mock230_world.c, which is what makes `mes` reach the right chatbox.
+     */
+    const struct SSVM_Script* friend_login_notification;
+    const struct SSVM_Script* friend_logout_notification;
 };
 
 struct Mock230Server
@@ -2386,6 +2589,26 @@ int
 mock230_scripts_report_fallbacks(struct Mock230Server* srv);
 
 /**
+ * The cache menu verb this engine answers itself for `[<trigger>,<subject>]`,
+ * or NULL if it answers none.
+ *
+ * The inverse question to `mock230_scripts_fallback`'s. That one asks "did
+ * content claim this at runtime"; this asks, of a binding, "was there an engine
+ * behaviour here to claim" — which is answerable at load, before any player has
+ * clicked anything. `subject` is an exact type id; a category or wildcard
+ * binding names no record and gets NULL.
+ */
+const char*
+mock230_world_engine_claimed_verb(
+    int trigger,
+    int32_t subject);
+
+/** Name every trigger content binds over a verb the engine answers itself and
+ *  does not re-issue. Returns the count; 0 is the state to keep. Triage §7.7. */
+int
+mock230_scripts_report_shadowed_ops(struct Mock230Server* srv);
+
+/**
  * Dispatch a click on component `uid` to `[if_button,...]`, both ways round.
  *
  * A rev-230 component uid is `(interface << 16) | child` and the compiled
@@ -2653,6 +2876,56 @@ mock230_ops_db(
     int opcode,
     int dot);
 
+/** The `*_param` family. See mock230_ops_param.c. */
+int
+mock230_ops_param(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** The `loc_*` / `lc_*` config reads. See mock230_ops_loc.c. The loc family's
+ *  *mutating* half stays in mock230_scripts.c's switch, with the scene and the
+ *  revert queue it needs. */
+int
+mock230_ops_loc(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** The `npc_*` / `nc_*` config reads and the hunt iterators. See
+ *  mock230_ops_npc.c. Addressing, lifecycle and the mode machine stay in
+ *  mock230_scripts.c's switch, with the world state they mutate. */
+int
+mock230_ops_npc(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/*
+ * Push a param onto the stack its *declaration* calls for — the shared seam of
+ * the whole `*_param` family, defined in mock230_ops_param.c.
+ *
+ * It is shared rather than copied because the choice of stack is the entire
+ * difficulty of the `runtime_typed` family and it does not vary by table — only
+ * the lookup does. Two copies would be two places for the declared-vs-stored
+ * disagreement to be handled differently, and that disagreement is the one
+ * thing in this family worth being loud about.
+ *
+ * `sval`/`ival` are the stored value and `present` says whether the record
+ * carried the param at all; a caller with no row passes present = 0 and the
+ * other two are ignored. `record_kind`/`record_id` name the record in the abort
+ * message and nothing else.
+ */
+void
+mock230_push_typed_param(
+    struct SSVM_State* state,
+    int param_id,
+    const char* sval,
+    int32_t ival,
+    int present,
+    const char* record_kind,
+    int record_id);
+
 /* ------------------------------------------------------------------ */
 /* Encoders (mock230_encode.c)                                         */
 /* ------------------------------------------------------------------ */
@@ -2801,6 +3074,58 @@ void
 mock230_send_unset_map_flag(struct Mock230Player* player);
 void
 mock230_send_tick_end(struct Mock230Player* player);
+
+/*
+ * Social. The five server->client packets of the friend / ignore / private-chat
+ * feature; docs/FRIENDS_PRIVATE_CHAT.md §3.2 is the wire table and
+ * src/net/mock/mock230_friends.h is the service that decides what goes in them.
+ *
+ * These encoders decide nothing. In particular `world` below is already the
+ * answer `isVisibleTo` gave — 0 means "offline OR not visible to this viewer",
+ * and the encoder cannot tell which, deliberately, because the client cannot
+ * either.
+ */
+
+/** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
+ *  per friend) and every delta afterwards use this. */
+void
+mock230_send_update_friendlist(
+    struct Mock230Player* player,
+    int64_t name37,
+    int world);
+
+/** The whole ignore list: p8 name37 * count. The client replaces its store
+ *  wholesale, so there is no single-entry form. */
+void
+mock230_send_update_ignorelist(
+    struct Mock230Player* player,
+    const int64_t* names37,
+    int count);
+
+/** 0 loading, 1 connecting, 2 online. Sent once, after the login dump. */
+void
+mock230_send_friendlist_loaded(
+    struct Mock230Player* player,
+    int status);
+
+/** An incoming private message. `message_id` must be non-zero — the client
+ *  dedupes against a zero-filled ring and drops a 0. */
+void
+mock230_send_message_private(
+    struct Mock230Player* player,
+    int64_t from37,
+    int32_t message_id,
+    int staff_mod,
+    const char* text);
+
+/** The three chat filter modes, echoed back so the client's UI agrees with the
+ *  server's copy. */
+void
+mock230_send_chat_filter_settings(
+    struct Mock230Player* player,
+    int public_mode,
+    int private_mode,
+    int trade_mode);
 
 /** Whole container. `component` is the packed (interface << 16 | child) uid the
  *  container binds to. */

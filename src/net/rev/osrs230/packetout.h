@@ -126,6 +126,29 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     /* Chat. */
     { PKTOUT_NAME_MESSAGE_PUBLIC,      75,  PKTOUT_LENGTH_VARU8 },
     { PKTOUT_NAME_CLIENT_CHEAT,        76,  PKTOUT_LENGTH_VARU8 },
+
+    /*
+     * Social. Opcodes 3..8 are assigned here like most of this table — they
+     * were free (the used set below 128 is 0,9..11,13,15..22,24..26,30..37,
+     * 40..49,54,55,57..59,61..64,71,75,76,86,90..100) and 14/16 are the login
+     * driver's and deliberately avoided.
+     *
+     * All six builders already existed in net_out.c and had no rev-230 opcode,
+     * so `packetout_code_osrs230` returned -1 and `out_begin` refused: every
+     * social send this client made at rev 230 wrote nothing. These rows are what
+     * turn them on. Payloads are lc254's, which is what net_out.c writes and
+     * what src/net/mock decodes:
+     *
+     *   FRIENDLIST_ADD/DEL, IGNORELIST_ADD/DEL  p8 name37
+     *   CHAT_SETMODE                            p1 public, p1 private, p1 trade
+     *   MESSAGE_PRIVATE                         p8 to37 + wordpacked text
+     */
+    { PKTOUT_NAME_FRIENDLIST_ADD,      3,   8 },
+    { PKTOUT_NAME_FRIENDLIST_DEL,      4,   8 },
+    { PKTOUT_NAME_IGNORELIST_ADD,      5,   8 },
+    { PKTOUT_NAME_IGNORELIST_DEL,      6,   8 },
+    { PKTOUT_NAME_CHAT_SETMODE,        7,   3 },
+    { PKTOUT_NAME_MESSAGE_PRIVATE,     8,   PKTOUT_LENGTH_VARU8 },
 };
 /* clang-format on */
 

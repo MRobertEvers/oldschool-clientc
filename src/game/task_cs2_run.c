@@ -738,6 +738,10 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
+    case CS2VM_HOST_REQUEST_SOCIAL:
+    case CS2VM_HOST_REQUEST_CHAT:
+    case CS2VM_HOST_REQUEST_MAP_WORLD:
     case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
     case CS2VM_HOST_REQUEST_IF_SETOP:
     case CS2VM_HOST_REQUEST_IF_SETOPBASE:
@@ -830,6 +834,29 @@ Task_CS2Run_Run(
                 {
                     char const* s =
                         str_i < self->str_arg_count ? self->str_args[str_i] : "";
+                    /*
+                     * `event_opbase` is the one event local that is a STRING,
+                     * so it travels in the arg list as its own literal name
+                     * rather than as one of the CS2VM_SCRIPT_ARG_* int
+                     * sentinels. Substituting it is the same mechanism
+                     * task_cs2_set_int_local applies to the int ones.
+                     *
+                     * The friends and ignore rows are what surfaced it: each
+                     * row does cc_setopbase("<col=ff9040><name></col>") and
+                     * then cc_setonop("script126(event_opindex, event_opbase,
+                     * ...)"), and script 126 opens the private-message prompt
+                     * on removetags(that) — the removetags is there precisely
+                     * because the value arrives with the colour tags on. Left
+                     * unsubstituted, "Message" on a friend addressed a player
+                     * literally called `event_opbase`.
+                     */
+                    if( strcmp(s, "event_opbase") == 0 )
+                    {
+                        int32_t opb = UITree_FindByComponentId(
+                            self->host->tree, self->active_component_id);
+                        if( opb >= 0 )
+                            s = self->host->tree->components[opb].menu_options.option;
+                    }
                     (void)CS2VM2_SetStringCurrentFrameLocal(thread, str_i, s);
                     str_i++;
                 }
@@ -1861,16 +1888,23 @@ static struct ToriRS_TaskVTable Task_CS2MiscTransmitDispatch_VTable = {
     .free = Task_CS2MiscTransmitDispatch_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
+/* One walker, two channels: `slot_of` picks which hook field to snapshot. Both
+ * channels are "no trigger list, re-run everything", so the only difference
+ * between them is that one word. */
+static struct ToriRS_Task*
+create_no_trigger_transmit_dispatch(
+    struct RS_CS2Host* host,
+    char const* task_name,
+    struct UITreeRuntimeScriptHook const* (*slot_of)(struct UITreeComponent const*))
 {
     struct Task_CS2MiscTransmitDispatch* self;
 
     assert(host);
+    assert(slot_of);
     self = calloc(1, sizeof(*self));
     assert(self);
     self->task.vtable = &Task_CS2MiscTransmitDispatch_VTable;
-    strcpy(self->task.name, "CS2MiscTransmitDispatch");
+    snprintf(self->task.name, sizeof(self->task.name), "%s", task_name);
     self->host = host;
 
     if( host->tree )
@@ -1880,7 +1914,7 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
              i++ )
         {
             struct UITreeComponent const* node = &host->tree->components[i];
-            struct UITreeRuntimeScriptHook const* slot = &node->runtime_hooks.on_misc_transmit;
+            struct UITreeRuntimeScriptHook const* slot = slot_of(node);
             struct Task_CS2SubChangeHook* dst;
 
             if( node->freed || slot->script_id <= 0 )
@@ -1899,4 +1933,40 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
 
     PT_INIT(&self->pt);
     return &self->task;
+}
+
+static struct UITreeRuntimeScriptHook const*
+misc_transmit_slot(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_misc_transmit;
+}
+
+static struct UITreeRuntimeScriptHook const*
+friend_transmit_slot(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_friend_transmit;
+}
+
+struct ToriRS_Task*
+CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2MiscTransmitDispatch", misc_transmit_slot);
+}
+
+/*
+ * Friend-transmit dispatch — the friends (429) and ignore (432) side panels.
+ *
+ * The same walker as misc for the same reason: IF_SETONFRIENDTRANSMIT carries
+ * no trigger list, so a change to the friend store re-runs every registered
+ * hook. The hooks re-entered here are scripts 631 and 630, which are one-line
+ * forwarders to the list builders 125 and 129 — and those cc_deleteall the row
+ * container and rebuild it, which is exactly the "a hook mutates the tree
+ * underneath the walk" case the up-front snapshot exists for.
+ */
+struct ToriRS_Task*
+CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2FriendTransmitDispatch", friend_transmit_slot);
 }

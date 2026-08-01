@@ -177,7 +177,8 @@ RS_CS2_PumpTransmits(
      * dispatch tasks keeps up-to-date hooks from re-firing, so a quiet tick
      * runs zero scripts. */
     if( !host->widgets_loaded_dirty && !host->var_transmit_dirty &&
-        !host->inv_transmit_dirty && !host->misc_transmit_dirty )
+        !host->inv_transmit_dirty && !host->misc_transmit_dirty &&
+        !host->friend_transmit_dirty )
         return;
 
     /* Inv hooks re-run on unhide OR a container change. The container filter
@@ -251,6 +252,19 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /* Friend transmits (the friends and ignore side panels). Like misc there is
+     * no trigger set — IF_SETONFRIENDTRANSMIT registers none — so every hook
+     * re-runs, and like misc it is gated on a real change rather than on the
+     * unhide flag: the hooks it fires cc_deleteall and rebuild a whole list.
+     * Without this branch the panels paint once at mount, against whatever the
+     * store held at that instant, and never again. */
+    if( host->friend_transmit_dirty )
+    {
+        task = CreateTask_CS2FriendTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     host->widgets_loaded_dirty = 0;
     host->var_transmit_dirty = 0;
     host->var_changed_count = 0;
@@ -262,4 +276,5 @@ RS_CS2_PumpTransmits(
     host->stat_changed_count = 0;
     host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
+    host->friend_transmit_dirty = 0;
 }

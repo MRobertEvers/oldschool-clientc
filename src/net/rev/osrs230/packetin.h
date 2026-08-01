@@ -74,7 +74,20 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 47, 12, PKT_NAME_IF_SETEVENTS },
     { 84, PKTIN_LENGTH_VARU16, PKT_NAME_RUNCLIENTSCRIPT },
     { 90, PKTIN_LENGTH_VARU8, PKT_NAME_MESSAGE_GAME }, /* osrs230_parse override */
-    { 29, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* MESSAGE_PRIVATE */
+    /* MESSAGE_PRIVATE: p8 from37, p4 messageId, p1 staffModLevel, then the
+     * wordpacked text over the remaining len-13 bytes. The shared parser at
+     * gameproto_parse.c reads exactly that, and it is also what LostCity's
+     * MessagePrivateEncoder writes. */
+    { 29, PKTIN_LENGTH_VARU16, PKT_NAME_MESSAGE_PRIVATE },
+    /*
+     * CHAT_FILTER_SETTINGS: p1 public, p1 private, p1 trade.
+     *
+     * Assigned, not transcribed — opcode 3 is free in this table and staying
+     * under 128 keeps the framer on its single-byte opcode path. Same doctrine
+     * as the IF_SET* family above (docs/osrs230_mockserver.md 3.5): the mock is
+     * the only producer, so what matters is that the two ends agree.
+     */
+    { 3, 3, PKT_NAME_CHAT_FILTER_SETTINGS },
     /* SET_MAP_FLAG carries (x, y) with 255,255 meaning "clear". The mock only
      * ever sends the clear form, and the canonical UNSET_MAP_FLAG handler
      * ignores its payload, so the 2-byte frame maps straight onto it. */
@@ -85,9 +98,23 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 65, 0, PKT_NAME_NONE },  /* CAM_RESET */
     { 108, 0, PKT_NAME_NONE }, /* SERVER_TICK_END */
     { 103, 2, PKT_NAME_NONE }, /* UPDATE_REBOOT_TIMER */
-    { 15, 0, PKT_NAME_NONE },  /* FRIENDLIST_LOADED */
-    { 56, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* UPDATE_FRIENDLIST */
-    { 21, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* UPDATE_IGNORELIST */
+    /*
+     * The social trio.
+     *
+     * FRIENDLIST_LOADED's length is **1, not 0**: the payload is a status byte
+     * (0 loading, 1 connecting, 2 online) and gameproto_parse.c reads it with
+     * g1 and then asserts the frame was fully consumed, so a 0 here aborts the
+     * client on the first one of these it receives. The 0 was never noticed
+     * because nothing had ever sent the packet.
+     *
+     * UPDATE_FRIENDLIST is one entry per packet — p8 name37, p1 world — used
+     * both for the login dump (one packet per friend) and for single-entry
+     * deltas afterwards. World 0 means "offline, or not visible to you".
+     * UPDATE_IGNORELIST is the whole list at once: p8 name37 * (len/8).
+     */
+    { 15, 1, PKT_NAME_FRIENDLIST_LOADED },
+    { 56, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_FRIENDLIST },
+    { 21, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_IGNORELIST },
     { 20, 0, PKT_NAME_NONE },  /* LOGOUT */
     { 102, 5, PKT_NAME_NONE }, /* SYNTH_SOUND */
     { 57, 10, PKT_NAME_NONE }, /* MIDI_SONG_V2 */

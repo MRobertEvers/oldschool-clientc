@@ -254,8 +254,14 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	net/mock/mock230_db.c \
+	net/mock/mock230_paramtable.c \
+	net/mock/mock230_locinfo.c net/mock/mock230_structinfo.c \
 	net/mock/mock230_ops_db.c \
+	net/mock/mock230_ops_param.c \
+	net/mock/mock230_ops_loc.c \
+	net/mock/mock230_ops_npc.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
+	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
 	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
@@ -311,7 +317,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -829,6 +835,18 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
 
+# The CLIENT half of friends / ignore / private chat: the store, the CS2 host
+# ops, the friend-transmit registration, and the generated stack shapes. The
+# server half already has two gates (`mock230 --selftest` and
+# `test-mock230-embed`); every bug this feature actually hit was on this side of
+# the wire, and it had none. Needs no cache and no server on purpose — a gate
+# that can SKIP is a gate that eventually only ever skips.
+test-social: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_social_test \
+		game/test/rs_social_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_social_test
+
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
 # surface) against the real dat1 cache + rev_245_2 RevConfig build.
 test-ui-slots: $(OBJ_DIR) $(OBJS)
@@ -861,11 +879,16 @@ test-revconfig: $(OBJ_DIR)
 # Everything but main(). Split out so the same server can be linked into a host
 # that has its own entry point — the in-process build (test-mock230-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-# jbase37 is here rather than in MOCK230_CORE_SRCS because the embed test
-# already links it as an object out of NET_CORE_OBJS, and listing it in both
-# places is a duplicate symbol. The appearance encoder needs it: a player's name
-# goes on the wire base-37 packed.
-MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c $(MOCK230_CORE_SRCS)
+# jbase37 and wordpack are here rather than in MOCK230_CORE_SRCS because the
+# embed test already links both as objects out of NET_CORE_OBJS, and the client
+# under EMBED_SERVER=1 already has both in SRCS — listing them in both places is
+# a duplicate symbol. The appearance encoder needs jbase37: a player's name goes
+# on the wire base-37 packed. MESSAGE_PRIVATE needs wordpack in *both*
+# directions: the client's outbound builder wordpacks, so the server unpacks to
+# read the message and packs again to relay it (docs/FRIENDS_PRIVATE_CHAT.md
+# §3.4 — a plaintext override on the inbound side was rejected because it would
+# make the two halves of net_out.c/mock230 disagree).
+MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
@@ -997,6 +1020,57 @@ test-mock230: mock230 mock230-scripts mock230-servpack
 # than hiding one that is not.
 test-mock230-coverage:
 	python3 net/mock/gen_opcode_coverage.py --check
+
+# The `*_param` family: the loc and struct tables, and the stack the result
+# lands on. Links the server minus its main(), plus the three compiler-only
+# sources — `MOCK230_CORE_SRCS` already carries the VM, the register and ini,
+# which is why `SSC_SRCS` cannot be used whole here.
+#
+# It needs the real cache and the real content tree, and it is exhaustive over
+# both param groups, so it is a second-long test rather than an instant one.
+# `net/wordpack.c` for the same reason MOCK230_SRCS carries it: MESSAGE_PRIVATE
+# put wordpack calls into mock230_encode.c and mock230_world.c, both of which are
+# in MOCK230_CORE_SRCS, so every consumer of CORE needs it. These three targets
+# were authored on a branch where that was not yet true, which is why the merge
+# was textually clean and then failed at `_wordpack_pack, referenced from`.
+PARAM_TEST_SRCS = $(MOCK230_CORE_SRCS) net/jbase37.c net/wordpack.c \
+	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
+.PHONY: test-mock230-param
+test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/param_test \
+		net/mock/test/param_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
+
+# The `loc_*` / `lc_*` config reads. Same two halves as test-mock230-param and
+# the same link line, plus one thing that test does not need: it builds a real
+# scene and adds a real loc to it, because `loc_param` and `loc_name` read the
+# *active* loc and a fixture that set the pointer to a made-up slot would prove
+# nothing about the slot-not-pointer convention that exists to survive a rebuild.
+.PHONY: test-mock230-loc
+test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_test \
+		net/mock/test/loc_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/loc_test
+
+# The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
+# link line again, plus the one thing the other two do not need: a real (zeroed,
+# heap-allocated) `struct Mock230Server`, because `npc_hunt` and `npc_huntall`
+# walk the npc roster and write the shared iterator. Still no world, no socket
+# and no pack — the npcs go straight into the pool.
+.PHONY: test-mock230-npc
+test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/npc_test \
+		net/mock/test/npc_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/npc_test
 
 # The namespace register: defaults, [namespace:*] overlay, pack-filename
 # resolution. Its failure mode is silence — a misspelled content.ini loads

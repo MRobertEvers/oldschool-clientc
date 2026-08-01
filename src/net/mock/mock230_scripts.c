@@ -160,6 +160,10 @@ mock230_scripts_load(
     /* And the third list of the same kind: which behaviours are still answered
      * from C when content binds nothing. It shrinks; that is the schedule. */
     mock230_scripts_report_fallbacks(srv);
+    /* And the fourth: the fallbacks above are C standing in for content that
+     * has not arrived. This is the opposite — content that arrived and took a
+     * verb the engine still answers. See mock230_scripts_report_shadowed_ops. */
+    mock230_scripts_report_shadowed_ops(srv);
     return srv->scripts->loaded;
 }
 
@@ -204,6 +208,8 @@ mock230_scripts_resolve_hooks(struct Mock230Server* srv)
         HOOK(equip_level_message, "[proc,equip_level_message]"),
         HOOK(equipment_refresh, "[proc,equipment_refresh]"),
         HOOK(equipment_open, "[proc,equipment_open]"),
+        HOOK(friend_login_notification, "[proc,friend_login_notification]"),
+        HOOK(friend_logout_notification, "[proc,friend_logout_notification]"),
 #undef HOOK
     };
     int missing = 0;
@@ -1287,6 +1293,135 @@ mock230_scripts_report_fallbacks(struct Mock230Server* srv)
     return MOCK230_FALLBACK_COUNT;
 }
 
+/* ------------------------------------------------------------------ */
+/* Shadowed engine verbs                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Which `p_op*` discharges the obligation a shadowing script takes on.
+ *
+ * Binding `[opnpc2,goblin]` does not *add* to the engine's Attack — it replaces
+ * it, because the engine's verb handling only runs when nothing was bound. A
+ * script that means to keep the fight has to say so, and the way it says so is
+ * to re-issue the op itself.
+ */
+static int
+discharging_opcode(int trigger)
+{
+    if( trigger >= SS_TRIGGER_OPNPC1 && trigger <= SS_TRIGGER_OPNPC5 )
+        return SS_OP_P_OPNPC;
+    if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
+        return SS_OP_P_OPLOC;
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
+        return SS_OP_P_OPHELD;
+    return -1;
+}
+
+static int
+script_calls(
+    const struct SSVM_Script* script,
+    int opcode)
+{
+    for( int i = 0; i < script->op_count; i++ )
+        if( (int)script->opcodes[i] == opcode )
+            return 1;
+    return 0;
+}
+
+/**
+ * Report every trigger content binds over a verb the engine answers itself.
+ *
+ * This is triage §7.7, which the fallback inversion did not close and could
+ * not: inverting the fallback made a *missing* script loud, and this is the
+ * opposite failure — a script that is present, runs fine, and quietly takes a
+ * verb the engine was going to handle. Nothing fails. The goblin simply says
+ * its line and stands there.
+ *
+ * That is not hypothetical. `skill_combat/combat.rs2` carries the scar in its
+ * own header: a goblin's Attack is op 2, `[opnpc2,goblin]` replaced it, and the
+ * fix was to add `p_opnpc(2)` back. The file then states the rule for everyone
+ * else — *"any other script that binds an op the cache gives a verb to has the
+ * same obligation"* — and until now nothing enforced it. §7.7's warning is that
+ * this gets much worse on import: the reference binds 634 `[opnpc1]` and 867
+ * `[oploc1]` triggers, and `levelrequire/` alone binds 304 `[opheld2]`, which
+ * is the verb the engine equips on.
+ *
+ * At **load**, not at call time, for the reason `mock230_scripts_report_gaps`
+ * gives: a script behind a quest step may never be triggered by anyone, and a
+ * swallowed verb that nobody clicks this session is still a swallowed verb.
+ *
+ * Only exact-type bindings are checked. A `[opnpc1,_bandit]` category binding
+ * or a bare `_` wildcard names no record, so there is no op list to read and
+ * nothing to compare — those are invisible here, and saying so is better than
+ * implying the check is total.
+ *
+ * The discharge test is deliberately generous: *any* `p_op*` of the right
+ * family counts, without checking that its argument is the op that was bound.
+ * The failure this exists to catch is the script that forgot entirely; one that
+ * re-issues the wrong index is a different bug and this cannot see it.
+ *
+ * **A hit is a review item, not a defect**, and the distinction is not one this
+ * can make. `[oploc2,bankbooth]` is the shipped example: it takes "Bank" and
+ * never re-issues it, and it is *correct*, because `~openbank` does the same
+ * thing the engine's Bank branch would — the second legitimate discharge is
+ * doing the engine's job yourself, and nothing static tells that apart from
+ * doing something else. So this prints a list and never fails a load. It is the
+ * same posture as `mock230_pack`'s foreign-area spawn-prefix warning (triage
+ * §10.2): a prompt to go and look, not a verdict.
+ *
+ * Returns the number of scripts that shadow a verb without re-issuing it.
+ */
+int
+mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
+{
+    int shadowed = 0;
+
+    if( !srv->scripts_ok || !srv->scripts )
+        return 0;
+
+    for( int i = 0; i < srv->scripts->count; i++ )
+    {
+        const struct SSVM_Script* script = &srv->scripts->scripts[i];
+        const char* verb;
+        int trigger;
+        int discharge;
+
+        if( script->op_count <= 0 || !script->opcodes )
+            continue;
+        /* Name-addressed scripts (proc, label, queue, …) carry -1 and bind no
+         * trigger at all. */
+        if( script->lookup_key < 0 )
+            continue;
+        /* Bits 8..9 are the subject mode; only an exact type names a record. */
+        if( ((script->lookup_key >> 8) & 0x3) != SS_LOOKUP_TYPE )
+            continue;
+
+        trigger = SSVM_LookupKeyTrigger(script->lookup_key);
+        verb = mock230_world_engine_claimed_verb(trigger, script->lookup_key >> 10);
+        if( !verb )
+            continue;
+
+        discharge = discharging_opcode(trigger);
+        if( discharge >= 0 && script_calls(script, discharge) )
+            continue;
+
+        if( shadowed == 0 )
+            fprintf(stderr,
+                    "mock230: content binds a trigger over a verb the engine answers itself:\n");
+        fprintf(stderr, "  %-34s takes \"%s\" without re-issuing it (%s)\n",
+                script->name ? script->name : "?", verb,
+                discharge >= 0 ? SSVM_OpcodeName(discharge) : "?");
+        shadowed++;
+    }
+
+    if( shadowed )
+        fprintf(stderr,
+                "mock230: %d script(s) shadow an engine verb — check each does the engine's "
+                "job or means not to; this is a review list, not an error\n",
+                shadowed);
+    return shadowed;
+}
+
 int
 mock230_scripts_fallback(
     struct Mock230Server* srv,
@@ -1546,80 +1681,10 @@ container_dirty(
         srv->active_player->bank.dirty = 1;
 }
 
-/*
- * Push a param onto the stack its *declaration* calls for.
- *
- * Shared by `oc_param` and `nc_param` because the choice of stack is the entire
- * difficulty of the `runtime_typed` family and it does not vary by table — only
- * the lookup does. Duplicating it would mean two places for the declared-vs-
- * stored disagreement to be handled differently, and that disagreement is the
- * one thing here worth being loud about.
- *
- * `sval`/`ival` are the stored value and `present` says whether the record
- * carried the param at all; a caller with no row passes present = 0 and the
- * other two are ignored.
- */
-static void
-push_typed_param(
-    struct SSVM_State* state,
-    int param_id,
-    const char* sval,
-    int32_t ival,
-    int present,
-    const char* record_kind,
-    int record_id)
-{
-    char declared = mock230_content_param_type(param_id);
-
-    /*
-     * Which stack the result goes on is decided by the declaration, because
-     * that is what the script was compiled against: a script that wrote
-     * `nc_param($npc, some_string_param)` has a string-typed local waiting for
-     * it, and pushing an int would leave the two stacks out of step for the
-     * rest of the script rather than fail here.
-     *
-     * 1,517 of cache.osrs239's 2,634 param records declare no type at all — the
-     * config's type opcode is optional. For those the *value's own* stored kind
-     * is the answer and it is not a guess: the record says whether it wrote
-     * four bytes or a NUL-terminated string.
-     */
-    if( !declared && present )
-        declared = sval ? 's' : 'i';
-
-    if( declared == 's' )
-    {
-        if( present && !sval )
-        {
-            /* Declared a string, stored as an int. The record is wrong, and
-             * which half to believe is not this opcode's call to make. */
-            SSVM_Abort(state, "param %d is declared a string but %s %d stores an int",
-                       param_id, record_kind, record_id);
-            return;
-        }
-        /* `defaultstr=` (311 declared) is still read by nothing, so an absent
-         * string param reports "" where the reference reports the declared
-         * string — docs/osrs230_mockserver.md records the gap. */
-        SSVM_PushStr(state, present ? sval : "");
-        return;
-    }
-
-    if( present && sval )
-    {
-        SSVM_Abort(state, "param %d is declared an int but %s %d stores a string",
-                   param_id, record_kind, record_id);
-        return;
-    }
-    /*
-     * A record that does not carry the param answers with the param's declared
-     * `default=`, never an abort — LostCity's handlers push
-     * `paramType.defaultInt` (ObjConfigOps.ts), and content relies on both
-     * halves of that: `oc_param($obj, specwep) = ^true` is asked of every
-     * weapon and only special-attack weapons carry the row (specwep declares
-     * no default, so absent reads 0), while 365 params declare `default=-1`
-     * precisely so that absence spells "no id" rather than obj 0.
-     */
-    SSVM_PushInt(state, present ? ival : mock230_content_param_default(param_id));
-}
+/* `push_typed_param` moved to mock230_ops_param.c as
+ * `mock230_push_typed_param` (declared in mock230.h). It was `static` here
+ * and so unreachable from a per-domain ops file, and the family's whole
+ * difficulty is that there must be exactly one of it — see its comment. */
 
 int
 mock230_script_command(
@@ -1635,6 +1700,12 @@ mock230_script_command(
     /* Per-domain handlers first. Each returns 1 when it owns the opcode; see the
      * note on mock230_ops_db in mock230.h for why the split grows this way. */
     if( mock230_ops_db(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_param(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_loc(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_npc(state, opcode, dot) )
         return 1;
 
     switch( opcode )
@@ -3040,8 +3111,8 @@ mock230_script_command(
             return 1;
 
         row = mock230_obj_param(obj_id, param_id);
-        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
-                         row != NULL, "obj", obj_id);
+        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+                                 row ? row->ival : 0, row != NULL, "obj", obj_id);
         return 1;
     }
 
@@ -3057,8 +3128,8 @@ mock230_script_command(
             return 1;
 
         row = mock230_npc_param(npc_id, param_id);
-        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
-                         row != NULL, "npc", npc_id);
+        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+                                 row ? row->ival : 0, row != NULL, "npc", npc_id);
         return 1;
     }
 
@@ -4195,28 +4266,12 @@ mock230_script_command(
         return 1;
     }
 
-    /*
-     * `npc_param(<param>)` reads a param off the active npc's type.
-     *
-     * Only the combat params exist here, and only because the drop tables need
-     * `death_drop`. A param the content tree does not model pushes 0 rather
-     * than aborting: the reference's own params default, and content that asks
-     * for one this engine has never heard of should degrade rather than stop.
-     */
-    case SS_OP_NPC_PARAM:
-    {
-        struct Mock230Npc* npc = active_npc(state);
-        int32_t param;
-
-        if( !SSVM_PopInt(state, &param) )
-            return 1;
-        if( npc && npc->def &&
-            param == mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop") )
-            SSVM_PushInt(state, npc->def->death_drop);
-        else
-            SSVM_PushInt(state, 0);
-        return 1;
-    }
+    /* `npc_param` was here. It is `mock230_ops_npc.c`'s now — and had been
+     * unreachable since that domain's hook went in above, because the per-domain
+     * handlers are offered the opcode first. Deleted rather than marked dead: it
+     * answered one param by spelling `death_drop` in C, which is the hard rule
+     * in PORTING_GUIDE §2.4 item 3, and a dead copy of a wrong answer is the
+     * thing somebody eventually reads and believes. */
 
     /* ---- audio ---------------------------------------------------- */
 

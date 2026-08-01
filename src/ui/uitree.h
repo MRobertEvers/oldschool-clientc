@@ -200,6 +200,9 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_var_transmit;
     struct UITreeRuntimeScriptHook on_inv_transmit;
     struct UITreeRuntimeScriptHook on_misc_transmit;
+    /** IF_SETONFRIENDTRANSMIT. Like on_misc_transmit it carries no trigger
+     *  list: every registered hook re-runs when the friend store changes. */
+    struct UITreeRuntimeScriptHook on_friend_transmit;
     struct UITreeRuntimeScriptHook on_resize;
     struct UITreeRuntimeScriptHook on_sub_change;
 };

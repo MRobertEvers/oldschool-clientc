@@ -701,6 +701,11 @@ RS_GameProto_Exec(
             }
             if( !found )
                 RS_Social_AddFriend(social, name, packet->_update_friendlist.world);
+            /* The friends panel's rows are cc_created from this store by the
+             * client's own script 125, so nothing repaints them but the
+             * friend-transmit channel. Filling the store without this notify
+             * leaves the panel showing whatever it drew at mount. */
+            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
             ctx->app->need_redraw = 1;
         }
         break;
@@ -715,12 +720,19 @@ RS_GameProto_Exec(
                 base37tostr((uint64_t)packet->_update_ignorelist.names37[i], name, sizeof(name));
                 RS_Social_AddIgnore(social, name);
             }
+            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
             ctx->app->need_redraw = 1;
         }
         break;
     case PKT_NAME_FRIENDLIST_LOADED:
         if( ctx->app )
+        {
+            /* This is what ends the panel's "Loading friends list" state:
+             * RS_Social_FriendCount answers -1 until the status reads 2. */
             ctx->app->social.server_status = packet->_friendlist_loaded.status;
+            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
+            ctx->app->need_redraw = 1;
+        }
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
         if( ctx->app && ctx->chat )
@@ -757,6 +769,10 @@ RS_GameProto_Exec(
                 packet->_chat_filter_settings.chat_private_mode;
             ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
                 packet->_chat_filter_settings.chat_trade_mode;
+            /* Script 681 reads these back through chat_getfilter_private before
+             * it will send a private message, so a change has to reach the CS2
+             * side the same way a friend-list change does. */
+            RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
             ctx->app->need_redraw = 1;
         }
         break;
