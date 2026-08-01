@@ -4,6 +4,14 @@ A step-by-step plan for the content pipeline described in
 [`CONTENT_ARCHITECTURE.md`](CONTENT_ARCHITECTURE.md), narrowed by four scoping
 decisions that remove most of that document's machinery.
 
+> **This title is superseded in one respect.**
+> [`PACK_ENTITY_SPLIT_PLAN.md`](PACK_ENTITY_SPLIT_PLAN.md) plans *two* pack files
+> per namespace — a client membership list and a server one — so that **which
+> entities** go to a side is stated on disk rather than inferred from where a
+> block was authored. §7's field register (which *fields* go to a side) is
+> unaffected and is its prerequisite; the four decisions in §0 still hold. Read
+> this document first; that one is the successor and is not built.
+
 ---
 
 ## 0. Scope and decisions
