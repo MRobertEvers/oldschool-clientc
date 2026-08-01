@@ -4231,9 +4231,24 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
          * (a `loc_del` expiring) or holding the changed form (a `loc_change`
          * expiring) — `mock230_world_loc_set` decides which by looking, rather
          * than by remembering which opcode armed the timer.
+         *
+         * It can refuse, and there is one way that happens which is worth
+         * saying out loud: the scene is a single 104x104 window for the whole
+         * world, so a revert armed before somebody walked far enough to move the
+         * origin may be aimed at a tile the scene no longer covers. The ZoneMap
+         * record stands, which is the safe direction — the clients were told the
+         * loc changed and it stays changed — but the timer is spent, so the loc
+         * never comes back. That is the single-scene-origin limitation
+         * (docs/osrs230_mockserver.md §6.1 step 1), not this table's, and it is
+         * reported rather than swallowed.
          */
-        mock230_world_loc_set(srv, entry->x, entry->z, entry->level, entry->shape,
-                              entry->loc_id, entry->angle);
+        if( !mock230_world_loc_set(srv, entry->x, entry->z, entry->level, entry->shape,
+                                   entry->loc_id, entry->angle) &&
+            srv->verbose )
+            fprintf(stderr,
+                    "mock230: a loc revert at %d,%d could not apply — outside the built "
+                    "scene; %d stays as it is\n",
+                    entry->x, entry->z, entry->loc_id);
     }
 }
 
@@ -6711,6 +6726,12 @@ mock230_world_selftest(void)
          * tick below is load-bearing: nothing goes out until phase 10.
          */
         selftest_park_player(&srv, 3222, 3218);
+        /* One quiet tick first, and it is load-bearing: a client that has just
+         * arrived in a zone is caught up with that zone's whole state instead,
+         * which is a different (and separately checked, below) shape. The
+         * enclosed stream is what a change produces for a client already
+         * standing there. */
+        mock230_world_tick(&srv);
         mock230_capture_begin(&srv, &capture);
         mock230_world_obj_add(&srv, 526 /* bones */, 1, 3222, 3218, 0,
                               mock230_ids()->lootdrop_duration);
@@ -6718,6 +6739,22 @@ mock230_world_selftest(void)
         mock230_capture_end(&srv);
         SELFTEST_CHECK(selftest_enclosed_has(&capture, 120 /* OBJ_ADD */),
                        "a drop should reach the client as an enclosed OBJ_ADD");
+
+        /*
+         * And the other half: a client that has *not* been told about the zone
+         * is caught up from the ZoneMap's own state — UPDATE_ZONE_FULL_FOLLOWS
+         * to clear whatever it held, then the objs standing there. This is the
+         * replay, the thing a broadcast could never do, and it is what makes a
+         * door someone else opened open for whoever logs in next.
+         */
+        mock230_zone_player_reset(player);
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(mock230_capture_find(&capture, 41 /* UPDATE_ZONE_FULL_FOLLOWS */, 0) >= 0,
+                       "a client that holds no zones should be sent FULL_FOLLOWS");
+        SELFTEST_CHECK(mock230_capture_find(&capture, 120 /* OBJ_ADD */, 0) >= 0,
+                       "and the objs already on the floor, without anything changing");
 
         /* Picking it up moves it into the backpack and tells the client it is
          * gone. */

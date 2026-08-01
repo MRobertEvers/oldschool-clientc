@@ -183,6 +183,13 @@ conversion every entity coordinate goes through, so getting it wrong shows up as
 loot landing a few tiles from the corpse rather than as anything louder. The
 shared parser asserts exact consumption, so a third byte aborts the client.
 
+All three are in use now (§3.17). `_PARTIAL_ENCLOSED` carries its sub-packets
+inside its own payload, opcodes and all, and those inner opcodes are **plain
+wire bytes** — no ISAAC — resolved through the same `rev->packetin_code` table.
+That is the second reason the sub-opcodes had to be assigned clear of the
+top-level ones, and it is why `mock230_encode_zone_sub` writes the opcode itself
+rather than leaving it to `mock230_send`.
+
 ### 3.1c `UPDATE_STAT` carries the boosted level, and that is the field with a consumer
 
 `RS_GameProtoExec` writes the packet's level straight into
@@ -1566,6 +1573,172 @@ overflows the viewport that term goes to zero and the scroll offset takes over.
 `make -C src test-chat-widgets` pins the order, the anchor and the overflow,
 because all three are "text in the right font in the right box" and only the y
 coordinates tell them apart.
+
+## 3.17 Zones: the ZoneMap, and what a broadcast could never do
+
+`src/net/mock/mock230_zone.{c,h}`, ported from the reference's
+`engine/src/engine/zone/` (`Zone`, `ZoneMap`, `ZoneEvent`). The header carries
+the design; this is what it changed and what it cost.
+
+### The bug it exists for
+
+A loc change used to be `mock230_world_broadcast_loc`: walk the player pool,
+send `LOC_ADD_CHANGE` to everyone on that level whose scene contained the tile.
+That is correct for everyone standing there when the door opens and silently
+wrong for everyone else **forever** — a broadcast has no memory, and
+`REBUILD_NORMAL` hands a new client a scene straight out of the cache, with
+every door shut and the server still believing they are open.
+
+Ground objs had the mirror-image problem solved a different way: a per-player
+`ground_sent[MOCK230_GROUND_MAX]` bitmap, rescanned flat over all 256 slots for
+every player every tick. That one was *correct*; it was just the wrong question.
+"Has this client been told about that obj" does not generalise to locs and does
+not survive a rebuild. "Does this client hold that zone" does both.
+
+### The shape
+
+The key is the reference's, bit for bit —
+`(x >> 3) | (z >> 3) << 11 | level << 22` — because the wire's is: every
+`UPDATE_ZONE_*` names an 8x8 zone and every sub-packet after it carries only a
+`pos` inside that zone.
+
+Each zone holds **state** and **this tick's events**:
+
+| a zone holds | what it is | consumer |
+|---|---|---|
+| `locs[]` | `struct Mock230ZoneLoc` — every loc that differs from the map square | the replay, and the rebuild's re-apply |
+| `objs[]` | `Mock230Server.ground` slots standing here | the replay |
+| `npcs[]` | `Mock230Server.npcs` slots standing here | NPC_INFO's entering-view scan |
+| `events[]` | this tick's `LOC_ADD_CHANGE` / `LOC_DEL` / `OBJ_ADD` / `OBJ_DEL` / `OBJ_COUNT` | the per-client flush |
+
+and the per-client half is two sets on `Mock230Player`: `active_zones`, the 7x7
+window around the player clipped to the 13x13 build area (the reference's
+`BuildArea.rebuildZones`, recomputed only when the player changes zone), and
+`loaded_zones`, the subset this client has been sent state for.
+
+In the tick: **phase 8** reconciles membership, **phase 10** flushes per client
+(right after NPC_INFO, where the reference puts `updateZones()`), **phase 11**
+drops the event buffers and leaves the state alone.
+
+### A zone the client does not hold gets state; one it holds gets events
+
+That sentence is the whole mechanism, and the *and* in it is a bug. The first
+version sent both — `FULL_FOLLOWS`, the zone's whole state, *and* the tick's
+events — with a guard skipping any entity whose change tick was the current one.
+Ground objs arrived twice and the client drew two stacks on one tile. The guard
+is subtly the wrong test: the world's own spawns are placed before any tick has
+run, so they carry tick 0, and by the time the first client is flushed on tick 1
+their stamps no longer match. What is correct is unconditional and needs no
+stamps at all — the loc records are written at the moment of the mutation and
+obj membership is reconciled in phase 8, so **the state already includes
+everything the events would say**. A newly-loaded zone therefore gets state and
+nothing else, and both tick-stamp fields are gone.
+
+The one thing that gives up is a *receiver-scoped* event landing on the same
+tick a client loads the zone. Nothing produces one yet; when something does (the
+reference's per-killer loot), the state write has to learn about receivers too.
+
+### The ZoneMap owns loc mutations. The scene does not.
+
+`mock230_scene_build` calls `mock230_scene_free` first, so the scene is re-read
+from the cache whenever the origin moves. It therefore cannot be the authority
+on anything that happened at runtime — and it was not, despite the comment in
+`maybe_rebuild` claiming "mock230_scene_build keeps the changed list". It never
+did: the `changed` flags lived on the array the rebuild had just freed, so
+phase 10's re-send loop walked an empty list and **the server forgot its own
+doors on every rebuild**. Two comments, in two files, describing a mechanism that
+could not work.
+
+So: `struct Mock230ZoneLoc` is the durable record, keyed by
+`(x, z, level, shape)` — the wire's own key, since `LOC_ADD_CHANGE` and
+`LOC_DEL` identify a loc by its tile and its shape and nothing else — and
+`mock230_world_locs_reapply` puts every record back onto the freshly built scene
+so collision and the pick lookup agree with what the clients were told. Three
+things follow:
+
+- **One door.** `mock230_world_loc_set` is the only runtime loc mutation, and it
+  does all three halves together: move the scene's collision, record the change,
+  queue the event. The scripts' `loc_change`/`loc_del`/`loc_add` and the engine's
+  door swap all go through it.
+- **The record is the diff.** It carries `base_loc_id`/`base_angle` — what the
+  map square has, captured on creation — and is retired the moment the loc
+  matches it again. A tree felled and regrown every thirty seconds does not
+  accumulate an entry per cycle.
+- **The revert table is keyed by coordinate**, not by a scene slot. A slot does
+  not survive a rebuild; before this, a revert armed before one fired against
+  whatever loc had inherited its index.
+
+A `loc_del` on a map-square loc leaves a **tombstone** in the scene array —
+inactive, `is_static` set, its slot never handed to a `loc_add` — because the
+square still has a loc on that tile and "it has been removed" has to stay
+addressable.
+
+### The npc cap was a wire field standing in for a world capacity
+
+`MOCK230_NPC_MAX` was 256, annotated "the tracked count is an 8-bit field on the
+wire, so this must stay under 256". True about the *tracked* count and silent
+about the world: the stream's slot field is 14 bits, so the wire's own ceiling
+on how many npcs may exist is 16383, and the reference runs at exactly that
+(`NODE_MAX_NPCS`, default 16383). What made the world cap load-bearing was
+NPC_INFO scanning every slot in the world for every client every tick.
+
+It asks `mock230_zone_npcs_near` now — the npcs standing in the zones the
+15-tile add radius touches, at most 5x5 of them — so the two numbers are free to
+differ: `MOCK230_NPC_MAX` is 2048 (a memory decision: 336 bytes an npc,
+statically allocated; the world struct is 940 KB) and
+`MOCK230_TRACKED_NPC_MAX` is 255 (the wire's). Lumbridge itself is 63 npcs, and
+the per-tick phases walk `srv->npc_slot_max` rather than the pool so raising the
+cap does not make the tick read as though it costs more.
+
+One correctness fix fell out: the entering-view scan ignored level, which was
+invisible while it was flat and ignored level too. The ZoneMap is keyed by level,
+so an npc left tracked across a climb could never be re-added, only re-encoded
+forever. `in_range` tests level now, the same way `player_in_view` always did.
+
+### What is *not* fixed
+
+- **One scene origin for the whole world** (§6.1 step 1) is untouched, and it is
+  now the visible limit: a loc revert aimed at a tile the moved scene no longer
+  covers cannot apply, so the loc stays as it is. The ZoneMap record stands,
+  which is the safe direction — the clients were told it changed — and the
+  refusal is reported under `MOCK230_VERBOSE` rather than swallowed.
+- **`ground[256]` is still walked once a tick** by the membership reconcile.
+  What went away is the *per-player* pass: the cost was O(players × objs) and is
+  O(objs). Objs are refiled at each of their four mutation sites anyway; the
+  per-tick pass is the reconcile that catches a call site nobody has written yet.
+- **Zone triggers are still undispatched.** Re-measured against the reference
+  rather than taken from the triage: `[zone]` 262, `[zoneexit]` 165,
+  `[mapzone]` 306, `[mapzoneexit]` 73 — 806, which is the number
+  `LOSTCITY_PORT_TRIAGE.md` §7.2 states and it is right. Worth knowing before
+  sizing anything by it: only **427** of those are zone-keyed. `mapzone` and
+  `mapzoneexit` key off the *map square* (`>> 6`), not the zone (`>> 3`), so
+  they never touch this structure. Dispatch is Phase 2 work; the reference fires
+  all four from `NetworkPlayer.updateMap`, keyed by script *name*
+  (`[zone,<level>_<mx>_<mz>_<lx>_<lz>]`), which the numeric-subject
+  `mock230_scripts_run_trigger` cannot express yet.
+
+### Verified
+
+- `net/mock/test/embed_test.c` — three clients in one embedded world. Alice
+  walks to Lumbridge castle's courtyard door (3226,3223, `1535` → `1536`) and
+  opens it with a real `net_out_oploc` through her own ISAAC stream; alice's and
+  bob's clients decode the change out of an `UPDATE_ZONE_PARTIAL_ENCLOSED` with
+  the client's own `gameproto_parse`, on the door's own tile. Then **carol
+  connects, and is told the same thing without anybody touching the door
+  again.** Both halves were proved failable: skipping the replay fails only
+  carol's three checks, skipping the enclosed blob fails only alice's and bob's.
+- `make -C src test-mock230` — a drop reaches a client already in the zone as an
+  enclosed `OBJ_ADD`; a client holding no zones is caught up with `FULL_FOLLOWS`
+  plus the objs already on the floor, with nothing having changed; a door open
+  writes a zone record naming what the map square has under it.
+- Headless client, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`: all
+  seven Lumbridge obj spawns arrive **exactly once** each, on the right tiles
+  (they arrived twice before the double-send above was found), and a scripted
+  `loc_change` + its revert arrive through the enclosed stream and apply to the
+  right tile (`714` then `114` at scene-local 76,79 — the cooking range at
+  3212,3215).
+
+---
 
 ## 4. Client fix this work required: the inv half of the transmit loop
 
