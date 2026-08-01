@@ -2357,6 +2357,26 @@ int
 mock230_scripts_report_fallbacks(struct Mock230Server* srv);
 
 /**
+ * The cache menu verb this engine answers itself for `[<trigger>,<subject>]`,
+ * or NULL if it answers none.
+ *
+ * The inverse question to `mock230_scripts_fallback`'s. That one asks "did
+ * content claim this at runtime"; this asks, of a binding, "was there an engine
+ * behaviour here to claim" — which is answerable at load, before any player has
+ * clicked anything. `subject` is an exact type id; a category or wildcard
+ * binding names no record and gets NULL.
+ */
+const char*
+mock230_world_engine_claimed_verb(
+    int trigger,
+    int32_t subject);
+
+/** Name every trigger content binds over a verb the engine answers itself and
+ *  does not re-issue. Returns the count; 0 is the state to keep. Triage §7.7. */
+int
+mock230_scripts_report_shadowed_ops(struct Mock230Server* srv);
+
+/**
  * Dispatch a click on component `uid` to `[if_button,...]`, both ways round.
  *
  * A rev-230 component uid is `(interface << 16) | child` and the compiled

@@ -1902,6 +1902,78 @@ now and asserts the food was consumed, which is the evidence the heal happened
 at all. The drop is what surfaced it — `run_or_park`'s message names both
 scripts now, having named neither.
 
+### The opposite failure, which inverting the fallback could not catch
+
+Everything above makes a **missing** script loud. Triage §7.7 names the mirror
+image, and none of it addressed that: a script that is present, runs, succeeds —
+and quietly takes a verb the engine was going to answer. The engine's verb
+handling only runs when nothing was bound, so binding `[opnpc2,goblin]` does not
+add to Attack, it *replaces* it. Nothing fails. The goblin says its line and
+stands there.
+
+That is not hypothetical, and the scar is in the content rather than here:
+`skill_combat/combat.rs2` records that a goblin's Attack is op 2, that
+`[opnpc2,goblin]` replaced it, and that the fix was to add `p_opnpc(2)` back. It
+then states the rule for everyone else — *"any other script that binds an op the
+cache gives a verb to has the same obligation"* — and until now the only thing
+enforcing that rule was whoever remembered reading it.
+
+`mock230_scripts_report_shadowed_ops` enforces it at load, beside the gap report
+and for the same reason: a script behind a quest step may never be triggered by
+anyone, and a verb nobody clicks this session is still swallowed. It walks every
+trigger-addressed script, and where the binding names an exact type whose cache
+op list carries a verb the engine implements, it asks whether the script
+re-issues the op. Today the whole tree yields one line:
+
+```
+mock230: content binds a trigger over a verb the engine answers itself:
+  [oploc2,bankbooth]                 takes "Bank" without re-issuing it (P_OPLOC)
+```
+
+**and that one is correct** — `~openbank` does the same thing the engine's Bank
+branch would. Which is the shape of the check rather than a flaw in it: the
+second legitimate way to discharge the obligation is to do the engine's job
+yourself, and nothing static separates that from doing something else. So it
+prints a list and never fails a load — the same posture as `mock230_pack`'s
+foreign-area spawn warning (triage §10.2): a prompt to go and look, not a
+verdict. `[opnpc2,goblin]` is *absent* from the list, because it calls
+`p_opnpc(2)`; a version of this that could not tell the goblin from the booth
+would be measuring nothing.
+
+Two things worth being exact about, because both bound the claim:
+
+- **Only exact-type bindings are visible.** A category binding
+  (`[opheld1,_vegetable]`) or a bare `_` wildcard names no record, so there is no
+  op list to read. Those are invisible here and the check is not total.
+- **The verbs are one list now, not seven.** The engine's claims were seven
+  `strcmp` literals scattered over three functions — `Attack`, `Wear`/`Wield`/
+  `Drop`, `Bank`/`Use-quickly`/`Climb-up`/`Climb-down`/`Climb`. A report keeping
+  its own copy would eventually say the opposite of what the runtime does, so
+  `mock230_world_engine_claimed_verb` and the runtime branches read the same
+  constants. That they are string literals in C is the standing PORTING_GUIDE
+  §2.4 item 2 violation and is *not* fixed here: the verb is the cache's own word
+  and comparing against it is how the engine reads the menu. What changed is one
+  occurrence each instead of seven.
+
+The argument for doing this before the bulk import rather than after is §7.7's
+own: the reference binds 634 `[opnpc1]` and 867 `[oploc1]` triggers, and
+`levelrequire/` alone binds 304 `[opheld2]` — which is exactly the verb the
+engine equips on. After the import a swallowed verb is one of a thousand new
+triggers; before it, it is one of forty-five.
+
+Three mutations were run against the assertions, because the lesson this file
+keeps relearning is that a test which cannot fail is worse than none:
+
+| mutation | what went red |
+|---|---|
+| the claim matches any verb, not just the engine's | the booth's op 3 (`Collect`) assertion **and** the count — 34 shadows instead of 1 |
+| the re-issue test always passes | the count alone, 0 instead of 1 |
+| the npc claim reads op 1 instead of the trigger's op | the goblin's op-2 assertion |
+
+The third is the one worth keeping. A goblin's Attack is op 2 and a guard's is
+op 1, so an implementation that assumed the first slot passes every test that
+only ever asks about the first slot.
+
 ---
 
 ## 4. Client fix this work required: the inv half of the transmit loop
