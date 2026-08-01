@@ -76,10 +76,29 @@ static const struct ContentNamespace k_defaults[] = {
      */
     { "3_interfaces",          CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,   2000,   3 },
     { "component",             CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  14,      0,  -1 },
-    /* The cache names these and fixes their ids; neither has an encoder, so
-     * authored content cannot create one either way. */
-    { "dbrow",                 CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,   9,      0,  -1 },
-    { "dbtable",               CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  10,    259,  -1 },
+    /*
+     * The client database, and the one place a namespace is `ids = server` while
+     * still being `names = cache`: archives 9 and 10 name the cache's own 16,711
+     * rows and 246 tables, and every one of those keeps its id — but the server's
+     * RuneScript defines tables of its own above the high-water mark, and those
+     * are the allocator's.
+     *
+     * This row said `CONTENT_IDS_CACHE`, with the note "neither has an encoder, so
+     * authored content cannot create one either way". Both halves are stale. The
+     * encoders exist (`RSCache_Dat2ConfigDbTableEncode`, held to byte-identity
+     * against every record in the cache; `CP_TYPE_NO_ENCODER` is not set on either
+     * type), and a cache encoder was never what a server table needed anyway —
+     * `mock230_db.c` parses the server's own `.dbtable`/`.dbrow` text and never goes
+     * near the cache, which is how `coord_pair_table` (259) and `combat_style_table`
+     * (260) came to exist. `ss_allocate.py` had both in DEFAULT_SERVER_NAMESPACES the
+     * whole time, so the allocation worked and the two authorities disagreed in
+     * silence — docs/CONTENT_ARCHITECTURE.md §8.2(c), the third occurrence.
+     *
+     * dbrow's base stays 0: allocation comes off the high-water mark alone, which
+     * for 16,940 needs no floor to read as ours.
+     */
+    { "dbrow",                 CONTENT_IDS_SERVER,   CONTENT_NAMES_CACHE,    0,   9,      0,  -1 },
+    { "dbtable",               CONTENT_IDS_SERVER,   CONTENT_NAMES_CACHE,    0,  10,    259,  -1 },
     /* ---- config types the cache does not name ------------------------ */
     /* Every name here is filler or authored. Declaring any of them `cache` is
      * what licensed cachepack to rewrite the file and drop its comments. */

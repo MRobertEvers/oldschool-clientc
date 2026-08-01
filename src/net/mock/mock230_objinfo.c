@@ -261,25 +261,6 @@ read_requirements(
         g_require_from_cache++;
 }
 
-/* Which of the three melee bonuses a weapon swings with: whichever attack bonus
- * is largest. A scimitar's slash beats its stab, a mace's crush beats both.
- * Ties go to stab, matching the enum order, and a weapon with no attack bonuses
- * at all lands on crush, which is what an unarmed punch is. */
-static int
-derive_damage_type(const int* bonus)
-{
-    int best = 2; /* crush */
-    int best_value = bonus[2];
-
-    if( bonus[0] > best_value )
-    {
-        best = 0;
-        best_value = bonus[0];
-    }
-    if( bonus[1] > best_value )
-        best = 1;
-    return best;
-}
 
 /* ------------------------------------------------------------------ */
 /* The obj param table                                                 */
@@ -470,7 +451,6 @@ record(
      * the decode loop walks obj ids in order and a record's own params arrive
      * in key order. */
     read_params(obj_id, &obj->params);
-    entry->damagetype = derive_damage_type(entry->bonus);
 }
 
 int

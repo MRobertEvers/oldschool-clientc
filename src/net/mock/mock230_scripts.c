@@ -1919,6 +1919,27 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * The active npc's uid, which is its slot.
+     *
+     * The mirror of NPC_FINDUID below, and it carries the same caveat: the
+     * reference packs a generation counter beside the index so a uid that
+     * outlives its npc fails to resolve, and this server does not. Content
+     * holding one across a despawn gets whatever took the slot.
+     */
+    case SS_OP_NPC_UID:
+    {
+        int slot = (int)state->host_tag - 1;
+
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_uid with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, slot);
+        return 1;
+    }
+
     case SS_OP_NPC_FINDUID:
     {
         int32_t uid;

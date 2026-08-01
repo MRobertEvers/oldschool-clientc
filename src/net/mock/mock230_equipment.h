@@ -30,11 +30,6 @@ struct Mock230Server;
 int
 mock230_equipment_worn_slot(int component);
 
-/** Enable the worn tab's "View equipment stats" op so a click on it reaches
- *  the server, and the eleven slots' own Remove. Part of the login burst. */
-void
-mock230_equipment_arm_worn_tab(struct Mock230Server* srv);
-
 /** Open the screen and fill it in. Idempotent. */
 void
 mock230_equipment_open_stats(struct Mock230Server* srv);

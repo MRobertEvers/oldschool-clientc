@@ -2862,59 +2862,6 @@ mock230_world_varp(const char* symbol)
     return mock230_content_symbol(MOCK230_PACK_VARP, symbol);
 }
 
-/*
- * Obj `category` (config opcode 94) → the combat tab's weapon TYPE.
- *
- * These are two different id spaces, and confusing them is silent: varbit 357
- * wants the 0..35 weapon-type index that keys DBTable 78's button layouts,
- * while opcode 94 is the general item category (scimitar 21, shortbow 64,
- * whip 150). The spaces overlap, so writing the category straight into the
- * varbit picked a *plausible wrong* layout — category 21 is weapon type
- * "bladed staff", so a bronze scimitar grew autocast buttons — and every
- * category ≥ 64 truncated through the 6-bit varbit (shortbow → 0 → the
- * unarmed panel).
- *
- * The mapping is not in the cache — there is no obj→weapon-type dbtable or
- * enum — so like OpenRune (game-api WeaponCategory.kt, which this table is
- * transcribed from) the server states it. Unlisted categories are unarmed.
- */
-static int
-weapon_type_from_category(int category)
-{
-    static const struct
-    {
-        short category;
-        short weapon_type;
-    } map[] = {
-        { 64, 3 },   { 106, 3 },  /* bow */
-        { 21, 9 },                /* slash sword (scimitar) */
-        { 61, 23 },               /* two-handed sword */
-        { 35, 1 },                /* axe */
-        { 92, 25 },  { 42, 25 },  /* banner */
-        { 26, 27 },  { 55, 27 },  { 15, 27 },   /* blunt */
-        { 1014, 28 },             /* bulwark */
-        { 65, 4 },                /* claws */
-        { 67, 11 },               /* pickaxe */
-        { 66, 12 },  { 273, 12 }, /* polearm */
-        { 1143, 14 }, { 1193, 14 }, { 14, 14 }, /* scythe */
-        { 36, 15 },               /* spear */
-        { 39, 16 },               /* spiked */
-        { 25, 17 },               /* stab sword */
-        { 150, 20 },              /* whip */
-        { 572, 7 },               /* chinchompa */
-        { 567, 5 }, { 37, 5 },    /* crossbow */
-        { 96, 8 },                /* gun */
-        { 24, 19 },               /* thrown */
-        { 1, 18 },                /* staff */
-        { 586, 6 },               /* salamander */
-        { 1588, 17 },             /* partisan */
-        { 975, 31 },              /* multi-style */
-    };
-    for( size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++ )
-        if( map[i].category == category )
-            return map[i].weapon_type;
-    return 0; /* unarmed */
-}
 
 /*
  * The two varbits interface 593 builds itself from.
@@ -2936,8 +2883,26 @@ mock230_world_sync_combat_varbits(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->player;
     int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-    int category =
-        weapon_type_from_category(weapon >= 0 ? mock230_objinfo(weapon)->category : 0);
+    /*
+     * Which button layout the tab draws is content's.
+     *
+     * `[proc,combat_weapon_type]` is a `switch_category` over the worn weapon,
+     * which is the shape the reference keeps it in
+     * (`~combat_get_weapon_style_data`). It was a 26-row C table here,
+     * transcribed from OpenRune's WeaponCategory.kt — a mapping between two id
+     * spaces the cache does not relate, which is precisely the kind of claim
+     * that belongs where someone can correct it.
+     *
+     * Falls back to 0 (unarmed) when content does not answer: an unknown weapon
+     * showing three styles and no autocast is the safe wrong answer, since the
+     * alternative promises buttons the server cannot handle.
+     */
+    int32_t weapon_arg = (int32_t)weapon;
+    int32_t resolved = 0;
+    int category = mock230_scripts_run_proc_int(srv, "[proc,combat_weapon_type]",
+                                                &weapon_arg, 1, &resolved)
+                       ? (int)resolved
+                       : 0;
     int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_weapon_category");
     int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combatlevel_transmit");
     int level = mock230_combat_level(player);
@@ -3341,26 +3306,18 @@ mock230_world_login(struct Mock230Server* srv)
     }
 
     /*
-     * 3. Unlock dragging on the inventory and equipment containers.
+     * 3. What the item containers permit is content's.
      *
-     *    Drag bits only, deliberately. The backpack's verbs are the ObjType's —
-     *    Wear, Eat, Drop — and the client builds those rows itself and sends
-     *    them as OPHELD; the container names no op of its own. Arming ops 1..9
-     *    here (which this used to do) told the client the paint script's stray
-     *    op4 "Read" was live, and a component op that IS live replaces the
-     *    ObjType rows rather than joining them, so every backpack item offered
-     *    "Read" and nothing else. The worn tab's real "Remove" is armed on the
-     *    slot components themselves — see mock230_equipment_arm_worn_tab.
+     * `~containers_login` and `~worn_tab_login` (player/containers.rs2) arm the
+     * drag bits and the worn tab's Remove. This was two `if_setevents` calls
+     * here with the mask spelled as `1 << 17 | 1 << 20`, and eleven more in
+     * mock230_equipment.c — UI permissions, decided in C, which is the one kind
+     * of decision the rev-230 protocol moved to the server precisely so it
+     * could be a policy rather than a cache flag.
+     *
+     * There is no reference for it: the 2004 protocol has no IF_SETEVENTS, so
+     * LostCity has nothing to port. The shape follows its `[login]` procs.
      */
-    {
-        const int drag_depth_1 = 1 << 17;
-        const int drag_target = 1 << 20;
-
-        mock230_send_if_setevents(srv, ids->com_inventory_items, 0, MOCK230_INV_SLOTS - 1,
-                                  drag_depth_1 | drag_target);
-        mock230_send_if_setevents(srv, MOCK230_COM(ids->iface_wornitems, 0), 0,
-                                  MOCK230_WORN_SLOTS - 1, drag_depth_1 | drag_target);
-    }
     /*    …and on the world map orb, whose verbs are the server's alone. */
     mock230_worldmap_login(srv);
 
@@ -3381,7 +3338,6 @@ mock230_world_login(struct Mock230Server* srv)
      * not need a compiler. */
     player->run_weight_sent = player_weight_grams(player) / 1000;
     mock230_send_run_weight(srv, player->run_weight_sent);
-    mock230_equipment_arm_worn_tab(srv);
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
         mock230_send_stat(srv, stat, player->stat_level[stat],
                           player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
@@ -4901,9 +4857,64 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(scimitar->attackrate == 4,
                        "bronze scimitar attackrate should be 4 ticks, got %d",
                        scimitar->attackrate);
-        SELFTEST_CHECK(scimitar->damagetype == MOCK230_DAMAGE_SLASH,
-                       "a scimitar should derive as a slash weapon, got %d",
-                       scimitar->damagetype);
+        {
+            /*
+             * Which of the three melee bonuses a weapon swings with is
+             * content's — `[proc,combat_get_damagetype]`, largest attack bonus
+             * wins. This asserted `scimitar->damagetype`, a field a C heuristic
+             * in mock230_objinfo.c filled in; once the player's swing started
+             * asking content, that field had exactly one reader left, and it
+             * was this line. A test keeping its own subject alive is not a test.
+             */
+            /*
+             * The style table, not a heuristic.
+             *
+             * `~combat_get_damagetype` takes a row and a mode now, so the
+             * scimitar's answer depends on which button is selected — slash on
+             * 0, 1 and 3, and a controlled STAB on 2. That last one is the
+             * whole reason the table exists: the max-attack-bonus heuristic
+             * this replaced returned slash for every slot, so the controlled
+             * style rolled against the wrong defence.
+             */
+            int32_t args[2];
+            int32_t type = -1;
+            int32_t row = -1;
+            int32_t weapon = 1321;
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
+                           "content should resolve a weapon's style row");
+            args[0] = row;
+            args[1] = 0;
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               type == MOCK230_DAMAGE_SLASH,
+                           "a scimitar's accurate style is slash, got %d", type);
+            args[1] = 2;
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               type == MOCK230_DAMAGE_STAB,
+                           "and its controlled style is stab, got %d", type);
+
+            /* A spear is the case no heuristic can reach: identical bonuses
+             * across four buttons that roll stab, slash, crush, stab. 1237 is
+             * the bronze spear. */
+            weapon = 1237;
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
+                           "a spear should resolve a style row");
+            args[0] = row;
+            args[1] = 1;
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               type == MOCK230_DAMAGE_SLASH,
+                           "a spear's second style is slash, got %d", type);
+            args[1] = 2;
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               type == MOCK230_DAMAGE_CRUSH,
+                           "and its third is crush, got %d", type);
+        }
         SELFTEST_CHECK(guard->bonus[MOCK230_PARAM_SLASHDEFENCE] == 25,
                        "the guard's slashdefence should be +25, got %d",
                        guard->bonus[MOCK230_PARAM_SLASHDEFENCE]);
@@ -5007,6 +5018,35 @@ mock230_world_selftest(void)
                            "Ultimate Strength should raise the max hit: %d -> %d",
                            strength_before, strength_after);
             mock230_prayer_clear(&srv);
+        }
+
+        /*
+         * The weapon-type mapping, now that it is a `switch_category` in
+         * content rather than a C table.
+         *
+         * Two id spaces the cache does not relate: 1321 is a bronze scimitar,
+         * obj category 21, and its combat-tab weapon TYPE is 9 (slash sword).
+         * Writing the category straight through — which is what a missing
+         * mapping does — gives 21, and weapon type 21 is "bladed staff", so the
+         * tab grows autocast buttons on a scimitar. That is the failure this
+         * pins: a plausible wrong layout, never an error.
+         */
+        {
+            int32_t weapon = 1321;
+            int32_t type = -1;
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_weapon_type]", &weapon, 1, &type),
+                           "content should answer combat_weapon_type");
+            SELFTEST_CHECK(type == 9,
+                           "a bronze scimitar is weapon type 9 (slash sword), got %d",
+                           type);
+
+            weapon = 995; /* coins: no category, so unarmed */
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(
+                               &srv, "[proc,combat_weapon_type]", &weapon, 1, &type) &&
+                               type == 0,
+                           "an obj with no weapon category is unarmed, got %d", type);
         }
 
         /* Server varps are server state: the client has no varp 5705, so none

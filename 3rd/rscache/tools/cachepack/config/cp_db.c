@@ -374,8 +374,24 @@ cp_pack_dbrow(
     entry.table_id = -1;
     for( int i = 0; i < config->count; i++ )
     {
+        /*
+         * `cp_resolve_ref`, not a bare `cp_name_find`, and this was the one
+         * reference in the tool that did not go through it.
+         *
+         * `table=` is keyed by *name*, so renaming a table in
+         * `configs/all.dbtable.compack` without re-keying `all.dbrow` leaves this
+         * lookup returning -1 — and -1 is exactly how the decoder spells "opcode 4
+         * never appeared", so the encoder simply omits the opcode. The row packs
+         * two bytes shorter with no table binding at all and `DB_GETROWTABLE`
+         * answers -1, while the run reports `0 failed, 0 unresolved names`.
+         *
+         * Measured: staling a single `table=` line took the dbrow group from
+         * 1,774,143 to 1,774,141 bytes in silence. `cp_resolve_ref` warns on a name
+         * the pack does not know and accepts a bare number, which is the same
+         * contract every other reference in this tool already has.
+         */
         if( strcmp(config->lines[i].key, "table") == 0 )
-            entry.table_id = cp_name_find(ctx, CP_TYPE_DBTABLE, config->lines[i].value);
+            cp_resolve_ref(ctx, CP_TYPE_DBTABLE, config->lines[i].value, &entry.table_id);
     }
     if( !parse_columns(config, "types", "values", &entry.columns, &entry.column_count) )
         return refuse(ctx, "dbrow", config);

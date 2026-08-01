@@ -1,33 +1,32 @@
 /*
- * Melee combat, on OldSchool's own arithmetic.
+ * Combat, minus the combat.
  *
- * The formulas are OpenRune's MeleeCombatFormula
- * (game-plugins/.../combat/formula/MeleeCombatFormula.kt), which is the
- * standard OldSchool derivation:
+ * What is left in this file is the simulation around a fight: whose turn it is,
+ * the attack clock, approaching and squaring up, facing, hitpoints, death and
+ * respawn. Every number a swing is made of — the effective levels, the attack
+ * and defence rolls, the max hit, the accuracy, the experience, the animations,
+ * the protection prayers — is content, in
+ * `skill_combat/combat_stats.rs2`, and this file calls into it twice:
+ * `[proc,player_melee_swing]` and `[proc,npc_meleeattack]`.
  *
- *   effective level = base + style bonus + 8        (NPCs: base + 9)
- *   attack roll     = effective attack  * (attack bonus  + 64)
- *   defence roll    = effective defence * (defence bonus + 64)
- *   accuracy        = attack > defence
- *                       ? 1 - (defence + 2) / (2 * (attack + 1))
- *                       : attack / (2 * (defence + 1))
- *   max hit         = floor(0.5 + effective strength * (strength bonus + 64) / 640)
+ * That is the reference's division. LostCity's engine has no combat formulas at
+ * all; `[label,player_melee_attack]` and `[proc,npc_meleeattack]` are content,
+ * and its engine contributes `randominc`, `npc_damage` and a tick. The
+ * arithmetic that used to be documented at the top of this file — `base + style
+ * bonus + 8`, `effective * (bonus + 64)`, the two-branch closed-form accuracy —
+ * is now stated once, in RuneScript, where a server operator can change it.
  *
- * What makes that computable here rather than aspirational is the *cache*. An
- * OldSchool obj or npc record carries its equipment bonuses in its param table
- * — param ids 0..11 are the twelve bonuses and 14 is the attack rate — so the
- * bronze scimitar really does contribute +7 slash and +6 strength, and the
- * guard really does have +25 slash defence, without a hand-written table
- * anywhere. See mock230_objinfo.c for how those are read and why the ids are
- * trustworthy.
+ * The one thing worth carrying over from that comment is *why* it is
+ * computable: the cache. An OldSchool obj or npc record carries its equipment
+ * bonuses in its param table — ids 0..11 are the twelve bonuses and 14 is the
+ * attack rate — so a bronze scimitar really does contribute +7 slash and +6
+ * strength, and a guard really does have +25 slash defence, with no
+ * hand-written table anywhere. See mock230_objinfo.c for how those are read and
+ * why the ids are trustworthy.
  *
- * The engine owns hitpoints, hitsplats, death, respawn and swing timing.
- * Content decides who is aggressive, how hard they hit and what they drop, all
- * of it in the area configs under content/scripts.
- *
- * Arithmetic is integer throughout. Accuracy is compared as a pair of
- * cross-multiplied rolls rather than as a probability, which avoids floating
- * point in a server whose whole point is that a session replays identically.
+ * The test for whether something belongs here: does it name a tick or a
+ * distance, or does it name a bonus or a formula? The first is this file, the
+ * second is content.
  */
 
 #include "mock230.h"
@@ -96,10 +95,6 @@ in_attack_range(
     return tile_distance(player->x, player->z, npc->x, npc->z) <= range;
 }
 
-/* Defined below, beside the swing that also uses it. */
-static int
-weapon_seq_param(int weapon_id, char const* param_name);
-
 static void
 play_npc_seq(struct Mock230Npc* npc, int seq_id)
 {
@@ -123,33 +118,6 @@ play_player_seq(struct Mock230Player* player, int seq_id)
     player->masks |= MOCK230_PMASK_SEQUENCE;
 }
 
-/*
- * Which splat a hit draws with.
- *
- * Cache config group 32 gives every hitsplat type its own record naming a
- * sprite, so these are ordinary cache ids and live in
- * OSRS-Content/osrs239-content/configs/all.hitsplat.compack like every other
- * id. The pair is 26 (sprite 1358, gameval `hitmark_0`, the blue zero splat)
- * and 28 (sprite 1359, gameval `hitmark_1`, the red damage splat).
- *
- * They were 0 and 1, which are not splats at all: 0 draws sprite 2270
- * (`hitmark_17`, a purple star) and 1 draws 3521 (`hitmark_blocked`, a red
- * circle-with-a-slash). Both are valid records that decode and render, so
- * nothing ever failed — every hit just drew a no-entry sign. The compack
- * header records that ids are identified by the cache's gameval name and never
- * by the colour of the sprite, which is the part that stops it being guessed
- * again.
- *
- * Resolved per call rather than cached: content loads after the world does, so
- * a value cached at init would be the -1 from before the load.
- */
-static int
-hitsplat_damage(void)
-{
-    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage");
-
-    return id >= 0 ? id : 28;
-}
 
 static int
 hitsplat_block(void)
@@ -343,118 +311,12 @@ mock230_combat_add_xp(
  * own (an npc's profile is params on its record, read straight off `npc->def`).
  */
 
-/** Read one of the block's varps by name; 0 if the content did not declare it. */
-static int
-com_stat(
-    const struct Mock230Server* srv,
-    const char* symbol)
-{
-    int varp = mock230_world_varp(symbol);
 
-    if( varp < 0 || varp >= MOCK230_VARP_COUNT )
-        return 0;
-    return srv->player->varps[varp];
-}
 
-/*
- * Recompute the block.
- *
- * Called at the top of every roll rather than on each input change. The
- * reference recomputes on change — equipment, prayers, stats, style — and that
- * is the cheaper arrangement, but it is also four seams that each have to
- * remember; a stale block is wrong in a way nothing reports, which is the same
- * failure mode as the missing prayer term. Recomputing is thirteen `oc_param`
- * lookups on a tick that was already going to roll dice.
- */
-static void
-player_combat_stat_refresh(struct Mock230Server* srv)
-{
-    mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
-}
 
-/*
- * Indexed by damage type — stab, slash, crush, ranged, magic, in the order
- * `combat_damagetypes.constant` states. `^melee_style` (5) is the protect
- * prayers' umbrella and never indexes these.
- *
- * Only the defence half survives. The attack half went with the player's swing
- * to `[proc,player_attack_roll]`; what is left is the npc swinging AT the
- * player, which is still the engine's because an npc has no varps to read.
- */
 
-static const char* const k_com_defence[] = {
-    "com_stabdef", "com_slashdef", "com_crushdef",
-    "com_rangedef", "com_magicdef",
-};
 
-static int
-com_damage_type(const struct Mock230Server* srv)
-{
-    int type = com_stat(srv, "damagetype");
 
-    if( type < 0 || type >= (int)(sizeof(k_com_defence) / sizeof(k_com_defence[0])) )
-        return MOCK230_DAMAGE_CRUSH;
-    return type;
-}
-
-/*
- * An npc's effective level is its base plus 9.
- *
- * The 9 is not arbitrary and it is not the player's 8: OldSchool gives every
- * monster the equivalent of a permanent stance bonus on top of the same +8, so
- * a monster with 1 attack rolls as though it had 10. Using the player's +8 here
- * makes every monster fractionally less accurate than it should be, which is
- * the kind of error that never produces a bug report.
- */
-static int
-npc_effective(int level)
-{
-    return (level > 0 ? level : 1) + 9;
-}
-
-/**
- * Did the swing land?
- *
- * The reference computes a probability and compares it to a uniform draw. This
- * compares the two rolls directly, which is the same test without floating
- * point: with A = attack roll and D = defence roll, a hit happens with
- * probability 1 - (D+2)/(2(A+1)) when A > D and A/(2(D+1)) otherwise. Both
- * cases are `rand(denominator) < numerator` after clearing the fraction.
- */
-static int
-roll_hit(
-    struct Mock230Server* srv,
-    int attack_roll,
-    int defence_roll)
-{
-    if( attack_roll <= 0 )
-        return 0;
-    if( attack_roll > defence_roll )
-    {
-        /* 1 - (D+2)/(2(A+1)) = (2A + 2 - D - 2) / (2(A+1)) = (2A - D) / (2A + 2) */
-        int denominator = (2 * attack_roll) + 2;
-        int numerator = (2 * attack_roll) - defence_roll;
-
-        return mock230_random(srv, 0, denominator - 1) < numerator;
-    }
-    {
-        /* A / (2(D+1)) */
-        int denominator = 2 * (defence_roll + 1);
-
-        return mock230_random(srv, 0, denominator - 1) < attack_roll;
-    }
-}
-
-/** floor(0.5 + effective * (strength bonus + 64) / 640), in integers. */
-static int
-max_hit(int effective_strength, int strength_bonus)
-{
-    int numerator = effective_strength * (strength_bonus + 64);
-    /* +320 is the 0.5 the reference adds before flooring, scaled by 640. */
-    int hit = (numerator + 320) / 640;
-
-    return hit > 0 ? hit : 0;
-}
 
 /* ------------------------------------------------------------------ */
 /* Applying damage                                                     */
@@ -661,70 +523,7 @@ player_attack_rate(const struct Mock230Player* player)
  * simplification, and a visible one — an axe swings like a sword — but the
  * alternative is guessing a weapon class from its name.
  */
-/*
- * Resolve a seq-valued param on an obj, falling back to the param's own
- * declared default when the obj carries no override. That fallback is what
- * makes the unarmed case work without a special branch: unarmed has no weapon
- * obj, so every lookup misses and the content default answers.
- */
-static int
-weapon_seq_param(
-    int weapon_id,
-    char const* param_name)
-{
-    int param_id = mock230_content_symbol(MOCK230_PACK_PARAM, param_name);
 
-
-    if( param_id < 0 )
-        return -1;
-    if( weapon_id >= 0 )
-    {
-        const struct Mock230ObjParam* row = mock230_obj_param(weapon_id, param_id);
-
-        if( row )
-            return row->ival;
-    }
-
-    return mock230_content_param_default(param_id);
-}
-
-/*
- * The player's swing animation — content's, not the engine's.
- *
- * The reference is `[proc,combat_attack_anim]` (LostCity combat.rs2:78-84),
- * which switches on the damage style and returns
- * `oc_param($weapon, <style>attack_anim)`. So the seq is a *param on the
- * weapon*, exactly like its bonuses, and choosing it is a table lookup rather
- * than a decision.
- *
- * This used to be two hardcoded seq names in C — `human_sword_slash` armed,
- * `human_unarmedpunch` unarmed — which meant an axe swung like a sword and no
- * content author could change either without recompiling the server. The names
- * now live in skill_combat/configs/combat.param and any obj may override them.
- *
- * The unarmed punch/kick split is still approximated here. Properly it comes
- * from the weapon's style table (DBTable 78, indexed by %com_mode), which this
- * server does not read yet — the same gap that makes derive_damage_type a
- * heuristic. Until it does, aggressive maps to the crush anim and everything
- * else to slash, and both names are content's to set.
- */
-static int
-player_attack_seq(
-    const struct Mock230Player* player,
-    int style)
-{
-    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-
-    if( weapon >= 0 )
-        return weapon_seq_param(weapon, "slashattack_anim");
-
-    /* Unarmed: server-allocated content params, one per style branch. Nothing
-     * about which swing an unarmed style plays is the cache's or the engine's.
-     * See skill_combat/configs/combat.param. */
-    if( style == MOCK230_STYLE_AGGRESSIVE )
-        return weapon_seq_param(-1, "unarmedaggressive_anim");
-    return weapon_seq_param(-1, "unarmedattack_anim");
-}
 
 void
 mock230_combat_player_tick(struct Mock230Server* srv)
@@ -853,9 +652,6 @@ mock230_combat_npc_tick(
 {
     struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc = &srv->npcs[slot];
-    int attack_roll;
-    int defence_roll;
-    int damage_type;
 
     /* Death first: a dead npc neither swings nor roams, and its corpse has to
      * outlive the killing blow long enough for the animation to play. */
@@ -957,66 +753,20 @@ mock230_combat_npc_tick(
     play_npc_seq(npc, npc->attack_seq);
 
     /*
-     * Auto-retaliate, handed to content.
+     * The npc's swing is content's, the same way the player's is.
      *
-     * Queued here — where the npc *commits to a swing* — rather than where the
-     * damage lands, because being attacked is what provokes retaliation: a
-     * miss and a protected hit have to provoke it too, and those return early
-     * below.
+     * `[proc,npc_meleeattack]` rolls the accuracy against the player's
+     * `%com_*def`, rolls the damage off the npc's own cache params, applies the
+     * protection prayer, lands the splat and queues the retaliation — which is
+     * the reference's `[proc,npc_meleeattack]` plus `[proc,playerhit_n_melee]`,
+     * and the same list.
      *
-     * The arg is the npc slot, which is what this server uses as an npc uid
-     * (see SS_OP_NPC_FINDUID). The script decides whether to answer — it reads
-     * `option_nodef` and re-checks the npc still exists, since a tick can pass
-     * between the swing and the queue draining.
+     * Retaliation is queued inside that proc, at the point the npc commits to a
+     * swing rather than where damage lands: being attacked is what provokes it,
+     * so a miss and a protected hit have to provoke it too. That used to be a
+     * comment here explaining why the queue call came before two early returns.
      */
-    mock230_scripts_queue_named(srv, "[queue,playerhit_n_retaliate]", 0, slot);
-
-    damage_type = npc->def ? npc->def->damagetype : MOCK230_DAMAGE_CRUSH;
-    attack_roll = npc_effective(npc->def ? npc->def->attack : 1) *
-                  ((npc->def ? npc->def->bonus[MOCK230_PARAM_STABATTACK + damage_type] : 0) +
-                   64);
-    player_combat_stat_refresh(srv);
-    defence_roll = com_stat(srv, k_com_defence[damage_type < 0 || damage_type > 4
-                                                   ? MOCK230_DAMAGE_CRUSH
-                                                   : damage_type]);
-
-    if( !roll_hit(srv, attack_roll, defence_roll) )
-    {
-        mock230_combat_hit_player(srv, hitsplat_block(), 0);
-        return;
-    }
-    /*
-     * Protection prayers are applied to the DAMAGE, after the accuracy roll —
-     * that is OldSchool's order, and it is why a protected hit still splashes a
-     * blue 0 rather than not landing. Against monsters the reduction is total;
-     * the 40 % PvP figure has no meaning here, since nothing but npcs attacks.
-     *
-     * WHICH prayer answers for which damage type is content's:
-     * `[proc,check_protect_prayer]` was ported alongside the rest of the combat
-     * block and reads the varbits directly. This used to name
-     * `headicon_prayer_protectfrommelee` here — a melee-only test in a function
-     * that already knew the damage type, so a ranged npc would silently have
-     * been protected by the wrong prayer, or by none.
-     */
-    {
-        int32_t style = (int32_t)damage_type;
-        int32_t protecting = 0;
-
-        if( mock230_scripts_run_proc_int(srv, "[proc,check_protect_prayer]", &style, 1,
-                                         &protecting) &&
-            protecting )
-        {
-            mock230_combat_hit_player(srv, hitsplat_block(), 0);
-            return;
-        }
-    }
-    {
-        int strength = npc_effective(npc->def ? npc->def->strength : 1);
-        int bonus = npc->def ? npc->def->bonus[MOCK230_PARAM_STRENGTHBONUS] : 0;
-
-        mock230_combat_hit_player(srv, hitsplat_damage(),
-                                  mock230_random(srv, 0, max_hit(strength, bonus)));
-    }
+    mock230_scripts_run_proc_on_npc(srv, "[proc,npc_meleeattack]", slot);
 }
 
 void

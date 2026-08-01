@@ -111,11 +111,22 @@ main(void)
           "`animset` is gone: index 0 is the animations");
     check(ContentRegister_Find(&reg, "varn") == NULL, "and varn was never read");
 
-    /* The other direction: archive 10 names dbtables, so they are not authored. */
+    /*
+     * The other direction: archive 10 names dbtables, so they are not authored.
+     *
+     * And the one namespace where the two axes genuinely disagree — the cache
+     * *names* its 246 tables and this tree must not rename them, while the ids
+     * above the high-water mark are the server's to allocate, which is how
+     * `combat_style_table` (260) exists. This line asserted `IDS_CACHE` and was
+     * wrong the whole time `ss_allocate.py` was handing out 259 and 260.
+     */
     ns = ContentRegister_Find(&reg, "dbtable");
     check(ns && ns->gameval_archive == 10, "gameval archive 10 names dbtables");
     check(ns && ns->names == CONTENT_NAMES_CACHE, "so dbtable names come from the cache");
-    check(ns && ns->ids == CONTENT_IDS_CACHE, "and so do its ids");
+    check(ns && ns->ids == CONTENT_IDS_SERVER, "but ids above the cache's are ours");
+    ns = ContentRegister_Find(&reg, "dbrow");
+    check(ns && ns->gameval_archive == 9, "gameval archive 9 names dbrows");
+    check(ns && ns->ids == CONTENT_IDS_SERVER, "and their ids split the same way");
 
     /* Archive 14 carries an interface *and* its components in one record, so it
      * is the evidence for two namespaces rather than one. */

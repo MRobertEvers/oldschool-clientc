@@ -303,6 +303,71 @@ uniquify(
 }
 
 /**
+ * The name out of one gameval record, for the archives that are not flat strings.
+ *
+ * Archive 10 (dbtable) is the second nested archive in the table, and nothing knew
+ * it. A record is a keyed sequence, terminated by a 0 byte:
+ *
+ *     u8 key; cstring text     key 1      the table's name
+ *                              key n >= 2 the name of column (n - 2)
+ *
+ * Read flat by `sanitise_name` — every byte outside `[A-Za-z0-9_.+-]` collapsing to
+ * `_` — table 0 came out as
+ * `_quest__id__sortname__displayname__release_type__…`, truncated at 255 characters
+ * by the caller's buffer. That is not a derived name and not a bad name; it is
+ * `quest` plus its 49 column names with the framing bytes turned into underscores,
+ * and it was the spelling every dbtable in the tree answered to.
+ *
+ * Verified over cache.osrs239's 246 records: all 246 parse to exactly this shape
+ * with keys 2..N ascending and contiguous, a single terminator and no trailing
+ * bytes; the flat read of the same bytes reproduces all 246 previous pack lines
+ * character for character; and no column any of the 246 config records declares,
+ * or any of 422 clientscripts reads through `(table << 12) | (column << 4)`, sits
+ * above the column count this decode yields.
+ *
+ * Only the name is taken. The column names have nowhere to live yet — see
+ * docs/DBTABLES.md §8.
+ *
+ * Returns 0 when the record does not have this shape, so the caller falls back to
+ * the flat read rather than inventing a name.
+ */
+static int
+keyed_gameval_name(
+    const char* record,
+    int size,
+    char* out,
+    int out_size)
+{
+    const unsigned char* p = (const unsigned char*)record;
+    int at = 0;
+    int last_key = 0;
+
+    while( at < size )
+    {
+        int key = p[at++];
+        int start;
+
+        if( key == 0 )
+            break;
+        if( key <= last_key )
+            return 0; /* keys are ascending; anything else is not this format */
+        last_key = key;
+        start = at;
+        while( at < size && p[at] != 0 )
+            at++;
+        if( at >= size )
+            return 0; /* unterminated: not this format */
+        if( key == 1 )
+        {
+            sanitise_name(record + start, at - start, out, out_size);
+            return out[0] != '\0';
+        }
+        at++; /* the terminator */
+    }
+    return 0;
+}
+
+/**
  * Seed one pack from one gameval archive.
  *
  * `ids`/`id_count` is the ascending list of ids the *records* actually use — a
@@ -400,7 +465,10 @@ seed_pack_from_gameval(
         if( fid >= 0 && fid < pack->capacity && pack->names && pack->names[fid] )
             continue;
         char name[256];
-        sanitise_name(files->files[f], files->file_sizes[f], name, sizeof(name));
+        /* Archive 10's records are keyed, not flat. See `keyed_gameval_name`. */
+        if( gameval_archive != 10 ||
+            !keyed_gameval_name(files->files[f], files->file_sizes[f], name, sizeof(name)) )
+            sanitise_name(files->files[f], files->file_sizes[f], name, sizeof(name));
         if( !name[0] )
             continue;
         uniquify(pack, name, sizeof(name));
@@ -1082,6 +1150,24 @@ cp_names_emit_gamevals(
 
         if( type->gameval_archive < 0 )
             continue;
+        /*
+         * Archive 10 is nested for the same reason archive 14 is: a dbtable's record
+         * carries the table's name *and* every one of its column names, keyed (see
+         * `keyed_gameval_name`). Writing the pack's single name flat replaces that
+         * with one string and drops ~3,000 column names — the only place in the
+         * cache they exist. Refused rather than half-written, exactly as 14 is below.
+         *
+         * This was reachable: `dbtable` is a CP_Type with a gameval archive, so
+         * `pack --gamevals` wrote it, and what it wrote was the mangled flat name
+         * truncated at 255 characters.
+         */
+        if( type->gameval_archive == 10 )
+        {
+            printf("  %-11s skipped — archive 10 is keyed (table name + column names) and "
+                   "this writes flat records only\n",
+                   type->name);
+            continue;
+        }
         archives += emit_gameval_archive(ctx, out_cache_dir, table_id, type->gameval_archive,
                                          type->name, &ctx->names.packs[t], &dirty);
     }

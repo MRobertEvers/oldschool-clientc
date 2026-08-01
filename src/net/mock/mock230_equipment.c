@@ -265,34 +265,15 @@ mock230_equipment_worn_slot(int component)
     return -1;
 }
 
-void
-mock230_equipment_arm_worn_tab(struct Mock230Server* srv)
-{
-    const struct Mock230EnumDef* slots = mock230_content_enum("worn_slots");
-
-    /*
-     * Arm "View equipment stats" (op 1).
-     *
-     * At rev 230 a component's cache ops are only *labels* — whether a click on
-     * one reaches the server is the events mask the server itself sets, so an
-     * unarmed button runs its local onop script and sends nothing. That is
-     * exactly what this one did: the hovertext read "View equipment stats" and
-     * the click went nowhere.
-     */
-    mock230_send_if_setevents(srv, mock230_ids()->com_worn_equipment_stats, -1, -1, 1 << 1);
-
-    /*
-     * And the eleven equipment slots' own op 1, "Remove".
-     *
-     * The paint script writes the label onto each slot, but a label is not
-     * permission: unarmed, the client offers the ObjType's Wear/Drop rows on a
-     * worn item instead — which is nonsense on something already worn — and the
-     * "Remove" it does show goes to the slot's local CS2 hook. Op 10 is Examine,
-     * which the client answers itself.
-     */
-    for( int i = 0; slots && i < slots->count; i++ )
-        mock230_send_if_setevents(srv, slots->values[i].key, -1, -1, (1 << 1) | (1 << 10));
-}
+/*
+ * There is no worn-tab arming here any more.
+ *
+ * `~worn_tab_login` (player/containers.rs2) does it: the equipment-stats button
+ * and the eleven slot components, each with op 1 "Remove" and op 10 "Examine".
+ * What a component permits is a UI policy, and rev 230 made it the server's
+ * exactly so it could be one — leaving it as eleven `mock230_send_if_setevents`
+ * calls with `(1 << 1) | (1 << 10)` spelled inline put it back in the engine.
+ */
 
 int
 mock230_equipment_handle_button(
@@ -311,3 +292,4 @@ mock230_equipment_handle_button(
     }
     return 0;
 }
+

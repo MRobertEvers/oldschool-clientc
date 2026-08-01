@@ -10,9 +10,9 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    148  host commands
+ *    149  host commands
  *      7  host commands (db)
- *    218  total, of 398 declared opcodes
+ *    219  total, of 398 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 218
+#define MOCK230_OPCODE_COVERAGE_COUNT 219
 #define MOCK230_OPCODE_DECLARED_COUNT 398
 
 /*
@@ -157,6 +157,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2537, /* SS_OP_NPC_STAT (host commands) */
     2541, /* SS_OP_NPC_TELE (host commands) */
     2542, /* SS_OP_NPC_TYPE (host commands) */
+    2543, /* SS_OP_NPC_UID (host commands) */
     2547, /* SS_OP_SPOTANIM_NPC (host commands) */
     3000, /* SS_OP_LOC_ADD (host commands) */
     3001, /* SS_OP_LOC_ANGLE (host commands) */
