@@ -10,8 +10,9 @@
 > Read §3.13b–d and §6.1 before changing anything structural. The short version:
 > the transport is a seam (a socket *or* an in-process queue pair), the login
 > handshake is a non-blocking state machine, packets and script opcodes dispatch
-> through tables, and the player is a standalone saveable entity in a pool of
-> one — which is not the same as multiplayer working.
+> through tables, and the world holds a *pool* of players whose entity streams
+> are per-player — two clients in one process see each other move (§6.1 step 1),
+> though the socket server still accepts one connection at a time.
 
 A server that speaks enough of the rev-230 protocol to drive the real client:
 log in, load a scene, walk around, watch npcs roam, switch sidebar tabs, equip
@@ -1684,35 +1685,96 @@ with the content-port plan into one phased sequence is
 [`PORTING_GUIDE.md`](PORTING_GUIDE.md). What is left, in the order each
 unblocks the next:
 
-1. **Finish multiplayer.** The *storage* half of the split is done: the world
-   holds `players[MOCK230_PLAYER_MAX]` with a `player` pointer, and each player
-   carries `world`, `session` and `pid`, so `Mock230Player` is a standalone,
-   saveable entity — which is what let persistence land (§3.15).
+1. ~~**Finish multiplayer.**~~ — **done.** Two clients in one world see each
+   other move, and `net/mock/test/embed_test.c` is where that is asserted: it
+   drives two `ToriRS_Network` instances through two real handshakes into one
+   embedded world, then decodes each one's PLAYER_INFO with the *client's own*
+   reader (`pkt_player_info_reader_read`) and checks that alice's steps arrive
+   in bob's stream, attributed to alice's pid, with alice's appearance and
+   alice's name on them. Asserting on server state instead would have proved
+   nothing: every way this could be wrong is a bitstream that only a reader
+   sees.
 
-   `MOCK230_PLAYER_MAX` is **1**, and raising it is not enough.
+   What the change actually was — and what it was *not* — is worth stating,
+   because "raise `MOCK230_PLAYER_MAX`" is the tempting summary and is wrong.
+   The pool already existed at 1. What was single-player was the set of things
+   the *world* held that are really facts about a *client*:
 
-   - ~~**the encoders**~~ — **done.** All 33 `mock230_send_*` take a
-     `struct Mock230Player*` and reach the socket through `player->session`;
-     `mock230_send` is the one function that still touches the world, for the
-     test capture. 85 call sites, all passing `srv->player`, so the pass is
-     behaviour-identical while the pool holds one — which is what makes it
-     reviewable. It also closed a latent hazard: `mock230_send` gated on
-     `mock230_session_alive`, which is true from the moment a socket is
-     accepted, but the ISAAC pair does not exist until the login block is
-     parsed. With one player nothing was ever addressed to a half-logged-in
-     session; with a pool, every tick's PLAYER_INFO would be. It now checks
-     `cipher_out` too.
-   - **the tick phases**, which act on `srv->player` rather than iterating the
-     pool;
-   - **`PLAYER_INFO`**, which writes the local player and then the terminator —
-     it has no path for encoding anyone else. `NPC_INFO` has the same shape one
-     level down: `tracked` is the world's single set, so it encodes the same
-     npcs for whoever it is addressed to.
+   | was on the world | is on the player | because |
+   |---|---|---|
+   | `tracked` / `tracked_count` | same, per player | NPC_INFO's deltas are relative to whoever is being written to |
+   | `Mock230Npc.tracked` | `npc_tracked[slot]` | "the client knows about this npc" is two answers with two clients |
+   | `Mock230GroundObj.sent` | `ground_sent[slot]` | likewise |
+   | `rebuild_pending` | same, per player | one client walking off the scene is not the other's rebuild… |
+   | `login_pending` | same, per player | …and a second login must not re-run the first player's `[login]` |
+   | `clear_map_flag` | same, per player | one walk ending is not the other's map flag |
+   | — | `tracked_players` / `player_tracked` | new: who this client can see |
 
-   Do not assume a second player works because the array exists. **Done means
-   two embedded clients in one process see each other move** — extend
-   `net/mock/test/embed_test.c`, which already drives one client through a real
-   handshake end to end.
+   Three seams carry the rest:
+
+   - **`srv->active_player` is "whose turn it is"**, not "the player". It was
+     called `player`, and every read of it looked correct while there was one.
+     The per-player phases set it as they iterate
+     (`mock230_world_set_active`), the session sets it before dispatching a
+     packet (`mock230_world_handle` takes a `Mock230Player*` now — the encoder
+     pass's inbound half), and the tick borrows and returns it. Every subsystem
+     that still reaches through the world — the scripts, the bank, combat, the
+     world map — is asking "who am I doing this for", which is the right
+     question; each is moved to an explicit parameter as it is touched.
+   - **A world build is not a login.** `mock230_world_init` is the scene, the
+     npc roster and the map squares' objs, and is idempotent: a second login
+     that re-ran it would respawn the roster on top of itself and return every
+     taken spawn. `mock230_world_player_init` is the character.
+     `mock230_scripts_load` is idempotent for a harder reason — reloading frees
+     the env out from under the first player's parked script.
+   - **World events broadcast.** `mock230_world_broadcast_loc` is what makes a
+     door one player opens open for the other; ground objs withdraw from
+     everyone who was told about them. This is an approximation of the zone the
+     reference would address, and step 3 below is what replaces it — the half a
+     broadcast cannot do is *replay* to whoever arrives later.
+
+   PLAYER_INFO itself is worth reading (`mock230_encode.c`). Three traps, all
+   of which corrupt the stream rather than dropping a field:
+
+   - Extended blocks go in **the order the bit section queued them**, which is
+     why the encoder keeps a `queued[]` rather than walking the tracked list
+     twice. Reversing that order does not lose a block, it applies one player's
+     appearance to another — caught here only because the appearance now
+     carries the player's name.
+   - A player **removed** in the tracked section must not be counted into the
+     order the extended blocks index against, which is why the kept list is
+     rebuilt as it is written.
+   - The tracked section has **no placement op** — its four are nothing, one
+     step, two steps, and remove — so a teleport is spelled as
+     remove-and-re-add in the same packet. `place_dirty` therefore cannot be
+     cleared inside the encoder (whoever is encoded first would consume it);
+     phase 11 clears it, beside `masks`, for the same reason `masks` is there.
+
+   Two changes fell out that are not bookkeeping. `Mock230Npc.combat_target` is
+   a **pid** now rather than the flag "is fighting the player" — the same
+   number and a different meaning — and an aggressive npc picks the nearest
+   eligible player rather than reading `active_player`, which in phase 4 is
+   nobody's turn at all. And the appearance blob carries the player's **name**;
+   it was a literal 0 labelled "name37: empty", which with one player was
+   invisible and with two makes everybody an anonymous body.
+
+   What is still single-player, deliberately and separately:
+
+   - **The socket server accepts one connection at a time.** `serve()` runs one
+     session to completion; a real one wants the non-blocking accept with
+     per-connection output buffering noted at the end of this section. The
+     embedded host (`mock230_embed_connect`) holds several, which is what the
+     test drives.
+   - **One scene origin for the whole world.** `mock230_scene_build` is a
+     singleton, so `maybe_rebuild` moves the origin for everybody and marks
+     every player as owing a REBUILD_NORMAL. Two players more than ~70 tiles
+     apart pull it back and forth. Step 3 is the fix.
+   - **NPC_INFO's extended masks are shared across observers.** An npc's
+     `face_entity` names the *local* player, which is right for the client the
+     retaliation is being encoded to and wrong for every other one. Making it
+     per-observer needs the npc masks to be per-observer.
+   - **`srv->iterator` is one cursor**, as it is in the reference, and for the
+     same reason there is one script-parking slot per player (§3.10).
 2. ~~**Dispatch tables, twice.**~~ — **done**, see §3.13d. Inbound packets are a
    45-entry table; the opcode gap report is generated from the `case` labels and
    runs at load. What is *not* done is splitting the 1,550-line host `switch`

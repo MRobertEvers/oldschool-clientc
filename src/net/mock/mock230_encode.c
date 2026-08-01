@@ -1244,7 +1244,20 @@ mock230_send_player_info(struct Mock230Player* player)
         struct Mock230Player* other = &srv->players[pid];
         int other_extended;
 
-        if( !player_in_view(player, other) )
+        /*
+         * `place_dirty` is a teleport, and the tracked section has no way to
+         * express one: its four movement ops are "nothing", one step, two
+         * steps, and remove. So a teleport *is* a remove — and the entering-view
+         * loop below re-adds them, in the same packet, at their new tile. The
+         * client's reader handles the pair in order, so the entity is dropped
+         * and respawned inside one tick.
+         *
+         * Without this, the observer's copy of a player who teleported stays
+         * where they were until they take a step, and then walks there from the
+         * wrong place. The local player has op 3 to itself precisely because
+         * this section cannot lend it one.
+         */
+        if( other->place_dirty || !player_in_view(player, other) )
         {
             /* Op 3 on a tracked player is "remove". It is the one op that does
              * not keep the slot, so it must not go into `kept`. */
@@ -1328,8 +1341,17 @@ mock230_send_player_info(struct Mock230Player* player)
         put_player_extended(&buf, queued[i], queued_new[i]);
 
     flush(player, &buf, OP_PLAYER_INFO, 2);
-    player->place_dirty = 0;
 
+    /*
+     * `place_dirty` is NOT cleared here. It used to be, and with one recipient
+     * that was the same thing; with several it is not. Phase 10 encodes one
+     * PLAYER_INFO per player, and a teleport has to be described in *all* of
+     * them — the mover's own (as an absolute placement) and every observer's
+     * (as a remove-and-re-add above). Clearing it inside the encoder means
+     * whoever is encoded first consumes it and everyone after sees a player who
+     * did not move. Phase 11 clears it, beside `masks`, for the same reason
+     * `masks` is cleared there.
+     */
     memcpy(player->tracked_players, kept, sizeof(int) * (size_t)kept_count);
     player->tracked_player_count = kept_count;
 }

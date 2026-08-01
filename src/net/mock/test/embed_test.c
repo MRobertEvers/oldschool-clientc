@@ -496,6 +496,34 @@ main(void)
         check(!peers[1].saw_unknown_target, "with every step attributed to a tracked player");
     }
 
+    /*
+     * ── And when one of them teleports? ──────────────────────────────
+     *
+     * The tracked section's four movement ops are "nothing", one step, two
+     * steps and remove; none of them is a placement, so a teleport has to be
+     * spelled as remove-then-re-add. The observable end of that is a second
+     * new-player record for a pid the client already had — which is also a fresh
+     * appearance, so the name check below is what proves the re-add happened
+     * rather than the packet simply having gone quiet.
+     */
+    {
+        int appearances_before = peers[1].saw_appearance;
+
+        peers[1].saw_name[0] = '\0';
+        /* A host saying whose turn it is, which is what the seam is for: this
+         * stands in for the `::tele` cheat or a world-map click arriving on
+         * alice's session. */
+        mock230_world_set_active(world, alice);
+        mock230_world_teleport(world, alice->level, alice->x + 6, alice->z + 6);
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(peers[1].saw_appearance > appearances_before,
+              "bob's client was re-told about alice after she teleported");
+        check(strcmp(peers[1].saw_name, "alice") == 0, "and it was still alice");
+        check(!peers[1].saw_unknown_target, "with the remove and the re-add in step");
+    }
+
     ToriRS_Network_Free(&peers[0].net);
     ToriRS_Network_Free(&peers[1].net);
     mock230_embed_stop(embed);

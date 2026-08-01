@@ -4447,6 +4447,10 @@ phase_cleanup_player(struct Mock230Player* player)
     player->masks = 0;
     player->anim_id = -1;
     player->anim_delay = 0;
+    /* With the masks, and for the same reason: an absolute placement describes
+     * one tick, and every recipient's PLAYER_INFO has to have been written
+     * before it is dropped. mock230_send_player_info used to clear it. */
+    player->place_dirty = 0;
     /*
      * `move_dirs`/`move_count` are NOT cleared here, and must not be: they are
      * read by every *other* player's PLAYER_INFO in phase 10, and phase 5 rewrites
