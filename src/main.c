@@ -1609,6 +1609,50 @@ main(
         }
     }
 
+    /*
+     * TORIRS_PICK_SWEEP="x0,y0,x1,y1[,step]": the world analogue of
+     * TORIRS_HOVER_PROBE below. That one measures UI hitboxes; this moves the
+     * pointer over a grid and renders once per point so the raster reports what
+     * world geometry actually covers each pixel (pair with TORIRS_PICK_DEBUG).
+     *
+     * This is the only way to ask "is this loc drawn over its own tile" without
+     * eyeballing a screenshot: every other diagnostic reports what the BUILD
+     * decided, and a loc placed correctly but drawn wrong is indistinguishable
+     * from one placed wrong until you compare a loc's pick region against the
+     * terrain picks at the same pixels.
+     *
+     * One render per point, so a 50x40 grid is 2000 frames — start coarse.
+     */
+    if( getenv("TORIRS_PICK_SWEEP") )
+    {
+        char* ps_sep = NULL;
+        char const* ps = getenv("TORIRS_PICK_SWEEP");
+        int px0 = (int)strtol(ps, &ps_sep, 0);
+        int py0 = ps_sep && *ps_sep == ',' ? (int)strtol(ps_sep + 1, &ps_sep, 0) : 0;
+        int px1 = ps_sep && *ps_sep == ',' ? (int)strtol(ps_sep + 1, &ps_sep, 0) : px0;
+        int py1 = ps_sep && *ps_sep == ',' ? (int)strtol(ps_sep + 1, &ps_sep, 0) : py0;
+        int pstep = ps_sep && *ps_sep == ',' ? (int)strtol(ps_sep + 1, &ps_sep, 0) : 8;
+        struct LibToriRS_Input ps_storage;
+        struct LibToriRS_Input* ps_input = LibToriRS_Input_Init(&ps_storage, 0);
+        uint64_t ps_ms = 1;
+
+        if( pstep < 1 )
+            pstep = 1;
+        for( int py = py0; py <= py1; py += pstep )
+        {
+            for( int pxi = px0; pxi <= px1; pxi += pstep )
+            {
+                fprintf(stderr, "pick_sweep: %d,%d\n", pxi, py);
+                LibToriRS_Input_Begin(ps_input, ps_ms);
+                LibToriRS_Input_PushMouseMove(ps_input, pxi, py);
+                LibToriRS_Input_End(ps_input);
+                App_RunOnce(&app, ps_ms, ps_input);
+                sim_render_frame(&app);
+                ps_ms += 20;
+            }
+        }
+    }
+
     /* TORIRS_HOVER_PROBE="x0,y0,x1,y1[,step]": sweep the rect and print the
      * component id the hover walk resolves at each point (the IF1 overlayer
      * redirect included). Pair with TORIRS_SIM_MOUSE_CLICK to open the tab

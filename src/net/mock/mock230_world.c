@@ -8254,9 +8254,30 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_content_param_type(verb) == 's',
                            "and it is declared 's', got '%c'",
                            mock230_content_param_type(verb));
-            /* The absent row. Not an error — the reference pushes 0. */
+            /* The absent row. Not an error — the reference answers with the
+             * param's declared default. */
             SELFTEST_CHECK(mock230_obj_param(longbow, verb) == NULL,
                            "a param the obj does not carry is absent, not zero-valued");
+
+            /* The declaration table behind the absent case, checked directly
+             * so a script-level failure can be split into "the default was
+             * read wrong" versus "the opcode ignored it". */
+            {
+                int param_87 = mock230_content_symbol(MOCK230_PACK_PARAM, "param_87");
+                int attackrate = mock230_content_symbol(MOCK230_PACK_PARAM, "attackrate");
+
+                SELFTEST_CHECK(param_87 > 0 && attackrate > 0,
+                               "param_87 and attackrate resolve by name");
+                SELFTEST_CHECK(mock230_content_param_default(param_87) == -1,
+                               "param_87 declares default=-1, got %d",
+                               mock230_content_param_default(param_87));
+                SELFTEST_CHECK(mock230_content_param_default(attackrate) == 4,
+                               "attackrate declares default=4, got %d",
+                               mock230_content_param_default(attackrate));
+                SELFTEST_CHECK(mock230_content_param_default(rangeattack) == 0,
+                               "rangeattack declares no default, which reads as 0, got %d",
+                               mock230_content_param_default(rangeattack));
+            }
 
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_oc_param] should be in the pack");
@@ -8264,8 +8285,10 @@ mock230_world_selftest(void)
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
-                               "oc_param should clear all three int cases, got %d",
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
+                               "oc_param should clear all five int cases (two carried "
+                               "rows, then absent with no default, default=-1, and "
+                               "default=4), got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
@@ -8359,8 +8382,9 @@ mock230_world_selftest(void)
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
-                               "nc_param should clear all four int cases, got %d",
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
+                               "nc_param should clear all five int cases (the last is "
+                               "absent-with-declared-default: param_46 -> 526), got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 

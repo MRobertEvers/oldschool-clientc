@@ -1379,18 +1379,32 @@ where the table now goes. The change was ~120 lines and no new decoding at all.
 
 ### What `oc_param` and `nc_param` still get wrong
 
-**Param defaults are not read.** `configs/all.param` states a `default=` on 469
-params and a `defaultstr=` on 311; 365 of the int defaults are `-1`.
-`load_param_types` reads only the `type=` line, so a record that does not carry
-the param reports 0 where the reference reports the declared default. For the
-majority of params — no `default=` line, so the default is 0 — the two agree,
-which is why nothing has caught it.
+**~~Param defaults are not read~~ — int defaults are now.** `configs/all.param`
+states a `default=` on 469 params, 365 of them `-1`; `load_param_types` reads
+them and `push_typed_param` answers an absent row with the declaration instead
+of 0. A param that declares none reads as 0, which is the cache's own value —
+`RSCache_Dat2ConfigParamInit` leaves `default_int` on the zeroed record, and
+LostCity's handlers push `paramType.defaultInt` the same way. There is no
+"undeclared" sentinel in the table: with -1 the single most-declared default,
+any in-band marker would collide with real data, so undeclared is simply
+stored as 0. The selftest pins all three shapes through both opcodes — absent
+with no declaration (`rangeattack` → 0), `default=-1` (`param_87`),
+`default=4` (`attackrate`), `default=526` via the npc table (`param_46`) —
+and each assertion was shown to fail under a mutated loader and a mutated
+push before landing.
 
-That is a real wrong answer, not a gap: `-1` and `0` are both plausible ids, so a
-caller cannot tell it happened. Fixing it is small and shared — `load_param_types`
-gains two lines and `push_typed_param` in `mock230_scripts.c` takes the default
-instead of 0 — but it changes `oc_param`'s shipped behaviour, so it is recorded
-here rather than folded into a change scoped to the npc table.
+Two halves remain, both silent in the same way the int half was:
+
+- **`defaultstr=` (311 declared) is read by nothing.** An absent string param
+  reports `""` where the reference reports the declared string.
+- **The server-overlay `.param` declarations are not walked at runtime.**
+  `load_param_types` reads only `configs/all.param`, so an overlay-declared
+  param (`death_anim`, `death_drop`, `next_loc_stage`, …) has no type and no
+  default in the VM's table — its type falls back to the stored value's own
+  kind, and its symbolic default (`default=human_death`) is invisible. The
+  overlay grammar also spells types as words (`type=seq`) where the dump file
+  uses the cache's single chars, so a future overlay walk must not reuse the
+  dump parser's `value[0]`: six of the word types collide on `s` alone.
 
 ## 3.15 Player persistence is an ini per player
 

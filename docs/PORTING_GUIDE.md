@@ -301,16 +301,22 @@ even though the design is done. Close them before large-scale porting:
    patrol and `loc.category` were never band fields). What remains of this
    item is the last sub-step: remove the text parse for the band-carried
    fields now that boot proves the two identical.
-2. **Delete the second baker.** `mock230_pack.c --cache-out`'s
-   `bake_npc_params` / `bake_loc_params` are superseded by cachepack's split
-   and were slated to disappear (`CONTENT_PACK_PLAN.md` §5.4); the file is
-   still 1,342 lines. Keep its *validator* role (`--check-only`), delete the
-   baking.
-3. **The param-defaults bug.** `load_param_types` reads only `type=`, so
-   `oc_param`/`nc_param` return 0 where the reference returns the declared
-   default — 469 params declare `default=`, 365 of them `-1`. Silently wrong
-   answers, not gaps (`osrs230_mockserver.md` §"What oc_param and nc_param
-   still get wrong").
+2. **~~Delete the second baker~~ — deleted.** `mock230_pack.c` is a validator
+   only now (861 lines, from 1,377): the whole `--cache-out` export — by then
+   one register-driven `bake_params`, the successor of `bake_npc_params` /
+   `bake_loc_params` — went, because `cachepack pack` emits the cache
+   projection and the server band from one merged record (`CONTENT_PACK_PLAN.md`
+   §5.4) and a second baker could only disagree with it. `--check-only` is
+   accepted explicitly, so the documented invocation runs as written.
+3. **~~The param-defaults bug~~ — fixed.** `load_param_types` reads `default=`
+   and `push_typed_param` answers an absent row with the declared default
+   (0 when none is declared, the cache decoder's own zeroed value). The
+   selftest pins `default=-1` and `default=4` absent-row cases through both
+   `oc_param` and `nc_param`. Still open, recorded in `osrs230_mockserver.md`
+   §"What oc_param and nc_param still get wrong": `defaultstr=` is read by
+   nothing, and the server-overlay `.param` declarations (`death_anim`,
+   `next_loc_stage`, …) are not walked at runtime, so their types and
+   symbolic defaults are invisible to the VM.
 4. **The `gameval_import.py` truncation hazard** — it opens outputs `"w"`
    and would truncate `configs/all.npc.compack` 16,292 → 39 lines
    (`CONTENT_ARCHITECTURE.md` §3.1). Make it merge or retire it.

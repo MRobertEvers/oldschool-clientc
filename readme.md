@@ -2741,6 +2741,16 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
   elsewhere means the geometry (extent on the second line) or the projection
   is responsible. One line per element, reprinted only when a position
   actually changes (e.g. across a scene rebuild).
+- `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
+  (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
+  "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+  — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
+  loc drawn over its own tile", which nothing else can: every other diagnostic
+  reports what the *build* decided, and a loc placed right but drawn wrong is
+  indistinguishable from one placed wrong until you compare a loc's pick region
+  against the terrain picks at the same pixels. Expect a loc's pick centroid to
+  sit ~7px above its tile's and ~2px west — that is height parallax, not a
+  placement error.
 - `TORIRS_MODEL_FMT_DEBUG=1` prints each model's decoded `format_version`. Only
   `decode_ob3` sets it, and only `>= 13` triggers the 4x vertex scale-down in
   `torirs_model_from_rscache`; every model in an OldSchool cache decodes as 0

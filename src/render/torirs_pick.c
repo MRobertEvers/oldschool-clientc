@@ -4,6 +4,8 @@
 #include "world/world_pickset.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Entity picks report the entity's own tile; players are not yet minimenu
@@ -91,6 +93,75 @@ ToriRS_PickHitsAdd(
     hit->tile_level = tile_level;
 }
 
+/*
+ * TORIRS_PICK_DEBUG=1: what the renderer says is drawn under the pointer.
+ *
+ * Every other diagnostic here reports what the BUILD decided. This one reports
+ * what the RASTER produced: a pick hit means the projected model actually
+ * covered the mouse point. Holding the two against each other is the only way
+ * to separate "placed on the wrong tile" from "placed right and drawn wrong" —
+ * if a loc picks over ground the terrain hits name as a different tile, the
+ * geometry is landing somewhere its own slot does not claim.
+ *
+ * Printed only when the set changes, so a parked pointer emits one line.
+ */
+static void
+pick_debug_dump(
+    struct World* world,
+    struct World_PickSet const* pickset)
+{
+    static int enabled = -1;
+    static int every; /* TORIRS_PICK_DEBUG=all: no dedupe, one report per call */
+    static unsigned last_sig;
+    unsigned sig = 2166136261u;
+
+    if( enabled < 0 )
+    {
+        char const* env = getenv("TORIRS_PICK_DEBUG");
+        enabled = env != NULL;
+        /* A sweep needs a report per sample point to pair with, and dedupe
+         * silently drops the runs of identical picks that pairing depends on. */
+        every = env && strcmp(env, "all") == 0;
+    }
+    if( !enabled )
+        return;
+
+    for( int i = 0; i < pickset->count; i++ )
+    {
+        sig = (sig ^ (unsigned)pickset->items[i].element_id) * 16777619u;
+        sig = (sig ^ (unsigned)pickset->items[i].type) * 16777619u;
+    }
+    if( !every && sig == last_sig )
+        return;
+    last_sig = sig;
+
+    fprintf(stderr, "pickset: %d hit(s)\n", pickset->count);
+    for( int i = 0; i < pickset->count; i++ )
+    {
+        struct World_Picked const* p = &pickset->items[i];
+        static char const* const kind[] = { "terrain", "scenery", "projectile", "npc", "obj" };
+        int loc_id = -1;
+        if( p->type == WORLD_PICK_SCENERY )
+        {
+            struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, p->element_id);
+            if( sc )
+                loc_id = sc->loc_id;
+        }
+        fprintf(
+            stderr,
+            "  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
+            i,
+            p->type <= WORLD_PICK_OBJSTACK ? kind[p->type] : "?",
+            p->element_id,
+            p->tile_x,
+            p->tile_z,
+            p->tile_level,
+            loc_id >= 0 ? "" : "\n");
+        if( loc_id >= 0 )
+            fprintf(stderr, " loc=%d\n", loc_id);
+    }
+}
+
 void
 ToriRS_PickHitsClassify(
     struct World* world,
@@ -151,4 +222,6 @@ ToriRS_PickHitsClassify(
             }
         }
     }
+
+    pick_debug_dump(world, out_pickset);
 }

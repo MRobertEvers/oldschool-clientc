@@ -1,10 +1,8 @@
 /*
- * mock230_pack — check the content tree against the cache, and optionally bake
- * server-authoritative overlays into a derived cache.
+ * mock230_pack — check the content tree against the cache. A validator, only:
  *
  *   make -C src mock230-pack
- *   src/build/mock230_pack                       # validate
- *   src/build/mock230_pack --cache-out cache.mock  # validate + bake
+ *   src/build/mock230_pack --check-only
  *
  * Why this exists: every id in the tree came from OpenRune's gameval table,
  * whose cache is revision 235.10, and the mock runs against 230. An id that
@@ -18,19 +16,14 @@
  * So the rule is: the importers state, this validates. A non-zero exit means
  * the tree and the cache disagree.
  *
- * `--cache-out` is the revision-loop pack step. The mock reads overlays from
- * server/scripts feature configs at boot, which is enough for the mock — but a
- * *cache* is the portable form. The export folds authored fields that have a
- * home in the client record into each record's param table:
- *
- *   - npc combat overlays (hitpoints, attacklevel, death_drop, anims, ...)
- *   - loc door stages (`next_loc_stage` -> param of the same name)
- *
- * using the ids in pack/param.pack. Pure server data (RuneScript, enums,
- * drop tables) stays in `server/` and is not baked.
+ * This tool used to also *write* — `--cache-out` baked authored fields into
+ * each record's param table in a copied cache. That was the second baker
+ * CONTENT_PACK_PLAN.md §5.4 retires: `cachepack pack` now emits the cache
+ * projection and the server band from one merged record, driven by
+ * `fields/<type>.ini`, so a baker here could only disagree with it. Deleted,
+ * not moved; the validator role is the whole tool now.
  */
 
-#include "content/content_fields.h"
 #include "content/content_register.h"
 #include "mock230.h"
 #include "mock230_content.h"
@@ -43,7 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 /* ------------------------------------------------------------------ */
 /* Reporting                                                           */
@@ -52,10 +44,6 @@
 static int g_errors;
 static int g_warnings;
 static int g_verbose;
-/* The tree being checked. Set once from `--content`, because the field register is
- * read per record and threading a path through the encoders would touch every
- * signature between here and the baker for no gain. */
-static const char* g_content_dir = "OSRS-Content/osrs239-content";
 
 static void
 report_error(const char* fmt, ...)
@@ -748,497 +736,6 @@ validate_doors(
 }
 
 /* ------------------------------------------------------------------ */
-/* Cache export                                                        */
-/* ------------------------------------------------------------------ */
-
-static int
-copy_file(
-    const char* from,
-    const char* to)
-{
-    FILE* in = fopen(from, "rb");
-    FILE* out;
-    static char buffer[1 << 20];
-    size_t got;
-
-    if( !in )
-        return 0;
-    out = fopen(to, "wb");
-    if( !out )
-    {
-        fclose(in);
-        return 0;
-    }
-    while( (got = fread(buffer, 1, sizeof(buffer), in)) > 0 )
-    {
-        if( fwrite(buffer, 1, got, out) != got )
-        {
-            fclose(in);
-            fclose(out);
-            return 0;
-        }
-    }
-    fclose(in);
-    fclose(out);
-    return 1;
-}
-
-/*
- * Copy the whole cache before editing it.
- *
- * There is no lighter option: an edit appends its new archive to
- * `main_file_cache.dat2` and repoints the index at it, so the .dat2 is part of
- * the output whether or not most of it changed. 180 MB per export is the price
- * of a derived cache being a real, bootable cache rather than a patch file.
- */
-static int
-copy_cache(
-    const char* from,
-    const char* to)
-{
-    static const char* const k_files[] = {
-        "main_file_cache.dat2", "main_file_cache.idx255", "xteas.json", NULL,
-    };
-    char source[1024];
-    char dest[1024];
-
-    if( mkdir(to, 0755) != 0 )
-    {
-        struct stat info;
-
-        if( stat(to, &info) != 0 )
-        {
-            fprintf(stderr, "mock230_pack: cannot create %s\n", to);
-            return 0;
-        }
-    }
-
-    for( int i = 0; k_files[i]; i++ )
-    {
-        snprintf(source, sizeof(source), "%s/%s", from, k_files[i]);
-        snprintf(dest, sizeof(dest), "%s/%s", to, k_files[i]);
-        if( !copy_file(source, dest) && i < 2 )
-        {
-            fprintf(stderr, "mock230_pack: cannot copy %s\n", source);
-            return 0;
-        }
-    }
-    for( int idx = 0; idx < 32; idx++ )
-    {
-        snprintf(source, sizeof(source), "%s/main_file_cache.idx%d", from, idx);
-        snprintf(dest, sizeof(dest), "%s/main_file_cache.idx%d", to, idx);
-        (void)copy_file(source, dest); /* sparse: not every index exists */
-    }
-    return 1;
-}
-
-/* Param ids the export writes, resolved from content/pack/param.pack so the
- * baked cache and the text tree name the same fields. */
-/*
- * Which struct field each authored name is, so the field register can reach it.
- *
- * The register states *which* fields project into params and under what name
- * (`src/content/content_fields.c`); this states where the value lives. Two tables,
- * and neither repeats the other — one is content's business and lives in a file a
- * content author can edit, the other is a property of the C struct and cannot.
- *
- * What this replaces is a single table that did both, in C, so adding a projected
- * field meant editing a struct, a parser and a baker, and forgetting the third
- * produced a field that loaded, worked in the mock, and never reached the cache.
- */
-struct FieldOffset
-{
-    const char* name;
-    size_t offset;
-};
-
-static const struct FieldOffset k_npc_fields[] = {
-    { "hitpoints",   offsetof(struct Mock230NpcDef, hitpoints)   },
-    { "attack",      offsetof(struct Mock230NpcDef, attack)      },
-    { "strength",    offsetof(struct Mock230NpcDef, strength)    },
-    { "defence",     offsetof(struct Mock230NpcDef, defence)     },
-    { "magic",       offsetof(struct Mock230NpcDef, magic)       },
-    { "ranged",      offsetof(struct Mock230NpcDef, ranged)      },
-    { "respawnrate", offsetof(struct Mock230NpcDef, respawnrate) },
-    { "wanderrange", offsetof(struct Mock230NpcDef, wanderrange) },
-    { "nomove",      offsetof(struct Mock230NpcDef, nomove)      },
-    { "huntrange",   offsetof(struct Mock230NpcDef, huntrange)   },
-    { "attackrate",  offsetof(struct Mock230NpcDef, attackrate)  },
-    { "attackrange", offsetof(struct Mock230NpcDef, attackrange) },
-    { "damagetype",  offsetof(struct Mock230NpcDef, damagetype)  },
-    { "attack_anim", offsetof(struct Mock230NpcDef, attack_anim) },
-    { "defend_anim", offsetof(struct Mock230NpcDef, defend_anim) },
-    { "death_anim",  offsetof(struct Mock230NpcDef, death_anim)  },
-    { "death_drop",  offsetof(struct Mock230NpcDef, death_drop)  },
-};
-
-static const struct FieldOffset k_loc_fields[] = {
-    { "next_loc_stage", offsetof(struct Mock230LocDef, next_loc_stage) },
-};
-
-/** The int this field holds on `record`, or 0 when the table does not know it. */
-static int
-field_value(
-    const struct FieldOffset* table,
-    size_t table_count,
-    const char* name,
-    const void* record,
-    int* out_found)
-{
-    *out_found = 0;
-    for( size_t i = 0; i < table_count; i++ )
-    {
-        if( strcmp(table[i].name, name) != 0 )
-            continue;
-        *out_found = 1;
-        return *(const int*)((const char*)record + table[i].offset);
-    }
-    return 0;
-}
-
-
-/** Add or replace an int param on a decoded record. */
-static void
-param_set(
-    struct RSCache_Params* params,
-    int key,
-    int value)
-{
-    for( int i = 0; i < params->count; i++ )
-    {
-        if( params->keys[i] == key && params->kinds[i] == 0 )
-        {
-            *(int*)params->values[i] = value;
-            return;
-        }
-    }
-    if( params->count == params->capacity )
-    {
-        int capacity = params->capacity ? params->capacity * 2 : 8;
-
-        params->keys = realloc(params->keys, (size_t)capacity * sizeof(int));
-        params->values = realloc(params->values, (size_t)capacity * sizeof(void*));
-        params->kinds = realloc(params->kinds, (size_t)capacity * sizeof(uint8_t));
-        params->capacity = capacity;
-    }
-    params->keys[params->count] = key;
-    params->values[params->count] = malloc(sizeof(int));
-    *(int*)params->values[params->count] = value;
-    params->kinds[params->count] = 0;
-    params->count++;
-}
-
-/*
- * Fold one record's authored fields into its param table, as the register says.
- *
- * `bake_npc_params` and `bake_loc_params` were two functions doing this from two
- * hardcoded lists; this is one, driven by `fields/<type>.ini`. A negative value is
- * "unset" for every field here — a param of -1 is not a value the client can use,
- * and `death_drop` spells "drops nothing" that way.
- */
-static void
-bake_params(
-    struct RSCache_Params* params,
-    const char* type,
-    const void* record,
-    const struct FieldOffset* offsets,
-    size_t offset_count)
-{
-    struct ContentFields fields;
-
-    if( !record )
-        return;
-    ContentFields_Load(&fields, g_content_dir, type);
-
-    for( int i = 0; i < fields.count; i++ )
-    {
-        const struct ContentField* field = &fields.entries[i];
-        int found = 0;
-        int value = field_value(offsets, offset_count, field->name, record, &found);
-
-        if( field->client == CONTENT_CLIENT_ERROR )
-        {
-            /* Declared as "must be expressible", and it is not. Reported at bake
-             * time, which is the whole point of the disposition: the alternative is
-             * finding out in game that a field never reached the client. */
-            if( found && value != 0 )
-                report_error("%s.%s is declared `client = error` and has a value (%d) — "
-                             "give it a param or declare it `drop`",
-                             type, field->name, value);
-            continue;
-        }
-        if( field->client != CONTENT_CLIENT_PARAM )
-            continue; /* native is the encoder's, drop is server-only */
-        if( !found )
-        {
-            report_warning("%s.%s projects into param `%s` but no struct field holds "
-                           "it — add it to k_%s_fields",
-                           type, field->name, field->param_name, type);
-            continue;
-        }
-        if( value < 0 )
-            continue;
-
-        int key = mock230_content_symbol(MOCK230_PACK_PARAM, field->param_name);
-        if( key < 0 )
-        {
-            report_warning("pack/param.pack has no id for `%s` — %s.%s not baked",
-                           field->param_name, type, field->name);
-            continue;
-        }
-        param_set(params, key, value);
-    }
-}
-
-/*
- * Write an npc's authored combat block into its param table.
- *
- * The equipment bonuses are already there — OldSchool puts them at param ids
- * 0..11 — so this only adds what a cache has no field for. `null` values (-1)
- * are skipped rather than written: a param that is present and -1 reads back as
- * "drops object -1", where an absent one correctly reads as "nothing was said".
- */
-
-/*
- * Re-encode one config group with overlays folded into params.
- *
- * The encoders are semantic round trips, not byte-exact ones: they cannot tell
- * "field absent" from "field present and zero", so a re-encoded record is usually
- * a few bytes shorter than the original. Untouched records keep their original
- * bytes so the rest of the group stays identical.
- */
-static int
-bake_config_group(
-    struct RSCache_Dat2Disk* disk,
-    struct RSCache* profile,
-    struct RSCache_Dat2Edit* edit,
-    int table,
-    int config_kind,
-    enum RSCache_Type rs_type,
-    int (*bake_one)(
-        struct RSCache* profile,
-        int id,
-        const uint8_t* data,
-        int size,
-        uint8_t* out,
-        uint32_t out_cap,
-        uint32_t* out_size),
-    const char* label,
-    int* out_baked)
-{
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    struct RSCache_FileList packed;
-    uint8_t* encoded_group = NULL;
-    uint32_t encoded_size;
-    int baked = 0;
-    int ok = 0;
-    uint8_t buffer[8192];
-
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, config_kind);
-    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
-    {
-        fprintf(stderr, "mock230_pack: no %s config archive\n", label);
-        if( archive )
-            RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-    RSCache_ProfileSetGroupRevision(profile, rs_type, archive->revision);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-
-    memset(&packed, 0, sizeof(packed));
-    packed.file_count = files->file_count;
-    packed.files = calloc((size_t)packed.file_count, sizeof(char*));
-    packed.file_sizes = calloc((size_t)packed.file_count, sizeof(int));
-
-    for( int i = 0; i < files->file_count; i++ )
-    {
-        int id = archive->file_ids ? archive->file_ids[i] : i;
-        uint32_t size = 0;
-
-        if( files->file_sizes[i] <= 0 )
-            continue;
-        if( !bake_one(profile, id, (const uint8_t*)files->files[i], files->file_sizes[i],
-                      buffer, sizeof(buffer), &size) )
-        {
-            packed.files[i] = files->files[i];
-            packed.file_sizes[i] = files->file_sizes[i];
-            continue;
-        }
-        packed.files[i] = malloc(size);
-        memcpy(packed.files[i], buffer, size);
-        packed.file_sizes[i] = (int)size;
-        baked++;
-    }
-
-    encoded_size = RSCache_FileListEncodeBound(&packed);
-    encoded_group = malloc(encoded_size);
-    encoded_size = RSCache_FileListEncode(&packed, encoded_group, encoded_size);
-    if( encoded_size == 0 )
-    {
-        fprintf(stderr, "mock230_pack: the %s group did not encode\n", label);
-    }
-    else if( RSCache_Dat2EditPutArchive(edit, table, config_kind, encoded_group,
-                                        encoded_size) )
-    {
-        fprintf(stderr, "        baked %d %s records\n", baked, label);
-        ok = 1;
-        if( out_baked )
-            *out_baked = baked;
-    }
-    else
-    {
-        fprintf(stderr, "mock230_pack: could not stage the %s archive\n", label);
-    }
-
-    for( int i = 0; i < packed.file_count; i++ )
-    {
-        if( packed.files[i] && packed.files[i] != files->files[i] )
-            free(packed.files[i]);
-    }
-    free(packed.files);
-    free(packed.file_sizes);
-    free(encoded_group);
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    return ok;
-}
-
-static int
-bake_one_npc(
-    struct RSCache* profile,
-    int id,
-    const uint8_t* data,
-    int size,
-    uint8_t* out,
-    uint32_t out_cap,
-    uint32_t* out_size)
-{
-    const struct Mock230NpcDef* def = mock230_content_npc(id);
-    struct RSCache_Dat2ConfigNpc* npc;
-
-    *out_size = 0;
-    if( !def )
-        return 0;
-    npc = RSCache_Dat2ConfigNpcNewDecodeProfile(profile, (char*)data, size);
-    if( !npc )
-        return 0;
-    bake_params(&npc->params, "npc", def, k_npc_fields,
-                sizeof(k_npc_fields) / sizeof(k_npc_fields[0]));
-    *out_size = RSCache_Dat2ConfigNpcEncodeProfile(profile, npc, out, out_cap);
-    RSCache_Dat2ConfigNpcFree(npc);
-    if( *out_size == 0 )
-    {
-        report_error("npc %d did not re-encode", id);
-        return 0;
-    }
-    return 1;
-}
-
-static int
-bake_one_loc(
-    struct RSCache* profile,
-    int id,
-    const uint8_t* data,
-    int size,
-    uint8_t* out,
-    uint32_t out_cap,
-    uint32_t* out_size)
-{
-    const struct Mock230LocDef* def = mock230_content_loc(id);
-    struct RSCache_Dat2ConfigLoc* loc;
-
-    *out_size = 0;
-    if( !def || def->next_loc_stage < 0 )
-        return 0;
-    loc = RSCache_Dat2ConfigLocNewDecodeProfile(profile, (char*)data, size);
-    if( !loc )
-        return 0;
-    bake_params(&loc->params, "loc", def, k_loc_fields,
-                sizeof(k_loc_fields) / sizeof(k_loc_fields[0]));
-    *out_size = RSCache_Dat2ConfigLocEncode(profile, loc, out, out_cap);
-    RSCache_Dat2ConfigLocFree(loc);
-    if( *out_size == 0 )
-    {
-        report_error("loc %d did not re-encode", id);
-        return 0;
-    }
-    return 1;
-}
-
-static int
-export_cache(
-    const char* cache,
-    const char* cache_out)
-{
-    struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2Edit* edit;
-    int table;
-    int ok = 0;
-
-    fprintf(stderr, "exporting to %s (copying %s — this writes the whole cache)\n",
-            cache_out, cache);
-    if( !copy_cache(cache, cache_out) )
-        return 0;
-
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
-
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_out);
-    if( !disk )
-    {
-        fprintf(stderr, "mock230_pack: cannot open the copied cache at %s\n", cache_out);
-        return 0;
-    }
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    edit = RSCache_Dat2EditNew(disk);
-    if( !edit )
-    {
-        fprintf(stderr, "mock230_pack: cannot begin an edit\n");
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    if( !bake_config_group(disk, &profile, edit, table, RSCACHE_DAT2_CONFIG_KIND_NPC,
-                           RSCACHE_TYPE_NPC, bake_one_npc, "npc", NULL) )
-    {
-        RSCache_Dat2EditFree(edit);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-    if( !bake_config_group(disk, &profile, edit, table, RSCACHE_DAT2_CONFIG_KIND_LOCS,
-                           RSCACHE_TYPE_LOC, bake_one_loc, "loc", NULL) )
-    {
-        RSCache_Dat2EditFree(edit);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    if( RSCache_Dat2EditCommit(edit, cache_out) )
-    {
-        fprintf(stderr, "        wrote patched cache to %s\n", cache_out);
-        ok = 1;
-    }
-    else
-    {
-        fprintf(stderr, "mock230_pack: the edit did not commit\n");
-    }
-    RSCache_Dat2EditFree(edit);
-    RSCache_Dat2DiskFree(disk);
-    return ok;
-}
-
-/* ------------------------------------------------------------------ */
 /* Entry point                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1246,12 +743,13 @@ static void
 usage(void)
 {
     fprintf(stderr,
-            "usage: mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR] [-v]\n"
+            "usage: mock230_pack [--check-only] [--content DIR] [--cache DIR] [-v]\n"
             "\n"
+            "  --check-only     validate and exit non-zero on any error. This is\n"
+            "                   all the tool does, so the flag is accepted for the\n"
+            "                   documented invocation rather than changing anything\n"
             "  --content DIR    content tree (default OSRS-Content/osrs239-content)\n"
             "  --cache DIR      source cache (default cache.osrs239)\n"
-            "  --cache-out DIR  write a derived cache with server overlays baked in:\n"
-            "                   npc combat params and loc next_loc_stage\n"
             "  --prune-doors    rewrite doors.loc without the pairs the cache\n"
             "                   rejects\n"
             "  -v               list every definition as it is checked\n");
@@ -1264,20 +762,17 @@ main(
 {
     const char* content = "OSRS-Content/osrs239-content";
     const char* cache = MOCK230_CACHE_DIR_DEFAULT;
-    const char* cache_out = NULL;
     int prune = 0;
 
     for( int i = 1; i < argc; i++ )
     {
         if( strcmp(argv[i], "--content") == 0 && i + 1 < argc )
-        {
             content = argv[++i];
-            g_content_dir = content;
-        }
         else if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc )
             cache = argv[++i];
-        else if( strcmp(argv[i], "--cache-out") == 0 && i + 1 < argc )
-            cache_out = argv[++i];
+        else if( strcmp(argv[i], "--check-only") == 0 )
+            ; /* validation is all there is; accepted so the documented
+               * `mock230_pack --check-only` invocation says what it means */
         else if( strcmp(argv[i], "--prune-doors") == 0 )
             prune = 1;
         else if( strcmp(argv[i], "-v") == 0 )
@@ -1359,17 +854,6 @@ main(
         {
             report_error("cannot open the cache at %s", cache);
         }
-    }
-
-    /* Export only from a clean tree. Baking a config the validator rejected
-     * produces a cache that is wrong in exactly the way the errors said, and
-     * then outlives the message. */
-    if( cache_out )
-    {
-        if( g_errors )
-            fprintf(stderr, "mock230_pack: not exporting — fix the errors first\n");
-        else if( !export_cache(cache, cache_out) )
-            g_errors++;
     }
 
     fprintf(stderr, "mock230_pack: %d error(s), %d warning(s)\n", g_errors, g_warnings);

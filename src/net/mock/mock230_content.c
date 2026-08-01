@@ -2048,18 +2048,21 @@ load_spawn_config(const char* path)
  */
 static char* g_param_types;
 static int g_param_type_count;
-/* The `default=` of each param, resolved to an id for the symbol-valued types.
- * The reference relies on these: `oc_param(null, x)` — and every obj that
- * simply does not carry an override — answers with the param's declared
- * default, which is how unarmed combat gets its swing animation without a
- * special case anywhere. -1 means "no default declared". */
+/* The `default=` of each param. The reference relies on these: an obj that
+ * does not carry the row answers with the param's declared default
+ * (LostCity's ObjConfigOps pushes `paramType.defaultInt`), and 365 of the 469
+ * declared defaults are -1 — "no id", which no zero can spell because 0 is a
+ * real obj. A param that declares no default is 0, matching the cache decode:
+ * `RSCache_Dat2ConfigParamInit` leaves `default_int` on the zeroed record.
+ * There is deliberately no "undeclared" sentinel — -1 is the most-declared
+ * default of all, so any in-band marker would collide with real data. */
 static int* g_param_defaults;
 
 int
 mock230_content_param_default(int param_id)
 {
     if( param_id < 0 || param_id >= g_param_type_count || !g_param_defaults )
-        return -1;
+        return 0;
     return g_param_defaults[param_id];
 }
 
@@ -2129,7 +2132,7 @@ load_param_types(const char* content_dir)
         return 0;
     }
     for( int i = 0; i < g_param_type_count; i++ )
-        g_param_defaults[i] = -1;
+        g_param_defaults[i] = 0;
 
     while( fgets(raw, sizeof(raw), file) )
     {
@@ -2158,13 +2161,14 @@ load_param_types(const char* content_dir)
         }
         if( strcmp(line, "default") == 0 )
         {
-            /* `type` precedes `default` in every param block, so the type is
-             * known by now and decides how to read the value: a seq-valued
-             * param names a symbol, everything else is a plain integer. */
-            if( g_param_types[current] == 's' )
-                g_param_defaults[current] = mock230_content_symbol(MOCK230_PACK_SEQ, value);
-            else
-                g_param_defaults[current] = atoi(value);
+            /* Always a plain integer. This file is a cache dump, so the value
+             * is the raw g4 the record carried — every one of the 469 is
+             * numeric, and a *string* param (type 's' — the char here is the
+             * cache's own code, not the overlay grammar's word) declares
+             * `defaultstr=`, which nothing reads yet. Symbolic defaults
+             * (`default=human_death`) live in the server overlay `.param`
+             * files, which this loader does not walk — see the caller. */
+            g_param_defaults[current] = atoi(value);
         }
     }
     fclose(file);

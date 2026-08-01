@@ -126,7 +126,7 @@ Credit where the substrate is already in place, so no phase below rebuilds it.
 | client encoder for npc/obj/loc/seq/param/struct/… | `cp_pack_npc` etc., `cp_types.c:56-103` | done |
 | server-side record overlay (config block over cache record) | `src/net/mock/mock230_content.c` | done |
 | base-cache copy + per-record re-encode | `mock230_pack.c:596`, `:737`; `cp_pack.c:145` | done |
-| param baking (npc combat, loc door stages) | `bake_npc_params`, `mock230_pack.c:684`; `bake_loc_params`, `:719` | done, to be replaced by Phase 5 |
+| param baking (npc combat, loc door stages) | was `bake_npc_params` / `bake_loc_params` in `mock230_pack.c` | replaced by Phase 5 and deleted; `mock230_pack` validates only |
 | **semantic** round-trip at 100% for every type, every cache | `EXCEPTIONS.md:169-172` | done — this is what makes decision 3 safe |
 | FileList encoder, for emitting gamevals back (§5.5) | `RSCache_FileListEncode`, `3rd/rscache/src/filelist.h:37` | done |
 
@@ -516,10 +516,12 @@ thing to report.
 
 ### 5.4 One baker, two outputs
 
-Today two tools write a derived cache and explicitly do not compose:
-`cachepack pack --base` (whole config records, from `configs/all.<type>`) and
-`mock230_pack --cache-out` (params only, from `server/` overlays). See
-`3rd/rscache/tools/cachepack/main.c:29-33` and `CONTENT_ARCHITECTURE.md` §3.5.
+When this section was written, two tools wrote a derived cache and explicitly
+did not compose: `cachepack pack --base` (whole config records, from
+`configs/all.<type>`) and `mock230_pack --cache-out` (params only, from
+`server/` overlays; deleted since — `mock230_pack` is a validator only now).
+See `3rd/rscache/tools/cachepack/main.c:29-33` and `CONTENT_ARCHITECTURE.md`
+§3.5.
 
 Collapse to one baker emitting **two** outputs from one merged record:
 
@@ -530,8 +532,8 @@ Collapse to one baker emitting **two** outputs from one merged record:
 
 Decision 4 is what makes this two rather than three. An earlier draft split the
 cache into a client artifact and a portable/tooling one, because `--cache-out`
-bakes `hitpoints`→2100 and `death_drop`→2000 into the param table
-(`docs/mock230_content.md:616` shows `dump_npc` reading them back) and a param is
+baked `hitpoints`→2100 and `death_drop`→2000 into the param table (the old
+`docs/mock230_content.md` §8 showed `dump_npc` reading them back) and a param is
 readable by anyone holding the cache. With secrecy explicitly not a goal, that
 split buys nothing and costs a whole second artifact — so `param:N` needs no
 audience qualifier, and the cache players download is the same self-describing
@@ -546,7 +548,8 @@ everything else falls through from the substrate. Phase 0.2's config-row bar
 guards this.
 
 **`bake_npc_params` and `bake_loc_params` disappear** — ~100 lines re-deriving
-what the register now states.
+what the register now states. (Done: the whole export path in `mock230_pack.c`
+is deleted; the tool validates only.)
 
 #### What has landed
 
@@ -661,9 +664,9 @@ unresolved:
   merge blocker (§ the dbtable doc), because a type with no `server = opcode:`
   row is never merged. The text parse remains, for now, as the migration
   fallback and the proof; removing it for the band-carried fields is the
-  outstanding sub-step — and `mock230_pack.c`'s `bake_npc_params` /
-  `bake_loc_params`, which §5.4 retires, are still present. Tracked as Phase 0
-  in [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
+  outstanding sub-step. (`mock230_pack.c`'s baking, which §5.4 retires, is
+  deleted — the tool validates only.) Tracked as Phase 0 in
+  [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
 
 Each of the rest is a register row saying where the field stands, rather than
 a silence:

@@ -170,7 +170,22 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             continue;
         }
 
+        /*
+         * A multiloc's transform selects the MODEL, not the footprint.
+         *
+         * The reference resolves the transform inside getModel and leaves the
+         * caller reading sizeX/sizeY (and the anim id) off the BASE definition,
+         * so a loc that is 4x1 in the map data stays 4x1 however its varbit
+         * resolves. Taking them from the target instead re-centres the model
+         * over the wrong footprint: placement is `tile*128 + size*64`, so a 4x1
+         * placed as 1x1 lands 192 units — a tile and a half — WEST of where it
+         * belongs, with geometry that still spans four tiles. Loc 42835 is the
+         * case that surfaced it: base 4x1, varbit 1777, resolving to "Plants"
+         * (42821) which is 1x1.
+         */
         int base_seq_id = config_loc->seq_id;
+        int base_size_x = config_loc->size_x;
+        int base_size_z = config_loc->size_z;
 
         config_loc = world_builder_resolve_loc(builder, config_loc);
         if( !config_loc )
@@ -179,8 +194,24 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             continue;
         }
 
+        if( getenv("TORIRS_SCENERY_DEBUG") &&
+            (config_loc->size_x != base_size_x || config_loc->size_z != base_size_z) )
+            fprintf(
+                stderr,
+                "  multiloc footprint: loc %d base %dx%d -> target %d is %dx%d "
+                "(base wins; target size would shift it %d units west/south)\n",
+                map_loc->loc_id,
+                base_size_x,
+                base_size_z,
+                config_loc->id,
+                config_loc->size_x,
+                config_loc->size_z,
+                64 * (base_size_x - config_loc->size_x));
+
         struct ToriRS_Location resolved_loc = *config_loc;
         resolved_loc.seq_id = base_seq_id;
+        resolved_loc.size_x = base_size_x;
+        resolved_loc.size_z = base_size_z;
         config_loc = &resolved_loc;
 
         int scene_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);

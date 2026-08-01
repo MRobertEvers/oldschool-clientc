@@ -109,6 +109,52 @@ Task_Dat2LocLoad_Run(
         PT_EXIT(&task->pt);
     }
 
+    /*
+     * TORIRS_LOC_CFG=<loc_id>: the decoded shape -> model table for one loc.
+     *
+     * The build picks a model by scanning `shapes[]` for the shape it is
+     * placing and taking the models at that index. A misaligned decode there
+     * hands back a DIFFERENT OBJECT at the correct position — which on screen
+     * reads as "the right loc drawn in the wrong place", not as a decode fault,
+     * and no amount of checking the placement arithmetic will show it. Dumping
+     * the table is the only way to tell the two apart.
+     */
+    if( getenv("TORIRS_LOC_CFG") &&
+        (int)strtol(getenv("TORIRS_LOC_CFG"), NULL, 0) == task->loc_id )
+    {
+        fprintf(
+            stderr,
+            "loc_cfg %d: name='%s' size=%dx%d seq=%d shapes=%s groups=%d\n",
+            task->loc_id,
+            torirs_loc->name ? torirs_loc->name : "",
+            torirs_loc->size_x,
+            torirs_loc->size_z,
+            torirs_loc->seq_id,
+            torirs_loc->shapes ? "yes" : "no(implicit shape 10)",
+            torirs_loc->shapes_and_model_count);
+        fprintf(
+            stderr,
+            "  transforms: count=%d varbit=%d varp=%d ->",
+            torirs_loc->transform_count,
+            torirs_loc->transform_varbit,
+            torirs_loc->transform_varp);
+        for( int i = 0; i < torirs_loc->transform_count; i++ )
+            fprintf(stderr, " %d", torirs_loc->transforms[i]);
+        fprintf(stderr, "\n");
+        for( int i = 0; i < torirs_loc->shapes_and_model_count; i++ )
+        {
+            fprintf(
+                stderr,
+                "  group %d: shape=%d models(%d):",
+                i,
+                torirs_loc->shapes ? torirs_loc->shapes[i] : -1,
+                torirs_loc->lengths ? torirs_loc->lengths[i] : 0);
+            for( int j = 0; torirs_loc->lengths && j < torirs_loc->lengths[i]; j++ )
+                fprintf(stderr, " %d", torirs_loc->models[i][j]);
+            fprintf(stderr, "\n");
+        }
+    }
+
     CacheProvider_LocationAdd(&task->bc->base, task->loc_id, torirs_loc);
 
     PT_END(&task->pt);

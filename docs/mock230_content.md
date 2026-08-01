@@ -90,9 +90,11 @@ what a cache cannot state. Reading the text costs about a millisecond and takes
 a build step out of the edit loop.
 
 When you *do* need a portable cache that carries those overlays (npc combat
-params, door `next_loc_stage`), bake them with `mock230_pack --cache-out` —
-see the revision-bump runbook in `OSRS-Content/README.md`. `mock230_pack
---cache-out` is the packer for that case. See §8.
+params, door `next_loc_stage`), `cachepack pack` is the baker: it emits the
+client projection (every `client = param:<name>` field) and the server band
+from one merged record, driven by `fields/<type>.ini` — see
+`CONTENT_PACK_PLAN.md` §5.4. (`mock230_pack --cache-out`, which used to bake
+the params on its own, is deleted; `mock230_pack` validates only. See §8.)
 
 ---
 
@@ -593,42 +595,21 @@ disagree with it.
 ## 8. `mock230_pack`
 
 ```
-src/build/mock230_pack [--content DIR] [--cache DIR] [--cache-out DIR]
+src/build/mock230_pack [--check-only] [--content DIR] [--cache DIR]
                        [--prune-doors] [-v]
 ```
 
 Validates, and exits non-zero on an error. It checks that every spawned id is in
 the cache, that every symbol resolves, that a config with a combat block names
-an npc the cache makes attackable, and that every door pair holds up (§6).
+an npc the cache makes attackable, that every door pair holds up (§6), that
+every namespace's allocation base clears the cache's high-water mark, and that
+`server/pack` (when present) agrees byte-for-byte with the text parse.
+`--check-only` is accepted explicitly — validation is all the tool does, so the
+flag changes nothing, but the documented `mock230_pack --check-only` invocation
+runs as written.
 
-`--cache-out DIR` writes a **derived cache**: the source cache copied, with
-server-authoritative overlays folded into each record's param table using the
-ids in `configs/all.param.compack`:
-
-- **npc** combat blocks (hitpoints, attacklevel, death_drop, anims, …)
-- **loc** door stages (`next_loc_stage`)
-
-The mock does not need it — it reads the text — but a cache is the portable
-form, readable by `tools/dump_npc`, by the client, and by any other server
-pointed at it. This is step 4 of the revision-bump runbook in
-`OSRS-Content/README.md`.
-
-```
-$ tools/dump_npc/dump_npc --rev osrs230 cache.mock --id 3028
-npc 3028 Goblin  params: [10]=-15 [5]=-15 … [2100]=5 [2101]=1 [2104]=25 [2000]=526
-                                             hitpoints  attack   respawn  death_drop
-```
-
-Two things worth knowing about the export:
-
-- **It copies the whole cache** (~180 MB). An edit appends its new archive to
-  `main_file_cache.dat2` and repoints the index at it, so the `.dat2` is part of
-  the output whether or not most of it changed.
-- **Untouched records keep their original bytes.** Only records with an overlay
-  are re-encoded, because the encoders are semantic round trips rather than
-  byte-exact ones — they cannot distinguish "field absent" from "field present
-  and zero", so a re-encoded record is usually a few bytes shorter. See
-  `3rd/rscache/EXCEPTIONS.md`.
-
-It refuses to export from a tree the validator rejected. A baked cache is wrong
-in exactly the way the errors said and then outlives the message.
+It used to also write: `--cache-out` copied the source cache and folded the
+server overlays into each record's param table. That was the second baker
+`CONTENT_PACK_PLAN.md` §5.4 retires — `cachepack pack` now emits the cache
+projection and the server band from one merged record, so the export here is
+deleted rather than kept as a diverging twin.

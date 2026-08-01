@@ -209,8 +209,9 @@ the record of which param-id claims were checked against a cache and how.
 > cannot collide with one.**
 
 `cache.osrs239` has **2,634 param records covering ids 0–2633**. Every server id
-— 2000–2008 and 2100–2105 — is a param the cache already defines. `param 2100`,
-which `mock230_pack --cache-out` writes `hitpoints` into, exists.
+— 2000–2008 and 2100–2105 — was a param the cache already defines. `param 2100`,
+which `mock230_pack --cache-out` (the since-deleted baker) wrote `hitpoints`
+into, exists.
 
 The practical blast radius is small (the derived cache is consumed by our own
 tools, and OSRS params are mostly server-side there too), but the *method* is
@@ -243,12 +244,13 @@ For npc 3028 there is:
 3. `server/scripts/areas/lumbridge/configs/lumbridge.npc`'s `[goblin]` overlay —
    a different key set in a different grammar, read by `mock230_content.c`.
 
-Two independent paths write a derived cache — `cachepack pack` (from 2) and
-`mock230_pack --cache-out` (from 1 + 3) — **and they do not compose**. You cannot
-`cachepack pack` a tree whose npc overlays live in `server/`, and
-`mock230_pack --cache-out` re-implements record encoding for the two field
-families it knows about. This is the deepest of the five, and it is exactly what
-LostCity's two-encoder design exists to prevent.
+Two independent paths wrote a derived cache — `cachepack pack` (from 2) and
+`mock230_pack --cache-out` (from 1 + 3) — **and they did not compose**. You could
+not `cachepack pack` a tree whose npc overlays live in `server/`, and
+`mock230_pack --cache-out` re-implemented record encoding for the two field
+families it knew about. This was the deepest of the five, and it is exactly what
+LostCity's two-encoder design exists to prevent. (Resolved: `--cache-out` is
+deleted and `cachepack pack` is the one baker — §3.5's fix, landed.)
 
 ---
 
@@ -373,9 +375,10 @@ The merged record then feeds two encoders, LostCity's `{client, server}`:
 
 Three things fall out:
 
-1. `mock230_pack --cache-out` **disappears**. `bake_npc_params()` and
-   `bake_loc_params()` are ~100 lines re-deriving what the register now states,
-   and their `BakedParam` table becomes the `client =` column.
+1. `mock230_pack --cache-out` **disappears** (done — deleted, the tool
+   validates only). `bake_npc_params()` and `bake_loc_params()` were ~100
+   lines re-deriving what the register now states, and their `BakedParam`
+   table became the `client =` column.
 2. `configs/all.npc` stops being write-only. It is layer 0 of the record the
    server actually uses, so the "three copies of npc 3028" collapse to one
    source with two views.
@@ -465,7 +468,7 @@ cachepack pack --src OSRS-Content/osrs239-content --base cache.osrsNEW \
 ```
 
 Step 4 replacing `mock230_pack --cache-out` is the visible sign that §3.5 is
-fixed.
+fixed — and it has: `--cache-out` is deleted, `mock230_pack` validates only.
 
 ---
 
@@ -481,7 +484,7 @@ Staged so each step is independently testable and none is a flag day.
 | 4 | Server id allocator off layer-0 `max`; renumber the 2000-block params. | `names/param.pack`, `mock230_pack` | §3.3 |
 | 5 | Field register + `{client, server}` encoders; overlays become config layer 1. | `mock230_content.c`, `cp_pack.c` | §3.5 |
 | 6 | `report.ini` + `names/pins.ini` + the symbol closure in `mock230_pack`. | `cp_unpack.c`, `mock230_pack.c` | §5 |
-| 7 | Retire `mock230_pack --cache-out`; `cachepack pack` covers it. | delete ~150 lines | — |
+| 7 | Retire `mock230_pack --cache-out`; `cachepack pack` covers it. | done — ~500 lines deleted, validator kept | — |
 
 Steps 1–3 are mechanical and remove the two ways the tree can currently be
 corrupted by running a documented command. Steps 5 and 7 are the real

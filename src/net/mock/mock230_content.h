@@ -111,15 +111,16 @@ enum Mock230PackKind
 const char*
 mock230_content_pack_name(enum Mock230PackKind kind);
 
-/** Id for a symbol, or -1. `null` resolves to -1 without a diagnostic, which is
- *  what LostCity's `default=null` params mean. */
-/** The `default=` declared for a param, resolved to an id for seq-valued ones.
- *  -1 when the param declares none. This is what answers `oc_param` for an obj
- *  that carries no override — and for the no-obj case, which is how unarmed
- *  combat picks its swing. */
+/** The `default=` declared for a param in `configs/all.param`, or 0 when it
+ *  declares none — the cache decoder's own zeroed-record value. This is what
+ *  answers `oc_param`/`nc_param` for a record that carries no row; 365 of the
+ *  469 declared defaults are -1, so 0-for-absent and -1 are both real answers
+ *  and neither is a sentinel. */
 int
 mock230_content_param_default(int param_id);
 
+/** Id for a symbol, or -1. `null` resolves to -1 without a diagnostic, which is
+ *  what LostCity's `default=null` params mean. */
 int
 mock230_content_symbol(
     enum Mock230PackKind kind,

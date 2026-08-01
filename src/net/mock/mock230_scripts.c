@@ -1272,6 +1272,9 @@ push_typed_param(
                        param_id, record_kind, record_id);
             return;
         }
+        /* `defaultstr=` (311 declared) is still read by nothing, so an absent
+         * string param reports "" where the reference reports the declared
+         * string — docs/osrs230_mockserver.md records the gap. */
         SSVM_PushStr(state, present ? sval : "");
         return;
     }
@@ -1283,17 +1286,15 @@ push_typed_param(
         return;
     }
     /*
-     * A record that does not carry the param pushes 0 rather than aborting.
-     * That is the reference's behaviour for an undeclared default and content
-     * relies on it — `oc_param($obj, specwep) = ^true` is asked of every weapon,
-     * and only special-attack weapons carry the row.
-     *
-     * It is *not* the reference's behaviour for the 469 params whose
-     * `configs/all.param` block states a `default=` (365 of them -1). Those are
-     * read by nothing here yet, so an absent one of those reports 0 where the
-     * reference reports -1. See docs/osrs230_mockserver.md §3.13d.
+     * A record that does not carry the param answers with the param's declared
+     * `default=`, never an abort — LostCity's handlers push
+     * `paramType.defaultInt` (ObjConfigOps.ts), and content relies on both
+     * halves of that: `oc_param($obj, specwep) = ^true` is asked of every
+     * weapon and only special-attack weapons carry the row (specwep declares
+     * no default, so absent reads 0), while 365 params declare `default=-1`
+     * precisely so that absence spells "no id" rather than obj 0.
      */
-    SSVM_PushInt(state, present ? ival : 0);
+    SSVM_PushInt(state, present ? ival : mock230_content_param_default(param_id));
 }
 
 int

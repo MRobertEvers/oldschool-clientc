@@ -977,9 +977,11 @@ Three details worth keeping:
   path is defensive rather than load-bearing today.
 - **A declaration that disagrees with the stored kind aborts.** Which half to
   believe is not the opcode's call to make.
-- **An obj that does not carry the param pushes 0**, matching the reference —
-  `oc_param($obj, specwep) = ^true` is asked of every weapon and only
-  special-attack weapons answer it.
+- **An obj that does not carry the param pushes the declared `default=`**
+  (0 when none is declared), matching the reference — `oc_param($obj, specwep)
+  = ^true` is asked of every weapon and only special-attack weapons answer it
+  (specwep declares no default, so absent reads 0), while 365 params declare
+  `default=-1` so that absence spells "no id" rather than obj 0.
 
 #### The bug the test caught, which is the reason the test exists
 
@@ -1044,10 +1046,12 @@ Values are `cache.osrs239`'s own (`goblin` strengthbonus −15 and param_50 2,
 The negatives are deliberate — every bonus a goblin carries is −15, so a table
 that read the field unsigned would still answer something.
 
-**Not fixed, and it affects `oc_param` too:** neither reads the `default=` a
-param's `configs/all.param` block may state. 469 params declare one and 365 of
-those are `-1`, so an absent row on one of them reports 0 where the reference
-reports −1. See `docs/osrs230_mockserver.md` §3.13d.
+**Fixed since:** both opcodes now answer an absent row with the `default=` the
+param's `configs/all.param` block states (469 declare one, 365 of those `-1`),
+and the selftest pins the absent-with-default cases through both tables. What
+remains — `defaultstr=` unread, overlay `.param` declarations not walked — is
+recorded in `docs/osrs230_mockserver.md` §"What oc_param and nc_param still
+get wrong".
 
 While regenerating the coverage table for `NC_PARAM`, `gen_opcode_coverage.py`
 also added `4209 OC_PARAM`: the checked-in header had been stale since `oc_param`
