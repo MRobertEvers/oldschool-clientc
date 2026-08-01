@@ -31,6 +31,10 @@ Dependencies are libc plus `3rd/rsareabuf` and nothing else — no SDL, no task
 queue, no UI tree — so the whole subsystem links into the standalone `mock230`
 binary and every test runs without a cache.
 
+The opcodes the VM does *not* implement itself are the mock server's, and they
+live outside this directory in `src/net/mock/mock230_ops_<domain>.c`, one file per
+opcode family — see [The host command seam](#the-host-command-seam).
+
 Regenerate the tables after a reference-server update:
 
 ```
@@ -154,6 +158,433 @@ This is why a state owns its string pool rather than resetting per call
 (`src/cs2vm2/cs2vm2_strpool.c` resets at script start, which is right there and
 wrong here): a chat dialogue builds a page of text, suspends on `p_pausebutton`,
 and reads it back when the player clicks minutes later.
+
+## The host command seam
+
+Everything the VM does not implement itself is a *host command*. `SSVM_EnvBindHost`
+(`ssvm.h:155`) binds one callback per env; `ssvm.c:1278` calls it and reads the
+return as **1 = handled, 0 = not mine**:
+
+```c
+    if( state->env->host.command &&
+        state->env->host.command(state, opcode, state->dot) )
+        return state->execution == SSVM_ABORTED ? 0 : 1;
+
+    return unimplemented_stub(state, opcode);
+```
+
+Note the `SSVM_ABORTED` test: a handler that aborts *still returns 1* — it owned
+the opcode and the script is already dead — and the dispatcher stops the
+interpreter anyway. Returning 0 after aborting would fall through to the stub and
+push values onto a stack nobody will read.
+
+Two things happen before the callback and are therefore **not** a handler's job:
+
+- **Pointer requirements**, checked from the generated table at `ssvm.c:1265`.
+  `LOC_PARAM` (3011) carries `require = 0x040 / require2 = 0x080`, so by the time
+  a handler runs, an active loc is guaranteed to have been *set*. What the table
+  cannot check is whether the entity is still alive — a script can suspend between
+  `loc_find` and `loc_param`, and a scene rebuild reallocates underneath it. That
+  is why the active loc and the active npc ride as `slot + 1` rather than as
+  pointers, and why handlers still re-resolve and abort on a dead slot.
+- **Arity is not checked.** It is declared in `ss_meta.gen.h` and it is the
+  handler's contract to honour. A handler that returns 1 without popping what its
+  row declares is worse than no handler at all: it never reaches
+  `unimplemented_stub`, so nothing notices, and both stacks stay skewed for the
+  rest of the script.
+
+### Per-domain opcode files
+
+The mock server's implementation of that callback — `mock230_script_command` in
+`src/net/mock/mock230_scripts.c` — was a single `switch`; that file still carries
+153 `case SS_OP_*:` labels across 4,451 lines. It is now a chain. Each
+`src/net/mock/mock230_ops_<domain>.c` exports one function with the callback's own
+signature:
+
+```c
+int
+mock230_ops_<domain>(struct SSVM_State* state, int opcode, int dot);
+```
+
+and `mock230_script_command` offers each domain the opcode in turn before falling
+through to the switch (`mock230_scripts.c:1269-1276`):
+
+```c
+    if( mock230_ops_db(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_param(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_loc(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_npc(state, opcode, dot) )
+        return 1;
+
+    switch( opcode )
+```
+
+**The split composes without a dispatch table of its own.** "Return 1 when you
+handled it" is already the contract between the VM and the host callback, so a
+domain file is a host callback in miniature rather than a new mechanism — there is
+no registry to keep in sync, no ordering that matters (two domains must simply
+never claim the same opcode), and no way for a domain to be reachable-but-unlisted.
+
+Two consequences worth the pattern on their own:
+
+- **A family lands without serialising on one file.** The `db_*`, `*_param`,
+  `loc_*` and `npc_*` families landed as four files whose entire shared footprint
+  is four two-line hooks. The alternative is every opcode author editing the same
+  switch.
+- **Coverage cannot silently under-report.** `gen_opcode_coverage.py` *globs*
+  `mock230_ops_*.c` (`gen_opcode_coverage.py:39-45`) rather than listing them, so
+  a new domain file is picked up with no generator edit. A hand-kept list would be
+  the same staleness the generator exists to remove, one level up.
+
+Adding a domain, in full:
+
+1. Write `src/net/mock/mock230_ops_<domain>.c`. One `switch( opcode )`, every arm
+   ending in `return 1;` (there is no `break`), `default: return 0;`.
+2. Declare it in `mock230.h` in the block beside `mock230_ops_db` (`mock230.h:2587`).
+3. Add the two-line hook to `mock230_script_command`.
+4. Add the source to `MOCK230_CORE_SRCS` (`src/makefile:251`). That one list
+   reaches every consumer — the four `mock230*` binaries, `test-mock230-embed`,
+   and the client under `EMBED_SERVER=1`. `MOCK230_PACK_SRCS` is separate and
+   deliberately has no VM; do not add there.
+5. `cd src && python3 net/mock/gen_opcode_coverage.py`, then
+   `make -C src test-mock230-coverage`.
+
+Inside a handler:
+
+| what | how |
+|---|---|
+| the server | `(struct Mock230Server*)state->env->host.user` |
+| the acting player | `srv->active_player` — *whose turn it is*, not "the player" |
+| the active npc | `state->host_tag - 1` is the **slot** |
+| the active loc | `(intptr_t)SSVM_Active(state, SSVM_ENT_LOC) - 1` is the scene **slot** |
+| arguments | pop in **reverse** declaration order |
+| underflow | `if( !SSVM_PopInt(state, &v) ) return 1;` — **1**, not 0 |
+| errors | `SSVM_Abort(state, fmt, ...)` then `return 1` |
+| suspension | `SSVM_Suspend(state, ...)` then `return 1` |
+
+Both the npc and loc conventions encode `slot + 1` so that 0 can mean "none".
+
+A domain file gets no access to `mock230_scripts.c`'s file-scope statics, which is
+the pattern's one real friction. Two were resolved by moving the shared thing out:
+`push_typed_param` became `mock230_push_typed_param` in `mock230_ops_param.c`
+(declared at `mock230.h:2646`), and the four coord helpers became
+`mock230_coord_pack/level/x/z` as `static inline` in `mock230.h` — the coord
+packing had been separately restated in five places. `script_active_loc` and
+`active_npc` were *not* promoted: each is three lines, and each domain wants a
+different abort message.
+
+### Coverage is generated, and what it cannot see
+
+`src/net/mock/mock230_opcode_coverage.gen.h` is derived from the `case SS_OP_*:`
+labels in the VM core and in every dispatch source. Measured today
+(`python3 net/mock/gen_opcode_coverage.py --check` is green):
+
+```
+ 63  VM core
+152  host commands            (mock230_scripts.c)
+  9  host commands (db)
+  2  host commands (param)
+  5  host commands (loc)
+  6  host commands (npc)
+237  total, of 399 declared opcodes
+```
+
+The extraction regex is `^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:` — plain `case` labels
+only. An opcode handled inside a case body via `if( opcode == SS_OP_X )` is *not*
+counted, which is correct: `mock230_ops_db.c` disambiguates fallthrough groups
+exactly that way, and only the bodies use `opcode ==`.
+
+**What this cannot see is whether the answer is right.** `NPC_PARAM` (2529) has
+carried a `case` label in `mock230_scripts.c` since before the param family
+existed. That case compared the popped param id against a single
+`mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop")` — a game-facing name
+spelled in C — pushed that one field and pushed **0 for every other param**, always
+onto the int stack, ignoring the declared `default=`. It has been counted as
+covered the whole time, the load-time gap report has been silent, and `--selftest`
+has been green through it — while **this tree's own content calls it 22 times
+across 5 files** (`skill_combat/combat_stats.rs2` and four `drop_tables/*.rs2`),
+including every `~npc_combat_defence` and `~npc_combat_maxhit` bonus and
+`$damagetype`. Every npc defence roll and max hit in the committed combat slice
+was rolled from bonus 0.
+
+The lesson generalises past this one bug: **a generated coverage table measures
+that a `case` exists, and nothing else.** The three states an opcode can be in are
+*missing* (loud), *implemented* (green), and *implemented and wrong* (invisible),
+and only the third needs a test of its own.
+
+`mock230_ops_npc.c` now claims 2529, and the domain hooks run *before* the switch,
+so **`mock230_scripts.c`'s `case SS_OP_NPC_PARAM:` is unreachable dead code**. It
+should be deleted; it is recorded here rather than left to be rediscovered, because
+editing it changes nothing and reading it suggests otherwise.
+
+### The families that have landed
+
+`db_*` (9 ops) is documented in `mock230_ops_db.c`'s own header. The one thing
+worth restating here is the packed column reference `combat_style_table:damagestyle`,
+which `ssc_symbols.c` emits as `(table << 12) | (column << 4) | tuple_index` — and
+whose **tuple index is 1-based, with 0 meaning "the whole tuple"**. Reading 0 as
+"element zero" pushes one value where content expects the whole tuple, so the
+failure is a wrong *shape* rather than a wrong number and surfaces far away.
+Verified against the reference's own unpack in `DbOps.ts`.
+
+#### `*_param` — the declared type picks the stack, and that is the whole difficulty
+
+| op | id | signature | pops |
+|---|---:|---|---:|
+| `oc_param` | 4209 | `(obj $obj, param $param)(any)` | 2 |
+| `nc_param` | 4005 | `(npc $npc, param $param)(any)` | 2 |
+| `lc_param` | 4106 | `(loc $loc, param $param)(any)` | 2 |
+| `struct_param` | 4700 | `(struct $struct, param $param)(any)` | 2 |
+| `npc_param` | 2529 | `(param $param)(any)` — **active npc** | 1 |
+| `loc_param` | 3011 | `(param $param)(any)` — **active loc** | 1 |
+| `obj_param` | 3509 | `(param $param)(any)` — active obj | 1 |
+
+All seven are `runtime_typed = 1`. `mock230_push_typed_param` is the single seam:
+it reads the param's *declared* type from `configs/all.param`, routes the value to
+the int or the string stack accordingly, **aborts in both directions** when the
+declaration and the stored value disagree, and answers an absent row with the
+declared `default=` rather than 0. It is shared rather than copied because two
+copies would be two places for that disagreement to be handled differently.
+
+`lc_param` and `struct_param` landed in `mock230_ops_param.c`; `loc_param` landed
+in `mock230_ops_loc.c` because it resolves the *active* loc. **The one-word,
+one-argument difference between `loc_param` and `lc_param` is the trap in this
+family**: reading one as the other leaves every later value on the wrong rung of
+the int stack and nothing fails at the call.
+
+`obj_param` is not implemented: it has **0 callers** in the reference, and nothing
+in `src/net/mock/` ever sets an active obj, so the VM's pointer requirement
+(`0x100`) aborts before a handler could run.
+
+**The sort is load-bearing, and that is measured, not assumed.** A record's params
+arrive in the order the cache wrote them, which is *not* ascending by key:
+
+| table | records | param rows | string rows | records with ≥2 params | **of those, out of key order** |
+|---|---:|---:|---:|---:|---:|
+| loc | 62,194 | 1,709 | 0 | 599 | **525 (87.6 %)** |
+| struct | 3,988 | 20,751 | 6,115 | 2,833 | **1,847 (65.2 %)** |
+
+(`make -C src test-mock230-param` prints those two lines every run; obj and npc
+show the same pattern and have carried explicit sorts since they were written.)
+
+A binary search over an almost-sorted array does not crash. It *misses* — the
+lookup reports "this record carries no such param", content pushes the declared
+default, and the answer is wrong everywhere and loud nowhere. `mock230_paramtable.c`
+is one flat `(owner, key)` table with one `qsort` shared by all four types,
+replacing what would otherwise have been four hand-written copies of the same
+sort — four chances to reintroduce the one bug in this family that does not
+announce itself. loc is the worst of the four, so `lc_param` written "sorted by
+construction" would have missed on nearly nine records in ten that carry more than
+one param.
+
+**The memory question was not one.** Measured live retention at boot:
+
+| table | retained | decode |
+|---|---:|---|
+| loc params | **41,016 bytes** | reuses the linked `RSCache_Dat2ConfigLoc*` decoder |
+| loc names | 565,681 bytes (30,033 names, blob + sorted index) | same pass |
+| loc footprints | 138,472 bytes (17,309 non-1×1) | same pass |
+| struct params | **877 KB** (20,751 rows) | `RSCache_Dat2ConfigStructDecodeInplace`, previously called by nobody |
+| obj params | 1,262 KB | pre-existing |
+| npc params | 700 KB | pre-existing |
+
+The pre-implementation estimate for struct was 1,230 KB; the real figure is
+**877 KB**, and 61,124 of loc's 62,194 records carry no params at all. Peak RSS is
+unchanged within noise (133–148 MB across three runs with and without the two new
+loads) — the peak is the scene build, not these tables. The 60k-record loc group
+was called "a real memory question" in planning; it is 41 KB.
+
+#### `loc_*` / `lc_*` — the config reads
+
+| op | id | signature |
+|---|---:|---|
+| `loc_param` | 3011 | `(param $param)(any)` — active loc |
+| `loc_name` | 3010 | `()(string)` — active loc |
+| `lc_name` | 4104 | `(loc $loc)(string)` |
+| `lc_width` | 4107 | `(loc $loc)(int)` |
+| `lc_length` | 4103 | `(loc $loc)(int)` |
+
+The *mutating* half of the family — `loc_add`, `loc_change`, `loc_del`, `loc_find`,
+`loc_coord`, `loc_type`, `loc_angle`, `loc_shape`, the find-all iterators — stays
+in `mock230_scripts.c`'s switch with the scene and the revert queue it needs. What
+moved is exactly what is a pure read of the config record.
+
+`loc_name` is the family's only string-stack op, so it is the one that catches a
+handler pushing to the wrong stack: a value on the int stack leaves `def_string $s
+= loc_name` underflowing rather than comparing wrongly.
+
+#### `npc_*` / `nc_*` — the config reads and the pure searches
+
+| op | id | signature |
+|---|---:|---|
+| `npc_param` | 2529 | `(param $param)(any)` — **fixed; it was implemented and wrong** |
+| `npc_category` | 2505 | `()(category)` |
+| `nc_category` | 4000 | `(npc $npc)(category)` |
+| `npc_hasop` | 2523 | `(int $op)(boolean)` |
+| `npc_huntall` | 2526 | `(coord $source, int $distance, int $checkvis)` |
+| `npc_hunt` | 2525 | `(coord $source, int $distance, int $checkvis)(boolean)` |
+| `npc_findcat` | 2517 | `(coord, category, int, int)(boolean)` |
+
+Three findings worth carrying:
+
+- **A name gate was hiding a field.** `mock230_npcinfo()` reports a "Someone"
+  placeholder for a nameless record, which is right for text and wrong for a field:
+  of 16,292 npc records, **9,149 carry a category and 1,585 of those are
+  nameless**, and 10,505 declare a menu op with 177 of those nameless. Read
+  through the gated accessor, `npc_category` answers 0 for every multinpc
+  instance. `mock230_npcinfo_record()` is the ungated row.
+- **`npc_huntall` is not `npc_findallany`.** The reference's
+  `NpcHuntAllCommandIterator` skips any npc whose type declares no `op[1]` (op2).
+  Without that filter, "every npc nearby" hands content the scenery.
+  `npc_hunt`/`npc_findcat` additionally **filter** by Chebyshev distance but
+  **rank** by euclidean-squared, with a `<=` tie-break that keeps the **last**
+  candidate.
+- **Fixing `npc_param` from the cache alone would have been a regression.**
+  `death_drop` is a server-band param authored only in a rank-1 `.npc` overlay and
+  is nowhere in the cache record, so a cache-only handler answers the declared
+  default and the drop tables add obj 0 — which is what the `"death_drop"`
+  hardcode was hiding. The overlay's authored rows are now filed under their param
+  id too, and `npc_param` consults the overlay first and the cache second.
+  Measured: **39 npc defs author 205 param rows between them.**
+
+`.npc_*` dot forms are refused by the VM before reaching any handler: nothing in
+this server ever sets the *secondary* npc (`require2 = 0x020` is never added). That
+is pre-existing and shared with `npc_type` / `npc_coord`.
+
+### What was deliberately left to the loud stub
+
+`docs/osrs230_mockserver.md` §3.13d's rule — *an opcode that cannot be answered
+from real data is better left to the VM's loud stub than implemented from a
+plausible guess* — is the reason each of these is absent rather than approximated.
+All are `known = 1`, so the stub pops the declared arguments, pushes zeros, and
+reports once per env: the stacks stay consistent and the gap stays visible. Counts
+re-measured over `LostCity_Server/content` today (see below for the method):
+
+| op | uses / files | why not |
+|---|---:|---|
+| `npc_walk`, `npc_walktrigger` | 90 / 44, 2 / 1 | `NpcOps.ts` queues a **waypoint** the tick drains. `struct Mock230Npc` has no destination and no queue. Faking it as a teleport would make 44 files *look* ported while every npc arrived instantly — worse than the stub, because it is silent. |
+| `loc_anim` | 51 / 21 | missing **wire packet**, not missing data: `World.animLoc` is a zone event and this server's `zone_sub_opcode` enumerates no loc-anim. |
+| `loc_category`, `lc_category` | 38 / 16, 3 / 1 | the linked rscache decoder throws the bytes away — `dat2_config_loc.c` has `case 61: g2(buffer); // Skip`. Landing it needs opcode 61 confirmed against the OSRS `LocType` reference *and* an `EXCEPTIONS.md`-governed edit to the vendored tree. |
+| `npc_changetype_keepall` | 31 / 15 | verified identical to `npc_changetype` in *this* engine — the only difference upstream is re-deriving a per-npc `levels[]` store that does not exist here. One fallthrough line by whoever owns that switch. |
+| `npc_statheal` / `statsub` / `statadd` | 16 / 10, 9 / 6, 1 / 1 | all write `npc.levels[stat]`; here `npc_stat` reads the content block and hitpoints is the only number that moves. Writing a value nothing reads is worse than the stub. |
+| `npc_sethuntmode`, `npc_sethunt` | 14 / 7, 1 / 1 | one *feature* wearing five opcodes (a `hunt` namespace, per-npc huntMode/range, a HuntVis test, a per-tick pass). `npc_hunt`/`npc_huntall` are the two of the five that are pure searches. |
+| `npc_heropoints` | 14 / 14 | needs per-player damage attribution plus the drop consumer; `npc_findhero` pushes the constant 1 because there is one player. |
+| `npc_arrivedelay`, `npc_inrange` | 2 / 2, 2 / 1 | both read per-npc fields the mover and the interaction machinery would have to write. |
+| `lc_desc` | 0 / 0 | **measured: 0 of 62,194 loc records carry a `desc`.** The field is gone from OSRS loc configs at this revision; a handler could only ever push `'null'`. |
+| `lc_debugname` | 1 / 1 | `debugname` is a LostCity build-time symbol; the dat2 record has no such field. |
+| `nc_desc`, `npc_findallzone`, `obj_param` | 0 / 0 | no caller anywhere in the reference. |
+
+`LC_OP`, `OC_IOP` and `OC_OP` remain the sharper case one rung up: they are
+`known = 0`, so the VM refuses to execute them at all rather than guessing an
+arity (see *What is not ported, on purpose*). `oc_desc` was written and then
+**removed** on the same ground.
+
+Seven of the npc refusals are blocked on the same thing — per-npc engine state in
+`mock230_world.c`. The next npc item is not an opcode.
+
+### Measured, 2026-08-01
+
+Everything above is measured on this tree against `cache.osrs239` and the
+reference at `/Users/matthewevers/Documents/git_repos/LostCity_Server`. Two
+numbers this run measured differently from the prose it inherited, both from
+**census method**, both in the same direction:
+
+- **Zero-argument commands are invisible to a census that requires a `(`.** They
+  are written bare in RuneScript. `last_useitem` is `800 uses / 213 files` — six
+  times `loc_param`, and the single largest opcode gap in the reference tree — and
+  scored 0 under the old pattern. Same class: `loc_category` 38/16, `npc_category`
+  13/9, `npc_arrivedelay` 2/2, `npc_inrange` 2/1.
+- **`content/scripts/_unpack/` and `_test/` are not authored content.** Including
+  them inflates `npc_walk` from 90 to ~108 uses and `loc_param` from 133 to ~140.
+
+The counting method used here, stated so it can be re-run: all `*.rs2` under
+`LostCity_Server/content` **excluding** `engine.rs2`, `scripts/_unpack/` and
+`scripts/_test/` (1,266 files); `//` comments stripped; inside a `"…"` literal only
+`<…>` interpolation is scanned (nine `struct_param` call sites live inside message
+strings and vanish if the whole literal is dropped); the RuneScript sigils
+`$ % ^ ~ @` exclude a match, a leading `.` does not — it is a real call form.
+
+Reference command surface, re-counted: `engine.rs2` declares **511 `[command,…]`
+lines = 359 unique names** (355 plain plus the four `queue*` vararg forms) with
+**152 `.`-prefixed secondary-entity variants**, which share an opcode with the
+plain form.
+
+Engine readiness against the reference tree, measured with the coverage header
+above:
+
+```
+distinct commands used by content       318;  190 implemented,  128 missing
+scripts using only implemented commands 770 / 1,266  (60.8 %)
+```
+
+That readiness figure is a lexical scan, so it is a *lower* bound: a name that
+also appears as a field or a local counts as a use. It is nonetheless ~8 points
+below the number recorded before this run, and the whole difference is the
+zero-argument blindness above — `last_useitem` alone blocks 213 files.
+
+State of the tree at the end of the run, all re-run rather than quoted:
+
+```
+test-mock230-coverage      current, 237 / 399
+test-mock230-param         all checks passed
+test-mock230-loc           all checks passed
+test-mock230-npc           all checks passed
+mock230 --selftest         all checks passed, exit 0
+mock230_pack --check-only  0 error(s), 13 warning(s)
+```
+
+### Testing a domain file
+
+```
+make -C src test-mock230-coverage    # the generated table is not stale
+make -C src test-mock230-param       # the *_param family
+make -C src test-mock230-loc         # loc_* / lc_*
+make -C src test-mock230-npc         # npc_* / nc_*
+```
+
+Each of the three family tests is two halves, and the shape is worth copying:
+
+**Half one re-decodes the config group with the same rscache decoder the loader
+used, and asks the table about *every* record it saw** — both directions. The
+failure mode is a *miss*, and a miss returns a neighbouring record's answer, so a
+spot check has to be lucky and an exhaustive walk cannot be. It also asserts the
+*preconditions of its own assertions*: `param_test` fails if the count of
+out-of-order records reaches zero, because at that point the sort it is testing
+would be untestable.
+
+**Half two compiles RuneScript, runs it on the VM, and reads the string stack.**
+This is the only way to catch wrong-stack routing: `def_string $s =
+struct_param(...)` underflows and aborts inside the VM when the value went to the
+int stack, where an int-stack assertion on the same value would pass while the two
+stacks were out of step. The domain files never touch `struct Mock230Server`
+beyond the roster, so these bind with a NULL or zeroed host user — no world, no
+socket, no pack. No ids are written into the test sources; every subject is found
+in the decoded data at run time.
+
+Every assertion was proved able to fail by mutating the implementation and
+re-running — the discipline `docs/LOSTCITY_PORT_TRIAGE.md` §10.3 sets out. Three
+of those runs are worth recording because the *first* version of the test passed
+under the mutation:
+
+- The first "declared int-ish param" subject was declared `i`, so a handler that
+  routed only `type=i` to the int stack passed. The test now insists its int
+  subject is declared something other than `i` (it lands on `'1'`) and asserts
+  that fact.
+- The first authored-overlay subject was `attackrate = 4` against a declared
+  `default=` of **4**, so "read the overlay" and "fall through to the default"
+  produced the same number. The search now requires the two to differ.
+- Three npcs in a row on one axis rank identically under Chebyshev and euclidean.
+  The layout now puts candidates at (+1,0), (−1,0) and (+1,+1) so that one
+  assertion has three distinguishable answers: correct, Chebyshev-ranked, and
+  first-tie-kept.
+
+And one trap: a membership assertion cannot catch a swapped coord/distance
+argument, because a coord literal packs to a number in the millions and a radius
+of millions finds everything. `npc_huntall` at distance 0 collecting **nothing**
+is what catches it.
 
 ## The compiler
 

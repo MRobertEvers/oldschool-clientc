@@ -10,9 +10,12 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    152  host commands
+ *    151  host commands
  *      9  host commands (db)
- *    224  total, of 399 declared opcodes
+ *      5  host commands (loc)
+ *      7  host commands (npc)
+ *      2  host commands (param)
+ *    237  total, of 399 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,7 +23,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 224
+#define MOCK230_OPCODE_COVERAGE_COUNT 237
 #define MOCK230_OPCODE_DECLARED_COUNT 399
 
 /*
@@ -135,6 +138,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2501, /* SS_OP_NPC_ANIM (host commands) */
     2503, /* SS_OP_NPC_ATTACKRANGE (host commands) */
     2504, /* SS_OP_NPC_BASESTAT (host commands) */
+    2505, /* SS_OP_NPC_CATEGORY (host commands (npc)) */
     2507, /* SS_OP_NPC_CHANGETYPE (host commands) */
     2508, /* SS_OP_NPC_COORD (host commands) */
     2509, /* SS_OP_NPC_DAMAGE (host commands) */
@@ -144,13 +148,17 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2513, /* SS_OP_NPC_FIND (host commands) */
     2514, /* SS_OP_NPC_FINDALL (host commands) */
     2515, /* SS_OP_NPC_FINDALLANY (host commands) */
+    2517, /* SS_OP_NPC_FINDCAT (host commands (npc)) */
     2518, /* SS_OP_NPC_FINDEXACT (host commands) */
     2519, /* SS_OP_NPC_FINDHERO (host commands) */
     2520, /* SS_OP_NPC_FINDNEXT (host commands) */
     2521, /* SS_OP_NPC_FINDUID (host commands) */
     2522, /* SS_OP_NPC_GETMODE (host commands) */
+    2523, /* SS_OP_NPC_HASOP (host commands (npc)) */
+    2525, /* SS_OP_NPC_HUNT (host commands (npc)) */
+    2526, /* SS_OP_NPC_HUNTALL (host commands (npc)) */
     2528, /* SS_OP_NPC_NAME (host commands) */
-    2529, /* SS_OP_NPC_PARAM (host commands) */
+    2529, /* SS_OP_NPC_PARAM (host commands (npc)) */
     2530, /* SS_OP_NPC_QUEUE (host commands) */
     2531, /* SS_OP_NPC_RANGE (host commands) */
     2532, /* SS_OP_NPC_SAY (host commands) */
@@ -169,15 +177,22 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     3007, /* SS_OP_LOC_FIND (host commands) */
     3008, /* SS_OP_LOC_FINDALLZONE (host commands) */
     3009, /* SS_OP_LOC_FINDNEXT (host commands) */
+    3010, /* SS_OP_LOC_NAME (host commands (loc)) */
+    3011, /* SS_OP_LOC_PARAM (host commands (loc)) */
     3012, /* SS_OP_LOC_SHAPE (host commands) */
     3013, /* SS_OP_LOC_TYPE (host commands) */
     3500, /* SS_OP_OBJ_ADD (host commands) */
+    4000, /* SS_OP_NC_CATEGORY (host commands (npc)) */
     4001, /* SS_OP_NC_DEBUGNAME (host commands) */
     4003, /* SS_OP_NC_NAME (host commands) */
     4004, /* SS_OP_NC_OP (host commands) */
     4005, /* SS_OP_NC_PARAM (host commands) */
     4006, /* SS_OP_NC_SIZE (host commands) */
     4007, /* SS_OP_NC_VISLEVEL (host commands) */
+    4103, /* SS_OP_LC_LENGTH (host commands (loc)) */
+    4104, /* SS_OP_LC_NAME (host commands (loc)) */
+    4106, /* SS_OP_LC_PARAM (host commands (param)) */
+    4107, /* SS_OP_LC_WIDTH (host commands (loc)) */
     4200, /* SS_OP_OC_CATEGORY (host commands) */
     4201, /* SS_OP_OC_CERT (host commands) */
     4203, /* SS_OP_OC_DEBUGNAME (host commands) */
@@ -245,6 +260,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4623, /* SS_OP_GETBIT_RANGE (VM core) */
     4624, /* SS_OP_SETBIT_RANGE_TOINT (VM core) */
     4628, /* SS_OP_ABS (VM core) */
+    4700, /* SS_OP_STRUCT_PARAM (host commands (param)) */
     7500, /* SS_OP_DB_FIND_WITH_COUNT (host commands (db)) */
     7501, /* SS_OP_DB_FINDNEXT (host commands (db)) */
     7502, /* SS_OP_DB_GETFIELD (host commands (db)) */

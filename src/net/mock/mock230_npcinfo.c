@@ -282,6 +282,12 @@ mock230_npcinfo_load(const char* cache_dir)
             g_npcs[id].name = strdup(npc->name);
         g_npcs[id].combat_level = npc->combat_level;
         g_npcs[id].size = npc->size > 0 ? npc->size : 1;
+        /* Config opcode 60, already decoded by the linked rscache npc decoder
+         * (3rd/rscache/src/datatypes/dat2_config_npc.c:668) and discarded here
+         * until now. 0 is the decoder's "no category stated", and it is
+         * deliberately not a name in pack/category.pack — see the note at the
+         * top of that file about why binding a trigger to 0 matches everything. */
+        g_npcs[id].category = npc->category;
         for( int op = 0; op < 5; op++ )
             g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
         read_combat_params(&npc->params, &g_npcs[id]);
@@ -357,4 +363,22 @@ mock230_npcinfo(int npc_id)
     placeholder = k_unknown;
     placeholder.name = "Someone";
     return &placeholder;
+}
+
+/*
+ * The same row, ungated.
+ *
+ * `mock230_npcinfo` above answers "what do I call this thing", and its
+ * placeholder is right for that. Reading a *field* off it is a different
+ * question and the name gate gives the wrong answer to it: 1,585 of
+ * cache.osrs239's category-carrying npc records have no name, so
+ * `npc_category` through the gated accessor would report 0 — "no category" —
+ * for every multinpc instance in the game.
+ */
+const struct Mock230NpcInfo*
+mock230_npcinfo_record(int npc_id)
+{
+    if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )
+        return NULL;
+    return &g_npcs[npc_id];
 }

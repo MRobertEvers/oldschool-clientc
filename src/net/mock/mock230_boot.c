@@ -89,6 +89,11 @@ mock230_boot_load(const struct Mock230BootConfig* config)
     mock230_objinfo_load(config->cache_dir);
     mock230_npcinfo_load(config->cache_dir);
     mock230_seqinfo_load(config->cache_dir);
+    /* The other two param tables. Nothing seeds content from these — they exist
+     * for `lc_param` and `struct_param` — but they belong with the rest of the
+     * cache's tables, which is what step 1 means. */
+    mock230_locinfo_load(config->cache_dir);
+    mock230_structinfo_load(config->cache_dir);
     /* Varbit bit-ranges, from the same cache the client unpacks them with. */
     mock230_varbit_load(config->cache_dir);
 
@@ -156,6 +161,8 @@ mock230_boot_free(void)
     mock230_objinfo_free();
     mock230_npcinfo_free();
     mock230_seqinfo_free();
+    mock230_locinfo_free();
+    mock230_structinfo_free();
     mock230_varbit_free();
     /* Before the content, which owns the `^constants` a dbrow's values expanded
      * from — the strdup'd copies are ours, but the diagnostics on a double free

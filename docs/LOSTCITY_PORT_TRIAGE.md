@@ -262,14 +262,14 @@ by call sites:
 
 | family | ops | uses | the ones that matter |
 |---|---:|---:|---|
-| `npc_*` | 26 | 1,360 | `npc_find` 305, `npc_setmode` 310, `npc_add` 175, `npc_walk` 92, `npc_queue` 79 |
-| `loc_*` | 8 | 1,033 | `loc_change` 270, `loc_add` 248, `loc_find` 224, `loc_param` 133, `loc_del` 70 |
+| `npc_*` | 26 | 1,360 | `npc_find` 305, `npc_setmode` 310, `npc_add` 175, `npc_walk` 92, `npc_queue` 79. ~~`npc_param`~~ **was implemented and *wrong* — done, and really 291 uses / 137 files** (§10.3d). Still open: `npc_walk` **really 108/45**, `npc_changetype_keepall` 36/17 — both blocked on missing per-npc engine state, not on opcodes |
+| `loc_*` | 8 | 1,033 | `loc_change` 270, `loc_add` 248, `loc_find` 224, ~~`loc_param` 133~~ **done, and really 140** — §10.3c, `loc_del` 70. Still open: `loc_anim` 56, `loc_category` 38 |
 | `oc_*` | 7 | 417 | `oc_param` 351 — **blocked on a decoder, not effort** (§5.1) |
 | `if_*` | 8 | 363 | `if_setcolour`, `if_setobject`, `if_settab`, `if_setmodel` |
 | `p_*` | 13 | 268 | `p_finduid` 118, `p_oploc` 41, `p_aprange` 30, `p_walk` 26 |
 | `split_*` | 4 | 244 | text paging — **has no job at rev 230** (§7.4) |
 | `inv_*` | 10 | 129 | `inv_setslot` 88 |
-| `struct_param` | 1 | 115 | same decoder blocker as `oc_param` |
+| ~~`struct_param`~~ | 1 | 115 | **done** — §10.3b |
 | `map_*` | 4 | 102 | `map_findsquare` 83 |
 | `cam_*` | 3 | 88 | cutscenes |
 | `stat_add`/`stat_sub` | 2 | 82 | **blocked on a fact, not effort** (§5.1) |
@@ -294,8 +294,27 @@ Two of these families are already documented as *deliberately* unimplemented in
   `nc_param` is the *smallest* of the four by call sites — this table's own
   numbers leave it 6, against 351 for `oc_param`, 133 for `loc_param` and 115 for
   `struct_param`. It was done next because it was nearly free, not because it
-  unblocked much. The two that carry the remaining 248 uses are the expensive
-  ones: neither the loc nor the struct config table is decoded at runtime at all.
+  unblocked much.
+
+  **`lc_param` and `struct_param` are now done too — see §10.3b.** The claim
+  above that they were "the expensive ones" was half wrong: both config groups do
+  have to be decoded at boot, but the *retained* cost is 41 KB for loc and 877 KB
+  for struct. Reading loc's 62,194-record count as a memory figure is what made
+  it look expensive; 61,124 of those records carry no params at all. `loc_param`
+  (3011) is a different opcode from `lc_param` (4106) — it pops *one* int and
+  reads the *active* loc — and **it is done too, see §10.3c.** All five of the
+  family's 605-plus call sites are answerable now; only `obj_param`, which has
+  no callers and no active-obj entity to read, is left.
+
+  **The sixth member of the family was never on this list, because it was
+  already counted as done.** `npc_param` (2529, **291 uses / 137 files** —
+  larger than any other `*_param`) had a `case` label in
+  `mock230_scripts.c` that answered one hardcoded param and pushed 0 for the
+  rest, always on the int stack. Coverage is derived from `case` labels, so
+  wrong and right were indistinguishable to every check here. **Done properly in
+  §10.3d.** The lesson generalises past this opcode: a coverage number counts
+  *dispatch*, not *correctness*, and there is no automated way in this tree to
+  tell the two apart.
 - **`stat_add` / `stat_sub` (82 uses).** Nothing in this repo pins whether they
   move the base level or the boosted one. That is one fact, from one reference,
   not a week.
@@ -1059,6 +1078,232 @@ landed. `make -C src test-mock230-coverage` was the target that would have said
 so, and the failure direction is the safe one — it under-reported an implemented
 opcode rather than hiding a missing one.
 
+### 10.3b `lc_param` and `struct_param`, and the first shared param table
+
+The other two landed in `src/net/mock/mock230_ops_param.c` — the second
+per-domain opcode file after `mock230_ops_db.c`, registered by one line in
+`mock230_script_command`. Coverage 224 → 226 of 399.
+
+Two new tables, both built at boot from the cache group the rscache decoder
+already handles (`RSCache_Dat2ConfigLocNewDecodeProfile`,
+`RSCache_Dat2ConfigStructDecodeInplace` — the latter had been linked with no
+caller anywhere in `src/`). Measured on `cache.osrs239`: loc 62,194 records
+carrying 1,709 param rows retained in **41 KB**, struct 3,988 records carrying
+20,751 rows (6,115 of them strings) retained in **877 KB**. No
+`RSCACHE_PARAM_LONG` rows in either. Boot cost ~130 ms for the pair.
+
+§5.1's "the two that carry the remaining 248 uses are the expensive ones"
+was wrong about the loc half specifically: **loc's retained answer is 41 KB.**
+The 60k figure is a *record* count, and 61,124 of those records carry no params
+at all. What made it look expensive was reading the record count instead of the
+row count.
+
+Three things changed shape rather than just growing:
+
+- **`push_typed_param` is now `mock230_push_typed_param` in
+  `mock230_ops_param.c`**, declared in `mock230.h`. It was `static` in
+  `mock230_scripts.c` and therefore unreachable from a domain file — a
+  structural blocker on the whole per-domain split, not a style question. It was
+  *moved*, not copied: `mock230_scripts.c` lost 75 lines and gained the one hook
+  line plus two identifier renames, which is the cheapest merge shape available.
+- **`mock230_paramtable.{c,h}`** is one flat `(owner, key) -> row` store with one
+  `qsort` and one binary search. loc and struct use it. `mock230_objinfo.c` and
+  `mock230_npcinfo.c` still carry their own copies — four copies of §10.3's bug
+  would have been the wrong number, three still is; retrofitting those two is
+  behaviour-neutral and their selftests already cover it.
+- **The check is C, not content** (`make -C src test-mock230-param`), because the
+  lane that landed this could not write to `OSRS-Content` or rebuild the pack.
+  `mock230_ops_param` never touches `struct Mock230Server`, so it binds as a host
+  callback with a NULL user — no world, no socket, no pack. The content-side
+  `[proc,selftest_lc_param]` / `[proc,selftest_struct_param]` are still owed.
+
+`src/net/mock/test/param_test.c` re-decodes both groups with the rscache decoder
+and asks the table for **every** row it saw, rather than spot-checking: the
+family's failure mode is a *miss*, and a spot check would have to be lucky. It
+also counts the out-of-order records and fails if that count reaches zero, so the
+assertion cannot quietly stop testing anything. No ids are written in the file —
+every subject is located in the decoded data at run time, which is also what
+keeps it honest when the cache is replaced.
+
+Loc is the worst-ordered of the four tables: **525 of the 599** loc records with
+two or more params are out of key order (87.6%), against struct's 1,847 of 2,833
+(65.2%), obj's 68.1% and npc's 79.9%.
+
+Five mutations were run:
+
+| mutation | what it broke |
+|---|---|
+| drop the `qsort` | 6,201 struct + 526 loc rows became unfindable |
+| force every result onto the int stack | `def_string $s = struct_param(...)` — string stack underflow |
+| treat only `type=i` as int-typed | the `'1'`-typed subject routed to the string stack, and the abort fired |
+| absent row answers 0, not the declared `default=` | 0 where 526 was declared |
+| reverse `lc_param`'s pop order | 0 instead of the stored 2 |
+
+The third mutation is §10.3a's lesson again and the test now selects for it
+deliberately: it insists its int subject is declared something *other* than `i`
+(`'1'`, `'o'`, `'S'`, …), because a subject typed `i` makes that mutation
+invisible. The first version of this test passed it.
+
+**Still open in the family:** `obj_param` (3509) pops *one* int and reads the
+*active obj*. It has zero callers in the reference tree and nothing in
+`src/net/mock/` ever sets an active obj, so the VM's pointer requirement would
+abort before a handler could run. (`loc_param` (3011), the same shape over the
+active *loc*, landed with the rest of the loc reads — §10.3c.)
+
+### 10.3c The loc config reads — `loc_param`, `loc_name`, `lc_name`, `lc_width`, `lc_length`
+
+`src/net/mock/mock230_ops_loc.c`, the third per-domain opcode file, registered
+by one line in `mock230_script_command`. Coverage 226 → **231 of 399**.
+
+The mutating half of the loc family stays in `mock230_scripts.c`'s switch with
+the scene and the revert queue it needs. Only the config reads moved out, which
+is the whole reason they *could* move: they touch the loc table and (for the two
+active-loc ops) `mock230_scene_loc`, and nothing else.
+
+**`loc_param` pops one int; `lc_param` pops two.** `loc_param` reads the active
+loc; `lc_param` is handed an id. They are one word apart and now two files apart,
+deliberately — reading one as the other leaves every later value on the wrong
+rung of the int stack and nothing fails at the call.
+
+**The active loc is held by slot** (`slot + 1` in the VM's active-entity
+pointer), the same convention the big switch uses and for the same reason: a
+script can suspend between `loc_find` and here and a scene rebuild reallocates
+the array. The VM's `require = 0x040` guarantees the pointer is *present*, not
+that the slot is live, so the handler re-resolves and aborts on a dead slot.
+
+`mock230_scene_find_loc` is **not** used for this. Its `loc_id` argument does not
+filter (`return loc_id >= 0 ? fallback : fallback;`), so it returns the first loc
+on the tile whatever id it is asked for. `mock230_loc_known` — a one-bit-per-id
+bitmap, ~7.8 KB — is the existence check, matching the reference's
+`check(id, LocTypeValid)`.
+
+**What `mock230_locinfo.c` retains now**, all built in the decode pass that was
+already happening for params:
+
+| table | rows | bytes |
+|---|---:|---:|
+| params | 1,709 | 41,016 |
+| names | 30,033 | 565,681 |
+| footprints (non-1x1 only) | 17,309 | 138,472 |
+
+The ~700 KB that §10.3b's file header quoted for names, and declined to pay, was
+`strdup` per record. One concatenated blob plus a sorted (id, offset) index over
+only the 30,033 named records is ~560 KB in two allocations. Re-measured, not
+inherited.
+
+**Four opcodes were measured and cut, each for its own reason:**
+
+| op | uses/files | why not |
+|---|---:|---|
+| `loc_anim` 3002 | 56 / 23 | **The largest single loc gap, and it is a missing wire packet.** `LocOps.ts:50` → `World.animLoc(...)`, a **zone event**; `zone_sub_opcode` in `mock230_encode.c` has `LOC_ADD_CHANGE`, `LOC_DEL`, `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT` and no loc-anim. Needs a new `MOCK230_ZONE_EV_*` kind, an encoder arm and headless-client verification. Its own item. |
+| `loc_category` 3003 / `lc_category` 4100 | 38 / 16, 3 / 1 | **The linked decoder discards the field.** `3rd/rscache/.../dat2_config_loc.c` case 61 is `g2(buffer); // Skip unsigned short`, where `dat2_config_npc.c:668` decodes `category`. Landing it needs opcode 61 confirmed against the OSRS `LocType` reference *and* an edit to the `EXCEPTIONS.md`-governed vendored tree. |
+| `lc_desc` 4102 | 0 / 0 | **0 of the 62,194 records carry a `desc`** — the field is gone from OSRS loc configs, so a handler could only push the reference's `'null'`. Zero callers besides. |
+| `lc_debugname` 4101 | 1 / 1 | `debugname` is a LostCity build-time symbol. The dat2 record has no such field. |
+
+**A census correction worth carrying forward.** The `loc_*` row in §5's table
+reads `loc_param 133`. Re-measured over the reference's `content/scripts/`
+excluding `engine.rs2`: **`loc_param` 140 / 56 files, `loc_anim` 56 / 23,
+`loc_category` 38 / 16, `loc_name` 4 / 3.** The earlier figures were low because
+the census pattern required a `(` — and `loc_name`, `loc_category`, `loc_coord`,
+`loc_type` and every other zero-arg command is written bare. This is the same
+blindness §7's note records for `loc_coord` (3 recorded, 1,002 real) and it is
+systematic: **any ranking built on a `name(` pattern under-counts every zero-arg
+opcode.** `last_useitem` — 800 uses across 213 files, three times `loc_param` —
+is invisible to every table in this document for exactly this reason.
+
+**The check is `make -C src test-mock230-loc`** (`src/net/mock/test/loc_test.c`),
+C rather than content for the same reason §10.3b's was: this lane could not write
+to `OSRS-Content` or rebuild the pack. Half 1 re-decodes the whole loc group and
+asks the tables about every record in **both** directions — 32,161 nameless
+records make "reads back nothing" the sharper assertion, because an off-by-one
+binary search returns a *neighbour's* string. Half 2 builds a real scene at the
+selftest's own zone, adds real locs and sets the active-loc pointer the way the
+server does; `def_string $s = loc_name;` is the string-stack assertion.
+
+Eight mutations were shown to fail it: transposing `lc_width`/`lc_length`;
+pushing `loc_name` to the int stack; giving `loc_param` `lc_param`'s two-pop
+arity; making the id check always pass; answering a footprint miss with 0x0;
+returning the nearest row instead of NULL on a name miss; dropping the loc param
+`qsort`; and reading the active-loc pointer as a raw slot instead of `slot + 1`.
+
+**One mutation does *not* fail it, and that is stated rather than hidden:**
+removing the `qsort` over the name and footprint tables. `archive->file_ids` is
+ascending on this cache, so both sorts are no-ops today. They are kept because
+nothing promises that ordering, but this test does not prove them. (§10.3's
+param sort is a different matter and remains emphatically load-bearing.)
+
+### 10.3d The npc reads and the hunt searches — and `npc_param` was wrong
+
+`src/net/mock/mock230_ops_npc.c`, the fourth per-domain opcode file, registered
+by one line in `mock230_script_command`. Coverage 231 → **237 of 399**. Landed:
+`npc_param`, `npc_category`, `nc_category`, `npc_hasop`, `npc_huntall`,
+`npc_hunt`, `npc_findcat`. Full detail in `osrs230_mockserver.md` §3.13g.
+
+**The coverage number is not the headline.** `npc_param` (2529) was *already*
+implemented, in `mock230_scripts.c`'s switch, and it was wrong: it compared the
+popped param against a single `mock230_content_symbol(MOCK230_PACK_PARAM,
+"death_drop")` — a game-facing name in C — and pushed **0 for every other
+param**, on the int stack, ignoring `default=`. It never consulted
+`mock230_npc_param`, which has been loaded and public all along.
+
+Nothing here could see it, and the reason generalises. `gen_opcode_coverage.py`
+derives coverage from the presence of a `case SS_OP_*:` label, so **an opcode
+that is implemented badly is indistinguishable from one implemented well**. 2529
+has been counted as covered, the load-time gap report has been silent, and
+`--selftest` has been green, for as long as the case has existed. Re-measured,
+`npc_param` is **291 uses across 137 files** — three times the next npc figure —
+and the committed combat slice reads through it (`skill_combat/combat_stats.rs2`
+:383 `stabdefence`, :459 `strengthbonus`, :489 `damagetype`). Every npc defence
+roll and max hit in that slice was computed from bonus 0.
+
+The old case is now unreachable dead code, because the domain hooks run before
+the switch. **Deleting it needs the same one-time `mock230_scripts.c` exception
+§10.3b took**; this lane was allowed one hook line and nothing else.
+
+**The obvious fix was a regression, and the hardcode was hiding why.** Reading
+`mock230_npc_param` — the *cache record's* param table — answers 0 for
+`death_drop`, because `death_drop` is a **server-band param authored in a rank-1
+`.npc` overlay** and is nowhere in the cache. The drop tables would have added
+obj 0 at 7 call sites. So `apply_param` in `mock230_content.c` now files every
+authored row under its param *id* as well as into the named C field, and
+`npc_param` reads the overlay first and the cache second — rank 1 over rank 0,
+`CONTENT_ARCHITECTURE.md` §3.1's own merge. Measured: 39 npc defs, 205 authored
+rows. This is a partial close of §7 item 1: the overlay params' **values** are
+now script-visible; their **types** still are not, because `load_param_types`
+reads only `configs/all.param`.
+
+Three smaller findings, all measurements rather than opinions:
+
+- **A name gate was hiding a field.** `mock230_npcinfo()` reports a placeholder
+  for a record with no name. Of cache.osrs239's 16,292 npc records, 9,149 carry
+  a category and **1,585 of those are nameless**; 10,505 declare a menu op and
+  177 of those are nameless. `mock230_npcinfo_record()` is the new ungated
+  accessor. `category` (config opcode 60) was already being decoded by the
+  linked rscache decoder and thrown away in `mock230_npcinfo.c`.
+- **`npc_huntall` is not `npc_findallany`.** The reference's hunt iterator
+  (`ScriptIterators.ts:274-280`) skips any npc whose type declares no `op[1]`.
+  Without that filter, "every npc nearby" hands content the scenery. `npc_hunt`
+  and `npc_findcat` additionally *filter* by Chebyshev range and *rank* by
+  euclidean-squared, with a `<=` tie-break that keeps the last candidate — three
+  details that each pick a different npc when got wrong.
+
+`make -C src test-mock230-npc`. Ten mutations shown to fail it, listed in
+§3.13g. One worth repeating here because it is a trap for any future search
+opcode: **a membership assertion cannot catch a swapped coord/distance**, since
+a coord literal packs to a number in the millions and a radius of millions finds
+everything. Asking for an empty result at distance 0 is what catches it.
+
+**Eight npc families were deliberately not landed** (see §3.13g for each), and
+the shape of the list is the finding: seven of the eight are blocked on per-npc
+*engine state* that does not exist here, not on opcode work. The largest —
+`npc_walk`, re-measured at **108 uses / 45 files** — needs a waypoint queue on
+`struct Mock230Npc` and a drain in `advance_npcs`, because `NpcOps.ts:451` is
+`queueWaypoint` and this server's only mover takes one step toward a target its
+caller supplies. `npc_statheal`/`statsub`/`statadd` and
+`npc_changetype_keepall` (36/17) all want the same missing thing: a per-npc
+mutable `levels[]`. **That is the next npc item, and it is engine work in
+`mock230_world.c`, not another ops file.**
+
 ### The loc mutation family — §9 step 4b
 
 The unlock §5.2 named: every `skill_*` directory in the LostCity tree sits at
@@ -1091,11 +1336,17 @@ missing was three things:
   rides in the VM's active-entity pointer as `slot + 1`, so non-NULL means "a
   loc is active" and the VM's own requirement check works unmodified.
 
-`loc_param` is deliberately absent — it is `runtime_typed` like `oc_param` and
+~~`loc_param` is deliberately absent — it is `runtime_typed` like `oc_param` and
 needs a runtime loc-config decode that does not exist (only `mock230_pack.c`
 decodes loc configs today, for validation). That is 60k+ records at boot and a
-real memory question, not a copy of what landed here. `loc_findallzone` /
+real memory question, not a copy of what landed here.~~ `loc_findallzone` /
 `loc_findnext` need the ZoneMap from §7.2.
+
+> **Superseded, 2026-08-01.** `loc_param` is implemented (§10.3c) and the memory
+> claim was wrong: it read a *record* count as a memory figure. The whole loc
+> table — params, names and footprints — retains **745 KB** against a 73 MB boot
+> RSS, and 61,124 of the 62,194 records carry no params at all. This is §12's
+> rule again: re-check a documented blocker before quoting it.
 
 #### A pre-existing oddity the test walked into
 
@@ -1253,9 +1504,14 @@ The remaining blockers, re-measured:
 | `map_findsquare` | 54 | find a free tile near a coord |
 | `loc_param` | 52 | needs the runtime loc-config decode |
 | `spotanim_map` | 48 | the wire exists (`MAP_ANIM`); this is a host command over it |
-| `npc_walk` | 44 | needs npc step queues |
+| `npc_walk` | 44 | needs npc step queues — **re-measured 45 files / 108 uses; still open after §10.3d, and it is engine state, not an opcode** |
 | `inv_setslot` | 33 | trivial |
 | `db_find` | 23 | the db layer exists (`mock230_db.c`) |
+
+`loc_param` is done (§10.3c). `npc_walk` is now the largest single item in this
+table and the one that has not moved: §10.3d refused it deliberately rather than
+faking it, because `NpcOps.ts:451` queues a *waypoint* and this server has no
+queue to put one in. See §10.3d's closing paragraph for what it actually costs.
 
 **Nothing large is left.** Every remaining item is a day or less, and the
 biggest single one is now a fifth the size of what `npc_setmode` was. The list

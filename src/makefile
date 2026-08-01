@@ -254,7 +254,12 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	net/mock/mock230_db.c \
+	net/mock/mock230_paramtable.c \
+	net/mock/mock230_locinfo.c net/mock/mock230_structinfo.c \
 	net/mock/mock230_ops_db.c \
+	net/mock/mock230_ops_param.c \
+	net/mock/mock230_ops_loc.c \
+	net/mock/mock230_ops_npc.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
@@ -985,6 +990,52 @@ test-mock230: mock230 mock230-scripts mock230-servpack
 # than hiding one that is not.
 test-mock230-coverage:
 	python3 net/mock/gen_opcode_coverage.py --check
+
+# The `*_param` family: the loc and struct tables, and the stack the result
+# lands on. Links the server minus its main(), plus the three compiler-only
+# sources — `MOCK230_CORE_SRCS` already carries the VM, the register and ini,
+# which is why `SSC_SRCS` cannot be used whole here.
+#
+# It needs the real cache and the real content tree, and it is exhaustive over
+# both param groups, so it is a second-long test rather than an instant one.
+PARAM_TEST_SRCS = $(MOCK230_CORE_SRCS) net/jbase37.c \
+	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
+.PHONY: test-mock230-param
+test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/param_test \
+		net/mock/test/param_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
+
+# The `loc_*` / `lc_*` config reads. Same two halves as test-mock230-param and
+# the same link line, plus one thing that test does not need: it builds a real
+# scene and adds a real loc to it, because `loc_param` and `loc_name` read the
+# *active* loc and a fixture that set the pointer to a made-up slot would prove
+# nothing about the slot-not-pointer convention that exists to survive a rebuild.
+.PHONY: test-mock230-loc
+test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_test \
+		net/mock/test/loc_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/loc_test
+
+# The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
+# link line again, plus the one thing the other two do not need: a real (zeroed,
+# heap-allocated) `struct Mock230Server`, because `npc_hunt` and `npc_huntall`
+# walk the npc roster and write the shared iterator. Still no world, no socket
+# and no pack — the npcs go straight into the pool.
+.PHONY: test-mock230-npc
+test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/npc_test \
+		net/mock/test/npc_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/npc_test
 
 # The namespace register: defaults, [namespace:*] overlay, pack-filename
 # resolution. Its failure mode is silence — a misspelled content.ini loads
