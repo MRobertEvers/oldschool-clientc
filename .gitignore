@@ -61,3 +61,7 @@ test/ui_tree/output/
 
 # poser-gl writes its settings into the working directory, as the reference does
 poser-gl.settings
+
+# Python bytecode from tools/ (tools are run as scripts, never imported).
+__pycache__/
+*.pyc

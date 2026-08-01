@@ -2134,6 +2134,7 @@ load_param_types(const char* content_dir)
     int current = -1;
     int loaded = 0;
     int highest = -1;
+    int line_number = 0;
 
     snprintf(path, sizeof(path), "%s/configs/all.param", content_dir);
     file = fopen(path, "rb");
@@ -2191,12 +2192,25 @@ load_param_types(const char* content_dir)
         char* header;
         char* value;
 
+        line_number++;
         if( !*line )
             continue;
         header = mock230_content_section_header(line);
         if( header )
         {
-            current = mock230_content_symbol(MOCK230_PACK_PARAM, header);
+            /*
+             * A block naming a param `configs/all.param.compack` does not list.
+             *
+             * Silent before, and the shape of the silence is what makes it worth
+             * an error: the block is skipped, so the param keeps `type` 0 and
+             * `default` 0, and `push_typed_param` then answers every absent row
+             * with 0 instead of the declared default. This file and its index
+             * are both machine exports of the same archive, so a name in one and
+             * not the other means the two have drifted.
+             */
+            if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, header, &current) )
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
+                              line_number, header);
             continue;
         }
         if( current < 0 || current >= g_param_type_count )

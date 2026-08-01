@@ -1460,3 +1460,199 @@ I would add two:
    §4.1. Name resolution proves a spelling exists; only this proves it means the
    same thing, and `goblin_armed`/`goblin_cook` are the precedent for what it
    costs when nobody looks.
+
+---
+
+## 14. §9 step 2, as landed — the name-resolution gate
+
+Written 2026-08-01. Bars 1, 5 and 6 are enforced now; this records what each one
+turned out to be, what it cost, and the four things the pass found that no
+section above predicted.
+
+**Baseline, re-measured before anything changed** (§12's block is stale on all
+seven numbers, so use this one):
+
+```
+mock230_pack: 0 error(s), 13 warning(s)
+content loaded (213530 symbols, 284 constants, 39 npc defs, 776 loc defs,
+                39 varp defs, 1496 equip reqs (675 from the cache),
+                63 npc spawns, 12 obj spawns)
+server band: 2973 archive(s) verified against the text parse
+```
+
+The 12 extra warnings are all `has a combat block but the cache gives it no
+Attack op`; none is a regression.
+
+### 14.1 What was actually unguarded
+
+The gate was not one hole. It was four, in four different layers, and each one
+answered a wrong name with a *plausible* value rather than with silence — which
+is why none of them had ever produced a failing check.
+
+| layer | what it did with a name nothing knows | now |
+|---|---|---|
+| `mock230_content.c` `apply_param` | `mock230_content_symbol` maps the literal `null` to -1 **by design**, and maps a miss to -1 too. So `param=death_drop,bones_TYPO` loaded at **0 errors** and the npc dropped nothing — indistinguishable from `param=death_drop,null` | `mock230_content_symbol_checked` separates the two; the four symbolic npc params go through it |
+| `mock230_content.c` `load_param_types` | a `[block]` in `configs/all.param` naming a param its own `.compack` does not list was skipped in silence, leaving `type` 0 and `default` 0 — so `push_typed_param` answered every absent row with 0 instead of the declared default | a content error naming file and line |
+| `cachepack` `pack_server_type` | a field value that named nothing was counted, the field was **skipped**, and the band read back as *absent* — which the param-defaults path answers with the declared default. A second silent default one layer below the first. `cp_pack_server_run` returned 1 regardless | the value is an error and reaches the exit status |
+| `sscompile` | a constant declared twice was appended twice and an **unstable** `qsort` picked the winner, while `mock230_content.c` errors on the second declaration — the compiler was *looser than the server it feeds* | `SSC_SymbolsValidate`, fatal before the first line is compiled |
+
+The `cachepack` row had a second defect underneath it. `tally[f].unresolved`
+counted two different facts under one message, and the message described only
+one of them — *"the register declares no `ref` namespace for it"*. A field that
+**did** declare a `ref` and named something the pack has never heard of printed a
+line blaming the register. They are separate counters now: `no_ref` is the
+declared gap (`huntmode = aggressive`, 10 values, no cache namespace) and
+`unresolved` is an error.
+
+Turning the exit status on needed one more thing first. `[default]` — the npc
+defaults block, this tree's own invention, documented in
+`general/configs/npc_default.npc` — has no id by construction, and was being
+counted as an unresolved name. **One legitimate no-id record sat permanently in
+the bucket, which is the whole reason the bucket could never be made fatal.**
+`server/pack` is byte-identical across the change (2973 archives, same
+`shasum`).
+
+### 14.2 The bars, and where each one lives
+
+- **Bar 1, unresolved names.** Three exact checkers, one per layer: `sscompile`
+  (scripts — it already refused), `mock230_pack` via the content loader
+  (configs), `cachepack` (the server band). Plus `tools/ss_unresolved.py --check`
+  over the authored **config** half, which had no per-field checker at all.
+- **Bar 5, no bare ids.** `ss_unresolved.py --check` reads `fields/<type>.ini`'s
+  `ref =` rows — the register is the authority, so there is no second list — and
+  refuses a numeric section header, a numeric value for a `ref` field
+  (`param=death_drop,526`), and a numeric first column in a `.spawn`. `-1` is
+  allowed: it is `null` spelled as a number and names no record.
+- **Bar 6, the display-name diff.** `tools/port_name_diff.py`, signed into
+  `<tree>/port/name_diff.signed`.
+
+Both fold into a new `make -C src test-port`, which `test-content` depends on.
+No new top-level target, for the reason the makefile already gives about
+aggregate bars: a check in a command nobody types is not covered.
+
+### 14.3 The name diff, measured
+
+4,270 names are present in both trees and stated by a record on both sides:
+
+| namespace | rows | identical | formatting-only | plausible-sibling | different-thing | unnamed | shape-differs |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| obj | 1,949 | 1,347 | 30 | 404 | 41 | 127 | — |
+| loc | 1,319 | 881 | 20 | 59 | 11 | 348 | — |
+| npc | 898 | 679 | 53 | 32 | 33 | 101 | — |
+| seq | 99 | 88 | — | — | — | — | 11 |
+| spotanim | 5 | 1 | — | — | — | — | 4 |
+
+§4.1's three counts reproduce exactly — npc 898, obj 1,947 (1,949 after the
+reference gained two objs mid-run, see §14.5), loc 1,319 — and so do two of its
+three `unnamed` columns to the record, npc 101 and loc 348. Its "same display
+name" column is *looser* than `identical` here (722 against 679) because this
+separates `formatting-only`; 679 + 53 = 732 is the comparable figure.
+
+`seq` and `spotanim` state no display name, so their verdict is structural: a
+seq's frame count and a spotanim's model. Both trees spell the same fact two
+ways — this tree repeats `frame=` where the reference numbers `frame1..frameN`,
+and the reference names an asset `model_2393_obj` where this tree writes `2393`
+— so the tool reduces both before comparing. **88 of 99 seq frame counts agree**,
+which is the cross-check §9 step 3e wants. The four `spotanim` rows that differ
+are not a finding: a spotanim's `model` is an id in each tree's *own* model
+namespace (`3094` there, `16940` here), so it is not comparable across eras and
+the port manifest is the only thing that can answer it.
+
+**The worked example the gate exists for is in the corpus and signed:**
+
+```
+obj rock_sample1   id 671 in BOTH trees — the name resolves, the ids agree
+    LostCity: 'Rock sample 1'  model_2393_obj
+    osrs239:  'Animal skull'   model 17290
+```
+
+Every check in this repo passed on that row before today and passes on it now;
+what changed is that it carries a `wrong-record` signature. A `wrong-record` row
+is fatal only once *this* tree's authored content names it — otherwise recording
+the finding would break the build, and a bar that punishes honesty gets signed
+`ok` instead.
+
+The 4,270-row baseline is signed `unreviewed` wholesale, deliberately: the bar
+arms today and what it catches from today is a row **changing class** or a new
+row appearing unsigned, which is the event a review would have been looking for.
+
+### 14.4 What copying an id would land on — §7 item 1, re-measured
+
+`port_name_diff.py --collisions` over 14 namespaces both trees number:
+
+```
+1,329 names would land on a different record if the id were copied
+    0 would land on nothing            ← there is no fails-loudly case, anywhere
+   10 would land on a lexically similar name
+```
+
+Per namespace: npc 1,073 · loc 174 · dbrow 28 · param 23 · varp 21 · enum 4 ·
+dbtable 3 · seq 2 · obj 1.
+
+The ten that survive review are the class worth naming:
+
+```
+seq  human_knife_slash  LC 911  → this tree's 911 is human_knife_chop (real id 3747)
+loc  elemental_workshop_valve_1  LC 3404 → ..._valve_2   (real id 3403)
+loc  elemental_workshop_valve_2  LC 3405 → ..._wheel
+loc  palacedoor_l  LC 1575 → towered_gateway_l
+loc  statue_king_waterfall_quest LC 2005 → stonepillar_small_waterfall_quest
+npc  ogre_guard3   LC 860  → zogre_ogre_shaman
+varp com_slashattack LC 46 → com_stance      varp com_stabattack LC 44 → com_ammo
+varp prayer_drain_counter LC 98 → prayer15
+enum displaymessage_enum LC 53 → enum_53
+```
+
+The valve pair is a **shifted chain, not a swap**, which is why a 2-cycle sweep
+misses it. The one true 2-cycle in the corpus is the documented one and the tool
+finds it: `blackarmgang` LC 145 → this tree's 145 is `phoenixgang`, and the
+reverse.
+
+### 14.5 Four findings this pass produced that §1–§13 do not contain
+
+1. **The reference checkout is not frozen and is being written to.**
+   `LostCity_Server/content` was dirty mid-run — `scripts/skill_combat/configs/ghrazi.obj`
+   and `vitur.obj` were added between the baseline and the first `--check`, and
+   the gate correctly reported two new unsigned rows. `test-ss-roundtrip` also
+   failed once against a `script.dat` that was being rewritten as it was read,
+   and passed on re-run. **Any bar computed against the reference is only as
+   reproducible as that checkout**, and a stage that re-signs the baseline is
+   partly recording the reference's state, not this tree's.
+2. **The script half of `ss_unresolved.py` cannot be a bar and does not need to
+   be.** It flags 74 names in this tree's `.rs2` — all provably false positives,
+   because `sscompile` refuses an unresolved name and compiles all 319 scripts.
+   The heuristic cannot see argument position. The **config** half can be exact,
+   because the types are declared: `.enum` states `inputtype`/`outputtype`, and a
+   `.dbrow`'s `data=` lines are typed by its `.dbtable`'s `column=` rows. Reading
+   those declarations is what took the config check from 35 false positives to 0
+   without a whitelist.
+3. **`%name` ambiguity costs nothing to forbid today, and only today.**
+   `content.ini`'s `vardomain` column declares varp/varbit/varn/vars to share one
+   name domain; `mock230_content.c` enforced it and `sscompile` never read the
+   column, so `resolve_variable`'s VARP-first precedence was live. Measured
+   overlap right now: **zero names**. §7.5's whole clobber class walks through
+   that door, so it is shut before §9 step 3d opens it.
+4. **`mock230_scripts.c` still spells two content names in C** and neither is
+   this change's to move: `mock230_content_symbol(MOCK230_PACK_PARAM,
+   "death_drop")` at the `npc_param` opcode (a param name in C — §2.4 item 3),
+   and the `::` cheat's symbolic argument, which resolves a mistyped name to -1
+   in silence (`mock230_scripts.c:1447`). The second is operator input rather
+   than a content file, so a pack-time gate cannot see it and the fix is an
+   operator-facing message. `mock230_seq_by_name` stays as it is: it is a lookup
+   whose only callers assert on both the hit and the miss, not a loader
+   assigning a default.
+
+### 14.6 What step 2 did **not** land
+
+- **The full `cachepack pack` exit status.** `cp_pack_run` still returns
+  `failed == 0`. It counts asset-table and config-parse unresolved names too, a
+  full pack copies the base cache and emits 116,450 archives, and it was not run
+  here — so tightening it is a change that cannot be verified in the same pass
+  that makes it. The server-band path, which is what `test-content` and the boot
+  depend on, is fatal now.
+- **The 452-reference whole-tree count** §13.1 is sized against. It is not
+  reproduced here and should not be quoted: `ss_unresolved.py` answers "what
+  does this tree reference that nothing provides", and against the *reference*
+  tree that is 1,288 script-only and 6,213 whole-tree — dominated by LostCity's
+  own asset names (`model` 1,271, `anim` 2,183). The four-record-namespace
+  figure §13.1 quotes needs the census script (§12), not this tool.

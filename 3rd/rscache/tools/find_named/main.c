@@ -664,7 +664,7 @@ dump_dat1_animbase(const char* path)
             if( abf->base->labels[i][j] > max_label )
                 max_label = abf->base->labels[i][j];
     printf("  highest label referenced: %d\n", max_label);
-    for( int i = 0; i < abf->base->length && i < 24; i++ )
+    for( int i = 0; i < abf->base->length; i++ )
     {
         printf("  [%3d] type %d labels:", i, abf->base->types[i]);
         for( int j = 0; j < abf->base->label_counts[i]; j++ )
@@ -898,6 +898,60 @@ dump_model_stats(
     for( int i = 0; i < 8; i++ )
         printf("%s%d-%d:%d", i ? "  " : "", i * 16, i * 16 + 15, light_hist[i]);
     printf("\n");
+
+    /*
+     * Vertex labels — the thing RIGGING_OSRS_RS2.md's whole method exists to
+     * retarget, and the one field the rest of this dump does not report.
+     * `vertex_bone_map` is NULL for a model with no per-vertex labels at all
+     * (a single rigid piece with nothing to retarget); printing "none" rather
+     * than staying silent is what tells a caller that apart from a model that
+     * genuinely carries labels 0..N and was not asked about.
+     */
+    if( !model->vertex_bone_map )
+    {
+        printf("  %-22snone (rigid, no per-vertex labels)\n", "vertex labels");
+    }
+    else
+    {
+        int seen[256] = { 0 };
+        int distinct = 0;
+
+        for( int i = 0; i < model->vertex_count; i++ )
+            seen[model->vertex_bone_map[i]]++;
+        for( int i = 0; i < 256; i++ )
+            if( seen[i] )
+                distinct++;
+        /* No sentinel assumed here — 0 is a real label on the rev-254 side
+         * (joint 0, "ground anchor" in RIGGING_OSRS_RS2.md's table) and 255 is
+         * that side's no-group sentinel, but this prints whichever cache the
+         * model came from, so every value it saw is listed rather than one
+         * being silently treated as "none". */
+        printf("  %-22s%d distinct label(s) over %d vertices:",
+               "vertex labels", distinct, model->vertex_count);
+        for( int i = 0; i < 256; i++ )
+            if( seen[i] )
+                printf(" %d(x%d)", i, seen[i]);
+        printf("\n");
+
+        /* Per-label centroid, the same geometry-not-guesswork check
+         * RIGGING_OSRS_RS2.md uses to settle which physical hand a label is. */
+        for( int i = 0; i < 256; i++ )
+        {
+            long long sx = 0, sy = 0, sz = 0;
+
+            if( !seen[i] )
+                continue;
+            for( int v = 0; v < model->vertex_count; v++ )
+                if( model->vertex_bone_map[v] == i )
+                {
+                    sx += model->vertices_x[v];
+                    sy += model->vertices_y[v];
+                    sz += model->vertices_z[v];
+                }
+            printf("    label %3d centroid (x,y,z) = (%lld, %lld, %lld)\n", i,
+                   sx / seen[i], sy / seen[i], sz / seen[i]);
+        }
+    }
 }
 
 int

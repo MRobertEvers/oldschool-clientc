@@ -1011,11 +1011,42 @@ test-mock230-coverage:
 #
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
-.PHONY: test-servercodec test-content
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack mock230-pack
+.PHONY: test-servercodec test-content test-port
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack mock230-pack test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
 	@echo "test-content: all content bars passed"
+
+# The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md §9 step 2).
+#
+# Two bars the compilers and the validator cannot state:
+#
+#   ss_unresolved --check   every name an *authored config* references resolves,
+#                           and no content file carries a bare id (§13 bars 1
+#                           and 5). The script half is already exact — sscompile
+#                           refuses an unresolved name — so this is the half that
+#                           had no checker.
+#   port_name_diff --check  every name present in BOTH trees has a signed row
+#                           saying the two records are the same thing (§4.1,
+#                           bar 6). A name resolving proves a spelling exists;
+#                           only this proves it means what it meant there.
+#                           `obj rock_sample1` is id 671 in both trees and is
+#                           'Rock sample 1' there and 'Animal skull' here — every
+#                           other check in this file passes on it.
+#
+# Folded into `test-content` rather than given its own top-level target, for the
+# reason stated above it: a bar in a command nobody types is not covered. The
+# name diff needs the LostCity checkout and says so and passes when it is absent
+# — a bar that cannot run has not failed.
+test-port:
+	@echo "--- port: the name-resolution gate ---"
+	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
+		--src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--pack $(MOCK230_CONTENT_DIR)/pack \
+		--pack $(MOCK230_CONTENT_DIR)/configs \
+		--check
+	@cd $(REPO_ROOT) && python3 tools/port_name_diff.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
 
 # The compiler's symbol table, against the register and the live tree.
 #
