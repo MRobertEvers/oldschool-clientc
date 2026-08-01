@@ -21,6 +21,7 @@
  *   mock230_scripts.c    the ServerScript host seam (166 of 396 opcodes)
  *   mock230_content.c    the LostCity content tree: packs, configs, map spawns
  *   mock230_objinfo.c    obj metadata (name / wearpos / stackable) from the cache
+ *   mock230_friends.c    friend / ignore / private-chat state, keyed by name
  *
  * ── How the three structures relate ──────────────────────────────────
  *
@@ -1455,6 +1456,25 @@ struct Mock230Player
      *  answer than the one the client already sent. */
     char display_name[32];
 
+    /*
+     * `display_name` packed base 37 — the key everything social is filed under.
+     *
+     * Cached here rather than re-packed at each use because it is the *identity*
+     * the friend service knows this player by, and the two must not be able to
+     * drift: mock230_world_set_display_name is the one place that writes both.
+     * 0 for a player whose name never arrived (the selftest's, before it is
+     * given one), which the service rejects as an invalid name.
+     */
+    int64_t name37;
+
+    /**
+     * The reference's `socialProtect`: one social packet per tick, spent by the
+     * first of the six that arrives and cleared in phase 11 (the reference
+     * clears it in `resetEntity`). Read and written only through
+     * mock230_friends_social_gate.
+     */
+    int social_protect;
+
     /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
      * above, since the mask is what carries them to the client. */
     /** Npc slot being fought, or -1. */
@@ -1528,6 +1548,29 @@ struct Mock230Hooks
     const struct SSVM_Script* equip_level_message;
     const struct SSVM_Script* equipment_refresh;
     const struct SSVM_Script* equipment_open;
+
+    /*
+     * Friend presence.
+     *
+     * The reference has no equivalent and never could: its 2004 client derived
+     * "X has logged in." for itself from the world-id transitions in
+     * UPDATE_FRIENDLIST, so no server ever worded it. At rev 230 the client
+     * dropped that derivation and the notification arrives as a server
+     * MESSAGE_GAME — which makes the sentence the server's to say, and a
+     * sentence the server says is content's to word
+     * (CONTENT_ARCHITECTURE.md §8.2(a)).
+     *
+     * Both take one string, the display name. The engine supplies the name
+     * because only the engine knows it; it supplies nothing else, and in
+     * particular it does not decide whether anything is said at all — a tree
+     * that does not define these procs is a tree whose players are not
+     * notified, which is a policy a content author can now choose.
+     *
+     * Addressed per *follower*: see social_notify_followers in
+     * mock230_world.c, which is what makes `mes` reach the right chatbox.
+     */
+    const struct SSVM_Script* friend_login_notification;
+    const struct SSVM_Script* friend_logout_notification;
 };
 
 struct Mock230Server
@@ -3002,6 +3045,58 @@ void
 mock230_send_unset_map_flag(struct Mock230Player* player);
 void
 mock230_send_tick_end(struct Mock230Player* player);
+
+/*
+ * Social. The five server->client packets of the friend / ignore / private-chat
+ * feature; docs/FRIENDS_PRIVATE_CHAT.md §3.2 is the wire table and
+ * src/net/mock/mock230_friends.h is the service that decides what goes in them.
+ *
+ * These encoders decide nothing. In particular `world` below is already the
+ * answer `isVisibleTo` gave — 0 means "offline OR not visible to this viewer",
+ * and the encoder cannot tell which, deliberately, because the client cannot
+ * either.
+ */
+
+/** One friend-list entry: p8 name37, p1 world. Both the login dump (one packet
+ *  per friend) and every delta afterwards use this. */
+void
+mock230_send_update_friendlist(
+    struct Mock230Player* player,
+    int64_t name37,
+    int world);
+
+/** The whole ignore list: p8 name37 * count. The client replaces its store
+ *  wholesale, so there is no single-entry form. */
+void
+mock230_send_update_ignorelist(
+    struct Mock230Player* player,
+    const int64_t* names37,
+    int count);
+
+/** 0 loading, 1 connecting, 2 online. Sent once, after the login dump. */
+void
+mock230_send_friendlist_loaded(
+    struct Mock230Player* player,
+    int status);
+
+/** An incoming private message. `message_id` must be non-zero — the client
+ *  dedupes against a zero-filled ring and drops a 0. */
+void
+mock230_send_message_private(
+    struct Mock230Player* player,
+    int64_t from37,
+    int32_t message_id,
+    int staff_mod,
+    const char* text);
+
+/** The three chat filter modes, echoed back so the client's UI agrees with the
+ *  server's copy. */
+void
+mock230_send_chat_filter_settings(
+    struct Mock230Player* player,
+    int public_mode,
+    int private_mode,
+    int trade_mode);
 
 /** Whole container. `component` is the packed (interface << 16 | child) uid the
  *  container binds to. */

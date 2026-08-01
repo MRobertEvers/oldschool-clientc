@@ -116,6 +116,29 @@ mock230_embed_connect(struct Mock230Embed* embed)
     return -1;
 }
 
+int
+mock230_embed_disconnect(
+    struct Mock230Embed* embed,
+    int client_id)
+{
+    struct Mock230EmbedClient* client = client_at(embed, client_id);
+
+    if( !client )
+        return 0;
+
+    /* Order matters and is the socket server's: the world lets go of the player
+     * while the session is still addressable, because that is what makes the
+     * packets a logout generates reach everyone *else* before the queues go. */
+    mock230_world_remove_player(&embed->srv, client->session.player);
+    client->session.player = NULL;
+    client->online = 0;
+    mock230_session_free(&client->session);
+    mock230_pipe_free(&client->to_server);
+    mock230_pipe_free(&client->to_client);
+    client->open = 0;
+    return 1;
+}
+
 void
 mock230_embed_stop(struct Mock230Embed* embed)
 {

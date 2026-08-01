@@ -21,6 +21,7 @@
 
 #include "net/isaac.h"
 #include "net/jbase37.h"
+#include "net/wordpack.h"
 
 /* The client's framing table, for the length check in mock230_send. */
 #include "net/rev/osrs230/packetin.h"
@@ -36,7 +37,13 @@
 enum
 {
     OP_SET_MAP_FLAG = 2,
+    /* Assigned here; packetin.h says why 3 was free and why it stays <128. */
+    OP_CHAT_FILTER_SETTINGS = 3,
     OP_IF_OPENSUB = 6,
+    OP_FRIENDLIST_LOADED = 15,
+    OP_UPDATE_IGNORELIST = 21,
+    OP_MESSAGE_PRIVATE = 29,
+    OP_UPDATE_FRIENDLIST = 56,
     OP_UPDATE_INV_FULL = 10,
     OP_PLAYER_INFO = 23,
     OP_UPDATE_RUNWEIGHT = 27,
@@ -155,6 +162,16 @@ opcode_name(int op)
         return "OBJ_DEL";
     case OP_OBJ_COUNT:
         return "OBJ_COUNT";
+    case OP_CHAT_FILTER_SETTINGS:
+        return "CHAT_FILTER_SETTINGS";
+    case OP_FRIENDLIST_LOADED:
+        return "FRIENDLIST_LOADED";
+    case OP_UPDATE_IGNORELIST:
+        return "UPDATE_IGNORELIST";
+    case OP_MESSAGE_PRIVATE:
+        return "MESSAGE_PRIVATE";
+    case OP_UPDATE_FRIENDLIST:
+        return "UPDATE_FRIENDLIST";
     default:
         return "?";
     }
@@ -661,6 +678,121 @@ mock230_send_message(
     rsab_p1(&buf, 0); /* message type: plain game message */
     rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
     flush(player, &buf, OP_MESSAGE_GAME, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Social                                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The five server->client social packets.
+ *
+ * Each is a transcription of the matching LostCity encoder under
+ * engine/src/network/game/server/codec/ — UpdateFriendListEncoder,
+ * UpdateIgnoreListEncoder, FriendlistLoadedEncoder, MessagePrivateEncoder,
+ * ChatFilterSettingsEncoder — and each was checked against the *client's own*
+ * reader in src/net/rev/gameproto_parse.c, which is the half that has to agree.
+ * Three of the five readers assert full frame consumption, so a field out of
+ * place here is an abort in the client rather than a subtle drawing bug.
+ *
+ * None of them decides anything. Which friend, at which world, and whether the
+ * viewer may see it at all is mock230_friends.c's answer (`isVisibleTo`); these
+ * only write it down.
+ */
+
+void
+mock230_send_update_friendlist(
+    struct Mock230Player* player,
+    int64_t name37,
+    int world)
+{
+    /* One entry per packet, both for the login dump and for the deltas after
+     * it. `world` is 0 for "offline, or not visible to you" — the conflation is
+     * the reference's (FriendServer.sendPlayerWorldUpdate) and is the whole of
+     * how "Private chat: off" hides a player from their own friends. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    rsab_p8(&buf, name37);
+    rsab_p1(&buf, world);
+    flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+void
+mock230_send_update_ignorelist(
+    struct Mock230Player* player,
+    const int64_t* names37,
+    int count)
+{
+    /* The whole list at once — the client replaces its store wholesale
+     * (rs_gameproto_exec.c, PKT_NAME_UPDATE_IGNORELIST), which is why there is
+     * no single-entry form to pair with UPDATE_FRIENDLIST's. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
+    for( int i = 0; i < count; i++ )
+        rsab_p8(&buf, names37[i]);
+    flush(player, &buf, OP_UPDATE_IGNORELIST, 2);
+}
+
+void
+mock230_send_friendlist_loaded(
+    struct Mock230Player* player,
+    int status)
+{
+    /* 0 loading, 1 connecting to friendserver, 2 online, anything else "please
+     * wait" (FriendlistLoadedEncoder's own comment). The client files it in
+     * `social.server_status`. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    rsab_p1(&buf, status);
+    flush(player, &buf, OP_FRIENDLIST_LOADED, 0);
+}
+
+void
+mock230_send_message_private(
+    struct Mock230Player* player,
+    int64_t from37,
+    int32_t message_id,
+    int staff_mod,
+    const char* text)
+{
+    /*
+     * p8 from, p4 messageId, p1 staffModLevel, then wordpack over the rest.
+     * The client reads `data_size - 13` bytes of wordpack, so the length has to
+     * be the var-u16 frame's, not a field.
+     *
+     * `message_id` must be non-zero: the client dedupes private messages
+     * against a zero-filled ring, so a 0 id is a message it silently drops.
+     * mock230_friends_next_pm_id guarantees that; this encoder does not
+     * re-check, because a caller that made one up should fail visibly.
+     */
+    struct RSAreaBuf buf;
+    uint8_t packed[512];
+    struct RSCache_Buffer text_buf;
+
+    RSCache_BufferInit(&text_buf, packed, (uint32_t)sizeof(packed));
+    wordpack_pack(&text_buf, text ? text : "");
+
+    open_packet(&buf, 16 + text_buf.position);
+    rsab_p8(&buf, from37);
+    rsab_p4(&buf, (int32_t)message_id);
+    rsab_p1(&buf, staff_mod > 3 ? 3 : staff_mod); /* MessagePrivateEncoder's clamp */
+    rsab_pdata(&buf, packed, (size_t)text_buf.position);
+    flush(player, &buf, OP_MESSAGE_PRIVATE, 2);
+}
+
+void
+mock230_send_chat_filter_settings(
+    struct Mock230Player* player,
+    int public_mode,
+    int private_mode,
+    int trade_mode)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p1(&buf, public_mode);
+    rsab_p1(&buf, private_mode);
+    rsab_p1(&buf, trade_mode);
+    flush(player, &buf, OP_CHAT_FILTER_SETTINGS, 0);
 }
 
 void

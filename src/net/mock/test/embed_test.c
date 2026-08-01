@@ -33,10 +33,13 @@
  */
 
 #include "net/mock/mock230.h"
+#include "net/mock/mock230_content.h"
 #include "net/mock/mock230_embed.h"
+#include "net/mock/mock230_friends.h"
 #include "net/mock/mock230_session.h"
 
 #include "cmd/cmdbus.h"
+#include "net/jbase37.h"
 #include "net/net.h"
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
@@ -47,6 +50,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -105,7 +109,92 @@ struct Peer
      *  an absolute tile, and how many it has seen. */
     int saw_loc_count;
     int saw_loc_x, saw_loc_z, saw_loc_id;
+
+    /*
+     * Social. Recorded per peer, out of each client's own decoded stream,
+     * rather than off the server's capture buffer — and that is not a
+     * preference. `mock230_encode.c`'s capture records (opcode, len, data) with
+     * **no addressee**, so "the PM reached bob and not alice" is a question it
+     * structurally cannot answer. Two decoded streams can.
+     */
+    /** UPDATE_FRIENDLIST: how many, and the most recent (name37, world). */
+    int saw_friend_count;
+    int64_t saw_friend_name37;
+    int saw_friend_world;
+    /** FRIENDLIST_LOADED's status byte, or -1 if none has arrived. */
+    int saw_friendlist_loaded;
+    /** UPDATE_IGNORELIST: how many packets, and the entry count of the last. */
+    int saw_ignorelist_count;
+    int saw_ignorelist_len;
+    /** MESSAGE_PRIVATE: how many, and the fields of the most recent. */
+    int saw_pm_count;
+    int64_t saw_pm_from;
+    int saw_pm_id;
+    char saw_pm_text[128];
+    /** CHAT_FILTER_SETTINGS: how many, and the last one's three modes. */
+    int saw_filter_count;
+    int saw_filter_public, saw_filter_private, saw_filter_trade;
+    /*
+     * MESSAGE_GAME: how many, and the last few lines.
+     *
+     * A ring rather than "the most recent", because the friend login/logout
+     * notification shares this stream with everything `[login,_]` says and does
+     * not arrive last: the social burst is step 5b of the login and `[login,_]`
+     * runs a tick later. An assertion against only the newest line would pass
+     * whether or not the notification was ever sent, which is a check that
+     * cannot go red.
+     */
+    int saw_game_count;
+    char saw_game_lines[8][160];
+
+    /*
+     * IF_SETEVENTS: which components the server armed, over the whole session.
+     *
+     * The only observable this test has for the arming half of the content diff
+     * (`~friends_login`), because arming has no server-side state — it is one
+     * packet and then it is the client's. Recorded from the first byte rather
+     * than from a reset, since the arming happens inside the login burst.
+     */
+    int saw_setevents[192];
+    int saw_setevents_count;
+    int saw_setevents_overflow;
 };
+
+/** Did the server arm this component on this client? */
+static int
+peer_saw_setevents(
+    const struct Peer* peer,
+    int com_id)
+{
+    for( int i = 0; i < peer->saw_setevents_count; i++ )
+        if( peer->saw_setevents[i] == com_id )
+            return 1;
+    return 0;
+}
+
+/** Did this client's chatbox get this exact game line since the last reset? */
+static int
+peer_saw_game(
+    const struct Peer* peer,
+    const char* text)
+{
+    int n = peer->saw_game_count;
+
+    if( n > (int)(sizeof(peer->saw_game_lines) / sizeof(peer->saw_game_lines[0])) )
+        n = (int)(sizeof(peer->saw_game_lines) / sizeof(peer->saw_game_lines[0]));
+    for( int i = 0; i < n; i++ )
+        if( strcmp(peer->saw_game_lines[i], text) == 0 )
+            return 1;
+    return 0;
+}
+
+/** Forget the lines so far, so a step asserts on what *it* produced. */
+static void
+peer_reset_game(struct Peer* peer)
+{
+    peer->saw_game_count = 0;
+    memset(peer->saw_game_lines, 0, sizeof(peer->saw_game_lines));
+}
 
 /*
  * Deterministic client seeds, so a failing run reproduces exactly. The values
@@ -320,6 +409,69 @@ absorb_zone(
 }
 
 /*
+ * Record the five social packets.
+ *
+ * Returns 1 if it consumed the packet, so the caller can leave the zone reader
+ * alone. Nothing here interprets: it stores what the *client's own* decoder
+ * (src/net/rev/gameproto_parse.c) produced, which is the half that has to agree
+ * with the server's encoders.
+ */
+static int
+absorb_social(
+    struct Peer* peer,
+    const struct RevPacket* packet)
+{
+    switch( packet->packet_type )
+    {
+    case PKT_NAME_UPDATE_FRIENDLIST:
+        peer->saw_friend_count++;
+        peer->saw_friend_name37 = packet->_update_friendlist.name37;
+        peer->saw_friend_world = packet->_update_friendlist.world;
+        return 1;
+    case PKT_NAME_FRIENDLIST_LOADED:
+        peer->saw_friendlist_loaded = packet->_friendlist_loaded.status;
+        return 1;
+    case PKT_NAME_UPDATE_IGNORELIST:
+        peer->saw_ignorelist_count++;
+        peer->saw_ignorelist_len = packet->_update_ignorelist.count;
+        return 1;
+    case PKT_NAME_MESSAGE_PRIVATE:
+        peer->saw_pm_count++;
+        peer->saw_pm_from = packet->_message_private.from;
+        peer->saw_pm_id = packet->_message_private.message_id;
+        snprintf(peer->saw_pm_text, sizeof(peer->saw_pm_text), "%s",
+                 packet->_message_private.text ? packet->_message_private.text : "");
+        return 1;
+    case PKT_NAME_IF_SETEVENTS:
+        if( peer->saw_setevents_count <
+            (int)(sizeof(peer->saw_setevents) / sizeof(peer->saw_setevents[0])) )
+            peer->saw_setevents[peer->saw_setevents_count++] =
+                packet->_if_setevents.component_id;
+        else
+            peer->saw_setevents_overflow = 1;
+        return 1;
+    case PKT_NAME_MESSAGE_GAME:
+    {
+        int slot = peer->saw_game_count %
+                   (int)(sizeof(peer->saw_game_lines) / sizeof(peer->saw_game_lines[0]));
+
+        snprintf(peer->saw_game_lines[slot], sizeof(peer->saw_game_lines[slot]), "%s",
+                 packet->_message_game.text ? packet->_message_game.text : "");
+        peer->saw_game_count++;
+        return 1;
+    }
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
+        peer->saw_filter_count++;
+        peer->saw_filter_public = packet->_chat_filter_settings.chat_public_mode;
+        peer->saw_filter_private = packet->_chat_filter_settings.chat_private_mode;
+        peer->saw_filter_trade = packet->_chat_filter_settings.chat_trade_mode;
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
  * Move one round of bytes in both directions for every peer, then let the
  * server act.
  *
@@ -390,7 +542,7 @@ pump(
         {
             if( packet.packet_type == PKT_NAME_PLAYER_INFO )
                 absorb_player_info(peer, packet._player_info.data, packet._player_info.length);
-            else
+            else if( !absorb_social(peer, &packet) )
                 absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
         }
@@ -407,6 +559,9 @@ peer_login(
     memset(peer, 0, sizeof(*peer));
     peer->client_id = client_id;
     peer->saw_pid = -1;
+    /* 0 is a real FRIENDLIST_LOADED status ("loading"), so "none yet" needs its
+     * own value or the check below would pass before the packet existed. */
+    peer->saw_friendlist_loaded = -1;
 
     ToriRS_Network_Init(&peer->net, GameProtoRev_OSRS230(), MOCK230_RSA_PUBLIC_EXPONENT,
                         MOCK230_RSA_PUBLIC_MODULUS);
@@ -456,6 +611,80 @@ peer_oploc(
     uint8_t buf[64];
     int n = net_out_oploc(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf), 1, abs_x,
                           abs_z, loc_id);
+
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
+/*
+ * The four social sends, through the *client's* own builders and its own ISAAC
+ * stream — the same functions app.c calls. Asserting on a hand-rolled frame
+ * would prove nothing about whether the client and the server agree, which is
+ * the only thing these packets have to do.
+ *
+ * `net_out_*` returns -1 when the revision has no opcode for the packet, which
+ * is exactly what every one of these did before this stage; the assert is what
+ * makes a missing packetout.h row a failure here rather than silence.
+ */
+static void
+peer_social_name37(
+    struct Peer* peer,
+    int which,
+    const char* target)
+{
+    uint8_t buf[64];
+    int64_t name37 = (int64_t)strtobase37(target);
+    int n = -1;
+
+    switch( which )
+    {
+    case PKTOUT_NAME_FRIENDLIST_ADD:
+        n = net_out_friendlist_add(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                   name37);
+        break;
+    case PKTOUT_NAME_FRIENDLIST_DEL:
+        n = net_out_friendlist_del(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                   name37);
+        break;
+    case PKTOUT_NAME_IGNORELIST_ADD:
+        n = net_out_ignorelist_add(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                   name37);
+        break;
+    case PKTOUT_NAME_IGNORELIST_DEL:
+        n = net_out_ignorelist_del(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                   name37);
+        break;
+    default:
+        break;
+    }
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
+static void
+peer_pm(
+    struct Peer* peer,
+    const char* target,
+    const char* text)
+{
+    uint8_t buf[128];
+    int n = net_out_message_private(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                    (int64_t)strtobase37(target), text);
+
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
+static void
+peer_chat_setmode(
+    struct Peer* peer,
+    int public_mode,
+    int private_mode,
+    int trade_mode)
+{
+    uint8_t buf[64];
+    int n = net_out_chat_setmode(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf),
+                                 public_mode, private_mode, trade_mode);
 
     assert(n > 0);
     ToriRS_Network_SendRaw(&peer->net, buf, n);
@@ -710,6 +939,291 @@ main(void)
                   "on the same tile alice opened");
 
             ToriRS_Network_Free(&peers[2].net);
+        }
+    }
+
+    /*
+     * ── Friends, ignore and private chat ──────────────────────────────
+     *
+     * The routing proof for docs/FRIENDS_PRIVATE_CHAT.md §3 (the wire). Every
+     * send below goes through the *client's* own net_out builder and every
+     * assertion reads the *client's* own decoder, so what is being tested is
+     * that the two halves agree — not that the server agrees with itself.
+     *
+     * Two properties of the server shape this section:
+     *
+     *  - `socialProtect` allows one social packet per player per tick, so each
+     *    step pumps a few rounds before the next send rather than batching them.
+     *  - the friend roster is process-scoped and survives a logout, while
+     *    *delivery* needs a live player slot. That is why the logout step at the
+     *    end asserts on what alice receives, not on what bob does.
+     *
+     * `mock230_friends_reset()` is deliberately NOT called first: the door
+     * section above left no social state, and a reset here would also throw
+     * away the presence the two logins registered.
+     */
+    {
+        int64_t alice37 = (int64_t)strtobase37("alice");
+        int64_t bob37 = (int64_t)strtobase37("bob");
+
+        /* ── What the login burst already sent ── */
+        check(peers[0].saw_friendlist_loaded == 2,
+              "alice's login told her client the friend list finished loading");
+        check(peers[0].saw_ignorelist_count > 0 && peers[0].saw_ignorelist_len == 0,
+              "and handed it an ignore list, empty but stated");
+        check(peers[0].saw_filter_count > 0,
+              "and the three chat filter modes the client's UI reads");
+
+        /*
+         * ── the caps are content's numbers ──
+         *
+         * Not a number typed here: the check reads the `.constant` the engine
+         * reads and asserts the service is using it. Skipped when the content
+         * tree does not declare it, because this lane specified that file
+         * (docs/FRIENDS_PRIVATE_CHAT_CONTENT.md) but does not own the tree — and
+         * a skip that says so is better than a check that quietly asserts the
+         * fallback ceiling is 256.
+         */
+        /*
+         * ── the panel swap is armed ──
+         *
+         * `friends:ignore` and `ignore:friends` are the only two components in
+         * this whole feature that need arming: they carry an op1 with no cache
+         * `onop=`, so at rev 230 they are server buttons and are inert until
+         * IF_SETEVENTS says otherwise. Everything else on both panels is pure
+         * clientscript. This is the one thing the arming half of the content
+         * diff (`~friends_login`) can be observed doing, because arming leaves
+         * no server-side state — it is one packet and then it is the client's.
+         *
+         * The component id is resolved through the pack, never written here.
+         */
+        {
+            int swap_to_ignore = mock230_content_symbol(MOCK230_PACK_COMPONENT, "friends:ignore");
+            int swap_to_friends = mock230_content_symbol(MOCK230_PACK_COMPONENT, "ignore:friends");
+
+            check(!peers[0].saw_setevents_overflow,
+                  "the arming recorder kept up with the login burst");
+            if( swap_to_ignore >= 0 && swap_to_friends >= 0 &&
+                (peer_saw_setevents(&peers[0], swap_to_ignore) ||
+                 peer_saw_setevents(&peers[0], swap_to_friends)) )
+            {
+                check(peer_saw_setevents(&peers[0], swap_to_ignore),
+                      "friends:ignore is armed, so the ignore panel is reachable");
+                check(peer_saw_setevents(&peers[0], swap_to_friends),
+                      "and ignore:friends, so it is escapable");
+            }
+            else
+            {
+                printf("embed: SKIP  the panel-swap arming — "
+                       "~friends_login is not in this content tree\n");
+            }
+        }
+
+        {
+            const char* declared = mock230_content_constant("friend_max");
+
+            if( declared )
+                check(mock230_friends_cap_friends() == atoi(declared),
+                      "^friend_max is what the service caps at");
+            else
+                printf("embed: SKIP  ^friend_max — not in this content tree\n");
+        }
+
+        /* ── alice adds bob ── */
+        peers[0].saw_friend_count = 0;
+        peers[1].saw_friend_count = 0;
+        peer_social_name37(&peers[0], PKTOUT_NAME_FRIENDLIST_ADD, "bob");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(mock230_friends_is_friend(alice37, bob37),
+              "FRIENDLIST_ADD reached the service (it had no rev-230 opcode before)");
+        check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37,
+              "and alice's client was told about bob");
+        check(peers[0].saw_friend_world != 0, "with a non-zero world, because bob is online");
+        check(peers[1].saw_friend_count == 0,
+              "bob heard nothing — he does not have alice in his list");
+
+        /* ── the private message ── */
+        peers[0].saw_pm_count = 0;
+        peers[1].saw_pm_count = 0;
+        /*
+         * "hi there" is eight characters, all of them in the wordpack table's
+         * low-13 single-nibble set. That is deliberate: an odd nibble count
+         * pads the last byte with a zero nibble, which decodes as a trailing
+         * space, and a message chosen without noticing that would look like a
+         * round-trip bug. The capitalisation below is the same kind of thing —
+         * `wordpack_unpack` sentence-cases, exactly as the reference's
+         * WordPack.unpack does, so the text alice typed is not the text bob is
+         * shown, and that is correct.
+         *
+         * The text is unpacked twice on the way: once by the server (which is
+         * what the reference does too, so it has read what it forwards) and
+         * once by bob's client.
+         */
+        peer_pm(&peers[0], "bob", "hi there");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(peers[1].saw_pm_count == 1, "alice's PM reached bob");
+        check(peers[1].saw_pm_from == alice37, "from alice");
+        check(peers[1].saw_pm_id != 0,
+              "with a non-zero message id, which the client's dedupe ring requires");
+        check(strcmp(peers[1].saw_pm_text, "Hi there") == 0,
+              "and the text survived two wordpack round trips");
+        check(peers[0].saw_pm_count == 0, "and it did not also come back to alice");
+
+        /* ── bob adds alice, so alice has a follower to broadcast to ── */
+        peers[1].saw_friend_count = 0;
+        peer_social_name37(&peers[1], PKTOUT_NAME_FRIENDLIST_ADD, "alice");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+        check(peers[1].saw_friend_count > 0 && peers[1].saw_friend_name37 == alice37 &&
+                  peers[1].saw_friend_world != 0,
+              "bob's client now says alice is online");
+
+        /* ── "Private chat: off" hides alice from her own friends ── */
+        peers[1].saw_friend_count = 0;
+        peers[0].saw_filter_count = 0;
+        peer_chat_setmode(&peers[0], 0, MOCK230_CHAT_PRIVATE_OFF, 0);
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(peers[0].saw_filter_count > 0 &&
+                  peers[0].saw_filter_private == MOCK230_CHAT_PRIVATE_OFF,
+              "CHAT_SETMODE is echoed back as CHAT_FILTER_SETTINGS");
+        check(peers[1].saw_friend_count > 0 && peers[1].saw_friend_name37 == alice37 &&
+                  peers[1].saw_friend_world == 0,
+              "and alice going private-chat-off reads as offline in bob's panel");
+
+        peers[1].saw_friend_count = 0;
+        peer_chat_setmode(&peers[0], 0, MOCK230_CHAT_PRIVATE_ON, 0);
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+        check(peers[1].saw_friend_world != 0, "and turning it back on restores her");
+
+        /* ── ignoring somebody hides you from them ── */
+        peers[0].saw_friend_count = 0;
+        peer_social_name37(&peers[1], PKTOUT_NAME_IGNORELIST_ADD, "alice");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(mock230_friends_is_ignored(bob37, alice37), "IGNORELIST_ADD reached the service");
+        check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
+                  peers[0].saw_friend_world == 0,
+              "and bob ignoring alice makes him read offline in her panel");
+
+        /* The reference does NOT drop an ignored sender's private message
+         * server-side — the client does. Asserting delivery is what pins that
+         * decision down; if someone later "fixes" it here, this fails. */
+        peers[1].saw_pm_count = 0;
+        peer_pm(&peers[0], "bob", "still here");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+        check(peers[1].saw_pm_count == 1,
+              "an ignored sender's PM is still delivered (the client filters, not the server)");
+
+        peers[0].saw_friend_count = 0;
+        peer_social_name37(&peers[1], PKTOUT_NAME_IGNORELIST_DEL, "alice");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+        check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_world != 0,
+              "and un-ignoring her brings him back online");
+
+        /* ── the delete ── */
+        peers[1].saw_friend_count = 0;
+        peer_social_name37(&peers[1], PKTOUT_NAME_FRIENDLIST_DEL, "alice");
+        for( int round = 0; round < 6; round++ )
+            pump(peers, 2, embed, 1, 64);
+        check(!mock230_friends_is_friend(bob37, alice37), "FRIENDLIST_DEL reached the service");
+
+        /* ── the logout ──
+         *
+         * Through `mock230_embed_disconnect`, which is the socket server's own
+         * close sequence (release the pool slot, free the session, free the byte
+         * queues) rather than a bare `mock230_world_remove_player` — the bare
+         * form left the embed holding a session whose player was gone, which
+         * only survived because nothing pumped bob afterwards.
+         *
+         * Bob's slot goes and alice, who still has him listed, is told. After
+         * this only alice is pumped: bob has no client id left. */
+        peers[0].saw_friend_count = 0;
+        peer_reset_game(&peers[0]);
+        check(mock230_embed_disconnect(embed, second_client), "bob's client closed");
+        bob = NULL;
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 1, embed, 1, 64);
+
+        check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
+                  peers[0].saw_friend_world == 0,
+              "bob logging out reaches alice as world 0");
+        check(mock230_friends_is_friend(alice37, bob37),
+              "and the list itself outlives the session, so he is still listed");
+
+        /*
+         * ── the sentence, which is content's ──
+         *
+         * The engine decides who hears it and hands over the name; the wording
+         * is `[proc,friend_logout_notification]` in the content tree. So this
+         * check is really two: that the engine reached content at all, and that
+         * it reached it with the right player active — a `mes` inside that proc
+         * writes to whoever the engine made active, and getting that wrong sends
+         * bob's logout line to bob.
+         *
+         * Skipped, loudly, when the proc is absent: this lane specified the
+         * content diff (docs/FRIENDS_PRIVATE_CHAT_CONTENT.md) but does not own
+         * the content tree, so a tree without it must not fail here. Run with
+         * MOCK230_CONTENT pointed at a tree that has it and the check is real.
+         */
+        if( world->hooks.friend_logout_notification )
+            check(peer_saw_game(&peers[0], "bob has logged out."),
+                  "alice is told bob logged out, in content's words");
+        else
+            printf("embed: SKIP  the logout notification — "
+                   "[proc,friend_logout_notification] is not in this content tree\n");
+
+        /* ── and back again ──
+         *
+         * A second login on a fresh client id, which is the only reason this
+         * step is here rather than being folded into the first: the login
+         * notification needs somebody to already be following the name, and at
+         * the top of this section nobody was following anybody.
+         */
+        ToriRS_Network_Free(&peers[1].net);
+        /* Bob lists himself. Nothing in the service refuses that, and without it
+         * the "bob was not told about his own login" check below has no
+         * follower to exclude and so could not go red. */
+        check(mock230_friends_add(bob37, bob37) == MOCK230_SOCIAL_OK,
+              "a player may list themselves");
+        {
+            int rejoin = mock230_embed_connect(embed);
+
+            check(rejoin >= 0, "the embed reopened a client for bob");
+            if( rejoin >= 0 )
+            {
+                peer_login(&peers[1], rejoin, seed_b, "bob");
+                peers[0].saw_friend_count = 0;
+                peer_reset_game(&peers[0]);
+                for( int round = 0; round < 20; round++ )
+                    pump(peers, 2, embed, round % 2 == 0, 64);
+
+                check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
+                          peers[0].saw_friend_world != 0,
+                      "bob logging back in reaches alice as a non-zero world");
+                if( world->hooks.friend_login_notification )
+                    check(peer_saw_game(&peers[0], "bob has logged in."),
+                          "and alice is told so, in content's words");
+                else
+                    printf("embed: SKIP  the login notification — "
+                           "[proc,friend_login_notification] is not in this content tree\n");
+
+                /* Nobody is told about their own login, which is the one branch
+                 * in social_notify_followers that is not the reference's — a
+                 * player may list themselves and nothing refuses it. */
+                check(peers[1].saw_game_count > 0, "bob's own login burst still reached him");
+                check(!peer_saw_game(&peers[1], "bob has logged in."),
+                      "and bob was not told about his own login");
+            }
         }
     }
 

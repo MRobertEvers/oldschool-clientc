@@ -1,6 +1,8 @@
 #include "game/rs_cs2_host.h"
 
 #include "game/rs_player_stats.h"
+#include "game/rs_social.h"
+#include "game/rs_ui_slots.h"
 
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
@@ -757,6 +759,68 @@ RS_CS2Host_NotifyMiscChanged(struct RS_CS2Host* host)
     if( !host )
         return;
     host->misc_transmit_dirty = 1;
+}
+
+void
+RS_CS2Host_SetSocial(
+    struct RS_CS2Host* host,
+    struct RS_Social* social,
+    int* filter_modes,
+    int world)
+{
+    if( !host )
+        return;
+    host->social = social;
+    host->chat_filter_mode = filter_modes;
+    host->map_world = world;
+}
+
+void
+RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host)
+{
+    if( !host )
+        return;
+    host->friend_transmit_dirty = 1;
+}
+
+/* Queue an outbound social request for the App to turn into a packet. */
+static void
+rs_cs2_social_send_push(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend const* send)
+{
+    int slot;
+
+    assert(host);
+    assert(send);
+    if( host->social_send_count >= RS_CS2_HOST_SOCIAL_SEND_MAX )
+    {
+        /* Dropping the newest keeps the earlier requests of the same tick,
+         * which is the order the script issued them in. Say so: a friend add
+         * that silently never reached the server reads as a server bug. */
+        fprintf(
+            stderr,
+            "cs2: social send queue full (%d), dropped kind=%d\n",
+            RS_CS2_HOST_SOCIAL_SEND_MAX,
+            send->kind);
+        return;
+    }
+    slot = (host->social_send_head + host->social_send_count) % RS_CS2_HOST_SOCIAL_SEND_MAX;
+    host->social_send[slot] = *send;
+    host->social_send_count++;
+}
+
+bool
+RS_CS2Host_TakeSocialSend(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend* out)
+{
+    if( !host || !out || host->social_send_count <= 0 )
+        return false;
+    *out = host->social_send[host->social_send_head];
+    host->social_send_head = (host->social_send_head + 1) % RS_CS2_HOST_SOCIAL_SEND_MAX;
+    host->social_send_count--;
+    return true;
 }
 
 void
@@ -2969,6 +3033,12 @@ rs_cs2_runtime_hook_slot(
          * nothing resolved to it, so every registration was discarded and the
          * run orb never repainted on its own. */
         return &node->runtime_hooks.on_misc_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
+        /* IF_ only, like misc: CC_SETONFRIENDTRANSMIT (1420) is parsed into
+         * the discard group. The friends and ignore panels register this on
+         * their root component in scripts 123 / 127, and it is the only thing
+         * that ever asks them to repaint. */
+        return &node->runtime_hooks.on_friend_transmit;
     default:
         return NULL;
     }
@@ -3614,6 +3684,190 @@ exec_db(
 }
 
 /* =========================================================================
+ * Friends / ignore / private chat
+ *
+ * Everything the friends panel (429) and the ignore panel (432) draw comes
+ * through here. Their rows are cc_created by clientscripts 125 and 129 off
+ * these accessors — the server addresses none of them and cannot if_settext a
+ * single one — so with no handlers the panels drew a correct-looking empty
+ * state no matter what the store held.
+ *
+ * The four mutators do BOTH halves, matching the reference client
+ * (Client.ts addFriend/delFriend/addIgnore/delIgnore): the local store is
+ * updated immediately and a packet is queued. Neither half is redundant. The
+ * server echoes UPDATE_FRIENDLIST for an add, but it sends *nothing at all* for
+ * a delete or an ignore-add, so a client that waited for the server would show
+ * a deleted friend forever.
+ *
+ * Nothing here writes a message to the player on a failure path — not a full
+ * list, not a duplicate, not a delete of someone who is not there. That is the
+ * reference's behaviour on the server side (FriendServerRepository returns
+ * bare) and it is also the rule this tree is under: those sentences are
+ * game-facing strings, so they are content's, and inventing them in C is the
+ * violation. The 2004 client did emit them; at rev 230 that surface belongs to
+ * a content proc that does not exist yet. Recorded in
+ * docs/FRIENDS_PRIVATE_CHAT.md, not worked around here.
+ * ========================================================================= */
+
+static void
+social_queue(
+    struct RS_CS2Host* host,
+    enum RS_CS2SocialSendKind kind,
+    char const* name)
+{
+    struct RS_CS2SocialSend send;
+
+    memset(&send, 0, sizeof(send));
+    send.kind = (int)kind;
+    if( name )
+        snprintf(send.name, sizeof(send.name), "%s", name);
+    rs_cs2_social_send_push(host, &send);
+}
+
+static int
+exec_social(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_Social const* req)
+{
+    struct RS_Social* social = host->social;
+    char name[RS_SOCIAL_NAME_LEN];
+
+    switch( req->opcode )
+    {
+    case CS2_OP_FRIEND_COUNT:
+        return CS2VM2_PushInt(vm, RS_Social_FriendCount(social));
+    case CS2_OP_IGNORE_COUNT:
+        return CS2VM2_PushInt(vm, RS_Social_IgnoreCount(social));
+
+    /*
+     * Two strings, in source order: the display name, then the player's
+     * PREVIOUS name. There is no rename model here and no wire field carrying
+     * one, so the second is always "" — which is the answer that matters,
+     * because script 125 branches on `string_length($string1) > 0` and would
+     * otherwise offer a "Reveal previous name" op with nothing behind it.
+     */
+    case CS2_OP_FRIEND_GETNAME:
+        RS_Social_FriendName(social, req->index, name, (int)sizeof(name));
+        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+    case CS2_OP_IGNORE_GETNAME:
+        RS_Social_IgnoreName(social, req->index, name, (int)sizeof(name));
+        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
+    case CS2_OP_FRIEND_GETWORLD:
+        return CS2VM2_PushInt(vm, RS_Social_FriendWorld(social, req->index));
+    case CS2_OP_FRIEND_GETRANK:
+        /* No rank model: clan ranks come with clan chat, and the friends panel
+         * never reads this at rev 230 (only script 1667 does). 0 = no rank. */
+        return CS2VM2_PushInt(vm, 0);
+
+    case CS2_OP_FRIEND_TEST:
+        return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, req->name) ? 1 : 0);
+    case CS2_OP_IGNORE_TEST:
+        return CS2VM2_PushInt(vm, RS_Social_IsIgnored(social, req->name) ? 1 : 0);
+
+    case CS2_OP_FRIEND_ADD:
+        if( !req->name || !req->name[0] )
+            return CS2VM_EXECNO_OK;
+        /* World 0 until the server answers with the real one, exactly as the
+         * reference does — the row appears immediately, reading "Offline". */
+        if( social && RS_Social_AddFriend(social, req->name, 0) )
+            RS_CS2Host_NotifyFriendChanged(host);
+        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_ADD, req->name);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIEND_DEL:
+        if( !req->name || !req->name[0] )
+            return CS2VM_EXECNO_OK;
+        if( social && RS_Social_DelFriend(social, req->name) )
+            RS_CS2Host_NotifyFriendChanged(host);
+        social_queue(host, RS_CS2_SOCIAL_SEND_FRIEND_DEL, req->name);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORE_ADD:
+        if( !req->name || !req->name[0] )
+            return CS2VM_EXECNO_OK;
+        if( social && RS_Social_AddIgnore(social, req->name) )
+            RS_CS2Host_NotifyFriendChanged(host);
+        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_ADD, req->name);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORE_DEL:
+        if( !req->name || !req->name[0] )
+            return CS2VM_EXECNO_OK;
+        if( social && RS_Social_DelIgnore(social, req->name) )
+            RS_CS2Host_NotifyFriendChanged(host);
+        social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_DEL, req->name);
+        return CS2VM_EXECNO_OK;
+
+    default:
+        assert(0 && "exec_social: unexpected opcode");
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+static int
+exec_chat(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_Chat const* req)
+{
+    int* modes = host->chat_filter_mode;
+
+    switch( req->opcode )
+    {
+    case CS2_OP_CHAT_GETFILTER_PUBLIC:
+        return CS2VM2_PushInt(vm, modes ? modes[RS_UI_CHAT_FILTER_PUBLIC] : 0);
+    case CS2_OP_CHAT_GETFILTER_PRIVATE:
+        return CS2VM2_PushInt(vm, modes ? modes[RS_UI_CHAT_FILTER_PRIVATE] : 0);
+    case CS2_OP_CHAT_GETFILTER_TRADE:
+        return CS2VM2_PushInt(vm, modes ? modes[RS_UI_CHAT_FILTER_TRADE] : 0);
+
+    case CS2_OP_CHAT_SETFILTER:
+    {
+        struct RS_CS2SocialSend send;
+
+        /* Set locally and tell the server, the reference's order
+         * (Client.ts chatModeLoop). The server echoes CHAT_FILTER_SETTINGS
+         * back, which is what makes the two ends agree if it disagrees. */
+        if( modes )
+        {
+            modes[RS_UI_CHAT_FILTER_PUBLIC] = req->public_mode;
+            modes[RS_UI_CHAT_FILTER_PRIVATE] = req->private_mode;
+            modes[RS_UI_CHAT_FILTER_TRADE] = req->trade_mode;
+        }
+        memset(&send, 0, sizeof(send));
+        send.kind = RS_CS2_SOCIAL_SEND_CHAT_SETMODE;
+        send.modes[0] = req->public_mode;
+        send.modes[1] = req->private_mode;
+        send.modes[2] = req->trade_mode;
+        rs_cs2_social_send_push(host, &send);
+        RS_CS2Host_NotifyFriendChanged(host);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2_OP_CHAT_SENDPRIVATE:
+    {
+        struct RS_CS2SocialSend send;
+
+        if( !req->name || !req->name[0] || !req->text || !req->text[0] )
+            return CS2VM_EXECNO_OK;
+        memset(&send, 0, sizeof(send));
+        send.kind = RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE;
+        snprintf(send.name, sizeof(send.name), "%s", req->name);
+        snprintf(send.text, sizeof(send.text), "%s", req->text);
+        rs_cs2_social_send_push(host, &send);
+        return CS2VM_EXECNO_OK;
+    }
+
+    default:
+        assert(0 && "exec_chat: unexpected opcode");
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+/* =========================================================================
  * Main dispatcher
  * ========================================================================= */
 
@@ -3812,6 +4066,18 @@ rs_cs2_host_exec_dispatch(
         }
         return CS2VM2_PushInt(vm, value);
     }
+
+    case CS2VM_HOST_REQUEST_SOCIAL:
+        return exec_social(host, vm, &request->u.social);
+
+    case CS2VM_HOST_REQUEST_CHAT:
+        return exec_chat(host, vm, &request->u.chat);
+
+    case CS2VM_HOST_REQUEST_MAP_WORLD:
+        /* Non-zero, or the friends panel headers read "World 0" and every
+         * online friend draws yellow (script 125 compares each friend's world
+         * against this to pick the green same-world colour). */
+        return CS2VM2_PushInt(vm, host->map_world);
 
     case CS2VM_HOST_REQUEST_RUNENERGY:
         return CS2VM2_PushInt(vm, host->stats ? host->stats->run_energy : 0);
@@ -4566,6 +4832,10 @@ rs_cs2_host_exec_dispatch(
          * other SetOn makes; the walker that fires them is
          * CreateTask_CS2MiscTransmitDispatch. */
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
+        /* The friends/ignore panels' only repaint trigger. Walked by
+         * CreateTask_CS2FriendTransmitDispatch. */
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_friend_transmit);
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:

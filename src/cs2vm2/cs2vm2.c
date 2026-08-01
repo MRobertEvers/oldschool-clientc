@@ -4415,6 +4415,33 @@ CS2VM2_Op_IF_SetOnMiscTransmit(
         vm, frame, CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT, &request);
 }
 
+/*
+ * IF_SETONFRIENDTRANSMIT (2420). Structurally identical to the misc-transmit
+ * registration above and for the same reason: the op takes no trigger list, so
+ * one dirty flag re-runs every registered hook.
+ *
+ * This is the *whole* reactive path for the friends and ignore panels. Their
+ * onloads (scripts 123 and 127) end with exactly two registrations — this one
+ * and an if_setonvartransmit on varp 1737 — and there is no varbit, no
+ * RUNCLIENTSCRIPT and no server repaint packet behind either panel. Discarding
+ * this registration (which is what happened before) meant the list painted once
+ * at mount, against whatever the store held at that instant, and never again.
+ */
+int
+CS2VM2_Op_IF_SetOnFriendTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT, &request);
+}
+
 int
 CS2VM2_Op_IF_SetOp(
     struct CS2VM2_Thread* vm,
@@ -7106,6 +7133,118 @@ CS2VM2_Op_OC_Find(
     return vm->vm->host_exec(vm, &request);
 }
 
+/*
+ * Friends / ignore list ops (3600..3609, 3621..3623).
+ *
+ * The pops below are written out per opcode rather than driven off the
+ * generated stack table on purpose: three different shapes live in this family
+ * (no args, one index, one username), two of them push *two* strings, and the
+ * whole reason this stage exists is that the generated table had five of them
+ * transposed. Spelling the shape at the call site is what makes a future
+ * mismatch a compile-visible edit instead of a silent stack desync.
+ *
+ * Strings are borrowed the way OC_FIND borrows its query: PopStr does not clear
+ * the slot and the pool owns the storage until the script ends, so the host
+ * gets a plain const borrow and must not free it.
+ *
+ * FRIEND_SETRANK (3604) is deliberately absent — it is called only from the
+ * clan-rank script and the rank column has no model here, so it keeps falling
+ * through to the stack stub, which now pops the right (int, string) pair.
+ */
+static int
+CS2VM2_Op_Social(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+
+    assert(vm);
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_SOCIAL;
+    request.u.social.opcode = opcode;
+
+    switch( opcode )
+    {
+    case CS2_OP_FRIEND_COUNT:
+    case CS2_OP_IGNORE_COUNT:
+        break;
+    case CS2_OP_FRIEND_GETNAME:
+    case CS2_OP_FRIEND_GETWORLD:
+    case CS2_OP_FRIEND_GETRANK:
+    case CS2_OP_IGNORE_GETNAME:
+        if( CS2VM2_PopInt(vm, &request.u.social.index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_FRIEND_ADD:
+    case CS2_OP_FRIEND_DEL:
+    case CS2_OP_IGNORE_ADD:
+    case CS2_OP_IGNORE_DEL:
+    case CS2_OP_FRIEND_TEST:
+    case CS2_OP_IGNORE_TEST:
+        if( CS2VM2_PopStr(vm, &request.u.social.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    default:
+        /* Unreachable: the dispatch switch lists exactly the cases above. An
+         * opcode added to one list and not the other must abort here rather
+         * than pop nothing and desync. */
+        assert(0 && "social opcode reached CS2VM2_Op_Social with no pop rule");
+        return CS2VM_EXECNO_ERROR;
+    }
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * Chat filter modes (5000/5005/5016 read, 5001 writes all three) and the
+ * private-message send (5009).
+ *
+ * chat_setfilter takes its three modes in source order (public, private,
+ * trade), so they are popped back to front. chat_sendprivate takes
+ * (username, mes) — likewise.
+ */
+static int
+CS2VM2_Op_Chat(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+
+    assert(vm);
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CHAT;
+    request.u.chat.opcode = opcode;
+
+    switch( opcode )
+    {
+    case CS2_OP_CHAT_GETFILTER_PUBLIC:
+    case CS2_OP_CHAT_GETFILTER_PRIVATE:
+    case CS2_OP_CHAT_GETFILTER_TRADE:
+        break;
+    case CS2_OP_CHAT_SETFILTER:
+        if( CS2VM2_PopInt(vm, &request.u.chat.trade_mode) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.chat.private_mode) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.chat.public_mode) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_SENDPRIVATE:
+        if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.chat.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    default:
+        assert(0 && "chat opcode reached CS2VM2_Op_Chat with no pop rule");
+        return CS2VM_EXECNO_ERROR;
+    }
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 /* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
 static int
 CS2VM2_Op_OC_ShiftClickIop(
@@ -8120,6 +8259,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnKey(vm, frame, operand);
     case CS2_OP_IF_SETONMISCTRANSMIT:
         return CS2VM2_Op_IF_SetOnMiscTransmit(vm, frame, operand);
+    case CS2_OP_IF_SETONFRIENDTRANSMIT:
+        return CS2VM2_Op_IF_SetOnFriendTransmit(vm, frame, operand);
     case CS2_OP_IF_SETOP:
         return CS2VM2_Op_IF_SetOp(vm, frame, operand);
     case CS2_OP_IF_SETOPBASE:
@@ -8397,6 +8538,12 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETONTARGETENTER:
     case CS2_OP_CC_SETONCLICKREPEAT:
     case CS2_OP_CC_SETONCHATTRANSMIT:
+    /* CC_SETONFRIENDTRANSMIT (1420) was the one member of this list nobody
+     * added. Its IF twin was in the matching group, so the omission was
+     * invisible until a script reached it — and then it did not no-op, it
+     * ASSERTED, because the generated stack table has no signature for a
+     * signature-driven SETON op. */
+    case CS2_OP_CC_SETONFRIENDTRANSMIT:
     case CS2_OP_CC_SETONCLANTRANSMIT:
     case CS2_OP_CC_SETONMISCTRANSMIT:
     case CS2_OP_CC_SETONDIALOGABORT:
@@ -8426,7 +8573,10 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETONRELEASE:
     case CS2_OP_IF_SETONTARGETLEAVE:
     case CS2_OP_IF_SETONTARGETENTER:
-    case CS2_OP_IF_SETONFRIENDTRANSMIT:
+    /* IF_SETONFRIENDTRANSMIT (2420) used to be here. It is now registered for
+     * real (see CS2VM2_Op_IF_SetOnFriendTransmit); its CC twin below is still
+     * discarded, because cc_created rows are rebuilt wholesale by the panel's
+     * own repaint and a per-row listener would have nothing to add. */
     case CS2_OP_IF_SETONCLANTRANSMIT:
     case CS2_OP_IF_SETONDIALOGABORT:
     case CS2_OP_IF_SETONCLANSETTINGSTRANSMIT:
@@ -8579,6 +8729,39 @@ CS2VM2_RunOp(
         memset(&request, 0, sizeof(request));
         request.kind = opcode == CS2_OP_MOUSE_GETX ? CS2VM_HOST_REQUEST_MOUSE_GETX
                                                    : CS2VM_HOST_REQUEST_MOUSE_GETY;
+        return vm->vm->host_exec(vm, &request);
+    }
+    /*
+     * Friends / ignore / private chat. Every row the friends panel (429) and
+     * the ignore panel (432) draw is cc_created by the client's own scripts
+     * 125 and 129 off these accessors — the server cannot if_settext a single
+     * row — so with no handlers the panels drew their "you have no friends"
+     * empty state however full the store was.
+     */
+    case CS2_OP_FRIEND_COUNT:
+    case CS2_OP_FRIEND_GETNAME:
+    case CS2_OP_FRIEND_GETWORLD:
+    case CS2_OP_FRIEND_GETRANK:
+    case CS2_OP_FRIEND_ADD:
+    case CS2_OP_FRIEND_DEL:
+    case CS2_OP_FRIEND_TEST:
+    case CS2_OP_IGNORE_ADD:
+    case CS2_OP_IGNORE_DEL:
+    case CS2_OP_IGNORE_COUNT:
+    case CS2_OP_IGNORE_GETNAME:
+    case CS2_OP_IGNORE_TEST:
+        return CS2VM2_Op_Social(vm, opcode);
+    case CS2_OP_CHAT_GETFILTER_PUBLIC:
+    case CS2_OP_CHAT_GETFILTER_PRIVATE:
+    case CS2_OP_CHAT_GETFILTER_TRADE:
+    case CS2_OP_CHAT_SETFILTER:
+    case CS2_OP_CHAT_SENDPRIVATE:
+        return CS2VM2_Op_Chat(vm, opcode);
+    case CS2_OP_MAP_WORLD:
+    {
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_MAP_WORLD;
         return vm->vm->host_exec(vm, &request);
     }
     case CS2_OP_CAM_SETFOLLOWHEIGHT:

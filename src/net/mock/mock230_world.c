@@ -16,18 +16,22 @@
 
 #include "mock230_content.h"
 #include "mock230_equipment.h"
+#include "mock230_friends.h"
 #include "mock230_ids.h"
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
 #include "ssvm_provider.h"
 
+#include "net/jbase37.h"
 #include "net/rev/pktnames.h"
+#include "net/wordpack.h"
 
 #include <rsareabuf.h>
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
@@ -3342,6 +3346,450 @@ handle_resume_countdialog(
         mock230_bank_resume_countdialog(srv, (int)value);
 }
 
+/* ------------------------------------------------------------------ */
+/* Social — friends, ignore, private chat                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The wire half of docs/FRIENDS_PRIVATE_CHAT.md. The *rules* are all in
+ * mock230_friends.c (the roster, `isVisibleTo`, the caps, the pm ids); nothing
+ * below decides anything, it only reads packets and writes packets.
+ *
+ * The shape is LostCity's, and the correspondence is one-to-one:
+ *
+ *   FriendListAddHandler.ts &c  -> the four mutation handlers here
+ *   FriendServer.broadcastWorldToFollowers -> social_broadcast_to_followers
+ *   FriendServer.sendPlayerWorldUpdate     -> social_send_world_update
+ *   FriendServer.sendFriendsListToPlayer   -> mock230_world_social_login
+ *
+ * The one structural difference is the delivery step. The reference looks a
+ * player up through `socketByWorld[world]` because the friend server is a
+ * separate process serving many worlds; here "who is online" is a scan of this
+ * world's own player pool. That is not a shortcut, it is the whole of what
+ * §5.2(3) says is deliberately not ported — but it has a consequence worth
+ * naming: the friend *roster* is process-scoped and outlives a session, while
+ * *delivery* is world-scoped, so a name can be "online" to the roster and have
+ * no player slot to send to. Every send below therefore tolerates a NULL
+ * player, and none treats it as an error.
+ */
+
+/** The online player behind a base-37 name, or NULL. */
+static struct Mock230Player*
+social_player_by_name37(
+    struct Mock230Server* srv,
+    int64_t name37)
+{
+    if( name37 == 0 )
+        return NULL;
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* p = &srv->players[i];
+
+        if( p->active && p->name37 == name37 )
+            return p;
+    }
+    return NULL;
+}
+
+/*
+ * Tell `viewer` where `other` is — the reference's `sendPlayerWorldUpdate`.
+ *
+ * The world byte is `isVisibleTo(viewer, other) ? world(other) : 0`, which is
+ * the reference's expression verbatim. The service already folds that pair into
+ * `mock230_friends_get`; this is the same rule for a name that may not be in
+ * the viewer's list yet (the moment right after a FRIENDLIST_ADD).
+ */
+static void
+social_send_world_update(
+    struct Mock230Server* srv,
+    int64_t viewer37,
+    int64_t other37)
+{
+    struct Mock230Player* viewer = social_player_by_name37(srv, viewer37);
+
+    if( !viewer )
+        return;
+    mock230_send_update_friendlist(
+        viewer,
+        other37,
+        mock230_friends_visible_to(viewer37, other37) ? mock230_friends_world(other37) : 0);
+}
+
+/*
+ * Everyone who has `name37` in their friend list hears about it.
+ *
+ * The reference broadcasts on login, logout, chat-mode change and all four list
+ * mutations — including the ignore ones, because ignoring someone has to make
+ * you disappear from *their* panel, and including friend-add, because the
+ * adder's own "Friends" privacy mode may have just started letting a follower
+ * see them.
+ */
+static void
+social_broadcast_to_followers(
+    struct Mock230Server* srv,
+    int64_t name37)
+{
+    int64_t followers[MOCK230_SOCIAL_FRIENDS_MAX];
+    int count = mock230_friends_followers(name37, followers, (int)(sizeof(followers) /
+                                                                  sizeof(followers[0])));
+
+    if( count > (int)(sizeof(followers) / sizeof(followers[0])) )
+    {
+        /* An engine ceiling, not a game outcome: say so rather than silently
+         * leaving the tail of the list un-notified. */
+        fprintf(stderr,
+                "mock230: %d followers is more than the %d this broadcast can carry; "
+                "the rest were not told\n",
+                count,
+                (int)(sizeof(followers) / sizeof(followers[0])));
+        count = (int)(sizeof(followers) / sizeof(followers[0]));
+    }
+    for( int i = 0; i < count; i++ )
+        social_send_world_update(srv, followers[i], name37);
+}
+
+/*
+ * "<name> has logged in." — the one sentence this feature adds, said by content.
+ *
+ * The reference has no counterpart. Its 2004 client watched the world byte in
+ * UPDATE_FRIENDLIST go from 0 to non-zero and wrote its own line, so no LostCity
+ * server ever worded this. The rev-230 client dropped that derivation, which
+ * moves the sentence onto the server — and a sentence the server says is
+ * content's (CONTENT_ARCHITECTURE.md §8.2(a)). So the engine here does exactly
+ * three things and none of them is wording: it decides *who* hears (the same
+ * followers the world update goes to), it applies `isVisibleTo` so a
+ * notification never leaks presence a world byte would have hidden, and it hands
+ * over the display name because only the engine knows it.
+ *
+ * `srv->active_player` is what `mes` writes to, so the follower is made active
+ * around each call and the caller's own active player is put back afterwards —
+ * a login runs this with the *newcomer* active and a logout runs it with the
+ * departing player already gone, and neither may leak into the next statement.
+ *
+ * Silence when the hook is unresolved is deliberate and is the whole content
+ * seam: whether a tree notifies at all is stated by whether it defines the proc.
+ */
+static void
+social_notify_followers(
+    struct Mock230Server* srv,
+    int64_t name37,
+    const char* display_name,
+    const struct SSVM_Script* hook)
+{
+    int64_t followers[MOCK230_SOCIAL_FRIENDS_MAX];
+    const int max = (int)(sizeof(followers) / sizeof(followers[0]));
+    struct Mock230Player* was_active = srv->active_player;
+    const char* strv[1];
+    int count;
+
+    if( !hook || name37 == 0 || !display_name || !display_name[0] )
+        return;
+
+    count = mock230_friends_followers(name37, followers, max);
+    if( count > max )
+        count = max; /* social_broadcast_to_followers already said so, loudly. */
+
+    strv[0] = display_name;
+    for( int i = 0; i < count; i++ )
+    {
+        struct Mock230Player* follower = social_player_by_name37(srv, followers[i]);
+
+        /* Not online here, so there is no chatbox to write to. */
+        if( !follower )
+            continue;
+        /* Telling you that you have logged in is not a thing any client does,
+         * and adding yourself as a friend is not refused anywhere. */
+        if( follower->name37 == name37 )
+            continue;
+        /* The same gate the world byte gets. Without it a player whose privacy
+         * is OFF still announces themselves to everyone who listed them, which
+         * is precisely the leak `isVisibleTo` exists to stop. */
+        if( !mock230_friends_visible_to(followers[i], name37) )
+            continue;
+
+        mock230_world_set_active(srv, follower);
+        mock230_scripts_run_hook_sv(srv, hook, NULL, 0, strv, 1);
+    }
+    mock230_world_set_active(srv, was_active);
+}
+
+/*
+ * The login dump — `sendFriendsListToPlayer` + `sendIgnoreListToPlayer` +
+ * `FriendlistLoaded(2)`, then the follower broadcast.
+ *
+ * Order matters for one of these: FRIENDLIST_LOADED(2) has to come *after* the
+ * entries, because the client's panel treats a negative/unloaded count as
+ * "Loading friends list" and 2 is what ends that state.
+ *
+ * The ignore list goes out even when it is empty. The client replaces its store
+ * wholesale on this packet, so an empty one is the statement "you have no
+ * ignores", which is different from never having been told.
+ */
+static void
+mock230_world_social_login(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+    int64_t me = player->name37;
+    int count;
+
+    if( me == 0 )
+        return;
+
+    count = mock230_friends_count(me);
+    for( int i = 0; i < count; i++ )
+    {
+        int64_t friend37 = 0;
+        int world = 0;
+
+        if( mock230_friends_get(me, i, &friend37, &world) )
+            mock230_send_update_friendlist(player, friend37, world);
+    }
+    mock230_send_friendlist_loaded(player, 2);
+
+    {
+        int64_t ignores[MOCK230_SOCIAL_IGNORES_MAX];
+        int n = mock230_friends_ignore_count(me);
+
+        if( n > (int)(sizeof(ignores) / sizeof(ignores[0])) )
+            n = (int)(sizeof(ignores) / sizeof(ignores[0]));
+        for( int i = 0; i < n; i++ )
+            mock230_friends_ignore_get(me, i, &ignores[i]);
+        mock230_send_update_ignorelist(player, ignores, n);
+    }
+
+    /* The client's own filter UI is driven by these three, and nothing else
+     * tells it what the server thinks they are. The reference has no equivalent
+     * because its 2004 client kept the modes locally; at rev 230 the CS2 side
+     * asks through chat_getfilter_* and the server is the source. */
+    {
+        int public_mode = 0, private_mode = 0, trade_mode = 0;
+
+        mock230_friends_chat_modes(me, &public_mode, &private_mode, &trade_mode);
+        mock230_send_chat_filter_settings(player, public_mode, private_mode, trade_mode);
+    }
+
+    social_broadcast_to_followers(srv, me);
+
+    /*
+     * After the broadcast, not before: a follower's panel should already read
+     * "World 1" beside the name by the time the line about it arrives. The
+     * order is only cosmetic — both are packets on the same tick — but it is
+     * the order the sentence describes.
+     */
+    social_notify_followers(srv, me, player->display_name,
+                            srv->hooks.friend_login_notification);
+}
+
+/** The name37 in an 8-byte social packet, or 0 if the frame is short. */
+static int64_t
+social_read_name37(
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int64_t name37;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    name37 = rsab_g8(&buf);
+    return rsab_ok(&buf) ? name37 : 0;
+}
+
+/*
+ * The four list mutations. One handler, because the reference's four handlers
+ * differ only in which repository call they make and they are otherwise
+ * character-for-character identical.
+ *
+ * The reference checks `socialProtect || invalid_name` *before* latching, so an
+ * invalid name costs the sender nothing. Here the validity check lives inside
+ * the service (it owns the base-37 round-trip), so the gate is taken first and
+ * an eight-byte garbage name spends the tick's one social packet. That is
+ * stricter than the reference, never looser, and it is the honest option: the
+ * alternative is a second public entry point on the service whose only purpose
+ * is to be asked a question before the real call.
+ *
+ * Nothing is sent to the player on a failure. The reference is silent on every
+ * one of these paths — duplicate add, full list, delete of a name that is not
+ * there — and mock230_friends.h says in as many words that no caller may invent
+ * a message here.
+ */
+static void
+handle_social_list(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    int64_t me;
+    int64_t target;
+    enum Mock230SocialResult result;
+
+    if( !player )
+        return;
+    me = player->name37;
+    target = social_read_name37(payload, len);
+    if( me == 0 || target == 0 )
+        return;
+    if( !mock230_friends_social_gate(player) )
+        return;
+
+    switch( name )
+    {
+    case PKTOUT_NAME_FRIENDLIST_ADD:
+        result = mock230_friends_add(me, target);
+        /* Two updates, both the reference's: the new friend's world straight
+         * back to the adder, and a broadcast because the adder's own "Friends"
+         * privacy mode may now let this person see *them*. */
+        social_send_world_update(srv, me, target);
+        social_broadcast_to_followers(srv, me);
+        break;
+    case PKTOUT_NAME_FRIENDLIST_DEL:
+        result = mock230_friends_del(me, target);
+        social_broadcast_to_followers(srv, me);
+        break;
+    case PKTOUT_NAME_IGNORELIST_ADD:
+        result = mock230_friends_ignore_add(me, target);
+        social_broadcast_to_followers(srv, me);
+        break;
+    case PKTOUT_NAME_IGNORELIST_DEL:
+        result = mock230_friends_ignore_del(me, target);
+        social_broadcast_to_followers(srv, me);
+        break;
+    default:
+        return;
+    }
+
+    if( srv->verbose )
+    {
+        char who[32];
+
+        base37tostr((uint64_t)target, who, (int)sizeof(who));
+        fprintf(stderr, "mock230: <- social name=%d target=%s result=%d\n", name, who,
+                (int)result);
+    }
+    else
+        (void)result;
+}
+
+/*
+ * CHAT_SETMODE: p1 public, p1 private, p1 trade.
+ *
+ * The reference stores all three on the player and forwards only `privateChat`
+ * to the friend server, because that is the only one anything reads. Here the
+ * service holds all three (single copy — FRIENDS_PRIVATE_CHAT.md §5.3 decision
+ * 4) and still reads only the private one.
+ *
+ * Deliberately *not* gated by socialProtect: the reference's ChatSetModeHandler
+ * is the one handler in this family that does not check it, and the modes are
+ * not a broadcast primitive.
+ */
+static void
+handle_chat_setmode(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    struct RSAreaBuf buf;
+    int public_mode, private_mode, trade_mode;
+
+    (void)name;
+    if( !player || player->name37 == 0 )
+        return;
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    public_mode = rsab_g1(&buf);
+    private_mode = rsab_g1(&buf);
+    trade_mode = rsab_g1(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+
+    mock230_friends_set_chat_modes(player->name37, public_mode, private_mode, trade_mode);
+    /* Echo, so the client's filter UI and the server's copy cannot drift — the
+     * service clamps an out-of-range private mode to ON and the client has no
+     * other way to learn that happened. */
+    mock230_friends_chat_modes(player->name37, &public_mode, &private_mode, &trade_mode);
+    mock230_send_chat_filter_settings(player, public_mode, private_mode, trade_mode);
+    /* A mode change is a visibility change for every follower. */
+    social_broadcast_to_followers(srv, player->name37);
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- CHAT_SETMODE public=%d private=%d trade=%d\n",
+                public_mode, private_mode, trade_mode);
+}
+
+/*
+ * MESSAGE_PRIVATE: p8 to37, then the wordpacked text over the rest of the
+ * var-u8 frame.
+ *
+ * The text is unpacked here and packed again by the outbound encoder rather
+ * than relayed as bytes, which is what the reference does
+ * (MessagePrivateHandler unpacks, MessagePrivateEncoder re-packs). It costs a
+ * round trip and buys the property that the server has actually read what it is
+ * forwarding — the cap below is stated in packed bytes precisely because that
+ * is what the reference caps, and a server that never decoded could not log,
+ * filter or truncate.
+ *
+ * What is deliberately NOT done, because the reference does not do it either:
+ * the recipient's ignore list is not consulted. Dropping ignored PMs is the
+ * *client's* job (and this client does not do it yet — recorded as a parity gap
+ * in FRIENDS_PRIVATE_CHAT.md §9).
+ */
+static void
+handle_message_private(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    struct Mock230Player* target_player;
+    struct RSCache_Buffer packed;
+    int64_t me;
+    int64_t target;
+    char* text;
+    int packed_len;
+
+    (void)name;
+    if( !player || player->name37 == 0 )
+        return;
+    me = player->name37;
+    if( len < 8 )
+        return;
+    target = social_read_name37(payload, len);
+    if( target == 0 )
+        return;
+
+    packed_len = len - 8;
+    /* The reference's cap is on the *packed* length, not on the character count
+     * (MessagePrivateHandler.ts:13 tests `input.length`, and `input` is the raw
+     * slice off the wire). The number is content's; see mock230_friends.h. */
+    if( packed_len < 0 || packed_len > mock230_friends_cap_pm_bytes() )
+        return;
+    if( !mock230_friends_social_gate(player) )
+        return;
+
+    RSCache_BufferInit(&packed, (uint8_t*)payload + 8, (uint32_t)packed_len);
+    text = wordpack_unpack(&packed, packed_len);
+    if( !text )
+        return;
+
+    target_player = social_player_by_name37(srv, target);
+    if( target_player )
+        mock230_send_message_private(
+            target_player, me, mock230_friends_next_pm_id(), /* staff */ 0, text);
+
+    if( srv->verbose )
+    {
+        char who[32];
+
+        base37tostr((uint64_t)target, who, (int)sizeof(who));
+        fprintf(stderr, "mock230: <- MESSAGE_PRIVATE to=%s%s \"%s\"\n", who,
+                target_player ? "" : " (offline; dropped)", text);
+    }
+    free(text);
+}
+
 typedef void (*Mock230PacketHandler)(
     struct Mock230Server* srv,
     int name,
@@ -3411,6 +3859,13 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_CLICK_WORLD_MAP, handle_click_world_map },
     { PKTOUT_NAME_CLOSE_MODAL, handle_close_modal },
     { PKTOUT_NAME_CLIENT_CHEAT, handle_cheat_packet },
+
+    { PKTOUT_NAME_FRIENDLIST_ADD, handle_social_list },
+    { PKTOUT_NAME_FRIENDLIST_DEL, handle_social_list },
+    { PKTOUT_NAME_IGNORELIST_ADD, handle_social_list },
+    { PKTOUT_NAME_IGNORELIST_DEL, handle_social_list },
+    { PKTOUT_NAME_CHAT_SETMODE, handle_chat_setmode },
+    { PKTOUT_NAME_MESSAGE_PRIVATE, handle_message_private },
 };
 
 void
@@ -3774,8 +4229,15 @@ mock230_world_remove_player(
     struct Mock230Server* srv,
     struct Mock230Player* player)
 {
+    int64_t name37;
+    char display_name[sizeof(player->display_name)];
+
     if( !player || !player->active )
         return;
+    name37 = player->name37;
+    /* Copied, not aliased: the slot this points into is reused by the next
+     * login and the notification below runs after the slot has been released. */
+    snprintf(display_name, sizeof(display_name), "%s", player->display_name);
 
     /*
      * The bank is heap-allocated per player, so a logout that only cleared
@@ -3783,6 +4245,14 @@ mock230_world_remove_player(
      * the pointer through the memset in mock230_world_add_player.
      */
     mock230_bank_shutdown_player(player);
+    /*
+     * The friend service is told before the slot goes, because it is keyed by
+     * name and the name is about to be unreachable. Only presence is dropped —
+     * the lists stay, which is what lets a follower still see this name in
+     * their panel with "Offline" beside it. The reference does the same thing
+     * from `World.removePlayer` (World.ts:1590).
+     */
+    mock230_friends_logout(player->name37);
     player->active = 0;
     player->session = NULL;
     /* Everyone else is holding this pid. Clearing `active` is what the next
@@ -3793,6 +4263,20 @@ mock230_world_remove_player(
      * the pool is empty — an interior hole has to stay iterated over. */
     while( srv->player_count > 0 && !srv->players[srv->player_count - 1].active )
         srv->player_count--;
+
+    /*
+     * Now that the slot is gone, tell the followers — the reference's
+     * `broadcastWorldToFollowers` after `player_logout` (FriendServer.ts:159).
+     *
+     * After, not before, on purpose: the broadcast asks "is this name online",
+     * and while the slot is still active the answer would be yes and every
+     * follower would be told the world of a player who has just left. It also
+     * has to come after `mock230_friends_logout`, which is what makes
+     * `mock230_friends_world` answer 0.
+     */
+    social_broadcast_to_followers(srv, name37);
+    social_notify_followers(srv, name37, display_name,
+                            srv->hooks.friend_logout_notification);
 }
 
 /*
@@ -3810,6 +4294,10 @@ mock230_world_set_display_name(
     if( !name || !name[0] )
         return;
     snprintf(player->display_name, sizeof(player->display_name), "%s", name);
+    /* The base-37 form is derived here and nowhere else: it is the key the
+     * friend service files this player under, and two places packing it are two
+     * places that can disagree about what this player is called. */
+    player->name37 = (int64_t)strtobase37(player->display_name);
 }
 
 /*
@@ -4023,6 +4511,26 @@ mock230_world_login(struct Mock230Player* player)
      * the world for it. */
     mock230_world_set_active(srv, player);
 
+    /*
+     * 0. Presence, before any packet.
+     *
+     * The reference's `player_login` message to the friend server
+     * (FriendServer.ts:107-142), minus the parts a one-process, one-world
+     * server has no use for. What it does NOT do here is the other half of that
+     * handler — the friend-list dump and the follower broadcast — because those
+     * are packets and this module owns no encoder; they belong with the wire.
+     * Registering here regardless is what makes the roster true even while the
+     * wire is unwritten: `alice adds bob` has to work whether or not anything
+     * is told about it.
+     *
+     * Chat modes come in at the reference's own defaults (Player.ts:307-309 —
+     * public, private and trade all ON, which is 0 in each of the three
+     * encodings) rather than off a save, because nothing persists them; see
+     * mock230_friends.h.
+     */
+    mock230_friends_login(player->name37, /* public */ 0, MOCK230_CHAT_PRIVATE_ON,
+                          /* trade */ 0, /* staff level */ 0);
+
     /* 1. The scene. Everything after this is applied by the client behind the
      *    world load, because the packet queue is serial. */
     mock230_send_rebuild_normal(player);
@@ -4128,6 +4636,19 @@ mock230_world_login(struct Mock230Player* player)
      * refilled: with no pack, a login that greets you is the one thing that
      * would make an otherwise dead server look alive. */
     player->login_pending = 1;
+
+    /*
+     * 5b. The social burst — the second half of the reference's `player_login`
+     *     friend-server message (FriendServer.ts:136-141), whose first half
+     *     (registering presence) ran at step 0 above.
+     *
+     *     It is here, after the panels are mounted, because the friends panel
+     *     builds every row from the *client's* store on its onload: a store
+     *     already populated when 429 mounts draws rows on the first paint
+     *     instead of waiting for a repaint the friend-transmit channel does not
+     *     exist to deliver yet (FRIENDS_PRIVATE_CHAT.md §4.3).
+     */
+    mock230_world_social_login(player);
 
     /* 6. First info tick places the player and spawns the npcs. */
     mock230_send_player_info(player);
@@ -4689,6 +5210,9 @@ phase_cleanup_player(struct Mock230Player* player)
     player->worn_dirty = 0;
     player->varp_changed_count = 0;
     player->clear_map_flag = 0;
+    /* One social packet per tick, spent by whichever of the six arrived first.
+     * The reference clears it in `resetEntity`, which is this phase. */
+    player->social_protect = 0;
 
     /* Extended info describes one tick only. Clearing it here rather than
      * inside the encoder means a field set after PLAYER_INFO was written still
@@ -9808,6 +10332,169 @@ mock230_world_selftest(void)
                            "and the unmount must still reach the client");
         }
         mock230_scripts_free(&srv);
+    }
+
+    fprintf(stderr, "mock230 selftest: the friend service\n");
+    {
+        /*
+         * The service is a process-scoped singleton, so it has whatever the
+         * sections above left in it — the player logged in at the top of this
+         * function is in there. Starting from a known roster is the section's
+         * job, not the service's.
+         */
+        const int64_t alice = (int64_t)strtobase37("alice");
+        const int64_t bob = (int64_t)strtobase37("bob");
+        const int64_t carol = (int64_t)strtobase37("carol");
+        int64_t out37 = 0;
+        int world = -1;
+        int64_t followers[4];
+
+        mock230_friends_reset();
+
+        /* A name has to survive the round trip, or the reference refuses it —
+         * `fromBase37(x) === 'invalid_name'`. 0 is the case that matters: it is
+         * what a player with no name has, and what an empty wire field decodes
+         * to. */
+        SELFTEST_CHECK(mock230_friends_add(0, bob) == MOCK230_SOCIAL_INVALID_NAME,
+                       "an unnamed player must not be able to add a friend");
+        SELFTEST_CHECK(mock230_friends_add(alice, 0) == MOCK230_SOCIAL_INVALID_NAME,
+                       "an empty name must not be addable");
+
+        /* alice adds bob while bob has never logged in. This is the case the
+         * whole name-keyed design exists for. */
+        SELFTEST_CHECK(mock230_friends_add(alice, bob) == MOCK230_SOCIAL_OK,
+                       "alice should be able to add bob");
+        SELFTEST_CHECK(mock230_friends_add(alice, bob) == MOCK230_SOCIAL_UNCHANGED,
+                       "adding the same friend twice should change nothing");
+        SELFTEST_CHECK(mock230_friends_count(alice) == 1, "alice should have one friend, got %d",
+                       mock230_friends_count(alice));
+        SELFTEST_CHECK(mock230_friends_is_friend(alice, bob), "bob should be in alice's list");
+        SELFTEST_CHECK(!mock230_friends_is_friend(bob, alice), "friendship is not symmetric");
+
+        /* getFollowers, answered for a player who is offline and has never been
+         * seen — a per-player array could not do this. */
+        SELFTEST_CHECK(mock230_friends_followers(bob, followers, 4) == 1,
+                       "bob should have exactly one follower");
+        SELFTEST_CHECK(followers[0] == alice, "bob's follower should be alice");
+
+        /* Offline: the world byte is 0 and the panel reads "Offline". */
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && out37 == bob &&
+                           world == 0,
+                       "an offline friend should report world 0, got %d", world);
+
+        /*
+         * `isVisibleTo`, one branch at a time. The default for a name the
+         * service has only ever heard *of* is OFF, so bob logging in is not
+         * enough on its own — his mode has to say so.
+         */
+        mock230_friends_login(bob, 0, MOCK230_CHAT_PRIVATE_OFF, 0, 0);
+        SELFTEST_CHECK(mock230_friends_world(bob) != 0, "bob should be online");
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && world == 0,
+                       "private chat OFF should hide bob from alice, got world %d", world);
+
+        mock230_friends_set_chat_modes(bob, 0, MOCK230_CHAT_PRIVATE_FRIENDS, 0);
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && world == 0,
+                       "FRIENDS should hide bob until he adds alice back");
+        SELFTEST_CHECK(mock230_friends_add(bob, alice) == MOCK230_SOCIAL_OK, "bob adds alice");
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && world != 0,
+                       "FRIENDS should reveal bob once it is mutual");
+
+        mock230_friends_set_chat_modes(bob, 0, MOCK230_CHAT_PRIVATE_ON, 0);
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && world != 0,
+                       "ON should reveal bob to anyone");
+
+        /* Ignored-by-target beats everything except staff, and it beats
+         * friendship: bob has alice on his friend list right now. */
+        SELFTEST_CHECK(mock230_friends_ignore_add(bob, alice) == MOCK230_SOCIAL_OK,
+                       "bob should be able to ignore alice");
+        SELFTEST_CHECK(!mock230_friends_visible_to(alice, bob),
+                       "being ignored by bob should hide him from alice");
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && world == 0,
+                       "...and the friend row should read offline");
+        /* The other direction is untouched — the rule reads the *target's*
+         * list and the *target's* mode. alice has never logged in, so her mode
+         * is the default OFF and she is invisible for that reason, not for
+         * anything bob's ignore list says. */
+        SELFTEST_CHECK(mock230_friends_visible_to(bob, alice) == 0,
+                       "a player who has never logged in defaults to OFF");
+        SELFTEST_CHECK(mock230_friends_ignore_del(bob, alice) == MOCK230_SOCIAL_OK,
+                       "bob unignores alice");
+        SELFTEST_CHECK(mock230_friends_visible_to(alice, bob), "bob is visible again");
+
+        /* Staff bypass. The service is the only thing that can set this today;
+         * the rule is ported because dropping the line would be dropping a
+         * rule, not because anything reaches it yet. */
+        mock230_friends_login(carol, 0, MOCK230_CHAT_PRIVATE_ON, 0, /* staff */ 2);
+        mock230_friends_set_chat_modes(bob, 0, MOCK230_CHAT_PRIVATE_OFF, 0);
+        SELFTEST_CHECK(mock230_friends_visible_to(carol, bob),
+                       "staff should see through private chat OFF");
+        SELFTEST_CHECK(!mock230_friends_visible_to(alice, bob),
+                       "...and nobody else should");
+
+        /* Logging out keeps the lists and drops only presence. */
+        mock230_friends_logout(bob);
+        SELFTEST_CHECK(mock230_friends_world(bob) == 0, "bob should be offline");
+        SELFTEST_CHECK(mock230_friends_count(bob) == 1,
+                       "a logout must not lose bob's friend list");
+
+        /* Deleting: order is preserved, and deleting what is not there is the
+         * reference's silent no-op rather than an error. */
+        SELFTEST_CHECK(mock230_friends_del(alice, carol) == MOCK230_SOCIAL_UNCHANGED,
+                       "deleting a non-friend should change nothing");
+        SELFTEST_CHECK(mock230_friends_add(alice, carol) == MOCK230_SOCIAL_OK, "alice adds carol");
+        SELFTEST_CHECK(mock230_friends_del(alice, bob) == MOCK230_SOCIAL_OK, "alice drops bob");
+        SELFTEST_CHECK(mock230_friends_count(alice) == 1, "one friend left");
+        SELFTEST_CHECK(mock230_friends_get(alice, 0, &out37, &world) && out37 == carol,
+                       "the gap should close rather than the tail being swapped in");
+
+        /* The cap. It is content's number; with no content constant it falls
+         * back to the storage ceiling, and either way the list stops there. */
+        {
+            int cap = mock230_friends_cap_friends();
+            enum Mock230SocialResult last = MOCK230_SOCIAL_OK;
+
+            for( int i = 0; i < cap + 4; i++ )
+            {
+                char name[16];
+
+                snprintf(name, sizeof(name), "cap%d", i);
+                last = mock230_friends_add(bob, (int64_t)strtobase37(name));
+                if( last == MOCK230_SOCIAL_FULL )
+                    break;
+            }
+            SELFTEST_CHECK(last == MOCK230_SOCIAL_FULL,
+                           "the friend list should refuse at the cap, got result %d", (int)last);
+            SELFTEST_CHECK(mock230_friends_count(bob) == cap,
+                           "the list should stop at %d, got %d", cap,
+                           mock230_friends_count(bob));
+        }
+
+        /* Private message ids are never 0 — the client's dedupe ring is
+         * zero-filled and would swallow one that was. */
+        {
+            int32_t first = mock230_friends_next_pm_id();
+            int32_t second = mock230_friends_next_pm_id();
+
+            SELFTEST_CHECK(first != 0 && second != 0, "a pm id must never be 0");
+            SELFTEST_CHECK(first != second, "pm ids must not repeat");
+        }
+
+        /* One social packet per tick, per player, across the whole family. */
+        SELFTEST_CHECK(mock230_friends_social_gate(player),
+                       "the first social packet of a tick should be allowed");
+        SELFTEST_CHECK(!mock230_friends_social_gate(player),
+                       "the second should not");
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(mock230_friends_social_gate(player),
+                       "the tick should have released the latch");
+
+        /* The world's half of the wiring: the base-37 key is derived where the
+         * name is set, so the two cannot drift. */
+        mock230_world_set_display_name(player, "zezima");
+        SELFTEST_CHECK(player->name37 == (int64_t)strtobase37("zezima"),
+                       "setting a display name should derive its base-37 key");
+
+        mock230_friends_reset();
     }
 
     if( g_selftest_failures )

@@ -68,6 +68,27 @@ mock230_embed_start(void);
 int
 mock230_embed_connect(struct Mock230Embed* embed);
 
+/**
+ * Close one client, as a dropped socket closes one.
+ *
+ * The same three calls the socket server makes when `mock230_session_alive`
+ * goes false (mock230_main.c `serve`'s tail): release the pool slot, free the
+ * session, free the byte queues. It is deliberately *not* the whole of that
+ * tail — `mock230_bank_shutdown`, `mock230_scripts_free` and
+ * `mock230_world_reset` there are the world going away with the last
+ * connection, which is exactly the single-connection assumption an embed does
+ * not share.
+ *
+ * Added because there was no in-process way to log a player *out*, so nothing
+ * that happens on a logout — the follower broadcast, the logout notification,
+ * the slot release — had a test it could be asserted in. Returns 1 if a client
+ * was closed.
+ */
+int
+mock230_embed_disconnect(
+    struct Mock230Embed* embed,
+    int client_id);
+
 void
 mock230_embed_stop(struct Mock230Embed* embed);
 

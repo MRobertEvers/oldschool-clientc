@@ -208,6 +208,8 @@ mock230_scripts_resolve_hooks(struct Mock230Server* srv)
         HOOK(equip_level_message, "[proc,equip_level_message]"),
         HOOK(equipment_refresh, "[proc,equipment_refresh]"),
         HOOK(equipment_open, "[proc,equipment_open]"),
+        HOOK(friend_login_notification, "[proc,friend_login_notification]"),
+        HOOK(friend_logout_notification, "[proc,friend_logout_notification]"),
 #undef HOOK
     };
     int missing = 0;
