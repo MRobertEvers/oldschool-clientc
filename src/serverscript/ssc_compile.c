@@ -82,6 +82,15 @@ struct SSC_Compiler
      *  of instructions later. -1 means "declared no argument list". */
     int8_t* name_int_args;
     int8_t* name_str_args;
+    /** Script id -> 1 when its return list is exactly one `string`, 0 otherwise,
+     *  -1 when the declare pass saw no header for it.
+     *
+     *  A call is an expression, and the caller has to know which stack the
+     *  answer landed on: `~add_article(~stat_name($stat))` passes a string, and
+     *  without this the outer call counted it as an int and refused a call that
+     *  was correct. One value only — a multi-return proc used as an argument is
+     *  not something this compiler models, so it stays 0 rather than guessing. */
+    int8_t* name_str_return;
     int name_count;
     int name_capacity;
 
@@ -329,7 +338,11 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name)
 
 /** Emit a call to `[proc,name]` or `[label,name]`. */
 static int
-parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
+parse_call(
+    struct SSC_Compiler* compiler,
+    const char* bare_name,
+    int is_label,
+    int* is_string)
 {
     char full[SSC_MAX_NAME];
     int script_id;
@@ -392,6 +405,10 @@ parse_call(struct SSC_Compiler* compiler, const char* bare_name, int is_label)
                     compiler->name_str_args[script_id], pushed_ints, pushed_strs);
 
     emit(compiler, is_label ? SS_OP_JUMP_WITH_PARAMS : SS_OP_GOSUB_WITH_PARAMS, script_id);
+    /* Which stack the answer is on, for a call used as an expression. */
+    if( is_string )
+        *is_string = script_id < compiler->name_count &&
+                     compiler->name_str_return[script_id] == 1;
     return 1;
 }
 
@@ -446,13 +463,36 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     {
         const char* op_name = SSVM_OpcodeName(opcode);
         enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
+        enum SSC_SymbolKind base_hint = SSC_SYM_UNKNOWN;
+        /*
+         * Leading arguments that are a *type* rather than a value.
+         *
+         * `enum(int, string, my_enum, $key)` states the enum's input and output
+         * types, and the reference's typed signature is what tells its compiler
+         * to read those two as ScriptVarType names. There is no per-argument
+         * type in `ss_meta.gen.h` — it carries counts, not signatures — so the
+         * position is stated here, in the same shape and for the same reason as
+         * the stat hint above it.
+         *
+         * It matters because a type name and a command can be the same word.
+         * `enum(stat, string, stat_name_enum, $stat)` compiled to the `stat`
+         * *command* — commands win everywhere else — which pushed nothing and
+         * underflowed the stack one op later, and the failure surfaced as a
+         * blank skill name in an unrelated message.
+         */
+        int type_args = 0;
+        int arg_index = 0;
+
+        if( op_name && strcmp(op_name, "ENUM") == 0 )
+            type_args = 2;
+        else if( op_name && strcmp(op_name, "ENUM_GETOUTPUTCOUNT") == 0 )
+            type_args = 1;
 
         if( op_name &&
             (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||
              strncmp(op_name, "NPC_STAT", 8) == 0) )
-            compiler->arg_kind_hint = SSC_SYM_STAT;
-        else
-            compiler->arg_kind_hint = SSC_SYM_UNKNOWN;
+            base_hint = SSC_SYM_STAT;
+        compiler->arg_kind_hint = base_hint;
 
         /* A command may be written bare when it takes nothing — `p_pausebutton;`. */
         if( SSC_LexIsPunct(&compiler->lexer, "(") )
@@ -464,8 +504,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                 {
                     int arg_is_string = 0;
 
+                    compiler->arg_kind_hint =
+                        arg_index < type_args ? SSC_SYM_TYPE : base_hint;
                     if( !parse_expression(compiler, &arg_is_string) )
                         return 0;
+                    arg_index++;
                     if( SSC_LexIsPunct(&compiler->lexer, ",") )
                     {
                         SSC_LexNext(&compiler->lexer);
@@ -540,14 +583,21 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
  *
  * Both live in string literals and only the first is compiled:
  *
- *   interpolation   <$name>  <%varp>  <displayname>  <.displayname>
- *                   <tostring($level)>  <lowercase(oc_name($ingredient))>
+ *   interpolation   <$name>  <%varp>  <~proc($arg)>  <displayname>
+ *                   <.displayname>  <tostring($level)>
+ *                   <lowercase(oc_name($ingredient))>
  *   markup          <br>  <col=ff0000>  <p,happy>  <lt>
  *
  * A leading sigil settles it immediately. Otherwise the leading identifier has
  * to name a command *and* be followed by `(` or nothing else — that second half
  * matters: `<p,happy>` would slip through on the name test alone if a command
  * were ever called `p`, and the corpus has 6,577 of those.
+ *
+ * `~` is a sigil for the same reason `$` is, and it was missing: a proc call
+ * inside a literal is an ordinary expression to `compile_interpolation`, but
+ * this test called it markup, so `mes("a <~stat_name($stat)> level")` reached
+ * the player with those 21 characters in it. No client tag begins with `~`, so
+ * there is nothing to weigh against.
  */
 static int
 is_interpolation(const char* inner, size_t length)
@@ -561,7 +611,7 @@ is_interpolation(const char* inner, size_t length)
     if( i >= length )
         return 0;
 
-    if( inner[i] == '$' || inner[i] == '%' )
+    if( inner[i] == '$' || inner[i] == '%' || inner[i] == '~' )
         return 1;
 
     if( inner[i] == '.' )
@@ -851,7 +901,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 
     case SSC_TOK_PROC:
         SSC_LexNext(lexer);
-        return parse_call(compiler, text, 0);
+        return parse_call(compiler, text, 0, is_string);
 
     case SSC_TOK_IDENT:
     {
@@ -881,6 +931,26 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
                 return fail(compiler, "expected ')' to close calc");
             SSC_LexNext(lexer);
             return 1;
+        }
+
+        /*
+         * A type-position argument is a type, even when a command shares its
+         * spelling — the one place the "commands win" rule below does not hold.
+         *
+         * `enum(stat, string, ...)`: `stat` there is ScriptVarType.STAT, not the
+         * `stat(...)` command, and nothing in the grammar makes that slot a
+         * call. parse_command sets this hint for exactly those positions.
+         */
+        if( compiler->arg_kind_hint == SSC_SYM_TYPE )
+        {
+            symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_TYPE);
+            if( symbol )
+            {
+                emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
+                SSC_LexNext(lexer);
+                return 1;
+            }
+            return fail(compiler, "'%s' is not a type", text);
         }
 
         /* A name is a command if the opcode table knows it, otherwise a symbol
@@ -1511,7 +1581,7 @@ parse_statement(struct SSC_Compiler* compiler)
         int is_label = lexer->current.kind == SSC_TOK_LABEL;
 
         SSC_LexNext(lexer);
-        if( !parse_call(compiler, text, is_label) )
+        if( !parse_call(compiler, text, is_label, NULL) )
             return 0;
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
@@ -1835,14 +1905,16 @@ SSC_New(struct SSC_Symbols* symbols)
     compiler->names = (char(*)[SSC_MAX_NAME])calloc(SSC_MAX_SCRIPTS, SSC_MAX_NAME);
     compiler->name_int_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_str_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    compiler->name_str_return = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
-    if( compiler->name_int_args && compiler->name_str_args )
+    if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return )
     {
         memset(compiler->name_int_args, -1, SSC_MAX_SCRIPTS);
         memset(compiler->name_str_args, -1, SSC_MAX_SCRIPTS);
+        memset(compiler->name_str_return, -1, SSC_MAX_SCRIPTS);
     }
     if( !compiler->scripts || !compiler->names || !compiler->name_int_args ||
-        !compiler->name_str_args )
+        !compiler->name_str_args || !compiler->name_str_return )
     {
         SSC_Free(compiler);
         return NULL;
@@ -1863,6 +1935,7 @@ SSC_Free(struct SSC_Compiler* compiler)
     free(compiler->names);
     free(compiler->name_int_args);
     free(compiler->name_str_args);
+    free(compiler->name_str_return);
     free(compiler);
 }
 
@@ -2010,11 +2083,44 @@ SSC_Declare(
                         }
                         compiler->name_int_args[slot] = (int8_t)ints;
                         compiler->name_str_args[slot] = (int8_t)strs;
+                        /* Past the `)`, so the return list below is looked for
+                         * where it actually starts. */
+                        if( SSC_LexIsPunct(&lexer, ")") )
+                            SSC_LexNext(&lexer);
                     }
                     else
                     {
                         compiler->name_int_args[slot] = 0;
                         compiler->name_str_args[slot] = 0;
+                    }
+                    /*
+                     * The return list, which follows the argument list:
+                     * `[proc,stat_name](stat $stat)(string)`. Only "is the one
+                     * answer a string" is recorded — see name_str_return — so a
+                     * caller can tell which stack it just pushed onto.
+                     */
+                    compiler->name_str_return[slot] = 0;
+                    if( SSC_LexIsPunct(&lexer, "(") )
+                    {
+                        int returns = 0;
+                        int strings = 0;
+
+                        SSC_LexNext(&lexer);
+                        while( !SSC_LexIsPunct(&lexer, ")") &&
+                               lexer.current.kind != SSC_TOK_EOF )
+                        {
+                            if( lexer.current.kind == SSC_TOK_IDENT )
+                            {
+                                returns++;
+                                if( type_is_string(lexer.current.text) )
+                                    strings++;
+                            }
+                            SSC_LexNext(&lexer);
+                            if( SSC_LexIsPunct(&lexer, ",") )
+                                SSC_LexNext(&lexer);
+                        }
+                        compiler->name_str_return[slot] =
+                            (int8_t)(returns == 1 && strings == 1);
                     }
                     continue;
                 }

@@ -2715,6 +2715,15 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 
 - `TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y]"` injects mouse clicks at
   given main-loop frames for headless interaction testing.
+- `TORIRS_LOC_DEBUG=1` puts a loc's placement provenance in its minimenu rows
+  and mouseover line — where the map stream put it (`sq`/`ch`/`map`), what
+  scene slot that resolved to (`sc`/`abs`), and where the geometry actually
+  landed (`f`/`t`, which must agree with `sc`). `map` != `abs` is a scene
+  mapping bug; `t` != `sc` is a placement bug. It also lifts the LocType.active
+  pick gate, so inactive scenery (bushes, walls, roofs) can be hovered at all,
+  and adds the hovered tile plus the local player's tile to the "Walk here"
+  row. Pairs with `TORIRS_SCENERY_DEBUG=1`, which counts what each square's
+  build dropped.
 
 # Slop to cleanup
 
@@ -2840,3 +2849,8 @@ They turn.
 When facing directly back; 3-x-3 column
 When out of range, they turn towards the player.
 Becomes 1-x-5
+
+
+### Server Vars
+
+var2855 := Client Layout/ fixed, etc

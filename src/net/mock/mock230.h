@@ -158,24 +158,44 @@ enum
     /** Loc mutations that can be waiting to revert at once. Generous: a busy
      *  mining site is a dozen, and the cost is 40 bytes each. */
     MOCK230_LOC_REVERT_MAX = 128,
-    /* Ticks a dropped obj stays on the floor. LostCity's ^lootdrop_duration. */
-    MOCK230_LOOT_TICKS = 200,
+    /* `MOCK230_LOOT_TICKS` was here — 200 ticks on the floor, annotated
+     * "LostCity's ^lootdrop_duration", beside a content tree already stating
+     * `^lootdrop_duration = 200`. Naming the constant you are duplicating does
+     * not stop it being a duplicate: the engine reads the real one now, through
+     * `mock230_ids()->lootdrop_duration`. */
 
     /* Parked script bookkeeping. */
     MOCK230_QUEUE_MAX = 16,
     MOCK230_TIMER_MAX = 8,
     MOCK230_WORLD_QUEUE_MAX = 16,
     MOCK230_RESUME_BUTTON_MAX = 8,
+    /*
+     * Highest sub-id `if_addresumebutton` arms on the component it registers.
+     *
+     * A resume button on a *container* is the multi-choice dialogue: its rows
+     * are `cc_create`d children with sub-ids 1..5, and arming only slot 0 arms
+     * the empty container. 15 is comfortably past the five the reference's
+     * widest choice uses, and a plain component has no sub-ids for the extra
+     * range to reach.
+     */
+    MOCK230_RESUME_SUB_MAX = 15,
 
-    /* Combat. Four ticks is the standard melee interval; the rest are the
-     * mock's own tuning, not values read from anywhere. */
+    /*
+     * Combat: the unarmed attack interval, and nothing else.
+     *
+     * Four ticks, which is what a weapon with no `attackrate` param and a player
+     * with no weapon swing at. Everything an *npc* does is on its record instead
+     * — the attack rate, the reach, how long its corpse lies there and how long
+     * until it comes back — because those are per-npc and a content author owns
+     * them. `MOCK230_DEATH_TICKS`, `MOCK230_RESPAWN_TICKS` and
+     * `MOCK230_ATTACK_RANGE` used to sit here saying otherwise; they are
+     * `death_delay`, `respawnrate` and `attackrange` on `struct Mock230NpcDef`,
+     * and the engine reads them through `mock230_content_npc_default()`.
+     *
+     * `MOCK230_PLAYER_MAX_HP` was here too and had no readers at all: the
+     * player's maximum is `stat_level[hitpoints]`, which the levels decide.
+     */
     MOCK230_ATTACK_SPEED = 4,
-    MOCK230_ATTACK_RANGE = 1,
-    /* Ticks the corpse stays up after the death animation starts. */
-    MOCK230_DEATH_TICKS = 3,
-    /* Ticks from despawn to respawn at the spawn tile. */
-    MOCK230_RESPAWN_TICKS = 25,
-    MOCK230_PLAYER_MAX_HP = 30,
 
     /*
      * Run energy is kept in hundredths of a percent, which is the unit
@@ -189,16 +209,26 @@ enum
      * IF_BUTTON. Mirrors RS_MINIMENU_EVENT_CLICK on the client. */
     MOCK230_EVENT_CLICK = 0x1,
 
-    /* rev-230 dialogue interfaces, verified with tools/dump_interface.
-     * 162:559 is the chat container and ships hidden=1, so opening a dialogue
-     * has to unhide it as well as mount into 162:561 — a 506x129 layer, which
-     * is exactly interface 231's root size. */
-    MOCK230_CHAT_CONTAINER_UID = (162 << 16) | 559,
-    MOCK230_CHAT_SLOT_UID = (162 << 16) | 561,
-
     /* Wire sentinels in the classic info streams. */
     MOCK230_PLAYER_TERMINATOR = 2047,
     MOCK230_NPC_TERMINATOR = 16383,
+
+    /*
+     * FACE_ENTITY's id space is two ranges, not one.
+     *
+     * The client reads a face target below 32768 as an *npc slot* and one at or
+     * above it as `32768 + player index` (world_cycle.c, WORLD_FACING_*). The
+     * local player's index is 2047 — the same number that terminates the player
+     * stream, which is why UPDATE_PID carries it — so "face the player" on the
+     * wire is 34815, not 2047.
+     *
+     * Writing the bare 2047 asks the client to face npc slot 2047, which never
+     * exists: the lookup returns NULL, the branch falls through, and the npc
+     * keeps whatever yaw it had. Nothing reports it. Every npc in a fight stood
+     * facing wherever it happened to be walking.
+     */
+    MOCK230_FACE_PLAYER_BASE = 32768,
+    MOCK230_FACE_LOCAL_PLAYER = MOCK230_FACE_PLAYER_BASE + MOCK230_PLAYER_TERMINATOR,
 
     /* New-npc record field widths. These MUST match what the rev-230 table
      * declares (GameProtoRevTable.npc_slot_bits / .npc_type_bits) — the two
@@ -547,6 +577,7 @@ struct Mock230Server;
 struct SSVM_Provider;
 struct SSVM_Env;
 struct SSVM_State;
+struct SSVM_Script;
 struct Mock230NpcDef;
 
 enum
@@ -831,6 +862,21 @@ struct Mock230Npc
     int timer_script;
     int timer_interval;
     int timer_clock;
+    /** Which waypoint of `def->patrol` this npc is walking to, and how many
+     *  ticks it still owes the one it just reached. */
+    int patrol_index;
+    int patrol_pause;
+    /**
+     * `[ai_spawn]` has not run for this npc yet.
+     *
+     * Set at spawn and cleared by phase 3, which is the tick *after* the one
+     * that created it — the reference's ordering, and the reason phase 3 exists
+     * as a named phase of its own. Running the trigger inline at spawn instead
+     * would let an `[ai_spawn]` observe a half-built world: the roster is
+     * created in one loop at login, so the second npc would not exist yet when
+     * the first one's script asked about it.
+     */
+    int spawn_pending;
 
     /* Combat. `hitpoints` / `max_hitpoints` are shared with the DAMAGE mask,
      * which carries the health bar the client draws above the hitsplat. */
@@ -894,10 +940,6 @@ struct Mock230Player
      *  (`Player.headicons` + PlayerOps, and no prayer concept anywhere in its
      *  engine). */
     int headicons;
-    /** The equipment-stats screen (interface 84) is mounted. Its eighteen
-     *  numbers are IF_SETTEXTs to components that only exist while it is, so
-     *  every refresh has to check this first. */
-    int equip_stats_open;
     /** What is mounted in the gameframe's two modal slots (0 = nothing).
      *
      *  CLOSE_MODAL is the client asking to shut whatever modal is up — the X on
@@ -908,6 +950,13 @@ struct Mock230Player
      *  `if_openmain` stayed on screen forever. */
     int mainmodal_group;
     int sidemodal_group;
+    /** What is mounted in the chatbox dialogue slot (0 = nothing).
+     *
+     *  Tracked for the same reason as the two above, and it is the third slot
+     *  the reference keeps (`ModalState.CHAT`). Without it a `~chatnpc` was
+     *  invisible to the server: the dialogue lived only as a parked script, so
+     *  nothing — not Escape, not walking away — could take it off the screen. */
+    int chatmodal_group;
     /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
      *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
     int run_energy_sent;
@@ -1025,6 +1074,17 @@ struct Mock230Player
      */
     int db_query_table;
     int db_query_index;
+    /*
+     * What `db_find` selected, or column -1 for the whole table (`db_listall`).
+     *
+     * The reference materialises the matching row ids into a list at find time;
+     * this keeps the predicate and re-tests it in `db_findnext`, which is the
+     * same walk without the allocation. The difference is visible in exactly one
+     * place and it is a place the reference does not reach either: a `.dbrow`
+     * edited between the find and the walk. Content cannot do that.
+     */
+    int db_query_column;
+    int db_query_value;
 
     /** The name typed at the login screen, which is what `displayname` returns.
      *  Nothing else in the mock has a use for it — there is one player and the
@@ -1057,9 +1117,6 @@ struct Mock230Player
     uint32_t stat_dirty;
 
 
-    /** Set on death, drained by the tick: the respawn has to happen between
-     *  ticks so the death animation is seen before the teleport. */
-    int death_tick;
     /**
      * 0 male, 1 female. Read by the appearance blob and by `text_gender`.
      *
@@ -1071,6 +1128,47 @@ struct Mock230Player
      */
     int gender;
 
+};
+
+/*
+ * Every script the *engine* starts, resolved once when the pack loads.
+ *
+ * The engine does not spell a script's name at a call site. A name is content's
+ * identifier, and a literal in C is the same category of mistake as an anim id
+ * in C — docs/CONTENT_ARCHITECTURE.md §8.6 is the whole argument. This is the
+ * shape `mock230_ids` already uses for interface and varbit names, for the same
+ * reason and with the same property: one place, checked at boot, loud when it is
+ * wrong.
+ *
+ * Loud is the point. Every helper that ran a proc by name treated an unknown
+ * name as "do nothing, quietly" — so renaming a script broke no build, failed no
+ * test and logged nothing outside `--verbose`; it deleted a feature. The worst
+ * case was `[queue,player_death]`, where a typo means a player who dies is a
+ * corpse forever.
+ *
+ * A *trigger* is still the better answer where one exists: `[login,_]`,
+ * `[opnpc1..5,<npc>]` and `[ai_queue3,<npc>]` reach content with no name in C at
+ * all, because the engine names an event and content names itself. What is here
+ * is the residue — the places this server does work LostCity's content does, and
+ * so has to call a proc the reference's engine never calls.
+ */
+struct Mock230Hooks
+{
+    /* Combat. */
+    const struct SSVM_Script* player_death;
+    const struct SSVM_Script* combat_defend_anim;
+    const struct SSVM_Script* combat_levelup_message;
+    const struct SSVM_Script* player_melee_swing;
+    const struct SSVM_Script* npc_meleeattack;
+    const struct SSVM_Script* combat_weapon_type;
+
+    /* Equipment. */
+    const struct SSVM_Script* equip_level_message;
+    const struct SSVM_Script* equipment_refresh;
+    const struct SSVM_Script* equipment_open;
+
+    /* Prayer. */
+    const struct SSVM_Script* prayer_deactivate_all;
 };
 
 struct Mock230Server
@@ -1199,6 +1297,8 @@ struct Mock230Server
     /** 0 when no script pack loaded. Every trigger site falls back to its
      *  hardcoded C behaviour, so the mock stays usable without content. */
     int scripts_ok;
+    /** Resolved once when that pack loads. See struct Mock230Hooks. */
+    struct Mock230Hooks hooks;
 };
 
 /* ------------------------------------------------------------------ */
@@ -1302,6 +1402,22 @@ mock230_world_set_attack_style(
 /** Write a player variable and queue it for phase 10, skipping the write when
  *  the value is unchanged (a varp that did not change must not be sent — the
  *  client re-runs every script listening on it). */
+/*
+ * A script wrote a varp directly (SS_OP_POP_VARP), bypassing the setter.
+ *
+ * `%varp = value` must still trigger whatever engine state hangs off that varp,
+ * and it cannot simply call `mock230_world_set_varp`: assignment marks the varp
+ * for transmission even when the value is unchanged (the reference's semantics,
+ * and what makes `%option_nodef = %option_nodef;` "resync varp" mean anything),
+ * while the setter early-returns on an equal write. So the transmission half
+ * stays in the opcode and the side-effect half comes through here.
+ */
+void
+mock230_world_varp_written(
+    struct Mock230Server* srv,
+    int varp,
+    int value);
+
 void
 mock230_world_set_varp(
     struct Mock230Server* srv,
@@ -1448,6 +1564,14 @@ mock230_step_direction(
     int dx,
     int dz);
 
+/** The tile delta a direction index moves by — `mock230_step_direction`
+ *  inverted. (0, 0) for anything outside 0..7. */
+void
+mock230_step_delta(
+    int dir,
+    int* dx,
+    int* dz);
+
 /* ------------------------------------------------------------------ */
 /* Sequence names (mock230_seqinfo.c)                                  */
 /* ------------------------------------------------------------------ */
@@ -1464,14 +1588,50 @@ int
 mock230_seq_by_name(const char* name);
 
 /**
- * Sequence for an npc by convention: `<lowercased name><suffix>`, e.g.
- * ("Goblin", "_attack") -> `goblin_attack_unarmed` = 309. -1 when the cache has
- * no such name, which every caller must treat as "play nothing".
+ * A sequence's animation priority — cache opcode 5, `forcedpriority` in the
+ * unpacked configs, default 5 for a record that omits it.
+ *
+ * This is the number `mock230_anim_play_*` compares. It is NOT the record's
+ * `priority` field (opcode 10) or its `precedence` (opcode 9), both of which
+ * are client-side rendering concerns; the reference's `SeqType.priority`, the
+ * one its `playAnimation` gate reads, decodes opcode 5.
  */
 int
-mock230_seq_for_npc(
-    int npc_type,
-    const char* suffix);
+mock230_seq_priority(int seq_id);
+
+/* ------------------------------------------------------------------ */
+/* Animation (mock230_combat.c)                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Play an animation, subject to the priority gate.
+ *
+ * The reference's rule, from `PathingEntity.playAnimation`: a new sequence
+ * replaces the one already queued for this tick only when its priority is
+ * greater than or equal to the incumbent's. `anim_id` is cleared to -1 in phase
+ * 11 alongside the masks, so the comparison never reaches across ticks.
+ *
+ * Why it matters here rather than being a nicety: an npc swings in phase 4 and
+ * is hit in phase 5, so *every* exchange wrote the attack animation and then
+ * overwrote it with the block. Combat looked like it had no attack animation at
+ * all — and only for the npcs whose block animation the player's swing actually
+ * triggered, which is all of them. goblin_attack_unarmed declares
+ * `forcedpriority=6` against goblin_block's default 5 for exactly this reason:
+ * the data says a swing outranks a flinch, and nothing was reading it.
+ *
+ * Returns 1 when the animation was taken.
+ */
+int
+mock230_anim_play_npc(
+    struct Mock230Npc* npc,
+    int seq_id,
+    int delay);
+
+int
+mock230_anim_play_player(
+    struct Mock230Player* player,
+    int seq_id,
+    int delay);
 
 /* ------------------------------------------------------------------ */
 /* Combat (mock230_combat.c)                                           */
@@ -1540,6 +1700,16 @@ mock230_combat_hit_player(
     int type,
     int amount);
 
+/**
+ * Re-path the player to its combat target, before phase 5 moves it.
+ *
+ * The reference's `pathToTarget()`, in the reference's position: a step aimed
+ * after the move is a step aimed at where the target used to be, and against a
+ * target that moves that is enough to stop a fight ever starting.
+ */
+void
+mock230_combat_player_approach(struct Mock230Server* srv);
+
 /** Called from tick phases 5, 4 and 1 respectively. */
 void
 mock230_combat_player_tick(struct Mock230Server* srv);
@@ -1576,6 +1746,13 @@ mock230_world_npc_died(
     struct Mock230Server* srv,
     int slot);
 
+/** When a just-appeared npc may first consider roaming, staggered so a room
+ *  spawned on one tick does not step in unison. Spawn and respawn both use it. */
+void
+mock230_world_npc_roam_stagger(
+    struct Mock230Server* srv,
+    struct Mock230Npc* npc);
+
 
 /** Drop an obj on the floor. `duration` is ticks, or -1 for a permanent spawn.
  *  Returns the ground slot, or -1 when the floor is full. */
@@ -1589,12 +1766,48 @@ mock230_world_obj_add(
     int level,
     int duration);
 
+/** Drop the player's queued route. */
+void
+mock230_world_steps_clear(struct Mock230Player* player);
+
 /** Queue a walk to a tile adjacent to (x, z) rather than onto it. */
 void
 mock230_world_walk_beside(
     struct Mock230Server* srv,
     int x,
     int z);
+
+/**
+ * The tile to stand on to reach (x, z), approaching from (from_x, from_z).
+ *
+ * An orthogonal neighbour of the target, nearest the approacher and one it can
+ * stand on — melee cannot reach a diagonal, so this is where "squaring up"
+ * comes from. Shared by the player's walk and the npc chase so both approach
+ * the same way.
+ */
+void
+mock230_world_beside_tile(
+    int level,
+    int from_x,
+    int from_z,
+    int x,
+    int z,
+    int* out_x,
+    int* out_z);
+
+/**
+ * One tile of an npc's walk toward (target_x, target_z), routing around
+ * anything in the way. Returns 1 when it moved.
+ *
+ * This is the npc half of `mock230_scene_route` — the reference's
+ * `pathToTarget()` + `updateMovement()` at one tile a tick — and the only mover
+ * an npc has: the chase, the follow modes and the walk home all go through it.
+ */
+int
+mock230_world_npc_walk_to(
+    struct Mock230Npc* npc,
+    int target_x,
+    int target_z);
 
 /* ------------------------------------------------------------------ */
 /* Interactions (mock230_world.c)                                      */
@@ -1620,6 +1833,28 @@ mock230_world_interaction_set(
  *  the player happens to wander back into range. */
 void
 mock230_world_interaction_clear(struct Mock230Server* srv);
+
+/**
+ * Shut whatever modal is up: the chatbox dialogue, the main slot and the side
+ * slot, plus the script parked on the dialogue's `p_pausebutton`.
+ *
+ * The reference's `Player.closeModal()`. `[if_close,<iface>:0]` still gets first
+ * refusal on the main slot, which is how the bank closes itself.
+ */
+void
+mock230_world_close_modal(struct Mock230Server* srv);
+
+/**
+ * "The player changed their mind": drop the pending interaction, the combat
+ * target and any open dialogue, but leave the walk queue alone.
+ *
+ * The reference's `Player.clearPendingAction()`, and it is called from the same
+ * places — the walk request and every OP<thing><n> handler, before the new
+ * interaction is latched. The walk queue is deliberately untouched because the
+ * caller is usually about to install one.
+ */
+void
+mock230_world_clear_pending_action(struct Mock230Server* srv);
 
 /**
  * Resolve the pending interaction if it is in range, else leave it walking.
@@ -1742,6 +1977,23 @@ mock230_scripts_resume_countdialog(
     struct Mock230Server* srv,
     int32_t value);
 
+/**
+ * End a script parked on a dialogue, because the interface it is blocked on is
+ * being taken away. Returns 1 when one was actually discarded.
+ *
+ * Only a `p_pausebutton` / `p_countdialog` wait: those two are the ones whose
+ * only way forward is a click on an interface that is about to stop existing,
+ * so leaving them parked would wedge the player's single script slot until
+ * logout. A `p_delay` wait survives — its clock is still running, and the
+ * reference draws the line in the same place (`Player.closeModal()`).
+ *
+ * The execution test is also what makes this safe to call from a host command:
+ * a script that is *running* reads SSVM_RUNNING, never one of these two, so it
+ * can never free the state under its own feet.
+ */
+int
+mock230_scripts_close_dialogue(struct Mock230Server* srv);
+
 /** Start a script by id on behalf of the player. For the selftest and for
  *  anything the engine reaches by id rather than by trigger. Returns 1 when a
  *  script ran or parked. */
@@ -1826,6 +2078,73 @@ mock230_scripts_queue_named(
     int delay,
     int32_t arg);
 
+/* ------------------------------------------------------------------ */
+/* Engine hooks (mock230_scripts.c)                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The same six calls, addressed by a resolved hook instead of by a name.
+ *
+ * These are what the *engine* uses; the by-name forms above are for tests,
+ * which name the script they are testing on purpose. `struct Mock230Hooks` has
+ * the argument for the split, and the practical difference is that a hook that
+ * does not resolve is reported once at boot rather than doing nothing forever.
+ *
+ * A NULL hook is a no-op with the same return as a missing name, so a tree that
+ * ships without one still runs.
+ */
+int
+mock230_scripts_run_hook(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc);
+
+int
+mock230_scripts_run_hook_sv(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc);
+
+int
+mock230_scripts_run_hook_int(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc,
+    int32_t* out);
+
+int
+mock230_scripts_run_hook_int_sv(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc,
+    int32_t* out);
+
+int
+mock230_scripts_run_hook_on_npc(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    int npc_slot);
+
+int
+mock230_scripts_queue_hook(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    int delay,
+    int32_t arg);
+
+/** Fill `srv->hooks` from the loaded pack, reporting every name that is not
+ *  there. Called by mock230_scripts_load; returns the number missing. */
+int
+mock230_scripts_resolve_hooks(struct Mock230Server* srv);
+
 /** The host command seam: every opcode the VM does not implement itself. */
 int
 mock230_script_command(
@@ -1894,6 +2213,28 @@ mock230_send_run_clientscript(
     struct Mock230Server* srv,
     int script_id,
     int const* args,
+    int argc);
+
+/**
+ * RUNCLIENTSCRIPT with mixed int and string arguments.
+ *
+ * `types` is one character per argument in the reference's own alphabet — `'s'`
+ * for a string, anything else for an int — and is what goes on the wire ahead of
+ * the values. `strv[i]` is read for an `'s'`, `intv[i]` otherwise; the unused
+ * side of each index is ignored, so a caller passes whichever array it has.
+ *
+ * The multi-choice dialogue is what this exists for: rev 230's option list is
+ * built by clientscript `chatbox_multi_init(string title, string options)`,
+ * where `options` is the rows joined with `|`. Its rows are `cc_create`d, so
+ * there is nothing for `if_settext` to address and no other way to fill them in.
+ */
+void
+mock230_send_run_clientscript_mixed(
+    struct Mock230Server* srv,
+    int script_id,
+    const char* types,
+    int const* intv,
+    const char* const* strv,
     int argc);
 /* Interface setters. `uid` is the packed (interface << 16) | child. */
 void

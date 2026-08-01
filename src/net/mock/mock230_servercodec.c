@@ -53,11 +53,14 @@ static const struct ServerField k_npc_fields[] = {
     { 152, WIRE_U4, offsetof(struct Mock230NpcDef, attack_anim), "attack_anim" },
     { 153, WIRE_U4, offsetof(struct Mock230NpcDef, defend_anim), "defend_anim" },
     { 154, WIRE_U4, offsetof(struct Mock230NpcDef, death_anim),  "death_anim"  },
+    { 155, WIRE_U1, offsetof(struct Mock230NpcDef, death_delay), "death_delay" },
     { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
+    { 201, WIRE_U2, offsetof(struct Mock230NpcDef, maxrange),    "maxrange"    },
     { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },
     { 204, WIRE_U2, offsetof(struct Mock230NpcDef, respawnrate), "respawnrate" },
     { 208, WIRE_U1, offsetof(struct Mock230NpcDef, nomove),      "nomove"      },
     { 209, WIRE_U1, offsetof(struct Mock230NpcDef, huntmode),    "huntmode"    },
+    { 213, WIRE_U1, offsetof(struct Mock230NpcDef, givechase),   "givechase"   },
 };
 
 /*

@@ -179,15 +179,119 @@ add_npc_rows(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
 }
 
+/* TORIRS_LOC_DEBUG name suffix: the two coordinates a misplaced loc is judged
+ * by — the scene slot it occupies and the absolute tile that slot resolves to.
+ * Appended to the loc name so it rides every row of this loc, including the
+ * acting row the hover line is composed from (UIHoverText_Compose takes the
+ * last row after the priority sort, so a separate row would never show there).
+ * Kept short for the same reason: the hover line has one viewport-wide line to
+ * draw in. The full record is a row of its own, below. */
+static char const*
+scenery_debug_name(
+    struct World* world,
+    struct WorldEntity_Scenery const* scenery,
+    char* buf,
+    int cap)
+{
+    char const* name = scenery->name[0] ? scenery->name : "Scenery";
+
+    if( !WorldEntity_SceneryDebugEnabled() || !world )
+        return name;
+
+    snprintf(
+        buf,
+        cap,
+        "%s @whi@sc(%d,%d) abs(%d,%d)",
+        name,
+        scenery->grid_position.x,
+        scenery->grid_position.z,
+        world->_base_tile_x + scenery->grid_position.x,
+        world->_base_tile_z + scenery->grid_position.z);
+    return buf;
+}
+
+/* TORIRS_LOC_DEBUG detail row: the rest of WorldEntity_SceneryDebug — where
+ * the loc came from, and where its geometry actually landed. `map` is what the
+ * cache asked for (square * 64 + chunk-local) and `abs` on the name suffix is
+ * what the scene slot resolved to; the two disagreeing is the bug this exists
+ * to show. `f` is the element's placed fine position and `t` the SW tile that
+ * implies, which catches a slot that is right while the geometry is not — `t`
+ * must equal `sc` on the name suffix. `t` backs the footprint offset out of
+ * `f` rather than shifting it a whole tile, because placement centres a model
+ * over its draw footprint: a 2x2 loc anchored on tile 25 sits at fine 3328,
+ * whose raw tile is 26 and would read as an off-by-one that is not there.
+ *
+ * Carries the walk action and a TERRAIN pick at the loc's own slot, for two
+ * reasons. Sorting: an inert (> 1000) row sinks below the acting rows, and the
+ * hover line is composed from the LAST row — so on the inactive locs this mode
+ * exists to inspect (a bush has no ops at all) the readout would never reach
+ * the hover line, which is the whole ask. Clicking: the pick dispatch switches
+ * on kind alone, so this walks to the tile the loc claims — the same thing
+ * "Walk here" does, and a direct check of the claim. */
+static void
+add_scenery_debug_row(
+    struct UIMinimenu* menu,
+    struct World* world,
+    struct WorldEntity_Scenery const* scenery)
+{
+    struct WorldEntity_SceneryDebug const* dbg = &scenery->debug;
+    /* The scene origin this loc was placed under. A survivor of an earlier
+     * rebuild carries the old one, and then its slot is right for a scene that
+     * no longer exists — which renders exactly like a misplaced loc. */
+    bool const stale_origin = world && (dbg->base_tile_x != world->_base_tile_x ||
+                                        dbg->base_tile_z != world->_base_tile_z);
+    struct UIMinimenuPick pick = {
+        .kind = UI_MINIMENU_PICK_TERRAIN,
+        .id = scenery->element_id,
+        .secondary_id = scenery->grid_position.x,
+        .tertiary_id = scenery->grid_position.z,
+        .quaternary_id = scenery->grid_position.level,
+    };
+    char text[UITREE_MINIMENU_OPTION_LEN];
+
+    snprintf(
+        text,
+        sizeof(text),
+        "@whi@loc %d%s%s sq(%d,%d) ch(%d,%d) map(%d,%d) l%d sh%d a%d "
+        "f(%d,%d) t(%d,%d) y%d cfg%dx%d drw%dx%d rt%dx%d el%d",
+        scenery->loc_id,
+        dbg->runtime ? " RT" : "",
+        stale_origin ? " STALE-ORIGIN" : "",
+        dbg->map_square_x,
+        dbg->map_square_z,
+        dbg->chunk_x,
+        dbg->chunk_z,
+        dbg->map_square_x * 64 + dbg->chunk_x,
+        dbg->map_square_z * 64 + dbg->chunk_z,
+        dbg->chunk_level,
+        scenery->shape,
+        scenery->angle,
+        dbg->draw_x,
+        dbg->draw_z,
+        (dbg->draw_x - 64 * dbg->draw_size_x) >> 7,
+        (dbg->draw_z - 64 * dbg->draw_size_z) >> 7,
+        dbg->draw_yaw,
+        dbg->config_size_x,
+        dbg->config_size_z,
+        dbg->draw_size_x,
+        dbg->draw_size_z,
+        scenery->size_x,
+        scenery->size_z,
+        scenery->element_id);
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
+}
+
 static void
 add_scenery_rows(
     struct UIMinimenu* menu,
     struct RS_MinimenuSelection const* sel,
+    struct World* world,
     struct WorldEntity_Scenery const* scenery,
     struct World_Picked const* picked)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
-    char const* name = scenery->name[0] ? scenery->name : "Scenery";
+    char name_buf[UITREE_MINIMENU_OPTION_LEN];
+    char const* name = scenery_debug_name(world, scenery, name_buf, sizeof(name_buf));
     struct UIMinimenuPick pick = {
         .kind = UI_MINIMENU_PICK_SCENERY,
         .id = picked->element_id,
@@ -200,6 +304,9 @@ add_scenery_rows(
             menu, sel, pick, "@cya@", name, 0x4, REVCONFIG_MINIMENU_USEHELD_ONLOC,
             REVCONFIG_MINIMENU_TGT_LOC) )
         return;
+
+    if( WorldEntity_SceneryDebugEnabled() )
+        add_scenery_debug_row(menu, world, scenery);
 
     for( int i = 4; i >= 0; i-- )
     {
@@ -345,7 +452,32 @@ RS_Minimenu_AddWorldRows(
                 .tertiary_id = terrain->tile_z,
                 .quaternary_id = terrain->tile_level,
             };
-            UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
+            /* TORIRS_LOC_DEBUG: name the tile the pointer is actually over,
+             * so a loc's slot can be read against the ground under it — and
+             * the local player's own tile, which is what the minimap centres
+             * on. */
+            if( WorldEntity_SceneryDebugEnabled() )
+            {
+                struct WorldEntity_Player* lp =
+                    World_PlayerGetByServerPid(ctx->world, ctx->world->local_pid);
+                char text[UITREE_MINIMENU_OPTION_LEN];
+                snprintf(
+                    text,
+                    sizeof(text),
+                    "Walk here @whi@sc(%d,%d) abs(%d,%d) l%d | you sc(%d,%d) f(%d,%d)",
+                    terrain->tile_x,
+                    terrain->tile_z,
+                    ctx->world->_base_tile_x + terrain->tile_x,
+                    ctx->world->_base_tile_z + terrain->tile_z,
+                    terrain->tile_level,
+                    lp ? lp->grid_position.x : -1,
+                    lp ? lp->grid_position.z : -1,
+                    lp ? (int)lp->draw_position.x : -1,
+                    lp ? (int)lp->draw_position.z : -1);
+                UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, 0, pick);
+            }
+            else
+                UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
         }
         else
         {
@@ -376,7 +508,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(ctx->world, picked->element_id);
             if( scenery )
-                add_scenery_rows(menu, sel, scenery, picked);
+                add_scenery_rows(menu, sel, ctx->world, scenery, picked);
             break;
         }
         case WORLD_PICK_OBJSTACK:

@@ -95,6 +95,57 @@ resolve_column(
     return &table->columns[column_index];
 }
 
+/** Does this row's `column` hold `value` at any tuple position? */
+static int
+row_holds(
+    const struct Mock230DbRow* row,
+    int column,
+    int value)
+{
+    const struct Mock230DbRowColumn* store = &row->columns[column];
+
+    for( int i = 0; i < store->count; i++ )
+    {
+        if( store->values[i].value == value )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * The `index`-th row the current query selects, or NULL past the end.
+ *
+ * One function for both queries: `db_listall` is a query with no predicate
+ * (column -1) and `db_find` is the same walk with one. Keeping them together is
+ * what stops `db_findnext` needing to know which one selected it — the cursor is
+ * an index into the *matches*, not into the table, in both cases.
+ */
+static const struct Mock230DbRow*
+query_row(
+    const struct Mock230Player* player,
+    int index)
+{
+    int seen = 0;
+
+    if( index < 0 )
+        return NULL;
+    if( player->db_query_column < 0 )
+        return mock230_db_row_in_table(player->db_query_table, index);
+
+    for( int i = 0;; i++ )
+    {
+        const struct Mock230DbRow* row = mock230_db_row_in_table(player->db_query_table, i);
+
+        if( !row )
+            return NULL;
+        if( !row_holds(row, player->db_query_column, player->db_query_value) )
+            continue;
+        if( seen == index )
+            return row;
+        seen++;
+    }
+}
+
 int
 mock230_ops_db(
     struct SSVM_State* state,
@@ -249,11 +300,9 @@ mock230_ops_db(
      * `db_listall(table)` — select every row of a table, then walk with
      * db_findnext. The `_with_count` form also pushes how many it found.
      *
-     * The reference keeps the matched ids in a list; this keeps the table and an
-     * index, because every query it can express is "the rows of one table in load
-     * order". `db_find` (a value query over an INDEXED column) needs the list and
-     * is not implemented yet — no ported content asks for it, and the gap report
-     * will say so the moment one does.
+     * The reference keeps the matched ids in a list; this keeps the query and
+     * re-tests it as the walk goes, which is the same rows in the same order
+     * without the allocation. See `query_row` above.
      */
     case SS_OP_DB_LISTALL:
     case SS_OP_DB_LISTALL_WITH_COUNT:
@@ -269,8 +318,55 @@ mock230_ops_db(
         }
         player->db_query_table = table_id;
         player->db_query_index = -1;
+        player->db_query_column = -1;
         if( opcode == SS_OP_DB_LISTALL_WITH_COUNT )
             SSVM_PushInt(state, mock230_db_row_count(table_id));
+        return 1;
+    }
+
+    /*
+     * `db_find(table:column, value)` — the rows whose column holds `value`,
+     * then walk with db_findnext. The `_with_count` form also pushes how many
+     * matched.
+     *
+     * This is the query the reference means by an INDEXED column, and the index
+     * is the part that is not ported: 29 rows are scanned rather than hashed.
+     * The behaviour is what content sees, and content sees the same rows in the
+     * same order either way.
+     *
+     * A tuple index in the reference (`tbl:col(2)`) narrows which position of
+     * the tuple is compared; without one, any position matching is a match,
+     * which is what makes `db_find` on a LIST column mean "contains".
+     */
+    case SS_OP_DB_FIND:
+    case SS_OP_DB_FIND_WITH_COUNT:
+    {
+        int32_t packed;
+        int32_t value;
+        const struct Mock230DbTable* table = NULL;
+        const struct Mock230DbColumn* column;
+        int column_index = 0;
+        int tuple_index = 0;
+
+        if( !SSVM_PopInt(state, &value) )
+            return 1;
+        if( !SSVM_PopInt(state, &packed) )
+            return 1;
+        column = resolve_column(state, packed, &table, &column_index, &tuple_index);
+        if( !column )
+            return 1;
+        player->db_query_table = table->table_id;
+        player->db_query_index = -1;
+        player->db_query_column = column_index;
+        player->db_query_value = value;
+        if( opcode == SS_OP_DB_FIND_WITH_COUNT )
+        {
+            int matched = 0;
+
+            while( query_row(player, matched) )
+                matched++;
+            SSVM_PushInt(state, matched);
+        }
         return 1;
     }
 
@@ -284,8 +380,7 @@ mock230_ops_db(
             SSVM_Abort(state, "db_findnext with no query selected");
             return 1;
         }
-        row = mock230_db_row_in_table(player->db_query_table,
-                                      player->db_query_index + 1);
+        row = query_row(player, player->db_query_index + 1);
         if( !row )
         {
             SSVM_PushInt(state, -1);
@@ -309,7 +404,7 @@ mock230_ops_db(
             SSVM_Abort(state, "db_findbyindex with no query selected");
             return 1;
         }
-        row = mock230_db_row_in_table(player->db_query_table, index);
+        row = query_row(player, index);
         SSVM_PushInt(state, row ? row->row_id : -1);
         return 1;
     }

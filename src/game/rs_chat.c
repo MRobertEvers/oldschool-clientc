@@ -69,9 +69,13 @@ is_friend(
 }
 
 /* Does this message occupy a chat line under the current filters?
- * (The reference only advances `line` for messages that pass.) */
-static int
-message_passes(
+ * (The reference only advances `line` for messages that pass.)
+ *
+ * Exported as RS_Chat_MessagePasses because the rev-230 widget chatbox needs the
+ * same answer — see rs_chat_widgets.c. `message_passes` stays as the local
+ * spelling so the call sites below read unchanged. */
+int
+RS_Chat_MessagePasses(
     struct RS_ChatFilters const* filters,
     struct RS_ChatMessage const* msg)
 {
@@ -101,6 +105,14 @@ message_passes(
     default:
         return 0;
     }
+}
+
+static int
+message_passes(
+    struct RS_ChatFilters const* filters,
+    struct RS_ChatMessage const* msg)
+{
+    return RS_Chat_MessagePasses(filters, msg);
 }
 
 /* Total pixel height of the filtered message column (reference chatScrollHeight):

@@ -2190,9 +2190,27 @@ UITree_ApplyModelAnim(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
-    tree->components[idx].u.rs_model.anim_seq_id = anim_seq_id;
-    tree->components[idx].u.rs_model.anim_frame = 0;
-    tree->components[idx].u.rs_model.anim_frame_cycle = 0;
+    /*
+     * Setting the sequence that is already running is a no-op, frame counters
+     * included.
+     *
+     * The reference's IF_SETANIM writes `IfType.modelAnim` and nothing else —
+     * `animFrame`/`animCycle` live on the component and are only ever moved by
+     * the animator (Client.ts animateInterface). Here the counters do get reset
+     * on a *change*, which is the sane reading of "play this instead"; what is
+     * not sane is resetting them on a re-apply, because this function has a
+     * caller that re-applies constantly: `app_if_head_poll` rebinds a chathead
+     * (model *and* anim) whenever the tree generation moves, and a rev-230
+     * gameframe bumps the generation on nearly every tick. A dialogue chathead
+     * therefore sat on frame 0 forever — the animator advanced it, the poll put
+     * it back, and nothing anywhere reported a problem.
+     */
+    if( tree->components[idx].u.rs_model.anim_seq_id != anim_seq_id )
+    {
+        tree->components[idx].u.rs_model.anim_seq_id = anim_seq_id;
+        tree->components[idx].u.rs_model.anim_frame = 0;
+        tree->components[idx].u.rs_model.anim_frame_cycle = 0;
+    }
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

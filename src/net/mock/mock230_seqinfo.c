@@ -1,14 +1,25 @@
 /*
- * Sequence names from the cache.
+ * Sequence names and priorities from the cache.
  *
- * Every one of this cache's 12,205 sequences carries a debug name, and the
- * combat ones follow a convention: `<subject>_attack`, `_block`, `_death`,
- * `_ready`. So combat animations are *derivable* rather than guessed —
- * `goblin_attack_unarmed` is 309, `human_unarmedpunch` is 422, and nothing here
- * needs a table of magic numbers that silently rots when the cache changes.
+ * Two questions, both about a sequence and neither about a *game rule*: what id
+ * does this name have, and what priority does that id declare. Content names an
+ * animation, this file resolves it, and the resolution is exact — the name has
+ * to exist.
  *
- * That matters because a wrong sequence id is invisible: the client either
- * plays nothing or plays something unrelated, and neither looks like an error.
+ * There used to be a third thing here: a convention that built a sequence name
+ * out of an npc's display name (`"Goblin"` -> `goblin_attack`) so the engine
+ * could pick an animation for an npc content had not described. It is gone, and
+ * the reasoning is worth keeping because it looked like a good idea for a long
+ * time. It made the engine name content, which is the arrangement this server is
+ * organised against; and it was wrong for most of the roster while being right
+ * for the monsters anyone would spot-check, since the cache has no `man_attack`,
+ * `woman_attack`, `guard_attack` or `duck_attack`. Every human swung with no
+ * animation and nothing said so. What an undescribed npc gets now is the
+ * content tree's own `[default]` block.
+ *
+ * A wrong sequence id is invisible — the client either plays nothing or plays
+ * something unrelated, and neither looks like an error — which is the whole
+ * reason resolution belongs somewhere a test can reach it.
  */
 
 #include "mock230.h"
@@ -29,6 +40,24 @@ struct SeqName
 
 static struct SeqName* g_seqs;
 static int g_seq_count;
+
+/*
+ * Animation priority, by sequence id.
+ *
+ * Indexed rather than searched because the gate runs on every swing, every
+ * flinch and every emote — a linear scan over 14,000 records per animation is
+ * the kind of cost that only shows up under load.
+ *
+ * `MOCK230_SEQ_PRIORITY_DEFAULT` is the reference client's own default for a
+ * record that omits opcode 5, and it is also what an id past the end of the
+ * table reports. That second case matters: a sequence named out of `seq.pack`
+ * but absent from the cache would otherwise report 0 and lose every comparison,
+ * which is a silent "this animation never plays" rather than an error.
+ */
+#define MOCK230_SEQ_PRIORITY_DEFAULT 5
+
+static uint8_t* g_seq_priority;
+static int g_seq_priority_count;
 
 int
 mock230_seqinfo_load(const char* cache_dir)
@@ -76,6 +105,19 @@ mock230_seqinfo_load(const char* cache_dir)
         return 0;
     }
 
+    /* Sized by the highest id present, not by the file count: the table is
+     * indexed by sequence id and the ids are sparse. */
+    for( int i = 0; i < archive->file_count; i++ )
+    {
+        if( archive->file_ids[i] >= g_seq_priority_count )
+            g_seq_priority_count = archive->file_ids[i] + 1;
+    }
+    g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count);
+    if( g_seq_priority )
+        memset(g_seq_priority, MOCK230_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
+    else
+        g_seq_priority_count = 0;
+
     g_seqs = (struct SeqName*)calloc((size_t)archive->file_count, sizeof(*g_seqs));
     if( g_seqs )
     {
@@ -93,6 +135,13 @@ mock230_seqinfo_load(const char* cache_dir)
                 g_seqs[loaded].id = archive->file_ids[i];
                 loaded++;
             }
+            /* The decoder zero-initialises, so a record that omits opcode 5
+             * arrives as 0 rather than as the reference's default of 5. Taking
+             * that number literally would make every un-prioritised animation
+             * lose to every other one — the gate would then be a fancier way of
+             * saying "the first animation of the tick wins". */
+            if( archive->file_ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
+                g_seq_priority[archive->file_ids[i]] = (uint8_t)seq->forced_priority;
             RSCache_Dat2ConfigSequenceFree(seq);
         }
     }
@@ -105,8 +154,8 @@ mock230_seqinfo_load(const char* cache_dir)
     /* OldSchool stopped writing debug names into sequence records, and rev 239
      * has none at all. That is not an error: pack/seq.pack names all 14,413 of
      * them, and mock230_seq_by_name falls through to it. */
-    fprintf(stderr, "mock230: sequence debug names loaded (%d named%s)\n", loaded,
-            loaded ? "" : " — falling back to pack/seq.pack");
+    fprintf(stderr, "mock230: sequence debug names loaded (%d named%s, %d priorities)\n", loaded,
+            loaded ? "" : " — falling back to pack/seq.pack", g_seq_priority_count);
     return loaded;
 }
 
@@ -121,6 +170,17 @@ mock230_seqinfo_free(void)
     }
     g_seqs = NULL;
     g_seq_count = 0;
+    free(g_seq_priority);
+    g_seq_priority = NULL;
+    g_seq_priority_count = 0;
+}
+
+int
+mock230_seq_priority(int seq_id)
+{
+    if( seq_id < 0 || seq_id >= g_seq_priority_count || !g_seq_priority )
+        return MOCK230_SEQ_PRIORITY_DEFAULT;
+    return g_seq_priority[seq_id];
 }
 
 /**
@@ -146,69 +206,4 @@ mock230_seq_by_name(const char* name)
             return g_seqs[i].id;
     }
     return mock230_content_symbol(MOCK230_PACK_SEQ, name);
-}
-
-/**
- * Turn an npc's display name into the prefix its sequences use.
- *
- * "Goblin" -> "goblin", "Guard" -> "guard". Spaces and apostrophes become
- * underscores and are dropped respectively, which is the convention the cache
- * follows for multi-word names.
- */
-static void
-seq_prefix_for(
-    const char* display_name,
-    char* out,
-    size_t capacity)
-{
-    size_t out_length = 0;
-
-    for( const char* cursor = display_name; *cursor && out_length + 1 < capacity; cursor++ )
-    {
-        char c = *cursor;
-
-        if( c == '\'' )
-            continue;
-        if( c == ' ' || c == '-' )
-            c = '_';
-        else if( c >= 'A' && c <= 'Z' )
-            c = (char)(c - 'A' + 'a');
-        out[out_length++] = c;
-    }
-    out[out_length] = '\0';
-}
-
-int
-mock230_seq_for_npc(
-    int npc_type,
-    const char* suffix)
-{
-    char prefix[96];
-    char candidate[160];
-    int id;
-
-    seq_prefix_for(mock230_npcinfo(npc_type)->name, prefix, sizeof(prefix));
-    if( !prefix[0] )
-        return -1;
-
-    snprintf(candidate, sizeof(candidate), "%s%s", prefix, suffix);
-    id = mock230_seq_by_name(candidate);
-    if( id >= 0 )
-        return id;
-
-    /* Unarmed variants: the cache spells a goblin's swing
-     * `goblin_attack_unarmed`, a hobgoblin's `hobgoblin_attackunarmed`. Both
-     * forms appear, so both are tried before giving up. */
-    if( strcmp(suffix, "_attack") == 0 )
-    {
-        snprintf(candidate, sizeof(candidate), "%s_attack_unarmed", prefix);
-        id = mock230_seq_by_name(candidate);
-        if( id >= 0 )
-            return id;
-        snprintf(candidate, sizeof(candidate), "%s_attackunarmed", prefix);
-        id = mock230_seq_by_name(candidate);
-        if( id >= 0 )
-            return id;
-    }
-    return -1;
 }

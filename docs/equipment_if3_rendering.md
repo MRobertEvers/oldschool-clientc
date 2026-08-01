@@ -122,6 +122,126 @@ and blits resulting `UIELEM_CC_OBJ` nodes.
 
 ---
 
+## The equipment-stats figure (84:4, clientCode 328)
+
+"View equipment stats" (387:1) opens interface **84**, whose only MODEL widget is
+the character standing in the middle of it:
+
+```
+[04] id=0x00540004 (84<<16|4)  type=model(6)  x=186 y=205 w=136 h=168
+     clientCode=328  modelType=1  modelId=-1
+```
+
+`modelId = -1` means the cache supplies nothing; `clientCode 328` names **the
+local player**. That is a different content code from the character-design
+preview (`327`), and it wants different treatment.
+
+### Reference
+
+xrsps [`src/ui/gl/widgets-gl.ts`](../../xrsps-typescript/src/ui/gl/widgets-gl.ts)
+handles both codes in one block, and it is the source for the angles:
+
+```ts
+if (ct === 327 || ct === 328) {
+    const cycleCntr = osrsClient?.transmitCycles?.cycleCntr ?? 0;
+    const angleX = 150;
+    const angleY = ((Math.sin(cycleCntr / 40.0) * 256.0) | 0) & 2047;
+    const angleZ = 0;
+    ...
+    w.modelType = 5;
+    w.modelId = ct === 327 ? 0 : 1;   // 0 = playerAppearance, 1 = localPlayer
+}
+```
+
+and further down, for 328 only, the *animation*:
+
+```ts
+if (sequenceId === undefined && ((w.contentType ?? 0) | 0) === 328) {
+    const ms = ac.getMovementSequenceState(sid);      // the LOCAL player's
+    if (ms && (ms.seqId | 0) >= 0) {
+        sequenceId = ms.seqId | 0;
+        liveMovementFrame = ms.frame | 0;             // frame, not just seq
+    }
+}
+```
+
+So the two differ on both axes:
+
+| | 327 design preview | 328 local player |
+|---|---|---|
+| appearance | the design being edited (kits only) | the real `PLAYER_INFO` appearance, **worn objs included** |
+| animation | posed once at `readyanim` frame 0 | the player's live **movement** track, seq *and* frame |
+| rebuilt on | each design edit | each appearance change |
+| angles | `xAn 150`, `yAn = sin(cycle/40)*256`, `zAn 0` | identical |
+
+### What was wrong
+
+Both codes ran through the same branch in `uitree_builder_bake.c` /
+`task_interface_open.c` (`cache_id < 0 && client_code == 327|328` →
+`UITreeSceneBridge_EnsurePlayerModel`), so the equipment screen drew the
+**default male avatar** — bald, olive top, green legs, first selectable kit per
+body part — frozen at frame 0, no matter who was logged in or what they had on.
+
+The angles were wrong for a second, independent reason. `RS_ClientCode_Tick`
+already implements that exact `xAn 150` / `sin(cycle/40)*256` swing, but only
+for `RS_CC_DESIGN_PREVIEW` (327), and the whole pass is gated to
+`APP_UI_LOGIC_CS1`. Rev 230 is `logic=cs2`, so 328 kept the cache's
+`angles=(0,0,0)`: viewed dead-on, and perfectly still.
+
+### What it does now
+
+The bake sites stay as they are — at bake time there is no player, so a default
+avatar is the only thing available and it is the right pre-login placeholder.
+The live bind happens afterwards:
+
+- `UITreeSceneBridge_BuildLocalPlayerModel(bridge, slots, colours, gender)`
+  composites through **`PlayerModel_BuildFromAppearance`** — the same function
+  the world entity's own model is built from, so the figure on the widget and
+  the figure in the viewport cannot disagree — and registers it at
+  `UITREE_SCENE_LOCAL_PLAYER_MODEL_ID`, freeing the composite it replaces.
+  Deliberately a *separate* scene id from `UITREE_SCENE_PLAYER_MODEL_ID`, so a
+  rebuild never clobbers the design preview's.
+- `app_player_model_poll` ([app.c](../src/app.c)) runs **from `app_logic_tick`**,
+  not from the redraw path: the oscillation has to advance on a tick nothing
+  else dirtied, and marking the node dirty is what asks for the redraw. It
+  re-merges only when the appearance actually moved (slots / colours / gender
+  compare), and no-ops entirely when there is no local player — which is what
+  leaves the offline dat1 design screen untouched.
+
+### Why it does not flicker on equip
+
+An appearance change rebuilds the composite, and `PlayerModel_BuildFromAppearance`
+hands back a model in its **rest pose**. A widget running its own frame clock
+(`anim_hold = 0`) restarts that clock from 0 on the new model, so every equip
+showed one un-posed frame — the flicker.
+
+Instead the widget is `anim_hold = 1` with `anim_frame` written from
+`lp->animation.secondary.frame` every tick, exactly as xrsps passes
+`liveMovementFrame`. `UITreeAnim_Advance` still poses held nodes (it only skips
+the *frame walk*), and it is the very next statement in `app_logic_tick`, so the
+rebuilt model is posed at the entity's current frame in the same tick, before
+anything draws it. `TORIRS_ANIM_DEBUG` prints one `player_model: rebuilt` line
+per appearance change — one per equip, never a burst.
+
+### Verified
+
+```
+src/build/mock230 43596 &
+SDL_VIDEODRIVER=dummy TORIRS_ANIM_DEBUG=1 TORIRS_MAX_FRAMES=1900 \
+  TORIRS_SIM_CLICK_AT="200,634,186;400,534,433;700,601,186;1000,533,230;1200,573,230" \
+  TORIRS_EXIT_BMP=build/eq.bmp src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+```
+
+(equipment tab → "View equipment stats" → inventory tab → wield two items, with
+the screen open the whole time.) The figure picks up each item as it is worn and
+the bonus rows follow; the trace shows exactly one rebuild per equip. A
+`TORIRS_BMP_SERIES` strip over the same window shows the figure swinging through
+its ±45°, and the offline dat1 design screen
+(`TORIRS_SIM_OPENMAIN=3559 --manifest manifest_rs254.ini --offline`) renders
+byte-identically to before the change.
+
+---
+
 ## CS1 vs CS2 scope
 
 CS1 scripts (`cs1vm`) still gate visibility via varp/varbit on baked nodes. **Drawing** worn

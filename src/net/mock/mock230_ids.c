@@ -47,6 +47,7 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:mainmodal", &g_ids.com_gameframe_mainmodal },
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:sidemodal", &g_ids.com_gameframe_sidemodal },
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:floater", &g_ids.com_gameframe_floater },
+        { MOCK230_PACK_COMPONENT, "chatbox:chatmodal", &g_ids.com_chatbox_modal },
         { MOCK230_PACK_COMPONENT, "worldmap:esckey", &g_ids.com_worldmap_esckey },
         { MOCK230_PACK_COMPONENT, "worldmap:close", &g_ids.com_worldmap_close },
         { MOCK230_PACK_COMPONENT, "inventory:items", &g_ids.com_inventory_items },
@@ -135,6 +136,7 @@ mock230_ids_resolve(void)
         { "bank_qty_1", &g_ids.bank_qty_1 },     { "bank_qty_5", &g_ids.bank_qty_5 },
         { "bank_qty_10", &g_ids.bank_qty_10 },   { "bank_qty_x", &g_ids.bank_qty_x },
         { "bank_qty_all", &g_ids.bank_qty_all },
+        { "lootdrop_duration", &g_ids.lootdrop_duration },
     };
     int failed;
 

@@ -130,12 +130,31 @@ app_point_in_chat(struct App const* app, int x, int y)
     return x >= bx && x < bx + bw && y >= by && y < by + bh;
 }
 
-/* Rebuild the flattened chat draw model (called before every emit). */
+/*
+ * Rebuild the chat presentation (called before every emit).
+ *
+ * Two shapes, one per era, and only one of them is live in any given boot. A
+ * revision whose chatbox is *widgets* (rev 230's interface 162, declared in the
+ * manifest's `[ui:chatbox]`) has its 500 line components written; a revision
+ * whose chatbox is a *surface* has the flattened draw view rebuilt for
+ * `emit_chat`. See rs_chat_widgets.h for why they cannot be the same code.
+ *
+ * The widget path returns early rather than falling through: a dat2 tree has no
+ * chat *region* either, so the surface path below would zero the view and, more
+ * to the point, running both would draw the messages twice.
+ */
 static void
 app_chat_build_view(struct App* app)
 {
     struct RS_ChatFilters filters = app_chat_filters(app);
     int font_id = 1;
+
+    if( RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
+    {
+        RS_ChatWidgets_Apply(app->tree, &app->chat, &filters, &app->cfg.chatbox);
+        memset(&app->chat_view, 0, sizeof(app->chat_view));
+        return;
+    }
 
     if( !app_chat_region(app, NULL, NULL, &font_id) )
     {
@@ -3656,6 +3675,12 @@ App_BootWait(struct App* app)
         fprintf(stderr, "app: boot wait exceeded step guard\n");
 }
 
+/* Defined below with the other interface-model binders; driven from the tick
+ * so the figure's oscillation keeps running even on a frame nothing else
+ * dirtied — the same reason RS_ClientCode_Tick drives the design preview's. */
+static void
+app_player_model_poll(struct App* app);
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -3833,14 +3858,19 @@ app_logic_tick(struct App* app)
                     continue;
                 fprintf(
                     stderr,
-                    "anim_tick t=%d com=0x%x seq=%d frame=%d\n",
+                    "anim_tick t=%d com=0x%x seq=%d frame=%d gen=%u\n",
                     anim_dbg_tick,
                     node->component_id,
                     node->u.rs_model.anim_seq_id,
-                    node->u.rs_model.anim_frame);
+                    node->u.rs_model.anim_frame,
+                    app->tree->generation);
             }
         }
     }
+
+    /* The live local-player figure's angles + animation frame, before the
+     * advance below poses whatever it just (re)bound. */
+    app_player_model_poll(app);
 
     /* Animations: request missing sequences (async), apply what's loaded.
      * In-flight sequences render at rest pose until they land. */
@@ -6532,6 +6562,148 @@ app_if_head_poll(struct App* app)
     }
 }
 
+/*
+ * Bind clientCode-328 MODEL widgets (the equipment-stats figure) to the LIVE
+ * local player.
+ *
+ * The bake path (uitree_builder_bake / task_interface_open) composites a default
+ * avatar for these nodes and pins it at readyanim frame 0, because at bake time
+ * there is no player yet. That default is right for the character-design preview
+ * (clientCode 327, which the reference genuinely poses once) and wrong here: 328
+ * names the player, so it must wear what the player wears and move like them.
+ *
+ * Reference is xrsps `src/ui/gl/widgets-gl.ts`, which handles 327 and 328 in one
+ * block and gives them the same viewing angles:
+ *
+ *     const angleX = 150;
+ *     const angleY = ((Math.sin(cycleCntr / 40.0) * 256.0) | 0) & 2047;
+ *     const angleZ = 0;
+ *
+ * — 84:4 ships `angles=(0,0,0)` in the cache, so without the override the figure
+ * is viewed dead-on and stands perfectly still. The xAn is what tilts the camera
+ * down onto it and the yAn swings it ±256/2048 (±45°) on a ~5s period. This is
+ * exactly what `RS_ClientCode_Tick` already does for 327, but that pass is gated
+ * to `APP_UI_LOGIC_CS1` and rev 230 is CS2, so 328 has to get it here.
+ *
+ * Its animation is the player's own **movement** track, frame included, not an
+ * independently-ticked idle (xrsps: `getMovementSequenceState(localServerId)`
+ * feeding `sequenceId` + `liveMovementFrame`). Reading the frame off the entity
+ * every tick is also what stops the figure flickering when you equip something:
+ * an appearance change rebuilds the composite, and a fresh composite is
+ * registered in its rest pose, so a widget running its own frame clock would
+ * restart from 0 and show that rest pose. Here the very next statement in
+ * app_logic_tick — UITreeAnim_Advance — poses the new model at the entity's
+ * current frame, in the same tick, before anything draws it.
+ *
+ * Runs each tick (not each redraw): the oscillation has to keep going on a
+ * frame nothing else dirtied, and marking the node dirty is what asks for the
+ * redraw. Re-merging is gated on the appearance actually changing, so the
+ * steady state is two memcmps.
+ */
+static void
+app_player_model_poll(struct App* app)
+{
+    struct WorldEntity_Player* lp;
+    int changed;
+    int scene_id;
+    int seq_id;
+    int seq_frame;
+    int yan;
+    int bound = 0;
+
+    if( !app->tree || !app->world )
+        return;
+    lp = app_local_player(app);
+    if( !lp )
+        return; /* offline / not spawned yet — the baked default avatar stands */
+
+    changed = !app->player_model.built || app->player_model.gender != lp->gender ||
+              memcmp(
+                  app->player_model.slots,
+                  lp->appearance.slots,
+                  sizeof(app->player_model.slots)) != 0 ||
+              memcmp(
+                  app->player_model.colors,
+                  lp->appearance.colors,
+                  sizeof(app->player_model.colors)) != 0;
+
+    if( changed )
+    {
+        scene_id = UITreeSceneBridge_BuildLocalPlayerModel(
+            &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender);
+        if( scene_id < 0 )
+            return; /* nothing composited yet — retry next frame */
+        memcpy(app->player_model.slots, lp->appearance.slots, sizeof(app->player_model.slots));
+        memcpy(app->player_model.colors, lp->appearance.colors, sizeof(app->player_model.colors));
+        app->player_model.gender = lp->gender;
+        app->player_model.built = 1;
+    }
+    else
+    {
+        scene_id = app->bridge.local_player_scene_id;
+        if( scene_id < 0 )
+            return;
+    }
+
+    /* The entity's movement track — the one the walk/run/idle seqs live on, and
+     * the one the viewport model is playing. Its readyanim is the fallback for
+     * the window between spawn and the first cycle that stamps the track. */
+    if( lp->animation.secondary.anim_id != (uint16_t)-1 &&
+        lp->animation.secondary.anim_id != 0 )
+    {
+        seq_id = lp->animation.secondary.anim_id;
+        seq_frame = lp->animation.secondary.frame;
+    }
+    else
+    {
+        seq_id = lp->idle_animations.readyanim >= 0 ? lp->idle_animations.readyanim
+                                                    : APP_PLAYER_SEQ_READY;
+        seq_frame = 0;
+    }
+
+    /* Reference angles (above). loop_cycle is the client cycle counter, so this
+     * is the same swing the design preview gets from RS_ClientCode_Tick. */
+    yan = ((int)(sin((double)app->logic_cycle / 40.0) * 256.0)) & 0x7ff;
+
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent* node = &app->tree->components[i];
+        if( node->freed || node->type != UIELEM_RS_MODEL )
+            continue;
+        if( node->behavior.client_code != UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL )
+            continue;
+        if( node->u.rs_model.gamecache_model_id != scene_id ||
+            node->u.rs_model.xan != 150 || node->u.rs_model.yan != yan ||
+            node->u.rs_model.zan != 0 || node->u.rs_model.anim_frame != seq_frame ||
+            node->u.rs_model.anim_seq_id != seq_id )
+        {
+            UITree_MarkNodeDirty(app->tree, (int32_t)i);
+            app->need_redraw = 1;
+        }
+        node->u.rs_model.gamecache_model_id = scene_id;
+        node->u.rs_model.xan = 150;
+        node->u.rs_model.yan = yan;
+        node->u.rs_model.zan = 0;
+        node->u.rs_model.anim_seq_id = seq_id;
+        /* Frame comes from the entity, so anim_hold is what keeps
+         * UITreeAnim_Advance from running a second, independent clock on it. */
+        node->u.rs_model.anim_hold = 1;
+        node->u.rs_model.anim_frame = seq_frame;
+        node->u.rs_model.anim_frame_cycle = 0;
+        bound = 1;
+    }
+
+    if( changed && getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
+            (unsigned long long)app->logic_cycle,
+            scene_id,
+            seq_id,
+            seq_frame,
+            bound);
+}
+
 void
 App_SetInterfaceModelAnim(
     struct App* app,
@@ -8148,6 +8320,13 @@ app_minimenu_run_option(
             opt.action_index < 10 && app->net )
         {
             int const op_num = opt.action_index + 1;
+            /* The events mask is the whole of "is this op the server's", so it
+             * is the one number worth printing beside the row that carries it —
+             * a component the server never armed produces a perfectly good menu
+             * row and sends nothing. */
+            if( getenv("TORIRS_CLICK_DEBUG") )
+                fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
+                        opt.pick.id, App_IfEventsGet(app, opt.pick.id), app->net ? 1 : 0);
             if( App_IfEventsGet(app, opt.pick.id) & (1 << op_num) )
                 APP_NET_SEND(
                     app,
@@ -8576,6 +8755,26 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+        /*
+         * TORIRS_CLICK_DEBUG=1: what the left click resolved to.
+         *
+         * A left click runs the *default row of the menu the right click would
+         * have shown*, and every step of that is invisible: which rows were
+         * built, which one is the default, and which component and op the row
+         * points at. When a widget "does nothing", the question is always which
+         * of those four went wrong, and the right-click menu looking correct
+         * rules out only the first.
+         */
+        if( getenv("TORIRS_CLICK_DEBUG") )
+        {
+            fprintf(stderr, "clickdbg: com=0x%x rows=%d default=%d\n", out.clicked_com_id,
+                    scratch.option_count, default_idx);
+            for( int i = 0; i < scratch.option_count; i++ )
+                fprintf(stderr, "  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n", i,
+                        scratch.options[i].text, scratch.options[i].action,
+                        scratch.options[i].action_index, (int)scratch.options[i].pick.kind,
+                        scratch.options[i].pick.id);
+        }
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */

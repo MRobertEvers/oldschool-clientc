@@ -210,5 +210,37 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden after redirect");
     }
 
+    /*
+     * IF_SETANIM restarts a *different* sequence and leaves the running one
+     * alone. The second half is the one with a bug behind it: a dialogue
+     * chathead is rebound (model + anim) every time the tree generation moves,
+     * so a reset-on-every-apply pinned it to frame 0 for the whole
+     * conversation while the animator dutifully advanced it in between.
+     */
+    {
+        int32_t model = UITree_TestPushXy(tree, -1, UIELEM_RS_MODEL, 700, 0, 0, 32, 32);
+        TEST_ASSERT(model >= 0, "push model widget");
+
+        TEST_ASSERT(UITree_ApplyModelAnim(tree, 700, 588), "set chathead anim");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_seq_id == 588, "anim seq stored");
+
+        /* Two ticks of the animator. */
+        tree->components[model].u.rs_model.anim_frame = 7;
+        tree->components[model].u.rs_model.anim_frame_cycle = 3;
+
+        TEST_ASSERT(UITree_ApplyModelAnim(tree, 700, 588), "re-apply the same anim");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_frame == 7,
+                    "re-applying the running anim keeps the frame");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_frame_cycle == 3,
+                    "re-applying the running anim keeps the cycle");
+
+        TEST_ASSERT(UITree_ApplyModelAnim(tree, 700, 591), "switch to another anim");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_seq_id == 591, "new anim seq stored");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_frame == 0,
+                    "a different anim restarts at frame 0");
+        TEST_ASSERT(tree->components[model].u.rs_model.anim_frame_cycle == 0,
+                    "a different anim restarts at cycle 0");
+    }
+
     UITree_Free(tree);
 }

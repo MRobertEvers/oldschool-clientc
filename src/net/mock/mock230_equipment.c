@@ -9,53 +9,28 @@
 #include <string.h>
 
 /*
- * The screen's eighteen text rows come from pack/component.pack by name —
- * `equipment_stats_stabatt` and friends — rather than from a table of child
- * ids here. Two things that used to be comments are now checkable: that the
- * numbers are the empty rows under each heading (OpenRune's gameval table names
- * them, and `tools/dump_interface --iface 84` shows each one shipping empty
- * under its heading), and that the mock and the cache agree on which is which.
+ * The screen itself is not here any more.
  *
- * Column order still matters and is not stated anywhere: 24/25/26 sit at x=343
- * and 27/28 at x=424, so the five attack rows read Stab, Slash, Crush down the
- * left and Magic, Ranged down the right — not five in a column. That is why
- * they are painted in this order.
+ * interface_equipment/scripts/equipment.rs2 owns all of it: the mount, the
+ * eighteen component names, the labels, the "+0" convention, the column order
+ * and the tick-to-seconds conversion. Every one of those is a wording or a
+ * layout decision, and the eighteen `mock230_send_if_settext` calls that used
+ * to be below were an engine deciding how a screen reads.
+ *
+ * The numbers came from a second sum over the worn container that existed only
+ * for this screen (`mock230_equipment_bonus`), beside the one the fight already
+ * rolls against — `~equip_get_bonuses` in skill_combat/combat_stats.rs2. There
+ * is now one, and it is content's.
+ *
+ * What is left is the two things that genuinely are the engine's: *when* to
+ * repaint, and the wearability gate that applies to every obj in the cache.
  */
-
-int
-mock230_equipment_bonus(
-    const struct Mock230Server* srv,
-    int param)
-{
-    const struct Mock230Player* player = srv->player;
-    int total = 0;
-
-    if( param < 0 || param >= MOCK230_PARAM_BONUS_COUNT )
-        return 0;
-    for( int slot = 0; slot < MOCK230_WORN_SLOTS; slot++ )
-    {
-        int obj_id = player->worn[slot].obj_id;
-        if( obj_id < 0 )
-            continue;
-        total += mock230_objinfo(obj_id)->bonus[param];
-    }
-    return total;
-}
 
 int
 mock230_equipment_may_wear(
     struct Mock230Server* srv,
     int obj_id)
 {
-    /* The wire's own skill order, which is `pack/stat.pack`. Only the
-     * name is needed here and only for the message, so this is a label table
-     * rather than a second copy of the pack — the *ids* still come from it. */
-    static const char* const k_stat_names[MOCK230_STAT_COUNT] = {
-        "Attack", "Defence", "Strength", "Hitpoints", "Ranged", "Prayer", "Magic",
-        "Cooking", "Woodcutting", "Fletching", "Fishing", "Firemaking", "Crafting",
-        "Smithing", "Mining", "Herblore", "Agility", "Thieving", "Slayer", "Farming",
-        "Runecraft", "Hunter", "Construction",
-    };
     const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
 
     if( !require )
@@ -81,177 +56,54 @@ mock230_equipment_may_wear(
          */
         mock230_say(srv, "equip_level_generic_message", NULL);
         {
-            /* The skill name and the level are the engine's — one from the stat
-             * table, one from the obj record — and the sentence they go into is
-             * content's. */
-            int32_t args[1] = { (int32_t)level };
-            const char* strv[1] = { k_stat_names[stat] };
+            /*
+             * The stat and the level, both as numbers, and not a word between
+             * them.
+             *
+             * This passed the skill's *name* until 2026-08-01, out of a
+             * 23-string table right here — which meant the engine held the
+             * spelling of every skill in the game and a tree could not rename or
+             * translate one. `stat` is a first-class RuneScript type, so
+             * `[proc,equip_level_message](stat $stat, int $level)` takes the id
+             * and asks `~stat_name` for the word.
+             */
+            int32_t args[2] = { (int32_t)stat, (int32_t)level };
 
-            mock230_scripts_run_proc_sv(srv, "[proc,equip_level_message]", args, 1, strv, 1);
+            mock230_scripts_run_hook(srv, srv->hooks.equip_level_message, args, 2);
         }
         return 0;
     }
     return 1;
 }
 
-/* OldSchool prints a leading '+' on non-negative bonuses; the minus sign comes
- * from the number itself. A bonus of 0 reads "+0", not "0". */
-static void
-put_bonus(
-    struct Mock230Server* srv,
-    int component,
-    const char* label,
-    int value)
-{
-    char text[64];
-
-    snprintf(text, sizeof(text), "%s: %s%d", label, value < 0 ? "" : "+", value);
-    mock230_send_if_settext(srv, component, text);
-}
-
-static void
-put_percent(
-    struct Mock230Server* srv,
-    int component,
-    const char* label,
-    int percent)
-{
-    char text[64];
-
-    snprintf(text, sizeof(text), "%s: %s%d%%", label, percent < 0 ? "" : "+", percent);
-    mock230_send_if_settext(srv, component, text);
-}
-
-/* Ticks between swings, from the weapon's own attackrate param (cache param 14)
- * — the same number mock230_combat swings on, so the screen cannot claim a
- * speed the fight does not use. */
-static int
-weapon_attack_rate(const struct Mock230Player* player)
-{
-    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-    const struct Mock230ObjInfo* info;
-
-    if( weapon < 0 )
-        return MOCK230_ATTACK_SPEED;
-    info = mock230_objinfo(weapon);
-    return info->has_params && info->attackrate > 0 ? info->attackrate : MOCK230_ATTACK_SPEED;
-}
-
-static void
-put_speed(
-    struct Mock230Server* srv,
-    int component,
-    const char* label,
-    int ticks)
-{
-    char text[64];
-
-    /* A tick is 600 ms, so the seconds are always a multiple of 0.6 and print
-     * exactly in one decimal place. The two components are 83px wide and sit
-     * side by side, so the unit is "s" — "seconds" overruns into its
-     * neighbour, which is what the screen showed before. */
-    snprintf(text, sizeof(text), "%s: %d.%ds", label, ticks * 6 / 10, (ticks * 6) % 10);
-    mock230_send_if_settext(srv, component, text);
-}
-
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
-    const struct Mock230Ids* ids = mock230_ids();
-    int rate;
-
-    if( !player->equip_stats_open )
+    /*
+     * The gate is the mount, not a flag of our own.
+     *
+     * `mainmodal_group` is maintained by the IF_OPENSUB / IF_CLOSESUB encoders
+     * for every mount the server makes, including the ones content drives
+     * through `if_openmain` — so it cannot drift the way the `equip_stats_open`
+     * bool beside it could, and did: three places cleared it and one set it.
+     *
+     * The gate belongs here rather than inside the proc, because the whole
+     * point of it is not to run the proc at all: `~equipment_refresh` is
+     * eighteen IF_SETTEXTs to components that do not exist while the screen is
+     * down.
+     */
+    if( srv->player->mainmodal_group != mock230_ids()->iface_equipment_stats )
         return;
-
-    put_bonus(srv, ids->com_equipment_stats_stabatt, "Stab",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_STABATTACK));
-    put_bonus(srv, ids->com_equipment_stats_slashatt, "Slash",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_SLASHATTACK));
-    put_bonus(srv, ids->com_equipment_stats_crushatt, "Crush",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_CRUSHATTACK));
-    put_bonus(srv, ids->com_equipment_stats_magicatt, "Magic",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_MAGICATTACK));
-    put_bonus(srv, ids->com_equipment_stats_rangeatt, "Range",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_RANGEATTACK));
-
-    put_bonus(srv, ids->com_equipment_stats_stabdef, "Stab",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_STABDEFENCE));
-    put_bonus(srv, ids->com_equipment_stats_slashdef, "Slash",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_SLASHDEFENCE));
-    put_bonus(srv, ids->com_equipment_stats_crushdef, "Crush",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_CRUSHDEFENCE));
-    put_bonus(srv, ids->com_equipment_stats_magicdef, "Magic",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_MAGICDEFENCE));
-    put_bonus(srv, ids->com_equipment_stats_rangedef, "Range",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_RANGEDEFENCE));
-
-    put_bonus(srv, ids->com_equipment_stats_meleestrength, "Melee Str",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_STRENGTHBONUS));
-    /* Ranged strength lives at cache param 189, far outside the contiguous
-     * 0..11 block, and mock230_objinfo does not read it — so this is honestly
-     * zero rather than wrong. */
-    put_bonus(srv, ids->com_equipment_stats_rangestrength, "Ranged Str", 0);
-    put_percent(srv, ids->com_equipment_stats_magicdamage, "Magic Dmg", 0);
-    put_bonus(srv, ids->com_equipment_stats_prayer, "Prayer",
-              mock230_equipment_bonus(srv, MOCK230_PARAM_PRAYERBONUS));
-
-    /* Salve/slayer multipliers need per-item unlock data the mock has none of;
-     * OpenRune's own screen prints "TODO" here. Zero is the honest reading. */
-    put_percent(srv, ids->com_equipment_stats_typemultiplier, "Undead", 0);
-    put_percent(srv, ids->com_equipment_stats_slayermultiplier, "Slayer", 0);
-
-    rate = weapon_attack_rate(player);
-    put_speed(srv, ids->com_equipment_stats_attackspeedbase, "Base", rate);
-    /* Nothing in the mock alters attack speed (no rapid, no special attacks),
-     * so the current speed IS the base one. It is still sent: the component is
-     * blank until something fills it. */
-    put_speed(srv, ids->com_equipment_stats_attackspeedactual, "Current", rate);
+    mock230_scripts_run_hook(srv, srv->hooks.equipment_refresh, NULL, 0);
 }
 
 void
 mock230_equipment_open_stats(struct Mock230Server* srv)
 {
-    struct Mock230Player* player = srv->player;
-    const struct Mock230Ids* ids = mock230_ids();
-
-    if( player->equip_stats_open )
-        return;
-    player->equip_stats_open = 1;
-
-    /* Same two-mount shape the bank uses: the main modal first, then the side
-     * panel, because the sidebar's own CS2 keys off the main mount. */
-    mock230_send_if_opensub(srv, ids->iface_gameframe,
-                            MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
-                            ids->iface_equipment_stats, 0);
-
-    /*
-     * OpenRune also mounts `equipment_stats_side` in the side slot, and this
-     * deliberately does not.
-     *
-     * It is one bare 162x248 layer with no children and no script of its own:
-     * the backpack appears in it only because the server runs the client's
-     * `interface_inv_init` script at it (RUNCLIENTSCRIPT with five *string*
-     * arguments for the op labels — see OpenRune's ClientScripts.kt). The
-     * mock's RUNCLIENTSCRIPT sender takes ints only, so mounting it today
-     * replaces the sidebar with an empty panel, which is worse than leaving the
-     * inventory tab where it is.
-     */
-
-    /* The worn container: the screen's own eleven slots paint from it. */
-    mock230_send_inv_full(srv, ids->com_equipment_stats_container, ids->inv_worn, player->worn,
-                          MOCK230_WORN_SLOTS);
-
-    mock230_equipment_refresh_stats(srv);
-}
-
-void
-mock230_equipment_close_stats(struct Mock230Server* srv)
-{
-    if( !srv->player->equip_stats_open )
-        return;
-    srv->player->equip_stats_open = 0;
-    mock230_send_if_closesub(srv, mock230_ids()->com_gameframe_mainmodal);
+    /* The button is content's — `[if_button,wornitems:equipment]` — so this
+     * seam exists only for the `::equipstats` cheat, which opens the screen
+     * without walking the sidebar. It runs the same proc the button does. */
+    mock230_scripts_run_hook(srv, srv->hooks.equipment_open, NULL, 0);
 }
 
 int
@@ -266,30 +118,17 @@ mock230_equipment_worn_slot(int component)
 }
 
 /*
- * There is no worn-tab arming here any more.
+ * There is no worn-tab arming here either.
  *
  * `~worn_tab_login` (player/containers.rs2) does it: the equipment-stats button
  * and the eleven slot components, each with op 1 "Remove" and op 10 "Examine".
  * What a component permits is a UI policy, and rev 230 made it the server's
  * exactly so it could be one — leaving it as eleven `mock230_send_if_setevents`
  * calls with `(1 << 1) | (1 << 10)` spelled inline put it back in the engine.
+ *
+ * That arming is also why there is no engine fallback for the button any more.
+ * A `mock230_equipment_handle_button` sitting behind the trigger dispatch looked
+ * like one and was not: with no script pack loaded nothing sends IF_SETEVENTS
+ * for `wornitems:equipment`, so the client never reports a click on it and the
+ * fallback could never fire.
  */
-
-int
-mock230_equipment_handle_button(
-    struct Mock230Server* srv,
-    int component,
-    int sub,
-    int op)
-{
-    (void)sub;
-    (void)op;
-
-    if( component == mock230_ids()->com_worn_equipment_stats )
-    {
-        mock230_equipment_open_stats(srv);
-        return 1;
-    }
-    return 0;
-}
-

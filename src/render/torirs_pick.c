@@ -34,8 +34,12 @@ pick_classify_element(
          * typecode, and Model.draw only records hits for `typecode > 0`
          * (Model.ts:1758) — so walls, gravel and floor decor never produce a
          * menu row. Without this every unnamed loc surfaced as
-         * "Examine @cya@ Scenery". */
-        if( !scenery->interactive )
+         * "Examine @cya@ Scenery".
+         *
+         * TORIRS_LOC_DEBUG lifts the gate: the locs worth inspecting for a
+         * placement bug are overwhelmingly the inactive ones (a bush on the
+         * wrong square is invisible to a menu that refuses to pick bushes). */
+        if( !scenery->interactive && !WorldEntity_SceneryDebugEnabled() )
             return false;
         *out_type = WORLD_PICK_SCENERY;
         *out_tile_x = scenery->grid_position.x;

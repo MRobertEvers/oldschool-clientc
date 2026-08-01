@@ -60,6 +60,23 @@ tile_distance(int ax, int az, int bx, int bz)
 }
 
 /*
+ * The npc's record, and never a number instead of one.
+ *
+ * `mock230_world_npc_spawn` always fills `def` in — a spawn nothing describes
+ * gets `mock230_content_npc_default()` rather than NULL — so the
+ * `npc->def ? … : <constant>` this replaces was a branch that could not be
+ * taken, and each of those constants was a rate stated in C beside a content
+ * file already stating it. Going through here means a tick count has exactly one
+ * source: the record, whose own last resort is the `[default]` block in
+ * `general/configs/npc_default.npc`.
+ */
+static const struct Mock230NpcDef*
+npc_def(const struct Mock230Npc* npc)
+{
+    return npc->def ? npc->def : mock230_content_npc_default();
+}
+
+/*
  * Melee squares up: a diagonal is NOT in range.
  *
  * OldSchool melee requires orthogonal adjacency. Two entities standing corner
@@ -78,8 +95,7 @@ in_attack_range(
     const struct Mock230Player* player,
     const struct Mock230Npc* npc)
 {
-    int range = npc->def && npc->def->attackrange > 0 ? npc->def->attackrange
-                                                      : MOCK230_ATTACK_RANGE;
+    int range = npc_def(npc)->attackrange;
     int dx;
     int dz;
 
@@ -95,27 +111,74 @@ in_attack_range(
     return tile_distance(player->x, player->z, npc->x, npc->z) <= range;
 }
 
-static void
-play_npc_seq(struct Mock230Npc* npc, int seq_id)
+/*
+ * The priority gate — the reference's `PathingEntity.playAnimation`.
+ *
+ * `incumbent` is whatever has already been queued for this tick (-1 if
+ * nothing), `wanted` is the new sequence. The rule is `>=`, not `>`: two
+ * animations of equal priority mean the later one wins, which is what makes a
+ * repeated swing re-trigger rather than stick on its first frame.
+ *
+ * The header on mock230_anim_play_npc has the whole of why this exists.
+ */
+static int
+anim_wins(int incumbent, int wanted)
+{
+    if( incumbent < 0 )
+        return 1;
+    return mock230_seq_priority(wanted) >= mock230_seq_priority(incumbent);
+}
+
+int
+mock230_anim_play_npc(
+    struct Mock230Npc* npc,
+    int seq_id,
+    int delay)
 {
     /* -1 means the content named nothing and the cache had no convention
      * match. Sending it would spell 65535 on the wire, which tells the client
-     * to STOP whatever is playing — worse than sending nothing at all. */
+     * to STOP whatever is playing — worse than sending nothing at all.
+     *
+     * The reference does send -1 (it is how a script cancels an animation), so
+     * this is a deliberate difference and not an oversight: here -1 only ever
+     * arrives as "unresolved", never as "cancel", because every caller that
+     * means cancel has an id to send instead. */
     if( seq_id < 0 )
-        return;
+        return 0;
+    if( !anim_wins(npc->anim_id, seq_id) )
+        return 0;
     npc->anim_id = seq_id;
-    npc->anim_delay = 0;
+    npc->anim_delay = delay;
     npc->masks |= MOCK230_NMASK_ANIM;
+    return 1;
+}
+
+int
+mock230_anim_play_player(
+    struct Mock230Player* player,
+    int seq_id,
+    int delay)
+{
+    if( seq_id < 0 )
+        return 0;
+    if( !anim_wins(player->anim_id, seq_id) )
+        return 0;
+    player->anim_id = seq_id;
+    player->anim_delay = delay;
+    player->masks |= MOCK230_PMASK_SEQUENCE;
+    return 1;
+}
+
+static void
+play_npc_seq(struct Mock230Npc* npc, int seq_id)
+{
+    mock230_anim_play_npc(npc, seq_id, 0);
 }
 
 static void
 play_player_seq(struct Mock230Player* player, int seq_id)
 {
-    if( seq_id < 0 )
-        return;
-    player->anim_id = seq_id;
-    player->anim_delay = 0;
-    player->masks |= MOCK230_PMASK_SEQUENCE;
+    mock230_anim_play_player(player, seq_id, 0);
 }
 
 
@@ -126,6 +189,7 @@ hitsplat_block(void)
 
     return id >= 0 ? id : 26;
 }
+
 
 /* ------------------------------------------------------------------ */
 /* Disengaging                                                         */
@@ -273,7 +337,7 @@ mock230_combat_add_xp(
          * surprise someone mid-fight. */
         if( stat == MOCK230_STAT_HITPOINTS )
             mock230_combat_sync_hitpoints(player);
-        mock230_scripts_run_proc(srv, "[proc,combat_levelup_message]", NULL, 0);
+        mock230_scripts_run_hook(srv, srv->hooks.combat_levelup_message, NULL, 0);
     }
     if( player->stat_boosted[stat] < player->stat_level[stat] &&
         stat != MOCK230_STAT_HITPOINTS )
@@ -364,9 +428,9 @@ mock230_combat_hit_npc(
     if( npc->combat_target < 0 )
     {
         npc->combat_target = 0;
-        npc->attack_clock = (npc->def ? npc->def->attackrate : MOCK230_ATTACK_SPEED) / 2;
+        npc->attack_clock = npc_def(npc)->attackrate / 2;
     }
-    npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+    npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
     npc->masks |= MOCK230_NMASK_FACE_ENTITY;
     /* Flinch. Overwritten below if this was the killing blow. */
     play_npc_seq(npc, npc->block_seq);
@@ -374,8 +438,19 @@ mock230_combat_hit_npc(
     if( npc->hitpoints == 0 )
     {
         play_npc_seq(npc, npc->death_seq);
-        npc->death_tick = srv->tick + MOCK230_DEATH_TICKS;
-        npc->next_roam_tick = srv->tick + MOCK230_RESPAWN_TICKS;
+        /*
+         * How long the corpse lies there is the record's, beside the animation
+         * that has to finish inside it — `death_delay` on the npc, defaulting
+         * through `general/configs/npc_default.npc`. It was three ticks in
+         * mock230.h, which made the corpse of a boss and the corpse of a rat the
+         * same length and neither of them changeable.
+         *
+         * Nothing needs to stop the corpse roaming: `advance_npcs` skips any npc
+         * with a `death_tick`, so the `next_roam_tick` push that used to sit
+         * here — a respawn constant used as a roam delay — was saying twice, in
+         * the wrong units, what the line above already says.
+         */
+        npc->death_tick = srv->tick + npc_def(npc)->death_delay;
         mock230_combat_stop_npc(srv, slot);
         if( srv->player->combat_target == slot )
             mock230_combat_stop_player(srv);
@@ -418,7 +493,7 @@ mock230_combat_hit_player(
                              (int32_t)player->worn[MOCK230_WEAR_SHIELD].obj_id };
         int32_t block = -1;
 
-        if( mock230_scripts_run_proc_int(srv, "[proc,combat_defend_anim]", hands, 2, &block) )
+        if( mock230_scripts_run_hook_int(srv, srv->hooks.combat_defend_anim, hands, 2, &block) )
             play_player_seq(player, block);
     }
 
@@ -437,9 +512,10 @@ mock230_combat_hit_player(
          *
          * The engine keeps two facts, and only because they are about the
          * simulation rather than about dying: combat stops, and `dying` gates
-         * everything that would let a corpse act. The gate is cleared by the
-         * script healing the player — `mock230_world_heal` sees hitpoints go
-         * above zero — so even the length of the death is the script's.
+         * everything that would let a corpse act. The gate is cleared in
+         * `mock230_combat_player_tick`, on the tick the script's `stat_heal`
+         * puts hitpoints back above zero — so even the length of the death is
+         * the script's.
          */
         player->dying = 1;
         mock230_combat_stop_player(srv);
@@ -448,7 +524,7 @@ mock230_combat_hit_player(
             if( srv->npcs[i].combat_target == 0 )
                 mock230_combat_stop_npc(srv, i);
         }
-        mock230_scripts_queue_named(srv, "[queue,player_death]", 0, 0);
+        mock230_scripts_queue_hook(srv, srv->hooks.player_death, 0, 0);
     }
 }
 
@@ -525,14 +601,73 @@ player_attack_rate(const struct Mock230Player* player)
  */
 
 
+/*
+ * Re-path to the target, every tick, *before* the player takes a step.
+ *
+ * The reference's order, and it is not a detail: `Player.processInteraction`
+ * runs `pathToTarget()` and only then `updateMovement()`, so a step is always
+ * aimed at where the target is now. This used to top the route up after the
+ * move and only when the queue had run dry, which meant every step the player
+ * took was aimed one tick into the past.
+ *
+ * With a stationary target that is invisible. With one that moves — which npcs
+ * only became once they could chase — it is a deadlock: the npc closes onto the
+ * tile between the two, the player's stale step lands on that same tile, and
+ * they end up stacked. Neither is then in range (a shared tile is not adjacent),
+ * so both walk again, and the pair shuffles across the map without a blow being
+ * struck. That is what the combat selftest saw the moment npcs could pursue.
+ *
+ * Clearing the queue on arrival is the other half: the reference's walk ends
+ * when the target is reached, and a step left over from the approach would walk
+ * the player straight back out of range on the next tick.
+ */
+void
+mock230_combat_player_approach(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = srv->player;
+    struct Mock230Npc* npc;
+
+    if( player->dying || player->combat_target < 0 )
+        return;
+    npc = &srv->npcs[player->combat_target];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+
+    if( in_attack_range(player, npc) )
+    {
+        mock230_world_steps_clear(player);
+        return;
+    }
+    /* Nothing else is walking the player while a combat target is set: every
+     * other click clears the target first (see the OPNPC/OPLOC/MOVE handlers),
+     * so this owns the step queue and can recompute it outright. */
+    mock230_world_walk_beside(srv, npc->x, npc->z);
+}
+
 void
 mock230_combat_player_tick(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->player;
     struct Mock230Npc* npc;
 
-    /* A corpse does not swing. The script ends this by healing — nothing here
-     * counts ticks or decides where the player wakes up. */
+    /*
+     * A corpse does not swing, and the script is what stops it being one.
+     *
+     * `[queue,player_death]` ends with `stat_heal(hitpoints, 99, 100)`, and this
+     * is the engine noticing: hitpoints above zero means the death is over.
+     * Nothing here counts ticks or decides where the player wakes up, which is
+     * the whole point — the delay, the coordinate and the heal are all lines in
+     * player/death.rs2.
+     *
+     * It sits here rather than in `stat_heal` because more than one command
+     * restores hitpoints — `stat_heal`, `stat_boost`, a level-up — and the
+     * engine should not have to know which of them the script used. The
+     * phase order makes it prompt anyway: queues are drained at the top of
+     * phase 5 and this runs at the bottom of it, so the tick that heals is the
+     * tick that revives.
+     */
+    if( player->dying && player->hitpoints > 0 )
+        player->dying = 0;
     if( player->dying )
         return;
     if( player->combat_target < 0 )
@@ -559,14 +694,11 @@ mock230_combat_player_tick(struct Mock230Server* srv)
         player->masks |= MOCK230_PMASK_FACE_ENTITY;
     }
 
-    /* Keep following: an npc that roams mid-fight would otherwise walk out of
-     * range and the fight would silently stall. */
+    /* The approach happened before the player moved, in
+     * `mock230_combat_player_approach`. Out of range here means it has not
+     * arrived yet. */
     if( !in_attack_range(player, npc) )
-    {
-        if( player->step_head >= player->step_count )
-            mock230_world_walk_beside(srv, npc->x, npc->z);
         return;
-    }
 
     if( player->attack_clock > 0 )
     {
@@ -593,7 +725,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
      * `npc_damage` resolve to the target without content having to be told
      * which slot it is.
      */
-    mock230_scripts_run_proc_on_npc(srv, "[proc,player_melee_swing]", player->combat_target);
+    mock230_scripts_run_hook_on_npc(srv, srv->hooks.player_melee_swing, player->combat_target);
 }
 
 /*
@@ -619,6 +751,34 @@ mock230_combat_level(const struct Mock230Player* player)
     return ((base * 250) + (melee * 325)) / 1000;
 }
 
+/*
+ * The leash — the reference's `Npc.targetWithinMaxRange`, op-trigger branch.
+ *
+ * Measured from where the npc *spawned*, not from where it is standing, which
+ * is the whole point: a chase that measured from the npc would extend itself by
+ * one tile every step and never end. `maxrange + 1` and the corner exclusion are
+ * both the reference's, and the corner one is not cosmetic — without it the
+ * reachable area is a square with four tiles of extra diagonal.
+ *
+ * It matters more here than it reads: until the chase could route around a wall
+ * an npc could barely leave its own tile, so nothing was holding the leash.
+ */
+static int
+target_within_maxrange(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc)
+{
+    int range = npc_def(npc)->maxrange;
+    int dx = abs_of(player->x - npc->spawn_x);
+    int dz = abs_of(player->z - npc->spawn_z);
+
+    if( dx > range + 1 || dz > range + 1 )
+        return 0;
+    if( dx == range + 1 && dz == range + 1 )
+        return 0;
+    return 1;
+}
+
 static void
 maybe_aggress(
     struct Mock230Server* srv,
@@ -635,6 +795,19 @@ maybe_aggress(
     if( player->dying || player->level != npc->level )
         return;
     if( tile_distance(player->x, player->z, npc->x, npc->z) > npc->def->huntrange )
+        return;
+    /*
+     * In range to notice, but outside the leash: do not start.
+     *
+     * The reference reaches the same end by a longer road — it sets the
+     * interaction, `validateTarget` refuses it on the next tick and the npc
+     * drops straight back to its default mode. Checking here instead is one
+     * tick cheaper and, more usefully, stable: an npc standing at the edge of
+     * its range would otherwise take a target and give it up on alternate
+     * ticks for as long as the player stood there, sending a FACE_ENTITY latch
+     * each way.
+     */
+    if( !target_within_maxrange(player, npc) )
         return;
 
     npc_level = mock230_npcinfo(npc->type)->combat_level;
@@ -661,8 +834,7 @@ mock230_combat_npc_tick(
         {
             npc->active = 0;
             npc->death_tick = -1;
-            npc->respawn_tick =
-                srv->tick + (npc->def ? npc->def->respawnrate : MOCK230_RESPAWN_TICKS);
+            npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
         }
         return;
     }
@@ -671,6 +843,20 @@ mock230_combat_npc_tick(
     if( npc->combat_target < 0 )
         return;
     if( player->dying )
+    {
+        mock230_combat_stop_npc(srv, slot);
+        return;
+    }
+
+    /*
+     * Give up on a target that has been dragged out of the npc's area.
+     *
+     * The reference validates the target *before* running the mode
+     * (`processMovementInteraction` -> `validateTarget` -> `resetDefaults`), so
+     * this sits before the approach for the same reason: an npc that is about to
+     * stop must not take one more step first.
+     */
+    if( !target_within_maxrange(player, npc) )
     {
         mock230_combat_stop_npc(srv, slot);
         return;
@@ -688,56 +874,42 @@ mock230_combat_npc_tick(
      * Set once here, before any early return, and only when it changes: the
      * mask is per-tick and re-sending an unchanged latch is pure wire noise.
      */
-    if( npc->face_entity != MOCK230_PLAYER_TERMINATOR )
+    if( npc->face_entity != MOCK230_FACE_LOCAL_PLAYER )
     {
-        npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+        npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
         npc->masks |= MOCK230_NMASK_FACE_ENTITY;
     }
 
     if( !in_attack_range(player, npc) )
     {
-        /* Walk toward the player rather than giving up, so a fight the player
-         * backs away from resumes instead of quietly ending. A blocked step is
-         * simply not taken — the npc will try again next tick, and giving it a
-         * pathfinder of its own is more machinery than a mock needs. */
-        int step_x = (player->x > npc->x ? 1 : (player->x < npc->x ? -1 : 0));
-        int step_z = (player->z > npc->z ? 1 : (player->z < npc->z ? -1 : 0));
-        int want_x;
-        int want_z;
-        int dir;
-
         /*
-         * Square up rather than close diagonally.
+         * Pursue — the reference's `aiMode()`: path to the target, take one
+         * tile of it, and drop the target instead if this npc does not chase.
          *
-         * Melee cannot reach a diagonal (in_attack_range), so an npc that is
-         * corner-to-corner with the player must step onto a shared row or
-         * column. The greedy step moves BOTH axes at once, which keeps it on
-         * the diagonal forever: it would arrive at the corner and sit there,
-         * in "combat" but never swinging.
+         * The destination is the tile *beside* the player rather than the
+         * player's own, which is where squaring up comes from: melee cannot
+         * reach a diagonal, so an npc that closed to the nearest corner would
+         * stand there in combat and never swing.
          *
-         * One tile out on both axes means adjacent-diagonal: drop one axis so
-         * the step lands orthogonally. Prefer the axis the player is further
-         * along, so the approach still reads as direct.
+         * What this replaces was a single greedy step with the whole approach
+         * rule inlined beside it, and no route behind it — "a blocked step is
+         * simply not taken, the npc will try again next tick". That is only
+         * true if the block goes away, and a wall does not: the npc walked into
+         * the same tile every tick for the rest of the fight while the player
+         * strolled off. It is the reason npcs did not pursue at all, and it was
+         * invisible in open ground, which is where anyone testing stands.
          */
-        if( step_x != 0 && step_z != 0 && abs_of(player->x - npc->x) == 1 &&
-            abs_of(player->z - npc->z) == 1 )
-        {
-            if( abs_of(player->x - npc->x) >= abs_of(player->z - npc->z) )
-                step_z = 0;
-            else
-                step_x = 0;
-        }
+        int dest_x;
+        int dest_z;
 
-        want_x = npc->x + step_x;
-        want_z = npc->z + step_z;
-        dir = mock230_step_direction(want_x - npc->x, want_z - npc->z);
+        mock230_world_beside_tile(npc->level, npc->x, npc->z, player->x, player->z, &dest_x,
+                                  &dest_z);
 
-        if( dir >= 0 && mock230_scene_can_step(npc->level, npc->x, npc->z, dir) )
-        {
-            npc->step_dir = dir;
-            npc->x = want_x;
-            npc->z = want_z;
-        }
+        /* Moves *then* gives up, which is the reference's order
+         * (`const moved = this.updateMovement(); if (moved && !givechase)`) and
+         * visible: a `givechase=no` npc takes one step before turning away. */
+        if( mock230_world_npc_walk_to(npc, dest_x, dest_z) && !npc_def(npc)->givechase )
+            mock230_combat_stop_npc(srv, slot);
         return;
     }
 
@@ -749,7 +921,7 @@ mock230_combat_npc_tick(
         npc->attack_clock--;
         return;
     }
-    npc->attack_clock = npc->def ? npc->def->attackrate : MOCK230_ATTACK_SPEED;
+    npc->attack_clock = npc_def(npc)->attackrate;
     play_npc_seq(npc, npc->attack_seq);
 
     /*
@@ -766,7 +938,7 @@ mock230_combat_npc_tick(
      * so a miss and a protected hit have to provoke it too. That used to be a
      * comment here explaining why the queue call came before two early returns.
      */
-    mock230_scripts_run_proc_on_npc(srv, "[proc,npc_meleeattack]", slot);
+    mock230_scripts_run_hook_on_npc(srv, srv->hooks.npc_meleeattack, slot);
 }
 
 void
@@ -793,6 +965,15 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         /* `tracked` stays clear, so the next NPC_INFO adds it as a new entity —
          * which is what a respawn is from the client's side. */
         npc->tracked = 0;
-        npc->next_roam_tick = srv->tick + MOCK230_ATTACK_SPEED;
+        /* And `[ai_spawn]` runs again, which is where a behaviour's timer is
+         * set. Without this a monster's heartbeat stops the first time it dies
+         * and never comes back — the world decays one death at a time, and the
+         * npc that stops behaving is never the one you were watching. */
+        npc->spawn_pending = 1;
+        /* Staggered exactly as a fresh spawn is, through the one function that
+         * knows the roam cadence. It used to be `+ MOCK230_ATTACK_SPEED` — an
+         * attack rate borrowed to mean a walk delay, which is the kind of reuse
+         * that survives because both numbers happen to be small. */
+        mock230_world_npc_roam_stagger(srv, npc);
     }
 }

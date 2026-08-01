@@ -177,6 +177,68 @@ Both already paid for once, both documented in `config/cp_db.c`'s header:
 And a third, from the schema: **column order is the tuple order**, addressed by
 index. Reordering columns silently re-points every lookup in every consumer.
 
+### 4.1a A column declaration, and the second type alphabet
+
+A column is one `columndef=` line — its index, the cache's name for it, and its
+tuple types:
+
+```
+columndef=13:startcoord,coord
+columndef=23:requirement_stats,stat,int
+columndef=9:releasedate,int,int,int
+defaults=9:0:-1,-1,-1
+```
+
+Both halves used to be missing. The line was `defaulttypes=13:22` on a dbtable and
+`types=13:22` on a dbrow: no name, and the type as a bare number. Both old
+spellings are still parsed, so an un-regenerated tree still packs — dropping them
+would have turned a stale tree into a silent empty-record write rather than an
+error.
+
+The name is documentation; the packer reads past it, so a tree whose gameval names
+have moved on is still a correct tree. It is emitted **empty rather than omitted**
+when unnamed (`columndef=7:,int`) — the field's position is what makes the line
+parseable.
+
+**`columndef` and not `column`, which it was called first.** The server's own
+`.dbtable` grammar is `column=<name>,<type>...`, and `mock230_db_load` walks the
+whole content tree for `*.dbtable`, which matches `configs/all.dbtable`. So
+`column=13:startcoord,coord` reached the *server's* parser as a column named
+`13:startcoord` with one unrecognised type, and the mock refused to boot. Two
+grammars cannot share a key in one file namespace.
+
+The type codes are ScriptVarType **base codes**, and they are not the character
+codes `cp_param_type_char` uses — a param's coord is `'c'` (99), a dbtable's is 22.
+Twenty-five distinct codes occur across this cache. Each name required two signals
+to agree: the column names carrying it (from archive 10 — a column literally called
+`npc` or `stat` is the cache stating its own type), and the value range against
+each namespace's highest id, which *excludes* candidates rather than choosing.
+
+| code | name | code | name | code | name |
+|---|---|---|---|---|---|
+| 0 | `int` | 22 | `coord` | 39 | `inv` |
+| 1 | `boolean` | 23 | `graphic` | 41 | `category` |
+| 6 | `seq` | 30 | `loc` | 59 | `mapelement` |
+| 9 | `component` | 31 | `model` | 73 | `struct` |
+| 10 | `idkit` | 32 | `npc` | 74 | `dbrow` |
+| 11 | `track` | 33 | `obj` | 209 | `varp` |
+| 13 | `namedobj` | 36 | `string` | | |
+| 14 | `synth` | 17 | `stat` | | |
+
+The interesting derivations: **74 = `dbrow`** because its highest value is 16939,
+exactly this cache's highest dbrow id and beyond every other namespace, and because
+one column carrying it is called `sailing_charting_core` — a table name. **13 =
+`namedobj` vs 33 = `obj`**: both sit in the obj range so the range cannot separate
+them, but the column *named* `namedobj` carries 13 while `item` and the eleven
+`wearpos_*` columns carry 33. **9 = `component`** and **22 = `coord`** fit no flat
+namespace at all — 9's values are `(interface << 16) | child`, 22's are packed
+coords reaching 855,167,577.
+
+Three codes are left as bare numbers, because one signal is not two: **8** (all 140
+of its values are literally `10`), **26** (`enum` and `struct` both fit), and
+**118** (one column, six values in 155..160). An unknown code round-trips as its
+own number, so a newer cache cannot lose a type this table has never seen.
+
 ### 4.2 Gameval archive 10 is keyed, not flat — and this tree read it flat
 
 This is the finding the naming pass turned on.
@@ -294,8 +356,11 @@ heuristic that gets a scimitar right gets a spear wrong in every slot. The
 reference authors the table; so does this tree. `docs/CONTENT_ARCHITECTURE.md`
 §8.2(b) is the general form — port the proc, not the field it reads.
 
-Note what the server does **not** get: the cache's 16,711 rows. `mock230_db.c`
-loads only the server population. The cache's rows are the client's.
+Note what the server does **not** get: the cache's 16,711 rows *with their values*.
+It does, however, read the files — see the phantom-load finding in §8. An earlier
+draft of this document said `mock230_db.c` "loads only the server population",
+which is false; it loads whatever `*.dbtable`/`*.dbrow` it finds anywhere under
+the content directory, and `configs/all.dbtable` matches.
 
 ---
 
@@ -666,14 +731,45 @@ confirmed by restoring the four pre-rename config files and getting the identica
 error.** Nothing to do with naming, but it means the server-overlay path of
 `cachepack pack` is currently unreachable for any tree with a `.dbrow`.
 
-**Column names have nowhere to live.** They are in the cache — §4.2 recovers
-~3,000 of them with their exact indices — and the tree records none of them.
-`configs/all.dbtable` carries `columns=` and `defaulttypes=`: types, no names.
-Losing them was not a regression introduced by the fix; the flat line held them
-only by accident and truncated at 255 characters. The natural home is a
-documentation-only key emitted by `cp_unpack_dbtable` beside the types it names,
-which needs the packer to round-trip it — a small, well-scoped change that was
-not in this pass's scope.
+**Column names now live in `columndef=`** — this gap is closed. See §4.1a. The
+seeder keeps archive 10's column names in `CP_Names.dbtable_columns`, and both
+unpackers emit them beside the types they name, in `all.dbtable` and in every
+`all.dbrow` that fills the column. 99.4% of the ~93,000 tuple positions in the
+tree now read as words rather than numbers; the remainder are the three
+undetermined codes.
+
+**Gameval archive 11 remains unclaimed, and now it is measured rather than
+assumed.** It is the only one of the cache's fourteen gameval archives that
+nothing reads. `content_register.c` says it "names songs *and* jingles in one id
+space, so neither table alone can verify it", and that is right:
+
+- 1,196 records, ids 0..1195 dense. The music tables hold 881 songs and 315
+  jingles — **exactly 1,196**.
+- The boundary is visible at 881: id 880 is `rellekka`, id 881 is
+  `advance_herblaw2`. Songs below, jingles above.
+- But the numbering is neither table's. The `music` dbtable pairs a `displayname`
+  with a `midi` track id, and over 875 rows, `gv11[midi]` matches the display name
+  **0 times** — `gv11[50]` is `beneath_the_stronghold` where track 50 is
+  `Al Kharid`. The ordinal-position hypothesis also scores **0/875**.
+
+So archive 11 carries 1,196 good names behind an index that maps onto neither
+music table by id or by position, and attributing them needs evidence the cache
+does not carry. Leaving it unclaimed is correct; what is new is that the cost is
+known — 1,196 names, and a decisive test to re-run against any future proposal.
+
+**The server ingests the cache's own db config files.** `mock230_db_load` walks
+the entire content directory for `*.dbtable` and `*.dbrow`, and
+`configs/all.dbtable` / `configs/all.dbrow` match. Proved rather than reasoned: a
+deliberately malformed line in `configs/all.dbrow` is reported as
+``configs/all.dbrow:4: `data=` before `table=` in dbrow `quest_animalmagnetism` ``.
+
+Harmless so far, and only by accident — the cache files use `columndef=`/`values=`
+where the server grammar wants `column=`/`data=`, so the server registers all 246
+cache tables with **zero columns** and all 16,711 cache rows with **no data**, and
+nothing ever asks. It is worth fixing (the walk should skip `configs/`, which is
+cachepack's output rather than authored server content) and it was left alone
+here: it is a change to the server's load surface, not to naming. It is also the
+reason the key had to be `columndef` — see §4.1a.
 
 **Adopting a cache table from RuneScript already works, and nothing checks it.**
 This was the open question, and it was answered by probe rather than by reading

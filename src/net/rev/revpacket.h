@@ -515,7 +515,22 @@ struct PktSetPlayerOp
  *  `strv[i]` rather than the int in `intv[i]`, the same convention the CS2
  *  hook-argument plumbing already uses. */
 #define PKT_RUNCLIENTSCRIPT_ARG_MAX 20
-#define PKT_RUNCLIENTSCRIPT_STR_LEN 128
+/*
+ * 128 was not enough, and the way it was not enough is worth recording: a
+ * RUNCLIENTSCRIPT string argument is not a label, it is a *payload*.
+ *
+ * rev 230's multi-choice dialogue takes its whole option list as one string
+ * with the rows joined by `|` (`chatbox_multi_init`, which splits them itself).
+ * Hans's three-way choice is 132 characters, so at 128 the client silently kept
+ * 127 of them — which cut the third option off entirely and left the second one
+ * mid-word. The dialogue then rendered *correctly* with two options, because
+ * the clientscript sizes and positions its rows by how many it was given.
+ *
+ * A five-option list is comfortably past 300. 512 is sized for that with room,
+ * and the parser still truncates rather than overruns if something longer
+ * arrives.
+ */
+#define PKT_RUNCLIENTSCRIPT_STR_LEN 512
 
 struct PktRunClientScript
 {

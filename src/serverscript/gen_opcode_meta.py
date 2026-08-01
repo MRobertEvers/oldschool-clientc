@@ -152,6 +152,24 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     #
     # `type` is the reference's: 0 modal, 1 overlay, 3 side-modal.
     "IF_OPENSUB": (11001, 3, 0, 0, 0),
+
+    # runclientscript_ss(clientscript, string, string)
+    #
+    # Run a clientscript with two string arguments. The 2004 protocol has no
+    # RUNCLIENTSCRIPT at all, so the reference has nothing to port here either.
+    #
+    # It exists for one shape the rev-230 UI has and 2004 does not: an interface
+    # whose contents are *built by a clientscript* rather than shipped as
+    # components. The multi-choice dialogue is the case that forced it —
+    # `chatmenu` (219) has exactly two components, a root and an empty layer, and
+    # its option rows are `cc_create`d by `chatbox_multi_init(title, options)`.
+    # There is nothing for `if_settext` to address, so without this the server
+    # cannot put a choice on screen at all.
+    #
+    # The clientscript id is an ARGUMENT, not baked into the command name: it is
+    # a cache id, and the engine holding one is the arrangement this server is
+    # organised against. Content names it (see interface_chat/configs/chat.constant).
+    "RUNCLIENTSCRIPT_SS": (11002, 1, 2, 0, 0),
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.

@@ -152,6 +152,7 @@ UITreeSceneBridge_Init(
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
         bridge->static_sprite_scene[slot] = -1;
     bridge->player_scene_id = -1;
+    bridge->local_player_scene_id = -1;
     bridge->player_head_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map &&
            bridge->obj_icon_outline_map && bridge->npc_head_map && bridge->obj_model_map);
@@ -487,6 +488,44 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
     }
 
     return UITreeSceneBridge_BuildPlayerDesignModel(bridge, app.kits, app.colors, app.gender);
+}
+
+int
+UITreeSceneBridge_BuildLocalPlayerModel(
+    struct UITreeSceneBridge* bridge,
+    int const slots[12],
+    int const colours[5],
+    int gender)
+{
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(bridge && bridge->scene && bridge->provider && slots);
+
+    /* Identical compositor to the world entity's own model (worn objs merge in
+     * slot order over the identity kits), so the figure on the widget and the
+     * figure in the viewport cannot disagree. It lights itself with the
+     * widget-model defaults; the design preview's own parameters are a
+     * design-screen thing and deliberately not applied here. */
+    merged = PlayerModel_BuildFromAppearance(bridge->provider, slots, colours, gender);
+    if( !merged )
+        return -1;
+
+    /* SceneModelAdd overwrites the slot without freeing what was there, so drop
+     * the superseded composite — this rebuilds on every appearance change. */
+    {
+        struct ToriDraw_ModelHandle old =
+            ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID);
+        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+            ToriDraw_ModelFree(old.u.model.model);
+    }
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID, hnd);
+    bridge->local_player_scene_id = UITREE_SCENE_LOCAL_PLAYER_MODEL_ID;
+    return bridge->local_player_scene_id;
 }
 
 #define BRIDGE_NPC_HEAD_PARTS_MAX 16

@@ -851,6 +851,81 @@ apply_param(
     return 1;
 }
 
+/*
+ * `<level>_<mapx>_<mapz>_<localx>_<localz>` — the reference's coordinate
+ * literal, and the form every `patrol<N>` waypoint is written in.
+ *
+ * A map square is 64 tiles, so the absolute tile is `mapx * 64 + localx`. The
+ * five fields are all required: a four-field spelling is a typo that would
+ * otherwise place the waypoint at a plausible-looking wrong tile, which for a
+ * patrol reads as the npc walking somewhere odd rather than as a bad config.
+ */
+static int
+parse_coord_literal(
+    const char* text,
+    int* out_level,
+    int* out_x,
+    int* out_z)
+{
+    int level;
+    int map_x;
+    int map_z;
+    int local_x;
+    int local_z;
+
+    if( sscanf(text, "%d_%d_%d_%d_%d", &level, &map_x, &map_z, &local_x, &local_z) != 5 )
+        return 0;
+    if( local_x < 0 || local_x > 63 || local_z < 0 || local_z > 63 )
+        return 0;
+    *out_level = level;
+    *out_x = map_x * 64 + local_x;
+    *out_z = map_z * 64 + local_z;
+    return 1;
+}
+
+/*
+ * `patrol<N>=<coord>,<pause>`.
+ *
+ * N is 1-based and the reference writes them in order, but nothing enforces
+ * that — so the index in the key is what decides the slot rather than the order
+ * the lines happen to be read in. A route with a gap in it (patrol1, patrol3)
+ * would otherwise silently compact into a shorter, different route.
+ */
+static int
+apply_patrol(
+    struct Mock230NpcDef* def,
+    int index,
+    char* text,
+    const char* where)
+{
+    char* comma = strchr(text, ',');
+    int level;
+    int x;
+    int z;
+
+    if( index < 1 || index > MOCK230_NPC_PATROL_MAX )
+    {
+        CONTENT_ERROR("%s: patrol%d is outside 1..%d\n", where, index, MOCK230_NPC_PATROL_MAX);
+        return 0;
+    }
+    if( comma )
+        *comma = '\0';
+    if( !parse_coord_literal(text, &level, &x, &z) )
+    {
+        CONTENT_ERROR("%s: patrol%d wants `<level>_<mapx>_<mapz>_<localx>_<localz>,<pause>`, "
+                      "got `%s`\n",
+                      where, index, text);
+        return 0;
+    }
+    def->patrol[index - 1].level = level;
+    def->patrol[index - 1].x = x;
+    def->patrol[index - 1].z = z;
+    def->patrol[index - 1].pause = comma ? atoi(comma + 1) : 0;
+    if( index > def->patrol_count )
+        def->patrol_count = index;
+    return 1;
+}
+
 static void
 npc_config_key(
     struct Mock230NpcDef* def,
@@ -875,8 +950,17 @@ npc_config_key(
         def->ranged = atoi(value);
     else if( strcmp(key, "respawnrate") == 0 )
         def->respawnrate = atoi(value);
+    else if( strcmp(key, "death_delay") == 0 )
+        def->death_delay = atoi(value);
     else if( strcmp(key, "wanderrange") == 0 )
         def->wanderrange = atoi(value);
+    else if( strcmp(key, "maxrange") == 0 )
+        def->maxrange = atoi(value);
+    /* `givechase=no` is the only value the reference writes — its packer emits
+     * the opcode for the negative case and nothing for the positive — so
+     * anything else means yes. */
+    else if( strcmp(key, "givechase") == 0 )
+        def->givechase = strcmp(value, "no") != 0;
     else if( strcmp(key, "moverestrict") == 0 )
         def->nomove = strcmp(value, "nomove") == 0;
     else if( strcmp(key, "huntmode") == 0 )
@@ -884,6 +968,26 @@ npc_config_key(
                                                          : MOCK230_HUNT_NONE;
     else if( strcmp(key, "param") == 0 )
         (void)apply_param(def, value, where);
+    else if( strcmp(key, "defaultmode") == 0 )
+    {
+        /*
+         * Only `patrol` and `none`/`wander` are accepted, and an unknown mode is
+         * an error rather than a fallback. A `defaultmode` the engine silently
+         * ignored would give an npc the *wander* behaviour under a config line
+         * saying it does something else — which is a config that reads correct
+         * and behaves wrong, the worst outcome available here.
+         */
+        if( strcmp(value, "patrol") == 0 )
+            def->defaultmode = MOCK230_NPCMODE_PATROL;
+        else if( strcmp(value, "none") == 0 || strcmp(value, "null") == 0 )
+            def->defaultmode = MOCK230_NPCMODE_NONE;
+        else if( strcmp(value, "wander") == 0 )
+            def->defaultmode = MOCK230_NPCMODE_WANDER;
+        else
+            CONTENT_ERROR("%s: defaultmode `%s` is not implemented\n", where, value);
+    }
+    else if( strncmp(key, "patrol", 6) == 0 && key[6] >= '0' && key[6] <= '9' )
+        (void)apply_patrol(def, atoi(key + 6), value, where);
     else
     {
         /*
@@ -921,6 +1025,30 @@ npc_config_key(
     }
 }
 
+/*
+ * `.npc` files are read twice, and the two passes are not an optimisation.
+ *
+ * `[default]` states what every npc block starts from, and `npc_def_seed_from_cache`
+ * copies it at the moment a block's header is read. So a `[default]` in a file
+ * the directory walk reaches *after* the roster would apply to nothing — and
+ * `areas/` sorts before `general/`, which is precisely the order that happens.
+ * Nothing would report it: every npc would simply carry the built-in numbers.
+ *
+ * One pass for `[default]` and one for everything else makes the answer
+ * independent of where an author puts the file.
+ */
+static int g_npc_default_pass;
+
+static void load_npc_config(const char* path);
+
+static void
+load_npc_default_config(const char* path)
+{
+    g_npc_default_pass = 1;
+    load_npc_config(path);
+    g_npc_default_pass = 0;
+}
+
 static void
 load_npc_config(const char* path)
 {
@@ -928,6 +1056,7 @@ load_npc_config(const char* path)
     char raw[1024];
     struct Mock230NpcDef* def = NULL;
     int line_number = 0;
+    int skipping = 0;
     char where[600];
 
     if( !file )
@@ -945,7 +1074,40 @@ load_npc_config(const char* path)
         header = mock230_content_section_header(line);
         if( header )
         {
-            int npc_id = mock230_content_symbol(MOCK230_PACK_NPC, header);
+            int npc_id;
+
+            /*
+             * `[default]` edits what every npc starts from.
+             *
+             * The alternative was a table of ids in C (it was one, until this),
+             * and the alternative to *that* was the engine deriving an
+             * animation name from the npc's display name — `"Goblin"` ->
+             * `goblin_attack` — which guessed right often enough to look like a
+             * feature and silently produced -1 for every npc whose sequences
+             * the cache spells differently ("Man" has no `man_attack`).
+             *
+             * `default` is not an npc name in any gameval table, so it cannot
+             * collide with a real block; the symbol lookup below would reject
+             * it, which is why this branch comes first.
+             */
+            if( strcmp(header, "default") == 0 )
+            {
+                def = &g_npc_default;
+                skipping = !g_npc_default_pass;
+                continue;
+            }
+
+            /* Every other block belongs to the second pass. `skipping` rather
+             * than a null def, so its keys are passed over in silence instead of
+             * each reporting "before any [section]". */
+            skipping = g_npc_default_pass;
+            if( skipping )
+            {
+                def = NULL;
+                continue;
+            }
+
+            npc_id = mock230_content_symbol(MOCK230_PACK_NPC, header);
 
             def = NULL;
             if( npc_id < 0 )
@@ -961,6 +1123,9 @@ load_npc_config(const char* path)
             def->symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
             continue;
         }
+
+        if( skipping )
+            continue;
 
         value = mock230_content_split_key_value(line);
         if( !value )
@@ -2188,6 +2353,20 @@ load_maps(const char* dir)
 /* Load / free                                                         */
 /* ------------------------------------------------------------------ */
 
+/*
+ * What an npc is before any content describes it.
+ *
+ * Numbers only. The four *ids* that used to be here — `human_unarmedpunch`,
+ * `human_unarmedblock`, `human_death`, `bones` — were the engine naming content
+ * it does not own, and they are now the `[default]` block of a `.npc` config
+ * (`server/scripts/general/configs/npc_default.npc`). An engine holding no ids
+ * is the whole architecture; four of them hiding in an initialiser is exactly
+ * how that erodes.
+ *
+ * The animation fields start at -1, which is "play nothing", so a tree that
+ * declares no `[default]` block degrades to silent npcs rather than to npcs
+ * animating with sequence 0.
+ */
 static void
 init_defaults(void)
 {
@@ -2198,13 +2377,23 @@ init_defaults(void)
     g_npc_default.strength = 1;
     g_npc_default.defence = 1;
     g_npc_default.respawnrate = 25;
+    /* Not 0, which would despawn the corpse on the tick it died and eat the
+     * death animation entirely. A tree that states `death_delay` overrides it;
+     * this is only what a tree stating nothing degrades to. */
+    g_npc_default.death_delay = 3;
     g_npc_default.attackrate = 4;
     g_npc_default.attackrange = 1;
+    /* The reference's NpcType defaults, and the pair that decides how far a
+     * monster will follow you: 7 tiles from where it spawned, and it does
+     * follow. */
+    g_npc_default.maxrange = 7;
+    g_npc_default.givechase = 1;
     g_npc_default.damagetype = MOCK230_DAMAGE_CRUSH;
-    g_npc_default.attack_anim = mock230_content_symbol(MOCK230_PACK_SEQ, "human_unarmedpunch");
-    g_npc_default.defend_anim = mock230_content_symbol(MOCK230_PACK_SEQ, "human_unarmedblock");
-    g_npc_default.death_anim = mock230_content_symbol(MOCK230_PACK_SEQ, "human_death");
-    g_npc_default.death_drop = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+    g_npc_default.attack_anim = -1;
+    g_npc_default.defend_anim = -1;
+    g_npc_default.death_anim = -1;
+    g_npc_default.death_drop = -1;
+    g_npc_default.defaultmode = MOCK230_NPCMODE_NONE;
 }
 
 int
@@ -2303,6 +2492,8 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".constant", load_constant_config);
     walk_configs(path, ".enum", load_enum_config);
     walk_configs(path, ".varp", load_varp_config);
+    /* `[default]` first, then the roster — see load_npc_default_config. */
+    walk_configs(path, ".npc", load_npc_default_config);
     walk_configs(path, ".npc", load_npc_config);
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);

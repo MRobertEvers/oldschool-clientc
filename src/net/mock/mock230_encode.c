@@ -344,6 +344,43 @@ mock230_send_if_opensub(
     mock230_note_modal_mount(srv, (parent << 16) | child, group);
 }
 
+/*
+ * Reference layout: the per-argument type string (newline-terminated), then the
+ * arguments in REVERSE order, then the script id.
+ *
+ * The reverse order is not a quirk of this port — the reference's writer pushes
+ * the CS2 operand stack, which unwinds last-argument-first. `osrs230_parse.c`
+ * reads it back the same way.
+ */
+void
+mock230_send_run_clientscript_mixed(
+    struct Mock230Server* srv,
+    int script_id,
+    const char* types,
+    int const* intv,
+    const char* const* strv,
+    int argc)
+{
+    struct RSAreaBuf buf;
+
+    /* Sized for the string case, not the int one. A multi-choice option list is
+     * one string carrying every row (see PKT_RUNCLIENTSCRIPT_STR_LEN), and five
+     * rows of dialogue is comfortably past a kilobyte. */
+    open_packet(&buf, 4096);
+    for( int i = 0; i < argc; i++ )
+        rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
+    rsab_p1(&buf, '\n');
+    for( int i = argc - 1; i >= 0; i-- )
+    {
+        if( types && types[i] == 's' )
+            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+        else
+            rsab_p4(&buf, intv ? intv[i] : 0);
+    }
+    rsab_p4(&buf, script_id);
+    flush(srv, &buf, OP_RUNCLIENTSCRIPT, 2);
+}
+
 void
 mock230_send_run_clientscript(
     struct Mock230Server* srv,
@@ -351,20 +388,7 @@ mock230_send_run_clientscript(
     int const* args,
     int argc)
 {
-    /* Reference layout: the per-argument type string, then the arguments in
-     * REVERSE order, then the script id. Only int arguments are sent — nothing
-     * the mock drives takes a string one, and an unused string path would be an
-     * untested path. */
-    struct RSAreaBuf buf;
-
-    open_packet(&buf, 256);
-    for( int i = 0; i < argc; i++ )
-        rsab_p1(&buf, 'i');
-    rsab_p1(&buf, '\n');
-    for( int i = argc - 1; i >= 0; i-- )
-        rsab_p4(&buf, args[i]);
-    rsab_p4(&buf, script_id);
-    flush(srv, &buf, OP_RUNCLIENTSCRIPT, 2);
+    mock230_send_run_clientscript_mixed(srv, script_id, NULL, args, NULL, argc);
 }
 
 void
@@ -805,6 +829,27 @@ mock230_step_direction(
     if( dz == 0 )
         return dx < 0 ? 3 : 4;
     return dx < 0 ? 5 : (dx == 0 ? 6 : 7);
+}
+
+/* The same numbering read backwards, so a caller that has a direction can find
+ * the tile it lands on without keeping a second copy of the table. */
+void
+mock230_step_delta(
+    int dir,
+    int* dx,
+    int* dz)
+{
+    static const int k_dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    static const int k_dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
+
+    if( dir < 0 || dir > 7 )
+    {
+        *dx = 0;
+        *dz = 0;
+        return;
+    }
+    *dx = k_dx[dir];
+    *dz = k_dz[dir];
 }
 
 /*

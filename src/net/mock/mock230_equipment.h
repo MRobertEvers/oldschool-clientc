@@ -2,18 +2,15 @@
 #define SRC_NET_MOCK_MOCK230_EQUIPMENT_H
 
 /*
- * The equipment-stats screen, reached from "View equipment stats" on the worn
- * tab.
+ * What the engine still owns of the worn tab and the equipment-stats screen.
  *
- * Nothing about it is client-side: OldSchool's client draws eighteen empty text
- * components and waits for the server to fill them in, which is why the tab
- * looks broken rather than empty when a server forgets. The numbers are summed
- * from the same obj params the combat code rolls against, so the screen cannot
- * disagree with the fight.
+ * The screen itself is
+ * `server/scripts/interface_equipment/scripts/equipment.rs2`: the mount, the
+ * eighteen component names, the labels, the number formatting and the order the
+ * rows are painted in. Its numbers come from `~equip_get_bonuses`, the same sum
+ * the fight rolls against, so the screen cannot disagree with the fight.
  *
- * The interface and its eighteen components are named in the content tree and
- * resolved by mock230_ids — `equipment_stats` and `equipment_stats_*`. Nothing
- * about the screen's layout is written down here.
+ * Only three functions remain, and none of them names a component.
  *
  * See docs/mock230_player_systems.md §3.
  */
@@ -30,41 +27,27 @@ struct Mock230Server;
 int
 mock230_equipment_worn_slot(int component);
 
-/** Open the screen and fill it in. Idempotent. */
+/**
+ * Open the screen, for a caller that is not the button.
+ *
+ * `[if_button,wornitems:equipment]` is the way in that a player takes and it
+ * needs nothing from here; this runs the same `[proc,equipment_open]` for the
+ * `::equipstats` cheat, which opens the screen without walking the sidebar.
+ */
 void
 mock230_equipment_open_stats(struct Mock230Server* srv);
 
-/** Close it, if it is open. */
-void
-mock230_equipment_close_stats(struct Mock230Server* srv);
-
 /**
- * Re-send the eighteen numbers, but only while the screen is open: they are
- * IF_SETTEXTs to components that do not exist otherwise.
+ * Repaint the screen, but only while it is mounted: `[proc,equipment_refresh]`
+ * is eighteen IF_SETTEXTs to components that do not exist otherwise.
  *
- * Called whenever the worn container changes, because a bonus screen that
- * still shows the sword you just took off is worse than one that shows
- * nothing.
+ * Called on the tick the worn container changed, because a bonus screen that
+ * still shows the sword you just took off is worse than one that shows nothing.
+ * Deciding *when* is the whole of the engine's share; what gets painted is the
+ * proc's.
  */
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv);
-
-/**
- * Handle a button on the worn tab or on the stats screen. Returns 1 when the
- * component belonged to one of them.
- */
-int
-mock230_equipment_handle_button(
-    struct Mock230Server* srv,
-    int component,
-    int sub,
-    int op);
-
-/** Total of one bonus (a Mock230CombatParam index) over everything worn. */
-int
-mock230_equipment_bonus(
-    const struct Mock230Server* srv,
-    int param);
 
 /**
  * May the player wear this obj?

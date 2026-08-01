@@ -65,7 +65,7 @@ mock230_prayer_name(int prayer)
 void
 mock230_prayer_clear(struct Mock230Server* srv)
 {
-    mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
+    mock230_scripts_run_hook(srv, srv->hooks.prayer_deactivate_all, NULL, 0);
 }
 
 /*

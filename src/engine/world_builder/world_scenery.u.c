@@ -340,6 +340,88 @@ apply_transforms(
  * per-shape helpers can drop it at several points below. */
 static int g_scenery_dbg_elements;
 
+#define SCENERY_DBG_RING                                                                           \
+    ((int)(sizeof(((struct WorldBuilder*)0)->scenery_dbg_element) /                                 \
+           sizeof(((struct WorldBuilder*)0)->scenery_dbg_element[0])))
+
+/* Record everything the scene slot was derived from on the pool entry
+ * (WorldEntity_SceneryDebug), and remember element_id -> pool index so the
+ * position pass below can finish the record with where the model actually
+ * landed. Always on: the fields are ~60 bytes on an entity that already
+ * carries a 5x32 action table, and capturing them only under the env var
+ * would mean a misplacement can never be inspected without a rebuild. */
+static void
+scenery_debug_record(
+    struct WorldBuilder* builder,
+    struct WorldEntity_Scenery* scenery,
+    struct ToriRS_MapLoc* map_tile,
+    struct ToriRS_Location* config_loc,
+    int element_id,
+    int pool_idx,
+    int size_x,
+    int size_z)
+{
+    struct WorldEntity_SceneryDebug* dbg = &scenery->debug;
+    int slot;
+
+    dbg->runtime = builder->scenery_runtime_spawn ? 1 : 0;
+    /* A runtime spawn has no source square, and its "chunk" coords are already
+     * scene coords (WorldBuilder_ApplyLocChange synthesises the ToriRS_MapLoc
+     * from the zone packet's scene tile). */
+    dbg->map_square_x = dbg->runtime ? -1 : builder->scenery_mapx;
+    dbg->map_square_z = dbg->runtime ? -1 : builder->scenery_mapz;
+    dbg->chunk_x = map_tile->chunk_pos_x;
+    dbg->chunk_z = map_tile->chunk_pos_z;
+    dbg->chunk_level = map_tile->chunk_pos_level;
+    dbg->base_tile_x = builder->world->_base_tile_x;
+    dbg->base_tile_z = builder->world->_base_tile_z;
+    dbg->config_size_x = config_loc->size_x;
+    dbg->config_size_z = config_loc->size_z;
+    dbg->draw_size_x = size_x;
+    dbg->draw_size_z = size_z;
+    dbg->draw_x = 0;
+    dbg->draw_y = 0;
+    dbg->draw_z = 0;
+    dbg->draw_yaw = 0;
+
+    slot = builder->scenery_dbg_next % SCENERY_DBG_RING;
+    builder->scenery_dbg_element[slot] = element_id;
+    builder->scenery_dbg_pool[slot] = pool_idx;
+    builder->scenery_dbg_next = slot + 1;
+}
+
+/* Second half of the record: where the element was actually placed. Split
+ * because the position is only known after the model loads (it needs the
+ * heightmap), and one shape helper positions two elements. */
+static void
+scenery_debug_note_position(
+    struct WorldBuilder* builder,
+    int element_id,
+    int x,
+    int y,
+    int z,
+    int yaw)
+{
+    for( int i = 0; i < SCENERY_DBG_RING; i++ )
+    {
+        struct WorldEntity_Scenery* scenery;
+        if( builder->scenery_dbg_element[i] != element_id )
+            continue;
+        scenery = World_EntityPoolGet(
+            &builder->world->entities.scenery, builder->scenery_dbg_pool[i]);
+        /* The ring outlives the entry only if the pool recycled it, which the
+         * build path never does mid-shape — verify anyway rather than stamp a
+         * different loc's record. */
+        if( !scenery || scenery->element_id != element_id )
+            return;
+        scenery->debug.draw_x = x;
+        scenery->debug.draw_y = y;
+        scenery->debug.draw_z = z;
+        scenery->debug.draw_yaw = yaw;
+        return;
+    }
+}
+
 static int
 scenery_load_model(
     struct WorldBuilder* builder,
@@ -592,16 +674,22 @@ scenery_load_model(
             config_loc->name,
             actions32,
             config_loc->is_interactive);
-        /* A runtime LOC_ADD_CHANGE spawn: the painter's static set is already
-         * baked, so flag this entry for per-frame painter re-registration
-         * (world_cycle) instead of relying on the build-time static registration
-         * below, which painter_reset_to_static truncates. */
-        if( pool_idx >= 0 && builder->scenery_runtime_spawn )
+        if( pool_idx >= 0 )
         {
             struct WorldEntity_Scenery* sc =
                 World_EntityPoolGet(&world->entities.scenery, pool_idx);
             if( sc )
-                sc->runtime_spawn = 1;
+            {
+                /* A runtime LOC_ADD_CHANGE spawn: the painter's static set is
+                 * already baked, so flag this entry for per-frame painter
+                 * re-registration (world_cycle) instead of relying on the
+                 * build-time static registration below, which
+                 * painter_reset_to_static truncates. */
+                if( builder->scenery_runtime_spawn )
+                    sc->runtime_spawn = 1;
+                scenery_debug_record(
+                    builder, sc, map_tile, config_loc, element_id, pool_idx, size_x, size_z);
+            }
         }
     }
 
@@ -646,6 +734,14 @@ scenery_element_position_init(
 
     ToriDraw_SceneElementSetPosition(
         builder->scene,
+        element_id,
+        scene_x * WORLD_TILE_SIZE + 64 * size_x,
+        heights.height_center,
+        scene_z * WORLD_TILE_SIZE + 64 * size_z,
+        yaw % 2048);
+
+    scenery_debug_note_position(
+        builder,
         element_id,
         scene_x * WORLD_TILE_SIZE + 64 * size_x,
         heights.height_center,

@@ -36,6 +36,11 @@ struct UITreeSceneBridge
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
 
+    /** Composited LIVE local-player model (real PLAYER_INFO appearance, worn
+     * equipment included); -1 until first built. Distinct from player_scene_id,
+     * which is the offline default avatar the design preview poses. */
+    int local_player_scene_id;
+
     /** Composited local-player chathead model; -1 until first built. */
     int player_head_scene_id;
 
@@ -59,6 +64,11 @@ struct UITreeSceneBridge
 
 /* Reserved scene model id for the composited local-player chathead. */
 #define UITREE_SCENE_PLAYER_HEAD_ID 0x40000002
+
+/* Reserved scene model id for the composited LIVE local-player body model
+ * (clientCode 328 widgets). Separate from UITREE_SCENE_PLAYER_MODEL_ID so a
+ * rebuild from the real appearance never clobbers the design preview's. */
+#define UITREE_SCENE_LOCAL_PLAYER_MODEL_ID 0x40000003
 
 /* Base of the reserved scene-model id range for composited NPC chatheads
  * (id = base | npc_id); distinct from cache model ids and the avatars above. */
@@ -151,6 +161,29 @@ int
 UITreeSceneBridge_BuildPlayerDesignModel(
     struct UITreeSceneBridge* bridge,
     int const kits[7],
+    int const colours[5],
+    int gender);
+
+/**
+ * (Re)build the LIVE local-player model from their real PLAYER_INFO appearance
+ * — the same slots/colours/gender the world entity is built from, so worn
+ * equipment is on it — and register it under
+ * UITREE_SCENE_LOCAL_PLAYER_MODEL_ID, freeing whatever composite was there.
+ *
+ * This is what a clientCode 328 model widget (the equipment-stats figure)
+ * draws. Unlike the design preview it is not cached: the caller rebuilds it
+ * whenever the appearance changes, which is what makes it live.
+ *
+ * `slots` is the 12-entry appearance array (0x100+kit / 0x200+obj, 0 = empty).
+ * Non-resident models are skipped, so a build attempted before the wear models
+ * have loaded comes out incomplete — retry until it looks right, or gate on the
+ * same loads the world entity does.
+ * Returns the scene model id, or -1 when nothing composited.
+ */
+int
+UITreeSceneBridge_BuildLocalPlayerModel(
+    struct UITreeSceneBridge* bridge,
+    int const slots[12],
     int const colours[5],
     int gender);
 

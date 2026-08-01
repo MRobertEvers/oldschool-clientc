@@ -2518,8 +2518,13 @@ exec_widget_set_int(
         break;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
         /* Sequence id for a model widget. The client tick driver loads the
-         * sequence and advances/applies frames to the model. -1 clears. */
-        if( node->type == UIELEM_RS_MODEL )
+         * sequence and advances/applies frames to the model. -1 clears.
+         *
+         * Re-setting the sequence already running leaves the frame counters
+         * alone, for the same reason UITree_ApplyModelAnim does: a script that
+         * re-states an unchanged anim (an onvartransmit hook re-running, say)
+         * must not restart the animation. */
+        if( node->type == UIELEM_RS_MODEL && node->u.rs_model.anim_seq_id != request.value )
         {
             node->u.rs_model.anim_seq_id = request.value;
             node->u.rs_model.anim_frame = 0;

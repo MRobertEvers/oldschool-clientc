@@ -793,9 +793,11 @@ too, and the reference really does keep those in the engine, so they stay.
 Consult the reference before deciding. The answer is in the source, not in
 intuition, and the two disagree often enough that intuition is not usable.
 
-### 8.2 The three failures this is written against
+### 8.2 The failures this is written against
 
-Each of these shipped, and each looked reasonable at the time.
+Each of these shipped, and each looked reasonable at the time. The first three
+are engine code that should have been content; (d) and (e) are the two ways a
+port goes wrong *after* the rule has moved.
 
 **(a) A string literal in C is a rule in the engine.** `mock230_combat.c` held
 `"You feel yourself getting stronger."` and the seq name `human_sword_slash`.
@@ -830,6 +832,43 @@ The generalisation, and it is the point of this section:
 
 `param` and `varp` are both `ids = server` now, for exactly this reason.
 
+**(d) Half a port leaves a gate nobody closes.** (2026-08-01.) Player death moved
+to `[queue,player_death]` correctly — the animation, the delay, the respawn
+coordinate and both messages all became script — and the engine kept one flag,
+`player->dying`, to stop a corpse acting. The comment beside it said the flag was
+cleared "by the script healing the player" and named the function that noticed.
+That function did not exist, and nothing else cleared it: a player who died once
+could never attack, be attacked or be engaged again for the rest of the session.
+
+The lesson is not "write the clear". It is that **moving a rule to content leaves
+the engine holding the other end of it**, and the other end needs a test that
+fails when it is dropped. Every check that shipped with the port passed — dying
+itself worked perfectly. What was missing was the assertion that a death *ends*.
+When a port hands something back to the engine, name it in a test the same day.
+
+**(e) Naming the constant you are duplicating does not stop it being a
+duplicate.** `MOCK230_LOOT_TICKS = 200` carried the comment "LostCity's
+`^lootdrop_duration`" while `drop_tables/configs/lootdrop.constant` stated
+`^lootdrop_duration = 200` three directories away. Content set the number for
+every script that dropped loot and the engine used its own copy for every drop it
+made itself, and the two agreed only because nobody had edited either. A comment
+citing the content value is evidence the value belongs in content — read it as a
+TODO, not as a justification. `mock230_ids()` resolves it now, beside the other
+`.constant` reads.
+
+**(f) A table of words is content even when it looks like a lookup.**
+`mock230_equipment.c` held all 23 skill names — `"Attack", "Defence", …` — under
+a comment explaining that only the *name* was needed and the ids still came from
+`pack/stat.pack`. That reads as a technicality and is (a): a game-facing string in
+C, twenty-three of them, so no tree could rename or translate a skill without a
+compiler. The pack states the symbols (`0=attack`) but not the display form,
+which is a real gap — and the answer to a gap in content is to fill it, not to
+keep a copy in the engine (§8.2(c) again). `general/configs/stat.enum` states the
+words, `[proc,stat_name]` reads them, and the engine passes the `stat` id, which
+is a first-class RuneScript type. The refusal reaching the player is now asserted
+off the wire in the selftest, because a chain like that is only as connected as
+its last link.
+
 ### 8.3 Server-allocated ids, and the two traps in them
 
 A server-allocated id is a real id in the client's number space, so:
@@ -848,7 +887,7 @@ A server-allocated id is a real id in the client's number space, so:
 
 ### 8.4 The checklist, before writing engine code
 
-Four questions. Any "yes" means stop and write content instead.
+Five questions. Any "yes" means stop and write content instead.
 
 1. Does the reference have a proc for this? → port the proc, not the field.
 2. Am I about to write a game-facing **string** in C? → `[proc,*_message]`.
@@ -857,6 +896,9 @@ Four questions. Any "yes" means stop and write content instead.
 4. Did the compiler reject a name and am I about to work around it? → check
    `content.ini` against `tools/ss_allocate.py`'s `SERVER_NAMESPACES`. If they
    disagree, the register is the bug.
+5. Am I about to spell a **script's name** in C? → dispatch a trigger instead,
+   and if the reference really does call a named proc, resolve the name once at
+   boot. See §8.6 — a literal at the call site is not a convention here.
 
 What legitimately stays in the engine is short: the tick clock, hitpoints and
 death bookkeeping, the accuracy/max-hit *rolls* (content supplies the inputs),
@@ -888,3 +930,75 @@ with no floor needed. Probe reverted; `--check` is clean.
 
 This was the prerequisite for the `%com_*` port
 (`[proc,player_combat_stat]`), which needs sixteen server varps.
+
+### 8.6 A script's name in C is hardcoding, not a convention
+
+Ten call sites used to spell a script's name as a C string literal:
+
+```
+mock230_combat.c      [proc,combat_levelup_message]  [proc,combat_defend_anim]
+                      [proc,player_melee_swing]      [proc,npc_meleeattack]
+                      [queue,player_death]
+mock230_equipment.c   [proc,equip_level_message]     [proc,equipment_refresh]
+                      [proc,equipment_open]
+mock230_prayer.c      [proc,prayer_deactivate_all]
+mock230_world.c       [proc,combat_weapon_type]
+```
+
+They accumulated one at a time, each as the last line of a port that had just
+done the right thing — the rule moved to RuneScript, and the call that reaches it
+stayed a literal. **That is debt, and this section exists so it is not mistaken
+for a settled convention.** The whole point of §8 is that the engine does not
+author content; a name is content's identifier, and the engine spelling one is
+the same category of mistake as the engine spelling an anim id.
+
+**The default is a trigger, not a name.** `mock230_scripts_run_trigger` already
+dispatches `[login,_]`, `[opnpc1..5,<npc>]`, `[ai_queue3,<npc>]` and the npc
+timers with no name in C at all: the engine names an *event* and content names
+itself, resolved through the provider's trigger table exactly as the reference
+does. Anything the engine invokes because something *happened* — a death, a
+level-up, a hit landing — is a trigger, and reaching for a proc name instead is
+usually a missing trigger rather than a necessary literal.
+
+**Where the reference genuinely calls a named proc** (`[proc,npc_meleeattack]`
+is one — content calls it too), the name is still content's, so it belongs in
+one table resolved at boot, beside `mock230_ids`. That file already states the
+rule for ids: *"the index files state the ids, the table below names the ones the
+engine needs, and `mock230_ids_resolve` fills it in once. Nothing downstream
+holds a literal."* Script hooks are the same problem and want the same answer —
+`struct Mock230SymbolRef` is the shape, and a missing hook then fails at boot
+with every other unresolved symbol.
+
+**Why boot-time and not at the call site: absence is silent.** Every one of these
+helpers treats an unknown name as "do nothing", by documented design —
+`mock230_scripts_queue_named`'s header says *"Absent script means do nothing,
+quietly"*, and `mock230_scripts_run_proc*` return 0 the same way. So renaming a
+script does not break the build, does not fail a test that does not exist yet,
+and does not log anything outside `--verbose`: it deletes a feature. The worst
+case in the list above is `[queue,player_death]`, where a typo means a player who
+dies is a corpse forever — which is the same end state as §8.2(d), reached from
+the other direction. Resolving names once, at boot, against the pack turns every
+one of these from a silent no-op into the loud failure a missing interface id
+already gets.
+
+**Landed 2026-08-01.** `struct Mock230Hooks` (mock230.h) holds the ten,
+`mock230_scripts_resolve_hooks` fills it from the pack at load time beside
+`mock230_scripts_report_gaps` — same reasoning, names instead of opcodes — and
+the engine calls through `mock230_scripts_run_hook*` / `mock230_scripts_queue_hook`,
+which take a resolved script. The by-name helpers stay for tests, because a test
+naming the script it tests is stating its subject.
+
+A miss now says so once, at boot:
+
+```
+mock230: engine hook [queue,player_deth] is not in the pack
+mock230: 1 engine hook(s) unresolved — the engine will fall back to doing nothing at each
+```
+
+Two properties are worth keeping if this is ever reworked. `mock230_scripts_free`
+zeroes the table, because the hooks point into the provider it just released.
+And a NULL hook is still a no-op rather than a crash — running without content is
+a supported mode; what changed is that it is no longer a *silent* one.
+
+Still by name, and the next thing to move: `mock230_say`'s seventeen message
+procs (`mock230_say(srv, "drop_message", …)`). Same class, and the same fix.

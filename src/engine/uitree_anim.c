@@ -5,6 +5,8 @@
 #include "toridraw_model.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static int
 tracker_has(struct SeqLoadTracker const* tracker, int seq_id)
@@ -88,7 +90,26 @@ UITreeAnim_Advance(
         /* Not registered: load still in flight — rest pose until it lands.
          * Registered but empty: the load task's unavailable sentinel — skip. */
         if( !anim || !anim->base || anim->frame_count <= 0 )
+        {
+            /* Silent by default and per-component under TORIRS_ANIM_DEBUG: a
+             * widget stuck in its rest pose looks identical whether its
+             * sequence is still loading, decoded to nothing, or is skeletal
+             * (no framemap for the frame animator to walk), and those three
+             * want different fixes. */
+            static int debug = -1;
+            if( debug < 0 )
+                debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
+            if( debug )
+                fprintf(
+                    stderr,
+                    "uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
+                    c->component_id,
+                    seq,
+                    (void*)anim,
+                    (void*)(anim ? anim->base : NULL),
+                    anim ? anim->frame_count : -1);
             continue;
+        }
 
         hnd = ToriDraw_SceneModelGet(scene, model_id);
         if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )

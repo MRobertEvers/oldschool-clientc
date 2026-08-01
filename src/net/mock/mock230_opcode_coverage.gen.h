@@ -10,9 +10,9 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    149  host commands
+ *    152  host commands
  *      7  host commands (db)
- *    219  total, of 398 declared opcodes
+ *    222  total, of 399 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -20,8 +20,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 219
-#define MOCK230_OPCODE_DECLARED_COUNT 398
+#define MOCK230_OPCODE_COVERAGE_COUNT 222
+#define MOCK230_OPCODE_DECLARED_COUNT 399
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -30,7 +30,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11002
+#define MOCK230_OPCODE_VALUE_LIMIT 11003
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -70,6 +70,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1004, /* SS_OP_INZONE (host commands) */
     1007, /* SS_OP_MAP_BLOCKED (host commands) */
     1008, /* SS_OP_MAP_CLOCK (host commands) */
+    1009, /* SS_OP_MAP_FINDSQUARE (host commands) */
     1013, /* SS_OP_MAP_MEMBERS (host commands) */
     1015, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
     1016, /* SS_OP_MOVECOORD (host commands) */
@@ -147,6 +148,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2519, /* SS_OP_NPC_FINDHERO (host commands) */
     2520, /* SS_OP_NPC_FINDNEXT (host commands) */
     2521, /* SS_OP_NPC_FINDUID (host commands) */
+    2522, /* SS_OP_NPC_GETMODE (host commands) */
     2528, /* SS_OP_NPC_NAME (host commands) */
     2529, /* SS_OP_NPC_PARAM (host commands) */
     2530, /* SS_OP_NPC_QUEUE (host commands) */
@@ -253,6 +255,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     10001, /* SS_OP_ERROR (host commands) */
     11000, /* SS_OP_IF_SETEVENTS (host commands) */
     11001, /* SS_OP_IF_OPENSUB (host commands) */
+    11002, /* SS_OP_RUNCLIENTSCRIPT_SS (host commands) */
 };
 
 #endif

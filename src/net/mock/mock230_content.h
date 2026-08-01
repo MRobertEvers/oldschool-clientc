@@ -250,6 +250,9 @@ enum Mock230HuntMode
     MOCK230_HUNT_AGGRESSIVE,
 };
 
+/** Waypoints one patrol route may carry. The reference's longest is ten. */
+#define MOCK230_NPC_PATROL_MAX 16
+
 struct Mock230NpcDef
 {
     int npc_id;
@@ -266,11 +269,24 @@ struct Mock230NpcDef
     int ranged;
 
     int respawnrate; /* ticks from despawn to respawn */
+    int death_delay; /* ticks the corpse lies there before it despawns */
     int wanderrange; /* 0 = stays put */
     int nomove;      /* moverestrict=nomove */
 
     enum Mock230HuntMode huntmode;
     int huntrange;
+    /**
+     * How far from its spawn tile this npc will follow a target — LostCity's
+     * `maxrange`, and its leash.
+     *
+     * The reference checks it in `Npc.targetWithinMaxRange` and drops the target
+     * the moment the check fails, which is what stops a monster following a
+     * player out of its area. Same default as the reference's NpcType: 7.
+     */
+    int maxrange;
+    /** LostCity `givechase=no`: this npc drops its target rather than following
+     *  it a single tile. Default yes, as the reference's NpcType has it. */
+    int givechase;
 
     /* Seeded from the cache's params, overridable with `param=`. */
     int bonus[MOCK230_PARAM_BONUS_COUNT];
@@ -288,6 +304,34 @@ struct Mock230NpcDef
      *  and the difference matters to the validator — a speaking npc inherits
      *  the engine's 10 hitpoints and is not a combat block. */
     int authored_combat;
+
+    /*
+     * Patrol route — LostCity's `defaultmode=patrol` plus `patrol1..patrolN`.
+     *
+     * A patrol is not a wander with a bigger radius. Hans walks a fixed ring
+     * round the castle grounds and pauses at one corner of it, which is what
+     * makes him findable: a wanderer of the same range is somewhere random in a
+     * hundred tiles. The reference spells each waypoint
+     * `<level>_<mapx>_<mapz>_<localx>_<localz>,<pause>`, so the absolute tile is
+     * `mapx * 64 + localx`.
+     *
+     * Sized at 16 because the reference's longest route is ten and a route long
+     * enough to need more is one an author should be splitting. Overflow is a
+     * content error, not a truncation.
+     */
+    struct
+    {
+        int x;
+        int z;
+        int level;
+        /** Ticks to stand still on arrival before moving to the next one. */
+        int pause;
+    } patrol[MOCK230_NPC_PATROL_MAX];
+    int patrol_count;
+    /** The mode an npc starts in and returns to. `MOCK230_NPCMODE_NONE` unless
+     *  the block says otherwise; a `wanderrange` still implies wander, which is
+     *  what every npc without a `defaultmode=` line gets. */
+    int defaultmode;
 };
 
 /** Definition for an npc type, or NULL when the content tree has no block for
@@ -297,7 +341,8 @@ const struct Mock230NpcDef*
 mock230_content_npc(int npc_id);
 
 /** Engine defaults, which are OpenRune's NpcCombatDef.DEFAULT: 10 hitpoints,
- *  4-tick attacks, 25-tick respawn, human unarmed animations. Never NULL. */
+ *  4-tick attacks, a 3-tick corpse, 25-tick respawn, human unarmed animations.
+ *  Never NULL. */
 const struct Mock230NpcDef*
 mock230_content_npc_default(void);
 

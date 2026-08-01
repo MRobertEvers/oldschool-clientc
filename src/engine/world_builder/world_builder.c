@@ -72,6 +72,11 @@ WorldBuilder_New(
     builder->cache = cache;
     builder->scene = scene;
     builder->varp = varp;
+    /* calloc leaves the debug ring at 0, which is a valid element id. */
+    for( int i = 0; i < (int)(sizeof(builder->scenery_dbg_element) /
+                              sizeof(builder->scenery_dbg_element[0]));
+         i++ )
+        builder->scenery_dbg_element[i] = -1;
     return builder;
 }
 

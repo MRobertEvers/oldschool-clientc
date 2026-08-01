@@ -82,6 +82,19 @@ struct Mock230Ids
     /** The floating panel, which is where the world map goes. */
     int com_gameframe_floater;
 
+    /*
+     * Where a chatbox dialogue mounts.
+     *
+     * The client's own clientscripts key off this exact component: the
+     * gameframe's on_sub_change hook runs script908, which reads
+     * `if_hassub(chatbox:chatmodal)` and, when something is mounted there,
+     * unhides the modal and hides `chatbox:chatdisplay` — the scrollback and
+     * the input line — behind it. So the server neither reveals the dialogue
+     * nor hides the chat: mounting here is the whole message, and mounting
+     * anywhere else produces a dialogue drawn on top of live chat text.
+     */
+    int com_chatbox_modal;
+
     /** The backpack's 28 cells hang off this one component, and an inventory op
      *  names it rather than a cell. */
     int com_inventory_items;
@@ -175,6 +188,10 @@ struct Mock230Ids
     int bank_qty_10;
     int bank_qty_x;
     int bank_qty_all;
+    /** Ticks a dropped obj stays on the floor — `^lootdrop_duration`, which
+     *  drop_tables/configs/lootdrop.constant has stated all along while
+     *  `MOCK230_LOOT_TICKS` said the same 200 in C beside it. */
+    int lootdrop_duration;
 };
 
 /** The table. Every field is -1 until mock230_ids_resolve has run. */

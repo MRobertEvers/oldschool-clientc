@@ -28,6 +28,7 @@
  * See gen_opcode_coverage.py for why it is generated. */
 #include "mock230_opcode_coverage.gen.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,7 +113,80 @@ mock230_scripts_load(
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
     mock230_scripts_report_gaps(srv);
+    /* Same reasoning, applied to names instead of opcodes — see the header on
+     * mock230_scripts_resolve_hooks. */
+    mock230_scripts_resolve_hooks(srv);
     return srv->scripts->loaded;
+}
+
+/* ------------------------------------------------------------------ */
+/* Engine hooks                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The scripts the engine starts, resolved at load time rather than at call time.
+ *
+ * Same argument as `mock230_scripts_report_gaps` above it, one level up: a name
+ * this tree does not define is a fact about the tree, and waiting for a player
+ * to trigger it is waiting for a silent no-op nobody attributes to a rename.
+ * `struct Mock230Hooks` has the rest of the reasoning.
+ *
+ * Missing is reported and left NULL — the run helpers treat a NULL hook exactly
+ * as they treated an absent name, so a tree that does not want a hook still
+ * runs. What changes is that it says so once, at boot, with every other
+ * unresolved symbol, instead of never.
+ */
+int
+mock230_scripts_resolve_hooks(struct Mock230Server* srv)
+{
+    /*
+     * `offsetof` into the hook table for the same reason `mock230_servercodec.c`
+     * uses it: a row is `name -> field`, and writing this as a switch or as ten
+     * assignments is how a name comes to be resolved into the wrong field. The
+     * struct is all one pointer type, so the offsets are uniform.
+     */
+    static const struct
+    {
+        const char* name;
+        size_t offset;
+    } k_hooks[] = {
+#define HOOK(field, script_name) { script_name, offsetof(struct Mock230Hooks, field) }
+        HOOK(player_death, "[queue,player_death]"),
+        HOOK(combat_defend_anim, "[proc,combat_defend_anim]"),
+        HOOK(combat_levelup_message, "[proc,combat_levelup_message]"),
+        HOOK(player_melee_swing, "[proc,player_melee_swing]"),
+        HOOK(npc_meleeattack, "[proc,npc_meleeattack]"),
+        HOOK(combat_weapon_type, "[proc,combat_weapon_type]"),
+        HOOK(equip_level_message, "[proc,equip_level_message]"),
+        HOOK(equipment_refresh, "[proc,equipment_refresh]"),
+        HOOK(equipment_open, "[proc,equipment_open]"),
+        HOOK(prayer_deactivate_all, "[proc,prayer_deactivate_all]"),
+#undef HOOK
+    };
+    int missing = 0;
+
+    memset(&srv->hooks, 0, sizeof(srv->hooks));
+    if( !srv->scripts_ok )
+        return (int)(sizeof(k_hooks) / sizeof(k_hooks[0]));
+
+    for( size_t i = 0; i < sizeof(k_hooks) / sizeof(k_hooks[0]); i++ )
+    {
+        const struct SSVM_Script* script =
+            SSVM_ProviderGetByName(srv->scripts, k_hooks[i].name);
+
+        memcpy((char*)&srv->hooks + k_hooks[i].offset, &script, sizeof(script));
+        if( !script )
+        {
+            fprintf(stderr, "mock230: engine hook %s is not in the pack\n", k_hooks[i].name);
+            missing++;
+        }
+    }
+    if( missing )
+        fprintf(stderr,
+                "mock230: %d engine hook(s) unresolved — the engine will fall back to "
+                "doing nothing at each\n",
+                missing);
+    return missing;
 }
 
 /* ------------------------------------------------------------------ */
@@ -535,6 +609,30 @@ mock230_scripts_resume_button(
 }
 
 int
+mock230_scripts_close_dialogue(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+    struct SSVM_State* state;
+
+    if( !srv || !srv->player )
+        return 0;
+    player = srv->player;
+    state = player->active_script;
+    if( !state )
+        return 0;
+    if( state->execution != SSVM_PAUSEBUTTON && state->execution != SSVM_COUNTDIALOG )
+        return 0;
+
+    /* The conversation ends here rather than resuming: the script's next
+     * statement is whatever followed the ~chatnpc, and running it after the
+     * player has walked off would put the *rest* of the dialogue on screen one
+     * page at a time with nobody to talk to. */
+    release_parked(srv, state);
+    player->resume_button_count = 0;
+    return 1;
+}
+
+int
 mock230_scripts_run_script(
     struct Mock230Server* srv,
     int script_id)
@@ -560,6 +658,41 @@ mock230_scripts_run_script(
  * fallback rule the rest of this file follows.
  */
 int
+mock230_scripts_run_hook_sv(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc)
+{
+    struct SSVM_State* state;
+
+    /* NULL is an unresolved hook, which `mock230_scripts_resolve_hooks` has
+     * already named at boot. Doing nothing here is the same fallback an absent
+     * name got, minus the silence. */
+    if( !srv->scripts_ok || !script )
+        return 0;
+
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    return run_or_park(srv, state);
+}
+
+/*
+ * The by-name form, which is for tests.
+ *
+ * A test naming the script it tests is stating its subject; the engine naming
+ * one is authoring content (§8.6). So the lookup lives here rather than at the
+ * call sites, and the engine goes through `srv->hooks`.
+ */
+int
 mock230_scripts_run_proc_sv(
     struct Mock230Server* srv,
     const char* name,
@@ -569,7 +702,6 @@ mock230_scripts_run_proc_sv(
     int strc)
 {
     const struct SSVM_Script* script;
-    struct SSVM_State* state;
 
     if( !srv->scripts_ok )
         return 0;
@@ -580,16 +712,7 @@ mock230_scripts_run_proc_sv(
             printf("mock230: no %s — engine fallback\n", name);
         return 0;
     }
-
-    state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
-    if( !state )
-    {
-        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", name, argc);
-        return 0;
-    }
-    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
-    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    return run_or_park(srv, state);
+    return mock230_scripts_run_hook_sv(srv, script, args, argc, strv, strc);
 }
 
 /*
@@ -612,6 +735,17 @@ mock230_scripts_run_proc(
     return mock230_scripts_run_proc_sv(srv, name, args, argc, NULL, 0);
 }
 
+/** The engine's form of the same call: a resolved hook, no name. */
+int
+mock230_scripts_run_hook(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc)
+{
+    return mock230_scripts_run_hook_sv(srv, script, args, argc, NULL, 0);
+}
+
 /*
  * Run a named content proc and read one int back.
  *
@@ -630,33 +764,25 @@ mock230_scripts_run_proc(
  * Returns 1 and writes *out when the proc answered; 0 otherwise.
  */
 int
-mock230_scripts_run_proc_int_sv(
+mock230_scripts_run_hook_int_sv(
     struct Mock230Server* srv,
-    const char* name,
+    const struct SSVM_Script* script,
     const int32_t* args,
     int argc,
     const char* const* strv,
     int strc,
     int32_t* out)
 {
-    const struct SSVM_Script* script;
     struct SSVM_State* state;
     enum SSVM_Exec status;
 
-    if( !srv->scripts_ok || !out )
+    if( !srv->scripts_ok || !out || !script )
         return 0;
-    script = SSVM_ProviderGetByName(srv->scripts, name);
-    if( !script )
-    {
-        if( srv->verbose )
-            printf("mock230: no %s — engine fallback\n", name);
-        return 0;
-    }
 
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
     if( !state )
     {
-        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", name, argc);
+        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->player);
@@ -675,6 +801,31 @@ mock230_scripts_run_proc_int_sv(
     return 1;
 }
 
+/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+int
+mock230_scripts_run_proc_int_sv(
+    struct Mock230Server* srv,
+    const char* name,
+    const int32_t* args,
+    int argc,
+    const char* const* strv,
+    int strc,
+    int32_t* out)
+{
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — engine fallback\n", name);
+        return 0;
+    }
+    return mock230_scripts_run_hook_int_sv(srv, script, args, argc, strv, strc, out);
+}
+
 /** The int-only form. See mock230_scripts_run_proc for why the string half
  *  exists at all. */
 int
@@ -688,39 +839,45 @@ mock230_scripts_run_proc_int(
     return mock230_scripts_run_proc_int_sv(srv, name, args, argc, NULL, 0, out);
 }
 
+/** The engine's form: a resolved hook that answers with one int. */
+int
+mock230_scripts_run_hook_int(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    const int32_t* args,
+    int argc,
+    int32_t* out)
+{
+    return mock230_scripts_run_hook_int_sv(srv, script, args, argc, NULL, 0, out);
+}
+
 /*
- * Put a named queue script on the player's queue from the engine side.
+ * Put a queue script on the player's queue from the engine side.
  *
  * `queue(...)` is a ServerScript op, so content can already do this; what this
  * adds is the engine being able to *start* the exchange. Auto-retaliate is the
  * case that needs it: the npc's swing happens in C, and the response is
  * content.
  *
- * Absent script means do nothing, quietly. That is the documented fallback for
- * this server — a missing script leaves the call site doing what it did before
- * scripts existed, which here is "the player does not retaliate". Under
- * MOCK230_VERBOSE it says so, because a silent nothing is exactly how a
- * mistyped script name hides.
+ * An unresolved hook queues nothing. That used to be an *absent name*, silent
+ * except under MOCK230_VERBOSE, and it was described here as the documented
+ * fallback for this server — which it should not have been. A queue that never
+ * fires is not a graceful degradation when the queue is `[queue,player_death]`:
+ * it is a player who dies and stays a corpse. The name is resolved at load now
+ * (`mock230_scripts_resolve_hooks`), so the miss is reported once, at boot,
+ * whether or not anyone dies afterwards.
  */
 int
-mock230_scripts_queue_named(
+mock230_scripts_queue_hook(
     struct Mock230Server* srv,
-    const char* name,
+    const struct SSVM_Script* script,
     int delay,
     int32_t arg)
 {
-    const struct SSVM_Script* script;
     struct Mock230Player* player;
 
-    if( !srv->scripts_ok )
+    if( !srv->scripts_ok || !script )
         return 0;
-    script = SSVM_ProviderGetByName(srv->scripts, name);
-    if( !script )
-    {
-        if( srv->verbose )
-            printf("mock230: no %s — nothing queued\n", name);
-        return 0;
-    }
 
     player = srv->player;
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
@@ -736,6 +893,28 @@ mock230_scripts_queue_named(
         return 1;
     }
     return 0;
+}
+
+/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+int
+mock230_scripts_queue_named(
+    struct Mock230Server* srv,
+    const char* name,
+    int delay,
+    int32_t arg)
+{
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — nothing queued\n", name);
+        return 0;
+    }
+    return mock230_scripts_queue_hook(srv, script, delay, arg);
 }
 
 int
@@ -797,10 +976,18 @@ mock230_scripts_run_if_button_named(
 
     component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
     if( !component )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: if_button %d:%d has no component name\n", uid >> 16,
+                    uid & 0xffff);
         return 0;
+    }
 
     snprintf(name, sizeof(name), "[if_button,%s]", component);
     script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( srv->verbose )
+        fprintf(stderr, "mock230: if_button named lookup `%s` -> %s\n", name,
+                script ? "found" : "missing");
     if( !script )
         return 0;
 
@@ -1057,7 +1244,7 @@ mock230_script_command(
             mock230_send_message(srv, line);
         }
         /* Facing the player is real and does render, so keep it. */
-        npc->face_entity = MOCK230_PLAYER_TERMINATOR;
+        npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
         npc->masks |= MOCK230_NMASK_FACE_ENTITY;
         return 1;
     }
@@ -1113,6 +1300,102 @@ mock230_script_command(
         player->place_dirty = 1;
         player->step_count = 0;
         player->step_head = 0;
+        return 1;
+    }
+
+    /*
+     * `map_findsquare(coord, minrange, maxrange, mode)` — a random walkable
+     * tile in an annulus around `coord`.
+     *
+     * The reference's own use is what fixes the shape: an imp picks a tile
+     * `map_findsquare(npc_coord, 0, 20, ^map_findsquare_none)` and teleports to
+     * it, which is why an imp is never where you left it. Rejection sampling
+     * over the box, because the alternative — enumerate every legal tile and
+     * pick one — is 1,681 collision reads for a radius of 20 and this runs
+     * inside a per-npc timer.
+     *
+     * `mode` is `lineofwalk` / `lineofsight` / `none`, and only `none` is
+     * honoured: the other two require a reachability test from the source tile,
+     * which this server has no cheap form of. Rather than silently treating
+     * them as `none` — a monster teleporting through a wall, occasionally, for
+     * no visible reason — an unsupported mode reports and falls back, so the
+     * gap is in the log rather than in the world.
+     *
+     * Failure returns the *source* coord, not -1. The reference's callers
+     * assign the result straight into `npc_tele`, so a sentinel would teleport
+     * the npc to coordinate -1; standing still is what "no square found" has to
+     * look like.
+     */
+    case SS_OP_MAP_FINDSQUARE:
+    {
+        int32_t values[4];
+        int origin_x;
+        int origin_z;
+        int level;
+        int min_range;
+        int max_range;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        level = coord_level(values[0]);
+        origin_x = coord_x(values[0]);
+        origin_z = coord_z(values[0]);
+        min_range = values[1] < 0 ? 0 : values[1];
+        max_range = values[2] < min_range ? min_range : values[2];
+
+        if( values[3] != 2 /* ^map_findsquare_none */ && srv->verbose )
+            fprintf(stderr,
+                    "mock230: map_findsquare mode %d is not implemented — using `none`\n",
+                    values[3]);
+
+        {
+            int found = values[0];
+
+            for( int attempt = 0; attempt < 64; attempt++ )
+            {
+                int dx = mock230_random(srv, -max_range, max_range);
+                int dz = mock230_random(srv, -max_range, max_range);
+                int x = origin_x + dx;
+                int z = origin_z + dz;
+                int adx = dx < 0 ? -dx : dx;
+                int adz = dz < 0 ? -dz : dz;
+
+                if( (adx > adz ? adx : adz) < min_range )
+                    continue;
+                if( !mock230_scene_contains(x, z) )
+                    continue;
+                if( mock230_scene_walk_blocked(level, x, z) )
+                    continue;
+                found = coord_pack(level, x, z);
+                break;
+            }
+            SSVM_PushInt(state, found);
+        }
+        return 1;
+    }
+
+    /*
+     * `npc_getmode` — the standing mode phase 4 is running for this npc.
+     *
+     * The setter has been here since npc modes landed; the getter had not, and
+     * content branches on it (`npc_getmode = opplayer2` gates the imp's
+     * teleport sound). Reading a mode the engine cannot report makes the branch
+     * always-false, which for a sound is invisible and for a guard is a
+     * behaviour that silently never happens.
+     */
+    case SS_OP_NPC_GETMODE:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_getmode with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, npc->mode);
         return 1;
     }
 
@@ -1409,6 +1692,12 @@ mock230_script_command(
          */
         player->varps[varp] = value;
         mock230_world_mark_varp(player, varp);
+        /* And whatever engine state hangs off this varp. Writing the array and
+         * marking it for transmission is only *reporting* the change; a varp
+         * like `option_run` is where a piece of engine state actually lives,
+         * and skipping this is how the run orb came to light up while the
+         * player kept walking. */
+        mock230_world_varp_written(srv, varp, value);
         return 1;
     }
 
@@ -2448,9 +2737,11 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        player->anim_id = values[0];
-        player->anim_delay = values[1];
-        player->masks |= MOCK230_PMASK_SEQUENCE;
+        /* Through the gate, exactly like the engine's own animations — the
+         * reference routes `anim` through `playAnimation` too, so a script that
+         * plays a low-priority emote cannot cut off a swing already queued this
+         * tick. */
+        mock230_anim_play_player(player, values[0], values[1]);
         return 1;
     }
 
@@ -2469,9 +2760,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_anim with no active npc");
             return 1;
         }
-        npc->anim_id = values[0];
-        npc->anim_delay = values[1];
-        npc->masks |= MOCK230_NMASK_ANIM;
+        mock230_anim_play_npc(npc, values[0], values[1]);
         return 1;
     }
 
@@ -2639,15 +2928,19 @@ mock230_script_command(
     case SS_OP_IF_OPENCHAT:
     {
         int32_t group;
+        int slot = mock230_ids()->com_chatbox_modal;
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        /* Two packets, not one. 162:559 ships hidden=1, so mounting into
-         * 162:561 alone produces a dialogue that is built correctly and never
-         * drawn — which looks exactly like the mount having failed. */
-        mock230_send_if_sethide(srv, MOCK230_CHAT_CONTAINER_UID, 0);
-        mock230_send_if_opensub(srv, MOCK230_CHAT_SLOT_UID >> 16,
-                                MOCK230_CHAT_SLOT_UID & 0xffff, group, 0);
+        /*
+         * One packet. `chatbox:chatmodal` ships hidden=1, but unhiding it is
+         * the *client's* job, not the server's: mounting a sub-interface into
+         * it fires the gameframe's on_sub_change hook, and script908 both
+         * unhides the modal and hides `chatbox:chatdisplay` behind it. See
+         * Mock230Ids.com_chatbox_modal.
+         */
+        mock230_send_if_opensub(srv, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot),
+                                group, 0);
         return 1;
     }
 
@@ -2703,10 +2996,31 @@ mock230_script_command(
     }
 
     case SS_OP_IF_CLOSE:
-        mock230_send_if_closesub(srv, MOCK230_CHAT_SLOT_UID);
-        mock230_send_if_sethide(srv, MOCK230_CHAT_CONTAINER_UID, 1);
+        /* Unmounting is the whole message: the same on_sub_change hook that
+         * hid `chatbox:chatdisplay` on the way in brings it back when the
+         * modal has no sub again (script908's else branch). */
+        mock230_send_if_closesub(srv, mock230_ids()->com_chatbox_modal);
         player->resume_button_count = 0;
         return 1;
+
+    /*
+     * `runclientscript_ss(clientscript, string, string)` — see the opcode's
+     * entry in gen_opcode_meta.py for why it exists.
+     *
+     * Arguments are popped in reverse, as every RuneScript command does, and
+     * handed to the encoder in declaration order.
+     */
+    case SS_OP_RUNCLIENTSCRIPT_SS:
+    {
+        const char* argv[2];
+        int32_t script_id;
+
+        if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
+            !SSVM_PopInt(state, &script_id) )
+            return 1;
+        mock230_send_run_clientscript_mixed(srv, (int)script_id, "ss", NULL, argv, 2);
+        return 1;
+    }
 
     case SS_OP_IF_ADDRESUMEBUTTON:
     {
@@ -2716,12 +3030,21 @@ mock230_script_command(
             return 1;
         if( player->resume_button_count < MOCK230_RESUME_BUTTON_MAX )
             player->resume_buttons[player->resume_button_count++] = uid;
-        /* Registering the button server-side is only half of it: at rev 230
+        /*
+         * Registering the button server-side is only half of it: at rev 230
          * nothing is clickable until the server says so, so the component's
          * events have to be enabled too or the player looks at a live-looking
-         * prompt that swallows every click. Slot 0..0 with the click bit is
-         * what a plain (non-grid) component needs. */
-        mock230_send_if_setevents(srv, uid, 0, 0, MOCK230_EVENT_CLICK);
+         * prompt that swallows every click.
+         *
+         * The slot range covers dynamic children, not just 0. A resume button
+         * on a *container* is the multi-choice dialogue: `chatmenu:options` has
+         * no rows of its own, and the five the clientscript `cc_create`s carry
+         * sub-ids 1..5. Arming 0..0 arms the empty container and none of the
+         * rows, which is the same looks-right-does-nothing failure this call
+         * exists to prevent. A plain component has no sub-ids, so the wider
+         * range costs it nothing.
+         */
+        mock230_send_if_setevents(srv, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
         return 1;
     }
 
@@ -2792,15 +3115,28 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * healenergy(amount) — run energy, in the hundredths-of-a-percent unit the
+     * whole energy system is written in, so the reference's `healenergy(10000)`
+     * is a full bar.
+     *
+     * It restored *hitpoints* here, which is a different resource and, worse, a
+     * silent one: `[queue,player_death]` calls `healenergy` right after
+     * `stat_heal(hitpoints, 99, 100)`, so the wrong op was covered by the right
+     * one on the only path that runs it. Content asking for energy got health,
+     * and nothing anywhere said so.
+     */
     case SS_OP_HEALENERGY:
     {
         int32_t amount;
 
         if( !SSVM_PopInt(state, &amount) )
             return 1;
-        player->hitpoints += amount;
-        if( player->hitpoints > player->max_hitpoints )
-            player->hitpoints = player->max_hitpoints;
+        player->run_energy += amount;
+        if( player->run_energy > MOCK230_RUN_ENERGY_MAX )
+            player->run_energy = MOCK230_RUN_ENERGY_MAX;
+        if( player->run_energy < 0 )
+            player->run_energy = 0;
         return 1;
     }
 
@@ -2816,8 +3152,22 @@ mock230_script_command(
         return 1;
 
     case SS_OP_NPC_ATTACKRANGE:
-        SSVM_PushInt(state, MOCK230_ATTACK_RANGE);
+    {
+        /* The active npc's own reach, off its record — `param=attackrange,N` in
+         * a .npc block, defaulting to the melee 1. It answered a C constant
+         * before, so a ranged npc's script asked how far it could shoot and was
+         * told "one tile" no matter what its config said. */
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_attackrange with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, npc->def ? npc->def->attackrange
+                                     : mock230_content_npc_default()->attackrange);
         return 1;
+    }
 
     /* ---- waiting -------------------------------------------------- */
 
@@ -3961,23 +4311,15 @@ mock230_say(
  * Both are needed — see mock230_scripts_run_trigger, which does the same pair.
  */
 int
-mock230_scripts_run_proc_on_npc(
+mock230_scripts_run_hook_on_npc(
     struct Mock230Server* srv,
-    const char* name,
+    const struct SSVM_Script* script,
     int npc_slot)
 {
-    const struct SSVM_Script* script;
     struct SSVM_State* state;
 
-    if( !srv->scripts_ok )
+    if( !srv->scripts_ok || !script )
         return 0;
-    script = SSVM_ProviderGetByName(srv->scripts, name);
-    if( !script )
-    {
-        if( srv->verbose )
-            printf("mock230: no %s — engine fallback\n", name);
-        return 0;
-    }
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
     if( !state )
         return 0;
@@ -3989,4 +4331,25 @@ mock230_scripts_run_proc_on_npc(
         state->host_tag = npc_slot + 1;
     }
     return run_or_park(srv, state);
+}
+
+/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+int
+mock230_scripts_run_proc_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot)
+{
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            printf("mock230: no %s — engine fallback\n", name);
+        return 0;
+    }
+    return mock230_scripts_run_hook_on_npc(srv, script, npc_slot);
 }

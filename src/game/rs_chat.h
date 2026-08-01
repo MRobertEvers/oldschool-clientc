@@ -89,6 +89,21 @@ struct RS_ChatFilters
 void
 RS_Chat_Init(struct RS_Chat* chat, char const* username);
 
+/**
+ * Does this message occupy a chat line under the current filters?
+ *
+ * The reference only advances its line counter for messages that pass, so this
+ * is the one definition of "visible" and both renderers have to share it — the
+ * 254 surface path (`RS_Chat_BuildView`) and the 230 widget path
+ * (`RS_ChatWidgets_Apply`). Two copies would disagree the first time a filter
+ * mode gained a case, and the disagreement would show up as a chat line that is
+ * counted for the scrollbar but never drawn.
+ */
+int
+RS_Chat_MessagePasses(
+    struct RS_ChatFilters const* filters,
+    struct RS_ChatMessage const* message);
+
 void
 RS_Chat_AddMessage(
     struct RS_Chat* chat,

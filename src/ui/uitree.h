@@ -87,6 +87,19 @@ enum UITreeComponentType
  */
 enum
 {
+    /** Character-design preview (dat1 3559:3650). The reference poses the
+     *  composite once at readyanim frame 0 and only spins modelYAn after —
+     *  a still by design, and rebuilt by the design screen's own edits. */
+    UITREE_CLIENT_CODE_DESIGN_PREVIEW = 327,
+    /** The LIVE local player (dat2 84:4, the equipment-stats figure). Not the
+     *  design preview's static composite: it is the player's real PLAYER_INFO
+     *  appearance, worn equipment included, rebuilt whenever that changes, and
+     *  posed from the entity's own movement track. Shares 327's viewing angles
+     *  (xAn 150, yAn = sin(cycle/40)*256) — 84:4 ships (0,0,0) and the client
+     *  overrides. Bound in app.c (app_player_model_poll) because only the app
+     *  can reach the world entity; 327 gets its angles from RS_ClientCode_Tick,
+     *  which is CS1-only and so cannot serve this one. */
+    UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL = 328,
     UITREE_CLIENT_CODE_CONTENT_WORLD = 1337,
     UITREE_CLIENT_CODE_CONTENT_MINIMAP = 1338,
     UITREE_CLIENT_CODE_CONTENT_COMPASS = 1339,
@@ -1213,7 +1226,8 @@ UITree_ApplyModelAngle(
     int zoom);
 
 /** Set a MODEL widget's animation sequence (reference IF_SETANIM / modelAnim);
- * -1 clears it. Resets the frame counters so playback restarts. */
+ * -1 clears it. Restarts playback only when the sequence actually changes —
+ * re-applying the one already running must not reset the frame counters. */
 bool
 UITree_ApplyModelAnim(
     struct UITree* tree,

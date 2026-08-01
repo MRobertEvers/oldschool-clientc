@@ -4222,3 +4222,59 @@ clamps to 128, yaw resolves to 98, and shake axes 0–2 are live: Kronos'
 reproduced exactly. The trace starts and stops well inside the run, so
 `cam_reset` hands the view back to the follow camera; the frame after the
 cutscene is an ordinary orbit shot.
+
+## 55. A chat dialogue drew over live chat text, and its chathead never moved — ✅
+
+Two symptoms in the rev-230 chatbox, one screenshot apart, with unrelated
+causes.
+
+**The dialogue was mounted into the wrong component.** `~chatnpc` opened
+interface 231 into `162:561` after unhiding `162:559`, and both ids had been
+picked by matching 231's `506x129` root against a layer of the same size. The
+content tree names them: `559` is `chatscrollbar`, and `560`/`561` are
+`chatcrm`/`crmspace` — the Jagex announcement popup. The real slot is
+`chatbox:chatmodal` (`162:567`), and it is not a matter of taste, because the
+cache's own clientscripts key off that exact component. The gameframe's
+`on_sub_change` hook (`161:0` → script903) runs script908:
+
+```
+if (if_hassub(chatbox:chatmodal) = true) {
+    if_sethide(false, chatbox:chatmodal);
+    if_sethide(true,  chatbox:chatoverlay);
+    if_sethide(true,  chatbox:chatcrm);
+    if_sethide(true,  chatbox:chatdisplay);
+} else { ...chatdisplay and chatcrm back... }
+```
+
+`chatdisplay` is the scrollback *and* the `name: *` input line, so mounting
+anywhere else meant nothing ever told the chatbox to stand down: the dialogue
+rendered correctly with five lines of chat and the input caret drawn straight
+through it. Mounting into the modal instead deletes both server-side hide
+packets — the open is one `IF_OPENSUB`, the close is one `IF_CLOSESUB`, and the
+client's own script does the rest, in both directions. The slot is now resolved
+by name (`chatbox:chatmodal` → `Mock230Ids.com_chatbox_modal`) rather than
+written as a literal, which is what would have caught it the first time.
+
+**The chathead froze on frame 0.** `app_if_head_poll` rebinds a chathead's
+model *and* its `IF_SETANIM` sequence whenever the tree generation moves, and a
+rev-230 gameframe bumps the generation on nearly every tick (its clientscripts
+`cc_create`/`cc_deleteall` the chat lines). `UITree_ApplyModelAnim` reset
+`anim_frame`/`anim_frame_cycle` unconditionally, so each tick the animator
+advanced the head one step and the poll put it straight back. The reference's
+`IF_SETANIM` writes `IfType.modelAnim` and nothing else — `animFrame` is the
+animator's own state — so the reset now happens only when the sequence actually
+changes, which is still the sane reading of "play this instead".
+
+Nothing reported either failure: every packet was correct, every mount
+succeeded, and `TORIRS_ANIM_DEBUG`'s `anim_tick` line showed a chathead with a
+loaded sequence sitting on `frame=0` forever. `UITreeAnim_Advance` now says why
+it skipped a widget under that flag (still loading vs. decoded to nothing vs.
+skeletal), which is the one distinction a rest-pose model cannot show you.
+
+Verified headless against `src/build/mock230` (`::talk <slot> 1`, which is
+Hans' four-page conversation — npc, player, npc, player — so it exercises
+repeated mounts of two different groups into the same slot). The chat area is
+the dialogue and nothing else on every page; both the npc chathead (231:2) and
+the player chathead (217:2) animate, ~2.5k pixels of the head box changing
+between consecutive client ticks; and after `if_close` the scrollback, the
+filter tabs and the input line come back.

@@ -136,7 +136,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	game/rs_hitsplat.c engine/dat2/task_dat2_hitsplat_load.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
-	game/rs_chat.c game/rs_gameproto_exec.c \
+	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
@@ -721,6 +721,14 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c
 	./$(OBJ_DIR)/uitree_test
+
+# The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
+test-chat-widgets: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
+		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c \
+		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		game/test/rs_chat_widgets_test.c -lm
+	./$(OBJ_DIR)/chat_widgets_test
 
 # Widget-rebuild burst benchmark (cc_deleteall + a run of cc_create). Always
 # optimized — the point is the algorithm, not -O0 call overhead. Override the

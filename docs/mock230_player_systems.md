@@ -292,9 +292,15 @@ click lights the orb, and the percent falls and recovers.
 
 Interface **84**, reached from "View equipment stats" (387:1) on the worn tab.
 
-Nothing about it is client-side. OldSchool's client draws eighteen empty text
-components and waits, which is why the screen looks broken rather than empty
-when a server forgets. The component ids were read out of the cache directly:
+Nothing about it is client-side *except the figure* — 84:4 is a MODEL widget
+with `clientCode = 328`, which names the local player, and the client composites
+it from the appearance it already has. See
+[`equipment_if3_rendering.md`](equipment_if3_rendering.md#the-equipment-stats-figure-844-clientcode-328);
+it used to draw a frozen default avatar.
+
+Everything else on the screen is the server's. OldSchool's client draws eighteen
+empty text components and waits, which is why the screen looks broken rather
+than empty when a server forgets. The component ids were read out of the cache directly:
 
 ```
 tools/dump_interface/dump_interface cache.osrs230 --iface 84
@@ -318,20 +324,43 @@ Column order is load-bearing: 24/25/26 sit at x=343 and 27/28 at x=424, so the
 five attack rows read Stab/Slash/Crush down the left and Magic/Ranged down the
 right — not five in a column.
 
-The numbers are summed from the same obj params `mock230_combat` rolls against
-(`mock230_equipment_bonus`), so the screen cannot disagree with the fight. The
-weapon speed is the weapon's own `attackrate` param, likewise.
+**The screen is content, not C.**
+`server/scripts/interface_equipment/scripts/equipment.rs2` owns the mount, the
+eighteen component names, the labels, the "+0" convention, the column order and
+the tick-to-seconds conversion — every one of those being a wording or a layout
+decision. The engine's remaining share is three functions in
+`mock230_equipment.c`, none of which names a component: when to repaint, the way
+in for the `::equipstats` cheat, and the wearability gate.
+
+That move deleted a second sum over the worn container. `mock230_equipment_bonus`
+existed only for this screen, beside the one the fight already rolls against;
+`~equipment_refresh` now calls `~equip_get_bonuses` (skill_combat/combat_stats.rs2),
+so there is one, and the screen cannot disagree with the fight. The weapon speed
+is the weapon's own `attackrate` param, likewise.
 
 The screen refreshes on any tick that dirtied the worn container, not the next
 time it is opened — a bonus screen still showing the sword you just took off is
-worse than one showing nothing.
+worse than one showing nothing. The gate is `mainmodal_group`, the record the
+IF_OPENSUB / IF_CLOSESUB encoders keep of what is mounted, rather than a flag of
+the screen's own: the old `equip_stats_open` bool had three places clearing it
+and one setting it.
+
+The mount, the eighteen rows, the "+0" wording and the gate are asserted in the
+`the equipment screen is content's` section of `--selftest`, off the captured
+wire.
 
 ### Honest gaps
 
-- **Ranged strength, magic damage, undead and slayer read +0.** Ranged strength
-  lives at cache param 189, outside the contiguous 0..11 bonus block that
-  `mock230_objinfo` reads; the target multipliers need per-item unlock data the
-  mock has none of. OpenRune's own screen prints "TODO" for the last three.
+- **Magic damage, undead and slayer read +0.** Magic damage is cache param 300
+  and a percentage of unverified scale; the target multipliers need per-item
+  unlock data the mock has none of. OpenRune's own screen prints "TODO" for all
+  three.
+- **Ranged strength now reads for real.** It is cache param 189, outside the
+  contiguous 0..11 bonus block `mock230_objinfo` projects into `bonus[]` — which
+  is why it printed +0 while the screen summed that array. `oc_param` reads the
+  general per-record param table and has no such limit, and
+  `~equip_get_bonuses` was already summing `rangebonus` for the combat block, so
+  the number was in hand the whole time.
 - **No side panel.** OpenRune also mounts interface 85 in the side slot. 85 is
   one bare 162×248 layer: the backpack appears in it only because the server
   runs the client's `interface_inv_init` script at it, and that is a

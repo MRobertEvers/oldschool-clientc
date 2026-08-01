@@ -10,6 +10,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "game/rs_chat_widgets.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_entity_sync.h"
@@ -145,6 +146,10 @@ struct AppConfig
      *  the BootManifest. NULL/0 = none. */
     struct BootManifestVarcSeed const* varc_seeds;
     int varc_seed_count;
+    /** `[ui:chatbox]` — where this revision's chat lines live, when the chatbox
+     *  is widgets rather than a surface. See rs_chat_widgets.h. Zeroed (and so
+     *  disabled) for every revconfig-chrome revision. */
+    struct RS_ChatWidgetLayout chatbox;
     /** --connect target "host[:port]". NULL/"" = offline (no networking). */
     char const* connect_target;
     char const* connect_user;
@@ -395,6 +400,20 @@ struct App
     }* if_heads;
     int if_head_count;
     int if_head_cap;
+
+    /* Live local-player model widgets (clientCode 328 — the equipment-stats
+     * figure). The composite is rebuilt from the local player's PLAYER_INFO
+     * appearance whenever any of it moves, which is the whole point: equip a
+     * helmet and the figure is wearing it. The last-built appearance is kept
+     * here so an unchanged one is not re-merged every frame; the angles and the
+     * animation frame are re-derived unconditionally (app_player_model_poll). */
+    struct
+    {
+        int slots[12];
+        int colors[5];
+        int gender;
+        int built; /* 0 until the first successful composite */
+    } player_model;
     int world_mouse_in_viewport;
     int world_mouse_x; /* last input mouse, canvas coords */
     int world_mouse_y;

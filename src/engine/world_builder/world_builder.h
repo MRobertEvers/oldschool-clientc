@@ -44,6 +44,15 @@ struct WorldBuilder
      *  flags the resulting pool entry runtime_spawn (per-frame painter
      *  re-registration). 0 for the normal build path. */
     int scenery_runtime_spawn;
+
+    /** element_id -> scenery pool index for the elements the shape helper
+     *  currently has in flight, so the position pass can stamp the placement
+     *  debug fields (WorldEntity_SceneryDebug.draw_*) without scanning the
+     *  pool. A ring rather than one slot because the double wall-decor shape
+     *  loads both its elements before positioning either. -1 = empty. */
+    int scenery_dbg_element[4];
+    int scenery_dbg_pool[4];
+    int scenery_dbg_next;
 };
 
 /** Apply a zone LOC change at runtime (Client-TS locChangeUnchecked): remove the

@@ -188,18 +188,29 @@ split_escaped(char* cursor, char** out_field)
 /**
  * One column: its id, the cache's name for it, and its tuple types.
  *
- *     column=13:startcoord,coord
- *     column=23:requirement_stats,stat,int
+ *     columndef=13:startcoord,coord
+ *     columndef=23:requirement_stats,stat,int
  *
  * `name` is the cache's own, from gameval archive 10, and is documentation — the
  * packer reads past it. It is emitted **empty rather than omitted** when the cache
- * does not name the column (`column=7:,int`), because the field's *position* is
+ * does not name the column (`columndef=7:,int`), because the field's *position* is
  * what makes the line parseable; a name that sometimes is not there would make the
  * first field ambiguous with a type.
  *
  * This replaces `types=`/`defaulttypes=`, which wrote bare numbers and no name at
- * all — `defaulttypes=13:22` for what is now `column=13:startcoord,coord`. Both old
- * spellings are still read; see `parse_columns`.
+ * all — `defaulttypes=13:22` for what is now `columndef=13:startcoord,coord`. Both
+ * old spellings are still read; see `parse_columns`.
+ *
+ * **`columndef` and not `column`, which is what it was first called.** The server's
+ * own `.dbtable` grammar uses `column=<name>,<type>...`, and `mock230_db_load`
+ * walks the *whole* content tree for `*.dbtable` — which matches
+ * `configs/all.dbtable`. So `column=13:startcoord,coord` was read by the server's
+ * parser as a column named `13:startcoord` with one unrecognised type, and the
+ * mock refused to boot. Two grammars cannot share a key in one file namespace, and
+ * the cache's is the one that has to move: the server's is LostCity's.
+ *
+ * That collision also exposed what the server has been doing with these files all
+ * along — see docs/DBTABLES.md §8.
  */
 static void
 emit_column(
@@ -223,7 +234,7 @@ emit_column(
         db_type_name(column->types[i], type_name, sizeof(type_name));
         w += snprintf(buf + w, sizeof(buf) - (size_t)w, ",%s", type_name);
     }
-    cp_lines_addf(out, "column=%s", buf);
+    cp_lines_addf(out, "columndef=%s", buf);
 
     for( int t = 0; t < column->tuple_count; t++ )
     {
@@ -386,7 +397,7 @@ parse_columns(
         char scratch[8192];
         char* cursor;
         int col;
-        int is_named = strcmp(key, "column") == 0;
+        int is_named = strcmp(key, "columndef") == 0;
         int is_types = is_named || strcmp(key, legacy_types_key) == 0;
 
         if( strcmp(key, "columns") == 0 )

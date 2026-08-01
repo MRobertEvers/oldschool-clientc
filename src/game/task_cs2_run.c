@@ -11,6 +11,7 @@
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
+#include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 #include "ui/uitree_layout.h"
@@ -28,7 +29,36 @@
 
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
 #define TASK_CS2_RUN_STR_ARGS_MAX 4
-#define TASK_CS2_RUN_STR_ARG_LEN 80
+/*
+ * A clientscript string argument is not a label — it can be a payload.
+ *
+ * 80 was sized for the things a hook passes (a name, a verb, an item label) and
+ * is far too small for the things the *server* passes. rev 230's multi-choice
+ * dialogue hands `chatbox_multi_init` its entire option list as one string with
+ * the rows joined by `|`; Hans's three-way choice is 132 characters and a
+ * five-option list is comfortably past 300.
+ *
+ * The failure mode is why this is worth a comment rather than a bigger number:
+ * the truncated list still *parses*. The clientscript splits on `|`, counts what
+ * survived, and lays out that many rows — so a three-option question renders as
+ * a tidy, correct, two-option one with the second option cut off mid-word. There
+ * is no error at any layer, and the two other caps on the same value
+ * (`PKT_RUNCLIENTSCRIPT_STR_LEN`, the encoder's packet size) each hide the next
+ * one until they are raised in step.
+ */
+#define TASK_CS2_RUN_STR_ARG_LEN 512
+
+/*
+ * The two caps a server-driven clientscript string passes through, tied
+ * together so they cannot be raised out of step.
+ *
+ * `PKT_RUNCLIENTSCRIPT_STR_LEN` is what the packet parser keeps; this is what
+ * the task carries it in. If this is the smaller of the two, the packet arrives
+ * whole and the *task* silently trims it — which is the harder of the two
+ * failures to find, because the wire trace shows the full string.
+ */
+_Static_assert(TASK_CS2_RUN_STR_ARG_LEN >= PKT_RUNCLIENTSCRIPT_STR_LEN,
+               "a clientscript string argument must survive the packet that carried it");
 
 enum TaskCS2YieldPlan
 {

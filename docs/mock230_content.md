@@ -204,7 +204,7 @@ use. What used to be a `#define` or a literal table in C:
 | a 24-entry `{ slot, group }` table in `mock230_world.c` | the `gameframe` **.enum** — keys are components, values are interfaces |
 | `MOCK230_HIT_DAMAGE 0` / `MOCK230_HIT_BLOCK 1` | `hitsplat.pack`, and they were **backwards** (see below) |
 | `MOCK230_VARP_ATTACK_STYLE 43`, `MOCK230_VARP_RUN 173`, … | `varp.pack`, resolved by `mock230_world_varp("com_mode")` |
-| `MOCK230_CHAT_CONTAINER_UID (162 << 16) | 559` | `component.pack` |
+| `MOCK230_CHAT_SLOT_UID (162 << 16) | 561` | `component.pack` — `chatbox:chatmodal`, and it was **the wrong component** (see `osrs230_mockserver.md` §3.11) |
 | combat-tab varbits | `varbit.pack`; the *bit ranges* stay in the cache |
 | `MOCK230_BANK_IFACE 12`, `MOCK230_BANK_COM_*`, the eleven bank varbits | `interface.pack` / `component.pack` / `varbit.pack`, through **`mock230_ids.h`** |
 | `MOCK230_EQUIPSTATS_IFACE 84` and interface 84's eighteen text rows | `component.pack` — `equipment_stats_stabatt` and friends |

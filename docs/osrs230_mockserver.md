@@ -359,6 +359,18 @@ Deriving all of this from the cache (`mock230_objinfo.c` decodes the whole obj
 table in ~0.1 s at startup) means every wearable item in the game works and the
 appearance hiding rules come out right for free.
 
+The **wield requirement** is the engine's to enforce and content's to describe.
+`mock230_equipment_may_wear` reads the obj's skill/level pairs and compares base
+levels; what the player is told is `[proc,equip_level_message]`, which since
+2026-08-01 takes the `stat` id rather than its name. The 23 skill names it used
+to be handed were a C table in `mock230_equipment.c` — `general/configs/stat.enum`
+and `[proc,stat_name]` hold the words now, so renaming or translating a skill is
+a content edit. The selftest asserts the sentence off the wire ("the wield
+refusal is content's, words and all"), which is also what catches the RuneScript
+trap here: `<...>` interpolates a *variable*, so a `<~proc(...)>` in a string
+reaches the player as those literal characters unless the compiler is taught the
+`~` sigil — which it now is (`ssc_compile.c`).
+
 ### 3.8 Scene rebuild
 
 The client holds a 104×104 scene based at `(zone - 6) * 8`. Entity coordinates
@@ -418,6 +430,16 @@ packet, and `[ai_queue3,<npc>]` when an npc reaches zero hitpoints — which is
 LostCity's death trigger, and where every drop table lives. Resolution follows
 the reference: exact npc type, then category, then the global form.
 
+**A trigger is how the engine should reach content, and a script name in C is
+not.** The ten call sites that used to spell one — `"[queue,player_death]"`,
+`"[proc,npc_meleeattack]"` and eight more — go through `srv->hooks` now, a table
+`mock230_scripts_resolve_hooks` fills from the pack when it loads. An unresolved
+hook is reported at boot instead of doing nothing forever, which is what an
+unknown name used to do in every `run_proc` helper: renaming a script deleted a
+feature without failing a build, a test or a log line outside `--verbose`. The
+by-name helpers remain for tests. `docs/CONTENT_ARCHITECTURE.md` §8.6 has the
+rule and what is left (`mock230_say`'s message procs).
+
 "Attack" is deliberately *not* content. The engine reads the npc's own cache op
 list, which is the same five options the client built its right-click menu from,
 so anything OldSchool made attackable is attackable here with no per-npc script
@@ -465,8 +487,7 @@ rev-230 ids, all verified with `tools/dump_interface` rather than assumed:
 | speaker name | `231:4` |
 | body text | `231:6` (67px, about four lines) |
 | "Click here to continue" | `231:5` (`clickMask=0x1`) |
-| chat container | `162:559` — **ships `hidden=1`** |
-| mount slot | `162:561` (506x129, exactly 231's root size) |
+| mount slot | `chatbox:chatmodal` — `162:567`, **ships `hidden=1`** |
 
 **A genuine port decision.** LostCity picks between four groups
 (`npcchat1..npcchat4`) by line count, because each of its chat interfaces has a
@@ -474,9 +495,30 @@ fixed number of text components. rev 230 has one group with a single multi-line
 body, so the page/line machinery collapses to "open 231, set the body".
 Anything here that reads like a missing feature is that difference.
 
-**Opening the dialogue is two packets, not one.** `162:559` is hidden, so
-mounting into `162:561` alone builds a dialogue that is never drawn — which
-looks exactly like the mount having failed.
+**Opening the dialogue is one packet, and the slot is the whole message.** The
+modal ships hidden, but the server never unhides it and never hides the chat
+behind it — the *cache's own clientscripts* do both, keyed off this exact
+component. The gameframe's `on_sub_change` hook (`161:0` → script903) runs
+script908:
+
+```
+if (if_hassub(chatbox:chatmodal) = true) {
+    if_sethide(false, chatbox:chatmodal);
+    if_sethide(true,  chatbox:chatoverlay);
+    if_sethide(true,  chatbox:chatcrm);
+    if_sethide(true,  chatbox:chatdisplay);   // the scrollback and input line
+} else { ...the mirror image: chatdisplay and chatcrm back... }
+```
+
+so `IF_OPENSUB(162:567, 231)` reveals the dialogue *and* hides the chat, and
+`IF_CLOSESUB(162:567)` brings the chat back. Decompile before picking a
+component: this was `162:561` with an `IF_SETHIDE(162:559, 0)` in front of it
+for a while, ids chosen by matching 231's 506x129 root against a layer of the
+same size. Both were wrong — `559` is `chatscrollbar` and `560`/`561` are
+`chatcrm`/`crmspace`, the Jagex announcement popup that script908 shows in the
+*no-dialogue* state — and the symptom was not a missing dialogue but a correct
+one with the chat scrollback and `name: *` input line drawn straight through
+it, because nothing had told the chatbox to stand down.
 
 ### The client bug this exposed: a nested mount hid the gameframe
 
@@ -495,7 +537,7 @@ if( group == host_group )
 
 which protects only the mount target's *immediate* group. Every login-burst
 mount targets `161:xx`, so `host_group` is 161 and the gameframe is safe. The
-chat dialogue is the first mount into a **nested** sub-interface — `162:561`,
+chat dialogue is the first mount into a **nested** sub-interface — `162:567`,
 where 162 is itself mounted under `161:96` — so `host_group` came out 162 and
 161 fell through and was hidden.
 
@@ -570,6 +612,219 @@ backs `npc_name`.
 
 Facing the player is kept on the SAY path, because FACE_ENTITY does render.
 
+## 3.11b Animation priority, and the two bugs that hid behind each other
+
+Two separate faults produced one report — "npcs only ever play their block
+animation, and they do not face what they are fighting" — and each of them is
+the kind that has no error anywhere.
+
+**Facing was written into the wrong half of an id space.** `FACE_ENTITY` reads
+below 32768 as an *npc slot* and at or above it as `32768 + player index`
+(`world_cycle.c`, `WORLD_FACING_*`). The local player's index is 2047, the same
+number that terminates the player stream — which is why `UPDATE_PID` carries it
+— so "face the player" on the wire is **34815**. The mock wrote the bare 2047,
+which the client resolved as npc slot 2047. That slot never exists, the lookup
+returned NULL, the branch fell through, and every npc in a fight kept whatever
+yaw it had been walking with. `MOCK230_FACE_LOCAL_PLAYER` is the constant now,
+and the selftest asserts the exact number rather than "not -1", because the
+wrong value is a *plausible* one.
+
+**Animations had no priority gate.** An npc swings in phase 4 and is hit in
+phase 5, so every exchange wrote the attack animation and then overwrote it with
+the block — one field, last write wins. The reference's rule
+(`PathingEntity.playAnimation`) is that a new sequence replaces the queued one
+only when `priority(new) >= priority(incumbent)`, and the data says a swing
+outranks a flinch: `goblin_attack_unarmed` declares `forcedpriority=6`,
+`goblin_block` declares none and defaults to 5.
+
+Three things that fell out of implementing it:
+
+- **Priority is cache opcode 5**, `forcedpriority` in the unpacked configs — not
+  the record's `priority` (opcode 10) or `precedence` (9), both of which are
+  client-side rendering concerns. `mock230_seq_priority` indexes it by sequence
+  id.
+- **The decoder zero-initialises**, so a record omitting opcode 5 arrives as 0
+  rather than as the reference's default of 5. Taking that literally would make
+  every un-prioritised animation lose to every other one, turning the gate into
+  "the first animation of the tick wins".
+- **`anim_id` is cleared in phase 11, with the masks.** It is the incumbent the
+  gate compares against, and one that outlives its tick keeps refusing lower
+  priorities forever — a goblin that lands one attack would never flinch again.
+
+`anim` and `npc_anim` route through the same gate, as they do in the reference.
+
+### The engine stopped naming animations
+
+There was a third fault under those two, and it is the one worth keeping.
+`mock230_seq_for_npc` built a sequence *name* out of an npc's display name —
+`"Goblin"` → `goblin_attack` — and asked the cache for it. It is deleted.
+
+It guessed right for the monsters anyone would spot-check and answered -1 for
+most of the roster: the cache has no `man_attack`, `woman_attack`,
+`guard_attack` or `duck_attack`. `play_npc_seq` returns on -1 without sending
+anything, so those npcs swung with no animation, no wire evidence and no log
+line. It was also the engine naming content, which is the arrangement this
+server is organised against.
+
+What an undescribed npc gets instead is the content tree's own `[default]` block
+(`general/configs/npc_default.npc`) — which is where the four ids that used to be
+C string literals in `init_defaults` now live. `.npc` files are read in two
+passes for it, because `[default]` has to be applied before any block that
+inherits from it and `areas/` sorts before `general/`.
+
+The selftest walks every *attackable* npc in the roster and fails if any of them
+resolves no attack, block or death animation. Per npc, because the failure is
+per npc and silent.
+
+## 3.11d A varp has two writers, and only one of them had side effects
+
+"Running works but the run toggle does not" — `::run` made the player run, and
+clicking the run orb lit the orb, transmitted the varp, and left the player
+walking.
+
+Every visible part of the click was correct, and each was checked in turn: the
+component is armed (`if_setevents(orbs:runbutton, …)`), the hit test finds
+160:28, the left click builds the same menu the right click shows and picks
+"Toggle Run" as its default, the events mask gates the send and passes,
+`IF_BUTTON1 160:28` arrives, and the server resolves it by *name* — 160:28 is
+`160 << 16`, too wide for a compiled trigger key's 21 bits, so it goes through
+`mock230_scripts_run_if_button_named` — and runs `[if_button,orbs:runbutton]`,
+which writes `%option_run`.
+
+The gap is one level below all of that. **`SS_OP_POP_VARP` wrote
+`player->varps[]` directly**, while the engine's own `mock230_world_set_varp`
+carried the `option_run` → `run_toggle` mirror. So anything hanging off a varp
+worked when the *engine* set it and silently did nothing when *content* did —
+which is the wrong way round, because content is where a varp is supposed to be
+written.
+
+`varp_side_effects` is now the shared seam and both writers call it. The opcode
+cannot simply call the setter: assignment marks a varp for transmission even
+when the value is unchanged (the reference's semantics, and what makes
+LostCity's `%option_nodef = %option_nodef; // resync varp` mean anything) while
+the setter early-returns on an equal write. So the transmission half stays in
+the opcode and the side-effect half comes through `mock230_world_varp_written`.
+
+`TORIRS_CLICK_DEBUG=1` on the client prints the rows a left click built, which
+one is the default, and the events mask on the component it points at. That is
+the four-step chain above, and the right-click menu looking correct only rules
+out the first step.
+
+## 3.11e Patrol, and why Hans was a wanderer
+
+`defaultmode=patrol` plus `patrol1..patrolN` are content now, ported from
+LostCity's own `[hans]` block. A waypoint is
+`<level>_<mapx>_<mapz>_<localx>_<localz>,<pause>` — a map square is 64 tiles, so
+`0_50_50_7_33` is 3207,3233, the same absolute tile in both eras because
+Lumbridge has not moved.
+
+Hans was `wanderrange=5`, with a comment saying the patrol was "expressed as a
+wander radius instead" because the mode was unimplemented. That is not a smaller
+version of a patrol: the route is his whole character. He is the greeter outside
+the castle, so he has to be *findable*, and a wanderer of the same range is
+somewhere random in a hundred tiles.
+
+Three things about the implementation:
+
+- **The route is a ring.** Reaching the last waypoint goes back to the first, so
+  he keeps circling rather than stopping at the end of his round.
+- **The pause is charged on arrival, before the index advances**, or it would be
+  charged to the waypoint he is walking away from.
+- **Routing is `mock230_world_npc_walk_to`** — the same flood the player's click
+  uses — so a leg that has to go round the castle wall does. `maxrange=50` is
+  the reference's leash and is what lets a route this wide exist at all; the
+  default 7 would drop it the moment he left his spawn tile's neighbourhood.
+
+`moverestrict=outdoors` is deliberately not ported: this engine implements
+`nomove` of that family and nothing else, so declaring it would be a claim the
+collision map does not enforce. The route stays outside on its own.
+
+## 3.11c `[ai_spawn]`, and the imp
+
+Phase 3 was an empty named phase. It now dispatches `[ai_spawn,<npc>]` for every
+npc spawned since the last tick, which is where the reference's behaviours set
+their first `npc_settimer` — and without it `[ai_timer]` could never fire for an
+npc no script had touched, which was every npc in the world.
+
+**A respawn re-runs it.** A timer set once at login stops the first time the npc
+dies, so the behaviour decays out of the world one death at a time and the npc
+that stops behaving is never the one being watched.
+
+`[ai_despawn]` is deliberately not dispatched: death goes through `[ai_queue3]`,
+where the drop tables already are, and a trigger that fires from nowhere is worse
+than one that does not fire.
+
+The first behaviour on top of it is the imp
+(`areas/lumbridge/scripts/imp.rs2`), which is the reference's: a 50 % roll on a
+50-200 tick timer teleports it up to twenty tiles away. Two new opcodes were
+needed and both are small:
+
+| opcode | note |
+| --- | --- |
+| `map_findsquare(coord, min, max, mode)` | rejection sampling over the box, because enumerating every legal tile is 1,681 collision reads at radius 20 and this runs per npc per timer. Only `^map_findsquare_none` is honoured — the line-of-walk/sight modes need a reachability test this server has no cheap form of, and an unsupported mode says so under `MOCK230_VERBOSE` rather than silently teleporting a monster through a wall. Failure returns the **source** coord, not -1: callers assign it straight into `npc_tele`. |
+| `npc_getmode` | the setter had been here since npc modes landed and the getter had not, so content branching on it (`npc_getmode = opplayer2`) was always false — invisible for a sound, a behaviour that silently never happens for a guard. |
+
+Two things the reference does that this does not, both stated in the script's own
+header: the smoke puff (`spotanim_map` wants a MAP_ANIM zone sub-packet the
+server does not send — the client already decodes one) and the 1-in-10 panic
+teleport on damage (there is no damage hook for it to hang on).
+
+## 3.11f The multiple-choice dialogue, and three caps on one string
+
+`~p_choice2..5` works. It was the single biggest gap in the dialogue content —
+LostCity calls it 879 times across 355 files — and closing it needed one new
+command and three buffer sizes raised in step.
+
+**The interface builds itself.** LostCity has four interfaces (`multi2..multi5`),
+one per option count, each shipping fixed text components, so its `~p_choice3`
+is six `if_settext` calls onto components it can name. rev 230 has ONE interface
+with two components — a root and an empty layer — and its rows are `cc_create`d
+by the clientscript `chatbox_multi_init(title, options)`, where `options` is the
+rows joined with `|`. There is nothing for `if_settext` to address.
+
+So the server has to *run a clientscript with string arguments*, and the 2004
+protocol has no RUNCLIENTSCRIPT at all — the reference has nothing to port.
+`runclientscript_ss(clientscript, string, string)` is the third command in the
+`EXTRA_OPCODES` band (11002), and the clientscript id is an **argument**: it is a
+cache id, and content names it (`^clientscript_chatbox_multi_init` in
+`interface_chat/configs/chat.constant`, read out of the decompiled script 58).
+
+**The answer is `last_slot`, not `last_com`.** Every row is a child of the same
+component, so the reference's `switch_component (last_com)` cannot work here; the
+row is the sub-id. That is the one thing a caller ported from LostCity must
+change, and `if_addresumebutton` had to widen its arming range to match —
+`MOCK230_RESUME_SUB_MAX` rather than slot 0, because arming slot 0 arms the empty
+container and none of the rows.
+
+### The three caps
+
+A RUNCLIENTSCRIPT string argument is not a label, it is a *payload*, and three
+places assumed otherwise. Hans's three-way choice is a 132-character list:
+
+| cap | was | now |
+| --- | --- | --- |
+| `PKT_RUNCLIENTSCRIPT_STR_LEN` (packet parser) | 128 | 512 |
+| `TASK_CS2_RUN_STR_ARG_LEN` (client CS2 task) | 80 | 512 |
+| the encoder's packet size | 1024 | 4096 |
+
+Each hid the next: raising the first left the second trimming, and the wire trace
+by then showed the full string.
+
+**Truncation does not fail.** The clientscript splits on `|`, counts what
+survived, and sizes and positions that many rows — so a three-option question
+renders as a tidy, correct-looking two-option one with the second cut off
+mid-word, and nothing reports anything at any layer. Two things guard it now: a
+`_Static_assert` tying the task buffer to the packet buffer (they can only be
+raised together), and a selftest that searches the captured payload for the *last*
+option's tail. A length threshold is the obvious check and a bad one — truncating
+at 128 still yields a 152-byte packet, so any threshold loose enough to be safe
+passes the bug.
+
+Two harness additions came with it: `::talk <name> [op]` accepts an npc name (the
+roster is built from the map squares in walk order, so a slot number is a
+different npc between runs) and `::fight` with no argument takes the nearest
+attackable npc.
+
 ## 3.12 Baseline melee combat
 
 `mock230_combat.c`. The split follows the rest of the mock: the engine owns what
@@ -589,9 +844,24 @@ own. **An npc dying is the ordinary NPC_INFO remove path**, and respawning
 clears `tracked` so the next NPC_INFO adds it as a new entity — which is what a
 respawn is from the client's side.
 
-Loop: engage → walk beside → swing every `MOCK230_ATTACK_SPEED` ticks → the npc
-retaliates the first time it is hit → death animation holds the corpse for
-`MOCK230_DEATH_TICKS` → despawn → respawn at the spawn tile at full health.
+Loop: engage → walk beside → swing every `attackrate` ticks → the npc retaliates
+the first time it is hit → the death animation holds the corpse for the npc's
+`death_delay` → despawn → respawn `respawnrate` ticks later at the spawn tile at
+full health.
+
+What it leaves behind expires on `^lootdrop_duration`
+(`drop_tables/configs/lootdrop.constant`), which the engine now reads through
+`mock230_ids()` instead of keeping its own 200 in `MOCK230_LOOT_TICKS`.
+
+**Every tick count in that sentence is the npc's record, not a constant**
+(2026-08-01). `death_delay` and `respawnrate` are fields on the `.npc` block,
+defaulting through `general/configs/npc_default.npc`, and `attackrate` is its
+`param=`. `MOCK230_DEATH_TICKS`, `MOCK230_RESPAWN_TICKS` and
+`MOCK230_ATTACK_RANGE` are gone from `mock230.h`; `MOCK230_ATTACK_SPEED` remains
+for the *unarmed* interval only, which is a player-side default. `death_delay` is
+the tree's newest server-band field — `[npc.death_delay]` in `fields/npc.ini`,
+opcode 155, `client = drop` because nothing on the client asks how long a corpse
+lingers.
 
 > ⚠️ **Three claims in this section were stale and are corrected below
 > (2026-07-31). They were verified against the shipped code, not re-reasoned.**
@@ -612,14 +882,25 @@ Two deliberate omissions, and one that no longer applies:
 - **A zero-damage hit is a *block* splat, not nothing.** Otherwise a miss is
   indistinguishable from the server having dropped the swing.
 - ~~**Player death heals to full** rather than teleporting.~~ **Death
-  teleports.** The sequence is: death animation → `MOCK230_DEATH_TICKS` hold →
-  prayers cleared → teleport home → heal to full, with "Oh dear, you are dead!"
-  and "You wake up in Lumbridge." on the way. There is still no item loss and
-  no death interface, which *is* deliberate.
+  teleports** — and as of 2026-08-01 none of it is C. `[queue,player_death]`
+  (`player/death.rs2`) plays the animation, delays `^death_delay`, teleports to
+  `^respawn_coord`, heals, restores energy and clears the prayers. The engine
+  contributes two things: it stops the fight, and it holds a `dying` flag that
+  gates a corpse acting. **That flag is cleared by the script**, in
+  `mock230_combat_player_tick`, on the tick hitpoints come back above zero — so
+  the length of a death is content's too. There is still no item loss and no
+  death interface, which *is* deliberate.
 
 Commands: `p_opnpc`, `npc_damage`, `damage`, `healenergy`, `uid`,
 `npc_findhero`, `npc_attackrange`. `::fight <slot>` engages an npc without a
 right-click, for headless sessions.
+
+Two of those answered the wrong thing until 2026-08-01 and neither said so:
+`healenergy` restored **hitpoints** rather than run energy (invisible, because
+`[queue,player_death]` is its only caller and heals hitpoints on the line above),
+and `npc_attackrange` pushed a C constant rather than the active npc's
+`attackrange`, so a ranged npc's script was told "one tile" whatever its config
+said.
 
 One ordering trap worth stating: `advance_npcs` used to clear `step_dir` at the
 top of its loop, which also wiped the step the combat mover had just produced.
@@ -1028,6 +1309,63 @@ opener, so no new opener can forget). CLOSE_MODAL offers the open interface's
 drops the mount. The bank and the equipment screen keep their own closers
 because they own state beyond the mount; everything else is just a mount, and
 dropping it is the whole of closing it.
+
+## 3.16 The chatbox is widgets at this revision, and nothing was writing to them
+
+The chatbox rendered its background, its seven filter tabs, its Report button
+and its scrollbar perfectly, and never showed a message. Every `MESSAGE_GAME`
+arrived and was parsed; `RS_Chat_AddMessage` stored all of them.
+
+Two eras answer "where does a chat line come from" completely differently.
+
+At 254 the chatbox is a **surface**: the gameframe reserves a box (a revconfig
+node tagged `slot=chat`) and the client paints message text into it with its own
+font calls. `RS_Chat_BuildView` and `emit_chat` are that path.
+
+At 230 the chatbox is **widgets**. Interface 162 ships 500 empty text components
+— `chatbox:line0`..`line499`, inside `chatbox:scrollarea` — and the client's
+whole job is to fill in their text and move them. There is no chat *region* in a
+dat2 tree at all, so `app->slots.chat_index` stayed -1 and the surface path
+correctly drew nothing.
+
+`src/game/rs_chat_widgets.c` is the second answer. It writes the visible
+messages into the line components oldest-first, hides the rest, and sets the
+scroll layer's content height and offset. Everything else — fonts, colours
+through `<col=…>` markup, the background, the tabs, the per-line right-click op
+— is already in the cache and already drawn by the ordinary widget pipeline.
+
+`clientCode 1336` is *not* this. It is documented as `CONTENT_CHAT` and it is
+`161:19`, a 120×100 layer at 430,0 inside the viewport — the split private-chat
+overlay, not the chatbox.
+
+Four things about it are load-bearing, and three of them produced a wrong
+picture before they were right:
+
+- **The ids are declared, in the manifest's `[ui:chatbox]`.** They are revision
+  facts, like the gameframe mount table beside them, and the reference client's
+  own equivalent is a generated `ComponentID` constant. The alternative was
+  recognising the chatbox by shape — "a scrolling layer with a few hundred
+  identical text children" — which is a heuristic between the player and every
+  message the server sends. `chatbox_interface=0` (every dat1 manifest) disables
+  the whole path.
+- **Read the scroll viewport before moving anything.** `UITree_ApplyPosition`
+  clears `layout_resolved`, and `UITree_LayoutGetBounds` silently falls back to
+  the *declared* fields when a node is unresolved. `chatbox:scrollarea` is
+  `heightmode=1`, so the record says 452 (against a 503-tall root) where the
+  gameframe's chat slot actually gives it ~114.
+- **Resolve the layout on the way out.** The app's own `UITree_LayoutResolve`
+  runs earlier in the frame and only when a CS2 script ran. An unresolved text
+  node emits at its declared position with a size of *zero* — which drew every
+  chat line as a 0×0 box at the top-left corner, correct text and all.
+- **Hide unused lines, do not blank them.** Each carries `op8='*'` (the
+  reference's per-line Report abuse). Five hundred invisible, clickable, empty
+  lines stacked over the chatbox swallow every click that misses a message.
+
+A short chatbox fills from the *bottom*, against the input line; once the column
+overflows the viewport that term goes to zero and the scroll offset takes over.
+`make -C src test-chat-widgets` pins the order, the anchor and the overflow,
+because all three are "text in the right font in the right box" and only the y
+coordinates tell them apart.
 
 ## 4. Client fix this work required: the inv half of the transmit loop
 
