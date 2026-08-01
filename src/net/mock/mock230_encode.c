@@ -191,7 +191,7 @@ check_frame_length(
 
 void
 mock230_send(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int opcode,
     const uint8_t* payload,
     int len,
@@ -199,6 +199,15 @@ mock230_send(
 {
     uint8_t frame[64 * 1024];
     struct RSAreaBuf buf;
+    struct Mock230Server* srv;
+
+    /* A packet is addressed to a player, and every encoder above this now says
+     * so. What is left of the old "send to the server's one player" shape is
+     * this line: the capture is a property of the world, because a test asserts
+     * on what the *server* emitted, not on what one client received. */
+    if( !player )
+        return;
+    srv = player->world;
 
     check_frame_length(opcode, len, var);
 
@@ -206,7 +215,7 @@ mock230_send(
      * is the one point every encoder has already passed through with its
      * payload built. Recording here makes all of them observable without any
      * encoder knowing the capture exists. */
-    if( srv->capture )
+    if( srv && srv->capture )
     {
         struct Mock230Capture* capture = srv->capture;
 
@@ -227,13 +236,22 @@ mock230_send(
         }
     }
 
-    /* No session is a world with no client — the selftest. Everything above
-     * this point still ran, so the capture saw the packet. */
-    if( !srv->player || !srv->player->session ||
-        !mock230_session_alive(srv->player->session) )
+    /*
+     * No session is a world with no client — the selftest. Everything above
+     * this point still ran, so the capture saw the packet.
+     *
+     * `cipher_out` is checked, not just the state: a session is "alive" from
+     * the moment it is accepted, but its ISAAC pair does not exist until the
+     * login block is parsed, so anything the world emits in that window would
+     * otherwise scramble its opcode against a null cipher. With one player
+     * that window was invisible because nothing was addressed to a
+     * half-logged-in session; with a pool, every tick's PLAYER_INFO is.
+     */
+    if( !player->session || !mock230_session_alive(player->session) ||
+        !player->session->cipher_out )
         return;
     rsab_wrap(&buf, frame, sizeof(frame));
-    rsab_p1(&buf, (opcode + isaac_next(srv->player->session->cipher_out)) & 0xff);
+    rsab_p1(&buf, (opcode + isaac_next(player->session->cipher_out)) & 0xff);
     if( var == 1 )
         rsab_p1(&buf, len);
     else if( var == 2 )
@@ -245,10 +263,10 @@ mock230_send(
         fprintf(stderr, "mock230: frame overflow for op %d (%d bytes)\n", opcode, len);
         return;
     }
-    if( mock230_session_send(srv->player->session, frame, (int)rsab_len(&buf)) < 0 )
-        mock230_session_kill(srv->player->session);
+    if( mock230_session_send(player->session, frame, (int)rsab_len(&buf)) < 0 )
+        mock230_session_kill(player->session);
 
-    if( srv->verbose )
+    if( srv && srv->verbose )
         fprintf(
             stderr,
             "mock230: -> %-18s op=%-3d payload=%d\n",
@@ -260,7 +278,7 @@ mock230_send(
 /* Send whatever the caller just built into `buf`. */
 static void
 flush(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     struct RSAreaBuf* buf,
     int opcode,
     int var)
@@ -270,7 +288,7 @@ flush(
         fprintf(stderr, "mock230: dropped op %d — encode overflowed\n", opcode);
         return;
     }
-    mock230_send(srv, opcode, buf->data, (int)rsab_len(buf), var);
+    mock230_send(player, opcode, buf->data, (int)rsab_len(buf), var);
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,8 +296,9 @@ flush(
 /* ------------------------------------------------------------------ */
 
 void
-mock230_send_rebuild_normal(struct Mock230Server* srv)
+mock230_send_rebuild_normal(struct Mock230Player* player)
 {
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
     int base_x = mock230_scene_origin(srv->zone_x);
     int base_z = mock230_scene_origin(srv->zone_z);
@@ -298,7 +317,7 @@ mock230_send_rebuild_normal(struct Mock230Server* srv)
     for( int i = 0; i < count * 4; i++ )
         rsab_p4(&buf, 0);
 
-    flush(srv, &buf, OP_REBUILD_NORMAL, 2);
+    flush(player, &buf, OP_REBUILD_NORMAL, 2);
     if( srv->verbose )
         fprintf(
             stderr,
@@ -316,18 +335,18 @@ mock230_send_rebuild_normal(struct Mock230Server* srv)
 
 void
 mock230_send_if_opentop(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int group)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     rsab_p2_alt1(&buf, group);
-    flush(srv, &buf, OP_IF_OPENTOP, 0);
+    flush(player, &buf, OP_IF_OPENTOP, 0);
 }
 
 void
 mock230_send_if_opensub(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int parent,
     int child,
     int group,
@@ -335,12 +354,14 @@ mock230_send_if_opensub(
 {
     /* RSProt IfOpenSubEncoder: p1 type, p2Alt2 interfaceId,
      * p4Alt3 destinationCombinedId (parent << 16 | child). */
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
+
     open_packet(&buf, 16);
     rsab_p1(&buf, type);
     rsab_p2_alt2(&buf, group);
     rsab_p4_alt3(&buf, (parent << 16) | child);
-    flush(srv, &buf, OP_IF_OPENSUB, 0);
+    flush(player, &buf, OP_IF_OPENSUB, 0);
     mock230_note_modal_mount(srv, (parent << 16) | child, group);
 }
 
@@ -354,7 +375,7 @@ mock230_send_if_opensub(
  */
 void
 mock230_send_run_clientscript_mixed(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int script_id,
     const char* types,
     int const* intv,
@@ -378,22 +399,22 @@ mock230_send_run_clientscript_mixed(
             rsab_p4(&buf, intv ? intv[i] : 0);
     }
     rsab_p4(&buf, script_id);
-    flush(srv, &buf, OP_RUNCLIENTSCRIPT, 2);
+    flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
 }
 
 void
 mock230_send_run_clientscript(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int script_id,
     int const* args,
     int argc)
 {
-    mock230_send_run_clientscript_mixed(srv, script_id, NULL, args, NULL, argc);
+    mock230_send_run_clientscript_mixed(player, script_id, NULL, args, NULL, argc);
 }
 
 void
 mock230_send_if_setevents(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int from,
     int to,
@@ -407,7 +428,7 @@ mock230_send_if_setevents(
     rsab_p2_alt2(&buf, from);
     rsab_p4_alt1(&buf, events);
     rsab_p2(&buf, to);
-    flush(srv, &buf, OP_IF_SETEVENTS, 0);
+    flush(player, &buf, OP_IF_SETEVENTS, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -426,7 +447,7 @@ mock230_send_if_setevents(
 
 void
 mock230_send_if_settext(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     const char* text)
 {
@@ -435,12 +456,12 @@ mock230_send_if_settext(
     open_packet(&buf, 512);
     rsab_p4(&buf, uid);
     rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
-    flush(srv, &buf, OP_IF_SETTEXT, 2);
+    flush(player, &buf, OP_IF_SETTEXT, 2);
 }
 
 void
 mock230_send_if_setnpchead(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int npc_id)
 {
@@ -449,24 +470,24 @@ mock230_send_if_setnpchead(
     open_packet(&buf, 16);
     rsab_p4(&buf, uid);
     rsab_p2(&buf, npc_id);
-    flush(srv, &buf, OP_IF_SETNPCHEAD, 0);
+    flush(player, &buf, OP_IF_SETNPCHEAD, 0);
 }
 
 void
 mock230_send_if_setplayerhead(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid)
 {
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
     rsab_p4(&buf, uid);
-    flush(srv, &buf, OP_IF_SETPLAYERHEAD, 0);
+    flush(player, &buf, OP_IF_SETPLAYERHEAD, 0);
 }
 
 void
 mock230_send_if_setanim(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int anim_id)
 {
@@ -475,12 +496,12 @@ mock230_send_if_setanim(
     open_packet(&buf, 16);
     rsab_p4(&buf, uid);
     rsab_p2(&buf, anim_id);
-    flush(srv, &buf, OP_IF_SETANIM, 0);
+    flush(player, &buf, OP_IF_SETANIM, 0);
 }
 
 void
 mock230_send_if_sethide(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int hide)
 {
@@ -489,19 +510,20 @@ mock230_send_if_sethide(
     open_packet(&buf, 8);
     rsab_p4(&buf, uid);
     rsab_p1(&buf, hide ? 1 : 0);
-    flush(srv, &buf, OP_IF_SETHIDE, 0);
+    flush(player, &buf, OP_IF_SETHIDE, 0);
 }
 
 void
 mock230_send_if_closesub(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid)
 {
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
     rsab_p4(&buf, uid);
-    flush(srv, &buf, OP_IF_CLOSESUB, 0);
+    flush(player, &buf, OP_IF_CLOSESUB, 0);
     mock230_note_modal_mount(srv, uid, 0);
 }
 
@@ -513,17 +535,17 @@ mock230_send_if_closesub(
  * already existed; only the packet reaching it was missing.
  */
 void
-mock230_send_if_opencountdialog(struct Mock230Server* srv)
+mock230_send_if_opencountdialog(struct Mock230Player* player)
 {
     struct RSAreaBuf buf;
 
     open_packet(&buf, 4);
-    flush(srv, &buf, OP_P_COUNTDIALOG, 0);
+    flush(player, &buf, OP_P_COUNTDIALOG, 0);
 }
 
 void
 mock230_send_varp_small(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int id,
     int value)
 {
@@ -531,7 +553,7 @@ mock230_send_varp_small(
     open_packet(&buf, 8);
     rsab_p2(&buf, id);
     rsab_p1(&buf, value);
-    flush(srv, &buf, OP_VARP_SMALL, 0);
+    flush(player, &buf, OP_VARP_SMALL, 0);
 }
 
 /*
@@ -543,7 +565,7 @@ mock230_send_varp_small(
  */
 void
 mock230_send_varp_large(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int id,
     int value)
 {
@@ -551,12 +573,12 @@ mock230_send_varp_large(
     open_packet(&buf, 8);
     rsab_p2(&buf, id);
     rsab_p4(&buf, value);
-    flush(srv, &buf, OP_VARP_LARGE, 0);
+    flush(player, &buf, OP_VARP_LARGE, 0);
 }
 
 void
 mock230_send_stat(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int stat,
     int level,
     int xp,
@@ -575,7 +597,7 @@ mock230_send_stat(
     rsab_p1(&buf, level);
     rsab_p4(&buf, xp);
     rsab_p1(&buf, boosted);
-    flush(srv, &buf, OP_UPDATE_STAT, 0);
+    flush(player, &buf, OP_UPDATE_STAT, 0);
 }
 
 /*
@@ -589,66 +611,66 @@ mock230_send_stat(
  */
 void
 mock230_send_update_pid(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int local_pid)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     rsab_p2(&buf, local_pid);
     rsab_p1(&buf, 0); /* members flag */
-    flush(srv, &buf, OP_UPDATE_PID, 0);
+    flush(player, &buf, OP_UPDATE_PID, 0);
 }
 
 void
 mock230_send_run_energy(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int percent)
 {
     /* Two bytes at rev 230: energy in hundredths of a percent. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     rsab_p2(&buf, percent * 100);
-    flush(srv, &buf, OP_UPDATE_RUNENERGY, 0);
+    flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
 }
 
 void
 mock230_send_run_weight(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int kilograms)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     rsab_p2(&buf, kilograms);
-    flush(srv, &buf, OP_UPDATE_RUNWEIGHT, 0);
+    flush(player, &buf, OP_UPDATE_RUNWEIGHT, 0);
 }
 
 void
 mock230_send_message(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     const char* text)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 512);
     rsab_p1(&buf, 0); /* message type: plain game message */
     rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
-    flush(srv, &buf, OP_MESSAGE_GAME, 1);
+    flush(player, &buf, OP_MESSAGE_GAME, 1);
 }
 
 void
-mock230_send_unset_map_flag(struct Mock230Server* srv)
+mock230_send_unset_map_flag(struct Mock230Player* player)
 {
     /* SET_MAP_FLAG with the 255,255 "no flag" sentinel. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     rsab_p1(&buf, 255);
     rsab_p1(&buf, 255);
-    flush(srv, &buf, OP_SET_MAP_FLAG, 0);
+    flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
 void
-mock230_send_tick_end(struct Mock230Server* srv)
+mock230_send_tick_end(struct Mock230Player* player)
 {
-    mock230_send(srv, OP_SERVER_TICK_END, NULL, 0, 0);
+    mock230_send(player, OP_SERVER_TICK_END, NULL, 0, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -676,7 +698,7 @@ put_inv_slot(
 
 void
 mock230_send_inv_full(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int component,
     int container,
     const struct Mock230Item* slots,
@@ -693,12 +715,12 @@ mock230_send_inv_full(
     rsab_p2(&buf, slot_count);
     for( int i = 0; i < slot_count; i++ )
         put_inv_slot(&buf, slots ? &slots[i] : NULL);
-    flush(srv, &buf, OP_UPDATE_INV_FULL, 2);
+    flush(player, &buf, OP_UPDATE_INV_FULL, 2);
 }
 
 void
 mock230_send_inv_partial(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int component,
     int container,
     const struct Mock230Item* slots,
@@ -718,7 +740,7 @@ mock230_send_inv_partial(
         rsab_psmart(&buf, i);
         put_inv_slot(&buf, &slots[i]);
     }
-    flush(srv, &buf, OP_UPDATE_INV_PARTIAL, 2);
+    flush(player, &buf, OP_UPDATE_INV_PARTIAL, 2);
 }
 
 /* ------------------------------------------------------------------ */
@@ -971,10 +993,11 @@ put_player_extended(
  */
 int
 mock230_send_zone(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int tile_x,
     int tile_z)
 {
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
     int base_x = (tile_x & ~7) - mock230_scene_origin(srv->zone_x);
     int base_z = (tile_z & ~7) - mock230_scene_origin(srv->zone_z);
@@ -982,13 +1005,13 @@ mock230_send_zone(
     open_packet(&buf, 8);
     rsab_p1(&buf, base_x);
     rsab_p1(&buf, base_z);
-    flush(srv, &buf, OP_UPDATE_ZONE_PARTIAL_FOLLOWS, 0);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_FOLLOWS, 0);
     return ((tile_x & 7) << 4) | (tile_z & 7);
 }
 
 void
 mock230_send_obj_add(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id,
     int count)
@@ -1002,12 +1025,12 @@ mock230_send_obj_add(
      * thousands abbreviation by the client, which reads the count it was
      * given. Clamping is better than wrapping 65,536 coins to zero. */
     rsab_p2(&buf, count > 0xffff ? 0xffff : count);
-    flush(srv, &buf, OP_OBJ_ADD, 0);
+    flush(player, &buf, OP_OBJ_ADD, 0);
 }
 
 void
 mock230_send_obj_del(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id)
 {
@@ -1016,12 +1039,12 @@ mock230_send_obj_del(
     open_packet(&buf, 8);
     rsab_p1(&buf, pos);
     rsab_p2(&buf, obj_id);
-    flush(srv, &buf, OP_OBJ_DEL, 0);
+    flush(player, &buf, OP_OBJ_DEL, 0);
 }
 
 void
 mock230_send_obj_count(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id,
     int old_count,
@@ -1034,7 +1057,7 @@ mock230_send_obj_count(
     rsab_p2(&buf, obj_id);
     rsab_p2(&buf, old_count > 0xffff ? 0xffff : old_count);
     rsab_p2(&buf, new_count > 0xffff ? 0xffff : new_count);
-    flush(srv, &buf, OP_OBJ_COUNT, 0);
+    flush(player, &buf, OP_OBJ_COUNT, 0);
 }
 
 /* `info` packs the loc's shape and angle into one byte: (shape << 2) | angle.
@@ -1043,7 +1066,7 @@ mock230_send_obj_count(
  * shape says which one is meant. */
 void
 mock230_send_loc_add_change(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int shape,
     int angle,
@@ -1055,12 +1078,12 @@ mock230_send_loc_add_change(
     rsab_p1(&buf, pos);
     rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
     rsab_p2(&buf, loc_id);
-    flush(srv, &buf, OP_LOC_ADD_CHANGE, 0);
+    flush(player, &buf, OP_LOC_ADD_CHANGE, 0);
 }
 
 void
 mock230_send_loc_del(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int shape,
     int angle)
@@ -1070,14 +1093,14 @@ mock230_send_loc_del(
     open_packet(&buf, 8);
     rsab_p1(&buf, pos);
     rsab_p1(&buf, ((shape & 0x1f) << 2) | (angle & 3));
-    flush(srv, &buf, OP_LOC_DEL, 0);
+    flush(player, &buf, OP_LOC_DEL, 0);
 }
 
 void
-mock230_send_player_info(struct Mock230Server* srv)
+mock230_send_player_info(struct Mock230Player* player)
 {
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
-    struct Mock230Player* player = srv->player;
     int local_x = player->x - mock230_scene_origin(srv->zone_x);
     int local_z = player->z - mock230_scene_origin(srv->zone_z);
     int extended = player->masks != 0;
@@ -1137,7 +1160,7 @@ mock230_send_player_info(struct Mock230Server* srv)
     if( extended )
         put_player_extended(&buf, player);
 
-    flush(srv, &buf, OP_PLAYER_INFO, 2);
+    flush(player, &buf, OP_PLAYER_INFO, 2);
     player->place_dirty = 0;
 }
 
@@ -1203,10 +1226,17 @@ put_npc_extended(
 }
 
 void
-mock230_send_npc_info(struct Mock230Server* srv)
+mock230_send_npc_info(struct Mock230Player* player)
 {
+    /*
+     * `tracked` is still the *world's* single list, so this encodes the same
+     * npc set for whoever it is addressed to. Correct while every player
+     * stands in the same scene and wrong the moment two do not — but the
+     * tracking set is a per-player thing to fix along with PLAYER_INFO, not
+     * part of this signature pass.
+     */
+    struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
-    struct Mock230Player* player = srv->player;
     /* Extended blocks are appended in the order the bit section queued them,
      * so remember that order while writing the bits. */
     int queued[MOCK230_NPC_MAX];
@@ -1294,7 +1324,7 @@ mock230_send_npc_info(struct Mock230Server* srv)
     for( int i = 0; i < queued_count; i++ )
         put_npc_extended(&buf, &srv->npcs[queued[i]]);
 
-    flush(srv, &buf, OP_NPC_INFO, 2);
+    flush(player, &buf, OP_NPC_INFO, 2);
 
     memcpy(srv->tracked, kept, sizeof(int) * (size_t)kept_count);
     srv->tracked_count = kept_count;

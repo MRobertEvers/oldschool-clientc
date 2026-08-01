@@ -492,9 +492,11 @@ Read the server band at boot · delete the second baker · fix param defaults
 that fails loudly on a stale band.*
 
 **Phase 1 — engine substrate** (`osrs230_mockserver.md` §6.1 items 1, 3, 6)
-1. Multiplayer: encoders take a player (81 decls, ~90 sites), tick phases
-   iterate the pool, `PLAYER_INFO` encodes others. The bulk of remaining
-   engine work.
+1. Multiplayer: ~~encoders take a player~~ (**done** — 33 decls, 85 sites,
+   behaviour-identical while the pool holds one), tick phases iterate the
+   pool, `PLAYER_INFO` encodes others (and `NPC_INFO`'s `tracked` set becomes
+   per-player). Done is two embedded clients seeing each other move, in
+   `embed_test.c` — not a raised `MOCK230_PLAYER_MAX`.
 2. `ZoneMap` keyed `(zx,zz,level)` with buffered/replayable events — what
    multiplayer actually needs, and what the 806 zone-trigger uses land on.
 3. **Invert the script fallback** — one `_` wildcard fallback; a trigger

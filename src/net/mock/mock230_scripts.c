@@ -1323,7 +1323,7 @@ mock230_script_command(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        mock230_send_message(srv, text);
+        mock230_send_message(srv->player, text);
         return 1;
     }
 
@@ -1369,7 +1369,7 @@ mock230_script_command(
             char line[192];
 
             snprintf(line, sizeof(line), "%s: %s", mock230_npcinfo(npc->type)->name, text);
-            mock230_send_message(srv, line);
+            mock230_send_message(srv->player, line);
         }
         /* Facing the player is real and does render, so keep it. */
         npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
@@ -2630,7 +2630,8 @@ mock230_script_command(
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
         }
-        mock230_send_loc_add_change(srv, mock230_send_zone(srv, x, z), shape, angle, loc_id);
+        mock230_send_loc_add_change(
+            srv->player, mock230_send_zone(srv->player, x, z), shape, angle, loc_id);
         mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
@@ -2667,7 +2668,7 @@ mock230_script_command(
             SSVM_Abort(state, "loc_del on a loc that is already gone");
             return 1;
         }
-        mock230_send_loc_del(srv, mock230_send_zone(srv, x, z), shape, angle);
+        mock230_send_loc_del(srv->player, mock230_send_zone(srv->player, x, z), shape, angle);
         mock230_world_loc_revert_queue(srv, slot, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
@@ -2700,8 +2701,12 @@ mock230_script_command(
                        loc_id, coord_x(coord), coord_z(coord));
             return 1;
         }
-        mock230_send_loc_add_change(srv, mock230_send_zone(srv, coord_x(coord), coord_z(coord)),
-                                    shape, angle, loc_id);
+        mock230_send_loc_add_change(
+            srv->player,
+            mock230_send_zone(srv->player, coord_x(coord), coord_z(coord)),
+            shape,
+            angle,
+            loc_id);
         /* -1 says "remove it again" rather than "put something back". */
         mock230_world_loc_revert_queue(srv, slot, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
@@ -3005,7 +3010,7 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_settext(srv, uid, text);
+        mock230_send_if_settext(srv->player, uid, text);
         return 1;
     }
 
@@ -3018,7 +3023,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setnpchead(srv, values[0], values[1]);
+        mock230_send_if_setnpchead(srv->player, values[0], values[1]);
         return 1;
     }
 
@@ -3028,7 +3033,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_setplayerhead(srv, uid);
+        mock230_send_if_setplayerhead(srv->player, uid);
         return 1;
     }
 
@@ -3041,7 +3046,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setanim(srv, values[0], values[1]);
+        mock230_send_if_setanim(srv->player, values[0], values[1]);
         return 1;
     }
 
@@ -3054,7 +3059,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_sethide(srv, values[0], values[1]);
+        mock230_send_if_sethide(srv->player, values[0], values[1]);
         return 1;
     }
 
@@ -3072,8 +3077,8 @@ mock230_script_command(
          * unhides the modal and hides `chatbox:chatdisplay` behind it. See
          * Mock230Ids.com_chatbox_modal.
          */
-        mock230_send_if_opensub(srv, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot),
-                                group, 0);
+        mock230_send_if_opensub(
+            srv->player, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot), group, 0);
         return 1;
     }
 
@@ -3101,7 +3106,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &events) || !SSVM_PopInt(state, &to) ||
             !SSVM_PopInt(state, &from) || !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_setevents(srv, (int)com, (int)from, (int)to, (int)events);
+        mock230_send_if_setevents(srv->player, (int)com, (int)from, (int)to, (int)events);
         return 1;
     }
 
@@ -3123,8 +3128,8 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &type) || !SSVM_PopInt(state, &group) ||
             !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_opensub(srv, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com),
-                                (int)group, (int)type);
+        mock230_send_if_opensub(
+            srv->player, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com), (int)group, (int)type);
         return 1;
     }
 
@@ -3132,7 +3137,7 @@ mock230_script_command(
         /* Unmounting is the whole message: the same on_sub_change hook that
          * hid `chatbox:chatdisplay` on the way in brings it back when the
          * modal has no sub again (script908's else branch). */
-        mock230_send_if_closesub(srv, mock230_ids()->com_chatbox_modal);
+        mock230_send_if_closesub(srv->player, mock230_ids()->com_chatbox_modal);
         player->resume_button_count = 0;
         return 1;
 
@@ -3151,7 +3156,7 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
             !SSVM_PopInt(state, &script_id) )
             return 1;
-        mock230_send_run_clientscript_mixed(srv, (int)script_id, "ss", NULL, argv, 2);
+        mock230_send_run_clientscript_mixed(srv->player, (int)script_id, "ss", NULL, argv, 2);
         return 1;
     }
 
@@ -3177,7 +3182,7 @@ mock230_script_command(
          * exists to prevent. A plain component has no sub-ids, so the wider
          * range costs it nothing.
          */
-        mock230_send_if_setevents(srv, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
+        mock230_send_if_setevents(srv->player, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
         return 1;
     }
 
@@ -4172,7 +4177,7 @@ mock230_script_command(
             srv->player->bank.open = 1;
             srv->player->bank.dirty = 0;
         }
-        mock230_send_inv_full(srv, (int)component, (int)inv_id, items, slots);
+        mock230_send_inv_full(srv->player, (int)component, (int)inv_id, items, slots);
         return 1;
     }
 
@@ -4282,12 +4287,18 @@ mock230_script_command(
             mock230_bank_open(srv);
             return 1;
         }
-        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
-                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
-                                (int)main_group, 0);
-        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
-                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_sidemodal),
-                                (int)side_group, 3);
+        mock230_send_if_opensub(
+            srv->player,
+            mock230_ids()->iface_gameframe,
+            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
+            (int)main_group,
+            0);
+        mock230_send_if_opensub(
+            srv->player,
+            mock230_ids()->iface_gameframe,
+            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_sidemodal),
+            (int)side_group,
+            3);
         return 1;
     }
 
@@ -4297,9 +4308,12 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        mock230_send_if_opensub(srv, mock230_ids()->iface_gameframe,
-                                MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
-                                (int)group, 0);
+        mock230_send_if_opensub(
+            srv->player,
+            mock230_ids()->iface_gameframe,
+            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
+            (int)group,
+            0);
         return 1;
     }
 
@@ -4312,7 +4326,7 @@ mock230_script_command(
      */
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
-        mock230_send_if_opencountdialog(srv);
+        mock230_send_if_opencountdialog(srv->player);
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 

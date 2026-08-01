@@ -38,10 +38,17 @@
  * with more than one, "send the inventory" has to know whose.
  *
  * `MOCK230_PLAYER_MAX` is 1. What the pool has bought so far is that the player
- * is a standalone, saveable entity; what it has NOT bought is multiplayer. That
- * still needs the encoders to take a player rather than the world, the tick
- * phases to iterate the pool, and PLAYER_INFO to encode players other than the
- * local one. Do not assume a second player works because the array is there.
+ * is a standalone, saveable entity, and that **every encoder is addressed to
+ * one**: all 33 `mock230_send_*` take a `struct Mock230Player*` and reach the
+ * socket through `player->session`, never through the world. `mock230_send` is
+ * the single point that still needs the world at all, for the test capture.
+ *
+ * What that has NOT bought is multiplayer. Two things still assume one player:
+ * the tick phases act on `srv->player` instead of iterating the pool, and
+ * PLAYER_INFO writes the local player and then the terminator, with no path
+ * for anyone else (`mock230_send_npc_info` has the same shape one level down —
+ * it encodes the world's single `tracked` set for whoever it is addressed to).
+ * Do not assume a second player works because the array is there.
  *
  * ── Authority ────────────────────────────────────────────────────────
  *
@@ -2196,28 +2203,28 @@ mock230_ops_db(
  *  (fixed), 1 (var-u8) or 2 (var-u16). */
 void
 mock230_send(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int opcode,
     const uint8_t* payload,
     int len,
     int var);
 
 void
-mock230_send_rebuild_normal(struct Mock230Server* srv);
+mock230_send_rebuild_normal(struct Mock230Player* player);
 void
 mock230_send_if_opentop(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int group);
 void
 mock230_send_if_opensub(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int parent,
     int child,
     int group,
     int type);
 void
 mock230_send_if_setevents(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int from,
     int to,
@@ -2227,7 +2234,7 @@ mock230_send_if_setevents(
  *  how the server tells the map where the player is standing. */
 void
 mock230_send_run_clientscript(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int script_id,
     int const* args,
     int argc);
@@ -2247,7 +2254,7 @@ mock230_send_run_clientscript(
  */
 void
 mock230_send_run_clientscript_mixed(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int script_id,
     const char* types,
     int const* intv,
@@ -2256,31 +2263,31 @@ mock230_send_run_clientscript_mixed(
 /* Interface setters. `uid` is the packed (interface << 16) | child. */
 void
 mock230_send_if_settext(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     const char* text);
 void
 mock230_send_if_setnpchead(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int npc_id);
 void
 mock230_send_if_setplayerhead(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid);
 void
 mock230_send_if_setanim(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int anim_id);
 void
 mock230_send_if_sethide(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid,
     int hide);
 void
 mock230_send_if_closesub(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int uid);
 /** Record a mount into (or out of) the gameframe's modal slots. Called by the
  *  IF_OPENSUB / IF_CLOSESUB encoders, so no opener has to remember to; `group`
@@ -2293,23 +2300,23 @@ mock230_note_modal_mount(
 /** Open the "Enter amount" prompt. Zero payload; the answer arrives as
  *  RESUME_P_COUNTDIALOG. */
 void
-mock230_send_if_opencountdialog(struct Mock230Server* srv);
+mock230_send_if_opencountdialog(struct Mock230Player* player);
 
 void
 mock230_send_varp_small(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int id,
     int value);
 /** p2 id, p4 value — for anything VARP_SMALL's signed byte cannot hold. */
 void
 mock230_send_varp_large(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int id,
     int value);
 
 void
 mock230_send_stat(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int stat,
     int level,
     int xp,
@@ -2317,31 +2324,31 @@ mock230_send_stat(
 /** Tell the client which player index it is. Sent once, in the login burst. */
 void
 mock230_send_update_pid(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int local_pid);
 
 void
 mock230_send_run_energy(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int percent);
 void
 mock230_send_run_weight(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int kilograms);
 void
 mock230_send_message(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     const char* text);
 void
-mock230_send_unset_map_flag(struct Mock230Server* srv);
+mock230_send_unset_map_flag(struct Mock230Player* player);
 void
-mock230_send_tick_end(struct Mock230Server* srv);
+mock230_send_tick_end(struct Mock230Player* player);
 
 /** Whole container. `component` is the packed (interface << 16 | child) uid the
  *  container binds to. */
 void
 mock230_send_inv_full(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int component,
     int container,
     const struct Mock230Item* slots,
@@ -2350,7 +2357,7 @@ mock230_send_inv_full(
 /** Only the slots whose bit is set in `dirty`. No-op when `dirty` is 0. */
 void
 mock230_send_inv_partial(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int component,
     int container,
     const struct Mock230Item* slots,
@@ -2365,37 +2372,37 @@ mock230_send_inv_partial(
  *  together, which is why one call produces both. */
 int
 mock230_send_zone(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int tile_x,
     int tile_z);
 void
 mock230_send_obj_add(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id,
     int count);
 void
 mock230_send_obj_del(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id);
 void
 mock230_send_obj_count(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int obj_id,
     int old_count,
     int new_count);
 void
 mock230_send_loc_add_change(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int shape,
     int angle,
     int loc_id);
 void
 mock230_send_loc_del(
-    struct Mock230Server* srv,
+    struct Mock230Player* player,
     int pos,
     int shape,
     int angle);
@@ -2419,8 +2426,8 @@ mock230_world_loc_revert_queue(
     int level);
 
 void
-mock230_send_player_info(struct Mock230Server* srv);
+mock230_send_player_info(struct Mock230Player* player);
 void
-mock230_send_npc_info(struct Mock230Server* srv);
+mock230_send_npc_info(struct Mock230Player* player);
 
 #endif

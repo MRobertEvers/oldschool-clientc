@@ -123,7 +123,7 @@ say(
     va_start(args, fmt);
     vsnprintf(text, sizeof(text), fmt, args);
     va_end(args);
-    mock230_send_message(srv, text);
+    mock230_send_message(srv->player, text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -943,12 +943,12 @@ run_energy_flush(struct Mock230Server* srv)
     if( percent != player->run_energy_sent )
     {
         player->run_energy_sent = percent;
-        mock230_send_run_energy(srv, percent);
+        mock230_send_run_energy(srv->player, percent);
     }
     if( weight != player->run_weight_sent )
     {
         player->run_weight_sent = weight;
-        mock230_send_run_weight(srv, weight);
+        mock230_send_run_weight(srv->player, weight);
     }
 }
 
@@ -1685,8 +1685,8 @@ flush_ground(struct Mock230Server* srv)
         {
             if( obj->sent )
             {
-                int pos = mock230_send_zone(srv, obj->x, obj->z);
-                mock230_send_obj_del(srv, pos, obj->obj_id);
+                int pos = mock230_send_zone(srv->player, obj->x, obj->z);
+                mock230_send_obj_del(srv->player, pos, obj->obj_id);
             }
             obj->active = 0;
             continue;
@@ -1695,9 +1695,9 @@ flush_ground(struct Mock230Server* srv)
         in_scene = obj->level == player->level && mock230_scene_contains(obj->x, obj->z);
         if( in_scene && !obj->sent )
         {
-            int pos = mock230_send_zone(srv, obj->x, obj->z);
+            int pos = mock230_send_zone(srv->player, obj->x, obj->z);
 
-            mock230_send_obj_add(srv, pos, obj->obj_id, obj->count);
+            mock230_send_obj_add(srv->player, pos, obj->obj_id, obj->count);
             obj->sent = 1;
         }
         else if( !in_scene && obj->sent )
@@ -1718,9 +1718,9 @@ ground_take(
 
     if( obj->sent )
     {
-        int pos = mock230_send_zone(srv, obj->x, obj->z);
+        int pos = mock230_send_zone(srv->player, obj->x, obj->z);
 
-        mock230_send_obj_del(srv, pos, obj->obj_id);
+        mock230_send_obj_del(srv->player, pos, obj->obj_id);
     }
     obj->active = 0;
     obj->sent = 0;
@@ -2295,9 +2295,9 @@ interaction_engine_loc(
             return;
         }
         {
-            int pos = mock230_send_zone(srv, loc->x, loc->z);
+            int pos = mock230_send_zone(srv->player, loc->x, loc->z);
 
-            mock230_send_loc_add_change(srv, pos, loc->shape, loc->angle, loc->loc_id);
+            mock230_send_loc_add_change(srv->player, pos, loc->shape, loc->angle, loc->loc_id);
         }
         if( srv->verbose )
             fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
@@ -2951,7 +2951,7 @@ close_chat_modal(struct Mock230Server* srv)
 
     if( player->chatmodal_group <= 0 )
         return;
-    mock230_send_if_closesub(srv, mock230_ids()->com_chatbox_modal);
+    mock230_send_if_closesub(srv->player, mock230_ids()->com_chatbox_modal);
     player->resume_button_count = 0;
 }
 
@@ -2995,9 +2995,9 @@ mock230_world_close_modal(struct Mock230Server* srv)
         mock230_bank_close(srv);
     else
     {
-        mock230_send_if_closesub(srv, ids->com_gameframe_mainmodal);
+        mock230_send_if_closesub(srv->player, ids->com_gameframe_mainmodal);
         if( player->sidemodal_group > 0 )
-            mock230_send_if_closesub(srv, ids->com_gameframe_sidemodal);
+            mock230_send_if_closesub(srv->player, ids->com_gameframe_sidemodal);
     }
 }
 
@@ -3604,13 +3604,13 @@ mock230_world_login(struct Mock230Server* srv)
 
     /* 1. The scene. Everything after this is applied by the client behind the
      *    world load, because the packet queue is serial. */
-    mock230_send_rebuild_normal(srv);
+    mock230_send_rebuild_normal(srv->player);
 
     /* 2. Gameframe root + the HUD and sidebar panels mounted into it. Child
      *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
      *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
      *    overlay. */
-    mock230_send_if_opentop(srv, ids->iface_gameframe);
+    mock230_send_if_opentop(srv->player, ids->iface_gameframe);
     {
         /*
          * What goes in which slot is content: the `gameframe` enum in
@@ -3636,9 +3636,12 @@ mock230_world_login(struct Mock230Server* srv)
                     "gameframe will be empty\n");
         }
         for( int i = 0; frame && i < frame->count; i++ )
-            mock230_send_if_opensub(srv, ids->iface_gameframe,
-                                    frame->values[i].key & 0xffff, frame->values[i].value,
-                                    1);
+            mock230_send_if_opensub(
+                srv->player,
+                ids->iface_gameframe,
+                frame->values[i].key & 0xffff,
+                frame->values[i].value,
+                1);
     }
 
     /*
@@ -3661,11 +3664,11 @@ mock230_world_login(struct Mock230Server* srv)
      *    stream the client treats as itself, and several things it drives —
      *    the npc menu's level suffix among them — are computed the moment the
      *    first PLAYER_INFO lands. */
-    mock230_send_update_pid(srv, MOCK230_PLAYER_TERMINATOR);
+    mock230_send_update_pid(srv->player, MOCK230_PLAYER_TERMINATOR);
     /* Both orb numbers, unconditionally: the per-tick flush only sends what
      * changed, and a session that starts full would otherwise never send one. */
     player->run_energy_sent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
-    mock230_send_run_energy(srv, player->run_energy_sent);
+    mock230_send_run_energy(srv->player, player->run_energy_sent);
 
     /* The combat tab's varps are NOT sent here. They are ordinary varp writes
      * in [login,_] (content/scripts/player/login.rs2), declared transmit=yes in
@@ -3673,16 +3676,24 @@ mock230_world_login(struct Mock230Server* srv)
      * changed varp. A server operator changing the opening attack style should
      * not need a compiler. */
     player->run_weight_sent = player_weight_grams(player) / 1000;
-    mock230_send_run_weight(srv, player->run_weight_sent);
+    mock230_send_run_weight(srv->player, player->run_weight_sent);
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
-        mock230_send_stat(srv, stat, player->stat_level[stat],
-                          player->stat_xp_tenths[stat] / 10, player->stat_boosted[stat]);
+        mock230_send_stat(
+            srv->player,
+            stat,
+            player->stat_level[stat],
+            player->stat_xp_tenths[stat] / 10,
+            player->stat_boosted[stat]);
 
     /* 5. Containers, in full. Deltas take over from the next tick. */
-    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, player->inv,
-                          MOCK230_INV_SLOTS);
-    mock230_send_inv_full(srv, MOCK230_COM(ids->iface_wornitems, 0), ids->inv_worn,
-                          player->worn, MOCK230_WORN_SLOTS);
+    mock230_send_inv_full(
+        srv->player, ids->com_inventory_items, ids->inv_backpack, player->inv, MOCK230_INV_SLOTS);
+    mock230_send_inv_full(
+        srv->player,
+        MOCK230_COM(ids->iface_wornitems, 0),
+        ids->inv_worn,
+        player->worn,
+        MOCK230_WORN_SLOTS);
     player->inv_dirty = 0;
     player->worn_dirty = 0;
 
@@ -3699,9 +3710,9 @@ mock230_world_login(struct Mock230Server* srv)
     srv->login_pending = 1;
 
     /* 6. First info tick places the player and spawns the npcs. */
-    mock230_send_player_info(srv);
-    mock230_send_npc_info(srv);
-    mock230_send_tick_end(srv);
+    mock230_send_player_info(srv->player);
+    mock230_send_npc_info(srv->player);
+    mock230_send_tick_end(srv->player);
 }
 
 /* ------------------------------------------------------------------ */
@@ -3876,12 +3887,12 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
             continue;
         entry->active = 0;
 
-        pos = mock230_send_zone(srv, entry->x, entry->z);
+        pos = mock230_send_zone(srv->player, entry->x, entry->z);
         if( entry->loc_id < 0 )
         {
             /* Undo a loc_add. */
             if( mock230_scene_remove_loc(entry->slot) )
-                mock230_send_loc_del(srv, pos, entry->shape, entry->angle);
+                mock230_send_loc_del(srv->player, pos, entry->shape, entry->angle);
         }
         else
         {
@@ -3897,14 +3908,14 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
             if( loc && loc->active )
             {
                 if( mock230_scene_replace_loc(entry->slot, entry->loc_id, entry->angle) )
-                    mock230_send_loc_add_change(srv, pos, entry->shape, entry->angle,
-                                                entry->loc_id);
+                    mock230_send_loc_add_change(
+                        srv->player, pos, entry->shape, entry->angle, entry->loc_id);
             }
             else if( mock230_scene_add_loc(entry->x, entry->z, entry->level, entry->loc_id,
                                            entry->shape, entry->angle) >= 0 )
             {
-                mock230_send_loc_add_change(srv, pos, entry->shape, entry->angle,
-                                            entry->loc_id);
+                mock230_send_loc_add_change(
+                    srv->player, pos, entry->shape, entry->angle, entry->loc_id);
             }
         }
     }
@@ -3991,7 +4002,7 @@ phase_clients_out(struct Mock230Server* srv)
      * the world load finishes — so ordering here is simply "rebuild first". */
     if( srv->rebuild_pending )
     {
-        mock230_send_rebuild_normal(srv);
+        mock230_send_rebuild_normal(srv->player);
         srv->rebuild_pending = 0;
         /* Doors. REBUILD_NORMAL rebuilds the scene from the
          * cache, which puts every opened door back the way the map square has
@@ -4006,16 +4017,16 @@ phase_clients_out(struct Mock230Server* srv)
 
             if( !loc || loc->level != player->level )
                 continue;
-            pos = mock230_send_zone(srv, loc->x, loc->z);
-            mock230_send_loc_add_change(srv, pos, loc->shape, loc->angle, loc->loc_id);
+            pos = mock230_send_zone(srv->player, loc->x, loc->z);
+            mock230_send_loc_add_change(srv->player, pos, loc->shape, loc->angle, loc->loc_id);
         }
         /* The scene moved under the player, so the step directions computed
          * before it are meaningless. */
         player->move_count = 0;
     }
 
-    mock230_send_player_info(srv);
-    mock230_send_npc_info(srv);
+    mock230_send_player_info(srv->player);
+    mock230_send_npc_info(srv->player);
 
     /* After the containers would have changed but before they are flushed:
      * weight is a function of what is in them, and the orb should not lag a
@@ -4028,12 +4039,20 @@ phase_clients_out(struct Mock230Server* srv)
     if( player->worn_dirty )
         mock230_equipment_refresh_stats(srv);
 
-    mock230_send_inv_partial(srv, mock230_ids()->com_inventory_items,
-                             mock230_ids()->inv_backpack, player->inv, MOCK230_INV_SLOTS,
-                             player->inv_dirty);
-    mock230_send_inv_partial(srv, MOCK230_COM(mock230_ids()->iface_wornitems, 0),
-                             mock230_ids()->inv_worn, player->worn, MOCK230_WORN_SLOTS,
-                             player->worn_dirty);
+    mock230_send_inv_partial(
+        srv->player,
+        mock230_ids()->com_inventory_items,
+        mock230_ids()->inv_backpack,
+        player->inv,
+        MOCK230_INV_SLOTS,
+        player->inv_dirty);
+    mock230_send_inv_partial(
+        srv->player,
+        MOCK230_COM(mock230_ids()->iface_wornitems, 0),
+        mock230_ids()->inv_worn,
+        player->worn,
+        MOCK230_WORN_SLOTS,
+        player->worn_dirty);
 
     /* VARP_SMALL's value is one signed byte. A varp holding packed varbits is
      * routinely wider than that — the bank's tab counters occupy bits 0..25 of
@@ -4063,9 +4082,9 @@ phase_clients_out(struct Mock230Server* srv)
         if( !def || !def->transmit )
             continue;
         if( value >= -128 && value <= 127 )
-            mock230_send_varp_small(srv, varp, (int)value);
+            mock230_send_varp_small(srv->player, varp, (int)value);
         else
-            mock230_send_varp_large(srv, varp, (int)value);
+            mock230_send_varp_large(srv->player, varp, (int)value);
     }
 
     mock230_bank_flush(srv);
@@ -4077,15 +4096,18 @@ phase_clients_out(struct Mock230Server* srv)
     {
         if( (player->stat_dirty & (1u << stat)) == 0 )
             continue;
-        mock230_send_stat(srv, stat, player->stat_level[stat],
-                          player->stat_xp_tenths[stat] / 10,
-                          player->stat_boosted[stat]);
+        mock230_send_stat(
+            srv->player,
+            stat,
+            player->stat_level[stat],
+            player->stat_xp_tenths[stat] / 10,
+            player->stat_boosted[stat]);
     }
 
     if( srv->clear_map_flag )
-        mock230_send_unset_map_flag(srv);
+        mock230_send_unset_map_flag(srv->player);
 
-    mock230_send_tick_end(srv);
+    mock230_send_tick_end(srv->player);
 }
 
 /** 11. Drop everything that described only this tick. */
@@ -8744,7 +8766,7 @@ mock230_world_selftest(void)
              * mounted must send nothing at all. */
             mock230_capture_reset(&capture);
             mock230_capture_begin(&srv, &capture);
-            mock230_send_if_closesub(&srv, ids->com_gameframe_mainmodal);
+            mock230_send_if_closesub(srv.player, ids->com_gameframe_mainmodal);
             mock230_equipment_refresh_stats(&srv);
             mock230_capture_end(&srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,

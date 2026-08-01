@@ -1689,18 +1689,30 @@ unblocks the next:
    carries `world`, `session` and `pid`, so `Mock230Player` is a standalone,
    saveable entity — which is what let persistence land (§3.15).
 
-   `MOCK230_PLAYER_MAX` is **1**, and raising it is not enough. Three things
-   still assume one player:
+   `MOCK230_PLAYER_MAX` is **1**, and raising it is not enough.
 
-   - **the encoders**, which take `struct Mock230Server*` and reach
-     `srv->player->session`. They need to take a player. That is 81 declarations
-     and ~90 call sites, and it is the bulk of the remaining work;
+   - ~~**the encoders**~~ — **done.** All 33 `mock230_send_*` take a
+     `struct Mock230Player*` and reach the socket through `player->session`;
+     `mock230_send` is the one function that still touches the world, for the
+     test capture. 85 call sites, all passing `srv->player`, so the pass is
+     behaviour-identical while the pool holds one — which is what makes it
+     reviewable. It also closed a latent hazard: `mock230_send` gated on
+     `mock230_session_alive`, which is true from the moment a socket is
+     accepted, but the ISAAC pair does not exist until the login block is
+     parsed. With one player nothing was ever addressed to a half-logged-in
+     session; with a pool, every tick's PLAYER_INFO would be. It now checks
+     `cipher_out` too.
    - **the tick phases**, which act on `srv->player` rather than iterating the
      pool;
    - **`PLAYER_INFO`**, which writes the local player and then the terminator —
-     it has no path for encoding anyone else.
+     it has no path for encoding anyone else. `NPC_INFO` has the same shape one
+     level down: `tracked` is the world's single set, so it encodes the same
+     npcs for whoever it is addressed to.
 
-   Do not assume a second player works because the array exists.
+   Do not assume a second player works because the array exists. **Done means
+   two embedded clients in one process see each other move** — extend
+   `net/mock/test/embed_test.c`, which already drives one client through a real
+   handshake end to end.
 2. ~~**Dispatch tables, twice.**~~ — **done**, see §3.13d. Inbound packets are a
    45-entry table; the opcode gap report is generated from the `case` labels and
    runs at load. What is *not* done is splitting the 1,550-line host `switch`

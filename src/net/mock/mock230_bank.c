@@ -514,8 +514,8 @@ bank_transmit(struct Mock230Server* srv)
         if( bank->slots[i].obj_id >= 0 )
             used = i + 1;
 
-    mock230_send_inv_full(srv, mock230_ids()->com_bankmain_items, mock230_ids()->inv_bank,
-                          bank->slots, used);
+    mock230_send_inv_full(
+        srv->player, mock230_ids()->com_bankmain_items, mock230_ids()->inv_bank, bank->slots, used);
 }
 
 void
@@ -614,13 +614,21 @@ bank_set_events(struct Mock230Server* srv)
         ids->com_bankmain_deposit_worn,
     };
 
-    mock230_send_if_setevents(srv, ids->com_bankmain_items, 0, bank->size - 1,
-                              ops_1_to_10 | drag_depth_1 | drag_target);
-    mock230_send_if_setevents(srv, ids->com_bankside_items, 0, MOCK230_INV_SLOTS - 1,
-                              ops_1_to_10 | drag_depth_1 | drag_target);
+    mock230_send_if_setevents(
+        srv->player,
+        ids->com_bankmain_items,
+        0,
+        bank->size - 1,
+        ops_1_to_10 | drag_depth_1 | drag_target);
+    mock230_send_if_setevents(
+        srv->player,
+        ids->com_bankside_items,
+        0,
+        MOCK230_INV_SLOTS - 1,
+        ops_1_to_10 | drag_depth_1 | drag_target);
 
     for( size_t i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
-        mock230_send_if_setevents(srv, k_buttons[i], 0, 0, op_1);
+        mock230_send_if_setevents(srv->player, k_buttons[i], 0, 0, op_1);
 }
 
 void
@@ -648,12 +656,18 @@ mock230_bank_open(struct Mock230Server* srv)
      * sidebar replacement. The side panel has to arrive after the main one
      * because the sidebar's own CS2 keys "is a modal open" off the main mount.
      */
-    mock230_send_if_opensub(srv, ids->iface_gameframe,
-                            MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
-                            ids->iface_bankmain, 0);
-    mock230_send_if_opensub(srv, ids->iface_gameframe,
-                            MOCK230_COM_CHILD(ids->com_gameframe_sidemodal),
-                            ids->iface_bankside, 3);
+    mock230_send_if_opensub(
+        srv->player,
+        ids->iface_gameframe,
+        MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
+        ids->iface_bankmain,
+        0);
+    mock230_send_if_opensub(
+        srv->player,
+        ids->iface_gameframe,
+        MOCK230_COM_CHILD(ids->com_gameframe_sidemodal),
+        ids->iface_bankside,
+        3);
 
     bank_set_events(srv);
 
@@ -661,8 +675,12 @@ mock230_bank_open(struct Mock230Server* srv)
      * inv container the client already holds — but its paint hook only runs on
      * a transmit, so it has to be re-sent or the panel mounts empty. */
     bank_transmit(srv);
-    mock230_send_inv_full(srv, ids->com_bankside_items, ids->inv_backpack, srv->player->inv,
-                          MOCK230_INV_SLOTS);
+    mock230_send_inv_full(
+        srv->player,
+        ids->com_bankside_items,
+        ids->inv_backpack,
+        srv->player->inv,
+        MOCK230_INV_SLOTS);
     bank->dirty = 0;
 }
 
@@ -676,15 +694,19 @@ mock230_bank_close(struct Mock230Server* srv)
         return;
     bank->open = 0;
 
-    mock230_send_if_closesub(srv, ids->com_gameframe_mainmodal);
-    mock230_send_if_closesub(srv, ids->com_gameframe_sidemodal);
+    mock230_send_if_closesub(srv->player, ids->com_gameframe_mainmodal);
+    mock230_send_if_closesub(srv->player, ids->com_gameframe_sidemodal);
 
     /* The sidebar's inventory tab is a different interface from the bank's side
      * panel, and it was never unmounted — but its container binding is, so the
      * backpack has to be re-sent against the tab's own component or the tab
      * comes back empty. */
-    mock230_send_inv_full(srv, ids->com_inventory_items, ids->inv_backpack, srv->player->inv,
-                          MOCK230_INV_SLOTS);
+    mock230_send_inv_full(
+        srv->player,
+        ids->com_inventory_items,
+        ids->inv_backpack,
+        srv->player->inv,
+        MOCK230_INV_SLOTS);
 
     /* The reference compacts on close as well, in a queued script, so a bank
      * re-opened later is already tidy. */
@@ -1178,7 +1200,7 @@ handle_side_click(
          * does. */
         bank->pending_kind = MOCK230_BANK_PENDING_DEPOSIT;
         bank->pending_slot = sub;
-        mock230_send_if_opencountdialog(srv);
+        mock230_send_if_opencountdialog(srv->player);
     }
     else if( amount > 0 )
         mock230_bank_deposit(srv, sub, amount);
@@ -1202,7 +1224,7 @@ handle_main_click(
     {
         bank->pending_kind = MOCK230_BANK_PENDING_WITHDRAW;
         bank->pending_slot = sub;
-        mock230_send_if_opencountdialog(srv);
+        mock230_send_if_opencountdialog(srv->player);
     }
     else if( amount > 0 )
         mock230_bank_withdraw(srv, sub, amount);
