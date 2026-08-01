@@ -941,7 +941,6 @@ mock230_combat.c      [proc,combat_levelup_message]  [proc,combat_defend_anim]
                       [queue,player_death]
 mock230_equipment.c   [proc,equip_level_message]     [proc,equipment_refresh]
                       [proc,equipment_open]
-mock230_prayer.c      [proc,prayer_deactivate_all]
 mock230_world.c       [proc,combat_weapon_type]
 ```
 

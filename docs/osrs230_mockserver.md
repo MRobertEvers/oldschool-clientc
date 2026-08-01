@@ -825,6 +825,43 @@ roster is built from the map squares in walk order, so a slot number is a
 different npc between runs) and `::fight` with no argument takes the nearest
 attackable npc.
 
+## 3.11g The emotes tab, and how a dynamic child is addressed
+
+The emotes tab is entirely client-built. Interface 216's onload (clientscript
+699, `emote_init`) walks emote indices 0..55 and `cc_create`s a cell for each one
+the cache gives an icon to, **using the index as the sub-id**. Labels come from
+`enum_1000`, icons from `enum_1001`, and the "Perform"/"Loop" verb from
+`enum_4998`/`enum_4999`. None of that needs a server.
+
+What no cache config states is which *animation* an emote plays — that is
+server-side in every RuneScape server — so the content here is one trigger and an
+index-to-seq table (`interface_emote/`). The indices are named out of the cache's
+own `enum_1000`, so the list and the labels the player reads cannot drift.
+
+LostCity binds twelve `[if_button,controls:com_N]` triggers because its emotes
+are twelve fixed components. Here there is **one** trigger on the container and
+`last_slot` says which cell — the same shape as the choice dialogue (§3.11f), and
+for the same reason: at this revision an interface that lists things builds the
+list itself.
+
+### Two client bugs it exposed, both about the same thing
+
+`IF_SETEVENTS` carries a sub-id **range**, and nothing was reading it.
+
+- **The arming gate matched component ids exactly.** A `cc_create`d cell has a
+  runtime component id the server has never heard of, so `App_IfEventsGet`
+  found nothing and every emote click was dropped before it was sent. The
+  right-click menu still offered "Perform Bow" — the row comes from the cache's
+  own op list — so the tab hovered, highlighted and named the verb, and clicking
+  did nothing at all.
+- **The outbound packet carried the child's own id.** RSProt's `If3Button` is
+  `combinedId` + `sub` precisely so a dynamic child is addressed as *(container,
+  index within it)*; sending `216:37984` instead of `216:2 sub=2` gave the server
+  a component no name resolves and no script binds.
+
+`app_if_button_target` is the one answer both now use. It also fixes the same
+latent problem for the choice dialogue's rows, which are dynamic children too.
+
 ## 3.12 Baseline melee combat
 
 `mock230_combat.c`. The split follows the rest of the mock: the engine owns what
@@ -1516,12 +1553,14 @@ tables (§3.13d) are done. What is left, in the order each unblocks the next:
    `src/net/mock/mock230_opcode_coverage.gen.h`, so read it there rather than
    trusting a number typed into prose; this one said "~100 of 396" long after
    it stopped being true). Driven by the gap
-   report from step 2, plus `.dbtable`/`.dbrow` support in the content reader —
-   `mock230_content.h` admits prayers were flattened into a bespoke `.prayer`
-   grammar to avoid writing one, and drop tables and shops want it too.
+   report from step 2, plus `.dbtable`/`.dbrow` support in the content reader,
+   which landed: prayers were flattened into a bespoke `.prayer` grammar to
+   avoid writing one and are an ordinary dbtable now (`db_find` was the last
+   piece), and drop tables and shops want the same.
 5. **Move the C content into content.** ~3,200 lines that are content by
    LostCity's definition still live in C: the bank (1,370), combat (858),
-   equipment, prayer, the world map, doors, and the login burst. The reason is
+   equipment, the world map, doors, and the login burst (prayer was one of
+   these and is done — see mock230_player_systems.md §4.1). The reason is
    real and documented in `bank.rs2`'s own header — the rev-230 bank builds its
    op ladder conditionally on varbits, so the index alone does not say what was
    clicked — which is exactly why step 4 comes first. Widen the opcode surface

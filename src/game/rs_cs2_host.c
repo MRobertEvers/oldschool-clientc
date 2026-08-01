@@ -2714,6 +2714,99 @@ exec_set_on_inv_transmit(
     return CS2VM_EXECNO_OK;
 }
 
+/*
+ * The stat-transmit registry's acquire, mirroring the var one exactly.
+ *
+ * Same one-hook-per-component rule and same `last_seen_serial` carry-over: a
+ * re-registration must not make a hook fire again for a serial it has already
+ * seen, or the XP-drop script would replay its whole queue every time the
+ * gameframe re-armed it.
+ */
+static struct RS_CS2StatTransmitHook*
+rs_cs2_acquire_stat_transmit_hook(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    int i;
+    struct RS_CS2StatTransmitHook* hook;
+
+    for( i = 0; i < host->stat_transmit_hook_count; i++ )
+    {
+        hook = &host->stat_transmit_hooks[i];
+        if( hook->component_id == component_id )
+        {
+            uint32_t const last_seen = hook->last_seen_serial;
+            memset(hook, 0, sizeof(*hook));
+            hook->last_seen_serial = last_seen;
+            return hook;
+        }
+    }
+
+    /* Full: drop the entries whose component has gone (a closed interface
+     * leaves its hooks behind), and only then refuse. */
+    if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+    {
+        int w = 0;
+        for( i = 0; i < host->stat_transmit_hook_count; i++ )
+        {
+            if( UITree_FindByComponentId(host->tree, host->stat_transmit_hooks[i].component_id) < 0 )
+                continue;
+            if( w != i )
+                host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
+            w++;
+        }
+        host->stat_transmit_hook_count = w;
+        if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+            return NULL;
+    }
+
+    hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
+    memset(hook, 0, sizeof(*hook));
+    return hook;
+}
+
+/*
+ * `if_setonstattransmit(script, args, component)` — the XP drops' listener.
+ *
+ * It used to be in the VM's discard group: parsed for its operands (which it has
+ * to be, or the stack unwinds wrong) and then thrown away. The registry, the
+ * `stat_change_serial` and `RS_CS2Host_NotifyStatChanged` all already existed —
+ * UPDATE_STAT has been calling the notifier all along — so half the reactive
+ * loop was built and the half that registers a listener was not. Nothing fires,
+ * and there is no error: the XP drop panel simply never draws.
+ *
+ * The trigger list is the *stat ids* the hook cares about, the same way a var
+ * hook lists varps. The XP drops list all 24, which is why they want a filter at
+ * all — without one every skill change would re-run every registered hook.
+ */
+static int
+exec_set_on_stat_transmit(
+    struct RS_CS2Host* host,
+    struct CS2VM_HostRequest_IF_SetOnVarTransmit const* request)
+{
+    struct RS_CS2StatTransmitHook* hook;
+
+    assert(host);
+    if( !request )
+        return CS2VM_EXECNO_OK;
+    hook = rs_cs2_acquire_stat_transmit_hook(host, request->component_id);
+    if( !hook )
+        return CS2VM_EXECNO_OK;
+    hook->component_id = request->component_id;
+    hook->script_id = request->script_id;
+    hook->int_arg_count = request->int_arg_count;
+    if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+        hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+    memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
+    hook->trigger_count = request->trigger_count;
+    if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+        hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+    if( request->trigger_ids && hook->trigger_count > 0 )
+        memcpy(hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
+    return CS2VM_EXECNO_OK;
+}
+
 static int
 exec_set_on_var_transmit(
     struct RS_CS2Host* host,
@@ -4426,6 +4519,13 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT:
         return exec_set_on_inv_transmit(host, &request->u.if_set_on_inv_transmit);
+
+    case CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT:
+        /* Same request shape as the var one — script, captured args, a trigger
+         * list — so it shares the payload struct. The trigger ids are stat ids
+         * rather than varp ids, which is the only difference and is the
+         * dispatcher's business, not this one's. */
+        return exec_set_on_stat_transmit(host, &request->u.if_set_on_var_transmit);
 
     case CS2VM_HOST_REQUEST_IF_SETONOP:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);

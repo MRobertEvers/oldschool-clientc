@@ -1360,12 +1360,6 @@ mock230_varbit_set(
     int varbit_id,
     int value);
 
-/** The varp a varbit is packed into, or -1. For a caller that must react to a
- *  varp write on behalf of a varbit — the mapping `all.varbit` states, read
- *  rather than assumed, so a different cache's packing still works. */
-int
-mock230_varbit_basevar(int varbit_id);
-
 /** Recompute the two varbits interface 593 builds itself from — the equipped
  *  weapon's category and the player's combat level. Call after anything that
  *  changes either. */

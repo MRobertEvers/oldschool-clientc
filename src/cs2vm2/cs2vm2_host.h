@@ -98,6 +98,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETTEXT,
     CS2VM_HOST_REQUEST_IF_SETOUTLINE,
     CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT,
+    /* Shares the SetOnVarTransmit payload: same script/args/trigger-list shape,
+     * with stat ids in the trigger list instead of varp ids. */
+    CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETONOP,
     CS2VM_HOST_REQUEST_IF_SETONCLICK,

@@ -27,7 +27,7 @@ New `::` commands, all for the headless harness (`TORIRS_NET_CHEAT=`):
 | command | effect |
 | --- | --- |
 | `::run [0\|1]` | run toggle — the client only sets it with ctrl held |
-| `::pray <0-28>` | toggle a prayer by its index in interface 541's button order (18 = Protect from Melee); grants the level it needs |
+| `::pray <0-28>` | toggle a prayer by its index in the book's button order (18 = Protect from Melee); grants the level it needs. A `[debugproc,pray]` in content, not an engine branch — see §4.1 |
 | `::equipstats` | open the equipment-stats screen without walking the sidebar |
 
 New env knobs: `TORIRS_OPS_DEBUG=1` (which script wrote which verb onto which
@@ -53,8 +53,10 @@ So the login burst now arms what it owns:
 
 ```c
 mock230_equipment_arm_worn_tab(srv);   /* 387:1 op1 — "View equipment stats" */
-mock230_prayer_arm_buttons(srv);       /* 541:9..541:37 op1 — "Activate"     */
 ```
+
+The prayer half of that arming is `[proc,prayer_login]` in content now: 29
+`if_setevents` lines, one per button, beside the handlers they arm.
 
 Everything below assumes that.
 
@@ -379,16 +381,24 @@ the gameframe's CS2 sets `op1="Activate"` on exactly those 29 components and no
 others. The book has thirty buttons and this revision fills twenty-nine, so each
 prayer **names** the component it sits on rather than deriving it from an index.
 
-The table is content, not C: `skill_prayer/configs/prayers.prayer`, one block
-per prayer, which is LostCity's `prayers.dbrow`/`prayers.enum` pair flattened
-into the `[symbol]` + `key=value` shape the rest of the tree uses. A prayer's
-index is its position in that file, which is also its bit in `prayer_active`.
+The table is content, and it is an ordinary dbtable:
+`skill_prayer/configs/prayers.dbtable` and `prayers.dbrow`, which is the
+reference's own schema (LostCity's `prayers.dbtable` + `prayers.dbrow`). **No C
+reads it.** A prayer's index is its `^prayer_*` constant, its position in the
+book counting from zero, and it is only a row key — nothing packs these into a
+mask any more.
+
+It was a bespoke `.prayer` grammar the engine parsed, which existed only because
+nothing could read a `.dbrow` yet (`mock230_db.h`); when that stopped being true
+the grammar, the parser and `mock230_prayer.{c,h}` all went. What is left in the
+engine is `db_find`/`db_getfield`, which know nothing about prayer.
 
 Levels and drain rates are OldSchool's, transcribed from xrsps's
 `src/rs/prayer/prayers.ts` (the 1/6/12/24 pattern is not a smooth curve).
-Conflicts are a group bitmask rather than a group id, because the combat prayers
-(Chivalry, Piety, Rigour, Augury) belong to several groups at once — which in
-the config is several `group=` lines on one block.
+Conflicts are a `group` LIST rather than a group id, because the combat prayers
+(Chivalry, Piety, Rigour, Augury) belong to several groups at once — Piety
+claims attack, strength and defence, which is what stops it stacking with
+Ultimate Strength.
 
 Drain follows xrsps's `PrayerSystem`: rates accumulate per tick against a
 resistance of `60 + 2 × prayer bonus`, and each time the accumulator clears the
@@ -405,8 +415,9 @@ follows the corpse back to Lumbridge.
 There is no overhead-icon packet. It is one byte of the player's appearance
 block, so turning a protection prayer on is an appearance change like putting on
 a helmet, and everyone who can see the player learns about it through the
-`PLAYER_INFO` they were going to get anyway. `mock230_prayer_toggle` sets
-`MOCK230_PMASK_APPEARANCE` and that is the whole of the delivery.
+`PLAYER_INFO` they were going to get anyway. `headicons_set` — the one opcode
+the engine offers here, and it knows nothing about prayer — sets
+`MOCK230_PMASK_APPEARANCE`, and that is the whole of the delivery.
 
 **One deviation.** A real rev-230 appearance has two separate one-byte fields
 here — a prayer icon index and a PK-skull index, each 255 for "none". This
@@ -478,6 +489,6 @@ player's head, and clicking a prayer button in the tab arrives as
 | `src/net/net_out.c`, `src/net/rev/osrs230/packetout.h` | component uid at the revision's width |
 | `src/cs2vm2/cs2vm2.c`, `src/game/rs_cs2_host.c` | `RUNENERGY_VISIBLE` / `RUNWEIGHT_VISIBLE` |
 | `src/net/mock/mock230_equipment.{c,h}` | the stats screen |
-| `src/net/mock/mock230_prayer.{c,h}` | prayers, drain, the icon mask |
+| `skill_prayer/` (content) | prayers: the dbtable, the toggle, the drain, `::pray` |
 | `src/net/mock/mock230_world.c` | run energy, worn-slot map, the `::` commands |
 | `src/net/mock/mock230_objinfo.c` | obj weight from the cache |

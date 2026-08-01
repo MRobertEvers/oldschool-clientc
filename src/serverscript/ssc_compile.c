@@ -61,6 +61,20 @@ struct SSC_Build
     int string_locals;
     int int_args;
     int string_args;
+    /*
+     * The DECLARED type of each argument, in order, as its ScriptVarType char.
+     *
+     * `int_args`/`string_args` are the counts the VM needs — every type but
+     * `string` is an int on the stack — and they were all this compiler kept.
+     * The wire format has always carried the types themselves (see
+     * SSVM_ScriptEncode), and one caller genuinely needs them rather than the
+     * counts: a `::command` fills a `[debugproc]`'s parameters from words typed
+     * by a human, so `npc $target` has to know it is an npc *name* to resolve.
+     * That is the reference's `script.info.parameterTypes`, used in exactly the
+     * same place.
+     */
+    uint8_t param_types[SS_MAX_PARAM_TYPES];
+    int param_type_count;
 
     int32_t line_pcs[SSC_MAX_OPS];
     int32_t line_numbers[SSC_MAX_OPS];
@@ -1866,6 +1880,17 @@ parse_header_lists(struct SSC_Compiler* compiler)
             compiler->build.string_args++;
         else
             compiler->build.int_args++;
+        /* Keep the type as well as the stack it lives on — see param_types.
+         * A type the symbol table does not know is `int`, which is what the
+         * stack answer already said it was. */
+        if( compiler->build.param_type_count < SS_MAX_PARAM_TYPES )
+        {
+            const struct SSC_Symbol* declared =
+                SSC_SymbolsFind(compiler->symbols, type, SSC_SYM_TYPE);
+
+            compiler->build.param_types[compiler->build.param_type_count++] =
+                (uint8_t)(declared ? declared->value : 105 /* int */);
+        }
         SSC_LexNext(lexer);
 
         if( SSC_LexIsPunct(lexer, ",") )
@@ -2174,6 +2199,9 @@ finish_script(struct SSC_Compiler* compiler)
     script->string_local_count = (uint16_t)build->string_locals;
     script->int_arg_count = (uint16_t)build->int_args;
     script->string_arg_count = (uint16_t)build->string_args;
+    script->param_type_count = (uint8_t)build->param_type_count;
+    for( i = 0; i < build->param_type_count; i++ )
+        script->param_types[i] = build->param_types[i];
 
     script->op_count = build->op_count;
     script->opcodes = (uint16_t*)calloc((size_t)build->op_count, sizeof(uint16_t));

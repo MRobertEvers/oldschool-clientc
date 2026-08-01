@@ -3880,11 +3880,12 @@ CS2VM2_Op_SetAntiDrag(
     return vm->vm->host_exec(vm, &request);
 }
 
-int
-CS2VM2_Op_IF_SetOnVarTransmit(
+static int
+cs2vm2_op_if_set_on_transmit(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
-    int operand)
+    int operand,
+    enum CS2VM_HostRequestKind kind)
 {
     assert(vm);
     assert(frame);
@@ -3982,7 +3983,7 @@ CS2VM2_Op_IF_SetOnVarTransmit(
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
-    request.kind = CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT;
+    request.kind = kind;
     request.u.if_set_on_var_transmit.component_id = widget_uid;
     request.u.if_set_on_var_transmit.script_id = script_id;
     request.u.if_set_on_var_transmit.signature = signature;
@@ -4016,6 +4017,26 @@ CS2VM2_Op_IF_SetOnVarTransmit(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_Op_IF_SetOnVarTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    return cs2vm2_op_if_set_on_transmit(
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT);
+}
+
+int
+CS2VM2_Op_IF_SetOnStatTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    return cs2vm2_op_if_set_on_transmit(
+        vm, frame, operand, CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT);
 }
 
 int
@@ -8040,6 +8061,12 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOutline(vm, frame, operand);
     case CS2_OP_IF_SETONVARTRANSMIT:
         return CS2VM2_Op_IF_SetOnVarTransmit(vm, frame, operand);
+    /* Identical operand shape to the var one — script, captured args and a
+     * trailing trigger list — so it shares the parser and differs only in the
+     * request kind. It was in the discard group above, which parsed the operands
+     * correctly and threw the registration away. */
+    case CS2_OP_IF_SETONSTATTRANSMIT:
+        return CS2VM2_Op_IF_SetOnStatTransmit(vm, frame, operand);
     case CS2_OP_IF_SETONINVTRANSMIT:
         return CS2VM2_Op_IF_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_IF_SETONOP:
@@ -8365,7 +8392,6 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnHold(vm, frame, operand);
     case CS2_OP_IF_SETONRELEASE:
     case CS2_OP_IF_SETONTARGETLEAVE:
-    case CS2_OP_IF_SETONSTATTRANSMIT:
     case CS2_OP_IF_SETONTARGETENTER:
     case CS2_OP_IF_SETONFRIENDTRANSMIT:
     case CS2_OP_IF_SETONCLANTRANSMIT:

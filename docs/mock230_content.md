@@ -64,7 +64,9 @@ OSRS-Content/osrs239-content/
       skill_prayer/scripts/bury_bone.rs2         [opheld1,_bones]
       skill_prayer/scripts/altar.rs2             [oploc1,altar]
       skill_prayer/configs/bones.constant        prayer experience per bone
-      skill_prayer/configs/prayers.prayer        the 29 prayers
+      skill_prayer/configs/prayers.dbtable       the prayer table (schema)
+      skill_prayer/configs/prayers.dbrow         the 29 prayers (rows)
+      skill_prayer/scripts/cheat_prayer.rs2      [debugproc,pray]
       skill_prayer/configs/prayers.constant      overhead icon indices
       general/scripts/food.rs2                   eating, bound by obj category
       general/configs/food.constant              hitpoints healed per food
@@ -208,7 +210,7 @@ use. What used to be a `#define` or a literal table in C:
 | combat-tab varbits | `varbit.pack`; the *bit ranges* stay in the cache |
 | `MOCK230_BANK_IFACE 12`, `MOCK230_BANK_COM_*`, the eleven bank varbits | `interface.pack` / `component.pack` / `varbit.pack`, through **`mock230_ids.h`** |
 | `MOCK230_EQUIPSTATS_IFACE 84` and interface 84's eighteen text rows | `component.pack` — `equipment_stats_stabatt` and friends |
-| the 29-row `k_prayers[]` table in `mock230_prayer.c` | a **`.prayer`** config, which is LostCity's prayers `.dbrow` flattened |
+| the 29-row `k_prayers[]` table in `mock230_prayer.c` | a **`.dbtable`/`.dbrow`** pair, the reference's own schema — the whole C module went with it |
 | `MOCK230_HEADICON_PROTECT_MELEE 0` … | `prayers.constant`, LostCity's `headicon.constant` shape |
 | `MOCK230_BANK_QTY_1 0` … | `bank.constant`, the same shape as `^attack_style_accurate` |
 | `k_worn_slot_by_child[]` in `mock230_world.c` | the `worn_slots` **.enum** — keys are components, values are wear slots |
