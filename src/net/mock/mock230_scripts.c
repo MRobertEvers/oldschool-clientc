@@ -1679,80 +1679,10 @@ container_dirty(
         srv->active_player->bank.dirty = 1;
 }
 
-/*
- * Push a param onto the stack its *declaration* calls for.
- *
- * Shared by `oc_param` and `nc_param` because the choice of stack is the entire
- * difficulty of the `runtime_typed` family and it does not vary by table — only
- * the lookup does. Duplicating it would mean two places for the declared-vs-
- * stored disagreement to be handled differently, and that disagreement is the
- * one thing here worth being loud about.
- *
- * `sval`/`ival` are the stored value and `present` says whether the record
- * carried the param at all; a caller with no row passes present = 0 and the
- * other two are ignored.
- */
-static void
-push_typed_param(
-    struct SSVM_State* state,
-    int param_id,
-    const char* sval,
-    int32_t ival,
-    int present,
-    const char* record_kind,
-    int record_id)
-{
-    char declared = mock230_content_param_type(param_id);
-
-    /*
-     * Which stack the result goes on is decided by the declaration, because
-     * that is what the script was compiled against: a script that wrote
-     * `nc_param($npc, some_string_param)` has a string-typed local waiting for
-     * it, and pushing an int would leave the two stacks out of step for the
-     * rest of the script rather than fail here.
-     *
-     * 1,517 of cache.osrs239's 2,634 param records declare no type at all — the
-     * config's type opcode is optional. For those the *value's own* stored kind
-     * is the answer and it is not a guess: the record says whether it wrote
-     * four bytes or a NUL-terminated string.
-     */
-    if( !declared && present )
-        declared = sval ? 's' : 'i';
-
-    if( declared == 's' )
-    {
-        if( present && !sval )
-        {
-            /* Declared a string, stored as an int. The record is wrong, and
-             * which half to believe is not this opcode's call to make. */
-            SSVM_Abort(state, "param %d is declared a string but %s %d stores an int",
-                       param_id, record_kind, record_id);
-            return;
-        }
-        /* `defaultstr=` (311 declared) is still read by nothing, so an absent
-         * string param reports "" where the reference reports the declared
-         * string — docs/osrs230_mockserver.md records the gap. */
-        SSVM_PushStr(state, present ? sval : "");
-        return;
-    }
-
-    if( present && sval )
-    {
-        SSVM_Abort(state, "param %d is declared an int but %s %d stores a string",
-                   param_id, record_kind, record_id);
-        return;
-    }
-    /*
-     * A record that does not carry the param answers with the param's declared
-     * `default=`, never an abort — LostCity's handlers push
-     * `paramType.defaultInt` (ObjConfigOps.ts), and content relies on both
-     * halves of that: `oc_param($obj, specwep) = ^true` is asked of every
-     * weapon and only special-attack weapons carry the row (specwep declares
-     * no default, so absent reads 0), while 365 params declare `default=-1`
-     * precisely so that absence spells "no id" rather than obj 0.
-     */
-    SSVM_PushInt(state, present ? ival : mock230_content_param_default(param_id));
-}
+/* `push_typed_param` moved to mock230_ops_param.c as
+ * `mock230_push_typed_param` (declared in mock230.h). It was `static` here
+ * and so unreachable from a per-domain ops file, and the family's whole
+ * difficulty is that there must be exactly one of it — see its comment. */
 
 int
 mock230_script_command(
@@ -1768,6 +1698,12 @@ mock230_script_command(
     /* Per-domain handlers first. Each returns 1 when it owns the opcode; see the
      * note on mock230_ops_db in mock230.h for why the split grows this way. */
     if( mock230_ops_db(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_param(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_loc(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_npc(state, opcode, dot) )
         return 1;
 
     switch( opcode )
@@ -3173,8 +3109,8 @@ mock230_script_command(
             return 1;
 
         row = mock230_obj_param(obj_id, param_id);
-        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
-                         row != NULL, "obj", obj_id);
+        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+                                 row ? row->ival : 0, row != NULL, "obj", obj_id);
         return 1;
     }
 
@@ -3190,8 +3126,8 @@ mock230_script_command(
             return 1;
 
         row = mock230_npc_param(npc_id, param_id);
-        push_typed_param(state, param_id, row ? row->sval : NULL, row ? row->ival : 0,
-                         row != NULL, "npc", npc_id);
+        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+                                 row ? row->ival : 0, row != NULL, "npc", npc_id);
         return 1;
     }
 
@@ -4328,28 +4264,12 @@ mock230_script_command(
         return 1;
     }
 
-    /*
-     * `npc_param(<param>)` reads a param off the active npc's type.
-     *
-     * Only the combat params exist here, and only because the drop tables need
-     * `death_drop`. A param the content tree does not model pushes 0 rather
-     * than aborting: the reference's own params default, and content that asks
-     * for one this engine has never heard of should degrade rather than stop.
-     */
-    case SS_OP_NPC_PARAM:
-    {
-        struct Mock230Npc* npc = active_npc(state);
-        int32_t param;
-
-        if( !SSVM_PopInt(state, &param) )
-            return 1;
-        if( npc && npc->def &&
-            param == mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop") )
-            SSVM_PushInt(state, npc->def->death_drop);
-        else
-            SSVM_PushInt(state, 0);
-        return 1;
-    }
+    /* `npc_param` was here. It is `mock230_ops_npc.c`'s now — and had been
+     * unreachable since that domain's hook went in above, because the per-domain
+     * handlers are offered the opcode first. Deleted rather than marked dead: it
+     * answered one param by spelling `death_drop` in C, which is the hard rule
+     * in PORTING_GUIDE §2.4 item 3, and a dead copy of a wrong answer is the
+     * thing somebody eventually reads and believes. */
 
     /* ---- audio ---------------------------------------------------- */
 

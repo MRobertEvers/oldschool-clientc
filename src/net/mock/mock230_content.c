@@ -742,6 +742,25 @@ mock230_content_npc_default(void)
     return &g_npc_default;
 }
 
+int
+mock230_content_npc_param(
+    const struct Mock230NpcDef* def,
+    int param_id,
+    int32_t* out)
+{
+    if( !def )
+        return 0;
+    for( int i = 0; i < def->param_count; i++ )
+    {
+        if( def->params[i].key != param_id )
+            continue;
+        if( out )
+            *out = def->params[i].value;
+        return 1;
+    }
+    return 0;
+}
+
 const struct Mock230EnumDef*
 mock230_content_enum(const char* symbol)
 {
@@ -868,6 +887,57 @@ param_symbol(
     return 1;
 }
 
+/*
+ * Also file the param under its *id*, so `npc_param` can find it.
+ *
+ * Every branch below writes a named C field, which is what the engine reads.
+ * That is fine for the engine and useless to a script: `npc_param` is handed a
+ * param *id* and has no way back to a field name. Until this list existed the
+ * only opcode-visible authored param was `death_drop`, and it was visible
+ * because `mock230_scripts.c` compared the popped id against
+ * `mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop")` — one game-facing
+ * name in C, answering one param, pushing 0 for the rest.
+ *
+ * These rows are rank 1 in the sense CONTENT_ARCHITECTURE.md §3.1 uses: an
+ * authored overlay value that overrides the cache record's own param table.
+ * `npc_param` reads them first and the cache row second, which is the same
+ * precedence `npc_def_seed_from_cache` already gives the bonuses.
+ *
+ * A name the param pack does not know is filed under no id and still writes its
+ * field — `attack_anim`, `defend_anim` and the rest are engine spellings that
+ * predate the pack, and refusing them here would break loading rather than
+ * teach anyone anything.
+ */
+static void
+record_authored_param(
+    struct Mock230NpcDef* def,
+    const char* name,
+    int32_t resolved,
+    const char* where)
+{
+    int param_id = mock230_content_symbol(MOCK230_PACK_PARAM, name);
+
+    if( param_id < 0 )
+        return;
+    for( int i = 0; i < def->param_count; i++ )
+    {
+        if( def->params[i].key == param_id )
+        {
+            def->params[i].value = resolved;
+            return;
+        }
+    }
+    if( def->param_count >= MOCK230_NPCDEF_PARAM_MAX )
+    {
+        CONTENT_ERROR("%s: more than %d authored params on one npc\n", where,
+                      MOCK230_NPCDEF_PARAM_MAX);
+        return;
+    }
+    def->params[def->param_count].key = param_id;
+    def->params[def->param_count].value = resolved;
+    def->param_count++;
+}
+
 /** `param=<name>,<value>`. Returns 0 for a name nothing here knows, which is an
  *  error rather than a shrug: a typo'd param is a stat that silently stays at
  *  its default. */
@@ -879,6 +949,7 @@ apply_param(
 {
     char* comma = strchr(text, ',');
     const char* value;
+    int32_t resolved;
 
     if( !comma )
     {
@@ -893,37 +964,64 @@ apply_param(
         if( strcmp(text, k_bonus_param_names[i]) == 0 )
         {
             def->bonus[i] = atoi(value);
+            record_authored_param(def, text, def->bonus[i], where);
             return 1;
         }
     }
     if( strcmp(text, "attackrate") == 0 )
-        def->attackrate = atoi(value);
+        resolved = def->attackrate = atoi(value);
     else if( strcmp(text, "attackrange") == 0 )
-        def->attackrange = atoi(value);
+        resolved = def->attackrange = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
-        def->damagetype = atoi(value);
+        resolved = def->damagetype = atoi(value);
     else if( strcmp(text, "huntrange") == 0 )
-        def->huntrange = atoi(value);
+        resolved = def->huntrange = atoi(value);
     /*
-     * The four symbolic params. Every one of them used to take
-     * `mock230_content_symbol`'s -1 for an answer, so a misspelled seq or obj
-     * name loaded silently and the npc simply had no anim and dropped nothing —
-     * `param=death_drop,bones_TYPO` at 0 errors. `null` still means "nothing"
-     * (see mock230_content_symbol_checked); a name is now required to exist.
+     * The four symbolic params, and the one place the two halves of this merge
+     * had to be combined rather than chosen between.
+     *
+     * The gate: every one of these used to take `mock230_content_symbol`'s -1
+     * for an answer, so a misspelled seq or obj name loaded silently and the npc
+     * simply had no anim and dropped nothing — `param=death_drop,bones_TYPO` at
+     * 0 errors. `null` still means "nothing" (see
+     * `mock230_content_symbol_checked`); a name is now required to exist.
+     *
+     * And the id: the branch cannot `return` on success the way the gate first
+     * wrote it, because `record_authored_param` below is what files the value
+     * under its param *id* so `npc_param` can find it. Returning early here
+     * would leave the four symbolic params the only ones a script could not
+     * read — which is the bug that motivated the id list in the first place.
      */
     else if( strcmp(text, "attack_anim") == 0 || strcmp(text, "slashattack_anim") == 0 )
-        return param_symbol(&def->attack_anim, MOCK230_PACK_SEQ, text, value, where);
+    {
+        if( !param_symbol(&def->attack_anim, MOCK230_PACK_SEQ, text, value, where) )
+            return 0;
+        resolved = def->attack_anim;
+    }
     else if( strcmp(text, "defend_anim") == 0 )
-        return param_symbol(&def->defend_anim, MOCK230_PACK_SEQ, text, value, where);
+    {
+        if( !param_symbol(&def->defend_anim, MOCK230_PACK_SEQ, text, value, where) )
+            return 0;
+        resolved = def->defend_anim;
+    }
     else if( strcmp(text, "death_anim") == 0 )
-        return param_symbol(&def->death_anim, MOCK230_PACK_SEQ, text, value, where);
+    {
+        if( !param_symbol(&def->death_anim, MOCK230_PACK_SEQ, text, value, where) )
+            return 0;
+        resolved = def->death_anim;
+    }
     else if( strcmp(text, "death_drop") == 0 )
-        return param_symbol(&def->death_drop, MOCK230_PACK_OBJ, text, value, where);
+    {
+        if( !param_symbol(&def->death_drop, MOCK230_PACK_OBJ, text, value, where) )
+            return 0;
+        resolved = def->death_drop;
+    }
     else
     {
         CONTENT_ERROR("%s: unknown param `%s`\n", where, text);
         return 0;
     }
+    record_authored_param(def, text, resolved, where);
     return 1;
 }
 
