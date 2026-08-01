@@ -250,6 +250,17 @@ cp_names_free(struct CP_Names* names)
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
         lc_pack_free(&names->asset_packs[i]);
     lc_pack_free(&names->components);
+    for( int t = 0; t < names->dbtable_count; t++ )
+    {
+        for( int c = 0; c < names->dbtable_column_count[t]; c++ )
+            free(names->dbtable_columns[t][c]);
+        free(names->dbtable_columns[t]);
+    }
+    free(names->dbtable_columns);
+    free(names->dbtable_column_count);
+    names->dbtable_columns = NULL;
+    names->dbtable_column_count = NULL;
+    names->dbtable_count = 0;
 }
 
 /*
@@ -302,6 +313,74 @@ uniquify(
     }
 }
 
+/* ---- the dbtable column names ------------------------------------------- */
+
+/**
+ * Take ownership of one table's column names, growing the table array to reach it.
+ *
+ * Called once per dbtable record during the archive-10 seed. A second call for the
+ * same id replaces the first, which only happens if a cache lists an id twice.
+ */
+static void
+cp_db_columns_set(
+    struct CP_Names* names,
+    int table_id,
+    char** columns,
+    int column_count)
+{
+    if( table_id < 0 )
+    {
+        for( int i = 0; i < column_count; i++ )
+            free(columns[i]);
+        free(columns);
+        return;
+    }
+    if( table_id >= names->dbtable_count )
+    {
+        int want = table_id + 1;
+        char*** grown = (char***)realloc(names->dbtable_columns,
+                                         (size_t)want * sizeof(*names->dbtable_columns));
+        int* grown_counts =
+            (int*)realloc(names->dbtable_column_count, (size_t)want * sizeof(*grown_counts));
+
+        if( grown )
+            names->dbtable_columns = grown;
+        if( grown_counts )
+            names->dbtable_column_count = grown_counts;
+        if( !grown || !grown_counts )
+        {
+            for( int i = 0; i < column_count; i++ )
+                free(columns[i]);
+            free(columns);
+            return;
+        }
+        for( int i = names->dbtable_count; i < want; i++ )
+        {
+            names->dbtable_columns[i] = NULL;
+            names->dbtable_column_count[i] = 0;
+        }
+        names->dbtable_count = want;
+    }
+    for( int i = 0; i < names->dbtable_column_count[table_id]; i++ )
+        free(names->dbtable_columns[table_id][i]);
+    free(names->dbtable_columns[table_id]);
+    names->dbtable_columns[table_id] = columns;
+    names->dbtable_column_count[table_id] = column_count;
+}
+
+const char*
+cp_db_column_name(
+    const struct CP_Names* names,
+    int table_id,
+    int column)
+{
+    if( !names || table_id < 0 || table_id >= names->dbtable_count )
+        return NULL;
+    if( column < 0 || column >= names->dbtable_column_count[table_id] )
+        return NULL;
+    return names->dbtable_columns[table_id][column];
+}
+
 /**
  * The name out of one gameval record, for the archives that are not flat strings.
  *
@@ -325,8 +404,10 @@ uniquify(
  * or any of 422 clientscripts reads through `(table << 12) | (column << 4)`, sits
  * above the column count this decode yields.
  *
- * Only the name is taken. The column names have nowhere to live yet — see
- * docs/DBTABLES.md §8.
+ * `out_columns`/`out_column_count` may be NULL when only the name is wanted;
+ * otherwise they receive a freshly allocated array of freshly allocated names,
+ * which the caller owns. A column key that skips a position is a decode failure
+ * rather than a hole, because the position *is* the column id.
  *
  * Returns 0 when the record does not have this shape, so the caller falls back to
  * the flat read rather than inventing a name.
@@ -336,11 +417,22 @@ keyed_gameval_name(
     const char* record,
     int size,
     char* out,
-    int out_size)
+    int out_size,
+    char*** out_columns,
+    int* out_column_count)
 {
     const unsigned char* p = (const unsigned char*)record;
     int at = 0;
     int last_key = 0;
+    char** columns = NULL;
+    int column_count = 0;
+    int named = 0;
+
+    if( out_columns )
+    {
+        *out_columns = NULL;
+        *out_column_count = 0;
+    }
 
     while( at < size )
     {
@@ -350,20 +442,52 @@ keyed_gameval_name(
         if( key == 0 )
             break;
         if( key <= last_key )
-            return 0; /* keys are ascending; anything else is not this format */
+            goto fail; /* keys are ascending; anything else is not this format */
         last_key = key;
         start = at;
         while( at < size && p[at] != 0 )
             at++;
         if( at >= size )
-            return 0; /* unterminated: not this format */
+            goto fail; /* unterminated: not this format */
         if( key == 1 )
         {
             sanitise_name(record + start, at - start, out, out_size);
-            return out[0] != '\0';
+            named = out[0] != '\0';
+        }
+        else if( out_columns )
+        {
+            char name[256];
+            char** grown;
+
+            /* Key n names column n-2, so the key *is* the position. A gap would
+             * silently shift every later column onto the wrong types. */
+            if( key - 2 != column_count )
+                goto fail;
+            sanitise_name(record + start, at - start, name, sizeof(name));
+            grown = (char**)realloc(columns, (size_t)(column_count + 1) * sizeof(*columns));
+            if( !grown )
+                goto fail;
+            columns = grown;
+            columns[column_count] = strdup(name);
+            if( !columns[column_count] )
+                goto fail;
+            column_count++;
         }
         at++; /* the terminator */
     }
+    if( !named )
+        goto fail;
+    if( out_columns )
+    {
+        *out_columns = columns;
+        *out_column_count = column_count;
+    }
+    return 1;
+
+fail:
+    for( int i = 0; i < column_count; i++ )
+        free(columns[i]);
+    free(columns);
     return 0;
 }
 
@@ -449,8 +573,34 @@ seed_pack_from_gameval(
     for( int f = 0; f < files->file_count; f++ )
     {
         int fid = archive->file_ids ? archive->file_ids[f] : f;
+        char name[256];
+        int keyed = 0;
+
         if( files->file_sizes[f] <= 0 )
             continue;
+
+        /*
+         * Archive 10's records are keyed, not flat, and the decode runs *before*
+         * the name-wins check below rather than after it.
+         *
+         * The columns are not a name, so the rule that protects an authored name
+         * must not also suppress them: a tree that already names its tables — which
+         * after one unpack is every tree — would otherwise skip the record whole and
+         * come back with no column names at all.
+         */
+        if( gameval_archive == 10 )
+        {
+            char** columns = NULL;
+            int column_count = 0;
+
+            keyed = keyed_gameval_name(files->files[f], files->file_sizes[f], name,
+                                       sizeof(name), &columns, &column_count);
+            if( keyed && columns )
+                cp_db_columns_set(&ctx->names, fid, columns, column_count);
+            else
+                free(columns);
+        }
+
         /*
          * A name already in the pack wins over the gameval, so re-unpacking a
          * cache over a tree never renames anything. On a first unpack that is
@@ -464,10 +614,7 @@ seed_pack_from_gameval(
          */
         if( fid >= 0 && fid < pack->capacity && pack->names && pack->names[fid] )
             continue;
-        char name[256];
-        /* Archive 10's records are keyed, not flat. See `keyed_gameval_name`. */
-        if( gameval_archive != 10 ||
-            !keyed_gameval_name(files->files[f], files->file_sizes[f], name, sizeof(name)) )
+        if( !keyed )
             sanitise_name(files->files[f], files->file_sizes[f], name, sizeof(name));
         if( !name[0] )
             continue;

@@ -210,7 +210,39 @@ struct CP_Names
      * `component.pack` said `786432=bankmain:infinite`, one filler and one named.
      */
     struct LC_Pack components;
+    /**
+     * The cache's own dbtable *column* names, from gameval archive 10.
+     *
+     * The same record that names a table names every one of its columns — key 1
+     * is the table, key n >= 2 is column n-2 (see `keyed_gameval_name`). They are
+     * held here rather than written to a file of their own because a column is not
+     * separately addressable: it is a position in a table, so its name belongs
+     * beside the types it names, in `configs/all.dbtable`'s `column=` lines and in
+     * every `all.dbrow` that fills it.
+     *
+     * Not an `LC_Pack` keyed on `(table << 12) | (column << 4)`, which is how the
+     * client addresses one and how `components` handles the analogous case: that
+     * key reaches 1,057,536 for this cache and `LC_Pack.names` is a flat array, so
+     * it would cost ~25 MB of mostly-NULL pointers to hold 3,000 strings. Indexed
+     * by table, then by column, which is the shape the data actually has.
+     */
+    char*** dbtable_columns;   /* [dbtable_count][dbtable_column_count[t]] */
+    int* dbtable_column_count; /* [dbtable_count] */
+    int dbtable_count;
 };
+
+/**
+ * The cache's name for one dbtable column, or NULL.
+ *
+ * NULL for a table the gameval archive does not carry, a column past the end of
+ * the ones it names, or a cache with no symbol table at all — every caller has to
+ * cope, because none of those is an error.
+ */
+const char*
+cp_db_column_name(
+    const struct CP_Names* names,
+    int table_id,
+    int column);
 
 /** How many files of one extension a pack run will consider. */
 #define CP_PACK_MAX_SOURCES 256
