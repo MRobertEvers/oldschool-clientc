@@ -41,6 +41,7 @@
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/pktnames.h"
 
@@ -74,6 +75,11 @@ struct Peer
     int saw_pid;
     /** Appearance blocks decoded for another player. */
     int saw_appearance;
+    /** The name out of the most recent one. Checked because it is the only
+     *  field in the blob that differs between the two players: an extended
+     *  section written in the wrong order swaps two appearances that are
+     *  otherwise byte-identical, and nothing else here would notice. */
+    char saw_name[16];
     /** Walk/run direction ops decoded for another player, over every tick. */
     int saw_steps;
     /** Set if an op targeted a slot this client was never told about, which is
@@ -208,7 +214,15 @@ absorb_player_info(
             break;
         case PKT_PLAYER_INFO_OP_APPEARANCE:
             if( !local && target >= 0 )
+            {
+                struct PktPlayerAppearance decoded;
+
                 peer->saw_appearance++;
+                memset(&decoded, 0, sizeof(decoded));
+                if( PktPlayerAppearance_Decode(&decoded, op->_appearance.appearance,
+                                               op->_appearance.len) )
+                    snprintf(peer->saw_name, sizeof(peer->saw_name), "%s", decoded.name);
+            }
             break;
         default:
             break;
@@ -448,6 +462,13 @@ main(void)
     check(peers[1].saw_pid == alice->pid, "bob's client was told about alice");
     check(peers[0].saw_appearance > 0 && peers[1].saw_appearance > 0,
           "each got the other's appearance with the spawn");
+    /* The blob has to be the *other* player's. Two appearances in one packet
+     * are byte-identical apart from the name, so this is what distinguishes
+     * "the extended section is in the bit section's order" from "there are the
+     * right number of blocks". */
+    check(strcmp(peers[0].saw_name, "bob") == 0,
+          "and alice's copy of it names bob");
+    check(strcmp(peers[1].saw_name, "alice") == 0, "and bob's names alice");
     check(!peers[0].saw_unknown_target && !peers[1].saw_unknown_target,
           "and no extended block landed on an untracked entity");
 

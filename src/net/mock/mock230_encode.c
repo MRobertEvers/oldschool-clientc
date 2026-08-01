@@ -20,6 +20,7 @@
 #include "mock230_session.h"
 
 #include "net/isaac.h"
+#include "net/jbase37.h"
 
 /* The client's framing table, for the length check in mock230_send. */
 #include "net/rev/osrs230/packetin.h"
@@ -840,7 +841,17 @@ put_appearance(
             rsab_p2(buf, anims[i]);
     }
 
-    rsab_p8(buf, 0); /* name37: empty */
+    /*
+     * The player's name, base-37 packed.
+     *
+     * This was a literal 0 — "name37: empty" — and with one player it cost
+     * nothing, because the only appearance a client ever decoded was its own and
+     * it already knew who it was. It is the field that says *which* of two
+     * players you are looking at: the client's minimenu and its overhead label
+     * both read it out of the appearance blob (`PktPlayerAppearance.name`), so
+     * an empty one makes everybody in the world an anonymous body.
+     */
+    rsab_p8(buf, (int64_t)strtobase37(player->display_name));
     rsab_p1(buf, 3); /* combat level */
 }
 

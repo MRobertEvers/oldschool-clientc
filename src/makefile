@@ -852,7 +852,11 @@ test-revconfig: $(OBJ_DIR)
 # Everything but main(). Split out so the same server can be linked into a host
 # that has its own entry point — the in-process build (test-mock230-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-MOCK230_SRCS = net/mock/mock230_main.c $(MOCK230_CORE_SRCS)
+# jbase37 is here rather than in MOCK230_CORE_SRCS because the embed test
+# already links it as an object out of NET_CORE_OBJS, and listing it in both
+# places is a duplicate symbol. The appearance encoder needs it: a player's name
+# goes on the wire base-37 packed.
+MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c $(MOCK230_CORE_SRCS)
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
@@ -1043,6 +1047,7 @@ test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdr
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
 		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
 		net/net_out.c net/bitbuffer.c net/rev/packets/pkt_player_info.c \
+		net/rev/packets/pkt_player_appearance.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test
 
