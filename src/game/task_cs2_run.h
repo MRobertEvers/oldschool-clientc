@@ -105,6 +105,19 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host);
 struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 
+/*
+ * Re-run every IF_SETONFRIENDTRANSMIT hook: the friends (429) and ignore (432)
+ * side panels.
+ *
+ * Same contract as the misc dispatch above — no trigger set, so every
+ * registered hook fires — driven from RS_CS2_PumpTransmits when
+ * friend_transmit_dirty is set. This is the ONLY thing that repaints those two
+ * panels: their rows are cc_created from the client's own friend store and the
+ * server can address none of them.
+ */
+struct ToriRS_Task*
+CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host);
+
 /** Re-run every stat-transmit hook whose trigger list names one of `stat_ids`
  *  (NULL/0 = every hook). The skill half of the var/inv reactive loop; the XP
  *  drop panel is its consumer. */

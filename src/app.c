@@ -2369,7 +2369,6 @@ App_Init(
     app->inv_drag_com_id = -1;
     app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
-    RS_Social_SeedDefaults(&app->social);
     /* Reference reset path: idkDesignGender = male, then validateIdkDesign().
      * The kit scan itself waits for the idk configs, so the clientCode tick
      * resolves the parts the first time the preview asks for a rebuild. */
@@ -2384,6 +2383,12 @@ App_Init(
     /* The skills tab reads levels and xp through STAT / STAT_BASE / STAT_XP,
      * which need somewhere to read them from. */
     RS_CS2Host_SetStats(&app->host, &app->stats);
+    /* The friends and ignore panels read every row they draw through the
+     * FRIEND_* / IGNORE_* opcodes, and clientscript 681 writes the chat filter
+     * modes through CHAT_SETFILTER — the same three ints the IF1 privacy bar
+     * cycles, handed over by pointer so there is only ever one copy. */
+    RS_CS2Host_SetSocial(
+        &app->host, &app->social, app->slots.chat_filter_mode, app->social.node_id);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
@@ -3856,6 +3861,73 @@ app_logic_tick(struct App* app)
         app->host.close_modal_requested = false;
         if( app->button_sink.close_modal )
             app->button_sink.close_modal(app->button_sink.user);
+    }
+
+    /*
+     * Social requests a CS2 script queued this tick (friend_add, ignore_del,
+     * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
+     * which is what the name prompt's Enter key runs).
+     *
+     * Same split as if_close above: the CS2 host knows nothing about the
+     * socket, so it parks the request and this is where it becomes a packet.
+     * The host has already applied the local half (the store, the filter
+     * modes), because the server answers nothing at all on a delete.
+     */
+    {
+        struct RS_CS2SocialSend send;
+
+        while( RS_CS2Host_TakeSocialSend(&app->host, &send) )
+        {
+            int64_t name37 = (int64_t)strtobase37(send.name);
+
+            if( !app->net )
+                continue;
+            switch( send.kind )
+            {
+            case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
+                APP_NET_SEND(app, net_out_friendlist_add(app->net->rev, app->net->random_out,
+                                                         _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
+                APP_NET_SEND(app, net_out_friendlist_del(app->net->rev, app->net->random_out,
+                                                         _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
+                APP_NET_SEND(app, net_out_ignorelist_add(app->net->rev, app->net->random_out,
+                                                         _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
+                APP_NET_SEND(app, net_out_ignorelist_del(app->net->rev, app->net->random_out,
+                                                         _nsbuf, sizeof(_nsbuf), name37));
+                break;
+            case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
+                APP_NET_SEND(app, net_out_chat_setmode(app->net->rev, app->net->random_out,
+                                                       _nsbuf, sizeof(_nsbuf), send.modes[0],
+                                                       send.modes[1], send.modes[2]));
+                break;
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
+                APP_NET_SEND(app, net_out_message_private(app->net->rev, app->net->random_out,
+                                                          _nsbuf, sizeof(_nsbuf), name37,
+                                                          send.text));
+                /*
+                 * Local echo of the sent line, the reference's own behaviour
+                 * (Client.ts socialInputType 3): the "To Bob: ..." row appears
+                 * on send, not on a server round trip — the server never
+                 * echoes a private message back to its sender.
+                 */
+                {
+                    char shown[RS_SOCIAL_NAME_LEN];
+
+                    RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
+                    RS_Chat_AddMessage(
+                        &app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
+                }
+                app->need_redraw = 1;
+                break;
+            default:
+                break;
+            }
+        }
     }
 
     /* clientCode-populated components (friends rows, list sizes, design

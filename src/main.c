@@ -238,7 +238,8 @@ dump_hooks(struct App* app)
         "on_key",           "on_op",
         "on_timer",         "on_var_transmit",
         "on_inv_transmit",  "on_misc_transmit",
-        "on_resize",        "on_sub_change",
+        "on_friend_transmit", "on_resize",
+        "on_sub_change",
     };
     uint32_t i;
 
@@ -249,7 +250,7 @@ dump_hooks(struct App* app)
         int h;
         if( c->freed )
             continue;
-        for( h = 0; h < 16; h++ )
+        for( h = 0; h < (int)(sizeof(hook_names) / sizeof(hook_names[0])); h++ )
         {
             if( hooks[h].script_id == 0 )
                 continue;
@@ -761,6 +762,116 @@ frame_loop_step(void)
                             wheel_x, wheel_y, wheel_notches, wheel_repeats);
                         wheel_frame = -1;
                     }
+                }
+            }
+        }
+
+        /* TORIRS_SIM_HOOK="frame,com[;frame,com...]": dispatch a component's
+         * onop (falling back to onclick) hook at that main-loop frame.
+         *
+         * The in-loop twin of the pre-loop TORIRS_SIM_CLICK, and it exists for
+         * the same reason TORIRS_SIM_CLICK_AT does: the pre-loop block runs
+         * before login completes, so it cannot reach anything the *server*
+         * mounted — which at rev 230 is every side panel. Unlike SIM_CLICK_AT
+         * this needs no coordinates and no visibility, so it can drive a
+         * button on a panel whose tab is not selected. */
+        {
+            static char const* hook_cursor = NULL;
+            static int hook_init = 0;
+            static long hook_frame = -1;
+            static long hook_com = 0;
+            if( !hook_init )
+            {
+                hook_init = 1;
+                hook_cursor = getenv("TORIRS_SIM_HOOK");
+            }
+            if( hook_frame < 0 && hook_cursor && *hook_cursor )
+            {
+                char* end = NULL;
+                hook_frame = strtol(hook_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    hook_com = strtol(end + 1, &end, 0);
+                    hook_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    hook_cursor = NULL;
+                    hook_frame = -1;
+                }
+            }
+            if( hook_frame >= 0 && frame_count >= hook_frame && app.tree )
+            {
+                int32_t idx = UITree_FindByComponentId(app.tree, (int)hook_com);
+
+                if( idx >= 0 )
+                {
+                    struct UITreeRuntimeScriptHook hook =
+                        app.tree->components[idx].runtime_hooks.on_op;
+                    if( hook.script_id <= 0 )
+                        hook = app.tree->components[idx].runtime_hooks.on_click;
+                    fprintf(stderr, "sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
+                    /* A real op click latches which op it was; an onop script
+                     * that switches on event_opindex (every list row does) is
+                     * a no-op without it. 1 = the primary left-click op. */
+                    app.host.event_op_index = 1;
+                    RS_CS2_DispatchHook(&app.host, &app.runner, (int)hook_com, &hook);
+                }
+                else
+                    fprintf(stderr, "sim_hook: component 0x%lx not found\n", hook_com);
+                hook_frame = -1;
+            }
+        }
+
+        /* TORIRS_SIM_TYPE="frame,c97,c108,k84": push key events at consecutive
+         * main-loop frames starting at `frame`. Same grammar as the pre-loop
+         * TORIRS_SIM_KEYS (c<character>, k<OSRS key code>), in-loop for the
+         * same reason as TORIRS_SIM_HOOK above — a text prompt a *script*
+         * opened does not exist until the panel that opens it is mounted. */
+        {
+            static char const* type_cursor = NULL;
+            static int type_init = 0;
+            static long type_frame = -1;
+            if( !type_init )
+            {
+                type_init = 1;
+                type_cursor = getenv("TORIRS_SIM_TYPE");
+            }
+            /* Start (or restart, at a ';') a burst: read its frame number. */
+            if( type_frame < 0 && type_cursor && *type_cursor )
+            {
+                char* end = NULL;
+                type_frame = strtol(type_cursor, &end, 0);
+                type_cursor = (end && *end == ',') ? end + 1 : NULL;
+                if( !type_cursor )
+                    type_frame = -1;
+            }
+            if( type_frame >= 0 && type_cursor && *type_cursor && frame_count >= type_frame )
+            {
+                char kind = *type_cursor++;
+                char* end = NULL;
+                long val = strtol(type_cursor, &end, 0);
+
+                if( kind == 'c' )
+                    CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
+                else
+                    CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
+                fprintf(stderr, "sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
+
+                if( end && *end == ',' )
+                {
+                    type_cursor = end + 1;
+                    type_frame = frame_count + 1;
+                }
+                else if( end && *end == ';' )
+                {
+                    type_cursor = end + 1;
+                    type_frame = -1; /* next burst names its own frame */
+                }
+                else
+                {
+                    type_cursor = NULL;
+                    type_frame = -1;
                 }
             }
         }

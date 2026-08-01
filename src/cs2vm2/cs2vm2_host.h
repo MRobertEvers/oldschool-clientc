@@ -310,6 +310,58 @@ enum CS2VM_HostRequestKind
      * (matched row ids + cursor). The payload's load_kind/load_id say which
      * resource a yield is waiting on (a row or a table index). */
     CS2VM_HOST_REQUEST_DB,
+
+    /* Friends / ignore list family (3600..3609, 3621..3623), one kind carrying
+     * the opcode and its popped args — the world-map family's shape, for the
+     * same reason: twelve near-identical accessors over one store.
+     *
+     * The store is the client's own friend list (struct RS_Social), fed by
+     * UPDATE_FRIENDLIST / UPDATE_IGNORELIST / FRIENDLIST_LOADED. The four
+     * mutators (FRIEND_ADD/DEL, IGNORE_ADD/DEL) also queue an outbound packet;
+     * see CS2VM_HOST_REQUEST_CHAT for why that is a queue and not a send. */
+    CS2VM_HOST_REQUEST_SOCIAL,
+
+    /* Chat filter modes and the private send (5000/5001/5005/5009/5016), one
+     * kind carrying the opcode. CHAT_SETFILTER and CHAT_SENDPRIVATE both have
+     * to reach the network, which this host has no pointer to — so they park
+     * the request on the host and the App drains it on the next tick, which is
+     * the same shape LOGOUT and IF_CLOSE already use. */
+    CS2VM_HOST_REQUEST_CHAT,
+
+    /* MAP_WORLD (3318): this client's world id. The friends panel prints it in
+     * its header and compares each friend's world against it to colour the
+     * same-world rows green, so a stubbed 0 made every row yellow and the
+     * header read "World 0". */
+    CS2VM_HOST_REQUEST_MAP_WORLD,
+
+    /* IF_SETONFRIENDTRANSMIT (2420). Shares the SetOnOp payload with every
+     * other listener registration; it is a distinct kind only so the slot
+     * resolver can hand back runtime_hooks.on_friend_transmit. Like the misc
+     * channel it carries no trigger list — one dirty flag re-runs every
+     * registered hook. */
+    CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT,
+};
+
+/** Friends / ignore accessors + mutators (3600..3609, 3621..3623).
+ *  `index` is set for the indexed getters, `name` (borrowed, never owned) for
+ *  the ones that take a username. */
+struct CS2VM_HostRequest_Social
+{
+    int opcode;
+    int index;
+    char* name;
+};
+
+/** Chat filter get/set and the private send (5000/5001/5005/5009/5016).
+ *  `name`/`text` are borrowed for CHAT_SENDPRIVATE only. */
+struct CS2VM_HostRequest_Chat
+{
+    int opcode;
+    int public_mode;
+    int private_mode;
+    int trade_mode;
+    char* name;
+    char* text;
 };
 
 enum CS2VM_OC_IntField
@@ -1240,6 +1292,9 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_UiZoom uizoom;
         struct CS2VM_HostRequest_SafeArea safearea;
         struct CS2VM_HostRequest_ClientOp clientop;
+        struct CS2VM_HostRequest_Social social;
+        struct CS2VM_HostRequest_Chat chat;
+        struct CS2VM_HostRequest_IF_SetOnOp if_set_on_friend_transmit;
     } u;
 };
 

@@ -158,6 +158,57 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3625: (0, 0, 0, 1),  # CLAN_GETCHATOWNERNAME: no args -> owner name
     3621: (0, 0, 1, 0),  # IGNORE_COUNT: no args -> ignore count
     3623: (0, 1, 1, 0),  # IGNORE_TEST(name) -> bool (string arg, not an index)
+    # ------------------------------------------------------------------
+    # The rest of the FRIEND_ / IGNORE_ / CLAN_ / CHAT_ families.
+    #
+    # These are NOT guesses and they are not "same class as above" reasoning:
+    # every tuple below was read out of the decompiler's own proto pool,
+    # 3rd/rscache/src/cs2/cs2_command.gen.h, whose arg/def offsets index
+    # cs2_proto_pool[] and whose entries resolve through cs2_types.c to a base
+    # type (STRING vs everything else). That table is the authority the
+    # decompiler uses, which is why `cs2 decompile` prints
+    # `$string0, $string1 = friend_getname($int)` while the heuristic below
+    # believed it returned one string.
+    #
+    # The heuristic that produced the wrong ones is a single line further down
+    # (`if name.startswith("FRIEND_") or name.startswith("CLAN_")`): it assumes
+    # one int arg and reads "NAME" in the opcode name as "returns a string".
+    # That is wrong in three separate ways for this family — the mutators take
+    # a *string* and return nothing, the getname ops return *two* strings, and
+    # the CHAT_ senders take strings too. Each wrong shape is a silent no-op
+    # with a mis-set arity, i.e. a stack desync that kills the script several
+    # opcodes later.
+    #
+    # The real fix is for this generator to read the proto pool instead of
+    # guessing from names; that would re-shape several hundred opcodes at once
+    # and is deliberately NOT done here. See docs/FRIENDS_PRIVATE_CHAT.md §4.2.
+    3601: (1, 0, 0, 2),  # FRIEND_GETNAME(index) -> username, previous username
+    3604: (1, 1, 0, 0),  # FRIEND_SETRANK(username, rank)
+    3605: (0, 1, 0, 0),  # FRIEND_ADD(username)
+    3606: (0, 1, 0, 0),  # FRIEND_DEL(username)
+    3607: (0, 1, 0, 0),  # IGNORE_ADD(username)
+    3608: (0, 1, 0, 0),  # IGNORE_DEL(username)
+    3609: (0, 1, 1, 0),  # FRIEND_TEST(username) -> boolean
+    3617: (0, 1, 0, 0),  # CLAN_KICKUSER(username)
+    3619: (0, 1, 0, 0),  # CLAN_JOINCHAT(username)
+    3622: (1, 0, 0, 2),  # IGNORE_GETNAME(index) -> username, previous username
+    5001: (3, 0, 0, 0),  # CHAT_SETFILTER(public, private, trade)
+    5002: (2, 1, 0, 0),  # CHAT_SENDABUSEREPORT(username, type, rule)
+    5008: (1, 1, 0, 0),  # CHAT_SENDPUBLIC(mes, type)
+    5009: (0, 2, 0, 0),  # CHAT_SENDPRIVATE(username, mes)
+    5010: (2, 1, 0, 0),  # CHAT_SENDCLAN(mes, ...)
+    5018: (1, 0, 1, 0),  # CHAT_GETNEXTUID(mesuid) -> mesuid
+    5019: (1, 0, 1, 0),  # CHAT_GETPREVUID(mesuid) -> mesuid
+    5021: (0, 1, 0, 0),  # CHAT_SETMESSAGEFILTER(string)
+    5024: (1, 0, 0, 0),  # CHAT_SETTIMESTAMPS(mode)
+    # The four chat-history readers. Not on the friends path and not reachable
+    # today (CHAT_GETHISTORYLENGTH answers 0, which gates script 89's loop off),
+    # but their shapes were measured in the same pass and a wrong shape here is
+    # the same silent desync as any other.
+    5003: (2, 0, 3, 3),  # CHAT_GETHISTORY_BYTYPEANDLINE(chattype, line)
+    5004: (1, 0, 3, 3),  # CHAT_GETHISTORY_BYUID(mesuid)
+    5030: (2, 0, 4, 4),  # CHAT_GETHISTORYEX_BYTYPEANDLINE(chattype, line)
+    5031: (1, 0, 4, 4),  # CHAT_GETHISTORYEX_BYUID(mesuid)
     2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
     2704: (2, 0, 1, 0),  # IF_HASCHILD_MODAL(widget, parent) -> bool
     2705: (2, 0, 1, 0),  # IF_HASCHILD_OVERLAY(widget, parent) -> bool
