@@ -705,6 +705,98 @@ static void
 interaction_engine_obj(
     struct Mock230Server* srv);
 
+/* ------------------------------------------------------------------ */
+/* The verbs the engine answers itself                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The cache menu verbs this engine implements, named once.
+ *
+ * Each of these is read off the record's own op list rather than an id list,
+ * for the reason `interaction_engine_loc` spells out: OldSchool has dozens of
+ * bank booths and every one of them says "Bank" in the cache, so a list would
+ * be a second copy kept by hand and wrong for whichever booth nobody added.
+ *
+ * They are gathered here because a *second* reader needs them —
+ * `mock230_scripts_report_shadowed_ops`, which asks at load which of these
+ * verbs content has bound a trigger over. Two copies of the list is two
+ * chances for the report to say the opposite of what the runtime does, and a
+ * report that disagrees with the behaviour it describes is worse than none.
+ *
+ * That these are string literals in C is the standing violation
+ * PORTING_GUIDE §2.4 item 2 names, and it is not fixed here: the verb is the
+ * cache's own word and the comparison is how the engine reads it. What is
+ * fixed is that there is now one occurrence of each instead of seven.
+ */
+#define MOCK230_VERB_ATTACK "Attack"
+#define MOCK230_VERB_WEAR "Wear"
+#define MOCK230_VERB_WIELD "Wield"
+#define MOCK230_VERB_DROP "Drop"
+#define MOCK230_VERB_BANK "Bank"
+#define MOCK230_VERB_USE_QUICKLY "Use-quickly"
+#define MOCK230_VERB_CLIMB_UP "Climb-up"
+#define MOCK230_VERB_CLIMB_DOWN "Climb-down"
+#define MOCK230_VERB_CLIMB "Climb"
+
+static const char* const k_engine_npc_verbs[] = { MOCK230_VERB_ATTACK };
+static const char* const k_engine_held_verbs[] = { MOCK230_VERB_WEAR, MOCK230_VERB_WIELD,
+                                                   MOCK230_VERB_DROP };
+static const char* const k_engine_loc_verbs[] = { MOCK230_VERB_BANK, MOCK230_VERB_USE_QUICKLY,
+                                                  MOCK230_VERB_CLIMB_UP, MOCK230_VERB_CLIMB_DOWN,
+                                                  MOCK230_VERB_CLIMB };
+
+static const char*
+claimed_in(
+    const char* verb,
+    const char* const* claimed,
+    size_t count)
+{
+    if( !verb )
+        return NULL;
+    for( size_t i = 0; i < count; i++ )
+        if( strcmp(verb, claimed[i]) == 0 )
+            return claimed[i];
+    return NULL;
+}
+
+const char*
+mock230_world_engine_claimed_verb(
+    int trigger,
+    int32_t subject)
+{
+    if( trigger >= SS_TRIGGER_OPNPC1 && trigger <= SS_TRIGGER_OPNPC5 )
+    {
+        const struct Mock230NpcInfo* info = mock230_npcinfo((int)subject);
+        int op_num = trigger - SS_TRIGGER_OPNPC1 + 1;
+
+        return info ? claimed_in(info->ops[op_num - 1], k_engine_npc_verbs,
+                                 sizeof(k_engine_npc_verbs) / sizeof(k_engine_npc_verbs[0]))
+                    : NULL;
+    }
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
+    {
+        const struct Mock230ObjInfo* info = mock230_objinfo((int)subject);
+        int op_num = trigger - SS_TRIGGER_OPHELD1 + 1;
+
+        return info ? claimed_in(info->if_ops[op_num - 1], k_engine_held_verbs,
+                                 sizeof(k_engine_held_verbs) / sizeof(k_engine_held_verbs[0]))
+                    : NULL;
+    }
+    if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
+    {
+        int op_num = trigger - SS_TRIGGER_OPLOC1 + 1;
+
+        return claimed_in(mock230_scene_loc_op((int)subject, op_num), k_engine_loc_verbs,
+                          sizeof(k_engine_loc_verbs) / sizeof(k_engine_loc_verbs[0]));
+    }
+    /*
+     * `[opobj<n>]` is deliberately absent. Its engine fallback picks the pile
+     * up whatever the cache calls the op, so there is no verb to shadow —
+     * `interaction_engine_obj` takes no op number at all.
+     */
+    return NULL;
+}
+
 /**
  * Resolve the pending interaction, if it is time.
  *
@@ -2063,12 +2155,12 @@ handle_opheld(
                 : MOCK230_TRIGGER_NONE) )
         return;
 
-    if( verb && (strcmp(verb, "Wear") == 0 || strcmp(verb, "Wield") == 0) )
+    if( verb && (strcmp(verb, MOCK230_VERB_WEAR) == 0 || strcmp(verb, MOCK230_VERB_WIELD) == 0) )
     {
         equip_from_slot(srv, slot);
         return;
     }
-    if( verb && strcmp(verb, "Drop") == 0 )
+    if( verb && strcmp(verb, MOCK230_VERB_DROP) == 0 )
     {
         /* Dropping puts the obj on the floor rather than deleting it, which is
          * the whole difference between an inventory and a bin. It expires like
@@ -2182,7 +2274,7 @@ interaction_engine_npc(
 
     info = mock230_npcinfo(npc->type);
     verb = (op_num >= 1 && op_num <= 5) ? info->ops[op_num - 1] : NULL;
-    if( verb && strcmp(verb, "Attack") == 0 )
+    if( verb && strcmp(verb, MOCK230_VERB_ATTACK) == 0 )
     {
         mock230_combat_engage(srv, slot);
         return;
@@ -2454,22 +2546,23 @@ interaction_engine_loc(
      * cache. An id list would be a second copy of that, kept by hand, and
      * wrong for whichever booth nobody added.
      */
-    if( verb && (strcmp(verb, "Bank") == 0 || strcmp(verb, "Use-quickly") == 0) )
+    if( verb &&
+        (strcmp(verb, MOCK230_VERB_BANK) == 0 || strcmp(verb, MOCK230_VERB_USE_QUICKLY) == 0) )
     {
         mock230_bank_open(srv);
         return;
     }
-    if( verb && strcmp(verb, "Climb-up") == 0 )
+    if( verb && strcmp(verb, MOCK230_VERB_CLIMB_UP) == 0 )
     {
         climb(srv, +1);
         return;
     }
-    if( verb && strcmp(verb, "Climb-down") == 0 )
+    if( verb && strcmp(verb, MOCK230_VERB_CLIMB_DOWN) == 0 )
     {
         climb(srv, -1);
         return;
     }
-    if( verb && strcmp(verb, "Climb") == 0 )
+    if( verb && strcmp(verb, MOCK230_VERB_CLIMB) == 0 )
     {
         /* An unqualified "Climb" is the middle of a staircase, which offers
          * both directions. Up is the reasonable default and the qualified ops
@@ -9491,6 +9584,57 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_scripts_run_trigger(&srv, SS_TRIGGER_OPNPC5, 3105, -1, -1) ==
                                MOCK230_TRIGGER_NONE,
                            "an unbound trigger should answer NONE");
+
+            /*
+             * Triage §7.7 — the *other* way a trigger and the engine can
+             * disagree, which inverting the fallback does not catch: content
+             * that binds an op the cache gives a verb to takes that verb over,
+             * silently and successfully.
+             *
+             * Ids by name, never typed in: a cache bump that moves the goblin
+             * should say so here rather than quietly stop testing anything,
+             * which is the failure the `cook == 4626` pin exists for.
+             */
+            {
+                int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+                int booth = mock230_content_symbol(MOCK230_PACK_LOC, "bankbooth");
+
+                SELFTEST_CHECK(goblin > 0 && booth > 0,
+                               "goblin and bankbooth should both resolve by name");
+
+                /* The claim is read off the record's own op list, so it has to
+                 * land on the op the cache actually put the verb on — a goblin's
+                 * Attack is op 2, and an implementation that assumed op 1 would
+                 * pass every test that only ever asked about op 1. */
+                SELFTEST_CHECK(
+                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPNPC2, goblin) != NULL,
+                    "the engine should claim the goblin's op 2, which the cache calls Attack");
+                SELFTEST_CHECK(
+                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPNPC1, goblin) == NULL,
+                    "the goblin's op 1 carries no verb, so there is nothing to shadow");
+                SELFTEST_CHECK(
+                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPLOC2, booth) != NULL,
+                    "the engine should claim a bank booth's op 2, which the cache calls Bank");
+                /* An npc's Attack is claimed; an npc's op 3 "Talk-to" is not.
+                 * Without this the predicate could be "any verb at all" and
+                 * every assertion above would still pass. */
+                SELFTEST_CHECK(
+                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPLOC3, booth) == NULL,
+                    "a booth's op 3 is Collect, which the engine does not answer");
+
+                /*
+                 * And the report over the whole tree. Pinned, like the fallback
+                 * count above and for the same reason — it is a review list, so
+                 * it changing is the signal. `[opnpc2,goblin]` is *not* in it:
+                 * that script calls p_opnpc(2), which is what discharges the
+                 * obligation, and a version of this check that could not tell
+                 * the goblin from the booth would be measuring nothing.
+                 */
+                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 1,
+                               "exactly one script should shadow an engine verb without "
+                               "re-issuing it ([oploc2,bankbooth], which opens the bank itself). "
+                               "If this moved, read the new list and say why each is right");
+            }
 
             SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");
 

@@ -160,6 +160,10 @@ mock230_scripts_load(
     /* And the third list of the same kind: which behaviours are still answered
      * from C when content binds nothing. It shrinks; that is the schedule. */
     mock230_scripts_report_fallbacks(srv);
+    /* And the fourth: the fallbacks above are C standing in for content that
+     * has not arrived. This is the opposite — content that arrived and took a
+     * verb the engine still answers. See mock230_scripts_report_shadowed_ops. */
+    mock230_scripts_report_shadowed_ops(srv);
     return srv->scripts->loaded;
 }
 
@@ -1285,6 +1289,135 @@ mock230_scripts_report_fallbacks(struct Mock230Server* srv)
                     k_engine_fallbacks[i].blocked_on);
     }
     return MOCK230_FALLBACK_COUNT;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shadowed engine verbs                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Which `p_op*` discharges the obligation a shadowing script takes on.
+ *
+ * Binding `[opnpc2,goblin]` does not *add* to the engine's Attack — it replaces
+ * it, because the engine's verb handling only runs when nothing was bound. A
+ * script that means to keep the fight has to say so, and the way it says so is
+ * to re-issue the op itself.
+ */
+static int
+discharging_opcode(int trigger)
+{
+    if( trigger >= SS_TRIGGER_OPNPC1 && trigger <= SS_TRIGGER_OPNPC5 )
+        return SS_OP_P_OPNPC;
+    if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
+        return SS_OP_P_OPLOC;
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
+        return SS_OP_P_OPHELD;
+    return -1;
+}
+
+static int
+script_calls(
+    const struct SSVM_Script* script,
+    int opcode)
+{
+    for( int i = 0; i < script->op_count; i++ )
+        if( (int)script->opcodes[i] == opcode )
+            return 1;
+    return 0;
+}
+
+/**
+ * Report every trigger content binds over a verb the engine answers itself.
+ *
+ * This is triage §7.7, which the fallback inversion did not close and could
+ * not: inverting the fallback made a *missing* script loud, and this is the
+ * opposite failure — a script that is present, runs fine, and quietly takes a
+ * verb the engine was going to handle. Nothing fails. The goblin simply says
+ * its line and stands there.
+ *
+ * That is not hypothetical. `skill_combat/combat.rs2` carries the scar in its
+ * own header: a goblin's Attack is op 2, `[opnpc2,goblin]` replaced it, and the
+ * fix was to add `p_opnpc(2)` back. The file then states the rule for everyone
+ * else — *"any other script that binds an op the cache gives a verb to has the
+ * same obligation"* — and until now nothing enforced it. §7.7's warning is that
+ * this gets much worse on import: the reference binds 634 `[opnpc1]` and 867
+ * `[oploc1]` triggers, and `levelrequire/` alone binds 304 `[opheld2]`, which
+ * is the verb the engine equips on.
+ *
+ * At **load**, not at call time, for the reason `mock230_scripts_report_gaps`
+ * gives: a script behind a quest step may never be triggered by anyone, and a
+ * swallowed verb that nobody clicks this session is still a swallowed verb.
+ *
+ * Only exact-type bindings are checked. A `[opnpc1,_bandit]` category binding
+ * or a bare `_` wildcard names no record, so there is no op list to read and
+ * nothing to compare — those are invisible here, and saying so is better than
+ * implying the check is total.
+ *
+ * The discharge test is deliberately generous: *any* `p_op*` of the right
+ * family counts, without checking that its argument is the op that was bound.
+ * The failure this exists to catch is the script that forgot entirely; one that
+ * re-issues the wrong index is a different bug and this cannot see it.
+ *
+ * **A hit is a review item, not a defect**, and the distinction is not one this
+ * can make. `[oploc2,bankbooth]` is the shipped example: it takes "Bank" and
+ * never re-issues it, and it is *correct*, because `~openbank` does the same
+ * thing the engine's Bank branch would — the second legitimate discharge is
+ * doing the engine's job yourself, and nothing static tells that apart from
+ * doing something else. So this prints a list and never fails a load. It is the
+ * same posture as `mock230_pack`'s foreign-area spawn-prefix warning (triage
+ * §10.2): a prompt to go and look, not a verdict.
+ *
+ * Returns the number of scripts that shadow a verb without re-issuing it.
+ */
+int
+mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
+{
+    int shadowed = 0;
+
+    if( !srv->scripts_ok || !srv->scripts )
+        return 0;
+
+    for( int i = 0; i < srv->scripts->count; i++ )
+    {
+        const struct SSVM_Script* script = &srv->scripts->scripts[i];
+        const char* verb;
+        int trigger;
+        int discharge;
+
+        if( script->op_count <= 0 || !script->opcodes )
+            continue;
+        /* Name-addressed scripts (proc, label, queue, …) carry -1 and bind no
+         * trigger at all. */
+        if( script->lookup_key < 0 )
+            continue;
+        /* Bits 8..9 are the subject mode; only an exact type names a record. */
+        if( ((script->lookup_key >> 8) & 0x3) != SS_LOOKUP_TYPE )
+            continue;
+
+        trigger = SSVM_LookupKeyTrigger(script->lookup_key);
+        verb = mock230_world_engine_claimed_verb(trigger, script->lookup_key >> 10);
+        if( !verb )
+            continue;
+
+        discharge = discharging_opcode(trigger);
+        if( discharge >= 0 && script_calls(script, discharge) )
+            continue;
+
+        if( shadowed == 0 )
+            fprintf(stderr,
+                    "mock230: content binds a trigger over a verb the engine answers itself:\n");
+        fprintf(stderr, "  %-34s takes \"%s\" without re-issuing it (%s)\n",
+                script->name ? script->name : "?", verb,
+                discharge >= 0 ? SSVM_OpcodeName(discharge) : "?");
+        shadowed++;
+    }
+
+    if( shadowed )
+        fprintf(stderr,
+                "mock230: %d script(s) shadow an engine verb — check each does the engine's "
+                "job or means not to; this is a review list, not an error\n",
+                shadowed);
+    return shadowed;
 }
 
 int
