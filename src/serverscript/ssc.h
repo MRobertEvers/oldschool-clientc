@@ -132,6 +132,37 @@ struct SSC_Symbol
     char* origin;
 };
 
+/**
+ * A varp that has varbits packed into it — a *carrier*.
+ *
+ * A varbit is a named bit range inside a varp, so `%carrier = value` does not
+ * write a variable, it overwrites every variable that shares the container. That
+ * is `docs/LOSTCITY_PORT_TRIAGE.md` §7.5's whole-varp-write class, and the reason
+ * it needs a compiler rule rather than a review habit is that nothing about it
+ * fails: the name resolves, the opcode is legal, the write lands, and the damage
+ * is to somebody else's state.
+ *
+ * `bits` is how many varbits are based on the varp; `sample` holds the first few
+ * for the diagnostic, because a message that names what it is about to destroy is
+ * the difference between a rule and an obstacle.
+ */
+enum
+{
+    SSC_CARRIER_SAMPLES = 4
+};
+
+struct SSC_VarpCarrier
+{
+    int32_t varp;
+    int bits;
+    /** Content declared `wholewrite=allow` on this varp (see `fields/varp.ini`). */
+    int exempt;
+    int sample_count;
+    char sample[SSC_CARRIER_SAMPLES][SSC_MAX_NAME];
+    int sample_start[SSC_CARRIER_SAMPLES];
+    int sample_end[SSC_CARRIER_SAMPLES];
+};
+
 struct SSC_Symbols
 {
     struct SSC_Symbol* entries;
@@ -140,6 +171,17 @@ struct SSC_Symbols
     /** Sorted index over `entries`, rebuilt when a load adds names. */
     int32_t* order;
     int sorted;
+
+    /** Carriers, keyed by varp id, in insertion order. See SSC_SymbolsCarrier. */
+    struct SSC_VarpCarrier* carriers;
+    int carrier_count;
+    int carrier_capacity;
+    /** Varps content declared `wholewrite=allow` for, whether or not they carry
+     *  anything — kept separately so an exemption naming a varp that carries
+     *  nothing can be reported rather than silently accepted. */
+    int32_t* exempt;
+    int exempt_count;
+    int exempt_capacity;
 };
 
 void
@@ -190,6 +232,48 @@ int
 SSC_SymbolsLoadDbTableDir(
     struct SSC_Symbols* symbols,
     const char* dir);
+
+/**
+ * Build the carrier set from a directory's varbit record file (`all.varbit`).
+ *
+ * The `basevar=` key on each varbit record is the only statement anywhere of
+ * which varp a varbit lives inside, and the cache is its author — the same file
+ * `mock230_varbit.c` calls "the authority for" the ranges. The compiler reads it
+ * rather than deriving anything: a second opinion about which varps are shared
+ * would be a second opinion that can drift.
+ *
+ * Call *after* the pack directories: it resolves `basevar=<name>` through the
+ * varp symbols they load. Returns the number of carrier varps found, or -1 when
+ * the directory has no varbit record file (not an error — `pack/` does not).
+ */
+int
+SSC_SymbolsLoadVarbitBases(
+    struct SSC_Symbols* symbols,
+    const char* dir);
+
+/**
+ * Read `wholewrite=allow` out of every `*.varp` under a directory tree.
+ *
+ * The escape hatch for the carrier rule, and it is content's to state, not a
+ * compiler flag: a tree that genuinely must write a shared container whole says
+ * so beside the variable, next to the `transmit`/`scope`/`protect` keys the same
+ * file already carries, where the next reader will see it. See
+ * `CONTENT_ARCHITECTURE.md` §8.2(c) — a rule content cannot express is a bug in
+ * the namespace, and a rule content states in a place only the compiler reads is
+ * the same bug wearing a different hat.
+ *
+ * Call after SSC_SymbolsLoadVarbitBases. Returns the number of exemptions read.
+ */
+int
+SSC_SymbolsLoadVarpDecls(
+    struct SSC_Symbols* symbols,
+    const char* dir);
+
+/** The carrier record for a varp id, or NULL when nothing is based on it. */
+const struct SSC_VarpCarrier*
+SSC_SymbolsCarrier(
+    const struct SSC_Symbols* symbols,
+    int32_t varp);
 
 /**
  * Seed language-level enumerations that have no `.pack` file.

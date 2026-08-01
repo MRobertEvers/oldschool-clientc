@@ -1588,6 +1588,35 @@ mock230_varbit_set(
     int varbit_id,
     int value);
 
+/**
+ * How many varbits are based on this varp — 0 means writing it whole is safe.
+ *
+ * The runtime half of docs/LOSTCITY_PORT_TRIAGE.md §7.5. sscompile refuses a
+ * whole-varp write to a carrier off `configs/all.varbit`; this is the same fact
+ * read out of the cache, for the writers a compiler cannot see — a `::` cheat, a
+ * packet handler, C. The two must agree, and they do because both read the
+ * `basevar=` key and neither derives anything.
+ */
+int
+mock230_varbit_carrier_bits(int varp);
+
+/** Non-zero while a varbit write is patching its base varp. That write is the
+ *  correct way to touch a carrier, so the backstop must not count it. */
+int
+mock230_varbit_patching(void);
+
+/**
+ * Whole-varp writes to a carrier varp seen so far, and the last one's varp id.
+ *
+ * A counter rather than an abort: the engine's job at that point is to keep
+ * running and be audited, and the selftest asserts the count is zero. Reset by
+ * `mock230_world_carrier_writes_reset`.
+ */
+int
+mock230_world_carrier_writes(int* out_last_varp);
+void
+mock230_world_carrier_writes_reset(void);
+
 /** Recompute the two varbits interface 593 builds itself from — the equipped
  *  weapon's category and the player's combat level. Call after anything that
  *  changes either. */

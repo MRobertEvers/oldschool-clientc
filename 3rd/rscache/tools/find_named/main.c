@@ -834,6 +834,34 @@ dump_model_stats(
     }
     printf("  %-22s%d\n", "vertices", model->vertex_count);
     printf("  %-22s%d\n", "faces", model->face_count);
+    /* >= 13 means vertices are stored at 4x and the consumer owes a >>2 —
+     * see the field's comment in model.h. Printed because "is this model
+     * version-13+" is otherwise unanswerable from outside the decoder, and it
+     * is the difference between a correct port and one 4x too large. */
+    printf("  %-22s%d%s\n", "format_version", model->format_version,
+           model->format_version >= 13 ? "  (vertices at 4x, consumer owes >>2)" : "");
+    /* Bounding box, for comparing the authored scale of two eras' models —
+     * a ported asset that renders at the wrong size shows up here as an
+     * extent several times its destination counterpart's. */
+    if( model->vertex_count > 0 )
+    {
+        int minx = model->vertices_x[0], maxx = minx;
+        int miny = model->vertices_y[0], maxy = miny;
+        int minz = model->vertices_z[0], maxz = minz;
+
+        for( int i = 1; i < model->vertex_count; i++ )
+        {
+            if( model->vertices_x[i] < minx ) minx = model->vertices_x[i];
+            if( model->vertices_x[i] > maxx ) maxx = model->vertices_x[i];
+            if( model->vertices_y[i] < miny ) miny = model->vertices_y[i];
+            if( model->vertices_y[i] > maxy ) maxy = model->vertices_y[i];
+            if( model->vertices_z[i] < minz ) minz = model->vertices_z[i];
+            if( model->vertices_z[i] > maxz ) maxz = model->vertices_z[i];
+        }
+        printf("  %-22sx[%d..%d] y[%d..%d] z[%d..%d]  extent %dx%dx%d\n",
+               "bounds", minx, maxx, miny, maxy, minz, maxz,
+               maxx - minx, maxy - miny, maxz - minz);
+    }
     printf("  %-22s%d\n", "textured triangles", model->textured_face_count);
     printf(
         "  %-22s%s / %s / %s / %s\n",
@@ -965,6 +993,7 @@ main(int argc, char** argv)
     int dump_obj_id = -1;
     int dump_loc_id = -1;
     int dump_model_id = -1;
+    int dump_model_raw_id = -1;
     const char* dump_ob2_path = NULL;
     int dump_framemap_id = -1;
     const char* dat1_anim = NULL;
@@ -991,6 +1020,8 @@ main(int argc, char** argv)
             dump_loc_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--model") == 0 && i + 1 < argc )
             dump_model_id = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--model-raw") == 0 && i + 1 < argc )
+            dump_model_raw_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--ob2") == 0 && i + 1 < argc )
             dump_ob2_path = argv[++i];
         else if( strcmp(argv[i], "--framemap") == 0 && i + 1 < argc )
@@ -1038,6 +1069,42 @@ main(int argc, char** argv)
         dump_obj(&cache, dump_obj_id);
     if( dump_loc_id >= 0 )
         dump_loc(&cache, dump_loc_id);
+    /* Raw trailing bytes of a model archive.
+     *
+     * The last two bytes select the decoder (0xFFFD v3, 0xFFFE v2, 0xFFFF ob3)
+     * and, for ob3, a version byte sits at len-24 — immediately before the
+     * 23-byte header. The v2/v3 decoders start at a fixed offset and never
+     * look there, so this exists to answer "does this model carry a version
+     * marker the decoder is ignoring" without instrumenting the decoder. */
+    if( dump_model_raw_id >= 0 )
+    {
+        struct Tool_Bytes raw = { 0 };
+        int table = RSCache_Dat2DiskTableId(cache.disk, RSCACHE_DAT2_TABLE_MODELS);
+
+        if( table != RSCACHE_DAT2_DISK_TABLE_ABSENT &&
+            tool_dat2_archive_bytes(&cache, table, dump_model_raw_id, &raw) && raw.size > 0 )
+        {
+            int show = raw.size < 32 ? raw.size : 32;
+
+            printf("model %d raw: %d bytes\n", dump_model_raw_id, raw.size);
+            printf("  last %d bytes:", show);
+            for( int i = raw.size - show; i < raw.size; i++ )
+                printf(" %02x", raw.data[i]);
+            printf("\n");
+            printf("  marker[len-2,len-1] = %02x %02x\n",
+                   raw.data[raw.size - 2], raw.data[raw.size - 1]);
+            if( raw.size >= 24 )
+                printf("  byte at len-24     = %d\n", raw.data[raw.size - 24]);
+            if( raw.size >= 27 )
+                printf("  byte at len-27     = %d\n", raw.data[raw.size - 27]);
+            tool_bytes_free(&raw);
+        }
+        else
+        {
+            printf("model %d raw: <absent>\n", dump_model_raw_id);
+        }
+    }
+
     if( dump_model_id >= 0 )
     {
         char title[64];

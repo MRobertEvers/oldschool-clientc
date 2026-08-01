@@ -1050,6 +1050,44 @@ test-content: test-content-register test-servercodec test-ss-symbols mock230-scr
 #                           111 constants both trees spell agree on the name and
 #                           disagree on the number (§9 step 3a); this holds the
 #                           tree to `port/constants.map`'s statement about each.
+#   port_config_diff        and the same bar for the five namespaces whose ids
+#   --check                 are *ours* — param, struct, enum, dbtable, dbrow
+#                           (§9 step 3c). Those resolve against nothing in the
+#                           cache by design, so the name gate is blind to them
+#                           too; what `port/configs.map` states instead is what
+#                           this tree does with each of the reference's 1,619
+#                           blocks, and this fails when the tree and that
+#                           statement drift. The row that matters most is
+#                           `collision`: `music` is dbtable 44 here with fifteen
+#                           columns starting `sortname` and four starting `name`
+#                           there, and 195 LostCity dbrows name it.
+#   port_vars_diff          and the same bar for `%name` (§9 step 3d / §7.5),
+#   --check                 which is the one namespace where resolving is not
+#                           evidence of anything: osrs239 kept the legacy
+#                           `prayerN` labels on ids it reused, so `%prayer9`
+#                           resolves — to the Clan Wars block. `port/vars.map`
+#                           states what each of the reference's 357 `%name`
+#                           references becomes here, and this fails on a new one,
+#                           on a resolution that changed under a decision already
+#                           made, and on a false friend this tree's own scripts
+#                           have started to spell. The *mechanism* half is not
+#                           here: sscompile refuses a whole-varp write to a
+#                           carrier and the selftest asserts the engine made none.
+#   port_names_diff         and the last of the six, for the namespaces where the
+#   --check                 reference names a record this tree has no spelling for
+#                           (§9 step 3e). Every one of those *does* fail loudly
+#                           the moment a script naming it is ported, which is bar
+#                           1 working — so what this checks is the other side: the
+#                           524 rows of `port/names.map` claiming two records are
+#                           the same thing, each with facts re-derived from both
+#                           trees on every run. It fails on a new reference name
+#                           with no row, on a target whose display/size/frames/
+#                           model no longer agree, on a port-manifest id that
+#                           stopped holding its record, and on two names claiming
+#                           one target. `npc macro_bigfish` is why it exists:
+#                           unique display, same vislevel, injective, no
+#                           collision — and this tree's only 'Big Fish' is a
+#                           Shadow-of-the-Storm troll.
 #
 # Folded into `test-content` rather than given its own top-level target, for the
 # reason stated above it: a bar in a command nobody types is not covered. The
@@ -1068,6 +1106,11 @@ test-port:
 		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_category_crawl.py \
 		--tree $(MOCK230_CONTENT_DIR) --check -v
+	@cd $(REPO_ROOT) && python3 tools/port_config_diff.py \
+		--tree $(MOCK230_CONTENT_DIR) --check -v
+	@cd $(REPO_ROOT) && python3 tools/port_vars_diff.py --check
+	@cd $(REPO_ROOT) && python3 tools/port_names_diff.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
 
 # The compiler's symbol table, against the register and the live tree.
 #

@@ -400,8 +400,17 @@ The traps, all documented in the triage:
   written; the rev-230 chat menu is CS2 (`chatmenu` 219, cc_created rows) —
   the shape that landed is `runclientscript_ss` (opcode 11002) with the
   answer read as `last_slot`.
-- **varp vs varbit reclassification** (§7.5): 28 by hand; a 2004 varp is
-  often a 230 varbit bit-range. Wrong class compiles and runs and corrupts.
+- **varp vs varbit reclassification** (§7.5, and triage §18 for what landed):
+  a 2004 varp is often a 230 varbit bit-range, and the wrong class compiles,
+  runs, transmits and corrupts. The *mechanism* is closed — `sscompile`
+  refuses a whole-varp write to a varp that has varbits based on it (2,872 of
+  the 5,705 do), content opts out per varp with `wholewrite=allow`, and the
+  selftest asserts the engine made no such write either. The *data* is not: 27
+  reference varps clobber, and **the danger is the ones that resolve** —
+  `%prayer9` names the Clan Wars block here, `%prayer0` names the right
+  container at the wrong granularity. `port/vars.map` states what each of the
+  reference's 357 `%name` references becomes; 117 are still undecided and are
+  listed as such.
 - **Bare stat names** (§7.6): deliberately not guessed by the compiler —
   they collide and compile to the wrong id. Use the explicit enumerations.
 - **npc categories** (§7.6b, and triage §16 for what landed): a *category* is
@@ -413,6 +422,17 @@ The traps, all documented in the triage:
   (`tools/port_category_crawl.py`, `port/categories.map`); the rest are split,
   colliding, or need an id `content.ini` cannot yet allocate. This gates
   `drop tables/`.
+- **npc / loc / seq / spotanim names** (§4 group B, and triage §19 for what
+  landed): the reference names **524** records this tree has no spelling for —
+  not §4's 206, which counts only `.rs2` and only names the reference authors.
+  Those failing loudly is bar 1 working; `port/names.map` is about the other
+  direction, a name that resolves to the wrong record and says nothing. 180 rows
+  carry a target, 113 of them port-manifest **lookups** (the exporter writes the
+  source id into the name it mints, and all 113 cross-check on a structural
+  field). The rest are a work queue with the reason stated per row, and §4's own
+  worked examples are corrected there: `harlow` is `dr_harlow_vis` not
+  `dr_harlow`, `king_lathas` is not the DS2 cutscene copy, and no osrs239 npc
+  displays 'Leprechaun' at all.
 - **What not to port** (§11): respect it. And the reverse direction (§7.8):
   osrs239 content can express things 254 couldn't — porting a script is
   allowed to *modernize* it (e.g. real dbtables instead of 254-era

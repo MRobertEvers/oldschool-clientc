@@ -493,6 +493,41 @@ lc_export_model(
         return -1;
     }
 
+    /*
+     * Version-13+ models store vertices at 4x and owe the reference's
+     * `scaleDown(2)`.
+     *
+     * `RSCache_ModelNewDecode` deliberately does NOT apply it — the shift drops
+     * two bits and rscache's validation bar is a byte-exact round-trip — so the
+     * decoder records `format_version` and every consumer applies the shift
+     * itself. The engine's own adaptor does exactly this
+     * (`src/engine/torirs_model_from_rscache.c`, verified vertex-for-vertex
+     * against rs-map-viewer on model 1139); this exporter is a consumer too and
+     * was silently skipping it, which lands such a model 4x too large in the
+     * destination cache with nothing to explain why.
+     *
+     * `>>` and not `/ 4`: it must match the reference's JS `>>`, which floors
+     * toward negative infinity on the negative half of the model rather than
+     * toward zero. Dividing splits the mesh along every axis by a unit.
+     *
+     * No OSRS-era model reaches this branch today. The V2/V3 formats
+     * (`0xFFFE`/`0xFFFD`) that cover cache.osrs230 and cache.osrs239 have no
+     * version byte at all and decode with `format_version` left at 0 — measured,
+     * not assumed, on the whole tormented-demon and Theatre of Blood asset sets.
+     * It is the ob3 (`0xFFFF`) path — the 643 era — that carries versions 13-15,
+     * so this matters the first time a manifest sources from `cache.rs643` or
+     * `cache.void634`, where models 1139 and 200 really do report 15.
+     */
+    if( model->format_version >= 13 )
+    {
+        for( int i = 0; i < model->vertex_count; i++ )
+        {
+            model->vertices_x[i] >>= 2;
+            model->vertices_y[i] >>= 2;
+            model->vertices_z[i] >>= 2;
+        }
+    }
+
     /* Retag before anything else looks at the model: the encoder writes these
      * straight through, and a stale label is invisible until the model is in a
      * client refusing to animate it. */

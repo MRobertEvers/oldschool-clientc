@@ -167,51 +167,111 @@ Method: parse every `id=name` table on both sides; walk the authored tree
 (`_unpack`/`_test` excluded); a name in a LostCity pack that appears as a token
 in a `.rs2` or config counts as referenced. `ref_rs2` restricts to `.rs2`.
 
-| namespace | defined by LC | ref in `.rs2` | **resolves** | **unresolved** | id identical |
+**Re-measured 2026-08-01, after §14–§19 landed** — method in §12.2, commits in
+§12.3. The `(was)` values are what this table said before, and they are shown
+only where the number moved:
+
+| namespace | defined by LC | ref in `.rs2` | **resolves** (was) | **unresolved** (was) | id identical (was) |
 |---|---:|---:|---:|---:|---:|
-| `obj` | 1,953 | 1,662 | 1,662 | **0** | 3130/3131 |
+| `obj` | 1,955 *(1,953)* | 1,664 *(1,662)* | 1,664 | **0** | 3130/3133 *(3130/3131)* |
 | `inv` | 154 | 61 | 61 | **0** | 156/156 |
 | `varbit` | 6 | 6 | 6 | **0** | 6/6 |
 | `npc` | 985 | 899 | 855 | **44** | 0/1073 |
 | `loc` | 1,598 | 1,040 | 952 | **88** | 3135/3309 |
-| `seq` | 176 | 354 | 310 | **44** | 1088/1090 |
-| `spotanim` | 29 | 135 | 105 | **30** | 262/262 |
-| `varp` | 184 | 268 | 121 | **147** | 161/164 |
-| `param` | 214 | 203 | 23 | **180** | 0/23 |
+| `seq` | 181 *(176)* | 354 | 310 | **44** | 1088/1095 *(1088/1090)* |
+| `spotanim` | 33 *(29)* | 140 *(135)* | 109 *(105)* | **31** *(30)* | 262/266 *(262/262)* |
+| `varp` | 184 | 268 | 142 *(121)* | **126** *(147)* | 164/185 *(161/164)* |
+| `param` | 214 | 203 | 49 *(23)* | **154** *(180)* | 0/50 *(0/23)* |
 | `idk` | 82 | 62 | 0 | **62** | 13/13 |
 | `flo` | 101 | 15 | 0 | **15** | — |
-| `enum` | 114 | 52 | 2 | **50** | 0/4 |
+| `enum` | 114 | 52 | 22 *(2)* | **30** *(50)* | 0/24 *(0/4)* |
 | `struct` | 149 | 51 | 0 | **51** | — |
-| `dbrow` | 1,115 | 198 | 0 | **198** | — |
-| `category` | — | 122 | 1 | **121** | — |
-| `interface` | — | 1,415 | 35 | **1,380** | — |
-| `varn` / `vars` / `hunt` / `mesanim` | 31 | 109 | 0 | **109** | — |
+| `dbrow` | 1,115 | 198 | 36 *(0)* | **162** *(198)* | 0/49 |
+| `dbtable` | 27 | 8 | 5 | **3** | 0/10 |
+| `category` | 0 | 122 | 27 *(1)* | **95** *(121)* | 0/31 |
+| `interface` | 0 | 1,415 | 35 | **1,380** | 0/37 |
+| `varn` / `vars` / `hunt` / `mesanim` | 100 *(31)* | 109 | 0 | **109** | — |
 | **spawns — npc** | 6,263 lines | — | **6,126 (97.8 %)** | **137 lines / 24 names** | n/a |
 | **spawns — obj** | 1,082 lines | — | **1,082 (100 %)** | **0** | n/a |
+
+Four things about that re-measurement are worth saying out loud, because they
+are the difference between a number that was checked and a number that was
+plausible.
+
+**Fourteen of the eighteen rows this table originally carried reproduced
+exactly** on the first re-run of the census, *before* any of §14–§19 landed —
+including both spawn rows to the line. Four had moved (`varp`, `dbrow`,
+`category`, and the `varn` group's "defined"), and `dbtable` had no row. So the
+method is stable and the table was honest.
+
+**Six rows moved because this tree grew, not because the reference did**, and
+they moved at two different times. `varp` 121 → **142** was already true before
+any of §14–§19 ran: §8.5's `%com_*` allocator work put server varps 5705–5722
+in place and `desert` moved 196 → 599. The other five moved *during* this work
+— `param` 23 → **49**, `enum` 2 → **22**, `dbrow` 0 → **36**, `category` 1 →
+**27**, and `dbtable` gaining a row at all — because §16 minted 18 category
+names and §17 landed 27 params, 20 enums, 7 dbtables and 21 dbrows. The
+resolution rate in this table is now partly a measure of how much of the port
+has been done, which is the point of measuring it here rather than once.
+
+**One row was simply wrong.** `varn`/`vars`/`hunt`/`mesanim` "31 defined" is
+100 (`varn` 33, `vars` 36, `hunt` 13, `mesanim` 18); its reference and
+unresolved counts were right. `category` and `interface` were `—` where the
+answer is 0, and `dbtable` had no row at all.
+
+**Three rows moved because the reference checkout moved under the measurement**
+— `obj` +2, `seq` +5, `spotanim` +4 records appeared in `LostCity_Server`
+between runs on three separate occasions during this work (§14.5 finding 1,
+§15.9, §16.10). Any number in this section is only as reproducible as that
+checkout, and §12 now records the commit it was taken at.
 
 Read the rows in three groups.
 
 **Group A — the cache fixes the id and it already agrees.** `obj`, `inv`,
 `spotanim`, `varbit`. Nothing to do but re-resolve by name so the agreement is
-*checked* rather than assumed.
+*checked* rather than assumed. **Re-measured, "already agrees" is not "agrees
+entirely"**: `obj` is 3130/3133 and `spotanim` 262/266 today, where both read
+clean when this table was first taken — 3 obj and 4 spotanim mismatches. Six of
+the seven arrived with the records the reference added mid-run (`ghrazi_rapier`,
+`scythe_of_vitur`, and all four `dragon_halberd_special_*_red`); the seventh,
+`dragon_claws` at 3142 here and 13652 there, was always there. `inv` (156/156)
+and `varbit` (6/6) are still exact.
+That is the argument for checking rather than assuming, made by the row that was
+used to justify assuming.
 
-**Group B — the cache fixes the id and it has moved.** `npc` (all of them),
-`loc` (174), `seq` (2), `varp` (3). Re-resolution is mandatory and the tail is
-hand work:
+**Group B — the cache fixes the id and it has moved.** Re-measured: `npc` (all
+1,073 of them), `loc` (174), `varp` (21 — *not* 3; the `%com_*` allocations are
+new ids on both sides), `seq` (7), `spotanim` (4), `obj` (3). Re-resolution is
+mandatory and the tail is hand work:
 
 - **npc, 44 unresolved in scripts.** Sampling shows these are almost all *naming
-  drift*, not missing content: `harlow` → osrs239 `dr_harlow`; `king_lathas` →
-  `ds2_meeting_king_lathas`; `troll` → 64 candidates none of which is spelled
-  `troll`; `leprechaun` → `farming_tools_leprechaun` / `myarm_leprechaun` /
-  `zanarisleprechaun`. A human picks one per name. The rest —
-  `inferno_zuk`, `td_demon`, `dragonslayer_ghost` — are LostCity's own names for
-  ported or 2004-only npcs; for the ported ones the source id is recorded in the
-  port manifest, so those are lookups, not decisions.
-- **loc, 88 unresolved.** Same shape, plus a genuine 2004-only tail
-  (`game_trawler_*`, `gnome_obstacle_*`, `barbarian_rope_swing` — minigame
-  scenery).
-- **seq/spotanim, 44/30.** Dominated by `inferno_*`, `td_*`, `midget_*`
-  (gnomeball) — the ported set and the minigames.
+  drift*, not missing content. The rest — `inferno_zuk`, `td_demon`,
+  `dragonslayer_ghost` — are LostCity's own names for ported or 2004-only npcs;
+  for the ported ones the source id is recorded in the port manifest, so those
+  are lookups, not decisions. **113 of the 524 whole-tree names turned out to be
+  exactly that kind of lookup** (§19.3).
+- **loc, 88 unresolved.** Same shape.
+- **seq/spotanim, 44/31.** Dominated by `inferno_*`, `td_*`, `midget_*`
+  (gnomeball) — the ported set and the minigames. `midget_*` → `gnome_*` is one
+  rename covering 28 of them (§19.3).
+
+**Every worked example this section originally gave was wrong, and §19.4 says
+how.** They are left out of the bullets above rather than corrected in place,
+because the mistake is the point: `harlow` → `dr_harlow` names a **nameless
+multinpc wrapper** (the record is `dr_harlow_vis`); `king_lathas` →
+`ds2_meeting_king_lathas` names the **Desert Treasure II cutscene copy** (the
+Ardougne record is `kinglathas_vis`); all three proposed `leprechaun` targets
+are level-0 shop npcs against a level-12 attackable monster, and **no osrs239
+npc displays 'Leprechaun' at all**; and the "genuine 2004-only tail" is wrong
+for all three families named — this tree carries 28 `trawler*` locs, both
+agility courses and four ropeswings. The *numbers* in this section held up under
+re-measurement. The *examples* were four plausible records nobody had read, which
+is precisely the failure §4.1 exists to catch, arriving inside §4 itself.
+
+**And the corpus is 524, not 206** (§19.2). 206 counts names referenced from a
+`.rs2`; a `.npc` naming a `seq` is a reference the port has to resolve exactly as
+much, and 293 of the 524 are reached only that way. `npc` reproduces at 44/44;
+`loc` reproduces under no variant tried (131 / 220 / 266 depending on scope).
 
 **Group C — the id is not the cache's and the name means nothing there.**
 `param`, `struct`, `enum`, `dbrow`, `dbtable`, `category`, `hunt`, `mesanim`,
@@ -221,6 +281,15 @@ rate here is correct, not a problem — but it means 1,115 dbrows, 214 params, 1
 structs and 114 enums have to be **allocated** off layer-0's high-water mark
 (`CONTENT_ARCHITECTURE.md` §4.4), and that allocation is the thing that must
 never be a guess.
+
+**§17 landed the allocator and 75 of those records**, and found that the
+high-water mark was doing all the work: every `server_base` in
+`content_register.c` was advisory, because `ss_allocate.py` read only
+`content.ini` and `content.ini` declares no `base =` key at all. The `varp`
+floor was 8000 against a 6217-entry array — the next server varp would have
+been dropped by a bounds check, silently. The remaining 1,544 are classified
+row-by-row in `port/configs.map`, and 149 of them (every `struct`) are blocked
+on an engine loader that does not exist rather than on an id.
 
 ### 4.1 The failure this measurement is designed to catch
 
@@ -233,6 +302,25 @@ trees:
 | `npc` | 898 | 722 | **75** | 101 |
 | `obj` | 1,947 | 1,345 | **499** | 103 |
 | `loc` | 1,319 | 893 | **78** | 348 |
+
+**Re-measured 2026-08-01 under this section's own comparison (`a.lower() ==
+b.lower()`), it reproduces exactly**: npc 898 / 722 / 75 / 101, obj 1,347 / 499
+/ 103 (of 1,949 — the reference gained two obj records mid-run), loc 1,319 / 893
+/ 78 / 348. Strip `<col>` tags and punctuation and it becomes 728/69,
+1,350/496, 894/77 — so **only 9 of the 652 differences are pure formatting.**
+The rest are real.
+
+That comparison is now an artifact rather than a paragraph. `port/name_diff.signed`
+(§14) carries **4,279 signed rows** across five namespaces and splits "different"
+into classes that mean different things:
+
+| ns | rows | identical | formatting-only | plausible-sibling | different-thing | unnamed | shape-differs |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `obj` | 1,949 | 1,347 | 30 | 404 | **41** | 127 | — |
+| `loc` | 1,319 | 881 | 20 | 59 | **11** | 348 | — |
+| `npc` | 898 | 679 | 53 | 32 | **33** | 101 | — |
+| `seq` | 104 | 93 | — | — | — | — | 11 |
+| `spotanim` | 9 | 5 | — | — | — | — | 4 |
 
 Most differences are twenty years of renaming and are harmless
 (`Adam full helm (g)` → `Adamant full helm (g)`; `Zamorak potion(1)` →
@@ -248,10 +336,36 @@ and the class `CONTENT_ARCHITECTURE.md` §6.2 already caught once —
 `goblin_armed` naming npc 2484 in one table and 3045 in another — is exactly
 this, one namespace over.
 
+**The worst row in the corpus is `obj rock_sample1`, and it is worth stating
+precisely: obj 671 in both trees — the name resolves *and* the id is
+identical.** LostCity's record is `model=model_2393_obj / name=Rock sample 1`;
+osrs239's is `model=17290 / name=Animal skull`. Every check that existed before
+§14 passed on it. `rock_sample2` and `rock_sample3` are 'Special cup' and
+'Teddy'; `antidragonbreathshield` is 'Dragonfire shield' here and 'Anti-dragon
+shield' there — two different items in the modern game, referenced 16 times.
+There is also a 404-record **plausible-sibling** class in `obj` where the noun
+matches and a tier or colour word does not (`nails` → 'Steel nails',
+`mcannonball` → 'Steel cannonball'), which is exactly what a human eyeball waves
+through.
+
 **The bar this sets: the port must emit a diff of display names for every
 resolved record, and a human signs it off.** Not a blocker, a review artifact.
 It is cheap (the data is in `configs/all.<type>` already) and it is the only
-thing that catches a name that resolved to the wrong record.
+thing that catches a name that resolved to the wrong record. **Landed 2026-08-01
+as `tools/port_name_diff.py --check`, inside `make -C src test-port`** (§14.3):
+an unsigned row, a changed verdict or a deleted row is a build failure.
+
+The companion measurement is what would happen if an id were copied instead of
+resolved (`--collisions`, 14 namespaces): **1,329 name pairs would land on a
+real but different record and 0 would land on nothing** — npc 1,073, loc 174,
+dbrow 28, param 23, varp 21, enum 4, dbtable 3, seq 2, obj 1. There is no
+fails-loudly case anywhere. Ten of them land on a *lexically similar* name and
+would survive review, including the `elemental_workshop_valve_1/2` **shifted
+chain** — which a swap sweep misses because it is not a 2-cycle. A full sweep of
+every namespace found exactly **one** true 2-cycle in the whole corpus, and it
+is the documented one: `blackarmgang` 145/146 and `phoenixgang` 146/145. No
+longer cycles, no display-name transpositions, and no duplicate names inside
+either tree's own tables.
 
 ---
 
@@ -642,17 +756,43 @@ are *not* content work.
 1.  Invert the fallback (§7.7)   DONE                  osrs230_mockserver §3.18
     ↳ must precede the bulk trigger import, not follow it — and did
 
-2.  The name-resolution gate itself
+2.  The name-resolution gate itself   DONE (§14)
     ↳ every unresolved name is a pack-time error; a display-name diff
       is emitted for every resolved record (§4.1); no default, ever
+    ↳ landed as five rules + `port/name_diff.signed` (4,279 rows).
+      Two "no default, ever" holes were real and are shut: four
+      symbolic npc params resolved a typo to -1 silently, and
+      cachepack counted an unresolved `ref =` as a warning and
+      skipped the field. Still open: full `cachepack pack` exit status
 
 3.  Symbols, in this order — each is named by the next
-    3a. constants          (1,562; no dependencies)
+    3a. constants          (1,562; no dependencies)          DONE (§15)
+        ↳ 22 landed, all 1,562 classified in port/constants.map.
+          111 names exist in both trees and 14 DISAGREE on the value —
+          a namespace with no gate at all until this step. 0 of 1,562
+          name an id, so "resolve through the pack" was vacuous here
     3b. npc categories — the field, the crawler, and the -1 at every npc
-        call site (§7.6b). 19.3% of compile failures; blocks drop tables/
+        call site (§7.6b)                                    DONE (§16)
+        ↳ the premise was wrong: this cache states a category on 9,149
+          of 16,292 npc records. Unread, not absent. 18 names minted,
+          20 orphans blocked on `category` being allowed to grow.
+          NOT 19.3% of compile failures — measured 15.7% (§6's own
+          15.5% reproduces; 19.3% reproduces under no framing)
     3c. param, struct, enum, dbtable, dbrow  (server-allocated ids)
+                                                             DONE (§17)
+        ↳ the allocator was the stage: every `server_base` was advisory
+          and `varp`'s was out of bounds. 75 records landed of 1,619;
+          149 structs blocked on a loader, 287 rows on a type
     3d. varp / varn / vars reclassification (§7.5) — 28 by hand
-    3e. npc / loc / seq / spotanim name maps — 206 by hand
+                                                             DONE (§18)
+        ↳ 27 carriers, not 28, and the hand queue is 60 not 28 once the
+          33 LostCity bitfields are counted. varn/vars is 0 + 0, not
+          "the other 147": the real destination is a server varp with
+          transmit=no. 357 rows in port/vars.map, 117 undecided
+    3e. npc / loc / seq / spotanim name maps — 206 by hand    DONE (§19)
+        ↳ the whole-tree corpus is 524, not 206; 180 rows carry a
+          target and 113 of those are port-manifest lookups. 344 rows
+          are the work queue (§20)
 
 4.  Engine opcodes, by leverage
     4a. the param decoder            → oc_/nc_/lc_/struct_param, 605 uses, 117 files
@@ -685,6 +825,14 @@ the server band. What has **not** landed is the load path: `mock230_content_load
 still re-parses the `server/scripts` text overlays at boot and nothing reads
 `server/pack`. Closing that (and deleting `mock230_pack.c`'s superseded
 bakers) is Phase 0 of [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
+
+**Status of steps 2 and 3 (2026-08-01): all six landed**, and each one is
+written up in its own section — §14 (step 2), §15 (3a), §16 (3b), §17 (3c),
+§18 (3d), §19 (3e). §10.1's entry is the summary; §20 is what they left. Six
+`port/*` artifacts and seven gate rules exist now that did not before, all of
+them inside `make -C src test-port`. **None of the six steps ported a script**,
+which is the shape of the phase: symbols are statements about what a name
+becomes, and the slices in step 7 are what consume them.
 
 ---
 
@@ -1382,6 +1530,114 @@ see.
 | chat lines never appear | `MESSAGE_GAME` arrives and `RS_Chat_AddMessage` stores it; the rev-230 chatbox has no `UITREE_SLOT_CHAT` node, so `app_chat_region` returns 0 and the built-in renderer draws nothing. IF3 chat lines are cc_created by clientscript |
 | `runclientscript` takes ints only | blocks `~p_choice*` (§7.4) *and* every modern panel populated by a script call rather than a var |
 
+### The symbols phase — §9 steps 2 and 3a–3e, all six
+
+Written 2026-08-01. Six steps, one after another, each with its own section
+(§14–§19) because each found something the plan did not contain. This is the
+summary; §20 is the queue they left.
+
+**What it was.** The whole of §9's prerequisite block: the name-resolution gate,
+then constants, npc categories, the five server-allocated config namespaces, the
+varp/varbit reclassification, and the npc/loc/seq/spotanim name maps. **Not one
+of the six ported a script**, and that is the shape of the phase rather than a
+shortfall — a symbol step produces a *statement about what a name becomes*, and
+the thing that consumes it is a slice.
+
+**What it cost, measured on both loaders:**
+
+```
+                       before        after
+mock230_pack symbols   213,430  ->   213,623      (§12's old baseline was stale by 100
+constants                  136  ->       306       before any of this: 213,530 / 284)
+npc defs                    38  ->        39
+varp defs                   16  ->        39
+equip reqs               1,419  ->     1,496
+spawns                      62  ->     63 + 12
+sscompile symbols      212,829  ->   212,922      +75, the same 75 mock230_pack sees
+db columns                   9  ->        52
+carrier varps                —  ->     2,872      (new; both readers derive it, agreeing)
+errors / warnings          0/1  ->      0/13      the 12 are `combat block, no Attack op`
+```
+
+Records landed: 22 constants, 18 category names, 27 params, 20 enums, 7
+dbtables, 21 dbrows. **Records classified: 4,279 signed name rows, 1,735
+constants, 53 categories, 1,650 config blocks, 357 variables, 524 name maps** —
+six `port/*` artifacts, every one of them re-derived from both trees by a rule
+inside `make -C src test-port`. The ratio is the finding: the classification is
+two orders of magnitude larger than the copy, and it is the part that could not
+have been done by a bulk import.
+
+**What it found that nobody expected.** Each step's real result was a defect in
+something already believed to work:
+
+| step | the premise | what was actually true |
+|---|---|---|
+| 2 (§14) | "no default, ever" is a policy | four npc params resolved a typo to **-1 silently** — and `mock230_content_symbol` maps the literal `null` to -1 too, so a typo and a deliberate nothing were the same value. cachepack counted an unresolved `ref =` as a *warning*, skipped the field, and exited 0 |
+| 3a (§15) | constants have no dependencies | **111 names exist in both trees and 14 disagree on the value** — 12 prayers and 2 headicons. A namespace with no gate at all: `ss_unresolved` skips it, `port_name_diff` compares records, `mock230_pack` validates ids. Also: **0 of 1,562 constants name an id**, so the pack-resolution rule the plan wrote for them was vacuous |
+| 3b (§16) | "an osrs239 npc record carries no category at all. Not 'unread': absent" | it is on **9,149 of 16,292 records**, 982 distinct ids. The decoder has read opcode 18 all along; `mock230_npcinfo.c` simply never copied it. One wrong word in one comment held the middle rung of the trigger lookup shut for the entire npc domain |
+| 3c (§17) | ids are allocated off `max+1` with a floor | **every `server_base` in `content_register.c` was advisory.** `ss_allocate.py` read `content.ini`, which declares no `base =` key. Making the floor live printed `varp base_was=8000` against a 6,217-entry array — the next server varp would have been dropped by a bounds check. Also: `mock230_pack` never loaded the `.dbtable`/`.dbrow` half of the tree, and an unrecognised column type was read as a literal, turning every `synth` *name* into 0 |
+| 3d (§18) | 28 varps clobber varbits; the other 147 are `varn`/`vars` or nothing | 27 clobber; **varn is 0 and vars is 0.** The reference already used `varn` where it meant npc state. And six names *resolve to the wrong concept*: `%prayer9`–`%prayer12` are the Clan Wars block here, 35 whole-varp writes' worth, while `%prayer2..8` fail to compile — one family, silent corruption for five members and a build error for nine |
+| 3e (§19) | 206 names, mostly naming drift | 524, and **all four of §4's worked examples were wrong records** (§4 above). The row that matters is `macro_bigfish`, which satisfies *every* automatic rule — unique display, matching vislevel, injective, target not itself a reference name — and is a Shadow-of-the-Storm troll |
+
+The through-line is one shape, and it is the reason §13 bar 6 exists: **six times
+in six steps, the thing that was wrong resolved cleanly.** `rock_sample1` is obj
+671 in both trees with the id identical and the name resolving, and it is an
+Animal skull. `_giantrat` reads as the rat category. `%prayer9` reads as a varp.
+`macro_bigfish` reads as a troll. Nothing failed; something was just quietly
+different.
+
+**Mutations, because a gate nobody has broken on purpose is a comment.** Every
+rule landed in this phase was proved by editing the tree to violate it,
+confirming the failure, and reverting: 4 in §14 (typo'd `death_drop` in both
+loaders, duplicate constant, `%name` ambiguity, edited signed row), 4 in §15
+(deferred constant copied in, a `rederived` value set back to the reference's,
+an edited landed value, an undeclared constant), 5 in §16 (`4999=ghost_category`,
+`0=unstated_category`, `275=black_demon` — which `mock230_pack` accepts and the
+python check refuses, *which is the argument for two layers* — a dropped name, a
+deleted row), 5 in §17 (`table=prayer_tabel`, `column=sound,synth`, a
+`defer-slice` block landed, `[music]` authored, a deleted file), 5 in §18
+(`%prayer0 = 0`, a carrier read, `wholewrite=allow` on a non-carrier,
+`wholewrite=maybe`, and the runtime backstop with its exclusion removed), 8 in
+§19 (deleted row, swapped manifest target, edited `display=`/`frames=`, a
+`family` row given a target, two rows on one target, evidence stripped, and a
+probe `.npc` spelling `macro_bigfish`). The content tree was verified clean after
+each.
+
+**What was deliberately NOT done, and the reasoning in one line each:**
+
+- **1,112 of 1,562 constants were not copied**, though the plan sized 3a as
+  "1,138 mechanically". The tree's own precedent says why: `quest_cook.constant`
+  carries Cook's two lines and states that "a constant for a quest nothing can
+  start is a name waiting to be resolved against the wrong thing." §11 says the
+  same thing about the quests themselves. `port/constants.map` is the work order
+  if that is overruled.
+- **No `.struct` landed and none can** — no loader anywhere in `src/`, and
+  `SS_OP_STRUCT_PARAM` has meta and no `case`. An engine prerequisite, not a
+  follow-up.
+- **No `.varp` or `.varbit` file was written**, for 3a's reason: 3d ports no
+  scripts. All 19 evidenced `varbit` rows need no new content anyway.
+- **Seven npc dispatch sites still pass a literal `-1`** (§16.6). They are listed
+  beside `mock230_npc_category()` so the lane that owns those lines adopts them
+  one token each; a category of -1 and a category nothing binds are
+  indistinguishable, so it is additive. `AI_QUEUE3` is the one that matters —
+  `drop tables/` binds 16 of its 94 there.
+- **Nothing was committed.** `port/` is untracked in the content submodule and
+  holds all six baselines; without them `test-port` fails on a fresh checkout
+  with "no baseline".
+- **Client verification is vacuous for all six steps and is stated rather than
+  skipped.** No client code, packet or interface was touched. The closest real
+  check is `test-mock230` — boots the server, compiles and loads 319 scripts,
+  reads every table and row, builds the scene — green throughout, and it now
+  also asserts that no whole-varp write to a carrier happened during the run.
+
+**One process finding worth more than any of the numbers.** The reference
+checkout is live and was written to *during* three of the six steps
+(§14.5 finding 1, §15.9, §16.10): `+2` obj, `+5` seq, `+4` spotanim records
+appeared between two green runs and turned `port_name_diff --check` red on rows
+unrelated to the work in hand. Every bar computed against `LostCity_Server` is
+only as reproducible as that checkout, and the correct response is a recorded
+commit (§12) rather than a re-baseline nobody reads.
+
 ---
 
 ## 11. What I propose not to port
@@ -1400,30 +1656,96 @@ see.
 
 ## 12. How to re-measure
 
-Everything above is reproducible. Working files are under
-`…/scratchpad/lcport/`:
+**This section used to point at `…/scratchpad/lcport/`. Those files are gone,
+and their loss is the reason this rewrite exists.** A scratch directory is
+per-session and per-agent; the next run gets a new one, so a doc that names a
+scratch path has documented nothing. The measurements in §14–§19 were re-derived
+from scratch for exactly that reason, which cost a day and is not a cost anyone
+should pay twice. **The rule now: a number that a committed tool cannot
+re-derive does not belong in this document without the sentence that says so.**
 
-| file | what it produces |
+### 12.1 The committed path — anything a bar depends on
+
+All six of these live in `tools/` and every one runs inside `make -C src
+test-port`, which is a dependency of `make -C src test-content`. They read both
+trees on every invocation, so they re-measure rather than replay:
+
+| tool | `--report` / `--summary` produces | `--check` fails on |
+|---|---|---|
+| `tools/port_name_diff.py` | §4.1's display-name diff, 4,279 rows over npc/obj/loc/seq/spotanim; `--collisions` is §4.1's "where a copied id would land", 14 namespaces | an unsigned row, a changed verdict, a deleted row |
+| `tools/port_constant_diff.py` | §15's 1,735-row constant classification | a reference constant with no row; a `present`/`landed` value that drifted; a deferred constant copied into this tree |
+| `tools/port_category_crawl.py` | §16's 53 npc categories, `--groups` for the member evidence | a minted name missing from `pack/category.pack`; a row whose group changed |
+| `tools/port_config_diff.py` | §17's 1,650 param/struct/enum/dbtable/dbrow blocks, `--blockers` for why each is held | a `defer-*` block authored here; `[music]` declared; a `landed` block deleted |
+| `tools/port_vars_diff.py` | §18's 357 `%name` rows with the carrier/false-friend split | an unclassified name; a row whose resolution fact changed |
+| `tools/port_names_diff.py` | §19's 524 name maps, `--summary` for the disposition table | a reference name with no row; a stale row; evidence that no longer re-derives |
+
+Plus `tools/ss_unresolved.py --check` (bars 1 and 5 over this tree's own configs
+and scripts) and `tools/ss_allocate.py --check` (what the next id would be, per
+namespace, without writing). All of them **degrade to "skipped" and exit 0 with
+no LostCity checkout**, because a bar that cannot run has not failed.
+
+The engine-side numbers:
+
+```
+# the §12 baseline, both loaders
+make -C src PLATFORM_OBJ_BASE=<lane> mock230-scripts   # sscompile's symbol line
+./src/<objdir>/mock230_pack --check-only               # the content-load line
+make -C src PLATFORM_OBJ_BASE=<lane> mock230-servpack  # needed before the band check
+```
+
+`src/net/mock/mock230_opcode_coverage.gen.h` is generated, so §5's numbers move
+when the engine does.
+
+### 12.2 The scratch path — for §4, §5, §6, which no committed tool covers
+
+These were written fresh for this run and are **expected to be gone**; what
+survives is the method, stated so the next run can rewrite them in an hour
+rather than a day.
+
+| what | method |
 |---|---|
-| `census2.py` | the §4 resolution table, the §4.1 display-name diff, per-namespace unresolved lists (`census2.json`) |
-| `loop.sh` | the §6 compile census — compile, record first error, quarantine, repeat (`errors.txt`). Note its limit: past ~200 files the quarantine cascade dominates, so filter out `no proc/label named` before reading it |
-| `levelreq_diff.py` | the §10.1 equipment-requirement comparison. **Re-run it after any `kronos_item_import.py` run** — `equipment_lostcity.obj` is disjoint from `equipment.obj` by construction and nothing else checks that |
-| `opcodes.json` | the §5 missing-opcode table with per-op use and file counts |
-| `perfile.json` | the §5.2 per-script opcode readiness split |
+| §4's resolution table | parse `id=name` on both sides — this tree's `configs/all.<t>.compack` + `pack/*.pack` + `interfaces/*.compack`, the reference's `content/pack/*.pack`; walk the reference's authored tree with `_unpack/` and `_test/` pruned; a name is *referenced* when it appears as a token in a `.rs2` or config; `ref_rs2` restricts to `.rs2`. Corpus this run: 1,265 `.rs2`, 109 `.constant`, 159 `.if`, 21 config extensions |
+| §4.1's diff | now committed — `port_name_diff.py`. The scratch version additionally reported the **strict** (`a.lower()==b.lower()`) and **normalised** (strip `<col>` tags and punctuation) counts side by side, which is how "only 9 of 652 differences are pure formatting" was measured |
+| §4's swap sweep | for every namespace with a name table on both sides, look for `lc[A]==mod[B] && lc[B]==mod[A]`; then for cycles >2 (a permutation over one id set); then for display-name transpositions; then for duplicate names inside each side's own tables. Result this run: one 2-cycle, nothing else |
+| §5's opcode table | the engine's generated coverage header against a token scan of the reference's `.rs2` |
+| §6's compile census | compile, record the **first** error per file, quarantine, repeat. Its limit: past ~200 files the quarantine cascade dominates, so filter out `no proc/label named` before reading it. **The static form is better and is what §16.3 used** — extract every `[<trigger>,<subject>]` header and classify the subject exactly as `ssc_compile.c:parse_header` does |
+| §10.1's equipment-requirement comparison | **re-run after any `kronos_item_import.py` run** — `equipment_lostcity.obj` is disjoint from `equipment.obj` by construction and nothing else checks that |
 
-The two source-of-truth tables the census reads are
-`OSRS-Content/osrs239-content/configs/all.<type>.compack` and
-`.../pack/*.pack` on this side, and `<lostcity>/content/pack/*.pack` on the
-other. The engine's opcode coverage is `src/net/mock/mock230_opcode_coverage.gen.h`,
-which is generated, so the §5 numbers move when the engine does.
+### 12.3 The commits every number above was taken at
 
-Baseline on the destination tree, unchanged, today:
+Reference drift is not hypothetical here — the reference checkout was written to
+during three of the six steps in §10.1's symbols entry, adding records mid-run
+(§14.5 finding 1, §15.9, §16.10). Record the commit or the number is not
+reproducible:
 
 ```
-mock230_pack: 0 error(s), 1 warning(s)
-content loaded (213430 symbols, 136 constants, 38 npc defs, 776 loc defs,
-                16 varp defs, 29 prayers, 1419 equip reqs, 62 npc spawns)
+reference   ~/Documents/git_repos/LostCity_Server   d386509  branch 254_zuk
+              content submodule                     593008c87  (2 modified, 1 untracked)
+this tree   OSRS-Content/osrs239-content            531d8f687a
 ```
+
+### 12.4 Baseline on the destination tree, 2026-08-01
+
+```
+mock230_pack: 0 error(s), 13 warning(s)
+content loaded (213623 symbols, 306 constants, 39 npc defs, 776 loc defs,
+                39 varp defs, 1496 equip reqs (675 from the cache),
+                63 npc spawns, 12 obj spawns)
+sscompile: 212922 from packs, 26478 components, 306 constants, 52 db columns,
+           2872 carrier varp(s), 0 whole-write exemption(s)
+server band: 2973 archive(s) verified against the text parse
+             (needs `make -C src mock230-servpack` first — `server/pack` is a
+              build product and the check reports "skipped" without it)
+```
+
+**The block this replaced was stale in every field** and had been for some time
+— it read `0 errors / 1 warning`, `213430 symbols, 136 constants, 38 npc defs,
+16 varp defs, 1419 equip reqs, 62 npc spawns`, and named "29 prayers", a field
+the line no longer prints. Six of its seven numbers had moved before this run
+started (the first re-measurement, before any of §14–§19 landed, read `213530
+symbols, 284 constants, 39 npc, 39 varp, 1496 equip reqs, 63+12 spawns, 0/13`).
+The 12 extra warnings are all `combat block but no Attack op` and are not a
+regression. A baseline nobody re-runs is a baseline that is wrong.
 
 ---
 
@@ -1435,8 +1757,14 @@ From the brief, with what each one costs given the measurements:
    206 names will fail on the first run (44 npc, 88 loc, 44 seq, 30 spotanim)
    plus 147 varps and 1,380 interface references. That is the *point* — the list
    is the work queue.
+   **Landed 2026-08-01 (§14), and the numbers are now measured rather than
+   projected: 524 names, not 206** (§19.2), **126 varps, not 147** (§4), and the
+   1,380 interface references stand. **The list is written down** — six `port/*`
+   artifacts, consolidated as §20. Two "never a default" holes were found and
+   shut, both of which had been silently answering with -1 or a skipped field.
 2. **`make -C src test-content` passes; `mock230_pack` reports 0 errors.** It does
-   today; nothing has been changed.
+   today; nothing has been changed. **Still true after §14–§19**, with `test-port`
+   added to `test-content` and seven new gate rules under it.
 3. **`mock230` boots with no "did not resolve".** Requires 1.
 4. **The existing 38 npc / 776 loc Lumbridge content keeps working.** This is an
    addition — but the first slice lands **on top of an existing port of the same
@@ -1460,6 +1788,15 @@ I would add two:
    §4.1. Name resolution proves a spelling exists; only this proves it means the
    same thing, and `goblin_armed`/`goblin_cook` are the precedent for what it
    costs when nobody looks.
+   **Landed 2026-08-01 as `port/name_diff.signed` + `--check` (§14.3), and it
+   earned its keep six times over** — `rock_sample1`, `_giantrat` reading as the
+   rat category, `%prayer9` reading as a varp, `[music]` reading as the client's
+   own 15-column table, `macro_bigfish` reading as a troll, and
+   `antidragonbreathshield` reading as a Dragonfire shield. Every one of those
+   resolved cleanly. **The bar generalises past display names**: §17's collision
+   is a dbtable *schema*, §18's is a varbit *bit range*, §16's is a category
+   *group*. What is being signed off is that the thing means the same, and the
+   display name is only where that is cheapest to see.
 
 ---
 
@@ -2202,3 +2539,770 @@ unrelated to categories. Re-baselined with `--write-signed`; the diff is
 **exactly +6 rows**, all `identical/unreviewed`, none rewritten. The reference
 content submodule was dirty with 15 modified and 5 untracked files while this ran.
 It is now a property of the setup, not an incident.
+
+---
+
+## 17. §9 step 3c, as landed — param / struct / enum / dbtable / dbrow
+
+The five namespaces whose ids are *ours*. §4 group C is right that a 0 %
+name-resolution rate against the cache is the correct answer here — nothing in
+cache.osrs239 names a param, a struct or an enum the server defines — and that is
+exactly why the name-resolution gate (§14) has never been able to see this
+family. This step is the allocation mechanism, the gate that replaces §14 inside
+it, and 75 records.
+
+### 17.1 The mechanism came first, and it was not a formality
+
+**Every `server_base` in `src/content/content_register.c` was advisory.**
+`tools/ss_allocate.py`'s `declared_base()` read `content.ini` and nothing else,
+and `content.ini` declares **no `base =` key at all** — measured, zero, in the
+whole file. So the floor was always 0, `max(floor, mark + 1)` was always
+`mark + 1`, and the C table described an id space nothing consulted. Its own
+docstring said the numbers lived in the register and were "not duplicated into
+this file", which was true and had the opposite effect from the one intended.
+
+`declared_base()` reads the register now, `content.ini` still overlays it, and
+the first run after that change printed the bug:
+
+```
+varp      declared=39 allocated=5724 base_was=8000 floor=8000
+```
+
+The next server varp would have been **8000**, and `MOCK230_VARP_COUNT` is
+`MOCK230_VARP_CACHE_MAX + 512` = **6217** — past the end of
+`Mock230Player.varps`, where `mock230_world_set_varp` bounds-checks and returns.
+The write would have looked like it worked and transmitted nothing:
+`CONTENT_ARCHITECTURE.md` §8.3's named failure mode, re-armed, and invisible for
+as long as the floor was inert.
+
+So the register's `varp` row is **5705**, not 8000 — the third of the
+"already allocated" exceptions the `server_base` docstring describes beside
+`param`'s 2634. Nineteen server varps already sit at 5705..5723 and §8.5 records
+that as the correct result. **`struct` stays at 8000**: the stated policy is a
+round number above the cache's maximum, `struct` has nothing allocated yet, its
+cache maximum is 6499, and nothing bounds a struct id — there was no evidence
+against the policy, so the policy stands. The measured floors now:
+
+| namespace | cache max | floor | first server id in use |
+|---|---:|---:|---:|
+| `param` | 2633 | 2634 | 2634 |
+| `enum` | 5994 | 5995 | 5995 |
+| `dbtable` | 258 | 259 | 259 |
+| `dbrow` | 16939 | none | 16940 |
+| `struct` | 6499 | 8000 | — none yet |
+| `varp` | 5704 | **5705** (was 8000) | 5705 |
+
+**Three more things that had to change for "allocated, never hand-picked" to be
+a checkable claim rather than a convention.**
+
+1. **`validate_id_bases` read the wrong register.** It called
+   `ContentRegister_Defaults` and never opened the tree's `content.ini`, so the
+   four namespaces the file *promotes* to `ids = server` — `varp`, `param`,
+   `dbtable`, `dbrow`, each with a paragraph in that file saying why — were
+   checked as though they were the cache's. A validator reading a different
+   register than the runtime is checking a tree that does not exist. It calls
+   `ContentRegister_Load` now.
+2. **The reverse direction is an error, not a hidden `report_info`.** An id
+   above the cache's maximum but below the declared base means the register is
+   describing an id space that is not in use, and the *next* allocation jumps the
+   gap. For `ids = cache` it stays information — `obj` has twelve ids between the
+   cache's 33834 and its base of 40000 and all twelve are `obj_<id>` layer-0
+   filler, not allocations.
+3. **`ss_allocate.py`'s `pack_path()` was unconditionally
+   `configs/all.<ns>.compack`**, while `mock230_content.c`'s `pack_kind_is_config()`
+   puts `category`, `stat`, `component` and `3_interfaces` in `pack/<ns>.pack`.
+   Latent, because none of the four is `ids = server` today — and armed, because
+   §16.7 wants `category` promoted so the 20 orphan npc categories can get an id.
+   The moment that landed, the allocator would have written
+   `configs/all.category.compack`, which nothing reads, while `pack/category.pack`
+   went untouched. `CONTENT_ARCHITECTURE.md` §8.2(c), a fourth time. Fixed here so
+   3b's blocker can be cleared without shipping with it.
+
+### 17.2 The gate: two holes, both in this family only
+
+**`mock230_pack` never loaded the `.dbtable`/`.dbrow` half of the tree.**
+`mock230_db_load` had exactly one caller, `mock230_boot.c`. So for the one
+namespace family whose ids are allocated rather than the cache's, "the table has
+no such column", "this row names an unknown table" and "this value resolves to
+nothing" were **boot-time discoveries in a tree `mock230_pack --check-only`
+called clean**. It loads it now; the errors already went through
+`mock230_content_report_error`, so they reach the exit status with no other
+plumbing. Proved by mutation: `table=prayer_tabel` → 7 errors, exit 1; was 0.
+
+**An unrecognised column type was read as a literal.** `db_kind_for_type`
+returned `MOCK230_PACK_COUNT` — the same answer it gives `int` — for any word it
+did not know, and `row_value` then fell through to `atoi()`. A column declared
+`synth` turned every sound *name* in it into **0**, silently. That is bar 1
+exactly, one namespace over from where §14 shut it. `db_type_is_literal` now
+states the four words that carry no symbol (`int`, `string`, `boolean`, `coord`)
+and anything else must resolve through a pack; a type nothing resolves is a load
+error naming the type. Proved by mutation: `column=sound,synth` → error, exit 1;
+was silent.
+
+### 17.3 What landed: 75 records, and the rule that chose them
+
+**A file lands whole or not at all**, and only when *every* block in it is clean,
+no block name is already spelled here, its subject directory already exists in
+this tree, and — for a `.dbrow` — every table it names lands in the same pass or
+is already here. Partial files were not an option worth taking: the reference's
+prose is colocated with its blocks, and splitting a file to rescue three rows
+loses the paragraph explaining them.
+
+```
+param    27   2651..2677   bas / consume / death / weapon_poison / bones / 6 quests
+enum     20   6004..6023   cocktail_guide, cook_book, mage_arena, priestperil, …
+dbtable   7    262..268    drop_table, sheep_table, legends_gem_data, 4 thieving
+dbrow    21  16984..17004  zone tables (coord_pair_table) + the sheepherder sheep
+```
+
+Both symbol loaders rose by **exactly 75, and by the same number** — sscompile
+212,847 → 212,922, `mock230_pack` 213,548 → 213,623 — which is this step's
+equivalent of §15's constant-count check: a divergence would mean one loader
+skipped a file. `git diff` on the four `.compack` files is **75 added lines and
+no line rewritten**, all below the allocator's marker. `mock230_pack` 0 errors,
+server band still 2,973 archives verified, `test-content` green.
+
+`drop_table` is the one worth naming: it is the schema `drop tables/` needs, the
+slice PORTING_GUIDE §6 phase 4 puts first and §16 unblocked half of.
+
+**Verified at runtime, not just at pack time.** A selftest stanza beside the
+category one asserts the whole allocation chain on `sheep_table`: the id is
+server-allocated (≥259), the table loaded with its four rows, and the row's
+`npc` and `namedobj` columns hold **3986** and **280** — the ids this tree's packs
+give `herder_plaguesheep_1` and `sheepbonesa`, where the reference's own numbers
+are 1379 and 1929. Reverting `db_kind_for_type` to the old silent fallback makes
+both read 0 and both checks fail, which is what makes the stanza worth its lines.
+
+### 17.4 The other 1,544, classified — `port/configs.map`
+
+1,619 reference blocks, plus 31 this tree declares and the reference does not.
+`tools/port_config_diff.py --check` holds the tree to it inside `test-port`.
+
+| disposition | rows | what it is |
+|---|---:|---|
+| `defer-slice` | **985** | clean; the subject has not been ported |
+| `blocked-type` | **287** | needs a type nothing here can resolve |
+| `blocked-loader` | **149** | every `struct` |
+| `blocked-name` | **63** | a symbol inside it has no spelling here |
+| `present` | 56 | already here, authored |
+| `landed` | 75 | this pass |
+| `duplicate-concept` | 2 | this tree carries it under another name |
+| `cache-record` | 1 | the cache states it; resolve, never re-declare |
+| `collision` | **1** | the name here means something else |
+| `tree-only` | 31 | declared here, not in the reference |
+
+Primary blockers, by row:
+
+```
+195 dbrow   component + midi     the music slice
+ 68 dbrow   synth                consumption, magic, fletching
+ 34 dbrow   loc                  thieving's locked doors and chests
+ 32 dbrow   constant             §15 deferred the constant it indexes
+ 19 dbrow   component+interface  levelup
+  7 enum    npc / constant       the macro-event level tables
+  6 param   synth / loc          five sound defaults and one loc default
+```
+
+**The blocker nobody had counted: this tree names no sounds and no music.**
+`pack/4_soundeffects.pack` is 12,010 lines of `synth_<id>` and
+`pack/6_musictracks.pack` is 881 lines of `song_<id>` — not one real name in
+either. **282 reference dbrows and 5 params** name one — every
+`blocked-type` row in the table above. That is a 3e-shaped naming
+job in two asset namespaces nobody has scoped, and until this step it was
+invisible because the reader answered every one of those names with 0.
+
+### 17.5 `music` — the one collision, and why a name check cannot see it
+
+LostCity's `music.dbtable` has **4** columns beginning `name`; cache.osrs239's
+`music` is **dbtable 44** with **15** beginning `sortname`, and it is what the
+client's music player reads. **195 LostCity dbrows say `table=music`.** Resolved
+by name — which is the rule everywhere else and the right rule — all 195 attach
+to the client's table, and `data=name,Adventure` names a column that table does
+not have.
+
+Every check that exists passes on it: the name resolves, the id is not copied,
+the display-name diff is a different namespace, and `ss_allocate` would decline
+to allocate because the name already has an id. It is `obj rock_sample1` (§14.3)
+one namespace over. `port/configs.map` carries it as `collision`, and the
+enforcement is the opposite of the usual one: **no config file under
+`server/scripts` may declare a block by that name.** Proved by mutation —
+authoring `[music]` fails the check, exit 1. `musicregion` (302 rows) does not
+collide, so the fix when the music slice is wanted is a rename of one table, not
+of the slice.
+
+Two `duplicate-concept` rows are the softer version of the same thing and both
+were already ported here under different names: LostCity `prayers` →
+`prayer_table` (which states the exclusion the other way round, deliberately),
+and `stat_names` → `stat_name_enum`. Porting either gives two tables saying one
+thing.
+
+### 17.6 What this step did **not** do, and why
+
+- **No `struct` landed, and none can.** There is no `.struct` loader anywhere in
+  `src/` and `SS_OP_STRUCT_PARAM` has meta but no server `case` — grepped, zero
+  hits each. A struct here would be 733 `param=` references nothing reads. Both
+  are engine work and a prerequisite, not a follow-up.
+- **No param *values* are readable, and that is unchanged.** `load_param_types`
+  opens `configs/all.param` only and `walk_configs` has no `.param` pass, so the
+  27 params landed here — and the 17 this tree already had — keep `type` 0 and
+  `default` 0 at runtime. Nothing references them yet, which is why landing the
+  declarations is safe today and why the overlay walk has to land before anything
+  does: 27 of the reference's 214 params are `type=string`, and
+  `push_typed_param` answers an absent row on an undeclared param by pushing an
+  **int**, which is a permanent stack desync in the VM.
+- **`--server-only` band unchanged** at 2,973 archives verified. The new params
+  are declarations; no record carries one.
+- **Client verification is vacuous** and is stated rather than skipped: no client
+  code, packet or interface was touched. The closest real check is
+  `test-mock230`, which boots the server, loads 319 scripts, reads every table
+  and row in the tree and builds the scene — green, with the new stanza in it.
+
+### 17.7 Corrections to the numbers in §4 and §9
+
+| claim | measured |
+|---|---|
+| §4 "214 params, 149 structs, 114 enums, 1,115 dbrows" | **exact**, all four |
+| §4 (not stated) | dbtable **27** |
+| §4 `param` "resolves 23 / unresolved 180" | 23 reproduces: 13 are real cache params, 10 are prior ports |
+| §9-3c ordering | `param → struct/enum` is **not** a cycle: all 18 `type=struct` and 3 `type=enum` params declare `default=null` |
+| §12 baseline | `213,623 symbols, 306 constants, 39 npc, 776 loc, 39 varp, 1,496 equip reqs, 63+12 spawns, 0 errors 13 warnings` |
+
+---
+
+## 18. §9 step 3d, as landed — varp / varn / vars reclassification
+
+The step with the worst failure mode in the whole plan, and the reason is one
+sentence: **in this namespace, resolving proves nothing.** A `%name` that
+resolves compiles, runs, transmits, and can still be writing somebody else's
+state — and unlike every other namespace there is no display name to diff, so
+§4.1's artifact has nothing to compare.
+
+Two halves landed, and they are different kinds of thing. The **mechanism** makes
+the wrong class impossible or loud, and it needed no table. The **data** is one
+human decision per name, and most of them are not made.
+
+### 18.1 The mechanism — three layers, each with a mutation that proves it
+
+| where | rule | proved by |
+|---|---|---|
+| `sscompile` (`ssc_compile.c` `check_carrier_write`) | `%name = value` on a varp that has varbits based on it is a **compile error**, naming the varbits and bit ranges it would destroy | `%prayer0 = 0` → *"is varp 83, which 32 varbit(s) are packed into … (prayer_allactive (0..28), prayer_thickskin (0..0), …)"*, exit 1 |
+| `sscompile` (`warn_carrier_read`) | reading one is a **warning** — the packed word is not a value, but a read is recoverable | `return(%prayer0)` → warning, still compiles |
+| `sscompile` (`SSC_SymbolsValidate` rule 0) | `wholewrite=allow` on a varp nothing is based on is an **error** | on `cookquest` → *"no varbit is based on it — there is nothing to exempt"*, exit 1 |
+| `mock230_content.c` | `wholewrite` takes `allow` and nothing else | `wholewrite=maybe` → 1 content error, exit 1 |
+| `mock230_world.c` (`check_carrier_write`) | every whole-varp write at **runtime** is counted, and the selftest asserts the count is zero | removing the varbit-patch exclusion → `FAIL 21 whole-varp write(s) landed on a carrier varp (last: 1105)` |
+
+All five reverted; the content tree was verified clean after each.
+
+**The carrier set is read, never derived.** `configs/all.varbit`'s `basevar=` key
+is the only statement anywhere of which varp a varbit lives inside, and both
+readers use it: sscompile parses the record file (2,872 carriers), the engine
+builds the same reverse index out of config group 14 at boot (`mock230: 2872
+varp(s) carry varbits`). Two independent paths, one authority, and the numbers
+agree to the record.
+
+**The gate went on green, which is the only time it is free.** Measured before
+landing it: this tree's own scripts make **97 whole-varp writes over 32 names,
+and 0 of them touch a carrier**; **0 carrier reads**; and 3 of the tree's 39
+`.varp` declarations name a carrier (`prayer0`, `bankcert`, `bankinsert`) — all
+three correctly, because a varbit's *container* is what has to be transmitted.
+Nothing needed an exemption, and none is declared.
+
+**Why the exemption exists at all, given nothing uses it.** A rule content cannot
+opt out of is a rule content will route around, and `CONTENT_ARCHITECTURE.md`
+§8.2(c) is explicit that the thing with nowhere to put a decision is the bug. So
+the hatch is a fourth key on the `.varp` block — beside `transmit`, `scope` and
+`protect`, declared in `fields/varp.ini`, read by **both** the compiler and the
+engine — rather than a compiler flag. And it is itself checked: an exemption that
+excuses nothing is an error, so it cannot be left behind after the write it
+excused is gone.
+
+**The runtime layer is not redundant with the compiler.** sscompile covers
+content. It cannot cover the other three writers — a `::` cheat, C, a packet
+handler — and §8.2(d) is about exactly that: *moving a rule to content leaves the
+engine holding the other end of it.* The selftest's assertion spans the whole
+run, so it fails on a write from any of them. Its negative control is real: the
+one path that legitimately writes a carrier is `mock230_varbit_set`, and deleting
+its exclusion turns 21 correct varbit patches into 21 counted violations.
+
+### 18.2 What was measured, against what §7.5 and §9 claim
+
+| claim | measured | verdict |
+|---|---|---|
+| §7.5 "**28** varps by hand" | **27** | one off; the list below is the whole set |
+| §7.5's six worked examples | `%dragonquestvar` 177/21 bits · `%goblinquest` 62/8 · `%prayer0` 83/32 · `%ibanmulti` 162/31 · `%emote_access` 313/24 · `%bankcert` 115/5 | **all six exact** — varp id and varbit count |
+| §4 "127 resolve / 147 unresolved" | **143 resolve / 128 unresolved** (of 278 non-varn/vars references) | the tree grew |
+| §7.5 "the other 147 are `varn`/`vars` or nothing" | of the 128 unresolved, **varn 0, vars 0** — the reference already used the right namespace where it meant npc or world state | **wrong**, and the correction matters: the real destination is a server-allocated player varp, `transmit=no`, which this tree has already done 18 times (`com_*`, 5705..5722) |
+| §9 step 3d "28 by hand" as the size of the step | **357** `%name` references, of which **117 are undecided** (98 unresolved + 19 carrier) | the clobber set is the dangerous part, not the big part |
+| §15.4's 168 bit-position constants over 22 reference varps | reached from the other side: **39** referenced names carry `testbit`/`setbit`/`clearbit` | the two lists cross-check on `ibanmulti` and `emote_access` |
+| whole-container writes in the reference | **2,108**, of which **187 over 26 names** land on a carrier | — |
+
+Baseline after, unchanged in every field: `0 error(s), 13 warning(s)` ·
+`213623 symbols, 306 constants, 39 npc defs, 776 loc defs, 39 varp defs,
+1496 equip reqs (675 from the cache), 63 npc spawns, 12 obj spawns` ·
+`2973 archive(s) verified` · 319 scripts · `port_name_diff` 4,279 rows, no
+re-signing needed this session.
+
+### 18.3 The false friends — six names that resolve, five of them to the wrong thing
+
+This is the finding the step exists for, and it is provable from both sides.
+
+The reference's `%prayerN` is the Nth prayer toggle: `skill_prayer/scripts/
+prayers/<name>.rs2` owns exactly one N each, **15 of 15**. osrs239 packs exactly
+those fifteen as **bits 0..14 of varp 83**, in the same order — `thickskin`,
+`burstofstrength`, `clarityofthought`, `rockskin`, `superhumanstrength`,
+`improvedreflexes`, `rapidrestore`, `rapidheal`, `protectitem`, `steelskin`,
+`ultimatestrength`, `incrediblereflexes`, `protectfrommagic`,
+`protectfrommissiles`, `protectfrommelee`. Independent cross-check:
+`king_black_dragon.rs2:163` gates dragonfire on `%prayer12`, and bit 12 is
+`prayer_protectfrommagic`.
+
+But osrs239's gameval table kept the legacy `prayerN` labels on **reused ids**:
+
+```
+%prayer0  -> varp 83   the prayer block           right container, wrong granularity
+%prayer1  -> varp 84   quickprayer_selected       WRONG — a different concept
+%prayer9  -> varp 92   the Clan Wars block        WRONG
+%prayer10 -> varp 93   Clan Wars                  WRONG
+%prayer11 -> varp 94   Clan Wars                  WRONG
+%prayer12 -> varp 95   Clan Wars                  WRONG
+```
+
+Five names, **35 whole-varp writes**, every one of which resolves, compiles, and
+lands on the Clan Wars state. The other nine (`prayer2..8`, `13`, `14`) do not
+resolve at all and would be counted among the "unresolved" — so the *same*
+mechanical rule produces a compile error for nine of a family and silent
+corruption for five, which is why the deliverable here is a signed map and not a
+rename. A name check cannot tell `goblinquest` → `gobdip_*` (same concept, needs
+a bit range) from `prayer9` → `clanwars_*` (different concept, needs a different
+name) apart. **Both "resolve".**
+
+The carrier gate catches all six as writes. It does **not** catch a read, and it
+cannot catch the *choice* — that is what `port/vars.map` is.
+
+### 18.4 The data — `port/vars.map`, 357 rows
+
+`tools/port_vars_diff.py` (`--report` / `--write-map` / `--check`). The
+mechanical columns are re-measured on every check; `disposition`, `target` and
+`evidence` are human and never regenerated.
+
+| disposition | rows | what it means |
+|---|---:|---|
+| `unresolved` | **98** | no defensible target. Left unported, and listed |
+| `clean-varp` | **92** | resolves to a non-carrier varp of the same concept — safe when its slice lands |
+| `varn` | 43 | the reference already scopes it to an npc |
+| `vars` | 36 | the reference already scopes it to the world |
+| `present` | 24 | already declared in this tree, correctly (18 of them server-allocated) |
+| `bitfield` | **21** | bit-packed in the reference, unresolved here → becomes N varbits. **Blocked**, §18.6 |
+| `varbit` | **19** | decided, with evidence: the reference's varp is a varbit here |
+| `carrier` | **19** | resolves to a shared container of the *right* subsystem; which bit range is a per-quest human decision |
+| `false-friend` | **5** | resolves, to a different concept. Never auto-map |
+
+The 19 `varbit` rows are the ones the measurement resolved with evidence, and all
+19 need **no new content**, which is the honest result: 10 prayers + 2 bank
+settings are already varbits in this tree and its scripts already use them, the 6
+`troll_*` are LostCity's own varbits resolving at identical ids, and
+`autocast_spell` is a varp there and varbit 276 here. The step's product is the
+*statement*, not a file.
+
+`--check` fires on: a reference `%name` with no row · a row whose resolution
+changed under a decision already made · a `false-friend` this tree's own scripts
+have started to spell · a `carrier` row that acquired a target · a target that is
+not a varbit here · a decided row with no evidence. Four mutations proved, each
+reverted.
+
+### 18.5 The 27 carriers, and the one distinction worth carrying forward
+
+```
+prayer0 83/32   ibanmulti 162/31   emote_access 313/24   dragonquestvar 177/21
+prayer9 92/18   dueloptions 286/15 itkeepgatelock 113/14 elemental_workshop_bits 299/12
+flour 203/12    mcannonmulti 1/12  demonstart 222/10     smithbars 210/10
+agilityarena_varbit 309/9          desert 599/9          goblinquest 62/8
+dragonresist 277/6                 ernestlever 33/6      bankcert 115/5
+prayer10 93/5   duel2accept 284/4  sheepherdervar 61/4   trawler 109/3
+bankinsert 304/2 prayer11 94/2     prayer12 95/2         score_gnomeball_game 143/2
+prayer1 84/1
+```
+
+**Bit-packed in the reference is not the same question as shared here.** Of the
+39 names the reference addresses with `testbit`/`setbit`/`clearbit`, **10 resolve
+to varps osrs239 packs nothing into** — `barcrawl` (varp 77, 46 bit ops),
+`musicmulti_1..7`, `cogquest`, `trail_status`. Those can keep the reference's own
+bit layout verbatim, because nothing else lives in the container. The 8 that are
+*both* bit-packed there and shared here (`ibanmulti`, `dueloptions`,
+`elemental_workshop_bits`, `emote_access`, `ernestlever`, `agilityarena_varbit`,
+`mcannonmulti`, `sheepherdervar`) are the hardest rows in the file: every
+individual bit is a separate decision against an osrs239 varbit that already
+exists.
+
+### 18.6 What did **not** land, and why
+
+- **No `.varp` or `.varbit` file was written.** Following §15.3's test: a
+  declaration whose script is not here is a name waiting to be resolved against
+  the wrong thing, and 3d ports no scripts. The 19 evidenced rows need no file
+  because their destinations are already in the tree.
+- **The `bitfield` bucket (21 names) is blocked, not deferred.** Creating a varbit
+  means writing config group 14, and three things are missing: there is no
+  `fields/varbit.ini`, `content.ini` says `[namespace:varbit] ids = cache` so
+  `ss_allocate` will not allocate one, and — the real blocker — **the server reads
+  varbits from `cache.osrs239` directly** (`mock230_boot.c:93`, the pristine frozen
+  cache), not from cachepack's output, so an authored varbit would be invisible to
+  it. `cachepack` itself is ready (`CP_TYPE_VARBIT`, kind 4, not lossy, and the
+  walk already picks up any extension under `server/scripts`). This is an rscache
+  and boot-path change; read `3rd/rscache/EXCEPTIONS.md` first.
+- **The 98 `unresolved` were not reclassified as `server-varp` in bulk.** The
+  class argument is sound — 18 already exist here at 5705..5722 with
+  `transmit=no`, and 3c raised the floor so the next lands at 5724 — but applying
+  it per name needs a check that no osrs239 varbit already covers the concept
+  under a different spelling, and that is the exact trap this step is about. An
+  unported varp is a gap; a wrongly-classified one is a corruption.
+- **`clean-varp` (92) is the bucket with no check.** The name resolves to a
+  non-carrier varp, so a whole write is safe *mechanically* — but nothing proves
+  the varp still means what it meant, and a varp has no display name for §4.1's
+  diff to compare. `phoenixgang`/`blackarmgang` sit in this bucket: **145/146 in
+  this tree, 146/145 in the reference**, re-verified this session. Resolving by
+  name is correct for them and copying the id is corruption, which is the
+  standing rule; what has no artifact is concept drift.
+- **`mock230_bank.c:314-319` writes `player->varps[basevar]` directly**, bypassing
+  `mock230_world_set_varp` and therefore the runtime backstop. It is a correct
+  varbit patch through a private copy of the arithmetic, so it is not a bug today
+  — but it is the one writer the counter cannot see, and it is the third copy of
+  "patch a bit range into a varp" in the file. Not this step's to move.
+
+### 18.7 Corrections
+
+- §7.5's "28 by hand" is **27**, and its closing paragraph — "here they are
+  `varn`/`vars` or nothing" — is wrong: **varn 0, vars 0**. The reference already
+  used `varn` where it meant npc state (`npc_lastcombat` exists as a varn *beside*
+  the player varp `lastcombat`), so the unresolved bucket is not a namespace
+  mistake to fix, it is 98 destinations to choose.
+- §7.5's six example rows are **exact**, varp id and varbit count both — the only
+  thing worth adding is that `prayer0`'s 32 includes `prayer_allactive`, a 0..28
+  *alias over the whole block*, so varp 83 has two overlapping readings and the
+  reference's fifteen toggles are only bits 0..14 of it.
+- §4's varp row (`ref in .rs2` 268) counts differently from this step's 357. The
+  difference is that 357 counts every `%name` token in the authored `.rs2` tree
+  including the ones the reference declares in `scripts/_unpack/{225,244,245,254}/
+  all.varp` (91 of them) and the 9 it declares nowhere at all. Both are correct
+  answers to different questions; the map uses 357 because a name with no
+  declaration is still a name a ported script will spell.
+
+---
+
+## 19. §9 step 3e, as landed — npc / loc / seq / spotanim name maps
+
+Written 2026-08-01, after §14–§18. The deliverable is
+`OSRS-Content/osrs239-content/port/names.map` (524 rows) and
+`tools/port_names_diff.py --check`, which runs inside `make -C src test-port`.
+**No content file was written**, for the same reason §18 wrote no `.varp`: this
+step ports no scripts, and a map is a statement about what a name becomes, not
+a record.
+
+### 19.1 The thing this step is actually guarding
+
+An unresolved name is the **safe** case. Bar 1 makes it a pack-time error, the
+compiler refuses it, and the list is the work queue — §4's 206 exist so that
+somebody has to look at them. Nothing in this step tries to make them go away.
+
+The unsafe case is the opposite one, and it has no failure mode at all:
+
+```
+npc macro_bigfish   LostCity  'Big fish', no ops, readyanim fish_ready, resize 64
+                    osrs239   the ONLY record displaying 'Big Fish' is
+                              sotn_hazeel_troll_vis — a Shadow-of-the-Storm troll
+                              on models 35833/35836, the same models as
+                              my2arm_flashback_troll_*, with op1=Talk-to, size 2
+```
+
+That row satisfies **every** automatic rule this step has: the display name is
+unique, the vislevel agrees, the mapping is injective, the target is not itself
+a reference name. It is `obj rock_sample1` (§14.3) one namespace over, and it is
+why `--propose` and `--check` are separate verbs — proposing is mechanical,
+landing is not. It is carried as `deferred` with the rejection written down.
+
+### 19.2 The corpus, re-measured
+
+Method, stated because every previous count of this used a different one: a name
+is *referenced* when it appears as a token anywhere in the reference's authored
+tree (`_unpack`/`_test` excluded) **other than** as the `[name]` header of a
+`.<ns>` file declaring it — otherwise every authored record reads as a reference
+to itself. A name is *unresolved* when this tree's `configs/all.<ns>.compack`
+and its own authored overlays have no such spelling.
+
+| namespace | referenced | **unresolved** | §4 claims (`.rs2` only) |
+|---|---:|---:|---:|
+| `npc` | 984 | **92** | 44 |
+| `loc` | 1,408 | **266** | 88 |
+| `seq` | 974 | **125** | 44 |
+| `spotanim` | 295 | **41** | 30 |
+| | | **524** | 206 |
+
+§4's 206 is reproducible **only for `npc`** (44/44) and near for `seq` (45) and
+`spotanim` (32) when the walk is restricted to `.rs2` and to names the reference
+*authors*. `loc` does not reproduce under any variant I tried: 131 authored-only
+`.rs2`-only, 220 whole-pack `.rs2`-only, 266 whole-tree. **Do not quote 206 as
+the size of this step.** The gap is not drift — it is that a `.npc` naming a
+`seq` is a reference the port has to resolve exactly as much as an `.rs2` naming
+an `npc`, and 293 of the 524 are reached only that way.
+
+The plan's whole-tree figure of 452 (npc 93, loc 201, seq 118, spotanim 40) is
+close on three namespaces and 65 low on `loc`; the numbers above are what
+`tools/port_names_diff.py --summary` prints, so they are re-derivable.
+
+### 19.3 What landed: 180 rows with a target, three kinds of evidence
+
+| disposition | rows | what it means |
+|---|---:|---|
+| `manifest` | **113** | a `port_lostcity` export. The source id is stated in the manifest or minted into the name, so the target is a **lookup** |
+| `renamed` | **28** | a wholesale rename, verified on every member of the set |
+| `resolved` | **39** | display name + a structural field, uniquely and injectively |
+| `proposed` | 2 | one target, one stated disagreement — a human signs it |
+| `collision` | 6 | two reference names, one osrs239 record |
+| `family` | 125 | the family is certain, the member is not |
+| `scenery` | 130 | a generic loc: 328 records here display 'Gate', 488 'Ladder', 191 'Rocks' |
+| `absent` | 22 | no osrs239 record carries that display name at all |
+| `deferred` | 59 | nothing defensible, or a proposal rejected |
+
+**The 113 manifest rows are the free half and they cross-check clean.** The
+exporter writes the source id into the name it mints (`inferno_loc_30344`,
+`td_seq_10640`, `inferno_model_33006` inside a spotanim's `model=`), so 113
+targets are read out of this tree rather than chosen — and every one of them
+also agrees on a structural field: **seq 65/65 frame counts, spotanim 24/24
+model ids, npc 8/8 display + vislevel + model, loc 16/16 footprint, zero
+mismatches.** That matters most for the 30 `td_*` rows, which were exported from
+**`cache.osrs230`, not this tree's cache**: the assumption that the id still
+means the same record held, and every one of those rows says so.
+
+**The 28 `renamed` rows are one fact, not 28 guesses.** The reference's
+`midget_*` seqs are this tree's `gnome_*`: **30 of 30** members have a
+`gnome_`-prefixed counterpart with an identical frame count, and there is no
+counterexample anywhere in the namespace. A frame count on its own proves
+nothing (345 seqs here have 13 frames); the rule plus the count is what carries
+it, and `tools/port_names_diff.py` refuses to apply a rename rule that has a
+counterexample.
+
+**The 39 `resolved` rows are one signature each.** Four narrowing rules, every
+one of which exists because a looser version produced a wrong answer *on this
+corpus*:
+
+- **injective** — `gnome_tree_branch_1/2/3` all want `climbing_branch`; only
+  `_1` (op `Climb`) is unique once ops are read, and `_2`/`_3` (`Climb-down`)
+  stay `family`.
+- **the target must not itself be a reference name** — `observatory_professor2`
+  → `observatory_professor`, which the reference *also* defines and which
+  resolves here already. That is a 2:1 collapse, not a rename. Four rows are
+  `collision` for exactly this, and one (`dragonslayer_ned` → `ned`) would
+  otherwise have produced a duplicate `[opnpc1,ned]`.
+- **no suffix heuristic** — longest-common-suffix maps `king_lathas` to
+  `ds2_meeting_king_lathas` and `crafting_guild_door` to `ranging_guild_door`.
+  Both are wrong; see 19.4.
+- **ops are a subset, not an equality** — a modern record gains verbs.
+  Requiring equality lost `loc_2114` → `coal_truck` (which gained
+  `Investigate`) and kept generic coffins that equality happened to single out.
+
+### 19.4 Corrections to §4's own worked examples
+
+§4's *numbers* for `npc` are exact. Its *examples* are not, and all four are the
+same mistake — a name that resolves to a plausible record nobody read.
+
+- **`harlow` → `dr_harlow`** is wrong. `dr_harlow` (npc 3480) is a **nameless
+  multinpc wrapper** whose `multinpc1` is the record that is actually Dr Harlow:
+  `dr_harlow_vis` (npc 16277). Landed as `resolved` against the concrete record.
+- **`king_lathas` → `ds2_meeting_king_lathas`** is wrong. That record (npc 8046)
+  is the Desert Treasure II cutscene copy — identical fields plus
+  `category=1207`. The Ardougne record is `kinglathas_vis` (npc 9005). Both
+  display 'King Lathas' and both carry `op1=Talk-to`, so no rule here separates
+  them; the row is `family` and the open question is wrapper-vs-concrete, which
+  is a decision rather than a measurement.
+- **`leprechaun` → `farming_tools_leprechaun` / `myarm_leprechaun` /
+  `zanarisleprechaun`** — all three wrong. They display 'Tool Leprechaun',
+  'Tool Leprechaun' and 'Shamus' at vislevel 0, against the reference's
+  **level-12 attackable** Leprechaun (`op2=Attack`). **No osrs239 npc displays
+  'Leprechaun' at all**, so the row is `absent`. Three plausible spellings,
+  three wrong records.
+- **the "genuine 2004-only tail" (`game_trawler_*`, `gnome_obstacle_*`,
+  `barbarian_rope_swing`)** is wrong for all three families. This tree carries
+  28 `trawler*` locs, the gnome and barbarian agility courses, and four
+  ropeswing records. Four `game_trawler_*` rows landed as `resolved`; the rest
+  are naming drift waiting on a member choice, not missing content.
+
+One more the plan did not name: **`dragonslayer_giantrat`** is 'Giant rat' at
+vislevel 6, and this tree has **three** records there (`giantrat1`,
+`giantrat1_2`, `giantrat1_3` — one per body model). The reference's single
+record maps to a *set*. Auto-mapping on the display name is worse than it looks,
+because the same display at vislevel 3 is `giantrat`/`giantrat_grey`/
+`newbiegiantrat` and at 26 it is the Sins-of-the-Father familiars.
+
+And one found by reading a use site rather than a record: **`loc_3192`** matches
+`pvpa_scoreboard` on display, footprint and op, and is not the same thing — the
+reference uses it from `minigames/game_duelarena/`, and `pvpa_scoreboard` is the
+**PvP Arena's**, the Duel Arena's replacement. osrs239 states no Duel Arena
+scoreboard. Carried as `proposed`: a successor is a decision, not a rename.
+
+### 19.5 What could not be resolved, and why that is the honest answer
+
+- **`seq` and `spotanim` state no display name**, so outside the 113 manifest
+  rows and the 28 renames there is nothing to compare. The frame count is the
+  only signal and it is worthless alone: `chompy_landing` has 13 frames, so does
+  `chompy_update_attack`, and the semantic match — `chompy_update_fly_down`, a
+  landing — has **35**. All 49 remaining `seq`/`spotanim` rows are `deferred`
+  and each one states how many records here share its structure (345 for 13
+  frames), which is the measurement that says why.
+- **130 `scenery` rows** are locs whose display name is generic past the point
+  where any amount of name evidence exists — 328 'Gate', 488 'Ladder', 226
+  'Barrel', 191 'Rocks'. A loc's identity is fixed by **where it stands**; the
+  `.jm2` ↔ osrs239 map-square cross-reference is the tool that resolves them and
+  this step neither builds it nor hand-picks 130 gates instead.
+- **22 `absent` rows** are the recorded 2004-only decision: nothing in this tree
+  carries the display name. The clearest block is the anti-macro Ent event
+  (`macro_ent_dead_tree1/2`, `macro_ent_oak/maple/yew/magic` — 'Dead tree',
+  'Oak', …, as *npcs*), plus `jeremy_servil`, `zambo`, `willowthewisp`,
+  `gnomepilot`, `Artist1/2` ('DeVinci') and `leprechaun`.
+- **`troll` is the largest single unresolved name in the corpus** — 47
+  references — and it does not resolve: the reference's 'Troll' is vislevel 69,
+  and this tree's five 'Troll' records are `poh_troll` (91) and four
+  `my2arm_flashback_troll_*` (0).
+
+### 19.6 The permanent check
+
+`tools/port_names_diff.py --check`, a rule inside the existing `test-port`
+target (no new top-level target). It re-derives every stated fact from both
+trees on every run — a row's evidence is `display=`/`vislevel=`/`size=`/`ops=`/
+`frames=`/`model=`/`src=`, not prose — and fails on:
+
+1. a reference name with no row (an unclassified name),
+2. a row whose name this tree now provides directly (the row is stale),
+3. a `manifest` row whose source id stopped holding its stated target,
+4. a `resolved`/`renamed` row whose display, size, ops, frames or model no
+   longer agree on either side,
+5. a target that is not a record of that namespace here,
+6. two rows claiming one target without `collision`,
+7. a `family`/`absent`/`scenery`/`deferred` row carrying a target, or a
+   `resolved` row carrying no re-checkable evidence.
+
+Eight mutations, each proved and reverted: a deleted row; a manifest target
+swapped to another manifest row's; an edited `display=`; a `family` row given a
+target; two rows on one target; a `resolved` row stripped of its evidence; an
+edited `frames=`; and a probe `.npc` in this tree spelling `macro_bigfish`,
+which fires rule 2 — the case where landing the row would have been *worse*
+than leaving it unresolved.
+
+Like the other five port checks it degrades: with no LostCity checkout it prints
+"skipped" and returns 0, because a bar that cannot run has not failed.
+
+### 19.7 Judgement calls, stated
+
+1. **`_unpack` is read for EVIDENCE, never to port.** §11 is right that it is
+   the reference's own decompiled review queue — but **163 of the 524 names its
+   authored scripts reference are stated nowhere else**, and a row with no
+   record on the reference side has nothing to check. `lc_layer` records which
+   half every row's facts came from. `tools/port_category_crawl.py` (§16.2) made
+   the same call for the same reason.
+2. **The Inferno manifest is parsed out of the area README's shell block**,
+   because that is where it is (`area_inferno/README.md`). `lc_manifest.h` says
+   shell history is not a repeatable port and it is right; that is a filed gap,
+   not this step's, and the 71 Inferno rows are read rather than trusted to
+   re-run.
+3. **`port/names.map` is TSV, machine-checked**, like every other artifact in
+   `port/`. A build gate that reads prose is fragile.
+4. **The map lands no aliases.** A `resolved` row does not add a second name to
+   `configs/all.<ns>.compack`; `sscompile` consuming `port/names.map` belongs to
+   the lane that ports scripts, and the id space is 3c's file.
+
+### 19.8 Two findings for whoever is next
+
+1. **`port/name_diff.signed` and `port/names.map` are disjoint by
+   construction**, so this step appended nothing to the signed file. §14's diff
+   covers names present in **both** trees; every row here is a name present in
+   the reference and **not** in this tree. The plan's expectation that 3e would
+   append sign-off rows was a misreading of what the two artifacts contain.
+2. **`tools/port_name_diff.py`'s `loc` shape column has never measured
+   anything.** It reads `model1`, and `model1` appears **0 times** in this
+   tree's `configs/all.loc` (which spells it `models=`) and **0 times** in the
+   reference's authored `.loc` files (which spell it `model=`). All 1,319 signed
+   `loc` rows therefore carry an empty model on both sides. No verdict is wrong
+   — `loc` has a display name, so the verdict never depended on the shape — but
+   the structural column a reviewer might lean on is not there. Fixing it is
+   §14's file and would re-write 1,319 signed rows, so it is reported rather
+   than done. `tools/port_names_diff.py` reads `model`/`models` and is where the
+   33 `model=` facts in this step's map come from.
+
+---
+
+## 20. The work queue the symbols phase left
+
+Written 2026-08-01, from the six `port/*` artifacts. **This is bar 1's whole
+point**: an unresolved name is an error, the error list is the queue, and a
+queue that lives only in a build failure is a queue nobody can plan against.
+Every row below is machine-checked — `make -C src test-port` fails if any of
+these dispositions is quietly changed, so this section cannot rot without the
+build going red.
+
+### 20.1 By artifact
+
+| artifact | rows | landed / decided | **queued** | blocked on something else first |
+|---|---:|---:|---:|---|
+| `port/constants.map` | 1,735 | 167 (22 landed, 97 present, 14 rederived, 3 renamed, 31 never) + 173 tree-only | **1,395** | 168 wait on 3d's varbits, 115 on a destination table, 1,112 on their slice |
+| `port/categories.map` | 53 | 18 minted | **35** | 20 orphans need `category` allowed to grow; 8 splits and 4 collisions need a human; 2 `broader`, 1 placeholder |
+| `port/configs.map` | 1,650 | 134 (75 landed, 56 present, 1 cache-record, 2 duplicate-concept) + 31 tree-only | **1,485** | 149 structs on a loader, 287 on a column type, 63 on a name, 985 on their slice, 1 on `music` |
+| `port/vars.map` | 357 | 43 (24 present, 19 evidenced varbits) | **314** | 98 unresolved, 92 clean-varp unproven, 79 varn/vars, 21 bitfields blocked on authoring a varbit at all, 19 carriers, 5 false friends |
+| `port/names.map` | 524 | 180 carry a target | **344** | 130 scenery, 125 family, 59 deferred, 22 absent, 6 collisions, 2 proposed |
+| `port/name_diff.signed` | 4,279 | all signed | — | 85 `different-thing` and 495 `plausible-sibling` rows are signed *as such* — the verdict is recorded, not resolved |
+
+### 20.2 The five things that are blocked on engine or register work, not on judgement
+
+Nothing in this list is a decision anybody can make today. Each is a
+prerequisite with a named owner elsewhere in the tree.
+
+1. **`.struct` has no loader and `SS_OP_STRUCT_PARAM` has no server case.**
+   149 blocks and 733 `param=` references wait on it. `grep -rn '"\.struct"'
+   src/` is 0 hits.
+2. **Server-overlay `.param` declarations are not walked**, so no landed param
+   has a readable type or default. Safe only while nothing names one — and **27
+   of the reference's 214 params are `type=string`**, where `push_typed_param`
+   answers an absent row by pushing an int, which is a permanent VM stack
+   desync rather than a wrong value.
+3. **A varbit cannot be authored.** No `fields/varbit.ini`; `content.ini` says
+   `ids = cache`; and the server reads varbits from the frozen `cache.osrs239`
+   rather than from cachepack's output, so an authored varbit would be invisible
+   to it. 21 `bitfield` rows and every future bit-range decision sit behind this.
+4. **`category` cannot grow.** `ids = cache`, no `server_base`, so
+   `ss_allocate.py` never sweeps it — 20 npc categories have nowhere to get an
+   id. §17 removed the trap that would have made promoting it write a file
+   nothing reads, so it is now a one-line change plus a base decision.
+5. **loc categories do not exist at all.** `dat2_config_loc.c:1009` is
+   `case 61: g2(buffer); // Skip`, so `configs/all.loc` carries **0**
+   `category=` lines against npc's 9,149, and all 89 loc category names have
+   nothing to resolve against. An rscache write-path change (read
+   `3rd/rscache/EXCEPTIONS.md` first; the bar is the byte-exact round trip),
+   *and* the two-valued door enum currently squatting on the `category=` key has
+   to move first.
+
+Two smaller ones, same shape: **this tree names no sounds and no music** —
+`pack/4_soundeffects.pack` is 12,010 `synth_<id>` placeholders and
+`pack/6_musictracks.pack` 881 `song_<id>`, with 0 real names in either, blocking
+282 dbrows and 5 params; and **seven npc dispatch sites still pass `-1`**
+(§16.6), of which `AI_QUEUE3` is what `drop tables/` needs.
+
+### 20.3 The rows that need a human, ranked by what a wrong answer costs
+
+| # | what | why it cannot be mechanical |
+|---:|---|---|
+| 5 | `port/vars.map`'s **false friends** — `%prayer1/9/10/11/12` | they resolve, to Clan Wars and quick-prayer state, across 35 whole-varp writes. The nine siblings that fail to compile are the *safe* half of the same family |
+| 1 | **`[music]`** — LostCity's 4-column table against the client's 15-column table 44 | 195 dbrows attach to it by name and every `data=name,…` lands on `sortname`. Fixed by renaming one table, but which name is a decision |
+| 8 | **category splits** — `citizen`, `guard`, `petcat`, `shop_keeper`, `troll_thrower`, `mountain_troll`, `undead_one`, `citizen_burthorpe` | this cache split one reference category by sex, area or tier. Members resolve to 2–6 ids each |
+| 4 | **category collisions** — `troll_general`/`troll_spectator` both read 309, `battle_mage`/`gnome_troop` both read 354 | 309 is just "troll". Two names, one group |
+| 2 | **`broader` categories** — `black_demon` → 275 (the demon category, 37 of 77 not black), `giantrat` → 262 (the rat category) | both pass every automatic rule: unique, resolving, only candidate. Only reading the members says no |
+| 125 | `port/names.map` **`family`** rows | the family is certain and the member is not — `dragonslayer_ghost` → five records all at level 19 |
+| 130 | `port/names.map` **`scenery`** rows | 328 records here display 'Gate', 488 'Ladder', 191 'Rocks'. **The right tool is not more name-guessing**: a loc's identity is *where it stands*, and the `.jm2` ↔ map-square cross-reference would collapse most of these to one candidate each. It does not exist |
+| 98 | `port/vars.map` **`unresolved`** | the class argument (a server varp, `transmit=no`) is sound and applying it per name still needs a check that no varbit already covers the concept under another spelling — which is the exact trap the step is about |
+| 92 | `port/vars.map` **`clean-varp`** | mechanically safe, and nothing proves the varp still *means* what it meant. A varp has no display name, so §4.1's artifact has nothing to compare. `phoenixgang`/`blackarmgang` live here |
+
+### 20.4 The one policy question handed back
+
+**1,112 constants were deferred rather than copied** (§15.3). The plan sized 3a
+as "1,138 mechanically"; the test applied instead was that a constant lands when
+its value cannot be wrong *and* the reference's directory for it already exists
+here. `general/configs/quest.constant` — 116 rows, 770 reference uses — is the
+strongest candidate for re-argument, because its `^*_questpoints` half is
+era-independent in kind. If that is overruled, `port/constants.map` is the work
+order and `tools/port_constant_diff.py --report` prints it as TSV.

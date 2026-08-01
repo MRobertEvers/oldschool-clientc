@@ -27,6 +27,7 @@
 #include "content/content_register.h"
 #include "mock230.h"
 #include "mock230_content.h"
+#include "mock230_db.h"
 #include "mock230_ids.h"
 
 #include <rscache.h>
@@ -605,16 +606,37 @@ prune_doors(const char* content)
  * *guess* is what went wrong; a base that is checked against the cache in front of
  * it is a fact.
  *
- * Two directions, both reported:
+ * Two directions, both reported, and the second one is an *error* for a namespace
+ * whose ids are ours:
  *
  *   base vs cache    a declared base at or below the cache's largest id would
  *                    hand out ids the client already uses.
- *   ids vs base      an id in the pack file that sits above the cache's maximum
- *                    but below the base is ours-but-out-of-band: it works today
- *                    and will be handed out a second time.
+ *   ids vs base      an id in the pack file above the cache's maximum but below
+ *                    the declared base. Nothing hands it out twice — the
+ *                    allocator takes `max(base, highest + 1)` on both sides — but
+ *                    for an `ids = server` namespace it means the register is
+ *                    describing an id space that is not the one in use, and the
+ *                    *next* allocation jumps over the gap into the declared band.
+ *
+ * That second case is not hypothetical and it is why it stopped being a silent
+ * `report_info`. `varp` declared 8000 while nineteen server varps sat at
+ * 5705..5723, and `MOCK230_VARP_COUNT` is 6217 — so the first varp allocated at
+ * the declared floor would have been past the end of `Mock230Player.varps` and
+ * `mock230_world_set_varp` would have dropped the write and returned, which is
+ * docs/CONTENT_ARCHITECTURE.md §8.3's named failure mode. It stayed invisible for
+ * as long as `tools/ss_allocate.py` read only `content.ini` for its floors and
+ * `content.ini` declares no `base =` key anywhere: every number in this table was
+ * advisory, and an advisory number cannot disagree with anything.
+ *
+ * A namespace the *cache* numbers is left as information. `obj` has twelve ids
+ * between the cache's 33834 and its base of 40000, and all twelve are `obj_<id>`
+ * placeholders from layer 0 rather than allocations — for `ids = cache` the base
+ * is where *new* records would start, not a claim about what is below it.
  */
 static void
-validate_id_bases(struct RSCache_Dat2Disk* disk)
+validate_id_bases(
+    struct RSCache_Dat2Disk* disk,
+    const char* content_dir)
 {
     /* The config group each namespace's records live in. Asset tables are left out
      * — they are addressed by reference table rather than by config group, and
@@ -643,7 +665,16 @@ validate_id_bases(struct RSCache_Dat2Disk* disk)
     int checked = 0;
     int problems = 0;
 
-    ContentRegister_Defaults(&reg);
+    /*
+     * `Load`, not `Defaults`. This read the built-in table and never opened the
+     * tree's `content.ini`, so every overlay the tree states was invisible here:
+     * `varp`, `param`, `dbtable` and `dbrow` are all promoted to `ids = server` by
+     * the file (each with a paragraph saying why), and this check was reading them
+     * as `cache` and skipping the half of the rule that only applies to ids we
+     * allocate. A validator that reads a different register than the runtime is
+     * checking a tree that does not exist.
+     */
+    ContentRegister_Load(&reg, content_dir);
 
     for( size_t g = 0; g < sizeof(k_groups) / sizeof(k_groups[0]); g++ )
     {
@@ -682,26 +713,36 @@ validate_id_bases(struct RSCache_Dat2Disk* disk)
         }
 
         /*
-         * Ids above the cache's maximum but below the declared base.
-         *
-         * Not a hazard and not reused: the base is a *floor*, and the allocator
-         * takes `max(base, highest_in_file + 1)` — `lc_pack_alloc_from` on the C
-         * side, `ss_allocate.py` on the other — so a number already in the file is
-         * never handed out again. What it means is that the ids predate the base
-         * being written down, and the gap between them and the base will simply
-         * stay empty. Reported because a base that does not match what is in use
-         * is worth one line, and silently correct is worse than visibly odd.
+         * Ids above the cache's maximum but below the declared base — see the
+         * header. An error where the ids are ours, information where they are the
+         * cache's.
          */
         int early = 0;
+        int lowest = -1;
         for( int id = cache_max + 1; id < row->server_base; id++ )
         {
-            if( mock230_content_symbol_name(k_groups[g].kind, id) )
-                early++;
+            if( !mock230_content_symbol_name(k_groups[g].kind, id) )
+                continue;
+            if( lowest < 0 )
+                lowest = id;
+            early++;
         }
-        if( early )
-            report_info("%s: %d id(s) sit between the cache's %d and the base %d — allocated "
-                        "before the base was declared; the allocator skips past them",
+        if( early && row->ids == CONTENT_IDS_SERVER )
+        {
+            report_error("%s: the allocation base is %d, but %d id(s) this tree allocated "
+                         "already sit below it (the lowest is %d, one past the cache's %d) "
+                         "— the register is describing an id space that is not in use; "
+                         "lower the base in content_register.c to %d",
+                         ns, row->server_base, early, lowest, cache_max, cache_max + 1);
+            problems++;
+        }
+        else if( early )
+        {
+            report_info("%s: %d id(s) sit between the cache's %d and the base %d — layer-0 "
+                        "names rather than allocations; `ids = cache` says the base is only "
+                        "where new records would start",
                         ns, early, cache_max, row->server_base);
+        }
     }
 
     fprintf(stderr, "id bases\n        %d namespace(s) checked against the cache%s\n", checked,
@@ -864,6 +905,19 @@ main(
     mock230_npcinfo_load(cache);
     mock230_seqinfo_load(cache);
     mock230_content_load(content);
+    /*
+     * The `.dbtable`/`.dbrow` half of the tree, which this validator did not read.
+     *
+     * `mock230_db_load` had exactly one caller — `mock230_boot.c` — so every table
+     * and every row in the content tree was checked only by starting the server.
+     * That is the one namespace family whose ids are allocated rather than the
+     * cache's (docs/CONTENT_ARCHITECTURE.md §3.3), so "the id is missing", "the
+     * table has no such column" and "the value names nothing" were all boot-time
+     * discoveries in a tree `mock230_pack --check-only` called clean. Its errors
+     * go through `mock230_content_report_error`, so they reach the exit status
+     * from here without any further plumbing.
+     */
+    mock230_db_load(content);
     /* The engine's own symbol table, which is a claim about the packs in
      * exactly the way a config line is: every name the C addresses has to be in
      * one. Resolving it here is what makes a renamed or dropped symbol a
@@ -921,7 +975,7 @@ main(
         if( disk )
         {
             RSCache_Dat2DiskSetProfile(disk, &profile);
-            validate_id_bases(disk);
+            validate_id_bases(disk, content);
             validate_doors(disk, &profile);
             RSCache_Dat2DiskFree(disk);
             if( prune )

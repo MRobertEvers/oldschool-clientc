@@ -122,7 +122,31 @@ static const struct ContentNamespace k_defaults[] = {
     /* The wire fixes this one — UPDATE_STAT carries the index. */
     { "stat",                  CONTENT_IDS_PROTOCOL, CONTENT_NAMES_AUTHORED, 0,  -1,      0,  -1 },
     /* ---- the four that answer to `%name` ---------------------------- */
-    { "varp",                  CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   3,   8000,  -1 },
+    /*
+     * 5705, and this read 8000 — the third of the "already allocated" exceptions
+     * the header describes beside `param`'s 2634, and the one where the round
+     * number was not merely cosmetic but out of bounds.
+     *
+     * Two independent facts fix it at `MOCK230_VARP_CACHE_MAX`:
+     *
+     *   - nineteen server varps already sit at 5705..5723 (`%com_*`, the combat
+     *     stat block `[proc,player_combat_stat]` computes, plus `%damagestyle`,
+     *     `%prayer_drain_*`, `%newplayer_seeded`). They were allocated off the
+     *     high-water mark, which is what docs/CONTENT_ARCHITECTURE.md §8.5 records
+     *     as the correct result. A floor of 8000 says those nineteen are not ours.
+     *   - `MOCK230_VARP_COUNT` is `MOCK230_VARP_CACHE_MAX + 512` = 6217, so a varp
+     *     allocated *at* 8000 is past the end of `Mock230Player.varps` and
+     *     `mock230_world_set_varp`'s bounds check drops the write and returns —
+     *     §8.3's named failure mode, silently, on the first server varp allocated
+     *     after the floor started being honoured.
+     *
+     * It was never honoured before: `tools/ss_allocate.py`'s `declared_base()` read
+     * only `content.ini`, which states no `base =` key for anything, so every floor
+     * in this table was advisory and the high-water mark did all the work. Making
+     * the allocator read this table is what turned an inert number into a live one,
+     * and this row is what that surfaced.
+     */
+    { "varp",                  CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   3,   5705,  -1 },
     { "varbit",                CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    1,   4,  25000,  -1 },
     { "varc",                  CONTENT_IDS_CACHE,    CONTENT_NAMES_CACHE,    0,  15,   2000,  -1 },
     /* ---- asset tables ------------------------------------------------ */

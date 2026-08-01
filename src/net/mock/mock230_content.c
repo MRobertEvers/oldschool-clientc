@@ -1712,6 +1712,17 @@ load_varp_config(const char* path)
             def->scope_perm = strcmp(value, "perm") == 0;
         else if( strcmp(line, "clientcode") == 0 )
             def->clientcode = atoi(value);
+        else if( strcmp(line, "wholewrite") == 0 )
+        {
+            /* Only `allow` means anything. Spelling it any other way is a
+             * declaration that reads as a decision and is not one, which is
+             * exactly what an unknown-key error exists to catch. */
+            if( strcmp(value, "allow") != 0 )
+                CONTENT_ERROR("%s:%d: `wholewrite` takes `allow`, not `%s`\n", path,
+                              line_number, value);
+            else
+                def->wholewrite_allowed = 1;
+        }
         else
             CONTENT_ERROR("%s:%d: unknown varp key `%s`\n", path, line_number, line);
     }
