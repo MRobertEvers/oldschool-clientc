@@ -358,6 +358,27 @@ mock230_content_symbol_name(
     return NULL;
 }
 
+int
+mock230_content_symbol_walk(
+    enum Mock230PackKind kind,
+    int index,
+    int* out_id,
+    const char** out_name)
+{
+    const struct Pack* pack;
+
+    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+        return 0;
+    pack = &g_packs[kind];
+    if( index < 0 || index >= pack->count )
+        return pack->count;
+    if( out_id )
+        *out_id = pack->entries[index].id;
+    if( out_name )
+        *out_name = pack->entries[index].name;
+    return pack->count;
+}
+
 /* Forward: the diagnostic namespace name, defined just below. */
 static const char*
 pack_kind_name(enum Mock230PackKind kind);

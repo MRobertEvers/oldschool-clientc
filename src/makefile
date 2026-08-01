@@ -1033,6 +1033,23 @@ test-content: test-content-register test-servercodec test-ss-symbols mock230-scr
 #                           `obj rock_sample1` is id 671 in both trees and is
 #                           'Rock sample 1' there and 'Animal skull' here — every
 #                           other check in this file passes on it.
+#   port_category_crawl     `category` is the tree's one DERIVED namespace — the
+#   --check                 reference never authors it, it crawls the `category=`
+#                           key out of every record (CategoryType.ts). So the
+#                           port re-runs that crawl, and this holds the tree to
+#                           `port/categories.map`'s statement about each of the
+#                           reference's 53 npc categories: a minted name whose
+#                           members no longer agree on an id, and — the one that
+#                           matters — a name held back for a human that got
+#                           minted anyway. `black_demon`'s members all read 275
+#                           and 275 is the *demon* category; minting it gives 33
+#                           lesser and greater demons the black demon's drops.
+#   port_constant_diff      the same bar for `.constant`, which the two above are
+#   --check                 structurally blind to: a constant names nothing in any
+#                           pack, so it has nothing to fail to resolve. 14 of the
+#                           111 constants both trees spell agree on the name and
+#                           disagree on the number (§9 step 3a); this holds the
+#                           tree to `port/constants.map`'s statement about each.
 #
 # Folded into `test-content` rather than given its own top-level target, for the
 # reason stated above it: a bar in a command nobody types is not covered. The
@@ -1047,6 +1064,10 @@ test-port:
 		--check
 	@cd $(REPO_ROOT) && python3 tools/port_name_diff.py \
 		--tree $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/port_constant_diff.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/port_category_crawl.py \
+		--tree $(MOCK230_CONTENT_DIR) --check -v
 
 # The compiler's symbol table, against the register and the live tree.
 #

@@ -1656,3 +1656,549 @@ reverse.
   tree that is 1,288 script-only and 6,213 whole-tree — dominated by LostCity's
   own asset names (`model` 1,271, `anim` 2,183). The four-record-namespace
   figure §13.1 quotes needs the census script (§12), not this tool.
+
+---
+
+## 15. §9 step 3a, as landed — constants
+
+Written 2026-08-01, on top of §14. **22 constants landed, 1,562 classified.** The
+classification is the deliverable; the copy is the small half, and the reason
+those two numbers are so far apart is the finding.
+
+### 15.1 The corpus, re-measured
+
+§9 step 3a's "1,562; no dependencies" reproduces **exactly**: 1,562 `^name =`
+lines in 109 `.constant` files under `content/scripts` (`_unpack` and `_test`
+excluded — neither contains one). This tree held **284** in 23 files before this
+pass and holds **306** after; both loaders agree on the number, which is the
+check that matters, because `sscompile` and `mock230_content.c` walk the same
+files through different parsers and a divergence means one of them skipped a
+file.
+
+Value shapes, which nothing above records and which decide what a copy costs:
+
+```
+int 1,388   coord 132   hex 17   int-with-a-trailing-semicolon 13
+string 10   empty 1     another constant 1   (^inferno_loc_duration = ^max_32bit_int)
+```
+
+The 13 semicolons are `skill_runecraft/configs/runecraft.constant`'s
+`^air = 1;`. Both loaders keep the value as verbatim text, so `1;` is stored and
+would reach a use site as `1;` — harmless in the lexer, not a number. It is the
+kind of thing that only shows up when somebody copies the file.
+
+### 15.2 What the two trees already share
+
+**111 of the 1,562 are already spelled in this tree, and 14 of those disagree on
+the value.** That is the whole reason this stage has a gate rather than a
+checklist:
+
+```
+prayer_thickskin           LostCity  1     here 0    (12 prayers)
+prayer_protectfrommelee    LostCity 15     here 18
+headicon_prayer_protectfrommelee  LostCity 3   here 0   (2 headicons)
+```
+
+This cache's prayer book has 29 entries where the reference's has 15, and rev 230
+gave the overhead prayer icons an archive of their own that starts at 0. Every
+one of those 14 is a name that **resolves**, in a file that **compiles**, meaning
+something else — `obj rock_sample1` (§14.3) one layer over, except that a
+constant has no namespace at all, so §14's gate is structurally blind to it.
+
+Three more of the reference's 15 prayers survive as a *concept* under a different
+word — `prayer_strengthburst` → `prayer_burstofstrength`, `prayer_clarity` →
+`prayer_clarityofthought`, `prayer_protectitems` → `prayer_protectitem`. They are
+recorded as `renamed` and deliberately given **no alias**: two names for one
+number is how the two drift.
+
+### 15.3 The test that decided what landed
+
+> **A constant lands when its value cannot be wrong** — a string, a duration, a
+> divisor, a direction, a side, a wire field with two states — **and when the
+> reference's directory for it already exists in this tree.**
+
+Everything else waits for the thing that knows the answer. The classification,
+all 1,562 rows, is `OSRS-Content/osrs239-content/port/constants.map`:
+
+| disposition | rows | what it means |
+|---|---:|---|
+| `defer-slice` | **1,112** | portable in kind; the value is an encoding chosen by content that has not been ported, and arrives with it |
+| `defer-varbit` | **168** | the value is a *bit position* in a reference varp. §7.5's clobber class; step 3d owns it |
+| `defer-table` | **115** | indexes a table this tree numbers differently and nobody has measured |
+| `present` | **97** | already here, same value, landed by an earlier port |
+| `never` | **31** | a 2004 client surface rev 230 replaced |
+| `landed` | **22** | this pass |
+| `rederived` | **14** | here with a *different* value, on purpose |
+| `renamed` | **3** | the concept survived, the word did not |
+
+**This is a deliberate departure from "land the class-(a) 1,138 mechanically",
+and the reason is written in this tree already.**
+`quests/quest_cook/configs/quest_cook.constant` carries Cook's Assistant's two
+lines and says why the other 114 of the reference's `general/configs/quest.constant`
+are not beside them: *"a constant for a quest nothing can start is a name waiting
+to be resolved against the wrong thing."* That decision is followed here rather
+than reversed. Landing `quests/quest_legends/configs/quest_legends.constant`
+means creating a slice directory for a quest §11 says not to port, and 79 numbers
+nothing in this tree can check — and 22 of those 79 are bit positions step 3d has
+not decided yet.
+
+The directory half of the test is what keeps the number at 22 rather than at
+1,112: `general/configs/`, `player/configs/`, `doors/configs/`,
+`skill_combat/configs/`, `interface_chat/configs/` and `skill_prayer/configs/`
+exist here; `quests/quest_*`, `areas/area_*`, `minigames/`, `tutorial/`,
+`macro events/`, `interface_boat/`, `interface_trade/`, `general_use/`,
+`skill_runecraft/` and `skill_cooking/` do not.
+
+What landed:
+
+```
+general/configs/free_to_play.constant      10  members-only refusals — strings
+player/configs/gender.constant              2  the appearance block's gender byte
+interface_chat/configs/book.constant        2  page turn, +1 / -1
+doors/configs/doubledoors.constant          2  which half of a pair
+skill_combat/configs/combat.constant       +3  spec regen 100 per 50 ticks, dropammo 1-in-5
+skill_combat/configs/pvp.constant           1  skull duration, 2000 ticks
+player/configs/player_controls.constant    +2  the run toggle's two values
+```
+
+### 15.4 The 168 bit positions, and the 22 varps under them — for step 3d
+
+Measured directly off the call sites (`testbit|setbit|clearbit`, second
+argument): **168 distinct constants, 624 uses, over 22 reference varps.** §9 step
+3a's plan sized this at 202/880; the difference is that the larger figure counts
+`and()`/`or()` mask arithmetic too, which is not the same class. Use 168.
+
+None of the 168 is in the varp position — the reference never writes
+`testbit(^const, …)` — so every one of them is unambiguously a bit index.
+
+```
+legends_bits 22   ibanmulti 17   itwatchtower_bits 15   dueloptions 14
+barcrawl 11       elemental_workshop_bits 11             desertrescue_map_mechanisms 10
+zq_map_mechanisms 10   bioerrand 9   thieving_stall_timer 7
+crest_spells_levers_gauntlets 6   excalibur_components_progress 5
+death_bits 5   cog_bits 5   agilityarena_varbit 4   chompybird_kills 4
+emote_access 4   druidspirit_bits 2   hunt_store_employed 2   ikov_dungeon 2
+murder_evidence 2   cogquest 1
+```
+
+`ibanmulti` and `emote_access` are two of §7.5's own six examples, arrived at
+from the other direction, which is the cross-check. **This list is step 3d's work
+queue for the bit-packed bucket**: each carrier varp becomes N osrs239 varbits,
+and the constant naming bit *k* of it becomes a varbit name, not a number.
+
+Two of them are not quests and are easy to miss:
+`skill_thieving/configs/stalls/stealing.constant`'s seven `^*_stall_index` are
+bits of `%thieving_stall_timer`, not stall ids; and all four of
+`minigames/game_agilityarena/configs/agilityarena.constant` are bits.
+
+### 15.5 The four `defer-table` destinations
+
+115 constants whose number indexes something this tree renumbers. Each row in
+the map names where the number has to be read from instead:
+
+| n | destination |
+|---:|---|
+| 53 | varbit `autocast_spell` — the rev-230 spellbook's numbering, unmeasured. The reference's `^wind_strike = 51` is its own id space |
+| 23 | rune-altar index (`skill_runecraft`), LostCity-local; 13 of the 23 are unreferenced even there |
+| 20 | the rev-230 xp-lamp interface's index. The reference's values are its *stat* numbering offset by one, which this tree does not share |
+| 19 | `pack/stat.pack`. The reference numbers `attack = 1`; here `attack` is **0**, and `stat` is a first-class RuneScript type, so the right answer is not a re-derived constant but no constant at all |
+
+### 15.6 Three findings
+
+1. **A class-(c) file is already in the tree, and it is fine — because the tree
+   re-homed the table.** `general/configs/displaymessage.constant` is a verbatim
+   copy of the reference's, RS3 enum-33 indices and the reference's own "all
+   below are guessed" comment included. It is not a hazard here, and the reason
+   is worth stating: `general/configs/displaymessage.enum` is keyed **by those
+   constants**, so the numbers index a table this tree authors. A 2004 index
+   stops being a 2004 index the moment the table it indexes moves into content.
+   That is the shape every other `defer-table` row wants and none of them has.
+2. **`.constant` is invisible to every bar that existed.** `ss_unresolved.py`'s
+   `CONFIG_SUFFIXES` does not include it (correctly — a constant references
+   nothing), `port_name_diff.py` compares records, and `mock230_pack` validates
+   ids. The only check a constant had before today was §14.1's duplicate rule,
+   which catches a collision and cannot catch a wrong number. The 14 disagreeing
+   values sat in exactly that gap.
+3. **63 of the reference's 1,562 constants are referenced nowhere outside their
+   own file**, including 13 of the 23 in `runecraft.constant` and 9 of the 40 in
+   `macro_events.constant`. A bulk copy would have imported them as-is; the map
+   records them with the rest, and a slice port can drop them.
+
+### 15.7 The permanent check
+
+`tools/port_constant_diff.py --check`, added to `test-port` (which
+`test-content` already depends on — no new top-level target, same reasoning as
+§14.2). It holds the tree to `port/constants.map`:
+
+- a reference constant with no row → classify it before it is copied
+- `present`/`landed` whose value no longer matches the reference
+- `rederived`/`renamed` whose stated destination value drifted
+- **a `defer-*` or `never` name that appears in this tree** — the failure the map
+  exists for
+- a tree constant in neither the rows nor the `tree-only` list (173 constants are
+  this tree's own and are listed, so the file describes the whole namespace)
+
+The reference half degrades the same way the name diff does: no LostCity
+checkout, no reference bar, and it says so.
+
+Four mutations, each reverted: copying `^doric_complete` in (`defer-slice` →
+error), setting `^prayer_thickskin` back to the reference's 1 (`rederived`
+drift → error), editing a landed value away from the reference (→ error), and
+adding an undeclared constant (→ error).
+
+### 15.8 What this stage did **not** do
+
+- **The other 1,112.** They are classified, not landed, per §15.3. If that call
+  is overruled, the map is the work order and `--report` prints it as TSV.
+- **`general/configs/quest.constant`** (116 rows, 770 uses in the reference) —
+  the single biggest cross-cutting file, deferred on the tree's own recorded
+  reasoning. The `^*_questpoints` half of it is era-independent in kind and is
+  the strongest candidate for a re-argument.
+- **Re-derived class-(b) values.** The plan expected this stage to land the
+  non-varp class-(b) buckets with re-derived numbers. Measured, there was nothing
+  to re-derive: every bucket this tree *could* answer had already been answered
+  by an earlier port (`equip` 14/14, `combat_damagestyles` 9/9,
+  `combat_damagetypes` 6/6, `hunt` 3/3, `map_findsquare` 3/3, prayers as the 14
+  `rederived` rows), and the four that remain need a rev-230 table measured
+  first — which is a measurement, not a decision, and does not belong to a
+  symbols stage.
+- **Client verification is vacuous** and is said rather than skipped: no client
+  code, no packet and no interface is touched. The closest real check is
+  `test-mock230`, which boots the server, compiles and loads 319 scripts and
+  builds the scene — green.
+
+### 15.9 §14.5 finding 1 recurred, in the same shift
+
+The reference checkout moved again while this stage ran: three seq records
+(`ghrazi_rapier_attack`, `scythe_of_vitur_attack`, `scythe_of_vitur_ready`)
+appeared in `LostCity_Server/content` between the first green `test-content` of
+this pass and the last, and `port_name_diff --check` correctly went red on three
+unsigned rows that had nothing to do with constants. Re-baselined with
+`--write-signed`; the diff is **exactly +3 rows**, all `identical/unreviewed`,
+no existing row rewritten.
+
+Worth recording twice, because it is now a property of the setup rather than an
+incident: **a bar computed against the reference goes red when the reference
+moves, and the stage that notices is whichever one happens to be running.**
+`constants.map` has the same exposure by construction — a new `.constant` line in
+the reference is an unclassified row and therefore an error. That is the intended
+behaviour (it is a review queue), but it means "test-content was green" is a
+statement about two trees, and the second one is not frozen.
+
+---
+
+## 16. §9 step 3b, as landed — npc categories
+
+Written 2026-08-01. §7.6b's three parts — **the field, the crawler, and the -1
+at every npc call site** — with one of the three landed only in part and the
+remainder documented as a seam rather than skipped. What follows is what was
+measured, what was minted, and the two decisions the crawl is not allowed to
+make.
+
+### 16.1 The premise was wrong, and the comment was the bug
+
+`mock230_world.c`'s `interaction_category()` carried this, and every npc trigger
+in the server dispatched `-1` on the strength of it:
+
+> **npc** — an osrs239 npc record carries no category at all. Not "unread":
+> absent, which is why `struct Mock230NpcInfo` has no field for it.
+
+Measured: **cache.osrs239 states a non-zero `category` on 9,149 of its 16,292 npc
+records.** `dat2_config_npc.c:666` has decoded config opcode 18 into
+`RSCache_Dat2ConfigNpc.category` the whole time, `:158` re-encodes it, cachepack
+round-trips it, and `configs/all.npc` carries all 9,149 lines. It was unread, not
+absent — and the distance between those two words is the entire middle rung of
+the trigger lookup for the npc domain.
+
+That is worth stating as a rule, because the comment was careful, specific, and
+load-bearing: **a negative claim about a data source is a measurement, and it
+goes stale in exactly the direction that stops anyone re-checking it.** §7.6b
+repeated it ("There is no npc category at all"), and so did the port plan.
+
+### 16.2 What "derived" means here, and why it is not the reference's crawl
+
+A category is the one config type LostCity never authors. `PackFile.ts` builds
+`CategoryPack` with no file extension and `validateCategoryPack`; `CategoryType.ts`
+says the table is regenerated by crawling the `category=` key out of every
+`.npc`/`.loc`/`.obj` (CONTENT_ARCHITECTURE.md §2.1, "fully regenerated … Never
+authored"). So a port cannot look a category up: there is nothing to look up.
+
+But the reference's crawl **mints** the id (`pack.max++` over its own records),
+and `content.ini` here says `[namespace:category] ids = cache`. The cache already
+states the number. So the crawl this tree runs attaches the reference's *name* to
+the id **this tree's own records carry**, resolved member by member:
+
+```
+LostCity `.npc` blocks saying `category=bank_teller`
+  -> 6 record names
+  -> configs/all.npc.compack   (name -> osrs239 npc id)
+  -> those records' own `category=` in configs/all.npc
+  -> all six say 249
+  -> `249=bank_teller` is READ, not chosen.
+```
+
+No id crosses between the trees, which is bar §7 item 1. `tools/port_category_crawl.py`
+is that crawl; `port/categories.map` is its output, one row per reference
+category, and it is the artifact `test-port` holds the tree to.
+
+**`_unpack/` is crawled, and that is deliberate.** Every other tool in this repo
+correctly excludes `content/scripts/_unpack/` as machine output. The reference's
+own build does not — §2.1 again: "the queue is inside `scripts/`, so its `[name]`
+headers are crawled into the packs immediately" — and **eleven of the categories
+content binds a trigger to (`cow`, `chicken`, `bear`, `duck`, `pirate`, `witch`,
+`barbarian`, `ice_warrior`, `unicorn`, `duckling`, `monk_of_zamorak`) are
+declared only there.** Excluding it turns eleven mechanical answers into eleven
+orphans. The map's `provenance` column records which half each row came from.
+
+### 16.3 The corpus, measured
+
+| | measured | the plan's figure |
+|---|---:|---:|
+| distinct npc categories in the reference | **53** | — |
+| …bound by a trigger (`[…,_name]`, npc-family) | **49** | 49 |
+| loc categories bound by a trigger | **89** | 89 |
+| obj categories bound by a trigger | **48** | — |
+| npc records this cache categorises | **9,149 / 16,292** | — |
+| …of which are **nameless** | **1,585** | — |
+| distinct npc category ids in this cache | **982** (max 2504) | — |
+| distinct obj category ids | **575** (max 2506) | — |
+| ids carried by **both** npc and obj records | **21** | 21 |
+| names in `pack/category.pack` before | **37**, all obj | 37 |
+
+Restricted to the 49 referenced, the plan's split reproduces exactly:
+**23 mechanical · 8 split · 18 orphan.** Over all 53 it is 25/8/20, the four
+extras being categories no trigger names.
+
+§7.6b's "19.3 % of compile failures" is **not** re-derived here and should not be
+quoted; §15's predecessor measured 15.7 % of first-order failures and §6's own
+15.5 % reproduces to 0.2 points.
+
+### 16.4 What was minted: 18 names, and the two that were not
+
+18 of the 53 are in `pack/category.pack` now, each with the group histogram that
+justified it recorded in the file's own header (the same evidence format the 37
+obj entries above them use):
+
+```
+249 bank_teller   280 freshfish   281 rarefish    282 memberfish  283 saltfish
+287 kolodion      365 cow         425 duck        426 duckling    438 bear
+444 chicken       454 werewolf    455 canafis_citizen             466 ice_warrior
+503 healer        552 death_archer               559 death_guard  2263 unicorn
+```
+
+**The rule applied: mint when the osrs239 group is what the reference name says.**
+That is a stronger test than "the members agree on one id", and the difference is
+the finding. Two names pass the weaker test and fail this one:
+
+```
+black_demon  -> 275, and 275 is the DEMON category:
+                18 Lesser demon, 15 Greater demon, 4 Scarred lesser demon
+                beside the 17 Black demon. 37 of 77 are not black demons.
+giantrat     -> 262, and 262 is the RAT category:
+                8 Rat, 6 Dungeon rat, 3 Zombie rat, 1 Brine rat.
+                20 of 39 are not giant rats.
+```
+
+Both resolve. Both are unique. Both are the *only* candidate. Minting either
+gives two thirds of a group the wrong `[ai_queue3]` drop table, and nothing
+anywhere reports it — this is `obj rock_sample1` (§14.3) one namespace over, and
+the same shape as §4.1's display-name class. They are `broader` in the map, and
+`port_category_crawl --check` fails if either is minted later without the row
+changing.
+
+`giantrat` has a live witness in this tree already: Lumbridge spawns
+`dragonslayer_giantrat_1_key`, `dragonslayer_giantrat_2` **and plain `rat`**, all
+three carrying 262. A `[ai_queue3,_giantrat]` bound to 262 puts a giant rat's
+drops on the swamp rat.
+
+Held back for the same class of reason:
+
+- **4 collisions.** Two reference names crawling to one id, which a `id=name`
+  pack cannot express: `troll_general` and `troll_spectator` both read **309**
+  (which also holds `mountain_troll`'s eight — 309 is simply "troll"), and
+  `battle_mage` and `gnome_troop` both read **354** (which is "gnome": 5 Gnome,
+  3 Gnome guard, 3 Gnome child, 2 Mounted terrorbird).
+- **8 splits**, unchanged from the plan: `citizen`{266,492},
+  `citizen_burthorpe`{564,565}, `guard`{470,1732}, `mountain_troll`{309,566},
+  `petcat`{29,30,31}, `shop_keeper`{271,922,1372,1373,1374,1375},
+  `troll_thrower`{322,569}, `undead_one`{257,274}. `citizen` has a witness too:
+  this tree spawns `man`/`man3`/`man4`/`falador_man1`/`varrock_man1` at 266 and
+  `woman`/`woman2` at 492 — osrs239 split the reference's one citizen category
+  by sex.
+- **1 placeholder.** `category_453` is a LostCity *id* wearing a name. This
+  cache's 453 being a plausible fishing-spot group is a coincidence, and
+  accepting it would be copying an id with extra steps.
+- **20 orphans**, blocked rather than deferred — see 16.7.
+
+### 16.5 One id space, two domains
+
+npc and obj categories are **the same id space**. 21 ids in this cache are
+carried by records of both kinds, and the interesting part is that 20 of the 21
+are *pet pairs* — the follower npc and its item form share an id and mean the
+same thing (`overgrowncat`/`overgrowncatobject` at 29, `skillpetwc` at 1783,
+`red_crab` at 2275, …). **The single genuine cross-domain reuse is 36**,
+`weapon_spear` for 102 spear objs and also the category of npc
+`twocats_robert_cutscene`.
+
+Nothing mis-dispatches — the provider keys the lookup on the trigger as well as
+the subject — but a name minted in this file is visible to every domain, so it
+has to be chosen as though it were. `pack/category.pack`'s header says so.
+
+Two more facts the crawl produced, worth keeping: `_bones` proves name→id is not
+1:1 the other way (the pack says `6=bones`; the reference's `_bones` members land
+on osrs239 **6 and 117**), and `petcat` is 3 ids here where the reference had one
+— osrs239 actually has five (29 overgrown, 30 grown, 31 kitten, 32 lazy, 33
+wiley) and the reference's 18 members only reach three of them.
+
+### 16.6 The three parts, and which one is only half landed
+
+**The field — landed.** `[npc.category]` is now stated in
+`fields/npc.ini` with the evidence for PORTING_GUIDE §3.2 case 1 (`client =
+native`: the client's own decoder has an opcode for it). It restates the built-in
+default in `content_fields.c:95` and is therefore inert — proved by A/B:
+`cachepack pack --server-only` writes a **byte-identical** `server/pack` with and
+without the block. It is written down because the *absence* of a statement was
+read as a statement (16.1). `struct Mock230NpcInfo` carries `category`, populated
+in `mock230_npcinfo.c` from the decoded record.
+
+**The crawler — landed.** `tools/port_category_crawl.py`
+(`--report`/`--groups`/`--check`/`--write-map`), `port/categories.map` (53 rows),
+18 names in `pack/category.pack`.
+
+**The call sites — half landed, and this is the part to read.** The constraint on
+this stage was that another change owns the nine `mock230_scripts_run_trigger`
+call sites in `mock230_world.c`, so the fix went **behind a function the dispatch
+already calls**: `interaction_category()` answers for `MOCK230_INTERACT_NPC` now,
+which is the whole `[opnpc1..5]`/`[apnpc1..5]` path — four call sites reached
+without one of them being edited.
+
+**Seven npc dispatch sites still pass a literal -1**, listed in `mock230.h` beside
+`mock230_npc_category()` so the lane holding those lines can adopt them one token
+at a time:
+
+```
+SS_TRIGGER_AI_OPPLAYER1 + op   SS_TRIGGER_AI_APPLAYER1 + op
+SS_TRIGGER_AI_QUEUE1 + n       SS_TRIGGER_AI_TIMER
+SS_TRIGGER_AI_QUEUE3           SS_TRIGGER_AI_SPAWN
+SS_TRIGGER_OPNPC1 + n          (the `::talk` cheat)
+```
+
+**AI_QUEUE3 is the one that matters**: it is where `drop tables/` binds 16 of its
+94 triggers to a category, which is the slice §10 says this whole item gates.
+None of the seven needs a guard — a category of -1 and a category nothing binds
+behave identically, so adopting them is additive and cannot change an existing
+dispatch.
+
+`mock230_npc_category()` deliberately does **not** read through
+`mock230_npcinfo()`. That accessor hides a nameless record's whole row, by
+documented design, and **1,585 of this cache's 9,149 categorised npc records have
+no name** — the multinpc instances are all of them. Reading the category through
+it would answer "no category" for every one, silently, which is the failure the
+rung exists to prevent.
+
+### 16.7 Blocked, not deferred
+
+- **20 orphans** — the 7 `macro_event_*` plus `pirate`, `witch`, `sailor`,
+  `barbarian`, `bandit_camp_leader`, `diseased_sheep`, `fisherman_platform`,
+  `guardian_of_armadyl`, `legends_guard`, `shipyardworker`, `tower_advisor`,
+  `monk_of_zamorak`, `witches_experiment`. Their members either are not in this
+  cache or carry no category, so there is no id to read and one has to be
+  *allocated* — and `content.ini` gives `category` `ids = cache` with no
+  `server_base`, so `tools/ss_allocate.py` never sweeps it. This is
+  CONTENT_ARCHITECTURE §8.2(c) verbatim: **a namespace that cannot grow is a
+  bug.** Promoting it is §9 step 3c-0, which had not landed when this stage ran.
+  A second trap comes with it, and it is not this stage's to fix:
+  `ss_allocate.py`'s `pack_path()` returns `configs/all.<ns>.compack`
+  unconditionally, while `mock230_content.c`'s `pack_kind_is_config()` puts
+  `category` in `pack/<ns>.pack` — so the moment `category` is promoted the
+  allocator will write a file nothing reads.
+- **89 loc categories.** `dat2_config_loc.c:1009` throws opcode 61 away
+  (`case 61: g2(buffer); // Skip unsigned short`), so `configs/all.loc` carries
+  **0** `category=` lines and the crawl has nothing to resolve against. Fixing it
+  is an rscache write-path change (`EXCEPTIONS.md` first, byte-exact round-trip
+  is the bar) *and* moving `mock230_content.c`'s two-valued door enum off the
+  `category=` key it currently occupies — which is itself two game-facing strings
+  in C (§2.4 items 3 and 4).
+
+### 16.8 The permanent checks, and the mutation that proves each one
+
+Two layers, because neither can see what the other does.
+
+**In `mock230_pack` — `validate_categories()`.** Every name in
+`pack/category.pack` must be carried by at least one obj *or* npc record, and no
+name may be id 0 (`content.ini` reserves it: `zero = reserved`). The failure it
+is for is invisible everywhere else — a category is a trigger *subject*, so
+`[ai_queue3,_bank_teller]` naming an id no record holds compiles, loads, resolves,
+reports nothing at any verbosity, and simply never fires. There is no wrong
+behaviour to notice; a whole drop table just does not exist. A *misspelled* name
+fails loudly at compile time, so the typo is the safe case and the
+plausible-but-empty id is not. It reports `55 category name(s): 36 obj-only, 18
+npc-only, 1 carried by both` — the 1 is `weapon_spear`.
+
+- mutation `4999=ghost_category` → `1 error(s)`, exit 1. Reverted.
+- mutation `0=unstated_category` → `ERROR … 0 is the decoder's "unstated"`. Reverted.
+
+**In `test-port` — `port_category_crawl --check`.** Holds the tree to the map:
+a reference category with no row, a `minted` row whose members no longer agree on
+the id it states, a minted name missing from the pack, and — the one that matters
+— **a name held back for a human that got minted anyway**.
+
+- mutation `275=black_demon` → `mock230_pack` reports **0 errors** (275 has 77
+  npc records, so the C rule is satisfied) and `port_category_crawl --check`
+  fails naming the reason. That is the whole argument for two layers. Reverted.
+- mutation: drop `444=chicken` from the pack → fails. Reverted.
+- mutation: delete the `cow` row from the map → fails, "a new reference category
+  is a decision, not a default". Reverted.
+
+**In the mock230 selftest**, beside the existing `[opheld1,_bones]` obj-rung
+section: the chicken npc's decoded category equals the id the crawl minted
+`chicken` at, and at least one *nameless* record still answers a category. Proved
+to bite by mutating `mock230_npcinfo.c` to store 0 — both checks fail, both
+messages name the number. Reverted.
+
+### 16.9 Verified end to end, then removed
+
+The three checks above are static. The dispatch was proved live, and the probe is
+recorded here rather than kept because keeping it would mean shipping an
+`[opnpc1,_chicken]` script this tree has no other reason to have.
+
+Temporarily: a `[opnpc1,_chicken]` script bumping `%mock_greeting_count` by 50,
+plus a selftest stanza that puts the player beside Lumbridge's chicken (slot 30,
+3229,3298), sets an npc interaction and calls `mock230_world_process_interaction`.
+
+```
+PROBE chicken slot 30 cat 444: varp 0 -> 50 (expect +50)     ← as landed
+PROBE chicken slot 30 cat 444: varp 0 -> 0  (expect +50)     ← interaction_category
+                                                                forced back to -1
+```
+
+A category-bound npc script fires on a real interaction, and did not before. Both
+the script and the stanza were removed; `mock230-scripts` is back at 319.
+
+**Client verification is vacuous for this stage and that is stated rather than
+skipped**: no client code, packet, interface or asset was touched, and nothing
+here is visible in the client. The closest real check is `test-mock230`, which
+boots the server, compiles and loads the script pack and builds the scene —
+green, plus the live probe above.
+
+### 16.10 Two observations for whoever is next
+
+**`mock230_world_npc_spawn` cannot spawn anything in the selftest world.** The
+probe's first form asked for a chicken beside the player and got
+`mock230: no free npc slot for type 1173`, 49 times over. Counted at that point:
+`npc_slot_max=63` and **2,048 of 2,048 slots report `active`** — the whole array,
+though only 63 npcs exist and `srv` is `memset` to zero at the top of the
+selftest. Something marks every slot active without going through `npc_spawn()`.
+Not chased: it is not this stage's code and the probe was reworked to use an npc
+the world had already placed. But `npc_add` is content's way of creating an npc,
+and on this evidence it returns -1 for every call in a world that has been
+through `mock230_world_init`.
+
+**§14.5 finding 1 / §15.9 recurred a third time, mid-stage.** Six records
+(`sp_d_halberd_glow`, `warguild_parry_defend` and four
+`dragon_halberd_special_*_red`) appeared in `LostCity_Server/content` between two
+`test-content` runs of this pass, turning `port_name_diff --check` red on rows
+unrelated to categories. Re-baselined with `--write-signed`; the diff is
+**exactly +6 rows**, all `identical/unreviewed`, none rewritten. The reference
+content submodule was dirty with 15 modified and 5 untracked files while this ran.
+It is now a property of the setup, not an incident.

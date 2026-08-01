@@ -388,6 +388,82 @@ validate_requirements(void)
 }
 
 /*
+ * Every name in `pack/category.pack` names something.
+ *
+ * `category` is the tree's one *derived* namespace: LostCity never authors it,
+ * it regenerates the table by crawling the `category=` key out of every
+ * `.npc`/`.loc`/`.obj` (CONTENT_ARCHITECTURE.md §2.1, and `CategoryType.ts` says
+ * so in a sentence). Here the ids are the cache's — npc config opcode 18, obj
+ * opcode 94 — so the crawl only attaches a name, and every line of that file is
+ * therefore a *claim* that this cache groups something under that id.
+ *
+ * A claim nothing carries is the failure this rule is for, and it is invisible
+ * everywhere else. A category is a trigger *subject*: `[ai_queue3,_bank_teller]`
+ * with `bank_teller` naming an id no record holds compiles, loads, resolves,
+ * reports nothing at any verbosity and simply never fires. There is no wrong
+ * behaviour to notice — a whole drop table just does not exist. The same line
+ * with the name misspelled fails loudly at compile time, so the *typo* is the
+ * safe case and the plausible-but-empty id is not.
+ *
+ * Deliberately not an obj-only or npc-only check: the two share one id space
+ * (21 ids in this cache are carried by records of both kinds), so "carried by
+ * nothing at all" is the only form of the question that has a stable answer.
+ * The report prints the split, because which side carries a name is what the
+ * next person needs and re-deriving it costs a scan.
+ */
+static void
+validate_categories(void)
+{
+    int total = mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, -1, NULL, NULL);
+    int obj_named = 0;
+    int npc_named = 0;
+    int both = 0;
+
+    fprintf(stderr, "categories\n");
+    for( int i = 0; i < total; i++ )
+    {
+        int id = -1;
+        const char* name = NULL;
+        int objs;
+        int npcs;
+
+        if( !mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, i, &id, &name) || !name )
+            continue;
+        /* Zero is the decoder's "unstated" on both record types and
+         * `content.ini` reserves it (`zero = reserved`): a trigger bound to it
+         * would match every uncategorised record in the cache. */
+        if( id <= 0 )
+        {
+            report_error("category `%s` is id %d — 0 is the decoder's \"unstated\" "
+                         "and must never be a name",
+                         name, id);
+            continue;
+        }
+        objs = mock230_obj_category_members(id);
+        npcs = mock230_npc_category_members(id);
+        if( objs == 0 && npcs == 0 )
+        {
+            report_error("category %d (%s) is carried by no obj and no npc record — "
+                         "a trigger bound to it can never fire, and nothing else "
+                         "in this tree can tell you that",
+                         id, name);
+            continue;
+        }
+        if( objs && npcs )
+            both++;
+        else if( objs )
+            obj_named++;
+        else
+            npc_named++;
+        if( g_verbose )
+            report_info("%-22s id %-5d %d obj(s), %d npc(s)", name, id, objs, npcs);
+    }
+    fprintf(stderr,
+            "        %d category name(s): %d obj-only, %d npc-only, %d carried by both\n",
+            total, obj_named, npc_named, both);
+}
+
+/*
  * Loc ids the door validator rejected, so --prune-doors can rewrite the config
  * without them. Collected rather than acted on immediately because a pair is
  * two lines in the file and both halves have to go.
@@ -833,6 +909,7 @@ main(
 
     validate_spawns();
     validate_requirements();
+    validate_categories();
     {
         struct RSCache profile = RSCache_ProfileZero();
         struct RSCache_Dat2Disk* disk;

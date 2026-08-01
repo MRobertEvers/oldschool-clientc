@@ -150,6 +150,24 @@ mock230_content_symbol_checked(
     const char* name,
     int* out_id);
 
+/**
+ * Walk a namespace's symbols. Returns the entry count for the kind; when
+ * `index` is inside it, fills `*out_id` and `*out_name` (the name is the pack's
+ * own storage and lives as long as the tree stays loaded).
+ *
+ * The one thing here that iterates rather than looks up, and it exists because a
+ * *derived* namespace has a bar the others do not: `pack/category.pack` is a set
+ * of claims about what this cache's records carry, so validating it means asking
+ * the question from the pack's side — "is anything actually in this category" —
+ * which a name-to-id lookup cannot express.
+ */
+int
+mock230_content_symbol_walk(
+    enum Mock230PackKind kind,
+    int index,
+    int* out_id,
+    const char** out_name);
+
 /** Symbol for an id, or NULL. Only for diagnostics — the reverse map is a
  *  linear scan. */
 const char*

@@ -404,9 +404,15 @@ The traps, all documented in the triage:
   often a 230 varbit bit-range. Wrong class compiles and runs and corrupts.
 - **Bare stat names** (§7.6): deliberately not guessed by the compiler —
   they collide and compile to the wrong id. Use the explicit enumerations.
-- **npc categories don't exist in the osrs239 cache** (§7.6b): 19% of
-  compile failures. The category field + crawler is triage §9 step 3b and
-  gates `drop tables/`.
+- **npc categories** (§7.6b, and triage §16 for what landed): a *category* is
+  the one config type the reference never authors — it crawls the `category=`
+  key out of every record — so the port re-runs that crawl rather than looking
+  anything up. §7.6b's "npc categories don't exist in the osrs239 cache" was
+  wrong: the cache states one on **9,149 of its 16,292 npc records** and the
+  decoder has always read it. It was unread. 18 names are crawled now
+  (`tools/port_category_crawl.py`, `port/categories.map`); the rest are split,
+  colliding, or need an id `content.ini` cannot yet allocate. This gates
+  `drop tables/`.
 - **What not to port** (§11): respect it. And the reverse direction (§7.8):
   osrs239 content can express things 254 couldn't — porting a script is
   allowed to *modernize* it (e.g. real dbtables instead of 254-era

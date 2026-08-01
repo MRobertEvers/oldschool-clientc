@@ -481,6 +481,18 @@ mock230_obj_param(int obj_id, int param_id);
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
+/**
+ * How many obj records carry this category id.
+ *
+ * The pack's side of the question. `pack/category.pack` is a *derived* table —
+ * every line is a claim that this cache groups something under that id — and the
+ * only way to check a claim like that is to count the group. Zero means a
+ * trigger bound to the name can never fire, which is a content bug the tree can
+ * see and a runtime cannot.
+ */
+int
+mock230_obj_category_members(int category);
+
 /* ------------------------------------------------------------------ */
 /* Equipment requirements                                              */
 /* ------------------------------------------------------------------ */
@@ -565,7 +577,56 @@ struct Mock230NpcInfo
     int bonus[12];
     int attackrate;
     int has_params;
+    /** Config opcode 18, the record's own category — the middle rung of the
+     *  trigger lookup (`SSVM_ProviderGetByTrigger`: exact type, then category,
+     *  then `_`). Zero is the decoder's default for "unstated" *and* would be a
+     *  legal id, so read it through `mock230_npc_category()`, which states the
+     *  -1 that means "no category rung" once. */
+    int category;
 };
+
+/*
+ * The category rung for an npc type, or -1 when there is none.
+ *
+ * Deliberately NOT read off `mock230_npcinfo()`. That accessor gates on the
+ * record having a *name* — a rule that exists for player-facing text and is
+ * right for it — and 1,585 of this cache's 9,149 categorised npc records are
+ * nameless (the multinpc instances are all of them). Going through it would
+ * answer "no category" for every one of them, silently, which is the exact
+ * failure mode the category rung exists to avoid. This reads the decoded row.
+ *
+ * Zero is the decoder's zeroed-record default and `pack/category.pack` never
+ * names it, so 0 answers -1 here for the same reason `interaction_category`
+ * does it for objs: binding a trigger to "unstated" would match every
+ * uncategorised npc in the cache.
+ *
+ * **Seven npc dispatch sites in mock230_world.c still pass a literal -1**, and
+ * each is this call with the type they already hold. They were left alone
+ * because another change owns those lines, not because the rung does not apply
+ * to them — `[ai_queue3,_<category>]` is where the reference leans on categories
+ * hardest (16 of `drop tables/`'s 94 `[ai_queue3]` triggers bind to one), so
+ * AI_QUEUE3 is the site that matters most:
+ *
+ *   SS_TRIGGER_AI_OPPLAYER1 + op    npc->type
+ *   SS_TRIGGER_AI_APPLAYER1 + op    npc->type
+ *   SS_TRIGGER_AI_QUEUE1 + n        npc->type
+ *   SS_TRIGGER_AI_TIMER             npc->type
+ *   SS_TRIGGER_AI_QUEUE3            npc->type
+ *   SS_TRIGGER_AI_SPAWN             npc->type
+ *   SS_TRIGGER_OPNPC1 + n           srv->npcs[slot].type   (the `::talk` cheat)
+ *
+ * `[opnpc*]`/`[apnpc*]` from a real interaction already reach the rung, through
+ * `interaction_category()`. Nothing needs to *guard* the remaining seven: a
+ * category of -1 and a category nothing binds behave identically, so adopting
+ * them is additive and cannot change an existing dispatch.
+ */
+int
+mock230_npc_category(int npc_id);
+
+/** How many npc records carry this category id — see
+ *  `mock230_obj_category_members`, same question one namespace over. */
+int
+mock230_npc_category_members(int category);
 
 /**
  * One param off an npc record, as the cache stored it.

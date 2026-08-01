@@ -609,6 +609,21 @@ mock230_objinfo_free(void)
     g_obj_param_capacity = 0;
 }
 
+int
+mock230_obj_category_members(int category)
+{
+    int members = 0;
+
+    if( !g_objs || category <= 0 )
+        return 0;
+    for( int i = 0; i < g_obj_count; i++ )
+    {
+        if( g_objs[i].category == category )
+            members++;
+    }
+    return members;
+}
+
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id)
 {

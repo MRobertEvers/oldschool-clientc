@@ -656,33 +656,43 @@ interaction_target(
 /*
  * The category rung of the trigger lookup, per subject kind.
  *
- * `Player.getOpTrigger` passes `type.category` for npc, loc and obj alike. Here
- * only obj can answer, and the other two are -1 on purpose:
+ * `Player.getOpTrigger` passes `type.category` for npc, loc and obj alike. Two
+ * of the three can answer here; loc is -1 on purpose:
  *
  * - **obj** — config opcode 94, a number the cache states and
- *   `pack/category.pack` names (37 of them). This is the rung `[opheld1,_bones]`
- *   already binds through, and the only one this tree exercises.
- * - **npc** — an osrs239 npc record carries no category at all. Not "unread":
- *   absent, which is why `struct Mock230NpcInfo` has no field for it. LostCity's
- *   content leans on npc categories hard — 16 of `drop tables/`'s 94
- *   `[ai_queue3]` triggers bind to one — and supplying them is a field to accept
- *   plus a crawler to write (triage §7.6b, §9 step 3b), not something a dispatch
- *   site can invent.
+ *   `pack/category.pack` names. This is the rung `[opheld1,_bones]` binds
+ *   through.
+ * - **npc** — config opcode 18, the same arrangement one namespace over. The
+ *   comment that used to sit here said an osrs239 npc record "carries no
+ *   category at all… absent, which is why `struct Mock230NpcInfo` has no field
+ *   for it". That was wrong, and wrong in the direction that costs the most:
+ *   the cache states a category on **9,149 of its 16,292 npc records**, the
+ *   decoder has read it into `RSCache_Dat2ConfigNpc.category` all along, and
+ *   `cachepack` round-trips it. It was unread, not absent. Names for the ids
+ *   come from the crawl in `pack/category.pack` (triage §7.6b, §9 step 3b).
  * - **loc** — `Mock230LocDef.category` exists and is *not this*. It is a private
  *   two-valued door enum (`door_closed` / `door_opened`) with no entry in
  *   `pack/category.pack`; passing it would alias every door onto category ids 0
  *   and 1 and bind unrelated scripts to them. Wrong quietly, which is the worst
- *   way to be wrong, so it stays -1 until locs carry the real field.
+ *   way to be wrong, so it stays -1 until locs carry the real field — which is
+ *   blocked on `dat2_config_loc.c` throwing opcode 61 away, an rscache
+ *   write-path change.
  */
 static int
 interaction_category(const struct Mock230Interaction* interaction)
 {
-    if( interaction->kind != MOCK230_INTERACT_OBJ )
-        return -1;
+    switch( interaction->kind )
+    {
+    case MOCK230_INTERACT_OBJ:
     {
         const struct Mock230ObjInfo* info = mock230_objinfo(interaction->target_id);
 
         return info->category > 0 ? info->category : -1;
+    }
+    case MOCK230_INTERACT_NPC:
+        return mock230_npc_category(interaction->target_id);
+    default:
+        return -1;
     }
 }
 
@@ -5853,6 +5863,51 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_objinfo(bones)->category == 6,
                            "bones should be category 6, got %d",
                            mock230_objinfo(bones)->category);
+
+            /*
+             * The npc rung of the same lookup — triage §9 step 3b.
+             *
+             * It did not exist: every npc call site passed -1 because a comment
+             * in this file said an osrs239 npc record "carries no category at
+             * all… absent". The cache states one on 9,149 of its 16,292 npc
+             * records; it was unread. What this asserts is the whole chain in
+             * one line — the decoder reads config opcode 18, mock230_npcinfo
+             * keeps it, and the id it kept is the id the crawl read out of that
+             * record's own group when it minted the name in
+             * `pack/category.pack`. Either half moving breaks it.
+             *
+             * `chicken` and not `goblin`: goblin's 311 is one of the ids the
+             * crawl deliberately did *not* name (see port/categories.map), so it
+             * has no second side to compare against.
+             */
+            {
+                int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+                int chicken_category =
+                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "chicken");
+                int nameless = -1;
+
+                SELFTEST_CHECK(chicken > 0 && chicken_category > 0,
+                               "chicken should be in both the npc and the category pack");
+                SELFTEST_CHECK(mock230_npc_category(chicken) == chicken_category,
+                               "the chicken npc's category rung should read %d, got %d",
+                               chicken_category, mock230_npc_category(chicken));
+
+                /*
+                 * And that the resolver does not go through `mock230_npcinfo`,
+                 * which hides a *nameless* record's whole row. 1,585 of this
+                 * cache's categorised npc records have no name — the multinpc
+                 * instances are all of them — so reading the category through
+                 * the accessor would answer "no category" for every one, and
+                 * answer it silently. There has to be at least one.
+                 */
+                for( int id = 0; id < 16292 && nameless < 0; id++ )
+                {
+                    if( !mock230_npcinfo_known(id) && mock230_npc_category(id) > 0 )
+                        nameless = id;
+                }
+                SELFTEST_CHECK(nameless >= 0,
+                               "a nameless npc record should still answer its category");
+            }
 
             /*
              * Bury: `[opheld1,_bones]` is bound to the obj *category*, not to

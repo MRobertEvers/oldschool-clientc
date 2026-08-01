@@ -282,6 +282,10 @@ mock230_npcinfo_load(const char* cache_dir)
             g_npcs[id].name = strdup(npc->name);
         g_npcs[id].combat_level = npc->combat_level;
         g_npcs[id].size = npc->size > 0 ? npc->size : 1;
+        /* Opcode 18. Stored unconditionally, above the `name` gate the accessor
+         * applies: a nameless multinpc instance still dispatches, and 1,585 of
+         * the categorised records in this cache have no name. */
+        g_npcs[id].category = npc->category;
         for( int op = 0; op < 5; op++ )
             g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
         read_combat_params(&npc->params, &g_npcs[id]);
@@ -341,6 +345,32 @@ mock230_npcinfo_known(int npc_id)
 {
     /* The same gate the accessor below applies, stated once each. */
     return g_npcs && npc_id >= 0 && npc_id < g_npc_count && g_npcs[npc_id].name != NULL;
+}
+
+int
+mock230_npc_category(int npc_id)
+{
+    if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )
+        return -1;
+    /* Not `mock230_npcinfo(npc_id)->category`: that accessor hides the whole row
+     * of a nameless record, and the nameless records are exactly the multinpc
+     * instances a trigger has to reach. See the header. */
+    return g_npcs[npc_id].category > 0 ? g_npcs[npc_id].category : -1;
+}
+
+int
+mock230_npc_category_members(int category)
+{
+    int members = 0;
+
+    if( !g_npcs || category <= 0 )
+        return 0;
+    for( int i = 0; i < g_npc_count; i++ )
+    {
+        if( g_npcs[i].category == category )
+            members++;
+    }
+    return members;
 }
 
 const struct Mock230NpcInfo*
