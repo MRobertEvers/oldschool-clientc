@@ -1299,6 +1299,41 @@ main(
      * validator failure rather than a dead interface at runtime. */
     mock230_ids_resolve();
 
+    /*
+     * The server band, held to the text parse it is replacing.
+     *
+     * This is the permanent home of the equivalence check PORTING_GUIDE §3.6
+     * item 1 demands: a band on disk that disagrees with the tree is a
+     * validator failure, exactly like a config line that stopped meaning
+     * anything. An *absent* band is not — a fresh checkout has none until
+     * `cachepack pack --server-only` runs, the way it has no script pack until
+     * `mock230-scripts` does.
+     */
+    {
+        struct Mock230BandReport band;
+
+        switch( mock230_content_load_server_band(content, &band) )
+        {
+        case MOCK230_BAND_LOADED:
+            printf("server band: %d archive(s) verified against the text parse "
+                   "(%d overlay authored defs, %d field value(s) text-only, %d over "
+                   "records the runtime never loads)\n",
+                   band.archives, band.overlaid, band.text_only, band.unseeded);
+            break;
+        case MOCK230_BAND_MISSING:
+            printf("server band: no server/pack — run `make -C src mock230-servpack`; "
+                   "skipped\n");
+            break;
+        case MOCK230_BAND_STALE:
+            fprintf(stderr,
+                    "mock230_pack: server band disagrees with the tree (%d unreadable, "
+                    "%d mismatched archive(s)) — re-run `make -C src mock230-servpack`\n",
+                    band.invalid, band.mismatched);
+            g_errors++;
+            break;
+        }
+    }
+
     g_errors += mock230_content_error_count();
 
     validate_spawns();

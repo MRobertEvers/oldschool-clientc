@@ -18,6 +18,7 @@ usage(void)
         "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
         "                   [--assets] [--binary]\n"
+        "  cachepack pack   --src DIR --server-only\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
         "\n"
@@ -35,7 +36,9 @@ usage(void)
         "          record at (config kind, id), under the opcodes fields/<type>.ini\n"
         "          declares; plus the name tables of the namespaces the cache has no\n"
         "          table for (stat, category) at group 128 up. Rebuilt whole on every\n"
-        "          run, so --types makes the config half of it partial.\n"
+        "          run, so --types makes the config half of it partial. --server-only\n"
+        "          writes just that server pack — no cache is opened, no --out needed —\n"
+        "          which is the cheap form the build runs before every server boot.\n"
         "  verify  round-trips every record through the text and reports exact /\n"
         "          same-length / differing counts per type. With --assets, also\n"
         "          round-trips the asset tables through their friendly forms in a\n"
@@ -213,6 +216,7 @@ main(int argc, char** argv)
     int want_binary = 0;
     int want_assets = 0;
     int check_only = 0;
+    int server_only = 0;
     const char* digest_dir = NULL;
     int warn_limit = 20;
 
@@ -235,6 +239,8 @@ main(int argc, char** argv)
             digest_dir = argv[++i];
         else if( strcmp(arg, "--check-only") == 0 )
             check_only = 1;
+        else if( strcmp(arg, "--server-only") == 0 )
+            server_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
         else if( strcmp(arg, "--gamevals") == 0 )
@@ -405,7 +411,7 @@ main(int argc, char** argv)
          * emits 116,450 archives, which is too heavy to run on every `make test`
          * — it was OOM-killed the first time this bar ran that way.
          */
-        if( !out_dir && !check_only )
+        if( !out_dir && !check_only && !server_only )
         {
             fprintf(stderr, "cachepack: --out is required for pack\n");
             cp_names_free(&ctx.names);
@@ -433,6 +439,8 @@ main(int argc, char** argv)
             snprintf(ctx.cache_dir, sizeof(ctx.cache_dir), "%s", probe);
             rc = 0;
         }
+        else if( server_only )
+            rc = cp_pack_server_run(&ctx, &sel) ? 0 : 1;
         else
             rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
         if( want_assets && ctx.cache_open )

@@ -336,6 +336,13 @@ mock230_npcinfo_free(void)
     g_npc_param_capacity = 0;
 }
 
+int
+mock230_npcinfo_known(int npc_id)
+{
+    /* The same gate the accessor below applies, stated once each. */
+    return g_npcs && npc_id >= 0 && npc_id < g_npc_count && g_npcs[npc_id].name != NULL;
+}
+
 const struct Mock230NpcInfo*
 mock230_npcinfo(int npc_id)
 {

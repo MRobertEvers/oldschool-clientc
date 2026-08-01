@@ -41,6 +41,14 @@ Task_Dat2ModelLoad_Run(
         PT_EXIT(&task->pt);
     }
 
+    if( getenv("TORIRS_MODEL_FMT_DEBUG") )
+        fprintf(
+            stderr,
+            "model_fmt: id=%d format_version=%d verts=%d\n",
+            task->model_id,
+            rscache_model->format_version,
+            rscache_model->vertex_count);
+
     dat2_buildcache_model_add(task->bc, task->model_id, rscache_model);
 
     model_copy = RSCache_ModelNewCopy(rscache_model);

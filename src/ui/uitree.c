@@ -1580,6 +1580,64 @@ UITree_CcCopy(
     return idx;
 }
 
+/*
+ * CC_DELETE — remove one dynamic child, not a parent's whole list.
+ *
+ * The splice is `UITree_CcDeleteAll`'s per-child body, applied to a node the
+ * caller already resolved. Static children are refused outright: `cc_delete`
+ * addresses whatever `cc_find` selected, and a script that has selected a
+ * component it did not create is a script bug — deleting a cache-built widget
+ * would leave a hole nothing rebuilds.
+ *
+ * The surviving siblings keep their sub-ids. That is what a list deleting one
+ * row expects, and it is why this cannot be "delete all and re-add": the child
+ * key ceiling is dropped so the next by-sub-id lookup recomputes it, exactly as
+ * the batch form does.
+ */
+void
+UITree_CcDelete(
+    struct UITree* tree,
+    int32_t index)
+{
+    assert(tree);
+    if( index < 0 || (uint32_t)index >= tree->component_count )
+        return;
+
+    struct UITreeComponent* node = &tree->components[index];
+    int32_t parent_index = node->parent;
+    struct UITreeComponent* parent;
+    int32_t child;
+    int32_t prev = -1;
+
+    if( !node->dynamic )
+        return;
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return;
+
+    parent = &tree->components[parent_index];
+    for( child = parent->first_child; child >= 0; child = tree->components[child].next_sibling )
+    {
+        if( child == index )
+            break;
+        prev = child;
+    }
+    if( child < 0 )
+        return;
+
+    if( prev < 0 )
+        parent->first_child = node->next_sibling;
+    else
+        tree->components[prev].next_sibling = node->next_sibling;
+    node->parent = -1;
+    node->next_sibling = -1;
+    uitree_reclaim_subtree(tree, index);
+
+    parent->last_child_hint = -1;
+    parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
+    parent->is_dirty = 1;
+    tree->generation++;
+}
+
 void
 UITree_CcDeleteAll(
     struct UITree* tree,

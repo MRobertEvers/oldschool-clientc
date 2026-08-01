@@ -559,6 +559,19 @@ mock230_npcinfo_free(void);
 const struct Mock230NpcInfo*
 mock230_npcinfo(int npc_id);
 
+/**
+ * 1 when `mock230_npcinfo(npc_id)` answers from the decoded table, 0 when it
+ * would hand back the "Someone" placeholder.
+ *
+ * The accessor gates on the record having a *name*, so a nameless record — the
+ * multinpc instances are all of them — hides its whole decoded row, params
+ * included, from everything seeded through it. The server-band verifier needs
+ * that fact out loud: a band value over such a record has nothing on this side
+ * to be compared against, which is different from being wrong.
+ */
+int
+mock230_npcinfo_known(int npc_id);
+
 /* ------------------------------------------------------------------ */
 /* Packet capture (selftest only)                                      */
 /* ------------------------------------------------------------------ */

@@ -215,6 +215,31 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /*
+     * Stat transmits. Filtered by the changed skills the same way the var
+     * dispatch filters on changed varps — the XP-drop hook lists all
+     * twenty-four skills as triggers and diffs the values it is handed, so a
+     * hook fired for a skill that did not change produces a spurious drop
+     * rather than a wasted call.
+     *
+     * `TORIRS_STAT_DEBUG=1` prints each hook this fires, which is how the
+     * XP-drop panel's listener was confirmed to be reached at all.
+     */
+    if( host->stat_transmit_dirty )
+    {
+        int const* ids = host->stat_changed_ids;
+        int count = host->stat_changed_count;
+
+        if( host->stat_changed_all )
+        {
+            ids = NULL;
+            count = 0;
+        }
+        task = CreateTask_CS2StatTransmitDispatchSet(host, ids, count);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     /* Misc transmits (run energy, run weight). No trigger set to filter on —
      * the hooks carry none — so this re-runs every registered misc hook, which
      * is why it is gated on a real value change rather than on the unhide flag
@@ -233,5 +258,8 @@ RS_CS2_PumpTransmits(
     host->inv_transmit_dirty = 0;
     host->inv_changed_count = 0;
     host->inv_changed_all = 0;
+    host->stat_transmit_dirty = 0;
+    host->stat_changed_count = 0;
+    host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
 }

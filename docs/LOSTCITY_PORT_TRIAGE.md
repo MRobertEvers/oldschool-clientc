@@ -2,6 +2,12 @@
 
 > **Deliverable 1. No code has been written. Nothing in either tree has been
 > modified.** Every number below is measured, and §12 says how to re-measure it.
+>
+> The operating guide for the port — the decision procedures for engine vs
+> content, which pack data goes in, how a slice gets ported, and the phase
+> plan that wraps this document's §9 — is
+> [`PORTING_GUIDE.md`](PORTING_GUIDE.md). Read it first; this document is the
+> measurement underneath it.
 
 Source: `/Users/matthewevers/Documents/git_repos/LostCity_Server/content`
 (a fork of 2004scape's content at `d386509 prepare for zuk`).
@@ -635,6 +641,14 @@ are *not* content work.
 **Constants and configs before the scripts that name them; interfaces before the
 scripts that drive them** — as required. The reordering worth arguing for is that
 **4a comes before any bulk content**, because 117 files fail on one decoder.
+
+**Status of step 0 (2026-08-01):** landed on the baker's side —
+`CONTENT_PACK_PLAN.md` §5.4 "What has landed" — the field register exists,
+`cachepack pack` writes both halves, and `mock230_servercodec.c` can decode
+the server band. What has **not** landed is the load path: `mock230_content_load`
+still re-parses the `server/scripts` text overlays at boot and nothing reads
+`server/pack`. Closing that (and deleting `mock230_pack.c`'s superseded
+bakers) is Phase 0 of [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
 
 ---
 

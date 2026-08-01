@@ -4331,6 +4331,18 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
+    case CS2VM_HOST_REQUEST_CC_DELETE:
+    {
+        /* One child, not a parent's whole list. `UITree_CcDelete` frees the
+         * node and its subtree and leaves the parent's remaining children in
+         * place — the sub-ids of the survivors do not shift, which is what a
+         * script deleting row 3 of a list expects. */
+        int32_t idx = tree ? UITree_FindByComponentId(tree, request->u.cc_delete.component_id) : -1;
+        if( idx >= 0 )
+            UITree_CcDelete(tree, idx);
+        return CS2VM_EXECNO_OK;
+    }
+
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return exec_cc_create(host, vm, request->u.cc_create);
     case CS2VM_HOST_REQUEST_CC_COPY:

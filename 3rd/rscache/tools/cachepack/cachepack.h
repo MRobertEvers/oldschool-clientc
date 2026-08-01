@@ -522,6 +522,19 @@ cp_pack_run(
     const char* base_cache_dir,
     const char* out_cache_dir);
 
+/**
+ * `pack --server-only`: rebuild `<src>/server/pack` and nothing else.
+ *
+ * No cache is opened and no `--out` is needed, which is what makes it cheap
+ * enough to run as a build step before every server boot. The bands it writes
+ * are byte-identical to the ones a full `pack` writes — same walk, same merge,
+ * same encoder.
+ */
+int
+cp_pack_server_run(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel);
+
 int
 cp_verify_run(
     struct CP_Ctx* ctx,

@@ -1087,6 +1087,170 @@ build_begin_3d_from_world_emit(
     }
 }
 
+/*
+ * TORIRS_EMIT_LOC=<loc_id>: trace the position of every draw command emitted
+ * for that loc.
+ *
+ * This is the last place a loc's position is anything a human can read. After
+ * this it is a camera-relative delta fed to the projection kernel, so a loc
+ * that draws on the wrong tile and a loc that is *placed* on the wrong tile
+ * look identical downstream. Printing the element's world position, the
+ * camera, the delta the renderer receives, and the tile that world position
+ * implies separates the two: `tile` disagreeing with `slot` means the build
+ * placed it wrong, while both agreeing on a loc that visibly draws elsewhere
+ * means the geometry (extent below) or the projection is responsible.
+ *
+ * Capped so a 200-frame run does not emit 200 identical lines per element.
+ */
+#define EMIT_LOC_DEBUG_MAX 12
+
+static void
+emit_loc_debug(
+    struct ToriRS_Frame* frame,
+    struct ToriDraw_SceneElement const* el,
+    struct ToriDraw_Position const* rel,
+    int element_id)
+{
+    static int budget = -1;
+    static int want_loc = -1;
+    struct WorldEntity_Scenery* scenery;
+
+    if( budget < 0 )
+    {
+        char const* env = getenv("TORIRS_EMIT_LOC");
+        want_loc = env ? (int)strtol(env, NULL, 0) : -1;
+        budget = env ? EMIT_LOC_DEBUG_MAX : 0;
+    }
+    if( budget == 0 || want_loc < 0 )
+        return;
+
+    /* Negative-result cache. The lookup below is a linear walk of the scenery
+     * pool, and it runs per element command per frame — thousands x thousands,
+     * which drops the client to single-digit fps and makes the flag unusable
+     * in the live session it exists for. An element's loc never changes, so a
+     * miss stays a miss until the scene is rebuilt; keyed on load_seq so a
+     * rebuild that recycles element ids cannot serve a stale answer. */
+    {
+        static int miss_key[4096];
+        static unsigned miss_seq = (unsigned)-1;
+        int const slot_idx = element_id & 4095;
+        if( miss_seq != frame->world->load_seq )
+        {
+            memset(miss_key, -1, sizeof(miss_key));
+            miss_seq = frame->world->load_seq;
+        }
+        if( miss_key[slot_idx] == element_id )
+            return;
+
+        scenery = World_SceneryGetByElementId(frame->world, element_id);
+        if( !scenery || scenery->loc_id != want_loc )
+        {
+            miss_key[slot_idx] = element_id;
+            return;
+        }
+    }
+
+    /* One line per element until the loc actually moves. Without this a live
+     * session spends the whole budget re-printing an unchanging position every
+     * frame, and the interesting event — a position that CHANGES, e.g. across
+     * a scene rebuild — scrolls past unnoticed. The camera is deliberately not
+     * part of the key: it moves constantly and is not what is being watched. */
+    {
+#define EMIT_LOC_SEEN_MAX 64
+        static int seen_element[EMIT_LOC_SEEN_MAX];
+        static int seen_x[EMIT_LOC_SEEN_MAX];
+        static int seen_z[EMIT_LOC_SEEN_MAX];
+        static int seen_yaw[EMIT_LOC_SEEN_MAX];
+        static int seen_count;
+        for( int i = 0; i < seen_count; i++ )
+        {
+            if( seen_element[i] != element_id )
+                continue;
+            if( seen_x[i] == el->world_position.x && seen_z[i] == el->world_position.z &&
+                seen_yaw[i] == el->world_position.yaw )
+                return; /* unchanged since the last line for this element */
+            seen_x[i] = el->world_position.x;
+            seen_z[i] = el->world_position.z;
+            seen_yaw[i] = el->world_position.yaw;
+            goto emit;
+        }
+        /* Table full: stay silent rather than reprint an untracked element
+         * every frame, which is what drowns the trace when a loc has more
+         * instances on screen than the table holds. */
+        if( seen_count >= EMIT_LOC_SEEN_MAX )
+            return;
+        seen_element[seen_count] = element_id;
+        seen_x[seen_count] = el->world_position.x;
+        seen_z[seen_count] = el->world_position.z;
+        seen_yaw[seen_count] = el->world_position.yaw;
+        seen_count++;
+    }
+emit:
+    budget--;
+
+    fprintf(
+        stderr,
+        "emit_loc %d el=%d: world=(%d,%d,%d) yaw=%d cam=(%d,%d,%d) rel=(%d,%d,%d) "
+        "tile=(%d,%d) slot=(%d,%d) lvl=%d\n",
+        want_loc,
+        element_id,
+        el->world_position.x,
+        el->world_position.y,
+        el->world_position.z,
+        el->world_position.yaw,
+        frame->cam_x,
+        frame->cam_y,
+        frame->cam_z,
+        rel->x,
+        rel->y,
+        rel->z,
+        /* Anchor tile, NOT world_position >> 7. Placement centres a model over
+         * its draw footprint, so a 2x2 loc anchored on tile 13 sits at fine
+         * 1792 whose raw tile is 14 — printing that reads as an off-by-one
+         * against `slot` on every even-footprint loc in the scene. Back the
+         * footprint out so `tile` and `slot` are directly comparable and only
+         * differ when something is actually wrong. */
+        (el->world_position.x - 64 * scenery->debug.draw_size_x) >> 7,
+        (el->world_position.z - 64 * scenery->debug.draw_size_z) >> 7,
+        scenery->grid_position.x,
+        scenery->grid_position.z,
+        scenery->grid_position.level);
+
+    /* The geometry the projection will actually receive, in model-local units.
+     * Reported here rather than from the build-time capture because anything
+     * that rewrote vertices after the build (animation frames, contour ground)
+     * is already applied by now. */
+    if( el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+    {
+        struct ToriDraw_Model const* m = el->model.u.model.model;
+        if( m->vertex_count > 0 )
+        {
+            int xmin = m->vertices_x[0], xmax = m->vertices_x[0];
+            int zmin = m->vertices_z[0], zmax = m->vertices_z[0];
+            for( int v = 1; v < m->vertex_count; v++ )
+            {
+                if( m->vertices_x[v] < xmin ) xmin = m->vertices_x[v];
+                if( m->vertices_x[v] > xmax ) xmax = m->vertices_x[v];
+                if( m->vertices_z[v] < zmin ) zmin = m->vertices_z[v];
+                if( m->vertices_z[v] > zmax ) zmax = m->vertices_z[v];
+            }
+            fprintf(
+                stderr,
+                "          extent x[%d..%d] z[%d..%d] -> world x[%d..%d] z[%d..%d] "
+                "tiles x[%d..%d] z[%d..%d] (pre-yaw)\n",
+                xmin, xmax, zmin, zmax,
+                el->world_position.x + xmin,
+                el->world_position.x + xmax,
+                el->world_position.z + zmin,
+                el->world_position.z + zmax,
+                (el->world_position.x + xmin) >> 7,
+                (el->world_position.x + xmax) >> 7,
+                (el->world_position.z + zmin) >> 7,
+                (el->world_position.z + zmax) >> 7);
+        }
+    }
+}
+
 static bool
 try_emit_world_draw_model(
     struct ToriRS_Frame* frame,
@@ -1145,6 +1309,9 @@ try_emit_world_draw_model(
         rel.x -= frame->cam_x;
         rel.y -= frame->cam_y;
         rel.z -= frame->cam_z;
+
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+            emit_loc_debug(frame, el, &rel, element_id);
 
         memset(out, 0, sizeof(*out));
         out->kind = TORIRSRC_DRAW_MODEL;

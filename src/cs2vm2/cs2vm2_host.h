@@ -36,6 +36,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT,
     // CC Child component
     CS2VM_HOST_REQUEST_CC_DELETEALL,
+    /** CC_DELETE: remove one dynamic child — the active/dot component, not a
+     *  parent's whole child list. */
+    CS2VM_HOST_REQUEST_CC_DELETE,
     CS2VM_HOST_REQUEST_CC_CREATE,
     CS2VM_HOST_REQUEST_CC_COPY,
     CS2VM_HOST_REQUEST_CC_FIND,
@@ -1128,6 +1131,10 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_EnumGetOutputCount enum_get_output_count;
         struct CS2VM_HostRequest_Db db;
         struct CS2VM_HostRequest_CC_DeleteAll cc_delete_all;
+        /* CC_DELETE carries the same single component id as CC_DELETEALL, so it
+         * shares the payload type; the request KIND is what says whether that
+         * id is a parent to clear or a child to remove. */
+        struct CS2VM_HostRequest_CC_DeleteAll cc_delete;
         struct CS2VM_HostRequest_CC_Create cc_create;
         struct CS2VM_HostRequest_CC_Copy cc_copy;
         struct CS2VM_HostRequest_CC_Find cc_find;

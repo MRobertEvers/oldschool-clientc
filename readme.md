@@ -2719,11 +2719,33 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
   and mouseover line — where the map stream put it (`sq`/`ch`/`map`), what
   scene slot that resolved to (`sc`/`abs`), and where the geometry actually
   landed (`f`/`t`, which must agree with `sc`). `map` != `abs` is a scene
-  mapping bug; `t` != `sc` is a placement bug. It also lifts the LocType.active
+  mapping bug; `t` != `sc` is a placement bug. A second row gives the model's
+  own post-transform extent: `ctr` is its centre (0,0 = centred on the element
+  origin; off-centre geometry draws off-tile however right the slot is) and
+  `tiles` the absolute tile span it visually covers — the number to hold
+  against another renderer, since it bypasses our slot math. It also lifts the LocType.active
   pick gate, so inactive scenery (bushes, walls, roofs) can be hovered at all,
   and adds the hovered tile plus the local player's tile to the "Walk here"
   row. Pairs with `TORIRS_SCENERY_DEBUG=1`, which counts what each square's
-  build dropped.
+  build dropped and now also prints, per loc, the config that shaped its
+  geometry (`size`/`seq`/`mirror`/`offset`/`resize`/`contour`/`shape`/`rot`)
+  beside the model's bounding box — an implausible box and the config that
+  produced it are only useful together. `seq != -1` means the angle is NOT
+  baked into the vertices: it is applied as a draw-time yaw instead, which is
+  a different transform order from the reference (see below).
+- `TORIRS_EMIT_LOC=<loc_id>` traces every draw command emitted for that loc at
+  the point the renderer receives it: element world position, camera, the
+  camera-relative delta handed to the projection kernel, the anchor tile that
+  world position implies, and the slot the build assigned. `tile` != `slot`
+  means the build placed it wrong; both agreeing on a loc that visibly draws
+  elsewhere means the geometry (extent on the second line) or the projection
+  is responsible. One line per element, reprinted only when a position
+  actually changes (e.g. across a scene rebuild).
+- `TORIRS_MODEL_FMT_DEBUG=1` prints each model's decoded `format_version`. Only
+  `decode_ob3` sets it, and only `>= 13` triggers the 4x vertex scale-down in
+  `torirs_model_from_rscache`; every model in an OldSchool cache decodes as 0
+  (the two OSRS decoders never set the field), so that scale-down never fires
+  on that lineage. Check here before blaming model size for a placement bug.
 
 # Slop to cleanup
 

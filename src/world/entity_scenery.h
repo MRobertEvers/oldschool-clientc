@@ -57,6 +57,18 @@ struct WorldEntity_SceneryDebug
     int draw_y;
     int draw_z;
     int draw_yaw;
+    /** Final geometry extent in model-local units, captured after every
+     *  transform (mirror/rotate/scale/offset) and before the model is attached
+     *  to the element. The element position is where the model's ORIGIN goes,
+     *  so this is what says whether the visible mass is centred on the tile:
+     *  a bush whose x extent is [-128..0] draws a tile west of its slot no
+     *  matter how right the slot is. Some locs are authored off-centre on
+     *  purpose (wall torches, ladders), so an offset centre is evidence, not a
+     *  verdict — compare against the same loc in another renderer. */
+    int model_min_x;
+    int model_max_x;
+    int model_min_z;
+    int model_max_z;
     /** 1 = spawned by a zone LOC change rather than the map stream. */
     int runtime;
 };

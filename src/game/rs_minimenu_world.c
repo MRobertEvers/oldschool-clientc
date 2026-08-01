@@ -228,6 +228,116 @@ scenery_debug_name(
  * the hover line, which is the whole ask. Clicking: the pick dispatch switches
  * on kind alone, so this walks to the tile the loc claims — the same thing
  * "Walk here" does, and a direct check of the claim. */
+/* Rotate a model-local AABB by the element's draw yaw, in place.
+ *
+ * Needed because a loc's angle reaches the geometry by one of two routes. A
+ * static loc has it baked into the vertices at build (so the captured extent is
+ * already rotated), but an ANIMATED loc is loaded unrotated and turned by the
+ * element yaw at draw time — its captured extent is the unrotated box, and
+ * reporting a tile span from that names the wrong axis entirely for a quarter
+ * turn. Scenery yaw is always a multiple of 256 (512 per angle step, +256 for a
+ * diagonal shape), so eight entries cover every value it can hold.
+ *
+ * Convention matches the projection kernel exactly (projection.u.c
+ * project_orthographic_fast_pitchyaw): x' = x*cos + z*sin, z' = z*cos - x*sin,
+ * 16.16 fixed point. */
+static void
+rotate_extent_by_yaw(
+    int yaw,
+    int* min_x,
+    int* max_x,
+    int* min_z,
+    int* max_z)
+{
+    /* sin/cos * 65536 at 1/8 turn steps, index = yaw / 256. */
+    static int const sin8[8] = { 0, 46341, 65536, 46341, 0, -46341, -65536, -46341 };
+    static int const cos8[8] = { 65536, 46341, 0, -46341, -65536, -46341, 0, 46341 };
+    int const corners_x[4] = { *min_x, *max_x, *min_x, *max_x };
+    int const corners_z[4] = { *min_z, *min_z, *max_z, *max_z };
+    int idx;
+    int out_min_x, out_max_x, out_min_z, out_max_z;
+
+    yaw = ((yaw % 2048) + 2048) % 2048;
+    if( yaw % 256 != 0 )
+        return; /* not a value scenery placement can produce; leave unrotated */
+    idx = yaw / 256;
+    if( idx == 0 )
+        return;
+
+    out_min_x = out_max_x = (corners_x[0] * cos8[idx] + corners_z[0] * sin8[idx]) >> 16;
+    out_min_z = out_max_z = (corners_z[0] * cos8[idx] - corners_x[0] * sin8[idx]) >> 16;
+    for( int i = 1; i < 4; i++ )
+    {
+        int const rx = (corners_x[i] * cos8[idx] + corners_z[i] * sin8[idx]) >> 16;
+        int const rz = (corners_z[i] * cos8[idx] - corners_x[i] * sin8[idx]) >> 16;
+        if( rx < out_min_x )
+            out_min_x = rx;
+        if( rx > out_max_x )
+            out_max_x = rx;
+        if( rz < out_min_z )
+            out_min_z = rz;
+        if( rz > out_max_z )
+            out_max_z = rz;
+    }
+    *min_x = out_min_x;
+    *max_x = out_max_x;
+    *min_z = out_min_z;
+    *max_z = out_max_z;
+}
+
+/* Where the geometry sits, as opposed to where the slot is. The element
+ * position places the model's ORIGIN, so a correct slot still draws on the
+ * wrong tile if the model's mass is not centred on that origin — `ctr` is the
+ * midpoint of the post-transform extent and reads 0,0 for a centred model.
+ * `tiles` is the absolute tile span the geometry actually covers, which is the
+ * number to hold against another renderer: it answers "which tiles does this
+ * bush occupy on screen" without going through any of our own slot math. */
+static void
+add_scenery_geometry_row(
+    struct UIMinimenu* menu,
+    struct World* world,
+    struct WorldEntity_Scenery const* scenery,
+    struct UIMinimenuPick pick)
+{
+    struct WorldEntity_SceneryDebug const* dbg = &scenery->debug;
+    int const base_x = world ? world->_base_tile_x : 0;
+    int const base_z = world ? world->_base_tile_z : 0;
+    /* Drawn extent: the captured box turned by whatever the element yaw will
+     * apply at draw. Zero for a static loc (its angle is already in the
+     * vertices), a quarter turn per angle step for an animated one. */
+    int min_x = dbg->model_min_x;
+    int max_x = dbg->model_max_x;
+    int min_z = dbg->model_min_z;
+    int max_z = dbg->model_max_z;
+    int world_min_x;
+    int world_max_x;
+    int world_min_z;
+    int world_max_z;
+    char text[UITREE_MINIMENU_OPTION_LEN];
+
+    rotate_extent_by_yaw(dbg->draw_yaw, &min_x, &max_x, &min_z, &max_z);
+    world_min_x = dbg->draw_x + min_x;
+    world_max_x = dbg->draw_x + max_x;
+    world_min_z = dbg->draw_z + min_z;
+    world_max_z = dbg->draw_z + max_z;
+
+    snprintf(
+        text,
+        sizeof(text),
+        "@whi@mdl x[%d..%d] z[%d..%d] ctr(%d,%d) tiles x[%d..%d] z[%d..%d]",
+        min_x,
+        max_x,
+        min_z,
+        max_z,
+        (min_x + max_x) / 2,
+        (min_z + max_z) / 2,
+        base_x + (world_min_x >> 7),
+        base_x + (world_max_x >> 7),
+        base_z + (world_min_z >> 7),
+        base_z + (world_max_z >> 7));
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
+}
+
 static void
 add_scenery_debug_row(
     struct UIMinimenu* menu,
@@ -248,6 +358,10 @@ add_scenery_debug_row(
         .quaternary_id = scenery->grid_position.level,
     };
     char text[UITREE_MINIMENU_OPTION_LEN];
+
+    /* Geometry first so the placement row stays the last-inserted one, and so
+     * stays the row the hover line is composed from. */
+    add_scenery_geometry_row(menu, world, scenery, pick);
 
     snprintf(
         text,

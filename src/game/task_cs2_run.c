@@ -1496,6 +1496,173 @@ CreateTask_CS2VarTransmitDispatch(
 }
 
 /* =========================================================================
+ * Stat-transmit dispatch
+ * =========================================================================
+ *
+ * The skill half of the same reactive loop the var and inv dispatches drive.
+ * `RS_CS2Host_NotifyStatChanged` (called by UPDATE_STAT) bumps
+ * `stat_change_serial`; this fires every registered hook whose trigger list
+ * names one of the changed skills.
+ *
+ * The XP-drop panel is what needs it. Its listener is registered with all
+ * twenty-four skill ids as triggers, and the script diffs the experience values
+ * it is handed against the ones it kept from last time — so a hook that fires
+ * for the wrong reason is not harmless, it is a spurious drop.
+ *
+ * Structurally identical to the var dispatch, including the two gates that look
+ * like they could be dropped and cannot: a hidden component is skipped WITHOUT
+ * advancing its serial (so it fires once when unhidden), and a reclaimed one has
+ * its serial advanced (so it never fires at all).
+ */
+
+struct Task_CS2StatTransmitDispatch
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+
+    struct RS_CS2Host* host;
+    int stat_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
+    int stat_count;
+    int hook_index;
+    /* How many hooks existed when this dispatch started — see the loop. */
+    int hook_count;
+};
+
+static int
+hook_matches_stat(
+    struct RS_CS2StatTransmitHook const* hook,
+    int const* stat_ids,
+    int stat_count)
+{
+    assert(hook);
+    if( stat_count <= 0 )
+        return 1;
+    /* No trigger list = "any change", the same convention the var hooks use. */
+    if( hook->trigger_count <= 0 )
+        return 1;
+    for( int i = 0; i < hook->trigger_count; i++ )
+    {
+        for( int v = 0; v < stat_count; v++ )
+        {
+            if( hook->trigger_ids[i] == stat_ids[v] )
+                return 1;
+        }
+    }
+    return 0;
+}
+
+static int
+Task_CS2StatTransmitDispatch_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IO* io)
+{
+    struct Task_CS2StatTransmitDispatch* self = (struct Task_CS2StatTransmitDispatch*)task;
+    struct RS_CS2StatTransmitHook* hook;
+
+    PT_BEGIN(&self->pt);
+
+    assert(self->host);
+
+    /*
+     * The bound is snapshotted, and that is not a micro-optimisation.
+     *
+     * A dispatched hook runs a clientscript, and the XP-drop script's own job
+     * includes re-arming its listener (`xpdrops_setstatlistener`). Re-arming an
+     * existing component reuses its slot, but re-arming a *different* one
+     * appends — so reading `stat_transmit_hook_count` fresh each iteration lets
+     * a hook extend the loop it is being run from. It does, and the client
+     * hangs: no crash, no error, just a frame that never completes.
+     *
+     * Anything registered during this dispatch belongs to the next one. That is
+     * also the semantics you want — a listener armed by a stat change has not
+     * missed the change that armed it, because the script that armed it just
+     * ran for it.
+     */
+    self->hook_count = self->host->stat_transmit_hook_count;
+
+    for( self->hook_index = 0; self->hook_index < self->hook_count; self->hook_index++ )
+    {
+        if( self->hook_index >= self->host->stat_transmit_hook_count )
+            break; /* compacted mid-dispatch (a component was reclaimed) */
+        hook = &self->host->stat_transmit_hooks[self->hook_index];
+        if( !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
+            continue;
+        if( hook->script_id <= 0 )
+            continue;
+        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        {
+            hook->last_seen_serial = self->host->stat_change_serial;
+            continue;
+        }
+        if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
+            continue;
+        if( hook->last_seen_serial >= self->host->stat_change_serial )
+            continue;
+        hook->last_seen_serial = self->host->stat_change_serial;
+        if( getenv("TORIRS_STAT_DEBUG") )
+            fprintf(stderr, "statdisp: hook %d com=0x%x script=%d serial=%u\n", self->hook_index,
+                    hook->component_id, hook->script_id, self->host->stat_change_serial);
+
+        {
+            char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];
+            int si;
+            for( si = 0; si < CS2VM_SETON_STR_ARG_MAX; si++ )
+                str_ptrs[si] = hook->str_args[si];
+            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+                self->host,
+                hook->script_id,
+                hook->component_id,
+                hook->component_id,
+                hook->int_args,
+                hook->int_arg_count,
+                hook->str_arg_mask,
+                str_ptrs,
+                hook->str_arg_count));
+        }
+    }
+
+    PT_END(&self->pt);
+    return 0;
+}
+
+static void
+Task_CS2StatTransmitDispatch_Free(struct ToriRS_Task* task)
+{
+    free(task);
+}
+
+static struct ToriRS_TaskVTable Task_CS2StatTransmitDispatch_VTable = {
+    .run = Task_CS2StatTransmitDispatch_Run,
+    .free = Task_CS2StatTransmitDispatch_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_CS2StatTransmitDispatchSet(
+    struct RS_CS2Host* host,
+    int const* stat_ids,
+    int stat_count)
+{
+    struct Task_CS2StatTransmitDispatch* self;
+
+    assert(host);
+
+    self = calloc(1, sizeof(*self));
+    assert(self);
+    self->task.vtable = &Task_CS2StatTransmitDispatch_VTable;
+    strcpy(self->task.name, "CS2StatTransmitDispatch");
+    self->host = host;
+    if( stat_ids && stat_count > 0 )
+    {
+        if( stat_count > RS_CS2_HOST_VAR_CHANGED_MAX )
+            stat_count = RS_CS2_HOST_VAR_CHANGED_MAX;
+        memcpy(self->stat_ids, stat_ids, (size_t)stat_count * sizeof(int));
+        self->stat_count = stat_count;
+    }
+    PT_INIT(&self->pt);
+    return &self->task;
+}
+
+/* =========================================================================
  * Sub-change dispatch
  * =========================================================================
  *

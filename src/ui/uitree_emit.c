@@ -1819,6 +1819,70 @@ emit_walk_node(
                 desc.x += drag_dx;
                 desc.y += drag_dy;
             }
+            /*
+             * A dragged CS2 item cell follows the mouse at trans 128, the same
+             * way an armed TYPE_INV grid slot does.
+             *
+             * The grid path (emit_rs_inv_slots) has done this for a long time
+             * and this one had not, so at rev 230 — where the backpack is
+             * `cc_create`d cells and there is no grid node at all — a drag
+             * showed nothing at all until the release, and then the item
+             * appeared in its new slot. That is the whole of "drag and drop
+             * just snaps to the destination and doesn't render the dimmed
+             * object": the *machine* was working (the swap is correct, the
+             * deadzone and dead-time are applied, the packet goes out), only
+             * its feedback was missing.
+             *
+             * Matched on component id ALONE — not on the draw kind. A rev-230
+             * item cell emits as an ordinary SPRITE (the obj icon is baked into
+             * a scene atlas), not as UITREE_EMIT_CC_OBJ, so gating on the kind
+             * looks right and matches nothing. What makes a node the dragged
+             * one is that the drag machine armed it, which is a question about
+             * identity and not about how it draws.
+             */
+            if( host && c->component_id >= 0 )
+            {
+                int armed_component = -1;
+                int armed_slot = -1;
+                int armed_dx = 0;
+                int armed_dy = 0;
+                struct UITreeHostRequest drag_req = {
+                    .kind = UITREE_HOST_GET_INV_DRAG,
+                    .u.get_inv_drag.out_slot = &armed_slot,
+                    .u.get_inv_drag.out_dx = &armed_dx,
+                    .u.get_inv_drag.out_dy = &armed_dy,
+                    .u.get_inv_drag.out_component_id = &armed_component,
+                };
+
+                if( UITree_Host(host, &drag_req) && armed_component >= 0 )
+                {
+                    /*
+                     * The armed cell is named the way every dynamic child is
+                     * named: (container, index within it). `app_obj_cell_at`
+                     * resolves a rev-230 backpack cell to `149:0` plus a slot,
+                     * not to the cell's own runtime component id — the same
+                     * (container, sub) addressing IF_BUTTON uses.
+                     *
+                     * Both forms are accepted because both exist: a cell that
+                     * IS its own component matches directly, and one that is a
+                     * child of the armed container matches on its index. Testing
+                     * only the first is why the first version of this changed
+                     * nothing at all.
+                     */
+                    int is_armed = armed_component == c->component_id;
+
+                    if( !is_armed && c->dynamic && c->dynamic_child_index == armed_slot &&
+                        c->parent >= 0 && (uint32_t)c->parent < tree->component_count )
+                        is_armed = tree->components[c->parent].component_id == armed_component;
+
+                    if( is_armed )
+                    {
+                        desc.x += armed_dx;
+                        desc.y += armed_dy;
+                        desc.trans = 128;
+                    }
+                }
+            }
             if( in_deferred )
             {
                 /* Ghost the picked-up widget (source uses its own trans;
@@ -1828,6 +1892,7 @@ emit_walk_node(
                 else if( desc.trans < 128 )
                     desc.trans = 128;
             }
+
         }
         desc.scroll_off_x = scroll_off_x;
         desc.scroll_off_y = scroll_off_y;

@@ -544,6 +544,67 @@ mock230_content_obj_spawns(int* count);
 int
 mock230_content_load(const char* dir);
 
+/* ------------------------------------------------------------------ */
+/* The server band (server/pack)                                       */
+/* ------------------------------------------------------------------ */
+
+/** What `mock230_content_load_server_band` found, for the boot log. */
+struct Mock230BandReport
+{
+    /** Band archives that opened and decoded, across every registered type. */
+    int archives;
+    /** Of those, how many overlay a def the text pass loaded. */
+    int overlaid;
+    /** Archives refusing to open — bad magic, version, kind or CRC. Any one of
+     *  these means the pack on disk is stale or truncated. */
+    int invalid;
+    /** Field values where the band and the text parse disagree. Any one of
+     *  these means the *tree* moved since the pack was written. */
+    int mismatched;
+    /** Field values only the text carries because the band has no wire for
+     *  them (`huntmode=aggressive` is an enum name and the band is integers).
+     *  Expected during migration; reported per field, never fatal. */
+    int text_only;
+    /** Band archives over records the runtime never loads: no def, and the
+     *  seed is blind to the cache record (`mock230_npcinfo_known` — the
+     *  nameless multinpc instances). Nothing exists to compare them against
+     *  and nothing is applied from them. */
+    int unseeded;
+};
+
+/** `mock230_content_load_server_band` results. */
+enum Mock230BandStatus
+{
+    /** Verified identical to the text parse and applied over it. */
+    MOCK230_BAND_LOADED = 1,
+    /** No `server/pack` on disk — run `cachepack pack` (make mock230-servpack). */
+    MOCK230_BAND_MISSING = 0,
+    /** Present but stale: a CRC/header refusal or a value disagreeing with the
+     *  text parse. Nothing was applied; the text-loaded records stand. */
+    MOCK230_BAND_STALE = -1,
+};
+
+/**
+ * The band load path: read `<dir>/server/pack`, prove it equivalent, prefer it.
+ *
+ * **Call after `mock230_content_load`** — the proof is against what that pass
+ * loaded, and the seeds come from the cache tables plus the text `[default]`
+ * block it applied.
+ *
+ * Every band archive is held to the text parse three ways, per registered
+ * field: a band value must equal the text-loaded value; a field the band lacks
+ * must be one the text left at its seed **or** one the band has no wire for
+ * (counted per field as `text_only`); and a record with no text def must decode
+ * to exactly its seed. Only when every archive passes is the band decoded over
+ * the live records — at which point the band, not the text, is what the engine
+ * is running on. Any refusal leaves the text parse standing, which is the
+ * migration fallback PORTING_GUIDE §3.6 describes.
+ */
+enum Mock230BandStatus
+mock230_content_load_server_band(
+    const char* dir,
+    struct Mock230BandReport* report);
+
 void
 mock230_content_free(void);
 

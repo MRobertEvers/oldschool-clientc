@@ -21,6 +21,10 @@
 #include "content/content_fields.h"
 #include "content/content_register.h"
 #include "mock230.h"
+#include "mock230_servercodec.h"
+#include "mock230_servpack.h"
+
+#include <rscache.h>
 
 #include <ctype.h>
 #include <dirent.h>
@@ -2411,6 +2415,373 @@ mock230_content_load(const char* dir)
                     g_client_key_overlays);
     }
     return g_npc_def_count;
+}
+
+/* ------------------------------------------------------------------ */
+/* The server band (server/pack)                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The band load path: verify everything, then apply, or apply nothing.
+ *
+ * The text pass above and `cachepack pack` read the *same* tree, so during
+ * migration each is a full check on the other: every value a band archive
+ * states must be the value the text parse loaded, and every band-registered
+ * field the text moved off its seed must either be in the band or be a field
+ * the band has no wire for (`huntmode=aggressive` is an engine enum name and
+ * the band carries integers — `fields/npc.ini` documents which). The compare is
+ * three-way against the *seed* — engine defaults, the `[default]` block, and
+ * the cache params — because "the band omitted it" and "the band contradicts
+ * it" are different failures: the first falls back a field, the second means
+ * the pack on disk predates the tree and none of it can be trusted.
+ *
+ * Only after every archive of every type passes is the band decoded over the
+ * live records, at which point the band — not the text — is what the engine
+ * runs on. `mock230_boot_load` logs which of the two happened.
+ */
+
+/** Per-type glue the generic codec cannot carry: how to seed a record and how
+ *  to reach the text pass's defs. One row per `Mock230_ServerTypes()` entry —
+ *  a registered type with no row here is reported at load, not skipped. */
+struct BandGlue
+{
+    const char* name;
+    /** idx number inside server/pack — the type's own config kind, the same
+     *  two coordinates the client cache uses. */
+    int group;
+    enum Mock230PackKind pack_kind;
+    void (*seed)(void* record, int id);
+    /** 1 when `seed` actually sees the cache record for `id`. The npc seed
+     *  reads through `mock230_npcinfo`, which hides nameless records behind a
+     *  placeholder — a band over one of those has nothing here to compare
+     *  against, and no def ever seeds from it either. */
+    int (*seed_sees_cache)(int id);
+    int (*def_count)(void);
+    void* (*def_at)(int index, int* out_id);
+};
+
+static void
+band_seed_npc(
+    void* record,
+    int id)
+{
+    npc_def_seed_from_cache((struct Mock230NpcDef*)record, id);
+}
+
+/** What load_loc_config starts a block from, exactly. */
+static void
+band_seed_loc(
+    void* record,
+    int id)
+{
+    struct Mock230LocDef* def = (struct Mock230LocDef*)record;
+
+    memset(def, 0, sizeof(*def));
+    def->loc_id = id;
+    def->symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, id);
+    def->next_loc_stage = -1;
+}
+
+static int
+band_npc_def_count(void)
+{
+    return g_npc_def_count;
+}
+
+static void*
+band_npc_def_at(
+    int index,
+    int* out_id)
+{
+    *out_id = g_npc_defs[index].npc_id;
+    return &g_npc_defs[index];
+}
+
+static int
+band_loc_def_count(void)
+{
+    return g_loc_def_count;
+}
+
+static void*
+band_loc_def_at(
+    int index,
+    int* out_id)
+{
+    *out_id = g_loc_defs[index].loc_id;
+    return &g_loc_defs[index];
+}
+
+/** The loc seed reads nothing from the cache, so nothing is hidden from it. */
+static int
+band_loc_seed_sees_cache(int id)
+{
+    (void)id;
+    return 1;
+}
+
+static const struct BandGlue k_band_glue[] = {
+    { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, MOCK230_PACK_NPC, band_seed_npc,
+      mock230_npcinfo_known, band_npc_def_count, band_npc_def_at },
+    { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, MOCK230_PACK_LOC, band_seed_loc,
+      band_loc_seed_sees_cache, band_loc_def_count, band_loc_def_at },
+};
+
+#define BAND_GLUE_COUNT ((int)(sizeof(k_band_glue) / sizeof(k_band_glue[0])))
+
+/** Big enough for any registered record; checked against `record_size` before
+ *  use so a new, larger type fails here rather than overruns. */
+union BandRecord
+{
+    struct Mock230NpcDef npc;
+    struct Mock230LocDef loc;
+};
+
+enum
+{
+    BAND_FIELD_MAX = 64,
+};
+
+/** The same offset read `mock230_servercodec.c`'s field_get does, restated
+ *  because that one is rightly private: memcpy, not a cast, for the alignment
+ *  reason documented there. */
+static int
+band_field(
+    const void* record,
+    const struct ServerField* field)
+{
+    int value;
+
+    memcpy(&value, (const char*)record + field->offset, sizeof(value));
+    return value;
+}
+
+/**
+ * Hold one decoded record to the text parse, field by registered field.
+ *
+ * Returns the mismatches — band values that contradict the text. A field the
+ * band merely *lacks* (decoded value still at the seed) goes into the per-field
+ * `text_only` tally instead: the text value stands for it, and the tally is
+ * what keeps that gap visible in the boot log rather than silent.
+ */
+static int
+band_compare(
+    const struct ServerType* type,
+    const void* merged,
+    const void* text,
+    const void* seed,
+    int id,
+    const char* symbol,
+    int* text_only)
+{
+    int mismatched = 0;
+
+    for( int i = 0; i < type->count; i++ )
+    {
+        const struct ServerField* field = &type->fields[i];
+        int band_value = band_field(merged, field);
+        int text_value = band_field(text, field);
+
+        if( band_value == text_value )
+            continue;
+        if( band_value == band_field(seed, field) )
+        {
+            text_only[i]++;
+            continue;
+        }
+        fprintf(stderr,
+                "mock230: server band: %s [%s] %d: `%s` is %d in the band but %d from the text "
+                "overlays\n",
+                type->name, symbol ? symbol : "?", id, field->name, band_value, text_value);
+        mismatched++;
+    }
+    return mismatched;
+}
+
+static void
+band_verify_type(
+    struct Mock230ServPack* pack,
+    const struct BandGlue* glue,
+    const struct ServerType* type,
+    struct Mock230BandReport* report,
+    int* text_only)
+{
+    uint8_t band[MOCK230_SERVPACK_BAND_MAX];
+    union BandRecord seed;
+    union BandRecord merged;
+    int entries = Mock230_ServPackEntryCount(pack, glue->group);
+
+    /* Every archive the pack holds, whether or not the text authored a block
+     * for the record: a band over a record with no block must decode to
+     * exactly its seed, which is how a stale export shows up. */
+    for( int id = 0; id < entries; id++ )
+    {
+        int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+        const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
+        const void* text;
+        int consumed;
+
+        if( size == MOCK230_SERVPACK_ABSENT )
+            continue;
+        if( size == MOCK230_SERVPACK_INVALID )
+        {
+            if( report->invalid++ < 8 )
+                fprintf(stderr,
+                        "mock230: server band: %s [%s] %d refuses to open — bad magic, "
+                        "version, kind or CRC\n",
+                        type->name, symbol ? symbol : "?", id);
+            continue;
+        }
+
+        glue->seed(&seed, id);
+        memcpy(&merged, &seed, type->record_size);
+        consumed = Mock230_ServerDecode(type, &merged, band, size);
+        if( consumed != size )
+        {
+            /* The codec's short-read signal: an opcode this build does not
+             * know. A register that ran ahead of the C table, or a pack from a
+             * newer build — either way not this build's to decode. */
+            if( report->invalid++ < 8 )
+                fprintf(stderr,
+                        "mock230: server band: %s [%s] %d stops at byte %d of %d — an opcode "
+                        "this build does not know\n",
+                        type->name, symbol ? symbol : "?", id, consumed, size);
+            continue;
+        }
+
+        report->archives++;
+        text = NULL;
+        for( int i = 0; i < glue->def_count(); i++ )
+        {
+            int def_id;
+            void* def = glue->def_at(i, &def_id);
+
+            if( def_id == id )
+            {
+                text = def;
+                break;
+            }
+        }
+        if( text )
+            report->overlaid++;
+        else if( !glue->seed_sees_cache(id) )
+        {
+            /* No def, and the seed is blind to this record (a nameless multinpc
+             * instance, hidden behind the npcinfo placeholder). The band states
+             * what the tree states, but nothing on this side loads the record
+             * at all, so there is no value to hold it to — and never a def to
+             * apply it over. Counted, not compared. */
+            report->unseeded++;
+            continue;
+        }
+        report->mismatched += band_compare(type, &merged, text ? text : (const void*)&seed,
+                                           &seed, id, symbol, text_only);
+    }
+
+    /* And the other direction: text defs the pack holds no archive for. Their
+     * band-registered fields must all still sit at the seed — or be fields the
+     * band has no wire for, which is the text_only tally again. */
+    for( int i = 0; i < glue->def_count(); i++ )
+    {
+        int id;
+        void* def = glue->def_at(i, &id);
+        int size;
+
+        size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+        if( size != MOCK230_SERVPACK_ABSENT )
+            continue;
+        glue->seed(&seed, id);
+        report->mismatched += band_compare(type, &seed, def, &seed, id,
+                                           mock230_content_symbol_name(glue->pack_kind, id),
+                                           text_only);
+    }
+}
+
+/** Decode every archive over its live def. Runs only after every type
+ *  verified, so this is the preference switch and never a change of value. */
+static void
+band_apply_type(
+    struct Mock230ServPack* pack,
+    const struct BandGlue* glue,
+    const struct ServerType* type)
+{
+    uint8_t band[MOCK230_SERVPACK_BAND_MAX];
+
+    for( int i = 0; i < glue->def_count(); i++ )
+    {
+        int id;
+        void* def = glue->def_at(i, &id);
+        int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+
+        if( size > 0 )
+            Mock230_ServerDecode(type, def, band, size);
+    }
+}
+
+enum Mock230BandStatus
+mock230_content_load_server_band(
+    const char* dir,
+    struct Mock230BandReport* report)
+{
+    struct Mock230ServPack pack;
+    int type_count = 0;
+    const struct ServerType* types = Mock230_ServerTypes(&type_count);
+
+    memset(report, 0, sizeof(*report));
+    if( Mock230_ServPackOpen(&pack, dir) != 0 )
+        return MOCK230_BAND_MISSING;
+
+    for( int t = 0; t < type_count; t++ )
+    {
+        const struct ServerType* type = &types[t];
+        const struct BandGlue* glue = NULL;
+        int text_only[BAND_FIELD_MAX] = { 0 };
+
+        for( int g = 0; g < BAND_GLUE_COUNT; g++ )
+        {
+            if( strcmp(k_band_glue[g].name, type->name) == 0 )
+                glue = &k_band_glue[g];
+        }
+        if( !glue || type->count > BAND_FIELD_MAX || type->record_size > sizeof(union BandRecord) )
+        {
+            /* A type the codec registers that this loader cannot reach is a
+             * gap someone has to see, not a skip. */
+            CONTENT_ERROR("server band: type `%s` is registered but the boot has no glue "
+                          "for it\n",
+                          type->name);
+            continue;
+        }
+
+        band_verify_type(&pack, glue, type, report, text_only);
+
+        for( int i = 0; i < type->count; i++ )
+        {
+            if( !text_only[i] )
+                continue;
+            report->text_only += text_only[i];
+            fprintf(stderr,
+                    "mock230: server band: %s.%s stays text-loaded on %d record(s) — the band "
+                    "has no wire for it\n",
+                    type->name, type->fields[i].name, text_only[i]);
+        }
+    }
+
+    if( report->invalid || report->mismatched )
+    {
+        Mock230_ServPackClose(&pack);
+        return MOCK230_BAND_STALE;
+    }
+
+    for( int t = 0; t < type_count; t++ )
+    {
+        for( int g = 0; g < BAND_GLUE_COUNT; g++ )
+        {
+            if( strcmp(k_band_glue[g].name, types[t].name) == 0 )
+                band_apply_type(&pack, &k_band_glue[g], &types[t]);
+        }
+    }
+    Mock230_ServPackClose(&pack);
+    return MOCK230_BAND_LOADED;
 }
 
 void

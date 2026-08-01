@@ -2560,6 +2560,37 @@ CS2VM2_Op_SetOpKeyRate(
     return vm->vm->host_exec(vm, &request);
 }
 
+/*
+ * CC_DELETE — remove the component the VM is currently pointed at.
+ *
+ * `cc_deleteall` takes a parent and clears its children; this takes no operand
+ * at all and deletes the *active* (or dot) component, which is whatever the
+ * preceding `cc_find` selected. Every list that removes one row rather than
+ * rebuilding uses it.
+ *
+ * It was the last unimplemented opcode in the XP-drop panel's path
+ * (`script1006` is a two-line `if (cc_find(...)) cc_delete;`), and an
+ * unimplemented opcode is an abort here rather than a no-op — deliberately, see
+ * StackMetaStub — so the whole client went down the first time a drop expired.
+ */
+int
+CS2VM2_Op_CC_Delete(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_DELETE;
+    request.u.cc_delete.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_CC_ClearOps(
     struct CS2VM2_Thread* vm,
@@ -7877,6 +7908,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_InvTotal(vm, frame, operand);
     case CS2_OP_CC_DELETEALL:
         return CS2VM2_Op_CC_DeleteAll(vm, frame);
+    case CS2_OP_CC_DELETE:
+        return CS2VM2_Op_CC_Delete(vm, frame, operand);
     case CS2_OP_CC_CREATE:
         return CS2VM2_Op_CC_Create(vm, frame, operand);
     case CS2_OP_CC_COPY:

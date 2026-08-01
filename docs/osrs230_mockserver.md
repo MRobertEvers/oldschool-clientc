@@ -455,6 +455,60 @@ and what makes a broken toolchain degrade the mock rather than break it.
 `mock230_pack`. LostCity's own packs are 2004-era and would hand the client
 something unrelated.
 
+## 3.10b The npc/loc server fields boot from the band, not the text
+
+PORTING_GUIDE §3.6 item 1 — "the server band is written but never read" — is
+closed. `cachepack pack` writes `<content>/server/pack` (one archive per record
+at *(config kind, id)*, under the opcodes `fields/<type>.ini` declares), and
+boot now reads it: after the text pass, `mock230_content_load_server_band`
+opens the pack, verifies it, and decodes every archive over the live defs.
+The boot log says which path won, every boot:
+
+```
+mock230: server band loaded: 2973 archive(s) verified identical to the text
+parse and applied (815 overlay authored defs, 21 field value(s) text-only, ...)
+```
+
+```
+make -C src mock230-servpack    # rebuild the band — cachepack pack --server-only
+```
+
+`--server-only` exists because a full `pack` copies the base cache and emits
+116k archives; the band half needs no cache at all, so the build step is as
+cheap as `mock230-scripts`. `test-mock230` and `test-content` run it first.
+
+**During migration the text parse is both the fallback and the proof.** Both
+readers consume the same tree, so each is a full check on the other. Every
+band archive is held to the text-loaded records three ways, per registered
+field, against the *seed* (engine defaults + `[default]` + cache params):
+
+- a value the band states must equal the value the text pass loaded;
+- a field the band lacks must be one the text left at its seed, **or** one the
+  band has no wire for — today `npc.huntmode` (10 records) and `npc.nomove`
+  (11): their values are enum names (`aggressive`, `moverestrict=nomove`) and
+  the band carries integers, the gap `fields/npc.ini` documents. Those stay
+  text-loaded and the boot says so per field;
+- an archive over a record with no authored block must decode to exactly its
+  seed — which held for ~2,100 records whose `attackrate` rides in from
+  `configs/all.npc`, and is skipped for the 113 nameless multinpc instances
+  the runtime never loads (`mock230_npcinfo_known`: the npcinfo accessor hides
+  nameless records behind its placeholder, so there is nothing to compare).
+
+Only when every archive passes is anything applied; one failure keeps the text
+values and says so. Staleness is loud twice over: each archive carries the
+`'S' 'P' version kind crc32` header (`cp_fields.h` writes it,
+`mock230_servpack.c` refuses on it — a single flipped payload byte was
+verified to fail), and a pack older than the tree shows up as a value
+mismatch naming the record and field. `mock230_pack` runs the same
+verification and makes a stale band a validator failure, so the check is
+permanent; an *absent* pack is not an error, exactly like an absent script
+pack.
+
+What stays text at boot: everything else — constants, enums, varps, spawns,
+`[default]`, patrol routes, `loc.category`, and the two no-wire fields above.
+Removing the text parse for the band-carried fields is the "remove the
+fallback once green" step of §3.6, and it is now unblocked.
+
 ### Suspension
 
 `p_delay`, `npc_delay` and `world_delay` park a script and the matching tick
@@ -861,6 +915,85 @@ list itself.
 
 `app_if_button_target` is the one answer both now use. It also fixes the same
 latent problem for the choice dialogue's rows, which are dynamic children too.
+
+## 3.11h XP drops, and the two things that had to exist first
+
+The XP-drop panel is interface 122, and it is entirely client-driven: its onload
+registers a **stat-transmit listener** naming all twenty-four skills as triggers,
+plus a per-tick timer, and the script diffs the experience it is handed against
+what it kept from last time.
+
+Two things were missing, at opposite ends of the same path.
+
+**`IF_SETONSTATTRANSMIT` was in the VM's discard group** — parsed for its
+operands (which it must be, or the stack unwinds wrong) and then thrown away, so
+the listener was never registered. Half the reactive loop already existed:
+`RS_CS2Host_NotifyStatChanged`, `stat_change_serial` and the
+`stat_transmit_hooks` registry were all there, and `UPDATE_STAT` had been calling
+the notifier the whole time. Registration and dispatch are now written, mirroring
+the var-transmit pair exactly — same one-hook-per-component rule, same
+`last_seen_serial` gate, same hidden/reclaimed handling.
+
+**`CC_DELETE` was unimplemented**, and an unimplemented opcode aborts here rather
+than no-oping (deliberately — see `StackMetaStub`). So the first time a drop
+expired, the whole client went down on a two-line script:
+
+```
+[clientscript,script1006](component $c, int $sub)
+if (cc_find($c, $sub) = ^true) { cc_delete; }
+```
+
+`cc_deleteall` takes a parent and clears its children; `cc_delete` takes no
+operand and removes the *active* component, whatever the preceding `cc_find`
+selected. `UITree_CcDelete` is `CcDeleteAll`'s per-child body applied to one
+node: siblings keep their sub-ids, which is what a list removing one row expects.
+Static children are refused — a script deleting a cache-built widget would leave
+a hole nothing rebuilds.
+
+With both in, the XP counter tracks (1,154 → 1,159 over a fight where it used to
+sit still) and nothing aborts.
+
+Two traps this left behind, both recorded because they cost real time:
+
+- **The dispatch's hook bound must be snapshotted.** A dispatched hook re-arms
+  its own listener, so reading `stat_transmit_hook_count` fresh each iteration
+  lets a hook extend the loop it is being run from.
+- **An early exit reads as a hang.** The abort is a `SIGABRT` partway through a
+  headless run, which under a frame cap and a `pkill` looks exactly like a
+  client that stopped producing frames. Check the exit code before diagnosing a
+  loop; `exit=134` is an assert, not a spin.
+
+## 3.11i The drag ghost, and why the CS2 inventory had none
+
+"Drag and drop just snaps to the destination and doesn't render the dimmed
+object." The *machine* was working the whole time — the deadzone, the five-cycle
+dead time, the swap and the outbound packet are all correct — and only its
+feedback was missing.
+
+`emit_rs_inv_slots` has drawn the armed slot at `(dx, dy)` with `trans = 128`
+since the TYPE_INV grid was written. rev 230's backpack is not a TYPE_INV grid:
+it is `cc_create`d cells, so that path never runs and nothing else applied the
+offset or the fade.
+
+The generic drawable emit now does, and two things about the predicate are worth
+recording because each one was a wrong first attempt:
+
+- **Not the draw kind.** A rev-230 item cell emits as an ordinary
+  `UITREE_EMIT_SPRITE` — the obj icon is baked into a scene atlas — not as
+  `UITREE_EMIT_CC_OBJ`. Gating on `CC_OBJ` reads correctly and matches nothing.
+  What makes a node the dragged one is that the drag machine armed it, which is
+  a question about identity.
+- **Not the node's own component id either.** `app_obj_cell_at` resolves a
+  backpack cell to `149:0` plus a *slot*, not to the cell's runtime component id
+  — the same (container, sub) addressing `IF_BUTTON` uses (§3.11g). So the match
+  accepts both forms: a cell that is its own component, and a dynamic child
+  whose index is the armed slot inside the armed container.
+
+`UITREE_HOST_GET_INV_DRAG` reports the armed component id alongside the source/
+slot pair for this, since the two shapes are named differently and only one of
+the two names exists for either. `TORIRS_DRAG_DEBUG=1` prints when a drag arms
+and every offset it takes — which is what showed that the machine was fine and
+the renderer was not.
 
 ## 3.12 Baseline melee combat
 
@@ -1517,7 +1650,10 @@ against.
 ### 6.1 Becoming a full server, in dependency order
 
 The transport seam (§3.13b), the interaction model (§3.13c) and the dispatch
-tables (§3.13d) are done. What is left, in the order each unblocks the next:
+tables (§3.13d) are done. The operating guide that wraps this list together
+with the content-port plan into one phased sequence is
+[`PORTING_GUIDE.md`](PORTING_GUIDE.md). What is left, in the order each
+unblocks the next:
 
 1. **Finish multiplayer.** The *storage* half of the split is done: the world
    holds `players[MOCK230_PLAYER_MAX]` with a `player` pointer, and each player
@@ -1575,6 +1711,17 @@ tables (§3.13d) are done. What is left, in the order each unblocks the next:
 7. **Rename.** `mock230_*` is a double misnomer: it is not a mock, and it reads
    a 239 cache while speaking the 230 wire. Mechanical, and cheapest while
    there is still one consumer.
+
+An item that slots between steps 4 and 5: **read the server band at boot.**
+`cachepack pack` writes `<content>/server/pack` — the split
+`CONTENT_PACK_PLAN.md` §5.4 landed — but `mock230_content_load` still
+re-parses the `server/scripts` text overlays at every boot, which is exactly
+the condition `mock230_servercodec.h` says the band exists to remove; the
+decode half has no caller outside its own test. Wiring it into
+`mock230_boot.c`, and then deleting `bake_npc_params` / `bake_loc_params`
+from `mock230_pack.c` (retired on paper by §5.4, still present in the file),
+is Phase 0 of `PORTING_GUIDE.md` — it should precede the bulk content port so
+there is one load path to debug rather than two.
 
 Two smaller things that belong with step 1: the accepted socket is *blocking*,
 so the `select()` in `mock230_main.c` is load-bearing (see §3.13b) and a real

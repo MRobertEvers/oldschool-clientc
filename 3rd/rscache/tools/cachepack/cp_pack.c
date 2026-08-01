@@ -1101,6 +1101,100 @@ cp_pack_run(
     return failed == 0;
 }
 
+/*
+ * The server half alone (`pack --server-only`).
+ *
+ * A full pack copies the base cache and emits 116,450 archives, which is too
+ * heavy to run on every build — it was OOM-killed the first time a test bar ran
+ * it that way. The server pack needs none of that: `pack_server_type` reads the
+ * merged text and the name packs and never opens a cache, so the band the boot
+ * depends on can be refreshed in the build the way `mock230-scripts` refreshes
+ * the script pack.
+ *
+ * The bar for this mode is byte-identity: the bands it writes must be exactly
+ * the bands a full `pack` writes, which holds because both run the same walk,
+ * the same merge and the same `pack_server_type` — this function is the merge
+ * loop of `pack_type` minus the client encoder.
+ */
+int
+cp_pack_server_run(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel)
+{
+    char server_dir[1200];
+    int server_total = 0;
+
+    {
+        static const char* const ROOTS[] = { "configs", "server/scripts" };
+        static const int RANKS[] = { 0, 1 };
+
+        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+    }
+
+    snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
+    server_pack_clear(server_dir);
+    if( !sel->all )
+        printf("Note: --types restricts the server pack too; %s will hold only the "
+               "selected types\n",
+               server_dir);
+
+    printf("Packing the server bands from %s\n", ctx->srcdir);
+    for( int i = 0; i < CP_TYPE_COUNT; i++ )
+    {
+        const struct CP_Type* type = cp_type(i);
+        const char* found[CP_PACK_MAX_SOURCES];
+        int found_count;
+        struct CP_MergeSet merged;
+        struct CP_Fields fields;
+        struct CP_PackStats stats;
+        int ok = 1;
+
+        if( !sel->all && !(sel->mask & (1u << i)) )
+            continue;
+        /*
+         * Before the merge, not after: a type whose register declares no
+         * `server = opcode:` row contributes nothing to the server pack, so
+         * this mode has no reason to load — or police — its records at all.
+         * That is not only speed. The authored-layer rules the merge enforces
+         * are the *full* pack's contract, and at least one type (`dbrow`, whose
+         * list keys exist only at rank 1) currently cannot pass them — the
+         * full-pack blocker docs/DBTABLES.md records. A server-only refresh
+         * must not be hostage to it.
+         */
+        if( cp_fields_load(&fields, ctx->srcdir, type->name) <= 0 || fields.band_count <= 0 )
+            continue;
+        found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
+        if( found_count <= 0 )
+            continue;
+
+        memset(&merged, 0, sizeof(merged));
+        memset(&stats, 0, sizeof(stats));
+        for( int f = 0; f < found_count && ok; f++ )
+        {
+            struct CP_ConfigFile layer;
+
+            if( !cp_config_file_load(&layer, found[f]) )
+                continue;
+            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            cp_config_file_free(&layer);
+        }
+        if( !ok || !pack_server_type(ctx, i, &merged, server_dir, &stats) )
+        {
+            cp_merge_free(&merged);
+            return 0;
+        }
+        cp_merge_free(&merged);
+        server_total += stats.server_records;
+    }
+
+    if( !pack_server_names(ctx, server_dir) )
+        return 0;
+
+    printf("Server pack: %d record(s) in %s, %d unresolved names\n", server_total, server_dir,
+           ctx->warn_unresolved_name);
+    return 1;
+}
+
 /* ---- verify -------------------------------------------------------------- */
 
 /*

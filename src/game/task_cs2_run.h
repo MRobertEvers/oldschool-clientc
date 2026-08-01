@@ -105,4 +105,13 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host);
 struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 
+/** Re-run every stat-transmit hook whose trigger list names one of `stat_ids`
+ *  (NULL/0 = every hook). The skill half of the var/inv reactive loop; the XP
+ *  drop panel is its consumer. */
+struct ToriRS_Task*
+CreateTask_CS2StatTransmitDispatchSet(
+    struct RS_CS2Host* host,
+    int const* stat_ids,
+    int stat_count);
+
 #endif /* TASK_CS2_RUN_H */

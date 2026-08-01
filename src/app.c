@@ -1785,6 +1785,8 @@ app_host_request(
             *req->u.get_inv_drag.out_dx = app->inv_drag_dx;
         if( req->u.get_inv_drag.out_dy )
             *req->u.get_inv_drag.out_dy = app->inv_drag_dy;
+        if( req->u.get_inv_drag.out_component_id )
+            *req->u.get_inv_drag.out_component_id = app->inv_drag_com_id;
         return 1;
     case UITREE_HOST_GET_INV_COUNT_FONT:
         /* Reference draws stack counts with the client's p11 — same font (and

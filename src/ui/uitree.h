@@ -1047,6 +1047,14 @@ UITree_CcCopy(
     int src_sub_id,
     int dst_sub_id);
 
+/** CC_DELETE: remove one dynamic child (and its subtree), leaving its siblings
+ *  and their sub-ids in place. A static component is refused — see the
+ *  implementation. */
+void
+UITree_CcDelete(
+    struct UITree* tree,
+    int32_t index);
+
 void
 UITree_CcDeleteAll(
     struct UITree* tree,

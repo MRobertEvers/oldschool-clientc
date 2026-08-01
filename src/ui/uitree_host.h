@@ -151,9 +151,16 @@ enum UITreeHostRequestKind
     UITREE_HOST_GET_OBJ_NAME,
     /**
      * Armed inventory slot press/drag (reference objDrag*): writes the armed
-     * grid's inv source id + slot and the current mouse delta (already
-     * deadzoned host-side) to u.get_inv_drag outs. Returns 1 while armed —
-     * emit renders that slot alone offset by (dx,dy) at trans 128.
+     * cell's identity and the current mouse delta (already deadzoned host-side)
+     * to u.get_inv_drag outs. Returns 1 while armed — emit renders that cell
+     * alone offset by (dx,dy) at trans 128.
+     *
+     * An item cell comes in two shapes and the identity differs between them.
+     * A TYPE_INV grid cell is (inv source id, slot), because the grid is one
+     * component holding many slots. A CS2 `cc_create`d cell is its own
+     * component, so `out_component_id` is what names it and the source/slot
+     * pair is meaningless. Both are reported; a caller matches on whichever it
+     * is.
      */
     UITREE_HOST_GET_INV_DRAG,
     /**
@@ -249,6 +256,9 @@ struct UITreeHostRequest
             int* out_slot;
             int* out_dx;
             int* out_dy;
+            /** Component id of the armed cell — the identity a CS2-created
+             *  cell has and a grid slot does not. */
+            int* out_component_id;
         } get_inv_drag;
         struct
         {

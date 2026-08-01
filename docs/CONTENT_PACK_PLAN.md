@@ -649,7 +649,24 @@ records, so the question never applied to them.
 
 #### What is declared but not implemented
 
-Each is a register row saying where the field stands, rather than a silence:
+The largest item first, because it is the one that makes the others feel
+unresolved:
+
+- **~~The band is written but not read~~ — read, verified and preferred at
+  boot.** `mock230_boot_load` step 2b decodes `server/pack` over the live
+  defs after proving every archive identical to what the text parse loaded
+  (`osrs230_mockserver.md` §3.10b); `make -C src mock230-servpack` refreshes
+  the pack via the new `cachepack pack --server-only`, which skips the client
+  half entirely — no base cache, no `--out`, and no exposure to the `.dbrow`
+  merge blocker (§ the dbtable doc), because a type with no `server = opcode:`
+  row is never merged. The text parse remains, for now, as the migration
+  fallback and the proof; removing it for the band-carried fields is the
+  outstanding sub-step — and `mock230_pack.c`'s `bake_npc_params` /
+  `bake_loc_params`, which §5.4 retires, are still present. Tracked as Phase 0
+  in [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
+
+Each of the rest is a register row saying where the field stands, rather than
+a silence:
 
 - **`obj.levelrequire`** — `client = drop`, no server band.
   `param=levelrequire,<stat>,<level>` repeats up to eight times per record; the

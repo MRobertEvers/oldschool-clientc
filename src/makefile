@@ -252,6 +252,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
+	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ops_db.c \
 	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
@@ -310,7 +311,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-pack
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ssc sscompile mock230-scripts mock230-servpack mock230-pack
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -933,6 +934,17 @@ mock230-scripts: sscompile
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs
 
+# The server band, `mock230-scripts`' sibling (PORTING_GUIDE §3.6 item 1): the
+# npc/loc server fields the boot reads from <content>/server/pack instead of
+# re-parsing the text overlays. `--server-only` is the cheap form — no cache is
+# copied or opened; a full `cachepack pack` writes the identical bands. Without
+# this the boot warns and falls back to the text parse, exactly as a missing
+# script pack falls back to C.
+mock230-servpack:
+	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
+	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \
+		--src OSRS-Content/osrs239-content --server-only
+
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
 # is run by hand rather than as part of a build.
@@ -940,6 +952,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
+	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -956,7 +969,7 @@ mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-mock230: mock230 mock230-scripts
+test-mock230: mock230 mock230-scripts mock230-servpack
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
@@ -983,7 +996,7 @@ test-mock230-coverage:
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-pack
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack mock230-pack
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
 	@echo "test-content: all content bars passed"

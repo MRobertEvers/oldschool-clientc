@@ -96,6 +96,41 @@ mock230_boot_load(const struct Mock230BootConfig* config)
      *    step 1 decoded. */
     mock230_content_load(config->content_dir);
 
+    /*
+     * 2b. The server band `cachepack pack` wrote (PORTING_GUIDE §3.6 item 1).
+     *
+     * The band is the preferred source for the npc/loc server fields; the text
+     * pass step 2 just ran is, during migration, both the fallback and the
+     * proof — nothing from the band is applied until every archive has been
+     * held to what the text loaded. Which of the three outcomes happened is
+     * worth a line each boot, because "which path loaded" is exactly the
+     * question this migration keeps raising.
+     */
+    {
+        struct Mock230BandReport band;
+
+        switch( mock230_content_load_server_band(config->content_dir, &band) )
+        {
+        case MOCK230_BAND_LOADED:
+            fprintf(stderr,
+                    "mock230: server band loaded: %d archive(s) verified identical to the "
+                    "text parse and applied (%d overlay authored defs, %d field value(s) "
+                    "text-only, %d archive(s) over records the runtime never loads)\n",
+                    band.archives, band.overlaid, band.text_only, band.unseeded);
+            break;
+        case MOCK230_BAND_MISSING:
+            fprintf(stderr, "mock230: no server/pack — text overlays only; run "
+                            "`make -C src mock230-servpack` to build the band\n");
+            break;
+        case MOCK230_BAND_STALE:
+            fprintf(stderr,
+                    "mock230: server band is STALE (%d unreadable, %d mismatched archive(s)) "
+                    "— text overlays kept; re-run `make -C src mock230-servpack`\n",
+                    band.invalid, band.mismatched);
+            break;
+        }
+    }
+
     /* 3. The db tables, which resolve their own ids and their `^constants` out
      *    of what step 2 loaded. Separate from step 2 because a `.dbrow` also
      *    resolves obj/npc/loc names, so it needs the whole symbol space, not

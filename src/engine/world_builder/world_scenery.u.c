@@ -356,6 +356,7 @@ scenery_debug_record(
     struct WorldEntity_Scenery* scenery,
     struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
+    struct ToriDraw_Model* model,
     int element_id,
     int pool_idx,
     int size_x,
@@ -383,6 +384,26 @@ scenery_debug_record(
     dbg->draw_y = 0;
     dbg->draw_z = 0;
     dbg->draw_yaw = 0;
+
+    /* Post-transform geometry extent — the model as it will actually draw. */
+    dbg->model_min_x = dbg->model_max_x = 0;
+    dbg->model_min_z = dbg->model_max_z = 0;
+    if( model && model->vertex_count > 0 )
+    {
+        dbg->model_min_x = dbg->model_max_x = model->vertices_x[0];
+        dbg->model_min_z = dbg->model_max_z = model->vertices_z[0];
+        for( int v = 1; v < model->vertex_count; v++ )
+        {
+            if( model->vertices_x[v] < dbg->model_min_x )
+                dbg->model_min_x = model->vertices_x[v];
+            if( model->vertices_x[v] > dbg->model_max_x )
+                dbg->model_max_x = model->vertices_x[v];
+            if( model->vertices_z[v] < dbg->model_min_z )
+                dbg->model_min_z = model->vertices_z[v];
+            if( model->vertices_z[v] > dbg->model_max_z )
+                dbg->model_max_z = model->vertices_z[v];
+        }
+    }
 
     slot = builder->scenery_dbg_next % SCENERY_DBG_RING;
     builder->scenery_dbg_element[slot] = element_id;
@@ -569,10 +590,10 @@ scenery_load_model(
      * byte-exact model decode still permits a wrong *interpretation* (axis order,
      * delta scale), which shows up here as an implausible bounding box rather than
      * as a decode failure. Tree-sized scenery should be a few hundred units. */
-    static int dbg_seen_locs[64];
+    static int dbg_seen_locs[1024];
     static int dbg_seen_count;
     bool dbg_fresh_loc = false;
-    if( getenv("TORIRS_SCENERY_DEBUG") && dbg_seen_count < 64 )
+    if( getenv("TORIRS_SCENERY_DEBUG") && dbg_seen_count < 1024 )
     {
         dbg_fresh_loc = true;
         for( int s = 0; s < dbg_seen_count; s++ )
@@ -607,6 +628,28 @@ scenery_load_model(
             model->vertex_count,
             model->face_count,
             xmin, xmax, ymin, ymax, zmin, zmax);
+        /* The config that produced that extent. An implausible bounding box is
+         * only half the story — offset/resize move and stretch the geometry off
+         * the element origin, and `seq` decides whether the angle is baked into
+         * the model or applied as a draw-time yaw (two different transform
+         * orders). Printed with the extent so the two are read together. */
+        fprintf(
+            stderr,
+            "                 size=%dx%d seq=%d mirror=%d offset=(%d,%d,%d) resize=(%d,%d,%d) "
+            "contour=%d shape=%d rot=%d\n",
+            config_loc->size_x,
+            config_loc->size_z,
+            config_loc->seq_id,
+            config_loc->mirrored,
+            config_loc->offset_x,
+            config_loc->offset_y,
+            config_loc->offset_z,
+            config_loc->resize_x,
+            config_loc->resize_height,
+            config_loc->resize_z,
+            config_loc->contour_ground_type,
+            shape_select,
+            rotation);
     }
 
     ToriDraw_ModelSetBoundsCylinder(model);
@@ -688,7 +731,8 @@ scenery_load_model(
                 if( builder->scenery_runtime_spawn )
                     sc->runtime_spawn = 1;
                 scenery_debug_record(
-                    builder, sc, map_tile, config_loc, element_id, pool_idx, size_x, size_z);
+                    builder, sc, map_tile, config_loc, model, element_id, pool_idx, size_x,
+                    size_z);
             }
         }
     }
