@@ -274,33 +274,50 @@ mock230_combat_sync_hitpoints(struct Mock230Player* player)
  * The OldSchool experience table.
  *
  * Built rather than transcribed: the experience needed for level L is
- * `floor(sum(i + 300 * 2^(i/7)) / 4)` over i in 1..L-1. Ninety-eight numbers
- * nobody would proofread, derived from one line that can be checked against the
- * published formula — 83 for level 2, 13,034,431 for level 99.
+ * `floor(sum(floor(i + 300 * 2^(i/7))) / 4)` over i in 1..L-1. Ninety-eight
+ * numbers nobody would proofread, derived from one line that can be checked
+ * against the published formula — 83 for level 2, 13,034,431 for level 99.
+ *
+ * **Each term is floored before it is summed.** That is not a detail: this
+ * accumulated the raw doubles and floored only after the divide, which puts 94
+ * of the 98 thresholds exactly one xp too high — level 10 at 1155 against the
+ * reference's 1154 (`Player.ts:79-87`, `Math.floor(level + Math.pow(2, level/7)
+ * * 300)` inside the loop).
+ *
+ * It survived that long because nothing ever asked the table a question it
+ * could get wrong. The one caller that would have — a new character's hitpoints
+ * — used to be two literals in `mock230_world_init` stating the level *and* the
+ * xp independently, so the table was never consulted and the two could not
+ * disagree. Moving the seed into content, where only the xp is stated and the
+ * level has to follow from it, is what turned the discrepancy into a failure.
  */
 static int
 level_for_xp(int experience)
 {
-    static int table[100];
+    /* `table[i]` is the experience at which level `i + 2` begins, which is the
+     * reference's indexing (`getExpByLevel(level)` reads `[level - 2]`). */
+    static int table[99];
     static int built;
 
     if( !built )
     {
-        double points = 0.0;
+        long long accumulated = 0;
 
-        table[1] = 0;
-        for( int level = 1; level < 99; level++ )
+        for( int i = 0; i < 99; i++ )
         {
-            points += (double)level + 300.0 * pow(2.0, (double)level / 7.0);
-            table[level + 1] = (int)(points / 4.0);
+            int level = i + 1;
+
+            accumulated +=
+                (long long)floor((double)level + pow(2.0, (double)level / 7.0) * 300.0);
+            table[i] = (int)(accumulated / 4);
         }
         built = 1;
     }
 
-    for( int level = 99; level > 1; level-- )
+    for( int i = 98; i >= 0; i-- )
     {
-        if( experience >= table[level] )
-            return level;
+        if( experience >= table[i] )
+            return i + 2 < 99 ? i + 2 : 99;
     }
     return 1;
 }

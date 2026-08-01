@@ -4245,6 +4245,37 @@ selftest_settle(
 }
 
 /*
+ * Give the player its opening kit, bank stock and stats.
+ *
+ * `mock230_world_init` used to do this and no longer does: what a new character
+ * owns is content's, in `[proc,newplayer_setup]` (player/newplayer.rs2), and a
+ * freshly initialised world now correctly has an empty backpack and an empty
+ * bank. A section that wants to *test* the fixture has to ask for it.
+ *
+ * The seeding proc rather than the whole [login] trigger, deliberately: the
+ * login burst arms interfaces and pushes a dozen varps, none of which a bank
+ * arithmetic test wants in its packet capture. That [login] calls this proc at
+ * all is asserted in the login section, which is where that claim belongs.
+ *
+ * Returns 0 when there is no compiled script pack — a skip, not a failure,
+ * because a fresh checkout has no build/script.dat until `mock230-scripts`
+ * runs.
+ */
+static int
+selftest_seed_new_player(struct Mock230Server* srv)
+{
+    int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+    if( !loaded )
+        loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+    if( !loaded )
+        return 0;
+    mock230_scripts_run_proc(srv, "[proc,newplayer_setup]", NULL, 0);
+    mock230_scripts_free(srv);
+    return 1;
+}
+
+/*
  * Click "Click here to continue" until the parked script runs out of pages.
  *
  * It clicks whatever button is *currently registered* rather than a fixed uid,
@@ -4658,6 +4689,43 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
                            "[login] should produce a game message");
             SELFTEST_CHECK(srv.login_pending == 0, "the login latch should be drained");
+
+            /*
+             * The opening fixture, which [login] seeds through
+             * `~newplayer_setup` and mock230_world_init deliberately no longer
+             * does. Three assertions because the three moved separately and
+             * fail separately: the backpack, the bank behind the API that used
+             * to be written past, and the stat block.
+             */
+            {
+                int kit = 0;
+                int hitpoints_xp = player->stat_xp_tenths[MOCK230_STAT_HITPOINTS];
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id >= 0 )
+                        kit++;
+                SELFTEST_CHECK(kit == 14,
+                               "[login] should deal the 14-item opening kit, got %d", kit);
+                SELFTEST_CHECK(mock230_bank_count(&srv, 995) == 250000,
+                               "and stock the bank with 250000 coins, got %d",
+                               mock230_bank_count(&srv, 995));
+                SELFTEST_CHECK(player->stat_level[MOCK230_STAT_HITPOINTS] == 10 &&
+                                   hitpoints_xp == 11540,
+                               "and put hitpoints at level 10 / 1154 xp, got %d / %d",
+                               player->stat_level[MOCK230_STAT_HITPOINTS], hitpoints_xp);
+
+                /* Idempotent: the varp gate is what will keep a returning
+                 * player's save from being re-seeded once mock230_save.c is
+                 * finally called by something. */
+                mock230_scripts_run_proc(&srv, "[proc,newplayer_setup]", NULL, 0);
+                kit = 0;
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id >= 0 )
+                        kit++;
+                SELFTEST_CHECK(kit == 14,
+                               "running the seed twice should deal nothing more, got %d",
+                               kit);
+            }
 
             /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
              * so both the script's effect and the varp flush are observable. */
@@ -7382,8 +7450,26 @@ mock230_world_selftest(void)
         int coins_before;
 
         mock230_world_init(&srv, 402, 402);
+        /* The fixture this whole section deposits and withdraws is content's
+         * now — see selftest_seed_new_player. */
+        if( !selftest_seed_new_player(&srv) )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_seeded_done;
+        }
         coins_before = mock230_bank_count(&srv, 995);
         SELFTEST_CHECK(coins_before > 0, "the starting bank should hold coins");
+        /*
+         * And that the seeding went through the bank rather than past it.
+         *
+         * The C this replaced assigned `bank.slots[i]` directly, which leaves
+         * `dirty` clear — the rows existed but nothing would transmit them.
+         * Asserted here rather than in the login section because phase 10's
+         * flush drains the flag inside the same tick, so this is the only
+         * place it is still observable.
+         */
+        SELFTEST_CHECK(player->bank.dirty,
+                       "and a seeded bank should be marked for transmit");
 
         /* Deposit the backpack's coin stack onto the bank's. */
         {
@@ -7482,6 +7568,7 @@ mock230_world_selftest(void)
                                mock230_bank_count(&srv, 373));
             }
         }
+    bank_seeded_done:;
     }
 
     fprintf(stderr, "mock230 selftest: bank op ladder\n");
