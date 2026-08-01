@@ -318,6 +318,88 @@ resolve_variable(
     return 0;
 }
 
+/*
+ * `%name = value` where `name` is a varp other variables live inside.
+ *
+ * This is the one rule in the compiler that exists because of a shipped bug
+ * rather than a grammar: opening the bank reset the current tab, because
+ * `bank_withdrawnotes` named bit 0 of varp 115 and the write went to all 32 bits
+ * of it (CONTENT_ARCHITECTURE.md §6.1). Nothing failed — the name resolved, the
+ * opcode was legal, and what broke was somebody else's variable.
+ *
+ * A 2004 varp is very often a rev-230 varbit *range*, so a verbatim port of a
+ * reference script writes the container by name and destroys its neighbours
+ * (docs/LOSTCITY_PORT_TRIAGE.md §7.5). Refusing the write is the only place that
+ * class can be caught before it is state in a save file.
+ *
+ * Reads are a warning, not an error: reading a carrier gives the packed word,
+ * which is wrong but recoverable and is occasionally what a migration wants.
+ * Writes are an error, because the damage is already done by the time anyone
+ * looks.
+ */
+static int
+check_carrier_write(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    int pop,
+    int32_t varp)
+{
+    const struct SSC_VarpCarrier* carrier;
+    char listed[192];
+    size_t used = 0;
+
+    if( pop != SS_OP_POP_VARP )
+        return 1;
+    carrier = SSC_SymbolsCarrier(compiler->symbols, varp);
+    if( !carrier || carrier->exempt )
+        return 1;
+
+    listed[0] = '\0';
+    for( int i = 0; i < carrier->sample_count; i++ )
+    {
+        int written = snprintf(listed + used, sizeof(listed) - used, "%s%s (%d..%d)",
+                               used ? ", " : "", carrier->sample[i], carrier->sample_start[i],
+                               carrier->sample_end[i]);
+
+        if( written < 0 || (size_t)written >= sizeof(listed) - used )
+            break;
+        used += (size_t)written;
+    }
+    return fail(compiler,
+                "`%%%s` is varp %d, which %d varbit(s) are packed into — writing it whole "
+                "destroys them (%s%s). Write the varbit, or declare `wholewrite=allow` on "
+                "the varp with a reason",
+                name, varp, carrier->bits, listed,
+                carrier->bits > carrier->sample_count ? ", ..." : "");
+}
+
+/*
+ * Reading a carrier gives the packed word, not a value.
+ *
+ * A warning and not an error, because the read is recoverable and there are real
+ * uses for the word — a migration that unpacks it by hand, a transmit check. What
+ * it is almost never is what the reference script meant, so it says so.
+ */
+static void
+warn_carrier_read(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    int push,
+    int32_t varp)
+{
+    const struct SSC_VarpCarrier* carrier;
+
+    if( push != SS_OP_PUSH_VARP )
+        return;
+    carrier = SSC_SymbolsCarrier(compiler->symbols, varp);
+    if( !carrier || carrier->exempt )
+        return;
+    fprintf(stderr,
+            "sscompile: %s:%d: warning: `%%%s` reads varp %d whole, and %d varbit(s) are "
+            "packed into it — this is the container, not a value\n",
+            compiler->lexer.file, compiler->lexer.current.line, name, varp, carrier->bits);
+}
+
 /**
  * Resolve a bare name that refers to a script rather than to a value.
  *
@@ -881,6 +963,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 
         if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
+        warn_carrier_read(compiler, text, push, id);
         emit(compiler, push, id | secondary);
         SSC_LexNext(lexer);
         return 1;
@@ -1667,6 +1750,8 @@ parse_statement(struct SSC_Compiler* compiler)
 
         if( !resolve_variable(compiler, text, &push, &pop, &id) )
             return fail(compiler, "unknown variable '%%%s'", text);
+        if( !check_carrier_write(compiler, text, pop, id) )
+            return 0;
         SSC_LexNext(lexer);
         if( !SSC_LexIsPunct(lexer, "=") )
             return fail(compiler, "expected '=' after %%%s", text);

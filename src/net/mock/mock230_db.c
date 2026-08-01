@@ -77,6 +77,37 @@ db_type_is_flag(const char* text)
     return *text != '\0';
 }
 
+/*
+ * The type words that carry no symbol: the value is read as itself.
+ *
+ * Stated as a list rather than inferred from "db_kind_for_type said COUNT",
+ * because those are two different answers and collapsing them is a silent
+ * default. `int` resolves against no pack; `synth` resolves against a pack this
+ * runtime does not load — and both used to reach `atoi()`, so a column declared
+ * `synth` turned every sound *name* in it into 0 without a word. LostCity's
+ * `consume.dbtable` has one, its `prayers.dbtable` has one, and 340 of its dbrows
+ * name a sound or a music track; the tree's `pack/4_soundeffects.pack` is 12,010
+ * lines of `synth_<id>` filler, so not one of those names could ever have
+ * resolved. Reading them as zero is triage §13 bar 1 exactly — an unresolved name
+ * answered with a default.
+ *
+ * So an unrecognised type word is a load error naming the word. The fix for
+ * `synth`/`midi` is to name the sound and music namespaces and give this runtime
+ * their packs, not to widen this list.
+ */
+static int
+db_type_is_literal(const char* name)
+{
+    static const char* const k_literals[] = { "int", "string", "boolean", "coord" };
+
+    for( size_t i = 0; i < sizeof(k_literals) / sizeof(k_literals[0]); i++ )
+    {
+        if( strcmp(name, k_literals[i]) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
 /** The pack a declared type resolves against, or MOCK230_PACK_COUNT for a
  *  literal. Mirrors mock230_content.c's `.enum` type table — same question. */
 static enum Mock230PackKind
@@ -335,6 +366,13 @@ load_dbtable_file(const char* path)
                 {
                     DB_ERROR("%s:%d: more than %d types in column `%s`\n", path,
                              line_number, MOCK230_DB_TUPLE_MAX, column->name);
+                }
+                else if( db_kind_for_type(cursor) == MOCK230_PACK_COUNT &&
+                         !db_type_is_literal(cursor) )
+                {
+                    DB_ERROR("%s:%d: column `%s` declares type `%s`, which nothing "
+                             "here resolves — a name in it would be read as 0\n",
+                             path, line_number, column->name, cursor);
                 }
                 else
                 {

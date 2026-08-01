@@ -15,6 +15,7 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_db.h"
 #include "mock230_equipment.h"
 #include "mock230_friends.h"
 #include "mock230_ids.h"
@@ -4108,6 +4109,67 @@ mock230_world_mark_varp(
  * one that only half the writers honour. Keyed on the name, resolved from the
  * content pack, like every other id the engine addresses.
  */
+static int g_carrier_writes;
+static int g_carrier_write_last = -1;
+
+int
+mock230_world_carrier_writes(int* out_last_varp)
+{
+    if( out_last_varp )
+        *out_last_varp = g_carrier_write_last;
+    return g_carrier_writes;
+}
+
+void
+mock230_world_carrier_writes_reset(void)
+{
+    g_carrier_writes = 0;
+    g_carrier_write_last = -1;
+}
+
+/*
+ * The runtime half of the carrier rule (docs/LOSTCITY_PORT_TRIAGE.md §7.5).
+ *
+ * sscompile refuses `%carrier = value` in a script, which covers content. It
+ * cannot cover the other three writers — a `::` cheat, C, and a packet handler —
+ * and CONTENT_ARCHITECTURE.md §8.2(d) is exactly about the end of a rule the
+ * engine is left holding: *moving a rule to content leaves the engine holding
+ * the other end of it, and the other end needs a test that fails when it is
+ * dropped.* So the same fact is checked here, off the cache's own `basevar`
+ * table, and the selftest asserts the count is zero.
+ *
+ * Three writes are not violations and are excluded by construction rather than
+ * by a list: a varbit patch (which sets `mock230_varbit_patching`), a varp
+ * content declared `wholewrite=allow` for, and a varp nothing is based on.
+ */
+static void
+check_carrier_write(
+    int varp,
+    int value)
+{
+    const struct Mock230VarpDef* def;
+    int bits;
+
+    if( mock230_varbit_patching() )
+        return;
+    bits = mock230_varbit_carrier_bits(varp);
+    if( bits <= 0 )
+        return;
+    def = mock230_content_varp(varp);
+    if( def && def->wholewrite_allowed )
+        return;
+    g_carrier_writes++;
+    g_carrier_write_last = varp;
+    fprintf(stderr,
+            "mock230: whole-varp write to varp %d (%s) = %d — %d varbit(s) are packed into "
+            "it and this write destroys them; write the varbit, or declare "
+            "`wholewrite=allow` on the varp\n",
+            varp, mock230_content_symbol_name(MOCK230_PACK_VARP, varp)
+                      ? mock230_content_symbol_name(MOCK230_PACK_VARP, varp)
+                      : "?",
+            value, bits);
+}
+
 static void
 varp_side_effects(
     struct Mock230Server* srv,
@@ -4115,6 +4177,8 @@ varp_side_effects(
     int value)
 {
     struct Mock230Player* player = srv->active_player;
+
+    check_carrier_write(varp, value);
 
     /*
      * `option_run` is not a variable the server merely reports — it is where
@@ -6527,6 +6591,55 @@ mock230_world_selftest(void)
             }
 
             /*
+             * The server-allocated config rung — triage §9 step 3c.
+             *
+             * `sheep_table` and its four rows are the first records ported into
+             * the five namespaces whose ids are *ours*, and what is worth pinning
+             * is the whole allocation chain rather than any one number:
+             * `tools/ss_allocate.py` gave the table an id off layer 0's
+             * high-water mark, `configs/all.dbtable.compack` records it,
+             * `mock230_db.c` looks it up by that id, and the row's `npc` and
+             * `namedobj` columns hold ids it resolved through the *packs* — not
+             * ids copied from the reference, where the same names are npc 1379
+             * and obj 1929.
+             *
+             * The last check is the one that would have caught the failure this
+             * step's gate exists for. A column whose declared type this runtime
+             * cannot resolve used to fall through to `atoi()`, so a name in it
+             * became 0 and nothing said so; asserting the value equals the pack's
+             * id is the difference between "the row loaded" and "the row loaded
+             * the right thing".
+             */
+            {
+                int table_id = mock230_content_symbol(MOCK230_PACK_DBTABLE, "sheep_table");
+                const struct Mock230DbTable* table = mock230_db_table(table_id);
+                const struct Mock230DbRow* row = mock230_db_row_in_table(table_id, 0);
+                int npc_column = table ? mock230_db_column_index(table, "sheep_type") : -1;
+                int obj_column = table ? mock230_db_column_index(table, "sheep_bones") : -1;
+
+                SELFTEST_CHECK(table_id >= 259,
+                               "sheep_table should hold a server-allocated dbtable id, got %d",
+                               table_id);
+                SELFTEST_CHECK(table && row, "sheep_table should have loaded with rows");
+                SELFTEST_CHECK(mock230_db_row_count(table_id) == 4,
+                               "sheep_table should hold 4 rows, got %d",
+                               mock230_db_row_count(table_id));
+                if( table && row && npc_column >= 0 && obj_column >= 0 )
+                {
+                    int npc_id = mock230_content_symbol(MOCK230_PACK_NPC,
+                                                        "herder_plaguesheep_1");
+                    int obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, "sheepbonesa");
+
+                    SELFTEST_CHECK(row->columns[npc_column].values[0].value == npc_id,
+                                   "the row's sheep_type should be npc %d, got %d", npc_id,
+                                   row->columns[npc_column].values[0].value);
+                    SELFTEST_CHECK(row->columns[obj_column].values[0].value == obj_id,
+                                   "the row's sheep_bones should be obj %d, got %d", obj_id,
+                                   row->columns[obj_column].values[0].value);
+                }
+            }
+
+            /*
              * Bury: `[opheld1,_bones]` is bound to the obj *category*, not to
              * the obj, so what this really asserts is that a category-addressed
              * trigger resolves at all. It is the only one in the tree.
@@ -8776,6 +8889,36 @@ mock230_world_selftest(void)
             mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 100000,
             "a 31-bit varbit should round-trip, got %d",
             mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity));
+    }
+
+    /*
+     * Nothing wrote a shared container whole — the varp side of §7.5.
+     *
+     * The section above proves that *this* varp is patched correctly. This one
+     * proves that nothing anywhere in the run did the other thing, which is the
+     * assertion the bank bug needed and did not have: every check that shipped
+     * with it passed, because the write was legal and the damage was to a
+     * neighbour nobody was looking at.
+     *
+     * The count spans the whole selftest — every trigger, every cheat, every
+     * packet handler already exercised above — so it fails on a write from any
+     * of the three writers sscompile cannot see.
+     */
+    fprintf(stderr, "mock230 selftest: no whole-varp write to a carrier\n");
+    {
+        int last = -1;
+        int writes = mock230_world_carrier_writes(&last);
+
+        /* The set is the cache's, not a number typed here: if it were empty the
+         * check below would pass for the wrong reason. */
+        SELFTEST_CHECK(mock230_varbit_carrier_bits(115) > 0,
+                       "varp 115 should be known to carry varbits, got %d",
+                       mock230_varbit_carrier_bits(115));
+        SELFTEST_CHECK(mock230_varbit_carrier_bits(MOCK230_VARP_CACHE_MAX + 1) == 0,
+                       "a server-allocated varp carries nothing");
+        SELFTEST_CHECK(writes == 0,
+                       "%d whole-varp write(s) landed on a carrier varp (last: %d)", writes,
+                       last);
     }
 
     fprintf(stderr, "mock230 selftest: bank deposit and withdraw\n");

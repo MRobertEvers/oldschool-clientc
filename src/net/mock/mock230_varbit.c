@@ -32,6 +32,23 @@ struct VarbitRange
 static struct VarbitRange* g_varbits;
 static int g_varbit_count;
 
+/*
+ * How many varbits are based on each varp — the *carrier* set, built once here
+ * because it is the same table read backwards.
+ *
+ * Nothing needed it until the port did. `docs/LOSTCITY_PORT_TRIAGE.md` §7.5:
+ * a 2004 varp is very often a rev-230 varbit range, so a whole-varp write is a
+ * write to somebody else's state, and it compiles, runs, transmits and corrupts.
+ * sscompile refuses that write at compile time off `configs/all.varbit`; this is
+ * the same fact at runtime, off the cache, for the writers a compiler cannot see.
+ */
+static uint16_t* g_carrier_bits;
+static int g_carrier_count;
+
+/** Non-zero while mock230_varbit_set is patching a base varp — a varbit write
+ *  reaching mock230_world_set_varp is the correct path, not a violation. */
+static int g_patching;
+
 int
 mock230_varbit_load(const char* cache_dir)
 {
@@ -129,6 +146,29 @@ mock230_varbit_load(const char* cache_dir)
         RSCache_Dat2ConfigVarbitFreeInplace(&entry);
     }
 
+    /* The reverse index. Sized off the varp table rather than the highest
+     * basevar seen: a carrier query for a varp past the end must answer 0, not
+     * read off the array. */
+    g_carrier_count = MOCK230_VARP_COUNT;
+    g_carrier_bits = calloc((size_t)g_carrier_count, sizeof(*g_carrier_bits));
+    if( g_carrier_bits )
+    {
+        int carriers = 0;
+
+        for( int i = 0; i < g_varbit_count; i++ )
+        {
+            int base = g_varbits[i].basevar;
+
+            if( base < 0 || base >= g_carrier_count )
+                continue;
+            if( g_carrier_bits[base]++ == 0 )
+                carriers++;
+        }
+        fprintf(stderr, "mock230: %d varp(s) carry varbits\n", carriers);
+    }
+    else
+        g_carrier_count = 0;
+
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
@@ -142,6 +182,24 @@ mock230_varbit_free(void)
     free(g_varbits);
     g_varbits = NULL;
     g_varbit_count = 0;
+    free(g_carrier_bits);
+    g_carrier_bits = NULL;
+    g_carrier_count = 0;
+    g_patching = 0;
+}
+
+int
+mock230_varbit_carrier_bits(int varp)
+{
+    if( !g_carrier_bits || varp < 0 || varp >= g_carrier_count )
+        return 0;
+    return g_carrier_bits[varp];
+}
+
+int
+mock230_varbit_patching(void)
+{
+    return g_patching;
 }
 
 static const struct VarbitRange*
@@ -195,8 +253,14 @@ mock230_varbit_set(
     current |= ((uint32_t)value & mask) << range->startbit;
     /* Through the ordinary varp write, so the transmit gate and the
      * small/large encoder choice apply exactly as they would to a plain varp —
-     * a varbit is a *view* of a varp, not a second kind of variable. */
+     * a varbit is a *view* of a varp, not a second kind of variable.
+     *
+     * The flag is what tells the carrier backstop that this write is the
+     * *correct* way to touch a shared container. Without it the one path that
+     * must write a carrier would be the only thing the check ever saw. */
+    g_patching++;
     mock230_world_set_varp(srv, range->basevar, (int)current);
+    g_patching--;
     return range->basevar;
 }
 

@@ -46,6 +46,8 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
     }
     free(symbols->entries);
     free(symbols->order);
+    free(symbols->carriers);
+    free(symbols->exempt);
     memset(symbols, 0, sizeof(*symbols));
 }
 
@@ -196,6 +198,26 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
         return 0;
     memset(in_domain, 0, sizeof(in_domain));
     domain_count = shared_var_kinds(in_domain);
+
+    /*
+     * Rule 0 — an exemption has to exempt something.
+     *
+     * `wholewrite=allow` on a varp nothing is based on is an assertion that a
+     * variable is shared when it is not, and it reads to the next person as
+     * evidence the write was thought about. An escape hatch that can be left
+     * behind after the thing it excused is gone stops meaning anything, so it is
+     * checked the same way the rule it escapes is.
+     */
+    for( int i = 0; i < symbols->exempt_count; i++ )
+    {
+        if( SSC_SymbolsCarrier(symbols, symbols->exempt[i]) )
+            continue;
+        fprintf(stderr,
+                "sscompile: varp %d declares `wholewrite=allow` but no varbit is based on "
+                "it — there is nothing to exempt\n",
+                symbols->exempt[i]);
+        problems++;
+    }
 
     ensure_sorted(symbols);
     if( !symbols->order )
@@ -854,6 +876,284 @@ SSC_SymbolsLoadDbTableDir(
         {
             loaded += load_dbtable_file(symbols, path);
         }
+    }
+    closedir(handle);
+    return loaded;
+}
+
+/* ------------------------------------------------------------------ */
+/* Carrier varps                                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Which varps have varbits packed into them.
+ *
+ * The relation is one key — `basevar=` on a varbit record — and it exists in
+ * exactly one place, `configs/all.<varbit>`, written by `cachepack unpack` out of
+ * config group 14. Nothing here re-derives it, guesses it, or keeps a list; the
+ * compiler reads the same file `mock230_varbit.c`'s header calls the authority.
+ *
+ * The filename is composed from the register rather than typed, so a tree that
+ * spells the namespace differently is still read: `ContentRegister` says which
+ * namespace becomes SSC_SYM_VARBIT and the record file is `all.<that>`, the same
+ * convention `all.<ns>.compack` already follows one level down.
+ */
+static const char*
+varbit_namespace(void)
+{
+    static struct ContentRegister registry;
+    static int loaded;
+
+    if( !loaded )
+    {
+        ContentRegister_Defaults(&registry);
+        loaded = 1;
+    }
+    for( int i = 0; i < registry.count; i++ )
+    {
+        if( SSC_SymbolKindForNamespace(registry.entries[i].name) == SSC_SYM_VARBIT )
+            return registry.entries[i].name;
+    }
+    return NULL;
+}
+
+static struct SSC_VarpCarrier*
+carrier_slot(
+    struct SSC_Symbols* symbols,
+    int32_t varp)
+{
+    for( int i = 0; i < symbols->carrier_count; i++ )
+    {
+        if( symbols->carriers[i].varp == varp )
+            return &symbols->carriers[i];
+    }
+    if( symbols->carrier_count == symbols->carrier_capacity )
+    {
+        int next = symbols->carrier_capacity ? symbols->carrier_capacity * 2 : 256;
+        struct SSC_VarpCarrier* grown =
+            (struct SSC_VarpCarrier*)realloc(symbols->carriers, (size_t)next * sizeof(*grown));
+
+        if( !grown )
+            return NULL;
+        symbols->carriers = grown;
+        symbols->carrier_capacity = next;
+    }
+    {
+        struct SSC_VarpCarrier* slot = &symbols->carriers[symbols->carrier_count++];
+
+        memset(slot, 0, sizeof(*slot));
+        slot->varp = varp;
+        return slot;
+    }
+}
+
+const struct SSC_VarpCarrier*
+SSC_SymbolsCarrier(
+    const struct SSC_Symbols* symbols,
+    int32_t varp)
+{
+    if( !symbols )
+        return NULL;
+    for( int i = 0; i < symbols->carrier_count; i++ )
+    {
+        if( symbols->carriers[i].varp == varp )
+            return &symbols->carriers[i];
+    }
+    return NULL;
+}
+
+int
+SSC_SymbolsLoadVarbitBases(
+    struct SSC_Symbols* symbols,
+    const char* dir)
+{
+    const char* ns = varbit_namespace();
+    char path[1024];
+    FILE* file;
+    char line[512];
+    char varbit_name[SSC_MAX_NAME] = "";
+    int start_bit = -1;
+    int end_bit = -1;
+    int32_t base = -1;
+
+    if( !symbols || !dir || !ns )
+        return -1;
+    snprintf(path, sizeof(path), "%s/all.%s", dir, ns);
+    file = fopen(path, "rb");
+    if( !file )
+        return -1;
+
+    /*
+     * The keys arrive in whichever order the record states them, so a block is
+     * only committed when the next header (or EOF) proves it complete. Committing
+     * on `basevar=` alone would drop the bit range from the diagnostic for every
+     * record that states the range afterwards.
+     */
+#define COMMIT_VARBIT()                                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        if( base >= 0 && *varbit_name )                                                            \
+        {                                                                                          \
+            struct SSC_VarpCarrier* slot = carrier_slot(symbols, base);                            \
+                                                                                                   \
+            if( slot )                                                                             \
+            {                                                                                      \
+                if( slot->sample_count < SSC_CARRIER_SAMPLES )                                     \
+                {                                                                                  \
+                    int s = slot->sample_count++;                                                  \
+                                                                                                   \
+                    snprintf(slot->sample[s], sizeof(slot->sample[s]), "%s", varbit_name);          \
+                    slot->sample_start[s] = start_bit;                                             \
+                    slot->sample_end[s] = end_bit;                                                 \
+                }                                                                                  \
+                slot->bits++;                                                                      \
+            }                                                                                      \
+        }                                                                                          \
+        base = -1;                                                                                 \
+        start_bit = -1;                                                                            \
+        end_bit = -1;                                                                              \
+    } while( 0 )
+
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* cursor = line;
+
+        while( *cursor == ' ' || *cursor == '\t' )
+            cursor++;
+        strip_eol(cursor);
+
+        if( *cursor == '[' )
+        {
+            char* close = strchr(cursor, ']');
+
+            COMMIT_VARBIT();
+            if( !close )
+                continue;
+            *close = '\0';
+            snprintf(varbit_name, sizeof(varbit_name), "%s", cursor + 1);
+            continue;
+        }
+        if( strncmp(cursor, "basevar=", 8) == 0 )
+        {
+            const struct SSC_Symbol* varp =
+                SSC_SymbolsFind(symbols, cursor + 8, SSC_SYM_VARP);
+
+            base = varp ? varp->value : -1;
+        }
+        else if( strncmp(cursor, "startbit=", 9) == 0 )
+            start_bit = atoi(cursor + 9);
+        else if( strncmp(cursor, "endbit=", 7) == 0 )
+            end_bit = atoi(cursor + 7);
+    }
+    COMMIT_VARBIT();
+#undef COMMIT_VARBIT
+    fclose(file);
+    return symbols->carrier_count;
+}
+
+/* `wholewrite=allow` on a `[varp]` block. Returns 1 when it was recorded. */
+static int
+exempt_varp(
+    struct SSC_Symbols* symbols,
+    int32_t varp)
+{
+    for( int i = 0; i < symbols->exempt_count; i++ )
+    {
+        if( symbols->exempt[i] == varp )
+            return 0;
+    }
+    if( symbols->exempt_count == symbols->exempt_capacity )
+    {
+        int next = symbols->exempt_capacity ? symbols->exempt_capacity * 2 : 16;
+        int32_t* grown = (int32_t*)realloc(symbols->exempt, (size_t)next * sizeof(*grown));
+
+        if( !grown )
+            return 0;
+        symbols->exempt = grown;
+        symbols->exempt_capacity = next;
+    }
+    symbols->exempt[symbols->exempt_count++] = varp;
+    /* Only a varp that *is* a carrier gets the flag — an exemption on a varp
+     * nothing is based on has nothing to exempt, and `exempt[]` keeps it so that
+     * can be said out loud rather than accepted in silence. */
+    for( int i = 0; i < symbols->carrier_count; i++ )
+    {
+        if( symbols->carriers[i].varp == varp )
+            symbols->carriers[i].exempt = 1;
+    }
+    return 1;
+}
+
+static int
+load_varp_decl_file(
+    struct SSC_Symbols* symbols,
+    const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char line[512];
+    int32_t varp = -1;
+    int loaded = 0;
+
+    if( !file )
+        return 0;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* cursor = line;
+        char* comment;
+
+        while( *cursor == ' ' || *cursor == '\t' )
+            cursor++;
+        comment = strstr(cursor, "//");
+        if( comment )
+            *comment = '\0';
+        strip_eol(cursor);
+
+        if( *cursor == '[' )
+        {
+            char* close = strchr(cursor, ']');
+            const struct SSC_Symbol* symbol;
+
+            varp = -1;
+            if( !close )
+                continue;
+            *close = '\0';
+            symbol = SSC_SymbolsFind(symbols, cursor + 1, SSC_SYM_VARP);
+            varp = symbol ? symbol->value : -1;
+            continue;
+        }
+        if( varp >= 0 && strncmp(cursor, "wholewrite=", 11) == 0 &&
+            strcmp(cursor + 11, "allow") == 0 )
+            loaded += exempt_varp(symbols, varp);
+    }
+    fclose(file);
+    return loaded;
+}
+
+int
+SSC_SymbolsLoadVarpDecls(
+    struct SSC_Symbols* symbols,
+    const char* dir)
+{
+    DIR* handle = opendir(dir);
+    struct dirent* entry;
+    int loaded = 0;
+
+    if( !handle )
+        return 0;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char path[1024];
+        struct stat info;
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+        if( stat(path, &info) != 0 )
+            continue;
+        if( S_ISDIR(info.st_mode) )
+            loaded += SSC_SymbolsLoadVarpDecls(symbols, path);
+        else if( has_suffix(entry->d_name, ".varp") )
+            loaded += load_varp_decl_file(symbols, path);
     }
     closedir(handle);
     return loaded;

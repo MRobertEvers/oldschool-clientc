@@ -45,6 +45,7 @@ main(int argc, char** argv)
     int component_count = 0;
     int constant_count = 0;
     int dbcolumn_count = 0;
+    int exempt_count = 0;
     int i;
     int status = 0;
 
@@ -134,9 +135,20 @@ main(int argc, char** argv)
     dbcolumn_count = SSC_SymbolsLoadDbTableDir(&symbols, constants);
     SSC_SymbolsSeedBuiltins(&symbols);
 
-    printf("symbols: %d from packs, %d components, %d constants, %d db columns\n",
+    /*
+     * Which varps other variables live inside, and which of those content has
+     * declared it may still write whole. Both after the packs, because the first
+     * resolves `basevar=<name>` through the varp symbols and the second resolves
+     * the `[section]` headers of a `.varp` the same way.
+     */
+    for( i = 0; i < pack_count; i++ )
+        SSC_SymbolsLoadVarbitBases(&symbols, packs[i]);
+    exempt_count = SSC_SymbolsLoadVarpDecls(&symbols, src);
+
+    printf("symbols: %d from packs, %d components, %d constants, %d db columns, "
+           "%d carrier varp(s), %d whole-write exemption(s)\n",
            symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
-           dbcolumn_count < 0 ? 0 : dbcolumn_count);
+           dbcolumn_count < 0 ? 0 : dbcolumn_count, symbols.carrier_count, exempt_count);
 
     /*
      * Before a single line is compiled, and fatal.
@@ -150,7 +162,8 @@ main(int argc, char** argv)
 
         if( problems )
         {
-            fprintf(stderr, "sscompile: %d ambiguous symbol(s) — refusing to compile\n", problems);
+            fprintf(stderr, "sscompile: %d symbol-table problem(s) — refusing to compile\n",
+                    problems);
             SSC_SymbolsFree(&symbols);
             return 1;
         }

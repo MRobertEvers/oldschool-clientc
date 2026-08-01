@@ -32,13 +32,21 @@ marker, so a hand-written header survives a regeneration — which is exactly wh
 `cachepack unpack` destroying `configs/all.param.compack`'s header taught
 (docs/CONTENT_ARCHITECTURE.md §3.2).
 
-**Output goes to `pack/<ns>.pack`** — the one file per namespace that
-docs/CONTENT_PACK_PLAN.md settles on. Earlier drafts of this tool wrote to
-`names/<ns>.pack` (docs/CONTENT_ARCHITECTURE.md §4.4) and then to
-`server/pack/<ns>.pack`; both are wrong now that a namespace has exactly one
-symbol file. The marker discipline above is what makes sharing that file with a
-human safe in the other direction, and the cache-side codec's comment-preserving
-merge is what makes it safe in this one.
+**Output goes to the namespace's one symbol file**, which is
+`configs/all.<ns>.compack` for a config type and `pack/<ns>.pack` for the four
+that are not one — see `pack_path` and NON_CONFIG_NAMESPACES, which mirror
+`pack_kind_is_config()` in src/net/mock/mock230_content.c because the runtime
+reads only those locations. Earlier drafts wrote to `names/<ns>.pack`
+(docs/CONTENT_ARCHITECTURE.md §4.4) and then to `server/pack/<ns>.pack`; both are
+wrong now that a namespace has exactly one symbol file. The marker discipline
+above is what makes sharing that file with a human safe in the other direction,
+and the cache-side codec's comment-preserving merge is what makes it safe in this
+one.
+
+**The floor comes from the register, not from a copy of it.** `declared_base`
+reads `content.ini` and falls back to `src/content/content_register.c` — see
+`register_bases`, and the paragraph on `varp` in that file for what the previous
+arrangement, where the floor was read from a file that states none, cost.
 
 A namespace whose ids are the *server's* — enum, struct, dbtable, dbrow — has no
 gameval archive behind it, so its pack file is authored outright and cachepack
@@ -110,11 +118,29 @@ def server_namespaces(tree):
     return tuple(sorted(found))
 
 
+# The four namespaces whose names do NOT live beside a config archive.
+#
+# This mirrors `pack_kind_is_config()` in src/net/mock/mock230_content.c and has to:
+# the runtime reads `pack/<ns>.pack` for these and `configs/all.<ns>.compack` for
+# everything else, so a file written to the other location is a file nothing reads.
+#
+# None of the four is `ids = server` today, so the disagreement was latent — but it
+# was armed. Promoting `category` so the 20 LostCity-only npc categories can get an
+# id (docs/LOSTCITY_PORT_TRIAGE.md §16.7) is a one-line change to content.ini, and
+# the moment it landed this tool would have created `configs/all.category.compack`
+# while `pack/category.pack` — the file both mock230 and sscompile load — stayed
+# untouched. Two authorities, silent disagreement; docs/CONTENT_ARCHITECTURE.md
+# §8.2(c) for the third time.
+NON_CONFIG_NAMESPACES = ('3_interfaces', 'component', 'stat', 'category')
+
+
 # Config records are files of a config archive, so their index is a member index
 # beside the archive — `configs/all.seq.compack` — not a pack in `pack/`, which
-# holds one file per cache index naming that index's archives. Every namespace this
-# script allocates into is a config type.
+# holds one file per cache index naming that index's archives. Most namespaces this
+# script allocates into are config types; see NON_CONFIG_NAMESPACES for the rest.
 def pack_path(tree, ns):
+    if ns in NON_CONFIG_NAMESPACES:
+        return os.path.join(tree, 'pack', f'{ns}.pack')
     return os.path.join(tree, 'configs', f'all.{ns}.compack')
 
 
@@ -193,8 +219,45 @@ def other_layers(tree, ns):
     return known, highest
 
 
-def declared_base(tree, ns):
-    """The `base =` floor for a namespace, from content.ini, or 0.
+REGISTER_ROW = re.compile(
+    r'\{\s*"([A-Za-z0-9_]+)"\s*,\s*CONTENT_IDS_\w+\s*,\s*CONTENT_NAMES_\w+\s*,'
+    r'\s*-?\d+\s*,\s*-?\d+\s*,\s*(-?\d+)\s*,\s*-?\d+\s*\}')
+
+
+def register_bases():
+    """{namespace: server_base} read out of src/content/content_register.c.
+
+    The register's built-in defaults are a C table, and this tool needs the same
+    numbers. There are exactly two ways to have them: restate them here, or read
+    the file. Restating is the drift the register exists to remove — and
+    `declared_base`'s own docstring said so while the function went on returning 0
+    for every namespace, because `content.ini` states no `base =` key at all.
+
+    So the C table was the authority in name and the high-water mark was the
+    authority in fact, and nothing compared them. What that cost, measured:
+    `struct` reads 8000 in the register and the allocator would have handed out
+    6500; `varp` read 8000 while nineteen server varps already sat at 5705..5723,
+    and 8000 is past `MOCK230_VARP_COUNT` (6217), so the first varp allocated at
+    the declared floor would have been silently dropped by
+    `mock230_world_set_varp`'s bounds check — docs/CONTENT_ARCHITECTURE.md §8.3's
+    named failure mode, re-armed.
+
+    Read, not restated. The path is derived from this file's own location because
+    the register belongs to the engine repo, not to a content tree.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        '..', 'src', 'content', 'content_register.c')
+    bases = {}
+    if not os.path.exists(path):
+        return bases
+    with open(path, encoding='utf-8', errors='replace') as handle:
+        for m in REGISTER_ROW.finditer(handle.read()):
+            bases[m.group(1)] = int(m.group(2))
+    return bases
+
+
+def declared_base(tree, ns, bases=None):
+    """The floor for a namespace: `content.ini`'s `base =`, else the register's.
 
     The floor and the high-water mark are both needed and neither replaces the
     other. The mark stops an allocation landing on an id something already holds;
@@ -204,27 +267,27 @@ def declared_base(tree, ns):
     a boot check (`validate_id_bases` in mock230_pack.c) that holds the floor above
     whatever the cache actually reaches.
 
-    Only `content.ini` is read here, so a namespace the tree says nothing about
-    gets 0 and is allocated purely from the mark. The built-in defaults live in
-    src/content/content_register.c and are not duplicated into this file — a third
-    copy of the table is the drift the register exists to remove.
+    `content.ini` *overlays* the register, exactly as it does for `ids` and
+    `names`, so a tree that wants a different floor says so and a tree that says
+    nothing gets the register's.
     """
     path = os.path.join(tree, 'content.ini')
-    if not os.path.exists(path):
-        return 0
-    section = None
-    with open(path, encoding='utf-8', errors='replace') as handle:
-        for line in handle:
-            line = re.sub(r'[;#].*$', '', line).strip()
-            m = re.match(r'\[namespace:([A-Za-z0-9_]+)\]$', line)
-            if m:
-                section = m.group(1)
-                continue
-            if section == ns and '=' in line:
-                key, value = (p.strip() for p in line.split('=', 1))
-                if key == 'base':
-                    return 0 if value == 'none' else int(value)
-    return 0
+    if os.path.exists(path):
+        section = None
+        with open(path, encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                line = re.sub(r'[;#].*$', '', line).strip()
+                m = re.match(r'\[namespace:([A-Za-z0-9_]+)\]$', line)
+                if m:
+                    section = m.group(1)
+                    continue
+                if section == ns and '=' in line:
+                    key, value = (p.strip() for p in line.split('=', 1))
+                    if key == 'base':
+                        return 0 if value == 'none' else int(value)
+    if bases is None:
+        bases = register_bases()
+    return bases.get(ns, 0)
 
 
 def id_authority(tree, ns):
@@ -323,6 +386,7 @@ def main():
         return 2
 
     namespaces = args.namespace or server_namespaces(args.tree)
+    bases = register_bases()
     dirty = False
     # A name that cannot be allocated is a failure in its own right, not a
     # pending change — so it fails the run with or without --check.
@@ -335,11 +399,11 @@ def main():
         os.makedirs(os.path.dirname(path), exist_ok=True)
         raw, mapping = read_pack(path)
         elsewhere, highest = other_layers(args.tree, ns)
-        base = max(highest, max(mapping.values()) if mapping else -1) + 1
-        # The register's floor, where the tree states one. `max` and not `or`: a
-        # floor below the high-water mark must not pull an allocation down onto an
-        # id something already holds.
-        base = max(base, declared_base(args.tree, ns))
+        mark = max(highest, max(mapping.values()) if mapping else -1) + 1
+        # The register's floor. `max` and not `or`: a floor below the high-water
+        # mark must not pull an allocation down onto an id something already holds.
+        floor = declared_base(args.tree, ns, bases)
+        base = max(mark, floor)
 
         authority = id_authority(args.tree, ns)
         # Unknown means unknown to *every* layer, not just to ours.
@@ -386,7 +450,7 @@ def main():
                 base += 1
 
         print(f'{ns:9} declared={len(declared):5} allocated={len(mapping):5} '
-              f'base_was={base - len(fresh)}'
+              f'base_was={base - len(fresh)} floor={floor}'
               + (f' NEW={len(fresh)}' if fresh else '')
               + (f' STALE={len(stale)}' if stale else ''))
         for name in fresh:

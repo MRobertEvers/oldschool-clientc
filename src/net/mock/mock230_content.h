@@ -464,6 +464,17 @@ struct Mock230VarpDef
     /** 0 temp, 1 perm. */
     int scope_perm;
     int clientcode;
+    /**
+     * `wholewrite=allow` — this varp may be written whole even though the cache
+     * packs varbits into it.
+     *
+     * The escape hatch for docs/LOSTCITY_PORT_TRIAGE.md §7.5's class, and it is
+     * declared in content because two readers need the same answer: sscompile
+     * refuses the write without it, and `mock230_world.c` counts one at runtime
+     * for the writers a compiler cannot see (a `::` cheat, C, a packet). See
+     * `fields/varp.ini`.
+     */
+    int wholewrite_allowed;
 };
 
 /** Declaration for a varp, or NULL when nothing declared it. An undeclared
