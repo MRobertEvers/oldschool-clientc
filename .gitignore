@@ -3,6 +3,13 @@ build/
 build_*/
 build_opt/
 cache/
+# ...but src/cache/ is source, not cache data: rscache_io.h is included by every
+# engine/dat2 loader. The bare `cache/` rule above matched it, so it was never
+# tracked, and a fresh clone or `git worktree add` could not build the targets
+# that include it — `fatal error: 'cache/rscache_io.h' file not found`. Two
+# separate pieces of work lost time to this independently before anyone noticed
+# the file was simply absent rather than the build being wrong.
+!src/cache/
 cache254/
 cacheosrs/
 memtrace*
