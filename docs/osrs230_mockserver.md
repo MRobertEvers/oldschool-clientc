@@ -1900,11 +1900,12 @@ unblocks the next:
      taken spawn. `mock230_world_player_init` is the character.
      `mock230_scripts_load` is idempotent for a harder reason — reloading frees
      the env out from under the first player's parked script.
-   - **World events broadcast.** `mock230_world_broadcast_loc` is what makes a
-     door one player opens open for the other; ground objs withdraw from
-     everyone who was told about them. This is an approximation of the zone the
-     reference would address, and step 3 below is what replaces it — the half a
-     broadcast cannot do is *replay* to whoever arrives later.
+   - **World events broadcast.** `mock230_world_broadcast_loc` was what made a
+     door one player opens open for the other; ground objs withdrew from
+     everyone who had been told about them. It was an approximation of the zone
+     the reference addresses, and step 3 below has replaced it — both functions
+     are gone, along with `Mock230Player.ground_sent[]`. The half a broadcast
+     could not do is *replay* to whoever arrives later, which is §3.17.
 
    PLAYER_INFO itself is worth reading (`mock230_encode.c`). Three traps, all
    of which corrupt the stream rather than dropping a field:
@@ -1931,7 +1932,8 @@ unblocks the next:
    it was a literal 0 labelled "name37: empty", which with one player was
    invisible and with two makes everybody an anonymous body.
 
-   What is still single-player, deliberately and separately:
+   What is still single-player, deliberately and separately (the scene-origin
+   entry is the one step 3 did *not* close, and is now the sharpest of them):
 
    - **The socket server accepts one connection at a time.** `serve()` runs one
      session to completion; a real one wants the non-blocking accept with
@@ -1954,12 +1956,27 @@ unblocks the next:
    into per-domain files — the introspection that motivated it came from the
    generator instead, so the split is now a readability change rather than a
    blocking one.
-3. **Zones with buffered events.** `npcs[256]` / `ground[256]` are scanned flat
-   every tick, and the npc cap is justified by a *wire* field width, which is a
-   protocol constant standing in for a world capacity. A `ZoneMap` keyed
-   `(zx, zz, level)` holding per-zone entity lists and an event buffer is what
-   makes a loc change replayable to whoever walks in later — which is the thing
-   multiplayer actually needs.
+3. ~~**Zones with buffered events.**~~ — **done**, see §3.17.
+   `mock230_zone.{c,h}`: a `ZoneMap` keyed `(zx, zz, level)` with per-zone loc,
+   obj and npc lists and a per-tick event buffer, and the loc/obj packets moved
+   onto it. A door one client opens is open for a client that connects
+   afterwards, asserted in `embed_test.c` against the client's own decoder.
+
+   Three things it turned out to be, none of which is "add a hash map":
+   **the ZoneMap owns loc mutations** (the scene is re-read from the cache on
+   every rebuild, so the server was forgetting its own doors — two comments in
+   two files described a mechanism that could not work); **a newly-loaded zone
+   gets state and *not* the tick's events**, because the state already includes
+   them and sending both put every ground obj on the floor twice; and **the npc
+   cap and the wire's tracked count are two numbers** — 2048 and 255 — now that
+   NPC_INFO asks the zones who is nearby instead of scanning the world per
+   client.
+
+   Still open and now the visible limit: **one scene origin for the whole
+   world** (step 1's remainder). A loc revert aimed at a tile the moved scene no
+   longer covers cannot apply, and says so under `MOCK230_VERBOSE`. Zone
+   *triggers* remain undispatched — Phase 2 work, and they need name-keyed
+   dispatch (`[zone,<level>_<mx>_<mz>_<lx>_<lz>]`), not a numeric subject.
 4. **Fill in the host opcodes.** 215 of 398 are implemented (63 VM core, 145
    host, 7 host-db — the count is generated into
    `src/net/mock/mock230_opcode_coverage.gen.h`, so read it there rather than

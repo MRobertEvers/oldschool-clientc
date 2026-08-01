@@ -394,14 +394,31 @@ files.** That is §9's dependency order, arrived at from the other direction.
 | bare stat names collide and compile to the wrong id | **confirmed against osrs239's own tables** — §7.6 |
 | content-first dispatch swallowed an engine verb | **still true structurally** — §7.7 |
 
-### 7.2 Zone triggers (806 uses) have nothing to land on
+### 7.2 Zone triggers (806 uses) — the ZoneMap exists now; the dispatch does not
 
-`zone` 262, `mapzone` 306, `zoneexit` 165, `mapzoneexit` 73. `mock230` has no
-zone map: `docs/osrs230_mockserver.md` §6.1 step 3 lists
-`ZoneMap keyed (zx, zz, level)` as unbuilt, and `npcs[256]`/`ground[256]` are
-scanned flat every tick. Every "you have entered the wilderness", every
-minigame boundary, every area music trigger is one of these. **Blocked on an
-engine feature that is already on the roadmap for other reasons.**
+`zone` 262, `mapzone` 306, `zoneexit` 165, `mapzoneexit` 73. Re-counted
+2026-08-01 against `LostCity_Server/content`; the four numbers above still hold.
+Every "you have entered the wilderness", every minigame boundary, every area
+music trigger is one of these.
+
+**No longer blocked on the engine feature.** The `ZoneMap` landed
+(`src/net/mock/mock230_zone.{c,h}`, `osrs230_mockserver.md` §3.17), and with it
+the per-zone entity lists that took the flat `npcs[]`/`ground[]` scans out of the
+per-client path.
+
+Two things to know before porting any of them, neither of which the count above
+tells you:
+
+- **Only 427 of the 806 are zone-keyed.** `mapzone` and `mapzoneexit` key off
+  the *map square* (`x >> 6`), not the zone (`x >> 3`) — see
+  `NetworkPlayer.updateMap`, which tracks `lastMapZone` and `lastZone` as two
+  separate latches. The ZoneMap is irrelevant to 379 of these uses.
+- **They are keyed by script *name*, not by a numeric subject.** The reference
+  looks up `[zone,<level>_<mx>_<mz>_<lx>_<lz>]` and
+  `[mapzone,0_<mx>_<mz>]` through `ScriptProvider.getByName`.
+  `mock230_scripts_run_trigger` takes an integer subject and cannot express
+  that, so the dispatch half is a name-lookup path in the trigger dispatcher —
+  which is the actual remaining work, and it is Phase 2's.
 
 ### 7.3 Interfaces — the hard case, sized
 
@@ -630,7 +647,9 @@ are *not* content work.
 5.  Triggers the engine does not dispatch
     5a. queue / timer / ai_timer   (273 uses)  — cheap
     5b. the *u use-on family       (535 uses)
-    5c. zone / mapzone / zoneexit  (806 uses)  — needs the ZoneMap, §7.2
+    5c. zone / mapzone / zoneexit  (806 uses)  — ZoneMap landed; what is
+        left is name-keyed trigger dispatch, and 379 of the 806 are keyed
+        by map square rather than by zone (§7.2)
 
 6.  Interfaces, per interface, driven by the scripts being ported
     questlist → chatmenu → levelup → the rest on demand

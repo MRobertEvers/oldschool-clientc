@@ -506,23 +506,47 @@ that fails loudly on a stale band.*
    a time, and the *scene origin* is one per world — see
    `osrs230_mockserver.md` §6.1 step 1 for the full list, which item 2 below
    is what closes.
-2. `ZoneMap` keyed `(zx,zz,level)` with buffered/replayable events — what
-   multiplayer actually needs, and what the 806 zone-trigger uses land on.
+2. ~~`ZoneMap` keyed `(zx,zz,level)` with buffered/replayable events~~ —
+   **done**, `src/net/mock/mock230_zone.{c,h}`; the whole of it is
+   `osrs230_mockserver.md` §3.17. Per-zone loc/obj/npc lists plus a per-tick
+   event buffer, and the loc and obj packets moved onto it: a door one client
+   opens is open for a client that connects *afterwards*, asserted in
+   `embed_test.c` against the client's own decoder with a third peer.
+   What it actually was, since "add a hash map" is the tempting summary and is
+   wrong: **the ZoneMap owns loc mutations, the scene does not** (the scene is
+   re-read from the cache on every rebuild, so the server was forgetting its own
+   doors — two comments in two files described a mechanism that could not work);
+   **a newly-loaded zone gets state and not the tick's events**, because the
+   state already includes them and sending both put every ground obj on the
+   floor twice; and **the npc cap and the wire's tracked count are two
+   numbers**, 2048 and 255, now that NPC_INFO asks the zones who is nearby
+   instead of scanning the world once per client.
+   Re-measured rather than inherited: the zone-trigger count is 806
+   (`zone` 262, `zoneexit` 165, `mapzone` 306, `mapzoneexit` 73) and the
+   triage is right about it — but only **427** are zone-keyed. `mapzone` and
+   `mapzoneexit` key off the map square (`>> 6`), not the zone (`>> 3`), and
+   never touch this structure. Dispatching any of them is Phase 2.
 3. **Invert the script fallback** — one `_` wildcard fallback; a trigger
    with no script does nothing, loudly. Must precede bulk trigger import
    (triage §9 step 1) or every behavior has two implementations that can
    disagree.
-*Gate: two clients see each other fight over a door.* Half of it is met: they
-see each other, and a door one opens is open for the other. The fight still
-resolves against a shared npc mask set (§6.1 step 1's remainder), and the open
-door does not replay to whoever walks in afterwards — that is item 2.
+*Gate: two clients see each other fight over a door.* Met, apart from the
+fight: they see each other, a door one opens is open for the other, and it is
+still open for whoever logs in next. What is left is that combat still resolves
+against a shared npc mask set — an npc's `face_entity` names *the* local player,
+which is right for the client the retaliation is encoded to and wrong for every
+other one (§6.1 step 1's remainder). Making it per-observer needs the npc masks
+to be per-observer, and that is the same shape of change as the tracked sets in
+item 1, not a zone problem.
 
 **Phase 2 — symbols and surface** (triage §9 steps 2–5)
 Name-resolution gate → constants (1,562) → npc categories (§7.6b) →
 param/struct/enum/dbtable ids → varp/varbit reclass → name maps → opcodes by
 leverage (param decoder → `loc_*` → `npc_*` → `runclientscript_ss` strings →
-small-wide) → undispatched triggers (queue/timer cheap; `*u` use-on; zone
-family once ZoneMap exists). Track via the generated
+small-wide) → undispatched triggers (queue/timer cheap; `*u` use-on; the zone
+family, whose ZoneMap now exists — what they still need is *name*-keyed
+dispatch, `[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, which the numeric-subject
+`mock230_scripts_run_trigger` cannot express). Track via the generated
 `mock230_opcode_coverage.gen.h` (224/399 today) and the load-time gap
 report — **never via numbers typed in prose.**
 
