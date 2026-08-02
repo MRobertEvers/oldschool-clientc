@@ -1,5 +1,25 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **Blockers A + B, 2026-08-02 — both cleared; this feature only ever needed B.**
+> A (`runclientscript` carrying ints) was never on this doc's path — no screen
+> here is server-pushed. B (the container registry) was its entire blocker and
+> is gone, container 620 proven end to end including a logout round trip.
+> **Still blocked on: nothing structural** — the panel's own content, ~20
+> varps, and the point-of-earning trigger, which is a corpus gap on both sides.
+> Shortest remaining list of the four.
+
+> **UPDATE 2026-08-02 (lane-blockers): the container blocker is CLEARED.**
+> `container_for`/`container_dirty` are a registry now — see
+> [`mock230_containers.md`](mock230_containers.md). Resolve-or-create means
+> **no `inv_collection` row, no player struct field and no case were needed**:
+> container 620 sizes itself to 500 from the cache the first time content names
+> it, transmits as a whole-container UPDATE_INV_FULL because it is past 32
+> slots, and persists as `[container.620]`. `SS_OP_INV_SETSLOT` (4323) is
+> implemented. Verified in the headless client end to end, including a
+> logout/login round trip. What is still owed is the *feature*: the panel, the
+> ~20 varps, and the point-of-earning trigger — which remains a genuine corpus
+> gap, no script in the tree fires it.
+
 > **NOT BUILT — triaged 2026-08-02: NEEDS-ONE-THING, and it is the highest
 > leverage per line in the survey.** The blocker is the fourth container this
 > doc already names: `container_for` — re-measured today at

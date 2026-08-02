@@ -178,6 +178,18 @@ enum
     MOCK230_WORN_SLOTS = 14,
 
     /*
+     * Rows in a container registry table — see mock230_container.h.
+     *
+     * A storage ceiling, not a container count: the cache names 1026 invs and
+     * every one of them is registrable, so this bounds how many a single player
+     * (or the world) can hold *at once*. The reference has no equivalent because
+     * `Player.invs` is a Map; a fixed table is what a fixed player struct can
+     * carry, and overflowing it is reported rather than absorbed.
+     */
+    MOCK230_CONTAINER_MAX = 16,
+    MOCK230_WORLD_CONTAINER_MAX = 16,
+
+    /*
      * Players this world can hold.
      *
      * The wire's own ceiling is 2047 (the 11-bit pid field), so this is a memory
@@ -947,6 +959,68 @@ struct Mock230Item
 };
 
 /*
+ * One registered container. The registry itself is mock230_container.h; the
+ * struct is here because `struct Mock230Player` embeds a table of them and
+ * mock230_container.h cannot be included ahead of `struct Mock230Item`.
+ *
+ * A row is what `container_for` used to be a `case` of. Everything that made
+ * the three-case version wrong is a *field* here — where the items live, who
+ * owns them, how "changed" is recorded, what the container paints into — so a
+ * fourth container is a registration rather than a fourth branch.
+ */
+struct Mock230Container
+{
+    /** 0 for a free row. A zeroed player struct is therefore an empty table,
+     *  which matters because `mock230_world_player_init` memsets one. */
+    uint8_t used;
+    /** MOCK230_CONTAINER_PLAYER / _WORLD. The whole reason resolve does not
+     *  take `active_player`: a shared container has no player to ask. */
+    uint8_t owner_kind;
+    /** The registry calloc'd `items` and must free it. 0 for an adopted array
+     *  belonging to the player struct or to mock230_bank. */
+    uint8_t owns_items;
+    /** Dirty is a 32-bit per-slot mask rather than a whole-container flag.
+     *  Decided at registration from `slots`, because UPDATE_INV_PARTIAL can
+     *  only address 32 of them — 304 of the cache's 1026 invs are larger. */
+    uint8_t per_slot;
+    /** A write to this container changes how its owner looks, so it also sets
+     *  MOCK230_PMASK_APPEARANCE. True of the worn container and nothing else. */
+    uint8_t appearance;
+    /** Set when a component binds and cleared once a full update has gone out —
+     *  the reference's `listener.firstSeen`, which is what makes a binding
+     *  paint a container that has not changed since. */
+    uint8_t first_seen;
+
+    int32_t inv_id;
+    int32_t slots;
+    struct Mock230Item* items;
+
+    /** The player this row belongs to, for MOCK230_CONTAINER_PLAYER rows; NULL
+     *  for a world row. Never a copy: `players[]` is a fixed array that is
+     *  neither compacted nor moved (see its comment). */
+    struct Mock230Player* owner;
+
+    /*
+     * Dirty state, in one of two places.
+     *
+     * `*_ref` is set when the flag predates the registry and something outside
+     * it still reads the original — `player->inv_dirty` feeds the appearance
+     * path and two selftests, `bank.dirty` feeds mock230_bank_flush. NULL means
+     * the row owns its own, which is the case for every container registered
+     * from here on. Access goes through the accessors in mock230_container.h,
+     * so no self-referential pointer is ever stored in the row.
+     */
+    uint32_t* slot_dirty_ref;
+    int* dirty_ref;
+    uint32_t slot_dirty_own;
+    int dirty_own;
+
+    /** The component this container paints into, or -1 when nothing is bound.
+     *  `inv_transmit` sets it; `inv_stoptransmit` clears it. */
+    int32_t component;
+};
+
+/*
  * One obj on the floor.
  *
  * A *spawn* (from the content tree's map squares) respawns after it is taken;
@@ -1396,9 +1470,15 @@ struct Mock230Player
     struct Mock230Item worn[MOCK230_WORN_SLOTS];
 
     /** Per-slot "changed since the last flush" bits, so a tick sends one
-     *  UPDATE_INV_PARTIAL with only what moved. */
+     *  UPDATE_INV_PARTIAL with only what moved. Owned by the two registry rows
+     *  that adopt them (mock230_container.h), not written directly. */
     uint32_t inv_dirty;
     uint32_t worn_dirty;
+
+    /** Every container this player holds, including the backpack, the worn set
+     *  and the bank. mock230_container.h; freed by
+     *  mock230_container_shutdown_player before the struct is cleared. */
+    struct Mock230Container containers[MOCK230_CONTAINER_MAX];
 
     /** Which extended-info fields to send. Cleared in phase 11. */
     uint32_t masks;
@@ -1764,6 +1844,19 @@ struct Mock230Server
      */
     struct Mock230Player players[MOCK230_PLAYER_MAX];
     int player_count;
+
+    /*
+     * World-owned containers — the `scope=shared` half of the registry.
+     *
+     * Structurally empty today and that is the honest state: `scope` is decoded
+     * from LostCity's *server-side* inv.dat, and this tree has no `fields/inv.ini`
+     * and no `[namespace:inv]` for it to live in, so mock230_container_scope
+     * classifies everything as per-player. The table and the branch exist so
+     * that adding the classifier is a one-function change rather than a rewrite
+     * of every resolve site — which is what the three-case `container_for` would
+     * have forced. See mock230_container.h.
+     */
+    struct Mock230Container world_containers[MOCK230_WORLD_CONTAINER_MAX];
     /** Whose turn it is — see the header comment. Never "the player". */
     struct Mock230Player* active_player;
 

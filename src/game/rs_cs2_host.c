@@ -4255,6 +4255,22 @@ rs_cs2_host_exec_dispatch(
         host->close_modal_requested = true;
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG:
+    {
+        struct RS_CS2SocialSend send;
+
+        /* An empty answer is not a zero: the opcode's callers always push a
+         * rendered number, so nothing to send means nothing happened. */
+        if( !request->u.resume_countdialog.text || !request->u.resume_countdialog.text[0] )
+            return CS2VM_EXECNO_OK;
+        memset(&send, 0, sizeof(send));
+        send.kind = RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG;
+        snprintf(
+            send.text, sizeof(send.text), "%s", request->u.resume_countdialog.text);
+        rs_cs2_social_send_push(host, &send);
+        return CS2VM_EXECNO_OK;
+    }
+
     case CS2VM_HOST_REQUEST_VIEWPORT:
         return exec_viewport(host, vm, request->u.viewport);
 

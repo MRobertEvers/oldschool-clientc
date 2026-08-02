@@ -232,6 +232,12 @@ Landed (see `docs/osrs230_mockserver.md`):
 
 - `if_setevents(component, from, to, events)` — opcode 11000
 - `if_opensub(component, interface, type)` — opcode 11001
+- `p_countdialog_noprompt` — opcode 11004. `p_countdialog` writes the chatbox
+  "Enter amount" prompt *and* parks the script; this is the park on its own, for
+  a rev-230 interface that produces the number itself and answers with the CS2
+  `resume_countdialog`. See [`bank_pin_server_reqs.md`](bank_pin_server_reqs.md)
+  §4 — and note that the CS2 opcode on the other end of it (3104) had no handler
+  at all until that feature needed one.
 - name-addressed `[if_button,<iface>:<com>]` dispatch for components above
   interface 31
 
@@ -240,10 +246,14 @@ Not landed, in the order they block things:
 1. **An if-open trigger.** OpenRune's `onIfOpen`. Without it every arming has to
    happen at login and cannot survive a panel being closed and reopened — which
    the client's event purge (§2.2) makes mandatory, not cosmetic.
-2. **`runclientscript` with string arguments.** `mock230`'s sender takes ints
-   only. It blocks `~p_choice*` (triage §7.4, 879 call sites) *and* every
-   modern panel that is populated by a clientscript call rather than a var —
-   OpenRune uses it for the summary tab's combat level and time played.
+2. ~~**`runclientscript` with string arguments.**~~ **Landed**, and the entry
+   was wrong about what it was waiting on. The sender always took a per-argument
+   type string (`mock230_send_run_clientscript_mixed`); what was fixed at one
+   int and two strings was the *opcode*. `runclientscript*`
+   (`SS_OP_RUNCLIENTSCRIPTVARARG`, 11003) sends any mix, with the arity decided
+   at the call site, and content uses it. `~p_choice*` was never blocked by it
+   either — it ships on `runclientscript_ss` and is bounded by three caps
+   instead. See [`runclientscript.md`](runclientscript.md).
 3. **`if_closesub(component)`.** Switching a journal tab must close the previous
    panel; leaving it mounted stacks two overlays in one slot.
 4. **`if_setevents` on grids.** The `from`/`to` range is plumbed but nothing in

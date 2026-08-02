@@ -28,6 +28,7 @@
 #include "mock230.h"
 
 #include "mock230_boot.h"
+#include "mock230_container.h"
 #include "mock230_session.h"
 #include "mock230_transport.h"
 #include "mock230_ws.h"
@@ -178,6 +179,7 @@ serve(
      */
     mock230_world_remove_player(srv, session.player);
     mock230_bank_shutdown(srv);
+    mock230_container_shutdown(srv);
     mock230_scripts_free(srv);
     mock230_session_free(&session);
     mock230_world_reset(srv);

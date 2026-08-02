@@ -24,6 +24,8 @@
  */
 #include "mock230_bank.h"
 
+#include "mock230_container.h"
+
 #include "mock230.h"
 #include "mock230_content.h"
 #include "mock230_ids.h"
@@ -1345,10 +1347,17 @@ mock230_bank_init_player(struct Mock230Player* player)
 
     mock230_bank_shutdown_player(player);
 
-    /* No cache means no inv config; fall back to the full array rather than to
-     * zero, so the bank is usable and only the client's own grid decides how
-     * much of it is reachable. */
-    if( size <= 0 || size > MOCK230_BANK_SLOTS )
+    /*
+     * No cache means no inv config; fall back to a usable container rather than
+     * to zero, so only the client's own grid decides how much is reachable.
+     *
+     * The `size > MOCK230_BANK_SLOTS` half of this test used to be here too,
+     * described as the same fallback. It was not — it was a clamp, and the
+     * cache says 1410, so every bank this server ever allocated was **190 slots
+     * short of the container the client walks**. The allocation is a calloc;
+     * there was never a ceiling for it to enforce.
+     */
+    if( size <= 0 )
         size = MOCK230_BANK_SLOTS;
 
     bank->slots = calloc((size_t)size, sizeof(*bank->slots));
@@ -1374,11 +1383,25 @@ mock230_bank_init_player(struct Mock230Player* player)
     bank->pending_slot = -1;
     memset(bank->tab_size, 0, sizeof(bank->tab_size));
     bank->dirty = 0;
+
+    /*
+     * Into the registry, over the allocation the bank owns and the flag
+     * `mock230_bank_flush` reads. Whole-container rather than per-slot: 1410
+     * slots cannot be addressed by a 32-bit mask, and the registry refuses the
+     * combination rather than shifting past the width — which is what the two
+     * hand-rolled `inv_del` dirty paths in mock230_scripts.c were doing.
+     */
+    mock230_container_adopt(player, ids->inv_bank, bank->slots, bank->size, NULL, &bank->dirty,
+                            0);
 }
 
 void
 mock230_bank_shutdown_player(struct Mock230Player* player)
 {
+    /* The registry row points at the array this is about to free, so it goes
+     * first. It never owned the storage — `owns_items` is 0 for an adopted
+     * row — so forgetting it frees nothing twice. */
+    mock230_container_forget(player, mock230_ids()->inv_bank);
     free(player->bank.slots);
     player->bank.slots = NULL;
     player->bank.size = 0;

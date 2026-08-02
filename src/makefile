@@ -260,7 +260,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_param.c \
 	net/mock/mock230_ops_loc.c \
 	net/mock/mock230_ops_npc.c \
-	net/mock/mock230_bank.c net/mock/mock230_equipment.c \
+	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
 	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
@@ -481,6 +481,15 @@ test-cs2-dialect: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_dialect_test \
 		cs2vm2/test/opcode_dialect_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_dialect_test
+
+# RESUME_COUNTDIALOG (3104) — the opcode the bank PIN keypad answers with.
+# Declared on its own line rather than appended to the shared .PHONY list, which
+# several branches are editing at once.
+.PHONY: test-cs2-resume-countdialog
+test-cs2-resume-countdialog: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_resume_countdialog_test \
+		cs2vm2/test/resume_countdialog_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_resume_countdialog_test
 
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
 # names the unported operation blocking the most textures, which is the number to work
@@ -783,6 +792,19 @@ test-entity-decode: $(OBJ_DIR)
 		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test
+
+# RUNCLIENTSCRIPT (op 84): the encoder's layout read back by osrs230_parse —
+# the mixed int/string payload, and the argument-count guard that used to
+# accept an over-long packet as PKT_RUNCLIENTSCRIPT_ARG_MAX garbage arguments.
+.PHONY: test-runclientscript
+test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test \
+		net/test/runclientscript_test.c net/rev/osrs230/osrs230_parse.c \
+		net/rev/packets/pkt_rebuild_normal.c $(RSAREABUF_DIR)/rsareabuf.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	./$(OBJ_DIR)/runclientscript_test
 
 # Serial-FIFO ordering guarantee (head-only task execution across IO yields).
 test-task-order: $(OBJ_DIR)

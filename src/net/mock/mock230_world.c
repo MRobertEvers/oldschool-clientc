@@ -14,6 +14,7 @@
  */
 #include "mock230.h"
 
+#include "mock230_container.h"
 #include "mock230_content.h"
 #include "mock230_db.h"
 #include "mock230_equipment.h"
@@ -4826,6 +4827,10 @@ mock230_world_remove_player(
      * the pointer through the memset in mock230_world_add_player.
      */
     mock230_bank_shutdown_player(player);
+    /* Same argument for every other container this player accumulated: the
+     * registry calloc'd them, and the memset in mock230_world_add_player would
+     * otherwise hand the next player into this slot a pointer to them. */
+    mock230_container_shutdown_player(player);
     /*
      * The friend service is told before the slot goes, because it is keyed by
      * name and the name is about to be unreachable. Only presence is dropped —
@@ -4943,6 +4948,7 @@ mock230_world_player_init(struct Mock230Player* player)
      * otherwise lose the pointer to it — a re-init (which the selftest does)
      * has to release the old container before the struct is cleared. */
     mock230_bank_shutdown_player(player);
+    mock230_container_shutdown_player(player);
 
     /*
      * The memset clears the *game* state, not the player's identity.
@@ -5048,6 +5054,22 @@ mock230_world_player_init(struct Mock230Player* player)
         player->worn[i].obj_id = -1;
         player->worn[i].count = 0;
     }
+
+    /*
+     * The two containers that live inside the player struct join the registry
+     * here, over the storage they already have and the dirty masks the
+     * appearance path and two selftests already read. Everything else content
+     * names is created on first use by mock230_container_resolve — no inv id
+     * enters C, which is why the collection container needed no line here.
+     *
+     * The worn set is the one container a write to which changes how its owner
+     * looks; the registry raises MOCK230_PMASK_APPEARANCE for it, so the two
+     * places that used to remember that by hand no longer can forget.
+     */
+    mock230_container_adopt(player, mock230_ids()->inv_backpack, player->inv, MOCK230_INV_SLOTS,
+                            &player->inv_dirty, NULL, 0);
+    mock230_container_adopt(player, mock230_ids()->inv_worn, player->worn, MOCK230_WORN_SLOTS,
+                            &player->worn_dirty, NULL, 1);
 
     /* The containers exist empty. What goes in them the first time a character
      * connects is content's — `[proc,newplayer_inv]` and `[proc,newplayer_bank]`
@@ -5274,17 +5296,18 @@ mock230_world_login(struct Mock230Player* player)
             mock230_send_varp_large(player, varp, (int)value);
     }
 
-    /* 5. Containers, in full. Deltas take over from the next tick. */
-    mock230_send_inv_full(
-        player, ids->com_inventory_items, ids->inv_backpack, player->inv, MOCK230_INV_SLOTS);
-    mock230_send_inv_full(
-        player,
-        MOCK230_COM(ids->iface_wornitems, 0),
-        ids->inv_worn,
-        player->worn,
-        MOCK230_WORN_SLOTS);
-    player->inv_dirty = 0;
-    player->worn_dirty = 0;
+    /*
+     * 5. Containers, in full. Deltas take over from the next tick.
+     *
+     * A bind, not a bare send: binding is what puts the container on the
+     * registry's flush list, and it sends the full update on the way (the
+     * reference's `invListenOnCom`, which transmits when a listener is added).
+     * The engine binds these two because nothing else does — no content script
+     * runs `inv_transmit` for the sidebar's own panels — and the ids are still
+     * content's, resolved names rather than literals.
+     */
+    mock230_container_bind(srv, player, ids->inv_backpack, ids->com_inventory_items);
+    mock230_container_bind(srv, player, ids->inv_worn, MOCK230_COM(ids->iface_wornitems, 0));
 
     /* The combat tab builds itself from these; nothing else sends them. */
     mock230_world_sync_combat_varbits(srv);
@@ -5857,20 +5880,16 @@ phase_client_out(struct Mock230Player* player)
     if( player->worn_dirty )
         mock230_equipment_refresh_stats(srv);
 
-    mock230_send_inv_partial(
-        player,
-        mock230_ids()->com_inventory_items,
-        mock230_ids()->inv_backpack,
-        player->inv,
-        MOCK230_INV_SLOTS,
-        player->inv_dirty);
-    mock230_send_inv_partial(
-        player,
-        MOCK230_COM(mock230_ids()->iface_wornitems, 0),
-        mock230_ids()->inv_worn,
-        player->worn,
-        MOCK230_WORN_SLOTS,
-        player->worn_dirty);
+    /*
+     * Every bound container, in one loop.
+     *
+     * This was two hardcoded `mock230_send_inv_partial` calls naming the
+     * backpack and the worn set, which is why a fourth container could be
+     * written but never reached the client. The loop picks partial or full from
+     * the row's slot count, not from which container it is: 304 of the cache's
+     * 1,026 invs are past the 32 slots UPDATE_INV_PARTIAL's mask can address.
+     */
+    mock230_container_flush(player);
 
     /* Varps are NOT sent from here. `mock230_world_mark_varp` puts each one on
      * the wire at the point of the write, which is where the reference puts it
@@ -9314,6 +9333,11 @@ mock230_world_selftest(void)
          * of a percent, so a full bar is 1000, and VARP_SMALL's signed byte
          * would put it on the wire as -24.
          */
+        if( !srv.scripts_ok )
+        {
+            if( !mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build") )
+                mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        }
         if( srv.scripts_ok )
         {
             int com_mode = mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
@@ -10818,6 +10842,161 @@ mock230_world_selftest(void)
         SELFTEST_CHECK((player->inv_dirty & (1u << to_slot)) != 0, "to slot marked dirty");
     }
 
+    fprintf(stderr, "mock230 selftest: the container registry\n");
+    {
+        /*
+         * The permanent check for the registry (mock230_container.h).
+         *
+         * Everything here is a property of a container this file names by
+         * *symbol* and never by number: the id, the size and the transmit shape
+         * all come out of the pack and the cache. That is deliberate — a test
+         * that spelled 620 and 500 would keep passing after the cache moved
+         * them, which is the failure the registry exists to make impossible.
+         *
+         * The consumer is the collection container, chosen because it is the
+         * only per-player container in the tree that is larger than the 32
+         * slots UPDATE_INV_PARTIAL's dirty mask can address. It proves the
+         * container, NOT the collection-log feature: nothing here draws a panel
+         * or earns an entry.
+         */
+        static struct Mock230Capture capture;
+        const int inv_collection = mock230_content_symbol(MOCK230_PACK_INV, "collection_transmit");
+        const int iface_collection = mock230_content_symbol(MOCK230_PACK_INTERFACE, "collection");
+        const int obj_test = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_kiteshield");
+        const int component = MOCK230_COM(iface_collection, 0);
+        struct Mock230Container* row;
+        int big_slot;
+        int full_idx;
+
+        SELFTEST_CHECK(inv_collection >= 0 && iface_collection >= 0 && obj_test >= 0,
+                       "the pack names collection_transmit / collection / bronze_kiteshield");
+
+        /* 1. Resolve-or-create. Nothing registered this container: no inv id
+         *    for it exists anywhere in C, which is the whole point. */
+        row = mock230_container_resolve(&srv, player, inv_collection);
+        SELFTEST_CHECK(row != NULL, "a fourth container resolves at all (it did not before)");
+        SELFTEST_CHECK(row->slots == mock230_bank_inv_size(inv_collection),
+                       "sized from the cache, not from C: %d vs %d", row ? row->slots : -1,
+                       mock230_bank_inv_size(inv_collection));
+        SELFTEST_CHECK(row->slots > 32,
+                       "the chosen consumer is past the per-slot mask's reach (%d slots)",
+                       row->slots);
+        SELFTEST_CHECK(!row->per_slot,
+                       "a container larger than 32 slots must be whole-container dirty");
+        SELFTEST_CHECK(mock230_container_resolve(&srv, player, inv_collection) == row,
+                       "resolving twice returns the same row rather than a second one");
+
+        /* 2. `inv_size` answers for it. It returned 0 for 1,023 of the cache's
+         *    1,026 invs while mock230_bank_inv_size sat beside it. */
+        SELFTEST_CHECK(mock230_bank_inv_size(inv_collection) > 0,
+                       "the cache sizes this inv");
+
+        /* 3. A write past slot 31. The old dirty path would have shifted a
+         *    32-bit mask by more than its width here. */
+        big_slot = row->slots - 1;
+        mock230_container_set(row, big_slot, obj_test, 3);
+        SELFTEST_CHECK(row->items[big_slot].obj_id == obj_test, "slot %d written", big_slot);
+        SELFTEST_CHECK(mock230_container_is_dirty(row), "and marked");
+        SELFTEST_CHECK(mock230_container_slot_mask(row) == 0,
+                       "a whole-container row has no per-slot mask to shift");
+        mock230_container_set(row, big_slot, -1, 0);
+        mock230_container_clean(row);
+
+        /* 4. Bound, it flushes as ONE whole-container update. The slot is kept
+         *    small enough that the full update fits the capture buffer. */
+        SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component),
+                       "bind to a component");
+        mock230_container_set(row, 40, obj_test, 7);
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
+
+        full_idx = -1;
+        for( int i = 0; i < capture.count; i++ )
+        {
+            if( capture.packets[i].opcode != 10 /* UPDATE_INV_FULL */ )
+                continue;
+            if( capture.packets[i].len < 8 )
+                continue;
+            if( ((capture.packets[i].data[4] << 8) | capture.packets[i].data[5]) != inv_collection )
+                continue;
+            SELFTEST_CHECK(full_idx < 0, "exactly one full update for this container");
+            full_idx = i;
+        }
+        SELFTEST_CHECK(full_idx >= 0,
+                       "a >32-slot container flushes as UPDATE_INV_FULL — the two hardcoded "
+                       "sends this replaced could not carry it at all");
+        for( int i = 0; i < capture.count; i++ )
+        {
+            if( capture.packets[i].opcode != 37 /* UPDATE_INV_PARTIAL */ )
+                continue;
+            SELFTEST_CHECK(capture.packets[i].len < 6 ||
+                               ((capture.packets[i].data[4] << 8) | capture.packets[i].data[5]) !=
+                                   inv_collection,
+                           "and never as a partial");
+        }
+        SELFTEST_CHECK(!mock230_container_is_dirty(row), "the flush cleaned it");
+
+        /* 5. It survives a save/load round trip. Persistence used to be a third
+         *    copy of container_for's three cases, so a container the client
+         *    could be shown vanished at logout. */
+        {
+            const char* path = "build/selftest_container.ini";
+            int slot_obj;
+
+            mock230_container_set(row, 40, obj_test, 7);
+            slot_obj = row->items[40].obj_id;
+            SELFTEST_CHECK(mock230_save_player(player, path), "saved");
+            mock230_container_set(row, 40, -1, 0);
+            SELFTEST_CHECK(row->items[40].obj_id < 0, "cleared before the read-back");
+            SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
+            /* The row is looked up again rather than reused: on a real login it
+             * does not exist until the save recreates it. */
+            row = mock230_container_resolve(&srv, player, inv_collection);
+            SELFTEST_CHECK(row && row->items[40].obj_id == slot_obj,
+                           "slot 40 came back (%d)", row ? row->items[40].obj_id : -1);
+            SELFTEST_CHECK(row && row->items[40].count == 7, "with its count");
+            remove(path);
+        }
+
+        /* 6. The defect the three-case shape was causing, pinned.
+         *    `container_dirty(bank, slot)` used to fall through "backpack, else
+         *    worn" and mark a WORN slot — a wrong appearance push and a bank
+         *    that never re-transmitted. */
+        {
+            struct Mock230Container* bank_row =
+                mock230_container_resolve(&srv, player, mock230_ids()->inv_bank);
+            uint32_t worn_before;
+
+            SELFTEST_CHECK(bank_row != NULL, "the bank is a registry row");
+            SELFTEST_CHECK(player->bank.size == mock230_bank_inv_size(mock230_ids()->inv_bank),
+                           "the bank is the size the cache states (%d), not a clamped one",
+                           player->bank.size);
+            SELFTEST_CHECK(bank_row->slots == player->bank.size, "and the row agrees");
+            player->bank.dirty = 0;
+            player->worn_dirty = 0;
+            worn_before = player->worn_dirty;
+            mock230_container_mark(bank_row, player->bank.size - 1);
+            SELFTEST_CHECK(player->bank.dirty == 1,
+                           "marking a bank slot dirties the BANK");
+            SELFTEST_CHECK(player->worn_dirty == worn_before,
+                           "and leaves the worn container alone");
+            player->bank.dirty = 0;
+        }
+
+        /* 7. The world half of the seam exists and is empty by construction —
+         *    `scope` needs fields/inv.ini, which is another lane's file. */
+        SELFTEST_CHECK(mock230_container_scope(inv_collection) == MOCK230_CONTAINER_PLAYER,
+                       "no inv classifies as world-scoped yet (fields/inv.ini is the hole)");
+        SELFTEST_CHECK(row->owner_kind == MOCK230_CONTAINER_PLAYER && row->owner == player,
+                       "a per-player row knows its owner without asking active_player");
+
+        mock230_container_unbind(player, component);
+        mock230_container_forget(player, inv_collection);
+    }
+
     fprintf(stderr, "mock230 selftest: npcs roam inside their radius\n");
     {
         int moved = 0;
@@ -11419,6 +11598,203 @@ mock230_world_selftest(void)
 
         mock230_bank_close(&srv);
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
+    }
+
+    fprintf(stderr, "mock230 selftest: the bank PIN\n");
+    {
+        /*
+         * The whole feature end to end, driven through content's own procs.
+         *
+         * Everything here is named, never numbered: the varps come out of the
+         * symbol table and the interfaces out of the pack, so this test says
+         * nothing about *which* ids the tree happened to allocate — which is
+         * the point, since two of them are allocated by tools/ss_allocate.py
+         * and will move the moment the tree grows another varp.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded || !SSVM_ProviderGetByName(srv.scripts, "[proc,bankpin_gate]") )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct Mock230Ids* ids = mock230_ids();
+            int keypad = mock230_content_symbol(MOCK230_PACK_INTERFACE, "bankpin_keypad");
+            int varp_code = mock230_world_varp("bankpin_code");
+            int varp_set = mock230_world_varp("bankpin_set");
+            int varp_verified = mock230_world_varp("bankpin_verified");
+            const int k_pin = 4622;
+
+            SELFTEST_CHECK(keypad > 0, "bankpin_keypad should resolve in the interface pack");
+            SELFTEST_CHECK(varp_code > 0 && varp_set > 0 && varp_verified > 0,
+                           "the three PIN varps should resolve (%d/%d/%d)", varp_code,
+                           varp_set, varp_verified);
+
+            /*
+             * The storage decision, asserted rather than trusted.
+             *
+             * docs/bank_pin_server_reqs.md §3 claimed there were no PIN
+             * variables in the tree at all. There are two, and both are dead
+             * 2007 labels over live storage: `bankpin_2` is varp 563, whose
+             * every bit belongs to the Grand Exchange's new-offer varbits, and
+             * `bankpin_anticracker` is a varbit based on `tai_bwo_cleanup`.
+             * Writing a PIN into either corrupts a live feature, so the PIN got
+             * fresh server-allocated varps — and this is what stops a later
+             * "tidy-up" pointing it back at the cache's own name.
+             */
+            SELFTEST_CHECK(varp_code != mock230_world_varp("bankpin_2"),
+                           "the PIN must not live in bankpin_2 — the GE owns all 32 of its bits");
+            SELFTEST_CHECK(mock230_varbit_carrier_bits(varp_code) == 0 &&
+                               mock230_varbit_carrier_bits(varp_set) == 0 &&
+                               mock230_varbit_carrier_bits(varp_verified) == 0,
+                           "no cache varbit may share a PIN varp; a whole-varp write "
+                           "would destroy whatever else is in it");
+
+            /* ---- no PIN: the bank opens straight away ------------------- */
+            selftest_reset_world(&srv, player, 402, 402);
+            player->varps[varp_set] = 0;
+            player->varps[varp_code] = 0;
+            player->varps[varp_verified] = 0;
+            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
+                           "with no PIN set the bank opens directly, group is %d",
+                           player->mainmodal_group);
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "and nothing parks waiting for a number");
+            mock230_bank_close(&srv);
+
+            /* ---- with a PIN: the keypad comes first, and NO chat prompt -- */
+            {
+                static struct Mock230Capture capture;
+
+                selftest_reset_world(&srv, player, 402, 402);
+                player->varps[varp_set] = 1;
+                player->varps[varp_code] = k_pin;
+                player->varps[varp_verified] = 0;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(player->mainmodal_group == keypad,
+                               "a PIN gates the bank behind the keypad, group is %d",
+                               player->mainmodal_group);
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "and the script parks waiting for the number");
+
+                /*
+                 * The reason `p_countdialog_noprompt` exists, and the one
+                 * assertion that fails if it is ever collapsed back into
+                 * `p_countdialog`.
+                 *
+                 * P_COUNTDIALOG (op 128) opens the chatbox's "Enter amount"
+                 * prompt, which echoes each digit as it is typed. Over a keypad
+                 * whose entire purpose is that the digits are never typed, that
+                 * is not a cosmetic difference — it hands the PIN to a
+                 * shoulder-surfer through the exact channel the screen exists
+                 * to close.
+                 */
+                SELFTEST_CHECK(mock230_capture_find(&capture, 128 /* P_COUNTDIALOG */, 0) < 0,
+                               "the keypad must not also open the chatbox amount prompt");
+            }
+
+            /* ---- a wrong guess is refused and the keypad comes back ----- */
+            mock230_scripts_resume_countdialog(&srv, k_pin + 1);
+            SELFTEST_CHECK(player->varps[varp_verified] == 0,
+                           "a wrong PIN does not verify the session");
+            SELFTEST_CHECK(player->mainmodal_group == keypad,
+                           "and the keypad is asked again, group is %d",
+                           player->mainmodal_group);
+            SELFTEST_CHECK(player->active_script != NULL, "still parked for the retry");
+
+            /* ---- the right guess opens the bank ------------------------- */
+            mock230_scripts_resume_countdialog(&srv, k_pin);
+            SELFTEST_CHECK(player->varps[varp_verified] == 1,
+                           "the right PIN verifies the session");
+            SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
+                           "and the bank finally opens, group is %d",
+                           player->mainmodal_group);
+            SELFTEST_CHECK(player->active_script == NULL, "the gate script has finished");
+            mock230_bank_close(&srv);
+
+            /* ---- once verified, the session is not asked again ---------- */
+            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
+                           "a verified session goes straight in, group is %d",
+                           player->mainmodal_group);
+            mock230_bank_close(&srv);
+
+            /*
+             * ---- what survives a logout, and what must not ---------------
+             *
+             * `bankpin_verified` is scope=temp precisely so that it does NOT
+             * persist: a PIN asked once ever is not a PIN. The save writer
+             * decides that off the .varp config, so this is the assertion that
+             * catches somebody "fixing" the config to perm.
+             */
+            {
+                const struct Mock230VarpDef* def;
+
+                def = mock230_content_varp(varp_code);
+                SELFTEST_CHECK(def && def->scope_perm,
+                               "bankpin_code must be scope=perm or the PIN dies at logout");
+                def = mock230_content_varp(varp_set);
+                SELFTEST_CHECK(def && def->scope_perm, "bankpin_set must be scope=perm too");
+                def = mock230_content_varp(varp_verified);
+                SELFTEST_CHECK(def && !def->scope_perm,
+                               "bankpin_verified must NOT be perm — the PIN is asked "
+                               "once per login, not once ever");
+
+                /* And none of them is transmitted: the client is never told the
+                 * PIN, which is the whole security property of the feature. */
+                SELFTEST_CHECK(mock230_content_varp(varp_code) &&
+                                   !mock230_content_varp(varp_code)->transmit,
+                               "the PIN must never go on the wire");
+            }
+
+            /* ---- the two sentinels are not guesses ---------------------- */
+            selftest_reset_world(&srv, player, 402, 402);
+            player->varps[varp_set] = 1;
+            player->varps[varp_code] = k_pin;
+            player->varps[varp_verified] = 0;
+            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            SELFTEST_CHECK(player->mainmodal_group == keypad, "keypad up for the sentinel case");
+            /* 12345 is the keypad's "Exit" row (script 653 arms it literally). */
+            mock230_scripts_resume_countdialog(&srv, 12345);
+            SELFTEST_CHECK(player->varps[varp_verified] == 0,
+                           "Exit does not verify");
+            SELFTEST_CHECK(player->mainmodal_group != ids->iface_bankmain,
+                           "and does not open the bank");
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "Exit ends the gate rather than costing an attempt");
+
+            /* ---- three wrong guesses end the visit ---------------------- */
+            selftest_reset_world(&srv, player, 402, 402);
+            player->varps[varp_set] = 1;
+            player->varps[varp_code] = k_pin;
+            player->varps[varp_verified] = 0;
+            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            for( int i = 0; i < 3; i++ )
+            {
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "parked for attempt %d", i + 1);
+                mock230_scripts_resume_countdialog(&srv, k_pin + 1 + i);
+            }
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "three wrong guesses end the gate");
+            SELFTEST_CHECK(player->mainmodal_group != ids->iface_bankmain,
+                           "and the bank stays shut");
+            SELFTEST_CHECK(player->varps[varp_verified] == 0, "still unverified");
+
+            player->varps[varp_set] = 0;
+            player->varps[varp_code] = 0;
+            player->varps[varp_verified] = 0;
+            mock230_scripts_free(&srv);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: npc modes\n");

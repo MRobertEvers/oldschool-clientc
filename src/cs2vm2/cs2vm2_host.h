@@ -292,6 +292,16 @@ enum CS2VM_HostRequestKind
      * which is the same shape as LOGOUT above. */
     CS2VM_HOST_REQUEST_IF_CLOSE,
 
+    /* RESUME_COUNTDIALOG (3104): the answer to a server script parked on
+     * P_COUNTDIALOG. Same split as IF_CLOSE — the host has no socket, so it
+     * queues the send and the App turns it into RESUME_P_COUNTDIALOG.
+     *
+     * The payload is a STRING because the opcode's callers push one:
+     * `resume_countdialog(tostring($n))`. The wire carries an int, and the
+     * conversion belongs on the App side, where the chatbox's own "Enter
+     * amount" path already does exactly the same atol. */
+    CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG,
+
     /* Viewport FOV/zoom get/set/clamp (6200..6205), one kind carrying the opcode
      * and its popped args. The host owns both values so a SET/CLAMP round-trips
      * through the matching GET (like CAM_*FOLLOWHEIGHT). */
@@ -371,6 +381,13 @@ struct CS2VM_HostRequest_Social
     int opcode;
     int index;
     char* name;
+};
+
+/** RESUME_COUNTDIALOG (3104). `text` is BORROWED from the VM's string pool —
+ *  the handler must copy it, never free it. */
+struct CS2VM_HostRequest_ResumeCountDialog
+{
+    char* text;
 };
 
 /** Chat filter get/set and the private send (5000/5001/5005/5009/5016).
@@ -1322,6 +1339,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_ClientOp clientop;
         struct CS2VM_HostRequest_Social social;
         struct CS2VM_HostRequest_Chat chat;
+        struct CS2VM_HostRequest_ResumeCountDialog resume_countdialog;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_friend_transmit;
     } u;
 };

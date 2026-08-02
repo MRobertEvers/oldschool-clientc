@@ -16,6 +16,7 @@
 
 #include "mock230.h"
 #include "mock230_bank.h"
+#include "mock230_container.h"
 #include "mock230_boot.h"
 #include "mock230_session.h"
 #include "mock230_transport.h"
@@ -174,6 +175,7 @@ mock230_embed_stop(struct Mock230Embed* embed)
         mock230_pipe_free(&client->to_client);
     }
     mock230_bank_shutdown(&embed->srv);
+    mock230_container_shutdown(&embed->srv);
     mock230_scripts_free(&embed->srv);
     mock230_boot_free();
 

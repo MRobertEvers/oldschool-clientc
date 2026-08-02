@@ -1313,9 +1313,27 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
         if( !SSC_SymbolsFind(symbols, k_locshape[i], SSC_SYM_UNKNOWN) )
             SSC_SymbolsAdd(symbols, k_locshape[i], (int32_t)i, SSC_SYM_LOCSHAPE, NULL);
     }
+    /*
+     * Type names are seeded per KIND, not per name.
+     *
+     * The `SSC_SYM_UNKNOWN` guard the other seed loops use matches any kind, and
+     * for a type name that is also a pack symbol that means the type is never
+     * registered at all. `inv` is exactly that collision: the backpack container
+     * is *named* `inv` (pack/inv.pack), so `SSC_SYM_INV` claimed the name and
+     * the `inv` TYPE never existed — which made `(inv $x)` in a header record
+     * its param type as `int` (parse_header_lists' "a type the symbol table does
+     * not know is int" fallback). Nothing in a compiled script noticed, because
+     * an inv rides the int stack either way; what it broke is the one consumer
+     * that reads `param_types` back, `mock230_scripts_run_debugproc`, which then
+     * ran `strtol("collection_transmit")` and passed container 0.
+     *
+     * Lookups are kind-specific (SSC_SymbolsFind walks every entry with the
+     * name and takes the first of the requested kind), so both entries can
+     * coexist: `inv` as a value still resolves to the container.
+     */
     for( i = 0; i < sizeof(k_types) / sizeof(k_types[0]); i++ )
     {
-        if( !SSC_SymbolsFind(symbols, k_types[i].name, SSC_SYM_UNKNOWN) )
+        if( !SSC_SymbolsFind(symbols, k_types[i].name, SSC_SYM_TYPE) )
             SSC_SymbolsAdd(symbols, k_types[i].name, k_types[i].value, SSC_SYM_TYPE, NULL);
     }
 }

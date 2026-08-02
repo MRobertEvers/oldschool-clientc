@@ -111,6 +111,60 @@ op4(
     return run_op(op, args, 4);
 }
 
+/*
+ * Run a one-argument op with a sentinel underneath it and report BOTH stack
+ * cells: `*out_result` is what the op pushed, `*out_below` is whatever is left
+ * under it.
+ *
+ * `run_op` above cannot see the difference between an op that pops its argument
+ * and one that does not — both leave the answer on top. That difference is
+ * exactly what was wrong with RANDOM, which pushed rand() and popped nothing,
+ * so its argument stayed on the stack and its result was unbounded. Neither
+ * half is loud: a leftover int is tolerated at script end, and an out-of-range
+ * value used as an array index reads back as 0.
+ */
+static void
+op1_with_sentinel(
+    int op,
+    int arg,
+    int sentinel,
+    int* out_result,
+    int* out_below)
+{
+    struct CS2VM2 vm;
+    struct CS2VM2_Script script;
+    struct CS2VM2_Thread* t;
+    const int op_count = 4;
+
+    CS2VM2_Init(&vm);
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 9998;
+    script.op_count = op_count;
+    script.opcodes = calloc((size_t)op_count, sizeof(uint16_t));
+    script.int_operands = calloc((size_t)op_count, sizeof(int));
+    script.string_operands = calloc((size_t)op_count, sizeof(char*));
+
+    script.opcodes[0] = (uint16_t)CS2_OP_PUSH_CONSTANT_INT;
+    script.int_operands[0] = sentinel;
+    script.opcodes[1] = (uint16_t)CS2_OP_PUSH_CONSTANT_INT;
+    script.int_operands[1] = arg;
+    script.opcodes[2] = (uint16_t)op;
+    script.opcodes[3] = (uint16_t)CS2_OP_RETURN;
+
+    t = CS2VM2_ThreadMain(&vm);
+    CS2VM2_PushCallScript(t, &script);
+    CS2VM2_RunScript(t);
+
+    *out_result = 0;
+    *out_below = 0;
+    CS2VM2_PopInt(t, out_result);
+    CS2VM2_PopInt(t, out_below);
+
+    free(script.opcodes);
+    free(script.int_operands);
+    free(script.string_operands);
+}
+
 int
 main(void)
 {
@@ -166,6 +220,72 @@ main(void)
     {
         int args[5] = { 0, 100, 0, 10, 5 };
         CHECK(run_op(CS2_OP_INTERPOLATE, args, 5), 50, "INTERPOLATE(0,100,0,10,5)");
+    }
+
+    /*
+     * RANDOM / RANDOMINC.
+     *
+     * `[command,random](int $num)` is "0 to $num - 1" and `randominc` is "0 to
+     * $num" (LostCity content/scripts/engine.rs2:958-961). Two properties, and
+     * RANDOM was failing both: it popped nothing and pushed a raw rand().
+     *
+     * The failure was silent everywhere until the bank PIN keypad, which
+     * shuffles its ten digit buttons with `random(9)` twenty times. Every swap
+     * indexed past the end of the array, PUSH_ARRAY_INT answered 0 for each,
+     * and the keypad drew its digits in plain 0-to-9 order with the last button
+     * blank — the anti-shoulder-surfing property of the whole screen, gone,
+     * with nothing on screen to say so.
+     */
+    {
+        const int k_sentinel = 0x5A5A5A;
+        int result = 0;
+        int below = 0;
+        int in_range = 1;
+        int saw_nonzero = 0;
+
+        /* Popped, not left behind — see op1_with_sentinel. */
+        op1_with_sentinel(CS2_OP_RANDOM, 9, k_sentinel, &result, &below);
+        CHECK(below, k_sentinel, "RANDOM pops its argument");
+        op1_with_sentinel(CS2_OP_RANDOMINC, 9, k_sentinel, &result, &below);
+        CHECK(below, k_sentinel, "RANDOMINC pops its argument");
+
+        /* Bounded. 200 samples of random(10) must all land in 0..9, and must
+         * not all be the same number — a handler that answers a constant is
+         * still "in range" and is what an unpopped argument degrades into. */
+        for( int i = 0; i < 200; i++ )
+        {
+            int v = op1(CS2_OP_RANDOM, 10);
+            if( v < 0 || v > 9 )
+                in_range = 0;
+            if( v != 0 )
+                saw_nonzero = 1;
+        }
+        CHECK(in_range, 1, "random(10) always lands in 0..9");
+        CHECK(saw_nonzero, 1, "random(10) is not stuck on one value");
+
+        /* randominc(0) is the inclusive edge: 0..0. random(1) is 0..0 too. */
+        CHECK(op1(CS2_OP_RANDOM, 1), 0, "random(1) is always 0");
+        CHECK(op1(CS2_OP_RANDOMINC, 0), 0, "randominc(0) is always 0");
+
+        /* A non-positive bound must not divide by zero. */
+        CHECK(op1(CS2_OP_RANDOM, 0), 0, "random(0) is 0, not a division by zero");
+        CHECK(op1(CS2_OP_RANDOM, -5), 0, "random(-5) is 0");
+
+        /* random(n) excludes n; randominc(n) includes it. 400 samples of
+         * random(2) must never be 2, and randominc(1) must eventually be 1. */
+        {
+            int saw_bound = 0;
+            int saw_inc_bound = 0;
+            for( int i = 0; i < 400; i++ )
+            {
+                if( op1(CS2_OP_RANDOM, 2) == 2 )
+                    saw_bound = 1;
+                if( op1(CS2_OP_RANDOMINC, 1) == 1 )
+                    saw_inc_bound = 1;
+            }
+            CHECK(saw_bound, 0, "random(2) never returns 2 (exclusive)");
+            CHECK(saw_inc_bound, 1, "randominc(1) does return 1 (inclusive)");
+        }
     }
 
     if( g_fail )

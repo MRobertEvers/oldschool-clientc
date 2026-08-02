@@ -55,11 +55,32 @@ static int g_fail = 0;
 /* Harness                                                             */
 /* ------------------------------------------------------------------ */
 
+enum
+{
+    /* Deliberately wider than SSC_MAX_VARARG_TYPES, so an over-long list would
+     * be recorded rather than clipped by the recorder itself. */
+    RECORD_VARARG_MAX = 64
+};
+
 struct HostRecord
 {
     int mes_count;
     char last_message[256];
     int last_int_arg;
+
+    /* RUNCLIENTSCRIPTVARARG, recorded exactly as the mock server's host case
+     * pops it (mock230_scripts.c, `case SS_OP_RUNCLIENTSCRIPTVARARG`). */
+    int run_count;
+    int32_t run_script_id;
+    int run_argc;
+    char run_types[RECORD_VARARG_MAX + 1];
+    int32_t run_intv[RECORD_VARARG_MAX];
+    char run_strv[RECORD_VARARG_MAX][64];
+    /* Both stack pointers as the handler left them. A variadic that pops the
+     * wrong number of values does not fail at the call — it leaves the script
+     * running on a skewed stack, and the skew surfaces somewhere else. */
+    int32_t run_isp_after;
+    int32_t run_ssp_after;
 };
 
 static int
@@ -89,6 +110,63 @@ record_command(struct SSVM_State* state, int opcode, int dot)
         if( !SSVM_PopInt(state, &value) )
             return 1;
         record->last_int_arg = value;
+        return 1;
+    }
+
+    /*
+     * `runclientscript*(clientscript)(args...)` — the variadic push.
+     *
+     * This is a transcription of the mock server's host case, not a
+     * simplification of it, because the layout is the thing under test: the
+     * compiler emits the declared arguments, then the vararg values, then a
+     * type string describing them, so the type string is popped FIRST and
+     * walked BACKWARDS (the last value pushed is the first one off).
+     *
+     * The copy of the type string before the loop is load-bearing: it is a
+     * `SSVM_StrPool` pointer, and the loop pops other pool pointers over it.
+     */
+    case SS_OP_RUNCLIENTSCRIPTVARARG:
+    {
+        const char* type_string;
+        int argc;
+        int i;
+
+        if( !SSVM_PopStr(state, &type_string) )
+            return 1;
+        argc = (int)strlen(type_string);
+        if( argc > RECORD_VARARG_MAX )
+        {
+            SSVM_Abort(state, "recorder holds at most %d vararg values, given %d",
+                       RECORD_VARARG_MAX, argc);
+            return 1;
+        }
+        memcpy(record->run_types, type_string, (size_t)argc);
+        record->run_types[argc] = '\0';
+
+        for( i = argc - 1; i >= 0; i-- )
+        {
+            record->run_intv[i] = 0;
+            record->run_strv[i][0] = '\0';
+            if( record->run_types[i] == 's' )
+            {
+                const char* text;
+
+                if( !SSVM_PopStr(state, &text) )
+                    return 1;
+                snprintf(record->run_strv[i], sizeof(record->run_strv[i]), "%s", text);
+            }
+            else
+            {
+                if( !SSVM_PopInt(state, &record->run_intv[i]) )
+                    return 1;
+            }
+        }
+        if( !SSVM_PopInt(state, &record->run_script_id) )
+            return 1;
+        record->run_argc = argc;
+        record->run_count++;
+        record->run_isp_after = state->isp;
+        record->run_ssp_after = state->ssp;
         return 1;
     }
 
@@ -152,6 +230,15 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
     SSC_SymbolsAdd(&fixture->symbols, "quest_progress", 42, SSC_SYM_VARP, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "max_coins", 0, SSC_SYM_CONSTANT, "2147000000");
     SSC_SymbolsAdd(&fixture->symbols, "greeting", 0, SSC_SYM_CONSTANT, "\"Well met!\"");
+    /*
+     * The builtin seed — type names, npc modes, loc shapes. `sscompile` calls
+     * this AFTER the packs (ssc_main.c), and the order is load-bearing: a type
+     * name that a pack has already claimed is exactly the collision
+     * test_param_type_shadowing pins, so seeding first here would hide it. The
+     * fixture did not call this at all, which is why every header type silently
+     * fell back to `int` and no test could see either fact.
+     */
+    SSC_SymbolsSeedBuiltins(&fixture->symbols);
 
     fixture->compiler = SSC_New(&fixture->symbols);
     memset(&diag, 0, sizeof(diag));
@@ -595,6 +682,243 @@ test_coord_subject(void)
     fixture_close(&fixture);
 }
 
+/*
+ * `runclientscript*` — a runtime-determined mix of ints and strings.
+ *
+ * This is the whole of Blocker A end to end in one test: source -> compiler ->
+ * bytecode -> reader -> VM -> host callback. What it pins is the *layout*, not
+ * the opcode's existence, because the opcode already existed and only its
+ * int-only half was ever exercised by content (the two live call sites,
+ * `skill_guide.rs2` and `slayer_rewards.rs2`, are four ints and three ints).
+ *
+ * Four things can be wrong here and only the first is loud on its own:
+ *
+ *   1. the type string is absent or mis-ordered -> the VM pops the wrong stack
+ *      and aborts;
+ *   2. the type character is derived from something other than the *static type
+ *      of each vararg expression* -> a string is popped as an int, silently,
+ *      and the clientscript draws a panel from a pool pointer;
+ *   3. the values are handed over reversed -> the panel is drawn from the right
+ *      values in the wrong slots, which looks like a content bug;
+ *   4. the handler pops a different number of values than were pushed -> the
+ *      *rest of the script* runs on a skewed stack and fails elsewhere.
+ *
+ * So the asserts are: the type string itself, every value in declaration order,
+ * and both stack pointers back at zero afterwards.
+ */
+static void
+test_runclientscript_vararg(void)
+{
+    struct Fixture fixture;
+    int32_t args[1] = { 5 };
+
+    printf("runclientscript* (variadic int/string push)\n");
+
+    /*
+     * Nothing here is a literal of the type it claims:
+     *   $a       an int parameter
+     *   $b       an int local computed at run time
+     *   $label   a string local
+     *   ~answer  a proc call whose *return type* is what makes it an 'i'
+     *   ^greeting a string constant, which is a string only after expansion
+     * A compiler that guessed the type from the token rather than from the
+     * expression gets at least two of these wrong.
+     */
+    if( !fixture_compile(&fixture,
+                         "[proc,answer]()(int)\n"
+                         "return(7);\n"
+                         "[proc,push_mixed](int $a)\n"
+                         "def_int $b = calc($a + 100);\n"
+                         "def_string $label = \"hello\";\n"
+                         "runclientscript*(1074)($a, $b, $label, ~answer, ^greeting);\n"
+                         "[proc,push_ints]\n"
+                         "runclientscript*(1902)(1, 2, 3, 4);\n"
+                         "[proc,push_strings]\n"
+                         "runclientscript*(58)(\"a\", \"b\");\n"
+                         "[proc,push_none]\n"
+                         "runclientscript*(1749)();\n",
+                         "runclientscript") )
+        return;
+
+    if( run_script(&fixture, "[proc,push_mixed]", args, 1, NULL, "runclientscript") )
+    {
+        CHECK_EQ(fixture.record.run_count, 1, "the vararg command reached the host once");
+        CHECK_EQ(fixture.record.run_script_id, 1074, "the fixed argument is the clientscript id");
+        CHECK_EQ(fixture.record.run_argc, 5, "five vararg values");
+        CHECK(strcmp(fixture.record.run_types, "iisis") == 0,
+              "the type string is the static type of each expression, in order");
+        if( strcmp(fixture.record.run_types, "iisis") != 0 )
+            printf("       got \"%s\", want \"iisis\"\n", fixture.record.run_types);
+        CHECK_EQ(fixture.record.run_intv[0], 5, "value 0 is the int parameter");
+        CHECK_EQ(fixture.record.run_intv[1], 105, "value 1 is the computed int local");
+        CHECK(strcmp(fixture.record.run_strv[2], "hello") == 0, "value 2 is the string local");
+        CHECK_EQ(fixture.record.run_intv[3], 7, "value 3 is the proc's int return");
+        CHECK(strcmp(fixture.record.run_strv[4], "Well met!") == 0,
+              "value 4 is the expanded string constant");
+        /* The one that catches a handler which pops a wrong count: the values
+         * are consumed exactly, so the caller's stacks are empty again. */
+        CHECK_EQ(fixture.record.run_isp_after, 0, "the int stack is drained");
+        CHECK_EQ(fixture.record.run_ssp_after, 0, "the string stack is drained");
+    }
+
+    /* The two shapes content already ships, and the empty list, so a change
+     * that only handles the mixed case does not pass. */
+    if( run_script(&fixture, "[proc,push_ints]", NULL, 0, NULL, "runclientscript") )
+    {
+        CHECK(strcmp(fixture.record.run_types, "iiii") == 0, "an all-int list is \"iiii\"");
+        CHECK_EQ(fixture.record.run_intv[3], 4, "and its last value is last");
+        CHECK_EQ(fixture.record.run_ssp_after, 0, "with nothing left on the string stack");
+    }
+    if( run_script(&fixture, "[proc,push_strings]", NULL, 0, NULL, "runclientscript") )
+    {
+        CHECK(strcmp(fixture.record.run_types, "ss") == 0, "an all-string list is \"ss\"");
+        CHECK(strcmp(fixture.record.run_strv[0], "a") == 0, "in declaration order");
+        CHECK_EQ(fixture.record.run_isp_after, 0, "with nothing left on the int stack");
+    }
+    if( run_script(&fixture, "[proc,push_none]", NULL, 0, NULL, "runclientscript") )
+    {
+        CHECK_EQ(fixture.record.run_argc, 0, "an empty vararg list is zero values");
+        CHECK_EQ(fixture.record.run_script_id, 1749, "and still carries the script id");
+    }
+
+    fixture_close(&fixture);
+}
+
+/*
+ * The compiler's own guards on the vararg list.
+ *
+ * `SSC_MAX_VARARG_TYPES` is the first of three caps the same value has to pass
+ * (the mock host's `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` and the client's
+ * `PKT_RUNCLIENTSCRIPT_ARG_MAX` are the other two), and it is the only one that
+ * can refuse *before* anything is on the wire. Refusing is the point: the
+ * failure mode it replaces is a clientscript run with some of its arguments,
+ * which does not error anywhere — it draws the wrong panel.
+ */
+/*
+ * A header's declared types survive into `param_types`, even when the type name
+ * is also a pack symbol.
+ *
+ * `inv` is both: the backpack container is *named* `inv`, so the seed loop that
+ * registered type names "if nothing else claims the name" never registered the
+ * `inv` TYPE at all, and `(inv $x)` recorded its param type as `int`. Nothing in
+ * a compiled script could notice — an inv rides the int stack either way — so
+ * the only observable is the one consumer that reads `param_types` back:
+ * `mock230_scripts_run_debugproc`, which resolves each argument through the pack
+ * named by its type. With `inv` recorded as `int` it ran `strtol` over the
+ * container's *name* and passed container 0 instead.
+ *
+ * The fixture already adds `inv` as SSC_SYM_INV, which is exactly the
+ * collision — so this fails by construction without the per-kind seed guard in
+ * ssc_symbols.c.
+ */
+static void
+test_param_type_shadowing(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+
+    printf("a type name that is also a pack symbol\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,take_inv](inv $inv, int $slot, namedobj $obj)\n"
+                         "~noop;\n"
+                         "\n"
+                         "[proc,noop]()\n",
+                         "param type shadowing") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,take_inv]");
+    if( !script )
+    {
+        printf("  FAIL param type shadowing: no script\n");
+        g_fail++;
+        fixture_close(&fixture);
+        return;
+    }
+    CHECK_EQ(script->param_type_count, 3, "three declared params");
+    /* 118 'v' inv, 105 'i' int, 79 'O' namedobj — ScriptVarType.getTypeChar. */
+    CHECK_EQ((int)script->param_types[0], 118, "an `inv` param keeps its type");
+    CHECK_EQ((int)script->param_types[1], 105, "an `int` param keeps its type");
+    CHECK_EQ((int)script->param_types[2], 79, "a `namedobj` param keeps its type");
+
+    fixture_close(&fixture);
+}
+
+static void
+test_vararg_limits(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[600];
+    FILE* file;
+    int i;
+
+    printf("vararg list limits\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_vararg_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    snprintf(path, sizeof(path), "%s/bad.rs2", dir);
+    file = fopen(path, "wb");
+    if( !file )
+        return;
+    fputs("[proc,too_many]\n"
+          "runclientscript*(1074)(",
+          file);
+    for( i = 0; i < SSC_MAX_VARARG_TYPES + 1; i++ )
+        fprintf(file, "%s%d", i ? ", " : "", i);
+    fputs(");\n"
+          /* A command with no `*` form must not silently become its plain
+           * form: `mes*` is not `mes`. */
+          "[proc,no_star_form]\n"
+          "mes*(\"x\")(1);\n",
+          file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "more vararg values than SSC_MAX_VARARG_TYPES fails the compile");
+    CHECK(diag.line > 0, "and reports where");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    /* Second file on its own, so the first diagnostic does not mask it. */
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+    snprintf(path, sizeof(path), "%s/nostar.rs2", dir);
+    file = fopen(path, "wb");
+    if( !file )
+        return;
+    fputs("[proc,no_star_form]\n"
+          "mes*(\"x\")(1);\n",
+          file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a command with no vararg form fails the compile");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
 static void
 test_implicit_return(void)
 {
@@ -683,6 +1007,9 @@ main(void)
     test_trigger_subject();
     test_coord_subject();
     test_implicit_return();
+    test_runclientscript_vararg();
+    test_vararg_limits();
+    test_param_type_shadowing();
     test_errors();
 
     if( g_fail )

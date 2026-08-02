@@ -45,7 +45,7 @@ because its client has no CS2; this one describes only state.
 | bank interface | `12` | `tools/dump_interface cache.osrs239 --dat2 --iface 12` |
 | bank side panel | `15` | same |
 | bank container | `95` | `inv-names.tsv`, and the client's own `INV_MANAGER_CONTAINER_BANK` |
-| bank capacity | `1220` | config group 5 (inv), read at startup — **not** written down |
+| bank capacity | `1410` | config group 5 (inv), read at startup — **not** written down. It read 1220 until 2026-08-02: `MOCK230_BANK_SLOTS` was applied as an upper *clamp* under a comment describing a no-cache fallback, so every bank was 190 slots short of the container the client walks. See `mock230_containers.md` §5 |
 | mount slot, main | `161:16` | toplevel_osrs_stretch `mainmodal` |
 | mount slot, side | `161:74` | toplevel_osrs_stretch `sidemodal` |
 

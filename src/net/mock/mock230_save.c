@@ -5,6 +5,7 @@
 #include "mock230_save.h"
 
 #include "mock230.h"
+#include "mock230_container.h"
 #include "mock230_content.h"
 
 #include "3rd/ini/ini.h"
@@ -186,6 +187,31 @@ mock230_save_player(
         write_items(file, "bank", player->bank.slots, player->bank.size);
 
     /*
+     * Everything else the registry holds, keyed by inv id.
+     *
+     * Three hardcoded `write_items` calls and a fixed `enum SaveSection` were
+     * the third copy of `container_for`'s three cases — persistence could only
+     * save the containers the resolver could name, which is how a container the
+     * client can be shown became one that vanishes at logout.
+     *
+     * The three above keep their spelled sections: they are what a person
+     * hand-editing a save is looking for, and an old file still loads. What
+     * separates them from the rest is not their ids but that the registry does
+     * not own their storage, so the test is `owns_items` — no inv id in the
+     * loop.
+     */
+    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    {
+        const struct Mock230Container* row = &player->containers[i];
+        char section[64];
+
+        if( !row->used || !row->owns_items || !row->items || row->slots <= 0 )
+            continue;
+        snprintf(section, sizeof(section), "container.%d", (int)row->inv_id);
+        write_items(file, section, row->items, row->slots);
+    }
+
+    /*
      * Only `scope=perm` varps.
      *
      * Content's decision, not the engine's — the same rule LostCity uses, and
@@ -232,6 +258,8 @@ enum SaveSection
     SAVE_WORN,
     SAVE_BANK,
     SAVE_VARPS,
+    /** A `[container.<inv>]` section; the id is in `section_inv`. */
+    SAVE_CONTAINER,
 };
 
 static void
@@ -266,6 +294,8 @@ mock230_load_player(
     struct INIReader reader;
     struct INIElement element;
     enum SaveSection section = SAVE_NONE;
+    int section_inv = -1;
+    struct Mock230Container* section_row = NULL;
     int version = 0;
 
     if( !path || !*path )
@@ -313,6 +343,21 @@ mock230_load_player(
                 section = SAVE_BANK;
             else if( strcmp(element._section.name, "varps") == 0 )
                 section = SAVE_VARPS;
+            else if( strncmp(element._section.name, "container.", 10) == 0 )
+            {
+                /*
+                 * Resolve-or-create, exactly as a script naming the container
+                 * would: the row does not exist on a fresh login, and the save
+                 * is what brings it back. An inv the cache no longer sizes
+                 * resolves to NULL and its rows are skipped, which is the same
+                 * "a key this server does not know is ignored" rule the rest of
+                 * the format has.
+                 */
+                section = SAVE_CONTAINER;
+                section_inv = atoi(element._section.name + 10);
+                section_row =
+                    mock230_container_resolve(player->world, player, (int32_t)section_inv);
+            }
             else
                 section = SAVE_NONE; /* a section from a newer server */
             continue;
@@ -377,6 +422,11 @@ mock230_load_player(
         case SAVE_BANK:
             if( player->bank.slots && player->bank.size > 0 )
                 load_item(player->bank.slots, player->bank.size, key, value);
+            break;
+
+        case SAVE_CONTAINER:
+            if( section_row && section_row->items )
+                load_item(section_row->items, section_row->slots, key, value);
             break;
 
         case SAVE_VARPS:

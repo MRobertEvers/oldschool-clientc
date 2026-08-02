@@ -131,16 +131,42 @@ osrs230_parse(
         struct Osrs230Cursor cur = { data, len, 0, 0 };
         char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
         int argc = 0;
+        int terminated = 0;
 
-        while( argc < PKT_RUNCLIENTSCRIPT_ARG_MAX )
+        for( ;; )
         {
             int ch = c_g1(&cur);
-            if( cur.over || ch == '\n' || ch == 0 )
+
+            if( cur.over )
                 break;
+            if( ch == '\n' || ch == 0 )
+            {
+                terminated = 1;
+                break;
+            }
+            /*
+             * More arguments than the struct holds FAILS the packet, and that
+             * is the whole point of the branch.
+             *
+             * Stopping at the cap and decoding anyway is what this did, and it
+             * is worse than it looks: the unread type characters stay in the
+             * stream, so the very next read — argument 19's int — comes off
+             * those stray type bytes instead of off a p4. Every argument is
+             * then wrong, `cur.over` never trips because the packet is long
+             * enough, and the parse returns 1. A dropped RUNCLIENTSCRIPT is a
+             * panel that does not appear; a decoded one is a panel drawn from
+             * garbage, which is indistinguishable from a content bug.
+             *
+             * Unreachable from this repo's own server (the host aborts above
+             * MOCK230_RUNCLIENTSCRIPT_ARG_MAX and the compiler above
+             * SSC_MAX_VARARG_TYPES, both smaller), reachable from any other.
+             */
+            if( argc >= PKT_RUNCLIENTSCRIPT_ARG_MAX )
+                return 0;
             types[argc++] = (char)ch;
         }
         types[argc] = '\0';
-        if( cur.over )
+        if( cur.over || !terminated )
             return 0;
 
         memset(&out->_runclientscript, 0, sizeof(out->_runclientscript));

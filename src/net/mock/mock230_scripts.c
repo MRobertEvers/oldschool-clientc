@@ -24,6 +24,7 @@
 
 #include "mock230.h"
 
+#include "mock230_container.h"
 #include "mock230_content.h"
 #include "mock230_ids.h"
 #include "mock230_scene.h"
@@ -1760,7 +1761,6 @@ static const struct FallbackBlockingOp k_blocked_opheld[] = {
     BLOCKING_OP(SS_OP_OC_WEARPOS),
     BLOCKING_OP(SS_OP_OC_WEARPOS2),
     BLOCKING_OP(SS_OP_OC_WEARPOS3),
-    BLOCKING_OP(SS_OP_INV_SETSLOT),
     BLOCKING_OP(SS_OP_INV_MOVEFROMSLOT),
     BLOCKING_OP(SS_OP_INV_DROPSLOT),
     BLOCKING_OP(SS_OP_BUILDAPPEARANCE),
@@ -1860,9 +1860,12 @@ static const struct
           "(interface_equipment/scripts/equipment.rs2) and mock230_equipment.c is 134 "
           "lines (`wc -l`) of component -> worn-slot map with no wear/drop rule in it. "
           "The row is the tail of handle_opheld, mock230_world.c:2217-2272. Blocked on "
-          "eight opcodes that are declared in ss_opcode.h and implemented nowhere — "
-          "three to ask an obj where it goes, three to move the slot, one to rebuild "
-          "the appearance and one to clear the pending action. Reference: [opheld2,_] "
+          "seven opcodes that are declared in ss_opcode.h and implemented nowhere — "
+          "three to ask an obj where it goes, two to move the slot, one to rebuild "
+          "the appearance and one to clear the pending action. It was eight until the "
+          "container registry landed INV_SETSLOT (mock230_container.h); the count is "
+          "edited here because `mock230_scripts_stale_blockers` fails on a cited "
+          "opcode that has since been implemented. Reference: [opheld2,_] "
           "~equip(last_slot) (player/scripts/equip.rs2:1) and [opheld5,_] "
           "~dropslot(last_slot) (player/scripts/drop.rs2:1)",
           k_blocked_opheld },
@@ -2325,49 +2328,49 @@ active_npc(struct SSVM_State* state)
     return &srv->npcs[slot];
 }
 
-/** Container by the id scripts name it with (93 backpack, 94 worn, 95 bank). */
+/*
+ * The container the *active* player means by `inv_id`.
+ *
+ * The registry (mock230_container.h) is what actually resolves this, and it
+ * takes the player as an argument rather than reading `srv->active_player` —
+ * because a `scope=shared` container has no player to read. What is left here
+ * is the ServerScript adaptor: a `.`-less container op acts on the primary
+ * player, which is LostCity's `ScriptState.activePlayer` and is the correct
+ * source *for this layer*. The `.` dialect is where a secondary player would
+ * come from; it is decoded and discarded today (`(void)dot;` below), which is
+ * one of the things standing between here and trading.
+ */
+static struct Mock230Container*
+container_row(
+    struct Mock230Server* srv,
+    int32_t inv_id)
+{
+    return mock230_container_resolve(srv, srv->active_player, inv_id);
+}
+
 static struct Mock230Item*
 container_for(
     struct Mock230Server* srv,
     int32_t inv_id,
     int* out_slots)
 {
-    if( inv_id == mock230_ids()->inv_backpack )
-    {
-        *out_slots = MOCK230_INV_SLOTS;
-        return srv->active_player->inv;
-    }
-    if( inv_id == mock230_ids()->inv_worn )
-    {
-        *out_slots = MOCK230_WORN_SLOTS;
-        return srv->active_player->worn;
-    }
-    if( inv_id == mock230_ids()->inv_bank )
-    {
-        *out_slots = srv->active_player->bank.size;
-        return srv->active_player->bank.slots;
-    }
-    *out_slots = 0;
-    return NULL;
+    struct Mock230Container* row = container_row(srv, inv_id);
+
+    *out_slots = row ? row->slots : 0;
+    return row ? row->items : NULL;
 }
 
-/** Mark a container for this tick's transmit. The backpack and worn set carry
- *  per-slot dirty bits; the bank is re-sent whole. */
+/** Mark a container for this tick's transmit. Which *kind* of dirty that is —
+ *  a per-slot mask or a whole-container flag — is the row's business now, not
+ *  a branch here: it is decided from the slot count, because
+ *  UPDATE_INV_PARTIAL's mask can only address 32 of them. */
 static void
 container_dirty(
     struct Mock230Server* srv,
     int32_t inv_id,
     int slot)
 {
-    if( inv_id == mock230_ids()->inv_backpack && slot >= 0 && slot < MOCK230_INV_SLOTS )
-        srv->active_player->inv_dirty |= 1u << slot;
-    else if( inv_id == mock230_ids()->inv_worn && slot >= 0 && slot < MOCK230_WORN_SLOTS )
-    {
-        srv->active_player->worn_dirty |= 1u << slot;
-        srv->active_player->masks |= MOCK230_PMASK_APPEARANCE;
-    }
-    else if( inv_id == mock230_ids()->inv_bank )
-        srv->active_player->bank.dirty = 1;
+    mock230_container_mark(container_row(srv, inv_id), slot);
 }
 
 /* `push_typed_param` moved to mock230_ops_param.c as
@@ -2744,10 +2747,15 @@ mock230_script_command(
                 items[i].obj_id = -1;
                 items[i].count = 0;
             }
-            if( values[0] == mock230_ids()->inv_backpack )
-                player->inv_dirty |= 1u << i;
-            else
-                player->worn_dirty |= 1u << i;
+            /*
+             * Through the registry. What was here read "backpack, else worn",
+             * so `inv_del(bank, …)` marked a *worn* slot — a wrong appearance
+             * push, and the bank never re-transmitted — and for a bank slot
+             * past 31, `1u << i` shifted a 32-bit mask by more than its width
+             * (undefined; `i` reaches 1409). Same defect as the one inv_add's
+             * comment already records; this is the second copy of it.
+             */
+            container_dirty(srv, values[0], i);
         }
         return 1;
     }
@@ -2782,10 +2790,8 @@ mock230_script_command(
             return 1;
         items[values[1]].obj_id = -1;
         items[values[1]].count = 0;
-        if( values[0] == mock230_ids()->inv_backpack )
-            player->inv_dirty |= 1u << values[1];
-        else
-            player->worn_dirty |= 1u << values[1];
+        /* Through the registry, for the reason inv_del's comment gives. */
+        container_dirty(srv, values[0], (int)values[1]);
         return 1;
     }
 
@@ -2802,7 +2808,12 @@ mock230_script_command(
                 return 1;
         }
         items = container_for(srv, values[0], &slots);
-        for( int i = 0; items && i < slots; i++ )
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_total on unknown container %d", values[0]);
+            return 1;
+        }
+        for( int i = 0; i < slots; i++ )
         {
             if( items[i].obj_id == values[1] )
                 total += items[i].count;
@@ -2835,7 +2846,12 @@ mock230_script_command(
             return 1;
         }
         items = container_for(srv, values[0], &slots);
-        for( int i = 0; items && i < slots; i++ )
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_totalcat on unknown container %d", values[0]);
+            return 1;
+        }
+        for( int i = 0; i < slots; i++ )
         {
             if( items[i].obj_id < 0 )
                 continue;
@@ -2856,7 +2872,12 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
         items = container_for(srv, inv_id, &slots);
-        for( int i = 0; items && i < slots; i++ )
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_freespace on unknown container %d", inv_id);
+            return 1;
+        }
+        for( int i = 0; i < slots; i++ )
         {
             if( items[i].obj_id < 0 )
                 free_slots++;
@@ -5189,12 +5210,53 @@ mock230_script_command(
     case SS_OP_INV_SIZE:
     {
         int32_t inv_id;
-        int slots = 0;
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
-        (void)container_for(srv, inv_id, &slots);
-        SSVM_PushInt(state, slots);
+        /*
+         * Straight off the cache, not through the registry. `inv_size` is a
+         * question about the *type*, which is what LostCity asks
+         * (`InvType.get(inv).size`) — a container nobody has touched yet still
+         * has a size. Routing it through `container_for` is what made this
+         * return 0 for 1,023 of the cache's 1,026 invs while
+         * `mock230_bank_inv_size` sat beside it answering every one.
+         */
+        SSVM_PushInt(state, mock230_bank_inv_size((int)inv_id));
+        return 1;
+    }
+
+    /*
+     * inv_setslot: write one cell, whatever was there.
+     *
+     * `[command,inv_setslot](inv $inv, int $slot, namedobj $obj, int $count)` in
+     * the reference's engine.rs2. The registry's own mutator owns the dirty
+     * flag, which is the only reason this is three lines: a per-slot mask for a
+     * 28-slot backpack and a whole-container flag for a 500-slot one are the
+     * same call here.
+     */
+    case SS_OP_INV_SETSLOT:
+    {
+        int32_t values[4];
+        struct Mock230Container* row;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        row = container_row(srv, values[0]);
+        if( !row )
+        {
+            SSVM_Abort(state, "inv_setslot on unknown container %d", values[0]);
+            return 1;
+        }
+        if( values[1] < 0 || values[1] >= row->slots )
+        {
+            SSVM_Abort(state, "inv_setslot slot %d outside container %d (%d slots)",
+                       values[1], values[0], row->slots);
+            return 1;
+        }
+        mock230_container_set(row, (int)values[1], (int)values[2], (int)values[3]);
         return 1;
     }
 
@@ -5209,7 +5271,12 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &inv_id) )
             return 1;
         items = container_for(srv, inv_id, &slots);
-        if( !items || slot < 0 || slot >= slots || items[slot].obj_id < 0 )
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_getobj/getnum on unknown container %d", inv_id);
+            return 1;
+        }
+        if( slot < 0 || slot >= slots || items[slot].obj_id < 0 )
         {
             /* `null` is -1 for an obj and 0 for a count, which is what every
              * caller branches on. */
@@ -5243,9 +5310,13 @@ mock230_script_command(
             !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &inv_id) )
             return 1;
         items = container_for(srv, inv_id, &slots);
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_itemspace on unknown container %d", inv_id);
+            return 1;
+        }
         if( limit > 0 && limit < slots )
             slots = (int)limit;
-        if( items )
         {
             if( mock230_objinfo((int)obj_id)->stackable )
             {
@@ -5290,8 +5361,12 @@ mock230_script_command(
             return 1;
         from_items = container_for(srv, from_inv, &from_slots);
         to_items = container_for(srv, to_inv, &to_slots);
-        if( !from_items || !to_items || from_slot < 0 || from_slot >= from_slots ||
-            to_slot < 0 || to_slot >= to_slots )
+        if( !from_items || !to_items )
+        {
+            SSVM_Abort(state, "inv_movetoslot between containers %d and %d", from_inv, to_inv);
+            return 1;
+        }
+        if( from_slot < 0 || from_slot >= from_slots || to_slot < 0 || to_slot >= to_slots )
             return 1;
         {
             struct Mock230Item swap = from_items[from_slot];
@@ -5382,6 +5457,11 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
         items = container_for(srv, inv_id, &slots);
+        if( !items )
+        {
+            SSVM_Abort(state, "inv_clear on unknown container %d", inv_id);
+            return 1;
+        }
         for( int i = 0; i < slots; i++ )
         {
             items[i].obj_id = -1;
@@ -5404,28 +5484,44 @@ mock230_script_command(
     {
         int32_t inv_id;
         int32_t component;
-        int slots = 0;
-        struct Mock230Item* items;
 
         if( !SSVM_PopInt(state, &component) || !SSVM_PopInt(state, &inv_id) )
             return 1;
-        items = container_for(srv, inv_id, &slots);
-        if( !items )
-            return 1;
+        /*
+         * The bank is deliberately not bound through the registry.
+         *
+         * Its transmit is gated on the interface being open and re-sends tab
+         * bookkeeping with it (mock230_bank_flush / bank_push_settings), which
+         * the generic binding does not model — binding it here would put two
+         * senders on one container, which is exactly the failure mode the
+         * registry exists to remove. Its *row* is in the registry all the same,
+         * and that is what stopped `inv_del(bank,…)` dirtying a worn slot.
+         * Folding the transmit in means moving `bank.open` into the binding
+         * table; that is a real simplification and it is not this stage's.
+         */
         if( inv_id == mock230_ids()->inv_bank )
         {
-            /* Only the used prefix: UPDATE_INV_FULL clears everything past the
-             * capacity it carries, so 1,208 empty slots cost nothing. */
+            struct Mock230Container* row = container_row(srv, inv_id);
             int used = 0;
 
-            for( int i = 0; i < slots; i++ )
-                if( items[i].obj_id >= 0 )
+            if( !row )
+                return 1;
+            /* Only the used prefix: UPDATE_INV_FULL clears everything past the
+             * capacity it carries, so 1,398 empty slots cost nothing. */
+            for( int i = 0; i < row->slots; i++ )
+                if( row->items[i].obj_id >= 0 )
                     used = i + 1;
-            slots = used;
             srv->active_player->bank.open = 1;
-            srv->active_player->bank.dirty = 0;
+            mock230_container_clean(row);
+            mock230_send_inv_full(srv->active_player, (int)component, (int)inv_id, row->items,
+                                  used);
+            return 1;
         }
-        mock230_send_inv_full(srv->active_player, (int)component, (int)inv_id, items, slots);
+        if( !mock230_container_bind(srv, srv->active_player, inv_id, component) )
+        {
+            SSVM_Abort(state, "inv_transmit on unknown container %d", inv_id);
+            return 1;
+        }
         return 1;
     }
 
@@ -5437,6 +5533,7 @@ mock230_script_command(
             return 1;
         if( MOCK230_COM_GROUP(component) == mock230_ids()->iface_bankmain )
             srv->active_player->bank.open = 0;
+        mock230_container_unbind(srv->active_player, component);
         return 1;
     }
 
@@ -5575,6 +5672,25 @@ mock230_script_command(
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
         mock230_send_if_opencountdialog(srv->active_player);
+        SSVM_Suspend(state, SSVM_COUNTDIALOG);
+        return 1;
+
+    /*
+     * p_countdialog_noprompt: wait for a number WITHOUT opening the prompt.
+     *
+     * The wait half of the op above, and nothing else. `resume_countdialog` is
+     * an ordinary CS2 opcode at this revision, so an interface already on
+     * screen can answer a parked script itself — the cache's bank PIN keypad
+     * (213) is exactly that: it collects four clicked digits and sends the
+     * assembled number.
+     *
+     * Waiting for it with `p_countdialog` would work and would still be wrong:
+     * the prompt it opens echoes the digits as they are typed, which is the
+     * one thing a PIN keypad exists to prevent. There is no reference for the
+     * split because there is no rev-230 client in the reference.
+     */
+    case SS_OP_P_COUNTDIALOG_NOPROMPT:
+        player->last_int = 0;
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 

@@ -3702,17 +3702,25 @@ App_RunClientScript(
             request->argc,
             (unsigned)request->str_mask);
 
-    for( int i = 0; i < PKT_RUNCLIENTSCRIPT_ARG_MAX; i++ )
-        strp[i] = request->strv[i];
-    RS_CS2_RunScript(
-        &app->host,
-        &app->runner,
-        request->script_id,
-        request->intv,
-        request->argc,
-        request->str_mask,
-        strp,
-        PKT_RUNCLIENTSCRIPT_ARG_MAX);
+    /*
+     * The packet indexes strings by ARGUMENT, the CS2 dispatch wants them
+     * COMPACTED — see `pkt_runclientscript_compact_strings` for which is which
+     * and for what handing over the sparse array did.
+     */
+    {
+        int str_count = pkt_runclientscript_compact_strings(
+            request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
+
+        RS_CS2_RunScript(
+            &app->host,
+            &app->runner,
+            request->script_id,
+            request->intv,
+            request->argc,
+            request->str_mask,
+            strp,
+            str_count);
+    }
 }
 
 /* Shared per-frame completion polls for async work (world load, textures,
@@ -3929,6 +3937,15 @@ app_logic_tick(struct App* app)
             case RS_CS2_SOCIAL_SEND_CHEAT:
                 APP_NET_SEND(app, net_out_client_cheat(app->net->rev, app->net->random_out,
                                                         _nsbuf, sizeof(_nsbuf), send.text));
+                break;
+            /* resume_countdialog(text) from a CS2 script — the bank PIN
+             * keypad's fourth digit. Same packet the chatbox's own "Enter
+             * amount" prompt sends below, and the same atol: the opcode pops
+             * a string, the wire carries an int. */
+            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
+                APP_NET_SEND(app, net_out_resume_countdialog(app->net->rev, app->net->random_out,
+                                                             _nsbuf, sizeof(_nsbuf),
+                                                             (int)atol(send.text)));
                 break;
             default:
                 break;

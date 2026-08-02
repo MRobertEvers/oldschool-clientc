@@ -41,6 +41,12 @@ enum RS_CS2SocialSendKind
     RS_CS2_SOCIAL_SEND_CHAT_SETMODE,
     RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE,
     RS_CS2_SOCIAL_SEND_CHEAT,
+    /** RESUME_COUNTDIALOG (3104) — not social, and neither is CHEAT above.
+     *  What this queue actually is, and has been since CHEAT joined it, is
+     *  "outbound packets a CS2 script asked for": the one thing they share is
+     *  that the CS2 host has no socket. The number rides in `text` because
+     *  that is the form the opcode pops it in. */
+    RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG,
 };
 
 #define RS_CS2_HOST_SOCIAL_SEND_MAX 8

@@ -617,11 +617,26 @@ already records the finding: rev 230's option dialogue is interface **219
 them. That is why the existing ported dialogue linearises every choice.
 
 **But the server can already send `RUNCLIENTSCRIPT`** — `mock230_worldmap.c`
-does, for `worldmap_transmitdata`. The blocker is narrower than "cannot be
-ported": `mock230`'s `RUNCLIENTSCRIPT` sender takes **ints only**
-(`mock230_equipment.c:232` records the same limitation blocking
-`interface_inv_init`). A string-argument form of one existing encoder is what
-stands between here and 879 call sites.
+does, for `worldmap_transmitdata`.
+
+**The paragraph that used to follow was wrong twice over**, and the correction
+is worth more than the claim was. It read: "`mock230`'s `RUNCLIENTSCRIPT` sender
+takes **ints only** … a string-argument form of one existing encoder is what
+stands between here and 879 call sites."
+
+The sender never took ints only. `mock230_send_run_clientscript_mixed` has
+carried a per-argument type string since it was written; what was fixed at one
+int and two strings was the *opcode*, `runclientscript_ss` (11002). The general
+form — `runclientscript*` / `SS_OP_RUNCLIENTSCRIPTVARARG` (11003), any mix of
+ints and strings with the arity decided at the call site — has since landed and
+is exercised by content. See [`runclientscript.md`](runclientscript.md).
+
+And `~p_choice*` was never what it blocked. `~p_choice_open` ships today
+(`interface_chat/scripts/chat.rs2`) on `runclientscript_ss`, because its target
+`chatbox_multi_init` takes exactly the one-int-two-string shape. What bounds the
+879 call sites is three *caps*, none of them this opcode: `script_58` parses at
+most five options, the `|`-joined option list rides one 512-byte string
+(`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `MOCK230_RESUME_SUB_MAX` is 15.
 
 Related: `split_init`/`split_get`/`split_linecount`/`split_pagecount` (244 uses)
 are LostCity measuring a string against a font to pick one of four fixed-size
@@ -1890,6 +1905,12 @@ commands were added in a reserved band past the reference's highest opcode:
 11001  if_opensub(component, interface, type)
 ```
 
+The band has since taken three more: `runclientscript_ss` (11002) and
+`runclientscript*` (11003), both in [`runclientscript.md`](runclientscript.md),
+and `p_countdialog_noprompt` (11004) — the wait half of `p_countdialog` without
+its chatbox prompt, for interfaces that produce a number themselves
+([`bank_pin_server_reqs.md`](bank_pin_server_reqs.md) §4).
+
 `docs/UI_ERA_PORTING_GUIDE.md` is the companion to this: what changes across
 LostCity → Kronos → OpenRune, which reference answers which question, and the
 procedure for converting one interface script.
@@ -1914,7 +1935,7 @@ see.
 |---|---|
 | the side journal (629) draws nothing | it mounts, its onload runs, `TORIRS_DUMP_BOUNDS=629` shows sane boxes — but `TORIRS_DUMP_TREE_EXIT` shows its children laid out at `abs=1100,185` with heights like `18x-2`. A layout defect, and the only sidebar tab whose body is a second-level mount |
 | chat lines never appear | `MESSAGE_GAME` arrives and `RS_Chat_AddMessage` stores it; the rev-230 chatbox has no `UITREE_SLOT_CHAT` node, so `app_chat_region` returns 0 and the built-in renderer draws nothing. IF3 chat lines are cc_created by clientscript |
-| `runclientscript` takes ints only | blocks `~p_choice*` (§7.4) *and* every modern panel populated by a script call rather than a var |
+| ~~`runclientscript` takes ints only~~ | **false, and false in both directions** — the encoder always took a type string, and `~p_choice*` never needed one. `runclientscript*` (11003) now sends any mix; see §7.4's correction and [`runclientscript.md`](runclientscript.md) |
 
 ### The symbols phase — §9 steps 2 and 3a–3e, all six
 

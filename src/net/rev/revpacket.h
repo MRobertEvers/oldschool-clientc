@@ -541,6 +541,45 @@ struct PktRunClientScript
     char strv[PKT_RUNCLIENTSCRIPT_ARG_MAX][PKT_RUNCLIENTSCRIPT_STR_LEN];
 };
 
+/**
+ * Rewrite the sparse `strv` into the COMPACTED list the CS2 dispatch wants,
+ * and return how many entries it wrote.
+ *
+ * Two conventions meet at this call and they are not the same one. Here, an
+ * argument's string is at `strv[i]` for the argument's own index `i` — the
+ * index `str_mask` bit `i` names. `RS_CS2_RunScript` takes the CS2 hook path's
+ * convention instead: string 0 first, because `task_cs2_run.c` walks the
+ * arguments with a separate running string counter and reads `str_args[str_i]`.
+ *
+ * Passing the sparse array bound string N of the *packet* to string local N of
+ * the *clientscript*, so a payload whose only string is the last argument bound
+ * string local 0 to `strv[0]`, which is "". It could not have shown up earlier:
+ * an all-int payload has nothing to place and an all-string one is already
+ * compact, and those were the only two shapes content sent.
+ *
+ * Inline and here, beside the struct, so the conversion is testable without
+ * the app: `src/net/test/runclientscript_test.c` asserts it against the same
+ * packets `osrs230_parse` produced.
+ */
+static inline int
+pkt_runclientscript_compact_strings(
+    struct PktRunClientScript const* pkt,
+    char const** out,
+    int out_max)
+{
+    int count = 0;
+
+    for( int i = 0; i < pkt->argc && i < PKT_RUNCLIENTSCRIPT_ARG_MAX; i++ )
+    {
+        if( !(pkt->str_mask & (1u << i)) )
+            continue;
+        if( count >= out_max )
+            break;
+        out[count++] = pkt->strv[i];
+    }
+    return count;
+}
+
 struct RevPacket
 {
     enum GameProtoPktName packet_type;
