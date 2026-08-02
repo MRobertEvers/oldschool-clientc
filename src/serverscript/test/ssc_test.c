@@ -545,6 +545,57 @@ test_trigger_subject(void)
 }
 
 static void
+test_coord_subject(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+
+    printf("coord subjects are name-addressed\n");
+
+    /*
+     * The zone family's subject is a *place*, and a place is not a type id.
+     *
+     * Two things are pinned here and both are otherwise permanently silent:
+     *
+     *  - the compiled `lookup_key` is **-1**. A five-part coord lexes into 28
+     *    bits and the key field gives a subject 21, so any key written for one
+     *    is either negative (which `ssvm_provider.c` drops from the index) or
+     *    wrapped onto an address nothing can reproduce. The wrapped ones *would*
+     *    be indexed, and a later reader would reasonably conclude the trigger is
+     *    keyed.
+     *  - the stored **name** is the header's raw text, character for character.
+     *    `mock230_scripts_run_trigger_at` rebuilds that string with an
+     *    `snprintf` and asks `getByName`; if the lexer ever normalised a coord
+     *    token, or the compiler zero-padded a component, every `[zone]` in the
+     *    tree would stop running and nothing would report it.
+     */
+    if( !fixture_compile(&fixture,
+                         "[zone,0_50_50_16_16]\n"
+                         "mes(\"in the zone\");\n"
+                         "[mapzone,0_50_50]\n"
+                         "mes(\"in the square\");\n",
+                         "coord") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[zone,0_50_50_16_16]");
+    CHECK(script != NULL, "a five-part coord subject keeps its raw text as the name");
+    if( script )
+        CHECK_EQ(script->lookup_key, -1, "and is name-addressed, not keyed");
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[mapzone,0_50_50]");
+    CHECK(script != NULL, "and so does a three-part one");
+    if( script )
+        CHECK_EQ(script->lookup_key, -1, "which is also name-addressed");
+
+    /* The three-part form used to compile to `parseInt("0_50_50")` = 0, so this
+     * is the lookup that would have found it under a subject of 0. */
+    CHECK(SSVM_ProviderGetByTrigger(&fixture.provider, SS_TRIGGER_MAPZONE, 0, -1) == NULL,
+          "no coord subject is reachable through the trigger index");
+
+    fixture_close(&fixture);
+}
+
+static void
 test_implicit_return(void)
 {
     struct Fixture fixture;
@@ -630,6 +681,7 @@ main(void)
     test_symbols_and_constants();
     test_varp();
     test_trigger_subject();
+    test_coord_subject();
     test_implicit_return();
     test_errors();
 

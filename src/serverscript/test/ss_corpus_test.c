@@ -373,8 +373,14 @@ test_indices(const struct SSVM_Provider* provider)
      * nothing else. Their subject is a coord literal like `0_29_75`, which the
      * reference's compiler resolves with parseInt — that stops at the first
      * underscore and returns 0, so every one of them collapses onto the same
-     * key. It is a compiler bug in the reference, not a key-width problem, and
-     * it is inert there because it never dispatches those triggers at runtime.
+     * key. It is a compiler bug in the reference, not a key-width problem.
+     *
+     * It is inert *in the reference*, whose engine reaches all four by name
+     * (`ScriptProvider.getByName`) and never by key. This tree dispatches them
+     * the same way, and its own compiler now writes -1 for a coord subject — so
+     * a pack built here contributes no coord keys at all. This corpus is the
+     * reference's already-compiled bytes, so the count below describes the
+     * reference's compiler and does not move when ours changes.
      * Anything OUTSIDE that family appearing here would be a real finding. */
     if( provider->duplicate_keys )
     {

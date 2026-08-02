@@ -617,6 +617,52 @@ peer_oploc(
 }
 
 /*
+ * The two use-on sends, through the client's own builders.
+ *
+ * This is the half a hand-built selftest payload cannot check: whether the
+ * server's decode agrees with the *encoder the game actually uses*. The two
+ * disagree by design about one field — `net_out_opheldu` writes its components
+ * through `out_p_com` (4 bytes at rev 230) and `net_out_oplocu` writes them with
+ * `p2` — so a shared decode would be wrong for one of them and the wrongness
+ * would only show up as a use-on that silently does nothing.
+ */
+static void
+peer_opheldu(
+    struct Peer* peer,
+    int obj_id,
+    int slot,
+    int com,
+    int use_obj,
+    int use_slot,
+    int use_com)
+{
+    uint8_t buf[64];
+    int n = net_out_opheldu(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf), obj_id,
+                            slot, com, use_obj, use_slot, use_com);
+
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
+static void
+peer_oplocu(
+    struct Peer* peer,
+    int abs_x,
+    int abs_z,
+    int loc_id,
+    int use_obj,
+    int use_slot,
+    int use_com)
+{
+    uint8_t buf[64];
+    int n = net_out_oplocu(peer->net.rev, peer->net.random_out, buf, (int)sizeof(buf), abs_x,
+                           abs_z, loc_id, use_obj, use_slot, use_com);
+
+    assert(n > 0);
+    ToriRS_Network_SendRaw(&peer->net, buf, n);
+}
+
+/*
  * The four social sends, through the *client's* own builders and its own ISAAC
  * stream — the same functions app.c calls. Asserting on a hand-rolled frame
  * would prove nothing about whether the client and the server agree, which is
@@ -939,6 +985,57 @@ main(void)
                   "on the same tile alice opened");
 
             ToriRS_Network_Free(&peers[2].net);
+        }
+    }
+
+    /*
+     * ── Use-on, over the real wire ────────────────────────────────────
+     *
+     * Triage §9 step 5b. Every `*u` packet the client sends was dropped as
+     * unrouted before this stage, so the class of failure worth catching here is
+     * not "the dispatch is wrong" — the selftest covers that with hand-built
+     * payloads — but "the server decodes a different packet from the one the
+     * client encoded". Only the client's own `net_out_*` can answer that.
+     *
+     * `mock_quest_progress` is the varp the selftest content writes: 1 for
+     * `[opheldu,knife]` and 10 for `[oplocu,cooksquestrange]`.
+     */
+    {
+        int progress = mock230_content_symbol(MOCK230_PACK_VARP, "mock_quest_progress");
+        int knife = mock230_content_symbol(MOCK230_PACK_OBJ, "knife");
+        int bucket = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_water");
+        int range = mock230_content_symbol(MOCK230_PACK_LOC, "cooksquestrange");
+
+        check(progress >= 0 && knife > 0 && bucket > 0 && range > 0,
+              "the use-on fixture's names all resolve");
+        if( progress >= 0 && knife > 0 && bucket > 0 && range > 0 )
+        {
+            mock230_world_set_active(world, alice);
+            alice->inv[0].obj_id = knife;
+            alice->inv[0].count = 1;
+            alice->inv[1].obj_id = bucket;
+            alice->inv[1].count = 1;
+            alice->varps[progress] = 0;
+
+            peer_opheldu(&peers[0], knife, 0, 0, bucket, 1, 0);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+            check(alice->varps[progress] == 1,
+                  "a real OPHELDU from the client's own encoder reaches [opheldu,knife]");
+            check(alice->last_item == knife && alice->last_useitem == bucket,
+                  "with the clicked item as the subject and the other in last_useitem");
+
+            /* And the interaction form, which has a different component width
+             * and a walk in front of it. */
+            alice->varps[progress] = 0;
+            mock230_world_teleport(world, 0, 3213, 3215);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+            peer_oplocu(&peers[0], 3212, 3215, range, bucket, 1, 0);
+            for( int round = 0; round < 8; round++ )
+                pump(peers, 2, embed, 1, 64);
+            check(alice->varps[progress] == 10,
+                  "and a real OPLOCU reaches [oplocu,cooksquestrange]");
         }
     }
 

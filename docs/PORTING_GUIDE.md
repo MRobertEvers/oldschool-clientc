@@ -602,10 +602,15 @@ item 1, not a zone problem.
 Name-resolution gate → constants (1,562) → npc categories (§7.6b) →
 param/struct/enum/dbtable ids → varp/varbit reclass → name maps → opcodes by
 leverage (param decoder → `loc_*` → `npc_*` → `runclientscript_ss` strings →
-small-wide) → undispatched triggers (queue/timer cheap; `*u` use-on; the zone
-family, whose ZoneMap now exists — what they still need is *name*-keyed
-dispatch, `[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, which the numeric-subject
-`mock230_scripts_run_trigger` cannot express). Track via the generated
+small-wide) → ~~undispatched triggers~~ **done** (queue/timer
+`osrs230_mockserver.md` §3.19, `*u` use-on §3.20, the zone family §3.21 — all
+four of the last, both granularities. What they needed was *name*-keyed dispatch,
+`[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, which the numeric-subject
+`mock230_scripts_run_trigger` cannot express, plus two coordinate latches on the
+player; the ZoneMap was not the blocker and is not in the path). Still
+undispatched after step 5: `walktrigger`/`ai_walktrigger`,
+`advancestat`/`changestat`, `inv_buttond`, `logout`, `ai_despawn`, `tutorial`,
+and the `*t` spell-target family (89 uses). Track via the generated
 `mock230_opcode_coverage.gen.h` (224/399 today) and the load-time gap
 report — **never via numbers typed in prose.**
 

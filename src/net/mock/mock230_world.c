@@ -701,6 +701,39 @@ interaction_category(const struct Mock230Interaction* interaction)
     }
 }
 
+/**
+ * The `[ap*]` trigger this interaction resolves to. Its `[op*]` twin is +7.
+ *
+ * +7 is not a coincidence and not a table: `ss_trigger.h` lays every family out
+ * as `ap1..ap5, apU, apT, op1..op5, opU, opT`, so `APLOC1 59 -> OPLOC1 66` and
+ * `APLOCU 64 -> OPLOCU 71` are the same offset. The reference stores the ap id
+ * and adds 7 (`Player.getOpTrigger`), which is why it is stated once here.
+ *
+ * A use-on carries no op number — "use this on that" is one verb — so the `u`
+ * form ignores `op` entirely. Separated into a function rather than grown inside
+ * `mock230_world_process_interaction` because that function holds three of the
+ * seven `enum Mock230Fallback` call sites, and Phase 3 has to be able to delete
+ * them out of arms nothing else has rewritten.
+ */
+static int
+interaction_ap_trigger(
+    enum Mock230InteractionKind kind,
+    int op,
+    int use_on)
+{
+    switch( kind )
+    {
+    case MOCK230_INTERACT_NPC:
+        return use_on ? SS_TRIGGER_APNPCU : SS_TRIGGER_APNPC1 + (op - 1);
+    case MOCK230_INTERACT_LOC:
+        return use_on ? SS_TRIGGER_APLOCU : SS_TRIGGER_APLOC1 + (op - 1);
+    case MOCK230_INTERACT_OBJ:
+        return use_on ? SS_TRIGGER_APOBJU : SS_TRIGGER_APOBJ1 + (op - 1);
+    default:
+        return -1;
+    }
+}
+
 /* The engine's own behaviour for an op nothing was bound to. Defined below;
  * these are what used to run inline inside the packet handlers. */
 static void
@@ -861,21 +894,7 @@ mock230_world_process_interaction(struct Mock230Server* srv)
     if( !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
     {
         interaction->ap_tried = 1;
-        switch( interaction->kind )
-        {
-        case MOCK230_INTERACT_NPC:
-            trigger = SS_TRIGGER_APNPC1 + (interaction->op - 1);
-            break;
-        case MOCK230_INTERACT_LOC:
-            trigger = SS_TRIGGER_APLOC1 + (interaction->op - 1);
-            break;
-        case MOCK230_INTERACT_OBJ:
-            trigger = SS_TRIGGER_APOBJ1 + (interaction->op - 1);
-            break;
-        default:
-            trigger = -1;
-            break;
-        }
+        trigger = interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
         /* A miss here has no fallback and needs none: "nothing bound at range"
          * is the ordinary case for almost every interaction in the game, and
          * what it means is "keep walking". It still reports once per
@@ -904,6 +923,7 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         int loc_x = interaction->x;
         int loc_z = interaction->z;
         int loc_level = interaction->level;
+        int use_on = interaction->use_on;
 
         /* Read before the clear below, with everything else the dispatch needs:
          * the interaction it is derived from does not survive to the switch. */
@@ -918,6 +938,33 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         steps_clear(player);
         player->dest_x = -1;
         player->dest_z = -1;
+
+        /*
+         * A use-on takes its own arm and leaves before the switch below, rather
+         * than growing a fourth case inside it.
+         *
+         * The reason is the miss: there is **no engine use-on behaviour** to fall
+         * back to. `Player.defaultOp` answers an unbound `*u` with the message
+         * and nothing else, and routing it into MOCK230_FALLBACK_OPLOC/OPNPC/
+         * OPOBJ would hand "use a bucket on the door" to the door handler and
+         * open it. The message is content's — `[proc,nothing_interesting_message]`
+         * — reached through the same `mock230_say` the other four literals moved
+         * behind.
+         *
+         * The subject is the **target**, never the used item. That is
+         * `Player.getOpTrigger` reading `type.id`/`type.category` off the loc,
+         * npc or obj the interaction is against; the item reaches content only
+         * as `last_useitem`/`last_useslot`.
+         */
+        if( use_on )
+        {
+            int ap = interaction_ap_trigger(kind, op_num, 1);
+
+            if( ap < 0 || mock230_scripts_run_trigger(srv, ap + 7, target_id, category, slot) ==
+                              MOCK230_TRIGGER_NONE )
+                mock230_say(srv, "nothing_interesting_message", NULL);
+            return;
+        }
 
         switch( kind )
         {
@@ -1325,7 +1372,6 @@ npc_spawn(
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
          * every npc in the world would vanish on the first pass. */
         npc->despawn_tick = -1;
-        npc->timer_script = -1;
         /* Phase 3 runs `[ai_spawn]` on the next tick — see the field. */
         npc->spawn_pending = 1;
 
@@ -1696,32 +1742,43 @@ advance_npcs(struct Mock230Server* srv)
         }
 
         /*
-         * `npc_queue` and `npc_settimer`, in phase 4's own order: queues before
-         * timers, matching the reference's `npc.processQueue()` then
-         * `npc.processTimers()`. Both dispatch by npc *type*, so an npc that
-         * changed type between queueing and firing runs the new type's script —
-         * which is what `npc_changetype` is for and why the script id is not
-         * stored.
+         * `npc_settimer` and `npc_queue`, in phase 4's own order: **timers
+         * before queues**, matching `Npc.processNpc`, which calls
+         * `processTimers()` and then `processQueue()`. This ran them the other
+         * way round, under a comment claiming it matched the reference.
+         *
+         * Both dispatch by npc *type*, so an npc that changed type between
+         * queueing and firing runs the new type's script — which is what
+         * `npc_changetype` is for and why the script id is not stored.
          */
-        if( npc->active )
-        {
-            for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
-            {
-                if( !npc->queue[i].active )
-                    continue;
-                if( --npc->queue[i].delay > 0 )
-                    continue;
-                npc->queue[i].active = 0;
-                mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1),
-                                            npc->type, -1, slot);
-            }
-        }
         if( npc->active && npc->timer_interval > 0 )
         {
             if( ++npc->timer_clock >= npc->timer_interval )
             {
                 npc->timer_clock = 0;
                 mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
+            }
+        }
+        /*
+         * The queue drain is gated on the npc not being delayed — the reference
+         * only decrements while `!this.delayed` — and the comparison is against
+         * the value *after* the decrement, so an npc's delay 0 and delay 1 both
+         * fire on the next npc phase. A player's queue compares the value before
+         * its decrement; the two conventions really do differ by one, which is
+         * why it is written out here rather than shared.
+         */
+        if( npc->active && srv->tick >= npc->delayed_until )
+        {
+            for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+            {
+                if( !npc->queue[i].active )
+                    continue;
+                npc->queue[i].delay--;
+                if( npc->queue[i].delay > 0 )
+                    continue;
+                npc->queue[i].active = 0;
+                mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1),
+                                            npc->type, -1, slot);
             }
         }
         int step_x;
@@ -2638,6 +2695,313 @@ handle_oploc(
     mock230_world_process_interaction(srv);
 }
 
+/* ------------------------------------------------------------------ */
+/* Use-on: the `*u` family                                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * "Use A on B" — four packets the client has always sent and this server had no
+ * route for, so they were dropped as unknown.
+ *
+ * The trap the whole family turns on: a use-on click carries **two** ids and
+ * only one of them is the trigger's subject. The subject is the thing clicked
+ * *on* — the loc, the npc, the ground obj — and the item is carried separately
+ * in `last_useitem`/`last_useslot`. `Player.getOpTrigger`/`getApTrigger` read
+ * `type.id` and `type.category` off `this.target`, which is the target entity;
+ * the used obj appears nowhere in the lookup. Getting that backwards compiles,
+ * runs, and works for any item that only ever has one target — which is why the
+ * selftest uses two ids that are nowhere near each other and asserts *both*
+ * directions.
+ *
+ * `opheldu` is the exception in every respect: both ends are items, there is
+ * nothing to walk to, and its lookup is a bespoke four-rung chain that swaps the
+ * two as it goes (`mock230_scripts_run_opheldu`).
+ */
+
+/**
+ * Read the "used item" tail every `*u` packet ends with, and check it is real.
+ *
+ * `useObj`, `useSlot`, `useCom`. The reference resolves `useCom` to an inventory
+ * through the player's own listener list and then asks that inventory whether
+ * `useSlot` holds `useObj`; this server has no listener model, so the check is
+ * against the backpack, which is the only container a use-on can come from here
+ * and the same check `handle_opheld` already makes for its own slot.
+ *
+ * Returns 0 when the click describes something the player is not holding, which
+ * is a lagged or lying client and not an error worth answering.
+ */
+static int
+useon_tail(
+    struct Mock230Server* srv,
+    struct RSAreaBuf* buf,
+    int component_bytes,
+    int* out_obj,
+    int* out_slot)
+{
+    struct Mock230Player* player = srv->active_player;
+    int use_obj = rsab_g2(buf);
+    int use_slot = rsab_g2(buf);
+    int use_com = component_bytes == 4 ? rsab_g4(buf) : rsab_g2(buf);
+
+    (void)use_com;
+    if( !rsab_ok(buf) )
+        return 0;
+    if( use_slot < 0 || use_slot >= MOCK230_INV_SLOTS )
+        return 0;
+    if( player->inv[use_slot].obj_id != use_obj )
+        return 0;
+    *out_obj = use_obj;
+    *out_slot = use_slot;
+    return 1;
+}
+
+/*
+ * OPHELDU: obj, slot, com, useObj, useSlot, useCom — "use item A on item B".
+ *
+ * Answered on the spot rather than queued as an interaction, because there is
+ * nothing to walk to. `OpHeldUHandler` does the same: it validates, latches, and
+ * runs the script inside the handler.
+ *
+ * The component is 4 bytes here and 2 on the other three, which is the client's
+ * own asymmetry (`net_out_opheldu` writes `out_p_com`, `net_out_oplocu` writes
+ * `p2`) and is why the decode is per-packet rather than shared.
+ */
+static void
+handle_opheldu(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    struct RSAreaBuf buf;
+    int obj_id;
+    int slot;
+    int component;
+    int use_obj;
+    int use_slot;
+    const struct Mock230ObjInfo* info;
+    const struct Mock230ObjInfo* use_info;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    obj_id = rsab_g2(&buf);
+    slot = rsab_g2(&buf);
+    component = rsab_g4(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+    if( slot < 0 || slot >= MOCK230_INV_SLOTS || player->inv[slot].obj_id != obj_id )
+        return;
+    if( !useon_tail(srv, &buf, 4, &use_obj, &use_slot) )
+        return;
+
+    info = mock230_objinfo(obj_id);
+    use_info = mock230_objinfo(use_obj);
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPHELDU obj=%d (%s) slot=%d com=%d|%d use=%d (%s) slot=%d\n",
+                obj_id, info->name, slot, (component >> 16) & 0xffff, component & 0xffff, use_obj,
+                use_info->name, use_slot);
+
+    mock230_world_clear_pending_action(srv);
+
+    /* Latched before the dispatch, and in this order, because the dispatch
+     * *swaps* them: `last_item` is whichever of the two the bound script is
+     * named after by the time it runs. */
+    player->last_item = obj_id;
+    player->last_slot = slot;
+    player->last_com = component;
+    player->last_useitem = use_obj;
+    player->last_useslot = use_slot;
+
+    if( mock230_scripts_run_opheldu(srv, obj_id, info->category > 0 ? info->category : -1, use_obj,
+                                    use_info->category > 0 ? use_info->category : -1) ==
+        MOCK230_TRIGGER_NONE )
+        mock230_say(srv, "nothing_interesting_message", NULL);
+}
+
+/**
+ * The shared tail of the three use-on packets that *are* interactions.
+ *
+ * They differ only in what they name as a target, so the latch, the walk and the
+ * "act on arrival" are one function. `use_on` is set on the interaction rather
+ * than passed to `mock230_world_interaction_set`, so the three existing op
+ * handlers' call sites stay untouched — Phase 3 has to delete fallback calls out
+ * of this file and a re-flowed signature would collide with that.
+ */
+static void
+useon_interact(
+    struct Mock230Server* srv,
+    enum Mock230InteractionKind kind,
+    int npc_slot,
+    int target_id,
+    int tile_x,
+    int tile_z,
+    int level,
+    int size_x,
+    int size_z,
+    int use_obj,
+    int use_slot)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    mock230_world_clear_pending_action(srv);
+
+    player->last_useitem = use_obj;
+    player->last_useslot = use_slot;
+
+    /* op 1 is a placeholder: `interaction_ap_trigger` ignores it once `use_on`
+     * is set, because a use-on has no op number — "use this on that" is the
+     * whole verb. */
+    mock230_world_interaction_set(srv, kind, 1, npc_slot, target_id, tile_x, tile_z, level, size_x,
+                                  size_z);
+    player->interaction.use_on = 1;
+
+    if( kind == MOCK230_INTERACT_OBJ )
+    {
+        /* Onto the tile, not beside it — the same rule OPOBJ<n> follows. */
+        steps_clear(player);
+        player->dest_x = tile_x;
+        player->dest_z = tile_z;
+        steps_walk_to(player, tile_x, tile_z);
+    }
+    else
+    {
+        mock230_world_walk_beside(srv, tile_x, tile_z);
+    }
+
+    mock230_world_process_interaction(srv);
+}
+
+/* OPLOCU: p2 x, p2 z, p2 locId, then the used-item tail. */
+static void
+handle_oplocu(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int loc_id;
+    int use_obj;
+    int use_slot;
+    int slot;
+    struct Mock230SceneLoc* loc;
+    int size_x = 1;
+    int size_z = 1;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    loc_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+    if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPLOCU loc=%d at %d,%d use=%d slot=%d\n", loc_id, tile_x,
+                tile_z, use_obj, use_slot);
+
+    /* The footprint decides what counts as "beside it", exactly as OPLOC<n>. */
+    slot = mock230_scene_find_loc(tile_x, tile_z, srv->active_player->level, loc_id);
+    loc = mock230_scene_loc(slot);
+    if( loc )
+    {
+        tile_x = loc->x;
+        tile_z = loc->z;
+        size_x = loc->size_x > 0 ? loc->size_x : 1;
+        size_z = loc->size_z > 0 ? loc->size_z : 1;
+    }
+
+    useon_interact(srv, MOCK230_INTERACT_LOC, -1, loc_id, tile_x, tile_z,
+                   srv->active_player->level, size_x, size_z, use_obj, use_slot);
+}
+
+/* OPNPCU: p2 npcSlot, then the used-item tail. */
+static void
+handle_opnpcu(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int slot;
+    int use_obj;
+    int use_slot;
+    struct Mock230Npc* npc;
+    const struct Mock230NpcInfo* info;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    slot = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPNPCU slot=%d type=%d use=%d slot=%d\n", slot, npc->type,
+                use_obj, use_slot);
+
+    info = mock230_npcinfo(npc->type);
+    useon_interact(srv, MOCK230_INTERACT_NPC, slot, npc->type, npc->x, npc->z, npc->level,
+                   info->size, info->size, use_obj, use_slot);
+
+    /* Idle roaming resumes only after the response has had time to show, as it
+     * does for OPNPC<n>. Set after the dispatch because the script may have
+     * despawned the npc. */
+    if( npc->active )
+        npc->next_roam_tick = srv->tick + 8;
+}
+
+/* OPOBJU: p2 x, p2 z, p2 objId, then the used-item tail. */
+static void
+handle_opobju(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int obj_id;
+    int use_obj;
+    int use_slot;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    obj_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) )
+        return;
+    if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPOBJU obj=%d at %d,%d use=%d slot=%d\n", obj_id, tile_x,
+                tile_z, use_obj, use_slot);
+
+    useon_interact(srv, MOCK230_INTERACT_OBJ, -1, obj_id, tile_x, tile_z,
+                   srv->active_player->level, 1, 1, use_obj, use_slot);
+}
+
+/*
+ * `opplayeru` / `applayeru` are deliberately absent, and this is the reason.
+ *
+ * rev-230 assigns no OPPLAYERU wire opcode — `src/net/rev/osrs230/packetout.h`
+ * has rows for OPHELDU, OPNPCU, OPLOCU and OPOBJU and none for the player form,
+ * so `net_out_opplayeru` cannot encode anything this revision could carry. There
+ * is no packet to route. Five of the reference's 546 uses are the two player
+ * forms; the other 541 are here.
+ *
+ * It also means the one place the reference overrides the trigger's subject with
+ * the *used* obj rather than the target — `setInteraction(..., APPLAYERU, useObj)`
+ * feeding `targetSubject.com`, which is why `[applayeru,rotten_tomato]` names the
+ * thrown item — has no call site here. That asymmetry must not be generalised to
+ * the other four: for locs, npcs and ground objs the subject is the target.
+ */
+
 /* ::commands, so a session can be steered without a UI. */
 static void
 handle_cheat(
@@ -3030,6 +3394,51 @@ handle_opobj_packet(
     handle_opobj(srv, name - PKTOUT_NAME_OPOBJ1 + 1, payload, len);
 }
 
+/* The four use-on packets. One name each — there is no op number to derive. */
+static void
+handle_opheldu_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opheldu(srv, payload, len);
+}
+
+static void
+handle_oplocu_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_oplocu(srv, payload, len);
+}
+
+static void
+handle_opnpcu_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opnpcu(srv, payload, len);
+}
+
+static void
+handle_opobju_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opobju(srv, payload, len);
+}
+
 static void
 handle_cheat_packet(
     struct Mock230Server* srv,
@@ -3215,6 +3624,14 @@ close_chat_modal(struct Mock230Server* srv)
 void
 mock230_world_close_modal(struct Mock230Server* srv)
 {
+    mock230_world_close_modal_ex(srv, 1);
+}
+
+void
+mock230_world_close_modal_ex(
+    struct Mock230Server* srv,
+    int clear_weak_queue)
+{
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
     int main_group;
@@ -3223,6 +3640,16 @@ mock230_world_close_modal(struct Mock230Server* srv)
     if( !srv || !srv->active_player )
         return;
     player = srv->active_player;
+
+    /*
+     * The weak queue dies with the modal, and that is the only thing that
+     * distinguishes a weak entry from a normal one — without it `weakqueue`
+     * would be a synonym content could not tell apart. `Player.closeModal`
+     * clears it first, before the early return below, so a close with nothing
+     * mounted still discards it.
+     */
+    if( clear_weak_queue )
+        mock230_scripts_clear_weak_queue(player);
 
     /*
      * The parked script goes first, and unconditionally.
@@ -3842,6 +4269,14 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_OPOBJ3, handle_opobj_packet },
     { PKTOUT_NAME_OPOBJ4, handle_opobj_packet },
     { PKTOUT_NAME_OPOBJ5, handle_opobj_packet },
+
+    /* "Use A on B". The client has emitted all four since the minimenu learned
+     * about objsel; nothing here had a row for them, so they were dropped as
+     * unrouted and every `*u` script in the tree was unreachable. */
+    { PKTOUT_NAME_OPHELDU, handle_opheldu_packet },
+    { PKTOUT_NAME_OPLOCU, handle_oplocu_packet },
+    { PKTOUT_NAME_OPNPCU, handle_opnpcu_packet },
+    { PKTOUT_NAME_OPOBJU, handle_opobju_packet },
 
     { PKTOUT_NAME_IF_BUTTON, handle_if_button },
     { PKTOUT_NAME_IF_BUTTON1, handle_if_button_op },
@@ -4465,6 +4900,26 @@ mock230_world_player_init(struct Mock230Player* player)
     player->db_query_table = -1;
     player->db_query_index = -1;
     player->db_query_column = -1;
+    /* -1, not the memset's 0, because 0 is a real obj id and a real backpack
+     * slot: a script reading `last_useitem` outside a use-on must get a sentinel
+     * rather than "the player used a Dwarf remains on it". `Player.ts:371-374`
+     * declares all four `last_*` item fields -1; the two above these are left at
+     * 0, which is a divergence this stage found rather than one it made. */
+    player->last_useitem = -1;
+    player->last_useslot = -1;
+    /*
+     * The two `updateMap` latches. -1 is what makes login fire `[zone]` and
+     * `[mapzone]` with no `[zoneexit]`/`[mapzoneexit]` before them — the
+     * reference gets the same from a fresh `Player` object and never resets
+     * these fields anywhere, `cleanup()` included. A memset's 0 would be a real
+     * map square (the south-west corner) and would fire an exit for a place the
+     * player has never been.
+     */
+    player->last_zone_level = -1;
+    player->last_zone_x = -1;
+    player->last_zone_z = -1;
+    player->last_map_x = -1;
+    player->last_map_z = -1;
     /* A memset leaves `zone_index` at 0, which is a real zone. This is what
      * makes the first flush compute an active window rather than believe the
      * player has been standing in the south-west corner of the map. */
@@ -4802,11 +5257,15 @@ phase_npcs(struct Mock230Server* srv)
     {
         if( !srv->npcs[slot].active )
             continue;
-        /* Resume before the timer fires: a delayed npc is busy, and starting a
-         * second script on it would interleave two sets of writes. */
+        /* Resume before anything else: a delayed npc is busy, and starting a
+         * second script on it would interleave two sets of writes.
+         *
+         * There used to be a second `[ai_timer]` drain here as well
+         * (`mock230_scripts_process_npc_timer`), reading a `Mock230Npc.timer_script`
+         * that was written in exactly one place and only ever to -1 — so it could
+         * never run. The live drain is in `advance_npcs`, which resolves the
+         * trigger by npc type. */
         mock230_scripts_resume_npc(srv, slot);
-        if( !srv->npcs[slot].active_script )
-            mock230_scripts_process_npc_timer(srv, slot);
         mock230_combat_npc_tick(srv, slot);
     }
     advance_npcs(srv);
@@ -4845,6 +5304,12 @@ phase_player(struct Mock230Player* player)
     mock230_scripts_resume_player(srv);
     mock230_scripts_process_queues(srv);
     mock230_scripts_process_timers(srv);
+    /* The engine queue is drained *after* the timers, which is where
+     * `World.processPlayers` puts `processEngineQueue()`. It holds the zone
+     * family, detected in phase 10 of the previous tick — so a zone script runs
+     * one tick after the crossing, before this tick's movement rather than
+     * after it. */
+    mock230_scripts_process_engine_queue(srv);
 
     /* Movement is the tail of the interaction step in the reference, between
      * the pre-move and post-move interaction attempts. Combat brackets it the
@@ -5138,6 +5603,67 @@ phase_info(struct Mock230Server* srv)
     maybe_rebuild(srv);
 }
 
+/**
+ * The zone family's producer — `NetworkPlayer.updateMap`, triage §9 step 5c.
+ *
+ * Two latches, two granularities, four `snprintf`s' worth of dispatch. The
+ * counts say 806 uses and hide a split: 427 of them (`zone`, `zoneexit`) key off
+ * the 8-tile zone **including the level**, and 379 (`mapzone`, `mapzoneexit`)
+ * key off the 64-tile map square with the level forced to 0. Re-measured against
+ * the reference this stage: every one of the 427 has a five-part subject and
+ * every one of the 379 has a three-part one beginning `0_`.
+ *
+ * So the two are not the same latch at a different scale. Climbing a ladder
+ * without moving re-enters a *zone* and does not re-enter a *map square*, and a
+ * single latch cannot express that whichever granularity it is kept at. The
+ * ZoneMap (§3.17) is irrelevant to the 379 — nothing here consults it.
+ *
+ * Ordering is the reference's, and it is observable: map square before zone, and
+ * within each, exit before enter. A teleport across both boundaries fires all
+ * four in one tick with no special case.
+ *
+ * Nothing is *run* here. See `mock230_scripts_queue_trigger_at` for why phase 10
+ * cannot be the execution site.
+ */
+static void
+mock230_world_update_map(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+    int mx = player->x >> 6;
+    int mz = player->z >> 6;
+    int zx = player->x >> 3;
+    int zz = player->z >> 3;
+
+    if( player->last_map_x != mx || player->last_map_z != mz )
+    {
+        if( player->last_map_x >= 0 )
+            mock230_scripts_queue_trigger_at(srv, SS_TRIGGER_MAPZONEEXIT, 0,
+                                             player->last_map_x << 6, player->last_map_z << 6);
+        mock230_scripts_queue_trigger_at(srv, SS_TRIGGER_MAPZONE, 0, player->x, player->z);
+        player->last_map_x = mx;
+        player->last_map_z = mz;
+    }
+
+    if( player->last_zone_level != player->level || player->last_zone_x != zx ||
+        player->last_zone_z != zz )
+    {
+        if( player->last_zone_level >= 0 )
+            mock230_scripts_queue_trigger_at(srv, SS_TRIGGER_ZONEEXIT, player->last_zone_level,
+                                             player->last_zone_x << 3, player->last_zone_z << 3);
+        mock230_scripts_queue_trigger_at(srv, SS_TRIGGER_ZONE, player->level, player->x, player->z);
+        player->last_zone_level = player->level;
+        player->last_zone_x = zx;
+        player->last_zone_z = zz;
+    }
+
+    /*
+     * `SetMultiway` is the other half of the reference's zone branch and is
+     * deliberately absent: it is driven by `World.gameMap.isMulti(zone)`, and
+     * this tree has no multi-way map data to read. Adding a flag with nothing
+     * behind it would be a wire packet asserting something nobody computed.
+     */
+}
+
 /** 10. Everything the tick has to say, in the order the client expects it. */
 static void
 phase_client_out(struct Mock230Player* player)
@@ -5145,6 +5671,11 @@ phase_client_out(struct Mock230Player* player)
     struct Mock230Server* srv = player->world;
 
     mock230_world_set_active(srv, player);
+
+    /* "// - map update", the first thing `World.processClientsOut` does for a
+     * player and the first thing done here. It only enqueues, so it is ahead of
+     * every encoder below rather than entangled with them. */
+    mock230_world_update_map(player);
 
     /* A rebuild has to reach the client before the placement that depends on
      * it, and the client's serial packet queue holds every later packet until
@@ -5456,8 +5987,28 @@ selftest_park_player(
         srv->npcs[i].combat_target = -1;
     /* A section that repositions the player is starting over, so anything the
      * last one left pending goes with it. Leaving it is how one section's
-     * unfinished click resolved in the middle of the next one's fight. */
+     * unfinished click resolved in the middle of the next one's fight.
+     *
+     * The modal goes with the interaction, which is the pairing the reference
+     * makes too (`clearPendingAction` = clearInteraction + closeModal). It
+     * matters now that queues and timers are gated on `canAccess()`: a stanza
+     * that left a dialogue page on screen was leaving the *next* stanza's player
+     * permanently busy, so its queue entries were held rather than run — which
+     * is correct behaviour and useless test state. */
     mock230_world_interaction_clear(srv);
+    mock230_world_close_modal(srv);
+    /* And the queue, which is the same argument one step further on: a section
+     * that fought with a level-up box on screen leaves one held entry per hit,
+     * and the next section inherits both the pile and a full array.
+     * `Player.cleanup()` clears these on logout for the same reason. */
+    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        player->queue[i].active = 0;
+    /* And the engine queue, for the same reason one step further on again: the
+     * last section's final zone crossing is not this section's business. The two
+     * latches are deliberately NOT reset — a park is a teleport, and a teleport
+     * firing exit-then-enter is the behaviour under test, not contamination. */
+    for( int i = 0; i < MOCK230_ENGINE_QUEUE_MAX; i++ )
+        player->engine_queue[i].active = 0;
     /* Moving the player is a teleport, and a teleport may need the scene to
      * follow. Without this the collision window and the ground-obj visibility
      * test still describe wherever the last section left off. */
@@ -8095,19 +8646,32 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(&srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
 
-        /* Drain: protect from melee is 12 a tick against a resistance of 60, so
-         * a point goes every fifth tick. */
+        /*
+         * Drain: protect from melee is 12 a tick against a resistance of 60, so
+         * a point goes every fifth tick.
+         *
+         * `srv.tick` is advanced between the calls rather than left alone. A
+         * timer's clock is the **absolute** tick it last fired at, not a
+         * countdown, so five calls on one tick fire it once — this loop used to
+         * advance the counter *by calling the drain*, which was the countdown
+         * implementation showing through the test.
+         */
         mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
         selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+        srv.tick++;
         mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99,
                        "12 units is not yet a point");
+        srv.tick++;
         mock230_scripts_process_timers(&srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99, "nor is 24");
         for( int i = 0; i < 3; i++ )
+        {
+            srv.tick++;
             mock230_scripts_process_timers(&srv);
+        }
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 98,
                        "60 units is one prayer point, got %d",
                        player->stat_boosted[MOCK230_STAT_PRAYER]);
@@ -8115,7 +8679,10 @@ mock230_world_selftest(void)
         /* Running out drops everything, including the overhead. */
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
         for( int i = 0; i < 10; i++ )
+        {
+            srv.tick++;
             mock230_scripts_process_timers(&srv);
+        }
         SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_protectfrommelee"),
                        "running out clears every prayer");
         SELFTEST_CHECK(player->headicons == 0, "and the overhead icon");
@@ -9281,13 +9848,21 @@ mock230_world_selftest(void)
                         added = i;
                 SELFTEST_CHECK(added >= 0, "the test chicken should be spawned");
 
-                /* delay 1 means tick +2, for the same +1 reason p_delay has. */
+                /*
+                 * `npc_queue(q, arg, 1)` fires on tick **+1**, not +2, and this
+                 * assertion used to say +2.
+                 *
+                 * `Npc.processQueue` compares the counter *after* its decrement
+                 * (`request.delay--; if (!delayed && request.delay <= 0)`) where
+                 * `Player.processQueue` compares it before — so an npc's delay 0
+                 * and delay 1 both land on the next npc phase. This engine stored
+                 * `delay + 1` for both and the test pinned the result: a test can
+                 * be green and still encode the wrong convention.
+                 */
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the queue should not fire immediately");
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "nor on the next tick");
-                mock230_world_tick(&srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
-                               "[ai_queue1,chicken] should fire on tick +2, got %d",
+                               "[ai_queue1,chicken] should fire on tick +1, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
@@ -9391,6 +9966,880 @@ mock230_world_selftest(void)
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: player queues, timers, name-keyed dispatch\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct Mock230Ids* ids = mock230_ids();
+            int varp_zone_log = mock230_content_symbol(MOCK230_PACK_VARP, "mock_zone_log");
+            int varp_mapzone_log = mock230_content_symbol(MOCK230_PACK_VARP, "mock_mapzone_log");
+            int armed_at;
+
+            player->delayed_until = 0;
+            player->mainmodal_group = 0;
+            player->chatmodal_group = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+
+            /*
+             * ---- the name-keyed dispatch path -----------------------------
+             *
+             * `[zone,…]` is the only trigger family whose subject is a place,
+             * and a place is not a type id. The dispatch function is called
+             * *directly* here, with no latch involved, which is the point: "the
+             * name resolves" and "the latch fires it" are two independent
+             * failures that would otherwise present identically. The latch's own
+             * assertions are the zone-family stanza further down.
+             *
+             * This is the only guard against a failure that is *permanently*
+             * silent. If the format string disagrees with the compiler's
+             * spelling by one character, or if the lexer ever stops preserving
+             * a coord subject's raw text, every zone script in the tree simply
+             * never runs and nothing anywhere says so.
+             *
+             * The scripts write `%mock_zone_log`/`%mock_mapzone_log` — an
+             * accumulator, `log * 10 + n` — rather than the shared quest varp,
+             * because once the latches exist a zone script fires from ordinary
+             * movement inside whichever stanza happens to be walking. See
+             * configs/selftest.varp.
+             */
+            SELFTEST_CHECK(varp_zone_log > 0 && varp_mapzone_log > 0,
+                           "the zone-log varps should resolve, got %d/%d", varp_zone_log,
+                           varp_mapzone_log);
+            player->varps[varp_zone_log] = 0;
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3222, 3218) ==
+                               MOCK230_TRIGGER_RAN,
+                           "[zone,0_50_50_16_16] should be reachable by name");
+            SELFTEST_CHECK(player->varps[varp_zone_log] == 1,
+                           "and it is the authored script that ran, got %d",
+                           player->varps[varp_zone_log]);
+
+            /* The last two components are tile offsets truncated to the 8-tile
+             * zone, not the raw tile: a neighbour inside the same zone resolves
+             * to the same script, and the next zone east does not. */
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3223, 3221) ==
+                               MOCK230_TRIGGER_RAN,
+                           "a tile inside the same zone resolves to the same script");
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3230, 3218) ==
+                               MOCK230_TRIGGER_NONE,
+                           "the zone 8 tiles east has none bound");
+            SELFTEST_CHECK(player->varps[varp_zone_log] == 11,
+                           "so the log reads 11 and not 111, got %d",
+                           player->varps[varp_zone_log]);
+
+            /* The level is part of a zone's name, and the map square's is a
+             * literal 0 — which is the whole 427-vs-379 distinction. The same
+             * tile one level up is a *different name*, and a different script is
+             * bound to it, so this fails as a wrong digit rather than as a
+             * missing one. */
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 1, 3222, 3218) ==
+                               MOCK230_TRIGGER_RAN &&
+                               player->varps[varp_zone_log] == 114,
+                           "the same tile on level 1 names a different zone, got %d",
+                           player->varps[varp_zone_log]);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONEEXIT, 0, 3222,
+                                                          3218) == MOCK230_TRIGGER_RAN &&
+                               player->varps[varp_zone_log] == 1142,
+                           "and the exit half is a separate name, got %d",
+                           player->varps[varp_zone_log]);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONEEXIT, 1, 3222,
+                                                          3218) == MOCK230_TRIGGER_NONE,
+                           "which carries the level too — nothing is bound at level 1");
+
+            /*
+             * The other granularity, and the distinction that makes this stage
+             * worth doing separately: `mapzone` keys off the map square, and its
+             * name carries a literal 0 where the zone's carries the real level.
+             * So the *same tile on level 3* resolves to the same `[mapzone]`.
+             */
+            player->varps[varp_mapzone_log] = 0;
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222,
+                                                          3218) == MOCK230_TRIGGER_RAN,
+                           "[mapzone,0_50_50] should be reachable by name");
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 3, 3222,
+                                                          3218) == MOCK230_TRIGGER_RAN,
+                           "and the level is a literal 0 in its name, not the player's");
+            SELFTEST_CHECK(player->varps[varp_mapzone_log] == 11,
+                           "both of those ran the one script, got %d",
+                           player->varps[varp_mapzone_log]);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222 + 64,
+                                                          3218) == MOCK230_TRIGGER_RAN &&
+                               player->varps[varp_mapzone_log] == 113,
+                           "the next map square east is its own name, got %d",
+                           player->varps[varp_mapzone_log]);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222 + 128,
+                                                          3218) == MOCK230_TRIGGER_NONE,
+                           "and two squares east has none bound");
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONEEXIT, 0,
+                                                          3222 + 64, 3218) ==
+                               MOCK230_TRIGGER_NONE,
+                           "mapzoneexit is again a separate name");
+
+            /*
+             * ---- timer types ---------------------------------------------
+             *
+             * A soft timer runs while the player is busy; a normal one does not.
+             * One `case` served both opcodes and no type was stored anywhere, so
+             * both halves were wrong in opposite directions — and a test that
+             * only asked "did a timer fire" would have stayed green for either.
+             */
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_arm]", NULL, 0);
+            player->delayed_until = srv.tick + 10;
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 200,
+                           "a busy player runs soft timers twice and normal ones not at all, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            player->delayed_until = 0;
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 201,
+                           "and the normal one fires the moment access returns, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /* `cleartimer` and `clearsofttimer` both stop their timer. Asserting
+             * the absence of a fire is the only way to tell "stopped" from "not
+             * due yet". */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_clear]", NULL, 0);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            for( int i = 0; i < 8; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "cleared timers stay cleared, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- an interval of 0 -----------------------------------------
+             *
+             * A timer of 0 keeps running; it does not stop. `Player.processTimers`
+             * tests `World.currentTick >= timer.clock + timer.interval` with no
+             * lower bound on the interval, so 0 fires on every tick and only
+             * `cleartimer` stops it.
+             *
+             * Worth an assertion of its own because the wrong answer is silent
+             * in both directions: an `interval <= 0` guard leaves the timer
+             * *set* — it holds its slot and `gettimer` still answers — while it
+             * never fires again. And it is reachable from real content, not a
+             * theoretical edge: the reference arms `settimer(agilityarena_pillar,
+             * sub(%agilityarena_next_pillar_time, map_clock))`, which is 0 or
+             * negative once that deadline has passed.
+             */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_timer_zero_arm]", NULL, 0);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                           "an interval-0 timer fires on the next tick, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                           "and on every tick after it — once per tick, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_clear]", NULL, 0);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "and cleartimer is what stops it, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- gettimer -------------------------------------------------
+             *
+             * The clock is the absolute world tick the timer was last armed or
+             * fired at. A countdown cannot answer this at all, which is what
+             * makes the assertion worth having: the +1000 is only so an unset
+             * timer's -1 stays a positive varp.
+             */
+            armed_at = srv.tick;
+            mock230_scripts_run_proc(&srv, "[proc,selftest_gettimer]", NULL, 0);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1000 + armed_at,
+                           "gettimer is the tick it was armed at (%d), got %d", armed_at,
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_gettimer_unset]", NULL, 0);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 999,
+                           "and -1 for a timer that is not set, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- queue kinds ----------------------------------------------
+             *
+             * Each writes its own decimal column so one read says exactly which
+             * of them landed. `queue`, `weakqueue` and `longqueue` at delay 0 all
+             * fire on the next tick and none of them fires on this one.
+             */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_kinds]", NULL, 0);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "a queued script does not run in the tick that queued it");
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1101,
+                           "queue + weakqueue + longqueue all fire on tick +1, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- the access gate ------------------------------------------
+             *
+             * The one that makes a queue a queue. A busy player holds the entry;
+             * the counter keeps running down underneath, so it fires on the
+             * *first* tick after access returns rather than restarting its wait.
+             * A delay of 0 could not tell those two apart, which is why the
+             * script uses 2.
+             */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_normal_soon]", NULL, 0);
+            player->delayed_until = srv.tick + 20;
+            for( int i = 0; i < 5; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "a busy player does not run a due queue entry, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            player->delayed_until = 0;
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                           "and runs it on the very next tick, not one delay later, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- strongqueue ----------------------------------------------
+             *
+             * The kind's entire difference: it closes whatever modal is up
+             * before the drain, so its own entry passes the access check on the
+             * tick it is due. The mount goes through the same function every
+             * IF_OPENSUB does, so this is the state a real interface leaves.
+             */
+            mock230_note_modal_mount(&srv, ids->com_gameframe_mainmodal,
+                                     ids->iface_equipment_stats);
+            SELFTEST_CHECK(player->mainmodal_group == ids->iface_equipment_stats,
+                           "a modal is up");
+            mock230_scripts_run_proc(&srv, "[proc,selftest_strongqueue_arm]", NULL, 0);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->mainmodal_group == 0,
+                           "a strong entry closes the modal before the drain");
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                           "and then runs on the same tick, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- clearqueue and getqueue ----------------------------------
+             */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_pending]", NULL, 0);
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "a delay-3 entry has not fired after two ticks, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_clearqueue]", NULL, 0);
+            for( int i = 0; i < 6; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "and clearqueue cancels it rather than delaying it, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /* `getqueue` counts and does not clear; two copies of one script are
+             * two entries. */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_getqueue]", NULL, 0);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                           "getqueue counts every copy, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_clearqueue]", NULL, 0);
+
+            /*
+             * ---- the weak queue -------------------------------------------
+             *
+             * A weak entry is discarded when a modal closes, and that is the
+             * only thing that distinguishes it from a normal one. Without this,
+             * `weakqueue` would be a synonym the content could not tell apart.
+             */
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_weak_only]", NULL, 0);
+            mock230_note_modal_mount(&srv, ids->com_gameframe_mainmodal,
+                                     ids->iface_equipment_stats);
+            mock230_world_close_modal(&srv);
+            for( int i = 0; i < 6; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "closing a modal discards the weak queue, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /* And the same entry survives when nothing closes. */
+            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_weak_only]", NULL, 0);
+            for( int i = 0; i < 6; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 100,
+                           "and survives when nothing closes, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            player->delayed_until = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: use-on, the *u family\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Every id by name, and the three objs deliberately unrelated —
+             * knife 946, bones 526, bucket_water 1929. A transposition test whose
+             * two ids could stand in for each other tests nothing.
+             */
+            int knife = mock230_content_symbol(MOCK230_PACK_OBJ, "knife");
+            int bones = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+            int bucket = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_water");
+            int range = mock230_content_symbol(MOCK230_PACK_LOC, "cooksquestrange");
+            int remains = mock230_content_symbol(MOCK230_PACK_LOC, "fire_remains");
+            int door = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");
+            int hans_type = mock230_content_symbol(MOCK230_PACK_NPC, "hans");
+            /* Slots the packets name. Fixed and distinct, because the swap moves
+             * `last_slot` as well as `last_item` and a shared slot would hide it. */
+            enum
+            {
+                SLOT_KNIFE = 0,
+                SLOT_BUCKET = 1,
+                SLOT_BONES = 2,
+                SLOT_SPARE = 3
+            };
+            uint8_t payload[16];
+            struct RSAreaBuf out;
+
+            SELFTEST_CHECK(knife > 0 && bones > 0 && bucket > 0,
+                           "knife, bones and bucket_water should resolve by name");
+            SELFTEST_CHECK(range > 0 && remains > 0 && door > 0 && hans_type > 0,
+                           "cooksquestrange, fire_remains, poordoor and hans too");
+
+            /*
+             * The sentinel, before anything sets it. 0 is a real obj id and a
+             * real backpack slot, so a script reading `last_useitem` outside a
+             * use-on has to get -1 rather than "a Dwarf remains, from slot 0".
+             */
+            SELFTEST_CHECK(player->last_useitem == -1 && player->last_useslot == -1,
+                           "last_useitem/last_useslot start at -1, got %d/%d",
+                           player->last_useitem, player->last_useslot);
+
+            selftest_park_player(&srv, 3222, 3218);
+            inv_set(player, SLOT_KNIFE, knife, 1);
+            inv_set(player, SLOT_BUCKET, bucket, 1);
+            inv_set(player, SLOT_BONES, bones, 1);
+            inv_set(player, SLOT_SPARE, bucket, 1);
+
+            /*
+             * ---- opheldu, rungs 1 and 2 -----------------------------------
+             *
+             * `[opheldu,knife]` is bound and `bucket_water` is not, so "use the
+             * bucket on the knife" hits rung 1 and "use the knife on the bucket"
+             * hits rung 2 — and rung 2 is the one that swaps.
+             *
+             * THE ASSERTION THAT MATTERS is that both directions leave exactly
+             * the same state: `last_item` = the script's own subject, whichever
+             * of the two the player picked up first. Binding both directions
+             * would have made the swap invisible, which is why only one is bound.
+             */
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, knife);
+            rsab_p2(&out, SLOT_KNIFE);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p4(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                           "bucket on knife runs [opheldu,knife] with both halves in place, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->last_item == knife && player->last_useitem == bucket,
+                           "and the engine agrees: last_item %d, last_useitem %d",
+                           player->last_item, player->last_useitem);
+            SELFTEST_CHECK(player->last_slot == SLOT_KNIFE && player->last_useslot == SLOT_BUCKET,
+                           "slots follow their items: last_slot %d, last_useslot %d",
+                           player->last_slot, player->last_useslot);
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, knife);
+            rsab_p2(&out, SLOT_KNIFE);
+            rsab_p4(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                           "knife on bucket runs the same script, the other way round, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->last_item == knife && player->last_useitem == bucket,
+                           "and rung 2's SWAP puts the script's own subject back in last_item: "
+                           "%d / %d",
+                           player->last_item, player->last_useitem);
+            SELFTEST_CHECK(player->last_slot == SLOT_KNIFE && player->last_useslot == SLOT_BUCKET,
+                           "with the slots swapped alongside them: %d / %d", player->last_slot,
+                           player->last_useslot);
+
+            /*
+             * ---- opheldu, rungs 3 and 4, and the inversion -----------------
+             *
+             * `[opheldu,_bones]` is a *category* binding. Rung 2's swap happens
+             * whether or not rung 2 matched, so a category hit runs with the two
+             * items the other way round from an id hit — `last_item` names the
+             * item the script is NOT bound to. That is the reference's behaviour
+             * and content is written against it; both directions are asserted
+             * because rung 3 and rung 4 reach it by different routes.
+             */
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, bones);
+            rsab_p2(&out, SLOT_BONES);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p4(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                           "bucket on bones reaches [opheldu,_bones] by rung 3, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->last_item == bucket && player->last_useitem == bones,
+                           "inverted, as the reference leaves it: last_item %d, last_useitem %d",
+                           player->last_item, player->last_useitem);
+            SELFTEST_CHECK(player->last_slot == SLOT_BUCKET && player->last_useslot == SLOT_BONES,
+                           "slots inverted with them: %d / %d", player->last_slot,
+                           player->last_useslot);
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, bones);
+            rsab_p2(&out, SLOT_BONES);
+            rsab_p4(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                           "bones on bucket reaches it by rung 4 instead, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->last_item == bucket && player->last_useitem == bones,
+                           "and rung 4's second swap lands on the same inversion: %d / %d",
+                           player->last_item, player->last_useitem);
+
+            /*
+             * ---- opheldu, all four rungs missing --------------------------
+             *
+             * Two buckets: no id is bound and neither carries a category, so
+             * every rung misses. The reference answers with the message and
+             * nothing else — there is no engine "use" behaviour to fall back to.
+             */
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 77;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_SPARE);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p4(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 77,
+                           "a use-on nothing binds runs no script at all, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * ---- oplocu: the subject is the LOC ---------------------------
+             *
+             * The single most likely wrong port, and the one the plan named: an
+             * implementation keyed on the *used obj* would look up
+             * `[oplocu,bucket_water]`, find nothing, and this would never run.
+             *
+             * Nothing binds `[aplocu,cooksquestrange]`, so it is only reachable
+             * by closing the distance — which is what makes this the op rung.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, 3212);
+            rsab_p2(&out, 3215);
+            rsab_p2(&out, range);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p2(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(selftest_settle(&srv, 40) > 0,
+                           "a use-on out of reach walks first, like every other interaction");
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                           "[oplocu,cooksquestrange] runs on arrival, with the bucket in "
+                           "last_useitem, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+            /*
+             * The same loc with a *different* item still runs the loc's script —
+             * 19 is the script saying "I ran, and the item was not the bucket".
+             * That is the positive half of the transposition test: the subject
+             * does not move when the item does.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, 3212);
+            rsab_p2(&out, 3215);
+            rsab_p2(&out, range);
+            rsab_p2(&out, knife);
+            rsab_p2(&out, SLOT_KNIFE);
+            rsab_p2(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk should complete");
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 19,
+                           "a different item on the same loc runs the same script, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->last_useitem == knife,
+                           "and the item it carries is the one that was used, got %d",
+                           player->last_useitem);
+
+            /*
+             * ---- a use-on miss must NOT run the engine's own verb ----------
+             *
+             * The door is the sharpest form of it: `[oploc1,poordoor]` has an
+             * engine fallback that opens it, and routing an unbound `*u` into
+             * that fallback would open a door because somebody used a bucket on
+             * it. The reference's answer to an unbound use-on is the message and
+             * nothing else (`Player.defaultOp`).
+             */
+            {
+                int door_slot = mock230_scene_find_loc(3226, 3223, 0, door);
+                struct Mock230SceneLoc* door_loc = mock230_scene_loc(door_slot);
+                int before = door_loc ? door_loc->loc_id : -1;
+
+                SELFTEST_CHECK(door_slot >= 0 && before == door,
+                               "the castle door should be in the scene and shut, got %d", before);
+                selftest_park_player(&srv, 3222, 3218);
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, 3226);
+                rsab_p2(&out, 3223);
+                rsab_p2(&out, door);
+                rsab_p2(&out, bucket);
+                rsab_p2(&out, SLOT_BUCKET);
+                rsab_p2(&out, 0);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+                SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to the door completes");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 78,
+                               "a loc with no *u binding runs nothing, got %d",
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                door_loc = mock230_scene_loc(door_slot);
+                SELFTEST_CHECK(door_loc && door_loc->loc_id == door,
+                               "and the door stays SHUT — a use-on must not reach the engine's "
+                               "own [oploc1] behaviour, got %d",
+                               door_loc ? door_loc->loc_id : -1);
+            }
+
+            /*
+             * ---- aplocu: the ap rung --------------------------------------
+             *
+             * A separate loc, because ap and op cannot both be observed on one
+             * target: the ap form fires first and ends the interaction. The loc
+             * is placed six tiles away — inside MOCK230_AP_RANGE_DEFAULT and well
+             * outside "adjacent" — so a run of it is proof the ap rung fired.
+             *
+             * APLOCU is 64 and OPLOCU is 71; an implementation using +1 would
+             * resolve the op form to APLOCT and never fire either.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addloc]", NULL, 0);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, 3220);
+            rsab_p2(&out, 3224);
+            rsab_p2(&out, remains);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p2(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
+                           "[aplocu,fire_remains] fires on the click, from range, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(player->x == 3222 && player->z == 3218,
+                           "without the player having moved a tile, at %d,%d", player->x,
+                           player->z);
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
+                           "and an ap hit ends the interaction rather than walking on");
+
+            /*
+             * ---- opnpcu ---------------------------------------------------
+             */
+            {
+                int hans = selftest_find_npc(&srv, hans_type);
+
+                SELFTEST_CHECK(hans >= 0, "hans should be on the roster");
+                if( hans >= 0 )
+                {
+                    selftest_park_player(&srv, 3222, 3218);
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    rsab_wrap(&out, payload, sizeof(payload));
+                    rsab_p2(&out, hans);
+                    rsab_p2(&out, bucket);
+                    rsab_p2(&out, SLOT_BUCKET);
+                    rsab_p2(&out, 0);
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)rsab_len(&out));
+                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                                   "the walk to a wandering npc should complete");
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 30,
+                                   "[opnpcu,hans] runs with the npc as its subject, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                }
+            }
+
+            /*
+             * ---- opobju ---------------------------------------------------
+             *
+             * A ground obj is reached by standing *on* it, not beside it, which
+             * is the one rule this form does not share with the other two. The
+             * pile must also still be there afterwards: picking it up is the
+             * engine's answer to `[opobj<n>]`, and a use-on must not reach it.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addobj]", NULL, 0);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            rsab_wrap(&out, payload, sizeof(payload));
+            rsab_p2(&out, 3224);
+            rsab_p2(&out, 3218);
+            rsab_p2(&out, bones);
+            rsab_p2(&out, bucket);
+            rsab_p2(&out, SLOT_BUCKET);
+            rsab_p2(&out, 0);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJU, payload, (int)rsab_len(&out));
+            SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0, "the walk onto the pile completes");
+            SELFTEST_CHECK(player->x == 3224 && player->z == 3218,
+                           "standing on the tile, not beside it, at %d,%d", player->x, player->z);
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 40,
+                           "[opobju,bones] runs with the ground obj as its subject, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            SELFTEST_CHECK(selftest_find(player, bones) == SLOT_BONES,
+                           "and the pile was not picked up — the backpack still holds only the "
+                           "one the fixture put there");
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, -1, 0);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            selftest_park_player(&srv, 3222, 3218);
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: the zone family, and its two latches\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int zone_log = mock230_content_symbol(MOCK230_PACK_VARP, "mock_zone_log");
+            int mapzone_log = mock230_content_symbol(MOCK230_PACK_VARP, "mock_mapzone_log");
+            int zone_clock = mock230_content_symbol(MOCK230_PACK_VARP, "mock_zone_clock");
+            int detected_at;
+
+            SELFTEST_CHECK(zone_log > 0 && mapzone_log > 0 && zone_clock > 0,
+                           "the zone-log varps should resolve, got %d/%d/%d", zone_log,
+                           mapzone_log, zone_clock);
+
+            /*
+             * ---- login: enter with no exit --------------------------------
+             *
+             * -1 in both latches is what a fresh `Player` has in the reference,
+             * which never resets them anywhere — `cleanup()` included. Setting
+             * them here rather than relying on process start makes the case
+             * assertable in the middle of a run, and makes "the exit is
+             * suppressed on the first transition" a statement rather than an
+             * accident of ordering.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            player->last_zone_level = -1;
+            player->last_zone_x = -1;
+            player->last_zone_z = -1;
+            player->last_map_x = -1;
+            player->last_map_z = -1;
+            player->varps[zone_log] = 0;
+            player->varps[mapzone_log] = 0;
+            player->varps[zone_clock] = 0;
+
+            /*
+             * One tick detects and dispatches *nothing*. This is the assertion
+             * that pins the engine queue: detection is phase 10, execution is
+             * phase 5 of the next tick, and an implementation that fired inline
+             * would satisfy every other check in this stanza.
+             *
+             * It is not a stylistic preference. Firing inline from phase 10
+             * would run a script that teleports *after* PLAYER_INFO had already
+             * been encoded for the tile the player is leaving, and would hand a
+             * mid-dialogue player's zone script to `run_or_park`, whose
+             * one-parked-script rule refuses it outright rather than holding it.
+             */
+            mock230_world_tick(&srv);
+            detected_at = srv.tick;
+            SELFTEST_CHECK(player->varps[zone_log] == 0 && player->varps[mapzone_log] == 0,
+                           "phase 10 detects the crossing and dispatches nothing, got %d/%d",
+                           player->varps[zone_log], player->varps[mapzone_log]);
+
+            mock230_world_tick(&srv);
+            /* 1 and not 91: `[zoneexit,0_0_0_0_0]` and `[mapzoneexit,0_0_0]`
+             * are bound, and they are what a latch starting at a memset's 0
+             * would fire — a login claiming the player just left the map's
+             * origin. -1 is what suppresses it, and the digit 9 is how that
+             * shows. */
+            SELFTEST_CHECK(player->varps[zone_log] == 1,
+                           "the first transition fires [zone] and no [zoneexit], got %d",
+                           player->varps[zone_log]);
+            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           "and [mapzone] with no [mapzoneexit], got %d",
+                           player->varps[mapzone_log]);
+            SELFTEST_CHECK(player->varps[zone_clock] == detected_at + 1,
+                           "on the tick after the crossing (%d), got %d", detected_at + 1,
+                           player->varps[zone_clock]);
+
+            /* Standing still is not a crossing. The latch is a comparison
+             * against a stored value, not a recomputation. */
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
+                           "standing still fires nothing, got %d/%d", player->varps[zone_log],
+                           player->varps[mapzone_log]);
+
+            /*
+             * ---- a rebuild is not a crossing ------------------------------
+             *
+             * The single most likely wrong implementation, and otherwise
+             * invisible: `Mock230Player.zone_index` is the `>> 3` key including
+             * the level and looks exactly like `lastZone` — but
+             * `mock230_zone_player_reset` sets it to -1 on every REBUILD_NORMAL
+             * and every climb. A latch hung off it would re-fire `[zone,…]`
+             * whenever the world's origin moved under a standing player, and
+             * swallow the `[zoneexit]` that should have paired with it.
+             */
+            mock230_zone_player_reset(player);
+            player->rebuild_pending = 1;
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
+                           "a REBUILD_NORMAL fires nothing, got %d/%d", player->varps[zone_log],
+                           player->varps[mapzone_log]);
+
+            /*
+             * ---- the zone moves, the map square does not ------------------
+             *
+             * 16 tiles east, still inside square 50_50. The accumulator makes
+             * the *order* observable: 23 is exit-then-enter and 32 is the other
+             * way round, where a pair of counters would read the same for both.
+             */
+            player->varps[zone_log] = 0;
+            player->x = 3238;
+            player->place_dirty = 1;
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 23,
+                           "moving zone fires [zoneexit] then [zone], got %d",
+                           player->varps[zone_log]);
+            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           "and the map square is untouched, got %d",
+                           player->varps[mapzone_log]);
+
+            /*
+             * ---- a climb is a zone crossing and not a square crossing -----
+             *
+             * The 427-vs-379 distinction, asserted. `[zone]` carries the real
+             * level in its name; `[mapzone]` carries a literal 0, because the
+             * reference builds that latch with `CoordGrid.packCoord(0, x, z)`.
+             * Packing the real level into the map-square latch turns the second
+             * check red while leaving the first green.
+             */
+            player->varps[zone_log] = 0;
+            player->x = 3222;
+            player->level = 1;
+            player->place_dirty = 1;
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 4,
+                           "level 1 at the home tile is its own [zone], got %d",
+                           player->varps[zone_log]);
+            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           "and a climb does not re-enter the map square, got %d",
+                           player->varps[mapzone_log]);
+
+            /*
+             * ---- the square moves ------------------------------------------
+             *
+             * Back to level 0 (which re-enters the home zone), then east past
+             * x = 3264 into square 51_50 — where nothing is bound to any zone.
+             * So the two accumulators must move independently: the mapzone one
+             * gains exit-then-enter, the zone one gains only the exit.
+             */
+            player->varps[zone_log] = 0;
+            player->varps[mapzone_log] = 0;
+            player->level = 0;
+            player->place_dirty = 1;
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 0,
+                           "coming back down re-enters the zone only, got %d/%d",
+                           player->varps[zone_log], player->varps[mapzone_log]);
+
+            player->x = 3270;
+            player->place_dirty = 1;
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[mapzone_log] == 23,
+                           "crossing x=3264 fires [mapzoneexit] then [mapzone], got %d",
+                           player->varps[mapzone_log]);
+            SELFTEST_CHECK(player->varps[zone_log] == 12,
+                           "and the new square's zone has nothing bound, so only the "
+                           "[zoneexit] shows, got %d",
+                           player->varps[zone_log]);
+
+            /*
+             * ---- a busy player holds it, and does not lose it --------------
+             *
+             * `processEngineQueue` gates the *run* on `canAccess()` and
+             * decrements regardless, so a player who crosses a boundary with a
+             * dialogue open has the script held until the dialogue closes. The
+             * alternative — firing it anyway, or dropping it — is the difference
+             * between a zone script that is late and one that never ran.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            player->varps[zone_log] = 0;
+            player->delayed_until = srv.tick + 20;
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 0,
+                           "a busy player does not run a queued zone script, got %d",
+                           player->varps[zone_log]);
+            player->delayed_until = 0;
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->varps[zone_log] == 1,
+                           "and runs it on the first tick after access returns, got %d",
+                           player->varps[zone_log]);
+
+            player->varps[zone_log] = 0;
+            player->varps[mapzone_log] = 0;
+            player->varps[zone_clock] = 0;
             mock230_scripts_free(&srv);
         }
     }

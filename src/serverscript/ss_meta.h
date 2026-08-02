@@ -144,9 +144,15 @@ enum
  *
  * Note the reference's mapzone/zone collisions are NOT this bug — its compiler
  * derives those subjects with parseInt("0_29_75"), which stops at the
- * underscore and yields 0, so every one of them lands on the same key. Nothing
- * a key width can fix, and harmless in practice because the reference never
- * dispatches those triggers at runtime. test-ss-corpus reports the count.
+ * underscore and yields 0, so every *three-part* one (379 of them) lands on the
+ * same key. Nothing a key width can fix. Its five-part `[zone,…]` subjects
+ * (427) are a second, different collapse: they pack into 28 bits and wrap when
+ * shifted to bit 10 — 78 onto a negative key the index drops, and 349 onto a
+ * subject field that is not the coord (10 of those colliding).
+ * Neither shape is addressable by key, which is why this compiler writes -1 for
+ * any coord subject and the engine reaches all four by *name* — see
+ * ssc_compile.c's `subject_is_coord` branch and osrs230_mockserver.md §3.21.
+ * test-ss-corpus reports the reference pack's own count.
  */
 static inline uint64_t
 SSVM_LookupKey(

@@ -107,12 +107,18 @@ oplocu 212   oploc2 193  ai_queue3 184 zoneexit 165   opheld1 159
 queue 152    opnpcu 93   ai_timer 87  ai_opplayer2 84 mapzoneexit 73
 ```
 
-`mock230` dispatches 11 families today: `opnpc1-5`, `oploc1-5`, `opobj1-5`,
+`mock230` dispatches these families today: `opnpc1-5`, `oploc1-5`, `opobj1-5`,
 `opheld1-5`, `apnpc/aploc/apobj1-5`, `inv_button1-n`, `if_button`, `if_close`,
-`ai_queue3`, `login`. It does **not** dispatch `zone`/`mapzone`/`zoneexit`/
-`mapzoneexit` (806 uses), the `*u` use-on family (535), `queue`/`timer`/
-`ai_timer` (273), `command` (511), `ai_opplayer*`, `advancestat`, or the
-`*t` spell-target family.
+`ai_queue1-20`, `ai_spawn`, `login`; since §9 step 5a `queue`, `timer`,
+`softtimer` and `ai_timer` (275 uses; see osrs230_mockserver.md §3.19, and note
+the 273 this file used to print omitted `softtimer`); and since §9 step 5b the
+`*u` use-on family — `opheldu`, `oplocu`+`aplocu`, `opnpcu`+`apnpcu`,
+`opobju`+`apobju`, **541 of its 546 uses** (osrs230_mockserver.md §3.20). It does
+**not** dispatch `zone`/`mapzone`/`zoneexit`/`mapzoneexit` (806 uses — the
+name-keyed *dispatch function* exists now, the two coordinate latches that would
+call it do not), `opplayeru`/`applayeru` (5 — rev 230 assigns them no wire
+opcode, so there is no packet to route), `command` (511), `ai_opplayer*`,
+`walktrigger`, `advancestat`, or the `*t` spell-target family.
 
 ---
 
@@ -527,31 +533,37 @@ files.** That is §9's dependency order, arrived at from the other direction.
 | bare stat names collide and compile to the wrong id | **confirmed against osrs239's own tables** — §7.6 |
 | content-first dispatch swallowed an engine verb | **still true structurally** — §7.7 |
 
-### 7.2 Zone triggers (806 uses) — the ZoneMap exists now; the dispatch does not
+### 7.2 Zone triggers (806 uses) — DONE, and the ZoneMap was never the point
 
 `zone` 262, `mapzone` 306, `zoneexit` 165, `mapzoneexit` 73. Re-counted
-2026-08-01 against `LostCity_Server/content`; the four numbers above still hold.
-Every "you have entered the wilderness", every minigame boundary, every area
-music trigger is one of these.
+2026-08-01 against `LostCity_Server/content`; the four numbers above still hold,
+and were re-derived a third time in step 5c. Every "you have entered the
+wilderness", every minigame boundary, every area music trigger is one of these.
 
-**No longer blocked on the engine feature.** The `ZoneMap` landed
-(`src/net/mock/mock230_zone.{c,h}`, `osrs230_mockserver.md` §3.17), and with it
-the per-zone entity lists that took the flat `npcs[]`/`ground[]` scans out of the
-per-client path.
-
-Two things to know before porting any of them, neither of which the count above
-tells you:
+**Dispatched as of §9 step 5c** — `osrs230_mockserver.md` §3.21. Two things to
+know before porting any of them, neither of which the count above tells you, and
+both of which survived the port unchanged:
 
 - **Only 427 of the 806 are zone-keyed.** `mapzone` and `mapzoneexit` key off
   the *map square* (`x >> 6`), not the zone (`x >> 3`) — see
   `NetworkPlayer.updateMap`, which tracks `lastMapZone` and `lastZone` as two
-  separate latches. The ZoneMap is irrelevant to 379 of these uses.
+  separate latches. All 427 have five-part subjects (levels 0 ×392, 1 ×2, 3 ×33)
+  and all 379 have three-part ones beginning `0_`.
 - **They are keyed by script *name*, not by a numeric subject.** The reference
-  looks up `[zone,<level>_<mx>_<mz>_<lx>_<lz>]` and
-  `[mapzone,0_<mx>_<mz>]` through `ScriptProvider.getByName`.
-  `mock230_scripts_run_trigger` takes an integer subject and cannot express
-  that, so the dispatch half is a name-lookup path in the trigger dispatcher —
-  which is the actual remaining work, and it is Phase 2's.
+  looks up `[zone,<level>_<mx>_<mz>_<lx>_<lz>]` and `[mapzone,0_<mx>_<mz>]`
+  through `ScriptProvider.getByName`. `mock230_scripts_run_trigger` takes an
+  integer subject and cannot express that, so the dispatch is
+  `mock230_scripts_run_trigger_at` / `_queue_trigger_at`, name-addressed with no
+  keyed rung at all.
+
+**The `ZoneMap` was not the blocker and is not in the path.** It landed first
+(`src/net/mock/mock230_zone.{c,h}`, §3.17) and the two are unrelated: it is keyed
+`(zx, zz, level)`, which is the wrong granularity for 379 of these uses and the
+wrong *kind* of address for the other 427. Sizing this work off "the ZoneMap
+exists now" would have been sizing off the wrong structure — what it needed was
+two integer latches on the player and a name lookup.
+
+What is left is the 806 scripts themselves, which are content and Phase 4.
 
 ### 7.3 Interfaces — the hard case, sized
 
@@ -821,11 +833,37 @@ are *not* content work.
     4e. session_log, finduid, text_gender, stat_add/sub — small, wide
 
 5.  Triggers the engine does not dispatch
-    5a. queue / timer / ai_timer   (273 uses)  — cheap
-    5b. the *u use-on family       (535 uses)
-    5c. zone / mapzone / zoneexit  (806 uses)  — ZoneMap landed; what is
-        left is name-keyed trigger dispatch, and 379 of the 806 are keyed
-        by map square rather than by zone (§7.2)
+    5a. queue / timer / softtimer / ai_timer  (275 uses)  — DONE, see
+        osrs230_mockserver.md §3.19. 275 and not 273: this line omitted
+        `softtimer` and counted `queue` at 152. All four already reached a
+        script; what was missing was `canAccess()`, the timer type, an
+        absolute timer clock, the four queue kinds and seven opcodes.
+    5b. the *u use-on family       (546 uses)  — DONE, see
+        osrs230_mockserver.md §3.20. 541 of 546; `opplayeru`/`applayeru` are
+        the other 5 and rev 230 assigns them no wire opcode. 535 was
+        opheldu+oplocu+opnpcu only; opobju 3, opplayeru 3, aplocu 2,
+        applayeru 2, apnpcu 1 are the rest. The mock's inbound routing table
+        had no row for any of the four wire packets, so 5b was packet
+        handlers first and dispatch second. The trap it turns on: "use A on
+        B" carries two obj ids and the subject is B, the target — the item
+        reaches content only as `last_useitem`/`last_useslot`. `opheldu` is
+        the exception, a four-rung chain that *swaps* the two as it searches.
+    5c. zone / mapzone / zoneexit  (806 uses)  — DONE, see
+        osrs230_mockserver.md §3.21. All four, both granularities: 427 are
+        keyed off the 8-tile zone *including the level* and 379 off the
+        64-tile map square with the level forced to 0, so they are two
+        latches on the player and not one at two scales (§7.2). The producer
+        is `mock230_world_update_map` in phase 10; execution is the ENGINE
+        queue drained in phase 5 of the *next* tick, which is what lets a
+        boundary crossed mid-dialogue hold its script instead of losing it.
+        The `ZoneMap` is not in the path — that was the wrong structure to
+        size this off. Three findings: `Mock230Player.zone_index` looks like
+        `lastZone` and is reset on every rebuild, so a latch hung off it
+        double-fires silently; the compiler was writing coord `lookup_key`s
+        that no lookup could reproduce (78 of 427 negative, 349 wrapped,
+        10 colliding) and now writes -1; and the miss path is cheap because
+        the *latch* bounds the call rate — measured, the `snprintf` costs
+        more than the failed lookup.
 
 6.  Interfaces, per interface, driven by the scripts being ported
     questlist → chatmenu → levelup → the rest on demand
@@ -1624,13 +1662,31 @@ this is now a *field with no writer* rather than two literals that could drift.
 
 **`npc_queue` / `npc_settimer`** — 67 files, and half the state was already
 there: every npc carried `timer_script`, `timer_interval` and `timer_clock`, and
-nothing ever set or read them. Phase 4 now runs queues then timers, in the
-reference's order, dispatching by npc *type* so an npc that changed type between
-queueing and firing runs the new type's script.
+nothing ever set or read them. Phase 4 now runs timers then queues, dispatching
+by npc *type* so an npc that changed type between queueing and firing runs the
+new type's script.
 
 The test asserts the negative for both: that `npc_settimer(0)` **stops** the
 timer, which is the only way to tell "stopped" from "not due yet", and that a
 `[ai_queue1]` does not fire early.
+
+**Two corrections to the paragraph above, from step 5a** (osrs230_mockserver.md
+§3.19), both of which the test had been pinning the wrong way round:
+
+- The order is **timers then queues** — `Npc.processNpc` calls `processTimers()`
+  then `processQueue()`. This ran queues first, under a comment claiming it
+  matched the reference.
+- `npc_queue(q, arg, 1)` fires on tick **+1**, not +2. The reference compares the
+  counter's value *before* the decrement for a player and *after* it for an npc,
+  so an npc's delay 0 and delay 1 both land on the next npc phase. This engine
+  stored `delay + 1` for both, and the selftest asserted that — a test can be
+  green and still encode the wrong convention.
+
+Also from 5a: `Mock230Npc.timer_script` and the second drain that read it are
+gone. The field was written in exactly one place and only ever to `-1`, so
+`mock230_scripts_process_npc_timer` could never run. The npc queue's `arg` is
+still stored and never passed — `[ai_queue<n>]` gets no `last_int`, where the
+reference sets `state.lastInt = request.lastInt`.
 
 ### npc modes — the last large item
 
