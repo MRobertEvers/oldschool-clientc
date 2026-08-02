@@ -10,6 +10,11 @@
  * its column types and values. A table's DBTABLEINDEX (cache table 21) is a
  * bundle of index files: file 0 is the master (all row ids), file N (N>=1) is
  * the inverted index for column id N-1.
+ *
+ * A DBTABLE (config kind 39) is cached the same way as a DBROW. It is the only
+ * place a column's *types* and its *default values* are stated: a DBROW lists
+ * only the columns it sets, so a column the row omits has no type, no arity and
+ * no value anywhere except on its table.
  */
 
 struct ToriRS_DbTableIndex
@@ -35,5 +40,8 @@ ToriRS_DbTableIndexFree(struct ToriRS_DbTableIndex* idx);
 
 void
 ToriRS_DbRowFree(struct RSCache_Dat2ConfigDbRow* row);
+
+void
+ToriRS_DbTableFree(struct RSCache_Dat2ConfigDbTable* table);
 
 #endif

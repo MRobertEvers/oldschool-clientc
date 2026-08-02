@@ -140,6 +140,11 @@ CreateTask_Dat2DbRowLoad(
     int row_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2DbTableLoad(
+    struct CacheProvider* provider,
+    int table_id);
+
+struct ToriRS_Task*
 CreateTask_Dat2DbTableIndexLoad(
     struct CacheProvider* provider,
     int table_id);

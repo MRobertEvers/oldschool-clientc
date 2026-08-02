@@ -498,6 +498,8 @@ says it in `[opnpc2,_] @player_combat_start`, and this is
 `MOCK230_FALLBACK_OPNPC`: one of **four** enumerated rows waiting on the opcode
 surface, not a design position (§3.18). It is also the one row whose blocker was
 never an opcode — its `blocked_ops` is empty and always has been.
+`MOCK230_FALLBACK_OPNPC`: one of five enumerated rows waiting on the opcode
+surface, not a design position (§3.18).
 
 **The fallback contract is inverted, and §3.18 is the whole of it.** It used to
 read: no script pack, or no script for a trigger, means the call site does
@@ -1727,7 +1729,7 @@ id it is asked for, which is right for its own caller (a stale OPLOC id must
 still resolve to the door somebody else already opened) and useless as an
 existence check. `mock230_loc_known` is the existence check.
 
-**What `mock230_locinfo.c` now retains**, measured on `cache.osrs239`, all three
+**What `mock230_locinfo.c` now retains**, measured on `cache.osrs239`, all of it
 built in the one decode pass that was already happening for params:
 
 | table | rows | bytes | note |
@@ -1735,7 +1737,13 @@ built in the one decode pass that was already happening for params:
 | params | 1,709 | 41,016 | of 62,194 records, only 1,070 carry any |
 | names | 30,033 | 565,681 | one concatenated blob + a sorted (id, offset) index |
 | footprints | 17,309 | 138,472 | only the records that are not 1x1 |
+| categories | 8,407 | 67,256 | config opcode 61, added 2026-08-02 with the loc category rung (§3.18) |
 | known-id bitmap | — | ~7.8 KB | one bit per id; the reference's `LocTypeValid` |
+
+The category rows are `int32_t`, not sized to the 2,474 this cache tops out at:
+the namespace has a `server_base` of 8192 and an authored `.loc` block can carry
+one of those, so sizing to the cache would make the *authored* half the case that
+overflows.
 
 Names are ~560 KB, not the ~700 KB the previous revision of that file estimated
 and declined to pay: the estimate was `strdup` per record — 30,033 allocations
@@ -1744,8 +1752,7 @@ only the named records is two allocations. Footprints store one byte each
 (measured maxima 17 and 33; both are `g1` on the wire) and an id that is not in
 the table answers 1x1, which is the decoder's own default rather than a guess.
 
-**Two loc opcodes are deliberately NOT landed, and neither is blocked on
-effort:**
+**One loc opcode is deliberately NOT landed, and it is not blocked on effort:**
 
 - **`loc_anim` (3002) — 56 uses / 23 files, the largest single loc gap. Blocked
   on a missing wire packet.** The reference is `LocOps.ts:50` →
@@ -1755,24 +1762,38 @@ effort:**
   no loc-anim among them. Landing it means a new `MOCK230_ZONE_EV_*` kind, a new
   encoder arm and headless-client verification that the loc actually animates.
   That is engine work outside the ops-file seam; file it as its own item.
-- **`loc_category` (3003, 38/16) and `lc_category` (4100, 3/1) — the linked
-  decoder throws the field away.** `3rd/rscache/src/datatypes/dat2_config_loc.c`
-  case 61 is `g2(buffer); // Skip unsigned short`, where
-  `dat2_config_npc.c:668` decodes `category` explicitly. The bytes are in the
-  cache; nothing in this tree can see them. Landing it needs (i) confirming
-  opcode 61 really is `category` against the OSRS `LocType` reference — a strong
-  candidate given the npc/obj precedent, but one unsigned short and a guess here
-  is exactly the class of error this project keeps paying for — and (ii) an edit
-  to the vendored `3rd/rscache/` tree, which is `EXCEPTIONS.md`-governed and
-  validated by byte-exact round-trip. Both are out of scope for an ops file.
 
-Two more were measured and cut on data, not on scope:
+One was measured and cut on data, not on scope:
 
 - **`lc_desc` (4102) — 0 of the 62,194 loc records carry a `desc`.** The field is
   gone from OSRS loc configs; a handler could only ever push the reference's
   `'null'` fallback. There are also zero callers in the reference tree.
-- **`lc_debugname` (4101) — `debugname` is a LostCity build-time symbol.** The
-  dat2 loc record has no such field and the decoder has no place to put one.
+
+**Three that this section refused and that landed on 2026-08-02**, kept here with
+the refusal beside the answer, because the refusals were the reason the `oploc`
+fallback row stood and both were plausible when written:
+
+- **`loc_category` (3003, 38 uses / 16 files) and `lc_category` (4100, 3 / 1).**
+  The refusal was *"the linked decoder throws the field away"* and it was true —
+  `dat2_config_loc.c` case 61 was `g2(buffer); // Skip unsigned short` where
+  `dat2_config_npc.c:668` decodes `category` explicitly. It asked for two things
+  and got both. (i) Opcode 61 was confirmed as `category` **against the data**
+  rather than against a client, since neither client in this tree decodes it: the
+  ids group semantically (684 is 63 records, 43 of them named *Bank booth*; 907 is
+  360 Bookshelves) and share their space with npc opcode 18 and obj opcode 94, on
+  9 and 3 ids respectively, each the same concept on both sides. `LocType.ts:179`
+  agrees. (ii) The `EXCEPTIONS.md` edit was made and the fidelity suite earned its
+  keep on the first run — see §3.18, finding 2. Both push **−1** for "states
+  none", not the reference's raw 0, because `pack/category.pack` reserves 0.
+- **`lc_debugname` (4101, 1 / 1).** The refusal was *"`debugname` is a LostCity
+  build-time symbol; the dat2 record has no such field"* — correct about the
+  cache and a category error about the opcode. `debugname` is not supposed to be
+  a cache field: it is the `[block]` header of a config file, and this tree has
+  that table, `pack/loc.pack`. `mock230_content_symbol_name(MOCK230_PACK_LOC, id)`
+  with the reference's own `'null'` fallback. It landed for its single caller,
+  `stairs.rs2:431`'s `mes("Unhandled stairs: <lc_debugname(loc_type)> at")` — the
+  line that tells a port which locs it missed, which is worth more during a port
+  than after one.
 
 **The check is `make -C src test-mock230-loc`**, source
 `src/net/mock/test/loc_test.c`. Half 1 re-decodes the whole loc group with the
@@ -2361,6 +2382,7 @@ old meanings so the existing shape of every call site still reads correctly, and
 
 **2. An engine fallback and "what happens otherwise".** The C that answers an
 unbound trigger is enumerated — `enum Mock230Fallback`, **four** rows — and
+unbound trigger is enumerated — `enum Mock230Fallback`, **five** rows — and
 reached only through `mock230_scripts_fallback(srv, which, result)`. Each row
 carries what it is blocked on, and the boot prints the count (the roll under
 `MOCK230_VERBOSE`, abbreviated here — the live text is longer and is the
@@ -2370,6 +2392,10 @@ authority):
 mock230: 4 engine fallback(s) still answer triggers content does not bind
   opnpc        blocked on: combat, 1,061 lines of mock230_combat.c … the blocker is the player_combat closure, not the dispatch
   oploc        blocked on: NOT the loc_* family — [oploc<n>] binds no active loc, no loc category rung, P_OPLOC unimplemented
+mock230: 5 engine fallback(s) still answer triggers content does not bind
+  opnpc        blocked on: combat, 1,061 lines of mock230_combat.c … the blocker is the player_combat closure, not the dispatch
+  opobj        blocked on: an entity kind, not an opcode pair — SSVM_ENT_OBJ has no writers; OBJ_* 3502-3511 all unimplemented
+  opheld       blocked on: NOT 'equipment is C' — eight declared-unimplemented opcodes (OC_WEARPOS/2/3, INV_SETSLOT, …)
   inv_button   blocked on: ADDRESSING — the grid's quantity row moves, so [inv_button1..5] cannot name Withdraw-All
   if_button    blocked on: the same last_verb reader, plus bank.rs2's bindings and bank_set_events naming different components
 ```
@@ -2476,7 +2502,231 @@ to a component nothing arms*, the dual of `mock230_scripts_report_shadowed_ops`
 — because that is a general defect class and not a fact about the bank.
 Proposed, not built.
 
-### `ai_queue3` was the seventh, and it is gone
+### `oploc` was the second row, and it took three stages
+
+**Gone 2026-08-02.** `interaction_engine_loc` (84 lines) and `climb` (34) are
+deleted, the call site in `mock230_world_process_interaction` is a bare
+`mock230_scripts_run_trigger_on_loc`, and the count is **5**.
+
+It is worth reading as three stages rather than one deletion, because each
+stage's end state was a legitimate place to stop and none of them was "the row
+goes":
+
+1. **the surface** — the `SSVM_ENT_LOC` binding, the loc category rung, and four
+   opcodes. End state: every `blocked_ops` entry discharged, **row retained**.
+   That is a state this list was built to be able to express, and it is the
+   first time it did: a row whose blocker is gone is not thereby a row to
+   delete, because the C was still the thing answering the trigger.
+2. **the content** — doors and ladders. End state: both behaviours bound and
+   both C paths unreachable, **row still retained**, because the third
+   behaviour — the bank booths — was not covered.
+3. **the eviction** — the booths, then the delete.
+
+What the row's original blockers said and what happened to each part:
+
+| the gate | how it went |
+|---|---|
+| `[oploc<n>]` binds no active loc — `SSVM_ENT_LOC` had three writers, all inside the VM | `mock230_scripts_run_trigger_on_loc` binds the scene slot, so `loc_coord`/`loc_param`/`loc_change` in a door script no longer abort. `handle_oploc` had computed that slot and discarded it since the day it was written |
+| no loc category rung — `interaction_category` returned a hardcoded -1 for locs | `dat2_config_loc.c` keeps config opcode 61 (it was `g2(buffer); // Skip unsigned short`), `mock230_loc_category` merges the cache's 8,407 categorised records with the authored overlay, and `content.ini`'s allocation base minted `door_closed`/`door_opened` |
+| `LOC_CATEGORY` / `LC_CATEGORY` unimplemented | `mock230_ops_loc.c`, with `LC_DEBUGNAME` beside them because `stairs.rs2` needs it |
+| `P_OPLOC` unimplemented while the shadowed-verb report told content to call it | `mock230_ops_player.c`, as a **re-issue** — `setInteraction`, not a call into `interaction_engine_loc` |
+
+**Three findings from doing it, in descending order of how much they changed the plan.**
+
+**1. The doors this row is tested on carry no cache category, so keeping opcode
+61 does not land them.** `poordoor` 1535 and `poordooropen` 1536 both state
+nothing, and so do the other 774 records in `doors.loc`. The crawl agrees from
+the other end: all 9 door categories the reference binds come back `orphan`, with
+`SUSPECT 167(71/82),168(54/66)` — two cache categories that share the *display
+names* Door and Gate and are a different set. So the door route needed the
+`category` namespace to be allowed to grow (`content.ini`, base 8192), which is
+`PORTING_GUIDE` §2.4 item 4 verbatim; the rscache change buys the other half of
+the row, the 78 Bank records and the 8,407 categorised locs behind them.
+
+**2. Storing a field the text form cannot express is a regression in the
+packer.** Making the decoder keep opcode 61 took `cachepack`'s loc `lost-here`
+column from 0 to 205 — records the library round-trips byte-exactly and the text
+layer no longer does — until `cp_loc.c` gained the `category=` key. The fidelity
+suite caught it on the first run. Byte-exact loc records went 581 → 786.
+
+**3. `MOCK230_VERB_USE_QUICKLY` matches zero records in this cache.** Rescanned
+across every string-bearing loc opcode; the string appears nowhere in the 62,194
+records. It is a dead branch in `interaction_engine_loc` *and* it inflates
+`mock230_world_engine_claimed_verb`'s shadow surface with a verb that can never
+match. It can go on its own, with no content at all.
+
+### The loc category rung, priced — so nobody re-derives it
+
+Two questions cost a day between them and both have short answers now. Written
+down here because the next reader will ask them in this order.
+
+**Does the cache carry a loc category? Yes.** Config opcode 61, the same field
+npc carries at 18 and obj at 94, in the **same shared id space**. The decoder had
+it and threw it away — `dat2_config_loc.c` case 61 was
+`g2(buffer); // Skip unsigned short` — so the field was never missing, only
+discarded, and `LocType.ts:179` in the reference names it in the same wire slot.
+Re-measured on `configs/all.loc` (`cache.osrs239`):
+
+| | |
+|---|---:|
+| loc records | 62,194 |
+| **state a category** | **8,407** (13.5 %) |
+| distinct ids | 712 |
+| highest id | 2,474 |
+
+with npc at 9,149 / 16,292 (982 ids, max 2,504) and obj at 11,680 / 33,747 (575
+ids, max 2,506). Largest loc groups: **206** ×1,749 (POH furniture), **907** ×360
+(every Bookshelf), **207** ×251, **154** ×234 (Table), **167** ×82 / **168** ×66
+(the door pair), **684** ×63 (Bank booth). The shared id space is coherent where
+it overlaps — loc∩npc is 9 ids (202, 206, 955, 956, 1135, 1226, 1301, 1503,
+1930), loc∩obj is 3 (206, 1338, 1807), and each is the same concept on both
+sides — so one flat `pack/category.pack` still works, but 206 is a genuine
+three-way name waiting to be argued over.
+
+**What the rung cost: nine changes across five trees**, and the vendored-cache
+half was the smaller one.
+
+| tree | change |
+|---|---|
+| `3rd/rscache` | decode opcode 61 into `RSCache_Dat2ConfigLoc.category`, **plus an encoder arm** — `EXCEPTIONS.md`-governed, byte-exact round-trip is the bar |
+| `cachepack` | `cp_loc.c` gains a `category=` key and `cp_resolve_category` (number first, then `pack/category.pack`), or the packer regresses — see finding 2 above |
+| content | `fields/loc.ini` `[loc.category]` `client = drop` → `scope = client, client = native`; `configs/all.loc` regenerates **+8,407 lines** |
+| content | `content.ini` gives the `category` namespace a `server_base` (8192), because `ids = cache` alone means an authored name has nowhere to get an id |
+| tools | `port_category_crawl.py` grows `--domain loc` and a second map, `port/categories_loc.map`; `--check` runs both, since the id space is one |
+| `mock230` | a sparse (id, category) table in `mock230_locinfo.c` — 8,407 rows, 67 KB, against 249 KB flat — and `mock230_loc_category`, overlay first, cache second, **never 0** |
+| `mock230` | `Mock230LocDef.category` stops being a private two-value enum and becomes a `MOCK230_PACK_CATEGORY` id; `interaction_category`'s hardcoded −1 for locs goes |
+| `mock230_pack` | `validate_categories` gains a loc arm, a third carried-by class, and an at-or-above-base rule |
+| opcodes | `LOC_CATEGORY` 3003, `LC_CATEGORY` 4100 (`mock230_ops_loc.c`) |
+
+**What it bought, and what it did not.** Of the **91** loc categories the
+reference's own `.loc` files declare, the crawl mints **11** from ids this cache
+states, holds **2** back as `broader`, splits **3**, allocates **2**, and returns
+**73 orphan** — a concept this cache names no id for. `unusable_table`→154,
+`rc_altar`→2156, `red_vine`→216, `well`→245 and `digsite_soil`→537 are the shape
+that works. **The doors are orphans**, which is finding 1 and is the thing that
+would have been assumed the other way: the rung is what makes
+`[oploc1,_door_closed]` *bindable*, and the allocation base is what gives it an
+id to bind to. They are two separate changes and only the second one lands the
+doors.
+
+### Stage 2: the content landed and the row survived it
+
+2026-08-02, the same day the gates cleared. Both of the behaviours anyone would
+have named if asked what this row was were bound by content and neither C path
+was reachable — and the row still could not go:
+
+| behaviour | where it lives | proof |
+|---|---|---|
+| the door swap | `doors/scripts/doors.rs2` + `door_procs.rs2`, the reference verbatim — `[oploc1,_door_closed]`, `[oploc1,_door_opened]`, `[oploc2,_door_opened]` | `SELFTEST_CHECK(0)` at the top of `interaction_engine_loc`'s `next_loc_stage` branch, whole selftest + a client session: never fired |
+| the climb | `ladders_stairs/scripts/ladders.rs2` + generated `climb_shared.rs2`, keyed on four allocated categories | the same probe inside `climb()`: never fired. And a real client session — right-click "Climb-up Ladder" at Lumbridge castle, left-click, player is on the first floor |
+
+**The doors now SWING**, which is a behaviour change and the point of porting
+verbatim: the reference is `loc_del(500)` then `loc_add` on the *adjacent* tile
+with the angle turned one quarter, where the C swapped in place. The selftest
+section asserts both tiles, both ZoneMap records and both wire opcodes
+(`LOC_DEL` 71 *and* `LOC_ADD_CHANGE` 70) instead of one of each.
+
+### Stage 3: the booths, and what the eviction actually cost
+
+**What kept the row was a list nobody had written.** Not an opcode, not an
+entity binding, not a volume of C — 78 loc records in this cache say "Bank" on a
+menu op and content bound exactly one of them (`bankbooth`, by hand). The C
+reached all 78 for free with a `strcmp`, so deleting it without that list would
+have silently lost 77 booths, and **nothing in the suite would have gone red**:
+there was no bank-booth coverage anywhere. A row can be one unglamorous list away
+from going, and the list is the part that has no engineering in it.
+
+`tools/bank_import.py` writes it — `interface_bank/scripts/bank_booths.rs2`, 78
+`[oploc<n>,<name>] ~openbank;` on the slot the cache states the verb on (op1 ×18,
+op2 ×60) — with `--check` in `test-port` so the file and the cache cannot drift.
+`~openbank` is unchanged and `mock230_bank_open` stays engine; what moved is
+*which locs reach it*.
+
+**Names, not a category, and that was measured rather than assumed.** The obvious
+route — the one the previous stage's notes proposed — was three cache-category
+bindings (`684`, `237`, `1929`) plus 8 names. It over-reaches badly. Category 684
+has **63** members and 58 say "Bank"; one of the other five is
+`exchange_bank_wall_exchange`, whose op1 is "Exchange" (the Grand Exchange).
+Category 237 has **44** members and 11 say "Bank"; of the other 33, twenty-nine
+say "Use" on op1 — `chest_alchemist01_closed01` among them — and four state no
+op1 at all. Binding those three ids would open the bank on
+38 records that never offered it. (The stage-2 note's "`237` 11" was counting the
+records that say "Bank", not the category's membership — the same mistake in
+miniature.) An *authored* `category=bank_booth` on exactly the 78 has no
+over-reach but is the same 78 generated blocks moved from a `.rs2` to a `.loc`,
+plus a namespace row, plus overwriting the cache's own category on 70 records.
+And the reference settles it anyway: LostCity binds every booth by **name**
+(`interface_bank/scripts/bank_booth.rs2`, `tut_bank_booth.rs2`,
+`shantay_chest.rs2`, `misc_locs.rs2`, `gundai.rs2`) and has no bank category.
+
+**What the eviction gave up, measured, and it is not the doors.** The C's door
+branch never read an op number — it swapped for whatever op the client sent — so
+it also answered `Pick-lock` on a locked house door, `Repair` on a damaged Pest
+Control gate, `Force`, `Remove`, `Attack`, `Search` and `Quick-open` by opening
+the thing. Across the whole cache that is **54 (record, op) pairs on 32 records**
+— re-counted as "every op the C answered that no content binding names", which is
+the only counting of it that means anything: Pick-lock 12, Repair 12, Force 11,
+Remove 11, Attack 4, Quick-open 2, Search 1, and `Pick-Lock` 1, which is the
+cache's own second spelling on `osf_trapdoor_closed` op5 and is exactly the kind
+of thing a `strcmp` ladder in C gets wrong in the other direction. Eleven of the
+32 are POH dungeon doors carrying all three of Pick-lock/Force/Remove; twelve are
+Pest Control gates carrying Repair. Content binds the op the pairing is about and nothing else, so those
+54 now get `Player.defaultOp` — "Nothing interesting happens." — which is what
+the reference gives them, since it binds none of those verbs either. That is a
+wrong answer removed, not a route lost, and it is the *only* behaviour difference
+the deletion makes. Quick-open (2 records) is the one arguable case and was
+deliberately **not** invented: it is a double-door verb, `doubledoors.rs2` is not
+ported, and reproducing a single-leaf swap because the C happened to do one would
+be writing content to match a bug.
+
+Everything else the row's stage-2 text named as blocking turned out not to be,
+and the reason is one sentence: **a category binding is keyed on what the record
+*is*, so it does not care what the menu says.** The "26 doors whose op1 is
+neither Open nor Close" — 15 Climb-down, 6 Open, 3 Pass-through, 1 Go-down, 1
+Peek — are every one of them reached by `[oploc1,_door_opened]`, and the 15
+Climb-down trapdoors are additionally overridden by name in `climb_shared.rs2`.
+The "144 with no Close op" splits: **131 state no menu op at all** and cannot be
+clicked, and the other 13 put one of those non-Close verbs on op1, where the
+same category binding catches them. Neither number was ever a gate.
+`MOCK230_VERB_USE_QUICKLY` went with the rest, still matching zero records.
+
+**What replaced the fallback call.** Not nothing: the arm is
+
+```c
+if( mock230_scripts_run_trigger_on_loc(...) == MOCK230_TRIGGER_NONE )
+    mock230_say(srv, "nothing_interesting_message", NULL);
+```
+
+which is `Player.defaultOp` (`Player.ts:1143`) and is the same shape the use-on
+arm beside it already had. `FAILED` deliberately says nothing — a script that
+aborted has had its turn.
+
+**The permanent checks, and the mutation that proves each can fail.**
+
+| check | mutation | result |
+|---|---|---|
+| new selftest section **"a bank booth is content's"** — `bankbooth` op2 and `duel_chestopen` op1 both resolve to a script and open the bank; op3 of the same chest resolves to nothing | delete `[oploc1,duel_chestopen]` from the generated file and recompile | **2 FAIL** (the trigger answers NONE, the bank stays shut) |
+| `mock230_world_engine_claimed_verb(OPLOC2, bankbooth) == NULL` | put a five-line `k_engine_loc_verbs`-style arm back in C | **FAIL** |
+| the shadowed-op pin, now **0** | the same mutation | **FAIL** — the report goes to 78 |
+| `tools/bank_import.py --check` in `test-port` | hand-edit one binding | exit 1 |
+| `MOCK230_FALLBACK_COUNT == 5` | any row added | FAIL by count |
+
+**Three engine defects the move exposed, all of the same class**: an argument
+pair that two callers happened to pass as equal numbers.
+
+| opcode | what it did | why nothing saw it |
+|---|---|---|
+| `LOC_ADD` (3000) | popped `shape` where the reference pops `angle` — `LocOps.ts:19` is `[coord, type, angle, shape, duration]` | both selftest callers passed `..., 10, 0, …` and `..., 0, 0, …`; `ss_meta.gen.h` carries arity and stack class, never order |
+| `MOVECOORD` (16) | added `$z` to the level and `$y` to the north axis; `ServerOps.ts:107` is `level + y, x + x, z + z` | all twelve callers in the tree write `movecoord($c, $dx, 0, $dz)`, so the two wrong terms were `level + $dz` and `z + 0` — `~move_north($c, 3)` went up three floors |
+| `P_TELEPORT` (399) | moved x/z/level and set `place_dirty`, nothing else | a plane change does not move the scene *window*, so `maybe_rebuild` never fires and the client keeps a whole floor's npcs, players and zones. `climb()` did this bookkeeping inline; `mock230_world_player_level_changed` is the shared seam now |
+
+And one content-surface defect: a `.loc` overlay's `param=` landed in a private
+field of `struct Mock230LocDef` and **nowhere a script could read it**, so
+`loc_param(next_loc_stage)` — the reference's own line — answered the declared
+default and the door opened into loc 0. `mock230_paramtable_set_int` publishes it
+to the loc param table now. An overlay param no script can read is not a param.
+
+### `ai_queue3` was the seventh, and it went first
 
 The list lost its first row on 2026-08-01. `ai_queue3` was "the npc's
 `death_drop` param" — what an npc with no bound drop table left behind — and it
@@ -3246,31 +3496,39 @@ and for the same reason: a script behind a quest step may never be triggered by
 anyone, and a verb nobody clicks this session is still swallowed. It walks every
 trigger-addressed script, and where the binding names an exact type whose cache
 op list carries a verb the engine implements, it asks whether the script
-re-issues the op. Today the whole tree yields one line:
+re-issues the op. **Today the whole tree yields no lines at all**, and the way it
+got there is the finding rather than the number.
 
-```
-mock230: content binds a trigger over a verb the engine answers itself:
-  [oploc2,bankbooth]                 takes "Bank" without re-issuing it (P_OPLOC)
-```
+It read one — `[oploc2,bankbooth]` taking "Bank" without re-issuing it — and that
+one was *correct*, because `~openbank` does what the engine's Bank branch did.
+Which is the shape of the check rather than a flaw in it: the second legitimate
+way to discharge the obligation is to do the engine's job yourself, and nothing
+static separates that from doing something else. So it prints a list and never
+fails a load — the same posture as `mock230_pack`'s foreign-area spawn warning
+(triage §10.2): a prompt to go and look, not a verdict.
 
-**and that one is correct** — `~openbank` does the same thing the engine's Bank
-branch would. Which is the shape of the check rather than a flaw in it: the
-second legitimate way to discharge the obligation is to do the engine's job
-yourself, and nothing static separates that from doing something else. So it
-prints a list and never fails a load — the same posture as `mock230_pack`'s
-foreign-area spawn warning (triage §10.2): a prompt to go and look, not a
-verdict. `[opnpc2,goblin]` is *absent* from the list, because it calls
-`p_opnpc(2)`; a version of this that could not tell the goblin from the booth
-would be measuring nothing.
+Then it read **20** when the ladders landed, and **97** when the 78 bank booths
+did. Every new entry was the same correct-but-shadowing shape, and 97 review
+items nobody can act on is a list that has stopped being read. The response was
+not to suppress them: `interaction_engine_loc` was what they were all shadowing,
+and deleting it (§3.18, the `oploc` row) took the report to **0** in one hunk.
+What remains claimable is "Attack" on an npc and "Wear"/"Wield"/"Drop" on a held
+obj, and nothing in the tree binds over those. `[opnpc2,goblin]` was and is
+*absent* from the list because it calls `p_opnpc(2)`; a version of this that
+could not tell the goblin from the booth would be measuring nothing, and the
+selftest still asserts the goblin half directly for exactly that reason.
 
 Two things worth being exact about, because both bound the claim:
 
 - **Only exact-type bindings are visible.** A category binding
   (`[opheld1,_vegetable]`) or a bare `_` wildcard names no record, so there is no
   op list to read. Those are invisible here and the check is not total.
-- **The verbs are one list now, not seven.** The engine's claims were seven
-  `strcmp` literals scattered over three functions — `Attack`, `Wear`/`Wield`/
-  `Drop`, `Bank`/`Use-quickly`/`Climb-up`/`Climb-down`/`Climb`. A report keeping
+- **The verbs are one list now, not seven** — and four of them have since left
+  C entirely. The engine's claims were nine `strcmp` literals scattered over
+  three functions — `Attack`, `Wear`/`Wield`/`Drop`, and
+  `Bank`/`Use-quickly`/`Climb-up`/`Climb-down`/`Climb`. The five loc verbs went
+  with `interaction_engine_loc` on 2026-08-02; the four that remain are the npc
+  and held ones. A report keeping
   its own copy would eventually say the opposite of what the runtime does, so
   `mock230_world_engine_claimed_verb` and the runtime branches read the same
   constants. That they are string literals in C is the standing PORTING_GUIDE
@@ -3631,6 +3889,13 @@ the `switch( kind )` that holds three of the fallback call sites, rather
 than growing a fourth case inside it: Phase 3 has to be able to delete those
 lines out of arms this stage never rewrote.
 
+**That prediction was collected on 2026-08-02.** `MOCK230_FALLBACK_OPLOC` is a
+deleted symbol now — the loc arm of that `switch` was removed whole, with no edit
+to the use-on arm above it — and the mutation table below still names it because
+that is what was run. The rule outlives the symbol: a `*u` miss goes to
+`mock230_say`, and it goes there for the same reason the loc arm's own miss now
+does, which is `Player.defaultOp` and not a fallback.
+
 ### 5. `last_useitem` / `last_useslot`
 
 New on `Mock230Player`, initialised to **-1** (0 is a real obj id and a real
@@ -3945,6 +4210,7 @@ sites are excluded. A *family* here is one trigger stem as content writes it —
 | trigger families reachable | 17 | **28** |
 | script-id-addressed drains (`queue`, `timer`, `softtimer`, engine queue) | 3 | **4** |
 | rows in `enum Mock230Fallback` | 7 | **7** (4 today — `ai_queue3`, `opobj` and `opheld` all moved to content, §3.18) |
+| rows in `enum Mock230Fallback` | 7 | **7** (5 today — `ai_queue3` and `oploc` both moved, §3.18) |
 
 Triage §2 keeps the canonical list, and it has never been complete. Even after 5a
 and 5b amended it, it omits `debugproc`, `ai_opplayer<n>` and `ai_applayer<n>` —
@@ -4173,7 +4439,11 @@ an undispatched `advancestat` looks like from outside is an XP bug.
   tri-state of §3.18. The three new addressing modes are new functions beside it,
   not parameters on it — a `run_trigger` that took a coordinate *or* a type would
   be a function whose subject means two things depending on an argument it also
-  takes, which is the shape of the bug this whole section is about.
+  takes, which is the shape of the bug this whole section is about. **A fourth
+  followed the same rule on 2026-08-02**: `mock230_scripts_run_trigger_on_loc`,
+  which binds the scene slot as the active loc, is a sibling and not a sixth
+  parameter. Only the two call sites that are actually about a loc changed; every
+  other one still reads exactly as it did.
 
 ---
 
@@ -4455,6 +4725,23 @@ unblocks the next:
    edited it — the deletions above moved it. A `file:line` in a blocker is
    checkable in one command, which is why it is the right form, but it is also
    the only part of a blocker that goes stale by someone else's commit.
+5. **Move the C content into content.** Re-measured 2026-08-01: the bank is
+   **1,395** (not 1,370), combat **1,061** (not 858), `mock230_equipment.c`
+   **134**, the world map **199** — plus doors and the login burst (prayer was
+   one of these and is done — see mock230_player_systems.md §4.1). But the
+   ~3,200-line total was measuring the wrong thing: the C that actually stands
+   between content and these behaviours is the `enum Mock230Fallback` rows —
+   ≈370 lines of dispatch when this was measured (`interaction_engine_npc` 31,
+   `interaction_engine_obj` 37, `interaction_engine_loc` 84,
+   `mock230_bank_quantity_for_op` 107, `mock230_bank_handle_button` 64, the
+   OPHELD arm ~50), and **≈252 today**: `interaction_engine_loc` and `climb`
+   went with the `oploc` row on 2026-08-02. The rest is what those reach, and most of it — combat, the
+   bank's arithmetic — is engine in the reference too. The reason is real and
+   documented in `bank.rs2`'s own header — the rev-230 bank builds its op ladder
+   conditionally on varbits, so the index alone does not say what was clicked —
+   which is exactly why step 4 comes first. Widen the opcode surface until a
+   script *can* say it, then move it. §3.18 has the per-row blockers, all of
+   which were re-checked in the same pass and four of which were wrong.
 6. ~~**Invert the fallback.**~~ — **done**, see §3.18. The lookup is the
    reference's (type → category → the bare `_`, and nothing after that), the
    `_` wildcard is the only fallback the design has, and a trigger with no
@@ -4464,6 +4751,8 @@ unblocks the next:
    What survives of the C is four enumerated rows (`enum Mock230Fallback`) —
    seven when the change landed, and `ai_queue3`, `opobj` and `opheld` have gone
    since — each naming what it is blocked on, counted at boot and pinned by the
+   What survives of the C is five enumerated rows (`enum Mock230Fallback`),
+   each naming what it is blocked on, counted at boot and pinned by the
    selftest: it may shrink, it must not grow. Nothing was moved by the change —
    step 5's order is the point. Three things that used to be indistinguishable
    now are not: a script that *aborted* versus one that was never bound

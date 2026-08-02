@@ -323,12 +323,20 @@ def authored_tokens(tree):
 
     Only `server/scripts` — `configs/` is the machine export of the cache and
     mentions every name there is, so including it would make "is this name used
-    here" always true."""
+    here" always true.
+
+    And not the prose. A `.md` beside the scripts is documentation, not content:
+    `ladders_stairs/README.md` cites `rock_sample1` as the worked example of a
+    name that resolves to the wrong record, and this check therefore failed
+    because a file *explained the check*. Same reasoning as excluding
+    `configs/` — a mention is not a use."""
     names = set()
     root = os.path.join(tree, "server", "scripts")
     for base, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if d != "build"]
         for name in files:
+            if name.endswith(".md"):
+                continue
             try:
                 with open(os.path.join(base, name), "r", encoding="utf-8",
                           errors="replace") as handle:

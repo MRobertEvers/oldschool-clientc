@@ -1121,6 +1121,50 @@ frame_loop_step(void)
                 rz_frame = -1;
             }
         }
+
+        /* TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH...]": drag the WINDOW's
+         * corner, rather than pushing a canvas resize onto the bus.
+         *
+         * The difference from TORIRS_SIM_RESIZE above is the whole
+         * fixed-vs-resizable question: this touches only the OS window, so
+         * whether the client relayouts or keeps letterboxing a 765x503 canvas
+         * is decided by the follow gate exactly as it is for a real user drag.
+         * TORIRS_SIM_RESIZE walks straight past that gate and therefore cannot
+         * tell the two modes apart. */
+        {
+            static char const* sim_window_cursor = NULL;
+            static int sim_window_init = 0;
+            static long wz_frame = -1, wz_w, wz_h;
+            if( !sim_window_init )
+            {
+                sim_window_init = 1;
+                sim_window_cursor = getenv("TORIRS_SIM_WINDOW");
+            }
+            if( wz_frame < 0 && sim_window_cursor && *sim_window_cursor )
+            {
+                char* end = NULL;
+                wz_frame = strtol(sim_window_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    wz_w = strtol(end + 1, &end, 0);
+                    wz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
+                    sim_window_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    sim_window_cursor = NULL;
+                    wz_frame = -1;
+                }
+                if( wz_w <= 0 || wz_h <= 0 )
+                    wz_frame = -1;
+            }
+            if( wz_frame >= 0 && frame_count >= wz_frame )
+            {
+                fprintf(stderr, "sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
+                PlatformSDL2_SetWindowSize(sdl, (int)wz_w, (int)wz_h);
+                wz_frame = -1;
+            }
+        }
     }
 
     LibToriRS_Input_Begin(input, now);

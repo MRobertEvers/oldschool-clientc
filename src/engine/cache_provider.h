@@ -18,6 +18,7 @@ struct ToriRS_Struct;
 struct ToriRS_ParamType;
 struct ToriRS_DbTableIndex;
 struct RSCache_Dat2ConfigDbRow;
+struct RSCache_Dat2ConfigDbTable;
 struct RSCache_WorldMapGeography;
 struct ToriRS_WorldMapRegionSource;
 
@@ -69,6 +70,10 @@ struct CacheProvider
     /** DBROW config (kind 38) keyed by row id; the decoded rscache struct is
      *  owned directly. Backs DB_GETROW / DB_GETFIELD / DB_GETROWTABLE. */
     struct HMap* dbrow_cache;
+    /** DBTABLE config (kind 39) keyed by table id. Holds every column's types
+     *  and, where the table declares them, its default values — the only source
+     *  for a column a DBROW does not list. Backs DB_GETFIELD's fallback. */
+    struct HMap* dbtable_cache;
     /** DBTABLEINDEX (cache table 21) keyed by table id; one bundle of index
      *  files per table. Backs DB_FIND / DB_FINDALL. */
     struct HMap* dbindex_cache;
@@ -238,6 +243,10 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_DbRowLoad)(
         struct CacheProvider* provider,
         int row_id);
+    /** Decode DBTABLE config (kind 39) for a table id into dbtable_cache. */
+    struct ToriRS_Task* (*Task_DbTableLoad)(
+        struct CacheProvider* provider,
+        int table_id);
     /** Decode a table's DBTABLEINDEX (cache table 21) into dbindex_cache. */
     struct ToriRS_Task* (*Task_DbTableIndexLoad)(
         struct CacheProvider* provider,
@@ -446,6 +455,25 @@ CacheProvider_DbRowHas(
 
 void
 CacheProvider_DbRowsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_DbTableAdd(
+    struct CacheProvider* provider,
+    int table_id,
+    struct RSCache_Dat2ConfigDbTable* table);
+
+struct RSCache_Dat2ConfigDbTable*
+CacheProvider_DbTableGet(
+    struct CacheProvider* provider,
+    int table_id);
+
+bool
+CacheProvider_DbTableHas(
+    struct CacheProvider* provider,
+    int table_id);
+
+void
+CacheProvider_DbTablesCleanup(struct CacheProvider* provider);
 
 void
 CacheProvider_DbTableIndexAdd(
@@ -1079,6 +1107,16 @@ CreateTask_DbRowLoad(
     if( !provider->vtable->Task_DbRowLoad )
         return NULL;
     return provider->vtable->Task_DbRowLoad(provider, row_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_DbTableLoad(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    if( !provider->vtable->Task_DbTableLoad )
+        return NULL;
+    return provider->vtable->Task_DbTableLoad(provider, table_id);
 }
 
 static inline struct ToriRS_Task*

@@ -47,3 +47,12 @@ ToriRS_DbRowFree(struct RSCache_Dat2ConfigDbRow* row)
     RSCache_Dat2ConfigDbRowFreeInplace(row);
     free(row);
 }
+
+void
+ToriRS_DbTableFree(struct RSCache_Dat2ConfigDbTable* table)
+{
+    if( !table )
+        return;
+    RSCache_Dat2ConfigDbTableFreeInplace(table);
+    free(table);
+}

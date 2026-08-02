@@ -180,6 +180,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	engine/dat2/task_dat2_varbit_load.c \
 	engine/dat1/task_dat1_varbit_load.c \
 	engine/dat2/task_dat2_dbrow_load.c engine/dat2/task_dat2_dbindex_load.c \
+	engine/dat2/task_dat2_dbtable_load.c \
 	engine/dat2/task_dat2_component_load.c \
 	engine/dat2/task_dat2_worldmap_load.c \
 	engine/dat2/task_dat2_mapelement_load.c \
@@ -262,6 +263,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_npc.c \
 	net/mock/mock230_ops_obj.c \
 	net/mock/mock230_ops_inv.c \
+	net/mock/mock230_ops_player.c \
 	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
 	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \
@@ -1042,6 +1044,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
+	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
@@ -1189,9 +1192,12 @@ test-membership:
 #   port_category_crawl     `category` is the tree's one DERIVED namespace — the
 #   --check                 reference never authors it, it crawls the `category=`
 #                           key out of every record (CategoryType.ts). So the
-#                           port re-runs that crawl, and this holds the tree to
-#                           `port/categories.map`'s statement about each of the
-#                           reference's 53 npc categories: a minted name whose
+#                           port re-runs that crawl — for BOTH domains, npc into
+#                           `port/categories.map` and loc into
+#                           `port/categories_loc.map` (config opcode 61, readable
+#                           since 2026-08-02) — and holds the tree to what each
+#                           file states about each of the reference's 53 npc and
+#                           91 loc categories: a minted name whose
 #                           members no longer agree on an id, and — the one that
 #                           matters — a name held back for a human that got
 #                           minted anyway. `black_demon`'s members all read 275
@@ -1266,6 +1272,10 @@ test-port:
 		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \
 		--tree $(MOCK230_CONTENT_DIR) --check -v
+	@cd $(REPO_ROOT) && python3 tools/ladder_import.py \
+		--content $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/bank_import.py \
+		--content $(MOCK230_CONTENT_DIR) --check
 
 # The compiler's symbol table, against the register and the live tree.
 #

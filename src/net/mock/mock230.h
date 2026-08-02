@@ -836,6 +836,22 @@ const struct Mock230ParamRow*
 mock230_loc_param(int loc_id, int param_id);
 
 /**
+ * Give a loc a param from the *content overlay*, and re-sort.
+ *
+ * `mock230_content.c` calls this for every `param=` line in a `.loc` overlay
+ * block under `server/scripts/`, once, after the whole tree is read. The cache's own
+ * params are already in the table by then (`mock230_locinfo_load` runs first in
+ * `mock230_boot.c`), so an overlay row overwrites a cache row for the same key,
+ * which is the direction an overlay is defined to win in.
+ *
+ * The re-sort is here rather than at the call site because the table refuses a
+ * lookup while unsorted, and "the overlay left it unsorted" is a failure that
+ * would show up as every `loc_param` in the tree reporting "not set".
+ */
+void
+mock230_locinfo_param_overlay(int loc_id, int param_id, int value);
+
+/**
  * The loc's display name, or NULL when the record carries none.
  *
  * Borrowed, and valid until `mock230_locinfo_free`. `loc_name` / `lc_name` push
@@ -855,6 +871,36 @@ mock230_loc_name(int loc_id);
  */
 void
 mock230_loc_footprint(int loc_id, int* out_width, int* out_length);
+
+/**
+ * The loc's category id, or -1.
+ *
+ * One field, two sources, one accessor, in this order:
+ *
+ *   1. the authored overlay — a `.loc` block's `category=` under server/scripts,
+ *      resolved through `pack/category.pack` (see `Mock230LocDef.category`);
+ *   2. the cache's own config opcode 61, on 8,407 of cache.osrs239's 62,194
+ *      records;
+ *   3. -1.
+ *
+ * npc needed only source 2 (`mock230_npc_category`) because its categories are
+ * 100 % cache-sourced. loc cannot be: **not one of this cache's 776 door records
+ * states a category**, and doors are exactly what the reference binds as one
+ * (`[oploc1,_door_closed]`). Dropping either source loses half the domain.
+ *
+ * Ungated on the name for the same reason the npc accessor is: 32,161 of the
+ * records carry no name, and those are the ones a group binding exists to reach.
+ * 0 is never returned — it is the decoder's "unstated" and `pack/category.pack`
+ * refuses to name it.
+ */
+int
+mock230_loc_category(int loc_id);
+
+/** How many loc records carry this category id, counting the authored overlay
+ *  and the cache — see `mock230_npc_category_members`, same question one
+ *  namespace over, and `mock230_pack`'s `validate_categories` is the caller. */
+int
+mock230_loc_category_members(int category);
 
 /**
  * Does the config group hold a record for this id? (The reference's
@@ -895,6 +941,8 @@ int
 mock230_locinfo_name_count(void);
 int
 mock230_locinfo_size_count(void);
+int
+mock230_locinfo_category_count(void);
 int
 mock230_structinfo_count(void);
 int
@@ -2707,6 +2755,12 @@ mock230_world_ground_slot(
 void
 mock230_world_steps_clear(struct Mock230Player* player);
 
+/** The player's plane changed: forget every entity and zone on the old one and
+ *  queue this player's own scene rebuild. Called by `p_teleport` when the level
+ *  moved, and by the engine's `climb`. */
+void
+mock230_world_player_level_changed(struct Mock230Player* player);
+
 /** Queue a walk to a tile adjacent to (x, z) rather than onto it. */
 void
 mock230_world_walk_beside(
@@ -2911,9 +2965,6 @@ enum Mock230Fallback
     /** `[opnpc<n>]` → "Attack" engages combat, anything else greets
      *  (`interaction_engine_npc`; the greeting itself is content already). */
     MOCK230_FALLBACK_OPNPC = 0,
-    /** `[oploc<n>]` → doors, bank booths, stairs and ladders
-     *  (`interaction_engine_loc`). */
-    MOCK230_FALLBACK_OPLOC,
     /** `[inv_button<n>]` on a bank component → the bank's own router, reached
      *  through the quantity ladder `mock230_bank_quantity_for_op`. */
     MOCK230_FALLBACK_INV_BUTTON,
@@ -2943,6 +2994,19 @@ enum Mock230Fallback
      * where the reference puts it; the selftest section "the death drop is
      * content's" is what proves it moved rather than vanished.
      */
+    /*
+     * `[oploc<n>]` was here — doors, bank booths, stairs and ladders,
+     * `interaction_engine_loc` (84 lines) plus `climb` (34). Second row lost,
+     * 2026-08-02, and the one that took the most to lose: a `SSVM_ENT_LOC`
+     * binding, a loc category rung, four opcodes and two content generators
+     * across three stages. `mock230_world.c` says what each half became.
+     *
+     * The thing worth carrying forward is that its *last* blocker was not any of
+     * those. Doors and ladders had been content and unreachable in C for a day
+     * while the row stood, because 77 of the 78 loc records whose cache menu
+     * says "Bank" had nothing bound to them and the C reached all 78 for free.
+     * A row can be one unglamorous list away from going.
+     */
     MOCK230_FALLBACK_COUNT
 };
 
@@ -2968,6 +3032,34 @@ mock230_scripts_run_trigger(
     int type,
     int category,
     int npc_slot);
+
+/**
+ * The same, for a trigger whose subject is a **loc**: the scene slot becomes the
+ * script's active loc.
+ *
+ * A sibling rather than a sixth parameter on the call above, and the reason is
+ * merge cost rather than taste — `mock230_scripts_run_trigger` has nineteen call
+ * sites and exactly two of them are about a loc.
+ *
+ * Why it exists at all: `SSVM_ENT_LOC` had three writers in the whole tree before
+ * 2026-08-02, all of them inside the VM (`loc_find`, `loc_add`, the iterator), so
+ * every `[oploc<n>]`/`[aploc<n>]` script started with no active loc and the first
+ * `loc_coord`/`loc_param`/`loc_change` in it aborted. `handle_oploc` had computed
+ * the slot and thrown it away since the day it was written. That — not the
+ * `loc_*` opcode family, which landed long ago — is what the `oploc` fallback row
+ * was waiting on.
+ *
+ * -1 for "no loc", and a slot whose scene entry is gone is treated as -1 rather
+ * than as an error: the interaction resolves a tick or more after the click, and
+ * a loc another player already changed is an ordinary race, not a bug.
+ */
+int
+mock230_scripts_run_trigger_on_loc(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int loc_slot);
 
 /**
  * One rung, no chain — `ScriptProvider.getByTriggerSpecific`.
@@ -3500,6 +3592,15 @@ mock230_ops_obj(
  *  mock230_scripts.c's switch; new inv opcodes land in the domain file. */
 int
 mock230_ops_inv(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** The `p_*` ops that re-issue the player's own interaction. See
+ *  mock230_ops_player.c, whose header states why a re-issue is not a call into
+ *  the engine's handler and what goes wrong when it is. */
+int
+mock230_ops_player(
     struct SSVM_State* state,
     int opcode,
     int dot);

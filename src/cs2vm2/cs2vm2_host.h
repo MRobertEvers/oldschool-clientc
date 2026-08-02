@@ -605,13 +605,14 @@ enum CS2VM_DbLoadKind
     CS2VM_DB_LOAD_NONE = 0,
     CS2VM_DB_LOAD_ROW = 1,
     CS2VM_DB_LOAD_INDEX = 2,
+    CS2VM_DB_LOAD_TABLE = 3,
 };
 
 struct CS2VM_HostRequest_Db
 {
     int opcode;    /* the DB_* opcode (7500..7510) */
     int load_kind; /* enum CS2VM_DbLoadKind — what a pending yield awaits */
-    int load_id;   /* row id (LOAD_ROW) or table id (LOAD_INDEX) */
+    int load_id;   /* row id (LOAD_ROW) or table id (LOAD_INDEX / LOAD_TABLE) */
 };
 
 struct CS2VM_HostRequest_CC_DeleteAll

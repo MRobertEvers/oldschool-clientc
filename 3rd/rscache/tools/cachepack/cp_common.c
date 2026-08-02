@@ -225,6 +225,32 @@ cp_resolve_ref(
     return 0;
 }
 
+int
+cp_resolve_category(
+    struct CP_Ctx* ctx,
+    const char* text,
+    int* out_id)
+{
+    /* The number first, not last, and that is the difference from
+     * `cp_resolve_ref`. The machine export writes `category=684`, and a category
+     * name is never a decimal, so trying the table first would cost 8,407 failed
+     * lookups per pack for no case it could catch. */
+    if( cp_parse_int(text, out_id) )
+        return 1;
+    {
+        int id = lc_pack_find(&ctx->names.category, text);
+
+        if( id >= 0 )
+        {
+            *out_id = id;
+            return 1;
+        }
+    }
+    cp_warn(ctx, &ctx->warn_unresolved_name,
+            "unknown category reference '%s' — pack/category.pack does not name it", text);
+    return 0;
+}
+
 void
 cp_emit_recols(
     struct CP_Lines* out,

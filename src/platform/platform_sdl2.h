@@ -65,7 +65,10 @@ PlatformSDL2_SetTitle(
  *
  * Turning it OFF also snaps the window back to exactly `min_w x min_h`: fixed
  * mode *is* that frame, and leaving a larger window behind would present it
- * upscaled, which is the behaviour the mode switch exists to leave.
+ * upscaled, which is the behaviour the mode switch exists to leave. The size it
+ * snapped away from is remembered and restored when it is turned back ON, so
+ * resizable -> fixed -> resizable returns the user to the window they had
+ * instead of leaving them at the floor.
  *
  * This does NOT resize the backbuffer. The client clamps the canvas to a floor
  * it owns, so the canvas — not the window — is what the backbuffer must match;

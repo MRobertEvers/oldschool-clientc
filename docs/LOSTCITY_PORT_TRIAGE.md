@@ -475,6 +475,42 @@ the respawn. **`loc_change` + `loc_add` + `loc_del` + `loc_find` + `loc_param`
 is the single unlock for the skilling half of the tree**, and it is the same
 family the `doors/` directory needs (25 `loc_add`, 22 `loc_param`, 14 `loc_del`).
 
+**`doors/` was ported on 2026-08-02 and it found two defects in that family**,
+which is worth knowing before the skilling half is written on top of it. Both are
+transposed argument pairs, both were invisible, and both were invisible for the
+same reason: every existing caller passed the two swapped arguments as the *same
+number*.
+
+- **`loc_add` popped `shape` where the reference pops `angle`.** The signature is
+  `(coord, loc, angle, locshape, duration)` — `engine.rs2:657`, `LocOps.ts:19` —
+  and `ss_meta.gen.h` carries arity and stack class, never order, so nothing
+  could catch it at the call. The two callers in the tree wrote `..., 10, 0, 3)`
+  and `..., 0, 0, 200)`.
+- **`movecoord` added `$z` to the plane and `$y` to the north axis.**
+  `ServerOps.ts:107` is `packCoord(level + y, x + x, z + z)`. All twelve callers
+  write `movecoord($c, $dx, 0, $dz)`, so `~move_north($c, 3)` went up three
+  floors and did not move north. A skilling script that walks to a respawn tile
+  is the next thing that would have hit this.
+
+Two things follow for the skilling port. The `loc_*` family is now checked with
+*different* numbers in each argument (`selftest.rs2`'s `[proc,selftest_loc_add]`
+reads `loc_angle` and `loc_shape` back), and the compiler learned to pass a
+multi-return proc's result straight into another proc's argument list —
+`~movecoord_loc_return(~door_open(loc_angle, loc_shape))` is the reference's
+ordinary idiom and used to be rejected as "takes 2 int, called with 1".
+
+**And the `loc_*` family's unlock finished the `oploc` eviction on the same
+day.** With doors, ladders and — the last piece — the 78 bank booths bound,
+`interaction_engine_loc` and `climb` are deleted and `enum Mock230Fallback` is
+**5**. The part to carry into the skilling port is which of the three was the
+blocker: not the `loc_*` opcodes, which had landed, but a *list*. 78 loc records
+in this cache say "Bank" and content bound one, so the C's `strcmp` was reaching
+77 booths that no script named. The skilling loops have the same shape — every
+tree, rock and altar the cache states a Chop/Mine/Pray verb on is a record some
+script has to name, by name or by category — and `tools/bank_import.py` and
+`tools/ladder_import.py` are the two worked examples of generating that list
+from the cache with a `--check` instead of keeping it by hand.
+
 ---
 
 ## 6. Does it compile? — the ground-truth pass
@@ -710,18 +746,37 @@ The cause is specific. In this tree, `category` means two unrelated things:
   `[opheld<n>,_<category>]` and `inv_totalcat`. The count in this paragraph has
   now been wrong twice, so it is stated as a series rather than a fact: this said
   **6**, then **37** (the weapon categories), and `pack/category.pack` holds
-  **55** as of 2026-08-01 — 37 obj names and the **18** npc names §16 minted into
-  the same file. One id space, two domains (§16.5). Re-measure with
-  `grep -c '^[0-9]' pack/category.pack`, and split it with
-  `tools/port_category_crawl.py --check -v`, which prints how many of the rows
-  are `minted` (`grep -c minted port/categories.map` says 21 and is wrong — the
-  file's own header uses the word three times).
-- **loc category** — a two-valued door enum (`door_closed` / `door_opened`) in
-  `mock230_content.c:1546`, and nothing else. It is **not** a category id and
-  must never be passed as one: its two values would alias onto `category.pack`
-  ids 0 and 1 and bind unrelated scripts to every door in the world.
-  `interaction_category` in `mock230_world.c` says so at the one site where the
-  edit is tempting.
+  **55** as of 2026-08-01 and **68** as of 2026-08-02 — 37 obj names, the **18**
+  npc names §16 minted, and the **13** loc names below. One id space, three
+  domains (§16.5). Re-measure with `grep -c '^[0-9]' pack/category.pack`, and
+  split it with `tools/port_category_crawl.py --check -v`, which prints how many
+  of the rows are `minted` per domain (`grep -c minted port/categories.map` says
+  21 and is wrong — the file's own header uses the word three times).
+- **loc category** — ~~a two-valued door enum (`door_closed` / `door_opened`) in
+  `mock230_content.c`, and nothing else~~. **Corrected 2026-08-02, and the
+  correction is that the two things were never unrelated.** A loc states a
+  category at config opcode 61, in the *same* id space as obj 94 and npc 18, and
+  the linked decoder had been reading the opcode and throwing the value away
+  (`g2(buffer); // Skip unsigned short`). 8,407 of cache.osrs239's 62,194 loc
+  records carry one, 712 distinct ids, max 2474; 684 is 63 records of which 43
+  display 'Bank booth', 907 is 360 bookshelves. The paragraph's *warning* was
+  right and its reason was the accident: the private enum's values were 1 and 2
+  and would have aliased onto real names — which is exactly why
+  `interaction_category` answered -1 for locs, and exactly why
+  `[oploc1,_door_closed]` could not bind. Both are gone. `Mock230LocDef.category`
+  is a `pack/category.pack` id, `mock230_loc_category` merges the overlay over
+  the cache, and the rung answers.
+
+  The half of this that is *not* the cache's, and it is the part that forced the
+  namespace to change: **none of the 776 records in `doors.loc` carries a cache
+  category at all**, so the reference's own door binding had no id to read. The
+  crawl says so — all 9 door categories come back `orphan`, with
+  `SUSPECT 167(71/82),168(54/66)`, two ids that share the display names Door and
+  Gate and are a different set. `content.ini`'s `category` namespace has an
+  allocation base now (8192, `content/content_register.c`), `door_closed` and
+  `door_opened` are the first two ids minted from it, and the map records them
+  with a disposition of their own (`allocated`) so that "the id came from us" can
+  never be confused with "the id was read off a record".
 
 **~~There is no npc category at all.~~ — that was wrong, and §16.1 is the
 correction.** It was written from `pack/category.pack` and from the call sites,
@@ -785,6 +840,8 @@ handling is one of the enumerated rows in `enum Mock230Fallback` (seven when
 this was written; **four** since `ai_queue3`, `opobj` and `opheld` moved to
 content),
 each naming the
+this was written; **five** since `ai_queue3` and then the whole `oploc` row —
+doors, ladders and bank booths — moved to content), each naming the
 blocker keeping it in C, counted at boot and pinned by the selftest. It may
 shrink; it must not grow. Each row's blocker also names its missing opcodes in a
 form `mock230_scripts_stale_blockers` can resolve, so a *reason* that expires
@@ -1608,9 +1665,9 @@ inherited.
 | op | uses/files | why not |
 |---|---:|---|
 | `loc_anim` 3002 | 56 / 23 | **The largest single loc gap, and it is a missing wire packet.** `LocOps.ts:50` → `World.animLoc(...)`, a **zone event**; `zone_sub_opcode` in `mock230_encode.c` has `LOC_ADD_CHANGE`, `LOC_DEL`, `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT` and no loc-anim. Needs a new `MOCK230_ZONE_EV_*` kind, an encoder arm and headless-client verification. Its own item. |
-| `loc_category` 3003 / `lc_category` 4100 | 38 / 16, 3 / 1 | **The linked decoder discards the field.** `3rd/rscache/.../dat2_config_loc.c` case 61 is `g2(buffer); // Skip unsigned short`, where `dat2_config_npc.c:668` decodes `category`. Landing it needs opcode 61 confirmed against the OSRS `LocType` reference *and* an edit to the `EXCEPTIONS.md`-governed vendored tree. |
+| ~~`loc_category` 3003 / `lc_category` 4100~~ | 38 / 16, 3 / 1 | **Landed 2026-08-02**, `mock230_ops_loc.c`. The blocker was right — case 61 was `g2(buffer); // Skip unsigned short` — and so was the price: it is an `EXCEPTIONS.md`-governed edit and the fidelity suite failed on the first run, because a decoder that keeps a field the *text* form cannot express takes `cachepack`'s loc `lost-here` from 0 to 205. `cp_loc.c` gained a `category=` key and it went back to 0; byte-exact loc records went 581 → 786. Opcode 61 was confirmed against the data rather than against a reference client (neither `Client-TS` here decodes it): the ids group semantically — 684 is 63 records, 43 of them 'Bank booth'; 907 is 360 bookshelves — and share a space with npc 18 and obj 94. Both opcodes push -1 for "none", not the reference's raw 0, because `pack/category.pack` reserves 0. |
 | `lc_desc` 4102 | 0 / 0 | **0 of the 62,194 records carry a `desc`** — the field is gone from OSRS loc configs, so a handler could only push the reference's `'null'`. Zero callers besides. |
-| `lc_debugname` 4101 | 1 / 1 | `debugname` is a LostCity build-time symbol. The dat2 record has no such field. |
+| ~~`lc_debugname` 4101~~ | 1 / 1 | **Landed 2026-08-02**, and the stated reason was a category error rather than a fact: `debugname` is indeed not a dat2 field, but it is not supposed to be one — it is the `[block]` header of a config file, and this tree has that table, `pack/loc.pack`. `mock230_content_symbol_name(MOCK230_PACK_LOC, id)`, with the reference's `'null'` fallback. Landed for its one caller, `stairs.rs2:431`'s `mes("Unhandled stairs: <lc_debugname(loc_type)> at")` — the line that tells a port which locs it missed. |
 
 **A census correction worth carrying forward.** The `loc_*` row in §5's table
 reads `loc_param 133`. Re-measured over the reference's `content/scripts/`

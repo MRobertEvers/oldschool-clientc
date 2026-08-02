@@ -395,9 +395,10 @@ validate_requirements(void)
  * `category` is the tree's one *derived* namespace: LostCity never authors it,
  * it regenerates the table by crawling the `category=` key out of every
  * `.npc`/`.loc`/`.obj` (CONTENT_ARCHITECTURE.md §2.1, and `CategoryType.ts` says
- * so in a sentence). Here the ids are the cache's — npc config opcode 18, obj
- * opcode 94 — so the crawl only attaches a name, and every line of that file is
- * therefore a *claim* that this cache groups something under that id.
+ * so in a sentence). Here most ids are the cache's — npc config opcode 18, obj
+ * opcode 94, loc opcode 61 — so the crawl only attaches a name, and every line
+ * below the base is therefore a *claim* that this cache groups something under
+ * that id.
  *
  * A claim nothing carries is the failure this rule is for, and it is invisible
  * everywhere else. A category is a trigger *subject*: `[ai_queue3,_bank_teller]`
@@ -407,19 +408,59 @@ validate_requirements(void)
  * with the name misspelled fails loudly at compile time, so the *typo* is the
  * safe case and the plausible-but-empty id is not.
  *
- * Deliberately not an obj-only or npc-only check: the two share one id space
- * (21 ids in this cache are carried by records of both kinds), so "carried by
- * nothing at all" is the only form of the question that has a stable answer.
- * The report prints the split, because which side carries a name is what the
- * next person needs and re-deriving it costs a scan.
+ * Deliberately not an obj-only or npc-only check: the three domains share one id
+ * space (21 ids in this cache are carried by both obj and npc records, 9 by both
+ * loc and npc, 3 by both loc and obj), so "carried by nothing at all" is the only
+ * form of the question that has a stable answer. The report prints the split,
+ * because which side carries a name is what the next person needs and re-deriving
+ * it costs a scan.
+ *
+ * **The loc arm is new (2026-08-02) and it is not merely completeness.** A loc's
+ * category was unreadable in this tree until then — the linked decoder consumed
+ * config opcode 61 and dropped the value — so a name that only loc records carry
+ * would have been reported as carried by nothing and the check would have been
+ * *wrong*, not incomplete. It is 8,407 records across 712 ids.
+ *
+ * ## Two id authorities, two rules
+ *
+ * `content.ini` gives `category` a `server_base` (8192). That splits the file in
+ * two and the rule differs above and below it:
+ *
+ *   below the base   the id is the CACHE's, so the name is a claim about a cache
+ *                    record and the evidence is a record carrying it;
+ *   at or above      the id is OURS, so no cache record can carry it by
+ *                    construction, and the evidence is an authored config block
+ *                    *stating* it.
+ *
+ * Both rules catch the same failure and it is the one that hides: a category is a
+ * trigger *subject*, so `[oploc1,_door_closed]` where `door_closed` names an id
+ * nothing carries compiles, loads, resolves, reports nothing at any verbosity and
+ * simply never fires. There is no wrong behaviour to notice — a whole door table
+ * just does not exist. The same line with the name misspelled fails loudly at
+ * compile time, so the *typo* is the safe case and the plausible-but-empty id is
+ * not.
+ *
+ * Note what the second rule does NOT do: it does not require the id to be above
+ * the base *because* the members are authored. `mock230_loc_category_members`
+ * counts the overlay and the cache together, so an authored `.loc` block that
+ * restates a cache id is counted once and lands in the first rule, correctly.
  */
 static void
-validate_categories(void)
+validate_categories(const char* content_dir)
 {
     int total = mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, -1, NULL, NULL);
+    struct ContentRegister reg;
+    const struct ContentNamespace* row;
+    int server_base;
     int obj_named = 0;
     int npc_named = 0;
-    int both = 0;
+    int loc_named = 0;
+    int shared = 0;
+    int allocated = 0;
+
+    ContentRegister_Load(&reg, content_dir);
+    row = ContentRegister_Find(&reg, "category");
+    server_base = row ? row->server_base : 0;
 
     fprintf(stderr, "categories\n");
     for( int i = 0; i < total; i++ )
@@ -428,10 +469,12 @@ validate_categories(void)
         const char* name = NULL;
         int objs;
         int npcs;
+        int locs;
+        int domains;
 
         if( !mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, i, &id, &name) || !name )
             continue;
-        /* Zero is the decoder's "unstated" on both record types and
+        /* Zero is the decoder's "unstated" on all three record types and
          * `content.ini` reserves it (`zero = reserved`): a trigger bound to it
          * would match every uncategorised record in the cache. */
         if( id <= 0 )
@@ -443,26 +486,41 @@ validate_categories(void)
         }
         objs = mock230_obj_category_members(id);
         npcs = mock230_npc_category_members(id);
-        if( objs == 0 && npcs == 0 )
+        locs = mock230_loc_category_members(id);
+        if( objs == 0 && npcs == 0 && locs == 0 )
         {
-            report_error("category %d (%s) is carried by no obj and no npc record — "
-                         "a trigger bound to it can never fire, and nothing else "
-                         "in this tree can tell you that",
-                         id, name);
+            if( server_base > 0 && id >= server_base )
+                report_error("category %d (%s) is at or above the allocation base %d, so "
+                             "no cache record can carry it, and no authored .npc/.obj/.loc "
+                             "block states it either — a trigger bound to it can never fire",
+                             id, name, server_base);
+            else
+                report_error("category %d (%s) is carried by no obj, npc or loc record — "
+                             "a trigger bound to it can never fire, and nothing else "
+                             "in this tree can tell you that",
+                             id, name);
             continue;
         }
-        if( objs && npcs )
-            both++;
+        if( server_base > 0 && id >= server_base )
+            allocated++;
+        domains = (objs > 0) + (npcs > 0) + (locs > 0);
+        if( domains > 1 )
+            shared++;
         else if( objs )
             obj_named++;
-        else
+        else if( npcs )
             npc_named++;
+        else
+            loc_named++;
         if( g_verbose )
-            report_info("%-22s id %-5d %d obj(s), %d npc(s)", name, id, objs, npcs);
+            report_info("%-22s id %-5d %d obj(s), %d npc(s), %d loc(s)%s", name, id, objs,
+                        npcs, locs,
+                        (server_base > 0 && id >= server_base) ? "  [allocated]" : "");
     }
     fprintf(stderr,
-            "        %d category name(s): %d obj-only, %d npc-only, %d carried by both\n",
-            total, obj_named, npc_named, both);
+            "        %d category name(s): %d obj-only, %d npc-only, %d loc-only, %d shared; "
+            "%d allocated above %d\n",
+            total, obj_named, npc_named, loc_named, shared, allocated, server_base);
 }
 
 /*
@@ -969,6 +1027,27 @@ validate_doors(
     int highest = -1;
     int pairs = 0;
     int dropped = 0;
+    /*
+     * The two ids this validator is *about*, resolved through the pack.
+     *
+     * They were `MOCK230_LOC_CATEGORY_DOOR_CLOSED` / `_OPENED`, a private enum
+     * whose two values happened to be 1 and 2, until the loc category became a
+     * real namespace. Naming them here is what `k_expect` above already does with
+     * obj symbols and is what a validator is for — it is checking a claim the
+     * content tree makes, so it has to be able to say which claim. Nothing in
+     * `src/net/mock/` outside this file and that table may spell one.
+     */
+    int door_closed = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed");
+    int door_opened = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_opened");
+
+    if( door_closed <= 0 || door_opened <= 0 )
+    {
+        report_error("pack/category.pack names no door_closed/door_opened — every pair in "
+                     "the door table would go unchecked, which is worse than a bad pair");
+        if( archive )
+            RSCache_Dat2DiskArchiveFree(archive);
+        return;
+    }
 
     if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
     {
@@ -1014,7 +1093,7 @@ validate_doors(
     {
         const struct Mock230LocDef* def = mock230_content_loc(loc_id);
 
-        if( !def || def->category == MOCK230_LOC_CATEGORY_NONE )
+        if( !def || (def->category != door_closed && def->category != door_opened) )
             continue;
         pairs++;
 
@@ -1038,8 +1117,7 @@ validate_doors(
         /* The test that separates a door from a wall that looks like one. A
          * closed door offers "Open"; scenery with a door-shaped name does not,
          * and would otherwise sit in the table waiting to swallow a click. */
-        if( def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED &&
-            !loc_has_open_op(configs[loc_id], "Open") )
+        if( def->category == door_closed && !loc_has_open_op(configs[loc_id], "Open") )
         {
             report_warning("loc %d (%s) is marked door_closed but has no Open action",
                            loc_id, def->symbol ? def->symbol : "?");
@@ -1111,6 +1189,11 @@ main(
     mock230_objinfo_load(cache);
     mock230_npcinfo_load(cache);
     mock230_seqinfo_load(cache);
+    /* The loc config table, for `validate_categories`' loc arm. Without it every
+     * loc-only category name in `pack/category.pack` would be reported as carried
+     * by nothing — a validator answering from a table it did not load is worse
+     * than one that does not check at all. */
+    mock230_locinfo_load(cache);
     mock230_content_load(content);
     /*
      * The `.dbtable`/`.dbrow` half of the tree, which this validator did not read.
@@ -1170,7 +1253,7 @@ main(
 
     validate_spawns();
     validate_requirements();
-    validate_categories();
+    validate_categories(content);
     {
         struct RSCache profile = RSCache_ProfileZero();
         struct RSCache_Dat2Disk* disk;

@@ -572,8 +572,8 @@ interaction_target(
 /*
  * The category rung of the trigger lookup, per subject kind.
  *
- * `Player.getOpTrigger` passes `type.category` for npc, loc and obj alike. Two
- * of the three can answer here; loc is -1 on purpose:
+ * `Player.getOpTrigger` passes `type.category` for npc, loc and obj alike, and
+ * all three answer here as of 2026-08-02:
  *
  * - **obj** — config opcode 94, a number the cache states and
  *   `pack/category.pack` names. This is the rung `[opheld1,_bones]` binds
@@ -586,13 +586,15 @@ interaction_target(
  *   decoder has read it into `RSCache_Dat2ConfigNpc.category` all along, and
  *   `cachepack` round-trips it. It was unread, not absent. Names for the ids
  *   come from the crawl in `pack/category.pack` (triage §7.6b, §9 step 3b).
- * - **loc** — `Mock230LocDef.category` exists and is *not this*. It is a private
- *   two-valued door enum (`door_closed` / `door_opened`) with no entry in
- *   `pack/category.pack`; passing it would alias every door onto category ids 0
- *   and 1 and bind unrelated scripts to them. Wrong quietly, which is the worst
- *   way to be wrong, so it stays -1 until locs carry the real field — which is
- *   blocked on `dat2_config_loc.c` throwing opcode 61 away, an rscache
- *   write-path change.
+ * - **loc** — config opcode 61, and this arm returned a hardcoded -1 until
+ *   2026-08-02 for a reason that had two halves. The first was real: the linked
+ *   decoder read opcode 61 and threw the value away, so no loc in this tree had a
+ *   category to pass. The second was that `Mock230LocDef.category` existed and
+ *   was a *private two-valued door enum* whose values (1 and 2) would have
+ *   aliased onto real ids in `pack/category.pack` — passing it would have bound
+ *   every door in the game to `weapon_staff`'s scripts, quietly. Both are gone:
+ *   `dat2_config_loc.c` keeps the field, the def's is a pack id, and
+ *   `mock230_loc_category` merges the two in that order.
  */
 static int
 interaction_category(const struct Mock230Interaction* interaction)
@@ -607,9 +609,46 @@ interaction_category(const struct Mock230Interaction* interaction)
     }
     case MOCK230_INTERACT_NPC:
         return mock230_npc_category(interaction->target_id);
+    case MOCK230_INTERACT_LOC:
+        return mock230_loc_category(interaction->target_id);
     default:
         return -1;
     }
+}
+
+/**
+ * Fire one trigger for this interaction, with whatever entity it is *about*
+ * bound as the script's active one.
+ *
+ * The npc has ridden along since the family was written; the loc had not, and
+ * that omission is what the `oploc` fallback row was really waiting on — see
+ * `mock230_scripts_run_trigger_on_loc`. Stated in one function because the ap
+ * rung and the op dispatch both need it and a second copy is how the two come to
+ * disagree about a script's execution context.
+ *
+ * `find_interaction_loc` rather than the interaction's own slot, for the reason
+ * that function's own comment gives: between the click and the dispatch the loc
+ * can have been changed by somebody else, and that door is still the thing the
+ * player clicked.
+ */
+static int
+run_interaction_trigger(
+    struct Mock230Server* srv,
+    const struct Mock230Interaction* interaction,
+    int trigger)
+{
+    int category = interaction_category(interaction);
+
+    if( interaction->kind == MOCK230_INTERACT_LOC )
+    {
+        int slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
+                                        interaction->target_id);
+
+        return mock230_scripts_run_trigger_on_loc(srv, trigger, interaction->target_id,
+                                                  category, slot);
+    }
+    return mock230_scripts_run_trigger(srv, trigger, interaction->target_id, category,
+                                       interaction->npc_slot);
 }
 
 /**
@@ -652,14 +691,6 @@ interaction_engine_npc(
     struct Mock230Server* srv,
     int slot,
     int op_num);
-static void
-interaction_engine_loc(
-    struct Mock230Server* srv,
-    int op_num,
-    int loc_id,
-    int tile_x,
-    int tile_z,
-    int level);
 
 /* ------------------------------------------------------------------ */
 /* The verbs the engine answers itself                                 */
@@ -668,10 +699,20 @@ interaction_engine_loc(
 /*
  * The cache menu verbs this engine implements, named once.
  *
- * Each of these is read off the record's own op list rather than an id list,
- * for the reason `interaction_engine_loc` spells out: OldSchool has dozens of
- * bank booths and every one of them says "Bank" in the cache, so a list would
- * be a second copy kept by hand and wrong for whichever booth nobody added.
+ * Each of these is read off the record's own op list rather than an id list:
+ * OldSchool has dozens of npcs that say "Attack" and a list would be a second
+ * copy kept by hand and wrong for whichever one nobody added.
+ *
+ * **The loc verbs left on 2026-08-02** — "Bank", "Use-quickly", "Climb-up",
+ * "Climb-down" and a bare "Climb" — with `interaction_engine_loc`, the row that
+ * declared it and everything the row reached. The argument above is why a *list*
+ * was wrong and it stays true; what changed is that the answer is no longer to
+ * read the verb in C at all. A script cannot read a menu verb, so the grouping
+ * moved to content as data derived from the cache and checked against it:
+ * `tools/bank_import.py` writes the 78 records that say "Bank" as name bindings,
+ * `tools/ladder_import.py` writes the 1,445 that say a climb verb as four
+ * allocated categories plus 17 names. "Use-quickly" matched zero records in this
+ * cache and moved nowhere.
  *
  * They are gathered here because a *second* reader needs them —
  * `mock230_scripts_report_shadowed_ops`, which asks at load which of these
@@ -685,16 +726,7 @@ interaction_engine_loc(
  * fixed is that there is now one occurrence of each instead of seven.
  */
 #define MOCK230_VERB_ATTACK "Attack"
-#define MOCK230_VERB_BANK "Bank"
-#define MOCK230_VERB_USE_QUICKLY "Use-quickly"
-#define MOCK230_VERB_CLIMB_UP "Climb-up"
-#define MOCK230_VERB_CLIMB_DOWN "Climb-down"
-#define MOCK230_VERB_CLIMB "Climb"
-
 static const char* const k_engine_npc_verbs[] = { MOCK230_VERB_ATTACK };
-static const char* const k_engine_loc_verbs[] = { MOCK230_VERB_BANK, MOCK230_VERB_USE_QUICKLY,
-                                                  MOCK230_VERB_CLIMB_UP, MOCK230_VERB_CLIMB_DOWN,
-                                                  MOCK230_VERB_CLIMB };
 
 static const char*
 claimed_in(
@@ -724,24 +756,15 @@ mock230_world_engine_claimed_verb(
                                  sizeof(k_engine_npc_verbs) / sizeof(k_engine_npc_verbs[0]))
                     : NULL;
     }
-    /* `[opheld<n>]` has no arm, the way `[opobj<n>]` has none: the engine
-     * answers no held verb at all now. Wear, Wield and Drop went to
-     * `player/scripts/equip.rs2` and `drop.rs2` with MOCK230_FALLBACK_OPHELD,
-     * and their three macros went in the same commit — leaving them would make
-     * a later `[opheld2,<obj>]` report as shadowing a verb nothing answers. */
-    if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
-    {
-        int op_num = trigger - SS_TRIGGER_OPLOC1 + 1;
-
-        return claimed_in(mock230_scene_loc_op((int)subject, op_num), k_engine_loc_verbs,
-                          sizeof(k_engine_loc_verbs) / sizeof(k_engine_loc_verbs[0]));
-    }
     /*
-     * `[opobj<n>]` is absent, and the reason changed when the fallback went.
-     * It used to be "there is no verb to shadow because the engine takes the
-     * pile whatever the op is called". Now it is the stronger one: **no engine
-     * behaviour answers an obj op at all**, so there is nothing content could
-     * shadow. Nothing to add here unless one comes back, which it should not.
+     * `[oploc<n>]`, `[opheld<n>]` and `[opobj<n>]` were all here and none is now.
+     * With `interaction_engine_loc`, the held tail of `handle_opheld` and
+     * `interaction_engine_obj` gone, the engine answers no loc, held or ground
+     * verb at all — so there is nothing for a door, a ladder, a bank booth, a
+     * wielded weapon or a pile on the floor to shadow, and the report correctly
+     * says nothing about them. Their verb macros went in the same commits:
+     * leaving them would make a later `[oploc2,<loc>]` or `[opheld2,<obj>]`
+     * report as shadowing a verb nothing answers, which is worse than silence.
      */
     return NULL;
 }
@@ -801,10 +824,8 @@ mock230_world_process_interaction(struct Mock230Server* srv)
          * what it means is "keep walking". It still reports once per
          * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
          * above and this runs on one tick of the walk rather than all of them. */
-        if( trigger >= 0 &&
-            mock230_scripts_run_trigger(srv, trigger, interaction->target_id,
-                                        interaction_category(interaction),
-                                        interaction->npc_slot) != MOCK230_TRIGGER_NONE )
+        if( trigger >= 0 && run_interaction_trigger(srv, interaction, trigger) !=
+                                MOCK230_TRIGGER_NONE )
         {
             steps_clear(player);
             mock230_world_interaction_clear(srv);
@@ -846,9 +867,13 @@ mock230_world_process_interaction(struct Mock230Server* srv)
          *
          * The reason is the miss: there is **no engine use-on behaviour** to fall
          * back to. `Player.defaultOp` answers an unbound `*u` with the message
-         * and nothing else, and routing it into MOCK230_FALLBACK_OPLOC/OPNPC/
-         * OPOBJ would hand "use a bucket on the door" to the door handler and
-         * open it. The message is content's — `[proc,nothing_interesting_message]`
+         * and nothing else, and routing it into MOCK230_FALLBACK_OPNPC/OPOBJ
+         * would hand "use a bucket on the goblin" to the greeting and "use a
+         * bucket on the pile" to the pickup. (It named `MOCK230_FALLBACK_OPLOC`
+         * first, with "would hand use-a-bucket-on-the-door to the door handler
+         * and open it" — which is what the door handler did until it was
+         * deleted; the loc arm below reaches the same message this one does
+         * now.) The message is content's — `[proc,nothing_interesting_message]`
          * — reached through the same `mock230_say` the other four literals moved
          * behind.
          *
@@ -877,11 +902,18 @@ mock230_world_process_interaction(struct Mock230Server* srv)
                 interaction_engine_npc(srv, slot, op_num);
             break;
         case MOCK230_INTERACT_LOC:
-            if( mock230_scripts_fallback(
-                    srv, MOCK230_FALLBACK_OPLOC,
-                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPLOC1 + (op_num - 1),
-                                                target_id, category, -1)) )
-                interaction_engine_loc(srv, op_num, target_id, loc_x, loc_z, loc_level);
+            /* No fallback row since 2026-08-02: doors, ladders and bank booths
+             * are all content, so a loc op that binds nothing gets the
+             * reference's own answer for one — `Player.defaultOp`, which is the
+             * message and nothing else. Same shape as the use-on arm above, and
+             * `FAILED` deliberately says nothing: a script that aborted has
+             * already had its turn. */
+            if( mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1 + (op_num - 1),
+                                                   target_id, category,
+                                                   find_interaction_loc(loc_x, loc_z, loc_level,
+                                                                        target_id)) ==
+                MOCK230_TRIGGER_NONE )
+                mock230_say(srv, "nothing_interesting_message", NULL);
             break;
         case MOCK230_INTERACT_OBJ:
         {
@@ -2410,31 +2442,26 @@ handle_opnpc(
 }
 
 /*
- * Move the player a level, which is all a staircase or a ladder does.
+ * The player's plane changed — forget everything that was on the old one.
  *
- * The tile does not change, only the level. That is right for every ladder and
- * every spiral staircase in Lumbridge, and wrong for the handful of stairs
- * elsewhere that land you somewhere else — those need per-loc destinations,
- * which is content this tree does not have yet.
+ * Split out of `climb` (below) 2026-08-02 so that `p_teleport` can call it too.
+ * That is not tidying: `SS_OP_P_TELEPORT` moved x/z/level and set `place_dirty`
+ * and nothing else, so a script that teleported a player up a floor left the
+ * client holding a level's worth of npcs, players and zone state that it had no
+ * way to learn about. `maybe_rebuild` does not cover it — it fires on the scene
+ * *window* moving, and a ladder does not move the window at all. Every ladder
+ * and staircase in this tree becomes content in the same pass, so a content
+ * `~climb` that reaches this through `p_teleport` and the engine's own `climb`
+ * have to do the same thing or the two are not comparable.
+ *
+ * Not the caller's steps or destination: `mock230_world_process_interaction`
+ * has already cleared both before any `[oploc]` script runs, and a teleport that
+ * is not a plane change has no business dropping a queued walk.
  */
-static void
-climb(
-    struct Mock230Server* srv,
-    int delta)
+void
+mock230_world_player_level_changed(struct Mock230Player* player)
 {
-    struct Mock230Player* player = srv->active_player;
-    int level = player->level + delta;
-
-    if( level < 0 || level > 3 )
-    {
-        mock230_say(srv, "blocked_message", NULL);
-        return;
-    }
-    steps_clear(player);
-    player->level = level;
     player->place_dirty = 1;
-    player->dest_x = -1;
-    player->dest_z = -1;
     /* Every npc and ground obj *this* client holds is on the old level, and it
      * has no way to know they left. A rebuild is heavy-handed but it is exactly
      * what the reference does when a player changes plane — and it is this
@@ -2454,6 +2481,22 @@ climb(
 }
 
 /*
+ * `climb` was here — "move the player a level, which is all a staircase or a
+ * ladder does". It is `[proc,climb]` in
+ * `ladders_stairs/scripts/ladders.rs2` now, four lines of `p_teleport
+ * (movecoord(coord, 0, $delta, 0))` behind a plane-range guard, which is where
+ * LostCity puts it (`content/scripts/ladders+stairs/`, 607 lines, none of it in
+ * that tree's engine). What stayed here is the half that is owed to every
+ * teleport across a plane and not only to a ladder:
+ * `mock230_world_player_level_changed` above, called from `SS_OP_P_TELEPORT`.
+ *
+ * OPOBJ<n>: p2 x, p2 z, p2 objId — picking something up off the floor.
+ *
+ * The walk and the take are one action here rather than a queued interaction:
+ * the mock has no interaction model, so the player arrives instantly in game
+ * terms and the client sees the walk happen underneath. Getting that wrong in
+ * the other direction (take first, walk after) would let a player vacuum up
+ * Lumbridge from the castle roof.
  * OPOBJ<n>: p2 x, p2 z, p2 objId — the click on a pile on the floor.
  *
  * This handler latches an interaction and walks; the act happens on arrival, in
@@ -2501,118 +2544,44 @@ handle_opobj(
 }
 
 /*
- * OPLOC<n>: p2 x, p2 z, p2 locId — doors, gates, stairs and ladders.
+ * `interaction_engine_loc` was here — 84 lines, deleted 2026-08-02 with the
+ * `MOCK230_FALLBACK_OPLOC` row it was the whole of. It did two things and both
+ * are content now, which is where LostCity has always had them:
  *
- * Two generic rules cover all of them, and neither needs a per-loc table:
+ * - **the door swap.** `doors/scripts/doors.rs2` — `[oploc1,_door_closed]`,
+ *   `[oploc1,_door_opened]`, `[oploc2,_door_opened]`, keyed on the category and
+ *   reading the pairing out of `loc_param(next_loc_stage)`, the reference's own
+ *   file verbatim. The reference's door SWINGS (`loc_del` then `loc_add` on the
+ *   adjacent tile, angle turned a quarter) where this C swapped in place.
+ * - **the verb ladder.** A `strcmp` against the loc's cache menu verb: "Bank"
+ *   and "Use-quickly" opened the bank, "Climb-up"/"Climb-down"/"Climb" moved
+ *   the player a plane. Content cannot read a menu verb, so each verb became
+ *   the list of records carrying it, derived from the cache and checked against
+ *   it on every `test-port`: `tools/bank_import.py` -> 78 name bindings in
+ *   `interface_bank/scripts/bank_booths.rs2`, `tools/ladder_import.py` -> four
+ *   allocated categories over 1,428 records plus 17 names.
+ *   "Use-quickly" matched **zero** records in this cache and moved nowhere.
  *
- * - A loc whose content block says `category=door_closed` (or `door_opened`)
- *   swaps for its `param=next_loc_stage` partner. The pairing is data, from
- *   OpenRune's curated door table plus name-derived pairs; see
- *   content/scripts/doors/configs/doors.loc.
- * - A loc whose *cache* menu text says "Climb-up" or "Climb-down" moves the
- *   player a level. The direction is already in the cache, so content does not
- *   restate it.
+ * Two things went with it deliberately rather than being reproduced.
+ *
+ * **The op number.** This function never read one — it swapped a door for any
+ * op the client could send — so it also answered `Pick-lock` on a locked house
+ * door, `Repair` on a damaged pest gate, `Force`, `Remove`, `Attack`, `Search`
+ * and `Quick-open` by opening the thing. Measured across the whole cache that is
+ * 54 (record, op) pairs, on 26 records. Content binds the op the pairing is
+ * about and nothing else, so those 54 now get `Player.defaultOp` — the message —
+ * which is exactly what the reference gives them, since it binds none of them
+ * either. That is a wrong answer removed, not a route lost.
+ *
+ * **The bank booths nothing had bound.** 78 records say "Bank"; content bound
+ * one. All 78 are bound now, which is what made the deletion possible and is why
+ * `bank_import.py` is a generator with a `--check` rather than a hand list.
  */
-/*
- * What a loc op does when no content claimed it.
- *
- * The door swap used to run *before* the script trigger, which made a door the
- * one thing content could not override. It is here now, behind the trigger,
- * so "content gets first refusal" is true of locs as it is of everything else.
- * Nothing in the tree binds a door script today, so this changes no behaviour —
- * it removes an exception that would have been discovered the hard way.
- */
-static void
-interaction_engine_loc(
-    struct Mock230Server* srv,
-    int op_num,
-    int loc_id,
-    int tile_x,
-    int tile_z,
-    int level)
-{
-    int slot;
-    struct Mock230SceneLoc* loc;
-    const struct Mock230LocDef* def;
-    const char* verb;
-
-    slot = find_interaction_loc(tile_x, tile_z, level, loc_id);
-    loc = mock230_scene_loc(slot);
-    if( !loc )
-    {
-        mock230_say(srv, "nothing_interesting_message", NULL);
-        return;
-    }
-
-    def = mock230_content_loc(loc->loc_id);
-    if( def && def->next_loc_stage >= 0 &&
-        (def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED ||
-         def->category == MOCK230_LOC_CATEGORY_DOOR_OPENED) )
-    {
-        int opening = def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED;
-        int x = loc->x;
-        int z = loc->z;
-        int shape = loc->shape;
-        /* The loc's own level, not the caller's: `find_interaction_loc` matched
-         * on it, and a door on a bridge deck is addressed by where it is. */
-        int loc_level = loc->level;
-
-        /* A door is the canonical two-player case, and the canonical *three*-
-         * player one: whoever opens it is not the only person who can now walk
-         * through it, and the third player to arrive should not find it shut.
-         * The first half was a broadcast; the second is what the ZoneMap is. */
-        if( !mock230_world_loc_set(srv, x, z, loc_level, shape, def->next_loc_stage,
-                                   loc->angle) )
-        {
-            mock230_say(srv, "nothing_interesting_message", NULL);
-            return;
-        }
-        if( srv->verbose )
-            fprintf(stderr, "mock230: %s %s at %d,%d\n", opening ? "opened" : "closed",
-                    def->symbol ? def->symbol : "door", x, z);
-        return;
-    }
-
-    verb = mock230_scene_loc_op(loc->loc_id, op_num);
-    /*
-     * Opening the bank is decided by the loc's own menu verb rather than by an
-     * id list, for the same reason "Attack" is: OldSchool has dozens of bank
-     * booths, chests and counters and every one of them says "Bank" in the
-     * cache. An id list would be a second copy of that, kept by hand, and
-     * wrong for whichever booth nobody added.
-     */
-    if( verb &&
-        (strcmp(verb, MOCK230_VERB_BANK) == 0 || strcmp(verb, MOCK230_VERB_USE_QUICKLY) == 0) )
-    {
-        mock230_bank_open(srv);
-        return;
-    }
-    if( verb && strcmp(verb, MOCK230_VERB_CLIMB_UP) == 0 )
-    {
-        climb(srv, +1);
-        return;
-    }
-    if( verb && strcmp(verb, MOCK230_VERB_CLIMB_DOWN) == 0 )
-    {
-        climb(srv, -1);
-        return;
-    }
-    if( verb && strcmp(verb, MOCK230_VERB_CLIMB) == 0 )
-    {
-        /* An unqualified "Climb" is the middle of a staircase, which offers
-         * both directions. Up is the reasonable default and the qualified ops
-         * are on the same loc for anyone who wants the other one. */
-        climb(srv, +1);
-        return;
-    }
-    mock230_say(srv, "nothing_interesting_message", NULL);
-}
-
 /*
  * OPLOC<n>: p2 x, p2 z, p2 locId — doors, gates, stairs and ladders.
  *
  * Latches the interaction and walks to a tile beside the loc; the acting is
- * interaction_engine_loc above, or whatever content bound to [oploc<n>].
+ * whatever content bound to [oploc<n>], and the message if nothing did.
  */
 static void
 handle_oploc(
@@ -10425,27 +10394,86 @@ mock230_world_selftest(void)
         }
     }
 
+    /*
+     * Doors, which are `doors/scripts/doors.rs2` since 2026-08-02.
+     *
+     * The section is the same click it always was; what it asserts changed,
+     * because the behaviour did. `interaction_engine_loc` swapped a door **in
+     * place**; the reference's `[oploc1,_door_closed]` is `loc_del` + `loc_add`
+     * on the *adjacent* tile with the angle turned one quarter — a real door
+     * swings — and porting it verbatim is the point of the move. So the two
+     * assertions that used to read "the loc this slot holds became 1536" are now
+     * "the old tile is empty and the neighbour holds the open half", and the one
+     * zone record became two.
+     *
+     * That is also what makes this a regression test for a *content-owned* door
+     * rather than a test of the C: everything under the swap — the pairing data,
+     * the ZoneMap's memory of what the map square says, the enclosed stream — is
+     * engine either way and is asserted here either way.
+     *
+     * Ids resolved through the pack. `loc` is 94.7% id-identical between this
+     * tree and the reference, which is the worst case there is, and a section
+     * that spells 1535 cannot tell a right id from a wrong one.
+     */
     fprintf(stderr, "mock230 selftest: doors\n");
     {
         static struct Mock230Capture capture;
-        /* 1535 `poordoor` at 3226,3223 — a wall loc on Lumbridge's ground
-         * floor, paired with 1536 `poordooropen` by OpenRune's curated table. */
-        int slot = mock230_scene_find_loc(3226, 3223, 0, 1535);
+        /* `poordoor` at 3226,3223 — a wall loc on Lumbridge's ground floor,
+         * placed by m50_50.jl2 as shape 0 (wall_straight) angle 2 (^loc_east),
+         * paired with `poordooropen` by OpenRune's curated table. */
+        const int shut = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");
+        const int open = mock230_content_symbol(MOCK230_PACK_LOC, "poordooropen");
+        int slot;
+
+        SELFTEST_CHECK(shut > 0 && open > 0,
+                       "pack/loc.pack should name both halves of the castle door: %d/%d",
+                       shut, open);
+        slot = mock230_scene_find_loc(3226, 3223, 0, shut);
 
         SELFTEST_CHECK(slot >= 0, "the castle door at 3226,3223 should be in the scene");
-        if( slot >= 0 )
+        if( slot >= 0 && shut > 0 && open > 0 )
         {
             struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
-            const struct Mock230LocDef* def = mock230_content_loc(1535);
+            const struct Mock230LocDef* def = mock230_content_loc(shut);
             uint8_t payload[6] = { (uint8_t)(3226 >> 8), (uint8_t)3226,
                                    (uint8_t)(3223 >> 8), (uint8_t)3223,
-                                   (uint8_t)(1535 >> 8), (uint8_t)1535 };
+                                   (uint8_t)(shut >> 8), (uint8_t)shut };
+            int shape = loc->shape;
+            int angle = loc->angle;
 
-            SELFTEST_CHECK(def != NULL, "doors.loc should describe loc 1535");
-            SELFTEST_CHECK(def && def->category == MOCK230_LOC_CATEGORY_DOOR_CLOSED,
-                           "as a closed door");
-            SELFTEST_CHECK(def && def->next_loc_stage == 1536,
-                           "opening into 1536, got %d", def ? def->next_loc_stage : -1);
+            SELFTEST_CHECK(def != NULL, "doors.loc should describe poordoor");
+            /*
+             * The category as a pack id, not as a private enum value.
+             *
+             * `door_closed` is `content.ini`'s first server-allocated category
+             * (base 8192) and this is the assertion that it *resolved* — the
+             * overlay's `category=door_closed` reaching `Mock230LocDef.category`
+             * as a number `pack/category.pack` agrees with. Spelled by name and
+             * looked up, because the number is the pack file's to choose.
+             */
+            SELFTEST_CHECK(def && def->category > 0 &&
+                               def->category ==
+                                   mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed"),
+                           "as a closed door: category %d, door_closed is %d",
+                           def ? def->category : -1,
+                           mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed"));
+            /* And the same value coming back out of the merged accessor, which is
+             * what the trigger lookup and `loc_category` both read. A def whose
+             * field is set but whose accessor answers -1 would bind nothing and
+             * the assertion above cannot see it. */
+            SELFTEST_CHECK(mock230_loc_category(shut) == def->category,
+                           "and mock230_loc_category agrees: %d vs %d",
+                           mock230_loc_category(shut), def ? def->category : -1);
+            SELFTEST_CHECK(def && def->next_loc_stage == open,
+                           "opening into poordooropen, got %d",
+                           def ? def->next_loc_stage : -1);
+            /* The placement the swing arithmetic is computed from. A door on a
+             * different shape does not swing at all (doors.rs2 changes it in
+             * place), so the rest of this section would be asserting the wrong
+             * behaviour without saying so. */
+            SELFTEST_CHECK(shape == 0 && angle == 2,
+                           "placed as a wall_straight facing east, got shape %d angle %d",
+                           shape, angle);
 
             player->level = 0;
             mock230_capture_begin(&srv, &capture);
@@ -10457,32 +10485,430 @@ mock230_world_selftest(void)
                            "the walk to the door should complete");
             mock230_capture_end(&srv);
 
-            SELFTEST_CHECK(loc->loc_id == 1536, "opening swaps the loc, got %d",
-                           loc->loc_id);
+            /*
+             * `~door_open(^loc_east, wall_straight)` is (+1, 0) and the angle
+             * turns to (2 + 1) % 4 = 3 (^loc_south): the door leaves the east
+             * wall of 3226,3223 for the south wall of 3227,3223. Both halves are
+             * asserted, because a `loc_del` that fired with a `loc_add` that did
+             * not is a door that vanished.
+             */
             {
-                struct Mock230ZoneLoc* record =
-                    mock230_zone_loc_find(&srv, loc->x, loc->z, loc->level, loc->shape);
+                /* `_find_loc_exact` deliberately still answers for a deleted
+                 * *static* loc — the tombstone is what a revert puts back — so
+                 * "gone" is the `active` flag, not a missing slot. */
+                struct Mock230SceneLoc* was =
+                    mock230_scene_loc(mock230_scene_find_loc_exact(3226, 3223, 0, shape));
 
-                SELFTEST_CHECK(record && record->loc_id == 1536,
-                               "and records the change in the zone, got %d",
-                               record ? record->loc_id : -1);
-                SELFTEST_CHECK(record && record->base_loc_id == 1535,
-                               "remembering what the map square has, got %d",
-                               record ? record->base_loc_id : -1);
+                SELFTEST_CHECK(!was || !was->active,
+                               "opening takes the door off its own tile");
             }
-            SELFTEST_CHECK(selftest_enclosed_has(&capture, 70 /* LOC_ADD_CHANGE */),
-                           "and tells the client, in the zone's enclosed stream");
+            {
+                int moved = mock230_scene_find_loc_exact(3227, 3223, 0, shape);
+                struct Mock230SceneLoc* swung = mock230_scene_loc(moved);
+
+                SELFTEST_CHECK(swung && swung->loc_id == open,
+                               "and hangs the open half on the next tile east, got %d",
+                               swung ? swung->loc_id : -1);
+                SELFTEST_CHECK(swung && swung->angle == 3,
+                               "turned one quarter, got angle %d", swung ? swung->angle : -1);
+            }
+            {
+                struct Mock230ZoneLoc* gone =
+                    mock230_zone_loc_find(&srv, 3226, 3223, 0, shape);
+                struct Mock230ZoneLoc* arrived =
+                    mock230_zone_loc_find(&srv, 3227, 3223, 0, shape);
+
+                /* Two records now, not one — and the ZoneMap's job is unchanged:
+                 * remember what the map square says so a third player arriving
+                 * later is told the same thing. */
+                SELFTEST_CHECK(gone && gone->loc_id == -1,
+                               "the zone records the removal, got %d", gone ? gone->loc_id : -2);
+                SELFTEST_CHECK(gone && gone->base_loc_id == shut,
+                               "remembering what the map square has, got %d",
+                               gone ? gone->base_loc_id : -2);
+                SELFTEST_CHECK(arrived && arrived->loc_id == open,
+                               "and records the arrival, got %d",
+                               arrived ? arrived->loc_id : -2);
+                SELFTEST_CHECK(arrived && arrived->base_loc_id == -1,
+                               "on a tile the map square has nothing on, got %d",
+                               arrived ? arrived->base_loc_id : -2);
+            }
+            SELFTEST_CHECK(selftest_enclosed_has(&capture, 71 /* LOC_DEL */) &&
+                               selftest_enclosed_has(&capture, 70 /* LOC_ADD_CHANGE */),
+                           "and tells the client both halves, in the zone's enclosed stream");
 
             /* Closing it again is the same rule read backwards, which is the
-             * whole point of storing the pairing on both halves. */
-            payload[4] = (uint8_t)(1536 >> 8);
-            payload[5] = (uint8_t)1536;
+             * whole point of storing the pairing on both halves — and it has to
+             * be clicked where the door now *is*. `~door_close(^loc_south,
+             * wall_straight)` is (-1, 0) with the angle turning to (3 + 3) % 4 =
+             * 2, i.e. exactly back onto the map square's own placement. */
+            payload[0] = (uint8_t)(3227 >> 8);
+            payload[1] = (uint8_t)3227;
+            payload[4] = (uint8_t)(open >> 8);
+            payload[5] = (uint8_t)open;
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* Standing beside it now, so this one resolves on the click. */
             SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
                            "closing the door should complete");
-            SELFTEST_CHECK(loc->loc_id == 1535, "and closing swaps it back, got %d",
-                           loc->loc_id);
+            {
+                int back = mock230_scene_find_loc_exact(3226, 3223, 0, shape);
+                struct Mock230SceneLoc* home = mock230_scene_loc(back);
+
+                SELFTEST_CHECK(home && home->loc_id == shut && home->angle == angle,
+                               "and closing puts it back where the map square has it, "
+                               "got %d at angle %d",
+                               home ? home->loc_id : -1, home ? home->angle : -1);
+                struct Mock230SceneLoc* left =
+                    mock230_scene_loc(mock230_scene_find_loc_exact(3227, 3223, 0, shape));
+
+                SELFTEST_CHECK(!left || !left->active,
+                               "leaving nothing behind on the tile it swung to");
+            }
+        }
+    }
+
+    /*
+     * A ladder changes the level, and it is `ladders_stairs/scripts/ladders.rs2`
+     * that does it (2026-08-02).
+     *
+     * There was no coverage of this at all before — the doors section was the
+     * only loc coverage in the file — so the half of `interaction_engine_loc`
+     * that reads the cache's climb verbs could have been deleted without a
+     * single check going red. It is written here against the *content*, but
+     * every assertion is about the engine underneath it: the plane moved, and
+     * everything the client was holding about the old plane was dropped.
+     *
+     * That second half is the one worth having. `p_teleport` moved x/z/level and
+     * set `place_dirty` and nothing else, so a script that took a player up a
+     * floor left the client holding a level's worth of npcs, players and zone
+     * state — and `maybe_rebuild` does not cover it, because it fires on the
+     * scene *window* moving and a ladder does not move the window at all. The
+     * engine's `climb` did that bookkeeping inline; `p_teleport` does it now
+     * (`mock230_world_player_level_changed`), which is what makes the two
+     * comparable and what every other content teleport across a plane was
+     * missing.
+     */
+    fprintf(stderr, "mock230 selftest: a ladder changes the level\n");
+    {
+        /* `ladder` at 3229,3224 — one of three in Lumbridge castle, op1
+         * "Climb-up", carrying no cache category, so `ladders.loc` files it
+         * under the allocated `climb_up`. By name, like everything else. */
+        const int ladder = mock230_content_symbol(MOCK230_PACK_LOC, "ladder");
+        const int climb_up = mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_up");
+        int slot;
+
+        SELFTEST_CHECK(ladder > 0 && climb_up > 0,
+                       "pack should name `ladder` and the `climb_up` category: %d/%d",
+                       ladder, climb_up);
+        SELFTEST_CHECK(ladder > 0 && mock230_loc_category(ladder) == climb_up,
+                       "ladders.loc should file a Climb-up ladder under climb_up, got %d",
+                       ladder > 0 ? mock230_loc_category(ladder) : -1);
+        /* The group, not the record: one binding reaches all of them, which is
+         * the entire reason this is a category and not a name list. */
+        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 558,
+                       "and 558 loc records share it, got %d",
+                       climb_up > 0 ? mock230_loc_category_members(climb_up) : -1);
+
+        slot = ladder > 0 ? mock230_scene_find_loc(3229, 3224, 0, ladder) : -1;
+        SELFTEST_CHECK(slot >= 0, "the castle ladder at 3229,3224 should be in the scene");
+        if( slot >= 0 )
+        {
+            uint8_t payload[6] = { (uint8_t)(3229 >> 8), (uint8_t)3229,
+                                   (uint8_t)(3224 >> 8), (uint8_t)3224,
+                                   (uint8_t)(ladder >> 8), (uint8_t)ladder };
+
+            /* Put the player beside it rather than routing across the castle:
+             * the section before this one leaves them on whichever side of a
+             * door it finished with, and a walk that fails to find a way in is
+             * a fact about the router, not about ladders. */
+            player->level = 0;
+            player->x = 3229;
+            player->z = 3223;
+            player->place_dirty = 1;
+            mock230_world_steps_clear(player);
+            player->rebuild_pending = 0;
+            player->tracked_count = 1;
+            player->tracked_player_count = 1;
+            mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                           "the walk to the ladder should complete");
+            SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
+                           player->level);
+            /* The bookkeeping `p_teleport` used not to do. Asserted separately
+             * from the level because a plane change that forgets it is a client
+             * holding npcs on a floor it has left — visible in the game, and
+             * invisible to any test that only reads `level`. */
+            SELFTEST_CHECK(player->tracked_count == 0 && player->tracked_player_count == 0,
+                           "and forgets the entities on the old plane, got %d npc / %d player",
+                           player->tracked_count, player->tracked_player_count);
+            SELFTEST_CHECK(player->rebuild_pending == 1 || player->place_dirty == 1,
+                           "and queues this player's own scene rebuild");
+
+            /* And the same ladder's other half. `laddertop` is filed under
+             * `climb_down` even though the cache states category 553 on it —
+             * 553 is not a name in pack/category.pack, and the importer refuses
+             * only over categories somebody has named. */
+            {
+                const int top = mock230_content_symbol(MOCK230_PACK_LOC, "laddertop");
+                const int climb_down =
+                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_down");
+
+                SELFTEST_CHECK(top > 0 && climb_down > 0 &&
+                                   mock230_loc_category(top) == climb_down,
+                               "laddertop reads climb_down (%d), got %d", climb_down,
+                               top > 0 ? mock230_loc_category(top) : -1);
+                if( top > 0 && mock230_scene_find_loc(3229, 3224, 1, top) >= 0 )
+                {
+                    payload[4] = (uint8_t)(top >> 8);
+                    payload[5] = (uint8_t)top;
+                    mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                    SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                                   "the walk to the ladder top should complete");
+                    SELFTEST_CHECK(player->level == 0,
+                                   "and climbing down comes back, got %d", player->level);
+                }
+            }
+            /* Put the world back, so a section that fails here fails only here.
+             * A ladder leaves the player on another plane with a rebuild queued
+             * and both tracked sets emptied, and the next section reads the
+             * entity streams. */
+            player->level = 0;
+            player->x = 3222;
+            player->z = 3218;
+            player->place_dirty = 1;
+            player->rebuild_pending = 0;
+            /* The two sentinels above are *fake* counts, seeded so that "was
+             * this cleared" has something to observe. Left set they describe
+             * entities the client was never told about and the next section's
+             * info streams read them, so they are put back whether the
+             * assertion passed or not. */
+            player->tracked_count = 0;
+            player->tracked_player_count = 0;
+            mock230_world_steps_clear(player);
+        }
+    }
+
+    /*
+     * A bank booth opens the bank, and it is a script that does it.
+     *
+     * The last thing `MOCK230_FALLBACK_OPLOC` was holding. `interaction_engine_loc`
+     * compared the loc's *cache menu verb* to "Bank" and called
+     * `mock230_bank_open`, which reached all 78 records in this cache while
+     * content bound exactly one of them — so deleting the C without this file
+     * would have quietly lost 77 booths, and nothing in the suite would have
+     * noticed, because there was no bank-booth coverage anywhere.
+     *
+     * `mock230_bank_open` itself is NOT what moved and is not what this asserts.
+     * It stays engine and stays owned by the `inv_button` / `if_button` rows —
+     * the varbit push, the two mounts, `bank_set_events`, both container
+     * transmits. What moved is the *entry point*: which locs reach it. So the
+     * assertion is that a booth's op resolves to a script (`RAN`, not `NONE`)
+     * and that the bank is open afterwards, which is exactly the pair that would
+     * come apart if `bank_booths.rs2` stopped being compiled.
+     *
+     * Two booths, and the second one is the whole point. `bankbooth` was bound by
+     * hand in `bank.rs2` before this stage and proves nothing about the move;
+     * `duel_chestopen` is one of the 77 that only the C answered. Both are
+     * resolved through the pack — a section that spelled the id could not tell a
+     * cache bump from a passing test.
+     *
+     * The trigger is run directly rather than through an OPLOC packet because no
+     * bank booth is placed inside the scene this selftest builds (Lumbridge; the
+     * nearest booths are Al Kharid's, just off the south-east corner). What that
+     * costs is the walk, which the door and ladder sections above both exercise
+     * over a real packet; what it buys is that the *binding* is asserted for a
+     * record no map square in the loaded scene contains, which is 77 of the 78.
+     */
+    fprintf(stderr, "mock230 selftest: a bank booth is content's\n");
+    {
+        const int booth = mock230_content_symbol(MOCK230_PACK_LOC, "bankbooth");
+        const int chest = mock230_content_symbol(MOCK230_PACK_LOC, "duel_chestopen");
+
+        SELFTEST_CHECK(booth > 0 && chest > 0,
+                       "pack/loc.pack should name bankbooth and duel_chestopen: %d/%d", booth,
+                       chest);
+        if( booth > 0 && chest > 0 )
+        {
+            /* The cache puts "Bank" on op2 for `bankbooth` and on op1 for
+             * `duel_chestopen`, and `tools/bank_import.py` binds the slot the
+             * record states rather than a fixed one. Asserting both slots is
+             * what makes that more than a coincidence. */
+            mock230_bank_close(&srv);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                               &srv, SS_TRIGGER_OPLOC2, booth, mock230_loc_category(booth),
+                               -1) == MOCK230_TRIGGER_RAN,
+                           "a bank booth's op 2 should resolve to a script");
+            SELFTEST_CHECK(player->bank.open, "and the script should have opened the bank");
+
+            mock230_bank_close(&srv);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                               &srv, SS_TRIGGER_OPLOC1, chest, mock230_loc_category(chest),
+                               -1) == MOCK230_TRIGGER_RAN,
+                           "and so should a booth nothing bound by hand — the 77 the engine's "
+                           "\"Bank\" strcmp used to reach on its own");
+            SELFTEST_CHECK(player->bank.open, "and open the bank the same way");
+
+            /*
+             * The discriminator. Without it the two checks above would pass on a
+             * tree that had bound `[oploc<n>,_]` to `~openbank` and made every
+             * click in the world open the bank — which is a fair description of
+             * what the deleted C did to the *verb* namespace.
+             */
+            mock230_bank_close(&srv);
+            SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                               &srv, SS_TRIGGER_OPLOC3, chest, mock230_loc_category(chest),
+                               -1) == MOCK230_TRIGGER_NONE,
+                           "a slot the cache puts no Bank op on should bind nothing");
+            SELFTEST_CHECK(!player->bank.open, "and leave the bank shut");
+
+            /*
+             * And the same thing over a real packet, which is the leg the three
+             * checks above cannot cover: `handle_oploc` reads the op number out
+             * of the packet name, and a binding on the wrong slot would pass
+             * every direct-trigger assertion and still do nothing when clicked.
+             *
+             * `handle_oploc` does not require the loc to be in the scene — it
+             * falls back to the client's own coordinates and a 1x1 footprint —
+             * which is what makes this possible at all: no bank booth is placed
+             * inside the Lumbridge scene this selftest builds. The nearest are Al
+             * Kharid's, four tiles south of the south-east corner. The scene
+             * lookup itself is engine and is covered by the door and ladder
+             * sections above, both of which drive a placed loc.
+             */
+            mock230_bank_close(&srv);
+            selftest_park_player(&srv, 3222, 3218);
+            {
+                int bx = player->x + 1;
+                uint8_t payload[6] = { (uint8_t)(bx >> 8),    (uint8_t)bx,
+                                       (uint8_t)(player->z >> 8), (uint8_t)player->z,
+                                       (uint8_t)(booth >> 8), (uint8_t)booth };
+
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC2, payload, 6);
+                SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
+                               "the click on the booth should settle");
+                SELFTEST_CHECK(player->bank.open,
+                               "an OPLOC2 packet naming a bank booth should open the bank");
+            }
+            mock230_bank_close(&srv);
+            selftest_park_player(&srv, 3222, 3218);
+        }
+    }
+
+    /*
+     * The loc category rung — both sources, in order, and the trigger lookup.
+     *
+     * This exists because the rung has two halves that fail independently and
+     * neither is visible from the other. The cache half is `dat2_config_loc.c`
+     * keeping config opcode 61, which nothing else in the selftest reads; the
+     * authored half is `pack/category.pack` resolving a name to an allocated id,
+     * which the door section above asserts one instance of. A test of only one of
+     * them passes on a tree where the other is dead, and "the category is -1" is
+     * indistinguishable from "no script was bound" at every layer above this.
+     *
+     * Deliberately not spelled as ids. `door_closed`'s number is the pack file's
+     * to choose, and the bank booth's is the cache's — so both are looked up, and
+     * what is asserted is the *relationship*: the accessor's answer equals the
+     * source's, in the right order.
+     */
+    fprintf(stderr, "mock230 selftest: the loc category rung\n");
+    {
+        int door_closed = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed");
+        int door_opened = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_opened");
+        /* `bankbooth` is one of the 58 records the cache files under one id, and
+         * it is the loc `interface_bank/scripts/bank.rs2` already binds — so a
+         * category that stops resolving here is also the one that would silently
+         * unbind a booth's Bank op. Resolved by name, like everything else. */
+        int booth = mock230_content_symbol(MOCK230_PACK_LOC, "bankbooth");
+
+        SELFTEST_CHECK(door_closed > 0 && door_opened > 0,
+                       "pack/category.pack should name both halves of a door: %d/%d",
+                       door_closed, door_opened);
+
+        /* --- source 1, the authored overlay ------------------------------- */
+        SELFTEST_CHECK(mock230_loc_category(1535) == door_closed,
+                       "poordoor reads door_closed (%d), got %d", door_closed,
+                       mock230_loc_category(1535));
+        SELFTEST_CHECK(mock230_loc_category(1536) == door_opened,
+                       "poordooropen reads door_opened (%d), got %d", door_opened,
+                       mock230_loc_category(1536));
+        /* Both halves of `doors.loc`, counted the way `mock230_pack` counts them.
+         * 388 is the pair count the importer wrote and the door validator
+         * reports; an overlay that stopped being read would answer 0 here and
+         * `validate_categories` would then call the name uncarried. */
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 388,
+                       "and doors.loc states door_closed 388 times, got %d",
+                       mock230_loc_category_members(door_closed));
+
+        /* --- source 2, the cache's own config opcode 61 -------------------- */
+        SELFTEST_CHECK(booth > 0, "pack/loc.pack should name bankbooth, got %d", booth);
+        if( booth > 0 )
+        {
+            int booth_category = mock230_loc_category(booth);
+
+            SELFTEST_CHECK(booth_category > 0,
+                           "a bank booth carries a cache category — if this is -1 the "
+                           "decoder is dropping config opcode 61 again, got %d",
+                           booth_category);
+            /*
+             * The whole group, not just this record — and the number is the
+             * reason a category is worth having: one binding reaches 63 records
+             * (Bank booth x43, 10 unnamed, Bank table x4, Grand Exchange booth
+             * x3, Bank counter x2, Bank boat) where an id list would have to be
+             * kept by hand.
+             *
+             * 63, not the 58 that says "Bank" in its menu. Those are two
+             * different questions and the difference is five records with no Bank
+             * op in this cache, which is exactly why the category is the better
+             * subject: a verb-keyed rule covers what the menu happens to say, a
+             * category-keyed one covers what the record *is*.
+             */
+            SELFTEST_CHECK(mock230_loc_category_members(booth_category) == 63,
+                           "and 63 loc records share it, got %d",
+                           mock230_loc_category_members(booth_category));
+            /* Two sources, one space: an authored id and a cache id must never be
+             * the same number, or a door binding would fire on bank booths. */
+            SELFTEST_CHECK(booth_category != door_closed && booth_category != door_opened,
+                           "and a cache category is never an allocated one (%d vs %d/%d)",
+                           booth_category, door_closed, door_opened);
+        }
+
+        /* --- the rung itself ----------------------------------------------- */
+        /* What `interaction_category` hands `SSVM_ProviderGetByTrigger`. It
+         * returned a hardcoded -1 for every loc until 2026-08-02, which is
+         * precisely why `[oploc1,_door_closed]` could not bind — and a -1 here
+         * looks exactly like "nothing was bound" from every caller. */
+        {
+            struct Mock230Interaction probe;
+
+            memset(&probe, 0, sizeof(probe));
+            probe.kind = MOCK230_INTERACT_LOC;
+            probe.target_id = 1535;
+            SELFTEST_CHECK(interaction_category(&probe) == door_closed,
+                           "the dispatch's category rung answers door_closed for a door, "
+                           "got %d",
+                           interaction_category(&probe));
+        }
+
+        /* An uncategorised loc is -1, never 0. 0 is the decoder's "unstated" and
+         * `pack/category.pack` refuses to name it, so a 0 reaching the provider
+         * could only match a name that must not exist. */
+        {
+            int uncategorised = -1;
+
+            for( int id = 0; id < 4096; id++ )
+            {
+                if( mock230_loc_known(id) && mock230_loc_category(id) < 0 )
+                {
+                    uncategorised = id;
+                    break;
+                }
+            }
+            SELFTEST_CHECK(uncategorised >= 0,
+                           "some loc in the cache states no category (32,161 of 62,194 "
+                           "are not even named)");
+            SELFTEST_CHECK(uncategorised < 0 || mock230_loc_category(uncategorised) == -1,
+                           "and it reads -1 rather than 0, got %d",
+                           uncategorised < 0 ? -2 : mock230_loc_category(uncategorised));
         }
     }
 
@@ -14076,8 +14502,17 @@ mock230_world_selftest(void)
 
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                 mock230_scripts_run_script(&srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
-                               "loc_add should leave the new loc active, got %d",
+                /* 4, not 1: the proc reads `loc_angle` and `loc_shape` back off
+                 * the loc it just added and then checks `movecoord`, stopping at
+                 * the first disagreement. Both opcodes had two of their
+                 * arguments transposed until 2026-08-02 — `loc_add`'s angle and
+                 * shape, `movecoord`'s y and z — and both were invisible for the
+                 * same reason: every caller in the tree passed the two swapped
+                 * arguments as the same number. */
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                               "loc_add should leave the new loc active with the angle and "
+                               "shape it was given, and movecoord should move the axis it "
+                               "was told to, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 /*
                  * The slot, not `mock230_scene_find_loc`. That function returns
@@ -14095,6 +14530,23 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(added >= 0 && mock230_scene_loc(added) &&
                                    mock230_scene_loc(added)->loc_id == remains,
                                "at the slot loc_add returned");
+                /*
+                 * And with the angle and the shape the script asked for, read
+                 * off the scene rather than back through the VM. The script
+                 * passes `^loc_south, centrepiece_straight` — 3 and 10, two
+                 * different numbers on purpose — so a transposed pop shows up
+                 * here as shape 3 / angle 10 rather than as nothing at all.
+                 */
+                SELFTEST_CHECK(added >= 0 && mock230_scene_loc(added) &&
+                                   mock230_scene_loc(added)->shape == 10 &&
+                                   mock230_scene_loc(added)->angle == 3,
+                               "with the shape and angle it was given (shape %d, angle %d)",
+                               added >= 0 && mock230_scene_loc(added)
+                                   ? mock230_scene_loc(added)->shape
+                                   : -1,
+                               added >= 0 && mock230_scene_loc(added)
+                                   ? mock230_scene_loc(added)->angle
+                                   : -1);
 
                 /* An added loc expires by being removed again, not by turning
                  * into something else. */
@@ -14645,14 +15097,15 @@ mock230_world_selftest(void)
 
         /* Not a skip: claim 3 is *about* the no-pack case, so it is the half
          * that runs either way. */
-        /* Was 7, then 6, then 5. `ai_queue3` moved to `[ai_queue3,_]` in
-         * skill_combat/npc_combat.rs2, `opobj` to `[opobj3,_]` in
-         * player/scripts/pickup.rs2, and `opheld` to `[opheld2,_]` /
-         * `[opheld5,_]` in player/scripts/{equip,drop}.rs2; each row went with
-         * its behaviour. The number is the evidence, which is why the assertion
-         * is on the number and not on the names. */
-        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 4,
-                       "the engine fallback list should still be 4 long, not %d — it may "
+        /* Was 7, then 6, then 5, then 4. `ai_queue3` moved to `[ai_queue3,_]`
+         * in skill_combat/npc_combat.rs2; `opobj` to `[opobj3,_]` in
+         * player/scripts/pickup.rs2; `opheld` to `[opheld2,_]` / `[opheld5,_]`
+         * in player/scripts/{equip,drop}.rs2; and `oploc` to doors.rs2,
+         * ladders.rs2 and bank_booths.rs2. Each row went with its behaviour.
+         * The number is the evidence, which is why the assertion is on the
+         * number and not on the names. */
+        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 3,
+                       "the engine fallback list should still be 3 long, not %d — it may "
                        "shrink as content grows, never grow",
                        (int)MOCK230_FALLBACK_COUNT);
         SELFTEST_CHECK(mock230_scripts_report_fallbacks(&srv) == MOCK230_FALLBACK_COUNT,
@@ -14744,15 +15197,23 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(
                     mock230_world_engine_claimed_verb(SS_TRIGGER_OPNPC1, goblin) == NULL,
                     "the goblin's op 1 carries no verb, so there is nothing to shadow");
+                /*
+                 * And the loc family, which since 2026-08-02 claims *nothing*.
+                 * These two used to read "op 2 is claimed, op 3 is not" — the
+                 * cache calls the booth's op 2 "Bank" and its op 3 "Collect" —
+                 * and the first of them is the assertion `interaction_engine_loc`
+                 * existed to satisfy. Both are NULL now, and asserting the
+                 * claimed one is NULL is the point: it is the only check in the
+                 * suite that would go red if somebody put a loc verb back into
+                 * C rather than into `bank_import.py` / `ladder_import.py`.
+                 */
                 SELFTEST_CHECK(
-                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPLOC2, booth) != NULL,
-                    "the engine should claim a bank booth's op 2, which the cache calls Bank");
-                /* An npc's Attack is claimed; an npc's op 3 "Talk-to" is not.
-                 * Without this the predicate could be "any verb at all" and
-                 * every assertion above would still pass. */
+                    mock230_world_engine_claimed_verb(SS_TRIGGER_OPLOC2, booth) == NULL,
+                    "a bank booth's op 2 says Bank and the engine no longer answers it — "
+                    "that is content's, in interface_bank/scripts/bank_booths.rs2");
                 SELFTEST_CHECK(
                     mock230_world_engine_claimed_verb(SS_TRIGGER_OPLOC3, booth) == NULL,
-                    "a booth's op 3 is Collect, which the engine does not answer");
+                    "and a booth's op 3 is Collect, which nothing ever answered");
 
                 /*
                  * And the report over the whole tree. Pinned, like the fallback
@@ -14761,11 +15222,28 @@ mock230_world_selftest(void)
                  * that script calls p_opnpc(2), which is what discharges the
                  * obligation, and a version of this check that could not tell
                  * the goblin from the booth would be measuring nothing.
+                 *
+                 * **Zero since 2026-08-02**, and getting there is what the
+                 * `oploc` eviction was. The number went 1 -> 20 when the ladders
+                 * landed and 20 -> 97 when the 78 bank booths did, because every
+                 * one of those scripts was taking a verb `interaction_engine_loc`
+                 * still answered; deleting that function took all 97 out at once,
+                 * since the engine now claims no loc verb to shadow. What is left
+                 * to shadow is "Attack" on an npc and "Wear"/"Wield"/"Drop" on a
+                 * held obj, and nothing in the tree binds over those.
+                 *
+                 * Zero is a weaker pin than 20 was — it cannot tell "nothing
+                 * shadows" from "the report broke" — so the npc half of
+                 * `mock230_world_engine_claimed_verb` is asserted directly above
+                 * and is what keeps the predicate honest. The number stays
+                 * asserted because the *next* thing to shadow a verb should have
+                 * to say why, and a review list that grew silently is how this
+                 * one got to 97 in the first place.
                  */
-                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 1,
-                               "exactly one script should shadow an engine verb without "
-                               "re-issuing it ([oploc2,bankbooth], which opens the bank itself). "
-                               "If this moved, read the new list and say why each is right");
+                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 0,
+                               "nothing should shadow an engine verb now that the loc family "
+                               "is content — if this moved, read the new list and say why "
+                               "each entry is right");
             }
 
             SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");

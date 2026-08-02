@@ -49,6 +49,8 @@
  * here — a map surface never has hundreds resident. */
 #define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
 #define CACHE_PROVIDER_DBINDEX_CAPACITY 256
+/* One record per table; cache.osrs239 has 247 of them. */
+#define CACHE_PROVIDER_DBTABLE_CAPACITY 256
 
 /*
  * `last_used` is the LRU clock for the two caches that grow without bound over
@@ -204,6 +206,12 @@ struct MapEntry_ProviderDbRow
     struct RSCache_Dat2ConfigDbRow* row;
 };
 
+struct MapEntry_ProviderDbTable
+{
+    int id;
+    struct RSCache_Dat2ConfigDbTable* table;
+};
+
 struct MapEntry_ProviderDbIndex
 {
     int id;
@@ -357,6 +365,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderMapElement), CACHE_PROVIDER_MAPELEMENT_CAPACITY);
     provider->dbrow_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderDbRow), CACHE_PROVIDER_DBROW_CAPACITY);
+    provider->dbtable_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbTable), CACHE_PROVIDER_DBTABLE_CAPACITY);
     provider->dbindex_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderDbIndex), CACHE_PROVIDER_DBINDEX_CAPACITY);
     provider->worldmap_geography_cache = cache_provider_hmap_new(
@@ -390,6 +400,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_TexturesCleanup(provider);
     CacheProvider_MapElementsCleanup(provider);
     CacheProvider_DbRowsCleanup(provider);
+    CacheProvider_DbTablesCleanup(provider);
     CacheProvider_DbTableIndexesCleanup(provider);
 
     ToriRS_WorldMapAreasFree(provider->worldmap_areas);
@@ -441,6 +452,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->mapelement_cache = NULL;
     cache_provider_hmap_free(provider->dbrow_cache);
     provider->dbrow_cache = NULL;
+    cache_provider_hmap_free(provider->dbtable_cache);
+    provider->dbtable_cache = NULL;
     cache_provider_hmap_free(provider->dbindex_cache);
     provider->dbindex_cache = NULL;
 }
@@ -1121,6 +1134,73 @@ CacheProvider_DbRowsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->dbrow_cache);
     provider->dbrow_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderDbRow), CACHE_PROVIDER_DBROW_CAPACITY);
+}
+
+void
+CacheProvider_DbTableAdd(
+    struct CacheProvider* provider,
+    int table_id,
+    struct RSCache_Dat2ConfigDbTable* table)
+{
+    struct MapEntry_ProviderDbTable* entry;
+
+    assert(provider);
+    assert(table);
+
+    cache_provider_hmap_prepare_insert(&provider->dbtable_cache);
+    entry = (struct MapEntry_ProviderDbTable*)hmap_search(
+        provider->dbtable_cache, &table_id, HMAP_INSERT);
+    assert(entry && "DbTable must be inserted into hmap");
+
+    entry->id = table_id;
+    entry->table = table;
+}
+
+struct RSCache_Dat2ConfigDbTable*
+CacheProvider_DbTableGet(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    struct MapEntry_ProviderDbTable* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderDbTable*)hmap_search(
+        provider->dbtable_cache, &table_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->table;
+}
+
+bool
+CacheProvider_DbTableHas(
+    struct CacheProvider* provider,
+    int table_id)
+{
+    return CacheProvider_DbTableGet(provider, table_id) != NULL;
+}
+
+void
+CacheProvider_DbTablesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderDbTable* entry;
+
+    assert(provider);
+    if( !provider->dbtable_cache )
+        return;
+
+    iter = hmap_iter_new(provider->dbtable_cache);
+    while( (entry = (struct MapEntry_ProviderDbTable*)hmap_iter_next(iter)) )
+    {
+        if( entry->table )
+            ToriRS_DbTableFree(entry->table);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->dbtable_cache);
+    provider->dbtable_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderDbTable), CACHE_PROVIDER_DBTABLE_CAPACITY);
 }
 
 void

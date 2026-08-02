@@ -121,8 +121,8 @@ Interpretation rules:
 - If the trigger fires but there is no script, the reference's answer is the
   `_` wildcard script, not a C fallback — and that is now the engine's answer
   too (`osrs230_mockserver.md` §3.18). A trigger with no script does nothing;
-  the C behaviours that still stand in are enumerated and counted (six today,
-  down from seven — `ai_queue3` moved 2026-08-01).
+  the C behaviours that still stand in are enumerated and counted (five today,
+  down from seven — `ai_queue3` moved 2026-08-01, `oploc` 2026-08-02).
 
 ### 2.3 Where LostCity actually puts things
 
@@ -172,6 +172,7 @@ Any "yes" means write content instead of engine code:
    names scripts outside the table.)
 6. Are you about to write C that runs "when content binds nothing"? → it is a
    row in `enum Mock230Fallback` or it does not exist. That list is four long,
+   row in `enum Mock230Fallback` or it does not exist. That list is five long,
    each row names its blocker, and the selftest pins the count: it shrinks as
    the opcode surface widens (§2.5), and adding to it is not a choice a content
    port gets to make. See `osrs230_mockserver.md` §3.18.
@@ -251,6 +252,36 @@ callers anywhere** — persistence has been dead code since it was written, so
   `::dropslot` already migrated to `[debugproc]`s — the `::equip` C branch went
   with `equip_from_slot`; the rest follow the same pattern) — **still open, and
   the only trivial one left**
+- ~~the loc category rung~~ — **landed 2026-08-02**. Not a trivial move (it is
+  Phase 2 surface, not Phase 3 eviction) but it belongs on this list because it
+  is the precondition the `oploc` row was measured against: `interaction_category`
+  answers for locs now, `pack/category.pack` covers all three record types, and
+  `tools/port_category_crawl.py --domain loc` is the crawl. 91 reference loc
+  categories → 11 minted, 2 held back as `broader`, 2 `allocated`, 3 `split`,
+  73 `orphan`.
+- ~~the doors and the ladders/stairs~~ — **content as of 2026-08-02**.
+  `doors/scripts/{doors,door_procs}.rs2` (the reference verbatim: category-keyed,
+  `loc_del` + `loc_add`, so the door swings to the next tile) and
+  `ladders_stairs/scripts/{ladders,climb_shared}.rs2` (four allocated categories
+  over 1,428 of the cache's 1,445 climb-verb records). Three engine defects fell
+  out of the move and all three are the same
+  shape, an argument pair every caller happened to pass as equal numbers:
+  `LOC_ADD` popped angle/shape transposed, `MOVECOORD` added `$z` to the plane,
+  and `P_TELEPORT` did no plane-change bookkeeping at all. A fourth was a content
+  *surface* gap: a `.loc` overlay's `param=` was readable only from C, so
+  `loc_param(next_loc_stage)` answered the declared default.
+- ~~the bank booths, and with them the `oploc` row~~ — **evicted 2026-08-02**.
+  78 loc records in this cache put "Bank" on a menu op and content bound one;
+  `tools/bank_import.py` generates the other 77 as `[oploc<n>,<name>] ~openbank;`
+  into `interface_bank/scripts/bank_booths.rs2`, `--check`ed by `test-port`.
+  `mock230_bank_open` is untouched and stays engine — what moved is which locs
+  reach it. Names and not a category because the three cache categories the
+  booths carry have 63/44/1 members of which 58/11/1 say "Bank" (one of the
+  strays is the Grand Exchange wall), and because the reference binds every
+  booth by name too. `interaction_engine_loc` + `climb` deleted, count 6 → 5.
+- most of the `::` cheat ladder — `mock230_world.c:2388-2683` (`::pray`
+  already migrated to a `[debugproc]`; the rest follow the same pattern) —
+  **still open, and the only trivial one left**
 
 **Blocked moves**, re-measured 2026-08-01 — blocked on the ServerScript opcode
 surface, not on willingness. The order is deliberate: *widen the opcode surface
@@ -283,9 +314,12 @@ landed in other lanes, one wrong from the start:
 - `ai_queue3` — "drop tables need npc categories": categories, the category rung
   and 69 drop-table files had all landed. Nothing blocked it. **Row deleted.**
 - `oploc` — "needs `loc_*` and a per-loc destination": the whole `loc_*` family
-  and `p_teleport` landed. The real gate is that `[oploc<n>]` binds no active
-  loc — `SSVM_ENT_LOC` is written only by `loc_find` and the iterator, so
-  `loc_coord` in a door script aborts. Zero new opcodes.
+  and `p_teleport` landed. The real gate was that `[oploc<n>]` binds no active
+  loc — `SSVM_ENT_LOC` was written only by `loc_find` and the iterator, so
+  `loc_coord` in a door script aborted. **All of it is cleared as of
+  2026-08-02** (the active-loc binding, the category rung, `LOC_CATEGORY` /
+  `LC_CATEGORY` / `LC_DEBUGNAME` / `P_OPLOC`) and the row is still there, because
+  the 118 lines of C have not moved. `blocked_ops` is empty for the first time.
 - `opobj` — "no `obj_take`/`inv_add` opcode pair": not a pair and not opcodes
   first. `SSVM_ENT_OBJ` had zero writers *and zero readers* tree-wide, so no obj
   opcode would have had a subject. **Closed 2026-08-02**, both halves: the
@@ -327,6 +361,16 @@ reference's `[oploc1,_door_closed]` needs a loc category rung, and the real loc
 category field needs `dat2_config_loc.c` to stop discarding config opcode 61,
 an rscache write-path change. That is the expensive half and it was invisible
 from the old string.
+~~The cheapest next unlock is therefore **structural, not an opcode**: give
+`[oploc<n>]` an active loc.~~ — **done 2026-08-02**, together with the expensive
+half it was supposed to only partly unblock. `dat2_config_loc.c` keeps config
+opcode 61 now; `mock230_loc_category` reads it. One correction the estimate got
+wrong and it is worth carrying forward: the rscache change was **not** what
+landed the doors. Not one of this cache's 776 door records states a category, so
+`[oploc1,_door_closed]` needed the `category` namespace to be allowed to *grow*
+(§2.4 item 4) — an allocation base, two authored ids, and a crawler that reports
+the difference. The cache field bought the other half of the row: 8,407
+categorised loc records, including the 63 the cache files as bank booths.
 
 Each surviving string is now written to be **checkable in one command** — a
 symbol as `ss_opcode.h` spells it, a `file:line`, a `wc -l`, a reference path —
@@ -548,7 +592,14 @@ The traps, all documented in the triage:
   wrong: the cache states one on **9,149 of its 16,292 npc records** and the
   decoder has always read it. It was unread. 18 names are crawled now
   (`tools/port_category_crawl.py`, `port/categories.map`); the rest are split,
-  colliding, or need an id `content.ini` cannot yet allocate. This gated
+  colliding, or need an id nobody had allocated. **The namespace can be allocated
+  into as of 2026-08-02** (base 8192, `content/content_register.c`) and **`loc`
+  joined it in the same pass** — config opcode 61, which the linked decoder had
+  been discarding, is on 8,407 of the 62,194 loc records;
+  `--domain loc` crawls them into `port/categories_loc.map`, 91 reference
+  categories, 11 minted off this cache's own records and 2 `allocated` (the door
+  pair). An allocated id must still be *stated* by an authored config block
+  before a trigger bound to it can fire, and `mock230_pack` is what says so. This gated
   `drop tables/`, which landed 2026-08-01 (triage §10.1) — and the way it landed
   is the pattern for the next slice that hits this: **six of its sixteen
   category subjects are bound as categories and the other ten are expanded to
@@ -880,7 +931,30 @@ nothing until one of them is gone, which is exactly why "verify, then delete"
 cannot be reordered into "delete, then verify" and cannot be shortened to
 "verify" either.
 
-**The result worth reading before you plan any of the six is not the deletion.**
+**Status 2026-08-02: 6 → 5.** `oploc` evicted; `interaction_engine_loc` (84
+lines) and `climb` (34) deleted. Five remain: `opnpc`, `opobj`, `opheld`,
+`inv_button`, `if_button`.
+
+It took three stages and the two intermediate end states are the part worth
+copying, because neither of them was "the row goes". Stage 1 discharged every
+`blocked_ops` entry — the `SSVM_ENT_LOC` binding, the loc category rung,
+`LOC_CATEGORY`/`LC_CATEGORY`/`LC_DEBUGNAME`/`P_OPLOC` — and **kept the row**,
+because a blocker being cleared does not move any behaviour. Stage 2 landed the
+doors and the ladders and **kept the row again**, because a third behaviour was
+uncovered. Stage 3 found what that was, and it was not engine-shaped at all: 78
+loc records in this cache put "Bank" on a menu op and content bound one of them,
+so the `strcmp` in C was reaching 77 booths for free and nothing in the suite
+would have gone red on losing them. The eviction is a generated list
+(`tools/bank_import.py`), not an opcode. **A row can be one unglamorous list
+away from going, and that list is invisible from the row's own text.**
+
+The one measured behaviour change: the C's door branch never read an op number,
+so it also answered `Pick-lock`, `Repair`, `Force`, `Remove`, `Attack`, `Search`
+and `Quick-open` by opening the door — 54 (record, op) pairs on 26 records, all
+of which now get `Player.defaultOp`'s message, which is what the reference gives
+them since it binds none of those verbs either.
+
+**The result worth reading before you plan any of the five is not the deletion.**
 The audit that preceded it re-measured all seven blockers and found **four
 naming something false or misdirected** — `ai_queue3` (categories, the rung and
 69 drop-table files had all landed, so nothing blocked it), `oploc` ("needs
@@ -914,11 +988,17 @@ and it unblocks the `doors/` and `ladders_stairs/` ports; (2) ~~wire
 `SSVM_ENT_OBJ` end to end, then the `SS_OP_OBJ_*`, then
 `player/scripts/pickup.rs2`~~ — **done 2026-08-02**, five opcodes not six
 (`OBJ_FIND` was never needed) and the C is still there awaiting deletion; (3) `opheld`'s eight opcodes, then `equip.rs2` +
+**Order for the remaining five, by cost — measured, and it is not the order the
+old blockers implied.** ~~(1) bind `SSVM_ENT_LOC` on the
+`[oploc<n>]`/`[aploc<n>]` dispatch~~ — **done 2026-08-02**, with the category
+rung and `P_OPLOC` beside it; the row itself went the same day. (2) wire
+`SSVM_ENT_OBJ` end to end, then the six `SS_OP_OBJ_*`, then
+`player/scripts/pickup.rs2`; (3) `opheld`'s eight opcodes, then `equip.rs2` +
 `drop.rs2`; (4) a single `last_verb` reader, which unblocks **both** bank rows'
-addressing; (5) `oploc`'s remaining half — a real loc category, which needs
-`dat2_config_loc.c` to stop discarding config opcode 61 (an rscache write-path
-change, the one genuinely expensive item); (6) `opnpc`, which needs the
-`player_combat` closure ported and nothing less.
+addressing; ~~(5) `oploc`'s remaining half — a real loc category~~ — **done in the same
+pass**: `dat2_config_loc.c` keeps opcode 61 and `cachepack` round-trips it. It
+was the expensive item and it was not the one that landed the doors; see §2.5.
+(6) `opnpc`, which needs the `player_combat` closure ported and nothing less.
 
 **One shortcut is available and is a trap.** `[opnpc2,_] p_opnpc(2)` would
 delete the `opnpc` row today with no new opcodes — and move nothing, because

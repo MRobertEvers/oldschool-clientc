@@ -32,6 +32,12 @@ struct PlatformSDL2
      * canvas until something (the window-mode op, or TORIRS_SIM_RESIZE) says
      * otherwise. */
     bool canvas_follows_window;
+    /* The window size resizable mode was last in, remembered across a trip
+     * through fixed mode — entering fixed snaps the window down to the fixed
+     * frame, which would otherwise destroy the size the user chose. 0 = never
+     * been resizable-and-larger, so there is nothing to go back to. */
+    int resizable_w;
+    int resizable_h;
 };
 
 static enum LibToriRS_KeyCode
@@ -622,8 +628,10 @@ PlatformSDL2_SetCanvasFollowsWindow(
 {
     int window_w = 0;
     int window_h = 0;
+    bool was_following;
 
     assert(platform);
+    was_following = platform->canvas_follows_window;
     platform->canvas_follows_window = follow;
     if( !platform->window )
         return;
@@ -638,10 +646,30 @@ PlatformSDL2_SetCanvasFollowsWindow(
     {
         /* Fixed mode is the floor-sized frame at 1:1. Snapping the window is
          * what makes "fixed" observable; the SIZE_CHANGED it raises is ignored
-         * because the follow gate is already clear. */
+         * because the follow gate is already clear. Remember the size first:
+         * the snap is the one window change the user did not ask for, so
+         * coming back out of fixed has to be able to undo it. */
+        SDL_GetWindowSize(platform->window, &window_w, &window_h);
+        if( was_following && window_w > min_w && window_h > min_h )
+        {
+            platform->resizable_w = window_w;
+            platform->resizable_h = window_h;
+        }
         if( min_w > 0 && min_h > 0 )
             SDL_SetWindowSize(platform->window, min_w, min_h);
         return;
+    }
+
+    /* Back to resizable: restore the size fixed mode took away, so a round
+     * trip through the Display dropdown is a no-op rather than a shrink. The
+     * SIZE_CHANGED this raises is redundant with the push below (App_SetCanvasSize
+     * no-ops on an unchanged size) but harmless. */
+    if( !was_following && platform->resizable_w > 0 && platform->resizable_h > 0 )
+    {
+        SDL_SetWindowSize(
+            platform->window, platform->resizable_w, platform->resizable_h);
+        platform->resizable_w = 0;
+        platform->resizable_h = 0;
     }
 
     SDL_GetWindowSize(platform->window, &window_w, &window_h);

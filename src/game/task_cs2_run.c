@@ -78,6 +78,7 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_OBJALL,
     TASK_CS2_YIELD_DBROW,
     TASK_CS2_YIELD_DBINDEX,
+    TASK_CS2_YIELD_DBTABLE,
     TASK_CS2_YIELD_ABORT,
 };
 
@@ -398,6 +399,8 @@ task_cs2_plan_db(struct Task_CS2Run* self)
         self->yield_plan = TASK_CS2_YIELD_DBROW;
     else if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_INDEX )
         self->yield_plan = TASK_CS2_YIELD_DBINDEX;
+    else if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_TABLE )
+        self->yield_plan = TASK_CS2_YIELD_DBTABLE;
     else
         self->yield_plan = TASK_CS2_YIELD_NONE;
 }
@@ -1056,6 +1059,10 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_DBINDEX )
         {
             TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_DBTABLE )
+        {
+            TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {

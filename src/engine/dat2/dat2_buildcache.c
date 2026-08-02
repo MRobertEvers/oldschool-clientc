@@ -268,6 +268,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_StructLoad = CreateTask_Dat2StructLoad,
     .Task_ParamLoad = CreateTask_Dat2ParamLoad,
     .Task_DbRowLoad = CreateTask_Dat2DbRowLoad,
+    .Task_DbTableLoad = CreateTask_Dat2DbTableLoad,
     .Task_DbTableIndexLoad = CreateTask_Dat2DbTableIndexLoad,
     .Task_ComponentLoad = CreateTask_Dat2ComponentLoad,
     .Task_WorldMapLoad = CreateTask_Dat2WorldMapLoad,

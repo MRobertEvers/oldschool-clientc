@@ -60,6 +60,7 @@
  */
 
 #include "mock230.h"
+#include "mock230_content.h"
 #include "mock230_paramtable.h"
 
 #include <rscache.h>
@@ -88,6 +89,27 @@ struct LocSizeRow
     uint8_t size_z;
 };
 
+/**
+ * (id -> category), ascending by id. Only the records that state one.
+ *
+ * Config opcode 61, which the linked decoder threw away until 2026-08-02 — see
+ * `RSCache_Dat2ConfigLoc.category`. 8,407 of cache.osrs239's 62,194 loc records
+ * carry one and they hold 712 distinct ids, so a sparse (id, value) table costs
+ * 8,407 * 8 = 67 KB against 249 KB for a flat array over the id space, and the
+ * binary search the names and footprints already use finds it.
+ *
+ * `int32_t`, not a narrower type sized to what the cache happens to hold (max
+ * 2474): the id space is shared with npc and obj, `content.ini` gives the
+ * namespace a `server_base` of 8192, and an authored loc block can carry one of
+ * those — `door_closed` is 8192. Sizing to the cache would make the *authored*
+ * half the case that overflows.
+ */
+struct LocCategoryRow
+{
+    int32_t id;
+    int32_t category;
+};
+
 static char* g_name_blob;
 static size_t g_name_blob_len;
 static size_t g_name_blob_cap;
@@ -98,6 +120,10 @@ static int g_name_cap;
 static struct LocSizeRow* g_sizes;
 static int g_size_count;
 static int g_size_cap;
+
+static struct LocCategoryRow* g_categories;
+static int g_category_count;
+static int g_category_cap;
 
 /** Bit per loc id: 1 when the config group holds a record for it. */
 static uint8_t* g_known;
@@ -117,6 +143,15 @@ compare_size_row(const void* a, const void* b)
 {
     int32_t left = ((const struct LocSizeRow*)a)->id;
     int32_t right = ((const struct LocSizeRow*)b)->id;
+
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+static int
+compare_category_row(const void* a, const void* b)
+{
+    int32_t left = ((const struct LocCategoryRow*)a)->id;
+    int32_t right = ((const struct LocCategoryRow*)b)->id;
 
     return left < right ? -1 : (left > right ? 1 : 0);
 }
@@ -189,6 +224,26 @@ add_size(
     g_sizes[g_size_count].size_x = (uint8_t)size_x;
     g_sizes[g_size_count].size_z = (uint8_t)size_z;
     g_size_count++;
+}
+
+static void
+add_category(
+    int loc_id,
+    int category)
+{
+    if( g_category_count == g_category_cap )
+    {
+        int want = g_category_cap ? g_category_cap * 2 : 1024;
+        struct LocCategoryRow* grown = realloc(g_categories, (size_t)want * sizeof(*grown));
+
+        if( !grown )
+            return;
+        g_categories = grown;
+        g_category_cap = want;
+    }
+    g_categories[g_category_count].id = loc_id;
+    g_categories[g_category_count].category = category;
+    g_category_count++;
 }
 
 static void
@@ -288,6 +343,111 @@ mock230_loc_footprint(
     }
 }
 
+/** The cache's own opcode-61 value for this id, or -1. Sorted, so binary search. */
+static int
+cache_category(int loc_id)
+{
+    int low = 0;
+    int high = g_category_count - 1;
+
+    if( !g_categories )
+        return -1;
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_categories[mid].id == loc_id )
+            return g_categories[mid].category;
+        if( g_categories[mid].id < loc_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return -1;
+}
+
+int
+mock230_loc_category(int loc_id)
+{
+    const struct Mock230LocDef* def;
+
+    if( loc_id < 0 )
+        return -1;
+
+    /*
+     * Rank 1 over rank 0, which is `CONTENT_ARCHITECTURE.md` §3.1's own merge and
+     * the same order `npc_param` follows for the overlay params.
+     *
+     * The loc domain is the first that needs both halves, and the reason is
+     * measured rather than anticipated: LostCity binds doors as a *category*
+     * (`[oploc1,_door_closed]`) and **none of this cache's 776 door records
+     * carries a category at all**. So a cache-only accessor answers -1 for every
+     * record the eviction is proved on, and an overlay-only accessor throws away
+     * the 8,407 records that do state one — including the 58 bank booths under 684
+     * and the 11 bank chests under 237, which is the other half of the same row.
+     */
+    def = mock230_content_loc(loc_id);
+    if( def && def->category > 0 )
+        return def->category;
+
+    /*
+     * Ungated on the name, for the reason `mock230_npc_category` states: 32,161 of
+     * this cache's 62,194 loc records carry no name, and a name gate would hide
+     * exactly the records a category exists to reach as a group.
+     *
+     * `> 0`, so 0 — the decoder's "unstated" — comes back as -1. `pack/category.pack`
+     * reserves 0 and `mock230_pack` refuses to name it, so a category of 0 reaching
+     * `SSVM_ProviderGetByTrigger` could only ever match a script bound to a name
+     * that must not exist.
+     */
+    {
+        int id = cache_category(loc_id);
+
+        return id > 0 ? id : -1;
+    }
+}
+
+int
+mock230_loc_category_members(int category)
+{
+    int members = 0;
+
+    if( category <= 0 )
+        return 0;
+
+    /*
+     * Both halves, and the overlay wins per record — the same rule the accessor
+     * above applies, restated here rather than shared because the two loops run
+     * over different tables. A loc whose authored block moves it out of a cache
+     * category must not be counted under both.
+     */
+    for( int i = 0; i < g_category_count; i++ )
+    {
+        const struct Mock230LocDef* def = mock230_content_loc(g_categories[i].id);
+
+        if( def && def->category > 0 )
+            continue; /* counted by the overlay pass below, under its own id */
+        if( g_categories[i].category == category )
+            members++;
+    }
+    for( int i = 0;; i++ )
+    {
+        const struct Mock230LocDef* def = mock230_content_loc_at(i);
+
+        if( !def )
+            break;
+        if( def->category == category )
+            members++;
+    }
+    return members;
+}
+
+int
+mock230_locinfo_category_count(void)
+{
+    return g_category_count;
+}
+
 int
 mock230_locinfo_count(void)
 {
@@ -298,6 +458,22 @@ int
 mock230_locinfo_param_count(void)
 {
     return g_loc_params.count;
+}
+
+void
+mock230_locinfo_param_overlay(
+    int loc_id,
+    int param_id,
+    int value)
+{
+    if( loc_id < 0 || param_id < 0 )
+        return;
+    mock230_paramtable_set_int(&g_loc_params, loc_id, param_id, value);
+    /* Re-sorted per row, and cheap in the way that matters: the table is already
+     * sorted, so this is qsort's best case. The alternative — a separate "the
+     * overlay is finished" call — is one more thing to forget, and forgetting it
+     * makes every `loc_param` in the tree report "not set". */
+    mock230_paramtable_sort(&g_loc_params);
 }
 
 int
@@ -380,6 +556,8 @@ mock230_locinfo_load(const char* cache_dir)
             add_name(archive->file_ids[i], loc->name);
         if( loc->size_x != 1 || loc->size_z != 1 )
             add_size(archive->file_ids[i], loc->size_x, loc->size_z);
+        if( loc->category > 0 )
+            add_category(archive->file_ids[i], loc->category);
         RSCache_Dat2ConfigLocFree(loc);
     }
 
@@ -398,6 +576,9 @@ mock230_locinfo_load(const char* cache_dir)
         qsort(g_names, (size_t)g_name_count, sizeof(*g_names), compare_name_row);
     if( g_sizes && g_size_count > 1 )
         qsort(g_sizes, (size_t)g_size_count, sizeof(*g_sizes), compare_size_row);
+    if( g_categories && g_category_count > 1 )
+        qsort(g_categories, (size_t)g_category_count, sizeof(*g_categories),
+              compare_category_row);
 
     g_loc_records = archive->file_count;
 
@@ -407,11 +588,12 @@ mock230_locinfo_load(const char* cache_dir)
 
     fprintf(stderr,
             "mock230: loc configs loaded (%d records from %s; %d param rows in %zu bytes, "
-            "%d names in %zu bytes, %d footprints in %zu bytes)\n",
+            "%d names in %zu bytes, %d footprints in %zu bytes, %d categories in %zu bytes)\n",
             g_loc_records, cache_dir, g_loc_params.count,
             mock230_paramtable_bytes(&g_loc_params), g_name_count,
             g_name_blob_len + (size_t)g_name_count * sizeof(struct LocNameRow),
-            g_size_count, (size_t)g_size_count * sizeof(struct LocSizeRow));
+            g_size_count, (size_t)g_size_count * sizeof(struct LocSizeRow),
+            g_category_count, (size_t)g_category_count * sizeof(struct LocCategoryRow));
     return 1;
 }
 
@@ -434,6 +616,11 @@ mock230_locinfo_free(void)
     g_sizes = NULL;
     g_size_count = 0;
     g_size_cap = 0;
+
+    free(g_categories);
+    g_categories = NULL;
+    g_category_count = 0;
+    g_category_cap = 0;
 
     free(g_known);
     g_known = NULL;

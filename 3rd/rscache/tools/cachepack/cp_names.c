@@ -84,6 +84,16 @@ cp_names_load(
             return 0;
         }
     }
+
+    /* The one namespace a config *field* refers to that is not a config type —
+     * see `CP_Names.category`. A tree with no table is not an error:
+     * `lc_pack_load` reports absence by zeroing the struct, and every lookup then
+     * misses and says so at its own call site. */
+    {
+        char path[1200];
+        snprintf(path, sizeof(path), "%s/pack/category.pack", srcdir);
+        lc_pack_load(&names->category, path, "category", 1);
+    }
     return 1;
 }
 
@@ -249,6 +259,7 @@ cp_names_free(struct CP_Names* names)
         lc_pack_free(&names->packs[i]);
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
         lc_pack_free(&names->asset_packs[i]);
+    lc_pack_free(&names->category);
     lc_pack_free(&names->components);
     for( int t = 0; t < names->dbtable_count; t++ )
     {

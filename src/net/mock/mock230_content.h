@@ -558,25 +558,29 @@ mock230_content_enum_by_id(int enum_id);
 /* Loc definitions (doors, gates, stairs)                              */
 /* ------------------------------------------------------------------ */
 
-/*
- * Only doors need a category. Stairs and ladders do not appear here at all:
- * their direction is already in the cache, as the loc's own menu text
- * ("Climb-up", "Climb-down"), so the engine reads it there rather than making
- * content restate it. A config that repeats what the cache says is a config
- * that can disagree with it.
- */
-enum Mock230LocCategory
-{
-    MOCK230_LOC_CATEGORY_NONE = 0,
-    MOCK230_LOC_CATEGORY_DOOR_CLOSED,
-    MOCK230_LOC_CATEGORY_DOOR_OPENED,
-};
-
 struct Mock230LocDef
 {
     int loc_id;
     const char* symbol;
-    enum Mock230LocCategory category;
+    /**
+     * A `category` id, resolved through `pack/category.pack`, or -1.
+     *
+     * This was a private two-valued door enum (`MOCK230_LOC_CATEGORY_DOOR_CLOSED`
+     * / `_OPENED`) until 2026-08-02, and the enum was wrong in the way that is
+     * worst: it *aliased* onto the real namespace. Its values were 1 and 2, which
+     * are `weapon_staff` and — nothing yet, but the next crawl could name it — so
+     * handing it to `SSVM_ProviderGetByTrigger` as a category would have bound
+     * every door in the game to a weapon's scripts. `interaction_category` in
+     * `mock230_world.c` answered -1 for locs rather than risk it, and that -1 was
+     * the whole reason `[oploc1,_door_closed]` could not bind.
+     *
+     * It is one id space now: the cache's own opcode 61 for the 8,407 records
+     * that state one, and ids from `content.ini`'s `server_base` for concepts the
+     * cache does not group (`door_closed` is 8192). Read it through
+     * `mock230_loc_category`, which applies the overlay-then-cache order; this
+     * field is only the overlay's half.
+     */
+    int category;
     /** `param=next_loc_stage,<symbol>`: what this loc becomes when used. -1
      *  when it has none, which makes the op a no-op rather than a crash. */
     int next_loc_stage;
@@ -584,6 +588,12 @@ struct Mock230LocDef
 
 const struct Mock230LocDef*
 mock230_content_loc(int loc_id);
+
+/** The authored loc defs by position, NULL past the end. For the callers that
+ *  have to walk every one of them — `mock230_loc_category_members` counts the
+ *  overlay's rows the way it counts the cache's. */
+const struct Mock230LocDef*
+mock230_content_loc_at(int index);
 
 /* ------------------------------------------------------------------ */
 /* Map spawns (content/maps/m<x>_<z>.jm2)                              */

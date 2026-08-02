@@ -3528,7 +3528,42 @@ db_index_or_yield(
     return NULL;
 }
 
-/* Push the zero value for a field type onto that type's stack. */
+static struct RSCache_Dat2ConfigDbTable*
+db_table_or_yield(
+    struct RS_CS2Host* host,
+    int opcode,
+    int table_id,
+    bool* yielded,
+    int* out_code)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct RSCache_Dat2ConfigDbTable* table =
+        (provider && table_id >= 0) ? CacheProvider_DbTableGet(provider, table_id) : NULL;
+
+    *yielded = false;
+    if( table || table_id < 0 )
+        return table;
+    if( !rs_cs2_await_spent(host, CS2VM_HOST_REQUEST_DB, table_id, CS2VM_DB_LOAD_TABLE) )
+    {
+        *yielded = true;
+        *out_code = db_yield_load(host, opcode, CS2VM_DB_LOAD_TABLE, table_id);
+    }
+    return NULL;
+}
+
+/*
+ * Push the "no value" value for a field type onto that type's stack.
+ *
+ * -1, not 0. Measured, because it is the difference between an icon and a blank
+ * row: across the 9,368 decompiled clientscripts, every guard on a db_getfield
+ * of a column that carries no table default compares against -1 — 44 for
+ * `dbrow`, 18 for `obj`, 7 each for `stat` and `loc`, 6 each for `graphic` and
+ * plain `int`, and so on down. Zero appears only as `> 0` / `!= 0` guards, which
+ * a real value satisfies too and so discriminate nothing.
+ *
+ * Strings keep the empty string: the tables that declare a string default all
+ * declare it empty (`defaults=2:0:` on skill_features' `text`).
+ */
 static int
 db_push_default(
     struct CS2VM2_Thread* vm,
@@ -3536,35 +3571,49 @@ db_push_default(
 {
     if( RSCache_DbTypeIsString(type) )
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
-    return CS2VM2_PushInt(vm, 0);
+    return CS2VM2_PushInt(vm, -1);
+}
+
+/* The column record that states a column's shape: the row's when the row sets
+ * that column, otherwise the table's. Only the table lists a column the row
+ * omits, and only the table carries default values. NULL when neither has it. */
+static struct RSCache_DbColumn const*
+db_column_of(
+    struct RSCache_Dat2ConfigDbRow const* row,
+    struct RSCache_Dat2ConfigDbTable const* table,
+    int col_id)
+{
+    if( col_id < 0 )
+        return NULL;
+    if( row && col_id < row->column_count && row->columns[col_id].present )
+        return &row->columns[col_id];
+    if( table && col_id < table->column_count && table->columns[col_id].present )
+        return &table->columns[col_id];
+    return NULL;
 }
 
 /*
- * Answer a DB_GETFIELD whose row / column / index resolved to nothing.
+ * Answer a DB_GETFIELD whose row / column / index resolved to no value.
  *
  * The opcode always yields a value, so returning without pushing pops the
  * caller's three arguments and underflows whatever runs next — the failure then
  * surfaces at an unrelated opcode (script 4029 read dbcolumn 48 off a row absent
  * from our partial cache and died on the following BRANCH_EQUALS).
  *
- * When the column is known we can still answer in the right shape: honour its
- * arity and per-field types, since a whole-tuple read (DB_TUPLE_WHOLE) pushes
- * one value per component. When the column itself is missing there is no type
- * information to work from, so all we can do is answer a single integer.
+ * The *arity* matters just as much as the value, and it is the half that was
+ * missing: a whole-tuple read pushes one value per field, so a 5-field column
+ * answered with one integer shifts every local the assignment writes. Only the
+ * DBTABLE lists the fields of a column its rows omit, which is why `col` here
+ * has to be able to come from the table (see db_column_of).
  */
 static int
 db_push_missing(
     struct CS2VM2_Thread* vm,
-    struct RSCache_Dat2ConfigDbRow const* row,
-    int col_id,
+    struct RSCache_DbColumn const* col,
     int tuple)
 {
-    struct RSCache_DbColumn const* col = NULL;
-
-    if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
-        col = &row->columns[col_id];
     if( !col || col->type_count <= 0 || !col->types )
-        return CS2VM2_PushInt(vm, 0);
+        return CS2VM2_PushInt(vm, -1);
 
     if( tuple >= 0 && tuple < col->type_count )
         return db_push_default(vm, col->types[tuple]);
@@ -3691,6 +3740,8 @@ exec_db(
     {
         int column, row_id, table, col_id, tuple;
         struct RSCache_Dat2ConfigDbRow* row;
+        struct RSCache_Dat2ConfigDbTable* dbtable;
+        struct RSCache_DbColumn const* col;
         if( CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &row_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -3700,14 +3751,24 @@ exec_db(
         db_unpack_column(column, &table, &col_id, &tuple);
         if( row && col_id >= 0 && col_id < row->column_count && row->columns[col_id].present )
             return CS2VM2_PushInt(vm, row->columns[col_id].tuple_count);
-        return CS2VM2_PushInt(vm, 0);
+        /* Column absent from the row: the table's default block stands in for
+         * it, tuples and all — script 9343 walks `skill` this way and guards the
+         * first field against 0, which is exactly that column's default.
+         * Row-present only, for the ping-pong reason spelled out in
+         * DB_GETFIELD below. */
+        dbtable = row ? db_table_or_yield(host, opcode, table, &yielded, &code) : NULL;
+        if( yielded )
+            return code;
+        col = db_column_of(row, dbtable, col_id);
+        return CS2VM2_PushInt(vm, col ? col->tuple_count : 0);
     }
 
     case CS2_OP_DB_GETFIELD:
     {
         int index, column, row_id, table, col_id, tuple;
         struct RSCache_Dat2ConfigDbRow* row;
-        struct RSCache_DbColumn* col;
+        struct RSCache_Dat2ConfigDbTable* dbtable;
+        struct RSCache_DbColumn const* col;
         int arity, base;
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK ||
             CS2VM2_PopInt(vm, &column) != CS2VM_EXECNO_OK ||
@@ -3717,17 +3778,46 @@ exec_db(
         if( yielded )
             return code;
         db_unpack_column(column, &table, &col_id, &tuple);
-        /* Missing row/column/index still has to honour the stack contract: this op
+        /* A DBROW lists only the columns it sets, so a column it omits falls
+         * back to the DBTABLE: its default value block if it declares one, and
+         * its field types either way. Load the table before deciding — it is the
+         * only record that knows how many values this read owes the stack.
+         *
+         * Missing row/column/index still has to honour the stack contract: this op
          * always yields a value, so the caller's next opcode underflows if we pop
          * three and push nothing (script 4029 read dbcolumn 48 off a row absent
-         * from our partial cache and aborted on the following BRANCH_EQUALS).
-         * Answer the default, matching DB_GETFIELDCOUNT's not-found path. */
-        if( !row || col_id < 0 || col_id >= row->column_count || !row->columns[col_id].present )
-            return db_push_missing(vm, row, col_id, tuple);
+         * from our partial cache and aborted on the following BRANCH_EQUALS). */
+        if( !row || col_id < 0 || col_id >= row->column_count ||
+            !row->columns[col_id].present )
+        {
+            /* Only chase the table when the row itself resolved. Yielding twice
+             * from one opcode is safe in that order (the row is resident on the
+             * retry, so its lookup cannot yield again), but a row that is
+             * genuinely absent would re-arm its own yield each time the table
+             * yield overwrote the single `awaited` slot, and the two would
+             * ping-pong forever. */
+            dbtable = row ? db_table_or_yield(host, opcode, table, &yielded, &code) : NULL;
+            if( yielded )
+                return code;
+            col = db_column_of(row, dbtable, col_id);
+            arity = col ? col->type_count : 0;
+            if( !col || arity <= 0 || index < 0 || index >= col->tuple_count || !col->values )
+                return db_push_missing(vm, col, tuple);
+            base = index * arity;
+            if( tuple >= 0 && tuple < arity )
+                return db_push_value(vm, &col->values[base + tuple]);
+            for( int i = 0; i < arity; i++ )
+            {
+                int rc = db_push_value(vm, &col->values[base + i]);
+                if( rc != CS2VM_EXECNO_OK )
+                    return rc;
+            }
+            return CS2VM_EXECNO_OK;
+        }
         col = &row->columns[col_id];
         arity = col->type_count;
         if( index < 0 || index >= col->tuple_count || arity <= 0 )
-            return db_push_missing(vm, row, col_id, tuple);
+            return db_push_missing(vm, col, tuple);
         base = index * arity;
         if( tuple >= 0 && tuple < arity )
             return db_push_value(vm, &col->values[base + tuple]);

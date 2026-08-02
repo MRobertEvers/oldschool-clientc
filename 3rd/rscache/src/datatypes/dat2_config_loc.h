@@ -117,6 +117,20 @@ struct RSCache_Dat2ConfigLoc
 
     // Map function id is the sprite that appears on the world map.
     int map_function_id;
+    /**
+     * Opcode 61: the record's category, the same id space `dat2_config_npc.c`
+     * decodes at opcode 18 and `dat2_config_obj.c` at 94. 0 is "no category
+     * stated" and is the decoder's default, exactly as it is for the other two.
+     *
+     * It was `g2(buffer); // Skip unsigned short` until 2026-08-02. That it is a
+     * *category* rather than some other u16 was not taken on faith: the ids
+     * group semantically (684 is 58 records every one of which is a bank booth,
+     * 237 is 11 bank chests) and they share a space with the other two domains
+     * (the max across npc/obj/loc in cache.osrs239 is 2504/2506/2474, and 9 ids
+     * carry both npc and loc members). `tools/loc_category_probe` prints the
+     * histogram that argument is made from.
+     */
+    int category;
     int mirrored;
     int shadowed;
 
@@ -285,7 +299,7 @@ RSCache_Dat2ConfigLocNewDecodeProfile(
  *
  * Fields that cannot be reproduced, so such records round-trip semantically but not
  * byte-exactly:
- *   - roughly 25 opcodes the decoder consumes without storing (25, 44, 45, 61, 69,
+ *   - roughly 25 opcodes the decoder consumes without storing (25, 44, 45, 69,
  *     88/90/91/96..105, 163..191, and the boolean-flag block);
  *   - actions 0..4, which the decoder accepts through either opcode 30+i or 150+i
  *     and stores in the same slots — this writes the 30-range;
