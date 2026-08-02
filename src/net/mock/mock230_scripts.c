@@ -2455,9 +2455,11 @@ mock230_script_command(
             snprintf(line, sizeof(line), "%s: %s", mock230_npcinfo(npc->type)->name, text);
             mock230_send_message(srv->active_player, line);
         }
-        /* Facing the player is real and does render, so keep it. */
-        npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
-        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+        /* Facing the player is real and does render, so keep it — by the pid of
+         * the player the script is running for, which is the same player the
+         * line above was addressed to. */
+        if( srv->active_player )
+            mock230_npc_face_player(npc, srv->active_player->pid);
         return 1;
     }
 

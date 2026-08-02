@@ -1272,14 +1272,15 @@ test-content-register: $(OBJ_DIR)
 # by two byte buffers, no socket and no thread. Links the server core (no
 # main()) against the client's net stack. If this hangs, the login handshake has
 # gone back to blocking — see net/mock/test/embed_test.c.
-# net_out.c and pkt_player_info.c are here because the two-client half of the
-# test drives the *client's* encoder for a ground click and the client's own
-# reader for PLAYER_INFO — asserting on the server's own view of its stream
-# would be asserting the encoder against itself.
+# net_out.c, pkt_player_info.c and pkt_npc_info.c are here because the
+# two-client half of the test drives the *client's* encoder for a ground click
+# and the client's own readers for PLAYER_INFO and NPC_INFO — asserting on the
+# server's own view of its stream would be asserting the encoder against itself.
 test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
 		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
 		net/net_out.c net/bitbuffer.c net/rev/packets/pkt_player_info.c \
+		net/rev/packets/pkt_npc_info.c \
 		net/rev/packets/pkt_player_appearance.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test

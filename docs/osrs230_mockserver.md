@@ -161,6 +161,19 @@ compatible with a real OldSchool 230 server.** Everything else (`IF_OPENSUB`,
 `IF_SETEVENTS`, `UPDATE_INV_FULL`/`_PARTIAL`, `REBUILD_NORMAL`) uses the real
 RSProt layouts, alt byte orders and all.
 
+**One thing about the shape of these two streams outlives the deviation, and it
+is the source of a whole class of bug.** A *tracked set* is per-observer — which
+npcs and players this client has been told about, in what order — and that half
+lives on `struct Mock230Player`. The *extended-info mask block* is not: it is
+computed once per entity per tick and the same bytes go to everybody, exactly as
+the reference does it (`World.cycle` → `rsbuf.computeNpc`, one call per npc).
+So **any value inside a mask block that means something different depending on
+who is reading it is a bug by construction**, and it will be a silent one,
+because the one observer the value was written for sees it work. That is what
+§3.11j is about — a `face_entity` that spelled "the player" as an alias for the
+reader — and it is the test to apply to every future mask field: an id in here
+must be absolute.
+
 ### 3.1b Zone packets are half real, half assigned
 
 `UPDATE_ZONE_PARTIAL_FOLLOWS` (106), `_FULL_FOLLOWS` (41) and
@@ -696,14 +709,17 @@ the kind that has no error anywhere.
 
 **Facing was written into the wrong half of an id space.** `FACE_ENTITY` reads
 below 32768 as an *npc slot* and at or above it as `32768 + player index`
-(`world_cycle.c`, `WORLD_FACING_*`). The local player's index is 2047, the same
-number that terminates the player stream — which is why `UPDATE_PID` carries it
-— so "face the player" on the wire is **34815**. The mock wrote the bare 2047,
+(`world_cycle.c`, `WORLD_FACING_*`). At the time, `UPDATE_PID` told every client
+it was index 2047 — the same number that terminates the player stream — so "face
+the player" on the wire was **34815**. The mock wrote the bare 2047,
 which the client resolved as npc slot 2047. That slot never exists, the lookup
 returned NULL, the branch fell through, and every npc in a fight kept whatever
-yaw it had been walking with. `MOCK230_FACE_LOCAL_PLAYER` is the constant now,
-and the selftest asserts the exact number rather than "not -1", because the
-wrong value is a *plausible* one.
+yaw it had been walking with. The selftest asserts the id space rather than "not
+-1", because the wrong value is a *plausible* one.
+
+The constant that fixed it — `MOCK230_FACE_LOCAL_PLAYER`, `32768 + 2047` — was
+itself the next bug, and §3.11j is what became of it. The number above is
+correct for exactly one reader.
 
 **Animations had no priority gate.** An npc swings in phase 4 and is hit in
 phase 5, so every exchange wrote the attack animation and then overwrote it with
@@ -1016,6 +1032,132 @@ slot pair for this, since the two shapes are named differently and only one of
 the two names exists for either. `TORIRS_DRAG_DEBUG=1` prints when a drag arms
 and every offset it takes — which is what showed that the machine was fine and
 the renderer was not.
+
+## 3.11j Who an npc is facing, when more than one client is watching
+
+The last shared-state remainder of the multiplayer change (§6.1 step 1), and the
+one worth writing down because **the plan for it was wrong and the code is
+smaller than the plan**.
+
+The symptom: NPC_INFO is encoded once per npc per tick and sent to every client,
+so an npc's `FACE_ENTITY` is one number that all observers read. It was
+`MOCK230_FACE_LOCAL_PLAYER` — `32768 + 2047`, "the player reading this" — which
+is right for exactly the client the retaliation is being encoded to and names
+somebody else on every other stream. Two clients watching one goblin: the goblin
+faces whoever is looking at it.
+
+The stated fix was "make the npc masks per-observer, the same shape of change as
+the tracked sets". **It is not.** Two things had to be separated:
+
+- *Which fields are dirty* is a fact about the **npc**. The reference agrees and
+  is explicit about it: `World.cycle` calls `rsbuf.computeNpc` once per npc per
+  tick, and only the *stream* is per-observer (`NetworkPlayer.npcInfo`). Nothing
+  in `struct Mock230Npc`'s mask block is observer-dependent — the audit went
+  field by field and found exactly one candidate.
+- That one field's **value** was observer-dependent, and only because the id was
+  a self-alias. `PathingEntity.setFaceEntity()` stores `this.target.slot + 32768`
+  — the world-global pool slot. An absolute number means the same player on every
+  stream, which is precisely what lets one encode serve everybody.
+
+So the change is: `mock230_npc_face_player(npc, pid)`, one seam that all five
+facing sites go through, writing `MOCK230_FACE_PLAYER_BASE + pid`; and
+`UPDATE_PID` carrying `player->pid` instead of the 2047 sentinel, which is what
+the reference sends too (`Player.onLogin` → `new UpdatePid(this.slot, …)`).
+`MOCK230_FACE_LOCAL_PLAYER` is **deleted**, which is what makes the bug
+unrepeatable: no site can reach for "the local player" because there is no such
+constant.
+
+**The two halves cannot be split**, and the headless client says so in three
+builds:
+
+```
+SDL_VIDEODRIVER=dummy TORIRS_NET_DEBUG=1 TORIRS_MAX_FRAMES=900 \
+  TORIRS_NET_CHEAT="fight" ./torirs --manifest manifest_osrs230_embed.ini \
+  --user testc --pass test
+```
+
+`TORIRS_NET_DEBUG` is what turns the `entity_sync:` lines on. Without it the run
+is silent and looks exactly like a run that proved something.
+
+| built with | the client logs | what the npc faces |
+|---|---|---|
+| **both halves** (shipped) | `player 0 spawned` · `npc 25 faces entity 32768` | the player — `32768 + 0` |
+| honest face id, `UPDATE_PID` back to 2047 | `player 2047 spawned` · `npc 25 faces entity 32768` | **nobody** — the client filed itself under 2047, so `World_PlayerGetByServerPid(world, 0)` returns NULL |
+| honest `UPDATE_PID`, facing back to the self-alias | `player 0 spawned` · `npc 25 faces entity 34815` | **nobody** — 2047 stopped being anybody's pid |
+
+Both failures are the *quiet* one: no error, no warning, an npc that keeps
+whatever yaw it was walking with — the same symptom §3.11b's original facing bug
+had, which is why these assertions name a number rather than "not -1".
+
+The third row also says which call site does the work. It was produced by
+mutating the **mode-machine** facing (`npc_run_mode`) and leaving the combat one
+honest, and the run never logs `32768` at all: in the `fight` scenario the latch
+is set by the mode machine, not by the retaliate path. That is the mechanism
+behind "mutating retaliate alone leaves every test green" below.
+
+**Cost, measured before choosing.** Per-observer state is priced per
+(player × npc), and `MOCK230_NPC_MAX` is 2048:
+
+| representation | B per pair | total | Δ world struct |
+|---|---:|---:|---|
+| **absolute pid + honest UPDATE_PID** (chosen) | 0 | **0** | 0% |
+| per-pair `int16` face override | 2 | 32 KB | +3.5% |
+| full per-observer mask block (132 B) | 132 | 2.06 MB | **+228%** |
+
+`sizeof(struct Mock230Npc)` is 328 B before and after; the world struct stays at
+946,112 B. The naive per-pair array is *affordable* — 32 KB is nothing, and that
+is not why it loses. It loses because it creates a second source of truth for a
+value the reference keeps single, it scales with `MOCK230_PLAYER_MAX`, and it
+leaves a pid field that means "whoever is reading this" in place for every future
+observer-relative id to inherit.
+
+**What it is asserted against.** `embed_test.c` had zero npc coverage; it has an
+`absorb_npc_info` beside `absorb_player_info` now, driving
+`pkt_npc_info_reader_read` — the client's own reader — with widths off the
+revision table. Two logged-in clients, one npc, alice hits it, and then, out of
+the two *decoded* streams: each client was told its own real pid; the two pids
+differ; both are tracking the npc; the face id is in the player half; **both
+streams name the same absolute player**; that player is alice; and it is not
+whoever happens to be watching.
+
+Note the last two together. The naive expectation is that the two streams should
+*disagree* — that is what per-observer masks would produce. Under an absolute id
+they must **agree**, and the observer-relativity is resolved by UPDATE_PID
+instead. Agreement is the reference's invariant.
+
+**Proven able to fail.** Restoring the self-alias inside
+`mock230_npc_face_player` turns "which is alice" red in the embed test and
+"names the pid it is fighting" red in the selftest; restoring the 2047
+UPDATE_PID turns "each client was told its own real pid" and "different pids"
+red. Mutating only the *retaliate* call site does **not** go red — the npc's
+per-tick combat facing re-writes the latch on the next tick — which is why the
+mutation that counts is the shared helper.
+
+### Adjacent, found, deliberately not fixed
+
+- ~~**`world->local_pid` is never written.**~~ **It is**, and the sentence that
+  said otherwise is kept here because of *how* it was wrong. It came out of
+  `grep local_pid | grep -v esync` — and the one line that assigns it is
+  `world->local_pid = app->esync.local_pid;` in `app_world_frame`, mirrored
+  every frame just before `World_Cycle`. The filter that was there to drop the
+  client-side field ate the assignment *to* the world-side one, and a grep whose
+  exclusion matches the right-hand side of the only write reports "no writers"
+  with total confidence. Both consumers are live and were live before this
+  change — the npc right-click `(level-N)` suffix (`rs_minimenu_world.c`, via
+  `World_PlayerGetByServerPid(world, world->local_pid)`, which is the fix
+  `combat_hud.md` §3 landed) and the local-player-first tile claim in
+  `world_cycle.c`. Neither changes behaviour under the honest pid: the local
+  player is filed under whatever `UPDATE_PID` said — 2047 before, its real pid
+  now — and the lookup asks with the same number either way.
+- **`MOCK230_NMASK_DAMAGE2` has no writer**, so two players hitting one npc in a
+  tick lose the first splat. Same family — a shared slot — and the reference's
+  answer is a second hitmark pair on the npc, not per-observer state.
+- **`npc_say` is delivered to `srv->active_player` only.** Wrong recipient, not
+  wrong value; a broadcast question.
+- **`npc_run_mode` reads `srv->active_player`** in a phase where it is nobody's
+  turn, unlike `maybe_aggress`, which picks the nearest eligible victim. This
+  change makes its face id honest about which player it named; it does not fix
+  which player it picks.
 
 ## 3.12 Baseline melee combat
 
@@ -3630,10 +3772,16 @@ unblocks the next:
      singleton, so `maybe_rebuild` moves the origin for everybody and marks
      every player as owing a REBUILD_NORMAL. Two players more than ~70 tiles
      apart pull it back and forth. Step 3 is the fix.
-   - **NPC_INFO's extended masks are shared across observers.** An npc's
-     `face_entity` names the *local* player, which is right for the client the
-     retaliation is being encoded to and wrong for every other one. Making it
-     per-observer needs the npc masks to be per-observer.
+   - ~~**NPC_INFO's extended masks are shared across observers.**~~ — **done**,
+     and the premise above was wrong; §3.11j has the whole of it. The masks are
+     *still* shared, because "which fields are dirty" is a fact about the npc
+     and not about the reader — the reference computes them once per npc per
+     tick too. What was observer-dependent was one **value**: a `face_entity`
+     that spelled "the player" as the 2047 self-alias. It carries the target's
+     absolute pid now, and `UPDATE_PID` carries each client's real pool slot
+     instead of 2047, which is what makes an absolute pid resolvable at all.
+     Cost: **0 bytes** — `struct Mock230Npc` is unchanged at 328 B. Asserted in
+     `embed_test.c` from two clients' decoded NPC_INFO streams.
    - **`srv->iterator` is one cursor**, as it is in the reference, and for the
      same reason there is one script-parking slot per player (§3.10).
 2. ~~**Dispatch tables, twice.**~~ — **done**, see §3.13d. Inbound packets are a

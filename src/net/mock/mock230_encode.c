@@ -627,11 +627,15 @@ mock230_send_stat(
 /*
  * Which player index the client is.
  *
- * The mock puts the local player at 2047 — the classic self index, which is
- * also what every fallback in the client assumes — but "assumes" is the
- * problem: `world->local_pid` stays -1 until something says otherwise, and the
- * minimenu gates its `(level-N)` suffix on a local player actually being
- * known. Sending it once at login is what makes the client sure.
+ * Its real pool slot. The client's fallback when this never arrives is 2047 —
+ * the classic self index (`local_player_pid`, task_exec_entity_info.c) — and
+ * the mock used to send that sentinel deliberately, which worked only while
+ * there was one client: with two, "you are 2047" is true of both, so no
+ * absolute reference to a player could name one. An npc's FACE_ENTITY is the
+ * absolute reference that made it visible.
+ *
+ * Sent once at login, before the first PLAYER_INFO, so the client registers its
+ * own entity under this pid rather than under the fallback.
  */
 void
 mock230_send_update_pid(
@@ -1606,7 +1610,35 @@ put_npc_extended(
         rsab_p1(buf, npc->anim_delay);
     }
     if( mask & MOCK230_NMASK_FACE_ENTITY )
+    {
+        /*
+         * The chokepoint, and the reason the check is here rather than at the
+         * five writers.
+         *
+         * A player face id is absolute — `MOCK230_FACE_PLAYER_BASE + pid` — so
+         * the same npc facing the same player encodes to the same bytes on every
+         * stream. The old self-alias `BASE + 2047` meant "whoever is reading
+         * this", which is right for one observer and wrong for every other. Its
+         * named constant is deleted, but a writer can still reach the value by
+         * arithmetic or by passing the terminator as a pid — and three of the
+         * five writers (`npc_run_mode`, the opnpc greeting, `npc_say`) are
+         * exercised by no test, so a regression at one of them would ship
+         * silently.
+         *
+         * Every face id reaches the wire through this line, whichever writer
+         * produced it. Checking here is what makes the invariant total rather
+         * than per-writer.
+         */
+        if( npc->face_entity == MOCK230_FACE_PLAYER_BASE + MOCK230_PLAYER_TERMINATOR )
+        {
+            fprintf(stderr,
+                    "mock230: npc %d face id %d is the self-alias — it must name an "
+                    "absolute pid (MOCK230_FACE_PLAYER_BASE + player->pid), or every "
+                    "observer but one sees it facing the wrong player\n",
+                    npc->type, npc->face_entity);
+        }
         rsab_p2(buf, npc->face_entity < 0 ? 0xffff : npc->face_entity);
+    }
     if( mask & MOCK230_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NEWLINE);
     if( mask & MOCK230_NMASK_DAMAGE )
@@ -1734,9 +1766,11 @@ mock230_send_npc_info(struct Mock230Player* player)
         if( kept_count >= MOCK230_TRACKED_NPC_MAX )
             break;
 
-        /* 14-bit slot, 11-bit type, 5-bit signed deltas from the local player,
-         * 1-bit "extended info follows". No jump bit here — unlike the player
-         * stream's new-entity record. */
+        /* Slot and type at the revision's own widths — 14 and 14 here; this
+         * comment used to say "11-bit type" while the line below wrote
+         * MOCK230_NPC_TYPE_BITS. Then 5-bit signed deltas from the local
+         * player and 1-bit "extended info follows". No jump bit — unlike the
+         * player stream's new-entity record. */
         rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
         rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc->type);
         rsab_pbit(&buf, 5, dx & 0x1f);
