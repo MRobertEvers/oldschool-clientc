@@ -43,7 +43,12 @@ and all of them silent without this tool:
     trigger to a third of the group.
   * **collision** — two reference names crawl to the *same* osrs239 id. A pack
     file is `id=name`; `troll_general` and `troll_spectator` both land on 309
-    and only one of them can be the name.
+    and only one of them can be the name. **The resolution is never to pick
+    one.** An id two reference names both land on holds both concepts, so it is
+    wider than either, so it is `broader` — measured, not assumed: 309 is 67
+    records of which 3 are Troll general and 7 Troll spectator (it is simply
+    "troll"), and 354 is 37 of which 2 are Gnome troop (it is "gnome"). See the
+    pass-2 comment in `crawl`; `--check` refuses to let a `collision` rest.
   * **broader** — the id resolves, is unique, and names a *wider concept*.
     `black_demon`'s three members all carry 275, and 275 is the demon category:
     18 Lesser demons and 15 Greater demons sit in it beside the 17 Black demons.
@@ -79,6 +84,12 @@ DISPOSITIONS = {
     "orphan",     # no member resolves to a categorised record — needs an id
     "placeholder",  # `category_<n>`: a number wearing a name. Never a name here
 }
+
+# `collision` is a *derived* disposition and never a resting one — see `check`.
+# The demotions a human is allowed to write over the crawl's own answer, and the
+# only dispositions `write_map` preserves across a regenerate.
+HELD_BACK = ("broader", "orphan")
+OVERRIDABLE = (MINTED, "collision")
 
 # A reference category named after a *LostCity* id. `category_453` is not a
 # name, it is the 2004 cache's number with an underscore in front, and this
@@ -237,6 +248,29 @@ def crawl(tree, ref):
             if cid != 0:
                 by_category[cid].append(record)
 
+    # Display name -> the categories records *with that display name* carry.
+    #
+    # This is what makes an `orphan` row say something. An orphan is a name whose
+    # own members carry nothing, and the next reader's instinct is to go looking
+    # for "the obvious id" by display name — which usually finds one, and it is
+    # usually a different concept wearing the same word. `Pirate` lands on three
+    # (Trouble Brewing's, the pickpocketable set, the Warrens'); `Witch's
+    # experiment` lands on 725, which is the *Nightmare Zone boss* category, 67
+    # records of `nzone_*`. Recording the near-miss in the row is how the search
+    # stops at the row instead of at the pack file. Unnamed records are skipped:
+    # a `(unnamed)` key would match thousands and mean nothing.
+    by_display = collections.defaultdict(collections.Counter)
+    for record, fields in npc.items():
+        display = fields.get("name")
+        if not display:
+            continue
+        cid = fields.get("category")
+        if cid and cid != "0":
+            try:
+                by_display[display][int(cid)] += 1
+            except ValueError:
+                pass
+
     groups = reference_members(ref)
     referenced = reference_trigger_refs(ref).get("npc", set())
 
@@ -268,8 +302,28 @@ def crawl(tree, ref):
                             % (sorted(counts)[0] if counts else "match"))
         elif not counts:
             row.disposition = "orphan"
+            # Over the *set* of display names, not the member list: four members
+            # all called `Pirate` would otherwise count every candidate group
+            # four times and print ratios above 1.
+            near = collections.Counter()
+            for display in {npc.get(record, {}).get("name")
+                            for record, _provenance in members} - {None}:
+                near.update(by_display.get(display, {}))
             row.evidence = ("%d member(s): %d not in configs/all.npc.compack, %d "
                             "carry no category" % (row.total, unnamed, uncategorised))
+            if near:
+                # `<id>(<records sharing a display name>/<the whole group>)` —
+                # the same ratio a `broader` call is made from, so the reader can
+                # see at a glance that 725 is 4 records out of 67.
+                row.evidence += ("; SUSPECT %s share these display names but not "
+                                 "these records — a plausible id is not this set: "
+                                 "do not mint"
+                                 % ",".join(
+                                     "%d(%d/%d)" % (i, n, len(by_category.get(i, [])))
+                                     for i, n in near.most_common(4)))
+            else:
+                row.evidence += ("; no categorised record anywhere in this cache "
+                                 "shares these display names — there is no id to read")
         elif len(counts) > 1:
             row.disposition = "split"
             row.category_id = -1
@@ -285,6 +339,18 @@ def crawl(tree, ref):
     # Pass 2 — collisions. A pack file is `id=name`; two names on one id is not
     # a thing it can express, and picking one silently binds the other name's
     # scripts to the same set.
+    #
+    # **A collision is never resolved by picking a winner**, and that is a result
+    # rather than a policy. If two reference names crawl to one osrs239 id, the
+    # id holds both concepts, so it is *wider than either* — which is `broader`,
+    # measured. 354 is neither `battle_mage` nor `gnome_troop`, it is "gnome"
+    # (37 records, 2 of them Gnome troop); 309 is neither `troll_general` nor
+    # `troll_spectator`, it is "troll" (67 records, 3 and 7 of them). The one
+    # case where picking would be right — two reference names that are synonyms —
+    # has no instance here and would be visible as one group answering to both.
+    # So `collision` is a question, and `check` refuses to let it rest as an
+    # answer: a human demotes each side to `broader` or `orphan` with the group
+    # histogram (`--groups`) as the evidence, and `write_map` preserves that.
     owners = collections.defaultdict(list)
     for row in rows.values():
         if row.disposition == MINTED:
@@ -316,8 +382,18 @@ def group_names(tree, by_category, cid):
 HEADER = """\
 # port/categories.map — npc categories, crawled (docs/LOSTCITY_PORT_TRIAGE.md §16).
 #
-# Generated by tools/port_category_crawl.py; the `broader` demotions are hand
-# edits and are preserved across a regenerate (see --write-map).
+# Generated by tools/port_category_crawl.py.
+#
+# THIS FILE, NOT `--report`, IS THE AUTHORITY. `--report` re-derives every row
+# from scratch, so it prints the crawl's *unreviewed* answer and will happily
+# say `black_demon minted 275` — a row this file holds back. `--report` prints
+# both now (a `derived` column) and says so on stderr; `--check` is what enforces
+# the file. Read a disposition from here.
+#
+# The demotions in `HELD_BACK` (`broader`, `orphan`) are hand edits over rows the
+# crawl derives as `minted` or `collision`. They are preserved verbatim — id,
+# evidence and all — across `--write-map`, and `--check` re-validates the id they
+# state against the members every run, so a preserved row cannot rot.
 #
 # name  disposition  id  resolved/total  refs  provenance  evidence
 #
@@ -325,10 +401,18 @@ HEADER = """\
 #                concept the name states. The id is READ from this tree's own
 #                records, never copied from LostCity.
 #   split        members carry >= 2 ids. A human picks (triage H8).
-#   collision    two reference names crawl to one id. One id, one name.
+#   collision    two reference names crawl to one id. Derived only, and NEVER a
+#                resting state: one id holding two concepts is by construction
+#                wider than either, so both sides demote to `broader` (or to
+#                `orphan` if the one member that resolves does so for an
+#                unrelated reason). `--check` fails on a collision left standing.
 #   broader      unique id, wider concept — minting binds the wrong set.
-#   orphan       no member resolves to a categorised record. Blocked: `category`
-#                has no `server_base` in content.ini (triage §9 step 3c-0).
+#   orphan       no id in this cache states this concept, so one would have to be
+#                *allocated*. Blocked: `category` has no `server_base` in
+#                content.ini (triage §9 step 3c-0). The evidence column carries
+#                the near-miss ids a later reader would otherwise find by display
+#                name and mint — they are marked SUSPECT because they are a
+#                different concept sharing a word.
 #   placeholder  `category_<n>` — a LostCity id wearing a name.
 """
 
@@ -339,11 +423,20 @@ def write_map(path, rows):
         handle.write(HEADER)
         for name in sorted(rows):
             row = rows[name]
-            # A hand demotion to `broader` is a judgement about what an osrs239
-            # group holds; the crawl cannot re-derive it and must not undo it.
-            if name in existing and existing[name][0] == "broader" and \
-                    row.disposition == MINTED:
-                row.disposition = "broader"
+            # A hand demotion is a judgement about what an osrs239 group holds;
+            # the crawl cannot re-derive it and must not undo it.
+            #
+            # This used to preserve `broader` alone, and only over a derived
+            # `minted`. That was the whole set at the time and it is not now: the
+            # 354 and 309 collisions resolve to `broader`/`orphan`, and a
+            # regenerate would have silently put both back to `collision` —
+            # re-arming exactly the "one name wins and nothing says so" failure
+            # the demotion was written to disarm. Every hand disposition in
+            # HELD_BACK survives, over every derived disposition in OVERRIDABLE.
+            if name in existing and existing[name][0] in HELD_BACK and \
+                    row.disposition in OVERRIDABLE:
+                row.disposition = existing[name][0]
+                row.category_id = existing[name][1]
                 row.evidence = existing[name][4]
             handle.write("%s\t%s\t%d\t%d/%d\t%s\t%s\t%s\n" % (
                 row.name, row.disposition, row.category_id, row.resolved,
@@ -375,16 +468,41 @@ def read_map(path):
 # ----------------------------------------------------------------------
 
 def report(tree, ref):
+    """The review artifact — and it prints the *map's* disposition, not its own.
+
+    This used to print the raw crawl. That is a trap with a witness: a reader
+    running `--report` to see what was blocking a port was told
+    `black_demon minted 275` and `giantrat minted 262`, both of which
+    port/categories.map holds back as `broader` — the two rows §16.4 exists to
+    hold back. `--write-map` preserved the demotions and `--report` did not, so
+    the two commands disagreed and the louder one was wrong.
+
+    Now: the disposition column is the map's, an eighth `derived` column is the
+    crawl's own answer, and stderr counts both and names every row where they
+    differ. A row with no map entry shows `derived` as its disposition too and
+    is reported — that is `--check`'s "a new reference category is a decision".
+    """
     rows, by_category = crawl(tree, ref)
-    print("name\tdisposition\tid\tresolved/total\trefs\tprovenance\tevidence")
+    stated = read_map(os.path.join(tree, MAP_NAME))
+    print("name\tdisposition\tid\tresolved/total\trefs\tprovenance\tevidence\tderived")
+    overrides = []
     for name in sorted(rows):
         row = rows[name]
-        print("%s\t%s\t%d\t%d/%d\t%s\t%s\t%s" % (
-            row.name, row.disposition, row.category_id, row.resolved, row.total,
-            "yes" if row.referenced else "no", row.provenance, row.evidence))
-    counts = collections.Counter(r.disposition for r in rows.values())
+        disposition, cid, evidence = row.disposition, row.category_id, row.evidence
+        if name in stated:
+            disposition, cid = stated[name][0], stated[name][1]
+            evidence = stated[name][4]
+            if disposition != row.disposition:
+                overrides.append((name, disposition, row.disposition, cid))
+        print("%s\t%s\t%d\t%d/%d\t%s\t%s\t%s\t%s" % (
+            row.name, disposition, cid, row.resolved, row.total,
+            "yes" if row.referenced else "no", row.provenance, evidence,
+            row.disposition))
+    effective = {n: (stated[n][0] if n in stated else rows[n].disposition)
+                 for n in rows}
+    counts = collections.Counter(effective.values())
     referenced = collections.Counter(
-        r.disposition for r in rows.values() if r.referenced)
+        effective[n] for n in rows if rows[n].referenced)
     print("\n# %d reference npc categories: %s" % (
         len(rows), ", ".join("%s %d" % kv for kv in sorted(counts.items()))),
         file=sys.stderr)
@@ -392,20 +510,31 @@ def report(tree, ref):
         sum(referenced.values()),
         ", ".join("%s %d" % kv for kv in sorted(referenced.items()))),
         file=sys.stderr)
+    if not stated:
+        print("# no %s — every disposition above is the crawl's own, unreviewed"
+              % MAP_NAME, file=sys.stderr)
+    for name, held, derived, cid in overrides:
+        print("# %s: the map says %s, the crawl alone would say %s (%d) — the "
+              "map is the authority" % (name, held, derived, cid), file=sys.stderr)
     return 0
 
 
 def groups(tree, ref):
     rows, by_category = crawl(tree, ref)
     npc = tree_records(tree, "npc")
+    # The map's disposition, for the same reason `report` uses it: this listing
+    # is the evidence a `broader` call is *made from*, so printing `minted`
+    # beside the histogram that disproves it is the worst possible caption.
+    stated = read_map(os.path.join(tree, MAP_NAME))
     for name in sorted(rows):
         row = rows[name]
+        disposition = stated[name][0] if name in stated else row.disposition
         for cid in sorted(row.ids):
             counts = collections.Counter()
             for record in by_category.get(cid, []):
                 counts[npc.get(record, {}).get("name", "(unnamed)")] += 1
             print("%-26s %-12s %5d  %3d npc(s)  %s" % (
-                name, row.disposition, cid, len(by_category.get(cid, [])),
+                name, disposition, cid, len(by_category.get(cid, [])),
                 ", ".join("%s x%d" % (k, v) for k, v in counts.most_common(6))))
     return 0
 
@@ -429,6 +558,19 @@ def check(tree, ref, verbose):
     for name, (disposition, cid, _resolved, _total, _evidence, _refs) in sorted(stated.items()):
         if disposition not in DISPOSITIONS:
             problems.append("`%s` has an unknown disposition `%s`" % (name, disposition))
+        elif disposition == "collision":
+            # `collision` is derived, never a resting state. Leaving one standing
+            # is the failure the brief names: two names claim one id, the pack
+            # can hold one, and whichever the port gets to first wins with
+            # nothing anywhere saying the other lost. Demote both sides with the
+            # `--groups` histogram as evidence — see the pass-2 comment in
+            # `crawl` for why the answer is `broader`/`orphan` and not a winner.
+            problems.append(
+                "`%s` is still `collision` on %d — a collision is a question, not "
+                "an answer: the id holds two concepts so it is wider than either. "
+                "Demote both sides to `broader` (or `orphan`) with the group "
+                "histogram as evidence; `--groups %s` prints it"
+                % (name, cid, name))
         elif disposition == MINTED:
             if name not in by_name:
                 problems.append(
@@ -446,6 +588,7 @@ def check(tree, ref, verbose):
                 % (name, disposition, _evidence, PACK_NAME, by_name[name]))
 
     # --- the map against the reference --------------------------------------
+    overrides = 0
     if ref and os.path.isdir(os.path.join(ref, "content", "scripts")):
         rows, _by_category = crawl(tree, ref)
         for name, row in sorted(rows.items()):
@@ -467,6 +610,19 @@ def check(tree, ref, verbose):
                     "a minted name states is READ from the members and this one "
                     "no longer reads that way"
                     % (name, cid, sorted(row.ids) or "nothing"))
+            # A hand demotion states an id it is *refusing*, and `write_map`
+            # preserves that id verbatim rather than re-deriving it. So it is the
+            # one number in this file nothing else would notice going stale:
+            # `black_demon broader 275` still has to be the id its members carry,
+            # or the paragraph justifying the refusal is about a different group.
+            if disposition in HELD_BACK and row.disposition in OVERRIDABLE:
+                overrides += 1
+                if row.category_id != cid:
+                    problems.append(
+                        "`%s` is held back as `%s` at %d but its members now carry "
+                        "%s — a preserved demotion states the id it refuses, and "
+                        "this one no longer refuses the id it names"
+                        % (name, disposition, cid, sorted(row.ids) or "nothing"))
         for name in sorted(set(stated) - set(rows)):
             problems.append("`%s` has a row but the reference no longer declares "
                             "it on any .npc" % name)
@@ -481,9 +637,11 @@ def check(tree, ref, verbose):
         print("port_category_crawl: %d problem(s)" % len(problems), file=sys.stderr)
         return 1
     if verbose:
-        print("port_category_crawl: %d row(s), %d minted, all agree with %s"
+        print("port_category_crawl: %d row(s), %d minted, %d demoted by hand over "
+              "the crawl's own answer, all agree with %s"
               % (len(stated),
-                 sum(1 for v in stated.values() if v[0] == MINTED), PACK_NAME))
+                 sum(1 for v in stated.values() if v[0] == MINTED),
+                 overrides, PACK_NAME))
     return 0
 
 
