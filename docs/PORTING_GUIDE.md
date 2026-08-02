@@ -420,8 +420,13 @@ The traps, all documented in the triage:
   wrong: the cache states one on **9,149 of its 16,292 npc records** and the
   decoder has always read it. It was unread. 18 names are crawled now
   (`tools/port_category_crawl.py`, `port/categories.map`); the rest are split,
-  colliding, or need an id `content.ini` cannot yet allocate. This gates
-  `drop tables/`.
+  colliding, or need an id `content.ini` cannot yet allocate. This gated
+  `drop tables/`, which landed 2026-08-01 (triage §10.1) — and the way it landed
+  is the pattern for the next slice that hits this: **six of its sixteen
+  category subjects are bound as categories and the other ten are expanded to
+  the reference's own member list**, because a reference category is a list of
+  npc names and those names resolve. Nothing had to be minted, and no `split`
+  was resolved by inventing a name.
 - **npc / loc / seq / spotanim names** (§4 group B, and triage §19 for what
   landed): the reference names **524** records this tree has no spelling for —
   not §4's 206, which counts only `.rs2` and only names the reference authors.

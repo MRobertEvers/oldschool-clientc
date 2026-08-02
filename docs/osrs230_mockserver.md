@@ -438,6 +438,16 @@ packet, and `[ai_queue3,<npc>]` when an npc reaches zero hitpoints — which is
 LostCity's death trigger, and where every drop table lives. Resolution follows
 the reference: exact npc type, then category, then the global form.
 
+**All three rungs are live and content uses two of them.** `drop_tables/` binds
+136 `[ai_queue3]` triggers, six of them to an npc *category* (`_chicken`,
+`_cow`, `_bear`, `_ice_warrior`, `_unicorn`, `_werewolf`) and the rest by npc
+type. The ordering is load-bearing rather than academic: an exact binding
+shadows a category one, so `[ai_queue3,chicken]` beside `[ai_queue3,_chicken]`
+would leave the chicken on the old table and give the new one only to its
+siblings. `tools/port_droptables_check.py` fails on that shape, on a category
+this cache does not state, and on a duplicate binding — which the compiler
+compiles twice and `find_by_key` resolves by `bsearch` (triage §16.11).
+
 **A trigger is how the engine should reach content, and a script name in C is
 not.** The ten call sites that used to spell one — `"[queue,player_death]"`,
 `"[proc,npc_meleeattack]"` and eight more — go through `srv->hooks` now, a table
@@ -2191,8 +2201,17 @@ mock230: 7 engine fallback(s) still answer triggers content does not bind
   opheld       blocked on: equipment is C; the reference says it in [opheld2,_] and [opheld5,_]
   inv_button   blocked on: the bank, 1,370 lines
   if_button    blocked on: the bank's op ladder, same blocker
-  ai_queue3    blocked on: drop tables need npc categories (triage §7.6b)
+  ai_queue3    blocked on: nothing any more — see below
 ```
+
+`ai_queue3`'s row is the one to read carefully. The fallback is still real and
+still wanted — an npc with no bound table drops its `param=death_drop`, so a kill
+is never silent — but its *blocker* is gone: npc categories landed (triage §16)
+and `drop tables/` landed on top of them (triage §10.1), 69 files and 136
+`[ai_queue3]` bindings. **`mock230_scripts.c`'s copy of that string still says
+"drop tables need npc categories" and is wrong at every boot**; it is a stale
+negative claim of exactly the class triage §16.1 is about, left standing only
+because the stage that invalidated it wrote no C.
 
 The count is the point. It is asserted in the selftest, it may shrink, and it
 must not grow — the same discipline as the nine named hooks

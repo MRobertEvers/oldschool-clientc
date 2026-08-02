@@ -454,6 +454,15 @@ general               14/31    45.2%      skill_agility        0/5    0.0%
 minigames             19/67    28.4%      skill_thieving       0/5    0.0%
 ```
 
+**Every cell here is a rate, not a fact about a directory, and one of them has
+been re-measured.** `drop tables` reads **70/71 (98.6 %)** as of 2026-08-01 —
+the one file that is not clean is `grip.rs2`, and the one command is
+`obj_addall`. Nothing in that directory changed; the engine did. Assume the same
+of every other cell before quoting it, and note what this row is *not*: it
+counts **scripts**, so 97.2 % here and the 99.97 % of **call sites** quoted in
+§10.1 are two different measurements of the same directory that happen to look
+comparable. (`grip.rs2` was not ported — §10.1.)
+
 The skills are at or near zero because every one of them is a `loc_*` loop:
 `loc_find` the tree/rock/altar, `loc_change` it to the depleted form, `loc_add`
 the respawn. **`loc_change` + `loc_add` + `loc_del` + `loc_find` + `loc_param`
@@ -654,7 +663,13 @@ Three of 23 collide *in this cache*, and the collision is silent. This wants the
 same treatment `content.ini`'s `vardomain` gives varp/varbit: a declared
 resolution order, and a load error rather than a shadow.
 
-### 7.6b npc categories do not exist here, and 19 % of the compile failures are that
+### 7.6b npc categories — 19 % of the compile failures, and the premise below was false
+
+> **Corrected 2026-08-01.** The heading used to read "npc categories do not
+> exist here". They do — 9,149 of the cache's 16,292 npc records state one, and
+> nothing had read it (§16.1). The 19 % figure stands; the diagnosis under it
+> did not. Landed in §16, §16.11 and §10.1. Read the strikethrough below as the
+> record of what was believed, not as the state of the tree.
 
 The compile pass surfaced something neither the brief nor the static census
 ranked highly: `unknown category subject 'X' for trigger 'Y'` is **19.3 % of all
@@ -664,10 +679,16 @@ whole file.
 The cause is specific. In this tree, `category` means two unrelated things:
 
 - **obj category** — the record's own `category` field, config opcode 94, a
-  number the cache states. `pack/category.pack` has **37** names for it as of
-  2026-08-01 (this said 6; the weapon categories were added after that count was
-  written — re-measure with `grep -c '^[0-9]' pack/category.pack`), and
-  `mock230_scripts.c` reads it for `[opheld<n>,_<category>]` and `inv_totalcat`.
+  number the cache states. `mock230_scripts.c` reads it for
+  `[opheld<n>,_<category>]` and `inv_totalcat`. The count in this paragraph has
+  now been wrong twice, so it is stated as a series rather than a fact: this said
+  **6**, then **37** (the weapon categories), and `pack/category.pack` holds
+  **55** as of 2026-08-01 — 37 obj names and the **18** npc names §16 minted into
+  the same file. One id space, two domains (§16.5). Re-measure with
+  `grep -c '^[0-9]' pack/category.pack`, and split it with
+  `tools/port_category_crawl.py --check -v`, which prints how many of the rows
+  are `minted` (`grep -c minted port/categories.map` says 21 and is wrong — the
+  file's own header uses the word three times).
 - **loc category** — a two-valued door enum (`door_closed` / `door_opened`) in
   `mock230_content.c:1546`, and nothing else. It is **not** a category id and
   must never be passed as one: its two values would alias onto `category.pack`
@@ -675,12 +696,23 @@ The cause is specific. In this tree, `category` means two unrelated things:
   `interaction_category` in `mock230_world.c` says so at the one site where the
   edit is tempting.
 
-**There is no npc category at all.** `SSVM_ProviderGetByTrigger` takes one and
-the fallback chain (exact type → category → global) is implemented — but *every
-npc call site in `mock230_world.c` passes `-1`*, including `AI_QUEUE3`. There is
-nothing to pass. (The obj rung is live and exercised: `[opheld<n>]` fed it
-already, and `[opobj<n>]`/`[apobj<n>]` do too since §3.18. npc and loc still
-pass -1, deliberately, and that is this item.)
+**~~There is no npc category at all.~~ — that was wrong, and §16.1 is the
+correction.** It was written from `pack/category.pack` and from the call sites,
+never from the cache: `cache.osrs239` states a category on **9,149 of its 16,292
+npc records**, and the decoder had always read it. What *was* true is the rest of
+the sentence. `SSVM_ProviderGetByTrigger` takes a category and the chain (exact
+type → category → global) is implemented, but every npc call site in
+`mock230_world.c` passed `-1`. Two of them do not any more:
+
+| site | passes | since |
+|---|---|---|
+| the `[opnpc<n>]`/`[apnpc<n>]` interaction path (`mock230_world.c:885`, `:927`) | `interaction_category()` | §16.6 |
+| `mock230_world_npc_died` → `AI_QUEUE3` (`mock230_world.c:3942`) | `mock230_npc_category(npc->type)` | §16.11 |
+
+Everything else still passes `-1`: `AI_QUEUE1..n`, `AI_TIMER`, `AI_SPAWN`,
+`AI_OPPLAYER`/`AI_APPLAYER`, the `--cheat` `[opnpc<n>]` path at `:2720`, and every
+loc site. (The obj rung is live and exercised: `[opheld<n>]` fed it already, and
+`[opobj<n>]`/`[apobj<n>]` do too since §3.18.)
 
 LostCity's content leans on npc categories heavily: `drop tables/` alone binds
 **16 of its 94 `[ai_queue3]` triggers to a category** (`_citizen`, `_cow`,
@@ -693,6 +725,17 @@ each call site.
 
 It is a small feature. It is also a **prerequisite of the cheapest slice in
 §10**, which is why it is called out here rather than buried in the queue.
+
+**Landed, and the slice it gated landed on top of it the same day.** §16 is the
+crawl and the 18 minted names; §16.11 is the four collisions and the `AI_QUEUE3`
+call site; §10.1's `drop tables/` entry is the content. The measured outcome for
+this paragraph's own example: of those 16 category subjects, **six** bind as
+categories (`_bear`, `_chicken`, `_cow`, `_ice_warrior`, `_unicorn`,
+`_werewolf`) and are the only content in the tree that exercises the category
+rung; the other **ten** are bound to the reference's own member lists instead,
+because a reference category *is* a list of npc names and those names resolve
+here. Nothing had to be minted for the port, and no `split` was resolved by
+inventing a name.
 
 ### 7.7 Dispatch order
 
@@ -899,6 +942,29 @@ step. Both are strictly easier and neither is a whole feature:
   get the right loot. The cheapest *observable* win in the tree — **but it needs
   §7.6b first**: 15 of its 71 files bind their trigger to an npc category, and
   npc categories do not exist here. 56 of 71 land without it.
+
+  **Landed 2026-08-01 (§10.1). Every readiness number in the paragraph above
+  was stale by the time it did**, and the two that were stale in the *helpful*
+  direction are the ones worth keeping visible:
+
+  | claimed here | measured 2026-08-01 | how |
+  |---|---|---|
+  | 4 missing opcodes | **1** — `obj_addall` (op 3501), **one** call site, `grip.rs2:10` | §12.2's scratch path, below |
+  | 97.2 % opcode-clean (= 69/71 *scripts*, §5.2) | **98.6 % — 70/71** scripts; separately, **99.97 % of call sites** (29 command spellings over 3,129 sites, 1 unimplemented) | ditto |
+  | 71 scripts | 71 files / 3,673 lines / 94 `[ai_queue3]` blocks, of which **69 files** were ported | `wc -l`, `grep -c '^\[ai_queue3'` |
+  | 15 files bind a category | 15 files, **16** subjects (`man.rs2` carries two) | `grep -l '^\[ai_queue3,_'` |
+  | 1 unresolved npc | **1** — `dwarf_mountain2`, confirmed | §14's gate |
+  | — | **282** obj names referenced by the port, **0** unresolved | §10.1 |
+  | 56 of 71 land without §7.6b | never tested — §7.6b landed first, and **69 of 71** landed with it | — |
+
+  The count of missing opcodes is a *rate*, not a fact about the directory: it
+  fell from 4 to 1 because the engine moved between §5 and here, not because
+  anything was measured wrong the first time. Any similar number in §5, §8 or
+  §11 should be assumed to have moved the same way and re-measured, not quoted.
+
+  Of the 16 category subjects, six bind as categories and ten still cannot; they
+  are bound to the reference's own member lists instead, which needed no id
+  minted.
 - **`levelrequire/`** — 10 scripts, 304 `[opheld2]` triggers, **zero missing
   opcodes, zero unresolved names, no category triggers.** Pure equip-requirement
   checks. The only directory in the tree that is clean on every axis measured.
@@ -911,7 +977,10 @@ once §7.6b lands, then Cook's Assistant as the slice that proves the port.
 
 ## 10.1 What landed
 
-Both ends of that sequence are done. `drop tables/` is not, because §7.6b is not.
+All three are done, in the order proposed but not on the schedule proposed:
+`levelrequire/` and Cook's Assistant first, then §16's npc categories, then
+`drop tables/` on top of them — 2026-08-01, and the last one is the first slice
+in this document that had to land an engine prerequisite before it could bind.
 
 ### `levelrequire/` — ported as data, not as scripts
 
@@ -1894,6 +1963,330 @@ unrelated to the work in hand. Every bar computed against `LostCity_Server` is
 only as reproducible as that checkout, and the correct response is a recorded
 commit (§12) rather than a re-baseline nobody reads.
 
+### `drop tables/` — ported as scripts, 69 of 71 files
+
+Written 2026-08-01, on top of §16.11's category work. **The decision the slice
+was posed as — scripts or data — went to scripts, and the reference decided it,
+not taste.** LostCity has a `drop_table.dbtable` and a `~roll_on_drop_table`
+proc that walks it, and this tree already had both. They are a red herring for
+this directory: `~roll_on_drop_table`'s only caller anywhere in the reference is
+`skill_mining/scripts/mining.rs2:226` for `gem_rock_table`, and there is **not
+one `.dbrow` in `drop tables/`**. All 71 files are threshold walks over
+`random(128)`, and what they walk cannot be a row: `map_members` gates 28 rungs,
+six read a quest varp, one reads `inv_total(worn, ring_of_wealth)`, one branches
+on `coordz(coord) > 6400`, several call a sub-table proc from inside a rung and
+one writes `session_log` as a side effect. The `levelrequire/` precedent points
+the other way for the same reason it applied there: porting *those* scripts
+would have replaced a working engine path with a content one, and porting
+*these* as data would replace a working content path with a schema that cannot
+express half of it. **What the data choice would have cost, stated so the call
+is checkable:** a `.dbrow` per table (69 names to mint in a namespace whose ids
+are ours), a `param` binding npc -> dbrow, and either a `condition` column the
+reference's schema does not have or the conditional rungs left out.
+
+**Two slices have now answered the same question in opposite directions, which
+makes it a rule rather than a preference.** `levelrequire/` went to data and
+`drop tables/` went to scripts, and the test that separates them is not "is it
+tabular" — both look tabular — but **which side of the seam already owns the
+behaviour here**:
+
+| | `levelrequire/` | `drop tables/` |
+|---|---|---|
+| what LostCity's scripts do | reimplement equipping in content | roll a table in content |
+| what this server already does | equips in C, reads the requirement as `param=levelrequire` | nothing; `death_drop` is a single fallback item |
+| porting the scripts would | replace a working **engine** path with a content one (§7.7) | be the only implementation |
+| verdict | **data** — transcribe the values, drop the scripts | **scripts** — port them |
+
+So: *port the layer that is missing here, not the layer the reference happens to
+write it in.* The tell in both cases was found by asking what already answers
+the behaviour on this side, and the failure mode is symmetric — porting
+`levelrequire/` as scripts would have duplicated an engine path, and porting
+`drop tables/` as data would have thrown away every conditional rung to fit a
+schema nothing was asking for. Neither call is about which representation is
+tidier.
+
+**Landed:** `server/scripts/drop_tables/scripts/`, one file per reference file
+so the two trees diff, 69 of 71, **4,030 lines**. **137 npc-family bindings** —
+136 `[ai_queue3]` and one `[opnpc1,jonny_the_beard]` — plus 22 `[label]`s and 6
+`[proc]`s. (`port_droptables_check --report` prints **175**; that is the whole
+content tree, of which this directory is 137 and the other 38 are Lumbridge,
+thieving, the bank and the selftest. The two numbers get confused easily and the
+one that belongs to this slice is 137.) The four-file partial port
+(`goblin.rs2`, `humans.rs2`, `livestock.rs2`, `imp.rs2`) is merged into it, not
+appended: `humans.rs2` and `livestock.rs2` are gone, their content is in the
+reference's `man.rs2`, `guard.rs2`, `chicken.rs2`, `cow.rs2`, `rat.rs2` and
+`giant_rat.rs2`, and every binding this world had still has one.
+
+**Measured against what §10 and §5.2 claimed. Every row moved except the last
+two, and none of them moved because the directory changed:**
+
+| | claimed | measured 2026-08-01 |
+|---|---|---|
+| missing opcodes | 4 | **1** — `obj_addall` (3501), one call site, `grip.rs2:10` |
+| scripts using only implemented commands (§5.2's metric) | 69/71 = 97.2 % | **70/71 = 98.6 %** |
+| the same thing counted by call site | — | **99.97 %** — 29 command spellings over **3,129** sites, one unimplemented |
+| category-keyed files | 15 of 71 | 16 subjects across **15 files** (`man.rs2` carries two) |
+| unresolved npc | 1 | **1** — `dwarf_mountain2`, confirmed |
+| obj names | — | **282 referenced by the 69 ported files, 0 unresolved** (287 across the reference's 71) |
+
+The command census is a token scan of the reference's 71 files against
+`g_ss_opcode_names` in `src/serverscript/ss_meta.gen.h` and the implemented set
+in `src/net/mock/mock230_opcode_coverage.gen.h`, counting a bare command
+(`npc_coord`, `npc_findhero`, `map_members`) as a site — which is why it is
+3,129 and not the ~1,700 a `name(` scan finds. `npc_coord` 1,334 and `obj_add`
+1,312 are 84 % of it. **`mock230_scripts_report_gaps` cannot answer this
+question before the slice lands**, because it reports on loaded content only;
+that is why it is a scratch measurement (§12.2) and not a bar.
+
+**The obj number is the finding that changed the port.** The existing four-file
+port trimmed the goblin's, the men's and the livestock's tables and said why:
+"the runes it drops replaced by ones this content tree has symbols for",
+"reduced to the coins-and-bones core ... none of which this tree models". That
+premise was wrong. `earthrune`, `bodyrune`, `waterrune`, `brass_necklace`,
+`air_talisman`, `beer`, `bronze_sq_shield`, `bronze_spear`, `chefs_hat`, every
+`unidentified_*` herb and every `uncut_*` gem resolve in `all.obj.compack`. The
+tables are back at full width.
+
+The display-name review of those 282 is the signed one (§14), not a hand pass,
+so it re-runs: `port_name_diff --report`, filtered to the names the ported files
+mention.
+
+| verdict | n | what they are |
+|---|---:|---|
+| identical | 232 | |
+| different-thing | 16 | 14 of them the herbs — LostCity calls every unidentified herb 'Herb', this cache names each one ('Grimy guam leaf'). Plus `bolt` 'Bolt'/'Bronze bolts' and `intelligence_report` 'Scroll'/'Intel report'. |
+| plausible-sibling | 12 | the same disambiguation on capes, hides, wizard robes, and three spelling fixes (`Adamnt`→`Adamant`, `Cadaver`→`Cadava`, `Wizards`→`Wizard`) |
+| formatting-only | 1 | `cow_hide` 'Cow hide'/'Cowhide' |
+| **no row at all** | **21** | |
+
+**The 21 is the row that matters and it is not a rounding error.**
+`port_name_diff` only emits a row for a name LostCity's *authored* tree states;
+a name that exists only in its `pack/` (reserved for content living in the cache
+it was built from) is skipped, because there is nothing to compare and so
+nothing to sign. `coins`, `knife`, `rope`, `fur`, `keyhalf1`, `keyhalf2`,
+`muddy_key`, `sinister_key`, the six `cert_*` and seven more are in that state:
+**7.4 % of the obj names this slice drops are unreviewed, and no bar in the tree
+can see it.** They resolve, they compile, and nobody has asserted they are the
+same item. This is the same shape §14 found for npc (below), one namespace over.
+
+**The npc side is worse, and it produced this slice's one real defect.** The 69
+files bind **130 distinct npc subjects**. Run the same filter over the npc rows:
+
+| verdict | n |
+|---|---:|
+| **no row at all** | **75** |
+| identical | 39 |
+| formatting-only | 14 (`Mountain Troll`/`Mountain troll` ×8, `Troll General`/`Troll general` ×3, `Al-Kharid warrior`, `Entrana Fire Bird`, `Black Demon`) |
+| unnamed | 1 — `jonny_the_beard`, a multinpc base with no `name=` here |
+| **different-thing** | **1** |
+
+**58 % of the subjects are unreviewed** because the reference states them only
+under `scripts/_unpack/`, which `port_name_diff` does not walk. And the one row
+that *is* signed `different-thing` is the `rock_sample1` shape (§4.1) arriving
+for real, in a port, for the first time:
+
+```
+npc  death_man_indoors1   LostCity: 'Unferth' (vislevel 6, category=citizen_burthorpe)
+                          osrs239:  'Man'     (vislevel 2, NO category)
+```
+
+Its six siblings in that block — `death_man_indoors2` 'Penda',
+`death_man_outdoors1` 'Breoca', `death_woman_indoors1` 'Hild' and the rest — all
+keep their names *and* carry category 564/565. This one name did not survive:
+osrs239's Unferth is `twocats_unferth_*` (category 341), and `death_man_indoors1`
+here is a generic Burthorpe man. The missing `category=` is the tell, and it is
+visible in `port_droptables_check --report`'s category column as a bare `-`
+beside six rows reading 564.
+
+**The port binds it anyway, deliberately.** The reference's
+`citizen_burthorpe` table is a citizen table, this record *is* a Burthorpe
+citizen, and giving it that table is right for the record that is actually
+there — but it is right by accident, not because the name meant the same thing.
+The generalisation is the one worth keeping: **a name-resolution gate cannot see
+this, and neither can a compile; only the signed diff can, and it is blind on
+75 of the 130 subjects here.** Anything that expands a reference category to its
+member list is doing 130 of these lookups at once.
+
+**Categories: six bound as categories, ten expanded to their members.**
+`_bear` (438), `_chicken` (444), `_cow` (365), `_ice_warrior` (466),
+`_unicorn` (2263) and `_werewolf` (454) are bound as the reference writes them,
+and they are the **first and only content in this tree that exercises the
+category rung of `SSVM_ProviderGetByTrigger`** — §16.11's item 1, now held. For
+the other ten the reference's category is still a *list of npc names*, and those
+names resolve here, so each is bound member by member — **52 bindings** where
+the reference writes ten trigger lines:
+
+| file | reference | here |
+|---|---|---:|
+| `man.rs2` | `_citizen` | 10 |
+| `man.rs2` | `_citizen_burthorpe` | 7 |
+| `mountain_troll.rs2` | `_mountain_troll` | 12 |
+| `troll_commander.rs2` | `_troll_general` | 7 |
+| `giant_rat.rs2` | `_giantrat` | 4 |
+| `pirate.rs2` | `_pirate` | 4 |
+| `bandit_camp_leaders.rs2` | `_bandit_camp_leader` | 3 |
+| `black_demon.rs2` | `_black_demon` | 2 |
+| `guard.rs2` | `_guard` | 2 |
+| `barbarian.rs2` | `_barbarian` | 1 |
+
+Only three members have no
+spelling in this cache — `barbarian_woman`, `guard2`, `dragonslayer_giantrat` —
+and each is named in the file that lost it. **Nothing was minted and no split
+was resolved**: minting `citizen` would have to invent two names (266 men, 492
+women) the reference does not have, which is the objection §16.11 raised, and
+the port does not get to overrule it by being the one that wants it. What the
+expansion costs is one sentence in `shared_droptables.rs2`: an osrs239 npc
+carrying category 266 that is not one of the reference's `citizen` members gets
+no table. Three of this world's men are exactly that and are bound by hand.
+
+**`[ai_queue3,chicken]` and `[ai_queue3,cow]` are gone.** They were exact
+bindings that would have shadowed the category ones (§16.11 item 2), and
+removing them is what makes the chicken's loot a live test of the category rung
+rather than a decoration.
+
+**The double drop is resolved by a rule, not by inspection.** Binding
+`[ai_queue3,<npc>]` at all suppresses `MOCK230_FALLBACK_AI_QUEUE3`, so a bound
+table that does not itself state `obj_add(npc_coord, npc_param(death_drop), …)`
+silently takes the bones off an npc that had them. In the reference this costs
+nothing — its engine has no such fallback, `death_drop` is only a param content
+reads — so six reference tables legitimately state no death drop
+(`earth_warrior`, `jonny_the_beard` which names `bones` directly, and the four
+kalphite files). Those six carry a `// no-death-drop: <reason>` waiver and the
+other 130 bindings reach one — 71 `obj_add(npc_coord, npc_param(death_drop), …)`
+statements in 64 files, because a `@label` serves many bindings. The rule is
+enforced per *binding*, not per file, and not remembered — see the check below.
+
+**`rat.rs2` is the one rung in the slice that is not the reference's.** The
+reference's rat drops nothing but a Witch's Potion tail, because its own `[rat]`
+record carries `param=death_drop,null`. This tree's does not, an OldSchool rat
+drops bones and raw rat meat, and `livestock.rs2` already dropped both. Kept and
+marked as the modernisation it is (§7.8), rather than regressed to 2004 in the
+name of fidelity.
+
+**Not ported, each stated where it happens:**
+
+- `grip.rs2` — Heroes' Quest progression, `%npc_aggressive_player` (a **varn**,
+  and `content.ini` has no `[namespace:varn]` at all), and the slice's one
+  unimplemented opcode. It is the whole of the `obj_addall` gap.
+- `drop_table.rs2` — `~roll_on_drop_table`, no caller here or in the slice.
+- `gosub(npc_death)`, all 76 sites — death bookkeeping, engine here (§2.3).
+- `~trail_*cluedrop`, all 21 sites — Treasure Trails, which this tree does not
+  model. Dropped, not stubbed.
+- Six quest gates, dropped **whole** rather than un-gated: Observatory Quest,
+  Heroes' Quest, Legends' Quest, Troll Romance (twice), Witch's Potion. An
+  un-gated rung is the opposite of what its gate says — un-gate
+  `mountain_troll` and every kill of Twig hands out a quest key.
+- `[ai_queue2,salarin_the_twisted]` — combat, and it needs
+  `~npc_default_damage` from `skill_combat/`.
+
+**`if (npc_findhero = ^false) { return; }` is KEPT at every site that gates a
+drop table**, which is the one place this port is less aggressive than the
+four-file one it replaces. `SS_OP_NPC_FINDHERO` is a stub pushing 1, so the
+guard is dead today; the day it is not, it is the difference between "the killer
+gets the loot" and "anything that dies drops a table". Measured, because the
+count moved and the reason is informative: the reference states it **79** times
+and the port states it **76**. Four went with things that were not ported — the
+`if (npc_findhero = ^true) { ~trail_checkmediumdrop; }` head of `guard.rs2` and
+`guard_dog.rs2`, and the Troll Romance key gates at the head of
+`mountain_troll.rs2` and `troll_commander.rs2` — and `shared_droptables.rs2`
+adds one back. **Not one of the 76 that guards a table was dropped.**
+
+**Verified in the real client, headlessly** — `SDL_VIDEODRIVER=dummy`,
+`manifest_osrs230_embed.ini`, `TORIRS_NET_CHEAT="…;tele …;fight"`,
+`TORIRS_SIM_CLICK_AT` right-click on the corpse tile, `TORIRS_EXIT_BMP`:
+
+- **a chicken** (teleport to 3231,3296) — the right-click menu on the loot tile
+  reads *Take Raw chicken* / *Take Bones*. The chicken has no binding of its own
+  any more, so this loot exists only through category 444. That is the AI_QUEUE3
+  category rung, proven from the client's own decode of the OBJ_ADD zone
+  packets, not from a server log line.
+- **a goblin** (3221,3269) — *Take Bones*, on the per-npc binding, with the
+  `random(128)` roll landing in the empty 63..127 range.
+
+`mock230_pack --check-only`: **0 errors, 13 warnings** — unchanged.
+`mock230 --selftest`: all checks passed, **462 scripts** (319 before), and the
+gap report stays silent, which is the selftest asserting no new missing opcode.
+`make -C src test-content`: green.
+
+**Re-measuring this entry** (§12's discipline — every number above came from one
+of these, and the two that did not reproduce on the docs pass were corrected in
+place: the binding count, which was the tree-wide 175 rather than the slice's
+137, and the obj-name count, which was 293 rather than 282):
+
+```sh
+D=OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts
+ls $D | wc -l; cat $D/*.rs2 | wc -l              # 69 files, 4,030 lines
+grep -ho '^\[[a-z_0-9]*' $D/*.rs2 | sort | uniq -c  # 136 ai_queue3, 22 label, 6 proc, 1 opnpc1
+grep -c '^\[ai_queue3,_' $D/*.rs2 | grep -v ':0'    # the six category subjects
+python3 tools/port_droptables_check.py --report      # 175 tree-wide; filter col 6 on drop_tables
+python3 tools/port_name_diff.py --report             # the verdict column, joined on the names above
+./src/build_dtb/mock230 --selftest                   # 462 scripts, gap report silent
+./src/build_dtb/mock230_pack --check-only            # 0 errors, 13 warnings
+```
+
+**The permanent check is `tools/port_droptables_check.py`, in `test-port`, and
+every one of its six bars is mutation-proved.** It exists because nothing else
+in the tree holds any of them:
+
+| bar | mutation | result |
+|---|---|---|
+| no duplicate `[trigger,subject]` tree-wide | a second `[ai_queue3,goblin]` in another file | names both sites, exit 1 |
+| a category subject must be in `pack/category.pack` | `_chicken` -> `_giantrat` | exit 1 |
+| …and `minted` in `port/categories.map` | `chicken minted 444` -> `broader` | exit 1 |
+| no exact binding shadowing a category binding | add `[ai_queue3,chicken]` beside `_chicken` | names both, exit 1 |
+| every bound `[ai_queue3]` states or waives its death drop | delete the line from `cow.rs2` | exit 1 |
+| every subject resolves | `goblin_guard` -> `goblin_guardx` | exit 1 |
+
+The duplicate bar is §13 bar 4 finally enforced. §16.11 measured that the
+compiler does **not** collapse two identical triggers and that
+`provider->duplicate_keys` is written and never read; this reads the tree
+instead, which needs no engine change and catches it before the pack is built.
+
+**The bug the check caught was in the check.** `strip_comment()` split a
+multi-line trigger body on the first `//` anywhere in it, so the death-drop bar
+read every one of the 136 bindings as failing. It was found by the mutation run
+— the "before" state was already red, which is the only reason anyone looked.
+A bar that fails everything and a bar that passes everything are the same bug
+wearing different signs, and only mutating a *passing* tree distinguishes them.
+The comment explaining it is in the file.
+
+**Three findings for whoever is next.**
+
+1. **`MOCK230_FALLBACK_AI_QUEUE3`'s blocker string is now doubly stale.**
+   `src/net/mock/mock230_scripts.c:1273-1275` still says *"drop tables need npc
+   categories (triage §7.6b, §9 step 3b)"*; categories landed in §16 and the
+   drop tables landed here. The row prints its count at every boot and its
+   reason under `MOCK230_VERBOSE`, so this is a line somebody reads exactly when
+   they are trying to find out what is blocked. The fallback itself is still
+   real and still wanted — an npc with no bound table drops its `death_drop` —
+   so the row stays; only its reason is false. It was left unedited because this
+   stage wrote no C, and it is §16.1's own failure mode sitting in the banner
+   whose whole job is to be true. `docs/osrs230_mockserver.md`'s copy of that
+   block is fixed.
+2. **118 of the slice's 136 `[ai_queue3]` bindings can never fire in this
+   world**, and only 8 of the 68 files carrying one can. `lumbridge.spawn` is
+   the only spawn file in the tree; it stands 34 distinct npc names up. Sixteen
+   of them are subjects here (`goblin`, `goblin_armed`, `goblin_armed_melee_4`,
+   `goblin_unarmed_melee_in_3`, `rat`, `dragonslayer_giantrat_1_key`,
+   `dragonslayer_giantrat_2`, `imp`, `man`, `man3`, `man4`, `varrock_man1`,
+   `falador_man1`, `woman`, `woman2`, `guard1`), and two more arrive through a
+   category (`chicken` → 444, `cow` → 365). That is 18 live bindings in
+   `chicken.rs2`, `cow.rs2`, `giant_rat.rs2`, `goblin.rs2`, `guard.rs2`,
+   `imp.rs2`, `man.rs2` and `rat.rs2`. **The other 60 files compile, load,
+   resolve and wait**, and that is invisible to every bar: `mock230_pack`'s
+   `validate_categories()` checks membership in the *cache*, never in the
+   *world*, so "this table is unreachable" is not a thing anything can currently
+   say. It is the argument for porting a second **area** before porting more
+   tables — the slice's observable surface is 13 % of what it states, and the
+   limit is the world, not the content.
+3. **`make -C src test-db` is red, and it has nothing to do with any of this.**
+   Reproduced in a clean objdir: `src/game/test/db_cache_test.c` hardcodes
+   `CACHE_DIR` as an absolute path into the *main* worktree
+   (`…/3draster/cache.osrs230`) and asserts `RSCache_ProfileIsIdentified`, so it
+   fails from any other checkout. Nothing in it reads the content tree.
+
+---
+
 ---
 
 ## 11. What I propose not to port
@@ -1980,6 +2373,14 @@ reference   ~/Documents/git_repos/LostCity_Server   d386509  branch 254_zuk
 this tree   OSRS-Content/osrs239-content            531d8f687a
 ```
 
+`drop tables/` (§10.1) and §16.11 were measured later the same day, at the same
+reference commit and one destination commit on:
+
+```
+reference   ~/Documents/git_repos/LostCity_Server   d386509  content 593008c87
+this tree   OSRS-Content/osrs239-content            82c8b8773e
+```
+
 ### 12.4 Baseline on the destination tree, 2026-08-01
 
 ```
@@ -2032,6 +2433,12 @@ From the brief, with what each one costs given the measurements:
    (`bob`, `hans`, `father_aereck`). Those three are a hand merge, not a copy,
    and that merge is a prerequisite of the first slice rather than a detail —
    a second `[opnpc1,bob]` is a duplicate-trigger conflict, not an override.
+   **Enforced 2026-08-01** by `tools/port_droptables_check.py` (§10.1), tree-wide
+   and on every npc-family trigger, not just this slice's. It had to be a
+   content-tree check because neither layer below it says no: `sscompile`
+   compiles the two to **two** scripts, and `SSVM_ProviderLoad` counts them into
+   `provider->duplicate_keys` which nothing reads (§16.11 item 3). This bar was
+   written down here and unenforced for the whole of §14–§19.
 
 I would add two:
 
@@ -2053,6 +2460,19 @@ I would add two:
    is a dbtable *schema*, §18's is a varbit *bit range*, §16's is a category
    *group*. What is being signed off is that the thing means the same, and the
    display name is only where that is cheapest to see.
+
+   **What it cannot see, measured on the first slice that leaned on it
+   (§10.1).** `port_name_diff` emits a row only for a name LostCity's *authored*
+   tree states; a name it holds only in `pack/` — reserved for content living in
+   the cache it was built from, or stated only under `scripts/_unpack/` — is
+   skipped, because there is nothing to compare. On `drop tables/` that is **21
+   of 282 obj names (7.4 %) and 75 of 130 npc subjects (58 %)** with no row at
+   all. They resolve, they compile, and nothing has asserted they mean the same
+   thing. **A signed corpus with no row is not a pass**, and the report does not
+   currently distinguish the two. That is the next thing this bar needs.
+   (It also caught its first live one under a port on the same slice:
+   `death_man_indoors1` is 'Unferth' in the reference and a generic 'Man' here
+   — §10.1.)
 
 ---
 
@@ -2682,6 +3102,10 @@ None of the seven needs a guard — a category of -1 and a category nothing bind
 behave identically, so adopting them is additive and cannot change an existing
 dispatch.
 
+> **AI_QUEUE3 has since been adopted** and the list above is six, not seven —
+> `mock230_world_npc_died` passes `mock230_npc_category(npc->type)`. See §16.11
+> for what still holds it (nothing does yet) and what will.
+
 `mock230_npc_category()` deliberately does **not** read through
 `mock230_npcinfo()`. That accessor hides a nameless record's whole row, by
 documented design, and **1,585 of this cache's 9,149 categorised npc records have
@@ -2705,6 +3129,11 @@ rung exists to prevent.
   unconditionally, while `mock230_content.c`'s `pack_kind_is_config()` puts
   `category` in `pack/<ns>.pack` — so the moment `category` is promoted the
   allocator will write a file nothing reads.
+  **Update (§16.11): the second trap is gone** — `pack_path()` honours
+  `NON_CONFIG_NAMESPACES` now and would write `pack/category.pack`. The first
+  stands, and it is the *only* remaining category blocker. The count is **21**
+  orphans, not 20: `battle_mage` joined them. Every one was re-checked for an
+  authorable id and none has one.
 - **89 loc categories.** `dat2_config_loc.c:1009` throws opcode 61 away
   (`case 61: g2(buffer); // Skip unsigned short`), so `configs/all.loc` carries
   **0** `category=` lines and the crawl has nothing to resolve against. Fixing it
@@ -2795,6 +3224,187 @@ unrelated to categories. Re-baselined with `--write-signed`; the diff is
 **exactly +6 rows**, all `identical/unreviewed`, none rewritten. The reference
 content submodule was dirty with 15 modified and 5 untracked files while this ran.
 It is now a property of the setup, not an incident.
+
+### 16.11 The collisions, settled — and the two tools that disagreed
+
+Written 2026-08-01, as the prerequisite stage of the `drop tables/` slice (§10).
+§16.4's four collisions and 20 orphans were the thing standing between the slice
+and binding. What follows is what was settled, what was not, and the bug that
+made the question look different from what it was.
+
+**`--report` and `--write-map` disagreed, and the louder one was wrong.**
+`report()` re-derived every row from scratch and never read `port/categories.map`,
+so it printed `black_demon minted 275` and `giantrat minted 262` — the two rows
+§16.4 exists to hold back. `write_map()` preserved the demotions; `--report`
+undid them on screen. Anyone opening the slice was handed the crawl's *unreviewed*
+answer as though it were the reviewed one. `--report` now prints the map's
+disposition, adds an eighth `derived` column with its own, and names every
+divergence on stderr; `--groups` does the same, because printing `minted` beside
+the histogram that disproves it is the worst possible caption. The map, and only
+the map, is the authority.
+
+**A collision is never resolved by picking a winner.** That is a result, not a
+policy: if two reference names crawl to one osrs239 id, the id holds both
+concepts, so it is *wider than either* — which is `broader`, and it is the same
+call §16.4 already made for `black_demon` and `giantrat`. Measured:
+
+| id | holds | the names claiming it |
+|---|---|---|
+| **354** | 37 records — Gnome x5, Gnome guard x3, Gnome child x3, Mounted terrorbird gnome x2, **Gnome troop x2**, Gnome woman x2, **Battle mage x1**, Meegle, Sarble, Burkor. It is "gnome". | `gnome_troop`, `battle_mage` |
+| **309** | 67 records — Mountain troll x8, (unnamed) x7, **Troll spectator x7**, My Arm x3, **Troll general x3**, Cook x3, Ug x2, Arrg x2. It is "troll". | `troll_general`, `troll_spectator`, and one half of `mountain_troll`'s split |
+
+`gnome_troop`, `troll_general` and `troll_spectator` are **`broader`**. All their
+members resolve, uniquely, to an id that is not the concept.
+
+**`battle_mage` is worse than a collision and is now `orphan`.** Its three
+reference members are `zamorak_mage`, `saradomin_mage`, `guthix_mage`
+(`area_mage_arena/configs/mage_arena.npc`); all three exist here, all three
+display "Battle mage", and exactly one carries a category. That one is
+`guthix_mage`, and it carries 354 because **it is a gnome** —
+`readyanim=gnome_ready`, `walkanim=gnome_walk`, against its two siblings'
+`human_ready`/`human_walk_f`, which carry nothing. So the single resolution is a
+false friend: the record is in the group for a reason unrelated to the name.
+1/3 resolving read as "nearly there"; it is "not at all". Nothing in this cache
+states `battle_mage`.
+
+Settling 354 buys the slice nothing — neither name appears in `drop tables/`.
+`troll_general` does, and stays unresolvable either way.
+
+**The demotions could not survive a regenerate, and that was the sharper bug.**
+`write_map()` preserved a hand `broader` **only over a derived `minted`**. That
+was the whole set when it was written and is not now: the four collision rows
+demote to `broader`/`orphan` *over a derived `collision`*, and one
+`--write-map` would have silently put all four back — re-arming the exact "one
+name wins and nothing says so" failure the demotion was written to disarm, and
+deleting four paragraphs of evidence with it. Preservation is now `HELD_BACK`
+(`broader`, `orphan`) over `OVERRIDABLE` (`minted`, `collision`), verbatim
+including the id.
+
+**Orphans carry their near-misses now.** An orphan is a name whose own members
+carry nothing, and the next reader's instinct is to find "the obvious id" by
+display name — which usually succeeds, at a different concept wearing the same
+word. The crawl now derives that search and records the answer as SUSPECT, with
+the `<matching>/<group>` ratio a `broader` call is made from:
+
+```
+witches_experiment  SUSPECT 725(4/67)    725 is the NIGHTMARE ZONE BOSS category:
+                                         67 nzone_* records, 4 of which are the
+                                         shapeshifter's four forms
+pirate              SUSPECT 2363(8/9),2358(5/5),1181(2/2)
+                                         Trouble Brewing's, the pickpocketable
+                                         set, the Warrens' — three sets, none the
+                                         Port Sarim four
+barbarian           SUSPECT 369(15/16),493(7/7)
+                                         both are Barbarian Assault / fishing
+                                         rosters (fai_*/akd_*). The Barbarian
+                                         Village barbarian is in neither
+guardian_of_armadyl SUSPECT 2046(4/5),2042(2/2),1715(1/5)   all three are WGS
+monk_of_zamorak     SUSPECT 1321(3/3),2491(3/3)
+```
+
+The rest — `bandit_camp_leader`, `witch`, `sailor`, `shipyardworker`,
+`tower_advisor`, `diseased_sheep`, `fisherman_platform`, `legends_guard`, the 7
+`macro_event_*` — say *"no categorised record anywhere in this cache shares
+these display names"*, which is a stronger statement than "we found nothing".
+
+`bandit_camp_leader` is the clean worked example the brief asked about: its
+three members are here, as npc 301/302/303, "Black Heather" / "Donny the lad" /
+"Speedy Keith", and **all three carry no `category=`**. Nothing is missing and
+the crawl is right; the cache is simply silent. That is a statement about the
+cache, and it is left unported.
+
+**No orphan was authorable, and that was checked rather than assumed.** The
+reference derives a category from each record's own `category=`, so the fix for
+a missing one is normally to author it here — but authoring needs an id, and for
+all 20 orphans this cache states no id for the concept (that is what the SUSPECT
+scan above is: the search for one, run and failed). `content.ini` still gives
+`category` `ids = cache` with no `server_base`, so one cannot be allocated
+either. **This is the single remaining blocker and it is register work, not a
+content judgement** — §9 step 3c-0. The second trap §16.7 named alongside it is
+already gone: `ss_allocate.py`'s `pack_path()` now honours
+`NON_CONFIG_NAMESPACES` and would write `pack/category.pack`.
+
+**The eight splits were left alone, deliberately.** Minting a per-group name
+(`citizen` is {266 = Man x17 + Drunken man/Norman/Cuffs/Narf/Rusty/Jeff/Hengel,
+492 = Woman x12 + Anja} — osrs239 split the reference's one category by sex)
+would not copy an id, but it *invents a name the reference does not have* and
+forces the ported script to bind two triggers instead of one. That is a content
+decision belonging to the port, not to its prerequisite.
+
+**Two stale negative claims about the cache, both fixed in place.** §16.1's rule
+had propagated into content:
+
+- `drop_tables/scripts/livestock.rs2` — "there is no such category in this
+  cache" for `_giantrat`. There is: `rat`, `dragonslayer_giantrat_1_key` and
+  `dragonslayer_giantrat_2` **all carry 262**, which is why the per-npc binding
+  is right and why `giantrat` is `broader`. Same conclusion, opposite reason,
+  and the wrong reason is the one that gets "fixed" later.
+- `areas/lumbridge/scripts/citizens.rs2` — "An OldSchool cache has no such
+  category". It has it twice: the five men bound there carry 266, the two women
+  carry 492.
+
+**The permanent checks, and the mutation that proves each.** Both live in
+`port_category_crawl --check`, inside `test-port`, inside `test-content`.
+
+- **A `collision` left standing is a failure.** It is a derived disposition and
+  never a resting one; resting is exactly "two names claim one id and one wins
+  silently". Mutation: `battle_mage orphan 354` → `collision` → 1 problem,
+  exit 1. Reverted.
+- **A preserved demotion must still refuse the id it names.** `write_map` keeps
+  a hand row's id verbatim instead of re-deriving it, so it is the one number
+  here nothing else would notice going stale. Mutation: `black_demon broader
+  275` → `276` → "*its members now carry [275] — a preserved demotion states the
+  id it refuses*", exit 1. Reverted.
+- **The preservation fix itself was mutation-tested**, because a checker that
+  cannot fail proves nothing: reverting `write_map` to the pre-fix rule
+  (`broader` over `minted` only) and running `--write-map` puts all four
+  collision rows back and deletes their evidence — and `--check` then reports 4
+  problems. Both halves earn their lines.
+
+Green after: `port_category_crawl --check` → *53 row(s), 18 minted, 6 demoted by
+hand over the crawl's own answer, all agree with pack/category.pack*;
+`--write-map` idempotent; `test-port` green; `test-content` green with
+`mock230_pack: 0 error(s), 13 warning(s)`; `mock230 --selftest` all checks
+passed at 319 scripts. **No C was written in this stage.** The map's state:
+
+```
+minted 18   broader 5   orphan 21   split 8   placeholder 1   collision 0
+```
+
+(`orphan` is 21, not 20, because `battle_mage` moved into it; `broader` is 5, not
+2, and `collision` is 0.)
+
+**What the port stage inherits.** (It ran the same day — see §10.1. All three
+items below held: `_chicken` and `_cow` are bound as categories and their exact
+bindings were removed, and `tools/port_droptables_check.py` now enforces all
+three plus the death-drop rule.) Of the slice's 16 category subjects, six
+resolve — `bear` 438, `chicken` 444, `cow` 365, `ice_warrior` 466, `unicorn`
+2263, `werewolf` 454 — and ten do not: `black_demon`, `giantrat`,
+`troll_general` (`broader`), `citizen`, `citizen_burthorpe`, `guard`,
+`mountain_troll` (`split`), `bandit_camp_leader`, `barbarian`, `pirate`
+(`orphan`). Three things it should not rediscover:
+
+1. **The AI_QUEUE3 rung has no permanent check yet.** `mock230_world_npc_died`
+   passes `mock230_npc_category()` now instead of `-1`, proved live and the
+   probe removed — but nothing in the tree binds a category-keyed npc trigger,
+   so nothing holds it. Converting `livestock.rs2`'s `[ai_queue3,chicken]` to
+   the reference's `[ai_queue3,_chicken]` is both the first port move and that
+   check.
+2. **An exact binding shadows a category binding** (`SSVM_ProviderGetByTrigger`:
+   type → category → global). `chicken`, `cow`, `rat` and `duck` are all
+   exact-bound today, so a half-converted file silently keeps the old table for
+   the named npc and gives the category table only to its siblings.
+3. **A duplicate trigger is silent, but not where it was reported to be.**
+   Measured, because the inherited claim was that `sscompile` compiles the two
+   to one: it does not. A second file declaring `[ai_queue3,chicken]` compiles
+   to **320 scripts, not 319** — both survive. The collision is at *load*:
+   `SSVM_ProviderLoad` sorts `by_key`, counts equal adjacent keys into
+   `provider->duplicate_keys`, and **nothing in mock230 ever reads that field**
+   (only `ss_corpus_test` and `ss_provider_test` do). `find_by_key` is a
+   `bsearch` over the sorted array, so which of the two duplicates answers is
+   whichever the search lands on. §13 bar 4 calls a second binding a conflict;
+   neither the compiler nor the server enforces it, and the counter that could
+   is already there unread.
 
 ---
 

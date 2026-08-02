@@ -1185,6 +1185,8 @@ test-port:
 	@cd $(REPO_ROOT) && python3 tools/port_vars_diff.py --check
 	@cd $(REPO_ROOT) && python3 tools/port_names_diff.py \
 		--tree $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \
+		--tree $(MOCK230_CONTENT_DIR) --check -v
 
 # The compiler's symbol table, against the register and the live tree.
 #

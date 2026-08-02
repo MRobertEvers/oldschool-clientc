@@ -3915,11 +3915,20 @@ mock230_world_handle(
  * nothing is bound, the config's `param=death_drop` still drops (bones for
  * almost everything), so an npc with no script is not a silent kill.
  *
- * That last sentence is the declared fallback MOCK230_FALLBACK_AI_QUEUE3, and
- * it is here because the reference binds 16 of `drop tables/`'s 94 `[ai_queue3]`
- * triggers to an npc *category*, which this cache does not have (triage §7.6b).
- * The category argument below is therefore -1 and will stay -1 until §9 step 3b
- * lands the field and the crawler.
+ * That last sentence is the declared fallback MOCK230_FALLBACK_AI_QUEUE3.
+ *
+ * The reference binds 16 of `drop tables/`'s 94 `[ai_queue3]` triggers to an npc
+ * *category* rather than to an npc, so this dispatch has to offer the category
+ * rung or those 16 tables can never bind. It used to pass a literal -1 on the
+ * strength of a claim that this cache carries no npc category; it carries one on
+ * 9,149 of its 16,292 records (triage §16.1), and `mock230_npc_category()` reads
+ * it. Adopting it here is additive: the lookup chain is exact type -> category ->
+ * global, so an npc whose type is bound is unaffected, and a category nothing
+ * binds behaves exactly as -1 did.
+ *
+ * Measured rather than assumed, on `[ai_queue3,_chicken]` (category 444) against
+ * `chicken_brown`, an npc of that category with no binding of its own:
+ * with -1 the script does not run, with the category it does.
  */
 void
 mock230_world_npc_died(
@@ -3930,7 +3939,8 @@ mock230_world_npc_died(
 
     if( !mock230_scripts_fallback(
             srv, MOCK230_FALLBACK_AI_QUEUE3,
-            mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type, -1, slot)) )
+            mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type,
+                                        mock230_npc_category(npc->type), slot)) )
         return;
 
     if( npc->def && npc->def->death_drop >= 0 )

@@ -659,23 +659,25 @@ struct Mock230NpcInfo
  * does it for objs: binding a trigger to "unstated" would match every
  * uncategorised npc in the cache.
  *
- * **Seven npc dispatch sites in mock230_world.c still pass a literal -1**, and
+ * **Six npc dispatch sites in mock230_world.c still pass a literal -1**, and
  * each is this call with the type they already hold. They were left alone
  * because another change owns those lines, not because the rung does not apply
- * to them — `[ai_queue3,_<category>]` is where the reference leans on categories
- * hardest (16 of `drop tables/`'s 94 `[ai_queue3]` triggers bind to one), so
- * AI_QUEUE3 is the site that matters most:
+ * to them:
  *
  *   SS_TRIGGER_AI_OPPLAYER1 + op    npc->type
  *   SS_TRIGGER_AI_APPLAYER1 + op    npc->type
  *   SS_TRIGGER_AI_QUEUE1 + n        npc->type
  *   SS_TRIGGER_AI_TIMER             npc->type
- *   SS_TRIGGER_AI_QUEUE3            npc->type
  *   SS_TRIGGER_AI_SPAWN             npc->type
  *   SS_TRIGGER_OPNPC1 + n           srv->npcs[slot].type   (the `::talk` cheat)
  *
+ * AI_QUEUE3 was the seventh and has been adopted: it is where the reference
+ * leans on categories hardest — 16 of `drop tables/`'s 94 `[ai_queue3]` triggers
+ * bind to a category — so a -1 there is the difference between those 16 tables
+ * existing and never firing. Measured both ways in `mock230_world_npc_died`.
+ *
  * `[opnpc*]`/`[apnpc*]` from a real interaction already reach the rung, through
- * `interaction_category()`. Nothing needs to *guard* the remaining seven: a
+ * `interaction_category()`. Nothing needs to *guard* the remaining six: a
  * category of -1 and a category nothing binds behave identically, so adopting
  * them is additive and cannot change an existing dispatch.
  */
