@@ -535,6 +535,39 @@ cp_pack_server_run(
     struct CP_Ctx* ctx,
     const struct CP_Selection* sel);
 
+/**
+ * `membership`: seed `pack/<ns>.client` and `pack/<ns>.server` from the routing
+ * the packer already performs, and write nothing else.
+ *
+ * A separate command rather than a flag on `pack`, because it is not part of
+ * packing: it opens no cache, writes no archive, and creates only files that do
+ * not already exist, so running it twice is a no-op. See the section comment in
+ * `cp_pack.c` and docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 1.
+ */
+int
+cp_membership_emit(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel);
+
+/**
+ * `membership --check-only`: hold the seeded files against provenance and write
+ * nothing.
+ *
+ * The first of the two agreement checks docs/PACK_ENTITY_SPLIT_PLAN.md §3.3
+ * names. The second is against the id range and is *not* here: `server_base`
+ * belongs to `src/content/content_register.c` and cachepack links nothing from
+ * `src/`, so `mock230_pack` runs that half against the register it already holds.
+ *
+ * Returns 0 when a disagreement no gate can explain was found. The large,
+ * legitimate populations §8.5 records are counted and printed rather than failed
+ * — the routing being checked is the one the files were seeded from, so what a
+ * failure here means is that the tree changed under them.
+ */
+int
+cp_membership_check(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel);
+
 int
 cp_verify_run(
     struct CP_Ctx* ctx,

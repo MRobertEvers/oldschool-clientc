@@ -4,13 +4,23 @@ A step-by-step plan for the content pipeline described in
 [`CONTENT_ARCHITECTURE.md`](CONTENT_ARCHITECTURE.md), narrowed by four scoping
 decisions that remove most of that document's machinery.
 
-> **This title is superseded in one respect.**
-> [`PACK_ENTITY_SPLIT_PLAN.md`](PACK_ENTITY_SPLIT_PLAN.md) plans *two* pack files
+> **This title is superseded in one respect, and the successor has landed.**
+> [`PACK_ENTITY_SPLIT_PLAN.md`](PACK_ENTITY_SPLIT_PLAN.md) put *two* pack files
 > per namespace — a client membership list and a server one — so that **which
 > entities** go to a side is stated on disk rather than inferred from where a
-> block was authored. §7's field register (which *fields* go to a side) is
-> unaffected and is its prerequisite; the four decisions in §0 still hold. Read
-> this document first; that one is the successor and is not built.
+> block was authored. It is built: `pack/<ns>.{client,server}` exist for five
+> namespaces, `cachepack pack` routes on them, and the switch changed no packed
+> byte. §7's field register (which *fields* go to a side) is unaffected and was
+> its prerequisite; the four decisions in §0 still hold, and §0's substrate rule
+> is now load-bearing code — *"the base cache already holds this id"* is the
+> second clause of the client gate, which is what lets a membership file be a
+> subset rather than a roster.
+>
+> Read this document first for the pipeline; read that one for entity routing,
+> for what the split found (2,158 npcs with a server half copied out of the
+> cache, 1,698 records stating a field routed to neither side, two hitsplat
+> records no file can claim), and for the one clause of it that was deliberately
+> not built.
 
 ---
 

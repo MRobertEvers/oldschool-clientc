@@ -987,15 +987,25 @@ mock230-servpack:
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
 # is run by hand rather than as part of a build.
+#
+# `cp_membership.c` comes in from cachepack rather than being re-implemented.
+# `pack/<ns>.client` / `.server` have one parser, and the two tools that read them
+# — cachepack's provenance check and this validator's id check — are two callers
+# of it. A second reader is how the two halves of one check end up disagreeing
+# about which lines a file holds. It depends on nothing but stdio, which is why
+# this direction of borrowing is the safe one: cachepack still links nothing from
+# src/ (see cp_register.h).
 MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
+	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
+	$(CC) $(CFLAGS) -I$(RSCACHE_DIR)/tools/cachepack \
+		-o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/mock230_pack"
@@ -1085,11 +1095,37 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 #
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
-.PHONY: test-servercodec test-content test-port
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack mock230-pack test-port
+.PHONY: test-servercodec test-content test-port test-membership
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
 	@echo "test-content: all content bars passed"
+
+# The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md §3.3).
+#
+# `pack/<ns>.client` and `pack/<ns>.server` say which *entities* have a half on
+# each side. That fact is stated twice on purpose, and these are the two readings
+# of the second statement:
+#
+#   membership vs provenance   here. Every name in a file resolves to a record
+#                              some layer states; every name in `<ns>.server` is
+#                              one the tree either authored a block for or routes
+#                              a field to; and every record the tree authors is
+#                              named by a file. Needs the two-rank merge, which is
+#                              the packer's, so it runs in cachepack.
+#   membership vs the id range in `mock230_pack`, below — `server_base` is the
+#                              register's and cachepack links nothing from src/.
+#
+# Split across two binaries because each half runs where its authority lives, and
+# neither half restates the other's fact. Neither is what *enforces* membership —
+# `cachepack pack` routes on the same files (§4 step 3) and fails on the plan's
+# cells (a) and (c) itself. These two are the second reading: the packer can only
+# ask what the files say, and these ask whether what they say is true of the tree.
+test-membership:
+	@echo "--- membership: entities against provenance ---"
+	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack membership \
+		--src $(MOCK230_CONTENT_DIR) --check-only
 
 # The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md §9 step 2).
 #

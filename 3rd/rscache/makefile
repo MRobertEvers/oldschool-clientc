@@ -98,6 +98,17 @@ $(BUILD)/test_fields: test/test_fields.c $(BUILD)/cp_fields.o $(BUILD)/ini.o $(L
 	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_fields.o $(BUILD)/ini.o \
 		$(LIB_OBJS)
 
+# The membership suite, here for the third instance of the same reason:
+# `pack/<ns>.client` and `pack/<ns>.server` are the on-disk statement of which
+# *entities* have a half on each side, they are authored text, and the migration
+# that lands them rests on two emissions of the same content being byte-identical
+# (docs/PACK_ENTITY_SPLIT_PLAN.md §4). Text needs no cache, so this never skips.
+$(BUILD)/cp_membership.o: tools/cachepack/cp_membership.c | $(BUILD)
+	$(CC) $(CFLAGS) -Itools/cachepack -c $< -o $@
+
+$(BUILD)/test_membership: test/test_membership.c $(BUILD)/cp_membership.o | $(BUILD)
+	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_membership.o
+
 # The bzip2 encoder is ours, so it is also checked against the reference bzip2
 # binary — our own decoder agreeing with our own encoder is not proof.
 $(BUILD)/bzip_interop_helper: test/bzip_interop_helper.c $(BUILD)/bzip_encode.o | $(BUILD)
