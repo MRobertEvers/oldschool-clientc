@@ -481,6 +481,14 @@ RSCache_Dat2ConfigLocEncodeFlags(
         p1(&buffer, 60);
         p2(&buffer, loc->map_function_id);
     }
+    /* Opcode 61 sits between 60 and 62 on the wire and is written here so a
+     * record that states one round-trips byte-exactly. `defaults.category` is 0
+     * — the same "unstated" the npc and obj encoders test against. */
+    if( loc->category != defaults.category )
+    {
+        p1(&buffer, 61);
+        p2(&buffer, loc->category);
+    }
     if( loc->mirrored )
         p1(&buffer, 62);
     if( !loc->shadowed )
@@ -1007,7 +1015,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc->map_function_id = g2(buffer);
             break;
         case 61:
-            g2(buffer); // Skip unsigned short
+            loc->category = g2(buffer);
             break;
         case 62:
             loc->mirrored = 1;

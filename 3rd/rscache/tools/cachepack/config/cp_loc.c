@@ -94,6 +94,9 @@ emit_loc(
                    "retex");
 
     EMIT_INT(map_function_id, "mapfunction");
+    /* The id, not the name — see the note above `cp_resolve_category`. Config
+     * opcode 61, the same id space `cp_npc.c` writes at `category=`. */
+    EMIT_INT(category, "category");
     EMIT_INT(map_scene_id, "mapscene");
     EMIT_INT(mirrored, "mirror");
     EMIT_BOOL(shadowed, "shadow");
@@ -412,6 +415,11 @@ cp_pack_loc(
             ok = cp_parse_int(value, &entry->contrast);
         else if( strcmp(key, "mapfunction") == 0 )
             ok = cp_parse_int(value, &entry->map_function_id);
+        /* The one field on a loc whose value may be spelled as a name: the export
+         * writes `category=684` and an authored overlay writes
+         * `category=door_closed`, both meaning an id in the same namespace. */
+        else if( strcmp(key, "category") == 0 )
+            ok = cp_resolve_category(ctx, value, &entry->category);
         else if( strcmp(key, "mapscene") == 0 )
             ok = cp_parse_int(value, &entry->map_scene_id);
         else if( strcmp(key, "mirror") == 0 )

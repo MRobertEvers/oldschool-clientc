@@ -229,6 +229,22 @@ struct CP_Names
     char*** dbtable_columns;   /* [dbtable_count][dbtable_column_count[t]] */
     int* dbtable_column_count; /* [dbtable_count] */
     int dbtable_count;
+    /**
+     * `pack/category.pack` — the one namespace a *config field* refers to that is
+     * not a config type.
+     *
+     * A category is not a record: the cache has no category group and no gameval
+     * table for it (`cp_fields.c`'s `k_server_groups`), so it cannot be a
+     * `CP_TypeId` and `packs[]` cannot hold it. But `loc.category` (config opcode
+     * 61) and `npc.category` (18) are *fields whose value is a category id*, and
+     * an authored overlay spells that value as a name — `category=door_closed`,
+     * which is how LostCity's own `.loc` blocks state it. Resolving it needs the
+     * table, so the table is loaded here.
+     *
+     * Sparse and usually small (55 rows in this tree). Absent is normal: a tree
+     * that has named no category resolves nothing and says so per call site.
+     */
+    struct LC_Pack category;
 };
 
 /**
@@ -704,6 +720,27 @@ cp_resolve_ref(
     enum CP_TypeId type,
     const char* text,
     int* out_id);
+
+/**
+ * Resolve a category name (or a bare number) to a category id.
+ *
+ * The `cp_resolve_ref` of the one namespace that is not a config type — see
+ * `CP_Names.category`. Same contract: a bare number always wins, a name is looked
+ * up in `pack/category.pack`, and an unknown name warns once and returns 0 so the
+ * record is written without the field rather than with a wrong one.
+ */
+int
+cp_resolve_category(
+    struct CP_Ctx* ctx,
+    const char* text,
+    int* out_id);
+
+/*
+ * There is deliberately no `cp_emit_category`. The unpack writes the id, exactly
+ * as `cp_npc.c` has always written `category=249`: `configs/all.<type>` is the
+ * machine export of the cache, and naming its values would make 8,407 lines of it
+ * depend on a file the cache does not contain. Names are for what a human writes.
+ */
 
 /** `recolNs`/`recolNd` + `retexNs`/`retexNd` line pairs. */
 void
