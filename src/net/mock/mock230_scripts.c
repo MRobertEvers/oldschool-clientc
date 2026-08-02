@@ -1633,12 +1633,113 @@ mock230_scripts_run_opheldu(
 /* ------------------------------------------------------------------ */
 
 /*
+ * An opcode a `blocked_on` string names as the thing that is missing.
+ *
+ * This exists for the assertion under it, not for the documentation. `ai_queue3`
+ * printed "drop tables need npc categories" at every boot for two stages after
+ * categories, the category rung and 69 ported drop-table files had all landed.
+ * Nothing was wrong with the code — the *reason* had expired, and an expired
+ * reason reads exactly like a live one. Prose cannot go stale loudly, so the
+ * citation is machine-readable as well as printed: a row that says
+ * `OC_WEARPOS` is missing is only true while nothing implements `OC_WEARPOS`,
+ * and `fallback_stale_blockers` says so at boot on the day somebody does.
+ *
+ * `value` is the opcode's number from `ss_opcode.h`, or **-1 for an opcode
+ * nothing has even declared yet** — which is a real state here: `LAST_VERB` is
+ * a reader two rows are blocked on and there is no `SS_OP_LAST_VERB` at all.
+ * `MOCK230_BLOCKER_*` below turns the declaration itself into the switch, so
+ * declaring the opcode is enough to put it under the check. Every other row
+ * uses `BLOCKING_OP(sym)`, which stringifies the same token it evaluates: the
+ * printed name and the checked value cannot be edited apart.
+ *
+ * The check is deliberately one-directional. It catches "this row cites
+ * something that is now present", which is the failure that hides; it cannot
+ * catch a blocker that is not an opcode (an unwritten entity binding, a
+ * component that is armed but not bound), and those are cited in the text with
+ * the grep that settles them instead.
+ */
+struct FallbackBlockingOp
+{
+    /** As `ss_opcode.h` spells it, so the text and the check cannot drift. */
+    const char* name;
+    /** Its value, or -1 when nothing declares it yet. */
+    int value;
+};
+
+/* Nothing declares a `last_verb` reader. The engine latches the verb
+ * (`mock230_world.c`, `player->last_verb = op_num`) and content cannot read it,
+ * which is the shared blocker under `inv_button` and `if_button`. Written as an
+ * #ifdef rather than a -1 literal so that declaring the opcode automatically
+ * hands it to the staleness check — and under a private name so that a stray
+ * `case SS_OP_LAST_VERB:` can never pick up a placeholder. */
+#ifdef SS_OP_LAST_VERB
+#define MOCK230_BLOCKER_LAST_VERB SS_OP_LAST_VERB
+#else
+#define MOCK230_BLOCKER_LAST_VERB (-1)
+#endif
+
+/* Stringify the symbol rather than repeating it, so the printed name and the
+ * checked value are the same token and cannot be edited apart. */
+#define BLOCKING_OP(sym) { #sym, (sym) }
+
+static const struct FallbackBlockingOp k_blocked_opnpc[] = {
+    /* None. `opnpc` is not blocked on an opcode — see its text. */
+    { NULL, 0 }
+};
+
+static const struct FallbackBlockingOp k_blocked_oploc[] = {
+    BLOCKING_OP(SS_OP_P_OPLOC),
+    BLOCKING_OP(SS_OP_LOC_CATEGORY),
+    BLOCKING_OP(SS_OP_LC_CATEGORY),
+    { NULL, 0 }
+};
+
+static const struct FallbackBlockingOp k_blocked_opobj[] = {
+    BLOCKING_OP(SS_OP_OBJ_COORD),
+    BLOCKING_OP(SS_OP_OBJ_COUNT),
+    BLOCKING_OP(SS_OP_OBJ_DEL),
+    BLOCKING_OP(SS_OP_OBJ_FIND),
+    BLOCKING_OP(SS_OP_OBJ_TAKEITEM),
+    BLOCKING_OP(SS_OP_OBJ_TYPE),
+    { NULL, 0 }
+};
+
+static const struct FallbackBlockingOp k_blocked_opheld[] = {
+    BLOCKING_OP(SS_OP_OC_WEARPOS),
+    BLOCKING_OP(SS_OP_OC_WEARPOS2),
+    BLOCKING_OP(SS_OP_OC_WEARPOS3),
+    BLOCKING_OP(SS_OP_INV_SETSLOT),
+    BLOCKING_OP(SS_OP_INV_MOVEFROMSLOT),
+    BLOCKING_OP(SS_OP_INV_DROPSLOT),
+    BLOCKING_OP(SS_OP_BUILDAPPEARANCE),
+    BLOCKING_OP(SS_OP_P_CLEARPENDINGACTION),
+    { NULL, 0 }
+};
+
+static const struct FallbackBlockingOp k_blocked_inv_button[] = {
+    { "SS_OP_LAST_VERB", MOCK230_BLOCKER_LAST_VERB }, /* not BLOCKING_OP: undeclared */
+    { NULL, 0 }
+};
+
+static const struct FallbackBlockingOp k_blocked_if_button[] = {
+    { "SS_OP_LAST_VERB", MOCK230_BLOCKER_LAST_VERB }, /* not BLOCKING_OP: undeclared */
+    { NULL, 0 }
+};
+
+/*
  * The C that still answers a trigger nothing is bound to, named and counted.
  *
  * `blocked_on` is the whole reason each row is allowed to exist. It is not a
  * comment: the boot prints it, so "why is this behaviour not content?" has an
  * answer at the point where somebody is asking, and a row whose blocker has
  * been cleared is visibly a row to delete.
+ *
+ * Each string is written to be **checkable in one command** rather than
+ * plausible — a symbol as its header spells it, a file:line, a line count, a
+ * reference path — because the previous set read plausibly and one of them was
+ * simply false. Where a blocker is partly cleared the string says which part;
+ * "NOT x" openings are load-bearing, not rhetoric. `blocked_ops` is the machine
+ * half of the same job.
  *
  * The rule this table encodes is PORTING_GUIDE §2.5's: widen the ServerScript
  * surface until a script can say it, move the behaviour, delete the row. Adding
@@ -1648,27 +1749,158 @@ static const struct
 {
     const char* name;
     const char* blocked_on;
+    /** The opcodes `blocked_on` names, NULL-terminated. Never NULL itself. */
+    const struct FallbackBlockingOp* blocked_ops;
 } k_engine_fallbacks[MOCK230_FALLBACK_COUNT] = {
-    [MOCK230_FALLBACK_OPNPC] = { "opnpc",
-                                 "combat is 858 lines of C (§6.1 step 5); the "
-                                 "reference says it in [opnpc2,_]" },
-    [MOCK230_FALLBACK_OPLOC] = { "oploc",
-                                 "doors, bank booths and stairs need loc_* and a "
-                                 "per-loc destination (§6.1 step 5)" },
-    [MOCK230_FALLBACK_OPOBJ] = { "opobj",
-                                 "no obj_take / inv_add-from-ground opcode pair yet "
-                                 "(triage §9 step 4b)" },
-    [MOCK230_FALLBACK_OPHELD] = { "opheld",
-                                  "equipment is C (§6.1 step 5); the reference says "
-                                  "it in [opheld2,_] and [opheld5,_]" },
-    [MOCK230_FALLBACK_INV_BUTTON] = { "inv_button",
-                                      "the bank, 1,370 lines — see bank.rs2's own "
-                                      "header for what it waits on" },
-    [MOCK230_FALLBACK_IF_BUTTON] = { "if_button", "the bank's op ladder, same blocker" },
-    [MOCK230_FALLBACK_AI_QUEUE3] = { "ai_queue3",
-                                     "drop tables need npc categories (triage §7.6b, "
-                                     "§9 step 3b)" },
+    [MOCK230_FALLBACK_OPNPC] =
+        { "opnpc",
+          "NOT an opcode — this is the one row with an empty blocked_ops, and the only "
+          "one whose blocker is a volume of C. mock230_combat.c is 1,061 lines "
+          "(`wc -l`) and stays engine; the row itself is interaction_engine_npc, "
+          "mock230_world.c:2333-2364, whose greeting half is ALREADY content "
+          "([proc,npc_default_chat], player/messages.rs2:137) — so what is left in C is "
+          "a strcmp against the cache's own Attack verb and the FACE_ENTITY latch "
+          "before the proc, and nothing else. The reference states it "
+          "as [opnpc2,_] @player_combat_start "
+          "(skill_combat/scripts/player/player_combat.rs2:1). DO NOT write "
+          "[opnpc2,_] p_opnpc(2) to close this: SS_OP_P_OPNPC calls "
+          "mock230_combat_engage directly (mock230_scripts.c, `case SS_OP_P_OPNPC:`) "
+          "and does not re-dispatch, so the row would go and all 1,061 lines would "
+          "stay, now unreachable from this list. Blocked on porting player_combat "
+          "itself",
+          k_blocked_opnpc },
+    [MOCK230_FALLBACK_OPLOC] =
+        { "oploc",
+          "PARTLY CLEARED. The loc_* family (loc_find/change/add/del/coord/type/angle/"
+          "shape) and p_teleport landed; 'doors and stairs need loc_* and a "
+          "destination' is no longer true. What is left is one structural gate and two "
+          "opcodes. (a) THE GATE: [oploc<n>] binds no active loc — the dispatch sets "
+          "SSVM_ENT_PLAYER and SSVM_ENT_NPC and nothing else (mock230_scripts.c, "
+          "run_trigger_script's SSVM_SetActive pair), and SSVM_ENT_LOC is written only "
+          "by loc_find and the loc iterator, so loc_coord in a door script aborts "
+          "('no active loc'). Zero new opcodes; `grep -n SSVM_ENT_LOC "
+          "net/mock/*.c` is the whole check. (b) no loc category rung: "
+          "interaction_category returns -1 for MOCK230_INTERACT_LOC by default "
+          "(mock230_world.c:687), because Mock230LocDef.category is a private two-value "
+          "door enum, not pack/category.pack — the real field needs dat2_config_loc.c "
+          "to stop discarding config opcode 61, an rscache write-path change. So "
+          "[oploc1,_door_closed] (doors/scripts/, the reference's form) cannot bind at "
+          "all, and neither LOC_CATEGORY nor LC_CATEGORY is implemented. (c) P_OPLOC "
+          "is declared-not-implemented while the shadowed-verb report tells content to "
+          "call it — [oploc2,bankbooth] is the standing example at every boot",
+          k_blocked_oploc },
+    [MOCK230_FALLBACK_OPOBJ] =
+        { "opobj",
+          "the old text said 'no obj_take / inv_add-from-ground opcode pair yet "
+          "(triage §9 step 4b)' and understated it twice over. The missing thing is an "
+          "ENTITY KIND: SSVM_ENT_OBJ (ssvm.h:87) is a bare enum value with zero "
+          "writers and zero readers in the whole tree (`grep -rn SSVM_ENT_OBJ src`), "
+          "so [opobj<n>] binds no active obj and no obj opcode would have a subject to "
+          "act on if it existed. And it is not a pair: OBJ_ADD (3500) is the only one "
+          "of the family implemented — the other six are declared and absent, so "
+          "content can create a pile and cannot read, count, find or remove one. "
+          "Reference: [opobj3,_] @pickup_obj, player/scripts/pickup.rs2:1. The row is "
+          "interaction_engine_obj, mock230_world.c:2470-2507",
+          k_blocked_opobj },
+    [MOCK230_FALLBACK_OPHELD] =
+        { "opheld",
+          "NOT 'equipment is C'. The equipment screen is already content "
+          "(interface_equipment/scripts/equipment.rs2) and mock230_equipment.c is 134 "
+          "lines (`wc -l`) of component -> worn-slot map with no wear/drop rule in it. "
+          "The row is the tail of handle_opheld, mock230_world.c:2217-2272. Blocked on "
+          "eight opcodes that are declared in ss_opcode.h and implemented nowhere — "
+          "three to ask an obj where it goes, three to move the slot, one to rebuild "
+          "the appearance and one to clear the pending action. Reference: [opheld2,_] "
+          "~equip(last_slot) (player/scripts/equip.rs2:1) and [opheld5,_] "
+          "~dropslot(last_slot) (player/scripts/drop.rs2:1)",
+          k_blocked_opheld },
+    [MOCK230_FALLBACK_INV_BUTTON] =
+        { "inv_button",
+          "NOT 'the bank, 1,370 lines'. The bank is 1,395 (`wc -l "
+          "net/mock/mock230_bank.c`) and its RULES are already sayable — the container "
+          "is script-addressable and every inv_/varbit op they need is implemented. "
+          "This row is ADDRESSING, and it is 107 lines: mock230_bank_quantity_for_op "
+          "(mock230_bank.c:1059-1165) rebuilds the client's row ladder because CS2 "
+          "script 669 SKIPS whichever quantity row duplicates the current default, so "
+          "Withdraw-All arrives as op 6, 7 or 8 depending on a varbit. "
+          "SS_TRIGGER_INV_BUTTON1..5 are 149-153 (ss_trigger.h) and physically cannot "
+          "name op 6+; those ops arrive as IF_BUTTON6..10 (all ten routed to "
+          "handle_if_button_op, mock230_world.c) and reach [if_button], which has no op "
+          "rung. So this row and if_button share ONE blocker: a last_verb reader. The "
+          "engine already latches the verb (player->last_verb = op_num, two sites); "
+          "nothing declares SS_OP_LAST_VERB. The reference does not hit this — its bank "
+          "has five fixed rows and binds [inv_button1..5,bank_main:inv] "
+          "(interface_bank/scripts/bank.rs2:1-5)",
+          k_blocked_inv_button },
+    [MOCK230_FALLBACK_IF_BUTTON] =
+        { "if_button",
+          "'the bank's op ladder, same blocker' was right by accident. It is not the "
+          "quantity ladder (that is inv_button's); it is the settings/deposit router "
+          "mock230_bank_handle_button, mock230_bank.c:1249-1312, 64 lines, shared by "
+          "both bank rows. Same last_verb blocker, and then TWO DEFECTS under it that "
+          "make 'content already binds this' false. (1) The replacement content is "
+          "compiled and INERT: bank.rs2 binds bankmain:{potionstore_container, "
+          "banktags_header_separator, swap_insert_graphic, note_graphic, "
+          "quantity1_text, ...} while bank_set_events (mock230_bank.c) arms "
+          "bankmain:{swap_insert, note, quantity1, ...} — genuinely different "
+          "components (interfaces/bankmain.compack: 23 vs 24, 25 vs 26, 29 vs 30), and "
+          "nothing is clickable until IF_SETEVENTS. (2) Even armed, they only write "
+          "varbits and there is no varbit -> bank-state seam: mock230_bank_get_varbit "
+          "has no runtime caller at all (`grep -rn mock230_bank_get_varbit src` finds "
+          "the definition and two selftest asserts), so Note would toggle on screen "
+          "while the withdraw still came out an item. Both are fixable without an "
+          "opcode and neither is fixed",
+          k_blocked_if_button },
 };
+
+/**
+ * How many live rows cite an opcode that is now implemented — 0 is the only
+ * acceptable answer, and the selftest pins it there.
+ *
+ * This is the guard against the way this list actually failed. A row does not
+ * usually go wrong by being wrong when it is written; it goes wrong when the
+ * thing it is waiting for arrives and nobody comes back to the row, at which
+ * point it keeps printing a reason that is no longer a reason. That is not
+ * visible by reading — a stale blocker and a live one look identical — so the
+ * moment the opcode lands, this says so, at boot, unconditionally, next to the
+ * count it invalidates.
+ *
+ * It is loud rather than fatal on purpose: the opcode landing is *progress*,
+ * and a server that refuses to start because somebody implemented OBJ_DEL would
+ * teach exactly the wrong lesson. The selftest is where it is an error.
+ */
+static int
+fallback_stale_blockers(void)
+{
+    int stale = 0;
+
+    for( int i = 0; i < MOCK230_FALLBACK_COUNT; i++ )
+    {
+        const struct FallbackBlockingOp* op = k_engine_fallbacks[i].blocked_ops;
+
+        for( ; op && op->name; op++ )
+        {
+            /* -1 is "nothing declares it yet", which is a blocker in its own
+             * right and cannot be looked up. */
+            if( op->value < 0 || !opcode_implemented(op->value) )
+                continue;
+            fprintf(stderr,
+                    "mock230: STALE BLOCKER — the `%s` engine fallback says it is waiting "
+                    "on %s (%d), and %s is implemented now. Either the row can go or its "
+                    "reason has to be rewritten to what is still true "
+                    "(k_engine_fallbacks[], mock230_scripts.c).\n",
+                    k_engine_fallbacks[i].name, op->name, op->value, op->name);
+            stale++;
+        }
+    }
+    return stale;
+}
+
+int
+mock230_scripts_stale_blockers(void)
+{
+    return fallback_stale_blockers();
+}
 
 int
 mock230_scripts_report_fallbacks(struct Mock230Server* srv)
@@ -1679,6 +1911,10 @@ mock230_scripts_report_fallbacks(struct Mock230Server* srv)
      * in a log that also prints twenty times during the selftest. */
     fprintf(stderr, "mock230: %d engine fallback(s) still answer triggers content does not bind\n",
             MOCK230_FALLBACK_COUNT);
+    /* Not behind `verbose`: this one is an error report, and the reader who
+     * needs it is the person who just implemented the opcode — who has no
+     * reason to be running with MOCK230_VERBOSE and every reason to be told. */
+    fallback_stale_blockers();
     if( srv->verbose )
     {
         for( int i = 0; i < MOCK230_FALLBACK_COUNT; i++ )
@@ -1850,9 +2086,15 @@ mock230_scripts_fallback(
         return 0;
     }
 
+    /* The name, not the blocker. This fires once per unbound click and the
+     * blockers are now paragraphs — that is the price of making each one
+     * checkable in one command, and the place to pay it is the boot roll, which
+     * prints them once. Repeating one of them per click buries the packet log
+     * it is supposed to sit beside. */
     if( srv->verbose )
-        fprintf(stderr, "mock230: engine fallback `%s` (blocked on: %s)\n", name,
-                k_engine_fallbacks[which].blocked_on);
+        fprintf(stderr, "mock230: engine fallback `%s` ran (why it is still C: the boot "
+                        "roll, MOCK230_VERBOSE)\n",
+                name);
     return 1;
 }
 

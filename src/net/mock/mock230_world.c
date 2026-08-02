@@ -2215,10 +2215,17 @@ handle_opheld(
     player->last_com = component;
     player->last_verb = op_num;
     /* Everything below is MOCK230_FALLBACK_OPHELD — wear/wield and drop, which
-     * the reference states as `[opheld2,_]` and `[opheld5,_]` in
-     * `player/equip.rs2` and `player/drop.rs2`. It is C here only because
-     * equipment is (§6.1 step 5), and it does not run when a bound script
-     * aborted or when there is no pack to have bound one. */
+     * the reference states as `[opheld2,_] ~equip(last_slot)` and
+     * `[opheld5,_] ~dropslot(last_slot)` in `player/scripts/equip.rs2` and
+     * `player/scripts/drop.rs2`. It does not run when a bound script aborted or
+     * when there is no pack to have bound one.
+     *
+     * It is *not* here "because equipment is C" — that was the old reason and
+     * it was wrong: the equipment screen is content and `mock230_equipment.c`
+     * is a 134-line component -> worn-slot map with no rule in it. It is here
+     * because eight opcodes a script would need are declared and unimplemented;
+     * `k_engine_fallbacks[MOCK230_FALLBACK_OPHELD]` names all eight and
+     * `mock230_scripts_stale_blockers` fails when one of them lands. */
     if( !mock230_scripts_fallback(
             srv, MOCK230_FALLBACK_OPHELD,
             (op_num >= 1 && op_num <= 5)
@@ -4342,15 +4349,25 @@ mock230_world_handle(
 /* ------------------------------------------------------------------ */
 
 /*
- * An npc reached zero hitpoints.
+ * An npc reached zero hitpoints. Dispatch only — this function has no body.
  *
- * Content first: `[ai_queue3,<npc>]` is LostCity's death trigger, and its
- * scripts are the drop table — a sequence of `obj_add(npc_coord, ...)` calls
- * under a `random(128)` roll, exactly as the reference writes them. When
- * nothing is bound, the config's `param=death_drop` still drops (bones for
- * almost everything), so an npc with no script is not a silent kill.
+ * `[ai_queue3,<npc>]` is LostCity's death trigger and its scripts are the drop
+ * table: a sequence of `obj_add(npc_coord, ...)` calls under a `random(128)`
+ * roll, exactly as the reference writes them. What an npc nothing binds leaves
+ * behind is `[ai_queue3,_]` in skill_combat/npc_combat.rs2, which is where the
+ * reference states it too (`[ai_queue3,_] gosub(npc_default_death)`).
  *
- * That last sentence is the declared fallback MOCK230_FALLBACK_AI_QUEUE3.
+ * That last sentence used to be `MOCK230_FALLBACK_AI_QUEUE3`: five lines here
+ * that read `Mock230NpcDef.death_drop` and called `mock230_world_obj_add`
+ * whenever nothing was bound. The row is deleted and the fallback count is 6.
+ * The field stays — `record_authored_param` files the same value under param id
+ * 2634 for `npc_param` to read, and `mock230_servercodec.c` carries it on the
+ * wire as npc field 151 — but no engine logic reads it any more.
+ *
+ * Everything else about a death is still engine and stays here: hitpoints, the
+ * death animation, the delay and the despawn (PORTING_GUIDE §2.3). That is why
+ * all 76 ported drop tables dropped the reference's `gosub(npc_death)` —
+ * `drop_tables/scripts/shared_droptables.rs2` note 1.
  *
  * The reference binds 16 of `drop tables/`'s 94 `[ai_queue3]` triggers to an npc
  * *category* rather than to an npc, so this dispatch has to offer the category
@@ -4359,11 +4376,14 @@ mock230_world_handle(
  * 9,149 of its 16,292 records (triage §16.1), and `mock230_npc_category()` reads
  * it. Adopting it here is additive: the lookup chain is exact type -> category ->
  * global, so an npc whose type is bound is unaffected, and a category nothing
- * binds behaves exactly as -1 did.
+ * binds now falls to the `_` rung instead of to C.
  *
  * Measured rather than assumed, on `[ai_queue3,_chicken]` (category 444) against
  * `chicken_brown`, an npc of that category with no binding of its own:
- * with -1 the script does not run, with the category it does.
+ * with -1 the script does not run, with the category it does. The category rung
+ * is load-bearing in a second way now that `_` is bound: without it a chicken
+ * would fall past its own table to the default drop and leave bones and no
+ * chicken. The selftest section "the death drop is content's" pins that.
  */
 void
 mock230_world_npc_died(
@@ -4372,15 +4392,8 @@ mock230_world_npc_died(
 {
     struct Mock230Npc* npc = &srv->npcs[slot];
 
-    if( !mock230_scripts_fallback(
-            srv, MOCK230_FALLBACK_AI_QUEUE3,
-            mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type,
-                                        mock230_npc_category(npc->type), slot)) )
-        return;
-
-    if( npc->def && npc->def->death_drop >= 0 )
-        mock230_world_obj_add(srv, npc->def->death_drop, 1, npc->x, npc->z, npc->level,
-                              mock230_ids()->lootdrop_duration);
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type,
+                                mock230_npc_category(npc->type), slot);
 }
 
 /*
@@ -6024,6 +6037,25 @@ selftest_park_player(
      * test still describe wherever the last section left off. */
     player->place_dirty = 1;
     maybe_rebuild(srv);
+}
+
+/*
+ * Sweep every drop off the floor, leaving the map's own spawns alone.
+ *
+ * A section that counts what a kill left behind has to start from a known
+ * floor, and `srv.ground[]` is world state that outlives the section that made
+ * it. `is_spawn` is the line between "the map states this obj" and "something
+ * dropped it": clearing the spawns as well would make the next section's first
+ * question ("is the knife at 3205,3212 still there") depend on running order.
+ */
+static void
+selftest_clear_ground(struct Mock230Server* srv)
+{
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        if( srv->ground[i].active && !srv->ground[i].is_spawn )
+            ground_clear(srv, i);
+    }
 }
 
 /**
@@ -8281,6 +8313,166 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(on_floor, "dropping an obj leaves it on the floor");
             SELFTEST_CHECK(player->inv[free_before].obj_id == -1,
                            "and takes it out of the backpack");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: the death drop is content's\n");
+    {
+        /*
+         * `[ai_queue3,_]` used to be `MOCK230_FALLBACK_AI_QUEUE3`.
+         *
+         * The C read `Mock230NpcDef.death_drop` and called
+         * `mock230_world_obj_add` whenever nothing was bound; the row is gone
+         * and `skill_combat/npc_combat.rs2` says it instead, which is where the
+         * reference says it too (`[ai_queue3,_] gosub(npc_default_death)`,
+         * skill_combat/scripts/npc/npc_combat.rs2:3).
+         *
+         * Three cases, and the third is the regression guard. Deleting a
+         * fallback is a claim that the behaviour moved, so the test has to
+         * cover what the C did and not just what the new script does:
+         *
+         *   A. an npc with a bound table still runs it, and the `_` rung does
+         *      not also fire (one drop, not two).
+         *   B. an npc with no binding at all drops its `death_drop` — the case
+         *      the C answered, and the only reason the row existed.
+         *   C. an npc whose `death_drop` is `null` drops nothing. The C spelled
+         *      this as `death_drop >= 0`; the script spells it as
+         *      `if ($drop = null)`, which is the reference's own guard.
+         *
+         *      What this case does NOT pin, stated because a test that cannot
+         *      fail is worse than no test: deleting the script's guard leaves
+         *      it green, because `mock230_world_obj_add` refuses `obj_id < 0`
+         *      on its own, so `obj_add(npc_coord, null, ...)` is already a
+         *      no-op. The guard's *sense* is pinned — inverting it turns case B
+         *      red — and the behaviour contract is pinned whichever layer
+         *      enforces it. Its presence is not, and cannot be here.
+         *
+         * `param=death_drop` is never absent, which is worth stating because it
+         * looks like it should be: `general/configs/npc_default.npc`'s
+         * `[default]` block authors it and `npc_def_seed_from_cache` copies the
+         * whole default record — params included — into every block. So the
+         * value is `bones` for an npc nothing describes, and `null` is the only
+         * way to say "leaves nothing".
+         */
+        int param_death_drop = mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop");
+        int obj_bones = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+        int obj_raw_chicken = mock230_content_symbol(MOCK230_PACK_OBJ, "raw_chicken");
+        int npc_chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+        int npc_duck = mock230_content_symbol(MOCK230_PACK_NPC, "duck");
+        int tile_x = 0;
+        int tile_z = 0;
+
+        SELFTEST_CHECK(param_death_drop >= 0 && obj_bones >= 0 && obj_raw_chicken >= 0 &&
+                           npc_chicken >= 0 && npc_duck >= 0,
+                       "the death-drop test's names should all resolve through the pack");
+
+        if( srv.scripts_ok && npc_chicken >= 0 && npc_duck >= 0 )
+        {
+            /* The roster's own chicken and duck, killed where they stand.
+             * `mock230_world_npc_spawn` is not usable here: world init fills
+             * the pool, so a fresh spawn fails with "no free npc slot" — and
+             * moving an npc would need a zone refile for the drop to be filed
+             * where the count looks for it. */
+            int slot = selftest_find_npc(&srv, npc_chicken);
+            int bones_here = 0;
+            int chicken_here = 0;
+
+            /* A. `[ai_queue3,_chicken]` is bound on the *category* rung, which
+             * is the harder of the two to keep working: the `_` script added
+             * below sits one rung past it, so a lookup that fell through would
+             * leave bones and no chicken. */
+            SELFTEST_CHECK(slot >= 0, "the roster should include a chicken");
+            if( slot >= 0 )
+            {
+                tile_x = srv.npcs[slot].x;
+                tile_z = srv.npcs[slot].z;
+                mock230_world_npc_died(&srv, slot);
+                for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+                {
+                    if( !srv.ground[i].active || srv.ground[i].x != tile_x ||
+                        srv.ground[i].z != tile_z )
+                        continue;
+                    if( srv.ground[i].obj_id == obj_bones )
+                        bones_here++;
+                    if( srv.ground[i].obj_id == obj_raw_chicken )
+                        chicken_here++;
+                }
+                SELFTEST_CHECK(chicken_here == 1,
+                               "a chicken's own table should still run, got %d raw chicken",
+                               chicken_here);
+                SELFTEST_CHECK(bones_here == 1,
+                               "and its default drop exactly once — the `_` rung must not "
+                               "also fire, got %d bones",
+                               bones_here);
+            }
+            selftest_clear_ground(&srv);
+
+            /* B. The case the deleted C answered: nothing binds `duck`, and
+             * nothing binds its category, so the `_` script is the only thing
+             * between a kill and a silent one. */
+            slot = selftest_find_npc(&srv, npc_duck);
+            SELFTEST_CHECK(slot >= 0, "the roster should include a duck");
+            if( slot >= 0 )
+            {
+                int drops = 0;
+                tile_x = srv.npcs[slot].x;
+                tile_z = srv.npcs[slot].z;
+                mock230_world_npc_died(&srv, slot);
+                for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+                {
+                    if( srv.ground[i].active && srv.ground[i].x == tile_x &&
+                        srv.ground[i].z == tile_z && srv.ground[i].obj_id == obj_bones )
+                        drops++;
+                }
+                SELFTEST_CHECK(drops == 1,
+                               "an npc with no bound table should still leave its "
+                               "death_drop, got %d",
+                               drops);
+            }
+            selftest_clear_ground(&srv);
+
+            /*
+             * C. `param=death_drop,null`.
+             *
+             * No npc in this tree authors it, so the def is built here rather
+             * than by adding a config block for a case no area wants — a test
+             * fixture, not content. It is the engine default with the one param
+             * overwritten, which is exactly what the config line produces
+             * (`apply_param` resolves `null` to -1 and files it under the param
+             * id like any other value).
+             */
+            if( slot >= 0 )
+            {
+                static struct Mock230NpcDef silent;
+                const struct Mock230NpcDef* restore = srv.npcs[slot].def;
+                int drops = 0;
+
+                silent = *srv.npcs[slot].def;
+                silent.death_drop = -1;
+                for( int i = 0; i < silent.param_count; i++ )
+                {
+                    if( silent.params[i].key == param_death_drop )
+                        silent.params[i].value = -1;
+                }
+                srv.npcs[slot].def = &silent;
+
+                mock230_world_npc_died(&srv, slot);
+                for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+                {
+                    if( srv.ground[i].active && srv.ground[i].x == tile_x &&
+                        srv.ground[i].z == tile_z )
+                        drops++;
+                }
+                SELFTEST_CHECK(drops == 0,
+                               "`param=death_drop,null` should leave nothing, got %d objs",
+                               drops);
+                srv.npcs[slot].def = restore;
+            }
+            selftest_clear_ground(&srv);
+        }
+        else if( !srv.scripts_ok )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
         }
     }
 
@@ -11730,12 +11922,40 @@ mock230_world_selftest(void)
 
         /* Not a skip: claim 3 is *about* the no-pack case, so it is the half
          * that runs either way. */
-        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 7,
-                       "the engine fallback list should still be 7 long, not %d — it may "
+        /* Was 7. `ai_queue3` moved to `[ai_queue3,_]` in
+         * skill_combat/npc_combat.rs2 and the row went with it — the number is
+         * the evidence, which is why the assertion is on the number and not on
+         * the names. */
+        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 6,
+                       "the engine fallback list should still be 6 long, not %d — it may "
                        "shrink as content grows, never grow",
                        (int)MOCK230_FALLBACK_COUNT);
         SELFTEST_CHECK(mock230_scripts_report_fallbacks(&srv) == MOCK230_FALLBACK_COUNT,
                        "the boot report should name every one of them");
+
+        /*
+         * And that each row's *reason* is still a reason.
+         *
+         * The count above cannot catch the way this list actually failed.
+         * `ai_queue3`'s row was correct C answering a real gap, and its
+         * `blocked_on` string had been false for two stages — npc categories,
+         * the category rung and 69 drop-table files had all landed underneath
+         * it. Nothing changed in the row, which is exactly why nobody noticed:
+         * an expired reason and a live one are the same text.
+         *
+         * So the opcode-shaped half of every blocker is a citation the machine
+         * can resolve, and this asserts that none of them has arrived. It goes
+         * red on the day somebody implements OBJ_DEL or declares a `last_verb`
+         * reader — which is the day the row it justifies is either deletable or
+         * lying. Mutation: temporarily add `SS_OP_OBJ_ADD` (implemented) to
+         * `k_blocked_opobj` and this turns red with the STALE BLOCKER line;
+         * that was run.
+         */
+        SELFTEST_CHECK(mock230_scripts_stale_blockers() == 0,
+                       "no fallback row should still be waiting on an opcode that has "
+                       "landed — %d row(s) are, and each is either deletable or has to "
+                       "have its reason rewritten",
+                       mock230_scripts_stale_blockers());
 
         if( loaded )
         {

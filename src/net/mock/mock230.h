@@ -2643,20 +2643,43 @@ enum Mock230TriggerResult
  * Adding to this list is not a design choice available to a content port. The
  * order is: widen the opcode surface until a script can say it, move it, delete
  * the entry.
+ *
+ * **A row's `blocked_on` is as much of the row as its name is, and it decays.**
+ * The rows are only useful if somebody reading the boot log can tell what is
+ * left; a reason that expired reads exactly like one that has not, so it is
+ * worse than an empty one. This happened: `[ai_queue3]` printed "drop tables
+ * need npc categories" at every boot for two stages after categories, the
+ * category rung and 69 drop-table files had all landed. Two rules came out of
+ * it, and both are enforced rather than advised:
+ *
+ * - Each string cites something **checkable in one command** — a symbol as its
+ *   header spells it, a `file:line`, a `wc -l`, a reference path. Where the
+ *   blocker is partly cleared the string says which part, because "NOT the
+ *   loc_* family, both landed" is the sentence that stops the next reader
+ *   re-deriving it.
+ * - The opcode-shaped half of each blocker is **machine-checked**:
+ *   `mock230_scripts_stale_blockers` fails the moment a cited opcode is
+ *   implemented. Before touching a row, re-check its blocker against the tree;
+ *   assume nothing in it is still true.
  */
 enum Mock230Fallback
 {
-    /** `[opnpc<n>]` → "Attack" engages combat, anything else greets. */
+    /** `[opnpc<n>]` → "Attack" engages combat, anything else greets
+     *  (`interaction_engine_npc`; the greeting itself is content already). */
     MOCK230_FALLBACK_OPNPC = 0,
-    /** `[oploc<n>]` → doors, bank booths, stairs and ladders. */
+    /** `[oploc<n>]` → doors, bank booths, stairs and ladders
+     *  (`interaction_engine_loc`). */
     MOCK230_FALLBACK_OPLOC,
-    /** `[opobj<n>]` → picking the pile up off the floor. */
+    /** `[opobj<n>]` → picking the pile up off the floor
+     *  (`interaction_engine_obj`). */
     MOCK230_FALLBACK_OPOBJ,
-    /** `[opheld<n>]` → wear/wield and drop. */
+    /** `[opheld<n>]` → wear/wield and drop (the tail of `handle_opheld`). */
     MOCK230_FALLBACK_OPHELD,
-    /** `[inv_button<n>]` on a bank component → the bank's own router. */
+    /** `[inv_button<n>]` on a bank component → the bank's own router, reached
+     *  through the quantity ladder `mock230_bank_quantity_for_op`. */
     MOCK230_FALLBACK_INV_BUTTON,
-    /** `[if_button]` → the bank's op ladder. */
+    /** `[if_button]` → the bank's settings/deposit router,
+     *  `mock230_bank_handle_button`. */
     MOCK230_FALLBACK_IF_BUTTON,
     /*
      * `[if_close]` is deliberately not here. It was, in the sense that the
@@ -2665,8 +2688,22 @@ enum Mock230Fallback
      * unmounts unconditionally; an interface the player closed closes. See
      * `mock230_world_close_modal`.
      */
-    /** `[ai_queue3]` → the npc's `death_drop` param. */
-    MOCK230_FALLBACK_AI_QUEUE3,
+    /*
+     * `[ai_queue3]` was here — "the npc's `death_drop` param", what an npc with
+     * no bound drop table left behind. It is the first row this list has lost.
+     *
+     * Worth reading beside the `[if_close]` note above, because they are
+     * different failures. That one was never a fallback. This one was a real
+     * one whose *blocker* (npc categories) had been cleared two stages before
+     * the row went, while `k_engine_fallbacks[]` still printed "drop tables
+     * need npc categories" at every boot — which is the failure mode the
+     * `blocked_on` text exists to make visible and did not, because a
+     * stale-but-plausible reason reads exactly like a live one.
+     *
+     * The behaviour is `[ai_queue3,_]` in skill_combat/npc_combat.rs2, which is
+     * where the reference puts it; the selftest section "the death drop is
+     * content's" is what proves it moved rather than vanished.
+     */
     MOCK230_FALLBACK_COUNT
 };
 
@@ -2732,9 +2769,28 @@ mock230_scripts_fallback(
     int result);
 
 /** Name every live engine fallback and what it is blocked on. Returns the
- *  count, which is `MOCK230_FALLBACK_COUNT` and shrinks as content grows. */
+ *  count, which is `MOCK230_FALLBACK_COUNT` and shrinks as content grows.
+ *  Also runs `mock230_scripts_stale_blockers` and prints any hit. */
 int
 mock230_scripts_report_fallbacks(struct Mock230Server* srv);
+
+/**
+ * How many fallback rows name an opcode that is implemented now — 0, always.
+ *
+ * The list's failure mode is not a wrong row, it is a row that *stops* being
+ * right without changing. `[ai_queue3]` printed "drop tables need npc
+ * categories" at every boot for two stages after categories landed; a stale
+ * reason and a live one are indistinguishable by reading, which is the entire
+ * problem. So each row's blocker names its opcodes in a form the machine can
+ * check, and this is the check: an opcode a row is waiting for, that has
+ * arrived, means the row can go or its reason has to be rewritten.
+ *
+ * It only catches opcode-shaped blockers, which is most of them but not all —
+ * `opnpc` waits on a volume of C and `if_button` on two component lists that
+ * disagree. Those are cited in the text with the command that settles them.
+ */
+int
+mock230_scripts_stale_blockers(void);
 
 /**
  * The cache menu verb this engine answers itself for `[<trigger>,<subject>]`,

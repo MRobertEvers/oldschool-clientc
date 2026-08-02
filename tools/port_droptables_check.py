@@ -156,13 +156,21 @@ def parse_tree(scripts_dir):
 
 
 def resolve_body(block, labels, seen=None):
-    """A block's effective body, following at most one `@label;` hop per level."""
+    """A block's effective body, following `@label;` and `gosub(proc)` hops.
+
+    `gosub` was added when the `[ai_queue3,_]` wildcard landed: the reference
+    writes that rung as `gosub(npc_default_death)` and states the death drop in
+    the proc, so a checker that followed only `@label` looked straight past it
+    and reported the wildcard as dropping nothing. `labels` carries both kinds
+    now — see its construction in `run`.
+    """
     seen = seen or set()
     text = block.tail + "\n" + "\n".join(block.body)
-    m = re.search(r'@([a-z_0-9]+)\s*;', text)
-    if m and m.group(1) in labels and m.group(1) not in seen:
-        seen.add(m.group(1))
-        return text + "\n" + resolve_body(labels[m.group(1)], labels, seen)
+    for m in re.finditer(r'@([a-z_0-9]+)\s*;|gosub\(\s*([a-z_0-9]+)\s*\)', text):
+        name = m.group(1) or m.group(2)
+        if name in labels and name not in seen:
+            seen.add(name)
+            text += "\n" + resolve_body(labels[name], labels, seen)
     return text
 
 
@@ -174,7 +182,9 @@ def run(tree, report):
     cat_map = load_categories_map(os.path.join(tree, "port", "categories.map"))
 
     blocks = parse_tree(scripts)
-    labels = {b.subject: b for b in blocks if b.kind == "label"}
+    # Both kinds, because resolve_body follows both. A proc and a label cannot
+    # share a name in this grammar, so one dict is safe.
+    labels = {b.subject: b for b in blocks if b.kind in ("label", "proc")}
     problems = []
     rows = []
 
@@ -195,6 +205,11 @@ def run(tree, report):
     bound_cat_ids = {}
     for b in npc_blocks:
         if not b.subject.startswith("_"):
+            continue
+        # The bare `_` is the wildcard rung, not a category. It did not exist in
+        # the tree until the ai_queue3 fallback was evicted, and `b.subject[1:]`
+        # makes it the empty string, which no pack states.
+        if b.subject == "_":
             continue
         name = b.subject[1:]
         where = "%s:%d" % (os.path.relpath(b.path, tree), b.line)
@@ -252,10 +267,10 @@ def run(tree, report):
         if b.path in waived:
             continue
         problems.append(
-            "[%s,%s] at %s:%d never reaches npc_param(death_drop) — binding the "
-            "trigger suppresses MOCK230_FALLBACK_AI_QUEUE3, so this npc silently "
-            "stops dropping what its config says it drops. State it, or waive it in "
-            "this file with a `// no-death-drop: <reason>` line"
+            "[%s,%s] at %s:%d never reaches npc_param(death_drop) — nothing else "
+            "drops it now that the ai_queue3 engine fallback is gone, so this npc "
+            "silently stops dropping what its config says it drops. State it, or "
+            "waive it in this file with a `// no-death-drop: <reason>` line"
             % (b.kind, b.subject, os.path.relpath(b.path, tree), b.line))
 
     if report:
