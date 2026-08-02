@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 enum CS2VM_ModelKind
 {
@@ -29,6 +30,37 @@ enum CS2VM_WindowMode
     CS2VM_WINDOW_MODE_FIXED = 1,
     CS2VM_WINDOW_MODE_RESIZABLE = 2,
 };
+
+/**
+ * The same table's *names*, for the places a human states a mode (the boot
+ * manifest's `[ui:boot] windowmode`, the `--windowmode` flag). Returns 0 for
+ * anything else, which every caller reads as "unset, keep the default".
+ *
+ * Here rather than in the manifest parser so the spelling stays next to the
+ * numbering it belongs to: both halves are the dialect's, not this client's.
+ */
+static inline int
+CS2VM_WindowModeFromName(char const* name)
+{
+    if( !name )
+        return 0;
+    if( strcmp(name, "fixed") == 0 )
+        return CS2VM_WINDOW_MODE_FIXED;
+    if( strcmp(name, "resizable") == 0 )
+        return CS2VM_WINDOW_MODE_RESIZABLE;
+    return 0;
+}
+
+/** The inverse, for log lines. Never NULL. */
+static inline char const*
+CS2VM_WindowModeName(int mode)
+{
+    if( mode == CS2VM_WINDOW_MODE_FIXED )
+        return "fixed";
+    if( mode == CS2VM_WINDOW_MODE_RESIZABLE )
+        return "resizable";
+    return "unset";
+}
 
 enum CS2VM_HostRequestKind
 {

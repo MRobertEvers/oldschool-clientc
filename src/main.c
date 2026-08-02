@@ -1170,7 +1170,8 @@ frame_loop_step(void)
             bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
             fprintf(
                 stderr, "windowmode: %s\n", resizable ? "resizable" : "fixed");
-            PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, resizable);
+            PlatformSDL2_SetCanvasFollowsWindow(
+                sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
         }
@@ -1551,6 +1552,34 @@ main(
             uncapped = 1;
             continue;
         }
+        /* --windowmode fixed|resizable, --window WxH: the display half of the
+         * boot config, same keys as [ui:boot]. CLI > manifest, and
+         * TORIRS_ROOT_SIZE still beats both for --window (it is the debug knob
+         * that predates the setting). */
+        if( strcmp(argv[argi], "--windowmode") == 0 && argi + 1 < argc )
+        {
+            cfg.window_mode = CS2VM_WindowModeFromName(argv[++argi]);
+            if( !cfg.window_mode )
+            {
+                fprintf(stderr, "torirs: --windowmode takes fixed|resizable\n");
+                return 1;
+            }
+            continue;
+        }
+        if( strcmp(argv[argi], "--window") == 0 && argi + 1 < argc )
+        {
+            char* sep = NULL;
+            long w = strtol(argv[++argi], &sep, 10);
+            long h = (sep && *sep) ? strtol(sep + 1, NULL, 10) : 0;
+            if( w <= 0 || h <= 0 )
+            {
+                fprintf(stderr, "torirs: --window takes WxH\n");
+                return 1;
+            }
+            cfg.window_w = (int)w;
+            cfg.window_h = (int)h;
+            continue;
+        }
         /* Two spellings for one renderer, because they are not the same
          * renderer to the person passing them: --opengl3 is desktop GL 3.2,
          * --webgl1 is GLES2 in a browser. Each build accepts only the one it
@@ -1713,8 +1742,23 @@ main(
         UITree_LayoutSetRootSize((int)root_w, (int)root_h);
         fprintf(stderr, "root_size: %dx%d\n", UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
+    /* `[ui:boot] window` / --window: the stated boot size. Same slot as the
+     * debug knob above and deliberately after it, so TORIRS_ROOT_SIZE keeps
+     * winning; the window is created from the layout root a few hundred lines
+     * down, so setting it here is what makes the WINDOW that size too. Fixed
+     * mode ignores it — the canvas is pinned back to the fixed frame when the
+     * mode is applied. */
+    else if( cfg.window_w > 0 && cfg.window_h > 0 &&
+             cfg.window_mode == CS2VM_WINDOW_MODE_RESIZABLE )
+    {
+        UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
+    }
 
     App_Init(&app, &cfg);
+    /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
+     * whose default the manifest is entitled to override, and the root
+     * interface's own scripts (opened on the next line) call getwindowmode. */
+    App_SetBootWindowMode(&app, cfg.window_mode);
     App_OpenRootInterface(&app, cfg.interface_id);
 
     /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
@@ -2459,6 +2503,34 @@ main(
         }
 
         CmdBus_Init(&bus);
+
+        /*
+         * Hand the window mode to the platform ONCE, at boot.
+         *
+         * Without this the two halves of "resizable" disagree for the whole
+         * session: RS_CS2Host_Init starts the host in resizable and every
+         * clientscript is told so by getwindowmode, while the platform's follow
+         * gate starts clear — so the window letterboxes and UPSCALES a 765x503
+         * canvas instead of the client laying the gameframe out at the window
+         * size. That is the "resizable mode scales instead of resizing" bug; it
+         * is a missing boot-time read, not a missing mechanism.
+         *
+         * Same call the runtime mode switch makes after the frame, so the two
+         * paths cannot drift.
+         */
+        {
+            int const boot_mode = App_WindowMode(&app);
+            bool const resizable = boot_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+            PlatformSDL2_SetCanvasFollowsWindow(
+                sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+            if( !resizable )
+                CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+            if( getenv("TORIRS_RESIZE_DEBUG") )
+                fprintf(
+                    stderr,
+                    "windowmode: boot %s\n",
+                    CS2VM_WindowModeName(boot_mode));
+        }
 
         /* Audio backend. Opening a device is allowed to fail — a machine with no
          * sound card, or a headless CI box, keeps running silently rather than

@@ -57,6 +57,16 @@ PlatformSDL2_SetTitle(
  * for the current window size, so the caller does not have to wait for the user
  * to drag something.
  *
+ * `min_w`/`min_h` are the client's canvas floor. They become the window's
+ * minimum size in BOTH modes, because a window smaller than the floor is the
+ * one case the client cannot answer with layout — the canvas clamps and the
+ * present scales it down. Below the floor, "resize" is not available at any
+ * layer, so the window is not allowed there.
+ *
+ * Turning it OFF also snaps the window back to exactly `min_w x min_h`: fixed
+ * mode *is* that frame, and leaving a larger window behind would present it
+ * upscaled, which is the behaviour the mode switch exists to leave.
+ *
  * This does NOT resize the backbuffer. The client clamps the canvas to a floor
  * it owns, so the canvas — not the window — is what the backbuffer must match;
  * the caller reconciles them with PlatformSDL2_Resize after draining the bus.
@@ -65,7 +75,23 @@ void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,
     struct ToriRS_CmdBus* bus,
-    bool follow);
+    bool follow,
+    int min_w,
+    int min_h);
+
+/**
+ * Resize the OS window, as if the user had dragged its corner.
+ *
+ * The distinction from PlatformSDL2_Resize matters: this touches the window and
+ * nothing else, so what happens next is decided by the follow gate exactly as it
+ * would be for a real drag. It is the only way to exercise that gate headlessly
+ * — pushing TORIRS_CMD_WINDOW_RESIZE straight onto the bus skips it.
+ */
+void
+PlatformSDL2_SetWindowSize(
+    struct PlatformSDL2* platform,
+    int width,
+    int height);
 
 /**
  * Resize the logical framebuffer (pixels + streaming texture) in place. No-op

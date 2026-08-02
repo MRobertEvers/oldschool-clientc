@@ -132,6 +132,15 @@ struct BootManifest
     char revconfig_ui[512];    /* resolved */
     char revconfig_cache[512]; /* resolved */
     int interface_id;          /* 0 = unset */
+    /* `windowmode = fixed|resizable` — enum CS2VM_WindowMode, 0 = unset.
+     * Declared rather than derived: which of the two the client boots in is a
+     * display preference, and the client has nowhere else to keep one (there is
+     * no settings save, and the cache's own dropdown script is unbound). */
+    int window_mode;
+    /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
+     * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
+    int window_w;
+    int window_h;
 
     /*
      * [ui:chatbox] — where the chat lines live, for revisions whose chatbox is

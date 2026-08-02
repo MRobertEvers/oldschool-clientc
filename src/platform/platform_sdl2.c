@@ -616,19 +616,49 @@ void
 PlatformSDL2_SetCanvasFollowsWindow(
     struct PlatformSDL2* platform,
     struct ToriRS_CmdBus* bus,
-    bool follow)
+    bool follow,
+    int min_w,
+    int min_h)
 {
     int window_w = 0;
     int window_h = 0;
 
     assert(platform);
     platform->canvas_follows_window = follow;
-    if( !follow || !platform->window )
+    if( !platform->window )
         return;
+
+    /* The floor is a window constraint in both modes — see the header. SDL
+     * rejects a non-positive minimum, so a caller that has no floor to state
+     * gets no constraint rather than an assert inside SDL. */
+    if( min_w > 0 && min_h > 0 )
+        SDL_SetWindowMinimumSize(platform->window, min_w, min_h);
+
+    if( !follow )
+    {
+        /* Fixed mode is the floor-sized frame at 1:1. Snapping the window is
+         * what makes "fixed" observable; the SIZE_CHANGED it raises is ignored
+         * because the follow gate is already clear. */
+        if( min_w > 0 && min_h > 0 )
+            SDL_SetWindowSize(platform->window, min_w, min_h);
+        return;
+    }
 
     SDL_GetWindowSize(platform->window, &window_w, &window_h);
     if( bus && window_w > 0 && window_h > 0 )
         CmdBus_PushWindowResize(bus, window_w, window_h);
+}
+
+void
+PlatformSDL2_SetWindowSize(
+    struct PlatformSDL2* platform,
+    int width,
+    int height)
+{
+    assert(platform);
+    if( !platform->window || width <= 0 || height <= 0 )
+        return;
+    SDL_SetWindowSize(platform->window, width, height);
 }
 
 void

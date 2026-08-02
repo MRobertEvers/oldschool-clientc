@@ -8987,6 +8987,29 @@ App_SetCanvasSize(
 }
 
 int
+App_WindowMode(
+    struct App const* app)
+{
+    assert(app);
+    return app->host.window_mode;
+}
+
+void
+App_SetBootWindowMode(
+    struct App* app,
+    int mode)
+{
+    assert(app);
+    if( mode != CS2VM_WINDOW_MODE_FIXED && mode != CS2VM_WINDOW_MODE_RESIZABLE )
+        return;
+    app->host.window_mode = mode;
+    app->host.default_window_mode = mode;
+    /* Deliberately NOT window_mode_dirty: the shell is the caller and applies
+     * the platform side directly. Raising it here would make the boot config
+     * indistinguishable from a clientscript's SETWINDOWMODE on the next drain. */
+}
+
+int
 App_TakeWindowModeChange(
     struct App* app,
     int* out_mode)

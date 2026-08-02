@@ -177,6 +177,17 @@ struct AppConfig
      * "osrs" or "server_routed" (src/features/features.h). NULL/"" = derive
      * from the cache identity; TORIRS_FEATURES_ERA still overrides. */
     char const* features_era;
+    /** `[ui:boot] windowmode` — enum CS2VM_WindowMode, 0 = unset (keep the
+     * host's own default). Fixed letterboxes a 765x503 canvas into whatever
+     * window it is given; resizable lays the gameframe out at the window size.
+     * --windowmode overrides. */
+    int window_mode;
+    /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
+     * 765x503 fixed frame). Only meaningful in resizable mode, where it is the
+     * size the gameframe is laid out at before the user touches anything.
+     * --window overrides, and TORIRS_ROOT_SIZE overrides both. */
+    int window_w;
+    int window_h;
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -713,6 +724,33 @@ int
 App_TakeWindowModeChange(
     struct App* app,
     int* out_mode);
+
+/**
+ * The window mode the client is in right now (enum CS2VM_WindowMode), i.e. what
+ * GETWINDOWMODE answers.
+ *
+ * The shell needs this at boot. The host's mode is live state from the moment
+ * RS_CS2Host_Init runs, but the platform's follow gate starts clear, so without
+ * a boot-time read the two disagree for the whole session: every script is told
+ * "resizable" while the window letterboxes a fixed canvas — which is precisely
+ * the "resizable mode scales instead of resizing" bug.
+ */
+int
+App_WindowMode(
+    struct App const* app);
+
+/**
+ * State the boot window mode (enum CS2VM_WindowMode), before anything reads it.
+ *
+ * Config, not a script action: it writes both the live and the default mode and
+ * does NOT raise window_mode_dirty, so it cannot be mistaken for a SETWINDOWMODE
+ * the user performed. Out-of-range values are ignored (the host keeps its own
+ * default). The shell applies the platform side itself.
+ */
+void
+App_SetBootWindowMode(
+    struct App* app,
+    int mode);
 
 /** Construct all subsystems in dependency order. Asserts on failure (parity
  * with the previous bootstrap). */

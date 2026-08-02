@@ -319,6 +319,32 @@ bm_set_kv(
             bm->interface_id = atoi(value);
             return;
         }
+        if( strcmp(key, "windowmode") == 0 )
+        {
+            bm->window_mode = CS2VM_WindowModeFromName(value);
+            if( !bm->window_mode )
+                fprintf(
+                    stderr,
+                    "bootmanifest: [ui] windowmode must be fixed|resizable, got '%s'\n",
+                    value);
+            return;
+        }
+        if( strcmp(key, "window") == 0 )
+        {
+            char* sep = NULL;
+            long w = strtol(value, &sep, 10);
+            long h = (sep && (*sep == 'x' || *sep == 'X' || *sep == ',')) ? strtol(sep + 1, NULL, 10) : 0;
+            if( w > 0 && h > 0 )
+            {
+                bm->window_w = (int)w;
+                bm->window_h = (int)h;
+            }
+            else
+            {
+                fprintf(stderr, "bootmanifest: [ui] window must be WxH, got '%s'\n", value);
+            }
+            return;
+        }
         /* [ui:chatbox] — see BootManifest.chatbox_* for why these are declared
          * rather than discovered. They share BM_SECTION_UI because every
          * `[ui:…]` header that is not gameframe or varc lands there; the key
@@ -688,6 +714,13 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->revconfig_cache_ini = bm->revconfig_cache;
     if( bm->interface_id > 0 )
         cfg->interface_id = bm->interface_id;
+    if( bm->window_mode )
+        cfg->window_mode = bm->window_mode;
+    if( bm->window_w > 0 && bm->window_h > 0 )
+    {
+        cfg->window_w = bm->window_w;
+        cfg->window_h = bm->window_h;
+    }
     if( bm->gameframe_count > 0 )
     {
         cfg->gameframe_mounts = bm->gameframe;

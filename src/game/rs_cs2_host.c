@@ -2200,6 +2200,13 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
+    if( getenv("TORIRS_OBJICON_DEBUG") )
+        fprintf(
+            stderr,
+            "GFXDBG: com=0x%08x gfx=%d\n",
+            (unsigned)request.component_id,
+            request.graphic_id);
+
     if( request.graphic_id >= 0 && !rs_cs2_sprite_ready(host, request.graphic_id) )
     {
         struct CS2VM_HostRequest req = { 0 };
@@ -2244,6 +2251,16 @@ exec_set_object(
     int scene_id = -1;
     int atlas_index = 0;
     (void)thread;
+    if( getenv("TORIRS_OBJICON_DEBUG") )
+        fprintf(
+            stderr,
+            "OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
+            (unsigned)component_id,
+            obj_id,
+            count,
+            host->bridge ? 1 : 0,
+            provider ? 1 : 0,
+            provider ? ObjModelLoad_NeedsWork(provider, obj_id, count) : -1);
 
     if( obj_id <= 0 )
     {
@@ -2294,6 +2311,18 @@ exec_set_object(
         count,
         scene_id);
 #endif
+    if( getenv("TORIRS_OBJICON_DEBUG") )
+    {
+        int32_t dbg = UITree_FindByComponentId(tree, component_id);
+        fprintf(
+            stderr,
+            "OBJICON: apply com=0x%08x obj=%d scene=%d idx=%d type=%d\n",
+            (unsigned)component_id,
+            obj_id,
+            scene_id,
+            (int)dbg,
+            dbg >= 0 ? (int)tree->components[dbg].type : -1);
+    }
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index, num_mode);
     return CS2VM_EXECNO_OK;
 }
