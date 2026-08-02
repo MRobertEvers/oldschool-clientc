@@ -325,18 +325,31 @@ enum
      * FACE_ENTITY's id space is two ranges, not one.
      *
      * The client reads a face target below 32768 as an *npc slot* and one at or
-     * above it as `32768 + player index` (world_cycle.c, WORLD_FACING_*). The
-     * local player's index is 2047 — the same number that terminates the player
-     * stream, which is why UPDATE_PID carries it — so "face the player" on the
-     * wire is 34815, not 2047.
+     * above it as `32768 + player index` (world_cycle.c, WORLD_FACING_*), and
+     * resolves that index by searching the player pool for a matching
+     * `server_pid` (world.c, World_PlayerGetByServerPid). The number is
+     * therefore *absolute*: it names the same player on every client's stream,
+     * which is what lets one shared NPC_INFO encode serve every observer. The
+     * reference does exactly this — `PathingEntity.setFaceEntity()` stores
+     * `this.target.slot + 32768`, the world-global pool slot, and computes the
+     * block once per npc per tick (`World.cycle` -> `rsbuf.computeNpc`).
      *
-     * Writing the bare 2047 asks the client to face npc slot 2047, which never
+     * Writing a bare 2047 asks the client to face npc slot 2047, which never
      * exists: the lookup returns NULL, the branch falls through, and the npc
      * keeps whatever yaw it had. Nothing reports it. Every npc in a fight stood
      * facing wherever it happened to be walking.
+     *
+     * There is deliberately no `MOCK230_FACE_LOCAL_PLAYER` constant. There used
+     * to be — `MOCK230_FACE_PLAYER_BASE + 2047`, "the local player" — and it is
+     * a *self-alias*: a value whose meaning depends on who is reading it,
+     * written into a field every observer reads. With one client that was
+     * invisible; with two it made a goblin fighting alice turn to face bob on
+     * bob's screen. The face id is `MOCK230_FACE_PLAYER_BASE + player->pid`
+     * now, through `mock230_npc_face_player()` (below the npc struct), and the
+     * constant is deleted so no site can reach for "whoever happens to be
+     * watching" again.
      */
     MOCK230_FACE_PLAYER_BASE = 32768,
-    MOCK230_FACE_LOCAL_PLAYER = MOCK230_FACE_PLAYER_BASE + MOCK230_PLAYER_TERMINATOR,
 
     /* New-npc record field widths. These MUST match what the rev-230 table
      * declares (GameProtoRevTable.npc_slot_bits / .npc_type_bits) — the two
@@ -1300,6 +1313,33 @@ struct Mock230Npc
     int death_seq;
 };
 
+/*
+ * Point an npc's FACE_ENTITY latch at a player, by pid.
+ *
+ * The single seam every "the npc turns to face somebody" site goes through, and
+ * the reason it exists is that all five of them already *had* the pid — from
+ * `npc->combat_target`, from a `player` in scope, from `srv->active_player` —
+ * and threw it away in favour of a constant that meant "whoever is reading
+ * this". NPC_INFO is one encode read by every observer, so a value that depends
+ * on the reader is a value that is wrong for all but one of them.
+ *
+ * Mirrors `PathingEntity.setFaceEntity()`: the absolute pool slot plus 32768,
+ * and the mask set only when the latch actually changes — the mask is per-tick,
+ * and re-sending an unchanged latch is pure wire noise.
+ */
+static inline void
+mock230_npc_face_player(
+    struct Mock230Npc* npc,
+    int pid)
+{
+    int id = MOCK230_FACE_PLAYER_BASE + pid;
+
+    if( npc->face_entity == id )
+        return;
+    npc->face_entity = id;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+}
+
 struct Mock230Player
 {
     /*
@@ -1326,11 +1366,18 @@ struct Mock230Player
     /**
      * Index in the world's pool, and the pid the wire carries.
      *
-     * The 11-bit pid field reserves 2047 for "the local player", which is why
-     * `UPDATE_PID` sends 2047 to every client: each one is 2047 to itself and
-     * `pid` to everyone else. A pool index of 2047 would therefore be two
-     * different players on one client, which `MOCK230_PLAYER_MAX` keeps
-     * unreachable rather than the pid allocator having to know.
+     * One number, the same on every stream. `UPDATE_PID` carries this — not the
+     * 2047 sentinel — because the client uses it to decide which entity in the
+     * PLAYER_INFO stream is itself, and every *other* absolute reference to a
+     * player (an npc's FACE_ENTITY, most visibly) has to resolve against the
+     * same space. Sending 2047 to everybody made each client's self-pid a
+     * different player's, so "face pid 34815" meant a different person on each
+     * screen. The reference sends the real slot too (`Player.onLogin` ->
+     * `new UpdatePid(this.slot, this.members)`).
+     *
+     * 2047 stays reserved on the wire as the 11-bit add-list terminator, which
+     * `MOCK230_PLAYER_MAX` keeps unreachable rather than the pid allocator
+     * having to know.
      */
     int pid;
 

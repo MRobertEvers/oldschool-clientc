@@ -44,6 +44,7 @@
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/pktnames.h"
@@ -158,7 +159,66 @@ struct Peer
     int saw_setevents[192];
     int saw_setevents_count;
     int saw_setevents_overflow;
+
+    /*
+     * ── NPC_INFO ──────────────────────────────────────────────────────
+     *
+     * Which pid UPDATE_PID told this client it is (-1 until one arrives).
+     *
+     * Half of what makes an npc's FACE_ENTITY resolvable: the id on the wire is
+     * `32768 + absolute pid`, and the client turns it back into an entity by
+     * looking that pid up in its own player pool (`World_PlayerGetByServerPid`,
+     * world_cycle.c). While the server sent every client the same 2047
+     * sentinel, every client believed it was the same player, so one shared
+     * face id could not name one of them.
+     */
+    int my_pid;
+
+    /** This client's npc tracking order, carried between packets for the same
+     *  reason `tracked` is: the old/set/clear sections address npcs by their
+     *  index in a list, not by slot. */
+    int npc_tracked[256];
+    int npc_tracked_count;
+
+    /** Latest FACE_ENTITY decoded per npc slot. A small (slot, id) map rather
+     *  than "the most recent one", so an assertion names the npc it means
+     *  instead of whichever record happened to be written last. */
+    struct
+    {
+        int slot;
+        int face;
+    } npc_face[32];
+    int npc_face_count;
+    /** An op landed on an npc slot this client was never told about — the shape
+     *  a mis-ordered extended section takes. */
+    int saw_npc_unknown_target;
 };
+
+/** The last FACE_ENTITY this client decoded for `slot`, or -1 if none.
+ *  -1 is safe as "none": the wire spells "face nobody" as 65535 and the reader
+ *  hands that through as its own value. */
+static int
+peer_npc_face(
+    const struct Peer* peer,
+    int slot)
+{
+    for( int i = 0; i < peer->npc_face_count; i++ )
+        if( peer->npc_face[i].slot == slot )
+            return peer->npc_face[i].face;
+    return -1;
+}
+
+/** Did this client's stream ever mention this npc slot? */
+static int
+peer_saw_npc(
+    const struct Peer* peer,
+    int slot)
+{
+    for( int i = 0; i < peer->npc_tracked_count; i++ )
+        if( peer->npc_tracked[i] == slot )
+            return 1;
+    return 0;
+}
 
 /** Did the server arm this component on this client? */
 static int
@@ -352,6 +412,108 @@ absorb_player_info(
 }
 
 /*
+ * Decode one NPC_INFO with the client's own reader and record what it says
+ * about who each npc is facing.
+ *
+ * The same shape as `absorb_player_info` above, and for the same reason: the
+ * server believing a goblin faces alice proves nothing about the bytes. The one
+ * value this exists to read — FACE_ENTITY — is an *absolute* reference to a
+ * player (`32768 + pid`) sitting inside a stream that is encoded once and sent
+ * to everybody, so it is only correct if two independently decoded streams
+ * agree about it and if each client's own pid is its own.
+ *
+ * The list walk mirrors `npc_target_op` in task_exec_entity_info.c exactly:
+ * ADD_OLD indexes into *last* packet's list and appends, ADD_NEW carries the
+ * absolute slot and appends, SET indexes into the list built so far, CLEAR
+ * indexes into last packet's list and drops the entry. The widths come off the
+ * revision table, never a literal 14 — a wrong width does not fail the decode,
+ * it shifts every field after it.
+ */
+static void
+absorb_npc_info(
+    struct Peer* peer,
+    const uint8_t* data,
+    int length)
+{
+    static struct PktNpcInfoOp ops[1024];
+    struct PktNpcInfoReader reader;
+    int next[256];
+    int next_count = 0;
+    int slot = -1;
+    int n;
+
+    pkt_npc_info_reader_init(&reader, peer->net.rev ? peer->net.rev->npc_slot_bits : 0,
+                             peer->net.rev ? peer->net.rev->npc_type_bits : 0);
+    n = pkt_npc_info_reader_read(&reader, data, length, ops,
+                                 (int)(sizeof(ops) / sizeof(ops[0])));
+
+    for( int i = 0; i < n; i++ )
+    {
+        struct PktNpcInfoOp* op = &ops[i];
+
+        switch( op->kind )
+        {
+        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+            next_count = 0;
+            break;
+        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
+            slot = (int)op->_bitvalue < peer->npc_tracked_count
+                       ? peer->npc_tracked[op->_bitvalue]
+                       : -1;
+            if( slot < 0 )
+                peer->saw_npc_unknown_target = 1;
+            else if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
+                next[next_count++] = slot;
+            break;
+        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+            slot = (int)op->_bitvalue;
+            if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
+                next[next_count++] = slot;
+            break;
+        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
+            slot = (int)op->_bitvalue < next_count ? next[op->_bitvalue] : -1;
+            if( slot < 0 )
+                peer->saw_npc_unknown_target = 1;
+            break;
+        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+            /* A removal out of *last* packet's list; it is not in this
+             * packet's order, so nothing to take back out. */
+            slot = -1;
+            break;
+        case PKT_NPC_INFO_OP_FACE_ENTITY:
+            if( slot >= 0 )
+            {
+                int at = -1;
+
+                for( int k = 0; k < peer->npc_face_count; k++ )
+                    if( peer->npc_face[k].slot == slot )
+                        at = k;
+                if( at < 0 && peer->npc_face_count <
+                                  (int)(sizeof(peer->npc_face) / sizeof(peer->npc_face[0])) )
+                    at = peer->npc_face_count++;
+                if( at >= 0 )
+                {
+                    peer->npc_face[at].slot = slot;
+                    peer->npc_face[at].face = (int)op->_face_entity.entity_id;
+                }
+            }
+            else
+            {
+                peer->saw_npc_unknown_target = 1;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
+    memcpy(peer->npc_tracked, next, sizeof(int) * (size_t)next_count);
+    peer->npc_tracked_count = next_count;
+
+    pkt_npc_info_ops_free(ops, n);
+}
+
+/*
  * Record what a zone packet said, the way the client's own exec does.
  *
  * `origin_x`/`origin_z` are the absolute tile of the scene's south-west corner:
@@ -542,6 +704,10 @@ pump(
         {
             if( packet.packet_type == PKT_NAME_PLAYER_INFO )
                 absorb_player_info(peer, packet._player_info.data, packet._player_info.length);
+            else if( packet.packet_type == PKT_NAME_NPC_INFO )
+                absorb_npc_info(peer, packet._npc_info.data, packet._npc_info.length);
+            else if( packet.packet_type == PKT_NAME_UPDATE_PID )
+                peer->my_pid = packet._update_pid.local_player_index;
             else if( !absorb_social(peer, &packet) )
                 absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
@@ -559,6 +725,8 @@ peer_login(
     memset(peer, 0, sizeof(*peer));
     peer->client_id = client_id;
     peer->saw_pid = -1;
+    /* 0 is a real pid (alice's), so "no UPDATE_PID yet" needs its own value. */
+    peer->my_pid = -1;
     /* 0 is a real FRIENDLIST_LOADED status ("loading"), so "none yet" needs its
      * own value or the check below would pass before the packet existed. */
     peer->saw_friendlist_loaded = -1;
@@ -926,6 +1094,134 @@ main(void)
               "bob's client was re-told about alice after she teleported");
         check(strcmp(peers[1].saw_name, "alice") == 0, "and it was still alice");
         check(!peers[1].saw_unknown_target, "with the remove and the re-add in step");
+    }
+
+    /*
+     * ── Whom does an npc fighting one of them face? ──────────────────
+     *
+     * The last shared-state remainder of the multiplayer change, and the one
+     * the tracked sets could not reach: NPC_INFO is *one* encode read by every
+     * observer, so an npc's FACE_ENTITY has to be a value that means the same
+     * person on every stream. It was not. It was `32768 + 2047` — "the local
+     * player" — which is right for exactly the client the retaliation was being
+     * encoded to and names somebody else on every other one.
+     *
+     * The fix is not per-observer masks; it is an absolute pid in the id (which
+     * is what the reference stores: `PathingEntity.setFaceEntity` keeps
+     * `target.slot + 32768`) plus an UPDATE_PID that carries each client's real
+     * slot instead of the 2047 sentinel. Both halves are needed and both are
+     * asserted, because either one alone still leaves the id unresolvable.
+     *
+     * Read entirely out of the two decoded streams. The server believing the
+     * goblin faces alice is not the claim; the claim is that the bytes both
+     * clients received say so.
+     */
+    {
+        int npc_slot = -1;
+        int best = 0;
+        int alice_x = alice->x, alice_z = alice->z, alice_level = alice->level;
+        int bob_x = bob->x, bob_z = bob->z, bob_level = bob->level;
+        int alice_face = -1;
+        int bob_face = -1;
+
+        /*
+         * The attackable npc nearest alice.
+         *
+         * Attackable is asked of the npc's own cache record through
+         * `mock230_combat_attackable` rather than by naming a config id here,
+         * and *nearest* is not cosmetic: the scene is one 104x104 build area,
+         * so walking the roster in slot order picks an npc across the map,
+         * teleports both players out of the built scene and rebuilds it
+         * underneath them. Nearest keeps the whole check inside one scene.
+         */
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            int dx, dz, d;
+
+            if( !world->npcs[i].active || world->npcs[i].death_tick >= 0 )
+                continue;
+            if( world->npcs[i].level != alice->level )
+                continue;
+            if( !mock230_combat_attackable(world->npcs[i].type) )
+                continue;
+            dx = world->npcs[i].x - alice->x;
+            dz = world->npcs[i].z - alice->z;
+            d = dx * dx + dz * dz;
+            if( npc_slot < 0 || d < best )
+            {
+                npc_slot = i;
+                best = d;
+            }
+        }
+        check(npc_slot >= 0, "the roster holds an attackable npc");
+
+        if( npc_slot >= 0 )
+        {
+            struct Mock230Npc* npc = &world->npcs[npc_slot];
+
+            /* Both in view of it: alice beside it, bob three tiles off. Bob
+             * does nothing at all — his only job is to be a second observer,
+             * which is the whole experiment. */
+            mock230_world_set_active(world, alice);
+            mock230_world_teleport(world, npc->level, npc->x + 1, npc->z);
+            mock230_world_set_active(world, bob);
+            mock230_world_teleport(world, npc->level, npc->x - 3, npc->z);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+
+            /*
+             * Alice hits it for nothing, which is a *block* splat rather than
+             * no event: the npc retaliates, latches its FACE_ENTITY onto
+             * whoever hit it, and stays alive to be looked at. Driving the
+             * retaliation directly rather than through a swing is deliberate —
+             * a real fight would take a variable number of ticks to land its
+             * first hit and could kill either party before the assertion, and
+             * neither of those is what is being tested. The setup is server-
+             * side; every claim below is read out of the two clients' decoded
+             * streams.
+             */
+            mock230_world_set_active(world, alice);
+            mock230_combat_hit_npc(world, npc_slot, 0, 0);
+            for( int round = 0; round < 4; round++ )
+            {
+                pump(peers, 2, embed, 1, 64);
+                if( peer_npc_face(&peers[0], npc_slot) >= 0 &&
+                    peer_npc_face(&peers[1], npc_slot) >= 0 )
+                    break;
+            }
+
+            alice_face = peer_npc_face(&peers[0], npc_slot);
+            bob_face = peer_npc_face(&peers[1], npc_slot);
+
+            check(peers[0].my_pid == alice->pid && peers[1].my_pid == bob->pid,
+                  "each client was told its own real pid, not the 2047 sentinel");
+            check(peers[0].my_pid != peers[1].my_pid,
+                  "so alice and bob were told different pids");
+            check(peer_saw_npc(&peers[0], npc_slot) && peer_saw_npc(&peers[1], npc_slot),
+                  "both clients are tracking the npc alice hit");
+            check(alice_face >= 32768,
+                  "the npc's face target is a player, not an npc slot");
+            check(alice_face == bob_face,
+                  "and both streams name the same absolute player");
+            check(alice_face - 32768 == alice->pid, "which is alice");
+            check(alice_face - 32768 != bob->pid,
+                  "and is not whoever happens to be watching");
+            check(!peers[0].saw_npc_unknown_target && !peers[1].saw_npc_unknown_target,
+                  "with every npc block attributed to a tracked npc");
+
+            /* Put the world back: end the fight and return everybody to where
+             * the previous section left them, so the door checks below are not
+             * reading a position this one chose. */
+            mock230_combat_stop_npc(world, npc_slot);
+            mock230_world_set_active(world, alice);
+            mock230_combat_stop_player(world);
+            mock230_world_teleport(world, alice_level, alice_x, alice_z);
+            mock230_world_set_active(world, bob);
+            mock230_combat_stop_player(world);
+            mock230_world_teleport(world, bob_level, bob_x, bob_z);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+        }
     }
 
     /*

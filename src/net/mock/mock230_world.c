@@ -1591,12 +1591,19 @@ npc_run_mode(
 
     range = npc_player_range(npc, player);
 
-    /* Every player-facing mode faces the player; only some of them move. */
+    /* Every player-facing mode faces the player; only some of them move.
+     *
+     * By pid — `player` is right here and used for the range and the steps, so
+     * naming it in the face id too costs nothing and makes the id mean the same
+     * person on every observer's stream.
+     *
+     * Which player it is, though, is still `srv->active_player`: this mode
+     * machine asks "whose turn is it" in a phase where it is nobody's, unlike
+     * `maybe_aggress`, which picks the nearest eligible victim. That is a
+     * separate defect (osrs230_mockserver.md §6.1) and this change only makes
+     * the id honest about the answer, not the answer right. */
     if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
-    {
-        npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
-        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
-    }
+        mock230_npc_face_player(npc, player->pid);
 
     switch( npc->mode )
     {
@@ -2366,8 +2373,11 @@ interaction_engine_npc(
      * so it can use `npc_say` — which is also what makes the line *visible*.
      * The mask this used to set alone renders nowhere in this client.
      */
-    npc->face_entity = MOCK230_FACE_LOCAL_PLAYER; /* the local player */
-    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    /* The clicker, by pid: `active_player` is whoever's packet is being
+     * dispatched, which for an op handler is exactly the right answer. Two
+     * clients greeting the same npc each see it turn to the one who clicked. */
+    if( srv->active_player )
+        mock230_npc_face_player(npc, srv->active_player->pid);
     mock230_scripts_run_proc_on_npc(srv, "[proc,npc_default_chat]", slot);
 }
 
@@ -5216,8 +5226,17 @@ mock230_world_login(struct Mock230Player* player)
     /* 4. Player state. The pid comes first: it decides which entity in the
      *    stream the client treats as itself, and several things it drives —
      *    the npc menu's level suffix among them — are computed the moment the
-     *    first PLAYER_INFO lands. */
-    mock230_send_update_pid(player, MOCK230_PLAYER_TERMINATOR);
+     *    first PLAYER_INFO lands.
+     *
+     *    The player's *real* pool slot, which is what the reference sends
+     *    (`Player.onLogin` -> `new UpdatePid(this.slot, this.members)`). It used
+     *    to be the 2047 sentinel — "you are the local player" — and that made
+     *    every client's self-pid the same number, so any absolute reference to a
+     *    player (an npc's FACE_ENTITY above all) could not name one. Order is
+     *    load-bearing: this precedes the PLAYER_INFO/NPC_INFO at step 6, so the
+     *    client registers its own entity under this pid rather than under the
+     *    2047 fallback in `local_player_pid()`. */
+    mock230_send_update_pid(player, player->pid);
     /* Both orb numbers, unconditionally: the per-tick flush only sends what
      * changed, and a session that starts full would otherwise never send one. */
     player->run_energy_sent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
@@ -9254,17 +9273,25 @@ mock230_world_selftest(void)
             /*
              * The npc's half of the same latch, and the id space it lives in.
              *
-             * A player is `32768 + index` and the local player's index is 2047,
-             * so the only correct value here is 34815. The bare 2047 that used
-             * to be written is a *valid-looking* npc slot, so the client's
-             * lookup simply found nothing and the npc never turned — checked as
-             * an exact number rather than "not -1" for that reason.
+             * Two separate claims, because they failed separately. The id space:
+             * a player is `32768 + pid`, and the bare pid that used to be
+             * written is a *valid-looking* npc slot, so the client's lookup
+             * simply found nothing and the npc never turned.
+             *
+             * The identity: the pid in the id must be the pid the npc is
+             * fighting. This was pinned to a constant — 32768 + 2047, "the local
+             * player" — which is one number that meant a different person on
+             * every observer's stream. Asserting the *relationship* is what
+             * makes it unpinnable to any one client; `embed_test.c` asserts the
+             * same thing from two decoded streams at once.
              */
-            SELFTEST_CHECK(npc->face_entity == MOCK230_FACE_LOCAL_PLAYER,
-                           "the npc faces the local player as %d, got %d",
-                           MOCK230_FACE_LOCAL_PLAYER, npc->face_entity);
             SELFTEST_CHECK(npc->face_entity >= MOCK230_FACE_PLAYER_BASE,
-                           "which must be in the player half of the id space");
+                           "the npc's face target is in the player half of the id "
+                           "space, got %d", npc->face_entity);
+            SELFTEST_CHECK(npc->face_entity - MOCK230_FACE_PLAYER_BASE == npc->combat_target,
+                           "and names the pid it is fighting (%d), got %d",
+                           npc->combat_target,
+                           npc->face_entity - MOCK230_FACE_PLAYER_BASE);
 
             /* MOVE_GAMECLICK: p1 ctrl, p2 start x, p2 start z, then waypoints. */
             player->masks = 0;

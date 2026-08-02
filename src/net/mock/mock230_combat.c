@@ -451,17 +451,16 @@ mock230_combat_hit_npc(
         npc->attack_clock = npc_def(npc)->attackrate / 2;
     }
     /*
-     * FACE_ENTITY names the *local* player, which is right for the client this
-     * npc's retaliation is being encoded to and wrong for every other one — a
-     * second observer sees the goblin turn to face them. NPC_INFO carries one
-     * mask set for all recipients, so the mask cannot say "face pid N" per
-     * client; the id space (32768 + index) can, and wiring it up needs the npc
-     * masks to be per-observer. Left as the local player deliberately, and
-     * noted here rather than in a commit message: it is the visible remainder
-     * of NPC_INFO being a shared encode.
+     * Face whoever it is now fighting, by pid.
+     *
+     * This used to name "the local player" (32768 + 2047), right for the client
+     * the retaliation was encoded to and wrong for every other one: NPC_INFO is
+     * one mask set read by every recipient, so a second observer saw the goblin
+     * turn to face *them*. The masks never needed to be per-observer — the id
+     * already is absolute (32768 + pool slot, as in `setFaceEntity`), and
+     * `combat_target` is that pid, set four lines up.
      */
-    npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
-    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+    mock230_npc_face_player(npc, npc->combat_target);
     /* Flinch. Overwritten below if this was the killing blow. */
     play_npc_seq(npc, npc->block_seq);
 
@@ -953,14 +952,15 @@ mock230_combat_npc_tick(
      * A goblin would walk sideways across the yard still staring at the spot
      * it was standing when the fight started.
      *
-     * Set once here, before any early return, and only when it changes: the
-     * mask is per-tick and re-sending an unchanged latch is pure wire noise.
+     * Set once here, before any early return, and only when it changes — the
+     * change-gate is inside `mock230_npc_face_player`, which is where all five
+     * facing sites get it now rather than only this one.
+     *
+     * `player` is `players[npc->combat_target]`, resolved above: the pid, not
+     * "the local player". Every observer's NPC_INFO carries the same absolute
+     * number, so both clients see the goblin facing the person it is fighting.
      */
-    if( npc->face_entity != MOCK230_FACE_LOCAL_PLAYER )
-    {
-        npc->face_entity = MOCK230_FACE_LOCAL_PLAYER;
-        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
-    }
+    mock230_npc_face_player(npc, npc->combat_target);
 
     if( !in_attack_range(player, npc) )
     {
