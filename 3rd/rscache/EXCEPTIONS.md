@@ -1287,7 +1287,7 @@ at 0 and **clamps**. Each era is matched to its own reference client rather than
 cleaned up to clamp. The gate is the same one the filter uses, on the argument that both
 changed with the same engine rewrite; that pairing is a judgement call, not a measurement.
 
-### B21. World map geography — read for OSRS <= 237, addressed but not read for >= 238 *(Gap)*
+### B21. World map geography — read for OSRS <= 237, and now for >= 238 too *(Fixed)*
 
 `dat2_worldmap_geography.c` decodes cache table 18 (the tiles the world map draws:
 floor ids, overlay shapes/rotations, and the locs that become wall lines and map
@@ -1298,23 +1298,48 @@ area, which comes out as recognisable Gielinor.
 
 From OSRS 238 the compositemap drops the group/file pair
 (`RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE`) and the geography file drops its
-header. The addressing was worked out and is implemented: table 18 becomes a
-sparse array indexed by `(region_x << 8) | region_y`, one file per group —
-`cache.osrs239`'s 15938-slot table has 2101 populated groups, the first being
-3872 = region 15,32 and Lumbridge's 49,48 being 12592.
+header. The addressing was worked out first and has been correct throughout:
+table 18 becomes a sparse array indexed by `(region_x << 8) | region_y`, one file
+per group — `cache.osrs239`'s 15938-slot table has 2101 populated groups, the
+first being 3872 = region 15,32 and Lumbridge's 49,48 being 12592.
 
-**The tile record itself is not understood.** Reading those files as a headerless
-run of the <=237 tile format consumes the file *exactly* — 4096 tiles landing on
-the last byte, which is normally strong evidence — yet yields floor ids that no
-flo config has (3331, 1023, 255) and, when drawn anyway, terrain in the wrong
-places. So some field's width or meaning changed in a way that happens to
-preserve the total length. Swapping the tile iteration to y-major does not fix it
-either.
+**The tile record itself was mis-measured, not unknown — the grammar was already
+solved elsewhere in this tree and just never reached the shared decoder.**
+`tools/cachepack/cp_decode.c`'s `geo_decode` (written for `--assets` export, a
+separate codec from this file) worked it out: the tile grammar is unchanged from
+<=237 with exactly one field width difference — **a loc's id is a plain `u32`,
+not a `BigSmart`.** Real loc ids are always well under 32768, so a `BigSmart`
+read always takes its 2-byte form; reading a true 4-byte field as 2 under-reads
+by 2 bytes on every loc-bearing tile, and the deficit compounds until a
+downstream byte looks like a bad floor id or the stream runs out mid-tile. That
+is exactly what the old "consumes exactly, yields floor ids that don't exist"
+symptom was: 355 of the 2,101 files happened to have zero loc-bearing tiles (or a
+coincidentally length-preserving one) and decoded "exactly" by luck, which read
+as evidence the grammar was close to right when it was the desync not yet having
+had a chance to happen. `geo_decode`'s own measurement: reading the id as
+`BigSmart` put 883/2,101 files out of bytes mid-tile; reading it as `u32` takes
+that to 2,057/2,057 (every single-file archive) exact.
 
-Rather than draw wrong data, `task_dat2_worldmap_geography_load.c` refuses the
-records with no group/file pair, and the world map surface stays background on
-those caches. Deciding the format needs a reference client for 238+; the
-xrsps-typescript renderer this was ported from predates the change.
+Ported into the shared decoder (`RSCache_WorldMapGeographyDecodeInplace`,
+`worldmap_read_tile`) so the live client benefits, not just cachepack's asset
+export. `task_dat2_worldmap_geography_load.c` no longer refuses derived-address
+records; `headerless` is now a decoder parameter orthogonal to `kind` (region vs
+chunk), since the compositemap record always knows its own kind and destination
+regardless of which era's addressing found the file. Verified: `cache.osrs239`'s
+Lumbridge/Al Kharid area renders as real Gielinor terrain
+(`./run-worldmap.sh manifest_osrs239_worldmap.ini --headless`), all 2,101
+geography files still round-trip byte-exact through `geo_decode` (unaffected —
+separate codec), and the client's own decode goes from "decoded nothing" on
+every region to zero `archive=MISSING` / zero truncated-stream errors under
+`TORIRS_WORLDMAP_DEBUG=1`.
+
+**Still open:** the ~165 files whose tile count is a multiple of 64 but not
+4,096 — a region assembled from more than one chunk bundled back to back in a
+single file, with no per-chunk coordinate inside the file to say where each 64-
+tile block after the first goes. The decoder reads only the requesting record's
+own chunk and stops rather than guess the rest's placement; those regions may be
+incomplete rather than wrong. Worth revisiting if a specific area turns out to
+be one of the 165 and matters.
 
 ## C. Open — real defects deliberately not fixed
 

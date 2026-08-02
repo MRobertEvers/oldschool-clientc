@@ -36,6 +36,11 @@
  * cache.osrs239, whose 15938-slot table has 2101 populated groups: the first is
  * 3872 = region 15,32 and Lumbridge's 49,48 is 12592, both exactly that
  * packing.
+ *
+ * The file *content* at that address is now read too (EXCEPTIONS.md B21): it
+ * is the same headerless tile stream as everywhere else in this era, with one
+ * field width difference (a loc's id is a plain u32, not a BigSmart) — see
+ * dat2_worldmap_geography.c's worldmap_read_tile.
  */
 static int
 worldmap_geography_group(struct ToriRS_WorldMapRegionSource const* source)
@@ -87,13 +92,6 @@ Task_Dat2WorldMapGeographyLoad_Run(
     for( task->cursor = 0; task->cursor < task->source_count; task->cursor++ )
     {
         source = &task->sources[task->cursor];
-        /* OSRS >= 238 is addressed (see worldmap_geography_group) but not yet
-         * read: its headerless tile stream consumes exactly and still decodes to
-         * floor ids that do not exist, so the record layout differs in a way
-         * this decoder does not model. Drawing it would be drawing wrong data —
-         * the surface stays background until the layout is worked out. */
-        if( source->group_id < 0 )
-            continue;
 
         RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, worldmap_geography_group(source));
         PT_YIELD(&task->pt);
@@ -126,21 +124,23 @@ Task_Dat2WorldMapGeographyLoad_Run(
             bool derived = source->group_id < 0;
             if( archive->file_ids[i] != worldmap_geography_file(source) )
                 continue;
-            /* A derived address has no record fields to check the file against,
-             * and the file's own marker decides whether it is a region or a
-             * chunk — see RSCache_WorldMapGeographyDecodeInplace. */
+            /* A derived address has no in-file marker/coords to check against —
+             * `headerless` tells the decoder that — but `kind` and the chunk
+             * destination are the record's own fields, known either way, and
+             * headerless placement has no other source for them. */
             if( task->ground_group < 0 )
                 task->ground_group = worldmap_geography_group(source);
             if( RSCache_WorldMapGeographyDecodeInplace(
                     task->geography,
                     filelist->files[i],
                     filelist->file_sizes[i],
-                    derived ? -1 : source->kind,
+                    derived,
+                    source->kind,
                     source->planes,
                     derived ? -1 : source->dst_region_x,
                     derived ? -1 : source->dst_region_y,
-                    (!derived && source->kind == 1) ? source->dst_chunk_x : -1,
-                    (!derived && source->kind == 1) ? source->dst_chunk_y : -1) )
+                    source->dst_chunk_x,
+                    source->dst_chunk_y) )
                 task->decoded++;
             break;
         }

@@ -38,6 +38,14 @@ worldmap_decor_add(
  * A tile is one flags byte then, depending on bit 0, a short form (an underlay
  * and optionally one overlay) or a long form (underlay, an overlay per plane,
  * and a loc list per plane). flags == 0 is the common case: nothing here.
+ *
+ * Bits 5-7 are never set anywhere in cache.osrs239's geography table; a set bit
+ * means the read has drifted off the true tile boundary, so it is refused here
+ * rather than read as more of whatever garbage field it lands on — the same
+ * "exact consumption is the evidence" reasoning the headerless region loop
+ * already uses at the whole-file level (tools/cachepack/cp_decode.c geo_decode,
+ * where this grammar was worked out and validated: 2,057/2,057 single-file
+ * geography archives round-trip byte-exact under it).
  */
 static bool
 worldmap_read_tile(
@@ -55,6 +63,8 @@ worldmap_read_tile(
     flags = RSCache_BufferG1(buffer);
     if( flags == 0 )
         return true;
+    if( (flags & 0xE0) != 0 )
+        return false;
 
     if( (flags & 1) != 0 )
     {
@@ -98,7 +108,17 @@ worldmap_read_tile(
             int loc_count = RSCache_BufferG1(buffer);
             for( int i = 0; i < loc_count; i++ )
             {
-                int loc_id = RSCache_BufferReadBigSmart(buffer);
+                /* A plain u32, not a smart — the client generation that widened
+                 * this field predates the one BigSmart handles. Reading it as a
+                 * BigSmart is not merely wrong for this one value: for any real
+                 * loc id (always well under 32768, so BigSmart always takes the
+                 * 2-byte form) it under-reads by 2 bytes, and that deficit
+                 * desyncs every byte read after the first loc-bearing tile in
+                 * the file — the deficit compounds until a downstream field
+                 * looks like garbage or the stream runs out mid-tile, which is
+                 * indistinguishable from "the format is unknown" unless you are
+                 * looking for a fixed-width field specifically. */
+                int loc_id = (int)(RSCache_BufferG4(buffer) & 0x7fffffff);
                 int info = RSCache_BufferG1(buffer);
                 if( plane >= out->planes || plane >= RSCACHE_WORLDMAP_MAX_PLANES )
                     continue;
@@ -117,6 +137,7 @@ RSCache_WorldMapGeographyDecodeInplace(
     struct RSCache_WorldMapGeography* out,
     const void* data,
     int data_size,
+    bool headerless,
     int kind,
     int planes,
     int expect_region_x,
@@ -141,9 +162,39 @@ RSCache_WorldMapGeographyDecodeInplace(
 
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
-    if( kind < 0 )
+    if( headerless )
     {
-        /* Headerless (OSRS >= 238): straight into the region's tiles. */
+        /* OSRS >= 238: no marker, no region/chunk coords in the file — table 18
+         * is addressed by (region_x << 8) | region_y instead (see
+         * RSCache_WorldMapFlags), so the compositemap record's own kind and
+         * destination coords are what place these tiles, not anything the file
+         * repeats about itself. `kind`/`expect_chunk_x/y` are the caller's, not
+         * validated against the stream — there is nothing left in it to check
+         * them against. */
+        if( kind == WORLDMAP_GEOGRAPHY_MARKER_CHUNK )
+        {
+            /* One 8x8 chunk at the record's own destination. Measured (EXCEPTIONS.md
+             * B21 / tools/cachepack/cp_decode.c's geo_decode survey): most of these
+             * files hold exactly one chunk's 64 tiles, but some hold more, bundled
+             * back to back with no per-chunk coords to say where the rest go. Read
+             * only this record's own chunk and stop — a sibling chunk's placement is
+             * not decidable from this call, and refusing the whole record over
+             * unread trailing bytes would throw away the one chunk we do know how to
+             * place. */
+            for( int tile_x = 0; tile_x < 8; tile_x++ )
+            {
+                for( int tile_y = 0; tile_y < 8; tile_y++ )
+                {
+                    if( !worldmap_read_tile(
+                            out, tile_x + expect_chunk_x * 8, tile_y + expect_chunk_y * 8,
+                            &buffer) )
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        /* Whole region, straight into its tiles from byte 0. */
         for( int tile_x = 0; tile_x < RSCACHE_WORLDMAP_TILE_COUNT; tile_x++ )
         {
             for( int tile_y = 0; tile_y < RSCACHE_WORLDMAP_TILE_COUNT; tile_y++ )

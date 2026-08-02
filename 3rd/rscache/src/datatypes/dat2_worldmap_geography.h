@@ -13,12 +13,18 @@
  * shapes, and the locs that become wall lines or map scene icons), with no
  * heights, no collision and no full loc list.
  *
- * Two layouts, tagged by a leading marker byte that repeats the record kind:
- *   0 — a whole 64x64 region, tiles in x-major order
- *   1 — one 8x8 chunk of a region, addressed at (chunk_x*8, chunk_y*8)
+ * Two shapes, kind 0 (a whole 64x64 region, tiles in x-major order) and kind 1
+ * (one 8x8 chunk of a region, addressed at (chunk_x*8, chunk_y*8)). Both write
+ * into the same 64x64 grid, so a region assembled from chunk records decodes
+ * several files into one struct.
  *
- * Both write into the same 64x64 grid, so a region assembled from chunk records
- * decodes several files into one struct.
+ * OSRS <= 237 tags the shape with a leading marker byte the file repeats along
+ * with its own region/chunk coords. OSRS >= 238 files carry neither — the
+ * shape and destination come only from the compositemap record that pointed
+ * here (RSCache_WorldMapGeographyDecodeInplace's `headerless` parameter), and
+ * the loc id inside a tile widened from the older files' BigSmart to a plain
+ * u32 (see EXCEPTIONS.md B21 and the decoder's own comments for how both were
+ * measured, not guessed).
  */
 
 #define RSCACHE_WORLDMAP_TILE_COUNT 64
@@ -69,16 +75,24 @@ RSCache_WorldMapTileIndex(int tile_x, int tile_y)
 
 /**
  * Decode a table-18 file into `out`, which the caller zeroes once and may pass
- * repeatedly to assemble a region from chunk records. `expect_region_x/y` (and
- * `expect_chunk_x/y` for kind 1, else -1) are the record's own coords: the file
- * repeats them, and a mismatch means the compositemap pointed at the wrong file,
- * so the decode is refused rather than written into the wrong tiles.
+ * repeatedly to assemble a region from chunk records.
  *
- * `kind` < 0 means the OSRS >= 238 layout: a whole region with **no header at
- * all**, tiles from byte 0. That release moved the addressing into the group id
- * — table 18 is indexed by (region_x << 8) | region_y — and dropped both the
- * marker and the region coords the older files repeat, along with the
- * compositemap's group/file pair. `expect_*` are then unused.
+ * `headerless` is the cache-revision property (OSRS >= 238): the file carries
+ * **no marker and no region/chunk coords at all** — table 18 is addressed by
+ * (region_x << 8) | region_y instead of an explicit group/file pair (see
+ * RSCache_WorldMapFlags) — so there is nothing in the stream to check `kind` or
+ * the destination against, and `expect_region_x/y` are unused. `kind` and
+ * `expect_chunk_x/y` (for kind 1) are still required, and still real: the
+ * compositemap record that led here always knows its own kind and destination,
+ * addressing scheme aside, and headerless placement has no other source for
+ * them. A headerless kind-1 file may bundle more than one chunk's tiles back to
+ * back with no way to place the rest; only the record's own chunk is read.
+ *
+ * `headerless` false is the OSRS <= 237 layout: marker + region/chunk coords
+ * repeated in the file, checked against `expect_region_x/y` (and
+ * `expect_chunk_x/y` for kind 1) when >= 0 — a mismatch means the compositemap
+ * pointed at the wrong file, so the decode is refused rather than written into
+ * the wrong tiles.
  *
  * Returns false on a marker/coord mismatch or a truncated file. Whatever was
  * written before the failure stays — partial tiles draw as background, which is
@@ -89,6 +103,7 @@ RSCache_WorldMapGeographyDecodeInplace(
     struct RSCache_WorldMapGeography* out,
     const void* data,
     int data_size,
+    bool headerless,
     int kind,
     int planes,
     int expect_region_x,
