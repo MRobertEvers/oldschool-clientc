@@ -8684,6 +8684,9 @@ app_minimenu_run_option(
                 int sub;
 
                 app_if_button_target(app, opt.pick.id, &target, &sub);
+                if( getenv("TORIRS_CLICK_DEBUG") )
+                    fprintf(stderr, "clickdbg: send op%d target=0x%x sub=%d state=%d\n", op_num,
+                            target, sub, app->net ? (int)app->net->state : -1);
                 APP_NET_SEND(
                     app,
                     net_out_if_button_op(

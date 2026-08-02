@@ -383,3 +383,73 @@ all. §4's two screenshots are the check for that.
   but `docs/skill_guide_server_reqs.md`'s "already loading generically —
   **landed**" was wrong about it, and any feature that wants a cache dbtable
   server-side will hit it.
+
+---
+
+## The click was dead, and the cause was not in this feature
+
+Reported 2026-08-02 as "clicking on a skill in the interface is still not
+working", against a build where everything this doc describes was present and
+correct: `~skill_guide_login` ran, all 24 `if_setevents(stats:<skill>, 0, 0,
+^if_event_op2)` left the server, and clientscript 393 set the op text
+(`if_setop(2, "View <col=ff981f><skill></col> guide", $component0)`).
+
+**Nothing was wrong server-side. The client could not hit the cell at all.**
+
+`stats:attack` is a `type=0` **layer** carrying `clickmask=6`, `op1=*` and
+`op2=*` — the whole 62x30 cell is the button, and the graphics and numbers
+script 393 `cc_create`s on top of it are ops-less decorative children.
+`UITree_ComponentIsPassThrough` (`src/ui/uitree_input.c`) had:
+
+```c
+case UIELEM_RS_LAYER:
+    return true;          /* a layer is never a click target */
+```
+
+So the children correctly refused the hit (no click mask, no ops) and the
+parent that owns the ops refused it too. The click resolved to **no component
+at all** — `out.clicked_com_id` stayed -1, the minimenu was never built, and
+`TORIRS_CLICK_DEBUG` printed nothing whatsoever. A widget that produces *no*
+debug output is a different failure from one that produces a menu and sends
+nothing, and it is what made this look like a server problem.
+
+### The fix, and why it is narrow
+
+A layer is now a click target when the cache armed it — a non-zero
+`click_mask`, a menu option, or any op text — and pass-through otherwise.
+
+It deliberately does **not** reuse `rs_node_is_decorative_passthrough`, which
+the graphic/text/rect arms use, because that predicate also promotes a node for
+a non-zero `button_type` or `client_code`. On a *layer* those catch structural
+slots: measured, reusing it verbatim made `toplevel:sidemodal` (161:74,
+`clientcode=1354`, 190x261 across the whole sidebar) start picking, so empty
+sidebar space answered with a Cancel-only menu where it used to fall through.
+Nothing broke — real components mounted inside it still win, because the hit
+test takes the topmost — but it was a behaviour change with no reason behind
+it.
+
+Verified by a 12-point click sweep across world, minimap, chat, sidebar, orbs
+and both tab rows, diffed against a control binary with the arm reverted:
+
+| | picks |
+|---|---|
+| new picks vs control | **0** |
+| lost picks vs control | **0** |
+
+and the discriminating test, same sweep harness:
+
+| | `mount iface=860` |
+|---|---|
+| control (arm reverted) | **0** |
+| new | **1** |
+
+attack / strength / defence each open the guide and reach the server as
+`IF_BUTTON2 320:1`, `320:2`, `320:3`. A left click is enough: op 2 is the
+default row, because op 1's text is empty unless the XP-tracker toggle applies.
+
+### Blast radius
+
+This is general, not skill-guide-specific — **any** cache layer with a click
+mask or ops was unclickable, and the stats tab is simply the first place
+content armed one. Worth re-testing anything that looked inert and was assumed
+to be a missing packet.

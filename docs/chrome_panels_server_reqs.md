@@ -1,5 +1,12 @@
 # Chrome panels: XP Tracker, Hiscores, Loot Tracker
 
+> **REACHABLE FROM THE GAMEFRAME — 2026-08-02, verified by clicking.** The
+> panels are no longer debugproc-only. The chrome that opens them always
+> existed and this doc (and `interface_chrome/scripts/chrome_panels.rs2`'s own
+> header) was wrong to say it did not: it is the **popout launcher strip,
+> interface 728 `popout`**, already login-mounted by `gameframe.enum`, drawing
+> three icons down the right edge. See §8.
+
 > **PARTLY BUILT — 2026-08-02.** All three panels now *open* in the headless
 > client and two of the three *draw*. See §7 for exactly what landed, what it
 > cost, and what is still missing. Read §7 before acting on anything below it:
@@ -461,3 +468,109 @@ PY
 # rebuild, rerun hiscores -> exit 134, "unimplemented opcode 7809"
 python3 src/cs2vm2/gen_opcode_stack.py   # restore
 ```
+
+---
+
+## 8. The popout strip — how the panels are actually reached
+
+Reported as "clicking the loot tracker / xp tracker / hiscores in the chrome of
+161 does nothing", with a screenshot of a vertical three-icon strip on the right
+edge. The strip is **interface 728 `popout`**, not the sidebar tab stones, and
+not anything in 161's own component list.
+
+### 8.1 Why the clicks were dead
+
+`[clientscript,script5356]` builds the buttons as dynamic children of
+`popout:buttons` (728:6):
+
+```
+cc_create(interface_728:6, ^iftype_graphic, $i, 0)
+cc_setopbase("<col=ff9040><struct_param($s, param_1413)></col>")
+cc_setop(1, "Open")                  // "Close" when %popout_open = $i
+cc_setgraphic(struct_param($s, param_1412))
+```
+
+and attaches **no `cc_setonop`**. That is the positive signature of a server op
+at rev 230 — the same signature `docs/farming_server_reqs.md` records for the
+Tool Leprechaun's cells and `PORTING_GUIDE.md` §5.4 finding 1 generalises. The
+click was always meant to arrive as `IF_BUTTON1` on 728:6 with the slot as the
+sub-id. Nothing armed the range and nothing answered the trigger, so the strip
+drew, hovered and highlighted, and sent nothing.
+
+The panel list is the cache's own `enum_4067`, 1-based:
+
+| enum idx | struct | `param_1413` | interface |
+|---|---|---|---|
+| 1 | `struct_3742` | XP Tracker | `xptracker` 729 |
+| 2 | `struct_4531` | Loot Tools | `loottools` 650 |
+| 3 | `struct_1107` | Hiscores | `hiscores` 894 |
+
+**The enum is 1-based and the button sub-ids are 0-based**, because script5356
+`cc_create`s with `$i` and only then increments before the struct lookup.
+`%popout_open` (varbit 13090) holds the **1-based** index — which is why
+script5356 compares it against the post-increment value and why `~script7542`
+tests `! 3` for Hiscores. `last_slot + 1` is the conversion, and it is the one
+thing here that is silently wrong if you get it backwards.
+
+### 8.2 What landed (content only — no new C)
+
+| piece | file |
+|---|---|
+| declare varp 1021 `toplevel_temp` `transmit=yes scope=temp` | `interface_chrome/configs/chrome.varp` |
+| slot-name constants (0-based, named so `if ($slot = 1)` cannot read as "the first panel") | `interface_chrome/configs/chrome.constant` |
+| arm the range, `[if_button1,popout:buttons]`, open/close/toggle | `interface_chrome/scripts/chrome_panels.rs2` |
+| `~chrome_popout_login` | `player/login.rs2` |
+
+Every primitive already existed: `if_setevents` (11000), `IF_BUTTON1` (trigger
+168), `last_slot`, `if_opensub` (11001), `if_closesub` (11005). Zero engine
+changes were needed, which is what §5's "the client already implements the
+feature" means in practice.
+
+**The declaration is the load-bearing half.** `popout_open` is bits 19-24 of
+varp 1021 `toplevel_temp`, and that varp was undeclared — so the server could
+have tracked the open panel perfectly and the strip would never have redrawn:
+clientscript 7570 is bound to `{var1021}`'s transmit and is what widens the
+strip 58 → 58+278 to make room. Writing it as a *varbit* is likewise not
+optional; a whole-varp write clobbers the other tenants of 1021.
+
+Mount slot is `popout:container` (728:9), type 1 — the overlay-into-a-nested-
+container form. `[clientscript,script7568]` keys its whole layout off
+`if_hassub(interface_728:9)`, so the mainmodal slot the debugprocs use would
+have left the strip narrow and the panel homeless.
+
+### 8.3 Loot Tools is armed and deliberately refuses
+
+`loottools` still aborts the client on unimplemented opcode 7601 (§7). A chrome
+button that kills the session is worse than one that explains itself, so slot 2
+answers with `mes("The loot tracker is not available yet.")` and stays shut. It
+is armed rather than skipped so the refusal is visible instead of looking like
+the same dead click this change just fixed. Verified: client exit 0, `650
+mounted: 0`, refusal printed.
+
+### 8.4 Verified by clicking
+
+Against a private verbose server, `TORIRS_SIM_CLICK_AT` at the measured button
+centres (x 744; y 21 / 57 / 93):
+
+```
+XP Tracker (744,21):  mock230: <- IF_BUTTON1 728:6 sub=0
+                      -> if_closesub, IF_OPENSUB, VARP_LARGE
+                      client: mount iface=729 under 0x02d80009   aborts=0
+Hiscores   (744,93):  mount iface=894                            aborts=0
+Loot Tools (744,57):  650 mounted=0, refusal printed, exit 0
+toggle (click 744,21 twice): mount iface=729 then unmount 0x02d80009
+```
+
+### 8.5 Two traps this cost time on, worth writing down
+
+1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it
+   lives inside that block, the same way `TORIRS_DUMP_TREE_EXIT` does. Without
+   it the dump is silently empty and reads as "the component does not exist".
+2. **`MOCK230_VERBOSE` on the client does nothing.** `manifest_osrs230.ini`
+   connects to an *external* server on `localhost:43595`; the verbose flag has
+   to be set on that server's own process. Chasing "the server never received
+   my packet" through a log that structurally cannot contain it is the whole
+   failure mode. Run your own server on a private port and point a copied
+   manifest at it — and keep the copy **in the repo root**, because the cache
+   paths in it are relative (a manifest in `/tmp` aborts in `App_Init` on
+   `dat2_disk != NULL`).

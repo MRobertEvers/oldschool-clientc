@@ -95,9 +95,47 @@ UITree_ComponentIsPassThrough(
     switch( component->type )
     {
     case UIELEM_BUILTIN_WORLD:
-    case UIELEM_RS_LAYER:
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
+        return true;
+    case UIELEM_RS_LAYER:
+        /*
+         * A layer is *usually* structure and must not eat clicks — but "usually"
+         * is not "always", and the cache says which. `stats:attack` is a
+         * `type=0` layer with `clickmask=6` and `op1=*`/`op2=*`: the whole cell
+         * is the button, and script 393 fills its op text in
+         * (`if_setop(2, "View <skill> guide", $component0)`) while the graphics
+         * and numbers stacked on top of it are ops-less children.
+         *
+         * Returning `true` unconditionally here made every such cell
+         * unclickable: the children are decorative and correctly refuse the
+         * hit, and the parent that owns the ops refused it too, so the click
+         * resolved to no component at all and no menu was ever built.
+         *
+         * Deliberately NARROWER than `rs_node_is_decorative_passthrough`, which
+         * the graphic/text/rect arms use: that predicate also makes a node
+         * interactive for a non-zero `button_type` or `client_code`, and on a
+         * *layer* those two catch structural slots that were never meant to be
+         * click targets. Measured: reusing it verbatim made `toplevel:sidemodal`
+         * (161:74, `clientcode=1354`, 190x261 over the whole sidebar) start
+         * picking, so empty sidebar space answered with a Cancel-only menu
+         * where it used to fall through. Real components mounted inside it
+         * still won — the hit test takes the topmost — so nothing broke, but it
+         * is a behaviour change with no reason behind it.
+         *
+         * A click mask or an actual op is the cache saying "this is a button".
+         * That is the whole of what this arm needs, and it leaves every other
+         * layer exactly as pass-through as it was.
+         */
+        if( component->behavior.click_mask != 0 )
+            return false;
+        if( component->menu_options.option[0] != '\0' )
+            return false;
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            if( component->menu_options.ops[i][0] != '\0' )
+                return false;
+        }
         return true;
     case UIELEM_BUILTIN_CROSS:
     {
