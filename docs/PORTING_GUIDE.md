@@ -503,8 +503,21 @@ calls into. So the procedure is *discover the client's surface first*:
   (`engine/src/server/friend/FriendServer.ts`, 688 lines, a separate-thread
   service) — port that pattern for the social layer, then build clan chat
   as: engine service + packets + varclan state + CS2 host ops; membership
-  policy/messages in content where expressible. Do friends/PM first; clan
-  chat reuses its plumbing.
+  policy/messages in content where expressible. Do friends/PM first.
+
+  **Two corrections from the §5.4 survey, which traced both features:**
+  clan chat does *not* simply "reuse friends/PM's plumbing" — it is the
+  strictly larger gap. Friends/PM at least has declared (if unrouted)
+  `PKT_NAME_*` constants and a complete, unreached client-side decode path
+  to reconnect; clan chat has **no packet-name constants at all** and no
+  dead decode path, so it is built from nothing rather than rewired. And
+  the op surface is three families, not one: `clan_*` (the currently-open
+  channel) plus `activeclanchannel_*` (3850-3861, who is connected right
+  now) plus `activeclansettings_*` (3800-3822, the persistent roster).
+  Also: **LostCity has no Friends Chat precedent** — that feature launched
+  August 2008, after its rev-254 target, so only the plain friend-list
+  service shape is portable. See `clan_chat_server_reqs.md`,
+  `friends_pm_chat_server_reqs.md`.
 
 ### 5.3 Feature checklist
 
@@ -516,6 +529,60 @@ it persists (`.varp`-declared with `scope=perm`, or a service); (5) what is
 expressible as content. Write the doc section (in the feature's topic doc)
 *with* the implementation — every landed feature above has one, and the docs
 are why this guide could be written.
+
+### 5.4 The interface survey — §5.3 already run on 19 interfaces
+
+The §5.3 pass has been run, as a discovery-only exercise, across the
+interface surface. Each doc below states: the CS2 call graph with
+file:line, the varps/varbits/containers/host-ops the panel reads, what
+mock230 already does, and the LostCity precedent (or its confirmed
+absence). **They are server-requirements specs, not implementations** — per
+§2, re-grep the reference before writing code against any of them.
+
+| doc | interfaces | verdict |
+|---|---|---|
+| [`questlist_chatmenu_levelup.md`](questlist_chatmenu_levelup.md) | questlist 399, chatmenu 219, levelup_display 233 | chatmenu **already landed**; questlist needs 7 undeclared varps; levelup popup never opens |
+| [`shop_server_reqs.md`](shop_server_reqs.md) | shopmain 300, shopside 301 | greenfield; stock is a **live container**, not a dbtable |
+| [`friends_pm_chat_server_reqs.md`](friends_pm_chat_server_reqs.md) | friends 429, pm_chat 163 | greenfield on the CS2 path; dead lc254-era client scaffolding exists to reconnect |
+| [`clan_chat_server_reqs.md`](clan_chat_server_reqs.md) | clans_sidepanel 701, clans_members 693 | greenfield, **larger than friends/PM** — see §5.2's correction |
+| [`emote_tab_server_reqs.md`](emote_tab_server_reqs.md) | emote 216 | **already landed + selftested**; only unlock-bit content is open |
+| [`skill_guide_server_reqs.md`](skill_guide_server_reqs.md) | skill_guide_v2 860 | mostly static dbtable; needs a query-state change for `db_find_filter_with_count` |
+| [`collection_log_server_reqs.md`](collection_log_server_reqs.md) | collection 621, collection_overview 908 | **largest single state gap**: a new 500-slot monotonic container |
+| [`grand_exchange_server_reqs.md`](grand_exchange_server_reqs.md) | ge_offers 465 + family | **largest feature**: 3 data idioms + a world-wide matching engine |
+| [`trading_server_reqs.md`](trading_server_reqs.md) | trademain 335, tradeside 336, tradeconfirm 334 | **most novel architecturally**: needs cross-player container read/write |
+| [`chrome_panels_server_reqs.md`](chrome_panels_server_reqs.md) | xptracker 729, hiscores 894, loottools 650 | xptracker needs ~nothing; hiscores is **out-of-band HTTP**, not a game packet |
+| [`death_mechanics_server_reqs.md`](death_mechanics_server_reqs.md) | deathkeep 4, gravestone_generic 672, death_coffer 670 | base death landed; item retention **deliberately** unbuilt (`death.rs2`'s own header) |
+| [`slayer_rewards_server_reqs.md`](slayer_rewards_server_reqs.md) | slayer_rewards 426, task_list 924 | greenfield; postdates LostCity |
+| [`farming_server_reqs.md`](farming_server_reqs.md) | farming_tools 125/126, farming_view 179 | greenfield; 107 tick-driven per-player patch records |
+| [`settings_panel_server_reqs.md`](settings_panel_server_reqs.md) | settings 134 | two real gameplay settings; the rest is chrome |
+| [`bank_pin_server_reqs.md`](bank_pin_server_reqs.md) | bankpin_keypad 213, bankpin_settings 14 | greenfield; PIN compare is server-side, reuses `P_COUNTDIALOG` |
+| [`world_switcher_server_reqs.md`](world_switcher_server_reqs.md) | worldswitcher 69 | **not a game-world obligation** — login-server tier |
+
+Four findings from that pass generalise beyond any one interface, and are
+worth knowing before starting the next one:
+
+1. **The decompiled corpus is missing procs, routinely.** `questlist_draw`,
+   `chatbox_multi_addoption`, `friend_update`, shopside's populator,
+   loottools' `script7166`/`7133`, farming's per-patch walker, settings'
+   toggle getter/setter — all *called* by scripts that are present, with no
+   definition anywhere in the 9,368 files. "Not in the corpus" does **not**
+   mean "doesn't exist" — re-decompile from the live cache before
+   concluding anything about a missing body.
+2. **Reused and collided varp names are the norm, not a surprise.**
+   `bank_closing` backing shop's quantity mode, GE's tax-slot flags packed
+   into *music-player* varps, slayer's ownership bit 19 colliding with an
+   unrelated named varbit, `diango_hols_sack` as deathkeep's category tags,
+   generic `if1..if6` scratch varps serving both slayer tasks and Death's
+   Coffer. Always read-modify-write; never assume a varp's name describes
+   its current use.
+3. **An interface's title string is not evidence of its mechanism.**
+   `farming_tools` says "Amazing Farming Equipment Store" and is not a shop
+   — the title comes from a generic `steelborder` helper every interface
+   shares.
+4. **Some features are not the game server's job at all.** Hiscores and
+   world switching both terminate outside the game-world protocol (HTTP and
+   the login tier respectively). Confirm where a feature's mechanism
+   *actually* lives before scoping server work for it.
 
 ---
 
@@ -628,14 +695,25 @@ in `src/net/mock/` outside the wire tables.*
 
 **Phase 4 — content, in slices** (triage §10)
 Done: `levelrequire/`, Cook's Assistant. Next, in order of unlock:
-`drop tables/` (needs categories, 3b) → shops (wants the shop dbtable
-pattern) → skills by directory (each unlocks with `loc_*`/`npc_*` families)
-→ areas/quests on demand. Each slice per §4's workflow with a permanent
-check.
+`drop tables/` (needs categories, 3b) → shops → skills by directory (each
+unlocks with `loc_*`/`npc_*` families) → areas/quests on demand. Each slice
+per §4's workflow with a permanent check.
+*Shop's requirements are already surveyed — `shop_server_reqs.md` (§5.4).
+Note it corrects this line's former parenthetical: there is no "shop
+dbtable pattern" to want. Shop stock is a live per-shop container; the
+`omnishop_*` dbtable belongs to unrelated reward-point stores.*
 
 **Phase 5 — modern features** (§5)
 XP-drops VM loop fix → friends/ignore/PM decode + service → clan chat →
 whatever the client's cache surfaces next (the discovery procedure is §5.1).
+**§5.4 has already run the §5.3 discovery pass on 19 interfaces** — start
+from the relevant doc there rather than re-deriving it, and read §5.4's
+four generalisations first. Rough order by cost, from that survey:
+declare-a-varp work (questlist, settings, emote unlocks) → self-contained
+features (bank PIN, skill guide, slayer rewards) → new per-player state
+(collection log's container, farming's patch records) → new cross-cutting
+mechanisms (trading's cross-player containers, clan chat's three op
+families, GE's matching engine).
 
 **Phase 6 — rename** (`osrs230_mockserver.md` §6.1 item 7): `mock230` is a
 double misnomer; cheapest while consumers are few.
@@ -695,5 +773,11 @@ For any substantial task, in this order:
    - ServerScript → [`serverscript.md`](serverscript.md)
    - UI-facing features → [`REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md),
      [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md)
+   - **implementing a specific interface → §5.4's table**, then that
+     interface's own `*_server_reqs.md`. Read §5.4's four generalisations
+     before the doc itself; they apply to every interface, not just the one
+     you're on.
 4. The reference source itself. The answer is in the source, not in
-   intuition.
+   intuition. A `*_server_reqs.md` doc is a *starting point* for that
+   grep, never a replacement for it — the survey is discovery-only and
+   states its own corpus gaps rather than filling them.
