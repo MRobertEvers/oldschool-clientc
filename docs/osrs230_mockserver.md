@@ -140,7 +140,12 @@ its shape rather than its wire format (xrsps runs a bespoke WebSocket protocol �
   stays inside a radius of its spawn. `advance_npcs` is that, verbatim.
 - **`game/equipment.ts`** — `deriveAdditionalEquipSlotsFromParams` reads the
   *cache* for the extra slots an item claims rather than hard-coding a
-  two-handed list. `equip_from_slot` does the same through `wearpos_2`/`_3`.
+  two-handed list. This does the same, and since 2026-08-02 it does it in
+  **content**: `~wearpos_conflicts` (`player/scripts/equip.rs2`) over
+  `oc_wearpos` / `oc_wearpos2` / `oc_wearpos3`, which read the obj record's
+  config opcodes 13/14/27. The C that used to do it (`equip_from_slot`) is gone
+  with `MOCK230_FALLBACK_OPHELD` (§3.18). `wearpos_2`/`_3` are still read from C
+  in one place — `put_appearance`, to blank the body kit underneath (§3.7).
 - **Actors hold a queue of pending tiles**, not a position delta. A click
   produces a queue; the queue produces one step per tick.
 
@@ -380,17 +385,32 @@ Deriving all of this from the cache (`mock230_objinfo.c` decodes the whole obj
 table in ~0.1 s at startup) means every wearable item in the game works and the
 appearance hiding rules come out right for free.
 
-The **wield requirement** is the engine's to enforce and content's to describe.
-`mock230_equipment_may_wear` reads the obj's skill/level pairs and compares base
-levels; what the player is told is `[proc,equip_level_message]`, which since
-2026-08-01 takes the `stat` id rather than its name. The 23 skill names it used
-to be handed were a C table in `mock230_equipment.c` — `general/configs/stat.enum`
-and `[proc,stat_name]` hold the words now, so renaming or translating a skill is
-a content edit. The selftest asserts the sentence off the wire ("the wield
-refusal is content's, words and all"), which is also what catches the RuneScript
+The **wield requirement** was "the engine's to enforce and content's to
+describe" until 2026-08-02, and it is content's on both halves now.
+`mock230_equipment_may_wear` and the `equip_level_message` hook are deleted;
+`~levelrequire_check` (`skill_combat/scripts/levelrequire.rs2`) decides and
+speaks, from `[opheld2,_]`, and the sanctioned-hook list went **11 → 10** with
+it — the first time it has gone down (§3.18).
+
+What survives from that paragraph is the half that was already right: the words
+are content's. `[proc,equip_level_message]` takes the `stat` id rather than its
+name, and the 23 skill names it used to be handed were a C table in
+`mock230_equipment.c` — `general/configs/stat.enum` and `[proc,stat_name]` hold
+them now, so renaming or translating a skill is a content edit. The selftest
+still asserts the sentence off the wire ("the wield refusal is content's, words
+and all"), but it now measures something different: it used to prove the wording
+had moved while the engine still decided, and it is now the leg proving the
+*decision* moved with its wording intact. It is also what catches the RuneScript
 trap here: `<...>` interpolates a *variable*, so a `<~proc(...)>` in a string
 reaches the player as those literal characters unless the compiler is taught the
 `~` sigil — which it now is (`ssc_compile.c`).
+
+`mock230_equipment.c` is what is left of equipment in C: **102 lines** (it was
+134 before the level gate went), and none of it is the equip *rule*. It is the
+component-to-worn-slot map plus the requirement table `mock230_obj_require`,
+which stays because `mock230_pack` validates those `.obj` lines, the dbrow
+generator reads them, and the selftest cross-checks content's answer against
+them (§3.18).
 
 ### 3.8 Scene rebuild
 
@@ -475,8 +495,9 @@ rule and what is left (`mock230_say`'s message procs).
 five options the client built its right-click menu from, so anything OldSchool
 made attackable is attackable here with no per-npc script line. The reference
 says it in `[opnpc2,_] @player_combat_start`, and this is
-`MOCK230_FALLBACK_OPNPC`: one of six enumerated rows waiting on the opcode
-surface, not a design position (§3.18).
+`MOCK230_FALLBACK_OPNPC`: one of **four** enumerated rows waiting on the opcode
+surface, not a design position (§3.18). It is also the one row whose blocker was
+never an opcode — its `blocked_ops` is empty and always has been.
 
 **The fallback contract is inverted, and §3.18 is the whole of it.** It used to
 read: no script pack, or no script for a trigger, means the call site does
@@ -1382,7 +1403,7 @@ player), resolved once per tick in phase 5 after movement:
 | distance | what runs |
 |---|---|
 | within ap range (10) | `[apnpc<n>]` / `[aploc<n>]` / `[apobj<n>]` — if content bound one, the interaction is done and the player never closes the distance |
-| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling **only if nothing was bound** — a script that aborted stops here, and with no script pack there is no fallback at all (§3.18) |
+| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling **only if nothing was bound** and only for the kinds that still have any — `[opobj<n>]` has none, so a miss there is `Player.defaultOp`, the message and nothing else. A script that aborted stops here either way, and with no script pack there is no fallback at all (§3.18) |
 | further | keep walking, try again next tick |
 
 The packet handler also attempts resolution immediately, so clicking something
@@ -2339,21 +2360,24 @@ old meanings so the existing shape of every call site still reads correctly, and
 `FAILED` is the third answer nothing could previously express.
 
 **2. An engine fallback and "what happens otherwise".** The C that answers an
-unbound trigger is enumerated — `enum Mock230Fallback`, **six** rows — and
+unbound trigger is enumerated — `enum Mock230Fallback`, **four** rows — and
 reached only through `mock230_scripts_fallback(srv, which, result)`. Each row
 carries what it is blocked on, and the boot prints the count (the roll under
 `MOCK230_VERBOSE`, abbreviated here — the live text is longer and is the
 authority):
 
 ```
-mock230: 6 engine fallback(s) still answer triggers content does not bind
+mock230: 4 engine fallback(s) still answer triggers content does not bind
   opnpc        blocked on: combat, 1,061 lines of mock230_combat.c … the blocker is the player_combat closure, not the dispatch
   oploc        blocked on: NOT the loc_* family — [oploc<n>] binds no active loc, no loc category rung, P_OPLOC unimplemented
-  opobj        blocked on: an entity kind, not an opcode pair — SSVM_ENT_OBJ has no writers; OBJ_* 3502-3511 all unimplemented
-  opheld       blocked on: NOT 'equipment is C' — eight declared-unimplemented opcodes (OC_WEARPOS/2/3, INV_SETSLOT, …)
   inv_button   blocked on: ADDRESSING — the grid's quantity row moves, so [inv_button1..5] cannot name Withdraw-All
   if_button    blocked on: the same last_verb reader, plus bank.rs2's bindings and bank_set_events naming different components
 ```
+
+Seven rows, then six, five, four. `ai_queue3` went first (below), `opobj`
+second — `[opobj3,_]` in `player/scripts/pickup.rs2`, the whole sequence
+recorded below as the worked example — and `opheld` third, one day later,
+`[opheld2,_]` and `[opheld5,_]` together.
 
 ### The list's job is to be audited, and the audit found the list
 
@@ -2413,6 +2437,12 @@ the wrong lesson. Two mutations were run and both turn the suite red: adding
 `if_button` because both cite it. The `LAST_VERB` case is the interesting one:
 nothing declares that opcode at all, so it is carried as `-1` behind an
 `#ifdef`, and declaring it is enough to put it under the check.
+
+**That example is not hypothetical any more — it is the transcript.** The
+`opobj` row really did print exactly that line the day `OBJ_DEL` landed, its
+reason really was rewritten rather than left, and then the row went. The
+illustration is kept in its original wording for that reason; `k_blocked_opobj`
+no longer exists, and the comment where it stood says why.
 
 The check is deliberately one-directional and deliberately incomplete. It
 catches "a row cites something that is now present", which is the failure that
@@ -2494,15 +2524,21 @@ not, which is the limit stated above.
 
 The count is the point, but only half of it. It is asserted in the selftest, it
 may shrink, and it must not grow — the same discipline as the named hooks
-(`PORTING_GUIDE` §2.4 item 5; **11** now, `mock230_scripts.c:202-212`, not the 9
-both files used to say). The other half is that a count cannot rot and a reason
+(`PORTING_GUIDE` §2.4 item 5; **10** now, `mock230_scripts.c:203-212` — 9 until
+2026-08-01, 11 after `equipment_open`, and back to 10 on 2026-08-02 when
+`equip_level_message` went with `mock230_equipment_may_wear`). *This sentence
+said 11 for a day after that*, which is the section's own failure mode landing
+on the section, again, and in the same window as the category-rung bullet below.
+The other half is that a count cannot rot and a reason
 can, which is what the table and the staleness check above are for. Each row's
 blocker is §6.1 step 5's order: widen the opcode surface until a script can say
 it, move it, delete the row. The `ai_queue3` deletion is the first time that
 order ran to completion — and the honest summary of the pass that produced it is
 **one row deleted, four blockers corrected**, with the corrections worth more,
 because a wrong row is visible the moment someone tries to act on it and an
-expired reason is not visible at all.
+expired reason is not visible at all. `opobj` is the second, one day later, and
+it is written up below in full because it is the first time the *order itself*
+was measured rather than assumed.
 
 **3. A server with no content and a server with content that binds nothing.**
 This is the one worth the whole change. A fresh checkout has no script pack (the
@@ -2627,6 +2663,567 @@ per-player rule. Nothing could have turned it red. It runs the delay out first
 now and asserts the food was consumed, which is the evidence the heal happened
 at all. The drop is what surfaced it — `run_or_park`'s message names both
 scripts now, having named neither.
+
+### `opobj` is gone — the order run to completion, in two stages
+
+2026-08-02. The second row the list has lost, and the first whose whole sequence
+was recorded as it ran, so it is written here as the worked example of §2.4
+item 7: **widen the surface, land the content, verify it through the content,
+and only then delete.** Stage one did the first three and deliberately left the
+row standing. Stage two deleted it. **The count is 5.**
+
+The two-stage split was not caution. It is the only order in which the evidence
+exists at all — see *the mutation that means nothing until the C is gone*, at
+the end of this section.
+
+What landed in stage one:
+
+- **The entity kind.** `SSVM_ENT_OBJ` had zero writers tree-wide. It has one
+  now: `mock230_world_process_interaction`'s `MOCK230_INTERACT_OBJ` arm resolves
+  the clicked pile to a ground slot and parks it on `srv->pending_active_obj`,
+  which `run_trigger_script` consumes and clears. A one-shot latch rather than a
+  sixth parameter on `mock230_scripts_run_trigger`, because `[opobj<n>]` is the
+  only trigger family with an obj subject and the other eighteen call sites
+  would have had nothing to pass.
+- **Five opcodes**, in a fifth per-domain file `net/mock/mock230_ops_obj.c`:
+  `obj_type` (3511), `obj_count` (3503), `obj_coord` (3502), `obj_takeitem`
+  (3510), `obj_del` (3504). Coverage 250 → **255** of 401.
+- **The content.** `player/scripts/pickup.rs2`, ported from the reference file
+  of the same name, binding `[opobj3,_]` — op **3** because a rev-230 obj record
+  names no Take verb and the client synthesises the row at menu index 2
+  (`rs_minimenu_world.c:472`, `REVCONFIG_MINIMENU_OPOBJ3`).
+
+**The active obj is a handle, not a slot, and that is the one design decision
+worth carrying forward.** `srv->ground[256]` is a free list — `mock230_world_obj_add`
+hands a freed index straight to the next drop — so the npc/loc `slot + 1`
+convention is not safe here: a script parked between `obj_find` and
+`obj_takeitem` would resume onto whatever landed in the slot meanwhile and take
+it, silently. `mock230_world_obj_handle` packs the slot in nine bits with a
+per-slot `generation` above it, and `mock230_world_ground_slot` refuses a handle
+whose generation has moved. The reference does not need this because it holds a
+real `Obj` reference; this is the same guarantee written over an index.
+
+**`obj_del`'s duration is the one thing that does not port literally, and the
+substitution predates this work.** The reference is
+`World.removeObj(activeObj, ObjType.respawnrate)`; there is no obj `respawnrate`
+in this tree — no decoder, no `fields/obj.ini` row, no value — so
+`mock230_world_ground_take` substitutes content's `^lootdrop_duration`, which is
+what the engine's own take has always done. `removeObj` ignores its duration
+entirely for a non-spawn obj, so the two agree exactly on every drop; they
+differ only in that the reference returns each map spawn at its own rate and
+this returns all of them at one. A data gap, and the pre-existing one.
+
+**A container fix came with it, and its refusal is the interesting half.**
+`obj_takeitem` needs a stacking add; `SS_OP_INV_ADD` wrote the first free slot
+and never merged, so taking coins twice opened two coin slots (reachable today
+from `~pickpocket`). Both now go through `mock230_container_add`, a port of
+`Inventory.add`. What is *not* ported is that method's other half — one slot per
+unit for an unstackable obj — and the measurement is why: writing it turns four
+bank assertions red at once, because `[proc,newplayer_bank]` says
+`inv_add(bank, logs, 100)` and a bank stacks everything. The missing input is
+`InvType.stackType`, which needs `fields/inv.ini` — the same one gap
+`mock230_container_scope` is blocked on. The merge needs no per-inv field and
+landed; the spread waits.
+
+**Verified**, and the negative controls matter more than the positives here:
+
+- `mock230 --selftest`, new stanza *"taking an obj is content's"* — the take,
+  the enclosed `OBJ_DEL`, the ZoneMap replay count before/after, the handle's
+  generation across a slot recycle, and the stack merge.
+- Five mutations, all run: unbinding `[opobj3,_]`; making the handle drop its
+  generation; stubbing the zone replay's obj loop; making `container_add` never
+  merge; making the dispatch bind no active obj (7 checks red — the script
+  aborts and, correctly, the fallback does **not** stand in for a script that
+  failed).
+- The real client, `manifest_osrs230_embed.ini` headless: right-click the tile
+  reads *Take Bones*, clicking it prints *You pick up the Bones.* and the bones
+  are in the backpack. With `[opobj3,_]` unbound the same run logs
+  `no trigger for [opobj3,bones]` and the C picks it up instead — which is the
+  check that the client run is measuring content and not the fallback.
+
+#### Stage two: the deletion, and the mutation that means nothing until the C is gone
+
+Deleted: `interaction_engine_obj` (~39 lines), its forward declaration, the
+`mock230_scripts_fallback` call in the `MOCK230_INTERACT_OBJ` dispatch arm,
+`MOCK230_FALLBACK_OPOBJ` and its comment, the `k_engine_fallbacks` row,
+`k_blocked_opobj`, and `inv_stack_slot`, whose last caller it was. The count
+assertion went **6 → 5**. `mock230_world_ground_take` stays — it is the removal
+primitive `obj_del` and `obj_takeitem` both call, and its `ground_clear`-first
+ordering is what makes a taken pile leave the *zone's state* rather than merely
+produce a removal event.
+
+**The measurement that decided the order, and it is the whole reason stage one
+did not delete.** The two selftest legs that assert the take (*"taking an obj
+puts it in the backpack"*, *"and the obj is taken on arrival"*) were re-pointed
+from `OPOBJ1` to `OPOBJ3` **while `interaction_engine_obj` was still present**,
+and then `[opobj3,_]` was unbound. They stayed **green** — the fallback answered
+them, and only stage one's one discriminating leg went red (3 red in total).
+After the deletion the same mutation turns **11** checks red, the two moved legs
+among them. A leg that survives the mutation is measuring the C; the legs could
+only become evidence of anything once the C was gone. That asymmetry — 3 red
+before, 11 after, same mutation, same test file — is the argument for the order
+in one number.
+
+**What deleting it changes, measured rather than asserted.**
+`interaction_engine_obj` took **no op number**, so it picked the pile up on ops
+1, 2, 4 and 5 as readily as on 3. Across `configs/all.obj` the cache really does
+state ground ops at those indices — **75 lines**: 30 `op4=Light` (logs), 18
+`op5=Remove`, 9 `op1=Study`, three `op4=Lay` on hunter traps, one
+`op4=Activate`. Every one of those was being answered by *taking the item*.
+The reference answers them in **content** — `[opobj4,_category_22]` is
+firemaking's Light (`skill_firemaking/scripts/firemaking.rs2:2`),
+`[opobj1,yommiseeds]` is Legends' Quest — and its engine answers an unbound one
+with `Player.defaultOp`: the message, and the walk that already happened. So the
+dispatch arm now says `[proc,nothing_interesting_message]` on
+`MOCK230_TRIGGER_NONE` and nothing on `FAILED`, which is `defaultOp` exactly.
+
+Two objs in the whole 30k-record table lose a *working* Take by this:
+`giant_bones` (`op4=Take`, because its op3 is Bury) and
+`brain_deck_gun_powder_barrel` (`op1=Take`). Neither exists in this world, both
+are one `[opobj<n>,<obj>]` line away, and both were being answered by accident
+rather than by address. That is the behaviour decision, stated so it is a
+decision and not a discovery.
+
+**The permanent guard for the deletion itself** is a new pair of legs in the
+same stanza: an `OPOBJ1` — which nothing binds — leaves the pile on the floor
+and answers *"Nothing interesting happens."* Mutation: put any take back in the
+dispatch arm and both go red; that was run. The *other* new leg is the one in
+"interactions walk before they act" that was deliberately **left** on `OPOBJ1`,
+because the latch is set by the packet handler and the trigger lookup happens on
+arrival — an op no script answers still walks you there, and nothing else pins
+that.
+
+**Verified in the real client**, headless, `manifest_osrs230_embed.ini`,
+`SDL_VIDEODRIVER=dummy`, three matched runs from a deleted save:
+
+| run | ground | backpack | chat |
+|---|---|---|---|
+| A control — drop, walk away, never click | bones on the tile | slots 0-13 | — |
+| B — drop, left-click *Take Bones*, walk away | **empty** | `14 = 526 1` | *You pick up the Bones.* |
+| C — same as B with `[opobj3,_]` unbound | bones still there | slots 0-13 | ***Nothing interesting happens.*** |
+
+The right-click menu reads *Take Bones / Walk here / Examine Bones / Cancel*,
+and C also logs `no trigger for [opobj3,bones]`. C is the client-level proof
+that the deletion took effect: before it, the same run picked the bones up.
+
+**A harness gotcha found doing this and worth the line:** player saves are live
+(`saves/<user>.ini`, written on logout), so a headless run inherits the previous
+run's backpack and login tile. Two of these screenshots were confounded by
+bones carried over from an earlier take before the save was noticed. Delete the
+save between runs or the control is not a control.
+
+### `opheld` is gone — two stages, and the blocker was never an opcode
+
+2026-08-02, the same day as `opobj`. **The count is 4.** Two stages again, and
+the split was the same discipline for the same reason — the first widened the
+surface and deliberately left the row standing with the two bindings commented
+out, the second wrote them and deleted the C.
+
+Stage one is below as it was written, because it is the clearest example in
+this document of §2.4 item 7's *first* step landing on its own: the opcodes in,
+the content written, compiled and exercised, and nothing in the game changed.
+Stage two is at the end.
+
+**Five opcodes landed.** `oc_wearpos` (4213), `oc_wearpos2` (4214),
+`oc_wearpos3` (4215) into `mock230_ops_obj.c` — which now holds the obj
+domain's config half as well as its active-obj half, the way `mock230_ops_loc.c`
+holds `loc_*` and `lc_*` — and `inv_movefromslot` (4318) and `inv_dropslot`
+(4312) into a new sixth per-domain file, `mock230_ops_inv.c`. Coverage 250 →
+**260** of 401.
+
+**The `oc_wearpos*` three are the dangerous kind of missing, and this is the
+general lesson rather than a fact about equipment.** All three have `known = 1`
+in `ss_meta.gen.h`, so a script calling one **compiled and ran** — into
+`unimplemented_stub`, which pushes **0**. And `0` is `^wearpos_hat`, a legal
+slot. So a content `~wearpos_conflicts` written against the loud stub would have
+found every worn item conflicting with every other and unequipped the lot,
+plausibly, with nothing in the log. A declared-but-unimplemented opcode whose
+stub value is *in range* is worse than one that aborts, and the coverage header
+is the only thing that can tell them apart.
+
+**`inv_moveitem` moved with them, and its gap is the one nothing could see.**
+The opcode had three arms — bank→inv, inv→bank, worn→bank — and then
+
+```
+mock230: inv_moveitem %d -> %d is not modelled
+```
+
+a printf and a silent no-op, which is what every reference equip *and* unequip
+path walks into (`inv_moveitem(inv, worn, …)`, `inv_moveitem(worn, inv, …)`).
+`gen_opcode_coverage.py` reported the opcode **covered** the whole time, and
+correctly by its own definition: it reads `case` labels, and there was one.
+Coverage is a question about labels, not about arms. The three bank arms are
+preserved byte for byte in the new file and the generic
+container-to-container arm is appended *after* them, so no bank behaviour can
+change by the move.
+
+**Two cited blockers came off without being implemented, and both corrections
+are worth more than the implementations would have been.**
+
+- **`BUILDAPPEARANCE` (2004) — §3.13d, and the sharpest example of it so far.**
+  Its job in the reference is `this.appearanceInv = inv; masks |= APPEARANCE`:
+  it **selects which container the appearance encoder reads**
+  (`Player.ts:1366`, `getInventory(this.appearanceInv)`). `put_appearance`
+  (`mock230_encode.c:915`) reads `player->worn` unconditionally. So the obvious
+  implementation — accept the argument, raise the mask — would make
+  `buildappearance(<anything else>)` silently paint the worn set: plausible,
+  wrong, quiet. The mask half meanwhile is *already* unforgettable here, and
+  more strongly than in the reference: the worn container is adopted with
+  `appearance = 1`, so every ServerScript write to it raises
+  `MOCK230_PMASK_APPEARANCE` through `mock230_container_mark`, whereas
+  reference content that forgets the call gets a stale appearance. Left to the
+  loud stub. It becomes implementable the day the encoder gains a selectable
+  source, and not before.
+- **`P_CLEARPENDINGACTION` (2070) — misfiled.**
+  `mock230_world_clear_pending_action` is called from `handle_move`, `opnpc`,
+  `opobj`, `oploc`, `opheldu` and `useon_interact` and **never** from
+  `handle_opheld` (`grep -n mock230_world_clear_pending_action
+  net/mock/mock230_world.c`). It was cited because the reference opens its
+  *unequip* binding `[inv_button1,wornitems:wear]` with it — and unequip is not
+  this row.
+
+`k_blocked_opheld` is therefore empty, and the row's text is rewritten to the
+one thing that is actually left.
+
+#### The one blocker as stage one measured it, and why the bindings waited
+
+**The level requirement has no script-readable form.** `mock230_equipment_may_wear`
+refuses the wear and says the two sentences, and it only ever runs from the
+fallback — dispatch is content-first, so the moment `[opheld2,_]` exists the
+fallback stops running and the gate goes with it. Binding it today equips a
+rune platebody at level 1 and nothing says anything.
+
+The data, re-measured: **857 objs, 1,254 (stat, level) pairs** across
+`skill_combat/configs/*.obj` — 613 objs with one pair, 187 with two, 33 with
+three, 24 with seven, 23 distinct stats.
+
+    grep -rh param=levelrequire OSRS-Content/osrs239-content/server --include=*.obj | wc -l
+
+`oc_param` cannot answer it, and `fields/obj.ini`'s `[obj.levelrequire]` already
+says why *in the file*: a param maps one id to one scalar and this is a
+repeating pair. There is no `oc_levelrequire` in the reference's `engine.rs2`,
+so inventing one is barred — that is the `oc_desc` mistake.
+
+Triage §10.1's **conclusion survives and its inference does not**, and the
+inference was doing the work. It decided two things welded together: *the
+requirement values are data, not script* (still right, and 1,254 pairs makes it
+more right — nobody should hand-maintain 857 bindings) and *therefore the gate
+stays in C* (does not survive: the stated reason was "eight opcodes it does not
+have", and there are now none). A refusal-with-a-message is a **rule**, and
+rules are content's. "The data is data" never implied "the gate is C"; the two
+were joined only because nothing else could read the data.
+
+The shape that fits is a `levelrequire` **dbtable** with two parallel `LIST`
+columns, read with `db_find` / `db_findnext` / `db_getfield` — all three
+implemented (`mock230_ops_db.c`) and already used over a `LIST` column by
+`combat.dbtable`. One `[opheld2,_]` binding rather than 857, still generated
+from the same `param=levelrequire` lines `mock230_pack` validates, so §10.1's
+single source of truth holds literally. That is a data-relocation job and it is
+the next stage's, **measured before it is written**.
+
+#### What is written, and how it is proven without a binding
+
+`player/scripts/equip.rs2` (`~equip`, `~unequip`, `~try_equip`,
+`~unequip_conflicts_space`, `~unequip_conflicts`, `~wearpos_conflicts`) and
+`player/scripts/drop.rs2` (`~dropslot`), ported from the reference files of the
+same name minus what this tree has no model for — the duel arena, gnomeball,
+tutorial island, `elemental_shield`, `ibanstaff`, `%sa_attack`, and
+`~update_all`, each named in the file rather than dropped quietly.
+
+They are reached by `[debugproc,equip]` / `[debugproc,dropslot]` in
+`general/scripts/misc/cheat_equip.rs2`. **That makes the evidence unambiguous by
+construction rather than by a discriminating leg**: with `[opheld2,_]` unbound,
+`::equip` can only reach content, and `handle_opheld`'s verb ladder is not in
+the path at all. The selftest stanza *"equipping is content's rule"* drives it,
+and the mutation is deleting a debugproc and rebuilding the pack.
+
+The `[debugproc,equip]` **shadows an engine `::equip <slot>` cheat** that calls
+`equip_from_slot`, because the cheat handler offers every line to a debugproc
+first. That is the reference's posture and the right way round — a cheat written
+in C exercises the C rather than the shipped path — but it is a silent
+replacement, and `mock230_scripts_report_shadowed_ops` cannot see it: that
+report walks *trigger*-addressed scripts and a debugproc is name-addressed. It
+is written down in the content file, which is the whole of the record.
+
+#### The behaviour this changes, which is why "nothing changed" would be the wrong result
+
+`~wearpos_conflicts` compares all 3×3 wearpos pairs **in both directions**.
+`equip_from_slot` only ever collects the *incoming* item's claims, so equipping
+a shield while a two-hander is worn looks at `worn[SHIELD]`, finds it empty, and
+leaves both on. Wearing a shortbow and a kiteshield at once is a live defect and
+the port fixes it. The existing engine test only runs shield-then-bow, which is
+the direction that already works.
+
+Demonstrated in the real client, headless, `manifest_osrs230_embed.ini`,
+`SDL_VIDEODRIVER=dummy`, matched runs from the same checked-out save, one line
+of content apart:
+
+| run | cheats | `saves/embed.ini` `[worn]` | chat |
+|---|---|---|---|
+| B — `[debugproc,equip]` bound (content) | `equip 5;equip 3` | **`5 = 1189`** only | *You equip the Shortbow. / You equip the Bronze kiteshield.* |
+| D — same run, that one proc commented out (engine) | `equip 5;equip 3` | **`3 = 841`** *and* `5 = 1189` | *Equipping Bronze kiteshield (category 18).* first |
+| C — drop | `dropslot 0` | — | *You drop the Bronze full helm.* |
+
+The engine's answer is **not asserted in the selftest**, deliberately: asserting
+that a defect is still present is the check this section already costed and
+rejected, because fixing `equip_from_slot` without moving the row is a
+legitimate change that would fire it falsely. Content's answer is asserted; the
+engine's is recorded here so that whoever deletes the C knows what changes.
+
+Mutations run, all seven, each turning the suite red exactly where intended:
+unbinding `[debugproc,equip]` (9 checks); `oc_wearpos3` returning `wearpos_2`
+(13 of 64 probed objs); `oc_wearpos2` returning `wearpos_3` (the two-hander
+eviction and the `worn→inv` move); `oc_wearpos` pushing **0**, which is what the
+loud stub did (57 of 64, plus four behaviour legs); the generic `inv_moveitem`
+arm made a no-op; `inv_dropslot` ignoring its duration argument;
+`inv_movefromslot` made a no-op.
+
+The `oc_wearpos*` leg is **exhaustive against `Mock230ObjInfo`** rather than
+behavioural, and the reason is worth stating: nothing observable in this tree
+depends on `wearpos_3`. It is only ever 8 or 11 — hair and jaw, body-kit
+positions no item is ever *worn* in — so `~wearpos_conflicts` gives the same
+answer whatever `oc_wearpos3` returns. The appearance encoder is what reads
+those two, and it reads them from C.
+
+#### What is NOT done, stated so the row is not read as smaller than it is
+
+- **The worn tab's unequip.** `unequip_slot` sits *before* the content-first
+  gate in `handle_opheld` (the worn-component branch `return`s), so no script
+  can pre-empt it and deleting the row would leave it running unconditionally.
+  `[proc,unequip]` is ported and has **zero callers** for that reason; moving it
+  needs `[inv_button1,wornitems:wear]`, `if_close`, `p_finduid` and
+  `P_CLEARPENDINGACTION`. Evicting the row while claiming unequip moved would be
+  dishonest.
+- **`[opheld5,_]` alone.** The drop half needs nothing missing and its content is
+  written — but `handle_opheld` answers Wear, Wield and Drop from one verb
+  ladder, so binding drop alone would leave the row standing with a reason that
+  no longer describes what is under it. Both bindings go in the commit that
+  deletes the ladder, the row, and `k_engine_held_verbs`' Wear/Wield/Drop
+  entries — the last mandatory in the same commit, or a later
+  `[opheld2,<obj>]` is reported as shadowing a verb nothing answers.
+- **`Inventory.add`'s one-slot-per-unit spread** for unstackables, still, and
+  still for `fields/inv.ini`'s `stackType`. `inv_movefromslot` and the generic
+  `inv_moveitem` arm inherit that limit.
+
+#### Stage two: the level requirement is a MERGE, and every account of it named one half
+
+The go/no-go stage one set was "can the `levelrequire` dbtable be authored and
+read in this lane?" It can, and it is
+`skill_combat/configs/levelrequire.dbtable` — but building it turned up
+something worth more than the table.
+
+**The requirement comes from two sources and the `.obj` overlay is 59% of it.**
+Every prose statement of this — triage §10.1, `equipment_lostcity.obj`'s own
+header, the fallback row, stage one above — says *857 objs, 1,254 pairs* and
+names `param=levelrequire` in `skill_combat/configs/*.obj`. Measured off the
+running server (`mock230: … 1496 equip reqs (675 from the cache)`):
+
+| source | objs | pairs |
+|---|---:|---:|
+| the `.obj` overlay, `param=levelrequire` | 857 | 1,254 |
+| the cache's own `skillrequire`/`levelrequire` params, on objs no `.obj` names | 639 | ~868 |
+| **effective** | **1,496** | **2,122** |
+
+The cache states its own in params 434/436 and 435/437 —
+`configs/all.param.compack` names them — and `read_requirements`
+(`mock230_objinfo.c`) reads them for every wearable, filtered by
+`gates_wearing()`. The `.obj` overlay then **replaces** an obj's set outright
+rather than adding to it, which is what lets `equipment_disputed.obj` *correct*
+the cache for the eighteen items where the two disagree.
+
+A content gate written against the dbtable alone would have passed a structural
+check against the `.obj` files and silently stopped gating 639 items — a rune
+scimitar among them, whose Attack 40 is the cache's. That is the failure this
+list exists to prevent, arriving through the replacement rather than through the
+thing being replaced.
+
+So nothing was relocated. `~levelrequire_check`
+(`skill_combat/scripts/levelrequire.rs2`) reads **both halves, each in its own
+natural form**: the overlay from the dbtable, the cache's two pairs through
+`oc_param`, which is already the opcode for reading a cache param.
+
+**The table is the transpose of the obvious one**, and that is the only design
+decision in it. A row is one *requirement* — `stat` and `level` scalars, `obj`
+a LIST of everything that needs them — so it is **125 rows, not 857**, because
+the requirements repeat hard (111 objs want Defence 40). And `db_find` on a
+LIST column means *contains*, so "which requirements does this obj have" is
+literally "which rows contain it" and `db_findnext` walks them: no arithmetic,
+no parallel-column indexing. Rows are emitted sorted by (stat id, level), which
+reproduces the `.obj` files' own line order for 855 of the 857 — load order
+decides which skill the player is told about, because only the first unmet
+requirement is named.
+
+`tools/gen_levelrequire_dbrow.py` generates it and `--check` gates it, but the
+check that matters is not textual: the selftest walks **every** gated obj at
+both sides of its own boundary and compares content's answer to the C table
+`mock230_obj_require` still holds. A regeneration would make a diff go away
+without anyone learning the gate had been wrong in between.
+
+#### The trap it found: a bare stat name in a comparison compiles to the wrong number
+
+`~levelrequire_gates_wearing` was first written the obvious way:
+
+```
+if ($stat = attack | $stat = defence | ...) { return(true); }
+```
+
+It compiles, it runs, and it is false for **every Attack requirement in the
+game** — 357 of the 1,496 gated objs, silently wearable. A bare name resolves
+through `SSC_SymbolsFind(.., SSC_SYM_UNKNOWN)`, which answers with the
+lowest-numbered *kind* holding that name, and cache.osrs239 spends three of the
+23 skill names on something that sorts earlier: **`attack` is also varp 259**,
+`hitpoints` param 2100, `fishing` loc 20926.
+
+That trap is already on record — the `stat_heal(hitpoints, 3, 0)` that healed
+nothing — and its fix, `compiler->arg_kind_hint`, only reaches *arguments of the
+`stat_*` command family*. A bare comparison has no command to take a hint from,
+so **a comparison against a stat literal has no safe spelling in this compiler
+at all.** The seven skills live in `skill_combat/configs/levelrequire.enum`
+instead, keyed `inputtype=stat`, because a config's keys are resolved by the
+loader against the declared type and never by the symbol table.
+
+Worth stating as a general rule rather than a fact about equipment: *the safe
+way to name a stat in a script is a config key, not an identifier.*
+
+A second, smaller one came with it. `gates_wearing` is a filter on the **cache's**
+data only — it exists because a fire battlestaff's Crafting 62 is what it takes
+to *make* one. Applying it to the overlay too makes `slayer_earmuffs` and
+`slayer_nosepeg` wearable at level 1, because an authored `slayer 15` means
+exactly what it says. Twenty-six objs; the exhaustive leg found every one.
+
+#### Deleted, and the mutation that means nothing until it is
+
+`equip_from_slot` (83 lines with its comment), the `handle_opheld` verb ladder,
+`MOCK230_VERB_WEAR` / `WIELD` / `DROP` **and `k_engine_held_verbs`**, the
+`[opheld<n>]` arm of `mock230_world_engine_claimed_verb`,
+`mock230_equipment_may_wear` (45 lines) with the `equip_level_message` hook —
+the sanctioned-hook list is **10** now, and this is the first time it has ever
+gone down — the `::equip` C cheat branch, `MOCK230_FALLBACK_OPHELD`, its
+`k_engine_fallbacks` row and `k_blocked_opheld`. The count assertion went
+**5 → 4**.
+
+`unequip_slot` **stays**, and the row said it would: it sits *before* the
+content-first gate in `handle_opheld`, so no script can pre-empt it.
+`[proc,unequip]` is ported and still has zero callers. Evicting the row is not a
+claim that unequip moved, and the selftest now asserts the C answer explicitly
+so that nobody reads it as one.
+
+`mock230_obj_require` and the `.obj` loader stay too: `mock230_pack` validates
+those lines, the generator reads them, and the selftest cross-checks both forms.
+
+**The measurement, repeated from `opobj` and coming out the same way.** Same
+mutation, same test file, before and after the deletion:
+
+| state | mutation: unbind `[opheld2,_]` | checks red |
+|---|---|---|
+| bound, `equip_from_slot` still present | the ladder answers | **0** |
+| after deletion | nothing answers | **18** |
+
+Zero, not three. The whole suite was green with the content unbound, because
+the C and the content agreed on every case the tests covered — which is exactly
+what "verify, then delete" cannot be shortened to "verify". Unbinding
+`[opheld5,_]` after the deletion turns 4 red.
+
+Seven more mutations, all run, all red where intended: dropping the `oc_param`
+half of `~levelrequire_check` (7); dropping the dbtable half (7); `stat()` for
+`stat_base()` (8); removing one `data=obj,` line from `levelrequire.dbrow` (1);
+applying `gates_wearing` to the overlay path too (1); spelling
+`~levelrequire_gates_wearing` with bare stat names (7, and the leg reports *122
+did not* — Attack requirements only).
+
+#### What the selftest looks like now, and one assertion that had to move rather than go
+
+Three stanzas — `equip / unequip`, `equipment level requirements`, `two-handed
+weapon evicts the shield` — drove `equip_from_slot` and
+`mock230_equipment_may_wear` as C symbols and could not survive the deletion.
+Every claim they pinned is kept, in `equipping is content's rule`, driven by a
+real OPHELD2 packet: the helm reaching the head slot and the cell it left, the
+appearance mask, the `worn_dirty` bit, the merge at **both** ends, base-not-
+boosted, and the two-hander/shield eviction now in **both directions** — only
+one of them ever worked and the port fixed the other. They were not left in
+place with the calls swapped because they ran with no pack loaded and a
+packet-driven equip needs one.
+
+`the wield refusal is content's, words and all` changed what it measures. It
+asserted the *words* while the engine made the decision; the engine no longer
+decides, so it is the leg that proves the gate moved with its wording intact.
+
+**The pack/no-pack pair in `the inverted fallback` stayed on OPHELD2 and got
+stronger.** It used to say: with a pack the *fallback* wields because nothing
+claims `bronze_sword`; without one it must not. There is no such C, so with a
+pack it is **content** that wields and without one nothing at all does — which
+is the inversion in its purest form, not "the fallback declined to run" but
+"there was never anything else to run". Before, that leg was satisfied by
+either implementation and stayed green under the unbind mutation; now it goes
+red. The three-input gate check beside it moved to `MOCK230_FALLBACK_OPNPC`,
+because the gate is a property of `mock230_scripts_fallback` and not of any one
+row — OPNPC rather than OPLOC deliberately, `oploc` being the next expected to
+go.
+
+#### In the real client
+
+`manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`, `MOCK230_VERBOSE=1`,
+right-click the inventory cell and click the row — the click a player makes,
+not a cheat:
+
+| run | menu row | server log | chat |
+|---|---|---|---|
+| bronze full helm | *Wear* | `<- OPHELD2 obj=1155 (Bronze full helm) slot=0 verb=Wear` | *You equip the Bronze full helm.* — and the helm leaves the cell and appears on the head |
+| abyssal whip, Attack 1 | *Wield* | `<- OPHELD2 obj=4151 (Abyssal whip) slot=11 verb=Wield` | ***You are not a high enough level to use this item. / You need to have an Attack level of 70.*** — both lines, in order, and the whip stays in the cell |
+| abyssal whip | *Drop* | `<- OPHELD5 obj=4151 (Abyssal whip) slot=11 **verb=-**` | *You drop the Abyssal whip.* — and it is on the tile |
+
+The drop row's `verb=-` is the evidence that binding on the op **index** rather
+than on the word "Drop" is right: the record states no fifth verb at all, the
+client synthesises the row, and the old ladder reached it through a
+`!verb && op_num == 5` special case.
+
+**Two harness findings, both costing real time and neither caused by this
+change.** *Left-clicking an inventory item aborts the client* —
+`CS2VM2: unimplemented opcode 1928 (CC_TRIGGEROP)`, then the `StackMetaStub`
+assert, exit 134, before any packet is sent. Going through the right-click menu
+avoids it. And *the headless client is not frame-deterministic*: the same
+`TORIRS_SIM_CLICK_AT` frame lands at a different point in the async load run to
+run, so an inventory cell that held the helm in one run is empty in the next.
+Reproduced with the binding present **and** absent, so it is the harness. The
+negative control is therefore the selftest mutation above rather than a fourth
+screenshot, and that one is the rigorous version anyway.
+
+### Where the list stands, re-measured 2026-08-02
+
+Four rows. The numbers below are re-run rather than quoted, because everything
+this section is about is what happens when they are not.
+
+```
+mock230: 4 engine fallback(s) still answer triggers content does not bind
+mock230_pack --check-only  0 error(s), 15 warning(s)
+mock230 --selftest         all checks passed
+coverage                   260 / 401 declared opcodes
+sanctioned hooks           10  (mock230_scripts.c:203-212)
+report_shadowed_ops        1   ([oploc2,bankbooth])
+```
+
+| row | what still stands in C | measured |
+|---|---|---:|
+| `opnpc` | `interaction_engine_npc` — a `strcmp` against the cache's Attack verb, the `FACE_ENTITY` latch, then `[proc,npc_default_chat]` | 35 lines, `mock230_world.c:2326-2360` |
+| `oploc` | `interaction_engine_loc` | 85 lines, `mock230_world.c:2525-2609` |
+| `inv_button` | `mock230_bank_quantity_for_op` | 108 lines, `mock230_bank.c:1060-1167` |
+| `if_button` | `mock230_bank_handle_button` | 65 lines, `mock230_bank.c:1250-1314` |
+
+**293 lines**, down from ~370 across six rows. Two of the four `blocked_ops`
+arrays are now empty — `opnpc`'s always was, and it is the row that says so in
+its own first clause. `oploc` cites `P_OPLOC`, `LOC_CATEGORY` and `LC_CATEGORY`;
+`inv_button` and `if_button` share the one undeclared `SS_OP_LAST_VERB` carried
+as `-1` behind an `#ifdef`.
+
+**One correction that this pass found and did not apply**, because it is a C
+edit in a file another lane is holding: `opnpc`'s `blocked_on` cites
+`mock230_world.c:2333-2364` and the function is at **2326-2360**. Six lines of
+drift, caused by the `opobj` and `opheld` deletions rather than by anyone
+touching the row. It is the least harmful kind of stale — a reader who runs the
+command lands six lines away and finds the function — but it is the one form of
+staleness a `file:line` blocker is structurally exposed to, and it argues for
+citing a **symbol** wherever a symbol will do. `interaction_engine_npc` is
+`grep`-able and cannot drift; `mock230_world.c:2333` cannot help drifting.
 
 ### The opposite failure, which inverting the fallback could not catch
 
@@ -3347,7 +3944,7 @@ sites are excluded. A *family* here is one trigger stem as content writes it —
 | production dispatch sites | 18 | **24** |
 | trigger families reachable | 17 | **28** |
 | script-id-addressed drains (`queue`, `timer`, `softtimer`, engine queue) | 3 | **4** |
-| rows in `enum Mock230Fallback` | 7 | **7** (6 today — `ai_queue3` moved, §3.18) |
+| rows in `enum Mock230Fallback` | 7 | **7** (4 today — `ai_queue3`, `opobj` and `opheld` all moved to content, §3.18) |
 
 Triage §2 keeps the canonical list, and it has never been complete. Even after 5a
 and 5b amended it, it omits `debugproc`, `ai_opplayer<n>` and `ai_applayer<n>` —
@@ -3833,30 +4430,40 @@ unblocks the next:
    which landed: prayers were flattened into a bespoke `.prayer` grammar to
    avoid writing one and are an ordinary dbtable now (`db_find` was the last
    piece), and drop tables and shops want the same.
-5. **Move the C content into content.** Re-measured 2026-08-01: the bank is
-   **1,395** (not 1,370), combat **1,061** (not 858), `mock230_equipment.c`
-   **134**, the world map **199** — plus doors and the login burst (prayer was
-   one of these and is done — see mock230_player_systems.md §4.1). But the
-   ~3,200-line total was measuring the wrong thing: the C that actually stands
-   between content and these behaviours is the six `enum Mock230Fallback` rows,
-   **≈370 lines of dispatch** (`interaction_engine_npc` 31,
-   `interaction_engine_obj` 37, `interaction_engine_loc` 84,
-   `mock230_bank_quantity_for_op` 107, `mock230_bank_handle_button` 64, the
-   OPHELD arm ~50). The rest is what those reach, and most of it — combat, the
-   bank's arithmetic — is engine in the reference too. The reason is real and
-   documented in `bank.rs2`'s own header — the rev-230 bank builds its op ladder
-   conditionally on varbits, so the index alone does not say what was clicked —
-   which is exactly why step 4 comes first. Widen the opcode surface until a
-   script *can* say it, then move it. §3.18 has the per-row blockers, all of
-   which were re-checked in the same pass and four of which were wrong.
+5. **Move the C content into content.** Re-measured 2026-08-02: the bank is
+   **1,418** (not 1,370 and no longer 1,395), combat **1,061** (not 858),
+   `mock230_equipment.c` **102** (it was 134 until the level gate moved), the
+   world map **199** — plus doors and the login burst (prayer was one of these
+   and is done — see mock230_player_systems.md §4.1). But the ~3,200-line total
+   was measuring the wrong thing: the C that actually stands between content and
+   these behaviours is the `enum Mock230Fallback` rows, now **four** and
+   **293 lines of dispatch** (`interaction_engine_npc` 35,
+   `interaction_engine_loc` 85, `mock230_bank_quantity_for_op` 108,
+   `mock230_bank_handle_button` 65). It was ~370 across six rows before
+   2026-08-02; `interaction_engine_obj` and the OPHELD verb ladder are gone with
+   their rows (§3.18). The rest is what those reach, and most of it — combat,
+   the bank's arithmetic — is engine in the reference too. The reason is real
+   and documented in `bank.rs2`'s own header — the rev-230 bank builds its op
+   ladder conditionally on varbits, so the index alone does not say what was
+   clicked — which is exactly why step 4 comes first. Widen the opcode surface
+   until a script *can* say it, then move it. §3.18 has the per-row blockers,
+   all of which were re-checked in the same pass and four of which were wrong.
+
+   One of those four line counts is itself a warning about this list. The
+   `opnpc` row's own `blocked_on` string cites `interaction_engine_npc` at
+   `mock230_world.c:2333-2364`; the function is at **2326-2360** today. Nothing
+   edited it — the deletions above moved it. A `file:line` in a blocker is
+   checkable in one command, which is why it is the right form, but it is also
+   the only part of a blocker that goes stale by someone else's commit.
 6. ~~**Invert the fallback.**~~ — **done**, see §3.18. The lookup is the
    reference's (type → category → the bare `_`, and nothing after that), the
    `_` wildcard is the only fallback the design has, and a trigger with no
    script does nothing — loudly under `MOCK230_VERBOSE`, in the reference's own
    words.
 
-   What survives of the C is six enumerated rows (`enum Mock230Fallback`),
-   each naming what it is blocked on, counted at boot and pinned by the
+   What survives of the C is four enumerated rows (`enum Mock230Fallback`) —
+   seven when the change landed, and `ai_queue3`, `opobj` and `opheld` have gone
+   since — each naming what it is blocked on, counted at boot and pinned by the
    selftest: it may shrink, it must not grow. Nothing was moved by the change —
    step 5's order is the point. Three things that used to be indistinguishable
    now are not: a script that *aborted* versus one that was never bound

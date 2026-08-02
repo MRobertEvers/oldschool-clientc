@@ -206,7 +206,6 @@ mock230_scripts_resolve_hooks(struct Mock230Server* srv)
         HOOK(player_melee_swing, "[proc,player_melee_swing]"),
         HOOK(npc_meleeattack, "[proc,npc_meleeattack]"),
         HOOK(combat_weapon_type, "[proc,combat_weapon_type]"),
-        HOOK(equip_level_message, "[proc,equip_level_message]"),
         HOOK(equipment_refresh, "[proc,equipment_refresh]"),
         HOOK(equipment_open, "[proc,equipment_open]"),
         HOOK(friend_login_notification, "[proc,friend_login_notification]"),
@@ -1265,6 +1264,18 @@ run_trigger_script(
         state->host_tag = npc_slot + 1;
     }
 
+    /* The active ground obj, for `[opobj<n>]` — `Player.getOpTrigger` sets
+     * `state.activeObj` on the obj arm the same way it sets `activeNpc` on the
+     * npc one. One-shot: consumed here so a script that itself fires a trigger
+     * does not inherit it. The value is `mock230_world_obj_handle`'s — a slot
+     * *and* the slot's generation, never a pointer, because the ground array is
+     * a free list and a suspended script must resume onto its own obj or none. */
+    if( srv->pending_active_obj )
+    {
+        SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY, (void*)srv->pending_active_obj);
+        srv->pending_active_obj = 0;
+    }
+
     /* run_or_park answers 1 for ran-or-parked and 0 for every way a bound script
      * can fail to run — aborted, no parking slot, world queue full. All of those
      * are FAILED here: a script existed and the behaviour did not happen. */
@@ -1747,26 +1758,53 @@ static const struct FallbackBlockingOp k_blocked_oploc[] = {
     { NULL, 0 }
 };
 
-static const struct FallbackBlockingOp k_blocked_opobj[] = {
-    BLOCKING_OP(SS_OP_OBJ_COORD),
-    BLOCKING_OP(SS_OP_OBJ_COUNT),
-    BLOCKING_OP(SS_OP_OBJ_DEL),
-    BLOCKING_OP(SS_OP_OBJ_FIND),
-    BLOCKING_OP(SS_OP_OBJ_TAKEITEM),
-    BLOCKING_OP(SS_OP_OBJ_TYPE),
-    { NULL, 0 }
-};
+/*
+ * `k_blocked_opobj` was here and is gone with its row, in two stages that are
+ * worth keeping as the worked example of the order §2.5 asks for.
+ *
+ * Stage one widened the surface: it cited OBJ_COORD, OBJ_COUNT, OBJ_DEL,
+ * OBJ_FIND, OBJ_TAKEITEM and OBJ_TYPE; five landed in mock230_ops_obj.c and
+ * OBJ_FIND came *off the list* rather than being implemented, because
+ * `[opobj3,_]` does not call it — the dispatch supplies the active obj. The row
+ * then stood with an empty `blocked_ops` and a text saying so.
+ *
+ * Stage two moved the behaviour and deleted the row. What made the deletion
+ * checkable rather than hopeful: the two selftest legs were re-pointed at
+ * OPOBJ3 *while `interaction_engine_obj` was still present* and unbinding
+ * `[opobj3,_]` left them **green**, because the fallback answered. That is the
+ * measurement — a leg that stays green under the mutation is measuring the C —
+ * and it is why the legs could only become evidence once the C was gone.
+ */
 
-static const struct FallbackBlockingOp k_blocked_opheld[] = {
-    BLOCKING_OP(SS_OP_OC_WEARPOS),
-    BLOCKING_OP(SS_OP_OC_WEARPOS2),
-    BLOCKING_OP(SS_OP_OC_WEARPOS3),
-    BLOCKING_OP(SS_OP_INV_MOVEFROMSLOT),
-    BLOCKING_OP(SS_OP_INV_DROPSLOT),
-    BLOCKING_OP(SS_OP_BUILDAPPEARANCE),
-    BLOCKING_OP(SS_OP_P_CLEARPENDINGACTION),
-    { NULL, 0 }
-};
+/*
+ * `k_blocked_opheld` is gone with MOCK230_FALLBACK_OPHELD, 2026-08-02, and the
+ * account of what it cited is worth keeping because only five of its seven
+ * opcodes were ever true.
+ *
+ * Landed the stage before the row went: OC_WEARPOS / OC_WEARPOS2 / OC_WEARPOS3
+ * (mock230_ops_obj.c) and INV_MOVEFROMSLOT / INV_DROPSLOT (mock230_ops_inv.c).
+ * `inv_moveitem` moved into that file at the same time and grew the generic
+ * container-to-container arm every equip and unequip path needs — it had been
+ * three bank arms and a printf, and `gen_opcode_coverage.py` reported the
+ * opcode *covered*, because a `case` label is all it can see.
+ *
+ * Came OFF the list without being implemented: BUILDAPPEARANCE (2004), because
+ * `put_appearance` reads `player->worn` unconditionally and the opcode's job in
+ * the reference is to *select* the container the encoder reads — so accepting
+ * the argument and raising the mask would be plausible, wrong and quiet
+ * (§3.13d); and P_CLEARPENDINGACTION (2070), misfiled, because
+ * `mock230_world_clear_pending_action` was never called from `handle_opheld` at
+ * all. Both are still true and neither is implemented.
+ *
+ * And what actually blocked the row was none of those. It was that **the level
+ * requirement had no script-readable form**: dispatch is content-first, so
+ * binding `[opheld2,_]` stopped `mock230_equipment_may_wear` running and took
+ * the gate with it. That is a data-relocation job, and the stage that did it
+ * found the thing every prose account of the data had wrong — the requirement
+ * is a MERGE, `.obj` overlay plus the cache's own skillrequire/levelrequire
+ * params, and the overlay is 59% of it. See
+ * skill_combat/scripts/levelrequire.rs2.
+ */
 
 static const struct FallbackBlockingOp k_blocked_inv_button[] = {
     { "SS_OP_LAST_VERB", MOCK230_BLOCKER_LAST_VERB }, /* not BLOCKING_OP: undeclared */
@@ -1841,34 +1879,6 @@ static const struct
           "is declared-not-implemented while the shadowed-verb report tells content to "
           "call it — [oploc2,bankbooth] is the standing example at every boot",
           k_blocked_oploc },
-    [MOCK230_FALLBACK_OPOBJ] =
-        { "opobj",
-          "the old text said 'no obj_take / inv_add-from-ground opcode pair yet "
-          "(triage §9 step 4b)' and understated it twice over. The missing thing is an "
-          "ENTITY KIND: SSVM_ENT_OBJ (ssvm.h:87) is a bare enum value with zero "
-          "writers and zero readers in the whole tree (`grep -rn SSVM_ENT_OBJ src`), "
-          "so [opobj<n>] binds no active obj and no obj opcode would have a subject to "
-          "act on if it existed. And it is not a pair: OBJ_ADD (3500) is the only one "
-          "of the family implemented — the other six are declared and absent, so "
-          "content can create a pile and cannot read, count, find or remove one. "
-          "Reference: [opobj3,_] @pickup_obj, player/scripts/pickup.rs2:1. The row is "
-          "interaction_engine_obj, mock230_world.c:2470-2507",
-          k_blocked_opobj },
-    [MOCK230_FALLBACK_OPHELD] =
-        { "opheld",
-          "NOT 'equipment is C'. The equipment screen is already content "
-          "(interface_equipment/scripts/equipment.rs2) and mock230_equipment.c is 134 "
-          "lines (`wc -l`) of component -> worn-slot map with no wear/drop rule in it. "
-          "The row is the tail of handle_opheld, mock230_world.c:2217-2272. Blocked on "
-          "seven opcodes that are declared in ss_opcode.h and implemented nowhere — "
-          "three to ask an obj where it goes, two to move the slot, one to rebuild "
-          "the appearance and one to clear the pending action. It was eight until the "
-          "container registry landed INV_SETSLOT (mock230_container.h); the count is "
-          "edited here because `mock230_scripts_stale_blockers` fails on a cited "
-          "opcode that has since been implemented. Reference: [opheld2,_] "
-          "~equip(last_slot) (player/scripts/equip.rs2:1) and [opheld5,_] "
-          "~dropslot(last_slot) (player/scripts/drop.rs2:1)",
-          k_blocked_opheld },
     [MOCK230_FALLBACK_INV_BUTTON] =
         { "inv_button",
           "NOT 'the bank, 1,370 lines'. The bank is 1,395 (`wc -l "
@@ -2399,6 +2409,10 @@ mock230_script_command(
         return 1;
     if( mock230_ops_npc(state, opcode, dot) )
         return 1;
+    if( mock230_ops_obj(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_inv(state, opcode, dot) )
+        return 1;
 
     switch( opcode )
     {
@@ -2678,40 +2692,35 @@ mock230_script_command(
     case SS_OP_INV_ADD:
     {
         int32_t values[3];
-        int slots = 0;
-        struct Mock230Item* items;
+        struct Mock230Container* row;
 
         for( int i = 2; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        items = container_for(srv, values[0], &slots);
-        if( !items )
+        row = container_row(srv, values[0]);
+        if( !row )
         {
             SSVM_Abort(state, "inv_add on unknown container %d", values[0]);
             return 1;
         }
-        for( int i = 0; i < slots; i++ )
-        {
-            if( items[i].obj_id >= 0 )
-                continue;
-            items[i].obj_id = values[1];
-            items[i].count = values[2];
-            /*
-             * Through container_dirty, which knows all three containers. The
-             * inline version this replaces read "backpack, else worn" and so
-             * marked a *worn* slot for a write to the bank — and for a bank
-             * slot past 31, shifted a 32-bit mask by its own width. The bank
-             * was never dirtied, so a script-written row reached the client
-             * only if something else transmitted the bank afterwards.
-             */
-            container_dirty(srv, values[0], i);
-            return 1;
-        }
-        /* No free slot. The reference drops the item on the ground; the mock
-         * has no ground objects yet, so it says so rather than pretending. */
-        mock230_say(srv, "inv_full_message", NULL);
+        /*
+         * `mock230_container_add` is the whole body now — it merges stacks and
+         * spreads unstackables, which this arm did neither of, and it marks the
+         * slots it writes through the registry (the inline version this
+         * replaced read "backpack, else worn", so a write to the bank marked a
+         * *worn* slot and a bank slot past 31 shifted a 32-bit mask by its own
+         * width). `assure_full` is off, matching the reference's INV_ADD.
+         *
+         * What is still not the reference: the overflow. `InvOps.ts:73` puts
+         * whatever did not fit on the floor at the player's feet; this says so
+         * instead, which is a third different answer from the one
+         * `interaction_engine_obj` gives ("inv_no_space_message"). Noted rather
+         * than fixed — the floor-drop belongs with the `opheld` row's work.
+         */
+        if( mock230_container_add(row, values[1], values[2], 0) < values[2] )
+            mock230_say(srv, "inv_full_message", NULL);
         return 1;
     }
 
@@ -5402,74 +5411,12 @@ mock230_script_command(
         return 1;
     }
 
-    /*
-     * inv_moveitem / _cert / _uncert: the whole of deposit and withdraw.
-     *
-     * The cert variants are what make a bank hold one stack of an item rather
-     * than two: depositing un-notes on the way in, and withdrawing notes on the
-     * way out only if the player asked for it. Both directions go through
-     * mock230_bank, which owns the space checks and their three messages.
-     */
-    case SS_OP_INV_MOVEITEM:
-    case SS_OP_INV_MOVEITEM_CERT:
-    case SS_OP_INV_MOVEITEM_UNCERT:
-    {
-        int32_t from_inv;
-        int32_t to_inv;
-        int32_t obj_id;
-        int32_t count;
-
-        if( !SSVM_PopInt(state, &count) || !SSVM_PopInt(state, &obj_id) ||
-            !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
-            return 1;
-        if( from_inv == mock230_ids()->inv_bank )
-        {
-            int slot = -1;
-
-            for( int i = 0; i < srv->active_player->bank.size; i++ )
-                if( srv->active_player->bank.slots[i].obj_id == obj_id )
-                    slot = i;
-            if( slot < 0 )
-                return 1;
-            /* The opcode decides the form, not the bank's own note toggle:
-             * `inv_moveitem_cert` means "as a note" wherever it is called
-             * from. Set the flag, move, put it back. */
-            {
-                int saved = srv->active_player->bank.note_mode;
-
-                srv->active_player->bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
-                mock230_bank_withdraw(srv, slot, (int)count);
-                srv->active_player->bank.note_mode = saved;
-            }
-            return 1;
-        }
-        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_backpack )
-        {
-            for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
-            {
-                if( srv->active_player->inv[i].obj_id != obj_id )
-                    continue;
-                count -= mock230_bank_deposit(srv, i, (int)count);
-            }
-            return 1;
-        }
-        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_worn )
-        {
-            /* Straight off the body and into the bank, which is what the
-             * deposit-worn button is. Going via the backpack would need a free
-             * slot the player may not have. */
-            for( int i = 0; i < MOCK230_WORN_SLOTS && count > 0; i++ )
-            {
-                if( srv->active_player->worn[i].obj_id != obj_id )
-                    continue;
-                count -= mock230_bank_deposit_worn(srv, i, (int)count);
-            }
-            return 1;
-        }
-        fprintf(stderr, "mock230: inv_moveitem %d -> %d is not modelled\n", (int)from_inv,
-                (int)to_inv);
-        return 1;
-    }
+    /* `inv_moveitem` and its `_cert` / `_uncert` siblings were here. They are
+     * mock230_ops_inv.c's now, with their three bank arms unchanged and a
+     * fourth, generic container-to-container arm appended after them — the arm
+     * every reference equip and unequip path needs and which used to print
+     * "is not modelled" and do nothing. That gap was invisible to
+     * gen_opcode_coverage.py because the opcode had a `case` label. */
 
     case SS_OP_INV_CLEAR:
     {

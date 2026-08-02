@@ -178,107 +178,16 @@ inv_first_free(const struct Mock230Player* player)
     return -1;
 }
 
-/* Slot already holding a stack of `obj_id`, or -1 — the obj is not stackable
- * or there is none yet. Stackability is the cache's own field, not a list. */
-static int
-inv_stack_slot(
-    const struct Mock230Player* player,
-    int obj_id)
-{
-    if( !mock230_objinfo(obj_id)->stackable )
-        return -1;
-    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-        if( player->inv[i].obj_id == obj_id )
-            return i;
-    return -1;
-}
+/* `inv_stack_slot` was here — "the slot already holding a stack of this obj".
+ * `interaction_engine_obj` was its last caller and went with the `opobj`
+ * fallback; the same rule now lives once, in `mock230_container_add`
+ * (mock230_container.c), which is `Inventory.add` and is what `obj_takeitem`
+ * and `inv_add` both go through. Two copies of a stacking rule is how the two
+ * came to disagree in the first place. */
 
 /* ------------------------------------------------------------------ */
 /* Equipment                                                           */
 /* ------------------------------------------------------------------ */
-
-/*
- * Wear or wield the item in backpack `slot`.
- *
- * The interesting case is the one the cache's wearpos_2 / wearpos_3 fields
- * exist for: an item can claim slots beyond its own. A two-handed weapon
- * claims the shield slot, a full helm claims hair and jaw. Anything already in
- * a claimed slot has to come off first, and coming off needs a free backpack
- * slot — which is why a shortbow refuses to equip when the backpack is full
- * and a shield is on.
- */
-static void
-equip_from_slot(
-    struct Mock230Server* srv,
-    int slot)
-{
-    struct Mock230Player* player = srv->active_player;
-    int obj_id = (slot >= 0 && slot < MOCK230_INV_SLOTS) ? player->inv[slot].obj_id : -1;
-    int count = (slot >= 0 && slot < MOCK230_INV_SLOTS) ? player->inv[slot].count : 0;
-    const struct Mock230ObjInfo* info;
-    int claimed[3];
-    int claimed_count = 0;
-    int returning = 0;
-
-    if( obj_id < 0 )
-        return;
-    info = mock230_objinfo(obj_id);
-    if( info->wearpos < 0 || info->wearpos >= MOCK230_WORN_SLOTS )
-    {
-        mock230_say(srv, "equip_wrong_slot_message", NULL);
-        return;
-    }
-    /* The level requirement. Engine rather than content for the same reason
-     * "Attack" is: it applies to every wearable obj in the cache, and a
-     * per-item script binding would be a second copy of a table the content
-     * tree already states. Content can still override by binding [opheld2]. */
-    if( !mock230_equipment_may_wear(srv, obj_id) )
-        return;
-
-    claimed[claimed_count++] = info->wearpos;
-    if( info->wearpos_2 >= 0 && info->wearpos_2 < MOCK230_WORN_SLOTS )
-        claimed[claimed_count++] = info->wearpos_2;
-    if( info->wearpos_3 >= 0 && info->wearpos_3 < MOCK230_WORN_SLOTS )
-        claimed[claimed_count++] = info->wearpos_3;
-
-    /* A slot the incoming item claims only needs unequipping when something is
-     * actually in it. The backpack slot being vacated by this equip counts as
-     * free, hence the -1 below. */
-    for( int i = 0; i < claimed_count; i++ )
-        if( player->worn[claimed[i]].obj_id >= 0 )
-            returning++;
-    if( returning - 1 > 0 )
-    {
-        int free_slots = 0;
-        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-            if( player->inv[i].obj_id < 0 )
-                free_slots++;
-        if( free_slots < returning - 1 )
-        {
-            mock230_say(srv, "equip_no_space_message", NULL);
-            return;
-        }
-    }
-
-    /* Vacate the backpack slot first so it can receive the first unequip. */
-    inv_set(player, slot, -1, 0);
-    for( int i = 0; i < claimed_count; i++ )
-    {
-        int worn_id = player->worn[claimed[i]].obj_id;
-        int worn_count = player->worn[claimed[i]].count;
-        if( worn_id < 0 )
-            continue;
-        worn_set(player, claimed[i], -1, 0);
-        {
-            int dest = inv_first_free(player);
-            if( dest >= 0 )
-                inv_set(player, dest, worn_id, worn_count);
-        }
-    }
-
-    worn_set(player, info->wearpos, obj_id, count > 0 ? count : 1);
-    mock230_say(srv, "equip_message", info->name);
-}
 
 /* Take the item off worn slot `slot` and put it back in the backpack. */
 static void
@@ -751,9 +660,6 @@ interaction_engine_loc(
     int tile_x,
     int tile_z,
     int level);
-static void
-interaction_engine_obj(
-    struct Mock230Server* srv);
 
 /* ------------------------------------------------------------------ */
 /* The verbs the engine answers itself                                 */
@@ -779,9 +685,6 @@ interaction_engine_obj(
  * fixed is that there is now one occurrence of each instead of seven.
  */
 #define MOCK230_VERB_ATTACK "Attack"
-#define MOCK230_VERB_WEAR "Wear"
-#define MOCK230_VERB_WIELD "Wield"
-#define MOCK230_VERB_DROP "Drop"
 #define MOCK230_VERB_BANK "Bank"
 #define MOCK230_VERB_USE_QUICKLY "Use-quickly"
 #define MOCK230_VERB_CLIMB_UP "Climb-up"
@@ -789,8 +692,6 @@ interaction_engine_obj(
 #define MOCK230_VERB_CLIMB "Climb"
 
 static const char* const k_engine_npc_verbs[] = { MOCK230_VERB_ATTACK };
-static const char* const k_engine_held_verbs[] = { MOCK230_VERB_WEAR, MOCK230_VERB_WIELD,
-                                                   MOCK230_VERB_DROP };
 static const char* const k_engine_loc_verbs[] = { MOCK230_VERB_BANK, MOCK230_VERB_USE_QUICKLY,
                                                   MOCK230_VERB_CLIMB_UP, MOCK230_VERB_CLIMB_DOWN,
                                                   MOCK230_VERB_CLIMB };
@@ -823,15 +724,11 @@ mock230_world_engine_claimed_verb(
                                  sizeof(k_engine_npc_verbs) / sizeof(k_engine_npc_verbs[0]))
                     : NULL;
     }
-    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
-    {
-        const struct Mock230ObjInfo* info = mock230_objinfo((int)subject);
-        int op_num = trigger - SS_TRIGGER_OPHELD1 + 1;
-
-        return info ? claimed_in(info->if_ops[op_num - 1], k_engine_held_verbs,
-                                 sizeof(k_engine_held_verbs) / sizeof(k_engine_held_verbs[0]))
-                    : NULL;
-    }
+    /* `[opheld<n>]` has no arm, the way `[opobj<n>]` has none: the engine
+     * answers no held verb at all now. Wear, Wield and Drop went to
+     * `player/scripts/equip.rs2` and `drop.rs2` with MOCK230_FALLBACK_OPHELD,
+     * and their three macros went in the same commit — leaving them would make
+     * a later `[opheld2,<obj>]` report as shadowing a verb nothing answers. */
     if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
     {
         int op_num = trigger - SS_TRIGGER_OPLOC1 + 1;
@@ -840,9 +737,11 @@ mock230_world_engine_claimed_verb(
                           sizeof(k_engine_loc_verbs) / sizeof(k_engine_loc_verbs[0]));
     }
     /*
-     * `[opobj<n>]` is deliberately absent. Its engine fallback picks the pile
-     * up whatever the cache calls the op, so there is no verb to shadow —
-     * `interaction_engine_obj` takes no op number at all.
+     * `[opobj<n>]` is absent, and the reason changed when the fallback went.
+     * It used to be "there is no verb to shadow because the engine takes the
+     * pile whatever the op is called". Now it is the stronger one: **no engine
+     * behaviour answers an obj op at all**, so there is nothing content could
+     * shadow. Nothing to add here unless one comes back, which it should not.
      */
     return NULL;
 }
@@ -985,12 +884,37 @@ mock230_world_process_interaction(struct Mock230Server* srv)
                 interaction_engine_loc(srv, op_num, target_id, loc_x, loc_z, loc_level);
             break;
         case MOCK230_INTERACT_OBJ:
-            if( mock230_scripts_fallback(
-                    srv, MOCK230_FALLBACK_OPOBJ,
-                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ1 + (op_num - 1),
-                                                target_id, category, -1)) )
-                interaction_engine_obj(srv);
+        {
+            /* The pile the click named, handed to the script as its active obj
+             * — `Player.getOpTrigger` sets `state.activeObj` for the obj arm the
+             * same way it sets `activeNpc` for the npc one. Without it every
+             * `obj_*` opcode aborts on the VM's require-an-active-obj check and
+             * `[opobj<n>]` can only be written blind. */
+            int obj_slot =
+                mock230_world_ground_find(srv, loc_x, loc_z, loc_level, target_id);
+            int result;
+
+            srv->pending_active_obj =
+                obj_slot >= 0 ? mock230_world_obj_handle(srv, obj_slot) : 0;
+            result = mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ1 + (op_num - 1),
+                                                 target_id, category, -1);
+            srv->pending_active_obj = 0;
+            /*
+             * No fallback, and this is the only one of the three arms that has
+             * none — `MOCK230_FALLBACK_OPOBJ` was deleted here. A miss is
+             * `Player.defaultOp` exactly: the message and nothing else. The
+             * walk still happened (this runs on arrival), which is also the
+             * reference's shape.
+             *
+             * `MOCK230_TRIGGER_FAILED` deliberately does NOT speak. A script
+             * that aborted is a content bug, and printing "nothing interesting
+             * happens" over it is the indistinguishability §3.18 exists to
+             * remove — the abort already reports itself.
+             */
+            if( result == MOCK230_TRIGGER_NONE )
+                mock230_say(srv, "nothing_interesting_message", NULL);
             break;
+        }
         default:
             break;
         }
@@ -1918,6 +1842,7 @@ mock230_world_obj_add(
     for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
     {
         struct Mock230GroundObj* obj = &srv->ground[i];
+        int generation;
 
         if( obj->active )
             continue;
@@ -1925,7 +1850,11 @@ mock230_world_obj_add(
          * the zone it was last filed under: a slot freed and reused inside one
          * tick would otherwise stay in the old zone's list forever. */
         mock230_zone_obj_refile(srv, i);
+        /* Survives the memset, and must: it is what tells a script holding this
+         * slot that the obj it was holding is not the one here now. */
+        generation = obj->generation + 1;
         memset(obj, 0, sizeof(*obj));
+        obj->generation = generation;
         obj->active = 1;
         obj->obj_id = obj_id;
         obj->count = count;
@@ -1995,6 +1924,10 @@ ground_tick(struct Mock230Server* srv)
             {
                 obj->active = 1;
                 obj->respawn_tick = -1;
+                /* A new entity, not the old one resuming: the reference
+                 * constructs a fresh `Obj`, and a script still holding the
+                 * taken one must not silently start acting on this. */
+                obj->generation++;
                 mock230_zone_obj_refile(srv, i);
                 mock230_zone_obj_added(srv, i);
             }
@@ -2005,17 +1938,100 @@ ground_tick(struct Mock230Server* srv)
     }
 }
 
-/** Remove a ground obj, telling every client that has it and arming its respawn
- *  if it was a map spawn. */
-static void
-ground_take(
+/*
+ * Remove a ground obj, telling every client that has it and arming its respawn
+ * if it was a map spawn.
+ *
+ * This is `World.removeObj(obj, duration)` with one substitution, and the
+ * substitution predates this function's export: the reference's duration is
+ * `ObjType.respawnrate`, a *per-obj* server-band field that this tree has no
+ * decoder and no `fields/obj.ini` row for. `^lootdrop_duration` — content's
+ * own constant, resolved through `mock230_ids()` — stands in for all of them.
+ * Both of the reference's callers (`OBJ_DEL`, and `OBJ_TAKEITEM`'s removal
+ * half) reduce to exactly this here, because `removeObj` ignores its duration
+ * entirely unless the obj is a RESPAWN one.
+ *
+ * Exported so the `obj_*` opcodes remove a pile the same way the engine does.
+ * The `ground_clear`-first ordering is load-bearing and is stated there.
+ */
+void
+mock230_world_ground_take(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230GroundObj* obj = &srv->ground[slot];
+    struct Mock230GroundObj* obj;
 
+    if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+        return;
+    obj = &srv->ground[slot];
     ground_clear(srv, slot);
     obj->respawn_tick = obj->is_spawn ? srv->tick + mock230_ids()->lootdrop_duration : -1;
+}
+
+int
+mock230_world_ground_find(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int obj_id)
+{
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        const struct Mock230GroundObj* obj = &srv->ground[i];
+
+        if( !obj->active || obj->obj_id != obj_id )
+            continue;
+        if( obj->x != x || obj->z != z || obj->level != level )
+            continue;
+        return i;
+    }
+    return -1;
+}
+
+/*
+ * The handle, and why it is not just the slot.
+ *
+ * MOCK230_GROUND_MAX is 256, so nine bits carry `slot + 1` and everything above
+ * is the slot's generation. The generation is what makes the handle name an
+ * *obj* rather than an *index*: a script that suspends between `obj_find` and
+ * `obj_takeitem` resumes into a world where its pile may have been taken and
+ * the slot handed to somebody else's drop, and an index would resolve to that
+ * drop with nothing failing.
+ */
+#define MOCK230_OBJ_HANDLE_SLOT_BITS 9
+
+/* `slot + 1` has to fit under the generation, or two different objs can share a
+ * handle and the identity check silently stops checking. */
+typedef char mock230_obj_handle_slot_fits
+    [(MOCK230_GROUND_MAX + 1) <= (1 << MOCK230_OBJ_HANDLE_SLOT_BITS) ? 1 : -1];
+
+intptr_t
+mock230_world_obj_handle(
+    struct Mock230Server* srv,
+    int slot)
+{
+    if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+        return 0;
+    return (intptr_t)(((intptr_t)srv->ground[slot].generation
+                       << MOCK230_OBJ_HANDLE_SLOT_BITS) |
+                      (intptr_t)(slot + 1));
+}
+
+int
+mock230_world_ground_slot(
+    struct Mock230Server* srv,
+    intptr_t handle)
+{
+    int slot = (int)(handle & ((1 << MOCK230_OBJ_HANDLE_SLOT_BITS) - 1)) - 1;
+
+    if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+        return -1;
+    if( !srv->ground[slot].active )
+        return -1;
+    if( handle != mock230_world_obj_handle(srv, slot) )
+        return -1;
+    return slot;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2223,68 +2239,29 @@ handle_opheld(
     player->last_slot = slot;
     player->last_com = component;
     player->last_verb = op_num;
-    /* Everything below is MOCK230_FALLBACK_OPHELD — wear/wield and drop, which
-     * the reference states as `[opheld2,_] ~equip(last_slot)` and
-     * `[opheld5,_] ~dropslot(last_slot)` in `player/scripts/equip.rs2` and
-     * `player/scripts/drop.rs2`. It does not run when a bound script aborted or
-     * when there is no pack to have bound one.
-     *
-     * It is *not* here "because equipment is C" — that was the old reason and
-     * it was wrong: the equipment screen is content and `mock230_equipment.c`
-     * is a 134-line component -> worn-slot map with no rule in it. It is here
-     * because eight opcodes a script would need are declared and unimplemented;
-     * `k_engine_fallbacks[MOCK230_FALLBACK_OPHELD]` names all eight and
-     * `mock230_scripts_stale_blockers` fails when one of them lands. */
-    if( !mock230_scripts_fallback(
-            srv, MOCK230_FALLBACK_OPHELD,
-            (op_num >= 1 && op_num <= 5)
-                ? mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1 + (op_num - 1), obj_id,
-                                              info->category > 0 ? info->category : -1, -1)
-                : MOCK230_TRIGGER_NONE) )
-        return;
-
-    if( verb && (strcmp(verb, MOCK230_VERB_WEAR) == 0 || strcmp(verb, MOCK230_VERB_WIELD) == 0) )
-    {
-        equip_from_slot(srv, slot);
-        return;
-    }
-    if( verb && strcmp(verb, MOCK230_VERB_DROP) == 0 )
-    {
-        /* Dropping puts the obj on the floor rather than deleting it, which is
-         * the whole difference between an inventory and a bin. It expires like
-         * any other drop, so a session cannot litter Lumbridge indefinitely. */
-        mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
-                              player->level, mock230_ids()->lootdrop_duration);
-        inv_set(player, slot, -1, 0);
-        mock230_say(srv, "drop_message", info->name);
-        return;
-    }
     /*
-     * OPHELD5 with no verb behind it is the client's synthesised Drop row.
+     * And that is the whole of it. `MOCK230_FALLBACK_OPHELD` was here until
+     * 2026-08-02 — a verb ladder matching the cache strings "Wear", "Wield" and
+     * "Drop" and then `equip_from_slot` — and it is `[opheld2,_] ~equip(last_slot)`
+     * and `[opheld5,_] ~dropslot(last_slot)` now, the reference's own two lines,
+     * in `player/scripts/equip.rs2` and `player/scripts/drop.rs2`.
      *
-     * A rev-230 obj record does not carry a "Drop" op — bones list only
-     * "Bury" — because the client adds the row itself, always at index 5
-     * (rs_minimenu_build.c add_inv_slot_rows). Waiting for a `verb` that says
-     * "Drop" means waiting forever.
+     * A miss answers the way `[opobj<n>]`'s does and for the same reason: the
+     * reference's engine says `Player.defaultOp` and nothing else. That is a
+     * behaviour change for the ops the ladder used to sweep up — it acted on a
+     * *verb string* wherever the cache put it, and it equipped anything wearable
+     * on any op index that carried no verb at all. Both of those are addressed
+     * by content now, and an op nothing binds says so.
+     *
+     * FAILED is deliberately silent: a script that aborted has already reported
+     * itself, and speaking over it re-creates exactly the indistinguishability
+     * the inverted fallback exists to remove (§3.18).
      */
-    if( !verb && op_num == 5 )
-    {
-        mock230_world_obj_add(srv, obj_id, player->inv[slot].count, player->x, player->z,
-                              player->level, mock230_ids()->lootdrop_duration);
-        inv_set(player, slot, -1, 0);
-        mock230_say(srv, "drop_message", info->name);
-        return;
-    }
-
-    /* No verb for this index, but the item is wearable: the cache's op list is
-     * sparse for a lot of items, and refusing to equip a helmet because its
-     * "Wear" landed on a different index would be worse than acting on it. */
-    if( info->wearpos >= 0 )
-    {
-        equip_from_slot(srv, slot);
-        return;
-    }
-    mock230_say(srv, "nothing_interesting_message", NULL);
+    if( op_num >= 1 && op_num <= 5 &&
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1 + (op_num - 1), obj_id,
+                                    info->category > 0 ? info->category : -1,
+                                    -1) == MOCK230_TRIGGER_NONE )
+        mock230_say(srv, "nothing_interesting_message", NULL);
 }
 
 /* INV_BUTTOND: p4 componentId, p2 fromSlot, p2 toSlot, p1 mode. The client has
@@ -2477,54 +2454,21 @@ climb(
 }
 
 /*
- * OPOBJ<n>: p2 x, p2 z, p2 objId — picking something up off the floor.
+ * OPOBJ<n>: p2 x, p2 z, p2 objId — the click on a pile on the floor.
  *
- * The walk and the take are one action here rather than a queued interaction:
- * the mock has no interaction model, so the player arrives instantly in game
- * terms and the client sees the walk happen underneath. Getting that wrong in
- * the other direction (take first, walk after) would let a player vacuum up
- * Lumbridge from the castle roof.
+ * This handler latches an interaction and walks; the act happens on arrival, in
+ * `mock230_world_process_interaction`. Getting that wrong in the other
+ * direction (take first, walk after) would let a player vacuum up Lumbridge
+ * from the castle roof.
+ *
+ * There is no engine behaviour behind it any more. `interaction_engine_obj`
+ * lived here and was ~39 lines that took the pile whatever op number arrived,
+ * because it never read one; `player/scripts/pickup.rs2` binds `[opobj3,_]`
+ * instead, which is the op the client synthesises Take on and the op the
+ * reference binds (43 `[opobj3,*]` scripts in LostCity's content, plus
+ * `[opobj1,yommiseeds]` and `[opobj4,_category_22]` — Light on a pile of logs —
+ * which are exactly the ops the deleted C answered by picking the logs up).
  */
-/* Taking the pile the player is now standing on. */
-static void
-interaction_engine_obj(struct Mock230Server* srv)
-{
-    struct Mock230Player* player = srv->active_player;
-
-    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
-    {
-        struct Mock230GroundObj* obj = &srv->ground[i];
-        int free_slot;
-
-        if( !obj->active || obj->x != player->x || obj->z != player->z ||
-            obj->level != player->level )
-            continue;
-
-        /* A stackable obj joins the pile it already has rather than taking a
-         * slot of its own. Without this a full backpack refuses a single coin
-         * while holding 15,000 of them two slots over. */
-        free_slot = inv_stack_slot(player, obj->obj_id);
-        if( free_slot >= 0 )
-        {
-            inv_set(player, free_slot, obj->obj_id, player->inv[free_slot].count + obj->count);
-        }
-        else
-        {
-            free_slot = inv_first_free(player);
-            if( free_slot < 0 )
-            {
-                mock230_say(srv, "inv_no_space_message", NULL);
-                return;
-            }
-            inv_set(player, free_slot, obj->obj_id, obj->count);
-        }
-        mock230_say(srv, "pickup_message", mock230_objinfo(obj->obj_id)->name);
-        ground_take(srv, i);
-        return;
-    }
-    mock230_say(srv, "cant_reach_message", NULL);
-}
-
 static void
 handle_opobj(
     struct Mock230Server* srv,
@@ -3117,23 +3061,11 @@ handle_cheat(
         return;
     }
 
-    if( strncmp(text, "equip", 5) == 0 )
-    {
-        /* `::equip <slot>` wears an inventory item without a right-click. The
-         * combat tab is built from the equipped weapon's category, so being
-         * able to change weapons headlessly is what makes that testable. */
-        int slot = 0;
-
-        (void)sscanf(text, "equip %d", &slot);
-        if( slot >= 0 && slot < MOCK230_INV_SLOTS && player->inv[slot].obj_id >= 0 )
-        {
-            const struct Mock230ObjInfo* info = mock230_objinfo(player->inv[slot].obj_id);
-
-            say(srv, "Equipping %s (category %d).", info->name, info->category);
-            equip_from_slot(srv, slot);
-        }
-        return;
-    }
+    /* `::equip <slot>` was here and calling `equip_from_slot`. It is
+     * `[debugproc,equip]` in general/scripts/misc/cheat_equip.rs2 now — it went
+     * with `equip_from_slot`, being one of its four callers, and the cheat
+     * handler was already offering the line to a debugproc first, so this
+     * branch had been unreachable since that file landed. */
 
     if( strncmp(text, "style", 5) == 0 )
     {
@@ -6299,6 +6231,36 @@ selftest_enclosed_has(
 }
 
 /*
+ * Throw away the client's zone set, run one tick, and count the OBJ_ADDs it is
+ * caught up with.
+ *
+ * This is the ZoneMap's replay — what a client that has just connected is told
+ * about a zone, taken from the zone's *state* rather than from any event. It is
+ * a count rather than a presence test because Lumbridge's own spawns are in the
+ * window: the question a caller asks is "did that number change by one", and
+ * "was there an OBJ_ADD at all" is always yes.
+ */
+static int
+selftest_replay_obj_adds(
+    struct Mock230Server* srv,
+    struct Mock230Capture* capture)
+{
+    int count = 0;
+    int at = 0;
+
+    mock230_zone_player_reset(srv->active_player);
+    mock230_capture_begin(srv, capture);
+    mock230_world_tick(srv);
+    mock230_capture_end(srv);
+    while( (at = mock230_capture_find(capture, 120 /* OBJ_ADD */, at)) >= 0 )
+    {
+        count++;
+        at++;
+    }
+    return count;
+}
+
+/*
  * Click "Click here to continue" until the parked script runs out of pages.
  *
  * It clicks whatever button is *currently registered* rather than a fixed uid,
@@ -6359,6 +6321,45 @@ selftest_find(
         if( player->inv[i].obj_id == obj_id )
             return i;
     return -1;
+}
+
+/*
+ * Send the player a real OPHELD<n> for the item in backpack slot `slot`.
+ *
+ * The selftest drove wear/wield and drop through `equip_from_slot` as a C
+ * symbol until 2026-08-02. There is no such symbol now — the behaviour is
+ * `[opheld2,_]` and `[opheld5,_]` in player/scripts/{equip,drop}.rs2 — so the
+ * only honest way to assert it is the packet the client actually sends, which
+ * is also strictly better evidence: it exercises the dispatch, the trigger
+ * lookup and the category rung as well as the rule.
+ *
+ * Every caller needs a script pack loaded. Without one nothing happens at all,
+ * which is the inverted fallback working and is what the last leg of "the
+ * inverted fallback" asserts on purpose.
+ */
+static void
+selftest_opheld(
+    struct Mock230Server* srv,
+    int op_num,
+    int slot)
+{
+    struct Mock230Player* player = srv->active_player;
+    const struct Mock230Ids* ids = mock230_ids();
+    int obj_id;
+    uint8_t payload[8];
+
+    if( slot < 0 || slot >= MOCK230_INV_SLOTS )
+        return;
+    obj_id = player->inv[slot].obj_id;
+    payload[0] = (uint8_t)(obj_id >> 8);
+    payload[1] = (uint8_t)(obj_id & 0xff);
+    payload[2] = (uint8_t)(slot >> 8);
+    payload[3] = (uint8_t)(slot & 0xff);
+    payload[4] = (uint8_t)(ids->com_inventory_items >> 24);
+    payload[5] = (uint8_t)(ids->com_inventory_items >> 16);
+    payload[6] = (uint8_t)(ids->com_inventory_items >> 8);
+    payload[7] = (uint8_t)ids->com_inventory_items;
+    mock230_world_handle(player, PKTOUT_NAME_OPHELD1 + (op_num - 1), payload, 8);
 }
 
 /*
@@ -6453,7 +6454,6 @@ mock230_world_selftest(void)
     struct Mock230Server srv;
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
-    int slot = 0;
 
     memset(&srv, 0, sizeof(srv));
     /*
@@ -9834,8 +9834,18 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(mock230_capture_find(&capture, 120 /* OBJ_ADD */, 0) >= 0,
                        "and the objs already on the floor, without anything changing");
 
-        /* Picking it up moves it into the backpack and tells the client it is
-         * gone. */
+        /*
+         * Picking it up moves it into the backpack and tells the client it is
+         * gone.
+         *
+         * OPOBJ**3**, and the op number is now the whole address: there is no
+         * engine take any more, so this leg runs `[opobj3,_]`
+         * (player/scripts/pickup.rs2) or it runs nothing. It used to drive
+         * OPOBJ1, which measured `interaction_engine_obj` — a function that
+         * ignored the op number and picked the pile up whatever the cache
+         * called the verb. Mutation: delete the `[opobj3,_]` line from
+         * pickup.rs2 and both checks below go red.
+         */
         selftest_park_player(&srv, 3222, 3218);
         free_before = inv_first_free(player);
         {
@@ -9844,7 +9854,7 @@ mock230_world_selftest(void)
                                    (uint8_t)(526 >> 8),  (uint8_t)526 };
 
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
             /* The take happens on the packet; the OBJ_DEL is a zone event and
              * goes out with the tick's flush. */
             mock230_world_tick(&srv);
@@ -9888,6 +9898,295 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->inv[free_before].obj_id == -1,
                            "and takes it out of the backpack");
         }
+    }
+
+    fprintf(stderr, "mock230 selftest: taking an obj is content's\n");
+    {
+        /*
+         * `[opobj3,_] @pickup_obj` — player/scripts/pickup.rs2 — over the four
+         * `obj_*` opcodes and the active obj the dispatch now binds.
+         *
+         * It is **op 3** on purpose and that is what makes this stanza mean
+         * something. The two legs above drive OPOBJ1, which no script binds, so
+         * they still measure `interaction_engine_obj`; this one drives the op
+         * the client actually synthesises Take on and therefore measures
+         * content. The engine fallback is still present and would answer if the
+         * script were unbound — which is the mutation: delete the `[opobj3,_]`
+         * line from pickup.rs2, rebuild the pack, and every check here that
+         * names content stays green *because the C did it*, while the two
+         * generation checks and the replay count keep working. So the leg that
+         * actually pins content is `~pickup_obj_check_for_space` refusing a full
+         * backpack below: the fallback's refusal takes a different path and
+         * leaves the obj on the floor at a different moment.
+         *
+         * Three things are under test and they fail independently:
+         *   1. the take itself, through the VM;
+         *   2. the ZoneMap — a taken pile has to leave the zone's *state*, not
+         *      just produce a removal event, or a client that loads the zone
+         *      afterwards is handed a pile nobody can pick up;
+         *   3. the handle's generation, which is what stops a suspended script
+         *      resuming onto somebody else's drop in a recycled slot.
+         */
+        static struct Mock230Capture capture;
+        const int obj_x = 3221;
+        const int obj_z = 3217;
+        int slot;
+        int free_slot;
+        int adds_empty = 0;
+        int adds_held = 0;
+        int adds_taken = 0;
+        intptr_t handle;
+
+        /* Said out loud, because everything below is a behaviour test and a
+         * behaviour test cannot see which implementation produced it. */
+        SELFTEST_CHECK(srv.scripts && SSVM_ProviderGetByTrigger(srv.scripts,
+                                                                SS_TRIGGER_OPOBJ3, -1,
+                                                                -1) != NULL,
+                       "content binds [opobj3,_] (player/scripts/pickup.rs2)");
+
+        selftest_park_player(&srv, obj_x, obj_z);
+        mock230_world_tick(&srv);
+
+        /* How many objs a client that holds no zones is caught up with, with
+         * nothing of ours on the floor. Everything below is measured against
+         * this number, so a Lumbridge spawn wandering into the window cannot be
+         * mistaken for our pile. */
+        adds_empty = selftest_replay_obj_adds(&srv, &capture);
+
+        slot = mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0,
+                                     mock230_ids()->lootdrop_duration);
+        SELFTEST_CHECK(slot >= 0, "the drop went onto the floor");
+        if( slot < 0 )
+            goto obj_content_done;
+        handle = mock230_world_obj_handle(&srv, slot);
+        SELFTEST_CHECK(handle != 0, "a live ground obj has a non-zero handle");
+        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) == slot,
+                       "and the handle resolves back to its slot");
+
+        adds_held = selftest_replay_obj_adds(&srv, &capture);
+        SELFTEST_CHECK(adds_held == adds_empty + 1,
+                       "a client loading the zone is sent the pile (%d -> %d)", adds_empty,
+                       adds_held);
+
+        free_slot = inv_first_free(player);
+        {
+            uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                   (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                   (uint8_t)(526 >> 8),   (uint8_t)526 };
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+        }
+        SELFTEST_CHECK(free_slot >= 0 && player->inv[free_slot].obj_id == 526,
+                       "[opobj3,_] takes the obj into the backpack");
+        SELFTEST_CHECK(!srv.ground[slot].active, "and it leaves the floor");
+        SELFTEST_CHECK(selftest_enclosed_has(&capture, 121 /* OBJ_DEL */),
+                       "and every client already in the zone is told");
+
+        /*
+         * The half a removal event cannot cover: what a client that loads the
+         * zone *afterwards* is sent. The enclosed OBJ_DEL above reaches only
+         * the clients standing in it when it happened.
+         *
+         * Measured limit, stated rather than claimed, because two mutations
+         * were run and neither turned this red — leaving the obj filed in its
+         * zone (`mock230_zone_obj_refile` skipped) and never filing it at all
+         * both stay green, because phase 8's `mock230_zone_sync_objs`
+         * reconciles membership every tick and `write_state` re-checks
+         * `obj->active` on the way out. So this leg and "it leaves the floor"
+         * above are two readings of one over-determined fact. What the pair
+         * does catch is the replay going away: stubbing `write_state`'s obj
+         * loop turns the `adds_held` check above red, so this is a live
+         * end-to-end assertion about the ZoneMap and not a tautology.
+         */
+        adds_taken = selftest_replay_obj_adds(&srv, &capture);
+        SELFTEST_CHECK(adds_taken == adds_empty,
+                       "and a client loading the zone afterwards is not (%d -> %d)",
+                       adds_held, adds_taken);
+
+        /*
+         * The generation. A ground slot is a free-list index, so a script that
+         * parks between `obj_find` and `obj_takeitem` would resume onto
+         * whatever landed in the slot meanwhile. Forcing the slot back into
+         * service is the shortest way to produce that state; a spawn coming
+         * back does it on its own.
+         */
+        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) < 0,
+                       "a taken obj's handle stops resolving");
+        srv.ground[slot].respawn_tick = srv.tick;
+        mock230_world_tick(&srv);
+        SELFTEST_CHECK(srv.ground[slot].active, "the slot goes back into service");
+        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) < 0,
+                       "and the old handle still refuses it — the generation moved");
+        mock230_world_ground_take(&srv, slot);
+
+        /*
+         * The stacking half, which is a container fix rather than an obj one.
+         * `mock230_container_add` merges onto the stack already held; before it
+         * `inv_add` wrote the first free slot and never merged, so taking coins
+         * opened a second coin slot. Content reaches it through `obj_takeitem`.
+         */
+        {
+            int coins_slot = -1;
+            int coins_before = 0;
+            int coins_slots_after = 0;
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id == 995 /* coins */ )
+                    coins_slot = i;
+            SELFTEST_CHECK(coins_slot >= 0, "the starting kit should include coins");
+            if( coins_slot >= 0 )
+            {
+                uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                       (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                       (uint8_t)(995 >> 8),   (uint8_t)995 };
+
+                coins_before = player->inv[coins_slot].count;
+                mock230_world_obj_add(&srv, 995, 7, obj_x, obj_z, 0,
+                                      mock230_ids()->lootdrop_duration);
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id == 995 )
+                        coins_slots_after++;
+                SELFTEST_CHECK(coins_slots_after == 1,
+                               "a taken stackable joins the stack it already has, not a "
+                               "second slot (%d slots)",
+                               coins_slots_after);
+                SELFTEST_CHECK(player->inv[coins_slot].count == coins_before + 7,
+                               "and carries the whole pile over (%d -> %d)", coins_before,
+                               player->inv[coins_slot].count);
+            }
+        }
+
+        /*
+         * The one leg the engine fallback CANNOT pass, and it took finding.
+         *
+         * Everything above is behaviour `interaction_engine_obj` also produces
+         * — it stacks, it refuses a full backpack, it says the same two
+         * sentences — so unbinding `[opobj3,_]` leaves all of it green. A test
+         * that cannot tell the two apart is measuring the fallback.
+         *
+         * This is where they disagree. `~pickup_obj_check_for_space` asks
+         * `inv_itemspace(inv, $obj, $amount, inv_size(inv))`, which for an
+         * unstackable obj wants **one free slot per unit**; the fallback asks
+         * for one free slot and writes `{obj, count}` into it. So a pile of
+         * three bones over two free slots is refused by content and taken by
+         * the C. Unbind `[opobj3,_]` and this check goes red on its own.
+         *
+         * Worth stating because it is a real inconsistency and not just a
+         * probe: content's guard is stricter than `obj_takeitem`'s add, which
+         * still puts unstackables in one slot pending `InvType.stackType` (see
+         * mock230_container.c). Conservative in the safe direction — it never
+         * loses items — and it closes when that field lands.
+         */
+        {
+            struct Mock230Item saved[MOCK230_INV_SLOTS];
+            int fill_slot;
+            int refused_slot;
+
+            /* Put the starting kit back afterwards. Filling the backpack in
+             * place and then emptying it left every later stanza looking at a
+             * player with no equipment — six failures three sections along,
+             * which is what a destructive fixture costs. */
+            memcpy(saved, player->inv, sizeof(saved));
+            while( (fill_slot = inv_first_free(player)) >= 0 )
+                inv_set(player, fill_slot, 526 /* bones */, 1);
+            /* Exactly two free: one short of the three an unstackable pile of
+             * three needs, and one more than the fallback needs. */
+            inv_set(player, MOCK230_INV_SLOTS - 1, -1, 0);
+            inv_set(player, MOCK230_INV_SLOTS - 2, -1, 0);
+
+            /* Logs, not bones: the successful take at the top of this stanza
+             * left bones in the backpack, and a subject the player already
+             * holds cannot answer "did anything arrive". */
+            refused_slot = mock230_world_obj_add(&srv, 1511 /* logs */, 3, obj_x, obj_z, 0,
+                                                 mock230_ids()->lootdrop_duration);
+            if( refused_slot >= 0 )
+            {
+                uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                       (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                       (uint8_t)(1511 >> 8),  (uint8_t)1511 };
+
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+                SELFTEST_CHECK(srv.ground[refused_slot].active,
+                               "three unstackables over two free slots is refused — which "
+                               "the engine fallback would have taken");
+                SELFTEST_CHECK(selftest_find(player, 1511) < 0,
+                               "and nothing reached the backpack");
+                mock230_world_ground_take(&srv, refused_slot);
+            }
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, saved[i].obj_id, saved[i].count);
+        }
+
+        /*
+         * The other half of deleting `MOCK230_FALLBACK_OPOBJ`, and the half a
+         * test of the take cannot reach: an obj op **nothing binds** must now
+         * do nothing.
+         *
+         * `interaction_engine_obj` took no op number. It picked the pile up on
+         * ops 1, 2, 4 and 5 as readily as on 3, so clicking a verb the cache
+         * really does state — measured across configs/all.obj: 30 `op4=Light`
+         * (logs), 18 `op5=Remove`, 9 `op1=Study`, `op4=Lay` on three hunter
+         * traps — vacuumed the item into the backpack instead. The reference
+         * answers those in *content* (`[opobj4,_category_22]` is firemaking's
+         * Light, skill_firemaking/scripts/firemaking.rs2:2) and its engine
+         * answers an unbound one with `Player.defaultOp`: the message, and the
+         * walk that already happened.
+         *
+         * Two objs in the whole 30k-record table lose a working Take by this
+         * deletion — `giant_bones` (op4=Take, because op3 is Bury) and
+         * `brain_deck_gun_powder_barrel` (op1=Take). Neither exists in this
+         * world, both are one `[opobj<n>,<obj>]` line away, and both were being
+         * answered by accident rather than by address.
+         *
+         * Mutation: restore any take in the `MOCK230_INTERACT_OBJ` dispatch arm
+         * and the first check goes red.
+         */
+        {
+            static struct Mock230Capture unbound_capture;
+            int stray = mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0,
+                                              mock230_ids()->lootdrop_duration);
+
+            if( stray >= 0 )
+            {
+                uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                       (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                       (uint8_t)(526 >> 8),   (uint8_t)526 };
+                int said_nothing_interesting = 0;
+
+                selftest_park_player(&srv, obj_x, obj_z);
+                mock230_capture_begin(&srv, &unbound_capture);
+                /* OPOBJ1: no `[opobj1,*]` anywhere in the tree, and `_` does
+                 * not cross op numbers. */
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(srv.ground[stray].active,
+                               "an obj op nothing binds leaves the pile on the floor — "
+                               "the engine take is gone, not renamed");
+
+                for( int i = mock230_capture_find(&unbound_capture, 90 /* MESSAGE_GAME */, 0);
+                     i >= 0; i = mock230_capture_find(&unbound_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &unbound_capture.packets[i];
+                    const char* text = (const char*)packet->data + 1;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    if( strstr(text, "Nothing interesting happens") )
+                        said_nothing_interesting = 1;
+                }
+                SELFTEST_CHECK(said_nothing_interesting,
+                               "and answers it the way Player.defaultOp does, in content's "
+                               "words ([proc,nothing_interesting_message])");
+                mock230_world_ground_take(&srv, stray);
+            }
+        }
+
+    obj_content_done:;
     }
 
     fprintf(stderr, "mock230 selftest: the death drop is content's\n");
@@ -10074,7 +10373,9 @@ mock230_world_selftest(void)
                                    (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
                                    (uint8_t)(526 >> 8),   (uint8_t)526 };
 
-            mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
+            /* OPOBJ3, because "and the obj is taken on arrival" below is a
+             * claim about the take, and the take is `[opobj3,_]` now. */
+            mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
         }
 
         SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_OBJ,
@@ -10090,8 +10391,17 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->x == obj_x && player->z == obj_z,
                        "standing on the tile it was on, got %d,%d", player->x, player->z);
 
-        /* Changing your mind cancels it: a ground click must not leave an op
-         * armed to fire whenever the player next wanders into range. */
+        /*
+         * Changing your mind cancels it: a ground click must not leave an op
+         * armed to fire whenever the player next wanders into range.
+         *
+         * Deliberately still OPOBJ**1**, which nothing binds. The latch is set
+         * by the packet handler and the trigger lookup happens on arrival, so
+         * an op no script answers still walks you there — `Player.defaultOp` is
+         * reached at the end of a walk, not instead of one. Keeping one leg on
+         * an unbound op is what pins that after the engine take was deleted;
+         * moving it to OPOBJ3 would make the whole stanza depend on a binding.
+         */
         selftest_park_player(&srv, 3222, 3218);
         mock230_world_obj_add(&srv, 526, 1, obj_x, obj_z, 0, mock230_ids()->lootdrop_duration);
         {
@@ -10623,156 +10933,59 @@ mock230_world_selftest(void)
         }
     }
 
-    fprintf(stderr, "mock230 selftest: equip / unequip\n");
-    {
-        /* A full helm claims head + hair + jaw, so it must blank the body kit
-         * in all three appearance slots. */
-        slot = selftest_find(player, 1155);
-        SELFTEST_CHECK(slot >= 0, "bronze full helm is in the starting kit");
-        equip_from_slot(&srv, slot);
-        SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == 1155, "helm reaches the head slot");
-        SELFTEST_CHECK(player->inv[slot].obj_id == -1, "helm left the backpack");
-        SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
-                       "equipping re-sends the appearance");
-        SELFTEST_CHECK((player->worn_dirty & (1u << MOCK230_WEAR_HEAD)) != 0,
-                       "the worn slot is marked for the next partial update");
-
-        /* Taking it off returns it to the first free backpack slot. */
-        unequip_slot(&srv, MOCK230_WEAR_HEAD);
-        SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1, "head slot is empty again");
-        SELFTEST_CHECK(selftest_find(player, 1155) >= 0, "helm is back in the backpack");
-    }
-
-    fprintf(stderr, "mock230 selftest: equipment level requirements\n");
-    {
-        /*
-         * The requirement table is merged from two sources that disagree with
-         * each other (the cache's own params and the Kronos import — see
-         * a Kronos dump), so what is worth pinning here is that
-         * the *merge* comes out right at both ends: a rune scimitar's Attack 40
-         * comes from the cache, and a mithril scimitar's Attack 20 comes from
-         * the overlay. mock230_pack checks the whole ladder; this checks that
-         * the engine acts on it.
-         */
-        int rune = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_scimitar");
-        int mithril = mock230_content_symbol(MOCK230_PACK_OBJ, "mithril_scimitar");
-        int bronze = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
-        int free_slot = -1;
-        int saved_attack = player->stat_level[MOCK230_STAT_ATTACK];
-
-        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-            if( player->inv[i].obj_id < 0 )
-            {
-                free_slot = i;
-                break;
-            }
-        SELFTEST_CHECK(rune > 0 && mithril > 0 && bronze > 0,
-                       "the scimitar ladder is in pack/obj.pack");
-        SELFTEST_CHECK(free_slot >= 0, "a free backpack slot to test with");
-
-        if( free_slot >= 0 && rune > 0 )
-        {
-            const struct Mock230ObjRequire* require = mock230_obj_require(rune);
-
-            SELFTEST_CHECK(require && require->count == 1 &&
-                               require->req[0].stat == MOCK230_STAT_ATTACK &&
-                               require->req[0].level == 40,
-                           "rune scimitar requires Attack 40 (from the cache's own params)");
-
-            player->stat_level[MOCK230_STAT_ATTACK] = 1;
-            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
-            inv_set(player, free_slot, rune, 1);
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
-                           "Attack 1 cannot wield a rune scimitar");
-            SELFTEST_CHECK(player->inv[free_slot].obj_id == rune,
-                           "and the refused item stays in the backpack");
-
-
-            /* Boosted must not count — the reference reads the base level, so a
-             * potion cannot lift you over a requirement. */
-            player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
-                           "a boost does not satisfy a requirement");
-            player->stat_boosted[MOCK230_STAT_ATTACK] = 1;
-
-            player->stat_level[MOCK230_STAT_ATTACK] = 40;
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == rune,
-                           "Attack 40 can");
-            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
-        }
-
-        /* Mithril 20 is the overlay's, not the cache's — the cache says nothing
-         * about mithril, which is the whole reason the overlay exists. */
-        if( free_slot >= 0 && mithril > 0 )
-        {
-            const struct Mock230ObjRequire* require = mock230_obj_require(mithril);
-
-            SELFTEST_CHECK(require && require->count == 1 &&
-                               require->req[0].stat == MOCK230_STAT_ATTACK &&
-                               require->req[0].level == 20,
-                           "mithril scimitar requires Attack 20 (from the .obj overlay)");
-            player->stat_level[MOCK230_STAT_ATTACK] = 19;
-            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-                if( player->inv[i].obj_id == mithril )
-                    inv_set(player, i, -1, 0);
-            inv_set(player, free_slot, mithril, 1);
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != mithril,
-                           "Attack 19 cannot wield a mithril scimitar");
-            player->stat_level[MOCK230_STAT_ATTACK] = 20;
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == mithril,
-                           "Attack 20 can");
-            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
-        }
-
-        /* And nothing below steel is gated at all, which is the case that would
-         * break every new character if the importer ever emitted a level 1 row. */
-        if( free_slot >= 0 && bronze > 0 )
-        {
-            SELFTEST_CHECK(mock230_obj_require(bronze) == NULL,
-                           "a bronze scimitar has no requirement");
-            player->stat_level[MOCK230_STAT_ATTACK] = 1;
-            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
-                if( player->inv[i].obj_id == bronze )
-                    inv_set(player, i, -1, 0);
-            inv_set(player, free_slot, bronze, 1);
-            equip_from_slot(&srv, free_slot);
-            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == bronze,
-                           "and Attack 1 wields it");
-            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
-        }
-
-        player->stat_level[MOCK230_STAT_ATTACK] = saved_attack;
-        player->stat_boosted[MOCK230_STAT_ATTACK] = saved_attack;
-        if( free_slot >= 0 )
-            inv_set(player, free_slot, -1, 0);
-    }
-
+    /*
+     * `equip / unequip`, `equipment level requirements` and `two-handed weapon
+     * evicts the shield` stood here. All three drove `equip_from_slot` /
+     * `mock230_equipment_may_wear` as C symbols and neither exists any more —
+     * wear and wield are `[opheld2,_] ~equip(last_slot)` in
+     * player/scripts/equip.rs2, and the level gate is
+     * `~levelrequire_check` in skill_combat/scripts/levelrequire.rs2.
+     *
+     * Every claim they pinned is kept and is in "equipping is content's rule"
+     * below, driven by a real OPHELD2 packet rather than by a function call:
+     * the helm reaching the head slot and the backpack cell it left, the
+     * appearance mask, the `worn_dirty` bit, the requirement merge at BOTH ends
+     * (a rune scimitar's Attack 40 from the cache, a mithril scimitar's Attack
+     * 20 from the .obj overlay, a bronze one gated by neither), base-not-
+     * boosted, and the two-hander/shield eviction — that one now in **both**
+     * directions, because only one of them ever worked and the port fixed the
+     * other.
+     *
+     * They are not left as-is with the calls swapped because they ran with no
+     * script pack loaded, and a packet-driven equip needs one; four stanzas
+     * each loading and freeing the pack to assert one thing apiece is worse
+     * than one stanza that already has it.
+     */
     fprintf(stderr, "mock230 selftest: the wield refusal is content's, words and all\n");
     {
         /*
-         * The sentence, read off the wire.
+         * The sentence, read off the wire — and now the whole decision as well.
          *
-         * The engine sends the stat *id* and the level; `[proc,equip_level_message]`
-         * turns the first into a word through `~stat_name`, which reads
-         * `general/configs/stat.enum`. That chain replaced a 23-string table in
-         * mock230_equipment.c, and the only way to know a chain is connected is to
-         * look at what comes out the far end — the section above cannot, because it
-         * runs with no script pack and every message in it is a no-op.
+         * This asserted the *words* while `mock230_equipment_may_wear` made the
+         * decision: the engine chose to refuse and handed
+         * `[proc,equip_level_message]` a stat id and a level, and this checked
+         * that `~stat_name` turned the id into a word. The engine no longer
+         * chooses. `~levelrequire_check` (skill_combat/scripts/levelrequire.rs2)
+         * decides and speaks, so this is now the leg that proves the gate moved
+         * with its wording intact rather than the leg that proves a hook was
+         * wired.
          *
-         * It also catches the thing that is easy to get wrong in RuneScript: `<...>`
-         * interpolates a *variable*, so a `<~proc(...)>` written inside a string
-         * reaches the player as those literal characters. That compiles, runs, and
-         * says `<~stat_name($stat)>` to the player.
+         * It is driven by a real OPHELD2 — the click a player makes — because
+         * that is the only path left and because it also pins that the refused
+         * item stays in the backpack. `~levelrequire_check` is reached through
+         * `~equip`, so a version that gated nothing would wield the scimitar and
+         * this would fail on the item as well as on the sentence.
+         *
+         * It still catches the thing that is easy to get wrong in RuneScript:
+         * `<...>` interpolates a *variable*, so a `<~proc(...)>` written inside
+         * a string reaches the player as those literal characters. That
+         * compiles, runs, and says `<~stat_name($stat)>` to the player.
          */
         static struct Mock230Capture capture;
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
         int rune = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_scimitar");
         int saved_attack = player->stat_level[MOCK230_STAT_ATTACK];
+        int rune_slot = -1;
 
         if( !loaded )
             loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
@@ -10786,10 +10999,22 @@ mock230_world_selftest(void)
             int literal = 0;
 
             player->stat_level[MOCK230_STAT_ATTACK] = 1;
+            player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
+            rune_slot = inv_first_free(player);
+            SELFTEST_CHECK(rune_slot >= 0, "a free backpack cell to put the scimitar in");
+            inv_set(player, rune_slot, rune, 1);
             mock230_capture_begin(&srv, &capture);
-            SELFTEST_CHECK(!mock230_equipment_may_wear(&srv, rune),
-                           "Attack 1 may not wear a rune scimitar");
+            selftest_opheld(&srv, 2, rune_slot);
             mock230_capture_end(&srv);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
+                           "Attack 1 may not wield a rune scimitar");
+            SELFTEST_CHECK(player->inv[rune_slot].obj_id == rune,
+                           "and the refused item stays in the backpack cell it was "
+                           "clicked in");
+            /* Boosted must not count. `~levelrequire_check` reads `stat_base`,
+             * and the boost above is set to 99 for the whole leg so that a
+             * version reading `stat` would wield it and fail the two checks
+             * above rather than passing quietly. */
 
             for( int i = mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
                  i = mock230_capture_find(&capture, 90, i + 1) )
@@ -10814,23 +11039,595 @@ mock230_world_selftest(void)
         }
         player->stat_level[MOCK230_STAT_ATTACK] = saved_attack;
         player->stat_boosted[MOCK230_STAT_ATTACK] = saved_attack;
+        if( rune_slot >= 0 )
+            inv_set(player, rune_slot, -1, 0);
         if( loaded )
             mock230_scripts_free(&srv);
     }
 
-    fprintf(stderr, "mock230 selftest: two-handed weapon evicts the shield\n");
-    {
-        int shield_slot = selftest_find(player, 1189); /* bronze kiteshield */
-        int bow_slot;
-        equip_from_slot(&srv, shield_slot);
-        SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == 1189, "kiteshield equipped");
 
-        bow_slot = selftest_find(player, 841); /* shortbow: wearpos 3, blocks 5 */
-        equip_from_slot(&srv, bow_slot);
-        SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == 841, "shortbow wielded");
-        SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
-                       "the two-handed bow evicted the shield");
-        SELFTEST_CHECK(selftest_find(player, 1189) >= 0, "the shield went back to the backpack");
+    fprintf(stderr, "mock230 selftest: equipping is content's rule\n");
+    {
+        /*
+         * `[proc,equip]` / `[proc,try_equip]` / `[proc,wearpos_conflicts]` —
+         * player/scripts/equip.rs2 — and `[proc,dropslot]` —
+         * player/scripts/drop.rs2 — both ported from the reference files of the
+         * same name, over the five opcodes that landed with them:
+         * `oc_wearpos`, `oc_wearpos2`, `oc_wearpos3` (mock230_ops_obj.c),
+         * `inv_movefromslot` and `inv_dropslot` (mock230_ops_inv.c), plus
+         * `inv_moveitem`'s new generic container-to-container arm.
+         *
+         * **Nothing here is ambiguous about which implementation answered**,
+         * and that is by construction rather than by a discriminating leg.
+         * `[opheld2,_]` and `[opheld5,_]` are deliberately NOT bound — the
+         * level requirement has no script-readable form yet, and binding
+         * without it equips a rune platebody at level 1 in silence (the row's
+         * text, and each content file's header, say so at length). So the only
+         * way into these procs is `::equip` / `::dropslot`, which reach
+         * `[debugproc,...]` and cannot reach `handle_opheld`'s verb ladder.
+         * The mutation is deleting either debugproc from
+         * general/scripts/misc/cheat_equip.rs2 and rebuilding the pack.
+         *
+         * The stanza above this one drives the same two items through
+         * `equip_from_slot` and is left alone: it is the engine's answer, and
+         * the two differ on the case in the middle below.
+         */
+        static struct Mock230Capture capture;
+        int saved_stat_level[MOCK230_STAT_COUNT];
+        /* Names, not ids. `mock230_content_symbol` resolves them through the
+         * same `pack/obj.pack` the compiler used, which is the only way a test
+         * and the content it drives can be talking about the same item — and
+         * the reason PORTING_GUIDE 2.4 item 2 bars an id literal here. */
+        const int helm = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_full_helm");
+        const int shield = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_kiteshield");
+        const int bow = mock230_content_symbol(MOCK230_PACK_OBJ, "shortbow");
+        const int scimitar = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
+        const int whip = mock230_content_symbol(MOCK230_PACK_OBJ, "abyssal_whip");
+        int helm_slot;
+        int shield_slot;
+        int bow_slot;
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto equip_content_done;
+        }
+
+        /* Start from a bare body: the stanzas above leave a bow on. */
+        for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            if( player->worn[i].obj_id >= 0 )
+                unequip_slot(&srv, i);
+
+        /*
+         * 0. THE LEVEL GATE. Every gated obj in the game, at both sides of its
+         * own boundary, against the table the C read.
+         *
+         * This is the leg that had to exist before `[opheld2,_]` could be
+         * bound at all. Dispatch is content-first, so binding it stops
+         * `mock230_equipment_may_wear` running; a content gate that answered
+         * differently would equip a rune platebody at level 1 in silence.
+         *
+         * It is end-to-end rather than structural — `::levelrequire` runs
+         * `~levelrequire_check` over the real db tables and the real param
+         * table — and it is exhaustive rather than sampled, because the failure
+         * it is looking for is *a handful of objs out of 1,496*, which is
+         * exactly what a sample misses. For each one: set every skill to one
+         * below its highest requirement (must refuse), then to that
+         * requirement (must allow). Two runs per obj, at the boundary, which
+         * is where an off-by-one lives.
+         *
+         * WHAT THIS FOUND, and it is the finding of the stage: the requirement
+         * is a MERGE of two sources and every prose account of it names one.
+         * The `.obj` overlay (`param=levelrequire`) is 857 objs and 1,254
+         * pairs; the cache's own `skillrequire`/`levelrequire` params are 639
+         * FURTHER objs that no `.obj` file mentions — a rune scimitar's Attack
+         * 40 among them. `~levelrequire_check` reads both, and this leg is what
+         * says so: a content gate that read only the dbtable passes a
+         * structural check against the `.obj` files and silently stops gating
+         * 639 items.
+         *
+         * Mutations run, each turning it red: dropping the `oc_param` half of
+         * `~levelrequire_check` (639 objs); dropping the dbtable half (857);
+         * `stat` for `stat_base`; deleting one `data=obj,` line from
+         * levelrequire.dbrow.
+         */
+        {
+            static struct Mock230Capture capture;
+            int saved_level[MOCK230_STAT_COUNT];
+            int saved_boost[MOCK230_STAT_COUNT];
+            int gated = 0;
+            int wrong_refuse = 0;
+            int wrong_allow = 0;
+            int first_wrong = -1;
+
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                saved_level[i] = player->stat_level[i];
+                saved_boost[i] = player->stat_boosted[i];
+            }
+
+            for( int obj_id = 0; obj_id < mock230_objinfo_count(); obj_id++ )
+            {
+                const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
+                int peak = 0;
+
+                if( !require || require->count <= 0 )
+                    continue;
+                for( int i = 0; i < require->count; i++ )
+                    if( require->req[i].level > peak )
+                        peak = require->req[i].level;
+                if( peak <= 1 || peak > 99 )
+                    continue; /* nothing below 1 to test the refusal at */
+                gated++;
+
+                /* Two probes, at `peak - 1` (must refuse) and `peak` (must
+                 * allow). Every skill moves together, so the only thing that
+                 * can change the answer is the requirement itself. The boosted
+                 * level is pinned LOW throughout: `~levelrequire_check` reads
+                 * `stat_base`, and a version that read `stat` would sail
+                 * through both probes if the two moved together. */
+                for( int pass = 0; pass < 2; pass++ )
+                {
+                    char line[48];
+                    int said_yes = 0;
+                    int said_no = 0;
+
+                    for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+                    {
+                        player->stat_level[i] = pass ? peak : peak - 1;
+                        player->stat_boosted[i] = 1;
+                    }
+                    snprintf(line, sizeof(line), "levelrequire %d", obj_id);
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_scripts_run_debugproc(&srv, line);
+                    mock230_capture_end(&srv);
+                    for( int i = mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                         i = mock230_capture_find(&capture, 90, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet = &capture.packets[i];
+
+                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                            continue;
+                        if( strcmp((const char*)packet->data + 1, "levelrequire yes") == 0 )
+                            said_yes = 1;
+                        if( strcmp((const char*)packet->data + 1, "levelrequire no") == 0 )
+                            said_no = 1;
+                    }
+                    if( pass == 0 && !said_no )
+                        wrong_refuse++;
+                    if( pass == 1 && !said_yes )
+                        wrong_allow++;
+                    if( ((pass == 0 && !said_no) || (pass == 1 && !said_yes)) &&
+                        first_wrong < 0 )
+                    {
+                        first_wrong = obj_id;
+                        fprintf(stderr,
+                                "  first disagreement: obj %d (%s), peak requirement %d, "
+                                "pass %d -> yes=%d no=%d\n",
+                                obj_id,
+                                mock230_content_symbol_name(MOCK230_PACK_OBJ, obj_id)
+                                    ? mock230_content_symbol_name(MOCK230_PACK_OBJ, obj_id)
+                                    : "?",
+                                peak, pass, said_yes, said_no);
+                    }
+                }
+            }
+
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                player->stat_level[i] = saved_level[i];
+                player->stat_boosted[i] = saved_boost[i];
+            }
+
+            /* The population, pinned. A gate that answered nothing would score
+             * zero disagreements over zero objs, so this is what stops the two
+             * checks below being vacuous — and it is the number that changes if
+             * a cache bump or an import moves the table. */
+            SELFTEST_CHECK(gated > 1400,
+                           "the effective requirement table gates a substantial population "
+                           "(%d objs) — the .obj overlay is only 857 of them, the rest are "
+                           "the cache's own skillrequire/levelrequire params",
+                           gated);
+            SELFTEST_CHECK(wrong_refuse == 0,
+                           "content's ~levelrequire_check refuses every gated obj one level "
+                           "below its requirement (%d did not)",
+                           wrong_refuse);
+            SELFTEST_CHECK(wrong_allow == 0,
+                           "and allows every one of them at it (%d did not)", wrong_allow);
+        }
+
+        /*
+         * Everything below equips real items through content's `~equip`, which
+         * now consults the gate above — so the fixture player has to be able to
+         * wear its own fixtures. An abyssal whip is Attack 70. Before the gate
+         * moved, `~equip` had none and this was not needed; the engine stanzas
+         * further up drive `equip_from_slot`, which always had one, which is
+         * why they were written around a bronze scimitar.
+         */
+        for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+        {
+            saved_stat_level[i] = player->stat_level[i];
+            player->stat_level[i] = 99;
+        }
+
+        /*
+         * 1. The three config reads, exhaustively against the table they read.
+         *
+         * Every obj in the cache whose record states any wearpos, compared
+         * value for value. It is exhaustive rather than sampled because the
+         * failure these three had before they existed was *silent and
+         * plausible*: all three have `known = 1` in ss_meta.gen.h, so a script
+         * calling one compiled and ran into `unimplemented_stub`, which pushes
+         * **0** — and 0 is `^wearpos_hat`, a legal slot.
+         *
+         * Sampled at a stride so the loop stays a test rather than a benchmark;
+         * the stride is prime so it does not align with any run of ids.
+         */
+        {
+            int probed = 0;
+            int wrong = 0;
+
+            for( int obj_id = 0; obj_id < mock230_objinfo_count() && probed < 64; obj_id += 7 )
+            {
+                const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+                char line[64];
+                char expect[64];
+                int said = 0;
+
+                if( info->wearpos < 0 && info->wearpos_2 < 0 && info->wearpos_3 < 0 )
+                    continue;
+                probed++;
+                snprintf(line, sizeof(line), "wearpos %d", obj_id);
+                snprintf(expect, sizeof(expect), "wearpos %d %d %d", info->wearpos,
+                         info->wearpos_2, info->wearpos_3);
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_debugproc(&srv, line);
+                mock230_capture_end(&srv);
+                for( int i = mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                     i = mock230_capture_find(&capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &capture.packets[i];
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    if( strcmp((const char*)packet->data + 1, expect) == 0 )
+                        said = 1;
+                }
+                if( !said )
+                {
+                    wrong++;
+                    if( wrong == 1 )
+                        fprintf(stderr, "  first mismatch: obj %d expected \"%s\"\n", obj_id,
+                                expect);
+                }
+            }
+            SELFTEST_CHECK(probed >= 32, "found wearable objs to probe (%d)", probed);
+            SELFTEST_CHECK(wrong == 0,
+                           "oc_wearpos/2/3 answer the obj table for every wearable probed "
+                           "(%d wrong of %d)",
+                           wrong, probed);
+        }
+
+        /*
+         * 2. `::equip` runs `~equip` end to end: `oc_wearpos` decides the slot,
+         * `~unequip_conflicts_space` checks the backpack, `inv_movetoslot`
+         * performs the swap.
+         */
+        helm_slot = selftest_find(player, helm);
+        SELFTEST_CHECK(helm > 0 && shield > 0 && bow > 0 && scimitar > 0 && whip > 0,
+                       "every obj this stanza names resolves through pack/obj.pack");
+        SELFTEST_CHECK(helm_slot >= 0, "bronze full helm is in the starting kit");
+        if( helm_slot >= 0 )
+        {
+            player->masks = 0;
+            player->worn_dirty = 0;
+            /* The real click. A full helm claims head + hair + jaw, so it also
+             * has to blank the body kit in all three appearance slots — the
+             * claim the deleted `equip / unequip` stanza was written for. */
+            selftest_opheld(&srv, 2, helm_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == helm,
+                           "an OPHELD2 packet reaches [opheld2,_] and content's ~equip "
+                           "puts the helm on the head");
+            SELFTEST_CHECK(player->inv[helm_slot].obj_id == -1,
+                           "and it left the backpack cell it was clicked in");
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0,
+                           "and the appearance mask went up WITHOUT a buildappearance call "
+                           "— the worn container is adopted with appearance=1, so "
+                           "mock230_container_mark raises it for every script write");
+            SELFTEST_CHECK((player->worn_dirty & (1u << MOCK230_WEAR_HEAD)) != 0,
+                           "and the worn slot is marked for the next partial update");
+            unequip_slot(&srv, MOCK230_WEAR_HEAD);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1 &&
+                               selftest_find(player, helm) >= 0,
+                           "the worn tab's unequip still takes it off — that is "
+                           "`unequip_slot`, which sits BEFORE the trigger in "
+                           "handle_opheld and did NOT move with this row");
+
+            /* And `::equip`, which is how a headless session reaches the same
+             * proc without a menu. It is a separate path, not a duplicate: the
+             * packet above proves the binding, this proves the debugproc the
+             * client runs are still connected to the same rule. */
+            {
+                char line[32];
+
+                helm_slot = selftest_find(player, helm);
+                snprintf(line, sizeof(line), "equip %d", helm_slot);
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, line),
+                               "::equip reaches [debugproc,equip]");
+                SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == helm,
+                               "and puts the helm back on");
+                unequip_slot(&srv, MOCK230_WEAR_HEAD);
+            }
+        }
+
+        /*
+         * The requirement MERGE, at both ends, through the click.
+         *
+         * The deleted `equipment level requirements` stanza existed for this and
+         * it is the claim most worth keeping: the table this gate reads comes
+         * from two sources that disagree with each other, and both ends have to
+         * work. A rune scimitar's Attack 40 is the CACHE's own
+         * skillrequire/levelrequire params, which no `.obj` file mentions; a
+         * mithril scimitar's Attack 20 is the `.obj` overlay, which the cache
+         * says nothing about. `~levelrequire_check` reads the overlay out of
+         * levelrequire.dbtable and the cache half through `oc_param`, and a
+         * version that read either alone passes one of these two and fails the
+         * other.
+         *
+         * The bronze leg is the third case and it is not decoration: nothing
+         * below steel is gated at all, and a gate that refused everything would
+         * pass both legs above.
+         */
+        {
+            int rune = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_scimitar");
+            int mithril = mock230_content_symbol(MOCK230_PACK_OBJ, "mithril_scimitar");
+            int bronze = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
+            static const struct
+            {
+                const char* what;
+                int level;
+                int from_cache;
+            } k_ladder[3] = { { "rune scimitar (Attack 40, from the cache's own params)", 40, 1 },
+                              { "mithril scimitar (Attack 20, from the .obj overlay)", 20, 0 },
+                              { "bronze scimitar (gated by neither)", 0, 0 } };
+            int ids[3];
+            int had[3];
+
+            ids[0] = rune;
+            ids[1] = mithril;
+            ids[2] = bronze;
+            /* This leg empties and refills backpack cells, so remember what the
+             * stanza was handed: leg 4 below wants the bronze scimitar back. */
+            for( int i = 0; i < 3; i++ )
+                had[i] = selftest_find(player, ids[i]) >= 0;
+            SELFTEST_CHECK(rune > 0 && mithril > 0 && bronze > 0,
+                           "the scimitar ladder is in pack/obj.pack");
+            for( int i = 0; i < 3; i++ )
+            {
+                const struct Mock230ObjRequire* require = mock230_obj_require(ids[i]);
+                int free_slot;
+
+                if( ids[i] <= 0 )
+                    continue;
+                SELFTEST_CHECK(k_ladder[i].level
+                                   ? (require && require->count == 1 &&
+                                      require->req[0].stat == MOCK230_STAT_ATTACK &&
+                                      require->req[0].level == k_ladder[i].level)
+                                   : (require == NULL),
+                               "the C's own table still says %s", k_ladder[i].what);
+                for( int j = 0; j < MOCK230_INV_SLOTS; j++ )
+                    if( player->inv[j].obj_id == ids[i] )
+                        inv_set(player, j, -1, 0);
+                free_slot = inv_first_free(player);
+                if( free_slot < 0 )
+                    continue;
+                inv_set(player, free_slot, ids[i], 1);
+
+                /* Below the bar. Boosted is pinned at 99 throughout, so a gate
+                 * reading `stat` rather than `stat_base` would wield all three
+                 * and fail here — the base-not-boosted claim, kept. */
+                for( int st = 0; st < MOCK230_STAT_COUNT; st++ )
+                {
+                    player->stat_level[st] = k_ladder[i].level ? k_ladder[i].level - 1 : 1;
+                    player->stat_boosted[st] = 99;
+                }
+                selftest_opheld(&srv, 2, free_slot);
+                SELFTEST_CHECK((player->worn[MOCK230_WEAR_WEAPON].obj_id == ids[i]) ==
+                                   (k_ladder[i].level == 0),
+                               "one level short: %s is %s", k_ladder[i].what,
+                               k_ladder[i].level ? "refused" : "wielded anyway");
+
+                /* At the bar. */
+                for( int st = 0; st < MOCK230_STAT_COUNT; st++ )
+                    player->stat_level[st] = 99;
+                free_slot = selftest_find(player, ids[i]);
+                if( free_slot >= 0 )
+                    selftest_opheld(&srv, 2, free_slot);
+                SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == ids[i],
+                               "at the requirement: %s is wielded", k_ladder[i].what);
+                unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+                for( int j = 0; j < MOCK230_INV_SLOTS; j++ )
+                    if( player->inv[j].obj_id == ids[i] )
+                        inv_set(player, j, -1, 0);
+            }
+            for( int st = 0; st < MOCK230_STAT_COUNT; st++ )
+            {
+                player->stat_level[st] = 99;
+                player->stat_boosted[st] = 99;
+            }
+            for( int i = 0; i < 3; i++ )
+            {
+                int back = had[i] && selftest_find(player, ids[i]) < 0 ? inv_first_free(player)
+                                                                       : -1;
+
+                if( back >= 0 )
+                    inv_set(player, back, ids[i], 1);
+            }
+        }
+
+        /*
+         * 3. The case the engine gets wrong, and the reason this port is not a
+         * no-op dressed as a move.
+         *
+         * `~wearpos_conflicts` compares all 3x3 wearpos pairs in **both**
+         * directions. `equip_from_slot` only collects the *incoming* item's
+         * claims, so equipping a shield while a two-hander is worn looks at
+         * `worn[SHIELD]`, finds it empty, and leaves both on — a player wearing
+         * a shortbow and a kiteshield at once. The stanza above this one only
+         * ever runs shield-then-bow, which is the direction that already works.
+         *
+         * The engine's answer is **not asserted here**. Asserting that a defect
+         * is still present is the check §3.18 costed and rejected: fixing
+         * `equip_from_slot` without moving the row is a legitimate change and
+         * would fire this falsely. What is asserted is content's answer, and
+         * the engine's is stated so that whoever deletes the C knows which
+         * behaviour changes when they do.
+         */
+        bow_slot = selftest_find(player, bow); /* two-handed: wearpos 3, claims 5 */
+        shield_slot = selftest_find(player, shield);
+        SELFTEST_CHECK(bow_slot >= 0 && shield_slot >= 0,
+                       "shortbow and kiteshield are both in the backpack");
+        if( bow_slot >= 0 && shield_slot >= 0 )
+        {
+            /* Direction 1: two-hander over shield. This is the direction the
+             * deleted `two-handed weapon evicts the shield` stanza covered and
+             * the only one `equip_from_slot` ever got right. */
+            selftest_opheld(&srv, 2, shield_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == shield,
+                           "the kiteshield is worn");
+            bow_slot = selftest_find(player, bow);
+            selftest_opheld(&srv, 2, bow_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == bow,
+                           "the two-handed bow is wielded over it");
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "and the shield comes off");
+            SELFTEST_CHECK(selftest_find(player, shield) >= 0,
+                           "the shield went back to the backpack");
+
+            /* Direction 2: shield over two-hander. The bow is still on. */
+            shield_slot = selftest_find(player, shield);
+            selftest_opheld(&srv, 2, shield_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == shield,
+                           "the kiteshield goes on over the two-hander");
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == -1,
+                           "and the two-hander comes OFF — the direction equip_from_slot "
+                           "missed, because it only read the incoming item's claims. "
+                           "Wearing a shortbow and a kiteshield at once was a live defect "
+                           "and this port is what fixed it");
+            SELFTEST_CHECK(selftest_find(player, bow) >= 0,
+                           "the bow went back to the backpack, through inv_moveitem's "
+                           "worn->inv arm (it used to print `is not modelled` and do nothing)");
+            unequip_slot(&srv, MOCK230_WEAR_SHIELD);
+        }
+
+        /*
+         * 4. `inv_movefromslot`, which is the one opcode here with no visible
+         * effect until two items want the same cell.
+         *
+         * `inv_movetoslot` *swaps*, so equipping a second weapon puts the first
+         * one into the exact backpack cell that was clicked. The reference then
+         * says `inv_movefromslot(inv, inv, $inv_slot)` — from a container to
+         * itself — which moves it on to the first slot that will take it. That
+         * looks like a no-op and is not: it is what makes a swapped-out
+         * stackable merge with the stack of it already held instead of sitting
+         * beside it, and the reference's own comment says so.
+         *
+         * Without the opcode the displaced weapon stays in the clicked cell,
+         * which is what this leg reads.
+         */
+        {
+            int scim_slot = selftest_find(player, scimitar);
+            int whip_slot = selftest_find(player, whip);
+
+            SELFTEST_CHECK(scim_slot >= 0 && whip_slot >= 0,
+                           "two one-handed weapons in the backpack (%d, %d)", scim_slot,
+                           whip_slot);
+            if( scim_slot >= 0 && whip_slot >= 0 )
+            {
+                selftest_opheld(&srv, 2, scim_slot);
+                SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == scimitar,
+                               "the scimitar is wielded");
+                /* The leg only means anything if a *lower* free cell exists for
+                 * the displaced weapon to move to — otherwise "first free" and
+                 * "the clicked cell" are the same answer and nothing is proven. */
+                SELFTEST_CHECK(inv_first_free(player) >= 0 && inv_first_free(player) < whip_slot,
+                               "a lower free cell exists, so `first free` and `the clicked "
+                               "cell` are distinguishable (%d < %d)",
+                               inv_first_free(player), whip_slot);
+                whip_slot = selftest_find(player, whip);
+                selftest_opheld(&srv, 2, whip_slot);
+                SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == whip,
+                               "the whip replaces it");
+                SELFTEST_CHECK(player->inv[whip_slot].obj_id == -1,
+                               "and inv_movefromslot cleared the clicked cell the swap "
+                               "filled — slot %d holds %d",
+                               whip_slot, player->inv[whip_slot].obj_id);
+                SELFTEST_CHECK(selftest_find(player, scimitar) >= 0,
+                               "the scimitar is still in the backpack, elsewhere");
+                unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+            }
+        }
+
+        /*
+         * 5. `::dropslot` runs `~dropslot` over `inv_dropslot`.
+         *
+         * The duration is content's expression — 1.5x `^lootdrop_duration` —
+         * and it is checked because it is the one number the opcode takes as an
+         * argument rather than deciding: a drop that expired at the loot rate
+         * would look right for 200 ticks.
+         */
+        {
+            int drop_slot = selftest_find(player, helm);
+            int ground = -1;
+
+            SELFTEST_CHECK(drop_slot >= 0, "the helm is back in the backpack to drop");
+            if( drop_slot >= 0 )
+            {
+                /* A real OPHELD5, which is the click. `[opheld5,_]` binds on
+                 * the op INDEX, not on the verb string the engine used to match
+                 * — and a bronze full helm states no fifth verb at all
+                 * (`if_ops[4] == NULL`, asserted below), so binding on the word
+                 * "Drop" would never have fired here. The client synthesises
+                 * that row. */
+                SELFTEST_CHECK(mock230_objinfo(helm)->if_ops[4] == NULL,
+                               "the helm's record states no op-5 verb — the Drop row is "
+                               "the client's, so the binding has to be on the index");
+                selftest_opheld(&srv, 5, drop_slot);
+                SELFTEST_CHECK(player->inv[drop_slot].obj_id == -1,
+                               "content's ~dropslot empties the slot");
+                ground = mock230_world_ground_find(&srv, player->x, player->z, player->level, helm);
+                SELFTEST_CHECK(ground >= 0, "and the helm is on the tile under the player");
+                if( ground >= 0 )
+                {
+                    SELFTEST_CHECK(srv.ground[ground].despawn_tick - srv.tick >
+                                       mock230_ids()->lootdrop_duration,
+                                   "and lingers longer than a loot drop (%d ticks vs %d)",
+                                   srv.ground[ground].despawn_tick - srv.tick,
+                                   mock230_ids()->lootdrop_duration);
+                    mock230_world_ground_take(&srv, ground);
+                }
+            }
+        }
+
+        for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            player->stat_level[i] = saved_stat_level[i];
+
+        /* Leave the containers as this stanza found them: everything off the
+         * body, the helm back in the pack. */
+        for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            if( player->worn[i].obj_id >= 0 )
+                unequip_slot(&srv, i);
+        if( selftest_find(player, helm) < 0 )
+        {
+            int free_slot = inv_first_free(player);
+            if( free_slot >= 0 )
+                inv_set(player, free_slot, helm, 1);
+        }
+        mock230_scripts_free(&srv);
+    equip_content_done:;
     }
 
     fprintf(stderr, "mock230 selftest: inventory drag\n");
@@ -13848,12 +14645,14 @@ mock230_world_selftest(void)
 
         /* Not a skip: claim 3 is *about* the no-pack case, so it is the half
          * that runs either way. */
-        /* Was 7. `ai_queue3` moved to `[ai_queue3,_]` in
-         * skill_combat/npc_combat.rs2 and the row went with it — the number is
-         * the evidence, which is why the assertion is on the number and not on
-         * the names. */
-        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 6,
-                       "the engine fallback list should still be 6 long, not %d — it may "
+        /* Was 7, then 6, then 5. `ai_queue3` moved to `[ai_queue3,_]` in
+         * skill_combat/npc_combat.rs2, `opobj` to `[opobj3,_]` in
+         * player/scripts/pickup.rs2, and `opheld` to `[opheld2,_]` /
+         * `[opheld5,_]` in player/scripts/{equip,drop}.rs2; each row went with
+         * its behaviour. The number is the evidence, which is why the assertion
+         * is on the number and not on the names. */
+        SELFTEST_CHECK(MOCK230_FALLBACK_COUNT == 4,
+                       "the engine fallback list should still be 4 long, not %d — it may "
                        "shrink as content grows, never grow",
                        (int)MOCK230_FALLBACK_COUNT);
         SELFTEST_CHECK(mock230_scripts_report_fallbacks(&srv) == MOCK230_FALLBACK_COUNT,
@@ -13894,15 +14693,21 @@ mock230_world_selftest(void)
             memcpy(saved_inv, player->inv, sizeof(saved_inv));
             memcpy(saved_worn, player->worn, sizeof(saved_worn));
 
-            /* The gate itself, at all three inputs. */
+            /* The gate itself, at all three inputs.
+             *
+             * On MOCK230_FALLBACK_OPNPC since 2026-08-02. It was on OPHELD, and
+             * that row is gone — the gate is a property of
+             * `mock230_scripts_fallback`, not of any one row, so it moved to a
+             * surviving row rather than going with the behaviour. OPNPC rather
+             * than OPLOC deliberately: `oploc` is the next one expected to go. */
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_NONE) == 1,
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 1,
                 "an unbound trigger should let its engine fallback run");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_RAN) == 0,
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_RAN) == 0,
                 "a trigger content handled should not also run the fallback");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_FAILED) == 0,
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_FAILED) == 0,
                 "a script that FAILED should not hand its click to C");
 
             /* And the tri-state that feeds it. `[opnpc5]` is bound on nothing in
@@ -13969,10 +14774,22 @@ mock230_world_selftest(void)
              * Now the part that only means anything end to end: the same packet,
              * once with a pack and once without.
              *
-             * Wielding a sword is MOCK230_FALLBACK_OPHELD — the C that stands in
-             * for the reference's `[opheld2,_] ~equip(last_slot)`. With a pack it
-             * runs, because no script claims bronze_sword. Without one it must
-             * not, and that is the whole inversion in one assertion.
+             * THIS ASSERTION MOVED WITH THE BEHAVIOUR RATHER THAN GOING WITH IT,
+             * and what it measures changed. It used to say: wielding a sword is
+             * `MOCK230_FALLBACK_OPHELD`, the C that stands in for the
+             * reference's `[opheld2,_] ~equip(last_slot)`; with a pack the C
+             * runs because no script claims bronze_sword, without one it must
+             * not. There is no such C now — `[opheld2,_]` is written — so with a
+             * pack it is **content** that wields, and without one nothing at all
+             * does.
+             *
+             * The pair is stronger for it, not weaker. Before, the with-pack leg
+             * could be satisfied by either implementation and stayed green when
+             * `[opheld2,_]` was unbound (measured: 0 checks red across the whole
+             * suite for that mutation, with the C still present). Now unbinding
+             * it turns this leg red, because nothing else answers. The no-pack
+             * leg is the inversion in its purest form: not "the fallback
+             * declined to run" but "there was never anything else to run".
              */
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 inv_set(player, i, -1, 0);
@@ -13989,12 +14806,14 @@ mock230_world_selftest(void)
             held[7] = (uint8_t)ids->com_inventory_items;
             mock230_world_handle(player, PKTOUT_NAME_OPHELD2, held, 8);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == sword,
-                           "with a pack loaded, an unbound opheld2 should still wield");
+                           "with a pack loaded, an OPHELD2 wields — through [opheld2,_] in "
+                           "player/scripts/equip.rs2, which is the only thing that answers "
+                           "it now");
 
             mock230_scripts_free(&srv);
             SELFTEST_CHECK(!srv.scripts_ok, "and now there is no pack");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPHELD, MOCK230_TRIGGER_NONE) == 0,
+                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 0,
                 "with no pack, no fallback may run — nothing is a gap when "
                 "everything is");
 

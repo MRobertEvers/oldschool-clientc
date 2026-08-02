@@ -587,6 +587,11 @@ mock230_obj_param(int obj_id, int param_id);
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 
+/** How many obj records the cache decoded — the exclusive upper bound on a
+ *  scan of the table. 0 before `mock230_objinfo_load`, and 0 without a cache. */
+int
+mock230_objinfo_count(void);
+
 /**
  * How many obj records carry this category id.
  *
@@ -1052,6 +1057,18 @@ struct Mock230GroundObj
     int respawn_tick;
     /** 1 when this came from a map square rather than from a drop. */
     int is_spawn;
+    /*
+     * Bumped every time this slot becomes a *different* obj — a fresh drop
+     * claiming it, or a taken spawn coming back.
+     *
+     * One reader: `mock230_world_obj_handle`, which is how a running script
+     * holds the obj it is acting on. The reference holds a direct `Obj`
+     * reference, so an `obj_takeitem` resumed after a `p_delay` cannot take
+     * somebody else's drop; here the handle is an index into a 256-slot array
+     * that is reused, and an index alone would resolve to whatever landed in
+     * the slot meanwhile. See mock230_ops_obj.c.
+     */
+    int generation;
     /* `sent` was here, for the same reason `Mock230Npc.tracked` was: whether a
      * client has been told is a fact about the client. The per-client answer is
      * `Mock230Player.loaded_zones` now — see mock230_zone.h on why "does this
@@ -1167,8 +1184,11 @@ struct Mock230Step
  *                           player never closes the distance. This is how
  *                           ranged and magic attacks, and "Talk-to" from two
  *                           tiles away, are expressed.
- *   - adjacent           -> run [opnpc<n>] / [oploc<n>] / [opobj<n>], then the
- *                           engine's own verb handling if nothing was bound.
+ *   - adjacent           -> run [opnpc<n>] / [oploc<n>] / [opobj<n>], then —
+ *                           only for the kinds that still have one, a list that
+ *                           shrinks (§3.18) — the engine's own verb handling if
+ *                           nothing was bound. [opobj<n>] has none: a miss is
+ *                           `Player.defaultOp`, the message and nothing else.
  *   - otherwise          -> keep walking, try again next tick.
  *
  * Resolution is also attempted immediately by the handler, so clicking a thing
@@ -1833,7 +1853,6 @@ struct Mock230Hooks
     const struct SSVM_Script* combat_weapon_type;
 
     /* Equipment. */
-    const struct SSVM_Script* equip_level_message;
     const struct SSVM_Script* equipment_refresh;
     const struct SSVM_Script* equipment_open;
 
@@ -1958,6 +1977,21 @@ struct Mock230Server
      *  once a tick is nothing, and a zone index would be the only structure in
      *  the mock that has to be kept consistent under a rebuild. */
     struct Mock230GroundObj ground[MOCK230_GROUND_MAX];
+
+    /**
+     * The ground obj the *next* trigger dispatch should make active, as
+     * `mock230_world_obj_handle` encodes it. 0 means none.
+     *
+     * One-shot, and set by the dispatch site immediately before it calls
+     * `mock230_scripts_run_trigger`. `[opobj<n>]` is the only trigger with an
+     * obj subject, so widening the shared `run_trigger` signature — which all
+     * nineteen of its call sites would then pass 0 to — buys nothing.
+     * `run_trigger_script` consumes and clears it, and the call site clears it
+     * again, so a lookup that finds no script cannot leak it into the next
+     * trigger. The npc slot rides as a parameter instead only because it
+     * predates this.
+     */
+    intptr_t pending_active_obj;
 
     /**
      * The `find-all then iterate` cursor.
@@ -2621,6 +2655,54 @@ mock230_world_obj_add(
     int level,
     int duration);
 
+/** The first active ground obj of `obj_id` on that tile, or -1. */
+int
+mock230_world_ground_find(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int obj_id);
+
+/**
+ * Remove a ground obj and tell every client that can see it.
+ *
+ * The removal half of the reference's `World.removeObj(obj, duration)`: the
+ * zone event is queued while the obj is still filed in its zone (so the packet
+ * is addressed to somewhere), the obj is then unfiled (so a client that loads
+ * the zone afterwards is sent state that no longer contains it), and a map
+ * *spawn* is armed to come back. Every removal path goes through this — the
+ * engine's own take, and `obj_del` / `obj_takeitem` from a script.
+ */
+void
+mock230_world_ground_take(
+    struct Mock230Server* srv,
+    int slot);
+
+/**
+ * How a script holds a ground obj across a suspension.
+ *
+ * `slot + 1` in the low bits, the slot's `generation` above them, so that a
+ * resumed script either finds the obj it was acting on or finds none —
+ * `mock230_world_ground_slot` is the other half. Never 0 for a valid slot,
+ * because the VM's active-entity pointer uses NULL to mean "no obj".
+ *
+ * The `+ 1` matches the npc and loc conventions; the generation does not exist
+ * for those two and is the difference between a scene slot (whose contents a
+ * rebuild replaces wholesale, which `active` already catches) and a 256-entry
+ * free list that hands the same index to the next drop.
+ */
+intptr_t
+mock230_world_obj_handle(
+    struct Mock230Server* srv,
+    int slot);
+
+/** The ground slot a handle names, or -1 when that obj is gone. */
+int
+mock230_world_ground_slot(
+    struct Mock230Server* srv,
+    intptr_t handle);
+
 /** Drop the player's queued route. */
 void
 mock230_world_steps_clear(struct Mock230Player* player);
@@ -2798,8 +2880,8 @@ enum Mock230TriggerResult
  * ~3,200 lines `osrs230_mockserver.md` §6.1 step 5 calls blocked. They are
  * *enumerated* rather than written inline at their call sites so that the set is
  * countable: `mock230_scripts_report_fallbacks` names them at boot, and the
- * selftest pins how many there are. A tenth one added quietly is the failure
- * this enum exists to prevent, in the same spirit as the nine named hooks in
+ * selftest pins how many there are. One added quietly is the failure this enum
+ * exists to prevent, in the same spirit as the ten named hooks in
  * `mock230_scripts.c` (PORTING_GUIDE §2.4 item 5).
  *
  * Adding to this list is not a design choice available to a content port. The
@@ -2832,11 +2914,6 @@ enum Mock230Fallback
     /** `[oploc<n>]` → doors, bank booths, stairs and ladders
      *  (`interaction_engine_loc`). */
     MOCK230_FALLBACK_OPLOC,
-    /** `[opobj<n>]` → picking the pile up off the floor
-     *  (`interaction_engine_obj`). */
-    MOCK230_FALLBACK_OPOBJ,
-    /** `[opheld<n>]` → wear/wield and drop (the tail of `handle_opheld`). */
-    MOCK230_FALLBACK_OPHELD,
     /** `[inv_button<n>]` on a bank component → the bank's own router, reached
      *  through the quantity ladder `mock230_bank_quantity_for_op`. */
     MOCK230_FALLBACK_INV_BUTTON,
@@ -3404,6 +3481,25 @@ mock230_ops_loc(
  *  mock230_scripts.c's switch, with the world state they mutate. */
 int
 mock230_ops_npc(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** The `obj_*` family — the reads and the removal of the *active ground obj* —
+ *  plus the `oc_wearpos*` config reads. See mock230_ops_obj.c. `obj_add` stays
+ *  in mock230_scripts.c's switch: it takes a coord rather than an active obj
+ *  and is already implemented there. */
+int
+mock230_ops_obj(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** The inv *moves* — `inv_movefromslot`, `inv_dropslot` and the `inv_moveitem`
+ *  family. See mock230_ops_inv.c. The rest of the inv family stays in
+ *  mock230_scripts.c's switch; new inv opcodes land in the domain file. */
+int
+mock230_ops_inv(
     struct SSVM_State* state,
     int opcode,
     int dot);

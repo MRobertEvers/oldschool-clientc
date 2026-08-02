@@ -197,7 +197,9 @@ Two things happen before the callback and are therefore **not** a handler's job:
 
 The mock server's implementation of that callback — `mock230_script_command` in
 `src/net/mock/mock230_scripts.c` — was a single `switch`; that file still carries
-153 `case SS_OP_*:` labels across 4,451 lines. It is now a chain. Each
+**162** `case SS_OP_*:` labels across **5,827** lines (161 distinct opcodes in the
+coverage table — `SS_OP_RANDOM` also carries a label in the VM core and is counted
+once, there). It is now a chain. Each
 `src/net/mock/mock230_ops_<domain>.c` exports one function with the callback's own
 signature:
 
@@ -207,7 +209,7 @@ mock230_ops_<domain>(struct SSVM_State* state, int opcode, int dot);
 ```
 
 and `mock230_script_command` offers each domain the opcode in turn before falling
-through to the switch (`mock230_scripts.c:1269-1276`):
+through to the switch (`mock230_scripts.c:2402-2415`):
 
 ```c
     if( mock230_ops_db(state, opcode, dot) )
@@ -217,6 +219,10 @@ through to the switch (`mock230_scripts.c:1269-1276`):
     if( mock230_ops_loc(state, opcode, dot) )
         return 1;
     if( mock230_ops_npc(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_obj(state, opcode, dot) )
+        return 1;
+    if( mock230_ops_inv(state, opcode, dot) )
         return 1;
 
     switch( opcode )
@@ -231,9 +237,11 @@ never claim the same opcode), and no way for a domain to be reachable-but-unlist
 Two consequences worth the pattern on their own:
 
 - **A family lands without serialising on one file.** The `db_*`, `*_param`,
-  `loc_*` and `npc_*` families landed as four files whose entire shared footprint
-  is four two-line hooks. The alternative is every opcode author editing the same
-  switch.
+  `loc_*`, `npc_*`, `obj_*` and `inv_*` families landed as six files whose entire
+  shared footprint is six two-line hooks. The alternative is every opcode author
+  editing the same switch. That is not a hypothetical saving: `obj_*` and `inv_*`
+  landed on 2026-08-02 in the same worktree as another lane holding
+  `mock230_scripts.c`, and their whole overlap with it was two lines.
 - **Coverage cannot silently under-report.** `gen_opcode_coverage.py` *globs*
   `mock230_ops_*.c` (`gen_opcode_coverage.py:39-45`) rather than listing them, so
   a new domain file is picked up with no generator edit. A hand-kept list would be
@@ -260,12 +268,16 @@ Inside a handler:
 | the acting player | `srv->active_player` — *whose turn it is*, not "the player" |
 | the active npc | `state->host_tag - 1` is the **slot** |
 | the active loc | `(intptr_t)SSVM_Active(state, SSVM_ENT_LOC) - 1` is the scene **slot** |
+| the active obj | `SSVM_Active(state, SSVM_ENT_OBJ)` is a **handle**, not a slot — put it through `mock230_world_ground_slot` |
 | arguments | pop in **reverse** declaration order |
 | underflow | `if( !SSVM_PopInt(state, &v) ) return 1;` — **1**, not 0 |
 | errors | `SSVM_Abort(state, fmt, ...)` then `return 1` |
 | suspension | `SSVM_Suspend(state, ...)` then `return 1` |
 
-Both the npc and loc conventions encode `slot + 1` so that 0 can mean "none".
+The npc and loc conventions encode `slot + 1` so that 0 can mean "none".
+**The obj convention deliberately does not**, and copying the other two is the
+mistake to avoid: `srv->ground[256]` is a free list, so a bare slot re-validates
+as *whatever landed in it while the script was parked*. See `obj_*` below.
 
 A domain file gets no access to `mock230_scripts.c`'s file-scope statics, which is
 the pattern's one real friction. Two were resolved by moving the shared thing out:
@@ -284,13 +296,22 @@ labels in the VM core and in every dispatch source. Measured today
 
 ```
  63  VM core
-152  host commands            (mock230_scripts.c)
+161  host commands            (mock230_scripts.c)
   9  host commands (db)
-  2  host commands (param)
+  5  host commands (inv)
   5  host commands (loc)
-  6  host commands (npc)
-237  total, of 399 declared opcodes
+  7  host commands (npc)
+  8  host commands (obj)
+  2  host commands (param)
+260  total, of 401 declared opcodes
 ```
+
+`(obj)` is eight rather than five because `mock230_ops_obj.c` took the
+`oc_wearpos*` config reads as well as the active-obj family — the same
+instance-half/config-half pairing `mock230_ops_loc.c` has for `loc_*` and
+`lc_*`. `(inv)` is the sixth domain file: `inv_movefromslot`, `inv_dropslot`
+and the `inv_moveitem` trio, which moved out of `mock230_scripts.c` (hence
+164 → 161) so the domain is whole.
 
 The extraction regex is `^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:` — plain `case` labels
 only. An opcode handled inside a case body via `if( opcode == SS_OP_X )` is *not*
@@ -315,6 +336,24 @@ that a `case` exists, and nothing else.** The three states an opcode can be in a
 *missing* (loud), *implemented* (green), and *implemented and wrong* (invisible),
 and only the third needs a test of its own.
 
+`INV_MOVEITEM` (4321) is the second instance and it is worth recording beside
+the first, because it is *partly* right rather than wrong — which is harder to
+see. Until 2026-08-02 its body was three arms (bank→inv, inv→bank, worn→bank)
+and then a `fprintf` saying `is not modelled`, followed by a silent return. So
+`inv_moveitem(inv, worn, …)` and `inv_moveitem(worn, inv, …)` — which is every
+reference equip and unequip path — did nothing at all, while the opcode counted
+as covered for the whole time, correctly by this table's own definition. The
+generic container-to-container arm is in `mock230_ops_inv.c` now, appended after
+the three bank arms so none of them can change behaviour by the move.
+
+A third state is worse than either and `OC_WEARPOS` (4213) is the example: an
+opcode that is **declared, unimplemented, and whose stub value is in range**.
+All three `oc_wearpos*` have `known = 1` in `ss_meta.gen.h`, so a script calling
+one compiled and ran into `unimplemented_stub`, which pushes 0 — and 0 is
+`^wearpos_hat`, a legal equipment slot. The gap report names it and the coverage
+header omits it, which is the system working; but *content* written against it
+would have run, done something plausible, and logged nothing.
+
 `mock230_ops_npc.c` now claims 2529, and the domain hooks run *before* the switch,
 so **`mock230_scripts.c`'s `case SS_OP_NPC_PARAM:` is unreachable dead code**. It
 should be deleted; it is recorded here rather than left to be rediscovered, because
@@ -329,6 +368,55 @@ whose **tuple index is 1-based, with 0 meaning "the whole tuple"**. Reading 0 as
 "element zero" pushes one value where content expects the whole tuple, so the
 failure is a wrong *shape* rather than a wrong number and surfaces far away.
 Verified against the reference's own unpack in `DbOps.ts`.
+
+#### `obj_*` — the active ground obj, and a handle that is not a slot
+
+**Eight** ops in `mock230_ops_obj.c`, in two halves. The *instance* half reads or
+mutates the active ground obj: `obj_type` (3511), `obj_count` (3503),
+`obj_coord` (3502), `obj_takeitem` (3510), `obj_del` (3504). The *config* half
+reads the obj record: `oc_wearpos` (4213), `oc_wearpos2` (4214), `oc_wearpos3`
+(4215) — the same instance-half/config-half pairing `mock230_ops_loc.c` has for
+`loc_*` and `lc_*`, and the reason the file is `_obj` rather than `_groundobj`.
+`obj_add` (3500) stays in `mock230_scripts.c`'s switch — it takes a coord rather
+than an active obj and predates the split.
+
+| op | id | `engine.rs2` signature | note |
+|---|---:|---|---|
+| `obj_coord` | 3502 | `()(coord)` | `mock230_coord_pack` |
+| `obj_count` | 3503 | `()(int)` | the reference's `isValid(hash64)` receiver gate degenerates — this server has no per-killer loot window |
+| `obj_del` | 3504 | `()` | duration is content's `^lootdrop_duration`, not the reference's per-obj `respawnrate`, which this tree has no field for |
+| `obj_takeitem` | 3510 | `(inv $inv)` | all-or-nothing add through `mock230_container_add`, then `mock230_world_ground_take` |
+| `obj_type` | 3511 | `()(obj)` | |
+| `oc_wearpos` | 4213 | `(obj $obj)(int)` | obj config opcode 13, default **-1**, which is RuneScript `null` — no sentinel invented |
+| `oc_wearpos2` | 4214 | `(obj $obj)(int)` | config opcode 14 |
+| `oc_wearpos3` | 4215 | `(obj $obj)(int)` | config opcode 27 |
+
+`obj_del` and `obj_takeitem` both go through `mock230_world_ground_take` rather
+than clearing the slot themselves, and the ordering inside it is load-bearing:
+it queues the zone's `OBJ_DEL` **while the obj is still filed in its zone** and
+unfiles it after. Unfile first and the event is addressed to nowhere, so every
+other client in that zone keeps drawing a pile that is gone.
+
+The three `oc_wearpos*` are the family's cautionary tale rather than its
+interesting part — see *what coverage cannot see* above: all three were
+`known = 1` and unimplemented, so a script calling one ran into the stub, which
+pushes **0**, and 0 is `^wearpos_hat`. `-1` from the real handler is `null`; `0`
+from the stub is the head slot.
+
+The one thing that does not follow the npc/loc pattern is how the active entity
+rides. Those two are `slot + 1`; a ground obj cannot be, because
+`srv->ground[256]` is a **free list** and `mock230_world_obj_add` hands a freed
+index straight to the next drop. A script parked between `obj_find` and
+`obj_takeitem` would resume onto whatever landed in the slot meanwhile.
+`mock230_world_obj_handle` therefore packs `slot + 1` in nine bits with the
+slot's `generation` above it, and `mock230_world_ground_slot` refuses a handle
+whose generation has moved. The reference is immune for free — it holds an `Obj`
+reference and `World.removeObj` clears `isActive` on that object.
+
+The handle reaches a trigger through `srv->pending_active_obj`, a one-shot latch
+the `MOCK230_INTERACT_OBJ` dispatch arm sets and `run_trigger_script` consumes.
+Not a sixth parameter on `mock230_scripts_run_trigger`: `[opobj<n>]` is the only
+family with an obj subject, so the other eighteen call sites would pass 0.
 
 #### `*_param` — the declared type picks the stack, and that is the whole difficulty
 
@@ -355,9 +443,11 @@ one-argument difference between `loc_param` and `lc_param` is the trap in this
 family**: reading one as the other leaves every later value on the wrong rung of
 the int stack and nothing fails at the call.
 
-`obj_param` is not implemented: it has **0 callers** in the reference, and nothing
-in `src/net/mock/` ever sets an active obj, so the VM's pointer requirement
-(`0x100`) aborts before a handler could run.
+`obj_param` is still not implemented, and the second half of that sentence has
+expired: it has **0 callers** in the reference, which is the whole reason now.
+The dispatch *does* set an active obj since `mock230_ops_obj.c` landed
+(`osrs230_mockserver.md` §3.18), so the VM's `0x100` requirement would be
+satisfied — the opcode is simply unwanted. Left out rather than written blind.
 
 **The sort is load-bearing, and that is measured, not assumed.** A record's params
 arrive in the order the cache wrote them, which is *not* ascending by key:
@@ -454,6 +544,49 @@ Three findings worth carrying:
 this server ever sets the *secondary* npc (`require2 = 0x020` is never added). That
 is pre-existing and shared with `npc_type` / `npc_coord`.
 
+#### `inv_*` — the moves, and the arm that coverage could not see
+
+The sixth domain file, `mock230_ops_inv.c`, 2026-08-02. It holds the inv family's
+**moves** — one container into another, and a container onto the floor — and
+nothing else. The reads and the single-slot writes (`inv_add`, `inv_del`,
+`inv_delslot`, `inv_getobj`, `inv_getnum`, `inv_itemspace`, `inv_itemspace2`,
+`inv_movetoslot`, `inv_setslot`, `inv_size`, `inv_total`, `inv_freespace`) stay
+in `mock230_scripts.c`; they predate the split and moving them is a second change
+wearing this one's clothes.
+
+| op | id | `engine.rs2` signature |
+|---|---:|---|
+| `inv_dropslot` | 4312 | `(inv $inv, coord $coord, int $slot, int $duration)` |
+| `inv_movefromslot` | 4318 | `(inv $from_inv, inv $to_inv, int $from_slot)` |
+| `inv_moveitem` | 4321 | `(inv $from, inv $to, obj $obj, int $count)` |
+| `inv_moveitem_cert` | — | same, certing on the way |
+| `inv_moveitem_uncert` | — | same, uncerting |
+
+**`inv_moveitem` is the reason this file exists, and the shape of its gap is the
+lesson.** It was not missing. It had a `case` label, three arms — bank→inv,
+inv→bank, worn→bank — and then a `fprintf` saying `is not modelled` followed by a
+silent return. Every reference equip and unequip path is
+`inv_moveitem(inv, worn, …)` or `inv_moveitem(worn, inv, …)`, so all of them did
+nothing at all, quietly, while `gen_opcode_coverage.py` reported the opcode
+**covered** — correctly, by its own definition, because a `case` label is the
+whole of what it can see. The three bank arms are preserved byte for byte in the
+new file and the generic container-to-container arm is appended *after* them, so
+no bank behaviour can change by the move.
+
+**Overflow goes on the floor, and that is ported rather than chosen.** All three
+moves can be asked to put more into a container than fits; `InvOps.ts:339-348`,
+`:522-530` and `:245-253` all answer the same way and this is a port of that
+answer — the remainder becomes a ground obj at the player's tile, **singly** for
+an unstackable obj (which is what makes twelve dropped bones twelve piles) and as
+one pile otherwise. The reference's literal `200` duration is
+`mock230_ids()->lootdrop_duration` here: the same number, resolved through the
+pack instead of restated in C (PORTING_GUIDE §2.4 item 2).
+
+One limit inherited rather than introduced: `mock230_container_add` still takes
+**one slot for all units** of an unstackable obj, because `InvType.stackType`
+needs `fields/inv.ini` and that does not exist yet. `inv_movefromslot` and the
+generic `inv_moveitem` arm inherit it.
+
 ### What was deliberately left to the loud stub
 
 `docs/osrs230_mockserver.md` §3.13d's rule — *an opcode that cannot be answered
@@ -475,6 +608,8 @@ re-measured over `LostCity_Server/content` today (see below for the method):
 | `npc_arrivedelay`, `npc_inrange` | 2 / 2, 2 / 1 | both read per-npc fields the mover and the interaction machinery would have to write. |
 | `lc_desc` | 0 / 0 | **measured: 0 of 62,194 loc records carry a `desc`.** The field is gone from OSRS loc configs at this revision; a handler could only ever push `'null'`. |
 | `lc_debugname` | 1 / 1 | `debugname` is a LostCity build-time symbol; the dat2 record has no such field. |
+| `buildappearance` | 18 / 7 | **the sharpest §3.13d case so far.** In the reference it is two lines — `this.appearanceInv = inv; masks \|= APPEARANCE` — and the first of them is *read*: `Player.ts:1366` builds the appearance out of `getInventory(this.appearanceInv)`. Its job is **selecting which container the encoder reads**. `put_appearance` (`mock230_encode.c:915`) reads `player->worn` unconditionally, so accepting the argument and raising the mask would make `buildappearance(<anything else>)` silently paint the worn set — plausible, wrong, quiet. The mask half meanwhile is already *unforgettable* here and is not in the reference: the worn container is adopted with `appearance = 1`, so every ServerScript write to it raises `MOCK230_PMASK_APPEARANCE` through `mock230_container_mark`. Implementable the day the encoder gains a selectable source, and not before. |
+| `p_clearpendingaction` | 20 / 18 | real, and it was **misfiled** as an equipment blocker for a week: `mock230_world_clear_pending_action` is called from `handle_move`, `opnpc`, `opobj`, `oploc`, `opheldu` and `useon_interact` and never from `handle_opheld`. It belongs to the worn-tab unequip (`[inv_button1,wornitems:wear]` opens with it), which is a different move. |
 | `nc_desc`, `npc_findallzone`, `obj_param` | 0 / 0 | no caller anywhere in the reference. |
 
 `LC_OP`, `OC_IOP` and `OC_OP` remain the sharper case one rung up: they are
@@ -485,7 +620,7 @@ arity (see *What is not ported, on purpose*). `oc_desc` was written and then
 Seven of the npc refusals are blocked on the same thing — per-npc engine state in
 `mock230_world.c`. The next npc item is not an opcode.
 
-### Measured, 2026-08-01
+### Measured, 2026-08-01, and re-run 2026-08-02
 
 Everything above is measured on this tree against `cache.osrs239` and the
 reference at `/Users/matthewevers/Documents/git_repos/LostCity_Server`. Two
@@ -528,13 +663,18 @@ zero-argument blindness above — `last_useitem` alone blocks 213 files.
 State of the tree at the end of the run, all re-run rather than quoted:
 
 ```
-test-mock230-coverage      current, 237 / 399
+test-mock230-coverage      current, 260 / 401
 test-mock230-param         all checks passed
 test-mock230-loc           all checks passed
 test-mock230-npc           all checks passed
 mock230 --selftest         all checks passed, exit 0
-mock230_pack --check-only  0 error(s), 13 warning(s)
+mock230_pack --check-only  0 error(s), 15 warning(s)
 ```
+
+Re-run 2026-08-02 after the `obj_*` and `inv_*` files landed: same lines, and the
+pack's warning count is **15**, not the 13 this block said — the two new ones are
+pre-existing content warnings surfaced by content added in the same window, not
+by these opcodes.
 
 ### Testing a domain file
 
@@ -544,6 +684,18 @@ make -C src test-mock230-param       # the *_param family
 make -C src test-mock230-loc         # loc_* / lc_*
 make -C src test-mock230-npc         # npc_* / nc_*
 ```
+
+**There is deliberately no `test-mock230-obj` and no `test-mock230-inv`.** Both
+were considered and refused on the same ground, which is worth stating because
+the absence otherwise reads as an omission: a standalone VM fixture is the right
+shape for a family that is a *pure function of cache data* — which is what
+`param`, `loc` and `npc` are — and the wrong shape for a family whose whole
+subject is server state. `obj_takeitem` is only meaningful against a live
+ZoneMap, a container registry and the real dispatch; `inv_moveitem`'s new arm is
+only meaningful against two real containers. All three exist in exactly one
+place, `mock230 --selftest`, so that is where the permanent checks went
+(*"taking an obj is content's"*, *"equipping is content's rule"*). A fixture here
+would have covered strictly less for more code.
 
 Each of the three family tests is two halves, and the shape is worth copying:
 
@@ -650,6 +802,23 @@ Things worth knowing:
   argument lists make this a non-problem for it; this compiler has no types, and
   the hint is the narrowest thing that works. The mock's stat commands abort on
   an out-of-range id as the second half of the same fix.
+
+  **The hint does not reach a comparison, and there is no safe spelling for one.**
+  `if ($stat = attack | ...)` has no command to take a hint from, so `attack`
+  resolves to varp 259 and the test is false for every Attack requirement in the
+  game. That is not hypothetical: it was the first version of
+  `~levelrequire_gates_wearing` (`skill_combat/scripts/levelrequire.rs2`,
+  2026-08-02) and it made **357 of 1,496** gated items wearable at level 1 —
+  found by an exhaustive selftest leg, invisible to reading. The answer is that
+  a stat literal belongs in a **config key**, never in an identifier position:
+  a `.enum` declaring `inputtype=stat` has its keys resolved by the content
+  loader against that type and cannot see the symbol table at all. See
+  `skill_combat/configs/levelrequire.enum`, and `general/configs/stat.enum`,
+  which had been relying on the same property without saying so.
+
+  The general form, worth carrying to the next bare-name enumeration
+  (`locshape`, `npc_stat`): **the compiler can only disambiguate a name it sees
+  as an argument.** Everywhere else, put the name in data.
 
 ## Tests
 

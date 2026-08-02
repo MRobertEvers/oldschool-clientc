@@ -10,12 +10,14 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    165  host commands
+ *    161  host commands
  *      9  host commands (db)
+ *      5  host commands (inv)
  *      5  host commands (loc)
  *      7  host commands (npc)
+ *      8  host commands (obj)
  *      2  host commands (param)
- *    251  total, of 402 declared opcodes
+ *    260  total, of 401 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -23,8 +25,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 251
-#define MOCK230_OPCODE_DECLARED_COUNT 402
+#define MOCK230_OPCODE_COVERAGE_COUNT 260
+#define MOCK230_OPCODE_DECLARED_COUNT 401
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -33,7 +35,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11006
+#define MOCK230_OPCODE_VALUE_LIMIT 11005
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -191,6 +193,11 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     3012, /* SS_OP_LOC_SHAPE (host commands) */
     3013, /* SS_OP_LOC_TYPE (host commands) */
     3500, /* SS_OP_OBJ_ADD (host commands) */
+    3502, /* SS_OP_OBJ_COORD (host commands (obj)) */
+    3503, /* SS_OP_OBJ_COUNT (host commands (obj)) */
+    3504, /* SS_OP_OBJ_DEL (host commands (obj)) */
+    3510, /* SS_OP_OBJ_TAKEITEM (host commands (obj)) */
+    3511, /* SS_OP_OBJ_TYPE (host commands (obj)) */
     4000, /* SS_OP_NC_CATEGORY (host commands (npc)) */
     4001, /* SS_OP_NC_DEBUGNAME (host commands) */
     4003, /* SS_OP_NC_NAME (host commands) */
@@ -210,19 +217,24 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4209, /* SS_OP_OC_PARAM (host commands) */
     4210, /* SS_OP_OC_STACKABLE (host commands) */
     4212, /* SS_OP_OC_UNCERT (host commands) */
+    4213, /* SS_OP_OC_WEARPOS (host commands (obj)) */
+    4214, /* SS_OP_OC_WEARPOS2 (host commands (obj)) */
+    4215, /* SS_OP_OC_WEARPOS3 (host commands (obj)) */
     4302, /* SS_OP_INV_ADD (host commands) */
     4305, /* SS_OP_INV_CLEAR (host commands) */
     4306, /* SS_OP_INV_DEBUGNAME (host commands) */
     4307, /* SS_OP_INV_DEL (host commands) */
     4308, /* SS_OP_INV_DELSLOT (host commands) */
+    4312, /* SS_OP_INV_DROPSLOT (host commands (inv)) */
     4313, /* SS_OP_INV_FREESPACE (host commands) */
     4314, /* SS_OP_INV_GETNUM (host commands) */
     4315, /* SS_OP_INV_GETOBJ (host commands) */
     4316, /* SS_OP_INV_ITEMSPACE (host commands) */
     4317, /* SS_OP_INV_ITEMSPACE2 (host commands) */
-    4319, /* SS_OP_INV_MOVEITEM_CERT (host commands) */
-    4320, /* SS_OP_INV_MOVEITEM_UNCERT (host commands) */
-    4321, /* SS_OP_INV_MOVEITEM (host commands) */
+    4318, /* SS_OP_INV_MOVEFROMSLOT (host commands (inv)) */
+    4319, /* SS_OP_INV_MOVEITEM_CERT (host commands (inv)) */
+    4320, /* SS_OP_INV_MOVEITEM_UNCERT (host commands (inv)) */
+    4321, /* SS_OP_INV_MOVEITEM (host commands (inv)) */
     4322, /* SS_OP_INV_MOVETOSLOT (host commands) */
     4323, /* SS_OP_INV_SETSLOT (host commands) */
     4324, /* SS_OP_INV_SIZE (host commands) */
@@ -287,7 +299,6 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11002, /* SS_OP_RUNCLIENTSCRIPT_SS (host commands) */
     11003, /* SS_OP_RUNCLIENTSCRIPTVARARG (host commands) */
     11004, /* SS_OP_P_COUNTDIALOG_NOPROMPT (host commands) */
-    11005, /* SS_OP_IF_CLOSESUB (host commands) */
 };
 
 #endif
