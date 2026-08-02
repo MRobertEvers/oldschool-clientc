@@ -79,6 +79,33 @@ mock230_paramtable_read(
 }
 
 void
+mock230_paramtable_set_int(
+    struct Mock230ParamTable* table,
+    int owner,
+    int key,
+    int ival)
+{
+    if( !table )
+        return;
+    /* Linear, because of who calls it: the content overlay, once at boot, with
+     * hundreds of rows against a table the cache filled with tens of thousands.
+     * A binary search would need the table sorted and this runs *after* the
+     * cache's `_read` pass and *before* `_sort`. */
+    for( int i = 0; i < table->count; i++ )
+    {
+        if( table->rows[i].owner != owner || table->rows[i].key != key )
+            continue;
+        /* An overlay row wins over the cache's — that is what an overlay is. */
+        free(table->rows[i].sval);
+        table->rows[i].sval = NULL;
+        table->rows[i].ival = ival;
+        return;
+    }
+    add_row(table, owner, key, ival, NULL);
+    table->sorted = 0;
+}
+
+void
 mock230_paramtable_sort(struct Mock230ParamTable* table)
 {
     if( !table )

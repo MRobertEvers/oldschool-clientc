@@ -109,9 +109,22 @@ static const struct ContentNamespace k_defaults[] = {
     { "underlay",              CONTENT_NAMES_AUTHORED, 0,  -1,    400,  -1 },
     { "overlay",               CONTENT_NAMES_AUTHORED, 0,  -1,    800,  -1 },
     { "idk",                   CONTENT_NAMES_AUTHORED, 0,  -1,    400,  -1 },
-    /* The obj record's own `category` field states the number (opcode 94) but
-     * nothing names them. */
-    { "category",              CONTENT_NAMES_AUTHORED, 0,  -1,      0,  -1 },
+    /*
+     * Three record types state a category and nothing names them: obj at config
+     * opcode 94, npc at 18, loc at 61.
+     *
+     * The base was 0 — "do not allocate" — until 2026-08-02, and this is the one
+     * namespace where both authorities coexist: an id below 8192 is the cache's
+     * and the crawl READS it, an id at or above is one this tree allocated
+     * because no cache record states the concept. Doors forced it: the reference
+     * binds `[oploc1,_door_closed]` and **none of this cache's 776 door records
+     * carries a category at all**, so there was nothing to read.
+     *
+     * 8192 is above every category id the three types state here — npc 2504,
+     * obj 2506, loc 2474, measured. `content.ini`'s own block carries the
+     * argument; this is the number, in the same table as every other base.
+     */
+    { "category",              CONTENT_NAMES_AUTHORED, 0,  -1,   8192,  -1 },
     /* ---- ours to number --------------------------------------------- */
     { "enum",                  CONTENT_NAMES_AUTHORED, 0,  -1,   5995,  -1 },
     { "struct",                CONTENT_NAMES_AUTHORED, 0,  -1,   8000,  -1 },

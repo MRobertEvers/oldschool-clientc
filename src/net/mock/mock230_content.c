@@ -816,6 +816,14 @@ mock230_content_loc(int loc_id)
     return NULL;
 }
 
+const struct Mock230LocDef*
+mock230_content_loc_at(int index)
+{
+    if( index < 0 || index >= g_loc_def_count )
+        return NULL;
+    return &g_loc_defs[index];
+}
+
 const struct Mock230MapNpcSpawn*
 mock230_content_npc_spawns(int* count)
 {
@@ -1840,11 +1848,28 @@ load_varp_config(const char* path)
  * `next_loc_stage` is resolved lazily, after every .loc file has been read: a
  * door names its open half and the open half names it back, so whichever is
  * read first refers forward.
+ *
+ * Resolution publishes to **two** places and that is the point (2026-08-02):
+ * `Mock230LocDef.next_loc_stage`, which the engine's own door swap reads, and
+ * the loc param table, which is where `loc_param(next_loc_stage)` — the
+ * reference's line in `doors/scripts/doors.rs2` — looks. Only the first existed
+ * before, so a `.loc` block could state a param that no script could read; the
+ * script got the declared default and a door opened into loc 0. One value, two
+ * readers, resolved once.
+ *
+ * The value is resolved through `pack/loc.pack`, i.e. this grammar assumes a
+ * loc-typed param. `fields/loc.ini` says so (`ref = loc`) and cachepack honours
+ * it on the bake side, but `struct ContentField` carries no `ref`, so C cannot
+ * ask. Only `next_loc_stage` is declared today; the second loc param whose type
+ * is not `loc` is what makes carrying `ref` into C worth doing, and it will fail
+ * loudly here ("is not in configs/all.loc.compack") rather than quietly.
  */
 
 struct PendingStage
 {
     int def_index;
+    /** The param the overlay line named, resolved through pack/param.pack. */
+    int param_id;
     char* symbol;
 };
 
@@ -1892,6 +1917,7 @@ load_loc_config(const char* path)
             memset(def, 0, sizeof(*def));
             def->loc_id = loc_id;
             def->symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, loc_id);
+            def->category = -1;
             def->next_loc_stage = -1;
             continue;
         }
@@ -1906,12 +1932,28 @@ load_loc_config(const char* path)
 
         if( strcmp(line, "category") == 0 )
         {
-            if( strcmp(value, "door_closed") == 0 )
-                def->category = MOCK230_LOC_CATEGORY_DOOR_CLOSED;
-            else if( strcmp(value, "door_opened") == 0 )
-                def->category = MOCK230_LOC_CATEGORY_DOOR_OPENED;
+            /*
+             * Through the pack, not through a `strcmp` ladder.
+             *
+             * The ladder that was here accepted exactly two spellings and filed
+             * them under a private enum, so `category` on a loc meant something
+             * different from `category` on an npc or an obj while being spelled
+             * the same and living in the same field register. Resolving it here
+             * is what makes `[oploc1,_door_closed]` a category subject the trigger
+             * lookup can answer — see `Mock230LocDef.category`.
+             */
+            int id = mock230_content_symbol(MOCK230_PACK_CATEGORY, value);
+
+            if( id < 0 )
+                CONTENT_ERROR("%s:%d: `%s` is not in pack/category.pack — a category is "
+                              "named there or it is not a category\n",
+                              path, line_number, value);
+            else if( id == 0 )
+                CONTENT_ERROR("%s:%d: `%s` resolves to category 0, which is the decoder's "
+                              "\"unstated\" and must never be a name\n",
+                              path, line_number, value);
             else
-                CONTENT_ERROR("%s:%d: unknown category `%s`\n", path, line_number, value);
+                def->category = id;
         }
         else if( strcmp(line, "param") == 0 )
         {
@@ -1928,6 +1970,7 @@ load_loc_config(const char* path)
                  * name spelled twice. A row declared `client = param:<name>` is one
                  * the encoder knows how to bake, so it is one this parser accepts. */
                 const struct ContentField* field = ContentFields_Find(&g_loc_fields, value);
+                int param_id;
 
                 if( !field || field->client != CONTENT_CLIENT_PARAM )
                 {
@@ -1936,12 +1979,25 @@ load_loc_config(const char* path)
                                   path, line_number, value);
                     continue;
                 }
+                /* The register names the param; the pack numbers it. Which number
+                 * `next_loc_stage` is is the pack file's business, and a script
+                 * asking for it by name has to reach the same row this line
+                 * writes. */
+                param_id = mock230_content_symbol(MOCK230_PACK_PARAM, field->param_name);
+                if( param_id < 0 )
+                {
+                    CONTENT_ERROR("%s:%d: fields/loc.ini maps `%s` to param `%s`, which "
+                                  "pack/param.pack does not name\n",
+                                  path, line_number, value, field->param_name);
+                    continue;
+                }
+                g_pending = grow(g_pending, &g_pending_capacity, g_pending_count,
+                                 sizeof(*g_pending));
+                g_pending[g_pending_count].def_index = def_index;
+                g_pending[g_pending_count].param_id = param_id;
+                g_pending[g_pending_count].symbol = strdup(comma + 1);
+                g_pending_count++;
             }
-            g_pending = grow(g_pending, &g_pending_capacity, g_pending_count,
-                             sizeof(*g_pending));
-            g_pending[g_pending_count].def_index = def_index;
-            g_pending[g_pending_count].symbol = strdup(comma + 1);
-            g_pending_count++;
         }
         else
         {
@@ -1974,7 +2030,13 @@ resolve_loc_stages(void)
             CONTENT_ERROR("next_loc_stage `%s` is not in configs/all.loc.compack\n",
                           g_pending[i].symbol);
         else if( index >= 0 && index < g_loc_def_count )
+        {
             g_loc_defs[index].next_loc_stage = target;
+            /* …and into the param table, so `loc_param(next_loc_stage)` answers
+             * the same number the field does. See this section's header. */
+            mock230_locinfo_param_overlay(g_loc_defs[index].loc_id, g_pending[i].param_id,
+                                          target);
+        }
         free(g_pending[i].symbol);
     }
     free(g_pending);

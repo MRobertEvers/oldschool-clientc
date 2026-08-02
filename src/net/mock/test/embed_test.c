@@ -1245,10 +1245,23 @@ main(void)
      *
      * The door is the one the selftest uses — Lumbridge castle's courtyard door
      * at 3226,3223, which the content tree pairs 1535 (closed) with 1536 (open).
+     *
+     * **It swings**, since `doors/scripts/doors.rs2` took the behaviour over on
+     * 2026-08-02: the reference is `loc_del` on the door's own tile then
+     * `loc_add` on the tile the hinge turns onto, so the *open* half lands one
+     * east at 3227,3223 and the assertions below read that tile. The last-loc
+     * fields each peer records hold the last LOC_ADD_CHANGE they decoded, and a
+     * del carries no id — which makes "the id is the open half at the tile it
+     * swung to" exactly the right pair of things to check, and a swap that
+     * silently went back to being in-place fails on the coordinate rather than
+     * passing quietly.
      */
     {
         const int door_x = 3226;
         const int door_z = 3223;
+        /* Where `~door_open(^loc_east, wall_straight)` puts it: +1 east. */
+        const int open_x = 3227;
+        const int open_z = 3223;
         const int door_closed = 1535;
         const int door_open = 1536;
         int third;
@@ -1272,8 +1285,8 @@ main(void)
 
         check(peers[0].saw_loc_id == door_open && peers[0].saw_loc_count > 0,
               "alice's own client was told the door opened");
-        check(peers[0].saw_loc_x == door_x && peers[0].saw_loc_z == door_z,
-              "on the door's own tile, so the zone base survived the wire");
+        check(peers[0].saw_loc_x == open_x && peers[0].saw_loc_z == open_z,
+              "on the tile it swung to, so the zone base survived the wire");
         check(peers[1].saw_loc_count > 0 && peers[1].saw_loc_id == door_open,
               "and so was bob, who was standing somewhere else entirely");
 
@@ -1292,8 +1305,8 @@ main(void)
                   "carol's client was told about a loc it never saw change");
             check(peers[2].saw_loc_id == door_open,
                   "and it was the open door, not the closed one");
-            check(peers[2].saw_loc_x == door_x && peers[2].saw_loc_z == door_z,
-                  "on the same tile alice opened");
+            check(peers[2].saw_loc_x == open_x && peers[2].saw_loc_z == open_z,
+                  "on the same tile alice's door swung to");
 
             ToriRS_Network_Free(&peers[2].net);
         }

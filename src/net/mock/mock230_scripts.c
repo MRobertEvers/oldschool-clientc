@@ -1239,7 +1239,8 @@ static int
 run_trigger_script(
     struct Mock230Server* srv,
     const struct SSVM_Script* script,
-    int npc_slot)
+    int npc_slot,
+    int loc_slot)
 {
     struct SSVM_State* state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
 
@@ -1265,6 +1266,34 @@ run_trigger_script(
         state->host_tag = npc_slot + 1;
     }
 
+    /*
+     * The loc the trigger is about, on the same footing as the npc.
+     *
+     * `SSVM_ENT_LOC` had exactly three writers tree-wide before 2026-08-02 — the
+     * iterator, `LOC_FIND` and `LOC_ADD` — so **every** `[oploc<n>]` and
+     * `[aploc<n>]` script ran with no active loc, and the first `loc_coord`,
+     * `loc_angle`, `loc_shape`, `loc_param`, `loc_change` or `loc_del` in it
+     * aborted with "the active loc is gone". A door script could bind and could
+     * not say anything about the door it was bound to; that, and not the `loc_*`
+     * family, was what the `oploc` fallback row was actually waiting on.
+     *
+     * By *slot*, not by pointer, and encoded `slot + 1` — the convention
+     * `mock230_ops_loc.c` and `LOC_FIND` already share, for the reason stated
+     * there: a script can suspend between the dispatch and the read, and a scene
+     * rebuild reallocates the array underneath it. The pointer's only job is to
+     * satisfy the VM's require-an-active-loc check.
+     */
+    if( loc_slot >= 0 )
+    {
+        struct Mock230SceneLoc* loc = mock230_scene_loc(loc_slot);
+
+        if( loc && loc->active )
+        {
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                           (void*)(intptr_t)(loc_slot + 1));
+        }
+    }
+
     /* run_or_park answers 1 for ran-or-parked and 0 for every way a bound script
      * can fail to run — aborted, no parking slot, world queue full. All of those
      * are FAILED here: a script existed and the behaviour did not happen. */
@@ -1284,6 +1313,7 @@ run_trigger_impl(
     int type,
     int category,
     int npc_slot,
+    int loc_slot,
     int chain,
     int report)
 {
@@ -1310,7 +1340,7 @@ run_trigger_impl(
         return MOCK230_TRIGGER_NONE;
     }
 
-    return run_trigger_script(srv, script, npc_slot);
+    return run_trigger_script(srv, script, npc_slot, loc_slot);
 }
 
 int
@@ -1321,7 +1351,18 @@ mock230_scripts_run_trigger(
     int category,
     int npc_slot)
 {
-    return run_trigger_impl(srv, trigger, type, category, npc_slot, 1, 1);
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 1, 1);
+}
+
+int
+mock230_scripts_run_trigger_on_loc(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int loc_slot)
+{
+    return run_trigger_impl(srv, trigger, type, category, -1, loc_slot, 1, 1);
 }
 
 int
@@ -1332,7 +1373,7 @@ mock230_scripts_run_trigger_specific(
     int category,
     int npc_slot)
 {
-    return run_trigger_impl(srv, trigger, type, category, npc_slot, 0, 1);
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 0, 1);
 }
 
 /*
@@ -1360,7 +1401,7 @@ run_if_button_trigger(
     /* *Specific*: `IfButtonHandler` uses getByTriggerSpecific, so a component
      * with no script of its own does not fall through to some `[if_button,_]`
      * that would then swallow every click in the game. */
-    result = run_trigger_impl(srv, trigger, uid, -1, -1, 0, 0);
+    result = run_trigger_impl(srv, trigger, uid, -1, -1, -1, 0, 0);
     if( result != MOCK230_TRIGGER_NONE )
         return result;
 
@@ -1371,7 +1412,7 @@ run_if_button_trigger(
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
         return MOCK230_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1);
+    return run_trigger_script(srv, script, -1, -1);
 }
 
 int
@@ -1518,7 +1559,7 @@ mock230_scripts_run_trigger_at(
 
     if( !script )
         return MOCK230_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1);
+    return run_trigger_script(srv, script, -1, -1);
 }
 
 int
@@ -1678,7 +1719,7 @@ mock230_scripts_run_opheldu(
         }
         return MOCK230_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, -1);
+    return run_trigger_script(srv, script, -1, -1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1740,12 +1781,12 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
     { NULL, 0 }
 };
 
-static const struct FallbackBlockingOp k_blocked_oploc[] = {
-    BLOCKING_OP(SS_OP_P_OPLOC),
-    BLOCKING_OP(SS_OP_LOC_CATEGORY),
-    BLOCKING_OP(SS_OP_LC_CATEGORY),
-    { NULL, 0 }
-};
+/* `k_blocked_oploc` was here. It listed P_OPLOC, LOC_CATEGORY and LC_CATEGORY;
+ * all three landed 2026-08-02 and the list emptied in the same commit, because
+ * `fallback_stale_blockers` is fatal in the selftest and a row cannot outlive
+ * its cited opcodes quietly. The row itself outlived them by a day — see
+ * `enum Mock230Fallback` in mock230.h for what the last blocker actually was —
+ * and went the same day the content that answers it landed. */
 
 static const struct FallbackBlockingOp k_blocked_opobj[] = {
     BLOCKING_OP(SS_OP_OBJ_COORD),
@@ -1821,26 +1862,6 @@ static const struct
           "stay, now unreachable from this list. Blocked on porting player_combat "
           "itself",
           k_blocked_opnpc },
-    [MOCK230_FALLBACK_OPLOC] =
-        { "oploc",
-          "PARTLY CLEARED. The loc_* family (loc_find/change/add/del/coord/type/angle/"
-          "shape) and p_teleport landed; 'doors and stairs need loc_* and a "
-          "destination' is no longer true. What is left is one structural gate and two "
-          "opcodes. (a) THE GATE: [oploc<n>] binds no active loc — the dispatch sets "
-          "SSVM_ENT_PLAYER and SSVM_ENT_NPC and nothing else (mock230_scripts.c, "
-          "run_trigger_script's SSVM_SetActive pair), and SSVM_ENT_LOC is written only "
-          "by loc_find and the loc iterator, so loc_coord in a door script aborts "
-          "('no active loc'). Zero new opcodes; `grep -n SSVM_ENT_LOC "
-          "net/mock/*.c` is the whole check. (b) no loc category rung: "
-          "interaction_category returns -1 for MOCK230_INTERACT_LOC by default "
-          "(mock230_world.c:687), because Mock230LocDef.category is a private two-value "
-          "door enum, not pack/category.pack — the real field needs dat2_config_loc.c "
-          "to stop discarding config opcode 61, an rscache write-path change. So "
-          "[oploc1,_door_closed] (doors/scripts/, the reference's form) cannot bind at "
-          "all, and neither LOC_CATEGORY nor LC_CATEGORY is implemented. (c) P_OPLOC "
-          "is declared-not-implemented while the shadowed-verb report tells content to "
-          "call it — [oploc2,bankbooth] is the standing example at every boot",
-          k_blocked_oploc },
     [MOCK230_FALLBACK_OPOBJ] =
         { "opobj",
           "the old text said 'no obj_take / inv_add-from-ground opcode pair yet "
@@ -1996,8 +2017,14 @@ discharging_opcode(int trigger)
 {
     if( trigger >= SS_TRIGGER_OPNPC1 && trigger <= SS_TRIGGER_OPNPC5 )
         return SS_OP_P_OPNPC;
-    if( trigger >= SS_TRIGGER_OPLOC1 && trigger <= SS_TRIGGER_OPLOC5 )
-        return SS_OP_P_OPLOC;
+    /* `[oploc<n>] -> SS_OP_P_OPLOC` was here and is unreachable now rather than
+     * merely unused: with `interaction_engine_loc` deleted the engine claims no
+     * loc verb, so `mock230_world_engine_claimed_verb` never returns one for a
+     * loc and the report never asks what would discharge it. Leaving it would be
+     * advice to write `[oploc1,_] p_oploc(1)`, which is an infinite recursion —
+     * `p_oploc` re-issues the op and the op is this trigger. `P_OPLOC` itself
+     * stays implemented (mock230_ops_player.c); it is what a script that means
+     * to *resume* an op calls, which is all 43 of the reference's callers. */
     if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
         return SS_OP_P_OPHELD;
     return -1;
@@ -2047,13 +2074,21 @@ script_calls(
  * re-issues the wrong index is a different bug and this cannot see it.
  *
  * **A hit is a review item, not a defect**, and the distinction is not one this
- * can make. `[oploc2,bankbooth]` is the shipped example: it takes "Bank" and
- * never re-issues it, and it is *correct*, because `~openbank` does the same
- * thing the engine's Bank branch would — the second legitimate discharge is
- * doing the engine's job yourself, and nothing static tells that apart from
- * doing something else. So this prints a list and never fails a load. It is the
- * same posture as `mock230_pack`'s foreign-area spawn-prefix warning (triage
- * §10.2): a prompt to go and look, not a verdict.
+ * can make. The second legitimate way to discharge the obligation is to do the
+ * engine's job yourself, and nothing static tells that apart from doing
+ * something else. So this prints a list and never fails a load. It is the same
+ * posture as `mock230_pack`'s foreign-area spawn-prefix warning (triage §10.2):
+ * a prompt to go and look, not a verdict.
+ *
+ * **The list is empty as of 2026-08-02, and getting it there was an eviction
+ * rather than a fix.** It read 1, then 20 when the ladders landed, then 97 when
+ * the 78 bank booths did — every entry a script taking a verb
+ * `interaction_engine_loc` still answered. Deleting that function took all 97
+ * out at once: the engine claims no loc verb now, so there is nothing for a
+ * door, a ladder or a booth to shadow. What is left claimable is "Attack" on an
+ * npc and "Wear"/"Wield"/"Drop" on a held obj. The 97 were the honest reading —
+ * every one of those scripts *was* replacing engine behaviour — and the right
+ * response to a review list that long was to delete what it was reviewing.
  *
  * Returns the number of scripts that shadow a verb without re-issuing it.
  */
@@ -2399,6 +2434,8 @@ mock230_script_command(
         return 1;
     if( mock230_ops_npc(state, opcode, dot) )
         return 1;
+    if( mock230_ops_player(state, opcode, dot) )
+        return 1;
 
     switch( opcode )
     {
@@ -2508,15 +2545,31 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        player->x = coord_x(coord);
-        player->z = coord_z(coord);
-        player->level = coord_level(coord);
-        /* The next PLAYER_INFO has to carry an absolute placement rather than a
-         * step direction, and the scene may need re-centring around the new
-         * position — both of which the tick handles off place_dirty. */
-        player->place_dirty = 1;
-        player->step_count = 0;
-        player->step_head = 0;
+        {
+            int was_level = player->level;
+
+            player->x = coord_x(coord);
+            player->z = coord_z(coord);
+            player->level = coord_level(coord);
+            /* The next PLAYER_INFO has to carry an absolute placement rather
+             * than a step direction, and the scene may need re-centring around
+             * the new position — both of which the tick handles off
+             * place_dirty. */
+            player->place_dirty = 1;
+            player->step_count = 0;
+            player->step_head = 0;
+            /*
+             * A plane change is the case place_dirty does not cover. The scene
+             * *window* has not moved, so `maybe_rebuild` sees nothing, and the
+             * client goes on holding every npc, player and zone from the floor
+             * below — which is precisely what a ladder does.
+             * `PathingEntity.teleport` is the reference's own seam for this
+             * (`if (previousLevel != level)`), and this is the engine half of
+             * moving the ladders to content.
+             */
+            if( player->level != was_level )
+                mock230_world_player_level_changed(player);
+        }
         return 1;
     }
 
@@ -2637,6 +2690,22 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `[command,movecoord](coord $coord, int $x, int $y, int $z)(coord)` —
+     * engine.rs2:38. `ServerOps.ts:107` is
+     * `packCoord(position.level + y, position.x + x, position.z + z)`: **y is
+     * the plane** and z is north/south, the same naming trap COORDY above
+     * documents.
+     *
+     * This added `$z` to the level and `$y` to the north axis until 2026-08-02.
+     * Every one of the twelve callers in the tree passes `y = 0` — the shape
+     * `movecoord($coord, $dx, 0, $dz)` is idiomatic precisely because the plane
+     * rarely moves — so the two wrong terms were `level + $dz` and `z + 0`, i.e.
+     * `~move_north($coord, 3)` went up three floors and did not move north.
+     * Nothing called those procs yet, which is the only reason it had not been
+     * seen. Found by porting the doors, whose `~door_open` is the first caller
+     * that ever passes a non-zero z.
+     */
     case SS_OP_MOVECOORD:
     {
         int32_t values[4];
@@ -2647,9 +2716,9 @@ mock230_script_command(
                 return 1;
         }
         SSVM_PushInt(state,
-                     coord_pack(coord_level(values[0]) + values[3],
+                     coord_pack(coord_level(values[0]) + values[2],
                                 coord_x(values[0]) + values[1],
-                                coord_z(values[0]) + values[2]));
+                                coord_z(values[0]) + values[3]));
         return 1;
     }
 
@@ -3808,6 +3877,22 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `[command,loc_add](coord $coord, loc $loc, int $angle, locshape $shape,
+     * int $duration)` — engine.rs2:657, and `LocOps.ts:19` destructures exactly
+     * that order: `const [coord, type, angle, shape, duration] = popInts(5)`.
+     *
+     * **angle before shape.** This popped them the other way round until
+     * 2026-08-02, i.e. it implemented `loc_add($coord, $loc, $shape, $angle,
+     * $duration)`. `ss_meta.gen.h` carries arity and stack class, not argument
+     * order, so nothing could catch it at the call — and the two selftest
+     * callers were written against the transposed order, one of them with
+     * `10, 0` where 10 is a *shape* (`centrepiece_straight`) in an argument the
+     * reference calls the angle. Symmetric values hide this completely, which is
+     * the same failure `docs/` records for POP_ARRAY_INT: the door port is what
+     * exposed it, because a swinging door is the first caller whose angle and
+     * shape genuinely differ.
+     */
     case SS_OP_LOC_ADD:
     {
         int32_t coord;
@@ -3819,9 +3904,9 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &duration) )
             return 1;
-        if( !SSVM_PopInt(state, &angle) )
-            return 1;
         if( !SSVM_PopInt(state, &shape) )
+            return 1;
+        if( !SSVM_PopInt(state, &angle) )
             return 1;
         if( !SSVM_PopInt(state, &loc_id) )
             return 1;

@@ -70,7 +70,25 @@ mock230_paramtable_read(
     int owner,
     const struct RSCache_Params* params);
 
-/** Sort by (owner, key). Call once, after the last `_read`. */
+/**
+ * Set one int row, replacing any row this owner already has for that key.
+ *
+ * The entry point the *content overlay* uses, where `_read` is the one the cache
+ * uses. A `.loc` block's `param=next_loc_stage,poordooropen` is a param on that
+ * record in exactly the sense the cache's own param map is — and until
+ * 2026-08-02 it was not: it landed in a private field of
+ * `struct Mock230LocDef` that only C could read, so `loc_param(next_loc_stage)`
+ * — the reference's own line in `doors/scripts/doors.rs2` — answered the
+ * declared default instead. An overlay param no script can read is not a param.
+ */
+void
+mock230_paramtable_set_int(
+    struct Mock230ParamTable* table,
+    int owner,
+    int key,
+    int ival);
+
+/** Sort by (owner, key). Call once, after the last `_read` / `_set_int`. */
 void
 mock230_paramtable_sort(struct Mock230ParamTable* table);
 

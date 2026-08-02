@@ -102,9 +102,27 @@ struct SSC_Compiler
      *  A call is an expression, and the caller has to know which stack the
      *  answer landed on: `~add_article(~stat_name($stat))` passes a string, and
      *  without this the outer call counted it as an int and refused a call that
-     *  was correct. One value only — a multi-return proc used as an argument is
-     *  not something this compiler models, so it stays 0 rather than guessing. */
+     *  was correct. One value only; the arity lives in the two arrays below. */
     int8_t* name_str_return;
+    /** Script id -> how many values its return list puts on each stack, from the
+     *  same declare pass. -1 means the declare pass saw no header for it.
+     *
+     *  A proc that returns two values passed straight to a proc that takes two
+     *  is the reference's ordinary idiom —
+     *  `~movecoord_loc_return(~door_open(loc_angle, loc_shape))`, doors.rs2 —
+     *  and the argument counter used to score every argument expression as one
+     *  value, so it refused that call as "takes 2 int, called with 1". Nothing
+     *  was wrong with the script. Counting the callee's declared returns is what
+     *  makes the reference's door, double-door and stairs scripts compile as
+     *  written; commands never needed it because their argument lists are not
+     *  counted at all (their meta carries arity and the VM pops it). */
+    int8_t* name_int_returns;
+    int8_t* name_str_returns;
+    /** The return arity of the call `parse_call` most recently finished, so an
+     *  argument that *is* a call can be scored by what it actually pushed.
+     *  -1 when that callee declared no header. */
+    int last_call_int_returns;
+    int last_call_str_returns;
     int name_count;
     int name_capacity;
 
@@ -460,13 +478,39 @@ parse_call(
             for( ;; )
             {
                 int arg_is_string = 0;
+                /*
+                 * An argument that *is* a call can push more than one value.
+                 *
+                 * `parse_expression` returns immediately after `parse_call` when
+                 * the argument's first token is a `~name`, so this token test is
+                 * exactly "the whole argument is a call" — and the nested call
+                 * has left its declared return arity behind in
+                 * `last_call_*_returns`. Everything else pushes one, which is
+                 * what this loop assumed for every argument until 2026-08-02.
+                 *
+                 * A callee whose header the declare pass never saw reports -1
+                 * and is scored as one, i.e. as before: unknown arity must not
+                 * turn into a confident wrong number.
+                 */
+                int arg_is_call = compiler->lexer.current.kind == SSC_TOK_PROC;
 
+                compiler->last_call_int_returns = -1;
+                compiler->last_call_str_returns = -1;
                 if( !parse_expression(compiler, &arg_is_string) )
                     return 0;
-                if( arg_is_string )
+                if( arg_is_call && compiler->last_call_int_returns >= 0 )
+                {
+                    pushed_ints += compiler->last_call_int_returns;
+                    pushed_strs += compiler->last_call_str_returns;
+                }
+                else if( arg_is_string )
+                {
                     pushed_strs++;
+                }
                 else
+                {
                     pushed_ints++;
+                }
                 if( SSC_LexIsPunct(&compiler->lexer, "," ) )
                 {
                     SSC_LexNext(&compiler->lexer);
@@ -505,6 +549,19 @@ parse_call(
     if( is_string )
         *is_string = script_id < compiler->name_count &&
                      compiler->name_str_return[script_id] == 1;
+    /* What this call left behind, for a caller whose argument it is. Written
+     * last so a nested call's value is overwritten by the outer one's, which is
+     * the order the argument loop above reads it in. */
+    if( script_id < compiler->name_count )
+    {
+        compiler->last_call_int_returns = compiler->name_int_returns[script_id];
+        compiler->last_call_str_returns = compiler->name_str_returns[script_id];
+    }
+    else
+    {
+        compiler->last_call_int_returns = -1;
+        compiler->last_call_str_returns = -1;
+    }
     return 1;
 }
 
@@ -2064,15 +2121,21 @@ SSC_New(struct SSC_Symbols* symbols)
     compiler->name_int_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_str_args = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_str_return = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    compiler->name_int_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    compiler->name_str_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
-    if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return )
+    if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return &&
+        compiler->name_int_returns && compiler->name_str_returns )
     {
         memset(compiler->name_int_args, -1, SSC_MAX_SCRIPTS);
         memset(compiler->name_str_args, -1, SSC_MAX_SCRIPTS);
         memset(compiler->name_str_return, -1, SSC_MAX_SCRIPTS);
+        memset(compiler->name_int_returns, -1, SSC_MAX_SCRIPTS);
+        memset(compiler->name_str_returns, -1, SSC_MAX_SCRIPTS);
     }
     if( !compiler->scripts || !compiler->names || !compiler->name_int_args ||
-        !compiler->name_str_args || !compiler->name_str_return )
+        !compiler->name_str_args || !compiler->name_str_return ||
+        !compiler->name_int_returns || !compiler->name_str_returns )
     {
         SSC_Free(compiler);
         return NULL;
@@ -2094,6 +2157,8 @@ SSC_Free(struct SSC_Compiler* compiler)
     free(compiler->name_int_args);
     free(compiler->name_str_args);
     free(compiler->name_str_return);
+    free(compiler->name_int_returns);
+    free(compiler->name_str_returns);
     free(compiler);
 }
 
@@ -2253,11 +2318,16 @@ SSC_Declare(
                     }
                     /*
                      * The return list, which follows the argument list:
-                     * `[proc,stat_name](stat $stat)(string)`. Only "is the one
-                     * answer a string" is recorded — see name_str_return — so a
-                     * caller can tell which stack it just pushed onto.
+                     * `[proc,stat_name](stat $stat)(string)`. Two things are
+                     * recorded — which stack a single answer landed on
+                     * (name_str_return) and how many values land on each
+                     * (name_int_returns / name_str_returns), which is what lets
+                     * a multi-return call be passed straight into another call's
+                     * argument list.
                      */
                     compiler->name_str_return[slot] = 0;
+                    compiler->name_int_returns[slot] = 0;
+                    compiler->name_str_returns[slot] = 0;
                     if( SSC_LexIsPunct(&lexer, "(") )
                     {
                         int returns = 0;
@@ -2279,6 +2349,8 @@ SSC_Declare(
                         }
                         compiler->name_str_return[slot] =
                             (int8_t)(returns == 1 && strings == 1);
+                        compiler->name_int_returns[slot] = (int8_t)(returns - strings);
+                        compiler->name_str_returns[slot] = (int8_t)strings;
                     }
                     continue;
                 }

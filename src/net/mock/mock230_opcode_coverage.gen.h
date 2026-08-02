@@ -12,10 +12,11 @@
  *     63  VM core
  *    164  host commands
  *      9  host commands (db)
- *      5  host commands (loc)
+ *      8  host commands (loc)
  *      7  host commands (npc)
  *      2  host commands (param)
- *    250  total, of 401 declared opcodes
+ *      1  host commands (player)
+ *    254  total, of 401 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -23,7 +24,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 250
+#define MOCK230_OPCODE_COVERAGE_COUNT 254
 #define MOCK230_OPCODE_DECLARED_COUNT 401
 
 /*
@@ -119,6 +120,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2072, /* SS_OP_P_DELAY (host commands) */
     2074, /* SS_OP_P_FINDUID (host commands) */
     2076, /* SS_OP_P_LOGOUT (host commands) */
+    2078, /* SS_OP_P_OPLOC (host commands (player)) */
     2079, /* SS_OP_P_OPNPC (host commands) */
     2084, /* SS_OP_P_PAUSEBUTTON (host commands) */
     2087, /* SS_OP_P_STOPACTION (host commands) */
@@ -180,6 +182,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2547, /* SS_OP_SPOTANIM_NPC (host commands) */
     3000, /* SS_OP_LOC_ADD (host commands) */
     3001, /* SS_OP_LOC_ANGLE (host commands) */
+    3003, /* SS_OP_LOC_CATEGORY (host commands (loc)) */
     3004, /* SS_OP_LOC_CHANGE (host commands) */
     3005, /* SS_OP_LOC_COORD (host commands) */
     3006, /* SS_OP_LOC_DEL (host commands) */
@@ -198,6 +201,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4005, /* SS_OP_NC_PARAM (host commands) */
     4006, /* SS_OP_NC_SIZE (host commands) */
     4007, /* SS_OP_NC_VISLEVEL (host commands) */
+    4100, /* SS_OP_LC_CATEGORY (host commands (loc)) */
+    4101, /* SS_OP_LC_DEBUGNAME (host commands (loc)) */
     4103, /* SS_OP_LC_LENGTH (host commands (loc)) */
     4104, /* SS_OP_LC_NAME (host commands (loc)) */
     4106, /* SS_OP_LC_PARAM (host commands (param)) */

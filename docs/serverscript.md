@@ -218,6 +218,8 @@ through to the switch (`mock230_scripts.c:1269-1276`):
         return 1;
     if( mock230_ops_npc(state, opcode, dot) )
         return 1;
+    if( mock230_ops_player(state, opcode, dot) )
+        return 1;
 
     switch( opcode )
 ```
@@ -231,9 +233,19 @@ never claim the same opcode), and no way for a domain to be reachable-but-unlist
 Two consequences worth the pattern on their own:
 
 - **A family lands without serialising on one file.** The `db_*`, `*_param`,
-  `loc_*` and `npc_*` families landed as four files whose entire shared footprint
-  is four two-line hooks. The alternative is every opcode author editing the same
-  switch.
+  `loc_*`, `npc_*` and `p_*` families landed as five files whose entire shared
+  footprint is five two-line hooks. The alternative is every opcode author editing
+  the same switch.
+
+  `mock230_ops_player.c` is the newest (2026-08-02, `p_oploc`) and it is the one
+  that shows what the split is worth beyond the diff: its header is 40 lines about
+  why a `p_op*` is a **re-issue** — `stopAction`, a waypoint, then
+  `setInteraction`, which the dispatch resolves on a later tick — and not a call
+  into the engine's own handler. That distinction has a counter-example in this
+  tree (`SS_OP_P_OPNPC` calls `mock230_combat_engage` directly, so
+  `[opnpc2,_] p_opnpc(2)` would delete a fallback row and move nothing), and in
+  the big switch there was nowhere to write it down where the next author of a
+  `p_op*` would read it.
 - **Coverage cannot silently under-report.** `gen_opcode_coverage.py` *globs*
   `mock230_ops_*.c` (`gen_opcode_coverage.py:39-45`) rather than listing them, so
   a new domain file is picked up with no generator edit. A hand-kept list would be
@@ -284,13 +296,19 @@ labels in the VM core and in every dispatch source. Measured today
 
 ```
  63  VM core
-152  host commands            (mock230_scripts.c)
+164  host commands            (mock230_scripts.c)
   9  host commands (db)
   2  host commands (param)
-  5  host commands (loc)
-  6  host commands (npc)
-237  total, of 399 declared opcodes
+  8  host commands (loc)
+  7  host commands (npc)
+  1  host commands (player)
+254  total, of 401 declared opcodes
 ```
+
+(That block is a snapshot and the generator is the authority — `python3
+net/mock/gen_opcode_coverage.py --check`. It said 237/399 when the split landed
+and 254/401 on 2026-08-02; three of the four new ones are the loc category rung,
+`LOC_CATEGORY` / `LC_CATEGORY` / `LC_DEBUGNAME`, and the fourth is `P_OPLOC`.)
 
 The extraction regex is `^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:` — plain `case` labels
 only. An opcode handled inside a case body via `if( opcode == SS_OP_X )` is *not*
@@ -399,13 +417,16 @@ was called "a real memory question" in planning; it is 41 KB.
 
 #### `loc_*` / `lc_*` — the config reads
 
-| op | id | signature |
-|---|---:|---|
-| `loc_param` | 3011 | `(param $param)(any)` — active loc |
-| `loc_name` | 3010 | `()(string)` — active loc |
-| `lc_name` | 4104 | `(loc $loc)(string)` |
-| `lc_width` | 4107 | `(loc $loc)(int)` |
-| `lc_length` | 4103 | `(loc $loc)(int)` |
+| op | id | signature | engine.rs2 |
+|---|---:|---|---:|
+| `loc_param` | 3011 | `(param $param)(any)` — active loc | :693 |
+| `loc_name` | 3010 | `()(string)` — active loc | :699 |
+| `loc_category` | 3003 | `()(category)` — active loc | :667 |
+| `lc_name` | 4104 | `(loc $loc)(string)` | :753 |
+| `lc_category` | 4100 | `(loc $loc)(category)` | :757 |
+| `lc_debugname` | 4101 | `(loc $loc)(string)` | :761 |
+| `lc_width` | 4107 | `(loc $loc)(int)` | :763 |
+| `lc_length` | 4103 | `(loc $loc)(int)` | :765 |
 
 The *mutating* half of the family — `loc_add`, `loc_change`, `loc_del`, `loc_find`,
 `loc_coord`, `loc_type`, `loc_angle`, `loc_shape`, the find-all iterators — stays
@@ -415,6 +436,82 @@ moved is exactly what is a pure read of the config record.
 `loc_name` is the family's only string-stack op, so it is the one that catches a
 handler pushing to the wrong stack: a value on the int stack leaves `def_string $s
 = loc_name` underflowing rather than comparing wrongly.
+
+**The category pair landed 2026-08-02** and is the file's second instance of the
+arity trap its own header documents for `loc_param`/`lc_param`: `loc_category`
+pops nothing and reads the active loc, `lc_category` pops the id it is told, and
+transposing them is a stack skew rather than a wrong answer. Two things about it
+are worth carrying:
+
+- **The opcode and the trigger rung are the same function.** `mock230_loc_category`
+  is what `interaction_category` feeds `SSVM_ProviderGetByTrigger` *and* what this
+  opcode pushes, so a script that tests a category and a script bound to one
+  cannot disagree. It reads the authored `.loc` overlay first and the cache's
+  config opcode 61 second — the domain that needed both halves first, because
+  LostCity binds doors as a category and **none** of this cache's 776 door records
+  states one. See `docs/osrs230_mockserver.md` §3.18 for what that rung cost.
+- **−1, not the reference's 0.** `LocOps.ts:57` and `LocConfigOps.ts:28` push
+  `locType.category` raw, which is 0 for a record that states none. Here it is −1,
+  which is RuneScript's `null` for a config-typed value and is what the
+  `(category)` return type means. 0 is not available on this side:
+  `pack/category.pack` reserves it and `mock230_pack` refuses to name it, so
+  content comparing against 0 would be comparing against a name that must never
+  exist.
+
+`lc_debugname` pushes the **symbol**, not the display name — `debugname` is the
+`[block]` header of a config file, where `lc_name` is the record's `name=`. That
+distinction is why it was refused once as "a LostCity build-time symbol the dat2
+record has no field for": true about the cache and beside the point, since the
+symbol table is `pack/loc.pack` and this tree has it. It has one caller in the
+whole reference and that caller is the reason it is here —
+`ladders+stairs/scripts/stairs.rs2:431` is
+`mes("Unhandled stairs: <lc_debugname(loc_type)> at")`, the line that tells a port
+which locs it missed.
+
+#### `p_*` — a re-issue is not a call into the engine's handler
+
+| op | id | signature | engine.rs2 |
+|---|---:|---|---:|
+| `p_oploc` | 2078 | `(int $op)` | :179 |
+
+`mock230_ops_player.c` is the newest domain file (2026-08-02) and holds one
+opcode, which is the point: the rest of the family — `p_opnpc`, `p_opheld`,
+`p_opobj`, `p_opplayer` — belongs beside it as each is written or corrected, and
+the distinction they all turn on had nowhere to live in the big switch.
+
+`PlayerOps.ts:389-403` does three things: `stopAction()`, queue a waypoint when
+the loc is out of operable distance, and `setInteraction(SCRIPT, activeLoc,
+APLOC1 + type)`. The interaction is **resolved on a later tick by the same
+dispatch a click goes through**. That is what makes it safe for content to bind a
+verb the engine also answers: the binding can re-issue rather than replace, which
+is the obligation `mock230_scripts_report_shadowed_ops` exists to name.
+
+**The counter-example is in this tree.** `SS_OP_P_OPNPC` reads the op number and
+calls `mock230_combat_engage` directly, so `p_opnpc(2)` does not re-enter the
+dispatch — it *is* the combat engine reached by another name. `[opnpc2,_]
+p_opnpc(2)` therefore looks like an eviction of the `opnpc` fallback row while
+moving nothing, and that row's `blocked_on` says so in as many words.
+
+Three details of the reference are load-bearing and all three are easy to drop:
+
+- **it returns silently when the loc's own `op[type]` is empty** — not an error,
+  not a message. A resume loop re-issuing op 1 on a loc that has since changed
+  into something without an op 1 simply stops, which is what
+  `skill_woodcutting/scripts/woodcut.rs2`'s `p_oploc(1); // gets delayed by a tick
+  >:(` depends on. The census is **41 uses / 13 files** (the method in *Measured*
+  below), and they cluster in resume loops — woodcutting, mining, quest and
+  fishing-spot scripts — rather than in one-shot discharges.
+- **the range test decides the waypoint, not the interaction.** The interaction is
+  set either way; being far away only adds the walk. This port walks
+  unconditionally, which is a deliberate narrowing: `mock230_world_walk_beside`
+  routes from where the player already is, so an adjacent player gets a
+  zero-length route, and a second range test would be a second answer to a
+  question `mock230_world_process_interaction` already answers a tick later.
+- **it must not resolve the interaction inline.** A packet arrives between ticks,
+  so `handle_oploc` resolving immediately is right; a script runs *inside* a tick,
+  so resolving there would run the `[oploc<n>]` script from within itself.
+  `[oploc1,_] p_oploc(1)` is an infinite recursion in any version that gets this
+  wrong, and the reference's own comment above is the tell that it does not.
 
 #### `npc_*` / `nc_*` — the config reads and the pure searches
 
@@ -467,15 +564,32 @@ re-measured over `LostCity_Server/content` today (see below for the method):
 |---|---:|---|
 | `npc_walk`, `npc_walktrigger` | 90 / 44, 2 / 1 | `NpcOps.ts` queues a **waypoint** the tick drains. `struct Mock230Npc` has no destination and no queue. Faking it as a teleport would make 44 files *look* ported while every npc arrived instantly — worse than the stub, because it is silent. |
 | `loc_anim` | 51 / 21 | missing **wire packet**, not missing data: `World.animLoc` is a zone event and this server's `zone_sub_opcode` enumerates no loc-anim. |
-| `loc_category`, `lc_category` | 38 / 16, 3 / 1 | the linked rscache decoder throws the bytes away — `dat2_config_loc.c` has `case 61: g2(buffer); // Skip`. Landing it needs opcode 61 confirmed against the OSRS `LocType` reference *and* an `EXCEPTIONS.md`-governed edit to the vendored tree. |
 | `npc_changetype_keepall` | 31 / 15 | verified identical to `npc_changetype` in *this* engine — the only difference upstream is re-deriving a per-npc `levels[]` store that does not exist here. One fallthrough line by whoever owns that switch. |
 | `npc_statheal` / `statsub` / `statadd` | 16 / 10, 9 / 6, 1 / 1 | all write `npc.levels[stat]`; here `npc_stat` reads the content block and hitpoints is the only number that moves. Writing a value nothing reads is worse than the stub. |
 | `npc_sethuntmode`, `npc_sethunt` | 14 / 7, 1 / 1 | one *feature* wearing five opcodes (a `hunt` namespace, per-npc huntMode/range, a HuntVis test, a per-tick pass). `npc_hunt`/`npc_huntall` are the two of the five that are pure searches. |
 | `npc_heropoints` | 14 / 14 | needs per-player damage attribution plus the drop consumer; `npc_findhero` pushes the constant 1 because there is one player. |
 | `npc_arrivedelay`, `npc_inrange` | 2 / 2, 2 / 1 | both read per-npc fields the mover and the interaction machinery would have to write. |
 | `lc_desc` | 0 / 0 | **measured: 0 of 62,194 loc records carry a `desc`.** The field is gone from OSRS loc configs at this revision; a handler could only ever push `'null'`. |
-| `lc_debugname` | 1 / 1 | `debugname` is a LostCity build-time symbol; the dat2 record has no such field. |
 | `nc_desc`, `npc_findallzone`, `obj_param` | 0 / 0 | no caller anywhere in the reference. |
+
+**Three rows left this table on 2026-08-02 and the way they left is the useful
+part.** `loc_category` (38 / 16), `lc_category` (3 / 1) and `lc_debugname` (1 / 1)
+were all refused here, and both refusals were plausible when written:
+
+- The category pair said *"the linked rscache decoder throws the bytes away"*.
+  **Correct, and it was a price rather than a wall** — `EXCEPTIONS.md`-governed,
+  paid, and the fidelity suite failed on the first run for the reason a decoder
+  change always risks: a field the *text* form cannot express takes `cachepack`'s
+  loc `lost-here` column from 0 to 205. `cp_loc.c` gained a `category=` key.
+- `lc_debugname` said *"`debugname` is a LostCity build-time symbol; the dat2
+  record has no such field"*. **True and beside the point** — it is not supposed
+  to be a cache field. It is the `[block]` header of a config file and this tree
+  keeps that table in `pack/loc.pack`. A refusal can be factually right about the
+  cache and wrong about the opcode, and that is the failure mode of a list whose
+  whole job is to be audited.
+
+The counts stay in the census above so they can be re-run; `loc_category` at
+38 / 16 is also this table's worked example of the zero-argument blindness below.
 
 `LC_OP`, `OC_IOP` and `OC_OP` remain the sharper case one rung up: they are
 `known = 0`, so the VM refuses to execute them at all rather than guessing an
@@ -615,6 +729,22 @@ Out of scope: arrays, and the `queue*` vararg type-string sugar.
 
 Things worth knowing:
 
+- **A call's arguments are counted, and a call can be an argument.** The
+  argument list of `~proc(...)` is checked against the callee's declared header,
+  because a gosub that pushes the wrong number leaves the stack skewed and the
+  symptom is an unrelated command reading someone else's value tens of
+  instructions later. Until 2026-08-02 that counter scored every argument
+  expression as **one** value, which rejected the reference's ordinary idiom:
+  `~movecoord_loc_return(~door_open(loc_angle, loc_shape))` — a two-return proc
+  passed straight into a two-argument one — came back as *"takes 2 int, called
+  with 1"* with nothing wrong with the script. The declare pass records each
+  script's return arity per stack (`name_int_returns` / `name_str_returns`) and
+  the argument loop scores a bare `~call` by what it actually pushed. A callee
+  whose header was never seen reports -1 and is still scored as one: unknown
+  arity must not become a confident wrong number. **Commands never needed this**
+  — their argument lists are not counted at all, because `ss_meta.gen.h` carries
+  their arity and the VM pops it, which is why
+  `movecoord(coord, ~door_open_move_player_out_of_way($angle))` always worked.
 - **Locals live in two separate spaces.** `PUSH_INT_LOCAL` and
   `PUSH_STRING_LOCAL` address different arrays, each indexed from zero, so the
   compiler keeps two counters. One shared counter compiles fine and reads the

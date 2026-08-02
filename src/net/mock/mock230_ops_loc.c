@@ -56,6 +56,7 @@
  */
 
 #include "mock230.h"
+#include "mock230_content.h"
 #include "mock230_paramtable.h"
 #include "mock230_scene.h"
 
@@ -192,6 +193,82 @@ mock230_ops_loc(
         if( !check_loc_id(state, opcode, loc_id) )
             return 1;
         push_loc_name(state, loc_id);
+        return 1;
+    }
+
+    /*
+     * `[command,loc_category]()(category)` — engine.rs2:667, `.loc_category` at
+     * :669 — and `[command,lc_category](loc $loc)(category)` at :757.
+     *
+     * The `loc_param` / `lc_param` arity trap this file's header documents, one
+     * rung along and with the same shape: one pops nothing and reads the active
+     * loc, the other pops the id it is told.
+     *
+     * `mock230_loc_category` is the merged read — the authored overlay first, the
+     * cache's config opcode 61 second. This is the whole reason
+     * `[oploc1,_door_closed]` can bind: the rung `interaction_category` feeds the
+     * trigger lookup with, and the value this opcode pushes, are the same
+     * function, so a script that *tests* the category and a script bound *to* the
+     * category cannot disagree.
+     *
+     * **One divergence from the reference, stated.** `LocOps.ts:57` and
+     * `LocConfigOps.ts:28` push `locType.category` raw, which is 0 for a record
+     * that states none. Here it is -1, which is RuneScript's `null` for every
+     * config-typed value and is what the `(category)` return type means. 0 is not
+     * available to mean "none" on this side: `pack/category.pack` reserves it and
+     * `mock230_pack` refuses to name it, so content comparing against 0 would be
+     * comparing against a name that must never exist.
+     */
+    case SS_OP_LOC_CATEGORY:
+    {
+        struct Mock230SceneLoc* loc = active_loc(state, opcode);
+
+        if( !loc )
+            return 1;
+        SSVM_PushInt(state, mock230_loc_category(loc->loc_id));
+        return 1;
+    }
+
+    case SS_OP_LC_CATEGORY:
+    {
+        int32_t loc_id;
+
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !check_loc_id(state, opcode, loc_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_loc_category(loc_id));
+        return 1;
+    }
+
+    /*
+     * `[command,lc_debugname](loc $loc)(string)` — engine.rs2:761.
+     *
+     * The *symbol*, not the display name: `LocConfigOps.ts:36` pushes
+     * `debugname`, which is the `[block]` header of a `.loc` file, where `lc_name`
+     * pushes the record's `name=`. Here the symbol table is `pack/loc.pack` and
+     * `mock230_content_symbol_name` is its reader.
+     *
+     * It has one caller in the whole reference tree and that caller is why it is
+     * here: `ladders+stairs/scripts/stairs.rs2:431` is
+     * `mes("Unhandled stairs: <lc_debugname(loc_type)> at")` — the reference's own
+     * "this loc reached a script that does not handle it" line. Porting that file
+     * without the opcode loses the diagnostic that says which locs the port missed.
+     *
+     * `'null'` is the reference's own fallback (`debugname ?? 'null'`), the same
+     * string `push_loc_name` uses and for the same reason.
+     */
+    case SS_OP_LC_DEBUGNAME:
+    {
+        int32_t loc_id;
+        const char* symbol;
+
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !check_loc_id(state, opcode, loc_id) )
+            return 1;
+        symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, loc_id);
+        SSVM_PushStr(state, symbol ? symbol : "null");
         return 1;
     }
 

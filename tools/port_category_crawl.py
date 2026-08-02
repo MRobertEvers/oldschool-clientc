@@ -1,11 +1,29 @@
 #!/usr/bin/env python3
 """
-port_category_crawl — npc categories for the LostCity port (triage §9 step 3b).
+port_category_crawl — categories for the LostCity port (triage §9 step 3b).
 
     tools/port_category_crawl.py --report     # the review artifact, TSV on stdout
     tools/port_category_crawl.py --groups     # what each osrs239 id actually holds
-    tools/port_category_crawl.py --check      # the build bar
-    tools/port_category_crawl.py --write-map  # regenerate port/categories.map
+    tools/port_category_crawl.py --check      # the build bar (every domain)
+    tools/port_category_crawl.py --write-map  # regenerate the domain's map
+
+    --domain npc | loc        which record type's `category=` to crawl (default npc)
+
+Two domains, one id space, one map file each.
+
+`npc` came first and `loc` joined it on 2026-08-02, when `dat2_config_loc.c`
+stopped discarding config opcode 61. They are separate *crawls* — a reference
+`.loc` block's `category=` is a different claim from a `.npc` block's — over one
+shared *namespace*: `pack/category.pack` is `id=name` for all three record types
+(obj states one too, at opcode 94, and has no reference crawl because LostCity
+authors no obj categories this port needs). So a name minted by one domain is
+visible to the others, which is why `--check` runs every domain and why the pack
+file itself is the collision test: one id, one name, whoever wrote it.
+
+`obj` is deliberately absent as a *crawl* even though `reference_trigger_refs`
+collects the domain. The obj names in `pack/category.pack` were read off the
+cache by grouping the obj table, not crawled out of the reference, and a crawl
+that re-derived them would answer a question nobody asked.
 
 Why a crawler and not a lookup.
 
@@ -70,8 +88,28 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
 
-MAP_NAME = os.path.join("port", "categories.map")
 PACK_NAME = os.path.join("pack", "category.pack")
+
+# One map per domain. `npc` keeps the original filename because it is the
+# authority a dozen documents cite by name; a new domain gets a suffix rather
+# than a rename, and rather than a domain column inside one file, because the
+# two crawls are reviewed independently and a merge conflict in one has no
+# business touching the other.
+DOMAINS = {
+    "npc": {
+        "suffix": ".npc",
+        "config": "npc",
+        "map": os.path.join("port", "categories.map"),
+        "compack": "configs/all.npc.compack",
+    },
+    "loc": {
+        "suffix": ".loc",
+        "config": "loc",
+        "map": os.path.join("port", "categories_loc.map"),
+        "compack": "configs/all.loc.compack",
+    },
+}
+DEFAULT_DOMAIN = "npc"
 
 # The disposition vocabulary. `minted` is the only one that asserts the name is
 # in pack/category.pack; every other one asserts it is not.
@@ -82,14 +120,27 @@ DISPOSITIONS = {
     "collision",  # two reference names crawl to one id — one name per id
     "broader",    # unique id, wider concept: minting would bind the wrong set
     "orphan",     # no member resolves to a categorised record — needs an id
+    "allocated",  # no cache id exists, so this tree made one above the base
     "placeholder",  # `category_<n>`: a number wearing a name. Never a name here
 }
 
 # `collision` is a *derived* disposition and never a resting one — see `check`.
 # The demotions a human is allowed to write over the crawl's own answer, and the
 # only dispositions `write_map` preserves across a regenerate.
-HELD_BACK = ("broader", "orphan")
-OVERRIDABLE = (MINTED, "collision")
+HELD_BACK = ("broader", "orphan", "allocated")
+# The derived dispositions a hand row may sit on top of. `orphan` joined the two
+# on 2026-08-02 with `allocated`: an allocated name is BY CONSTRUCTION one the
+# crawl derives as an orphan, so without this a regenerate would put every
+# allocated row back to `orphan` and silently unbind the content standing on it.
+OVERRIDABLE = (MINTED, "collision", "orphan")
+
+# The first id `content/content_register.c` lets this tree allocate in the
+# `category` namespace. Restated here rather than read, because this tool links
+# no C and parses no register — and the restatement is safe in one direction
+# only, which is the direction it needs: if the two ever disagree the `allocated`
+# rule below gets *weaker*, never wrong. It would accept an id `mock230_pack`
+# then rejects, and that fails loudly.
+CATEGORY_SERVER_BASE = 8192
 
 # A reference category named after a *LostCity* id. `category_453` is not a
 # name, it is the 2004 cache's number with an underscore in front, and this
@@ -126,8 +177,9 @@ def walk_configs(root, suffix, include_unpack):
                         yield name, key.strip(), value.strip(), rel
 
 
-def reference_members(ref):
-    """category name -> [(record name, provenance)] for every LostCity `.npc`.
+def reference_members(ref, suffix=".npc"):
+    """category name -> [(record name, provenance)] for every LostCity config of
+    this domain's suffix.
 
     `_unpack/` is included, and that is deliberate rather than sloppy. The
     reference's own build crawls it — CONTENT_ARCHITECTURE.md §2.1: "the queue is
@@ -140,7 +192,7 @@ def reference_members(ref):
     """
     root = os.path.join(ref, "content", "scripts")
     groups = collections.defaultdict(list)
-    for name, key, value, rel in walk_configs(root, ".npc", include_unpack=True):
+    for name, key, value, rel in walk_configs(root, suffix, include_unpack=True):
         if key != "category":
             continue
         groups[value].append((name, "unpack" if rel.startswith("_unpack") else "authored"))
@@ -235,9 +287,16 @@ class Row:
         self.evidence = ""
 
 
-def crawl(tree, ref):
-    """Every reference npc category, classified. Returns (rows, group index)."""
-    npc = tree_records(tree, "npc")
+def crawl(tree, ref, domain=DEFAULT_DOMAIN):
+    """Every reference category of this domain, classified.
+
+    Returns (rows, group index). `npc` below is this *domain's* record table —
+    the variable keeps its name because every line of the logic is identical
+    between the two and renaming it would make the diff unreadable while
+    changing nothing.
+    """
+    spec = DOMAINS[domain]
+    npc = tree_records(tree, spec["config"])
     by_category = collections.defaultdict(list)
     for record, fields in npc.items():
         if "category" in fields:
@@ -271,8 +330,8 @@ def crawl(tree, ref):
             except ValueError:
                 pass
 
-    groups = reference_members(ref)
-    referenced = reference_trigger_refs(ref).get("npc", set())
+    groups = reference_members(ref, spec["suffix"])
+    referenced = reference_trigger_refs(ref).get(domain, set())
 
     # Two reference names landing on one id can only be seen across rows, so the
     # first pass records the id and the second decides the disposition.
@@ -309,8 +368,9 @@ def crawl(tree, ref):
             for display in {npc.get(record, {}).get("name")
                             for record, _provenance in members} - {None}:
                 near.update(by_display.get(display, {}))
-            row.evidence = ("%d member(s): %d not in configs/all.npc.compack, %d "
-                            "carry no category" % (row.total, unnamed, uncategorised))
+            row.evidence = ("%d member(s): %d not in %s, %d "
+                            "carry no category"
+                            % (row.total, unnamed, spec["compack"], uncategorised))
             if near:
                 # `<id>(<records sharing a display name>/<the whole group>)` —
                 # the same ratio a `broader` call is made from, so the reader can
@@ -365,10 +425,10 @@ def crawl(tree, ref):
     return rows, by_category
 
 
-def group_names(tree, by_category, cid):
+def group_names(tree, by_category, cid, domain=DEFAULT_DOMAIN):
     """The display-name histogram of an osrs239 category, which is the evidence
     the `broader` calls were made from."""
-    npc = tree_records(tree, "npc")
+    npc = tree_records(tree, DOMAINS[domain]["config"])
     counts = collections.Counter()
     for record in by_category.get(cid, []):
         counts[npc.get(record, {}).get("name", "(unnamed)")] += 1
@@ -380,7 +440,7 @@ def group_names(tree, by_category, cid):
 # ----------------------------------------------------------------------
 
 HEADER = """\
-# port/categories.map — npc categories, crawled (docs/LOSTCITY_PORT_TRIAGE.md §16).
+# %(map)s — %(domain)s categories, crawled (docs/LOSTCITY_PORT_TRIAGE.md §16).
 #
 # Generated by tools/port_category_crawl.py.
 #
@@ -408,19 +468,30 @@ HEADER = """\
 #                unrelated reason). `--check` fails on a collision left standing.
 #   broader      unique id, wider concept — minting binds the wrong set.
 #   orphan       no id in this cache states this concept, so one would have to be
-#                *allocated*. Blocked: `category` has no `server_base` in
-#                content.ini (triage §9 step 3c-0). The evidence column carries
-#                the near-miss ids a later reader would otherwise find by display
-#                name and mint — they are marked SUSPECT because they are a
-#                different concept sharing a word.
+#                *allocated*. `category` HAS an allocation base now (8192,
+#                content/content_register.c) — so an orphan is no longer blocked,
+#                it is undecided: allocating an id also means authoring the
+#                `category=` key on every member, and until something states it
+#                `mock230_pack` reports the name as carried by nothing. The
+#                evidence column carries the near-miss ids a later reader would
+#                otherwise find by display name and mint — marked SUSPECT because
+#                they are a different concept sharing a word.
+#   allocated    no cache record states this concept, so the id came from this
+#                tree's own allocation base (8192) rather than being read. A hand
+#                disposition over a derived `orphan`, and the ONE held-back
+#                disposition that REQUIRES the name to be in pack/category.pack —
+#                because for an allocated id that file is where the id comes from.
+#                It also requires an authored config block to *state* the
+#                category, which is `mock230_pack`'s half of the check, not this
+#                tool's.
 #   placeholder  `category_<n>` — a LostCity id wearing a name.
 """
 
 
-def write_map(path, rows):
+def write_map(path, rows, domain=DEFAULT_DOMAIN):
     existing = read_map(path)
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write(HEADER)
+        handle.write(HEADER % {"map": DOMAINS[domain]["map"], "domain": domain})
         for name in sorted(rows):
             row = rows[name]
             # A hand demotion is a judgement about what an osrs239 group holds;
@@ -467,7 +538,7 @@ def read_map(path):
 # Commands
 # ----------------------------------------------------------------------
 
-def report(tree, ref):
+def report(tree, ref, domain=DEFAULT_DOMAIN):
     """The review artifact — and it prints the *map's* disposition, not its own.
 
     This used to print the raw crawl. That is a trap with a witness: a reader
@@ -482,8 +553,9 @@ def report(tree, ref):
     differ. A row with no map entry shows `derived` as its disposition too and
     is reported — that is `--check`'s "a new reference category is a decision".
     """
-    rows, by_category = crawl(tree, ref)
-    stated = read_map(os.path.join(tree, MAP_NAME))
+    map_name = DOMAINS[domain]["map"]
+    rows, by_category = crawl(tree, ref, domain)
+    stated = read_map(os.path.join(tree, map_name))
     print("name\tdisposition\tid\tresolved/total\trefs\tprovenance\tevidence\tderived")
     overrides = []
     for name in sorted(rows):
@@ -503,8 +575,8 @@ def report(tree, ref):
     counts = collections.Counter(effective.values())
     referenced = collections.Counter(
         effective[n] for n in rows if rows[n].referenced)
-    print("\n# %d reference npc categories: %s" % (
-        len(rows), ", ".join("%s %d" % kv for kv in sorted(counts.items()))),
+    print("\n# %d reference %s categories: %s" % (
+        len(rows), domain, ", ".join("%s %d" % kv for kv in sorted(counts.items()))),
         file=sys.stderr)
     print("# of the %d bound by a trigger: %s" % (
         sum(referenced.values()),
@@ -512,20 +584,20 @@ def report(tree, ref):
         file=sys.stderr)
     if not stated:
         print("# no %s — every disposition above is the crawl's own, unreviewed"
-              % MAP_NAME, file=sys.stderr)
+              % map_name, file=sys.stderr)
     for name, held, derived, cid in overrides:
         print("# %s: the map says %s, the crawl alone would say %s (%d) — the "
               "map is the authority" % (name, held, derived, cid), file=sys.stderr)
     return 0
 
 
-def groups(tree, ref):
-    rows, by_category = crawl(tree, ref)
-    npc = tree_records(tree, "npc")
+def groups(tree, ref, domain=DEFAULT_DOMAIN):
+    rows, by_category = crawl(tree, ref, domain)
+    npc = tree_records(tree, DOMAINS[domain]["config"])
     # The map's disposition, for the same reason `report` uses it: this listing
     # is the evidence a `broader` call is *made from*, so printing `minted`
     # beside the histogram that disproves it is the worst possible caption.
-    stated = read_map(os.path.join(tree, MAP_NAME))
+    stated = read_map(os.path.join(tree, DOMAINS[domain]["map"]))
     for name in sorted(rows):
         row = rows[name]
         disposition = stated[name][0] if name in stated else row.disposition
@@ -533,18 +605,19 @@ def groups(tree, ref):
             counts = collections.Counter()
             for record in by_category.get(cid, []):
                 counts[npc.get(record, {}).get("name", "(unnamed)")] += 1
-            print("%-26s %-12s %5d  %3d npc(s)  %s" % (
+            print("%-26s %-12s %5d  %3d record(s)  %s" % (
                 name, disposition, cid, len(by_category.get(cid, [])),
                 ", ".join("%s x%d" % (k, v) for k, v in counts.most_common(6))))
     return 0
 
 
-def check(tree, ref, verbose):
-    map_path = os.path.join(tree, MAP_NAME)
+def check(tree, ref, verbose, domain=DEFAULT_DOMAIN):
+    map_name = DOMAINS[domain]["map"]
+    map_path = os.path.join(tree, map_name)
     stated = read_map(map_path)
     if not stated:
         print("port_category_crawl: no %s — the map IS the gate, so its absence "
-              "is the failure" % MAP_NAME, file=sys.stderr)
+              "is the failure" % map_name, file=sys.stderr)
         return 1
 
     pack = read_pack(os.path.join(tree, PACK_NAME))
@@ -581,6 +654,28 @@ def check(tree, ref, verbose):
                 problems.append(
                     "`%s` is minted at %d but %s says %d"
                     % (name, cid, PACK_NAME, by_name[name]))
+        elif disposition == "allocated":
+            # The mirror image of `minted`, and why it is its own disposition
+            # rather than a `minted` with a big number: for a minted name the pack
+            # file *records* an id the cache states, so the map is the authority
+            # and the pack must agree with it. For an allocated one the pack file
+            # *is* where the id came from, so the same equality is checked from
+            # the other side and the extra rule is the base.
+            if name not in by_name:
+                problems.append(
+                    "`%s` is `allocated` at %d and is not in %s — an allocated id "
+                    "no pack file states is a number in a comment"
+                    % (name, cid, PACK_NAME))
+            elif by_name[name] != cid:
+                problems.append(
+                    "`%s` is `allocated` at %d but %s says %d"
+                    % (name, cid, PACK_NAME, by_name[name]))
+            elif cid < CATEGORY_SERVER_BASE:
+                problems.append(
+                    "`%s` is `allocated` at %d, below the base %d — an id under the "
+                    "base belongs to the cache, so it is READ (`minted`) or refused, "
+                    "never allocated on top of"
+                    % (name, cid, CATEGORY_SERVER_BASE))
         elif name in by_name:
             problems.append(
                 "`%s` is %s (%s) but %s names it at %d — a category held back "
@@ -590,7 +685,7 @@ def check(tree, ref, verbose):
     # --- the map against the reference --------------------------------------
     overrides = 0
     if ref and os.path.isdir(os.path.join(ref, "content", "scripts")):
-        rows, _by_category = crawl(tree, ref)
+        rows, _by_category = crawl(tree, ref, domain)
         for name, row in sorted(rows.items()):
             if name not in stated:
                 problems.append(
@@ -615,9 +710,14 @@ def check(tree, ref, verbose):
             # one number in this file nothing else would notice going stale:
             # `black_demon broader 275` still has to be the id its members carry,
             # or the paragraph justifying the refusal is about a different group.
-            if disposition in HELD_BACK and row.disposition in OVERRIDABLE:
+            # `allocated` is excluded: its id comes from the pack file, not from
+            # the members, so "the id it refuses" is not a thing it states. The
+            # rule that keeps it honest is the base test above, plus
+            # `mock230_pack` demanding an authored block that states it.
+            if disposition in HELD_BACK and disposition != row.disposition and \
+                    row.disposition in OVERRIDABLE:
                 overrides += 1
-                if row.category_id != cid:
+                if disposition != "allocated" and row.category_id != cid:
                     problems.append(
                         "`%s` is held back as `%s` at %d but its members now carry "
                         "%s — a preserved demotion states the id it refuses, and "
@@ -625,7 +725,7 @@ def check(tree, ref, verbose):
                         % (name, disposition, cid, sorted(row.ids) or "nothing"))
         for name in sorted(set(stated) - set(rows)):
             problems.append("`%s` has a row but the reference no longer declares "
-                            "it on any .npc" % name)
+                            "it on any %s" % (name, DOMAINS[domain]["suffix"]))
     else:
         print("port_category_crawl: no reference tree at %s — the half that "
               "re-runs the crawl is skipped; the tree-against-map half still ran"
@@ -637,9 +737,9 @@ def check(tree, ref, verbose):
         print("port_category_crawl: %d problem(s)" % len(problems), file=sys.stderr)
         return 1
     if verbose:
-        print("port_category_crawl: %d row(s), %d minted, %d demoted by hand over "
-              "the crawl's own answer, all agree with %s"
-              % (len(stated),
+        print("port_category_crawl: %s: %d row(s), %d minted, %d demoted by hand "
+              "over the crawl's own answer, all agree with %s"
+              % (domain, len(stated),
                  sum(1 for v in stated.values() if v[0] == MINTED),
                  overrides, PACK_NAME))
     return 0
@@ -654,20 +754,31 @@ def main():
     parser.add_argument("--groups", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--write-map", action="store_true")
+    parser.add_argument("--domain", choices=sorted(DOMAINS), default=DEFAULT_DOMAIN)
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
     if args.report:
-        return report(args.tree, args.ref)
+        return report(args.tree, args.ref, args.domain)
     if args.groups:
-        return groups(args.tree, args.ref)
+        return groups(args.tree, args.ref, args.domain)
     if args.write_map:
-        rows, _ = crawl(args.tree, args.ref)
-        write_map(os.path.join(args.tree, MAP_NAME), rows)
-        print("wrote %s (%d rows)" % (os.path.join(args.tree, MAP_NAME), len(rows)))
+        map_name = DOMAINS[args.domain]["map"]
+        rows, _ = crawl(args.tree, args.ref, args.domain)
+        write_map(os.path.join(args.tree, map_name), rows, args.domain)
+        print("wrote %s (%d rows)" % (os.path.join(args.tree, map_name), len(rows)))
         return 0
     if args.check:
-        return check(args.tree, args.ref, args.verbose)
+        # Every domain, always. The three record types share one
+        # `pack/category.pack`, so checking one map against it and not the other
+        # would pass a tree where the two disagree — and `--check` is the build
+        # bar, which has no `--domain` to forget to pass. `--report`, `--groups`
+        # and `--write-map` are one domain at a time because each is something a
+        # human is reading or reviewing.
+        worst = 0
+        for domain in sorted(DOMAINS):
+            worst |= check(args.tree, args.ref, args.verbose, domain)
+        return worst
     parser.print_help()
     return 2
 
