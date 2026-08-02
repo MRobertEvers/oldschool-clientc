@@ -749,6 +749,21 @@ main(void)
     int second_client;
     int reached_game = 0;
 
+    /*
+     * Its own save directory, wiped on entry.
+     *
+     * Persistence is wired now — `mock230_world_login` loads and
+     * `mock230_world_remove_player` writes — and this test logs bob out and
+     * back in again. Without this it would be reading a save the *previous*
+     * run left behind and asserting against state no line of it sets. A test
+     * that passes because of a file left over from last time is worth four
+     * lines to make impossible.
+     */
+    setenv("MOCK230_SAVES", "build/embed_test_saves", 1);
+    remove("build/embed_test_saves/alice.ini");
+    remove("build/embed_test_saves/bob.ini");
+    remove("build/embed_test_saves/carol.ini");
+
     embed = mock230_embed_start();
     if( !embed )
     {

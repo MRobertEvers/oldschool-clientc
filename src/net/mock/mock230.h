@@ -232,9 +232,6 @@ enum
     MOCK230_VARP_CACHE_MAX = 5705,
     MOCK230_VARP_SERVER_HEADROOM = 512,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
-    /* One bank open writes about fifteen varps in a tick. */
-    MOCK230_VARP_DIRTY_MAX = 64,
-
     /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
      * handful per kill, and they expire. */
     MOCK230_GROUND_MAX = 256,
@@ -277,6 +274,19 @@ enum
      * range to reach.
      */
     MOCK230_RESUME_SUB_MAX = 15,
+
+    /*
+     * Arguments `runclientscript*` will carry.
+     *
+     * Three numbers bound this and they are not the same number: the compiler
+     * builds at most SSC_MAX_VARARG_TYPES (16) of them, the wire reader stops
+     * at PKT_RUNCLIENTSCRIPT_ARG_MAX (20, `src/net/rev/revpacket.h`), and this
+     * is the one in the middle. It is set to the compiler's, so a call that
+     * compiles always fits — and the host case *aborts* on a longer type
+     * string rather than truncating, because a clientscript run with three of
+     * its four arguments does not fail, it draws the wrong panel.
+     */
+    MOCK230_RUNCLIENTSCRIPT_ARG_MAX = 16,
 
     /*
      * Combat: the unarmed attack interval, and nothing else.
@@ -439,6 +449,18 @@ enum Mock230WearPos
 struct Mock230ObjInfo
 {
     const char* name;
+    /**
+     * The examine text — obj config opcode 3, `RSCache_Dat2ConfigObj.examine`,
+     * `desc=` in the content tree's export.
+     *
+     * NULL when the record states none, which is what a placeholder or an
+     * unnamed id looks like. It is the only string a rev-230 "Examine" op can
+     * print, and it was decoded by the cache and dropped here until `oc_desc`
+     * needed it: the config-query note in mock230_scripts.c said "the obj
+     * record's examine text is read by nothing here", which was true, and is
+     * why op 10 did nothing on every panel in the game.
+     */
+    const char* desc;
     /** Primary equipment slot, or -1 when the item cannot be worn. */
     int wearpos;
     /** Extra slots the item occupies: a 2h weapon's shield slot, the
@@ -1497,11 +1519,11 @@ struct Mock230Player
     int move_dirs[2];
     int move_count;
 
-    /** Player variables. A changed-list rather than a dirty bitmap: a tick
-     *  usually touches one or two, and the list is what the encoder walks. */
+    /** Player variables. No dirty list beside them: `mock230_world_mark_varp`
+     *  encodes the packet at the point of the write, the way the reference's
+     *  `Player.setVar` does, so that a script's own ordering against
+     *  `if_opensub` survives. */
     int32_t varps[MOCK230_VARP_COUNT];
-    int varp_changed[MOCK230_VARP_DIRTY_MAX];
-    int varp_changed_count;
 
     /** The bank: container 95 plus the settings its interface reads out of
      *  varbits. Heap-allocated, so mock230_bank_shutdown has to run before the
@@ -2757,22 +2779,31 @@ int
 mock230_scripts_report_shadowed_ops(struct Mock230Server* srv);
 
 /**
- * Dispatch a click on component `uid` to `[if_button,...]`, both ways round.
+ * Dispatch a click on component `uid`, op `op_num`, to its `[if_button*]` script.
  *
- * A rev-230 component uid is `(interface << 16) | child` and the compiled
- * trigger key has 21 bits for its subject — enough for interface 12's bank
- * panel, not for interface 160's orbs. Those scripts compile name-addressed
- * (see ssc_compile.c), so the engine asks by key first and by name second. The
- * name comes from the same component pack the compiler read, so the two cannot
- * drift.
+ * Four lookups, in order: `[if_button<n>,<uid>]` by key, `[if_button<n>,<name>]`
+ * by name, then the same two for the unnumbered `[if_button,...]`.
  *
- * The key lookup is `getByTriggerSpecific`, matching `IfButtonHandler`: an
+ * Both spellings, because a rev-230 component uid is `(interface << 16) | child`
+ * and the compiled trigger key has 21 bits for its subject — enough for
+ * interface 12's bank panel, not for interface 160's orbs. Those scripts compile
+ * name-addressed (see ssc_compile.c), so the engine asks by key first and by name
+ * second. The name comes from the same component pack the compiler read, so the
+ * two cannot drift.
+ *
+ * Numbered first, because a rev-230 component carries up to ten ops and the
+ * packet says which one was clicked: `stats:attack` has "Toggle Attack XP" on op
+ * 1 and "View Attack guide" on op 2, and there is no way to distinguish them
+ * from `[if_button,stats:attack]`. `op_num` outside 1..10 skips that rung.
+ *
+ * Every key lookup is `getByTriggerSpecific`, matching `IfButtonHandler`: an
  * interface button has no category and must not fall through to a wildcard.
  */
 int
 mock230_scripts_run_if_button(
     struct Mock230Server* srv,
-    int uid);
+    int uid,
+    int op_num);
 
 /**
  * Dispatch a coordinate-subject trigger — the `zone`/`mapzone` family — by name.

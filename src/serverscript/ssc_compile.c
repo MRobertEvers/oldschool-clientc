@@ -588,6 +588,27 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
             (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||
              strncmp(op_name, "NPC_STAT", 8) == 0) )
             base_hint = SSC_SYM_STAT;
+        /*
+         * The open family's arguments name interfaces, and a bare interface
+         * name is ambiguous for exactly the reason a bare stat name is.
+         *
+         * `if_openmain_side(farming_tools, farming_tools_side)` compiled to
+         * `if_openmain_side(7516, 126)`, because `farming_tools` is interface
+         * 125, varp 615 *and* loc 7516, and LOC sorts before INTERFACE. The
+         * server then sent a well-formed IF_OPENSUB for an interface that does
+         * not exist, the client said "pack 7516 missing from cache; skipping
+         * mount", and the panel simply was not on screen — with nothing
+         * anywhere naming the mistake. That is what
+         * docs/LOSTCITY_PORT_TRIAGE.md §7.5 means by "the danger is the ones
+         * that resolve".
+         *
+         * A component argument — IF_OPENSUB's first, `toplevel_osrs_stretch:
+         * mainmodal` — is unaffected: no interface carries that name, so the
+         * hinted lookup misses and the unhinted one finds the component. Every
+         * other argument in the family is an int.
+         */
+        else if( op_name && strncmp(op_name, "IF_OPEN", 7) == 0 )
+            base_hint = SSC_SYM_INTERFACE;
         compiler->arg_kind_hint = base_hint;
 
         /* A command may be written bare when it takes nothing — `p_pausebutton;`. */

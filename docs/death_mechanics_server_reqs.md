@@ -1,5 +1,30 @@
 # Death mechanics (`deathkeep` 4, `gravestone_generic` 672, `death_coffer` 670): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: BLOCKED on two engine gaps, both
+> re-measured today.** (a) `container_for` (`mock230_scripts.c:2088`) still has
+> three hardcoded cases, so `deathkeep_items` 584, `diango_hols_sack` 468,
+> `gravestone` 525 and `death_permanent` 636 are unreachable by every `inv_*`
+> op — the same container-registry change collection_log needs, ~1-2 days.
+> (b) `SS_OP_OC_COST` (4202), `SS_OP_INV_DROPALL` (4309) and `SS_OP_OBJ_ADDALL`
+> (3501) are all still declared-and-uncovered, so
+> `[proc,move_priciest_item_on_hero_to_death]` cannot be ported at all.
+> **The third blocker is gone**: `script972(int×9, string)` needed a
+> RUNCLIENTSCRIPT that carries ints, which landed 2026-08-01 as
+> `SS_OP_RUNCLIENTSCRIPTVARARG` (11003). Three corrections: §2's `script3462`
+> and `script3466` are **in the cache** — a decompiler gap, not a corpus gap,
+> the same class `docs/skill_guide.md` §7 records; §3.1's "`death_coffer_side`
+> (671): population script missing" is wrong in substance — `script3479` (670's
+> own onload) binds it to the plain backpack via `if_setoninvtransmit{inv_93}`,
+> which `container_for` already handles; and §6's "called 7 times" is 8
+> (`death.rs2:59,60,61,64,114,115,116,119`). Two things §1/§2.1 under-state:
+> deathkeep's per-item fee is not "a pre-multiplied int passed as an argument"
+> — `script974` reads it as `inv_getnum(inv_468, slot) - 1`, the count of the
+> tag placeholder in the parallel container; and the gravestone resync window
+> is tighter than "periodic" — `script3459` renders `---` with no timer at all
+> above `%varbit10465 > 1500`, and below that `script3460` interpolates over
+> `~min(clientclock - t0, 3*30)`, so the server must re-push at least every
+> 3 game ticks (~1.8 s) or the display freezes.
+
 > Companion to `docs/questlist_chatmenu_levelup.md` and
 > `docs/shop_server_reqs.md`, same discovery pass. **The boundary here is
 > precise and already deliberately drawn**: basic on-death handling

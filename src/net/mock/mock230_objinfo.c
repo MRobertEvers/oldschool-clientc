@@ -404,6 +404,9 @@ record(
         return;
     entry = &g_objs[obj_id];
     entry->name = (obj->name && strcmp(obj->name, "null") != 0) ? strdup(obj->name) : NULL;
+    /* Copied for the same reason the name is: the decoder's record is freed
+     * behind this call. `oc_desc` is the only reader. */
+    entry->desc = obj->examine ? strdup(obj->examine) : NULL;
     entry->wearpos = obj->wearpos_1;
     entry->wearpos_2 = obj->wearpos_2;
     entry->wearpos_3 = obj->wearpos_3;
@@ -570,6 +573,13 @@ mock230_objinfo_load(const char* cache_dir)
         if( real < 0 || real >= g_obj_count || !g_objs[real].name )
             continue;
         g_objs[id].name = strdup(g_objs[real].name);
+        /* And its examine text, which a note record states no more than it
+         * states a name — the whole of `[cert_rake]` is `certlink` plus
+         * `certtemplate`. The real client composes "Swapping this note at any
+         * bank…" from the template; borrowing the item's own line is the
+         * closest a server-side `oc_desc` can get without inventing text. */
+        if( !g_objs[id].desc && g_objs[real].desc )
+            g_objs[id].desc = strdup(g_objs[real].desc);
     }
 
     RSCache_FileListFree(files);
@@ -588,6 +598,7 @@ mock230_objinfo_free(void)
     for( int i = 0; i < g_obj_count; i++ )
     {
         free((void*)g_objs[i].name);
+        free((void*)g_objs[i].desc);
         for( int op = 0; op < 5; op++ )
             free((void*)g_objs[i].if_ops[op]);
     }

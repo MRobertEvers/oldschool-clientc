@@ -1,5 +1,32 @@
 # Grand Exchange (`ge_offers` 465 + family): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: BLOCKED, and correctly last.** It needs
+> everything shop needs (a world-scoped container registry, an inv field
+> register) and unlocks nothing else in the survey. Four claims to fix before
+> anyone sizes work against it: (1) §1.1's "nine host ops, 3903-3913" is
+> **ten** — 3903-3908 + 3910-3913 — and **3909 is a genuine hole**, `_unknown`
+> in both `cs2_command.gen.h` and `cs2_opcode_meta.c`; the doc says "nine"
+> three times. (2) §7's "every offer slot renders as empty today" is
+> **backwards**: `script_798.cs2:26` branches on
+> `stockmarket_isofferempty($slot) = true` and StackMetaStub pushes 0 =
+> *false*, so every slot takes the active-offer branch — 8 garbage all-zero
+> offers, not 8 empty slots. (3) §7's "every GE screen's auto-repaint is a
+> no-op" is overstated: `script_803.cs2:16-17` wires the panel switch to
+> `if_setonvartransmit{var375}` **as well as** the dead
+> `if_setonstocktransmit`, and vartransmit works — panel switching is live,
+> only offer-progress repaint is dead. (4) §4's "RUNCLIENTSCRIPT (opcode
+> 11002, already generically landed)" was false when written and is true now:
+> 11002 is fixed at one int and two strings, and the general form
+> `SS_OP_RUNCLIENTSCRIPTVARARG` (11003) landed 2026-08-01. **§5.2 also
+> contradicts §1.2/§8**: it calls the `tradingpost_sell_0..5` inv blocks
+> orphaned and says "do not build against it", while §8 requires those exact
+> blocks — `enum_150` maps slots 0-5 onto them and 6-7 onto `ge_collect_6/7`.
+> §8 is right; the scripts reach them through the enum, not by name. §1.2's
+> varp-collision finding is verified correct, and the mechanism is
+> `script_5732.cs2`: slot 0→`%var3200`, 1→`%var3201`, 2→`%var297`, 3→`%var915`,
+> 4→`%var914`, 5→`%var295`, 6→`%var3202`, 7→`%var3203` — whole varps, not
+> varbits.
+
 > Companion to `docs/shop_server_reqs.md`, same discovery pass. **The biggest
 > feature in this entire survey series** — not one mechanism like bank/shop,
 > but three different data-delivery idioms layered into one interface

@@ -46,6 +46,13 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_HOST_SOCIAL_NAME_LEN 32
 #define RS_CS2_HOST_SOCIAL_TEXT_LEN 200
 
+/* Pending IF_CALLONRESIZE requests. 16 is well past what this cache asks for —
+ * the seventeen call sites are all one-per-script and the longest chain a
+ * listener starts is two deep — and the queue reports an overflow rather than
+ * dropping quietly, because a panel that never ran its own builder is a blank
+ * panel with no other symptom. */
+#define RS_CS2_HOST_CALL_ON_RESIZE_MAX 16
+
 struct RS_CS2SocialSend
 {
     int kind; /* enum RS_CS2SocialSendKind */
@@ -57,8 +64,27 @@ struct RS_CS2SocialSend
     int modes[3];
 };
 
-#define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
-#define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 128
+/*
+ * How many components may register a transmit hook at once.
+ *
+ * 128 was not enough, and the way it failed is the reason these are 512 now.
+ * The rev-230 gameframe alone registers **131** distinct var-transmit hooks
+ * before any panel is open (measured, not estimated). So the *next* panel to
+ * mount got NULL out of `rs_cs2_acquire_var_transmit_hook` and its
+ * `if_setonvartransmit` was dropped on the floor: the Tool Leprechaun's store
+ * drew perfectly, its counts were right at mount, and then nothing on it ever
+ * updated again — the panel showed 0/100 for a rake the player had just
+ * deposited, while the sidebar beside it (whose hooks are *inv* transmits, a
+ * different table with room left) updated correctly.
+ *
+ * That is the exact failure class docs/REV230_UI_BLANK_PANELS.md §0 is about:
+ * the client silently dropped part of a script's data and let the script carry
+ * on. Overflow now says so once per table as well (see the acquire functions),
+ * because a cap that is reached quietly is a cap that gets diagnosed as a
+ * missing packet.
+ */
+#define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 512
+#define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 512
 #define RS_CS2_HOST_TRANSMIT_TRIGGER_MAX 32
 /** Var ids remembered per tick for transmit-hook matching; past this the tick
  *  degrades to "every hook re-runs" (correct, just not selective). */
@@ -355,6 +381,23 @@ struct RS_CS2Host
     struct RS_CS2SocialSend social_send[RS_CS2_HOST_SOCIAL_SEND_MAX];
     int social_send_count;
     int social_send_head;
+
+    /** Components whose on-resize listener IF_CALLONRESIZE asked to run,
+     *  drained by the App's tick through RS_CS2Host_TakeCallOnResize.
+     *
+     *  Queued rather than run in place because the request is handled from
+     *  inside a running CS2 script and this host has no task runner to nest a
+     *  second one on — the same arrangement `close_modal_requested` and
+     *  `social_send` use. In this cache the call is the *last* statement of
+     *  every site that makes it (script1911's window setup, script1906's tab
+     *  click), so deferring reorders nothing observable; a site that needed the
+     *  listener to have finished before the next statement would need a real
+     *  nested run, and would be a finding rather than a tweak.
+     *
+     *  A listener may queue another, so the drain loops. */
+    int call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
+    int call_on_resize_count;
+    int call_on_resize_head;
 };
 
 void
@@ -414,6 +457,14 @@ bool
 RS_CS2Host_TakeSocialSend(
     struct RS_CS2Host* host,
     struct RS_CS2SocialSend* out);
+
+/** Pop the oldest component id queued by IF_CALLONRESIZE, FIFO. Returns false
+ *  when the queue is empty. The App drains this once per tick and runs each
+ *  component's on-resize listener; nothing else may consume it. */
+bool
+RS_CS2Host_TakeCallOnResize(
+    struct RS_CS2Host* host,
+    int* out_component_id);
 
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change

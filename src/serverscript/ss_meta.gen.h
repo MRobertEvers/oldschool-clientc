@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11003] = {
+static const char* const g_ss_opcode_names[11004] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -406,6 +406,7 @@ static const char* const g_ss_opcode_names[11003] = {
     [11000] = "IF_SETEVENTS",
     [11001] = "IF_OPENSUB",
     [11002] = "RUNCLIENTSCRIPT_SS",
+    [11003] = "RUNCLIENTSCRIPTVARARG",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -415,7 +416,7 @@ static const char* const g_ss_opcode_names[11003] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11003] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11004] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -815,10 +816,11 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11003] = {
     [11000] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_SETEVENTS */
     [11001] = { 3, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_OPENSUB */
     [11002] = { 1, 2, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* RUNCLIENTSCRIPT_SS */
+    [11003] = { 1, 0, 0, 0, 1, 1, 0, 0, 0x000, 0x000 }, /* RUNCLIENTSCRIPTVARARG */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */
-static const char* const g_ss_trigger_names[168] = {
+static const char* const g_ss_trigger_names[178] = {
     [0] = "proc",
     [1] = "label",
     [2] = "debugproc",
@@ -970,4 +972,14 @@ static const char* const g_ss_trigger_names[168] = {
     [165] = "changestat",
     [166] = "ai_spawn",
     [167] = "ai_despawn",
+    [168] = "if_button1",
+    [169] = "if_button2",
+    [170] = "if_button3",
+    [171] = "if_button4",
+    [172] = "if_button5",
+    [173] = "if_button6",
+    [174] = "if_button7",
+    [175] = "if_button8",
+    [176] = "if_button9",
+    [177] = "if_button10",
 };

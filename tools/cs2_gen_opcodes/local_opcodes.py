@@ -50,6 +50,24 @@ LOCAL_NAMES: dict[int, str] = {
     # int-param case only.
     1703: "CC_GETCOMPONENTPARAM",
     1704: "CC_SETCOMPONENTPARAM",
+    # The IF form of 1703, missing from the vendored table and from
+    # 3rd/rscache's cs2_command.gen.h (which is why 20 scripts in cache.osrs239
+    # fail to decompile at it). Reads a component's runtime param table for a
+    # component named by argument instead of the active one, with a caller
+    # supplied fallback:
+    #
+    #     if_getcomponentparam(param, component, fallback) -> int
+    #
+    # Arity is unambiguous from the bytecode -- three pushed, one consumed, at
+    # all 16 call sites (script 8304's whole body is
+    # `push 2356; push local0; push -1; 2703; return`, and script 9181 feeds the
+    # result straight into a 3-argument if_setscrollsize). The *third* argument
+    # is not: it is the literal -1 at every one of those sites, so "fallback for
+    # a miss" and "sub-id of a dynamic child, -1 meaning the component itself"
+    # are indistinguishable in this cache. It is treated as the fallback,
+    # because every read site guards the result against -1 (`> 4`, `= -1`), and
+    # that is what a table this port starts empty answers with.
+    2703: "IF_GETCOMPONENTPARAM",
     1004: "CC_SETPINCH",  # not in vendor
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor

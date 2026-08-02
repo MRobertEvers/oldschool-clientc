@@ -1,5 +1,23 @@
 # `shopmain`/`shopside` (300/301): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: BLOCKED on two of the three things that
+> blocked it; the third is fixed.** `shopmain.if` carries **zero `onload=`** —
+> the only panel in this survey that cannot draw itself — so the server must
+> push `shop_main_init(inv, int, int, int, string)`, which needed a
+> RUNCLIENTSCRIPT that carries ints; that **landed on 2026-08-01 as
+> `SS_OP_RUNCLIENTSCRIPTVARARG` (11003)**. Still blocking: (a) LostCity's shop
+> invs are `scope=shared` — world-owned, 107 of them in the reference (§6) —
+> while `container_for` resolves only off `active_player` and still has three
+> hardcoded cases (`mock230_scripts.c:2088`, re-measured); and (b) §6's
+> `restock=`/`stockN=`/`scope=`/`allstock=` have nowhere to live — there is no
+> `fields/inv.ini`, no `[namespace:inv]` in `content.ini`, and `configs/all.inv`
+> has zero hits for either. Two things §5 never names: `SS_OP_OC_COST` (4202)
+> and `SS_OP_INV_STOCKBASE` (4325) are both still declared-and-uncovered
+> (re-measured), and `adjusted_item_cost_buying`/`~price_mod` need both. One
+> positive it misses: `rs_minimenu_build.c` already handles a shop grid's
+> Value/Sell iop buttons client-side. §0's "exactly one hit — a comment
+> (`mock230_scripts.c:4579`)" has drifted (5133) and was never exactly one.
+
 > Companion to `docs/questlist_chatmenu_levelup.md` and
 > `docs/friends_pm_chat_server_reqs.md`, same discovery pass
 > (`docs/PORTING_GUIDE.md` §5.3), for the interface `docs/PORTING_GUIDE.md`'s

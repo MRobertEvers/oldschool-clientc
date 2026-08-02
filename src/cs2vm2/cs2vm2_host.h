@@ -118,6 +118,24 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONDRAG,
     CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE,
     CS2VM_HOST_REQUEST_IF_SETONRESIZE,
+    /*
+     * IF_CALLONRESIZE (2927) — run a component's on-resize listener now.
+     *
+     * The listener normally fires when the layout changes; this is a script
+     * asking for it without one, and it is how a self-laying-out rev-230 panel
+     * runs its own body: `if_setonresize(...)` registers the builder and
+     * `if_callonresize` is what starts it. Seventeen scripts in cache.osrs239
+     * do exactly that; the skill guide's script1911 is one of them, and until
+     * this existed opening the guide aborted the client at StackMetaStub.
+     *
+     * `cc_callonresize` (1927) is deliberately NOT here. Its row in
+     * cs2_command.gen.h claims one argument, which is not the shape any other
+     * `cc_*` component op has, and no script in this cache calls it — so the
+     * stack shape is unverifiable from the data and a guessed arity is exactly
+     * what StackMetaStub exists to prevent. It still aborts, loudly, which is
+     * the right answer until something calls it.
+     */
+    CS2VM_HOST_REQUEST_IF_CALLONRESIZE,
     CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE,
     CS2VM_HOST_REQUEST_CC_SETONRESIZE,
     CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE,
@@ -198,6 +216,9 @@ enum CS2VM_HostRequestKind
      * that misses falls through to the ParamType default, which may need a load
      * and is why the getter can yield. */
     CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM,
+    /* IF_GETCOMPONENTPARAM (2703): same table, component named by argument.
+     * Shares CC_ComponentParam; `value` carries the caller's fallback. */
+    CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM,
     CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM,
     CS2VM_HOST_REQUEST_IF_FIND,
     CS2VM_HOST_REQUEST_IF_GETX,
@@ -651,6 +672,12 @@ struct CS2VM_HostRequest_CC_SetOnOp
 };
 
 struct CS2VM_HostRequest_IF_ClearOps
+{
+    int component_id;
+};
+
+/** IF_CALLONRESIZE — the component whose on-resize listener to run. */
+struct CS2VM_HostRequest_IF_CallOnResize
 {
     int component_id;
 };
@@ -1254,6 +1281,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetOpSubmenu if_set_op_submenu;
         struct CS2VM_HostRequest_IF_SetTargetPriority if_set_target_priority;
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
+        struct CS2VM_HostRequest_IF_CallOnResize if_call_on_resize;
         struct CS2VM_HostRequest_IF_ClearOpSubmenu if_clear_op_submenu;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;
         struct CS2VM_HostRequest_IF_SetScrollPos cc_set_scroll_pos;

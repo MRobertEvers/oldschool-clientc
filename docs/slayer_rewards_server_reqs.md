@@ -1,4 +1,180 @@
-# Slayer Rewards (`slayer_rewards` 426, `slayer_rewards_task_list` 924): what the server owes
+# Slayer Rewards (`slayer_rewards` 426, `slayer_rewards_task_list` 924): what the server owed
+
+> **BUILT — 2026-08-02, verified in the client:** `slayer_rewards` (426).
+> `slayer_rewards_task_list` (924) mounts and draws its chrome; its rows are
+> cut, for a reason that is not slayer's — see below. The case file is
+> [`slayer_rewards.md`](slayer_rewards.md). The discovery pass is kept below
+> as written; what landed and what it got wrong come first.
+
+## What landed
+
+Interface 426 opened from Turael's "Rewards" op — op 5, the cache's own label
+on every slayer master — plus 924 behind its "View List". Buy, disable,
+extend-everything, the points economy, persistence.
+
+**The server needed no new opcode, no new packet and no new trigger.**
+`SS_TRIGGER_IF_BUTTON1..10` and `SS_OP_RUNCLIENTSCRIPTVARARG` from stage 1 and
+persistence from stage 2 were exactly the surface this wanted, and
+`setbit`/`clearbit`/`testbit` were already covered. Every hour went into three
+*client* bugs, none of them slayer-specific:
+
+| bug | symptom | fix |
+|---|---|---|
+| `CS2VM2_Op_DefineArray` `memset`s cells to **0**, not **-1** | all three catalogue tabs drew nothing, silently. `[clientscript,script1090]` — the builder behind Unlock, Extend *and* Cosmetics — guards each slot with `if ($rows($i) = null)`; cell 0 compared unequal to null on iteration zero and took the `~error(); return` branch. `db_find` had already answered with its 24/29/10 rows | int cells initialise to **-1**, which is `null` for every reference-typed base type. Strings left NULL: no script in this cache reads an unwritten string cell, so there is nothing to verify a change against |
+| `event_com` reported a dynamic child's own runtime id, not its parent's | `cc_setonvartransmit("script409(event_com, event_comsubid)…")` does `cc_find($com, $sub)` — asking a leaf for a child, `-> 0`. **General**: `script85` is every hover highlight in the game and is unreadable under any other convention | `event_com` is a component's *address*: for a dynamic child, the parent's packed id, with `event_comsubid` the index — the same `(container, sub)` pair `app_if_button_target` already puts on the wire. Fixed in `task_cs2_set_int_local` |
+| varps batched to phase 10; the reference writes them in the setter | `~slayer_rewards_open` is "set the master varbit; mount the panel", and 426's onload reads that varbit four times as it lays itself out. Batched, the panel drew the *default* master's prices (100 instead of Turael's 40) and 924 came up empty — with every packet on the wire present and correct | `mock230_world_mark_varp` encodes immediately. `Player.ts:1763` — `setVar` calls `writeVarp` inline — so **a script's source order is the packet order**. `varp_changed[]` and `MOCK230_VARP_DIRTY_MAX` (**64**) are gone, and so is the silent drop past 64. What batching bought was a dedupe; the reference sends the duplicates |
+
+Content — `interface_slayer/`, 890 lines, plus one line in `player/login.rs2`
+and three enum ids allocated by `ss_allocate.py`:
+`slayer_rewards.constant` (93), `slayer_unlock.enum` (244, **generated**),
+`gen_slayer_unlock.py` (100), `slayer_rewards.varp` (82),
+`slayer_rewards.npc` (23), `slayer_rewards.spawn` (19),
+`slayer_rewards.rs2` (329).
+
+Permanent check: `mock230 --selftest` section **"slayer rewards"**
+(`mock230_world.c:7917`) — real `OPNPC5`, real `IF_BUTTON1`s, and it asserts
+the varp precedes the mount, that bit 51 lands in `unlocks1` bit 19 and bit 66
+in `unlocks2` bit 2 with the first word untouched, that extend-all charges
+exactly 2,731, and that all three words plus the balance survive a save/load.
+Five mutations, five distinct failures.
+
+## What it cost
+
+The wire contract is stated *completely* by the cache, and reading it was the
+cheap part: every transaction funnels through one component,
+`slayer_rewards:confirm_button` (426:10), as a single `cc_create`d overlay
+whose **sub id is the action** — 0..66 the unlock bit, `calc(66 + N)` for the
+ten task verbs. One `[if_button1,…]` trigger; `last_slot` is the verb. Slot
+6's unblock is `66+12` while everything else stops at `66+11`, which is the
+only reason the armed range has to reach **78**.
+
+The `cc_setonop` beside those ops is clientscript 319, whose whole body is
+`if_settext("Requesting...")` plus a 45-tick `if_setontimer`. **A client that
+draws a timeout for an answer is a client waiting for a server** — the
+discovery pass read that as UI polish and drew the opposite conclusion.
+
+## What was deliberately left
+
+- **924's rows.** The mount and the clientscript are right and asserted, the
+  chrome and title draw, and `db_find(114, col 0, val 1)` returns Turael's 24
+  tasks — then `script 9620 failed at opcode 40 pc 18`, a `GOSUB_WITH_PARAMS`
+  one int short. Root cause traced and **not slayer-specific**:
+  `[clientscript,script9620]` reads dbtable 113 column 17 (`unlock_weighting`,
+  declared `dbrow,int` — a 2-tuple) and pops **two**; that column is absent
+  from most rows, and `db_push_missing` answers an absent column with **one**
+  integer 0 because it takes the arity from the *row*, which does not carry a
+  column it does not have. The arity lives in the table's `columndef`, which
+  the client does not consult at `db_getfield` time. Same shape as the
+  param-defaults fix (`PORTING_GUIDE.md` §3.6 item 3), and **every
+  `db_getfield` on an optional column is on it**. Top follow-on.
+- **Cancel/Block/Store/Swap/Unstore/Unblock ×7.** They act on a task and
+  nothing assigns one. Not a hole: clientscript 422 arms Cancel/Block only when
+  a task exists and 426 arms Unblock only when a slot holds one, so those sub
+  ids cannot be sent. `~slayer_confirm` names them so the day a task assigner
+  lands, the edit is one branch body.
+- **The Buy tab** (pouches) — a fixed CS2 enum, `cc_setonop`-only, no
+  ownership state.
+- **The cache-dbtable parser.** Measured before deciding: 16,711 rows at ~528 B
+  of row header is ~8.8 MB before values, 241k lines per boot, and six type
+  words (`graphic model idkit mapelement track synth`) the runtime does not
+  resolve — which `mock230_db.c`'s own header says must be fixed by *naming
+  those namespaces*, not by widening the type list. So the 67 prices are a
+  generated transcription, marked, with the generator checked in, and the
+  selftest charges the cache's price for five named unlocks as the
+  cross-check.
+- Cosmetic and general, not slayer's: **`<u=…>` renders literally** in this
+  client — the confirm dialog's title arrives as `<u=ff981f>Slug Salter</u>`.
+- Untouched on purpose: `container_for`, `POP_VAR`/`POP_VARBIT`,
+  `CS2VM2_OPCODE_STACK_MAX`.
+
+## What the discovery pass got wrong
+
+> The body below is kept as written. Its shape is right — five tabs over one
+> confirm subtree, a dbtable catalogue, a bitfield of ownership, and a points
+> balance — and its "confirmed absent from LostCity, historically correct"
+> conclusion is right too. **Seven things in it are wrong, and the headline is
+> one of them.**
+>
+> 1. **§2's "a real collision, confirmed" is fabricated.** The claim is that
+>    varbit `slayer_unlock_storage` (12442) shares bit 19 of
+>    `slayer_rewards_unlocks1` with the ownership bitfield, so an ownership
+>    read-modify-write would clobber an unrelated feature. Decomposing
+>    `configs/all.varbit` against the three basevars gives **67 single-bit
+>    varbits, contiguous 0..66, no gaps and no foreign tenant** — 32 + 32 + 3,
+>    matching dbtable 117 row for row. Bit 51 **is** `slayer_unlock_storage`, it
+>    is one of the 67, and it means exactly one thing. This is what let the
+>    whole feature use `wholewrite=allow` on the three varps, which is also what
+>    the client does (`~script8048` reads the raw word).
+>
+> 2. **§2's "three unlocks (bits 35/43/53) bypass the bitfield entirely" is
+>    wrong.** `[clientscript,script413]` reaches those three cases only *after*
+>    `~script8048($bit) = 1`. They are ownership bits with an extra toggle on
+>    top, not a parallel mechanism.
+>
+> 3. **§5's "the exact op/sub-id contract is a corpus gap, not something to
+>    guess" is exactly backwards — the cache states it completely.** Every
+>    transaction the panel offers is confirmed by one `cc_create`d overlay on
+>    `slayer_rewards:confirm_button` (426:10) whose **sub id is the action**:
+>    0..66 the unlock bit (clientscript 414), and `calc(66 + N)` for the ten
+>    task verbs (clientscripts 423 and 427). The full table is in
+>    `slayer_rewards.md` §1.1. Reading the 45-tick timeout as "UI polish" and
+>    the fresh `cc_setonop` as "no visible op index" missed both halves of a
+>    protocol that is entirely spelled out.
+>
+> 4. **§0/§8's "mock230: zero implementation… clean unstarted slice" was right
+>    about the server and wrong about the work.** The server needed **no new
+>    opcode, no new packet and no new trigger** — everything it owes was already
+>    expressible. Every hour went into three *client* bugs, none of them
+>    slayer-specific: zero-initialised CS2 arrays (which blanked all three
+>    catalogue tabs), `event_com` reporting a dynamic child instead of its
+>    parent (which killed every `cc_find(event_com, event_comsubid)` repaint in
+>    the cache), and varps batched to end-of-tick instead of written at the
+>    setter (which mounted the panel before it knew which master it was for).
+>    See `slayer_rewards.md` §3.
+>
+> 5. **§6's "no onload anywhere" for 924 is right but incomplete, and the entry
+>    point is not a corpus gap.** `[clientscript,script8059]` decompiles, takes
+>    three ints, and has **no caller in any of the 9,433 scripts in this cache**
+>    — which is the cache saying the server runs it. Its first argument is the
+>    component the server mounted 924 into (8059 → `~script4206` → `~script612`,
+>    which hangs `if_setonsubchange` on it), and that component is
+>    `slayer_rewards:popup`, 426:4, which 426 declares for exactly this.
+>    `script8065` is not a "missing body" either: it decompiles to one line,
+>    `sound_synth(synth_2266, 1, 0)`.
+>
+> 6. **§8's "Unlock catalogue (dbtable 117) — landed mechanically, no server
+>    code needed" is wrong in a way that matters.** The *client* reads it out of
+>    the cache, which is why the tiles draw. The **server** cannot read a cache
+>    dbtable at all: `mock230_db.c` parses `column=`/`data=` and
+>    `configs/all.dbtable`/`all.dbrow` are machine exports in a
+>    `columndef=`/`values=` grammar it walks and silently skips, so all 259
+>    tables load as an id with zero columns. The 67 costs are therefore
+>    transcribed into a generated content enum. `slayer_rewards.md` §6 has the
+>    measurement and the reason the parser was not widened here.
+>
+> 7. **§9's "grep -rniE slayer src/net/mock/ src/game/ — exactly 5 hits"
+>    describes a search, not a state.** Nothing in this feature put the word
+>    "slayer" into `src/` and nothing needed to: the whole of it is content plus
+>    three general client fixes. A grep for a feature's *name* in the engine is
+>    not a measure of whether the engine can express it.
+>
+> 8. **§11's "+16-per-column field-constant derivation, inferred" now has a
+>    measurement, and it is off by one.** The encoding is
+>    `(table << 12) | (column << 4) | tuple`, and the low nibble is
+>    **one-based** — 0 means the whole tuple — which `rs_cs2_host.c` already
+>    documents. So `479329` is table 117, column 6, *tuple 0*, not tuple 1:
+>    the difference between "find by list" (24/29/10 rows) and "find by
+>    position" (3 rows).
+>
+> Also minor: §1's caution about `slayer_killerwatt_var` reading "like an
+> unrelated leftover" is worth keeping — it does, and it has four other tenants,
+> so declaring it `scope=perm` persists them too (correctly: a varp is the unit
+> the save format stores). §4's `if1..if6` observation is accurate and is why
+> the task half of this panel is out of scope until something assigns a task.
+
+---
+
+# The discovery pass, as written
 
 > Companion to `docs/questlist_chatmenu_levelup.md` and
 > `docs/skill_guide_server_reqs.md`, same discovery pass. Slayer as a

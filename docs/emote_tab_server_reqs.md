@@ -1,5 +1,18 @@
 # The Emotes tab: what's already landed
 
+> **DONE — landed before this lane, and deliberately left alone by it.**
+> Re-verified 2026-08-02: `interface_emote/scripts/emote.rs2` (134 lines),
+> `~emote_login` called from `player/login.rs2:48`, and the permanent check is
+> `mock230 --selftest` section "emotes" — now at `mock230_world.c:6993`/`:7143`,
+> not the `:5738` this doc cites (line drift only). §0's remaining content gap
+> stands: nothing writes the unlock bits, and `emote_access` (varp 313) is
+> still undeclared under `server/scripts/`. One comment inside `emote.rs2` was
+> corrected on 2026-08-01 — it claimed `last_verb` carries the op index, which
+> is false: `last_verb` is written by the engine and read by nothing, and there
+> is no `last_verb` command here or in the reference. The op index now arrives
+> as the trigger itself (`SS_TRIGGER_IF_BUTTON1..IF_BUTTON10`, 168..177), which
+> is what `docs/skill_guide_server_reqs.md` records.
+
 > Companion to `docs/questlist_chatmenu_levelup.md`, same discovery pass.
 > **Inverted result, worth stating up front: this one is already landed and
 > selftested.** Unlike every other interface in this survey series so far,

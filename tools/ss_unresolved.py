@@ -173,7 +173,16 @@ FREE_TEXT_KEYS = {
     'wearpos', 'wearpos2', 'wearpos3', 'category',
     'table', 'column', 'type', 'default', 'defaultstr',
     # `.varp` / `.varbit` grammar: `scope=perm`, `transmit=no`, `protect=no`.
-    'scope', 'transmit', 'protect', 'clientcode',
+    #
+    # `wholewrite=allow` is the carrier-write exemption (`fields/varp.ini`
+    # §wholewrite). It was declared in the field register and honoured by
+    # sscompile (`check_carrier_write`) and the runtime long before any content
+    # used it — `fields/varp.ini` says so in as many words: "Nothing in this tree
+    # declares it, which is the point". So the first content to declare it found
+    # this gate reading `allow` as a namespace reference and failing the whole
+    # tree. A key the register knows and this list does not is a hole in the
+    # gate, not a fact about the content.
+    'scope', 'transmit', 'protect', 'clientcode', 'wholewrite',
 }
 
 # Config-grammar words that are values rather than names.

@@ -1334,44 +1334,96 @@ mock230_scripts_run_trigger_specific(
     return run_trigger_impl(srv, trigger, type, category, npc_slot, 0, 1);
 }
 
+/*
+ * One (trigger, component) attempt: by key, then by name.
+ *
+ * Both spellings have to be tried for every trigger in this family, because
+ * which one a script compiled under is decided by arithmetic rather than by
+ * the author. `SSVM_LookupKey` puts the subject at bit 10 of an i32, so a
+ * component uid `(interface << 16) | child` only fits for interfaces below 32
+ * — everything else compiles name-addressed (`ssc_compile.c`'s
+ * `symbol->value >= (1 << 21)` branch). `stats:attack` is 20,971,521 and is in
+ * the second class; `chatmenu:options` is in the first.
+ */
+static int
+run_if_button_trigger(
+    struct Mock230Server* srv,
+    int trigger,
+    int uid,
+    const char* component)
+{
+    const struct SSVM_Script* script;
+    char name[192];
+    int result;
+
+    /* *Specific*: `IfButtonHandler` uses getByTriggerSpecific, so a component
+     * with no script of its own does not fall through to some `[if_button,_]`
+     * that would then swallow every click in the game. */
+    result = run_trigger_impl(srv, trigger, uid, -1, -1, 0, 0);
+    if( result != MOCK230_TRIGGER_NONE )
+        return result;
+
+    if( !component )
+        return MOCK230_TRIGGER_NONE;
+
+    snprintf(name, sizeof(name), "[%s,%s]", SSVM_TriggerName(trigger), component);
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return MOCK230_TRIGGER_NONE;
+    return run_trigger_script(srv, script, -1);
+}
+
 int
 mock230_scripts_run_if_button(
     struct Mock230Server* srv,
-    int uid)
+    int uid,
+    int op_num)
 {
-    const struct SSVM_Script* script;
     const char* component;
-    char name[192];
     int result;
 
     if( !srv->scripts_ok )
         return MOCK230_TRIGGER_NONE;
 
-    /* Keyed first, and *specific*: `IfButtonHandler` uses getByTriggerSpecific,
-     * so a component with no script of its own does not fall through to some
-     * `[if_button,_]` that would then swallow every click in the game. */
-    result = run_trigger_impl(srv, SS_TRIGGER_IF_BUTTON, uid, -1, -1, 0, 0);
+    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+
+    /*
+     * The numbered trigger first, then the unnumbered one.
+     *
+     * A rev-230 component carries up to ten ops and the packet says which was
+     * clicked; `stats:attack` alone has "Toggle Attack XP" on op 1 and "View
+     * Attack guide" on op 2, and before IF_BUTTON1..10 existed a script bound
+     * to that component could not tell them apart. So content that cares
+     * writes `[if_button2,stats:attack]`, and content that does not keeps
+     * `[if_button,...]` and answers every op — which is what every script in
+     * the tree written before this did, and why the unnumbered form is a
+     * fallthrough rather than a replacement.
+     *
+     * This does not widen the *engine's* fallback list (`enum Mock230Fallback`,
+     * osrs230_mockserver.md §3.18): both rungs are content, and the C rung
+     * below is the same single one it always was.
+     */
+    if( op_num >= 1 && op_num <= 10 )
+    {
+        result = run_if_button_trigger(srv, SS_TRIGGER_IF_BUTTON1 + (op_num - 1), uid, component);
+        if( result != MOCK230_TRIGGER_NONE )
+            return result;
+    }
+
+    result = run_if_button_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, component);
     if( result != MOCK230_TRIGGER_NONE )
         return result;
 
-    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
-    if( !component )
+    if( srv->verbose )
     {
-        if( srv->verbose )
+        if( component )
+            fprintf(stderr, "mock230: no trigger for [if_button%d,%s] or [if_button,%s]\n",
+                    op_num, component, component);
+        else
             fprintf(stderr, "mock230: no trigger for [if_button,%d:%d] (no component name)\n",
                     uid >> 16, uid & 0xffff);
-        return MOCK230_TRIGGER_NONE;
     }
-
-    snprintf(name, sizeof(name), "[if_button,%s]", component);
-    script = SSVM_ProviderGetByName(srv->scripts, name);
-    if( !script )
-    {
-        if( srv->verbose )
-            fprintf(stderr, "mock230: no trigger for %s\n", name);
-        return MOCK230_TRIGGER_NONE;
-    }
-    return run_trigger_script(srv, script, -1);
+    return MOCK230_TRIGGER_NONE;
 }
 
 /*
@@ -2637,15 +2689,41 @@ mock230_script_command(
     }
 
     /*
+     * The examine text, and the whole of what a rev-230 "Examine" op is.
+     *
+     * Op 10 is Examine on nearly every panel the client draws — the backpack,
+     * the worn tab, the bank, the Tool Leprechaun's twelve cells — and it had
+     * no server-side answer at all, because the obj record's `examine` string
+     * was decoded by the cache and dropped by mock230_objinfo. Reading it is
+     * mechanism, not policy: the sentence is the cache's, content decides
+     * whether and when to print it.
+     *
+     * The empty string rather than NULL for a record that states none — a
+     * placeholder, or an id nothing occupies — so a script that prints the
+     * result unconditionally prints a blank line instead of dereferencing one.
+     */
+    case SS_OP_OC_DESC:
+    {
+        int32_t obj_id;
+        const char* desc;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        desc = mock230_objinfo(obj_id)->desc;
+        SSVM_PushStr(state, desc ? desc : "");
+        return 1;
+    }
+
+    /*
      * Config queries.
      *
      * Every one of these is a read off a table the boot loaders already decoded
      * — `Mock230ObjInfo`, `Mock230NpcInfo`, the content packs — which is the
      * reason this batch is safe to add in bulk. `oc_cost`, `oc_members`,
-     * `oc_tradeable` and `oc_desc`/`nc_desc` are still absent — simply not
-     * decoded; the obj record's examine text is read by nothing here, and a
+     * `oc_tradeable` and `nc_desc` are still absent — simply not decoded; a
      * dat2 npc record has no description at all (it is server-driven at this
-     * revision).
+     * revision). `oc_desc` was in that list until the case above: the obj
+     * record does carry one, it was just being thrown away at load.
      *
      * An opcode that cannot be answered from real data is better left to the
      * VM's loud stub than implemented with a plausible guess: the stub says so,
@@ -3944,6 +4022,69 @@ mock230_script_command(
             !SSVM_PopInt(state, &script_id) )
             return 1;
         mock230_send_run_clientscript_mixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
+        return 1;
+    }
+
+    /*
+     * `runclientscript*(clientscript)(args...)` — the general form.
+     *
+     * The compiler lays a vararg call out as: the declared arguments, then the
+     * vararg values, then a type string describing them (`ssc_compile.c`'s
+     * vararg block; the same layout the reference's popScriptArgs reads). So
+     * this pops the type string first and walks it *backwards*, because the
+     * last value pushed is the first one off — which is exactly the order the
+     * RUNCLIENTSCRIPT packet writes its arguments in anyway.
+     *
+     * The type string is copied rather than held: it is a pool pointer, and
+     * the loop below pops other pool pointers on top of it.
+     */
+    case SS_OP_RUNCLIENTSCRIPTVARARG:
+    {
+        char types[MOCK230_RUNCLIENTSCRIPT_ARG_MAX + 1];
+        int intv[MOCK230_RUNCLIENTSCRIPT_ARG_MAX];
+        const char* strv[MOCK230_RUNCLIENTSCRIPT_ARG_MAX];
+        const char* type_string;
+        int32_t script_id;
+        int argc;
+        int i;
+
+        if( !SSVM_PopStr(state, &type_string) )
+            return 1;
+        argc = (int)strlen(type_string);
+        if( argc > MOCK230_RUNCLIENTSCRIPT_ARG_MAX )
+        {
+            /* Louder than a truncation: a short packet would run the
+             * clientscript with the wrong arguments and look like a content
+             * bug in the panel it drew. */
+            SSVM_Abort(state, "runclientscript* takes at most %d arguments, given %d",
+                       MOCK230_RUNCLIENTSCRIPT_ARG_MAX, argc);
+            return 1;
+        }
+        memcpy(types, type_string, (size_t)argc);
+        types[argc] = '\0';
+
+        for( i = argc - 1; i >= 0; i-- )
+        {
+            intv[i] = 0;
+            strv[i] = "";
+            if( types[i] == 's' )
+            {
+                if( !SSVM_PopStr(state, &strv[i]) )
+                    return 1;
+            }
+            else
+            {
+                int32_t value;
+
+                if( !SSVM_PopInt(state, &value) )
+                    return 1;
+                intv[i] = (int)value;
+            }
+        }
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+        mock230_send_run_clientscript_mixed(srv->active_player, (int)script_id, types, intv,
+                                            strv, argc);
         return 1;
     }
 

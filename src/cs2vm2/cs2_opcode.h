@@ -1468,6 +1468,18 @@
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
+/* IF_GETCOMPONENTPARAM (2703) — the IF form of CC_GETCOMPONENTPARAM (1703).
+ * operand: unused (the dot flag)
+ * int stack in:   param, component, fallback  (fallback = top)
+ * int stack out:  the component's runtime param value, or `fallback` on a miss
+ *
+ * Absent from the vendored opcode table AND from 3rd/rscache's
+ * cs2_command.gen.h, which is why 20 scripts in cache.osrs239 fail to decompile
+ * at it. tools/cs2_gen_opcodes/local_opcodes.py carries the derivation: three
+ * pushed and one consumed at all 16 call sites, and the third argument is the
+ * literal -1 everywhere, which is what makes "fallback" and "sub-id" the same
+ * observable behaviour here. */
+#define CS2_OP_IF_GETCOMPONENTPARAM 2703
 /* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.
  * operand: unused
  * int stack in:   widget, parent  (parent = top)

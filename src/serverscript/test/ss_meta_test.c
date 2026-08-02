@@ -220,7 +220,27 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_IF_BUTTON, 147, "if_button");
     CHECK_EQ(SS_TRIGGER_LOGIN, 157, "login");
     CHECK_EQ(SS_TRIGGER_AI_DESPAWN, 167, "ai_despawn");
-    CHECK_EQ(SS_TRIGGER_MAX, 168, "trigger table size");
+
+    /*
+     * 167 is the last id ServerTriggerType.ts defines, and the boundary is the
+     * assertion: rev-230-only triggers go strictly above it, so a future
+     * LostCity trigger can never land on one. Same rule EXTRA_OPCODES follows
+     * at 11000.
+     */
+    CHECK_EQ(SS_TRIGGER_IF_BUTTON1, 168, "if_button1 is the first non-reference trigger");
+    CHECK_EQ(SS_TRIGGER_IF_BUTTON10, 177, "if_button10");
+    CHECK_EQ(SS_TRIGGER_IF_BUTTON10 - SS_TRIGGER_IF_BUTTON1, 9, "ten contiguous op triggers");
+    CHECK_EQ(SS_TRIGGER_MAX, 178, "trigger table size");
+
+    /* The numbered form is a *different* trigger from the op-less click, not a
+     * relabelling of it: `[if_button,x]` still answers a plain click and
+     * `[if_button1,x]` answers op 1. Collapsing them would make every armed
+     * component's op-less events fire its op-1 script. */
+    CHECK(SS_TRIGGER_IF_BUTTON1 != SS_TRIGGER_IF_BUTTON, "op 1 is not the op-less click");
+    CHECK_EQ(strcmp(SSVM_TriggerName(SS_TRIGGER_IF_BUTTON2), "if_button2"), 0,
+             "name of if_button2");
+    CHECK_EQ(SSVM_TriggerFromName("if_button2"), SS_TRIGGER_IF_BUTTON2, "if_button2 by name");
+    CHECK_EQ(SSVM_TriggerFromName("if_button10"), SS_TRIGGER_IF_BUTTON10, "if_button10 by name");
 
     CHECK_EQ(strcmp(SSVM_TriggerName(SS_TRIGGER_OPNPC1), "opnpc1"), 0, "name of opnpc1");
     CHECK_EQ(SSVM_TriggerFromName("opnpc1"), SS_TRIGGER_OPNPC1, "opnpc1 by name");
