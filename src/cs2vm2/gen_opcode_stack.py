@@ -9,7 +9,14 @@ OPCODE_H = HERE / "cs2_opcode.h"
 META_C = HERE / "cs2_opcode_meta.c"
 OUT = HERE / "cs2vm2_opcode_stack.gen.h"
 
-MAX_OPCODE = 7602
+
+# RSCACHE_CS2_OPCODE_TABLE_SIZE (3rd/rscache/src/cs2/cs2_command.gen.h) — the
+# highest defined opcode there is 8022 (the array-op family, this revision's
+# newest), so this is the measured ceiling, not a guess. Used to top out at
+# 7602, which put the entire 8000-series permanently out of reach: not
+# implemented, not asserted, just silently absent from this table and from
+# CS2VM2_Op_StackMetaStub's `opcode < CS2VM2_OPCODE_STACK_MAX` gate.
+MAX_OPCODE = 8023
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
@@ -369,6 +376,22 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # here — they have dedicated dispatch cases in cs2vm2.c that hand off to the
     # host (rs_cs2_host.c stores/returns host->cam_follow_height), so they never
     # reach StackMetaStub.
+    #
+    # The 8000-series array family (see docs/cs2-arrays-are-handles.md — arrays
+    # are handles on the STRING stack at this revision). 8000/8007 already carry
+    # real doc comments in cs2_opcode.h and need nothing here; the rest were
+    # unreachable until MAX_OPCODE above widened to the table's measured size
+    # (8023), because CS2VM2_Op_StackMetaStub zeroes anything past the old 7602
+    # ceiling before it can even check `known`. Every tuple below is read out of
+    # 3rd/rscache/tools/cs2/local_commands.py, not guessed: 8001 from a
+    # deobfuscated client's straight-line opcode handler; 8003/8019/8021/8022
+    # from call-site stack-balance solving against cache.osrs239 (8003 alone
+    # confirmed across eleven scripts; 8022's shape confirmed by 40).
+    8001: (3, 0, 0, 0),  # _8001(int, int, int)
+    8003: (0, 1, 1, 0),  # _8003(string) -> int
+    8019: (0, 2, 0, 0),  # _8019(string, string)
+    8021: (2, 0, 0, 1),  # _8021(int, int) -> string
+    8022: (3, 0, 0, 1),  # _8022(int, int, int) -> string
 }
 
 

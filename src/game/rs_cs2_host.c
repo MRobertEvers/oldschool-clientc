@@ -864,6 +864,45 @@ RS_CS2Host_TakeCallOnResize(
     return true;
 }
 
+/* Queue a (component, op index) pair CC_TRIGGEROP asked the App to run. */
+static void
+rs_cs2_trigger_op_push(
+    struct RS_CS2Host* host,
+    int component_id,
+    int op_index)
+{
+    int slot;
+
+    assert(host);
+    if( host->trigger_op_count >= RS_CS2_HOST_TRIGGER_OP_MAX )
+    {
+        fprintf(
+            stderr,
+            "cs2: cc_triggerop queue full (%d), dropped component 0x%08x op %d\n",
+            RS_CS2_HOST_TRIGGER_OP_MAX,
+            (unsigned)component_id,
+            op_index);
+        return;
+    }
+    slot = (host->trigger_op_head + host->trigger_op_count) % RS_CS2_HOST_TRIGGER_OP_MAX;
+    host->trigger_op[slot].component_id = component_id;
+    host->trigger_op[slot].op_index = op_index;
+    host->trigger_op_count++;
+}
+
+bool
+RS_CS2Host_TakeTriggerOp(
+    struct RS_CS2Host* host,
+    struct RS_CS2TriggerOp* out)
+{
+    if( !host || !out || host->trigger_op_count <= 0 )
+        return false;
+    *out = host->trigger_op[host->trigger_op_head];
+    host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
+    host->trigger_op_count--;
+    return true;
+}
+
 void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
@@ -4934,6 +4973,14 @@ rs_cs2_host_exec_dispatch(
          * comment in rs_cs2_host.h for why deferring is safe for every call
          * site in this cache. */
         rs_cs2_call_on_resize_push(host, request->u.if_call_on_resize.component_id);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_CC_TRIGGEROP:
+        /* Queued for the same reason as IF_CALLONRESIZE above. */
+        rs_cs2_trigger_op_push(
+            host,
+            request->u.cc_trigger_op.component_id,
+            request->u.cc_trigger_op.op_index);
         return CS2VM_EXECNO_OK;
 
     /* ---- SetOn (hooks / no-ops) ---- */

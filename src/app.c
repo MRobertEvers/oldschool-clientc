@@ -4027,6 +4027,35 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /*
+     * cc_triggerop — run the on_op listeners scripts asked for directly,
+     * without a real click. script6014 (shift-click inventory options) is
+     * the case that surfaced this: cc_find locates a component and
+     * cc_triggerop fires its op handler with an explicit op index. Same
+     * queue/drain shape as if_callonresize just above, and for the same
+     * reason: the op is reached from inside a running CS2 script, which has
+     * no runner to nest a second dispatch on.
+     */
+    {
+        struct RS_CS2TriggerOp trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGER_OP_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOp(&app->host, &trig) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, trig.component_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                trig.component_id,
+                &app->tree->components[idx].runtime_hooks.on_op);
+            redraw = 1;
+        }
+    }
+
     /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
      * Early-outs unless a widget was unhidden this tick; per-hook serial gating
      * means already-fired hooks run nothing. */

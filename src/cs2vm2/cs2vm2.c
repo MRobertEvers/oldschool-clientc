@@ -1836,6 +1836,46 @@ CS2VM2_Op_CC_SetTrans(
     return CS2VM_EXECNO_OK;
 }
 
+/*
+ * CC_TRIGGEROP(op) — run the dot/active component's on_op listener now, as if
+ * op index `op` had been picked from its menu.
+ *
+ * One int in, nothing out (local_commands.py witness table: `cc_triggerop:
+ * (["INT"], [], False)`). script6014, the shift-click-inventory-option
+ * handler, is the call site:
+ *
+ *     if( cc_find($component0, $comsubid2) = ^true ) {
+ *         ...
+ *         cc_triggerop(enum(int, int, enum_4303, oc_shiftclickiop($int1)));
+ *     }
+ *
+ * i.e. cc_find locates the target component and cc_triggerop fires its op
+ * handler directly, without a real click. Queued rather than run in place —
+ * same reason as IF_CALLONRESIZE: this is reached from inside a running CS2
+ * script and the host has no runner to nest a second one on.
+ */
+int
+CS2VM2_Op_CC_TriggerOp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int op_index;
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_TRIGGEROP;
+    request.u.cc_trigger_op.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.cc_trigger_op.op_index = op_index;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_SetTrans(
     struct CS2VM2_Thread* vm,
@@ -8291,6 +8331,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnResize(vm, frame, operand);
     case CS2_OP_CC_SETONSUBCHANGE:
         return CS2VM2_Op_CC_SetOnSubChange(vm, frame, operand);
+    case CS2_OP_CC_TRIGGEROP:
+        return CS2VM2_Op_CC_TriggerOp(vm, frame, operand);
     case CS2_OP_IF_GETWIDTH:
         return CS2VM2_Op_IF_GetWidth(vm, frame, operand);
     case CS2_OP_IF_GETHEIGHT:

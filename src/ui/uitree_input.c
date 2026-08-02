@@ -223,9 +223,16 @@ hit_test_interactive_recursive(
     {
         struct UITreeScrollClip cc, cs;
         /* Collapsed clipping layer: nothing under it is drawn, so nothing under
-         * it can be hit either (same rule as emit_walk_node). */
+         * it can be hit either (same rule as emit_walk_node). Sentinel is -1,
+         * matching every other "no hit here" exit in this function — this one
+         * used to return 0, a valid node index, which a parent's `child_hit >=
+         * 0` check reads as a real hit on node 0 and lets it clobber an
+         * already-found sibling's hit (uitree_input.c below, `child_hit >= 0`).
+         * A collapsed sibling next to a real interactive target (e.g. the
+         * stat-orbs panel next to the minimap in the rev-230 gameframe) made
+         * every click on the target resolve to node 0 instead. */
         if( UITree_LayerCullsChildren(component, bw, bh) )
-            return 0;
+            return -1;
         if( UITree_LayerChildClip(
                 component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
         {

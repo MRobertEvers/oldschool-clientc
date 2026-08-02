@@ -47,6 +47,12 @@ static struct CollisionMap* g_collision[SCENE_LEVELS];
 static int g_base_x = -1;
 static int g_base_z = -1;
 
+/* Which scene columns have a bridge deck (LINK_BELOW at raw level 1), captured
+ * during apply_terrain and consumed once by apply_bridges() after every map
+ * square's terrain and locs are in. Map-square terrain buffers are freed per
+ * square, so this has to be persisted rather than re-derived at the end. */
+static unsigned char g_link_below[SCENE_TILES][SCENE_TILES];
+
 static struct Mock230SceneLoc* g_locs;
 static int g_loc_count;
 static int g_loc_capacity;
@@ -379,11 +385,18 @@ record_loc(
 /*
  * Terrain: a tile whose settings carry BLOCK is not walkable.
  *
- * The LINK_BELOW rule is the bridge case, and it is inverted from what the flag
- * name suggests: a level-1 tile marked LINK_BELOW means the level *below* it is
- * a bridge deck, so the blocked-ness at level 0 comes from level 1's flags. The
- * client does the same in world_collision_apply_bridges; without it every
- * bridge in Lumbridge is an impassable strip of water.
+ * No level shift here, deliberately — mirrors world_collision_apply_terrain
+ * (world_collision.u.c). The LINK_BELOW rule is the bridge case, and it is a
+ * separate whole-column pass (apply_bridges, below) that runs once after every
+ * map square's terrain *and* locs are registered: it copies level i+1's whole
+ * collision word down onto level i for every LINK_BELOW column, so a bridge
+ * deck's blocking (terrain and locs alike) ends up at the level players
+ * actually stand on, and whatever raw level-0 content sat underneath is
+ * discarded with it. Shifting terrain alone, here, missed locs entirely — a
+ * fence post placed at the raw level under a bridge stayed blocked at the
+ * level the bridge deck occupies, so BFS refused to route across it even
+ * though the client's own collision (built the same two-pass way) said the
+ * tile was open.
  */
 static void
 apply_terrain(
@@ -399,29 +412,57 @@ apply_terrain(
             int abs_z = map_z * 64 + local_z;
             int scene_x = abs_x - g_base_x;
             int scene_z = abs_z - g_base_z;
-            int link_below;
 
             if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
                 scene_z >= SCENE_TILES )
                 continue;
 
-            link_below =
-                (terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, 1)].settings &
-                 RSCACHE_FLOFLAG_LINK_BELOW) != 0;
+            if( (terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, 1)].settings &
+                 RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+                g_link_below[scene_x][scene_z] = 1;
 
             for( int level = 0; level < SCENE_LEVELS; level++ )
             {
                 uint8_t settings =
                     terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)]
                         .settings;
-                /* A bridge deck's blocking flag lives one level up. */
-                int source_level = (level == 0 && link_below) ? 1 : level;
 
-                settings = terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z,
-                                                                     source_level)]
-                               .settings;
                 if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 && g_collision[level] )
                     collision_map_add_floor(g_collision[level], scene_x, scene_z);
+            }
+        }
+    }
+}
+
+/*
+ * Bridge push-down: a direct port of world_collision_apply_bridges
+ * (world_collision.u.c). For every scene column whose raw level-1 tile carries
+ * LINK_BELOW, copy level i+1's whole flags word onto level i (0<-1, 1<-2,
+ * 2<-3) — terrain and loc collision together, since apply_terrain and
+ * record_loc already ran for the whole scene by the time this is called.
+ * Runs exactly once, after every map square in the scene has contributed its
+ * terrain and locs.
+ */
+static void
+apply_bridges(void)
+{
+    for( int x = 0; x < SCENE_TILES; x++ )
+    {
+        for( int z = 0; z < SCENE_TILES; z++ )
+        {
+            if( !g_link_below[x][z] )
+                continue;
+
+            for( int level = 0; level < SCENE_LEVELS - 1; level++ )
+            {
+                struct CollisionMap* cm_below = g_collision[level];
+                struct CollisionMap* cm_above = g_collision[level + 1];
+                int idx;
+
+                if( !cm_below || !cm_above )
+                    continue;
+                idx = collision_map_index_at(cm_below, x, z);
+                cm_below->flags[idx] = cm_above->flags[idx];
             }
         }
     }
@@ -497,6 +538,7 @@ mock230_scene_build(
         if( g_collision[level] )
             collision_map_reset(g_collision[level]);
     }
+    memset(g_link_below, 0, sizeof(g_link_below));
 
     load_loc_configs(disk, &profile);
 
@@ -527,6 +569,8 @@ mock230_scene_build(
             RSCache_MapLocsFree(locs);
         }
     }
+
+    apply_bridges();
 
     locs_before = g_loc_count;
     RSCache_Dat2DiskFree(disk);

@@ -79,6 +79,11 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_SETONOP,
     CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE,
     CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT,
+    /** CC_TRIGGEROP (1928): run the dot/active component's on_op listener now,
+     *  as if the given op index had been picked from its menu. See script6014
+     *  (shift-click inventory options) — verified one INT in, nothing out via
+     *  local_commands.py's witness table, not guessed. */
+    CS2VM_HOST_REQUEST_CC_TRIGGEROP,
     // IF Interfaces
     CS2VM_HOST_REQUEST_IF_GETWIDTH,
     CS2VM_HOST_REQUEST_IF_GETHEIGHT,
@@ -699,6 +704,14 @@ struct CS2VM_HostRequest_IF_CallOnResize
     int component_id;
 };
 
+/** CC_TRIGGEROP — the dot/active component whose on_op listener to run, and
+ *  the op index to report through it (event_opindex). */
+struct CS2VM_HostRequest_CC_TriggerOp
+{
+    int component_id;
+    int op_index;
+};
+
 struct CS2VM_HostRequest_IF_ClearOpSubmenu
 {
     int component_id;
@@ -1299,6 +1312,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetTargetPriority if_set_target_priority;
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
         struct CS2VM_HostRequest_IF_CallOnResize if_call_on_resize;
+        struct CS2VM_HostRequest_CC_TriggerOp cc_trigger_op;
         struct CS2VM_HostRequest_IF_ClearOpSubmenu if_clear_op_submenu;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;
         struct CS2VM_HostRequest_IF_SetScrollPos cc_set_scroll_pos;

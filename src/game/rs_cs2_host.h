@@ -60,6 +60,10 @@ enum RS_CS2SocialSendKind
  * panel with no other symptom. */
 #define RS_CS2_HOST_CALL_ON_RESIZE_MAX 16
 
+/* Pending CC_TRIGGEROP requests. Same shape and reasoning as
+ * RS_CS2_HOST_CALL_ON_RESIZE_MAX above — one queued pair per call site. */
+#define RS_CS2_HOST_TRIGGER_OP_MAX 16
+
 struct RS_CS2SocialSend
 {
     int kind; /* enum RS_CS2SocialSendKind */
@@ -69,6 +73,14 @@ struct RS_CS2SocialSend
     char text[RS_CS2_HOST_SOCIAL_TEXT_LEN];
     /** public / private / trade: CHAT_SETMODE only. */
     int modes[3];
+};
+
+/** A CC_TRIGGEROP request: which component's on_op to run, and the op index
+ *  to report to it as event_opindex. */
+struct RS_CS2TriggerOp
+{
+    int component_id;
+    int op_index;
 };
 
 /*
@@ -405,6 +417,14 @@ struct RS_CS2Host
     int call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
     int call_on_resize_count;
     int call_on_resize_head;
+
+    /** (component, op index) pairs CC_TRIGGEROP asked to run, drained by the
+     *  App's tick through RS_CS2Host_TakeTriggerOp. Queued for the same
+     *  reason as call_on_resize: reached from inside a running CS2 script,
+     *  and this host has no task runner to nest a second one on. */
+    struct RS_CS2TriggerOp trigger_op[RS_CS2_HOST_TRIGGER_OP_MAX];
+    int trigger_op_count;
+    int trigger_op_head;
 };
 
 void
@@ -472,6 +492,15 @@ bool
 RS_CS2Host_TakeCallOnResize(
     struct RS_CS2Host* host,
     int* out_component_id);
+
+/** Pop the oldest queued CC_TRIGGEROP request, FIFO. Returns false when the
+ *  queue is empty. The App drains this once per tick and runs each
+ *  component's on_op listener with event_opindex set to op_index; nothing
+ *  else may consume it. */
+bool
+RS_CS2Host_TakeTriggerOp(
+    struct RS_CS2Host* host,
+    struct RS_CS2TriggerOp* out);
 
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change
