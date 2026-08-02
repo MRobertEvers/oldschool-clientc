@@ -30,18 +30,6 @@
 
 #include <stddef.h>
 
-/** Who may choose a record's id. */
-enum ContentIdAuthority
-{
-    /** The client's cache fixes it. Never allocated by us. */
-    CONTENT_IDS_CACHE = 0,
-    /** Ours to assign, from the layer-0 high-water mark. */
-    CONTENT_IDS_SERVER,
-    /** The wire fixes it — `stat` is the index UPDATE_STAT carries, and moving
-     *  it is not the cache's to do. */
-    CONTENT_IDS_PROTOCOL,
-};
-
 /** Where the *generated* names (`pack/<ns>.pack`) come from. */
 enum ContentNameAuthority
 {
@@ -71,7 +59,6 @@ struct ContentNamespace
      * `cache_index`.
      */
     char name[48];
-    enum ContentIdAuthority ids;
     enum ContentNameAuthority names;
     /** 1 when this namespace shares a RuneScript name domain with the others
      *  that set it — varp/varbit/varn/vars all answer to `%name`, so a name

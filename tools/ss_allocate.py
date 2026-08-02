@@ -75,34 +75,35 @@ MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-
 # allocator was allocating params the compiler then refused to resolve. The
 # conclusion drawn at the time was "content cannot own this rule", which is
 # exactly backwards — see docs/CONTENT_ARCHITECTURE.md §8.2(c).
-DEFAULT_SERVER_NAMESPACES = (
+SERVER_NAMESPACES = (
     'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv',
+    # `varp` is here because the `ids` axis was retired, and it is the ONLY
+    # namespace that axis ever contributed — measured against the tree, not
+    # assumed. It is swept so content can declare the `%com_*` combat stat block
+    # the reference computes in `[proc,player_combat_stat]`; before the promotion
+    # no tool would hand those varps an id.
+    'varp',
 )
-
-# Kept for readers that import the old name.
-SERVER_NAMESPACES = DEFAULT_SERVER_NAMESPACES
 
 
 def server_namespaces(tree):
-    """Every namespace this tool should sweep: the defaults, plus the register's.
+    """Every namespace this tool sweeps.
 
-    A union and not a replacement, because `content.ini` *overlays* the built-in
-    defaults rather than restating them (see its own header): `enum`, `struct`,
-    `dbtable`, `dbrow`, `mesanim` and `inv` appear nowhere in it and still have
-    server-owned ids. Deriving the list from the file alone would silently stop
-    allocating for five namespaces.
+    One table, deliberately. This used to be a union of the tuple above with
+    whatever `content.ini` declared `ids = server`, and that was the drift the
+    register exists to remove rather than an instance of it: two authorities for
+    one fact, agreeing by hand. It had already failed once — `param` sat in the
+    tuple while the register said `ids = cache`, so the allocator handed out
+    params the compiler then refused to resolve.
 
-    What the union adds is the other direction: a namespace the tree *promotes*
-    to `ids = server` is swept without anyone remembering to edit this file.
-    `varp` is the case that motivated it — the register was changed so content
-    could declare the `%com_*` combat stat block the reference computes in
-    `[proc,player_combat_stat]`, and until this the promotion bought nothing
-    because no tool would hand those varps an id.
+    The axis is gone because it decided nothing: ids are assigned by the pack
+    files, and `npc` declared `ids = cache` while allocating from a base of
+    20000. What a namespace needs stated is where a new id starts, which is
+    `server_base` in the register, and whether this tool sweeps it, which is the
+    tuple above. `tree` is kept in the signature so callers do not change.
     """
-    found = set(DEFAULT_SERVER_NAMESPACES)
-    path = os.path.join(tree, 'content.ini')
-    if not os.path.exists(path):
-        return tuple(sorted(found))
+    del tree
+    return tuple(sorted(SERVER_NAMESPACES))
     section = None
     with open(path, encoding='utf-8', errors='replace') as handle:
         for line in handle:
@@ -220,7 +221,7 @@ def other_layers(tree, ns):
 
 
 REGISTER_ROW = re.compile(
-    r'\{\s*"([A-Za-z0-9_]+)"\s*,\s*CONTENT_IDS_\w+\s*,\s*CONTENT_NAMES_\w+\s*,'
+    r'\{\s*"([A-Za-z0-9_]+)"\s*,\s*CONTENT_NAMES_\w+\s*,'
     r'\s*-?\d+\s*,\s*-?\d+\s*,\s*(-?\d+)\s*,\s*-?\d+\s*\}')
 
 

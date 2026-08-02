@@ -713,9 +713,22 @@ validate_id_bases(
         }
 
         /*
-         * Ids above the cache's maximum but below the declared base — see the
-         * header. An error where the ids are ours, information where they are the
-         * cache's.
+         * Ids above the cache's maximum but below the declared base.
+         *
+         * This used to be an error where `ids = server` and information where
+         * `ids = cache`. That split is gone with the axis: `ids` turned out to
+         * distinguish nothing — the pack file assigns ids, and `npc` declared
+         * `ids = cache` while allocating from a base of 20000 — so the two
+         * branches were reporting the same fact at two severities on the strength
+         * of a label that did not mean what it said.
+         *
+         * Information, then, and honestly so. Restoring the error needs the one
+         * thing neither branch ever had: whether an id in this gap is an
+         * *allocation* of ours or a layer-0 name. The register cannot tell them
+         * apart, which is precisely why the old code used `ids` as a proxy for it.
+         * A base that is a round number above the cache's maximum leaves this gap
+         * BY DESIGN (see `server_base`'s own comment), so a hit here is expected
+         * rather than suspicious.
          */
         int early = 0;
         int lowest = -1;
@@ -727,21 +740,12 @@ validate_id_bases(
                 lowest = id;
             early++;
         }
-        if( early && row->ids == CONTENT_IDS_SERVER )
+        if( early )
         {
-            report_error("%s: the allocation base is %d, but %d id(s) this tree allocated "
-                         "already sit below it (the lowest is %d, one past the cache's %d) "
-                         "— the register is describing an id space that is not in use; "
-                         "lower the base in content_register.c to %d",
-                         ns, row->server_base, early, lowest, cache_max, cache_max + 1);
-            problems++;
-        }
-        else if( early )
-        {
-            report_info("%s: %d id(s) sit between the cache's %d and the base %d — layer-0 "
-                        "names rather than allocations; `ids = cache` says the base is only "
-                        "where new records would start",
-                        ns, early, cache_max, row->server_base);
+            report_info("%s: %d id(s) sit between the cache's %d and the base %d (lowest %d) "
+                        "— layer-0 names rather than allocations; the base is only where new "
+                        "records start",
+                        ns, early, cache_max, row->server_base, lowest);
         }
     }
 

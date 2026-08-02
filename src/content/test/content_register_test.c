@@ -63,11 +63,10 @@ main(void)
 
     ns = ContentRegister_Find(&reg, "varp");
     check(ns != NULL, "varp is a default namespace");
-    check(ns && ns->ids == CONTENT_IDS_CACHE, "varp ids come from the cache");
     check(ns && ns->shared_var_domain, "varp shares the %name domain");
 
     ns = ContentRegister_Find(&reg, "stat");
-    check(ns && ns->ids == CONTENT_IDS_PROTOCOL, "stat ids are the protocol's");
+    check(ns && ns->server_base == 0, "stat cannot be allocated into — the wire fixes it");
     check(ns && ns->names == CONTENT_NAMES_AUTHORED, "and its names are authored");
 
     check(ContentRegister_Find(&reg, "nonesuch") == NULL, "an unknown namespace is NULL");
@@ -123,10 +122,16 @@ main(void)
     ns = ContentRegister_Find(&reg, "dbtable");
     check(ns && ns->gameval_archive == 10, "gameval archive 10 names dbtables");
     check(ns && ns->names == CONTENT_NAMES_CACHE, "so dbtable names come from the cache");
-    check(ns && ns->ids == CONTENT_IDS_SERVER, "but ids above the cache's are ours");
+    check(ns && ns->server_base > 0, "but ids above the cache's are ours to allocate");
     ns = ContentRegister_Find(&reg, "dbrow");
     check(ns && ns->gameval_archive == 9, "gameval archive 9 names dbrows");
-    check(ns && ns->ids == CONTENT_IDS_SERVER, "and their ids split the same way");
+    check(ns && ns->names == CONTENT_NAMES_CACHE, "and dbrow names come from the cache too");
+    /* Not `server_base > 0` like dbtable's above: dbrow's base is 0, which means
+     * "no declared floor" rather than "never allocate" — tools/ss_allocate.py
+     * derives one from layer 0's high-water mark instead. dbrow declared
+     * `ids = server` while carrying base 0, which is one more place that axis
+     * disagreed with the field that actually decides. */
+    check(ns && ns->server_base == 0, "dbrow declares no base; the allocator derives one");
 
     /* Archive 14 carries an interface *and* its components in one record, so it
      * is the evidence for two namespaces rather than one. */
@@ -177,12 +182,11 @@ main(void)
 
         ns = ContentRegister_Find(&reg, "varp");
         check(ns && ns->names == CONTENT_NAMES_IMPORTED, "a declared key overrides");
-        check(ns && ns->ids == CONTENT_IDS_CACHE, "an omitted key keeps its default");
+        check(ns && ns->shared_var_domain, "an omitted key keeps its default");
         check(ns && ns->shared_var_domain, "and so does an omitted vardomain");
 
         ns = ContentRegister_Find(&reg, "brandnew");
         check(ns != NULL, "a namespace the defaults never had is added");
-        check(ns && ns->ids == CONTENT_IDS_SERVER, "with its stated id authority");
         check(ns && ns->names == CONTENT_NAMES_DERIVED, "and its stated name authority");
 
         check(ContentRegister_Find(&reg, "else") == NULL,
