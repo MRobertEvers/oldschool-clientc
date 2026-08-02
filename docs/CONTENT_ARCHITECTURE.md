@@ -990,6 +990,17 @@ the engine calls through `mock230_scripts_run_hook*` / `mock230_scripts_queue_ho
 which take a resolved script. The by-name helpers stay for tests, because a test
 naming the script it tests is stating its subject.
 
+**It is still ten and it is not the same ten** — worth saying, because "ten"
+looks like a number that has not moved. `equipment_open` was added on 2026-08-01
+making eleven, and `equip_level_message` was deleted on 2026-08-02 along with
+`mock230_equipment_may_wear`, when the wield gate stopped being an engine
+decision at all (`osrs230_mockserver.md` §3.18). That is the first time this list
+has ever gone **down**, and it is the direction it is meant to go: a hook is the
+engine naming a piece of content, so the way one stops being needed is that the
+engine stops making the decision that called it — not that the name gets tidier.
+The block above is the original ten, kept as the historical record; the live list
+is `mock230_scripts.c:203-212`.
+
 A miss now says so once, at boot:
 
 ```

@@ -339,6 +339,124 @@ mock230_container_set(
     mock230_container_mark(container, slot);
 }
 
+/*
+ * `Inventory.add` — the one place in this server that decides how an obj lands
+ * in a container.
+ *
+ * It is here rather than in either caller because there were two callers and
+ * one of them was wrong: `SS_OP_INV_ADD` wrote the first slot whose `obj_id` is
+ * negative and never merged, so a second `inv_add(inv, coins, …)` opened a
+ * *second* coin slot — reachable today from `~pickpocket`, which adds coins on
+ * every success. The reference has one method and every caller goes through it.
+ *
+ * Ported from `engine/src/engine/Inventory.ts:158`, minus `stockobj` (shops)
+ * and `beginSlot`. Stackability is read from the obj record here rather than
+ * passed in, so the callers cannot come to disagree about it.
+ *
+ * `assure_full` is the reference's `assureFullInsertion`: on, nothing is added
+ * unless all of it fits — which is what `obj_takeitem` needs, since a partially
+ * taken pile that is then deleted destroys the rest. Off, it adds what fits and
+ * says how much, which is what `inv_add` needs.
+ *
+ * ------------------------------------------------------------------
+ * The half that is deliberately NOT the reference, and how it was measured
+ * ------------------------------------------------------------------
+ *
+ * `Inventory.add` puts an unstackable obj in **one slot per unit**; this puts
+ * all `count` of it in one slot, which is what every caller here did before.
+ * That is a refusal, not an oversight, and the measurement is reproducible:
+ * writing the reference's loop turns four bank assertions red at once, because
+ * `[proc,newplayer_bank]` says `inv_add(bank, logs, 100)` and a bank stacks
+ * everything. The missing input is `InvType.stackType` — `ALWAYS_STACK` for a
+ * bank, `NEVER_STACK` for the shops' sale invs — which LostCity reads from its
+ * server-side `inv.dat` and which has nowhere to live here: there is no
+ * `fields/inv.ini` and no `[namespace:inv]` in `content.ini`. That is the same
+ * one gap `mock230_container_scope` is blocked on, and doing the spread
+ * unconditionally would trade a known-wrong stack for a known-wrong bank.
+ *
+ * So the *merge* lands (it needs no per-inv field: a stackable obj stacks in
+ * every inv there is) and the *spread* waits. Nothing regresses either way —
+ * one slot holding N unstackables is exactly what `interaction_engine_obj` and
+ * `inv_add` already produced.
+ *
+ * Returns the number added: never negative, never more than `count`.
+ */
+int
+mock230_container_add(
+    struct Mock230Container* container,
+    int obj_id,
+    int count,
+    int assure_full)
+{
+    int stackable;
+    int free_slots = 0;
+    int added = 0;
+
+    if( !container || !container->used || !container->items )
+        return 0;
+    if( obj_id < 0 || count <= 0 )
+        return 0;
+
+    stackable = mock230_objinfo(obj_id)->stackable ? 1 : 0;
+
+    for( int i = 0; i < container->slots; i++ )
+    {
+        if( container->items[i].obj_id < 0 )
+            free_slots++;
+    }
+
+    if( stackable )
+    {
+        int slot = -1;
+        int have;
+        int room;
+
+        for( int i = 0; i < container->slots && slot < 0; i++ )
+        {
+            if( container->items[i].obj_id == obj_id )
+                slot = i;
+        }
+        if( slot < 0 )
+        {
+            for( int i = 0; i < container->slots && slot < 0; i++ )
+            {
+                if( container->items[i].obj_id < 0 )
+                    slot = i;
+            }
+        }
+        if( slot < 0 )
+            return 0;
+        /* The reference clamps at `Inventory.STACK_LIMIT = 0x7fffffff`. Same
+         * clamp, written as the overflow it is: the stack and `count` are both
+         * int32 and content can legally name two billion of something. */
+        have = container->items[slot].obj_id == obj_id ? container->items[slot].count : 0;
+        room = INT32_MAX - have;
+        if( count > room )
+        {
+            if( assure_full )
+                return 0;
+            count = room;
+        }
+        if( count <= 0 )
+            return 0;
+        mock230_container_set(container, slot, obj_id, have + count);
+        return count;
+    }
+
+    /* Unstackable: one slot holding all of it, pending `stackType`. See above. */
+    if( free_slots <= 0 )
+        return 0;
+    for( int i = 0; i < container->slots; i++ )
+    {
+        if( container->items[i].obj_id >= 0 )
+            continue;
+        mock230_container_set(container, i, obj_id, count);
+        added = count;
+        break;
+    }
+    return added;
+}
+
 void
 mock230_container_clean(struct Mock230Container* container)
 {

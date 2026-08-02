@@ -163,6 +163,27 @@ mock230_container_set(
     int obj_id,
     int count);
 
+/**
+ * Put `count` of `obj_id` in, the way `Inventory.add` does, and say how many
+ * landed.
+ *
+ * A stackable obj merges onto the stack already held (taking a free slot only
+ * when there is none); an unstackable one takes one slot per unit.
+ * `assure_full` is the reference's `assureFullInsertion` — on, it is all or
+ * nothing.
+ *
+ * One function because there was one before it and it gave two half-answers:
+ * the `inv_add` opcode wrote the first free slot and never merged, so a
+ * stackable obj added twice took two slots, and an unstackable one added five
+ * at a time took one. See the body for what is deliberately not ported.
+ */
+int
+mock230_container_add(
+    struct Mock230Container* container,
+    int obj_id,
+    int count,
+    int assure_full);
+
 /** Clear the dirty state after a flush. */
 void
 mock230_container_clean(struct Mock230Container* container);

@@ -163,14 +163,15 @@ Any "yes" means write content instead of engine code:
    the register/namespace is the bug. Fix the namespace policy. **"A
    namespace that cannot grow is a bug, not a constraint."**
 5. Are you about to spell a script's name in C? → dispatch a trigger
-   instead. (The **11** named hooks in `mock230_scripts.c:202-212` are the
-   sanctioned exceptions — this line said 9 at `:152-164` until 2026-08-01,
-   which is the same decay item 7 is about. Do not grow that list casually,
+   instead. (The **10** named hooks in `mock230_scripts.c` are the
+   sanctioned exceptions — this line said 9 until 2026-08-01 and 11 until
+   2026-08-02, which is the same decay item 7 is about; the list has now gone
+   both ways, `equip_level_message` coming off with `MOCK230_FALLBACK_OPHELD`. Do not grow that list casually,
    and note it is not the whole surface: `[proc,npc_default_chat]` goes
    through `mock230_scripts_run_proc_on_npc` and the `mock230_say` family
    names scripts outside the table.)
 6. Are you about to write C that runs "when content binds nothing"? → it is a
-   row in `enum Mock230Fallback` or it does not exist. That list is six long,
+   row in `enum Mock230Fallback` or it does not exist. That list is four long,
    each row names its blocker, and the selftest pins the count: it shrinks as
    the opcode surface widens (§2.5), and adding to it is not a choice a content
    port gets to make. See `osrs230_mockserver.md` §3.18.
@@ -228,9 +229,28 @@ callers anywhere** — persistence has been dead code since it was written, so
   trivial move by the list above's definition — it is the first completed
   Phase 3 eviction — but it belongs here because the *blocker* was trivial:
   there was not one. See below and `osrs230_mockserver.md` §3.18.
-- most of the `::` cheat ladder — `mock230_world.c:2388-2683` (`::pray`
-  already migrated to a `[debugproc]`; the rest follow the same pattern) —
-  **still open, and the only trivial one left**
+- ~~the ground-obj take~~ — **moved** 2026-08-02, `[opobj3,_]` in
+  `player/scripts/pickup.rs2` over five new `obj_*` opcodes and a new active-obj
+  entity binding; `enum Mock230Fallback` 6 → **5**. The second completed
+  eviction and the first whose *order* was measured: the two selftest legs that
+  assert the take stayed **green** under "unbind the script" while the C was
+  still present (the fallback answered them) and turn red only after it is gone
+  — 3 red before, 11 after, same mutation. That asymmetry is why item 7's order
+  is not a formality. `osrs230_mockserver.md` §3.18.
+- ~~wear/wield and drop~~ — **moved** 2026-08-02, `[opheld2,_] ~equip(last_slot)`
+  and `[opheld5,_] ~dropslot(last_slot)` in `player/scripts/{equip,drop}.rs2`;
+  `enum Mock230Fallback` 5 → **4**. Third completed eviction, and the one whose
+  blocker turned out not to be an opcode at all: the level requirement had no
+  script-readable form, so binding `[opheld2,_]` would have dropped the gate in
+  silence. `skill_combat/configs/levelrequire.dbtable` is that home, and building
+  it found that the requirement is a **merge** — the `.obj` overlay every account
+  of it named is 857 objs of 1,496. Same before/after asymmetry as `opobj`, and
+  starker: **0** checks red under "unbind the script" with the C present, **18**
+  after it is gone. `osrs230_mockserver.md` §3.18.
+- most of the `::` cheat ladder — (`::pray`, `::dropobj`, `::equip` and
+  `::dropslot` already migrated to `[debugproc]`s — the `::equip` C branch went
+  with `equip_from_slot`; the rest follow the same pattern) — **still open, and
+  the only trivial one left**
 
 **Blocked moves**, re-measured 2026-08-01 — blocked on the ServerScript opcode
 surface, not on willingness. The order is deliberate: *widen the opcode surface
@@ -245,9 +265,8 @@ files. Both columns measured today:
 | row | the file it blamed | what the row actually is |
 |---|---:|---|
 | `opnpc` | `mock230_combat.c` 858 → **1,061** | `interaction_engine_npc`, **31 lines** — a strcmp on the cache's Attack verb plus the FACE_ENTITY latch. Combat stays engine either way |
-| `opobj` | — | `interaction_engine_obj`, **37 lines** |
 | `oploc` | — | `interaction_engine_loc`, **84 lines** + `climb` **34** |
-| `opheld` | "equipment is C" | the OPHELD arm of `handle_opheld` (150 lines total), ~50 of them. `mock230_equipment.c` is **134** lines of component→worn-slot map and was never the policy; the equipment *screen* is already content (`interface_equipment/scripts/equipment.rs2`) |
+| `opheld` | "equipment is C", then "seven opcodes" | the OPHELD arm of `handle_opheld` (150 lines total), ~50 of them. **Both reasons are now gone** (2026-08-02): `mock230_equipment.c` is **134** lines of component→worn-slot map and was never the policy, the *screen* is already content, and of the seven opcodes five landed and two were wrong. What is left is not an opcode — see below |
 | `inv_button` | `mock230_bank.c` 1,370 → **1,395** | `mock230_bank_quantity_for_op`, **107 lines** |
 | `if_button` | same | `mock230_bank_handle_button`, **64 lines** — and it is the *settings/deposit* ladder, not the quantity one; the two rows share one router |
 | world map | `mock230_worldmap.c` **199** | not a fallback row at all |
@@ -268,9 +287,33 @@ landed in other lanes, one wrong from the start:
   loc — `SSVM_ENT_LOC` is written only by `loc_find` and the iterator, so
   `loc_coord` in a door script aborts. Zero new opcodes.
 - `opobj` — "no `obj_take`/`inv_add` opcode pair": not a pair and not opcodes
-  first. `SSVM_ENT_OBJ` has zero writers *and zero readers* tree-wide, so no obj
-  opcode would have a subject.
-- `opheld` — "equipment is C": see the table.
+  first. `SSVM_ENT_OBJ` had zero writers *and zero readers* tree-wide, so no obj
+  opcode would have had a subject. **Closed 2026-08-02**, both halves: the
+  entity kind, five `obj_*` opcodes and `player/scripts/pickup.rs2` landed, then
+  the 39 lines of C went and **the row with them**. What that C did was answer
+  `opobj` 1, 2, 4 and 5 by taking the pile — it read no op number — over 75
+  ground-op lines in `configs/all.obj` that say Light, Remove, Study and Lay.
+  The reference answers those in content (`[opobj4,_category_22]` is
+  firemaking's Light) and answers an unbound one with `Player.defaultOp`.
+  Deleting it was a behaviour decision, taken and stated
+  (`osrs230_mockserver.md` §3.18).
+- `opheld` — "equipment is C", then "seven declared-unimplemented opcodes".
+  **Both false as of 2026-08-02, and the row still stands** — which is the
+  honest shape of a half-finished eviction rather than a failure. Five opcodes
+  landed (`oc_wearpos`/`2`/`3`, `inv_movefromslot`, `inv_dropslot`, plus
+  `inv_moveitem`'s missing generic arm) and two came off the list as wrong
+  rather than deferred: `BUILDAPPEARANCE`, whose real job is *selecting which
+  container the appearance encoder reads* — which this encoder cannot do, so an
+  implementation would be silently plausible and wrong (§3.13d) — and
+  `P_CLEARPENDINGACTION`, which `handle_opheld` never calls at all. The content
+  is written (`player/scripts/equip.rs2`, `player/scripts/drop.rs2`) and reached
+  through `[debugproc]`s. **The one live blocker is that the level requirement
+  has no script-readable form**: 857 objs / 1,254 (stat, level) pairs, which
+  `oc_param` cannot hold (a param maps one id to one scalar) and which no
+  reference opcode reads. Triage §10.1's *conclusion* survives — the values are
+  data — and its *inference* does not: "therefore the gate is C" rested on
+  opcodes that now exist. A dbtable with two `LIST` columns is the shape.
+  `osrs230_mockserver.md` §3.18.
 
 `inv_button`/`if_button` blamed the bank's line count when the obstacle is
 **addressing**: rev-230's bank menu has 8 op rungs, `[inv_button1..5]` has 5,
@@ -278,7 +321,8 @@ and no opcode exposes the latched verb, so content cannot name Withdraw-All.
 The rules are already sayable; the ops are not.
 
 The cheapest next unlock is therefore **structural, not an opcode**: give
-`[oploc<n>]` an active loc. Note it only unblocks *part* of `oploc` — the
+`[oploc<n>]` an active loc — or, for `opheld`, give the level requirement a
+script-readable home, which is a data relocation rather than an opcode too. Note it only unblocks *part* of `oploc` — the
 reference's `[oploc1,_door_closed]` needs a loc category rung, and the real loc
 category field needs `dat2_config_loc.c` to stop discarding config opcode 61,
 an rscache write-path change. That is the expensive half and it was invisible
@@ -732,8 +776,8 @@ that fails loudly on a stale band.*
    The C that still answers an unbound trigger is not deleted and not moved: it
    is **enumerated**, in `enum Mock230Fallback`, each row naming its
    blocker, counted at boot and pinned by the selftest — it may shrink, it must
-   not grow. Seven when this landed; six since `ai_queue3` moved to
-   `[ai_queue3,_]` (Phase 3, 2026-08-01). That is the same rule as §2.4's named
+   not grow. Seven when this landed; **four** now — `ai_queue3`, `opobj` and
+   `opheld` have all moved (Phase 3, 2026-08-01 and 2026-08-02). That is the same rule as §2.4's named
    hooks, and it is what makes "widen the opcode surface, then move it" (§2.5,
    phase 3) auditable rather than aspirational. The 2026-08-01 audit found the
    limit of the count on its own: it pins the *number* of rows and nothing pins
@@ -786,8 +830,9 @@ player; the ZoneMap was not the blocker and is not in the path). Still
 undispatched after step 5: `walktrigger`/`ai_walktrigger`,
 `advancestat`/`changestat`, `inv_buttond`, `logout`, `ai_despawn`, `tutorial`,
 and the `*t` spell-target family (89 uses). Track via the generated
-`mock230_opcode_coverage.gen.h` (**246/399** on 2026-08-01; this line said 224
-and was 22 low, which is the reason the sentence after it exists) and the
+`mock230_opcode_coverage.gen.h` (**260/401** on 2026-08-02, 246/399 two days
+before; this line said 224 and was 22 low, which is the reason the sentence
+after it exists) and the
 load-time gap report — **never via numbers typed in prose.**
 
 **Phase 3 — evict the C content**
@@ -804,9 +849,36 @@ through it with mutations that prove the assertions can fail, then delete the C
 and the row, then re-verify.** Never the reverse. The list may shrink; it must
 not grow.
 
-**Status 2026-08-01: 7 → 6.** `ai_queue3` evicted to `[ai_queue3,_]` in
-`skill_combat/npc_combat.rs2` (`osrs230_mockserver.md` §3.18). Six remain:
-`opnpc`, `oploc`, `opobj`, `opheld`, `inv_button`, `if_button`.
+**Status 2026-08-02: 7 → 6 → 5 → 4.** `ai_queue3` evicted to `[ai_queue3,_]` in
+`skill_combat/npc_combat.rs2`, then `opobj` to `[opobj3,_]` in
+`player/scripts/pickup.rs2`, then `opheld` to `[opheld2,_]` / `[opheld5,_]` in
+`player/scripts/{equip,drop}.rs2` (`osrs230_mockserver.md` §3.18). Four remain:
+`opnpc`, `oploc`, `inv_button`, `if_button`.
+
+`opheld` is the one to read before starting another: its blocker was cited as
+seven opcodes and was none of them. Five landed, two were misfiled, and what
+actually stood in the way was that a *rule* — refuse the wear and say two
+sentences — had no data it could read. Check what a row is really waiting on
+before widening anything.
+
+`opheld`'s first three steps landed the same day and **the row was deliberately
+not deleted** — five opcodes in, `player/scripts/equip.rs2` and
+`player/scripts/drop.rs2` written, compiled and exercised through `[debugproc]`s
+with seven mutations run, and the two `[opheld<n>,_]` bindings left commented
+out because the level requirement still has no script-readable form. That is
+what "the list may shrink; it must not grow" looks like when a stage stops
+honestly: the blocker is rewritten to the one thing that is true, the count does
+not move, and nothing in the game changed.
+
+**`opobj` is the eviction to read before planning another, because it measured
+the order rather than assuming it.** The two selftest legs that assert the take
+were moved onto the op content binds *while the C was still there*, and
+unbinding the script left them **green** — the fallback answered, so they were
+measuring the C. After the deletion the same mutation turns 11 checks red. A
+test written against a behaviour that two implementations both produce proves
+nothing until one of them is gone, which is exactly why "verify, then delete"
+cannot be reordered into "delete, then verify" and cannot be shortened to
+"verify" either.
 
 **The result worth reading before you plan any of the six is not the deletion.**
 The audit that preceded it re-measured all seven blockers and found **four
@@ -817,7 +889,11 @@ and `opobj`, which was never right: "an opcode pair" when the missing thing is
 an entity kind with no writer in the tree — and the
 other three carrying stale line counts that also blamed the wrong code. Nothing
 had been edited to make them wrong; the things they waited for simply arrived
-and nobody came back. **Re-checking a row's blocker is the first step of acting
+and nobody came back. `opobj`'s corrected blocker was then acted on, discharged
+and the row deleted the next day (§2.5) — and the day in between, with the
+blocker cleared and the row still standing, is the distinction this list exists
+to keep: a discharged blocker and a deleted row are two different claims.
+**Re-checking a row's blocker is the first step of acting
 on it, not preparation for it**, and a corrected blocker on a row that stays is
 worth more than a deletion, because a wrong row is visible the moment someone
 tries to act on it and an expired reason is not visible at all. §2.5 has the
@@ -834,9 +910,10 @@ that is not an opcode, deliberately (§2.5).
 **Order for the remaining six, by cost — measured, and it is not the order the
 old blockers implied.** The cheapest unlock is structural: (1) bind
 `SSVM_ENT_LOC` on the `[oploc<n>]`/`[aploc<n>]` dispatch — zero new opcodes,
-and it unblocks the `doors/` and `ladders_stairs/` ports; (2) wire
-`SSVM_ENT_OBJ` end to end, then the six `SS_OP_OBJ_*`, then
-`player/scripts/pickup.rs2`; (3) `opheld`'s eight opcodes, then `equip.rs2` +
+and it unblocks the `doors/` and `ladders_stairs/` ports; (2) ~~wire
+`SSVM_ENT_OBJ` end to end, then the `SS_OP_OBJ_*`, then
+`player/scripts/pickup.rs2`~~ — **done 2026-08-02**, five opcodes not six
+(`OBJ_FIND` was never needed) and the C is still there awaiting deletion; (3) `opheld`'s eight opcodes, then `equip.rs2` +
 `drop.rs2`; (4) a single `last_verb` reader, which unblocks **both** bank rows'
 addressing; (5) `oploc`'s remaining half — a real loc category, which needs
 `dat2_config_loc.c` to stop discarding config opcode 61 (an rscache write-path

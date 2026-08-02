@@ -644,3 +644,9 @@ mock230_objinfo(int obj_id)
         return &k_unknown;
     return &g_objs[obj_id];
 }
+
+int
+mock230_objinfo_count(void)
+{
+    return g_objs ? g_obj_count : 0;
+}

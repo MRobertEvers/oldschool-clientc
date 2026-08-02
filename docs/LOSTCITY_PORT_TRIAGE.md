@@ -782,7 +782,9 @@ one of forty.
 *design* now, not a hazard: the reference's own answer to "the goblin's Attack"
 is `[opnpc2,_] @player_combat_start` in `skill_combat/`, and the engine's verb
 handling is one of the enumerated rows in `enum Mock230Fallback` (seven when
-this was written; **six** since `ai_queue3` moved to content), each naming the
+this was written; **four** since `ai_queue3`, `opobj` and `opheld` moved to
+content),
+each naming the
 blocker keeping it in C, counted at boot and pinned by the selftest. It may
 shrink; it must not grow. Each row's blocker also names its missing opcodes in a
 form `mock230_scripts_stale_blockers` can resolve, so a *reason* that expires
@@ -1051,6 +1053,35 @@ and reads the requirement as data (`param=levelrequire,<stat>,<level>`), so
 porting the scripts would have replaced a working engine path with a content one
 needing eight opcodes it does not have — §7.7's hazard, in its purest form.
 
+> **2026-08-02 — the conclusion above survives; the inference in its last
+> sentence does not, and the inference was doing the work.**
+>
+> Two things were welded together here. *The requirement values are data, not
+> script* — still right, and more so: the effective table is **1,496 objs and
+> 2,122 (stat, level) pairs**, up to seven per obj, and nobody should
+> hand-maintain 857 bindings for it. And *therefore the gate stays in C* — which
+> does not survive. "Eight opcodes it does not have" became zero: five landed and
+> two were misfiled (`osrs230_mockserver.md` §3.18). A refusal-with-a-message is
+> a **rule**, and rules are content's. The two were joined only because nothing
+> else could read the data.
+>
+> `~equip`, `~try_equip`, `~unequip_conflicts`, `~wearpos_conflicts` and
+> `~dropslot` are ported now — `player/scripts/{equip,drop}.rs2` — `[opheld2,_]`
+> and `[opheld5,_]` are bound, and `MOCK230_FALLBACK_OPHELD`,
+> `equip_from_slot` and `mock230_equipment_may_wear` are deleted. Still no
+> per-item `levelrequire/` script: the gate is **one** `~levelrequire_check`
+> over `skill_combat/configs/levelrequire.dbtable`, which is this section's own
+> "as data" conclusion given a script-readable home rather than reversed.
+>
+> **And the measurement below is half of the table.** The 301/200/0 comparison
+> is about the `.obj` overlay — 857 objs, 1,254 pairs. The cache states its own
+> requirement in params 434/436 and 435/437 for **639 further objs that no `.obj`
+> file mentions**, a rune scimitar's Attack 40 among them. A content gate reading
+> only the overlay passes every check in this section and silently stops gating
+> 43% of the population. `~levelrequire_check` reads both halves; the overlay
+> *replaces* the cache's for an obj it names, which is what
+> `equipment_disputed.obj` relies on.
+
 So the port is a transcription, and the comparison is the deliverable:
 
 | | |
@@ -1079,6 +1110,76 @@ its full helm is Defence 40), so the four med helms are LostCity's stated values
 with nothing extrapolated from them.
 
 `mock230_pack`: 1,419 → 1,496 requirement rows, 0 errors.
+
+#### Amendment, 2026-08-02: the conclusion survives, the inference does not
+
+The paragraph above welded two decisions together and only one of them holds.
+
+1. *The requirement values are data, not script.* — **Still right, and more so.**
+   Re-measured across `skill_combat/configs/*.obj`: **857 objs, 1,254 (stat,
+   level) pairs** — 613 objs with one, 187 with two, 33 with three, 24 with
+   seven, 23 distinct stats
+   (`grep -rh param=levelrequire <tree>/server --include=*.obj | wc -l`).
+   LostCity's 304 trigger lines are that same table wearing script syntax.
+   Nobody should hand-maintain 857 bindings, and `mock230_pack` checks the data
+   form at build time.
+2. *Therefore the gate stays in C.* — **Does not survive.** The stated reason
+   was "porting the scripts would have replaced a working engine path with a
+   content one needing eight opcodes it does not have". As of 2026-08-02 the
+   count is **zero**: `oc_wearpos`/`2`/`3`, `inv_movefromslot`, `inv_dropslot`
+   and `inv_moveitem`'s generic arm all landed, `BUILDAPPEARANCE` and
+   `P_CLEARPENDINGACTION` came off the list as miscited, and
+   `player/scripts/equip.rs2` — `~try_equip`, `~unequip_conflicts_space`,
+   `~unequip_conflicts`, `~wearpos_conflicts` — is written and exercised. §2.4
+   item 7 exists precisely because a blocker's reason expires without the
+   sentence changing; this is that.
+
+A refusal-with-a-message is a **rule**, and rules are content's. "The data is
+data" never implied "the gate is C" — the two were joined only because nothing
+else could read the data.
+
+**The resolution that keeps both halves** — **landed 2026-08-02**, and the shape
+is one turn different from what this paragraph proposed — is to give the
+requirement a script-readable home: a `levelrequire` **dbtable**. Not keyed by
+obj with two parallel `LIST` columns; keyed by the **requirement**, with `stat`
+and `level` as scalars and `obj` the LIST of everything that needs them. That is
+125 rows rather than 857, because the requirements repeat hard, and `db_find` on
+a LIST column means *contains*, so "which requirements does this obj have" is one
+query with no arithmetic. It is the reference's own mechanism
+for repeating tabular content data (`combat.dbtable`'s
+`column=damagestyle,int,LIST` is the identical shape and already ships here), it
+needs **zero new opcodes** (`db_find` / `db_findnext` / `db_getfield` are all
+implemented, `mock230_ops_db.c`), it is **one** `[opheld2,_]` binding rather
+than 857 — so the shadowed-ops report does not move — and it is still data,
+generated from the same `param=levelrequire` lines, so this section's
+single-source-of-truth claim holds literally. It also answers the thing
+`fields/obj.ini` says it cannot do: a repeating (stat, level) pair "is neither a
+native obj field nor anything the record's param table can hold". Correct — and
+a dbtable is the third option that comment does not consider.
+
+Two alternatives were considered and rejected. An `oc_levelrequire` opcode is
+**barred**: no such command exists in the reference's `engine.rs2` and inventing
+one is the `oc_desc` mistake. 857 generated `[opheld2,<obj>]` bindings (the
+reference's literal shape) would work but cost ~3,500 generated lines, a second
+generator, and would take `report_shadowed_ops` from 1 to 858 unless
+`k_engine_held_verbs` loses Wear/Wield/Drop in the same commit.
+
+`[opheld2,_]` and `[opheld5,_]` are bound now and `MOCK230_FALLBACK_OPHELD` is
+deleted (count 5 → 4). The warning this paragraph carried was right and is worth
+keeping as the reason the two stages were separate: dispatch is content-first, so
+a content `~equip` with no gate *replaces* the gate and equips a rune platebody
+at level 1 in silence.
+
+**One thing this whole section had wrong, corrected where it is measured.** The
+"857 objs / 1,254 pairs" the paragraphs above rest on is the `.obj` overlay
+only. The cache states its own requirement in params 434/436 and 435/437 for
+**639 further objs no `.obj` file mentions** — 1,496 and 2,122 effective — so a
+gate reading the dbtable alone would have passed every structural check here and
+stopped gating 43% of the table. `~levelrequire_check` reads both, the overlay
+through the dbtable and the cache through `oc_param`.
+`osrs230_mockserver.md` §3.18 has the full account, including the compiler trap
+that made the first version of it wrong for every Attack requirement in the
+game.
 
 ### Cook's Assistant — ported, and playable
 

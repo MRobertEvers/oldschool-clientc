@@ -472,35 +472,70 @@ not overwrite it — the same rule the LostCity exporter has.
 
 ### Where it ends up
 
-A sparse table, not a field on every record: about 1,400 of 33,747 objs have a
+A sparse table, not a field on every record: **1,496** of 33,747 objs have a
 requirement, so eight `(stat, level)` pairs on all of them would cost 2 MB to say
 "none" thirty-two thousand times.
 
 ```
-mock230: content loaded (… 1419 equip reqs (675 from the cache) …)
+mock230: content loaded (… 1496 equip reqs (675 from the cache) …)
 ```
 
-The check itself is `mock230_equipment_may_wear`, and two things about it are
-decisions rather than plumbing. It reads the **base** level, so a potion does not
-let you wield what you could not wield sober — which is what LostCity's
-`levelrequire_*` labels do with `stat_base`. And an obj with **no** requirement
-is wearable, so a cache the importer has not been run against stays playable
-rather than refusing everything it does not recognise.
+**The requirement is a MERGE, and the parenthesis is the half everyone misread.**
+1,496 objs carry one, and only **857** of them come from `param=levelrequire` in
+`skill_combat/configs/*.obj`. The other 639 come from the cache's own
+`skillrequire` / `levelrequire` params (434/436 and 435/437), read by
+`read_requirements` in `mock230_objinfo.c` for every wearable and filtered by
+`gates_wearing()`. The `.obj` overlay then **replaces** an obj's set outright
+rather than adding to it, which is what lets `equipment_disputed.obj` *correct*
+the cache for the eighteen items where the two disagree.
 
-It lives in the engine rather than in content for the same reason "Attack" does:
-it applies to every wearable obj in the cache, and LostCity's per-item form —
-528 lines of `[opheld2,rune_scimitar] @levelrequire_attack(40, last_slot);`
-across `tier1..tier70` — would be a second copy of a table the content tree
-already states. Content can still override any single item by binding
-`[opheld2]`.
+That matters more than it looks. Every prose account of this data — including
+this file until 2026-08-02 — quoted the overlay's 857 objs / 1,254 pairs as if it
+were the whole table. It is 59% of it. Anything built against the overlay alone
+passes a structural check against the `.obj` files and silently stops gating 639
+items, a rune scimitar among them, whose Attack 40 is the cache's.
+
+Two things about the check are decisions rather than plumbing. It reads the
+**base** level, so a potion does not let you wield what you could not wield
+sober — which is what LostCity's `levelrequire_*` labels do with `stat_base`. And
+an obj with **no** requirement is wearable, so a cache the importer has not been
+run against stays playable rather than refusing everything it does not recognise.
+
+**The check itself is content now, and this paragraph used to argue the
+opposite.** It was `mock230_equipment_may_wear` in C, on the argument that the
+rule "applies to every wearable obj in the cache, and LostCity's per-item form —
+528 lines of `[opheld2,rune_scimitar] @levelrequire_attack(40, last_slot);` —
+would be a second copy of a table the content tree already states". Half of that
+survives and half does not. **The values are still data** and were never
+relocated: the `.obj` params remain the authored home, `mock230_pack` still
+validates them, and `mock230_obj_require` still holds them. What did not survive
+is the inference that a rule reading data must therefore be C. A
+refusal-with-a-message is a rule, and rules are content's:
+`~levelrequire_check` (`skill_combat/scripts/levelrequire.rs2`) decides and
+speaks, from one `[opheld2,_]` binding rather than 857, and
+`mock230_equipment_may_wear` is deleted (`osrs230_mockserver.md` §3.18, triage
+§10.1).
+
+It reads both halves in their own natural forms — the overlay through a
+generated `levelrequire.dbtable` (125 rows, transposed: a row is one
+*requirement* and `obj` is a `LIST`, because the requirements repeat hard), the
+cache's two pairs through `oc_param`, which is already the opcode for reading a
+cache param.
 
 `mock230_pack` pins the ladder, so a source swapped for a worse one shows up as
 a number out of order rather than as silence:
 
 ```
 equipment requirements
-        1419 requirement rows checked, 11 ladder values pinned
+        1496 requirement rows checked, 11 ladder values pinned
 ```
+
+The check that actually matters is not that one and not the generator's
+`--check`: `mock230 --selftest` walks **every** one of the 1,496 at both sides of
+its own boundary — every skill set to `peak-1`, then to `peak`, with the boosted
+level pinned at 99 throughout so a gate reading `stat` instead of `stat_base`
+fails — and compares content's answer to the C table. A regeneration makes a
+textual diff go away without anyone learning the gate had been wrong in between.
 
 ---
 

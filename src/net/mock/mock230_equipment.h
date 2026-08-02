@@ -10,7 +10,8 @@
  * rows are painted in. Its numbers come from `~equip_get_bonuses`, the same sum
  * the fight rolls against, so the screen cannot disagree with the fight.
  *
- * Only three functions remain, and none of them names a component.
+* Only two functions remain, and neither of them names a component: the wear
+ * gate went to content with MOCK230_FALLBACK_OPHELD (see mock230_equipment.c).
  *
  * See docs/mock230_player_systems.md §3.
  */
@@ -49,26 +50,5 @@ mock230_equipment_open_stats(struct Mock230Server* srv);
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv);
 
-/**
- * May the player wear this obj?
- *
- * Returns 1 when they may. Returns 0 and sends the refusal — OldSchool's own
- * two lines, naming the first skill that is short — when they may not.
- *
- * The requirement itself comes from `mock230_obj_require`, merged from the
- * cache's own params and the `.obj` overlay. Two things about *this* function
- * are decisions rather than plumbing:
- *
- *   - It reads the **base** level, not the boosted one, matching the reference:
- *     a strength potion does not let you wield a rune scimitar. LostCity's
- *     `levelrequire_*` labels all call `stat_base`.
- *   - An obj with no requirement is wearable, so an item this server has never
- *     heard of stays equippable. The alternative — refusing what is unknown —
- *     would make a cache the importer has not been run against unplayable.
- */
-int
-mock230_equipment_may_wear(
-    struct Mock230Server* srv,
-    int obj_id);
 
 #endif

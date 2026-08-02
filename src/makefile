@@ -260,6 +260,8 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_param.c \
 	net/mock/mock230_ops_loc.c \
 	net/mock/mock230_ops_npc.c \
+	net/mock/mock230_ops_obj.c \
+	net/mock/mock230_ops_inv.c \
 	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
 	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \

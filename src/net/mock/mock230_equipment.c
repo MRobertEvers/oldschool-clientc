@@ -26,55 +26,23 @@
  * repaint, and the wearability gate that applies to every obj in the cache.
  */
 
-int
-mock230_equipment_may_wear(
-    struct Mock230Server* srv,
-    int obj_id)
-{
-    const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
-
-    if( !require )
-        return 1;
-
-    for( int i = 0; i < require->count; i++ )
-    {
-        int stat = require->req[i].stat;
-        int level = require->req[i].level;
-
-        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
-            continue;
-        /* Base, not boosted: a potion does not let you wield what you could not
-         * wield sober. */
-        if( srv->active_player->stat_level[stat] >= level )
-            continue;
-
-        /*
-         * OldSchool's refusal, both lines, and the first unmet requirement is
-         * the one it names — a player 20 levels short in two skills is told
-         * about one of them, which is what the reference does rather than
-         * listing them.
-         */
-        mock230_say(srv, "equip_level_generic_message", NULL);
-        {
-            /*
-             * The stat and the level, both as numbers, and not a word between
-             * them.
-             *
-             * This passed the skill's *name* until 2026-08-01, out of a
-             * 23-string table right here — which meant the engine held the
-             * spelling of every skill in the game and a tree could not rename or
-             * translate one. `stat` is a first-class RuneScript type, so
-             * `[proc,equip_level_message](stat $stat, int $level)` takes the id
-             * and asks `~stat_name` for the word.
-             */
-            int32_t args[2] = { (int32_t)stat, (int32_t)level };
-
-            mock230_scripts_run_hook(srv, srv->hooks.equip_level_message, args, 2);
-        }
-        return 0;
-    }
-    return 1;
-}
+/*
+ * `mock230_equipment_may_wear` stood here — 45 lines that refused a wear and
+ * said OldSchool's two sentences. It went on 2026-08-02 with
+ * MOCK230_FALLBACK_OPHELD, being reachable only from it.
+ *
+ * The rule is `~levelrequire_check` in skill_combat/scripts/levelrequire.rs2
+ * now, called from `~equip`. A refusal-with-a-message is a rule and rules are
+ * content's; what kept this in C was that nothing could read the data from a
+ * script, and `skill_combat/configs/levelrequire.dbtable` plus `oc_param` on the
+ * cache's own `skillrequire`/`levelrequire` closed that.
+ *
+ * `mock230_obj_require` and the `.obj` loader behind it STAY. `mock230_pack`
+ * still validates those lines, `tools/gen_levelrequire_dbrow.py` generates the
+ * script-readable index from them, and the selftest's level-gate leg walks the
+ * whole table to assert content and the C table still agree — which is the one
+ * thing standing between two forms of one fact and a silent drift.
+ */
 
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
