@@ -570,15 +570,20 @@ calls into. So the procedure is *discover the client's surface first*:
   consumed field; send base twice to pin the HP orb),
   `UPDATE_RUNENERGY` (77), `UPDATE_RUNWEIGHT` (27, **kilograms**). See
   `mock230_player_systems.md` §2.3, `REV230_UI_BLANK_PANELS.md` §2.
-- **XP drops — blocked on one client bug, not the server.** The panel
-  (interface 122, clientCode 1354) is entirely client-driven off stat
-  transmits; `IF_SETONSTATTRANSMIT` now registers (behind
-  `TORIRS_XP_DROPS=1`, `src/game/rs_cs2_dispatch.c`), and the remaining work
-  is the non-terminating varc queue-shift loop in script 1004
-  (`xpdrops_stattransmit`, varcs 953..966) — plus re-arming the listener
-  (`src/game/task_cs2_run.c` notes the spot). The server already calls
-  `RS_CS2Host_NotifyStatChanged` on `UPDATE_STAT`. Fix the VM loop, not the
-  server.
+- ~~**XP drops**~~ — **done**, and the diagnosis this entry used to carry was
+  wrong on three counts. It said the blocker was "the non-terminating varc
+  queue-shift loop in script 1004", that `IF_SETONSTATTRANSMIT` registered
+  "behind `TORIRS_XP_DROPS=1`", and "fix the VM loop, not the server".
+  Measured: the loop **terminates by construction** — varcs 953..959 are a
+  7-deep queue that shifts one slot per pass, so it exits within 7, and the
+  induction variable is `%varcint953` itself rather than the counter the
+  wording implies (1,026 invocations, 1,026 returns). The VM runs all 35 of
+  its opcodes correctly. And `TORIRS_XP_DROPS` **never existed** — `grep` is
+  empty. The real bug was one omission in the transmit pump's early-return
+  guard: it tested five dirty flags and not `stat_transmit_dirty`, while the
+  branch serving stat transmits sat below the return and the clear-down below
+  that. Flag set, guard returns, clear wipes it. Fixed; drops render, verified
+  on pixels.
 - **Clan chat — greenfield, on both sides.** The CS2 table has the full op
   surface (`3611..3627 clan_*`, `74/76 push_varclan*`, transmit-listener
   ops); none have host implementations. No clan packets are decoded — and
@@ -749,14 +754,22 @@ that fails loudly on a stale band.*
    bound), and its dispatch asked with a packed component uid against a compiler
    that keys it on the interface id — so no `[if_close]` in this tree had ever
    run. A third was a selftest that had stopped testing anything.
-*Gate: two clients see each other fight over a door.* Met, apart from the
-fight: they see each other, a door one opens is open for the other, and it is
-still open for whoever logs in next. What is left is that combat still resolves
-against a shared npc mask set — an npc's `face_entity` names *the* local player,
-which is right for the client the retaliation is encoded to and wrong for every
-other one (§6.1 step 1's remainder). Making it per-observer needs the npc masks
-to be per-observer, and that is the same shape of change as the tracked sets in
-item 1, not a zone problem.
+*Gate: two clients see each other fight over a door.* **Met.** They see each
+other, a door one opens is open for the other and for whoever logs in next, and
+an npc now faces the player it is fighting on every stream rather than only on
+the one the retaliation was encoded to.
+
+This entry used to say the fight was outstanding and that closing it "needs the
+npc masks to be per-observer". Measured, that overstated it by a lot: of the
+~20 observer-relevant fields on `struct Mock230Npc`, exactly **one** is
+observer-dependent, and only in one bit. The reference does not have
+per-observer masks either — LostCity keeps one shared set and makes the *id*
+absolute (`target.slot + 32768`), telling each client its real slot. This tree
+diverged at one line, sending `UPDATE_PID(2047)` to everybody, which made 2047
+a self-alias meaning "me" on every client at once. Fixed by sending the real
+pid; memory cost measured at zero. What remains of §6.1 step 1 is unrelated to
+masks: the socket server still accepts one connection at a time and the scene
+origin is one per world.
 
 **Phase 2 — symbols and surface** (triage §9 steps 2–5)
 Name-resolution gate → constants (1,562) → ~~npc categories (§7.6b)~~ **done**
