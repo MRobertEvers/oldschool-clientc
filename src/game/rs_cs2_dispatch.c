@@ -160,6 +160,80 @@ RS_CS2_RunScript(
     ToriRS_TaskQueue_Add(runner->queue, task);
 }
 
+/*
+ * Every dirty flag RS_CS2_PumpTransmits consumes, in ONE place.
+ *
+ * There used to be two enumerations of these — the early-return guard at the
+ * top of the pump, and the clear-down at the bottom — and they drifted. The
+ * clear-down listed `stat_transmit_dirty`; the guard did not. Its branch landed
+ * after the guard was written, and the two flags added later (misc, friend)
+ * were each appended to the guard while stat stayed missing.
+ *
+ * What that cost: a stat-only tick — UPDATE_STAT with no varp, no container and
+ * no run-energy change, which is exactly what an xp gain is — took the early
+ * return. The dispatch never ran AND the flag was never cleared (the clear-down
+ * is past the return), so it sat set until some unrelated change happened to
+ * open the guard, and then fired once for everything piled up behind it.
+ * Measured before the fix: 447 consecutive ticks held on one `::setlevel`, and
+ * two stat changes delivered as a single dispatch. For the XP-drop panel that
+ * is not a late drop, it is a merged one, and interface 122 drew nothing at all
+ * — which read for a long time as a CS2 VM bug in script 1004 rather than as
+ * four missing characters here.
+ *
+ * So the guard is no longer a hand-written condition list. It is this table,
+ * and a flag added here is a guard key automatically. The pump also asserts the
+ * table is empty on the way out, which catches the dual defect: a flag that
+ * gains a guard key but not a clear-down re-dispatches on every tick forever.
+ */
+#define RS_CS2_DIRTY_FLAG_CAP 8
+
+static size_t
+rs_cs2_dirty_flags(
+    struct RS_CS2Host* host,
+    int** out)
+{
+    size_t n = 0;
+
+    out[n++] = &host->widgets_loaded_dirty;
+    out[n++] = &host->var_transmit_dirty;
+    out[n++] = &host->inv_transmit_dirty;
+    out[n++] = &host->stat_transmit_dirty;
+    out[n++] = &host->misc_transmit_dirty;
+    out[n++] = &host->friend_transmit_dirty;
+    assert(n <= RS_CS2_DIRTY_FLAG_CAP);
+    return n;
+}
+
+size_t
+RS_CS2_TransmitDirtyFlagCount(void)
+{
+    int* flags[RS_CS2_DIRTY_FLAG_CAP];
+    struct RS_CS2Host probe;
+
+    /* Only the count is wanted, and rs_cs2_dirty_flags takes addresses rather
+     * than dereferencing, so nothing here is read. A real (zeroed) host rather
+     * than a NULL one because member offsets off NULL are UB by the letter. */
+    memset(&probe, 0, sizeof(probe));
+    return rs_cs2_dirty_flags(&probe, flags);
+}
+
+int
+RS_CS2_TransmitsPending(struct RS_CS2Host* host)
+{
+    int* flags[RS_CS2_DIRTY_FLAG_CAP];
+    size_t count;
+    size_t i;
+
+    assert(host);
+    count = rs_cs2_dirty_flags(host, flags);
+    for( i = 0; i < count; i++ )
+    {
+        if( *flags[i] )
+            return 1;
+    }
+    return 0;
+}
+
 void
 RS_CS2_PumpTransmits(
     struct RS_CS2Host* host,
@@ -175,10 +249,11 @@ RS_CS2_PumpTransmits(
      * varp/varc value changed (var_transmit_dirty), or a container changed
      * (inv_transmit_dirty). The per-hook last_seen_serial gate inside the
      * dispatch tasks keeps up-to-date hooks from re-firing, so a quiet tick
-     * runs zero scripts. */
-    if( !host->widgets_loaded_dirty && !host->var_transmit_dirty &&
-        !host->inv_transmit_dirty && !host->misc_transmit_dirty &&
-        !host->friend_transmit_dirty )
+     * runs zero scripts.
+     *
+     * The guard is the dirty-flag table above, not a hand-written list of
+     * conditions. See that comment for what the hand-written list cost. */
+    if( !RS_CS2_TransmitsPending(host) )
         return;
 
     /* Inv hooks re-run on unhide OR a container change. The container filter
@@ -218,10 +293,17 @@ RS_CS2_PumpTransmits(
 
     /*
      * Stat transmits. Filtered by the changed skills the same way the var
-     * dispatch filters on changed varps — the XP-drop hook lists all
-     * twenty-four skills as triggers and diffs the values it is handed, so a
-     * hook fired for a skill that did not change produces a spurious drop
-     * rather than a wasted call.
+     * dispatch filters on changed varps.
+     *
+     * The XP-drop hook does NOT list the skills as triggers — an earlier version
+     * of this comment said it did. Decompiled, `script1003`'s
+     * `if_setonstattransmit` carries no `{...}` trigger list at all, so
+     * `trigger_count == 0` and it matches any stat change; the twenty-four
+     * `stat_xp(stat_N)` terms in the hook string are ARGUMENTS, the xp baselines
+     * captured at arm time. `script1004` diffs against those and re-arms itself,
+     * which is why a *delayed* dispatch does not lose a drop — it merges it into
+     * the next one, at the wrong moment and at the summed value. See
+     * mock230_player_systems.md §5.4.
      *
      * `TORIRS_STAT_DEBUG=1` prints each hook this fires, which is how the
      * XP-drop panel's listener was confirmed to be reached at all.
@@ -277,4 +359,10 @@ RS_CS2_PumpTransmits(
     host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
+
+    /* The clear-down has to cover the whole table. A flag that is a guard key
+     * but is not cleared here re-opens the guard on the very next tick and
+     * re-dispatches forever — the dual of the bug the table was introduced for,
+     * and the reason both ends now read from the same list. */
+    assert(!RS_CS2_TransmitsPending(host));
 }

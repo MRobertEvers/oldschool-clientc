@@ -1,6 +1,8 @@
 #ifndef SRC_GAME_RS_CS2_DISPATCH_H
 #define SRC_GAME_RS_CS2_DISPATCH_H
 
+#include <stddef.h>
+
 #include "game/rs_cs2_host.h"
 #include "input/torirs_input.h"
 #include "task_runner.h"
@@ -45,6 +47,18 @@ void
 RS_CS2_PumpTransmits(
     struct RS_CS2Host* host,
     struct TaskRunner* runner);
+
+/** Nonzero when RS_CS2_PumpTransmits has work — i.e. when any dirty flag the
+ *  pump consumes is set. This IS the pump's early-return guard, exported so a
+ *  test can drive it one flag at a time; see rs_cs2_dispatch.c's flag table for
+ *  why the guard had to stop being a hand-written condition list. */
+int
+RS_CS2_TransmitsPending(struct RS_CS2Host* host);
+
+/** How many dirty flags the pump consumes. Pinned by test-cs2-transmit-pump so
+ *  that adding a flag forces the one-flag-at-a-time case to be added with it. */
+size_t
+RS_CS2_TransmitDirtyFlagCount(void);
 
 /** Set the script-visible event mouse coordinates. */
 void
