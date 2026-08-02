@@ -49,6 +49,35 @@ PlatformSDL2_SetTitle(
     struct PlatformSDL2* platform,
     char const* title);
 
+/**
+ * Resizable mode: make the logical framebuffer track the window instead of
+ * letterboxing a fixed one into it. While set, every window size change emits
+ * TORIRS_CMD_WINDOW_RESIZE so the client relayouts; while clear, the window
+ * only scales what is already drawn. Turning it ON pushes one resize command
+ * for the current window size, so the caller does not have to wait for the user
+ * to drag something.
+ *
+ * This does NOT resize the backbuffer. The client clamps the canvas to a floor
+ * it owns, so the canvas — not the window — is what the backbuffer must match;
+ * the caller reconciles them with PlatformSDL2_Resize after draining the bus.
+ */
+void
+PlatformSDL2_SetCanvasFollowsWindow(
+    struct PlatformSDL2* platform,
+    struct ToriRS_CmdBus* bus,
+    bool follow);
+
+/**
+ * Resize the logical framebuffer (pixels + streaming texture) in place. No-op
+ * when the size is unchanged or the platform is in GL mode (GL draws straight
+ * to the window and owns no CPU buffer). Returns true when the size changed.
+ */
+bool
+PlatformSDL2_Resize(
+    struct PlatformSDL2* platform,
+    int width,
+    int height);
+
 /** Map window-pixel mouse coords into the letterboxed logical framebuffer. */
 void
 PlatformSDL2_MapMouse(

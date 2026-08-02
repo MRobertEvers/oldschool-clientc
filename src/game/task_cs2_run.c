@@ -855,6 +855,8 @@ Task_CS2Run_Run(
             thread,
             self->host->viewport_w > 0 ? self->host->viewport_w : 765,
             self->host->viewport_h > 0 ? self->host->viewport_h : 503);
+        CS2VM2_ThreadSetWindowMode(
+            thread, self->host->window_mode, self->host->default_window_mode);
         CS2VM2_ThreadStart(thread, self->script);
 
         {

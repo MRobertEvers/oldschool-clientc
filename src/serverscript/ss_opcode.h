@@ -423,10 +423,11 @@
 #define SS_OP_RUNCLIENTSCRIPT_SS 11002
 #define SS_OP_RUNCLIENTSCRIPTVARARG 11003
 #define SS_OP_P_COUNTDIALOG_NOPROMPT 11004
+#define SS_OP_IF_CLOSESUB 11005
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11005
+#define SS_OPCODE_MAX 11006
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 401
+#define SS_OPCODE_COUNT 402
 
 #endif

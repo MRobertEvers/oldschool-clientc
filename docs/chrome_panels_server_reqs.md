@@ -1,23 +1,30 @@
 # Chrome panels: XP Tracker, Hiscores, Loot Tracker
 
-> **NOT BUILT — triaged 2026-08-02: split verdict, and two of the three are
-> blocked in the *client*.** xptracker is READY minus one op no server can fix:
-> §1.1's "Set Goal" is not a corpus gap — `[clientscript,script5461]` sets ops
-> 6/8/9/10 and routes all four into one client-side `cc_setonop` on
-> `script5463`, whose switch has exactly three cases (8, 9, 10; there is **no
-> case 5**, so "jumps from case 5 straight to case 8" is wrong about the
-> mechanism and right about the conclusion). Hiscores (7801-7824) and
-> loottools (7613/7614/7616/7617/7621) are all past
-> `CS2VM2_OPCODE_STACK_MAX`, re-measured today at **7602**
-> (`cs2vm2_opcode_stack.gen.h:5`, written by `gen_opcode_stack.py`) — bump the
-> constant and mirror ~15 rows whose arities already exist in
-> `3rd/rscache/src/cs2/cs2_command.gen.h:1051-1065`; §3's own "no opcode-stack
-> entry for any of them" is that ceiling, not a missing signature. §3's
-> "single load-bearing gap" `script7166`/`script7133` and §2.1's `script7529`
-> are **all three in the cache** — they fail to decompile on unknown opcodes
-> 7601/7408/7800, a decompiler gap rather than a corpus one. Line drift:
-> `IF_SETONSTATTRANSMIT` dispatch is `rs_cs2_dispatch.c:229-242` and the timer
-> loop is `app.c:3955-3967`.
+> **PARTLY BUILT — 2026-08-02.** All three panels now *open* in the headless
+> client and two of the three *draw*. See §7 for exactly what landed, what it
+> cost, and what is still missing. Read §7 before acting on anything below it:
+> the sections that follow §0 are the discovery pass and several of their
+> headline claims did not survive measurement.
+>
+> Three corrections to the previous header, all re-measured (PORTING_GUIDE §7):
+>
+> 1. **The ceiling was never the problem and was already bumped.**
+>    `CS2VM2_OPCODE_STACK_MAX` measures **8023**, not 7602
+>    (`src/cs2vm2/cs2vm2_opcode_stack.gen.h:5`; the generator constant is
+>    `MAX_OPCODE = 8023` at `gen_opcode_stack.py`, whose own comment documents
+>    the 7602→8023 move). Every opcode this doc named was already in range —
+>    and it changed nothing, because the rows arrived zeroed with `known = 0`,
+>    which is what `CS2VM2_Op_StackMetaStub` asserts on. The real gap was that
+>    **the two signature tables in this repo could not see each other**; that
+>    is what §7.1 fixes.
+> 2. **"Mirror ~15 rows" understated it by 20×.** 335 opcodes had a signature
+>    in `3rd/rscache/src/cs2/cs2_command.gen.h` that the client VM could not
+>    inherit. Hand-mirroring fifteen would have left the other 320.
+> 3. **"Set Goal" — the switch cases are 8, 9 and 10.** The previous header
+>    already corrected "case 5 straight to case 8" in passing; stated plainly
+>    here because the wrong number is the memorable one. There is no case 6
+>    either, so the button is dead in this cache's clientscripts and no server
+>    or engine change can make it fire.
 
 > Third round of the discovery pass (`docs/PORTING_GUIDE.md` §5.3), companion
 > to `docs/questlist_chatmenu_levelup.md`, `docs/shop_server_reqs.md`, and
@@ -30,11 +37,14 @@
 
 ## 0. Status at a glance
 
-| interface | id | status | what's missing |
-|---|---|---|---|
-| `xptracker` | 729 | **needs almost nothing from the server** | one small `.varp` overlay for "Set Goal"; everything else already rides on landed `STAT_XP`/`STAT_BASE`/timer machinery |
-| `hiscores` | 894 | **not a server feature at all** | real client does an out-of-band HTTP lookup; the actual gap is 9 unimplemented CS2 host ops in `cs2vm2.c` |
-| `loottools` | 650 | **corpus gap blocks the real question** | population routines (`script7166`/`script7133`) are missing from the decompile; on current evidence no new packet is needed, but that's inferred, not confirmed |
+Re-measured 2026-08-02; the "measured" column is a client run, not a reading.
+See §7.5 for the runs.
+
+| interface | id | status | measured | what's missing |
+|---|---|---|---|---|
+| `xptracker` | 729 | **needs almost nothing from the server** | **opens and draws, exit 0, zero stubbed opcodes** | the `xpdrops_*` varps for the goal *display*; the goal *button* is dead in the cache (§1.1) |
+| `hiscores` | 894 | **not a server feature at all** | **opens and draws, exit 0, one stubbed opcode (7809)** | host implementations for 7809/7811 — and the lookup itself is out of band, so "lookup failed" is the honest end state |
+| `loottools` | 650 | **blocked on tier-B arities, not on a corpus gap** | **opens, then aborts at opcode 7601** | 16 opcodes with no arity in either signature table (§7.6); no new packet is needed — that question is now settled |
 
 ---
 
@@ -78,10 +88,14 @@ declares them**: `grep -rn "xpdrops_.*_start\|xpdrops_.*_end" server/scripts/`
 is empty.
 
 The "Set Goal" button itself (op 6 on the row context menu) has **no bound
-case** in this decompile's handler (`script_5463.cs2`'s switch jumps from
-case 5 straight to case 8) — same corpus-gap class as
-`docs/questlist_chatmenu_levelup.md` §1.3's missing `questlist_draw`.
-Re-decompile before assuming the client half is genuinely absent.
+case** in the handler. Re-measured 2026-08-02 against `cache.osrs239`:
+`[clientscript,script5461]` arms `cc_setop(6, "Set Goal")` and hooks
+`script5463`, whose `switch_int` has cases **8, 9 and 10 only**. There is no
+case 6 and no case 5 — the earlier "jumps from case 5 straight to case 8" is
+wrong about the mechanism and right about the conclusion. This is **not** a
+corpus gap like `docs/questlist_chatmenu_levelup.md` §1.3's missing
+`questlist_draw`: the script is present and complete, and the op is simply
+dead in this cache. Nothing server- or engine-side can make it fire.
 
 ### 1.2 Server obligations
 
@@ -126,6 +140,13 @@ The actual gap is nine CS2 host ops the panel calls directly
 (`grep -n "case 78[0-2][0-9]:"` → nothing), so any is reached they hit
 `CS2VM2_ReportUnimplementedOpcode`. This is a **client VM gap**, not
 something mock230's server code addresses.
+
+> **Superseded in part, 2026-08-02 (§7).** "Nine" was an undercount — the
+> measured closure is 20+ opcodes, and the panel's reached path today is
+> narrower still: it opens and draws with exactly **one** stubbed opcode,
+> 7809, because §7.1's bridge gave the whole family real signatures. They no
+> longer abort; they report themselves as `cs2-stub` and answer zeros. The
+> conclusion is unchanged and now demonstrated rather than inferred.
 
 ### 2.1 Server obligations
 
@@ -190,6 +211,18 @@ any of them** (`src/cs2vm2/cs2vm2_opcode_stack.gen.h` — confirmed no match),
 so they'd hit the unimplemented-opcode stub — a client-engine gap, distinct
 from any server gap.
 
+> **Superseded, 2026-08-02 (§7).** Two corrections. (a) The five mutators
+> 7613/7614/7616/7617/7621 now have signatures via §7.1's bridge — and none of
+> them is on the reached path anyway; the populate path is a *different*
+> family this section never found (7601/7602/7605/7606/7630, plus 1624, 2624,
+> 7406-7408). (b) The inference in the paragraph above is now **settled, not
+> held**: decompiling script 7166 under trial overrides yields
+> `$n = _7605(0, ~script1046(_7601, 10), 1); while ($i < $n) { $id = _7606($i);
+> $name = _7602($id); $val = _7604($name); … }` — a client-native list store
+> queried by begin→count / index→id / id→name. **No new game packet is
+> needed.** What still blocks the panel is that 7601 and friends have no arity
+> in *either* signature table, so the bridge cannot reach them: see §7.6.
+
 ### 3.1 Server obligations — loot-tracker-specific vs. pre-existing
 
 | what | scope | mock230 status |
@@ -222,3 +255,209 @@ this feature adds.
 - Full parity of the loot tracker's GE-value/HA-value computation — the
   native 7-tuple field layout was inferred from usage, not confirmed against
   a definition.
+
+---
+
+## 7. What landed, 2026-08-02 (the CS2-VM half)
+
+Everything in this section was verified in the headless client, not in a log.
+The commands are at the end.
+
+### 7.1 The signature bridge — the change that matters
+
+This repo has **two** CS2 signature tables and, until now, no path between
+them:
+
+| table | who reads it | what it knows |
+|---|---|---|
+| `src/cs2vm2/cs2vm2_opcode_stack.gen.h` | the **client VM** at run time | whatever `cs2_opcode.h` doc comments, `MANUAL_STACK` and the name heuristics say |
+| `3rd/rscache/src/cs2/cs2_command.gen.h` | the **decompiler** (`cs2 decompile`) | vendored RuneStar `Command.kt` layered with `3rd/rscache/tools/cs2/local_commands.py`, i.e. ~120 arities this repo established by corpus inference |
+
+`gen_opcode_stack.py` read only the first two of `cs2_opcode.h`,
+`cs2_opcode_meta.c`. And `cs2_opcode_meta.c` declares
+`cs2_opcode_meta_table_size = 7511`, so **every opcode ≥ 7511 had no name for
+the heuristics to match** and fell out as `known = 0` — which is precisely the
+range the three chrome panels live in. `[7604]` is the clean proof: the
+decompiler gives it `(STRING)->(INT)`, and the client VM still aborted on it.
+
+`gen_opcode_stack.py` now reads `cs2_command.gen.h` as a fourth source. It
+resolves each row's `arg_off/arg_count` and `def_off/def_count` against
+`cs2_proto_pool`, counts STRING-stack prototypes against everything else, and
+takes only `RSCACHE_CS2_CMD_BASIC` rows — the other kinds (DB_FIND,
+DB_GETFIELD, CLIENTSCRIPT, PARAM) are variadic by construction, so their
+counts there are placeholders rather than signatures, and all of them already
+have dedicated dispatch. The STRING-proto set is read out of `cs2_types.c`
+rather than transcribed, because `RSCache_CS2_TypeStack` is a one-liner
+(`cs2_types.c:109`: only `TYPE_STRING` is a string-stack type) and a new named
+string prototype must not be silently counted as an int.
+
+**335 opcodes gained a real signature.** Including every one this doc named,
+plus `abs`, plus the shared-chrome tooltip family (6751/6752/6753, 6801/6802,
+6851/6852, 6900, 7003, 7031-7033) that is nine hops from *every* panel's
+onload and was therefore a latent abort on hover paths well beyond these three.
+
+### 7.2 Two deliberate deviations from the obvious design
+
+**(a) The bridge is additive, not an override.** It fills only rows that
+nothing else established (`known == 0`). It is ranked below the name
+heuristics, not above them. The reason is measured: **53 opcodes disagree
+between the two tables**, and nearly all of them are `CC_SET*`/`IF_SET*` rows
+whose `(0,0,0,0)` heuristic value is a *marker* rather than a claim — those
+opcodes have dedicated dispatch in `cs2vm2.c` that owns the stack, so the
+table row only feeds the debug trace. Rewriting them from a table the runtime
+does not consult would change nothing at best and silently re-shape a working
+UI path at worst. The asymmetry is the whole argument: filling a `known = 0`
+row can only replace a hard abort with a signature; overriding a `known = 1`
+row can replace working behaviour with corruption.
+
+Every disagreement is instead recorded in `BRIDGE_CONFLICTS_OK` with its
+class, and **generation fails** on any new or stale entry. That is the
+cross-check guard this work needed — a disagreement means one of the two
+tables is wrong about a real opcode, which is exactly the silent-wrong-arity
+bug `local_commands.py:16-18` warns about.
+
+Three classes of conflict, for the record: (i) the ~40 `CC_SET*`/`IF_SET*`
+marker rows; (ii) five rows where *ours* is the measured one and the vendored
+table is stale or era-wrong — `4201`/`4202` (the op slot is the **operand**,
+not a stack pop), `3800`/`3850` (no-arg in this cache), `8000` (arrays are
+STRING-stack handles at rev 239, per `docs/cs2-arrays-are-handles.md`); and
+(iii) ~10 where the vendored table looks right and ours is a heuristic guess,
+left alone because nothing reachable exercises them and each needs its own
+witness before it moves.
+
+**(b) `known` is now tri-state, and the new state reports itself.** A bridged
+row is written `known = 2`: the signature is real, but *nothing in this repo
+implements the opcode*, so `StackMetaStub` balances the stack and pushes zeros
+and empty strings. That is a **plausible wrong answer**, which is a harder
+failure to find than an abort — so the runtime prints one line per opcode, the
+first time it reaches each, **ungated by any env var**:
+
+```
+cs2-stub: opcode 7809 has an inherited signature (0,0,1,0) but no implementation
+          — stack balanced, results faked (script 7469 pc 38)
+```
+
+Unlike `TORIRS_CS2_SURVEY` this is not opt-in, because a silent wrong answer
+is not something you should have to go looking for. The list a run prints is
+the honest inventory of what it faked its way through.
+
+### 7.3 `abs` (4035) — the whole of xptracker's client-side gap
+
+`abs` had **no case anywhere in `src/cs2vm2/`** (`grep CS2_OP_ABS` hit only
+the `#define`). Before the bridge it aborted; *after* the bridge it would have
+answered 0 for every input — the exact failure mode §7.2(b) exists to make
+visible. So it is implemented (`CS2VM2_Op_Abs`, beside `BitCount`) and listed
+in `MANUAL_STACK` so it reads `known = 1` ("we know what it does") and not the
+bridge's 2 ("we only know its shape"). `INT_MIN` wraps rather than saturating,
+matching the Java client, and is written as an explicit unsigned negation
+rather than UB. Four cases added to `make -C src test-cs2-math`.
+
+### 7.4 Content: the panels are reachable at all now
+
+`OSRS-Content/osrs239-content/server/scripts/interface_chrome/scripts/chrome_panels.rs2`
+adds `[debugproc,xptracker]`, `[debugproc,loottools]`, `[debugproc,hiscores]`,
+each opening its panel into `toplevel_osrs_stretch:mainmodal` type 0 — the
+same slot and type the bank, skill guide, slayer rewards and farming view use,
+which is what gives them a working X and Escape with no code. Every id is
+resolved **by name** through the pack. Nothing is added to
+`player/configs/gameframe.enum`: none of the three is a login-mounted slot in
+the real client, correctly.
+
+This is not cosmetic. Before it, **all 36 aborting opcodes were latent** — a
+clean boot printed zero `cs2-survey` lines and exited 0 purely because nothing
+could reach the panels. No claim about the VM work was testable until the
+panels could be opened.
+
+### 7.5 Measured result, per panel
+
+| panel | opens | draws | exit | what the run says |
+|---|---|---|---|---|
+| `xptracker` 729 | yes | yes (71k px differ vs no-panel) | 0 | **zero** `cs2-stub` lines — its open path reaches no un-implemented opcode at all |
+| `hiscores` 894 | yes | yes (104k px differ) | 0 | one `cs2-stub` line: opcode **7809**, `(0,0,1,0)`, in script 7469 |
+| `loottools` 650 | yes | — | **134** | aborts at opcode **7601**, which has no arity in *either* table (tier B, §7.6) |
+
+The hiscores row is the proof the bridge does work, and it was obtained the
+way PORTING_GUIDE §2.5 demands — by making the assertion fail. A control
+binary built with all 335 bridged rows flipped back to `known = 0` **aborts
+(exit 134) at opcode 7809** on the identical run. With the bridge it exits 0
+and prints the one honest line. A green run against a panel nothing opens
+would have proved nothing; this is the same run, differing only in the table.
+
+Note what the xptracker row does *and does not* say: the panel opens and draws
+cleanly, and `abs` is implemented, but **the open path does not reach `abs`**
+in a plain open — script5380 is the actions-to-goal estimator and needs a goal
+set. `abs` is verified by unit test, not by that BMP. Saying otherwise would
+be claiming verification that was not run.
+
+### 7.6 Still missing — the honest list
+
+- **Tier-B arities: 2624, 7407, 7408, 7601, 7602, 7605, 7606, 7630, 7800,
+  7803, 7805, 7807, 7813, 7814, 7816, 7820.** These have no signature in
+  *either* table, so the bridge cannot reach them and they still abort. They
+  are what blocks loottools, and they also break `cs2 decompile` — which is
+  why the closures measured for these panels are **lower bounds**: 7 hiscores
+  scripts and 5 loottools scripts still fail to decompile, so their callees
+  were never walked. Establishing them is `local_commands.py`'s documented
+  method (override sweeps, call-site reading, `cs2 infer-arity` rounds) and is
+  not done here. Two of them (`7800` = `(STRING, INT)`, `7408` =
+  `(INT, STRING, INT, INT)->(INT)`) cannot even be *tried* via
+  `cs2 decompile --override`, which can only express ints-then-strings.
+- **Host implementations for the bridged families.** 7809/7811 (hiscores
+  request status and result string), the 7600 loottools store family, and
+  `NC_PARAM`/`LC_PARAM` (6513/6514) all now have signatures and no behaviour.
+  They report themselves via `cs2-stub`.
+- **The hiscores lookup cannot be made to work and should not be faked.**
+  `grep -rn hiscore src/net/rev/` is zero in every revision: the real client
+  goes out of band over HTTP. The correct end state is a panel that opens and
+  reports "lookup failed" through `_7809`/`_7811`, with the string coming from
+  content (PORTING_GUIDE §2.4 item 2), not a literal in C. Fabricating ranks
+  would be inventing data.
+- **Populating loottools** is greenfield client-engine work (a native loot
+  store fed from the kill/pickup path) — but §3's open question is now
+  settled: decompiling script 7166 under trial overrides reads as
+  `begin→count / index→id / id→name` against a **client-native list store**, so
+  **no new game packet is needed**.
+- **The varps** (`xpdrops_*` 1228-1275, `loottools_varp1` 3798,
+  `settings_varp_ehc_5` 3795) are still undeclared under `server/scripts/`.
+  They earn the tracker's goal *display* only; the Set Goal *button* stays
+  dead for the reason in the header.
+- **`cs2_opcode_meta_lookup` returns entry [0] for any opcode ≥ 7511** —
+  `PUSH_CONSTANT_INT`, operand INT32. Every opcode in these three panels'
+  graphs happens to be INT32-operand so it does not bite here, but an opcode
+  ≥ 7511 whose real operand width is INT8 would mis-advance the bytecode
+  reader. A latent decoder hazard, independent of this work, left as-is.
+
+### 7.7 Reproducing
+
+```sh
+# regenerate the table (never hand-edit the .gen.h)
+python3 src/cs2vm2/gen_opcode_stack.py
+#   -> "937 opcodes with metadata, 933 known; 335 inherited from
+#       cs2_command.gen.h [table size 8023], 53 acknowledged conflicts"
+
+make -C src PLATFORM_OBJ_BASE=/tmp/wfobj_vm EMBED_SERVER=1 -j4
+make -C src mock230-scripts        # the debugprocs live in the script pack
+
+for p in xptracker loottools hiscores; do
+  SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1500 TORIRS_NET_CHEAT="$p" \
+    TORIRS_NET_DEBUG=1 TORIRS_EXIT_BMP=/tmp/$p.bmp \
+    ./src/torirs --manifest manifest_osrs230_embed.ini --user testbl --pass test
+done
+```
+
+`TORIRS_NET_DEBUG=1` is what prints the client-side `if-opensub: mount
+iface=<id>` line that proves the panel actually mounted; without it the run is
+silent about that and a failed mount looks identical to a successful one.
+`TORIRS_CS2_SURVEY` must be **off** — its own comment says a survey run is not
+trustworthy.
+
+To prove the assertion can still fail, flip the bridged rows back:
+
+```sh
+python3 - <<'PY'
+import re; p="src/cs2vm2/cs2vm2_opcode_stack.gen.h"; t=open(p).read()
+open(p,"w").write(re.sub(r"(\[\d+\] = \{ \d+, \d+, \d+, \d+, )2( \},)", r"\g<1>0\g<2>", t))
+PY
+# rebuild, rerun hiscores -> exit 134, "unimplemented opcode 7809"
+python3 src/cs2vm2/gen_opcode_stack.py   # restore
+```

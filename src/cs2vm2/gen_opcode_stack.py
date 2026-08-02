@@ -1,13 +1,56 @@
 #!/usr/bin/env python3
-"""Generate cs2vm2_opcode_stack.gen.h from cs2_opcode.h and cs2_opcode_meta.c."""
+"""Generate cs2vm2_opcode_stack.gen.h.
+
+Three sources, in strict precedence order (highest first):
+
+  1. `cs2_opcode.h` stack doc-comments -- a signature somebody wrote down here
+     after reading a client that executes the opcode.
+  2. `MANUAL_STACK` below -- the same, for opcodes with no doc comment.
+  3. the name heuristics in `heuristic()` -- guesses from the opcode's name.
+  4. `3rd/rscache/src/cs2/cs2_command.gen.h` -- the *decompiler's* signature
+     table (vendored RuneStar Command.kt layered with
+     `3rd/rscache/tools/cs2/local_commands.py`).
+
+(4) is the bridge added on 2026-08-02. Before it, the two signature tables in
+this repo could not see each other: `gen_cs2_tables.py` had established ~120
+arities by corpus inference that the client VM had no way to inherit, so an
+opcode the decompiler understood perfectly still hit
+`CS2VM2_Op_StackMetaStub`'s `assert(0)` at run time. `[7604]` was the clean
+proof -- `(STRING)->(INT)` in cs2_command.gen.h, SIGABRT in the client.
+
+It is ranked LAST, and applied *additively*: it only ever fills a row that
+nothing else established (`known == 0`). It never overrides a row (1)-(3)
+already own. That is deliberate and stricter than "above the heuristics":
+53 opcodes disagree between the two tables (see BRIDGE_CONFLICTS_OK), and
+nearly all of them are CC_SET*/IF_SET* rows whose (0,0,0,0) heuristic value is
+a *marker* -- those opcodes have dedicated dispatch in cs2vm2.c that owns the
+stack, so the table entry only feeds the debug trace. Rewriting them from a
+table the runtime does not consult would change nothing at best and silently
+re-shape a working UI path at worst, for no gain. Every disagreement is
+instead required to be acknowledged in BRIDGE_CONFLICTS_OK, so a *new* one --
+which means one of the two tables is genuinely wrong -- fails generation
+loudly rather than being absorbed.
+
+Why "additive" is safe and "override" is not, concretely: the failure mode of
+this whole area is silent-wrong-arity (`local_commands.py:16-18`). A wrong pop
+count does not fail loudly; it desynchronises the operand stack and the script
+dies several opcodes later somewhere unrelated. Filling a `known = 0` row can
+only replace a hard abort with a signature; overriding a `known = 1` row can
+replace working behaviour with corruption.
+"""
 
 import re
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OPCODE_H = HERE / "cs2_opcode.h"
 META_C = HERE / "cs2_opcode_meta.c"
 OUT = HERE / "cs2vm2_opcode_stack.gen.h"
+
+REPO = HERE.parent.parent
+COMMAND_GEN_H = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_command.gen.h"
+CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 
 
 # RSCACHE_CS2_OPCODE_TABLE_SIZE (3rd/rscache/src/cs2/cs2_command.gen.h) — the
@@ -137,6 +180,11 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     4028: (3, 0, 1, 0),  # CLEARBIT_RANGE(value, low, high)
     4029: (3, 0, 1, 0),  # GETBIT_RANGE(value, low, high)
     4030: (4, 0, 1, 0),  # SETBIT_RANGE_VALUE(value, newBits, low, high)
+    # ABS(value) -> |value|. Listed here rather than left to the bridge because
+    # it is really implemented (CS2VM2_Op_Abs), so it must read `known = 1`
+    # ("we know what it does") and not the bridge's 2 ("we only know its
+    # shape"). cs2_command.gen.h agrees on the shape.
+    4035: (1, 0, 1, 0),  # ABS(value)
     7500: (2, 0, 1, 0),  # DB_FIND_WITH_COUNT(dbcolumn, value) -> count
     7501: (0, 0, 1, 0),  # DB_FINDNEXT() -> rowId (or -1)
     7502: (3, 0, 1, 0),  # DB_GETFIELD(dbrow, dbcolumn, index) -> field value(s)
@@ -395,6 +443,161 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 }
 
 
+# Opcodes where this file and 3rd/rscache/src/cs2/cs2_command.gen.h disagree,
+# with the value THAT table holds. The bridge never overrides, so nothing here
+# changes the generated header -- the point is that every disagreement has been
+# looked at, and that a *new* one fails generation instead of passing silently.
+# A disagreement means one of the two tables is wrong about a real opcode, and
+# that is exactly the class of bug that produces a plausible decompile of a
+# different program.
+#
+# Three classes, all measured 2026-08-02:
+#
+#  (a) CC_SET* / IF_SET* / CC_DELETEALL (102, 1006..1205, 2006..2202). Ours is
+#      the `IF_SET`/`CC_SET` name heuristic's (0,0,0,0), which is a marker, not
+#      a claim: every one of these has dedicated dispatch in cs2vm2.c that pops
+#      its own arguments, so the table row only feeds the debug trace. The
+#      decompiler's counts are the real ones and are almost certainly right;
+#      adopting them would change no runtime behaviour and is left undone
+#      because "change 40 rows in the UI hot path for a trace improvement" is
+#      not a trade worth making inside this item.
+#  (b) rows where OUR value is the measured one and the vendored table is stale
+#      or era-wrong: 4201/4202 (oc_op/oc_iop take the op slot as the *operand*,
+#      not off the stack -- see MANUAL_STACK), 3800/3850 (no-arg in this cache,
+#      see MANUAL_STACK), 8000 (arrays are STRING-stack handles at rev 239 --
+#      docs/cs2-arrays-are-handles.md).
+#  (c) rows where the vendored table looks right and ours is a heuristic guess,
+#      but which nothing reachable exercises today: 202, 3129, 3140, 3656,
+#      4104, 4120, 4200, 4210, 6618..6696, 7506. Left as-is rather than flipped
+#      blind; each needs its own witness before it moves.
+BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
+    102: (1, 0, 0, 0),   # cc_deleteall
+    202: (1, 0, 1, 0),   # _203 (id 202 in that table's naming)
+    1006: (1, 0, 0, 0),  # cc_setnoscrollthrough
+    1100: (2, 0, 0, 0),  # cc_setscrollpos
+    1104: (1, 0, 0, 0),  # cc_setlinewid
+    1106: (1, 0, 0, 0),  # cc_set2dangle
+    1108: (1, 0, 0, 0),  # cc_setmodel
+    1109: (6, 0, 0, 0),  # cc_setmodelangle
+    1110: (1, 0, 0, 0),  # cc_setmodelanim
+    1111: (1, 0, 0, 0),  # cc_setmodelorthog
+    1118: (1, 0, 0, 0),  # cc_setvflip
+    1119: (1, 0, 0, 0),  # cc_sethflip
+    1120: (2, 0, 0, 0),  # cc_setscrollsize
+    1123: (1, 0, 0, 0),  # cc_setfillcolour
+    1126: (1, 0, 0, 0),  # cc_setlinedirection
+    1127: (1, 0, 0, 0),  # cc_setmodeltransparent
+    1201: (1, 0, 0, 0),  # cc_setnpchead
+    1205: (2, 0, 0, 0),  # cc_setobject_nonum
+    2006: (2, 0, 0, 0),  # if_setnoscrollthrough
+    2104: (2, 0, 0, 0),  # if_setlinewid
+    2106: (2, 0, 0, 0),  # if_set2dangle
+    2107: (2, 0, 0, 0),  # if_settiling
+    2109: (7, 0, 0, 0),  # if_setmodelangle
+    2110: (2, 0, 0, 0),  # if_setmodelanim
+    2111: (2, 0, 0, 0),  # if_setmodelorthog
+    2117: (2, 0, 0, 0),  # if_setgraphicshadow
+    2118: (2, 0, 0, 0),  # if_setvflip
+    2119: (2, 0, 0, 0),  # if_sethflip
+    2123: (2, 0, 0, 0),  # if_setfillcolour
+    2126: (2, 0, 0, 0),  # if_setlinedirection
+    2201: (2, 0, 0, 0),  # if_setnpchead
+    2202: (1, 0, 0, 0),  # if_setplayerhead_self
+    3129: (2, 0, 0, 0),  # _3129
+    3140: (0, 0, 0, 0),  # _3140
+    3656: (1, 0, 0, 0),  # _3656 (CLAN_SORT_APPLY here; see MANUAL_STACK)
+    3800: (0, 0, 1, 0),  # activeclansettings_find_listened
+    3850: (0, 0, 1, 0),  # activeclanchannel_find_listened
+    4104: (1, 0, 0, 1),  # fromdate
+    4120: (1, 1, 1, 0),  # string_indexof_char
+    4200: (1, 0, 0, 1),  # oc_name
+    4201: (2, 0, 0, 1),  # oc_op
+    4202: (2, 0, 0, 1),  # oc_iop
+    4210: (1, 1, 1, 0),  # oc_find
+    6618: (1, 0, 4, 0),  # _6618
+    6623: (1, 0, 2, 0),  # _6623
+    6638: (2, 0, 2, 0),  # _6638
+    6639: (0, 0, 4, 0),  # worldmap_listelement_start
+    6640: (0, 0, 4, 0),  # worldmap_listelement_next
+    6693: (1, 0, 0, 2),  # mec_text
+    6695: (1, 0, 2, 0),  # mec_category
+    6696: (1, 0, 2, 0),  # mec_sprite
+    7506: (1, 0, 1, 0),  # db_getrow
+    8000: (1, 0, 0, 0),  # _8000
+}
+
+
+def parse_string_protos() -> set[str]:
+    """The prototype ids whose base type lands on the STRING stack.
+
+    `RSCache_CS2_TypeStack` (cs2_types.c:109) is a single line: only
+    RSCACHE_CS2_TYPE_STRING is a string-stack type, everything else is an int.
+    So the set is every proto declared CS2_PLAIN(STRING)/CS2_NAMED(STRING, ...)
+    -- read out of the file rather than transcribed, so a new named string
+    prototype cannot silently be counted as an int here.
+    """
+    text = CS2_TYPES_C.read_text()
+    protos: set[str] = set()
+    for m in re.finditer(
+        r"\[RSCACHE_CS2_PROTO_([A-Z0-9_]+)\]\s*=\s*CS2_(?:PLAIN|NAMED)\(\s*([A-Z0-9_]+)",
+        text,
+    ):
+        if m.group(2) == "STRING":
+            protos.add("RSCACHE_CS2_PROTO_" + m.group(1))
+    if "RSCACHE_CS2_PROTO_STRING" not in protos:
+        raise SystemExit(f"{CS2_TYPES_C}: could not find the prototype table")
+    return protos
+
+
+def parse_command_gen() -> tuple[dict[int, tuple[int, int, int, int]], int]:
+    """Signatures from the decompiler's table, as (int_in, str_in, int_out, str_out).
+
+    Only RSCACHE_CS2_CMD_BASIC rows are returned. The other kinds are variadic
+    by construction -- DB_FIND/DB_GETFIELD take their stack shape from the
+    column at run time, CLIENTSCRIPT from its trigger's arg string, PARAM from
+    the param's type -- so their arg/def counts in that table are placeholders,
+    not signatures, and every one of them already has dedicated dispatch in
+    cs2vm2.c. Handing a placeholder to StackMetaStub would be exactly the
+    silent desync this file exists to avoid.
+
+    Returns (signatures, table_size).
+    """
+    text = COMMAND_GEN_H.read_text()
+
+    size_m = re.search(r"#define\s+RSCACHE_CS2_OPCODE_TABLE_SIZE\s+(\d+)", text)
+    if not size_m:
+        raise SystemExit(f"{COMMAND_GEN_H}: no RSCACHE_CS2_OPCODE_TABLE_SIZE")
+    table_size = int(size_m.group(1))
+
+    pool_m = re.search(r"cs2_proto_pool\[\]\s*=\s*\{(.*?)\n\};", text, re.DOTALL)
+    if not pool_m:
+        raise SystemExit(f"{COMMAND_GEN_H}: no cs2_proto_pool")
+    pool = [p.strip() for p in pool_m.group(1).replace("\n", " ").split(",") if p.strip()]
+
+    string_protos = parse_string_protos()
+    out: dict[int, tuple[int, int, int, int]] = {}
+    row = re.compile(
+        r"\[(\d+)\]\s*=\s*\{\s*(?:\"[^\"]*\"|NULL)\s*,\s*(RSCACHE_CS2_CMD_[A-Z_]+)\s*,"
+        r"\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,"
+    )
+    for m in row.finditer(text):
+        if m.group(2) != "RSCACHE_CS2_CMD_BASIC":
+            continue
+        op = int(m.group(1))
+        arg_off, arg_count = int(m.group(3)), int(m.group(4))
+        def_off, def_count = int(m.group(5)), int(m.group(6))
+        if arg_off + arg_count > len(pool) or def_off + def_count > len(pool):
+            raise SystemExit(f"{COMMAND_GEN_H}: opcode {op} indexes past cs2_proto_pool")
+        args = pool[arg_off:arg_off + arg_count]
+        defs = pool[def_off:def_off + def_count]
+        str_in = sum(1 for p in args if p in string_protos)
+        str_out = sum(1 for p in defs if p in string_protos)
+        out[op] = (arg_count - str_in, str_in, def_count - str_out, str_out)
+    if not out:
+        raise SystemExit(f"{COMMAND_GEN_H}: parsed no BASIC rows")
+    return out, table_size
+
+
 def parse_stack_line(line: str) -> int:
     rhs = line.split(":", 1)[1]
     if "-" in rhs and not re.search(r"[a-zA-Z0-9_]+", rhs.replace("-", "").strip()):
@@ -584,6 +787,56 @@ def main() -> None:
             entries[op] = h
             known.add(op)
 
+    # ---- the bridge (source 4; see this file's docstring) -------------------
+    bridge, cmd_table_size = parse_command_gen()
+
+    conflicts = {
+        op: (entries.get(op, (0, 0, 0, 0)), sig)
+        for op, sig in sorted(bridge.items())
+        if op in known and entries.get(op, (0, 0, 0, 0)) != sig
+    }
+    unacknowledged = {
+        op: v for op, v in conflicts.items() if BRIDGE_CONFLICTS_OK.get(op) != v[1]
+    }
+    if unacknowledged:
+        print(
+            "gen_opcode_stack: the two signature tables disagree about opcodes that\n"
+            "are NOT in BRIDGE_CONFLICTS_OK. One of the two is wrong about a real\n"
+            "opcode; resolve it by hand (a wrong pop count desynchronises the operand\n"
+            "stack silently) and then record the decision:",
+            file=sys.stderr,
+        )
+        for op, (ours, theirs) in sorted(unacknowledged.items()):
+            print(
+                f"  opcode {op}: here {ours}, cs2_command.gen.h {theirs}",
+                file=sys.stderr,
+            )
+        raise SystemExit(1)
+
+    stale = sorted(set(BRIDGE_CONFLICTS_OK) - set(conflicts))
+    if stale:
+        print(
+            "gen_opcode_stack: BRIDGE_CONFLICTS_OK lists opcodes that no longer "
+            f"disagree; drop them: {stale}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    # `known = 2`, not 1: the signature is real but *nothing in this repo
+    # implements the opcode*, so StackMetaStub balances the stack and pushes
+    # zeros. That is a silent wrong answer, which is worse than an abort unless
+    # it is visible -- so the runtime reports every inherited opcode it reaches,
+    # once each. Anything that has to distinguish "we know what this does" from
+    # "we know its shape" reads the 2.
+    inherited = set()
+    for op, sig in bridge.items():
+        if op in known or op >= MAX_OPCODE:
+            continue
+        entries[op] = sig
+        known.add(op)
+        inherited.add(op)
+    bridged = len(inherited)
+
     lines = [
         "/* Generated by src/cs2vm2/gen_opcode_stack.py — do not edit by hand. */",
         "#ifndef CS2VM2_OPCODE_STACK_GEN_H",
@@ -596,8 +849,18 @@ def main() -> None:
         "    unsigned char str_in;",
         "    unsigned char int_out;",
         "    unsigned char str_out;",
-        "    /* 1 when the signature above is real; 0 when the opcode is",
-        "     * unimplemented and only got the (0,0,0,0) default. */",
+        "    /* 0 -- the opcode is unimplemented and unknown: it only got the",
+        "     *      (0,0,0,0) default, and the runtime asserts on it rather than",
+        "     *      no-oping with a made-up arity.",
+        "     * 1 -- the signature above is real AND this repo knows what the",
+        "     *      opcode does (a stack doc comment in cs2_opcode.h, a",
+        "     *      MANUAL_STACK entry, or a name heuristic). Most of these also",
+        "     *      have dedicated dispatch in cs2vm2.c.",
+        "     * 2 -- the signature was inherited from the decompiler's table,",
+        "     *      3rd/rscache/src/cs2/cs2_command.gen.h, and nothing here",
+        "     *      implements the opcode. The stack stays balanced and the",
+        "     *      results are zeros/\"\" -- a plausible wrong answer, so the",
+        "     *      runtime prints one line the first time it reaches each. */",
         "    unsigned char known;",
         "};",
         "",
@@ -605,11 +868,15 @@ def main() -> None:
     ]
     for op in range(MAX_OPCODE):
         ii, si, io, so = entries.get(op, (0, 0, 0, 0))
-        kn = 1 if op in known else 0
+        kn = 2 if op in inherited else (1 if op in known else 0)
         lines.append(f"    [{op}] = {{ {ii}, {si}, {io}, {so}, {kn} }},")
     lines.extend(["};", "", "#endif", ""])
     OUT.write_text("\n".join(lines))
-    print(f"wrote {OUT} ({len(entries)} opcodes with metadata)")
+    print(
+        f"wrote {OUT} ({len(entries)} opcodes with metadata, "
+        f"{len(known)} known; {bridged} inherited from cs2_command.gen.h "
+        f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts)"
+    )
 
 
 if __name__ == "__main__":

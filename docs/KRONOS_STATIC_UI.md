@@ -12,6 +12,17 @@ Reference for the OSRS HUD as documented in [Kronos184-Client](https://github.co
 
 Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget()`.
 
+> **Scope warning, added 2026-08-02.** The "viewport child" column above describes
+> the **revconfig static-chrome** path (this doc's subject: hand-authored INI
+> layouts), and it does **not** describe the cache-driven CS2 gameframe this
+> client actually boots. Measured against `cache.osrs239`: 161's viewport
+> trackers are children **92** and **94** (`viewport_tracker_back` /
+> `viewport_tracker_front`, `interfaces/toplevel_osrs_stretch.compack:93,95`) —
+> `[proc,toplevel_resize]` (script 909) resizes exactly those two, keyed on
+> `enum_1130` entries 10551388/10551390. 161:12 is `helper_content`. Do not use
+> the numbers in this table when working on the CS2 gameframe; see
+> [`gameframe_layout_resize.md`](gameframe_layout_resize.md).
+
 ## Builtin regions → revconfig `type=`
 
 | Region | Widget type | revconfig | Fixed (548) | Resizable |

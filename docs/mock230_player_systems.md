@@ -469,12 +469,52 @@ because nothing but npcs attacks. Every npc in the mock is a melee attacker, so
 protect-from-melee is the only one with an effect today; the lookup is by damage
 type so that stops being true the moment a ranged npc exists.
 
-### 4.5 Honest gap
+### 4.5 ~~Honest gap~~ — closed, and the gap that replaced it
 
-**The prayer buttons do not light up.** The lit state is a per-prayer varbit the
-client's own CS2 reads, and those ids have not been identified. The prayer is
-on, the overhead icon is up, the points drain, the tab looks unchanged. Finding
-the varbits is the next piece of work here.
+This section used to read: *"**The prayer buttons do not light up.** The lit
+state is a per-prayer varbit the client's own CS2 reads, and those ids have not
+been identified."* **That is stale.** The ids are identified, transmitted, and
+verified on pixels — `skill_prayer/configs/prayers.varp` declares `prayer0`
+(varp 83) `transmit=yes scope=perm`, `prayer.rs2`'s `~prayer_set` writes the
+cache's own named `%prayer_*` varbits, and `configs/all.varbit` gives each one
+its bit on `prayer0`. Screenshots in §4.8 show two prayers lit in the book.
+Code won; the prose had not been re-read.
+
+**What is actually wrong is one layer up, and it is worse than a missing
+light: the book's button bindings name the wrong prayers.** Twenty-four of the
+twenty-nine `[if_button,prayerbook:prayerN]` handlers in `prayer.rs2` toggle a
+different prayer than the button the player clicked.
+
+The cause is that `prayerbook.compack`'s `prayer1..prayer29` are numbered by
+**component id**, and the book's on-screen order is not. The cache states which
+component belongs to which prayer, on the obj, as **`param_1751`** — and it is
+not `8 + N`:
+
+| the player clicks | component | compack calls it | `prayer.rs2` toggles |
+|---|---:|---|---|
+| Thick Skin | 541:9 | `prayer1` | Thick Skin ✓ |
+| Rock Skin | 541:12 | `prayer4` | Sharp Eye ✗ |
+| Sharp Eye | 541:27 | `prayer19` | Protect from Melee ✗ |
+| Preserve | 541:37 | `prayer29` | Augury ✗ |
+
+Five agree, and only by coincidence: `prayer1`, `prayer2`, `prayer3`,
+`prayer26` (Chivalry) and `prayer27` (Piety). Measured three ways that agree
+exactly:
+`param_1751`/`param_1752` on objs 20803..20831 in `configs/all.obj`; the
+`prayer_*` `startbit`s on `basevar=prayer0` in `configs/all.varbit`; and the
+client itself — lighting bit 3 lights the **sixth** slot in the book, which is
+Rock Skin's position, not the fourth.
+
+This was invisible because the only assertion anyone had written was
+`IF_BUTTON1 541:9` (the sentence below this one used to end there), and 541:9
+is Thick Skin under *both* numberings.
+
+**Not fixed here**, deliberately: it is the prayer-book slice's, and the fix is
+a choice between renumbering `^prayer_*` to the cache's order (which also
+deletes §4.7's `bit` column) and re-pointing twenty-six `[if_button]` headers.
+Doing both independently produces a double translation and a silently wrong
+prayer. Quick prayers (§4.7) does **not** go through those bindings and is
+correct today.
 
 ### 4.6 Verified
 
@@ -483,7 +523,98 @@ drain arithmetic (12 units a tick against 60 = a point every fifth tick), and
 that running out clears both the prayers and the icon mask. In the client,
 `TORIRS_NET_CHEAT="pray 18"` draws the Protect from Melee icon above the
 player's head, and clicking a prayer button in the tab arrives as
-`IF_BUTTON1 541:9`.
+`IF_BUTTON1 541:9` — which, per §4.5, is the one component id that proves
+nothing about the binding table. Assert on a prayer past the third.
+
+### 4.7 Quick prayers
+
+The orb (`orbs:prayerbutton`, 160:20) and its setup panel, interface **77**
+`quickprayer`. `skill_prayer/scripts/quickprayer.rs2`, one new engine opcode,
+two varp declarations and one column.
+
+**No LostCity reference exists.** `grep -rli quickpray` over the whole of the
+reference — engine, content, data, both bundled clients — returns nothing, and
+could not return anything: rev 254 has no minimap orbs. This is
+`PORTING_GUIDE.md` §5 in its pure form.
+
+**The client half was already complete.** Clientscript 466 (the panel's
+`onload`) reads enum **4956**, `cc_create`s one clickable slot per prayer at
+sub-id = the prayer's cache index, gives each `cc_setop(1, "Toggle")`, and hangs
+`quickprayer_button_op` (469) on it. 469 flips bit `oc_param($obj, param_630)`
+of varbit **4102** locally; 7556 flips varbit **4103** for the orb. Both writes
+are optimistic — the server's is the true one, which is why both carrier varps
+are `transmit=yes`.
+
+Five things the server had to supply:
+
+1. **`if_setevents` for three components.** Nothing at rev 230 is clickable
+   until the server says so. `orbs:prayerbutton` needs **two** ops armed (op 1
+   `*` activate, op 2 `Setup`), which is `^quickprayer_orb_events`;
+   `quickprayer:buttons` is armed as a **range 0..28**, because its slots are
+   `cc_create`d children and a dynamic child's events come from its parent's
+   `(from..to)`.
+2. **The mount, and the slot is not the obvious one.** Interface 77 carries no
+   `xmode`/`ymode`, unlike every panel this tree puts in `mainmodal`, so it is
+   anchored to its slot's **top-left**. In `mainmodal` it draws in the corner of
+   the world view — measured, screenshotted, and how this was settled. It is
+   190x261, which is the **sidebar's** exact size and the prayer book's, so it
+   goes into `toplevel_osrs_stretch:sidemodal` with type 3.
+3. **`if_closesub(component)`** — a new opcode, **11005**. The panel's "Done"
+   button has no client close at all (clientscript 472 swaps a graphic and sets
+   a timer), and this server's `SS_OP_IF_CLOSE` is specialised to the chatbox
+   modal, which is what every `[if_close]` caller in the tree means by it. The
+   modal-slot bookkeeping happens inside the IF_OPENSUB/IF_CLOSESUB encoder, so
+   the X and Escape kept working for free.
+4. **Two varp declarations.** `prayer1` (varp 84, sole tenant
+   `quickprayer_selected` bits 0..28) `scope=perm`; `armourhitsound` (varp 375,
+   bit 0 `quickprayer_active`, **ten other tenants**) `scope=temp`. Both names
+   are the cache's verbatim — an authored name replaces the cache's rather than
+   adding to it, the lesson `combat_tab.varp` carries at its own head.
+5. **A `bit` column on `prayer_table`,** because the client speaks cache prayer
+   indices and this tree speaks `^prayer_*`, and **they agree for only five of
+   the twenty-nine: 0, 1, 2, 25 and 26.** The cache orders the 29 prayers by the date they entered the game
+   (the Ranged and Magic prayers and the four combination prayers appended, not
+   interleaved); `^prayer_*` orders them the way the book is laid out. Feeding a
+   mask bit straight into `~prayer_toggle` toggles the wrong prayer for **24 of
+   29**, plausibly. This is the same disagreement §4.5 is about, seen from the
+   other side.
+
+Everything else is `~prayer_toggle`'s: the level gate, the points gate, the
+exclusion groups, the drain accumulator and the overhead icon. `~quickprayer_activate`
+deactivates everything and then calls it once per selected bit.
+
+**Verified in the client** (headless, SDL dummy, against a live mock230):
+
+| what | how | result |
+|---|---|---|
+| orb armed, both ops | right-click 160:20 | menu reads *Activate / Setup / Cancel* |
+| panel opens where it belongs | click Setup | 29 slots + Done, filling the sidebar |
+| a slot is armed and addressed | click | `IF_BUTTON1 77:4 sub=3` |
+| **the bit→prayer map is the cache's** | prayer level **9**, click sub 3 | *"You need a Prayer level of 10 to use Rock Skin."* — the naive `^prayer_*` map makes bit 3 Sharp Eye, level 8, and accepts silently |
+| the same, other direction | level 9, click sub 18 and 19 | accepted (Sharp Eye 8, Mystic Will 9); the naive map makes 18 Protect from Melee, level 43, and refuses |
+| Done closes | click | `-> op=36` (IF_CLOSESUB) |
+| activate | left-click the orb | both selected prayers glow in the book; the orb's star turns **gold** |
+| deactivate | left-click again | book empty; star **white** |
+| the selection survives a relog | reconnect, reopen the panel | red ticks on exactly the two chosen slots |
+| reopen after close | close → reopen | renders again, no slot poison |
+
+The level-9 row is the one that matters: it is the mutation that makes the
+assertion capable of failing, and it fails loudly under the wrong mapping in
+both directions.
+
+**What it cost, beyond the plan.** One runtime bug the compiler cannot see:
+`mes("… <db_getfield($data, prayer_table:name, 0)>")` written inline aborts with
+*"int stack underflow"*, because `db_getfield` returns `any` — a string column
+read inline pushes the string stack while `TOSTRING` pops the int one. It only
+executes on the refusal branch, so it survived compilation and the happy path.
+Typed locals first, exactly as `~prayer_checks` already did it.
+
+**Still open:** the orb un-lights when a prayer is switched off by hand
+(`~prayer_toggle`'s off branch clears `%quickprayer_active`), which is what OSRS
+does, but nothing re-lights it if the player turns the same set back on
+manually. And a *conflicting* selection — Thick Skin and Rock Skin, both
+`^prayer_group_defence` — activates as OSRS does, later wins, which reads as
+"one of my quick prayers didn't come on" and is correct.
 
 ---
 

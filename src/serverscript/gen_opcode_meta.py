@@ -153,6 +153,21 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # `type` is the reference's: 0 modal, 1 overlay, 3 side-modal.
     "IF_OPENSUB": (11001, 3, 0, 0, 0),
 
+    # if_closesub(component)
+    #
+    # The inverse of the above, and it needs to be a separate command for the
+    # same reason if_opensub does: the slot is an argument. The reference's
+    # `if_close` (2033) closes "the interface", singular, because a 2004
+    # gameframe has one modal slot; at rev 230 a panel that mounted itself into
+    # a named component has to name that component again to come out, and this
+    # server's IF_CLOSE is specialised to the chatbox modal (the dialogue
+    # unmount) — every `[if_close]` caller in the tree wants exactly that, so it
+    # cannot be generalised in place.
+    #
+    # No require mask: the encoder writes to `srv->active_player`, which is the
+    # same access if_opensub has.
+    "IF_CLOSESUB": (11005, 1, 0, 0, 0),
+
     # runclientscript_ss(clientscript, string, string)
     #
     # Run a clientscript with two string arguments. The 2004 protocol has no

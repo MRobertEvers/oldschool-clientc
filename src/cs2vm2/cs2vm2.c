@@ -4820,6 +4820,33 @@ CS2VM2_Op_BitCount(
     return CS2VM2_PushInt(vm, __builtin_popcount((unsigned)value));
 }
 
+/**
+ * ABS (4035): pop one int, push its magnitude.
+ *
+ * A pure-VM op with no host state, and it had no case here at all — it went to
+ * StackMetaStub, which before the cs2_command.gen.h bridge asserted and after
+ * it would have pushed 0 for every input. The one path in cache.osrs239 that
+ * reaches it is [proc,script5380], the XP-tracker's actions-to-goal estimator
+ * (5448 -> 5449 -> 5362 -> 5366 -> 5375 -> 5380), where "abs(x) is always 0"
+ * would read as a plausible-but-wrong number on screen rather than a crash.
+ *
+ * INT_MIN has no positive counterpart in two's complement; negating it is UB in
+ * C. The Java client this is ported from has the same wrap (`-INT_MIN ==
+ * INT_MIN`), so reproduce it explicitly rather than invoking UB.
+ */
+static int
+CS2VM2_Op_Abs(struct CS2VM2_Thread* vm)
+{
+    assert(vm);
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( value < 0 )
+        value = (int)(0u - (unsigned)value);
+    return CS2VM2_PushInt(vm, value);
+}
+
 int
 CS2VM2_Op_ToggleBit(
     struct CS2VM2_Thread* vm,
@@ -5254,8 +5281,13 @@ CS2VM2_Op_GetWindowMode(
     assert(frame);
     (void)operand;
 
-    /* Resizable mode (2) matches live-client semantics for gameframe scripts. */
-    return CS2VM2_PushInt(vm, 2);
+    /* Host state, snapshotted per thread. It used to push the literal 2, which
+     * made [clientscript,settings_client_mode] believe the client was already
+     * resizable no matter what SETWINDOWMODE had done — the script's own
+     * "already in this mode, nothing to do" branch. 0 = the host never set it;
+     * resizable is the boot mode this client actually comes up in. */
+    return CS2VM2_PushInt(
+        vm, vm->window_mode > 0 ? vm->window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
 }
 
 int
@@ -5268,7 +5300,37 @@ CS2VM2_Op_GetDefaultWindowMode(
     assert(frame);
     (void)operand;
 
-    return CS2VM2_PushInt(vm, 2);
+    return CS2VM2_PushInt(
+        vm,
+        vm->default_window_mode > 0 ? vm->default_window_mode : CS2VM_WINDOW_MODE_RESIZABLE);
+}
+
+/* SETWINDOWMODE (5307) / SETDEFAULTWINDOWMODE (5309). Pop the mode, tell the
+ * host (which owns the canvas and the window), and mirror it into this thread
+ * so a script that sets then re-reads inside one run — 3998 does exactly that
+ * across setwindowmode/getdefaultwindowmode — sees its own write. */
+static int
+CS2VM2_Op_SetWindowMode(
+    struct CS2VM2_Thread* vm,
+    bool is_default)
+{
+    struct CS2VM_HostRequest request;
+    int mode;
+
+    assert(vm);
+    if( CS2VM2_PopInt(vm, &mode) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( is_default )
+        vm->default_window_mode = mode;
+    else
+        vm->window_mode = mode;
+
+    memset(&request, 0, sizeof(request));
+    request.kind = is_default ? CS2VM_HOST_REQUEST_SET_DEFAULT_WINDOW_MODE
+                              : CS2VM_HOST_REQUEST_SET_WINDOW_MODE;
+    request.u.window_mode.mode = mode;
+    return vm->vm->host_exec(vm, &request);
 }
 
 /* COORD returns the local player's packed world coordinate; it does not pop from the
@@ -5633,12 +5695,18 @@ CS2VM2_Op_PopVar(
 {
     assert(vm);
     assert(frame);
-    (void)operand;
 
     int value;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM_EXECNO_OK;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR;
+    request.u.vars_write_varp.varp_id = operand;
+    request.u.vars_write_varp.value = value;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -5649,12 +5717,18 @@ CS2VM2_Op_PopVarbit(
 {
     assert(vm);
     assert(frame);
-    (void)operand;
 
     int value;
     if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM_EXECNO_OK;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT;
+    request.u.vars_write_varbit.varbit_id = operand;
+    request.u.vars_write_varbit.value = value;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -7000,6 +7074,36 @@ CS2VM2_Op_StackMetaStub(
         assert(0 && "unimplemented CS2 opcode reached StackMetaStub");
     }
 
+    /* known == 2: the signature came from the decompiler's table
+     * (3rd/rscache/src/cs2/cs2_command.gen.h, bridged in by
+     * gen_opcode_stack.py) and nothing here implements the opcode. The stack
+     * below stays balanced, which is the whole point — but the results are
+     * zeros and empty strings, i.e. a *plausible wrong answer* rather than a
+     * crash, and that is the harder failure to find. So say so, once per
+     * opcode, unconditionally: this list is the honest inventory of what a run
+     * faked its way through. Unlike the survey path above it does not gate on
+     * an env var, because a silent wrong answer is not something you should
+     * have to go looking for. */
+    if( meta.known == 2 && opcode >= 0 && opcode < CS2VM2_OPCODE_STACK_MAX )
+    {
+        static bool announced[CS2VM2_OPCODE_STACK_MAX];
+        if( !announced[opcode] )
+        {
+            announced[opcode] = true;
+            fprintf(
+                stderr,
+                "cs2-stub: opcode %d has an inherited signature (%d,%d,%d,%d) but no "
+                "implementation — stack balanced, results faked (script %d pc %d)\n",
+                opcode,
+                meta.int_in,
+                meta.str_in,
+                meta.int_out,
+                meta.str_out,
+                frame->script ? frame->script->script_id : -1,
+                frame->pc);
+        }
+    }
+
     for( int i = 0; i < meta.int_in; i++ )
     {
         int discard;
@@ -8155,6 +8259,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_GetWindowMode(vm, frame, operand);
     case CS2_OP_GETDEFAULTWINDOWMODE:
         return CS2VM2_Op_GetDefaultWindowMode(vm, frame, operand);
+    case CS2_OP_SETWINDOWMODE:
+        return CS2VM2_Op_SetWindowMode(vm, false);
+    case CS2_OP_SETDEFAULTWINDOWMODE:
+        return CS2VM2_Op_SetWindowMode(vm, true);
     case CS2_OP_CLIENTTYPE:
         return CS2VM2_Op_ClientType(vm, frame, operand);
     case CS2_OP_COORD:
@@ -8782,6 +8890,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_AddPercent(vm, frame, operand);
     case CS2_OP_BITCOUNT:
         return CS2VM2_Op_BitCount(vm, frame, operand);
+    case CS2_OP_ABS:
+        return CS2VM2_Op_Abs(vm);
     case CS2_OP_TOGGLEBIT:
         return CS2VM2_Op_ToggleBit(vm, frame, operand);
     case CS2_OP_SETBIT_RANGE:
@@ -9987,6 +10097,8 @@ cs2vm2_thread_init(
 
     thread->canvas_w = 0;
     thread->canvas_h = 0;
+    thread->window_mode = 0;
+    thread->default_window_mode = 0;
 }
 
 void
@@ -10080,6 +10192,17 @@ CS2VM2_ThreadSetCanvas(
     assert(thread);
     thread->canvas_w = w;
     thread->canvas_h = h;
+}
+
+void
+CS2VM2_ThreadSetWindowMode(
+    struct CS2VM2_Thread* thread,
+    int mode,
+    int default_mode)
+{
+    assert(thread);
+    thread->window_mode = mode;
+    thread->default_window_mode = default_mode;
 }
 
 int

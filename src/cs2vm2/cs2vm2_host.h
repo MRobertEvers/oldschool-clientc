@@ -14,6 +14,22 @@ enum CS2VM_ModelKind
     CS2VM_MODEL_KIND_PLAYER_CHATHEAD = 6,
 };
 
+/**
+ * The CS2 `windowmode` domain — the values `^windowmode_fixed` and
+ * `^windowmode_resizable` compile to, and the values GETWINDOWMODE /
+ * SETWINDOWMODE and their `default` siblings speak.
+ *
+ * This is opcode surface, not content: the numbers belong to the CS2 dialect
+ * the client implements, alongside CS2_OP_* and `clienttype`, and no cache
+ * record or content pack states them. The authority is the dialect's own type
+ * table (runestar cs2 `windowmode-names.tsv`: 1 fixed, 2 resizable).
+ */
+enum CS2VM_WindowMode
+{
+    CS2VM_WINDOW_MODE_FIXED = 1,
+    CS2VM_WINDOW_MODE_RESIZABLE = 2,
+};
+
 enum CS2VM_HostRequestKind
 {
     CS2VM_HOST_REQUEST_PUSHSCRIPT,
@@ -24,6 +40,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_INVS_GET_TOTAL,
     CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR,
     CS2VM_HOST_REQUEST_VARS_READ_VARBIT,
+    CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR,
+    CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT,
     CS2VM_HOST_REQUEST_VARS_READ_VARC_INT,
     CS2VM_HOST_REQUEST_KEYHELD,
     CS2VM_HOST_REQUEST_KEYPRESSED,
@@ -289,6 +307,16 @@ enum CS2VM_HostRequestKind
      * RS_CS2Host.logout_requested) for whatever drives the actual disconnect. */
     CS2VM_HOST_REQUEST_LOGOUT,
 
+    /* SETWINDOWMODE (5307) / SETDEFAULTWINDOWMODE (5309): one int in the CS2
+     * `windowmode` domain (CS2VM_WINDOW_MODE_*), no return value. Both had no
+     * case in the dispatch at all, so they fell through to StackMetaStub, whose
+     * generated meta for them is {1,0,0,0,known=1} — pop the arg, return OK, do
+     * nothing, no assert and no survey line. [clientscript,settings_client_mode]
+     * (3998), the Display panel's client-mode dropdown, is entirely these two
+     * ops, so the dropdown was inert and looked implemented. */
+    CS2VM_HOST_REQUEST_SET_WINDOW_MODE,
+    CS2VM_HOST_REQUEST_SET_DEFAULT_WINDOW_MODE,
+
     /* IF_CLOSE (3103): no payload, no return value. Every framed interface's X
      * runs it — `steelborder` binds op 1 to clientscript 29, whose whole body is
      * `if_close`. It closes nothing locally: the reference sends CLOSE_MODAL and
@@ -451,6 +479,26 @@ struct CS2VM_HostRequest_VarsReadVarp
 struct CS2VM_HostRequest_VarsReadVarbit
 {
     int varbit_id;
+};
+
+/**
+ * POP_VAR / POP_VARBIT: a script-side write to the client's var state.
+ *
+ * Deliberately a *separate* request from the server's VARP_SMALL/LARGE/SYNC
+ * path: the reference applies these optimistically to `Varps_main` only and
+ * never pushes the id into its changed-varp ring, so a widget hook that writes
+ * a var does not re-trigger itself. See VarPManager_ServerUpdateFn's header.
+ */
+struct CS2VM_HostRequest_VarsWriteVarp
+{
+    int varp_id;
+    int value;
+};
+
+struct CS2VM_HostRequest_VarsWriteVarbit
+{
+    int varbit_id;
+    int value;
 };
 
 struct CS2VM_HostRequest_VarsReadVarcInt
@@ -1216,12 +1264,19 @@ struct CS2VM_HostRequest_ClientOp
     char* label;
 };
 
+/** SETWINDOWMODE / SETDEFAULTWINDOWMODE payload: one enum CS2VM_WindowMode. */
+struct CS2VM_HostRequest_WindowMode
+{
+    int mode;
+};
+
 struct CS2VM_HostRequest
 {
     enum CS2VM_HostRequestKind kind;
 
     union
     {
+        struct CS2VM_HostRequest_WindowMode window_mode;
         struct CS2VM_HostRequest_PushScript push_script;
         struct CS2VM_HostRequest_InvSize invs_get_size;
         struct CS2VM_HostRequest_InvGetObj invs_get_obj;
@@ -1229,6 +1284,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_InvTotal invs_get_total;
         struct CS2VM_HostRequest_VarsReadVarp vars_read_varp;
         struct CS2VM_HostRequest_VarsReadVarbit vars_read_varbit;
+        struct CS2VM_HostRequest_VarsWriteVarp vars_write_varp;
+        struct CS2VM_HostRequest_VarsWriteVarbit vars_write_varbit;
         struct CS2VM_HostRequest_VarsReadVarcInt vars_read_varc_int;
         struct CS2VM_HostRequest_KeyQuery key_query;
         struct CS2VM_HostRequest_WidgetSetOpKey widget_set_opkey;

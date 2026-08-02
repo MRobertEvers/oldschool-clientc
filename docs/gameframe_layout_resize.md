@@ -1,0 +1,303 @@
+# Gameframe layout — the client canvas, window resize, and window mode
+
+Written 2026-08-02. Topic doc for the rev-230 gameframe's *layout* half: what
+size the client canvas is, who is allowed to change it, and what the cache's own
+layout scripts do when it changes. Read [`PORTING_GUIDE.md`](PORTING_GUIDE.md)
+§5 first — this is squarely the "modern feature with no LostCity reference"
+pattern.
+
+**LostCity reference (§2.2, run):**
+`grep -rilE 'resizable|windowmode|window_mode|windowstatus'` over both
+`LostCity_Server/engine/src` and `LostCity_Server/content/scripts` returns
+**zero hits**. Rev 254 (2004) is fixed-512×334-only; there is no proc, no config
+field and no packet to port. The client already implements the whole feature in
+CS2 (scripts 901 / 907 / 909 / 3998, all present and correct in `cache.osrs239`);
+what the engine owed was the *mechanism* — one canvas, one resize event, one
+dispatch, and four host ops.
+
+---
+
+## 1. What the layout family actually is
+
+There is no script named `gameclient*` anywhere: `grep -rin gameclient` over a
+full decompile of `cache.osrs239` (9,433 of 9,725 scripts), `docs/`, `src/` and
+`OSRS-Content` returns exactly one unrelated hit (`src/net/rev/osrs230/packetout.h`,
+an RSProt "GameClientProt" comment). The layout family is the **toplevel**
+family:
+
+| script | name | what it is |
+|---|---|---|
+| 901 | `[clientscript,toplevel_init]` | the toplevel's onLoad. `if_setonresize("toplevel_resize(event_com,$enum1)", $component0)` — this is where the layout listener is registered |
+| 909 | `[proc,toplevel_resize]` | **the layout script.** Sizes the viewport trackers 161:92/94 from `viewport_geteffectivesize`, the HUD containers 161:7/15 from the modal insets, and positions 161:16/19/9 |
+| 907 | `[proc,toplevel_redraw]` | calls `~toplevel_resize` directly, so the layout also runs at boot with no resize event |
+| 900 | `[proc,toplevel_getcomponents]` | `if_gettop` → component-remap enum: 601→1745, 161→1130, 164→1131, 548→1129, 165→1132, 80→139 |
+| 3998 | `[clientscript,settings_client_mode]` | the Display panel's fixed/resizable dropdown. Its entire body is `setwindowmode` + `setdefaultwindowmode` |
+
+The toplevels are all named in the pack
+(`OSRS-Content/osrs239-content/pack/3_interfaces.pack`): 80 `toplevel_spectator`,
+161 `toplevel_osrs_stretch`, 164 `toplevel_pre_eoc`, 165 `toplevel_display`,
+548 `toplevel`, 601 `toplevel_osm`. `manifest_osrs230.ini` boots **161**.
+
+**The layout script was never the gap.** It runs correctly and always did.
+
+---
+
+## 2. The bug: three copies of the canvas size, written independently
+
+The canvas existed as three unrelated variables:
+
+| copy | where | who wrote it |
+|---|---|---|
+| layout root | `src/ui/uitree_layout.c` `UITree_LayoutRootWidth/Height` (765×503), read through `UITREE_LAYOUT_ROOT_W/H` at ~25 sites | `UITree_LayoutSetRootSize`, called once from `TORIRS_ROOT_SIZE` in `main.c` |
+| VM canvas | `RS_CS2Host.viewport_w/h`, handed to the VM by `CS2VM2_ThreadSetCanvas` and returned by `GETCANVASSIZE` **and** `VIEWPORT_GETEFFECTIVESIZE` | hardcoded 765×503 in `RS_CS2Host_Init`, **never written again** |
+| backbuffer | `PlatformSDL2.width/height` | `PlatformSDL2_Init`, never again |
+
+Measured before the fix, `TORIRS_ROOT_SIZE=1024x768`:
+
+```
+script 909 pc=63  IF_GETWIDTH            -> 1024   (correct)
+script 909 pc=348 VIEWPORT_GETEFFECTIVESIZE -> 503 (stale)
+BOUNDS (161|92) abs=108,132 765x503      # a 765x503 island inside a 1024x768 frame
+BOUNDS (161|94) abs=108,132 765x503
+```
+
+Nothing errored. `toplevel_resize` did exactly what it was told: it asked the
+host how big the viewport was, was told 503, and sized the viewport to 503. The
+only way to see it was the bounds dump.
+
+**This is the trap that will recur.** Updating two of the three reproduces it
+exactly. `App_SetCanvasSize` (`src/app.h`, `src/app.c`) is now the only writer;
+the backbuffer follows the canvas in `main.c` after the command drain, never the
+window (see §4). Do not add a fourth copy.
+
+---
+
+## 3. What landed
+
+### 3.1 One setter — `App_SetCanvasSize(app, w, h)`
+
+`src/app.c`. Clamps to `APP_CANVAS_MIN_W/H` (765×503 — see §6), writes the
+layout root *and* `host.viewport_w/h`, relayouts, dispatches every registered
+onResize listener, relayouts again. Returns 1 if the size changed.
+
+`App_Init` calls it once with the current layout root, so the `TORIRS_ROOT_SIZE`
+debug knob and the boot both go through it and the host's copy can no longer
+start out disagreeing.
+
+### 3.2 A whole-tree onResize dispatch — `app_dispatch_resize_hooks`
+
+`IF_SETONRESIZE` was registered at open time and dispatched from exactly two
+places: the script-driven `if_callonresize` queue, and `IF_OPENSUB`'s step 8,
+which is gated on `if( self->target_uid >= 0 )` — subs only. So an `IF_OPENTOP`
+root's listener (script 901 registers it at pc=11) was never fired by an actual
+resize, because there were no actual resizes.
+
+The new dispatch collects every component with `runtime_hooks.on_resize.script_id > 0`
+and runs it through `RS_CS2_DispatchHook`, the same shape as the
+`if_callonresize` drain. **Component ids are snapshotted before dispatch**: the
+listeners `cc_create`/`cc_delete`, which reallocates `tree->components`.
+
+### 3.3 A resize event path
+
+- `TORIRS_CMD_WINDOW_RESIZE` (48) on the command bus, `struct ToriRS_CmdWindowResize {w,h}`.
+  On the bus rather than a direct call so a resize lands in the recorded stream
+  and replays at the frame it happened.
+- `SDL_WINDOWEVENT_SIZE_CHANGED` (not `RESIZED` — a programmatic
+  `SDL_SetWindowSize` must relayout too) pushes it, **coalesced to one per poll
+  batch**: a window drag emits one event per mouse-move and each would cost a
+  relayout plus every gameframe onResize script.
+- `App_DrainCommands` applies it via `App_SetCanvasSize`.
+- `PlatformSDL2_SetCanvasFollowsWindow(platform, bus, follow)` is the mode gate.
+  Off by default: fixed mode keeps a 765×503 backbuffer and letterboxes.
+
+### 3.4 The four window-mode ops
+
+`GETWINDOWMODE` (5306) and `GETDEFAULTWINDOWMODE` (5308) pushed the literal `2`.
+`SETWINDOWMODE` (5307) and `SETDEFAULTWINDOWMODE` (5309) had **no case in the
+dispatch at all** — they fell to `StackMetaStub`, whose generated meta for both
+is `{1,0,0,0,known=1}`: pop the arg, return OK, do nothing, no assert and no
+survey line. Since 3998's whole body is those two ops, the Display panel's
+client-mode dropdown was inert *and looked implemented*.
+
+Now: `RS_CS2Host.window_mode` / `.default_window_mode` are host state,
+snapshotted per VM thread beside the canvas (`CS2VM2_ThreadSetWindowMode`); the
+GET ops read it; the SET ops pop, mirror into the thread (so 3998's
+set-then-`getdefaultwindowmode` sees its own write) and raise
+`host.window_mode_dirty`; `App_TakeWindowModeChange` drains it and `main.c`
+decides, because fixed-vs-resizable is a statement about the *window* and the
+App has no platform. Same split as `close_modal_requested`.
+
+`enum CS2VM_WindowMode { FIXED = 1, RESIZABLE = 2 }` lives in
+`src/cs2vm2/cs2vm2_host.h`. **This is opcode surface, not content** (§2.4 item
+3): the numbers belong to the CS2 dialect the client implements, alongside
+`CS2_OP_*` and `clienttype`; no cache record and no content pack states them.
+The authority is the dialect's own type table (runestar cs2
+`windowmode-names.tsv`: `1 fixed`, `2 resizable`).
+
+### 3.5 Two dev knobs
+
+- `TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH]"` — inject a resize at a main-loop
+  frame. `SDL_VIDEODRIVER=dummy` never delivers a real `SIZE_CHANGED`, and the
+  interesting part is what the scripts do afterwards, which the window cannot
+  show you.
+- `TORIRS_SIM_RUNSCRIPT="frame,script[,arg...]"` — run a clientscript by id.
+  Needed because **nothing binds 3998**: a full decompile of `cache.osrs239`
+  contains no caller, and no `onop=` in the content tree names it, so there is
+  no component for `TORIRS_SIM_HOOK` to click. (§5.4 finding 1 again: "not in
+  the corpus" is routine.)
+- `TORIRS_RESIZE_DEBUG=1` prints each canvas change.
+
+---
+
+## 4. The ordering rule, and why it is a memory-safety rule
+
+Per frame:
+
+1. poll SDL → bus
+2. `App_DrainCommands` — applies the canvas change
+3. **`PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)`** and
+   `ToriRS_GL3_SetViewport` with the same pair
+4. `App_RunOnce` (may raise `window_mode_dirty`)
+5. render / present
+6. `App_TakeWindowModeChange` → push the next resize command
+
+Step 3 sizes the backbuffer **from the canvas, not from the window**, and that
+is not a preference: `App_Render` writes exactly `ROOT_W * ROOT_H` ints into
+`PlatformSDL2_Pixels()`. The canvas is clamped to a floor the window does not
+respect, so sizing the backbuffer from the raw window would overrun it the
+moment a user drags below 765×503. Below the floor the window letterboxes the
+clamped canvas — which is what fixed mode does anyway.
+
+`sim_render_frame`'s cached scratch buffer in `main.c` grows for the same
+reason.
+
+---
+
+## 5. Verified (2026-08-02, `SDL_VIDEODRIVER=dummy`, live mock230 on 43595)
+
+Boot canvas unchanged — `manifest_osrs230.ini` with no knobs still gives
+`(161|0) 765x503`, `(161|92) 765x503`, and a pixel-identical frame.
+
+**The drift, gone.** `TORIRS_ROOT_SIZE=1024x768 TORIRS_DUMP_BOUNDS=161`:
+
+```
+before: BOUNDS (161|92) abs=108,132 765x503     BOUNDS (161|94) abs=108,132 765x503
+after:  BOUNDS (161|92) abs=-21,0  1024x768     BOUNDS (161|94) abs=-21,0  1024x768
+```
+
+(The `x=-21` is authored on 161:1 and is present at 765×503 too — pre-existing,
+not part of this change. Do not "fix" it.)
+
+**A live resize reflows.** `TORIRS_SIM_RESIZE="200,1024x768" TORIRS_CS2_TRACE=1`:
+script 909 runs a fourth time after the injected event, and
+
+```
+run 1-3: script=909 pc=63  IF_GETWIDTH               itop=765
+run 4:   script=909 pc=63  IF_GETWIDTH               itop=1024
+run 1-3: script=909 pc=348 VIEWPORT_GETEFFECTIVESIZE itop=503
+run 4:   script=909 pc=348 VIEWPORT_GETEFFECTIVESIZE itop=768
+```
+
+**On pixels**, the 1024×768 frame is a correct resizable gameframe: viewport
+filling the frame, minimap top-right, inventory bottom-right, chatbox
+bottom-left, sidebar strip on the right edge. The world renderer and the raster
+paths tolerate a non-765×503 surface (this was an open unknown going in).
+
+**Input follows.** `TORIRS_SIM_RESIZE="150,1024x768"` then
+`TORIRS_SIM_CLICK_AT="300,928,451"` — the prayer tab at its *new* position —
+opens the prayer panel and the hover text reads "Prayer / 1 more options".
+
+**The mode ops round-trip.**
+`TORIRS_ROOT_SIZE=1024x768 TORIRS_SIM_RUNSCRIPT="200,3998,0;400,3998,1"`:
+
+```
+canvas: 1024x768
+sim_runscript: script=3998 argc=1   windowmode: fixed       canvas: 765x503
+sim_runscript: script=3998 argc=1   windowmode: resizable   canvas: 1024x768
+```
+
+Tests: `cmdbus_test`, `uitree_test`, `ss_provider_test`,
+`cs2_opcode_dialect_test` all pass.
+
+---
+
+## 6. Decisions recorded
+
+**Fixed mode letterboxes; resizable mode tracks the window.** Fixed *is*
+765×503 by definition, so scaling it into a bigger window is the correct answer
+and reflowing is not.
+
+**The canvas floor is 765×503** (`APP_CANVAS_MIN_W/H`). Not cosmetic: every
+rev-230 gameframe child is authored as an inset off that box —
+`toplevel_resize` is `max(0, width - inset)` throughout — so a smaller canvas
+produces zero-sized viewports rather than a smaller frame. The reference client
+has the same floor.
+
+**The window mode does not persist.** `default_window_mode` is stored and read
+back, and nothing writes it to a save. There is no LostCity precedent to follow
+(§1), so this is a fresh policy call and it is deliberately the minimal one.
+
+---
+
+## 7. Two things that look wrong and are correct
+
+1. **On toplevel 548, `if_getwidth($component0)` returns 4×334, not 765×503.**
+   The cache binds the onload to `toplevel:control` = 548:1, a 4×334 graphic
+   strip (`interfaces/toplevel.if:13-23`). The real client does the same;
+   `toplevel_resize` never uses those numbers in fixed mode.
+2. **`enum(component, component, enum_1129, 161:92)` returning -1 is the cache's
+   own data** — `configs/all.enum`'s `[enum_1129]` block literally contains
+   `val=10551388,-1` and `val=10551390,-1`. That is what makes
+   `toplevel_resize`'s `if ($component2 ! null & $component3 ! null)` guard skip
+   the stretch-viewport block in fixed mode. A "helpful" null fallback in the
+   `ENUM` op would blank the fixed frame.
+
+Also: `%varbit542` (cutscene/chrome-hide) and `%varbit4606` (widescreen
+viewport/FOV) are read-only in CS2 and server-written. mock230 never writes
+them, so they default to 0, which puts `toplevel_resize` on its `else` branch —
+the correct classic-viewport path for a normal session. Nothing to do there.
+
+---
+
+## 8. Still open — the fixed/resizable **toplevel switch**
+
+What landed changes the canvas and reflows the frame. It does **not** switch
+which toplevel is mounted. Fixed mode today is toplevel **161** laid out at
+765×503, not toplevel **548**. Four things are missing, all measured:
+
+1. **No wire surface.** `src/net/rev/pktnames.h` declares 96 `PKTOUT_NAME_*` and
+   none are window/display related; `src/net/rev/osrs230/packetout.h` has no
+   such row; `grep -rniE 'windowstatus|window_status'` over the repo is empty.
+   The client has no sender and the server no decoder. Note the real rev-230
+   opcode and field order are **unknown here** — RSProt's client-prot table is
+   not vendored, so any packet added would be a local convention like the rest
+   of `packetout.h` and would not talk to a real OldSchool server.
+2. **The server hardcodes one toplevel.** `mock230_ids.c` binds only
+   `toplevel_osrs_stretch` → `iface_gameframe`; `mock230_world.c` sends
+   `IF_OPENTOP(iface_gameframe)` unconditionally in the login burst, and a
+   selftest pins it. The mount table
+   (`OSRS-Content/osrs239-content/server/scripts/player/configs/gameframe.enum`)
+   has exactly one block, `[toplevel_osrs_stretch]`; there is no `[toplevel]`
+   block for 548, although every 548 slot is already named in
+   `interfaces/toplevel.compack` (`chat_container` 11, `mainmodal` 41,
+   `floater` 43, `sidemodal` 79, `side0..side13` 81..94).
+3. **A server root switch is refused, deliberately.**
+   `src/game/rs_gameproto_exec.c` logs and drops any `IF_OPENTOP` whose id
+   differs from `app->boot_interface_id`, and its own comment names this exact
+   gap. Rebooting on `IF_OPENTOP` was destructive once already (a live server
+   sent id 0 and wiped the live gameframe), so a real switch needs id
+   validation, a root teardown path (`task_interface_open.c` only bakes and lays
+   out — there is no teardown) and sub-remount handling, not a raw reboot.
+   Booting 548 against the live mock today reaches
+   `Assertion failed: (mount_idx >= 0 && "openSub target must exist")` because
+   the server's `IF_OPENSUB` targets are 161-relative.
+4. **Whichever toplevel is chosen is content's call**, not C's. Naming 161 or
+   548 in C is a §2.4 violation; `mock230_ids.c` already resolves interfaces
+   through the pack and a per-mode table must too.
+
+Independently verified as *working already*, for whoever picks this up: booting
+548 offline (scratch manifest, `--offline`) gives `IF_GETTOP=548`,
+`toplevel_getcomponents` → 1129, and a correct fixed frame —
+`TORIRS_DUMP_BOUNDS=548` → `548|10` viewport 512×334 @4,4; `548|9` minimap
+249×163 @516,4; `548|11` chat 519×165 @0,338. The 548 layout is not the problem;
+the switch is.

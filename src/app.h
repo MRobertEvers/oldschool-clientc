@@ -315,6 +315,11 @@ struct App
     int worldmap_tile_count;
     /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
     struct RS_WorldMapRender* worldmap_render;
+    /* Scene id of the synthesised flash marker drawn behind a flashing icon;
+     * 0 until first needed, -1 if it could not be built. See
+     * app_worldmap_flash_marker_scene on why it is synthesised and not a
+     * cache sprite. */
+    int worldmap_flash_scene_id;
     /* Visible regions for this frame, ordered nearest-the-view-centre first —
      * the order decides who gets the frame's bake and load allowance. The
      * lowest zoom over the whole map surface stays well inside this. */
@@ -660,6 +665,54 @@ struct App
     int inv_drag_dx;        /* emit offset for the armed slot (deadzoned) */
     int inv_drag_dy;
 };
+
+/** Smallest client canvas. The reference's resizable mode will not go below the
+ *  fixed frame either, and the reason is structural rather than cosmetic: every
+ *  rev-230 gameframe child is authored as an inset off 765x503 (toplevel_resize
+ *  computes `max(0, width - inset)` throughout), so a smaller canvas produces
+ *  zero-sized viewports, not a smaller frame. */
+#define APP_CANVAS_MIN_W 765
+#define APP_CANVAS_MIN_H 503
+
+/**
+ * Set the client canvas size — THE setter, and the only place the three copies
+ * of it agree.
+ *
+ * Those three are `UITree_LayoutRootWidth/Height` (what the whole UI tree lays
+ * out against, read through UITREE_LAYOUT_ROOT_W/H by ~25 call sites),
+ * `RS_CS2Host.viewport_w/h` (what CS2VM2_ThreadSetCanvas hands the VM, and
+ * therefore what GETCANVASSIZE and VIEWPORT_GETEFFECTIVESIZE return), and the
+ * SDL backbuffer (owned by the platform, resized by its caller). They used to be
+ * written independently and had already drifted: at a 1024x768 root, the
+ * gameframe's own layout script read 1024x768 from if_getwidth and 765x503 from
+ * viewport_geteffectivesize, and quietly laid a 765x503 viewport island out in
+ * the middle of the frame. Nothing errored. Write the canvas through here.
+ *
+ * Clamps to APP_CANVAS_MIN_*. Relayouts, dispatches every registered onResize
+ * listener (which is what makes the gameframe reflow rather than stretch), then
+ * relayouts again. Returns 1 if the size changed, 0 if it was already current.
+ */
+int
+App_SetCanvasSize(
+    struct App* app,
+    int width,
+    int height);
+
+/**
+ * Take a pending SETWINDOWMODE, if a clientscript issued one since the last
+ * call. Writes the new mode (enum CS2VM_WindowMode) to *out_mode and returns 1;
+ * returns 0 when nothing changed.
+ *
+ * The App deliberately does not act on it: fixed vs resizable is a statement
+ * about the *window*, and the App has no platform. The shell drains this and
+ * decides — which for this client is "stop tracking the window and go back to
+ * the fixed canvas", or "start tracking it". Same split as
+ * RS_CS2Host.close_modal_requested.
+ */
+int
+App_TakeWindowModeChange(
+    struct App* app,
+    int* out_mode);
 
 /** Construct all subsystems in dependency order. Asserts on failure (parity
  * with the previous bootstrap). */

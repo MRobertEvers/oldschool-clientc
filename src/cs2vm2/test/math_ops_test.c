@@ -179,6 +179,17 @@ main(void)
     CHECK(op2(CS2_OP_ADDPERCENT, 200, 10), 220, "ADDPERCENT(200,10)");
     CHECK(op2(CS2_OP_ADDPERCENT, 50, -10), 45, "ADDPERCENT(50,-10)");
 
+    /* ABS. Had no handler at all until 2026-08-02: it fell through to
+     * StackMetaStub, so before the cs2_command.gen.h bridge it aborted the
+     * script and after the bridge it would have answered 0 for every input --
+     * the wrong-but-plausible answer this test exists to rule out. INT_MIN is
+     * the wrap case: it has no positive counterpart, and the reference client
+     * wraps rather than saturating. */
+    CHECK(op1(CS2_OP_ABS, 7), 7, "ABS(7)");
+    CHECK(op1(CS2_OP_ABS, -7), 7, "ABS(-7)");
+    CHECK(op1(CS2_OP_ABS, 0), 0, "ABS(0)");
+    CHECK(op1(CS2_OP_ABS, -2147483647 - 1), -2147483647 - 1, "ABS(INT_MIN) wraps");
+
     /* BITCOUNT / TOGGLEBIT */
     CHECK(op1(CS2_OP_BITCOUNT, 0xFF), 8, "BITCOUNT(0xFF)");
     CHECK(op1(CS2_OP_BITCOUNT, 0), 0, "BITCOUNT(0)");

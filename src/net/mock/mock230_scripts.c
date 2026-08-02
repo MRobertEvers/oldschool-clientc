@@ -4263,6 +4263,27 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * if_closesub(component) — the inverse of if_opensub, naming the slot.
+     *
+     * Distinct from SS_OP_IF_CLOSE below, which is the reference's `if_close`
+     * and is specialised here to the chatbox modal because that is what every
+     * `[if_close]` caller in the tree means by it. A panel that mounted itself
+     * into `toplevel_osrs_stretch:mainmodal` has to name that component again
+     * to come out, and the note-the-mount bookkeeping the X and Escape read is
+     * done inside the encoder, so a close through here keeps CLOSE_MODAL right
+     * for free.
+     */
+    case SS_OP_IF_CLOSESUB:
+    {
+        int32_t com;
+
+        if( !SSVM_PopInt(state, &com) )
+            return 1;
+        mock230_send_if_closesub(srv->active_player, (int)com);
+        return 1;
+    }
+
     case SS_OP_IF_CLOSE:
         /* Unmounting is the whole message: the same on_sub_change hook that
          * hid `chatbox:chatdisplay` on the way in brings it back when the

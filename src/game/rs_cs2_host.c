@@ -642,6 +642,13 @@ RS_CS2Host_Init(
     host->event_key_typed = -1;
     host->viewport_w = 765;
     host->viewport_h = 503;
+    /* Boot mode. 161 (toplevel_osrs_stretch) is the root the manifest opens and
+     * the resizable-family gameframe, so resizable is what the client is in
+     * before any script says otherwise. App_Init republishes the canvas through
+     * App_SetCanvasSize immediately after this. */
+    host->window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
+    host->default_window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
+    host->window_mode_dirty = false;
     host->bridge = NULL;
     host->has_awaited = false;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
@@ -4113,6 +4120,42 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
         return exec_vars_read_varbit(host, vm, request->u.vars_read_varbit.varbit_id);
 
+    /* POP_VAR / POP_VARBIT — until 2026-08-02 both popped their value and
+     * returned OK, so every client-side var write in the cache vanished.
+     *
+     * This is deliberately fixed here, in the VM's var seam, and not in any one
+     * panel: the write is not a world-map feature. 510 of this cache's 9,433
+     * clientscripts write a varbit and 77 write a varp; the world map's key
+     * panel (script 1718 → varbit 5640) is simply the one that was measured.
+     * A per-panel workaround would have had to be written 587 more times.
+     *
+     * Optimistic: the client's own copy moves now, the server's authoritative
+     * copy (var_serv) does not — the reference does the same, and the server
+     * re-asserts with VARP_SMALL/LARGE when it disagrees.
+     *
+     * These deliberately do NOT go through RS_CS2Host_NotifyVarChanged. That
+     * feeds the var-transmit ring, which only the three server-packet handlers
+     * may touch (VarPManager_ServerUpdateFn's header states why): a widget
+     * whose transmit hook writes the same var would re-trigger itself forever
+     * — and the world map's key panel is exactly that shape, script 1717
+     * registering a transmit hook on varp 1568 while script 1718 writes
+     * varbit 5640 over it. VarPManager_SetVarpOptimistic still fires the
+     * plain ChangeFn, which is the non-recursive notification (loc transforms,
+     * UI invalidation) and is all a script write is entitled to. */
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR:
+        if( host->varps )
+            VarPManager_SetVarpOptimistic(
+                host->varps, request->u.vars_write_varp.varp_id, request->u.vars_write_varp.value);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
+        if( host->varps )
+            VarPManager_SetVarbitOptimistic(
+                host->varps,
+                request->u.vars_write_varbit.varbit_id,
+                request->u.vars_write_varbit.value);
+        return CS2VM_EXECNO_OK;
+
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
     {
         int id = request->u.vars_read_varc_int.varc_id;
@@ -4302,6 +4345,27 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_CLOSE:
         host->close_modal_requested = true;
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_SET_WINDOW_MODE:
+        /* Reject anything outside the dialect's own domain rather than
+         * resizing to a mode nothing names. */
+        if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
+            request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
+            return CS2VM_EXECNO_OK;
+        if( host->window_mode != request->u.window_mode.mode )
+        {
+            host->window_mode = request->u.window_mode.mode;
+            /* The canvas and the window are the App's; it drains this. */
+            host->window_mode_dirty = true;
+        }
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_SET_DEFAULT_WINDOW_MODE:
+        if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
+            request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
+            return CS2VM_EXECNO_OK;
+        host->default_window_mode = request->u.window_mode.mode;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG:

@@ -4553,6 +4553,22 @@ fail:
 }
 
 void
+ToriRS_GL3_SetViewport(
+    struct ToriRS_GL3* renderer,
+    int width,
+    int height)
+{
+    if( !renderer || width <= 0 || height <= 0 )
+        return;
+    if( renderer->width == width && renderer->height == height )
+        return;
+    renderer->width = width;
+    renderer->height = height;
+    /* proj2d is rebuilt from width/height at the top of every frame
+     * (trspk_mat4_ortho2d_top_left), so there is nothing else to do here. */
+}
+
+void
 ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 {
     if( !renderer )

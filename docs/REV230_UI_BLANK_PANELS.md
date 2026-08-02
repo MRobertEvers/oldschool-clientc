@@ -558,15 +558,27 @@ journal summary's cell layout, the world map opening and closing, and
 Open, in the order they block things:
 
 1. **Opcode 8007 `ARRAY_COUNT_MATCHES`** — the music tab, above.
-2. **The world map surface is black.** The panel, legend, search box, zoom
-   buttons and close button all draw; the map area does not. Separate from
-   "the world map won't open", and untouched here.
+2. ~~**The world map surface is black.**~~ **False as of the 2026-08-02
+   re-measure** — the surface renders Gielinor, its regions and its icons, and
+   has for some time; this line was never re-checked after the map's own work
+   landed. What was actually broken there is in
+   [`worldmap_and_gameframe_fixes.md`](worldmap_and_gameframe_fixes.md) §4, and
+   it was not the surface. Struck rather than deleted because a stale open item
+   is what someone reads *instead of* booting the client.
 3. **`test-ui-slots` and `test-db` fail**, and did before any of this — both
    assert on `[cache:boot] identity`, i.e. the test harness points at a cache
    without stating a profile.
 4. **A stale `src/build/net_transport_embed.o`** from an old `EMBED_SERVER=1`
    build breaks the link whenever a header it depends on changes. `rm` it. It is
    a build hazard, not a code one, but it looks like a code one.
+
+**Sibling case file.** [`REV230_UI_OWNERSHIP.md`](REV230_UI_OWNERSHIP.md) is the
+same exercise for four panels that drew the *wrong* thing rather than nothing —
+the chat input line, the "Use" selection outline, the bank's stack numbers, and
+input propagating through an open interface. Its unifying cause is different
+(two writers or none, per pixel), and one of its four is this file's §4 wearing
+different clothes: a second item-draw feature implemented only on the `TYPE_INV`
+grid path that rev 230 does not have.
 
 ---
 

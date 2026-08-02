@@ -463,6 +463,71 @@ app_worldmap_build_icons(
  * Returns false when it could not be drawn (yet), which the callers ignore: the
  * next frame asks again.
  */
+/*
+ * The flash marker drawn behind a flashing icon: a translucent yellow disc with
+ * an opaque white core, 30x30, built once and parked at a reserved scene id.
+ *
+ * It is synthesised rather than resolved by name because the cache has no flash
+ * marker to resolve. The `worldmap_marker_0..8` / `worldmap_marker_mini_0..2`
+ * packs are the *player-placed* map markers (marker_0 measures 37x37 and is the
+ * yellow X), not this. Nothing else in the sprite index names a flash asset, so
+ * there is no id to look up — and inventing one would be worse than drawing the
+ * shape. This mirrors the reference client wrapper, which composites the same
+ * disc itself for the same reason (widgets-gl.ts getWorldMapFlashTexture).
+ */
+static int
+app_worldmap_flash_marker_scene(struct App* app)
+{
+    enum
+    {
+        MARKER_SIZE = 30
+    };
+    uint32_t* argb;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+    int const radius = MARKER_SIZE / 2;
+    int const core = 7;
+
+    if( app->worldmap_flash_scene_id != 0 )
+        return app->worldmap_flash_scene_id;
+
+    app->worldmap_flash_scene_id = -1;
+    argb = calloc((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb));
+    if( !argb )
+        return -1;
+
+    for( int y = 0; y < MARKER_SIZE; y++ )
+    {
+        int dy = y - radius;
+        for( int x = 0; x < MARKER_SIZE; x++ )
+        {
+            int dx = x - radius;
+            int d2 = dx * dx + dy * dy;
+            if( d2 <= core * core )
+                argb[y * MARKER_SIZE + x] = 0xFFFFFFFFu; /* opaque white core */
+            else if( d2 <= radius * radius )
+                argb[y * MARKER_SIZE + x] = 0x80FFFF00u; /* half-alpha yellow halo */
+        }
+    }
+
+    sprite = ToriDraw_SpriteNewFromArgbOwned(argb, MARKER_SIZE, MARKER_SIZE);
+    if( !sprite )
+    {
+        free(argb);
+        return -1;
+    }
+    sprites = malloc(sizeof(*sprites));
+    if( !sprites )
+    {
+        ToriDraw_SpriteFree(sprite);
+        return -1;
+    }
+    sprites[0] = sprite;
+    ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID, sprites, 1);
+    app->worldmap_flash_scene_id = UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID;
+    return app->worldmap_flash_scene_id;
+}
+
 static bool
 app_worldmap_push_icon(
     struct App* app,
@@ -494,6 +559,13 @@ app_worldmap_push_icon(
             ToriRS_TaskQueue_Add(app->runner.queue, task);
         return false;
     }
+    /* The one seam both icon sources funnel through, so it is where the map's
+     * element-enable state gets its only consumer: WORLDMAP_DISABLEELEMENT(S)
+     * / _ELEMENTCATEGORY are write-only until something declines to draw. The
+     * key panel's five display toggles are exactly these calls. */
+    if( !RS_WorldMap_IconVisible(app->host.worldmap, element_id, element->category) )
+        return false;
+
     if( element->sprite_id < 0 )
         return false; /* label-only element: drawn as text, not yet implemented */
 
@@ -509,6 +581,26 @@ app_worldmap_push_icon(
     scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
     if( scene_id <= 0 )
         return false;
+
+    /* Flash marker first, so it lands *behind* the icon (tiles draw in push
+     * order). Reserve room for both, or the marker would be the last blit that
+     * fits and the icon would drop out. */
+    if( RS_WorldMap_ShouldFlashIcon(app->host.worldmap, element_id, element->category) &&
+        app->worldmap_tile_count + 1 < capacity )
+    {
+        int flash_scene = app_worldmap_flash_marker_scene(app);
+        if( flash_scene > 0 )
+        {
+            tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+            tile->scene_id = flash_scene;
+            tile->atlas_index = 0;
+            tile->w = 30;
+            tile->h = 30;
+            tile->scaled = 0;
+            tile->x = screen_x - tile->w / 2;
+            tile->y = screen_y - tile->h / 2;
+        }
+    }
 
     tile = &app->worldmap_tiles[app->worldmap_tile_count++];
     tile->scene_id = scene_id;
@@ -2392,6 +2484,12 @@ App_Init(
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
+    /* Publish the boot canvas through the one setter so the host's viewport
+     * copy starts out agreeing with the layout root. main.c may already have
+     * moved the root (TORIRS_ROOT_SIZE, which must be applied before App_Init
+     * because the open path lays out immediately); without this the host kept
+     * its own 765x503 and VIEWPORT_GETEFFECTIVESIZE lied for the whole run. */
+    App_SetCanvasSize(app, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     /* The skills tab reads levels and xp through STAT / STAT_BASE / STAT_XP,
      * which need somewhere to read them from. */
     RS_CS2Host_SetStats(&app->host, &app->stats);
@@ -8785,6 +8883,120 @@ App_DrainAudio(
     return ToriRS_AudioQueue_Drain(&app->audio_out, out, max);
 }
 
+/* Most a single canvas change dispatches. The gameframe registers one onResize
+ * per open interface root (script 901 does it for the toplevel; panels that lay
+ * themselves out register their own), so the real count is single digits — this
+ * is a "something is looping" bound, not a budget. */
+#define APP_RESIZE_HOOK_MAX 256
+
+/*
+ * Run every registered onResize listener in the tree.
+ *
+ * IF_SETONRESIZE is registered at open time and, until this existed, was only
+ * ever dispatched from two places: the script-driven if_callonresize queue, and
+ * IF_OPENSUB's step 8 — which is gated on `target_uid >= 0`, i.e. subs only, so
+ * an IF_OPENTOP root's listener was registered and never fired by anything but
+ * the boot path. A canvas change is the event those listeners are actually for.
+ *
+ * Ids are snapshotted before dispatch: a listener may cc_create or cc_delete
+ * (toplevel_resize's callees do both), which reallocates tree->components and
+ * invalidates any index held across the loop.
+ */
+static void
+app_dispatch_resize_hooks(struct App* app)
+{
+    int ids[APP_RESIZE_HOOK_MAX];
+    int n = 0;
+
+    assert(app);
+    if( !app->tree )
+        return;
+
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->runtime_hooks.on_resize.script_id <= 0 )
+            continue;
+        if( n >= APP_RESIZE_HOOK_MAX )
+        {
+            fprintf(stderr, "resize: more than %d onResize hooks; truncating\n", n);
+            break;
+        }
+        ids[n++] = c->component_id;
+    }
+
+    for( int i = 0; i < n; i++ )
+    {
+        int32_t idx = UITree_FindByComponentId(app->tree, ids[i]);
+        if( idx < 0 )
+            continue; /* a previous listener deleted it */
+        RS_CS2_DispatchHook(
+            &app->host,
+            &app->runner,
+            ids[i],
+            &app->tree->components[idx].runtime_hooks.on_resize);
+    }
+}
+
+int
+App_SetCanvasSize(
+    struct App* app,
+    int width,
+    int height)
+{
+    assert(app);
+
+    if( width < APP_CANVAS_MIN_W )
+        width = APP_CANVAS_MIN_W;
+    if( height < APP_CANVAS_MIN_H )
+        height = APP_CANVAS_MIN_H;
+
+    /* All three copies are tested, not just the layout one: they are set
+     * together here and nowhere else, so disagreement means somebody wrote one
+     * of them directly and this is where that gets repaired. */
+    if( width == UITREE_LAYOUT_ROOT_W && height == UITREE_LAYOUT_ROOT_H &&
+        app->host.viewport_w == width && app->host.viewport_h == height )
+        return 0;
+
+    UITree_LayoutSetRootSize(width, height);
+    app->host.viewport_w = width;
+    app->host.viewport_h = height;
+
+    if( app->tree && app->tree->component_count > 0 )
+    {
+        /* Resolve BEFORE dispatching: the listeners read their own box back
+         * through if_getwidth/if_getheight (toplevel_resize's very first
+         * statements), so they have to see the new size, not the old one. */
+        UITree_LayoutInvalidate(app->tree);
+        UITree_LayoutResolve(app->tree, 0, 0, width, height);
+        app_dispatch_resize_hooks(app);
+        /* And again after: the listeners are all if_setsize/if_setposition. */
+        UITree_LayoutInvalidate(app->tree);
+        UITree_LayoutResolve(app->tree, 0, 0, width, height);
+    }
+
+    app->need_redraw = 1;
+    if( getenv("TORIRS_RESIZE_DEBUG") )
+        fprintf(stderr, "canvas: %dx%d\n", width, height);
+    return 1;
+}
+
+int
+App_TakeWindowModeChange(
+    struct App* app,
+    int* out_mode)
+{
+    assert(app);
+    if( !app->host.window_mode_dirty )
+        return 0;
+    app->host.window_mode_dirty = false;
+    if( out_mode )
+        *out_mode = app->host.window_mode;
+    return 1;
+}
+
 void
 App_DrainCommands(
     struct App* app,
@@ -8812,6 +9024,14 @@ App_DrainCommands(
         case TORIRS_CMD_NET_STATUS:
             if( app->net )
                 ToriRS_Network_HandleCmd(app->net, header.type, payload, header.length);
+            break;
+        case TORIRS_CMD_WINDOW_RESIZE:
+            if( header.length >= sizeof(struct ToriRS_CmdWindowResize) )
+            {
+                struct ToriRS_CmdWindowResize const* cmd =
+                    (struct ToriRS_CmdWindowResize const*)payload;
+                App_SetCanvasSize(app, cmd->width, cmd->height);
+            }
             break;
         default:
             fprintf(stderr, "cmdbus: unhandled command type %u\n", header.type);

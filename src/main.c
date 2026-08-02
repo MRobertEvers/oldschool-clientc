@@ -307,10 +307,18 @@ static void
 sim_render_frame(struct App* app)
 {
     static int* sim_pixels = NULL;
+    static size_t sim_pixel_count = 0;
+    size_t const want = (size_t)UITREE_LAYOUT_ROOT_W * (size_t)UITREE_LAYOUT_ROOT_H;
 
-    if( !sim_pixels )
-        sim_pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
-    assert(sim_pixels);
+    /* Reallocated on growth: the canvas is no longer fixed for the life of the
+     * process, and App_Render writes exactly want ints. */
+    if( !sim_pixels || sim_pixel_count < want )
+    {
+        int* grown = realloc(sim_pixels, want * sizeof(int));
+        assert(grown);
+        sim_pixels = grown;
+        sim_pixel_count = want;
+    }
     App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
@@ -823,6 +831,65 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
+         * run a clientscript by id at that main-loop frame, with up to four
+         * int args.
+         *
+         * TORIRS_SIM_HOOK covers "click this component", which is the right
+         * harness whenever the component exists and its binding is in the
+         * tree. It does not cover a clientscript whose *binder* is missing:
+         * [clientscript,settings_client_mode] (3998), the Display panel's
+         * client-mode dropdown, is called from no script in a full decompile
+         * of cache.osrs239 and from no `onop=` in the content tree, so there
+         * is no component to click. Same shape as the RUNCLIENTSCRIPT packet
+         * path, which is also "run this id with these ints, no component". */
+        {
+            static char const* rs_cursor = NULL;
+            static int rs_init = 0;
+            static long rs_frame = -1;
+            static long rs_script = 0;
+            static int rs_argc = 0;
+            static int rs_argv[4];
+            if( !rs_init )
+            {
+                rs_init = 1;
+                rs_cursor = getenv("TORIRS_SIM_RUNSCRIPT");
+            }
+            if( rs_frame < 0 && rs_cursor && *rs_cursor )
+            {
+                char* end = NULL;
+                rs_frame = strtol(rs_cursor, &end, 0);
+                rs_argc = 0;
+                if( end && *end == ',' )
+                {
+                    rs_script = strtol(end + 1, &end, 0);
+                    while( rs_argc < 4 && end && *end == ',' )
+                        rs_argv[rs_argc++] = (int)strtol(end + 1, &end, 0);
+                    rs_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    rs_cursor = NULL;
+                    rs_frame = -1;
+                }
+            }
+            if( rs_frame >= 0 && frame_count >= rs_frame )
+            {
+                fprintf(
+                    stderr, "sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
+                RS_CS2_RunScript(
+                    &app.host,
+                    &app.runner,
+                    (int)rs_script,
+                    rs_argc > 0 ? rs_argv : NULL,
+                    rs_argc,
+                    0,
+                    NULL,
+                    0);
+                rs_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_TYPE="frame,c97,c108,k84": push key events at consecutive
          * main-loop frames starting at `frame`. Same grammar as the pre-loop
          * TORIRS_SIM_KEYS (c<character>, k<OSRS key code>), in-loop for the
@@ -1013,11 +1080,65 @@ frame_loop_step(void)
                 }
             }
         }
+
+        /* TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH...]": inject a window
+         * resize at the given main-loop frame. The only way to exercise
+         * the resize path headlessly — SDL_VIDEODRIVER=dummy never
+         * delivers a real SDL_WINDOWEVENT_SIZE_CHANGED, and the whole
+         * point of the path is what the gameframe's onResize scripts do
+         * after it, which is not observable from the window at all. */
+        {
+            static char const* sim_resize_cursor = NULL;
+            static int sim_resize_init = 0;
+            static long rz_frame = -1, rz_w, rz_h;
+            if( !sim_resize_init )
+            {
+                sim_resize_init = 1;
+                sim_resize_cursor = getenv("TORIRS_SIM_RESIZE");
+            }
+            if( rz_frame < 0 && sim_resize_cursor && *sim_resize_cursor )
+            {
+                char* end = NULL;
+                rz_frame = strtol(sim_resize_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    rz_w = strtol(end + 1, &end, 0);
+                    rz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
+                    sim_resize_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    sim_resize_cursor = NULL;
+                    rz_frame = -1;
+                }
+                if( rz_w <= 0 || rz_h <= 0 )
+                    rz_frame = -1;
+            }
+            if( rz_frame >= 0 && frame_count >= rz_frame )
+            {
+                fprintf(stderr, "sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
+                CmdBus_PushWindowResize(&bus, (int32_t)rz_w, (int32_t)rz_h);
+                rz_frame = -1;
+            }
+        }
     }
 
     LibToriRS_Input_Begin(input, now);
     App_DrainCommands(&app, &bus, input);
     LibToriRS_Input_End(input);
+
+    /* Reconcile the presentation surfaces with the canvas the drain just
+     * settled on. The canvas is the authority (App_SetCanvasSize clamps it to a
+     * floor the window does not respect), so the backbuffer is sized from it
+     * and never from the raw window — App_Render writes exactly
+     * UITREE_LAYOUT_ROOT_W x _H ints, so any disagreement here is a buffer
+     * overrun rather than a cosmetic bug. Below the floor the window letterboxes
+     * the clamped canvas, which is also what fixed mode does. */
+    PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#if defined(TORIRS_HAVE_GL3)
+    if( gl3 )
+        ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
 
     if( App_RunOnce(&app, now, input) )
         interactive_render_present(&app, sdl, gl3);
@@ -1027,6 +1148,33 @@ frame_loop_step(void)
 #endif
     else
         PlatformSDL2_Present(sdl);
+
+    /*
+     * A clientscript changed the window mode (the Display panel's client-mode
+     * dropdown is [clientscript,settings_client_mode], and its whole body is
+     * setwindowmode + setdefaultwindowmode). The App cannot act on it — it has
+     * no window — so the shell does:
+     *
+     *   resizable -> the canvas tracks the window from now on, starting with
+     *                the size the window already is
+     *   fixed     -> stop tracking and pin the canvas back to the fixed frame,
+     *                which the window then letterboxes
+     *
+     * Both go out as TORIRS_CMD_WINDOW_RESIZE rather than a direct call, so a
+     * mode flip is in the recorded stream and replays at the frame it happened.
+     */
+    {
+        int new_mode = 0;
+        if( App_TakeWindowModeChange(&app, &new_mode) )
+        {
+            bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+            fprintf(
+                stderr, "windowmode: %s\n", resizable ? "resizable" : "fixed");
+            PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, resizable);
+            if( !resizable )
+                CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+        }
+    }
 
     /* The game asked; the platform plays. Once per frame, after the tick
      * that queued the requests and before the next one recycles their

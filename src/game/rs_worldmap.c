@@ -703,6 +703,40 @@ RS_WorldMap_IsCategoryEnabled(
     return state && !id_set_contains(&state->disabled_categories, category_id);
 }
 
+bool
+RS_WorldMap_IconVisible(
+    struct RS_WorldMapState const* state,
+    int element_id,
+    int category_id)
+{
+    if( !state )
+        return false;
+    /* An element with no category (-1) is only ever gated by its own id and by
+     * the global switch — the reference short-circuits the category test the
+     * same way, so "hide category -1" cannot hide every uncategorised icon. */
+    return state->elements_enabled && RS_WorldMap_IsElementEnabled(state, element_id) &&
+           (category_id < 0 || RS_WorldMap_IsCategoryEnabled(state, category_id));
+}
+
+bool
+RS_WorldMap_ShouldFlashIcon(
+    struct RS_WorldMapState const* state,
+    int element_id,
+    int category_id)
+{
+    if( !state || !has_active_flashes(state) )
+        return false;
+    if( state->flash_cycle < 0 || state->cycles_per_flash <= 0 )
+        return false;
+    /* On for the first half of every cycle, off for the second — the blink is
+     * the cycle counter, which RS_WorldMap_Cycle advances once per client tick. */
+    if( state->flash_cycle % state->cycles_per_flash >= state->cycles_per_flash / 2 )
+        return false;
+    if( id_set_contains(&state->flashing_elements, element_id) )
+        return true;
+    return category_id >= 0 && id_set_contains(&state->flashing_categories, category_id);
+}
+
 void
 RS_WorldMap_FlashElement(
     struct RS_WorldMapState* state,

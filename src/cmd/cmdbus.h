@@ -41,6 +41,14 @@ enum ToriRS_CmdType
     TORIRS_CMD_NET_CONNECT = 32, /* "host:port" string, not NUL-terminated */
     TORIRS_CMD_NET_RECV = 33,    /* raw socket bytes */
     TORIRS_CMD_NET_STATUS = 34,  /* struct ToriRS_CmdNetStatus */
+
+    /* -> App. The window changed size and the client canvas has to follow it:
+     * the whole gameframe is laid out against the canvas, so this is a layout
+     * event, not a presentation one. On the bus (rather than a direct call)
+     * because a resize has to land in the same recorded/replayed stream as the
+     * input that happened around it — a replay of a session that was resized
+     * mid-way must resize at the same frame. */
+    TORIRS_CMD_WINDOW_RESIZE = 48, /* struct ToriRS_CmdWindowResize */
 };
 
 #pragma pack(push, 1)
@@ -89,6 +97,12 @@ struct ToriRS_CmdMouseWheel
 struct ToriRS_CmdNetStatus
 {
     int32_t status; /* enum ToriRS_NetConnStatus */
+};
+
+struct ToriRS_CmdWindowResize
+{
+    int32_t width;
+    int32_t height;
 };
 #pragma pack(pop)
 
@@ -194,6 +208,12 @@ int
 CmdBus_PushMouseWheel(
     struct ToriRS_CmdBus* bus,
     int16_t wheel_y);
+
+int
+CmdBus_PushWindowResize(
+    struct ToriRS_CmdBus* bus,
+    int32_t width,
+    int32_t height);
 
 int
 CmdBus_PushNetStatus(

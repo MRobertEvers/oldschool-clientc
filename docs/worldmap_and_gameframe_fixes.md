@@ -6,6 +6,7 @@ one where the *server* is the thing that decides what a click means.
 - [1. Opening the world map, and clicking on it](#1-opening-the-world-map-and-clicking-on-it)
 - [2. The inventory's third slot only drew while hovered](#2-the-inventorys-third-slot-only-drew-while-hovered)
 - [3. CS2 5504/5505/5506 — the orbit camera's angles](#3-cs2-550455055506--the-orbit-cameras-angles)
+- [4. The map's controls ran and changed nothing (2026-08-02)](#4-the-maps-controls-ran-and-changed-nothing-2026-08-02)
 - [Running two servers at once](#running-two-servers-at-once)
 
 References used throughout: `~/Documents/git_repos/OpenRune-Server` for what a
@@ -246,12 +247,19 @@ TORIRS_EXIT_BMP=/tmp/wm.bmp ./run-live.sh manifest_osrs230_alt.ini
 The three closing paths were checked separately: the orb again (toggles), the
 red X (595:38), and — with the gate above — neither of them teleporting.
 
-### Known gap
+### ~~Known gap~~ — corrected 2026-08-02
 
-Interface 595 measures itself through `IF_GETWIDTH(0x02530009)`, which returns
-0 where the cache says 573×403, so script 1750 takes its legal "surface not
-sized" branch. That is a layout-side defect in 595 that predates this work and
-is unrelated to the packets above.
+This used to say: *"Interface 595 measures itself through
+`IF_GETWIDTH(0x02530009)`, which returns 0 where the cache says 573×403, so
+script 1750 takes its legal 'surface not sized' branch."* **Measured, it returns
+318**, which is what 595:9's resolved box is:
+
+```
+CS2TRACE script=1750 pc=9 op=IF_GETWIDTH(2502) aw=0x02530009 itop=318
+```
+
+The gap does not exist. It is left here struck through rather than deleted
+because a wrong "known gap" is what someone reads *instead of* measuring.
 
 ---
 
@@ -430,6 +438,146 @@ getangle_xa -> 128        # the live orbit pitch, not a stub
 forceangle x=128 y=0      # Look North
 apply pitch=128 yaw=0     # consumed by app.c, written back to the orbit cam
 ```
+
+---
+
+## 4. The map's controls ran and changed nothing (2026-08-02)
+
+### The premise was mostly wrong, and that is the first result
+
+The brief said the world map's controls were dead and named four suspects.
+Measured against the tree before writing anything, **three of the four are
+refuted** and are recorded here so nobody spends the day on them again:
+
+| suspect | verdict |
+|---|---|
+| the floater swallows input | **refuted.** `TORIRS_SIM_HOVER` over every control returns a real component id (zoom_out `0x253001b`, zoom_in `0x253001c`, key_toggle `0x2530018`, overview `0x253001d`, search `0x253a293`, maplist `0x253a2d4`, key row `0x253a068`, close `0x2530026`), and `app_minimenu_run_option`'s `UI_MINIMENU_PICK_UI` arm fires on each |
+| an unimplemented `WORLDMAP_*` host op | **refuted.** All 44 `CS2_OP_WORLDMAP_*` and all 4 `CS2_OP_MEC_*` are handled in `exec_worldmap`/`exec_mec`; no `exec_worldmap: unhandled opcode` in any run |
+| a missing `IF_SETEVENTS` | **refuted / n/a.** Only 595:4 and 595:38 need arming and `mock230_worldmap.c` arms both. Every other control is pure-client CS2 (`if_setop` + `if_setonop` from scripts 1707/1717/1722/1730/1735) and correctly measures `events=0x0` |
+| the controls do nothing | **half true.** Zoom in/out, the key toggle, the search box, the map-area dropdown, the overview toggle and close all already worked. What did not was the key panel's five display toggles and every icon flash |
+
+The one thing that *was* broken is not a world-map feature at all.
+
+### `POP_VAR` and `POP_VARBIT` were silent no-ops
+
+`CS2VM2_Op_PopVar` and `CS2VM2_Op_PopVarbit` popped their value and returned
+`CS2VM_EXECNO_OK`. There was no `VARS_WRITE_VARP`/`VARS_WRITE_VARBIT` request
+kind at all — the reads existed, the varc writes existed, the varp writes did
+not. Measured on one click of the key panel's "Map labels" row, the write
+vanished between two adjacent instructions:
+
+```
+script=1718 pc=40 SETBIT      itop=4
+script=1718 pc=41 POP_VARBIT  intOp=5640      <- dropped on the floor
+script=1720 pc=0  PUSH_VARBIT intOp=5640 itop=0
+```
+
+**This is fixed in the VM's var seam, not in the world map, and that is the
+point.** 510 of this cache's 9,433 decompiled clientscripts write a varbit and
+77 write a varp; the key panel is simply the one that got measured. A per-panel
+workaround would have had to be written 587 more times.
+
+| file | change |
+|---|---|
+| `src/cs2vm2/cs2vm2_host.h` | `CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR` / `_VARS_WRITE_VARBIT` + their `{id, value}` payloads |
+| `src/cs2vm2/cs2vm2.c` | the two ops issue the request instead of dropping the value |
+| `src/game/rs_cs2_host.c` | dispatch to `VarPManager_SetVarpOptimistic` / `SetVarbitOptimistic` — which had **no callers** outside `main.c`'s cheat and the IF1 button path |
+
+**The trap, avoided deliberately:** these must *not* call
+`RS_CS2Host_NotifyVarChanged`. That feeds the var-transmit ring, and
+`VarPManager_ServerUpdateFn`'s header states why only the three server-packet
+handlers may: a widget whose transmit hook writes the var re-triggers itself
+forever. Script 1717 registers exactly such a hook on varp 1568 while script
+1718 writes varbit 5640 over it, so this would have looped on the first click.
+`SetVarpOptimistic` fires the plain `ChangeFn`, which is the correct
+non-recursive notification and is all a script write is entitled to.
+
+Writes are **optimistic** — `var_serv` is untouched, so a server-authoritative
+varp diverges until the server re-asserts it. That is the reference's behaviour;
+it is also the largest piece of unexercised surface this change opens up.
+
+### The flash / enable state had no renderer
+
+`RS_WorldMap_FlashCategory` / `FlashElement` / `SetElementEnabled` /
+`SetCategoryEnabled` all wrote real state, `cycle_flash` advanced it, and
+**nothing ever read it**: `RS_WorldMap_IsElementEnabled` /
+`IsCategoryEnabled` / `ElementsEnabled` had no callers except the three CS2
+getters. So `worldmap_flashelementcategory` ran, the row greyed itself, and the
+map did not move.
+
+Two readers, ported one-for-one from `WorldMapArea.isIconVisible` /
+`.shouldFlashIcon`, consumed at the one seam both icon sources funnel through
+(`app_worldmap_push_icon`, `src/app.c`):
+
+- `RS_WorldMap_IconVisible(state, element, category)` — gate before the sprite
+  load; `category < 0` short-circuits, so "hide category -1" cannot hide every
+  uncategorised icon.
+- `RS_WorldMap_ShouldFlashIcon(state, element, category)` — pushes a marker tile
+  **before** the icon (tiles draw in push order), reserving room for both so the
+  marker cannot be the last blit that fits.
+
+### The flash marker is synthesised, and here is why that is not laziness
+
+The plan's hypothesis was that the marker is a cache sprite resolvable by name
+through the pack. It is not. The candidates — `worldmap_marker_0..8` and
+`worldmap_marker_mini_0..2` — are the **player-placed** map markers:
+`worldmap_marker_0` measures 37×37 and is the yellow X. No sprite in the index
+names a flash asset. So there is no id to look up, and inventing one would be
+strictly worse than drawing the shape.
+
+`app_worldmap_flash_marker_scene` composites a 30×30 half-alpha yellow disc with
+an opaque white core once, into the reserved scene id
+`UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID` (`0x40000004`) — a *scene* id, not a
+cache id, the same device `UITREE_SCENE_WORLD_MAP_SPRITE_ID` already uses. The
+reference client wrapper composites the same disc for the same reason
+(`widgets-gl.ts` `getWorldMapFlashTexture`).
+
+### Verified in the client, on pixels
+
+Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
+
+1. **The varbit latches.** `TORIRS_SIM_CLICK_AT="150,704,140;300,46,241"` —
+   `script=1720 pc=0 PUSH_VARBIT 5640 itop=4` (was `itop=0`), and 1720 takes the
+   `.cc_setop(1, "Enable")` / `cc_sethide(false)` branch instead of the
+   `"Disable"` one. On screen the "Map labels" row gains its red-X indicator.
+2. **It round-trips.** A second click on the same row clears the X and leaves
+   the other four rows untouched — so the read-modify-write through the base
+   varp preserves the neighbouring bits.
+3. **The flash renders.** `…;300,46,103` (the Bank key row) runs
+   `WORLDMAP_FLASHELEMENTCATEGORY` with category 1055; a `TORIRS_BMP_SERIES`
+   strip shows the yellow disc appearing behind the bank icons on the on-half of
+   each cycle and gone on the off-half, then stopping after `max_flash_count`.
+4. **The visibility gate is live, proven by mutation.** Flipping
+   `state->elements_enabled` to `false` at init drops `TORIRS_WORLDMAP_DEBUG`'s
+   blit count from **91 → 25** (25 = the region tiles alone, 66 icons filtered).
+   Reverted immediately; this is recorded because a gate that is never observed
+   to fail is indistinguishable from dead code.
+5. **No regression.** Zoom in/out, key toggle, map-area dropdown, overview,
+   search and close all still behave; the gameframe, combat/skills/emote tabs
+   and the chat all unchanged.
+
+### What is still open here
+
+- **The "Map labels" toggle cannot visibly filter anything yet**, and that is a
+  different bug. It targets `category_1129`, and all 877 of that category's
+  records declare `sprite=-1` — label-only elements, which
+  `app_worldmap_push_icon` still drops at `element->sprite_id < 0` ("not yet
+  implemented"). The toggle now latches and reaches
+  `worldmap_disableelementcategory` with the right argument; there is simply
+  nothing drawn for it to hide. Implementing the text branch is the fix.
+- **Map-element hover/click is absent.** `map->event_element` /
+  `event_coord1` / `event_coord2` are set to -1 and written nowhere, so no
+  `worldmap_element` trigger can fire and the icon-tooltip scripts (1703/1704)
+  can never run — which is why the "Icon tooltips" toggle is also inert. It
+  needs per-icon hit boxes plus a widened `RSCache_MapElement` (ops 10..14,
+  target name 17, the visibility varbits 9/20 are parsed and discarded today).
+- **The overview panel is grey** because `overview_display` 595:12 declares
+  `clientcode=1401` and `uitree_build.c` maps only 1337/1338/1339/1400.
+- **The whole gameframe sits 21px left** (161:1..161:18 resolve at abs x=-21),
+  which clips the map's left border.
+- `mock230_pack --check-only` reports 1445 errors, **1428 of them one file** —
+  `ladders_stairs/configs/ladders.loc` unknown categories, from another lane's
+  in-flight content. Nothing in this change touches content.
 
 ---
 

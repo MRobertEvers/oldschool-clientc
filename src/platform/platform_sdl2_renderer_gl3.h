@@ -20,6 +20,16 @@ ToriRS_GL3_New(int width, int height);
 void
 ToriRS_GL3_Free(struct ToriRS_GL3* gl3);
 
+/** Point the renderer at a new canvas size (client resize). Only the GL
+ *  viewport and the 2D ortho projection depend on it — the atlases, VBO pool
+ *  and pose table are size-independent, so nothing is reallocated. No-op when
+ *  the size is unchanged. */
+void
+ToriRS_GL3_SetViewport(
+    struct ToriRS_GL3* gl3,
+    int width,
+    int height);
+
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,

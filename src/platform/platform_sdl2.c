@@ -24,6 +24,14 @@ struct PlatformSDL2
      * the old behaviour for headless and dev runs. */
     bool esc_quits;
     bool use_opengl;
+    /* Resizable mode: the backbuffer IS the window, so a window resize reallocs
+     * pixels/texture and the client relayouts at the new size. Fixed mode keeps
+     * a 765x503 backbuffer and letterboxes it into whatever the window is — the
+     * fixed gameframe is 765x503 by definition, so scaling is the correct answer
+     * there and reflowing is not. Default false: the boot size is the fixed
+     * canvas until something (the window-mode op, or TORIRS_SIM_RESIZE) says
+     * otherwise. */
+    bool canvas_follows_window;
 };
 
 static enum LibToriRS_KeyCode
@@ -545,6 +553,84 @@ PlatformSDL2_SetTitle(
     SDL_SetWindowTitle(platform->window, title);
 }
 
+bool
+PlatformSDL2_Resize(
+    struct PlatformSDL2* platform,
+    int width,
+    int height)
+{
+    SDL_Texture* texture;
+    int* pixels;
+    size_t pixel_count;
+
+    assert(platform);
+    if( width <= 0 || height <= 0 )
+        return false;
+    if( width == platform->width && height == platform->height )
+        return false;
+    /* GL mode has no CPU backbuffer to resize — the caller still updates the
+     * renderer's viewport, which is the whole of a GL resize. */
+    if( platform->use_opengl )
+    {
+        platform->width = width;
+        platform->height = height;
+        return true;
+    }
+
+    assert(platform->renderer);
+    texture = SDL_CreateTexture(
+        platform->renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        width,
+        height);
+    if( !texture )
+    {
+        fprintf(stderr, "SDL_CreateTexture (resize) failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    pixel_count = (size_t)width * (size_t)height;
+    pixels = malloc(pixel_count * sizeof(int));
+    if( !pixels )
+    {
+        fprintf(stderr, "resize: failed to allocate %dx%d pixel buffer\n", width, height);
+        SDL_DestroyTexture(texture);
+        return false;
+    }
+    memset(pixels, 0, pixel_count * sizeof(int));
+
+    /* Swap only after both allocations succeeded: a failed resize must leave a
+     * drawable window behind, not a NULL backbuffer. */
+    if( platform->texture )
+        SDL_DestroyTexture(platform->texture);
+    free(platform->pixels);
+    platform->texture = texture;
+    platform->pixels = pixels;
+    platform->width = width;
+    platform->height = height;
+    return true;
+}
+
+void
+PlatformSDL2_SetCanvasFollowsWindow(
+    struct PlatformSDL2* platform,
+    struct ToriRS_CmdBus* bus,
+    bool follow)
+{
+    int window_w = 0;
+    int window_h = 0;
+
+    assert(platform);
+    platform->canvas_follows_window = follow;
+    if( !follow || !platform->window )
+        return;
+
+    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    if( bus && window_w > 0 && window_h > 0 )
+        CmdBus_PushWindowResize(bus, window_w, window_h);
+}
+
 void
 PlatformSDL2_MapMouse(
     struct PlatformSDL2* platform,
@@ -616,6 +702,15 @@ PlatformSDL2_PollCommands(
     int pending_osrs = -1;
     int pending_mods = 0;
     int pending_repeat = 0;
+    /*
+     * A window drag emits a SIZE_CHANGED per mouse-move, and each one would cost
+     * a backbuffer realloc plus a whole-tree relayout plus every gameframe
+     * onResize script. Coalesce them: remember the last size seen in this poll
+     * batch and apply it once, after the loop. One apply per frame, which is the
+     * rate the client can actually consume.
+     */
+    int pending_resize_w = -1;
+    int pending_resize_h = -1;
 
     assert(platform);
     assert(bus);
@@ -695,6 +790,16 @@ PlatformSDL2_PollCommands(
                 pending_mods = 0;
                 CmdBus_Push(bus, TORIRS_CMD_INPUT_CLEAR_KEYS, NULL, 0);
             }
+            /* SIZE_CHANGED, not RESIZED: RESIZED fires only for user-driven
+             * resizes, and a programmatic SDL_SetWindowSize (what the window-mode
+             * op does) has to relayout too. */
+            else if(
+                event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED &&
+                platform->canvas_follows_window )
+            {
+                pending_resize_w = event.window.data1;
+                pending_resize_h = event.window.data2;
+            }
             break;
         case SDL_MOUSEBUTTONDOWN:
             PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
@@ -729,6 +834,18 @@ PlatformSDL2_PollCommands(
      * key after all. */
     if( pending_osrs >= 0 )
         CmdBus_PushKeyEvent(bus, pending_osrs, 0, pending_repeat);
+
+    /* The coalesced resize. Pushed after the input above so a click that landed
+     * at the old size is applied at the old size, exactly as it was seen.
+     *
+     * Only the command goes out here — the backbuffer is NOT resized to the
+     * window. The client clamps the canvas (APP_CANVAS_MIN_*), so the canvas is
+     * the authority on the backbuffer's size and the caller reconciles the two
+     * after draining. Resizing to the raw window size here would put the
+     * backbuffer below the canvas whenever the user drags past the floor, and
+     * App_Render would write off the end of it. */
+    if( pending_resize_w > 0 && pending_resize_h > 0 )
+        CmdBus_PushWindowResize(bus, pending_resize_w, pending_resize_h);
 }
 
 void

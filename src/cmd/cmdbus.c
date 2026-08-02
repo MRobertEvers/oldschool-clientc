@@ -206,6 +206,16 @@ CmdBus_PushMouseWheel(
 }
 
 int
+CmdBus_PushWindowResize(
+    struct ToriRS_CmdBus* bus,
+    int32_t width,
+    int32_t height)
+{
+    struct ToriRS_CmdWindowResize cmd = { width, height };
+    return CmdBus_Push(bus, TORIRS_CMD_WINDOW_RESIZE, &cmd, sizeof(cmd));
+}
+
+int
 CmdBus_PushNetStatus(
     struct ToriRS_CmdBus* bus,
     int32_t status)

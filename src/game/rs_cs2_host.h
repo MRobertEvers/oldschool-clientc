@@ -219,8 +219,20 @@ struct RS_CS2Host
     struct VarCManager* varcs; /* client-variable store; may be NULL */
 
     int client_clock;
+    /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
+     *  return. One of three copies of the canvas size — write it through
+     *  App_SetCanvasSize, never here, or the layout and the scripts that read it
+     *  back disagree (app.h says what that looks like). */
     int viewport_w;
     int viewport_h;
+    /** Window mode (enum CS2VM_WindowMode), backing GET/SETWINDOWMODE and their
+     *  `default` siblings. `window_mode_dirty` is raised by a SET and drained by
+     *  the App, which owns the canvas and the SDL window — same shape as
+     *  `close_modal_requested`. The default pair is what the client would come
+     *  up in next boot; nothing persists it yet. */
+    int window_mode;
+    int default_window_mode;
+    bool window_mode_dirty;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */

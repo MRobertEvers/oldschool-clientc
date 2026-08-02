@@ -332,6 +332,14 @@ struct CS2VM2_Thread
     /* Host-provided canvas size for GETCANVASSIZE / viewport ops. */
     int canvas_w;
     int canvas_h;
+
+    /* Host-provided window mode for GETWINDOWMODE / GETDEFAULTWINDOWMODE, in
+     * the CS2 `windowmode` domain (see CS2VM_WINDOW_MODE_*). Snapshotted per
+     * thread the same way the canvas is; the SET ops write the host through a
+     * host request and update this so a script that sets then reads within one
+     * run sees its own write. 0 = the host never said, treated as resizable. */
+    int window_mode;
+    int default_window_mode;
 };
 
 struct CS2VM2
@@ -530,6 +538,12 @@ CS2VM2_ThreadSetCanvas(
     struct CS2VM2_Thread* thread,
     int w,
     int h);
+
+void
+CS2VM2_ThreadSetWindowMode(
+    struct CS2VM2_Thread* thread,
+    int mode,
+    int default_mode);
 
 int
 CS2VM2_ThreadStart(

@@ -955,6 +955,13 @@ For any substantial task, in this order:
    - ServerScript → [`serverscript.md`](serverscript.md)
    - UI-facing features → [`REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md),
      [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md)
+   - anything that reads or writes the client canvas size, the gameframe
+     layout, or the window mode →
+     [`gameframe_layout_resize.md`](gameframe_layout_resize.md). Its §2 is the
+     three-copies trap (the canvas existed as three independently-written
+     variables and had already silently drifted); its §8 is the one part still
+     open, the fixed/resizable **toplevel** switch (161 ↔ 548), which needs a
+     packet, a per-mode mount table in content, and a real root swap.
    - **implementing a specific interface → §5.4's table**, then that
      interface's own `*_server_reqs.md`. Read §5.4's four generalisations
      before the doc itself; they apply to every interface, not just the one

@@ -62,6 +62,10 @@ struct UITreeSceneBridge
  * (out of the bridge's next_scene_id range, which counts up from 1). */
 #define UITREE_SCENE_WORLD_MAP_SPRITE_ID 0x40000001
 
+/* Reserved scene sprite id for the world map's flash marker. Synthesised, not
+ * decoded from the cache — see app_worldmap_flash_marker_scene. */
+#define UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID 0x40000004
+
 /* Reserved scene model id for the composited local-player chathead. */
 #define UITREE_SCENE_PLAYER_HEAD_ID 0x40000002
 

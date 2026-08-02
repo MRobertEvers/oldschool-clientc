@@ -224,6 +224,27 @@ RS_WorldMap_IsCategoryEnabled(
     struct RS_WorldMapState const* state,
     int category_id);
 
+/**
+ * The two questions the *renderer* asks per icon, and the only consumers the
+ * disable/flash state has. Without them WORLDMAP_DISABLEELEMENT* and
+ * WORLDMAP_FLASHELEMENT* are write-only: the CS2 side runs, the map does not
+ * change. `category` is the element config's category, or -1 when it has none.
+ *
+ * Reference: WorldMapArea.isIconVisible / .shouldFlashIcon.
+ */
+bool
+RS_WorldMap_IconVisible(
+    struct RS_WorldMapState const* state,
+    int element_id,
+    int category_id);
+
+/** True on the "on" half of the current flash cycle, for a flashing icon. */
+bool
+RS_WorldMap_ShouldFlashIcon(
+    struct RS_WorldMapState const* state,
+    int element_id,
+    int category_id);
+
 void
 RS_WorldMap_FlashElement(
     struct RS_WorldMapState* state,
