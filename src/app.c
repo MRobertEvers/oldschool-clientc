@@ -1792,6 +1792,18 @@ app_host_request(
         /* Reference draws stack counts with the client's p11 — same font (and
          * same load-on-miss self-heal) as the hitsplat numbers. */
         return app_hitsplat_font_scene_id(app);
+    case UITREE_HOST_GET_INV_SELECTION:
+        /* The armed (component, slot), for a cell that cannot name its own
+         * addressing — a CS2 `cc_create`d item child, whose protocol identity
+         * is its static parent's uid plus its index. Same shape as
+         * GET_INV_DRAG: report the identity, let emit match the node. */
+        if( !app->objsel.active )
+            return 0;
+        if( req->u.get_inv_selection.out_component_id )
+            *req->u.get_inv_selection.out_component_id = app->objsel.component_id;
+        if( req->u.get_inv_selection.out_slot )
+            *req->u.get_inv_selection.out_slot = app->objsel.slot;
+        return 1;
     case UITREE_HOST_GET_INV_SELECT_ICON:
         /* Reference TYPE_INV draw: only the slot armed for "Use" (useMode==1,
          * matching objSelectedSlot + objSelectedComId) gets the white outline.
@@ -4523,6 +4535,20 @@ app_world_mouse_gate(
      * and the mouse cannot hittest the scene through the gaps between the
      * modal's components (e.g. the empty space between a shop's item slots). */
     if( app->slots.main_modal_id != -1 )
+        return 0;
+    /*
+     * The same rule for the era where that slot state does not exist.
+     *
+     * `slots.main_modal_id` is written by the IF1 packet path and seeded from a
+     * revconfig-baked tree; a rev-230 tree is the cache's own IF3 gameframe and
+     * has neither, so the check above is dead there and every interface the
+     * server mounted was transparent to the world. `UITree_PointBlocksWorld`
+     * asks the tree instead of the slot table: a modal (IF_OPENSUB type 0)
+     * mount or a `noClickThrough` layer over this point stops the world, which
+     * is the reference's own test and covers the bank, the world map and the
+     * chatbox chrome without naming any of them.
+     */
+    if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
         return 0;
     /* Clickable UI wins over the world; pass-through layers with hover scripts
      * do not. */
@@ -10448,10 +10474,20 @@ App_WorldApplyPlayerAppearance(
                     &local_idx,
                     NULL) &&
                 local_idx == world_idx )
+            {
                 strncpy(
                     app->chat.username,
                     appearance->name,
                     sizeof(app->chat.username) - 1);
+                /* Same string to the CS2 host, which answers CHAT_PLAYERNAME
+                 * with it — clientscript 223 builds the chatbox input line
+                 * from that op, so the two spellings have one source. */
+                snprintf(
+                    app->host.local_player_name,
+                    sizeof(app->host.local_player_name),
+                    "%s",
+                    appearance->name);
+            }
         }
     }
     app_sync_textures(app);

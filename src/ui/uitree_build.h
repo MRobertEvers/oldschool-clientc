@@ -29,6 +29,8 @@ struct UIBuildComponent
     int base_height;
     int scroll_height;
     int scroll_width;
+    /** LAYER only (dat2 noClickThrough): input stops at this layer. */
+    uint8_t no_click_through;
     uint8_t if3;
     int8_t x_mode;
     int8_t y_mode;

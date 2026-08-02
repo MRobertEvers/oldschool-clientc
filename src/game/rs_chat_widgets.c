@@ -228,6 +228,10 @@ RS_ChatWidgets_Apply(
      * The trailing `*` is the reference's caret. It is unconditional there —
      * there is no blink — so a missing one reads as the chatbox not having
      * focus, which at 230 it always does.
+     *
+     * Off by default, and rev 230 leaves it off: there the line belongs to
+     * clientscript 223 and writing it here only overwrites what the script
+     * composed. See `input_child` in the header for the whole story.
      */
     if( layout->input_child >= 0 )
     {

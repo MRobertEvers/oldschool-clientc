@@ -1164,17 +1164,135 @@ emit_rs_inv_text_slots(
     }
 }
 
-/** Stack-count formatting (reference invNumber, Client.ts:10502): raw below
- * 100K, then "<n/1000>K" below 10M, then "<n/1000000>M". */
+/*
+ * Stack-count formatting, colour included.
+ *
+ * The band arithmetic is the 254 client's `invNumber` (Client.ts:10502) — raw
+ * below 100K, "<n/1000>K" below 10M, "<n/1000000>M" above — and it did not
+ * change. What this used to miss is that the modern client does not draw the
+ * three bands in one colour: `Inv.formatObjAmount` (rt4 `Inv.java:264`) wraps
+ * each band in its own tag,
+ *
+ *     < 100K   <col=ffff00>  yellow
+ *     < 10M    <col=ffffff>  white
+ *     >= 10M   <col=00ff80>  green
+ *
+ * and hands the tagged string to `font.renderLeft(s, 0, 9, 16776960, 1)` — the
+ * yellow it passes is only the fallback for a string that carries no tag.
+ * Emitting the tag rather than resolving the colour here is the same choice
+ * REV230_UI_BLANK_PANELS §9 forced on `parawidth`: the renderer owns what a
+ * `<col=…>` means, and a second implementation of that drifts. Both back ends
+ * tokenise it (`font_draw_string_range`, `ToriDraw_FontVisitGlyphsStyled`) and
+ * both draw the shadow pass in black regardless of the tag, matching the
+ * reference's black-then-colour pair.
+ */
 static void
 uitree_emit_inv_number(int amount, char* buf, size_t cap)
 {
     if( amount < 100000 )
-        snprintf(buf, cap, "%d", amount);
+        snprintf(buf, cap, "<col=ffff00>%d</col>", amount);
     else if( amount < 10000000 )
-        snprintf(buf, cap, "%dK", amount / 1000);
+        snprintf(buf, cap, "<col=ffffff>%dK</col>", amount / 1000);
     else
-        snprintf(buf, cap, "%dM", amount / 1000000);
+        snprintf(buf, cap, "<col=00ff80>%dM</col>", amount / 1000000);
+}
+
+/*
+ * Is this node the item cell armed for "Use"?
+ *
+ * Two spellings, because a rev-230 cell is addressed the way the protocol
+ * addresses it: `app_obj_cell_at` resolves a backpack cell to its static
+ * PARENT's uid (149:0) plus the child's index, not to the runtime child's own
+ * id — the same (container, sub) pair IF_BUTTON carries. So a cell matches
+ * either directly (it IS the armed component) or as child `slot` of it. This
+ * is the identical test the drag path in emit_walk_node makes, and testing
+ * only the first form is why that one changed nothing on its first attempt.
+ */
+static int
+uitree_emit_node_is_armed_cell(
+    struct UITree const* tree,
+    struct UITreeComponent const* c,
+    int armed_component,
+    int armed_slot)
+{
+    if( armed_component < 0 )
+        return 0;
+    if( c->component_id == armed_component )
+        return 1;
+    if( !c->dynamic || c->dynamic_child_index != armed_slot )
+        return 0;
+    if( c->parent < 0 || (uint32_t)c->parent >= tree->component_count )
+        return 0;
+    return tree->components[c->parent].component_id == armed_component;
+}
+
+/*
+ * Swap a cell's icon for its white-outlined variant while it is armed for "Use".
+ *
+ * The rev-230 cell is a CS2 `cc_create`d type-5 graphic carrying the obj, drawn
+ * by the generic path — and the generic path never asked. The swap existed only
+ * in `emit_rs_inv_slots`, the TYPE_INV grid, which rev 230 does not have: the
+ * same shape of bug as the missing stack counts (REV230_UI_BLANK_PANELS §4),
+ * one draw feature implemented against the era's dead widget.
+ *
+ * Reference: the item sprite is baked with an outline *state* —
+ * `Inv.renderObjectSprite` draws a value-1 edge at state >= 1 and a white ring
+ * on top at state >= 2 (rt4 `Inv.java:231`) — and the IF3 draw asks for
+ * `max(2, borderType)` on the selected cell against `borderType` on every other
+ * (xrsps `widgets-gl.ts:4180`; the bank's own onload sets borderType 1 with
+ * `cc_setoutline(1)`). Here the two states are two baked scene ids, so "raise
+ * the state" is "ask the host for the other id"; the host answers > 0 for the
+ * one armed (component, slot) and 0 for everything else, so nothing else can
+ * light up.
+ */
+static void
+emit_obj_selected_icon(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeComponent const* c,
+    struct UITreeEmitDesc* desc)
+{
+    int armed_component = -1;
+    int armed_slot = -1;
+    int obj_id = c->item_id;
+    int obj_count;
+    int outline_scene;
+
+    if( !host || !desc || obj_id <= 0 )
+        return;
+    /* Same two kinds emit_obj_stack_count accepts: a node with a stale item_id
+     * under a plain SETGRAPHIC sprite is not an item cell. */
+    if( desc->kind != UITREE_EMIT_CC_OBJ &&
+        !(desc->kind == UITREE_EMIT_SPRITE && c->item_scene_id > 0) )
+        return;
+
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_INV_SELECTION,
+            .u.get_inv_selection.out_component_id = &armed_component,
+            .u.get_inv_selection.out_slot = &armed_slot,
+        };
+        if( !UITree_Host(host, &req) )
+            return;
+    }
+    if( !uitree_emit_node_is_armed_cell(tree, c, armed_component, armed_slot) )
+        return;
+
+    obj_count = c->item_count > 0 ? c->item_count : 1;
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_INV_SELECT_ICON,
+            .u.get_inv_select_icon.com_id = armed_component,
+            .u.get_inv_select_icon.slot = armed_slot,
+            .u.get_inv_select_icon.obj_id = obj_id,
+            .u.get_inv_select_icon.count = obj_count,
+        };
+        outline_scene = UITree_Host(host, &req);
+    }
+    if( outline_scene <= 0 )
+        return;
+    desc->scene_id = outline_scene;
+    desc->atlas_index = 0;
 }
 
 /*
@@ -1188,8 +1306,21 @@ uitree_emit_inv_number(int amount, char* buf, size_t cap)
  *
  * `icon` is the desc just appended for the item, so the number inherits every
  * offset the icon took (scroll, drag, ghosting) by construction. Same
- * conventions as the grid path: p11 yellow with a drop shadow, baseline at
- * slotY+9 (our text box top sits one line above the baseline).
+ * conventions as the grid path: p11 with a drop shadow, colour from the tag
+ * `uitree_emit_inv_number` writes, and the baseline at `iconY + 9`.
+ *
+ * That 9 is not a nudge, and the number has to be *inside* the icon's box for
+ * the same reason the reference never has to think about it: over there the
+ * count is rasterised INTO the 36x32 item sprite (`Inv.renderObjectSprite` ->
+ * `font.renderLeft(text, 0, 9, …)`), so it is clipped by exactly whatever
+ * clips the icon and by nothing else. Here it is a sibling draw sharing the
+ * icon's clip rect, which is equivalent only while it stays inside the icon's
+ * own rows. It did not: the y was written as `iconY + 9 - 12`, "one line above
+ * the baseline", against a renderer whose box path puts the *glyph top* at the
+ * box y — so the digits drew three rows above the icon, and every stack in the
+ * bank's top row lost its top third to the scroll viewport's clip. Asking for
+ * baseline semantics (`text_baseline`) states the reference's number directly
+ * and takes the ascent guess out of it.
  */
 static void
 emit_obj_stack_count(
@@ -1249,10 +1380,13 @@ emit_obj_stack_count(
     count_desc.node_index = idx;
     count_desc.component_id = c->component_id;
     count_desc.x = icon->x;
-    count_desc.y = icon->y + 9 - 12;
+    count_desc.y = icon->y + 9;
+    count_desc.text_baseline = 1;
     count_desc.w = icon->w > 0 ? icon->w : 36;
     count_desc.h = 14;
     count_desc.font_id = font_id;
+    /* Fallback only: every string uitree_emit_inv_number writes carries its own
+     * <col=…>. Same value the reference passes (16776960). */
     count_desc.color = 0xFFFF00;
     count_desc.text_shadowed = 1;
     count_desc.trans = icon->trans;
@@ -1438,12 +1572,14 @@ emit_rs_inv_slots(
         desc.clip = *parent_clip;
         emit_buffer_append(out, &desc);
 
-        /* Stack count (reference: p11 yellow with a black drop shadow at
+        /* Stack count (reference: p11 with a black drop shadow, baseline at
          * (slotX+dx, slotY+9), drawn when the icon is stackable (owi==33) or
          * the count isn't 1). desc.x/y already carry every offset the icon
          * got — scroll, whole-node drag, armed-slot drag — so the number
          * rides along. Shadow is the font's +1/+1 pass (identical to the
-         * reference's black-then-yellow pair). */
+         * reference's black-then-colour pair). Baseline semantics and the
+         * per-band colour tag are shared with the CS2 item path above; see
+         * emit_obj_stack_count for why neither is a box measurement. */
         if( obj_id > 0 && count_font_id >= 0 )
         {
             int stackable = 0;
@@ -1464,13 +1600,12 @@ emit_rs_inv_slots(
                 count_desc.node_index = idx;
                 count_desc.component_id = c->component_id;
                 count_desc.x = desc.x;
-                /* Reference y is the p11 baseline at slotY+9; our text box
-                 * top sits one line up (same convention as TYPE_INV_TEXT). */
-                count_desc.y = desc.y + 9 - 12;
+                count_desc.y = desc.y + 9;
+                count_desc.text_baseline = 1;
                 count_desc.w = slot_w;
                 count_desc.h = 14;
                 count_desc.font_id = count_font_id;
-                count_desc.color = 0xFFFF00;
+                count_desc.color = 0xFFFF00; /* fallback; the string is tagged */
                 count_desc.text_shadowed = 1;
                 uitree_emit_inv_number(
                     obj_count, count_desc.text_formatted,
@@ -1601,18 +1736,7 @@ child_is_interface_parent_mount(
     int container_uid,
     struct UITreeComponent const* child)
 {
-    int mi;
-    int group;
-    if( !child || container_uid < 0 )
-        return 0;
-    group = (child->component_id >> 16) & 0xffff;
-    for( mi = 0; mi < tree->interface_parent_count; mi++ )
-    {
-        if( tree->interface_parents[mi].container_uid == container_uid &&
-            tree->interface_parents[mi].group_id == group )
-            return 1;
-    }
-    return 0;
+    return UITree_ChildMountType(tree, container_uid, child) >= 0;
 }
 
 static void
@@ -1925,6 +2049,7 @@ emit_walk_node(
                 desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
                 desc.clip.x + desc.clip.w);
+        emit_obj_selected_icon(tree, host, c, &desc);
         emit_buffer_append(out, &desc);
         emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);
     }

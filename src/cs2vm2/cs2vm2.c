@@ -7356,6 +7356,7 @@ CS2VM2_Op_Chat(
     case CS2_OP_CHAT_GETFILTER_PUBLIC:
     case CS2_OP_CHAT_GETFILTER_PRIVATE:
     case CS2_OP_CHAT_GETFILTER_TRADE:
+    case CS2_OP_CHAT_PLAYERNAME:
         break;
     case CS2_OP_CHAT_SETFILTER:
         if( CS2VM2_PopInt(vm, &request.u.chat.trade_mode) != CS2VM_EXECNO_OK )
@@ -8903,6 +8904,7 @@ CS2VM2_RunOp(
     case CS2_OP_CHAT_GETFILTER_TRADE:
     case CS2_OP_CHAT_SETFILTER:
     case CS2_OP_CHAT_SENDPRIVATE:
+    case CS2_OP_CHAT_PLAYERNAME:
     case CS2_OP_DOCHEAT:
         return CS2VM2_Op_Chat(vm, opcode);
     case CS2_OP_MAP_WORLD:

@@ -115,6 +115,7 @@ UITree_FillBuildFromToriRS(
     dst->base_height = src->if3 ? src->base_height : src->height;
     dst->scroll_height = src->scroll_height;
     dst->scroll_width = src->scroll_width;
+    dst->no_click_through = src->no_click_through;
     dst->if3 = src->if3;
     dst->x_mode = src->x_mode;
     dst->y_mode = src->y_mode;

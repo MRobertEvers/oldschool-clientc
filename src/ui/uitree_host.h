@@ -176,6 +176,20 @@ enum UITreeHostRequestKind
      * armed "Use" selection, else 0 — emit swaps it in for the plain icon.
      */
     UITREE_HOST_GET_INV_SELECT_ICON,
+    /**
+     * Which cell is armed for "Use" (reference useMode / objSelectedComId /
+     * objSelectedSlot). Returns 1 while a selection is live and writes the
+     * (component, slot) pair naming it; returns 0 otherwise.
+     *
+     * The pair is what the protocol addresses a cell by — a CS2 `cc_create`d
+     * cell reports its static PARENT's uid plus its index within it, never the
+     * runtime child's own id — so a caller matches a node the same two ways
+     * GET_INV_DRAG's caller does. The grid path does not need this: it already
+     * knows the (component, slot) of every slot it draws and can ask
+     * GET_INV_SELECT_ICON directly. A dynamic cell does not know its own slot's
+     * addressing without walking to its parent, which is what this saves.
+     */
+    UITREE_HOST_GET_INV_SELECTION,
 };
 
 /*
@@ -267,6 +281,11 @@ struct UITreeHostRequest
             int obj_id;
             int count;
         } get_inv_select_icon;
+        struct
+        {
+            int* out_component_id;
+            int* out_slot;
+        } get_inv_selection;
         struct
         {
             int slot;

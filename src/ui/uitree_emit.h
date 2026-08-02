@@ -103,6 +103,15 @@ struct UITreeEmitDesc
     int text_y_align;     /* v_align 0/1/2 */
     int text_shadowed;
     int text_line_height;
+    /** Baseline text: `y` is the reference `PixFont.drawString` y — the bottom
+     *  of the line box, from which the renderer subtracts the font's line
+     *  height — instead of the top of a w x h alignment box. Set it for any
+     *  draw the reference expresses as `font.drawString(s, x, y)` /
+     *  `renderLeft(s, x, y, …)`; `text_center`/`text_y_align`/`w`/`h` do not
+     *  apply. Anything else has to guess the font's ascent, and guessing it as
+     *  the line height is what put the item stack count three pixels above the
+     *  icon it belongs inside. */
+    int text_baseline;
     /* Sprite blit params (interfacex-aligned). */
     uint8_t if3;
     uint8_t tiled;

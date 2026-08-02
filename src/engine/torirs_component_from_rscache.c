@@ -373,6 +373,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     {
         dst->scroll_height = src->scrollHeight;
         dst->scroll_width = src->scrollWidth;
+        dst->no_click_through = src->noClickThrough ? 1 : 0;
     }
     if( src->type == TORIRS_COMPONENT_LINE )
         dst->line_horizontal = src->lineDirection ? 1 : 0;

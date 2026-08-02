@@ -3968,6 +3968,16 @@ exec_chat(
     case CS2_OP_CHAT_GETFILTER_TRADE:
         return CS2VM2_PushInt(vm, modes ? modes[RS_UI_CHAT_FILTER_TRADE] : 0);
 
+    case CS2_OP_CHAT_PLAYERNAME:
+        /* The local player's display name. Reference `localPlayer.name`; here
+         * the same string the chat model echoes with, so a public line and the
+         * input line above it cannot spell the player differently. Through the
+         * pool like every other VM string — a plain pointer would be freed as
+         * one when the script ends. */
+        if( host->local_player_name[0] )
+            return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, host->local_player_name));
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
     case CS2_OP_CHAT_SETFILTER:
     {
         struct RS_CS2SocialSend send;

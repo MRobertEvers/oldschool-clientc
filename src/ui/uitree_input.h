@@ -88,6 +88,33 @@ UITree_HitTestInteractive(
     int py);
 
 /**
+ * Does the interface stop input reaching the world at this point?
+ *
+ * This is the reference's `isPointOverWidget` — "should the UI consume a world
+ * click here" — and it is a *different* question from
+ * `UITree_HitTestInteractive`, which asks "is there a widget that wants the
+ * click". A bank's dark background wants nothing and must still swallow the
+ * click, the hover text and the wheel; a hovered chat line wants the click and
+ * must not swallow the wheel. Gating the world on the interactive hit alone is
+ * why "Walk here" appeared over an open bank and why scrolling the bank's item
+ * pane also zoomed the camera behind it.
+ *
+ * Two things block, matching the reference exactly (rt4
+ * `Cs1ScriptRunner:542` / `InterfaceList:666`, xrsps
+ * `findBlockingWidgetInHits`): a `noClickThrough` layer covering the point, and
+ * the root of a modal (IF_OPENSUB type 0) sub-interface mount. Overlay mounts
+ * (type 1 — the world map floater, the XP tracker) do not block unless they
+ * raise `noClickThrough` themselves, which is how the reference keeps them
+ * click-through.
+ */
+int
+UITree_PointBlocksWorld(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py);
+
+/**
  * Collect every menu-relevant node under (px,py), TOP-MOST FIRST: interactive
  * nodes plus RS_INV/RS_INV_TEXT grids (whose rows come from inventory slots).
  * Applies the same visibility / clip / scroll / no_click_through rules as

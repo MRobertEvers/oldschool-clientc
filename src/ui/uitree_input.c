@@ -141,6 +141,25 @@ UITree_ComponentIsPassThrough(
  * no_click_through geometrically contains the point, *out_blocks is set so the
  * caller discards anything rendered *under* this subtree (mirrors the reference's
  * collectWidgetsAtPoint noClickThrough slice — a modal panel eats click-through).
+ *
+ * `*out_blocks_world` answers a second, wider question the world gate asks:
+ * does the interface stop input reaching the SCENE here, whether or not any
+ * widget wanted the click itself. Two things set it, and they are the two the
+ * reference has (xrsps `findBlockingWidgetInHits`, which is `isPointOverWidget`
+ * — "should the UI consume this world click"):
+ *
+ *   - a `noClickThrough` layer covering the point. In the reference this is
+ *     the cache field on type-0 records, decoded beside scrollWidth/Height, and
+ *     `Cs1ScriptRunner:542` resets the whole minimenu to Cancel when one is
+ *     under the pointer — i.e. it discards the world rows the scene pass added.
+ *   - the root of a **modal** sub-interface mount (IF_OPENSUB type 0). This is
+ *     what makes an open bank opaque: `bankmain` declares `noclickthrough` only
+ *     on small inner layers (capacity, tag popups, dropdown), never on its own
+ *     root, so the flag alone does not cover the panel. The mount type does.
+ *
+ * It deliberately does NOT include "some widget here is interactive" — the
+ * caller already tests that separately, and folding the two would make a
+ * hovered chat line block the wheel.
  */
 static int32_t
 hit_test_interactive_recursive(
@@ -153,11 +172,14 @@ hit_test_interactive_recursive(
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
-    int* out_blocks)
+    int* out_blocks,
+    int* out_blocks_world)
 {
     assert(tree);
     if( out_blocks )
         *out_blocks = 0;
+    if( out_blocks_world )
+        *out_blocks_world = 0;
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return -1;
 
@@ -210,6 +232,14 @@ hit_test_interactive_recursive(
     /* A no_click_through node covering the point blocks click-through to nodes
      * rendered underneath it (even if the node itself is a passthrough container). */
     int blocks = (point_in_self && component->no_click_through) ? 1 : 0;
+    int blocks_world = blocks;
+
+    if( point_in_self && !blocks_world && component->parent >= 0 &&
+        (uint32_t)component->parent < tree->component_count )
+        blocks_world = UITree_ChildMountType(
+                           tree,
+                           tree->components[component->parent].component_id,
+                           component) == 0;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -256,9 +286,11 @@ hit_test_interactive_recursive(
          child = tree->components[child].next_sibling )
     {
         int child_blocks = 0;
+        int child_blocks_world = 0;
         int32_t child_hit = hit_test_interactive_recursive(
             tree, host, child, px, py,
-            child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks);
+            child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks,
+            &child_blocks_world);
         /* Later siblings render on top. A blocking child also discards this
          * node's own hit and earlier siblings. */
         if( child_blocks )
@@ -268,10 +300,16 @@ hit_test_interactive_recursive(
         }
         else if( child_hit >= 0 )
             hit = child_hit;
+        /* World blocking only accumulates: a sibling drawn later cannot un-block
+         * what an earlier one covered, because both are still on screen. */
+        if( child_blocks_world )
+            blocks_world = 1;
     }
 
     if( out_blocks )
         *out_blocks = blocks;
+    if( out_blocks_world )
+        *out_blocks_world = blocks_world;
     return hit;
 }
 
@@ -527,7 +565,7 @@ UITree_HitTestInteractive(
         if( !UITree_RootIsDisplayable(tree, root) )
             continue;
         root_hit = hit_test_interactive_recursive(
-            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks);
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, NULL);
         /* Later roots render on top. A no_click_through root captures the point
          * and discards hits from roots underneath (even if it has no hit itself). */
         if( root_blocks )
@@ -537,6 +575,33 @@ UITree_HitTestInteractive(
     }
 
     return hit;
+}
+
+int
+UITree_PointBlocksWorld(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py)
+{
+    assert(tree);
+    if( tree->root_index < 0 )
+        return 0;
+
+    for( int32_t root = tree->root_index; root >= 0;
+         root = tree->components[root].next_sibling )
+    {
+        int root_blocks = 0;
+        int root_blocks_world = 0;
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
+        (void)hit_test_interactive_recursive(
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, &root_blocks_world);
+        if( root_blocks_world )
+            return 1;
+    }
+
+    return 0;
 }
 
 struct UIInputResult

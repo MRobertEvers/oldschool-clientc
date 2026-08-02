@@ -1112,6 +1112,7 @@ UITree_Push(
      * grows one is duplicated instead of aliased into the node. */
     uitree_menu_options_copy(&component->menu_options, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
+    component->no_click_through = spec->no_click_through;
     component->hotkey_effects = spec->hotkey_effects;
 
     if( spec->has_position )
@@ -2727,6 +2728,28 @@ UITree_InterfaceParentIsMountedGroup(
             return 1;
     }
     return 0;
+}
+
+int
+UITree_ChildMountType(
+    struct UITree const* tree,
+    int container_uid,
+    struct UITreeComponent const* child)
+{
+    int group;
+    int i;
+
+    assert(tree);
+    if( !child || container_uid < 0 )
+        return -1;
+    group = (child->component_id >> 16) & 0xffff;
+    for( i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( tree->interface_parents[i].container_uid == container_uid &&
+            tree->interface_parents[i].group_id == group )
+            return tree->interface_parents[i].type;
+    }
+    return -1;
 }
 
 int

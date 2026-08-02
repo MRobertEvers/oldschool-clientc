@@ -63,6 +63,9 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_RS_LAYER;
         spec.u.rs_layer.scroll_height = comp->scroll_height;
         spec.u.rs_layer.scroll_width = comp->scroll_width;
+        /* The cache states this on layers and only on layers; CS2 may raise it
+         * on anything later (if_/cc_setnoclickthrough). */
+        spec.no_click_through = comp->no_click_through;
         break;
 
     case UIBUILD_RECT:

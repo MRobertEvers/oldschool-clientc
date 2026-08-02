@@ -634,6 +634,7 @@ translate_ui_cmd(
         out->u.font.y_align = desc->text_y_align;
         out->u.font.line_height = desc->text_line_height;
         out->u.font.shadowed = desc->text_shadowed;
+        out->u.font.baseline = desc->text_baseline;
         /* CS1 %N expansion supersedes the raw cache text when present. */
         out->u.font.text = desc->text_formatted[0] ? desc->text_formatted : desc->text;
         out->u.font.scissor_x = desc->clip.x;

@@ -691,6 +691,14 @@ struct ToriRS_Component
     int scroll_height;
     /** dat2 scrollWidth. Layer content width; 0 = no horizontal scroll. */
     int scroll_width;
+    /** dat2 noClickThrough — a LAYER-only field, decoded beside scrollWidth /
+     *  scrollHeight. The reference treats it as "input stops here": a layer
+     *  carrying it swallows whatever is drawn underneath it (rt4
+     *  `Cs1ScriptRunner:542` resets the minimenu to Cancel; `InterfaceList:666`
+     *  unlinks the pending wheel dispatches). See UITreeComponent
+     *  no_click_through, which until now only CS2's if_/cc_setnoclickthrough
+     *  could set. */
+    uint8_t no_click_through;
     /** IF3 layout base rect (dat2 baseX/baseY/baseWidth/baseHeight). */
     int base_x;
     int base_y;

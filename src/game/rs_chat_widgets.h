@@ -46,7 +46,32 @@ struct RS_ChatWidgetLayout
     int first_line;
     /** How many line components the interface ships. */
     int line_count;
-    /** The typed-input line (`chatbox:input`). -1 to leave it alone. */
+    /**
+     * The typed-input line (`chatbox:input`). **-1 at rev 230, and that is not
+     * "unset" — it is the answer.**
+     *
+     * The scrollback is ours because nothing else writes it. The input line is
+     * not: at this revision the whole typed line is a clientscript. The
+     * chatbox root carries an onKey hook (script 73) that edits
+     * `%varcstring335` character by character and ends by calling `~script223`,
+     * which composes `<mode icon><chat_playername>: <col=…><typed></col>` plus
+     * the `*` caret, sets the colour, shadow, alignment and ops, and does
+     * `if_settext(…, interface_162:57)` itself — including the "You must set a
+     * name before you can chat" branch when varbit 8119 is clear. Submitting is
+     * script 73's too (`docheat` for `::`, `~script5517` for a public line).
+     *
+     * Writing this component from C therefore does not *add* a line, it
+     * *overwrites* one, every frame, right before emit — and what it wrote was
+     * built from `RS_Chat.input`, which at rev 230 is always empty because the
+     * C key path is gated on `slots.chat_index`, a revconfig-baked tag a cache
+     * gameframe does not have. The result was a chatbox that showed
+     * `name: *` forever while the characters really were arriving, being
+     * echoed by the script, and being sent on Enter — a live input line with a
+     * dead one painted over it.
+     *
+     * Set it only for a revision whose chatbox is widgets AND whose scripts do
+     * not own the input line. No such revision is known.
+     */
     int input_child;
     /** Pixels per line — the height the line components declare. */
     int line_height;

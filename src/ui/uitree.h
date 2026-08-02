@@ -767,6 +767,8 @@ struct UITreeNodeSpec
     int dynamic_child_index;
     uint8_t has_position;
     uint8_t slot_tag; /* enum UITreeSlotTag */
+    /** dat2 noClickThrough on a LAYER; CS2 can also raise it later. */
+    uint8_t no_click_through;
     struct UITreeElemPosition position;
     struct UITreeBehavior const* behavior;
 
@@ -1402,6 +1404,25 @@ int
 UITree_InterfaceParentIsMountedGroup(
     struct UITree const* tree,
     int group_id);
+
+/**
+ * Mount type of `child` when it is the root of a sub-interface mounted under
+ * `container_uid` (0 modal, 1 overlay, 3 tab/sidemodal — IF_OPENSUB's own
+ * argument), or -1 when it is an ordinary child.
+ *
+ * The distinction is load-bearing beyond draw order: type 0 is the reference's
+ * input-capture mount (xrsps `findBlockingWidgetInHits` treats an
+ * InterfaceParent of type 0 exactly like a `noClickThrough` layer), which is
+ * what stops the world being hovered, clicked and wheel-zoomed through an open
+ * bank. Type 1 deliberately does not — the world map floater and the XP
+ * tracker both mount as overlays and are click-through unless they raise
+ * `noClickThrough` themselves.
+ */
+int
+UITree_ChildMountType(
+    struct UITree const* tree,
+    int container_uid,
+    struct UITreeComponent const* child);
 
 /** 1 if a top-level root should be shown/hovered/clicked; 0 for an unplaced
  *  orphan interface group (auto-mounted for CS2 property access, not displayed). */

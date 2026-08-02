@@ -190,6 +190,18 @@ struct RS_CS2Host
     int* chat_filter_mode;
     /** This client's world id, backing MAP_WORLD. Mirrors RS_Social.node_id.  */
     int map_world;
+    /**
+     * The local player's display name, backing CHAT_PLAYERNAME (5015).
+     *
+     * The one script that made this matter is 223, the chatbox input line:
+     * `<icon><chat_playername>: <col=0000ff><typed></col>*`. An empty answer
+     * there is not "no name" — the leading colon still draws, so the line reads
+     * `: hello*` and looks like a rendering bug rather than a missing opcode.
+     * Mirrors `RS_Chat.username`, which the client learns from its own
+     * PLAYER_APPEARANCE (the same source the reference's `localPlayer.name`
+     * has), so the two cannot disagree.
+     */
+    char local_player_name[RS_CS2_HOST_SOCIAL_NAME_LEN];
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     bool has_pending;
