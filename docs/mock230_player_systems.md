@@ -6,6 +6,11 @@ because they turned out to share one problem — **at rev 230 the client asks th
 server for permission far more often than older revisions did, and a component
 the server never armed is inert no matter what the cache says about it.**
 
+A fifth, **XP drops (§5)**, is written up here because it is the same symptom —
+a panel that appears to do nothing — with an entirely unrelated cause, and
+because the *wrong* diagnosis of it stood for two lanes. That correction is
+worth more than the fix was.
+
 Read [`osrs230_mockserver.md`](osrs230_mockserver.md) first for the protocol and
 the tick; this is only what sits on top.
 
@@ -29,10 +34,14 @@ New `::` commands, all for the headless harness (`TORIRS_NET_CHEAT=`):
 | `::run [0\|1]` | run toggle — the client only sets it with ctrl held |
 | `::pray <0-28>` | toggle a prayer by its index in the book's button order (18 = Protect from Melee); grants the level it needs. A `[debugproc,pray]` in content, not an engine branch — see §4.1 |
 | `::equipstats` | open the equipment-stats screen without walking the sidebar |
+| `::xp <stat> <amount>` | grant experience inline. `[debugproc,xp]` — see §5.6 |
+| `::xpdrop <amount>` | a repeating three-skill burst every 8 ticks, which is the shape a real hit produces. **Queued, not inline**, because the XP-drop listener snapshots experience when it is armed and a grant that beats login is invisible |
+| `::xpqueue <amount>` | push drops through the panel's *other* input, the server-pushed varc queue, granting no experience. The only way to reach that path from this tree |
 
 New env knobs: `TORIRS_OPS_DEBUG=1` (which script wrote which verb onto which
 component), `TORIRS_STATIC_SPRITE_DEBUG=1` (which chrome sprite packs bound, and
-which did not).
+which did not), `TORIRS_STAT_DEBUG=1` (which stat-transmit hook fired on which
+serial — §5.3).
 
 ---
 
@@ -478,7 +487,224 @@ player's head, and clicking a prayer button in the tab arrives as
 
 ---
 
-## 5. Where things live
+## 5. XP drops, and a diagnosis that stood for two lanes
+
+The XP-drop panel is **interface 122**, mounted into the gameframe's clientCode
+**1354** (`CONTENT_XP_DROPS`) slot. It is not a builtin: 1354 is an empty layer
+in gameframes 80/161/164/548/601, and 122 is an ordinary cache interface that
+mounts there. Nothing about it is server-drawn.
+
+**What it cost: two lanes, both of which worked on the wrong thing**, because
+the blocker had been written down in `PORTING_GUIDE.md` §5.2 as a finding when
+it was only ever a hypothesis. The fix, once the measurement was taken, is four
+characters.
+
+### 5.1 The panel's two inputs
+
+Both live in the cache, and only one of them is on the path a mock xp gain takes.
+
+| input | armed by | entered as | who writes it |
+| --- | --- | --- | --- |
+| **stat transmit** | `script1003`'s `if_setonstattransmit` on `122:2` | `script1004(0, …)` | the client, by diffing `stat_xp(stat_N)` against baselines it was handed |
+| **varc queue** | `script1003`'s `if_setontimer` | `script1004(1, …)` | `script2091`, a `runclientscript` target — the **server-pushed** path, which nothing in this tree sends |
+
+`script993` is the onload; it initialises varcints 953..966 to `-1`. 953..959
+are a seven-deep queue of stat ids, 960..966 the paired xp amounts.
+
+Structure, from `TORIRS_DUMP_TREE_EXIT=1`: `122:3..10` is the XP-counter plaque
+(graphics 297 + 222, text `122:10`); `122:17` → `122:18..24` are **seven drop
+rows**, each given one `cc_create`d text child plus up to five skill-icon
+graphics by the onload.
+
+### 5.2 What §5.2 of the porting guide claimed, and why all four clauses are false
+
+> "XP drops — blocked on one client bug… the remaining work is the
+> non-terminating varc queue-shift loop in script 1004 (`xpdrops_stattransmit`,
+> varcs 953..966) — plus re-arming the listener… **Fix the VM loop, not the
+> server.**"
+
+Decompiled (`3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev
+osrs239 1004`) and traced, none of it holds:
+
+- **The loop terminates, and is bounded at 7 by construction.** Its induction
+  variable is `%varcint953`, not the output counter `$int36` — `$int36` counts
+  *accepted* drops and is incremented inside a filter, which is what makes it
+  look unbounded to a reader. Each pass shifts 953..959 and 960..966 one slot
+  left with a seven-wide parallel assignment and feeds `-1` into the tail, so
+  953 reaches `-1` in at most seven passes whatever the payload is.
+- **A stat transmit never enters it.** The loop is under `if ($int0 = 1)` —
+  the *timer* entry. A stat transmit is `$int0 = 0` and takes the `else`.
+- **Nothing populates that queue anyway.** Its only writer is `script2091`, and
+  nothing in the tree sent it until `::xpqueue` was written to (§5.6).
+- **`TORIRS_XP_DROPS` never existed.** `grep -rn TORIRS_XP_DROPS src/` is empty
+  and always was; the gate named in §5.2 was never written. Registration of
+  `IF_SETONSTATTRANSMIT` is unconditional.
+- **Re-arming was already done.** The long comment at `task_cs2_run.c`'s
+  `self->hook_count = self->host->stat_transmit_hook_count;` describes the
+  snapshot that *fixed* a dispatch-loop hang, not outstanding work. Its phrase
+  *"the client hangs: no crash, no error, just a frame that never completes"* is
+  the likely origin of the whole story — a **dispatch**-loop hang, long since
+  fixed, re-attributed in prose to a **script** loop.
+
+Measured against the VM rather than argued: over one traced run, script 1004 was
+entered 1026 times and returned 1026 times, and **the loop body was entered
+zero times** (the `$int0 = 1 & %varcint953 = -1` guard returns after seven
+opcodes). Driving the queue with `::xpqueue`: 554 invocations, 554 returns, two
+loop tests, one body pass, exit 0. Across 1004/1003/1005/1006 the trace contains
+**zero `_unknown` opcodes and zero `result=error`**.
+
+The four traps this project has recorded in exactly this area were each checked
+and each is absent:
+
+| trap | status here |
+| --- | --- |
+| an unimplemented opcode is a silent no-op, so a counter never reaches its bound | not present — zero `_unknown`, zero `result=error`; `CC_DELETE` (the one recorded as missing) is implemented and running in `script1006` |
+| rev-239 arrays are handles held in string locals | handled — `DEFINE_ARRAY` operands `83` and `65641`; `'S'`(83) ≠ `'s'`(115) at the `cs2vm2.c` test, so the stat array is correctly an int array, two distinct handles |
+| `POP_ARRAY_INT` popped index and value backwards, invisible on symmetric fills | already fixed, and 1004's writes are maximally asymmetric — it would be loud here, not invisible |
+| `CS2VM_MAX_FRAMES` had to be 50 | now 128 (raised for the rev-239 spellbook sort's depth-70 recursion); 1004's deepest chain is two frames |
+
+Also checked, because it is the trap that killed the quest tab: the hook carries
+**35 int arguments** against `CS2VM_SETON_INT_ARG_MAX = 64`. No truncation.
+
+### 5.3 The actual defect: the pump's guard
+
+`RS_CS2_PumpTransmits` (`src/game/rs_cs2_dispatch.c`) had two enumerations of
+the same set of dirty flags — an early-return guard at the top and a clear-down
+at the bottom — and they had drifted:
+
+```c
+/* before */
+if( !host->widgets_loaded_dirty && !host->var_transmit_dirty &&
+    !host->inv_transmit_dirty && !host->misc_transmit_dirty &&
+    !host->friend_transmit_dirty )
+    return;                          /* stat_transmit_dirty is missing */
+```
+
+`stat_transmit_dirty` **was** in the clear-down and was never a guard key. The
+stat branch landed after the guard was written; `misc` and `friend` were each
+appended later, each appending only itself. So a tick carrying only
+`UPDATE_STAT` — no varp, no container, no run-energy change, which is exactly
+what an xp gain is — took the early return, **and kept the flag**, because the
+clear-down is past the return. It sat set until something unrelated opened the
+guard, then fired once for everything behind it.
+
+Measured with temporary instrumentation at the guard (since reverted), typing
+`::setlevel 0 50` at frame 400: **447 consecutive ticks** held `stat_transmit_dirty`
+at the guard on serial 25, and the dispatch that eventually ran came on serial
+26 — two stat changes delivered as one hook call. With the fix, serial 25 gets
+its own dispatch on the tick it arrives, and the run's total stat dispatches
+went 14 → 13. No storm.
+
+The var dispatch survives the same guard only by accident: it is created
+*unconditionally* below it, so any flag opening the guard runs it. The stat
+dispatch sits inside its own `if( host->stat_transmit_dirty )`.
+
+### 5.4 It was never "draws nothing" — it was *merged*
+
+This is the part that made the diagnosis go wrong, and it is the transferable
+lesson. Same content, same cheat (`::xpdrop 12000` = 1,200 per skill per burst,
+one burst per 8 ticks), reading the **exit BMP** — not a tree dump — at three
+frames:
+
+| frame | old guard | fixed guard |
+| --- | --- | --- |
+| 830 | empty | `1,200` ×3 |
+| 845 | empty | `1,200` ×3 |
+| 860 | **`3,600` ×3** — three bursts collapsed into one row | `1,200` ×3 |
+
+Script-1004 dispatch serials for the same runs (`TORIRS_STAT_DEBUG=1`, hook 5,
+`com=0x7a0002` = interface 122 child 2):
+
+```
+old guard:  15, 28, 31,     37
+fixed:      15, 28, 31, 34, 37      <- serial 34 was swallowed into 37
+```
+
+The panel is empty most of the time and occasionally shows a lump of the
+accumulated total. **Sampling one frame — which is what a headless harness does
+— lands in a starved gap and reads as "the panel draws nothing."** An earlier
+lane's frame-845 observation of "all seven rows `hidden=1`, `text=""`" was real;
+it was a gap, not a dead panel. Meanwhile the *counter* kept updating in both
+builds, so the panel looked half-alive and the drops looked like a render bug.
+
+Why merged rather than lost: `script1003`'s `if_setonstattransmit` carries **no
+`{...}` trigger list**, so `trigger_count == 0` and it matches any stat change;
+the twenty-four `stat_xp(stat_N)` terms in the hook string are *arguments* — the
+baselines captured at arm time — not triggers. `script1004` re-arms itself with
+fresh baselines every run, so a delayed dispatch cannot drop experience, only
+sum it into the next row at the wrong moment. (The dispatch comment that called
+them triggers was wrong and is corrected in place.)
+
+### 5.5 The fix, and the gate
+
+The guard is no longer hand-written. One table, `rs_cs2_dirty_flags()`, feeds
+both the guard (`RS_CS2_TransmitsPending`) and — via
+`assert(!RS_CS2_TransmitsPending(host))` at function exit — the clear-down. A
+flag added to the table becomes a guard key automatically; a flag that gains a
+guard key but no clear-down now aborts instead of re-dispatching forever, which
+is the dual of the original bug.
+
+```c
+/* after */
+if( !RS_CS2_TransmitsPending(host) )
+    return;
+```
+
+**`make -C src test-cs2-transmit-pump`** (`src/game/test/rs_cs2_transmit_pump_test.c`,
+six files, no cache and no server). It sets each dirty flag **alone** — the only
+shape in which this bug is visible, since any second flag opens the guard and
+everything downstream looks correct — and asserts that it opens the guard, is
+consumed, and queues a dispatch. The stat case is driven through the real
+`RS_CS2Host_NotifyStatChanged`. The flag count is pinned, so a seventh flag
+fails the test until a case is added for it.
+
+Proven to fail by mutation, three ways — a test that cannot fail is not a gate:
+
+| mutation | result |
+| --- | --- |
+| restore the literal pre-fix guard | 5 failures, all on the stat path |
+| drop `stat_transmit_dirty` from the table | 7 failures, including the pinned count |
+| drop `stat_transmit_dirty` from the clear-down | abort: `Assertion failed: (!RS_CS2_TransmitsPending(host))` |
+
+### 5.6 The cheats, and why two of them queue
+
+`server/scripts/general/scripts/misc/cheat_xp.rs2` — three `[debugproc]`s, the
+same shape as `::pray` (§4.1), content and not engine.
+
+`::xp <stat> <amount>` grants inline. `::xpdrop` and `::xpqueue` both **queue**
+with an 8-tick delay instead, for a reason specific to this panel: the listener
+snapshots each skill's experience *when it is armed*, and the onload zeroes the
+varc queue, so anything that lands before login settles is either invisible or
+wiped. `::xpdrop` hits three combat skills at once because the panel merges
+simultaneous drops into one row and a single skill would not exercise that.
+
+`::xpqueue` exists only to reach the timer path — it sends
+`runclientscript(2091, <stat>, <xp>)` three times, granting nothing. The
+clientscript id lives in content (`configs/cheat_xp.constant`,
+`^clientscript_xpdrop_enqueue = 2091`), not in C. **This is what made §5.2's
+loop testable at all**, and it is how the loop was shown to terminate rather
+than argued to.
+
+### 5.7 Deliberately not done
+
+- **No server packet and no ServerScript opcode was added.** The instruction was
+  right on this one point even though its diagnosis was not: this was a client
+  bug, and the server's `RS_CS2Host_NotifyStatChanged` on `UPDATE_STAT` was
+  correct throughout.
+- **The var and inv dispatches still re-read their hook bound inside the loop
+  condition** (`Task_CS2VarTransmitDispatch_Run`, `task_cs2_run.c`). Only the
+  stat dispatch snapshots it. That is the hang the stat path already had; it is
+  latent for the other two and was left alone rather than changed unmeasured.
+- **`CC_SETONSTATTRANSMIT` (1415) is still parse-and-discard** in `cs2vm2.c`,
+  alongside `CC_SETONRELEASE` — the exact shape of the bug that was fixed for
+  the `IF_` form. Three cache scripts use it (`5724`, `6902`, `9680`); none is
+  on the XP-drop path, which uses `if_setonstattransmit`.
+- **The blank-panel ladder was not run.** The panel was never blank; see
+  `REV230_UI_BLANK_PANELS.md` §1's step 0, added because of this.
+
+---
+
+## 6. Where things live
 
 | file | what |
 | --- | --- |
@@ -492,3 +718,8 @@ player's head, and clicking a prayer button in the tab arrives as
 | `skill_prayer/` (content) | prayers: the dbtable, the toggle, the drain, `::pray` |
 | `src/net/mock/mock230_world.c` | run energy, worn-slot map, the `::` commands |
 | `src/net/mock/mock230_objinfo.c` | obj weight from the cache |
+| `src/game/rs_cs2_dispatch.{c,h}` | the dirty-flag table, `RS_CS2_TransmitsPending`, the pump — §5.3 |
+| `src/game/test/rs_cs2_transmit_pump_test.c` | `test-cs2-transmit-pump`, one flag at a time |
+| `src/game/rs_cs2_host.c` | stat-transmit hook registry, `RS_CS2Host_NotifyStatChanged` |
+| `src/game/task_cs2_run.c` | the transmit dispatch tasks, and the snapshotted hook bound |
+| `general/scripts/misc/cheat_xp.rs2` (content) | `::xp`, `::xpdrop`, `::xpqueue` — §5.6 |

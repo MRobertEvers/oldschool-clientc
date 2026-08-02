@@ -38,6 +38,14 @@ it:
 > **A panel whose interface IS mounted and which still draws nothing is a client
 > bug until proven otherwise.**
 >
+> 0. **Confirm it draws nothing at more than one frame.** A headless run samples
+>    a single exit frame, and a panel that is *starved* rather than dead reads
+>    identically at that frame. The XP-drop panel (interface 122) was diagnosed
+>    as blank for two lanes and was not: its dispatch was being held for hundreds
+>    of ticks and then delivered merged, so it was empty at frames 830 and 845
+>    and showed the summed value `3,600` at 860. Vary `TORIRS_MAX_FRAMES` before
+>    entering step 1 — one extra run, and it changes which subsystem you go
+>    looking in. See `mock230_player_systems.md` §5.4.
 > 1. `TORIRS_DUMP_TREE_EXIT=1` — is the interface in the tree at all, under the
 >    slot you expect? If not, it is a packet.
 > 2. `TORIRS_DUMP_BOUNDS=<group>` — is the geometry sane? A 190x261 sidebar
