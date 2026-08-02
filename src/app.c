@@ -3866,7 +3866,9 @@ app_logic_tick(struct App* app)
     /*
      * Social requests a CS2 script queued this tick (friend_add, ignore_del,
      * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
-     * which is what the name prompt's Enter key runs).
+     * which is what the name prompt's Enter key runs) plus docheat, the
+     * chatbox's own "::foo" handler (distinct from this function's
+     * TORIRS_NET_CHEAT hook above).
      *
      * Same split as if_close above: the CS2 host knows nothing about the
      * socket, so it parks the request and this is where it becomes a packet.
@@ -3923,6 +3925,10 @@ app_logic_tick(struct App* app)
                         &app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
                 }
                 app->need_redraw = 1;
+                break;
+            case RS_CS2_SOCIAL_SEND_CHEAT:
+                APP_NET_SEND(app, net_out_client_cheat(app->net->rev, app->net->random_out,
+                                                        _nsbuf, sizeof(_nsbuf), send.text));
                 break;
             default:
                 break;

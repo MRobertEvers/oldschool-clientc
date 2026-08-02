@@ -515,6 +515,25 @@ test_host_ops(void)
         CHECK(strcmp(send.text, "hi there") == 0, "carrying the body, got \"%s\"", send.text);
     }
 
+    /* docheat through the real host: the chatbox's own "::foo" handler
+     * (distinct from app.c's TORIRS_NET_CHEAT dev hook) must queue the raw
+     * text, "::"-prefix already stripped by the caller script. */
+    {
+        struct CS2VM_HostRequest req;
+        struct RS_CS2SocialSend send;
+        char cheat[] = "tele 0,50,50";
+
+        memset(&req, 0, sizeof(req));
+        req.kind = CS2VM_HOST_REQUEST_CHAT;
+        req.u.chat.opcode = CS2_OP_DOCHEAT;
+        req.u.chat.text = cheat;
+        RS_CS2Host_Exec(t, &req);
+
+        CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "docheat queues a cheat send");
+        CHECK(send.kind == RS_CS2_SOCIAL_SEND_CHEAT, "as a cheat, got kind=%d", send.kind);
+        CHECK(strcmp(send.text, "tele 0,50,50") == 0, "carrying the text, got \"%s\"", send.text);
+    }
+
     /* The chat modes are a pointer into RS_UISlots, not a copy: chat_setfilter
      * and the IF1 privacy bar are two writers of one value. */
     {
@@ -571,6 +590,7 @@ test_stack_table(void)
         { CS2_OP_IGNORE_GETNAME, "ignore_getname(index) -> name, prev", 1, 0, 0, 2 },
         { CS2_OP_CHAT_SETFILTER, "chat_setfilter(public, private, trade)", 3, 0, 0, 0 },
         { CS2_OP_CHAT_SENDPRIVATE, "chat_sendprivate(username, mes)", 0, 2, 0, 0 },
+        { CS2_OP_DOCHEAT, "docheat(text)", 0, 1, 0, 0 },
     };
 
     printf("social: the generated stack shapes (MANUAL_STACK, not the name guess)\n");

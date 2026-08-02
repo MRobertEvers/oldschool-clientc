@@ -199,6 +199,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     5010: (2, 1, 0, 0),  # CHAT_SENDCLAN(mes, ...)
     5018: (1, 0, 1, 0),  # CHAT_GETNEXTUID(mesuid) -> mesuid
     5019: (1, 0, 1, 0),  # CHAT_GETPREVUID(mesuid) -> mesuid
+    5020: (0, 1, 0, 0),  # DOCHEAT(text) -- the chatbox's "::foo" handler
     5021: (0, 1, 0, 0),  # CHAT_SETMESSAGEFILTER(string)
     5024: (1, 0, 0, 0),  # CHAT_SETTIMESTAMPS(mode)
     # The four chat-history readers. Not on the friends path and not reachable

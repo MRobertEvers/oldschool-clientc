@@ -40,6 +40,7 @@ enum RS_CS2SocialSendKind
     RS_CS2_SOCIAL_SEND_IGNORE_DEL,
     RS_CS2_SOCIAL_SEND_CHAT_SETMODE,
     RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE,
+    RS_CS2_SOCIAL_SEND_CHEAT,
 };
 
 #define RS_CS2_HOST_SOCIAL_SEND_MAX 8
@@ -51,7 +52,7 @@ struct RS_CS2SocialSend
     int kind; /* enum RS_CS2SocialSendKind */
     /** Target player: the four list ops and MESSAGE_PRIVATE. */
     char name[RS_CS2_HOST_SOCIAL_NAME_LEN];
-    /** Message body: MESSAGE_PRIVATE only. */
+    /** Message body: MESSAGE_PRIVATE and CHEAT. */
     char text[RS_CS2_HOST_SOCIAL_TEXT_LEN];
     /** public / private / trade: CHAT_SETMODE only. */
     int modes[3];

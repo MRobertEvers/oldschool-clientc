@@ -7197,8 +7197,8 @@ CS2VM2_Op_Social(
 }
 
 /*
- * Chat filter modes (5000/5005/5016 read, 5001 writes all three) and the
- * private-message send (5009).
+ * Chat filter modes (5000/5005/5016 read, 5001 writes all three), the
+ * private-message send (5009), and docheat (5020).
  *
  * chat_setfilter takes its three modes in source order (public, private,
  * trade), so they are popped back to front. chat_sendprivate takes
@@ -7235,6 +7235,13 @@ CS2VM2_Op_Chat(
         if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopStr(vm, &request.u.chat.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_DOCHEAT:
+        /* docheat(text): the chatbox's own "::foo" handler, distinct from
+         * app.c's native shortcut — pops the string with "::" already
+         * stripped (SUBSTRING in the caller script) and pushes nothing. */
+        if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
     default:
@@ -8756,6 +8763,7 @@ CS2VM2_RunOp(
     case CS2_OP_CHAT_GETFILTER_TRADE:
     case CS2_OP_CHAT_SETFILTER:
     case CS2_OP_CHAT_SENDPRIVATE:
+    case CS2_OP_DOCHEAT:
         return CS2VM2_Op_Chat(vm, opcode);
     case CS2_OP_MAP_WORLD:
     {

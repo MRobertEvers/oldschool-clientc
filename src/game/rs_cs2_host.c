@@ -3861,6 +3861,19 @@ exec_chat(
         return CS2VM_EXECNO_OK;
     }
 
+    case CS2_OP_DOCHEAT:
+    {
+        struct RS_CS2SocialSend send;
+
+        if( !req->text || !req->text[0] )
+            return CS2VM_EXECNO_OK;
+        memset(&send, 0, sizeof(send));
+        send.kind = RS_CS2_SOCIAL_SEND_CHEAT;
+        snprintf(send.text, sizeof(send.text), "%s", req->text);
+        rs_cs2_social_send_push(host, &send);
+        return CS2VM_EXECNO_OK;
+    }
+
     default:
         assert(0 && "exec_chat: unexpected opcode");
         return CS2VM_EXECNO_OK;

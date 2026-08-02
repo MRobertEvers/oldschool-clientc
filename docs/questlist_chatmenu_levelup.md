@@ -189,6 +189,13 @@ from it. Content reads `last_slot` via `SS_OP_LAST_SLOT`
   `p_choice3_header/4_header/5_header` exist in LostCity's precedent but
   weren't confirmed present here — check before assuming parity if a port
   calls one of those.
+- A report of the rendered chatmenu (219) having badly-spread vertical
+  spacing was investigated and **did not reproduce**: `TORIRS_DUMP_BOUNDS=219`
+  driving Hans's real `~p_choice3` (and, temporarily, `~p_choice2`/`~p_choice5`)
+  matches script 58's pixel math exactly in every option count and both
+  transports. See `docs/REV230_UI_BLANK_PANELS.md` §5 for the full evidence
+  and what to gather if it recurs (exact NPC, whether the window was resized
+  off the fixed 765x503 layout root).
 
 ### 2.5 LostCity precedent (why the rewrite was necessary)
 

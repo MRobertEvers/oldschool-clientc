@@ -559,3 +559,84 @@ Open, in the order they block things:
 4. **A stale `src/build/net_transport_embed.o`** from an old `EMBED_SERVER=1`
    build breaks the link whenever a header it depends on changes. `rm` it. It is
    a build hazard, not a code one, but it looks like a code one.
+
+---
+
+## 5. chatmenu (219) reported as spread out vertically — investigated, does not reproduce
+
+**Report.** Screenshots showed the multi-option dialogue ("Select an Option",
+`chatbox_multi_init` script 58, interface 219) rendering with option rows far
+apart, the header-to-first-row gap too big, and the whole panel appearing to
+overflow down into the chatbox's mode-button row (`All`/`Game`/`Public`/...).
+
+**What was measured instead.** Driving Hans's real `[opnpc1,hans]` →
+`~p_choice3` end to end (headless, `SDL_VIDEODRIVER=dummy`, `::talk hans 1`
+typed through `TORIRS_SIM_TYPE`, continued past the greeting with
+`TORIRS_SIM_CLICK_AT` on `chat_left:continue`), `TORIRS_DUMP_BOUNDS=219`
+matches script 58's own pixel math exactly for the 3-option branch:
+
+```
+BOUNDS com=... (219|1)     type=18 abs=40,373 479x122   <- the options container
+BOUNDS com=... (219|40043) type=14 abs=40,383 479x20     <- header, rel y=10
+BOUNDS com=... (219|40044) type=14 abs=40,407 479x20     <- row 1, rel y=34
+BOUNDS com=... (219|40045) type=14 abs=40,431 479x20     <- row 2, rel y=58
+BOUNDS com=... (219|40046) type=14 abs=40,455 479x20     <- row 3, rel y=82
+BOUNDS com=... (219|40047) type=15 abs=111,385 57x13      <- sworddecor left
+BOUNDS com=... (219|40048) type=15 abs=391,385 57x13      <- sworddecor right
+```
+
+`34, 58, 82` (desktop, `~int_device`'s first argument) relative to the
+container's `abs_y=373` is exactly `407, 431, 455` — a 24px row pitch, 20px
+box, 4px gap, matching the real client's tight look. The corresponding
+`TORIRS_EXIT_BMP` screenshot shows the rows tightly packed against each
+other, snug against the mode-button row below (which is itself baked at
+`abs_y=480` in interface 162 — the options container's `373+122=495` bottom
+edge sitting just above it is correct, cache-baked geometry, not overflow).
+
+The same result held for every variant tried, all against the real
+`chatbox_multi_addoption` (script **59**, confirmed by disassembling script
+58's `gosub_with_params ... 59` and independently disassembling script 59
+itself — its `cc_settextalign` call passes a literal `0` for `line_height`,
+same as script 58's header, so the "inflated line height" and "script 59
+doesn't really run" hypotheses are both closed):
+
+- 2-option (`~p_choice2`) and 5-option (`~p_choice5`, by temporarily editing
+  `hans.rs2` for the run and reverting it — see the diff discipline note
+  below) branches: same exact-match result, rows touching edge-to-edge in
+  the tightest (5-option, 16px-tall rows) case.
+- Option text long enough to overflow the 479px row width (~120 chars):
+  positions unchanged; the renderer does not wrap it (it draws past the row
+  edge instead) but does not push any other row's position either.
+- Sampled every few frames from the click that dismisses the greeting
+  through settling (multiple `chatbox_multi_init` re-runs happen in that
+  window, each `cc_deleteall` + rebuild, dynamic ids climbing each time) —
+  every intermediate frame's row geometry was internally consistent with
+  script 58's math, never a stale/duplicate/mis-sized set.
+- Real TCP transport (`src/build/mock230` + `manifest_osrs230.ini`) gave
+  byte-identical `BOUNDS` output to the embedded-server transport
+  (`manifest_osrs230_embed.ini`) for the same interaction.
+
+**Conclusion.** On this HEAD, the reported symptom does not reproduce through
+the `p_choice2..5` → `chatbox_multi_init` (58) → `chatbox_multi_addoption`
+(59) path, in any option count, with short or very long option text, over
+either transport. If this is still visible live, the next things to get from
+whoever saw it (rather than re-guessing): the exact NPC/dialogue, whether the
+window was resized/stretched from the fixed 765x503 layout root
+(`UITree_LayoutRootWidth/Height`, `src/ui/uitree_layout.c:10-11`), and a fresh
+screenshot with `TORIRS_DUMP_BOUNDS=219` from the same session — because
+every number this investigation could check came back matching the
+CS2 script that owns the layout.
+
+**Diff discipline note.** Reproducing the 2- and 5-option branches required a
+temporary edit to `OSRS-Content/osrs239-content/server/scripts/areas/lumbridge/scripts/hans.rs2`
+(swapping `~p_choice3` for `~p_choice2`/`~p_choice5` with placeholder option
+text) so `mock230-scripts` would compile a script pack exercising them; the
+file was reverted to its original `~p_choice3` form afterward and the diff
+confirmed empty before finishing. No content or engine change shipped from
+this investigation.
+
+**Also found and fixed in passing:** `make -C src test-chat-widgets` failed
+to *link* (`_strtobase37` undefined), independent of any of the above — the
+target's source list (`src/makefile`) had `game/rs_social.c` but not
+`net/jbase37.c`, which `rs_social.c`'s `name_hash` calls into. One line added;
+the test builds and passes clean (`chat widgets: all checks passed`).

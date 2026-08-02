@@ -740,7 +740,7 @@ test-uitree: $(OBJ_DIR)
 # The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
 test-chat-widgets: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
-		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c \
+		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		game/test/rs_chat_widgets_test.c -lm
 	./$(OBJ_DIR)/chat_widgets_test
