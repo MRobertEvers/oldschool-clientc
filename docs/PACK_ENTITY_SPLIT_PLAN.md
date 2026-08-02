@@ -247,11 +247,46 @@ afterwards, as its own reviewable step.*
   split earns most and where the id-range check is most load-bearing. It is also
   the one type where "in both packs" may need to mean something finer than a
   record-level overlay.
-- **Is `server_base` real?** `content.ini` documents `ids = server` as "from one
-  past the largest id the cache states", but the literal key `server_base` does
-  not appear in the file. §3.3's id-range check needs one authoritative base per
-  namespace; establish whether it is computed or declared **before** relying on
-  it, and do not assume the prose.
+- **`server_base` is real, and `ids` should go.** The base is a field on
+  `struct ContentNamespace`, populated by the defaults table in
+  `content_register.c` (npc 20000, obj 40000, loc 70000) and overlayable from
+  `content.ini`, which states no `base =` key today only because nobody has had
+  reason to override one. §3.3's id-range check has an authoritative base.
+
+  The `ids = cache|server|protocol` axis beside it does **not** survive contact
+  with what it does. Ids are chosen by the pack file — `configs/all.<type>.compack`
+  maps name to id and that mapping *is* the answer — and `ids` never participates
+  in resolving one. Measured across all three consumers it: unions into
+  `ss_allocate.py`'s allocatable set (which also has a hardcoded default tuple, so
+  two tables must agree by hand); flips one `mock230_pack.c` diagnostic between
+  error and information; and is validated as incompatible with a nonzero base when
+  it is `protocol`. No routing, no resolution.
+
+  It is also already false where it matters most. `npc` is `ids = cache` with a
+  base of 20000, and the register's own message says *"`ids = cache` says the base
+  is only where new records would start"* — so allocation happens under both
+  values and the label does not gate the behaviour it is named for. Worse, the
+  `ids = server` branch errors when allocated ids sit below the base and advises
+  lowering it to `cache_max + 1`, while the base field's own documentation says
+  bases are deliberately round numbers *above* the maximum so an id reads as ours
+  at a glance. Two rules in one register that cannot both be satisfied.
+
+  The three values collapse: `protocol` requires `server_base == 0`, and 0 already
+  means "never allocate"; `cache` and `server` both allocate from the base. One
+  fact per namespace survives — **where a new name gets its number, 0 meaning
+  never** — and it is already spelled `server_base`.
+
+  The drift is documented rather than theoretical. `ss_allocate.py` records that
+  `param` sat in its tuple while the register said `ids = cache`, so it allocated
+  params the compiler then refused to resolve; and that `declared_base`'s docstring
+  claimed to read a base from `content.ini` while the function returned 0 for every
+  namespace. Both are one authority stated twice.
+
+  **Retiring `ids` belongs in this change**, not after it: the entity split makes
+  the client/server question a membership fact, which is the last thing `ids` was
+  standing in for. Sequence it as its own step with the same emit → check → enforce
+  discipline, and expect the check step to find at least the npc/`ids = cache`
+  disagreement above.
 
 ---
 
