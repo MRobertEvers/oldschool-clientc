@@ -6058,7 +6058,28 @@ CS2VM2_Op_Random(
     assert(frame);
     (void)operand;
 
-    return CS2VM2_PushInt(vm, rand());
+    /*
+     * `random($max)` is 0 .. $max-1, and it POPS $max. This used to push a raw
+     * rand() and pop nothing, which fails twice over: the argument stays on the
+     * int stack, and the result is unbounded.
+     *
+     * Neither failure is loud, which is why it stood. A leftover int is
+     * tolerated at script end, and an out-of-range value is almost always used
+     * as an array index, where CS2VM2_Op_PushArrayInt answers 0 for anything
+     * out of range. The bank PIN keypad is where it showed: script 653 shuffles
+     * its ten digit buttons with `random(9)` twenty times, and every one of
+     * those swaps read past the end of the array — so the keypad drew its
+     * digits in plain 0-to-9 order, with the last button blank, and the whole
+     * anti-shoulder-surfing property of the screen was inert.
+     */
+    int max;
+    if( CS2VM2_PopInt(vm, &max) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( max <= 0 )
+        return CS2VM2_PushInt(vm, 0);
+
+    return CS2VM2_PushInt(vm, (int)(rand() % (unsigned)max));
 }
 
 int
@@ -9045,6 +9066,29 @@ CS2VM2_RunOp(
         struct CS2VM_HostRequest request;
         memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_IF_CLOSE;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_RESUME_COUNTDIALOG:
+    {
+        /*
+         * resume_countdialog(text): answer a server script parked on
+         * P_COUNTDIALOG. One string in, nothing out.
+         *
+         * The argument is a string because that is what the callers push —
+         * the bank PIN keypad assembles its four digits into an int and then
+         * `resume_countdialog(tostring($int2))`. The wire packet carries an
+         * int; the host converts, the same way app.c's chatbox "Enter amount"
+         * path does.
+         *
+         * Same host split as IF_CLOSE above: the VM knows nothing about the
+         * socket. `text` is borrowed from the string pool — the handler
+         * copies it (CS2VM2_PopStr does not transfer ownership).
+         */
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG;
+        if( CS2VM2_PopStr(vm, &request.u.resume_countdialog.text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
         return vm->vm->host_exec(vm, &request);
     }
     default:

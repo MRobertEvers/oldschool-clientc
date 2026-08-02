@@ -1,5 +1,30 @@
 # `shopmain`/`shopside` (300/301): what the server owes
 
+> **Blockers A + B, 2026-08-02 — both cleared; neither was this feature's real
+> blocker.** A: `shop_main_init` (4 ints + 1 string) compiles and sends today on
+> `runclientscript*` and fits every cap. B: `container_for` is a registry that
+> resolves `(srv, player, inv_id)` on `owner_kind`, so the player half is done
+> and the WORLD half exists but is empty. **Still blocked on: `fields/inv.ini` +
+> `[namespace:inv]`** (nowhere for `scope=`/`restock=`/`stockN=`/`allstock=` to
+> live — another lane's file), **world-scope persistence or boot re-seed**
+> (`mock230_save.c` is player-only), and **`OC_COST` (4202) / `INV_STOCKBASE`
+> (4325) / `INV_ALLSTOCK` (4303)**, all still declared-and-uncovered.
+
+> **UPDATE 2026-08-02 (lane-blockers): half of blocker (a) is cleared, and the
+> half that is left is exactly blocker (b).** `container_for` is a registry —
+> see [`mock230_containers.md`](mock230_containers.md) — and it resolves as
+> `(srv, player, inv_id)`, branching on `owner_kind`, so `active_player` is out
+> of the resolve path and a WORLD table exists. That table is **empty by
+> construction**: `mock230_container_scope()` classifies everything as
+> per-player because `scope` is decoded from LostCity's *server-side* inv.dat
+> and the client cache carries only size and params
+> (`3rd/rscache/src/datatypes/dat2_config_inv.c`) — so it needs `fields/inv.ini`
+> and `[namespace:inv]`, which is blocker (b) and another lane's file. Landing
+> those turns one function body into the classifier. Still unaddressed here:
+> world persistence does not exist at all (`mock230_save.c` is player-only), and
+> which inv a shop uses arrives as an npc **param** at runtime, so no case list
+> could ever have worked.
+
 > **NOT BUILT — triaged 2026-08-02: BLOCKED on two of the three things that
 > blocked it; the third is fixed.** `shopmain.if` carries **zero `onload=`** —
 > the only panel in this survey that cannot draw itself — so the server must

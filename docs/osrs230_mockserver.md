@@ -1483,7 +1483,19 @@ collide:
 ```
 11000  if_setevents(component, from, to, events)   arm ops on a component
 11001  if_opensub(component, interface, type)      mount a panel into a slot
+11002  runclientscript_ss(clientscript, str, str)  see docs/runclientscript.md
+11003  runclientscript*(clientscript)(args...)     the vararg form of the above
+11004  p_countdialog_noprompt                      wait for a number, no prompt
 ```
+
+`p_countdialog_noprompt` is the wait half of `p_countdialog` (2071) without its
+packet. At 2004 the two are inseparable, because the chatbox prompt is the only
+thing that can produce a number; at rev 230 `resume_countdialog` is an ordinary
+CS2 opcode, so an interface already on screen can answer a parked script itself.
+The bank PIN keypad is the case that forced the split — `p_countdialog` there
+would open a prompt that echoes each digit as it is typed, over a screen whose
+whole purpose is that the digits are never typed. See
+[`bank_pin_server_reqs.md`](bank_pin_server_reqs.md) §4.
 
 `if_setevents` is the one that matters. Without it the cache still says a widget
 *has* an op — the client hovers it, highlights it, puts the verb in the menu —

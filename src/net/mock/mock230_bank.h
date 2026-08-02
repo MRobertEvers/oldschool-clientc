@@ -2,7 +2,7 @@
 #define SRC_NET_MOCK_MOCK230_BANK_H
 
 /*
- * The bank: a 1220-slot container, the settings the interface reads out of
+ * The bank: a 1410-slot container, the settings the interface reads out of
  * varbits, and the deposit/withdraw arithmetic.
  *
  * Split out of mock230_world.c because almost none of it is world state. The
@@ -11,7 +11,7 @@
  *
  * Two things here are read from the cache rather than written down:
  *
- *   - **Container sizes** come from config group 5 (inv). The bank is 1220
+ *   - **Container sizes** come from config group 5 (inv). The bank is 1410
  *     slots at rev 230, the backpack 28 and the worn container 14 — and the
  *     bank's CS2 walks exactly `inv_size(bank)` slots, so a server that
  *     disagrees paints a short grid or walks off the end of one.
@@ -43,8 +43,11 @@ struct Mock230Item;
 enum
 {
     /** Slots the mock allocates. The cache's inv config decides how many are
-     *  actually used (1220 at rev 230); this is the ceiling the array is sized
-     *  to, and the fallback when there is no cache to ask. */
+     *  actually used (1410 at rev 239); this is the fallback when there is no
+     *  cache to ask, and NOT a ceiling — it was applied as an upper clamp
+     *  until 2026-08-02, which silently cost every bank 190 slots. The
+     *  allocation is a calloc; there is nothing for a ceiling to protect.
+     *  See docs/mock230_containers.md §5. */
     MOCK230_BANK_SLOTS = 1220,
     /** Ceiling on `tab_size`, which is a fixed array. The number of tabs is
      *  however many the `bank_tabs` enum lists. */
@@ -104,7 +107,7 @@ struct Mock230Bank
 
     /** Set by any mutation; drained by mock230_bank_flush in phase 10. A whole
      *  re-transmit rather than a delta: the bank changes in bursts (a deposit-
-     *  all moves 28 slots) and 1220 slots is 5 KB, which is nothing once per
+     *  all moves 28 slots) and 1410 slots is 11 KB, which is nothing once per
      *  interaction and never once per tick. */
     int dirty;
 };

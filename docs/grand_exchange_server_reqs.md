@@ -1,5 +1,24 @@
 # Grand Exchange (`ge_offers` 465 + family): what the server owes
 
+> **Blockers A + B, 2026-08-02 — B cleared, A cleared *in kind but not in
+> size*.** B: the registry resolves all 17 per-player GE containers
+> (`enum_150` maps slots 0-7 onto `tradingpost_sell_0..5` + `ge_collect_6/7`,
+> size 2 each) with no new C. A: `ge_history_addline` (6 ints) sends today;
+> **`ge_pricechecker_prices` wants 28 and three caps say 16 / 16 / 20**
+> (`runclientscript.md` §8) — capacity, not mechanism. **Still blocked on:
+> everything shop needs** (`fields/inv.ini`, world persistence), **plus CS2
+> host ops 3903-3913 with 3909 a genuine hole, plus a world-wide matching
+> engine that has no reference anywhere** — LostCity's rev 254 is 2004 and the
+> GE is 2007. Correctly last.
+
+> **UPDATE 2026-08-02 (lane-blockers): the container blocker is cleared.**
+> `container_for` is a registry ([`mock230_containers.md`](mock230_containers.md));
+> all the per-player GE containers resolve and transmit with no new C. Nothing
+> else in this doc changed — the matching engine still has no reference
+> anywhere, and `ge_pricechecker_prices` still needs 28 ints through
+> `runclientscript`, which is capped at 16 by the compiler and 20 by the client
+> wire parser (`docs/runclientscript.md` §8).
+
 > **NOT BUILT — triaged 2026-08-02: BLOCKED, and correctly last.** It needs
 > everything shop needs (a world-scoped container registry, an inv field
 > register) and unlocks nothing else in the survey. Four claims to fix before

@@ -1927,6 +1927,22 @@
  * notes: 0 if b == 0
  */
 #define CS2_OP_DIV 4003
+/* RANDOM — Random exclusive.
+ * int stack in:   max
+ * str stack in:   -
+ * int stack out:  rand() % max        (0 .. max - 1)
+ * str stack out:  -
+ * notes: 0 if max <= 0, mirroring RANDOMINC's guard below.
+ *
+ *        This was the one opcode of the pair with NO stack comment, so the
+ *        generator's name heuristic gave it (0, 0, 1, 0) — no argument at all —
+ *        and the handler matched that: it pushed a raw rand() and left the
+ *        argument on the int stack. The reference is explicit that there is
+ *        one, and what its range is:
+ *          [command,random](int $num)(int)
+ *          "Get a random number - within the range of 0 to $num - 1"
+ *        (LostCity content/scripts/engine.rs2:958-959).
+ */
 #define CS2_OP_RANDOM 4004
 /* RANDOMINC — Random inclusive.
  * int stack in:   max

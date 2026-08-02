@@ -10,12 +10,12 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    162  host commands
+ *    164  host commands
  *      9  host commands (db)
  *      5  host commands (loc)
  *      7  host commands (npc)
  *      2  host commands (param)
- *    248  total, of 400 declared opcodes
+ *    250  total, of 401 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -23,8 +23,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 248
-#define MOCK230_OPCODE_DECLARED_COUNT 400
+#define MOCK230_OPCODE_COVERAGE_COUNT 250
+#define MOCK230_OPCODE_DECLARED_COUNT 401
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -33,7 +33,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11004
+#define MOCK230_OPCODE_VALUE_LIMIT 11005
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -224,6 +224,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4320, /* SS_OP_INV_MOVEITEM_UNCERT (host commands) */
     4321, /* SS_OP_INV_MOVEITEM (host commands) */
     4322, /* SS_OP_INV_MOVETOSLOT (host commands) */
+    4323, /* SS_OP_INV_SETSLOT (host commands) */
     4324, /* SS_OP_INV_SIZE (host commands) */
     4326, /* SS_OP_INV_STOPTRANSMIT (host commands) */
     4327, /* SS_OP_INV_TOTAL (host commands) */
@@ -285,6 +286,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11001, /* SS_OP_IF_OPENSUB (host commands) */
     11002, /* SS_OP_RUNCLIENTSCRIPT_SS (host commands) */
     11003, /* SS_OP_RUNCLIENTSCRIPTVARARG (host commands) */
+    11004, /* SS_OP_P_COUNTDIALOG_NOPROMPT (host commands) */
 };
 
 #endif

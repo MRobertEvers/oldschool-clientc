@@ -1,5 +1,27 @@
 # Player Trading (`trademain` 335, `tradeside` 336, `tradeconfirm` 334): what the server owes
 
+> **Blockers A + B, 2026-08-02 — both cleared, and neither was ever this
+> feature's blocker.** A: `script1216`/`1217` (28 ints each) has a mechanism now
+> but not the capacity — three caps say 16 / 16 / 20 (`runclientscript.md` §8).
+> B: `tradeoffer` (inv 90, 28 slots, scope TEMP so **per-player, not shared**)
+> resolves and transmits with no new C. **Still blocked on the cross-player
+> primitive, which is four things in the client and four in the server:**
+> client — no second store for a same-id container (`exec_inv_container_id`
+> keys on the inv id, so two players' inv 90 collide), no `INVOTHER_*`
+> dispatch, no `OPPLAYER` row in `osrs230/packetout.h`, no
+> `UI_MINIMENU_PICK_PLAYER`; server — no player uid field, `SSVM_SECONDARY`
+> never set, the `.` dialect still `(void)dot;`, and `INVOTHER_TRANSMIT` /
+> `BOTH_MOVEINV` / `BOTH_DROPSLOT` uncovered. Deepest in the set.
+
+> **UPDATE 2026-08-02 (lane-blockers): the container half is cleared; the
+> client half is not.** `container_for` is a registry
+> ([`mock230_containers.md`](mock230_containers.md)) and `tradeoffer` (inv 90,
+> 28 slots) resolves and transmits with no new C. What that does **not** solve
+> is the cross-player half: the registry resolves against the player it is
+> handed, and nothing hands it a *second* player — `SSVM_SECONDARY` is never
+> set and the `.` dialect is still `(void)dot;`. The client-side blockers in
+> §0 are untouched.
+
 > **NOT BUILT — triaged 2026-08-02: BLOCKED, deepest in the survey, and §4's
 > "the player-vs-player click — trigger constants exist, zero dispatch"
 > understates it by two layers that are both in the *client*.**

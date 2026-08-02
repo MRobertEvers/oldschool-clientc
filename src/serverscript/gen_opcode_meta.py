@@ -194,6 +194,32 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # RUNCLIENTSCRIPT_SS stays. It is spelled by content already, and a command
     # that can be written without the star is the cheaper thing to read.
     "RUNCLIENTSCRIPTVARARG": (11003, 1, 0, 0, 0),
+
+    # p_countdialog_noprompt — park the script for a number, WITHOUT opening the
+    # engine's own "Enter amount" prompt.
+    #
+    # `p_countdialog` (2071) is two things at once: it writes PCountDialog and
+    # it sets ScriptState.COUNTDIALOG (PlayerOps.ts, and this engine copies it
+    # exactly). At 2004 those are inseparable, because the chatbox prompt is the
+    # only thing that can produce a number.
+    #
+    # At rev 230 it is not. `resume_countdialog` is a plain CS2 opcode (3104),
+    # so ANY interface can answer a parked script, and the cache ships one that
+    # does: the bank PIN keypad (213) assembles four clicked digits and sends
+    # the whole number itself. Calling `p_countdialog` to wait for it would pop
+    # the chatbox prompt over the keypad — which echoes the digits as they are
+    # typed and so defeats the exact thing the keypad exists for.
+    #
+    # The reference offers no design: `p_countdialog` is the only shape it has,
+    # and there is no bank PIN anywhere in it (zero hits, content or engine).
+    # So this is PORTING_GUIDE §5.1 — the client already implements the
+    # feature, and the server's job is to drive it. The split is the smallest
+    # one that says so: the packet stays with `p_countdialog`, and the *wait*
+    # becomes something content can ask for on its own.
+    #
+    # Same require mask as 2071 (see EXTRA_POINTERS): it parks the active
+    # player's script, so it needs protected access to that player.
+    "P_COUNTDIALOG_NOPROMPT": (11004, 0, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -278,6 +304,20 @@ POINTER_BITS = {
     "active_loc2": 7,
     "active_obj": 8,
     "active_obj2": 9,
+}
+
+# Pointer requirements for EXTRA_OPCODES. `parse_pointers` reads the reference's
+# ScriptOpcodePointers.ts, which by definition says nothing about an opcode the
+# reference does not have, so every extra lands with an empty mask unless it is
+# named here.
+#
+# Only P_COUNTDIALOG_NOPROMPT is listed, and only because it is the first extra
+# with a reference twin that carries a mask: P_COUNTDIALOG is
+# `ProtectedActivePlayer`, so matching it is transcription rather than a new
+# judgement. The other four extras are deliberately left alone — giving them
+# masks is a decision about opcodes this change does not touch.
+EXTRA_POINTERS: dict[str, tuple[int, int]] = {
+    "P_COUNTDIALOG_NOPROMPT": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means
@@ -647,6 +687,10 @@ def main() -> int:
         triggers[extra_trigger] = extra_id
     sigs = parse_engine_rs2(ref / "content/scripts/engine.rs2")
     pointers = parse_pointers(script_dir / "ScriptOpcodePointers.ts", opcodes)
+    for extra_name, extra_mask in EXTRA_POINTERS.items():
+        assert extra_name in EXTRA_OPCODES, f"{extra_name} is not an extra opcode"
+        assert extra_name not in pointers, f"{extra_name} already has a reference mask"
+        pointers[extra_name] = extra_mask
 
     emit_opcode_h(opcodes, HERE / "ss_opcode.h")
     emit_trigger_h(triggers, HERE / "ss_trigger.h")

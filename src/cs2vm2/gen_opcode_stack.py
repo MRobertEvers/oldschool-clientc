@@ -300,6 +300,18 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7022: (4, 0, 0, 0),  # HIGHLIGHT_OBJ_OFF:  pop 4
     7023: (4, 0, 1, 0),  # HIGHLIGHT_OBJ_GET:  pop 4 -> bool
     7025: (5, 0, 0, 0),  # HIGHLIGHT_OBJTYPE_SETUP: pop 5
+    # RESUME_COUNTDIALOG(text) — the answer to a server script parked on
+    # P_COUNTDIALOG. The cache's own scripts spell it `resume_countdialog(
+    # tostring($n))`, so the number arrives as a STRING; the wire packet
+    # (RESUME_P_COUNTDIALOG) carries an int and the conversion is the host's,
+    # exactly as it is for the chatbox's own "Enter amount" path in app.c.
+    # Dedicated dispatch in cs2vm2.c forwards it to the host
+    # (CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG).
+    #
+    # It sat at the (0,0,0,0) default with known=0, which is not benign: the
+    # bank PIN keypad's fourth digit is the one site in this cache that calls
+    # it, and StackMetaStub asserted there rather than sending the PIN.
+    3104: (0, 1, 0, 0),  # RESUME_COUNTDIALOG(text)
     # Client-preference / mobile stub cluster (3130..3135). Confirmed against the
     # Kronos client (Messages.java): each just discards N ints off the stack and
     # does nothing — a host no-op is enough for fidelity, so only the pop count

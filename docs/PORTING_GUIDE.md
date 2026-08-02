@@ -863,7 +863,14 @@ LostCity's shop invs are `scope=shared` while `container_for` resolves only off
 because there is no `fields/inv.ini` and no `[namespace:inv]` in `content.ini`.
 Two of those three are the cross-cutting blockers §5.4 names — the fixed
 1-int/2-string shape of `runclientscript_ss`, and `container_for` needing to be
-a registry rather than a fourth `if`.
+a registry rather than a fourth `if`. **Both are discharged as of 2026-08-02**
+(`SS_OP_RUNCLIENTSCRIPTVARARG` 11003, and
+[`mock230_containers.md`](mock230_containers.md)) — and discharging the second
+sharpened the third rather than clearing it: the registry resolves as
+`(srv, player, inv_id)` and branches on `owner_kind`, so a world-scoped
+container is expressible, but `mock230_container_scope()` classifies everything
+as per-player because the client cache has no `scope` field to read. `shop` is
+now blocked on exactly one thing, `fields/inv.ini` + `[namespace:inv]`.
 
 **Phase 5 — modern features** (§5)
 XP-drops VM loop fix → friends/ignore/PM decode + service → clan chat →
