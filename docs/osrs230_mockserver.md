@@ -462,7 +462,7 @@ rule and what is left (`mock230_say`'s message procs).
 five options the client built its right-click menu from, so anything OldSchool
 made attackable is attackable here with no per-npc script line. The reference
 says it in `[opnpc2,_] @player_combat_start`, and this is
-`MOCK230_FALLBACK_OPNPC`: one of seven enumerated rows waiting on the opcode
+`MOCK230_FALLBACK_OPNPC`: one of six enumerated rows waiting on the opcode
 surface, not a design position (§3.18).
 
 **The fallback contract is inverted, and §3.18 is the whole of it.** It used to
@@ -2185,37 +2185,170 @@ old meanings so the existing shape of every call site still reads correctly, and
 `FAILED` is the third answer nothing could previously express.
 
 **2. An engine fallback and "what happens otherwise".** The C that answers an
-unbound trigger is enumerated — `enum Mock230Fallback`, seven rows — and reached
-only through `mock230_scripts_fallback(srv, which, result)`. Each row carries
-what it is blocked on, and the boot prints the count (the roll under
-`MOCK230_VERBOSE`):
+unbound trigger is enumerated — `enum Mock230Fallback`, **six** rows — and
+reached only through `mock230_scripts_fallback(srv, which, result)`. Each row
+carries what it is blocked on, and the boot prints the count (the roll under
+`MOCK230_VERBOSE`, abbreviated here — the live text is longer and is the
+authority):
 
 ```
-mock230: 7 engine fallback(s) still answer triggers content does not bind
-  opnpc        blocked on: combat is 858 lines of C (§6.1 step 5); the reference says it in [opnpc2,_]
-  oploc        blocked on: doors, bank booths and stairs need loc_* and a per-loc destination
-  opobj        blocked on: no obj_take / inv_add-from-ground opcode pair yet
-  opheld       blocked on: equipment is C; the reference says it in [opheld2,_] and [opheld5,_]
-  inv_button   blocked on: the bank, 1,370 lines
-  if_button    blocked on: the bank's op ladder, same blocker
-  ai_queue3    blocked on: nothing any more — see below
+mock230: 6 engine fallback(s) still answer triggers content does not bind
+  opnpc        blocked on: combat, 1,061 lines of mock230_combat.c … the blocker is the player_combat closure, not the dispatch
+  oploc        blocked on: NOT the loc_* family — [oploc<n>] binds no active loc, no loc category rung, P_OPLOC unimplemented
+  opobj        blocked on: an entity kind, not an opcode pair — SSVM_ENT_OBJ has no writers; OBJ_* 3502-3511 all unimplemented
+  opheld       blocked on: NOT 'equipment is C' — eight declared-unimplemented opcodes (OC_WEARPOS/2/3, INV_SETSLOT, …)
+  inv_button   blocked on: ADDRESSING — the grid's quantity row moves, so [inv_button1..5] cannot name Withdraw-All
+  if_button    blocked on: the same last_verb reader, plus bank.rs2's bindings and bank_set_events naming different components
 ```
 
-`ai_queue3`'s row is the one to read carefully. The fallback is still real and
-still wanted — an npc with no bound table drops its `param=death_drop`, so a kill
-is never silent — but its *blocker* is gone: npc categories landed (triage §16)
-and `drop tables/` landed on top of them (triage §10.1), 69 files and 136
-`[ai_queue3]` bindings. **`mock230_scripts.c`'s copy of that string still says
-"drop tables need npc categories" and is wrong at every boot**; it is a stale
-negative claim of exactly the class triage §16.1 is about, left standing only
-because the stage that invalidated it wrote no C.
+### The list's job is to be audited, and the audit found the list
 
-The count is the point. It is asserted in the selftest, it may shrink, and it
-must not grow — the same discipline as the nine named hooks
-(`PORTING_GUIDE` §2.4 item 5). Each row's blocker is §6.1 step 5's order:
-widen the opcode surface until a script can say it, move it, delete the row.
-**Nothing was moved by this change** — moving the ~3,200 blocked lines early, by
-inventing non-reference C↔script hooks, is what the order exists to prevent.
+The point of enumerating the fallbacks was never the count. It was that each row
+carries a **reason**, so "why is this behaviour still C?" has an answer at the
+place someone asks it. A 2026-08-01 pass re-measured all seven reasons against
+the tree, and the result is the thing worth recording: **four of the seven were
+false or misdirected on the day they were read, and not one had been edited to
+become so.** Three had been overtaken — the thing they were waiting for landed
+in some other lane and nobody came back — and the fourth was never right.
+
+| row | what it said | what was true | stale since |
+|---|---|---|---|
+| `ai_queue3` | "drop tables need npc categories (§7.6b, §9 step 3b)" | categories, the category rung and 69 drop-table files had all landed; **nothing** blocked it | `ff2d172f` → `44d42dff`, two lane merges |
+| `oploc` | "doors, bank booths and stairs need `loc_*` and a per-loc destination" | `loc_find/change/add/del/coord/type/angle/shape` and `p_teleport` all landed; the real gate is that `[oploc<n>]` binds no active loc | `ff2d172f` (the `loc_*` family) |
+| `opobj` | "no `obj_take` / `inv_add`-from-ground opcode pair yet" | not a pair and not opcodes first — `SSVM_ENT_OBJ` has zero writers, so no obj opcode would have a subject | never true as stated |
+| `opheld` | "equipment is C" | `mock230_equipment.c` is 134 lines of component→worn-slot map and the equipment *screen* is content (`interface_equipment/scripts/equipment.rs2`) | since the screen moved |
+
+The three that were *directionally* right carried stale numbers — combat 858 →
+**1,061**, bank 1,370 → **1,395** — and `inv_button`/`if_button` both blamed
+those line counts when the actual obstacle is addressing: the bank's rules are
+already sayable, its **op indices** are not.
+
+None of that was visible by reading. A blocker that has expired and a blocker
+that is live are the same sentence, which is the failure mode of any audit list
+whose entries are prose. Two things came out of that and both are below: every
+surviving string is now written to be **checkable in one command**, and the
+opcode-shaped half of every string is **machine-checked**.
+
+### The blockers are machine-checked, because prose cannot go stale loudly
+
+The count above catches a row being *added*. It cannot catch the way this list
+actually failed, which is a row that stops being right without changing: the
+thing it is waiting for arrives, nobody comes back to the row, and it keeps
+printing a reason that is no longer a reason. `ai_queue3` did this for two
+stages (below). A stale blocker and a live one are the same text.
+
+So each row's blocker names its opcodes in a form the machine can resolve —
+`k_engine_fallbacks[].blocked_ops`, `struct FallbackBlockingOp`, the symbol
+exactly as `ss_opcode.h` spells it — and `mock230_scripts_stale_blockers()`
+resolves each against `opcode_implemented()`. A hit prints at boot,
+unconditionally (not behind `MOCK230_VERBOSE`: the reader who needs it is
+whoever just implemented the opcode, and they have no reason to be running
+verbose):
+
+```
+mock230: STALE BLOCKER — the `opobj` engine fallback says it is waiting on
+SS_OP_OBJ_DEL (3504), and SS_OP_OBJ_DEL is implemented now. Either the row can
+go or its reason has to be rewritten to what is still true.
+```
+
+Loud at boot, **fatal in the selftest** — the opcode landing is progress, and a
+server that refused to start because somebody implemented `OBJ_DEL` would teach
+the wrong lesson. Two mutations were run and both turn the suite red: adding
+`SS_OP_OBJ_ADD` (implemented) to `k_blocked_opobj`, and declaring
+`SS_OP_LAST_VERB` as an implemented value, which lights `inv_button` *and*
+`if_button` because both cite it. The `LAST_VERB` case is the interesting one:
+nothing declares that opcode at all, so it is carried as `-1` behind an
+`#ifdef`, and declaring it is enough to put it under the check.
+
+The check is deliberately one-directional and deliberately incomplete. It
+catches "a row cites something that is now present", which is the failure that
+hides. It cannot cover a blocker that is not an opcode — `opnpc` waits on 1,061
+lines of `mock230_combat.c`, `oploc`'s first gate is an entity binding nobody
+writes, `if_button`'s second defect is two component lists that disagree — and
+asserting those would mean asserting a defect *stays* present, which produces
+false alarms when somebody fixes the defect without clearing the row. Those cite
+the one command that settles them instead (`grep -rn SSVM_ENT_OBJ src`,
+`wc -l net/mock/mock230_bank.c`, a `file:line`). Writing a blocker that cannot
+be checked in one command is the thing to avoid.
+
+**One check was costed and deliberately not built**, and the reason generalises.
+`if_button`'s second defect is that the content meant to replace it is compiled
+and *inert*: `interface_bank/scripts/` binds eleven `[if_button,bankmain:*]`
+components — `swap_insert_graphic`, `note_graphic`, `quantity1_text`,
+`quantity5_text`, `quantity10_text`, `quantityx_text`, `quantityall_text`,
+`deposit_line`, `depositcontainers_graphic`, `potionstore_container`,
+`banktags_header_separator` — while `bank_set_events` (`mock230_bank.c:609`)
+arms nine — `swap_insert`, `note`, `quantity1`, `quantity5`, `quantity10`,
+`quantityx`, `quantityall`, `depositinv`, `depositworn`. Checked against
+`interfaces/bankmain.compack`, those are **adjacent, different components** (23
+vs 24, 25 vs 26, 29 vs 30), the two sets are disjoint, and nothing is clickable
+until `IF_SETEVENTS` — so every one of those eleven scripts can never fire.
+Asserting the disjointness would be ~30 lines. It was rejected on correctness,
+not cost: it would assert that a **defect stays present**, and fixing the arm
+list without moving the bank to content is a legitimate change that leaves the
+row valid, so the check would fire falsely and train people to ignore the STALE
+lines it sits beside. The right shape is a separate boot report — *content bound
+to a component nothing arms*, the dual of `mock230_scripts_report_shadowed_ops`
+— because that is a general defect class and not a fact about the bank.
+Proposed, not built.
+
+### `ai_queue3` was the seventh, and it is gone
+
+The list lost its first row on 2026-08-01. `ai_queue3` was "the npc's
+`death_drop` param" — what an npc with no bound drop table left behind — and it
+is `[ai_queue3,_]` in `skill_combat/npc_combat.rs2` now, five lines of
+`npc_param` / `obj_add`, which is where the reference states it
+(`[ai_queue3,_] gosub(npc_default_death)`).
+
+Two things about it are worth more than the deletion.
+
+**The row's `blocked_on` string was false at every boot for two stages.** It
+said "drop tables need npc categories"; npc categories had landed at `ff2d172f`
+(19 of them — triage §16), the death dispatch had adopted the category rung at
+`44d42dff`, and `drop_tables/` had landed on top — **69 files, 136 bindings, 6
+of them on the category rung**, all measured. So the row was printing, at every
+boot, that it was waiting for three things it was already standing on. Nothing
+was wrong with the code; the *reason* had expired, and an expired reason reads
+exactly like a live one. That is the failure mode this text exists to prevent —
+and it is not one row's accident: the table above shows three more, and the
+category-rung bullet below shows this section doing it to itself. Which is why
+the six survivors were rewritten in the same pass against what is true today
+rather than left as they were found.
+
+**The precondition everyone expected was not there.** The reference guards
+`if ($drop ! null …)`, and the obvious worry is that `npc_param(death_drop)`
+answers 0 for the npcs no `.npc` block describes, which would drop obj 0 under
+every unbound death. It does not: `general/configs/npc_default.npc`'s
+`[default]` block authors `param=death_drop,bones` and `npc_def_seed_from_cache`
+copies the default record — params included — into every block, so the value is
+`bones` for an npc nothing describes. Measured, 526 for the default def and for
+all 40 authored blocks. The guard is kept because `param=death_drop,null`
+(resolved to -1 and filed under the param id) is the only way to say "leaves
+nothing"; it is *not* what stops obj 0, and it cannot be shown to be by any
+test here, because `mock230_world_obj_add` refuses `obj_id < 0` on its own.
+Deleting the guard leaves the suite green — stated in the test's own comment,
+because a test that cannot fail proves nothing.
+
+What proves the behaviour moved is the selftest section **"the death drop is
+content's"**: a chicken still runs its own table on the *category* rung (one
+raw chicken, one bones — the `_` rung must not also fire); a duck, which nothing
+binds, still leaves its `death_drop`; and an npc whose `death_drop` is `null`
+leaves nothing. Four mutations were run and three turn it red — unbinding
+`[ai_queue3,_]`, inverting the null guard, and rebinding
+`[ai_queue3,_chicken]` to another category. The fourth (deleting the guard) does
+not, which is the limit stated above.
+
+The count is the point, but only half of it. It is asserted in the selftest, it
+may shrink, and it must not grow — the same discipline as the named hooks
+(`PORTING_GUIDE` §2.4 item 5; **11** now, `mock230_scripts.c:202-212`, not the 9
+both files used to say). The other half is that a count cannot rot and a reason
+can, which is what the table and the staleness check above are for. Each row's
+blocker is §6.1 step 5's order: widen the opcode surface until a script can say
+it, move it, delete the row. The `ai_queue3` deletion is the first time that
+order ran to completion — and the honest summary of the pass that produced it is
+**one row deleted, four blockers corrected**, with the corrections worth more,
+because a wrong row is visible the moment someone tries to act on it and an
+expired reason is not visible at all.
 
 **3. A server with no content and a server with content that binds nothing.**
 This is the one worth the whole change. A fresh checkout has no script pack (the
@@ -2276,23 +2409,37 @@ would be a wall of text rather than a diagnostic. The name comes from the same
 `pack/` file the compiler resolved the script's subject through, so a name that
 prints is a name that could have been bound.
 
-### The category rung, which only obj can answer
+### The category rung — obj and npc answer it, loc does not
 
-The reference passes `type.category` for npc, loc and obj alike. Here:
+The reference passes `type.category` for npc, loc and obj alike. Re-measured
+2026-08-01 off `mock230_pack --check-only`, which prints the split:
+**55 category names — 36 obj-only, 18 npc-only, 1 carried by both.**
 
 - **obj** — config opcode 94, a number the cache states and `pack/category.pack`
-  names. **37 names**, not the 6 the triage records — re-measured; the weapon
-  categories were added after that count was written. This is the rung
-  `[opheld1,_bones]` already binds through, and it now also feeds `[opobj<n>]`
-  and `[apobj<n>]`, which passed -1.
-- **npc** — there is no npc category in an osrs239 record at all. Not unread:
-  absent. It stays -1, and closing that is triage §7.6b / §9 step 3b — a field
-  to accept and a crawler to write, which gates `drop tables/`.
+  names. **37 names** (36 + the shared one), not the 6 the triage records —
+  the weapon categories were added after that count was written. This is the
+  rung `[opheld1,_bones]` already binds through, and it now also feeds
+  `[opobj<n>]` and `[apobj<n>]`, which passed -1.
+- **npc** — **19 names**, and this bullet is the second thing this section had
+  wrong. It used to read *"there is no npc category in an osrs239 record at all.
+  Not unread: absent"*, which was true when written and stopped being true at
+  `ff2d172f` — `mock230_npcinfo.c` went from zero mentions of `category` to a
+  populated field and `mock230_npc_category()`, and `44d42dff` then passed it at
+  the `[ai_queue3]` site. The bullet survived both, plus two lane merges,
+  including the commit whose own subject line is *"the AI_QUEUE3 category
+  rung"*. Six `[ai_queue3,_<category>]` bindings in `drop_tables/` ride it
+  today. Worth stating plainly: the section that exists to explain why the
+  fallback list goes stale went stale in exactly that way, in the same window,
+  and the count at the top of §3.18 could not see it because the count is not
+  what rots.
 - **loc** — `Mock230LocDef.category` exists and is **not this**: a private
   two-valued door enum with no entry in `pack/category.pack`. Passing it would
   alias every door onto category ids 0 and 1 and bind unrelated scripts to them.
-  It stays -1, and `interaction_category` in `mock230_world.c` says why, because
-  the tempting edit is a one-liner.
+  It stays -1, and `interaction_category` (`mock230_world.c:687`) says why,
+  because the tempting edit is a one-liner. The real field needs
+  `dat2_config_loc.c` to stop discarding config opcode 61 — an rscache
+  write-path change, which is why this is the `oploc` row's expensive half and
+  not an opcode.
 
 ### `[if_close]` was a fallback and should never have been one — and never ran
 
@@ -2718,7 +2865,7 @@ category bindings observe it, and content is written against what it observes.
 The selftest asserts the inversion in both directions so that "fixing" it goes
 red.
 
-### 4. The miss adds **no** row to `enum Mock230Fallback` — still seven
+### 4. The miss adds **no** row to `enum Mock230Fallback`
 
 The reference's answer to an unbound `*u` is a message and nothing else
 (`OpHeldUHandler`'s `messageGame('Nothing interesting happens.')`,
@@ -2729,7 +2876,7 @@ The reference's answer to an unbound `*u` is a message and nothing else
 There is no engine use-on behaviour for it to fall back *to*, and doing it would
 hand "use a bucket on the castle door" to the door handler — the door would open.
 That is why the use-on arm in `mock230_world_process_interaction` returns before
-the `switch( kind )` that holds three of the seven fallback call sites, rather
+the `switch( kind )` that holds three of the fallback call sites, rather
 than growing a fourth case inside it: Phase 3 has to be able to delete those
 lines out of arms this stage never rewrote.
 
@@ -2856,7 +3003,7 @@ calls `updateMap`, `World.processPlayers` drains the engine queue. What each zon
   `World.processPlayers` calls `processEngineQueue()`.
 - **`ssc_compile.c` writes -1 for a coord subject.** See below.
 
-`enum Mock230Fallback` is still **7**: a zone with no script does nothing, and
+`enum Mock230Fallback` did not grow: a zone with no script does nothing, and
 the reference has no engine behaviour behind a missing `[zone]` either.
 
 ### `zone_index` is the trap, and it is invisible
@@ -3046,7 +3193,7 @@ sites are excluded. A *family* here is one trigger stem as content writes it —
 | production dispatch sites | 18 | **24** |
 | trigger families reachable | 17 | **28** |
 | script-id-addressed drains (`queue`, `timer`, `softtimer`, engine queue) | 3 | **4** |
-| rows in `enum Mock230Fallback` | 7 | **7** |
+| rows in `enum Mock230Fallback` | 7 | **7** (6 today — `ai_queue3` moved, §3.18) |
 
 Triage §2 keeps the canonical list, and it has never been complete. Even after 5a
 and 5b amended it, it omits `debugproc`, `ai_opplayer<n>` and `ai_applayer<n>` —
@@ -3259,7 +3406,7 @@ an undispatched `advancestat` looks like from outside is an XP bug.
 
 ### 6. What deliberately did not change
 
-- **`enum Mock230Fallback` is still seven rows.** Eleven families gained a
+- **`enum Mock230Fallback` did not grow.** Eleven families gained a
   dispatch path and none of them gained an engine fallback, because in the
   reference none of them *has* one: a zone with no script does nothing, a queue
   with no script cannot exist, and an unbound `*u` is `messageGame('Nothing
@@ -3516,30 +3663,39 @@ unblocks the next:
    longer covers cannot apply, and says so under `MOCK230_VERBOSE`. Zone
    *triggers* remain undispatched — Phase 2 work, and they need name-keyed
    dispatch (`[zone,<level>_<mx>_<mz>_<lx>_<lz>]`), not a numeric subject.
-4. **Fill in the host opcodes.** 215 of 398 are implemented (63 VM core, 145
-   host, 7 host-db — the count is generated into
+4. **Fill in the host opcodes.** **246 of 399** are implemented (63 VM core,
+   160 host, 9 db, 5 loc, 7 npc, 2 param — the count is generated into
    `src/net/mock/mock230_opcode_coverage.gen.h`, so read it there rather than
-   trusting a number typed into prose; this one said "~100 of 396" long after
-   it stopped being true). Driven by the gap
+   trusting a number typed into prose. This line has now been wrong twice: it
+   said "~100 of 396" long after that stopped being true, then "215 of 398"
+   until 2026-08-01). Driven by the gap
    report from step 2, plus `.dbtable`/`.dbrow` support in the content reader,
    which landed: prayers were flattened into a bespoke `.prayer` grammar to
    avoid writing one and are an ordinary dbtable now (`db_find` was the last
    piece), and drop tables and shops want the same.
-5. **Move the C content into content.** ~3,200 lines that are content by
-   LostCity's definition still live in C: the bank (1,370), combat (858),
-   equipment, the world map, doors, and the login burst (prayer was one of
-   these and is done — see mock230_player_systems.md §4.1). The reason is
-   real and documented in `bank.rs2`'s own header — the rev-230 bank builds its
-   op ladder conditionally on varbits, so the index alone does not say what was
-   clicked — which is exactly why step 4 comes first. Widen the opcode surface
-   until a script *can* say it, then move it.
+5. **Move the C content into content.** Re-measured 2026-08-01: the bank is
+   **1,395** (not 1,370), combat **1,061** (not 858), `mock230_equipment.c`
+   **134**, the world map **199** — plus doors and the login burst (prayer was
+   one of these and is done — see mock230_player_systems.md §4.1). But the
+   ~3,200-line total was measuring the wrong thing: the C that actually stands
+   between content and these behaviours is the six `enum Mock230Fallback` rows,
+   **≈370 lines of dispatch** (`interaction_engine_npc` 31,
+   `interaction_engine_obj` 37, `interaction_engine_loc` 84,
+   `mock230_bank_quantity_for_op` 107, `mock230_bank_handle_button` 64, the
+   OPHELD arm ~50). The rest is what those reach, and most of it — combat, the
+   bank's arithmetic — is engine in the reference too. The reason is real and
+   documented in `bank.rs2`'s own header — the rev-230 bank builds its op ladder
+   conditionally on varbits, so the index alone does not say what was clicked —
+   which is exactly why step 4 comes first. Widen the opcode surface until a
+   script *can* say it, then move it. §3.18 has the per-row blockers, all of
+   which were re-checked in the same pass and four of which were wrong.
 6. ~~**Invert the fallback.**~~ — **done**, see §3.18. The lookup is the
    reference's (type → category → the bare `_`, and nothing after that), the
    `_` wildcard is the only fallback the design has, and a trigger with no
    script does nothing — loudly under `MOCK230_VERBOSE`, in the reference's own
    words.
 
-   What survives of the C is seven enumerated rows (`enum Mock230Fallback`),
+   What survives of the C is six enumerated rows (`enum Mock230Fallback`),
    each naming what it is blocked on, counted at boot and pinned by the
    selftest: it may shrink, it must not grow. Nothing was moved by the change —
    step 5's order is the point. Three things that used to be indistinguishable

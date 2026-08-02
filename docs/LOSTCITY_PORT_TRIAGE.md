@@ -766,9 +766,14 @@ one of forty.
 **Landed (2026-08-01)**, `osrs230_mockserver.md` §3.18. Content winning is the
 *design* now, not a hazard: the reference's own answer to "the goblin's Attack"
 is `[opnpc2,_] @player_combat_start` in `skill_combat/`, and the engine's verb
-handling is one of seven enumerated rows in `enum Mock230Fallback`, each naming
-the blocker keeping it in C, counted at boot and pinned by the selftest. It may
-shrink; it must not grow. What that buys for the bulk import: an imported
+handling is one of the enumerated rows in `enum Mock230Fallback` (seven when
+this was written; **six** since `ai_queue3` moved to content), each naming the
+blocker keeping it in C, counted at boot and pinned by the selftest. It may
+shrink; it must not grow. Each row's blocker also names its missing opcodes in a
+form `mock230_scripts_stale_blockers` can resolve, so a *reason* that expires
+turns the selftest red instead of continuing to print —
+`ai_queue3`'s did exactly that for two stages before the check existed.
+What that buys for the bulk import: an imported
 `[opnpc1,goblin]` that aborts no longer falls through to the engine's greeting
 and looks like it worked — an aborted script and an unbound trigger are
 different answers now, and only the second is allowed a fallback.
@@ -2201,9 +2206,14 @@ removing them is what makes the chicken's loot a live test of the category rung
 rather than a decoration.
 
 **The double drop is resolved by a rule, not by inspection.** Binding
-`[ai_queue3,<npc>]` at all suppresses `MOCK230_FALLBACK_AI_QUEUE3`, so a bound
-table that does not itself state `obj_add(npc_coord, npc_param(death_drop), …)`
-silently takes the bones off an npc that had them. In the reference this costs
+`[ai_queue3,<npc>]` at all wins the lookup ahead of anything more general, so a
+bound table that does not itself state
+`obj_add(npc_coord, npc_param(death_drop), …)` silently takes the bones off an
+npc that had them. (Until 2026-08-01 the more general thing was
+`MOCK230_FALLBACK_AI_QUEUE3`, C. It is `[ai_queue3,_]` in
+`skill_combat/npc_combat.rs2` now and the fallback row is deleted —
+`osrs230_mockserver.md` §3.18 — which changes nothing about this rule: a bound
+table still shadows it, per binding.) In the reference this costs
 nothing — its engine has no such fallback, `death_drop` is only a param content
 reads — so six reference tables legitimately state no death drop
 (`earth_warrior`, `jonny_the_beard` which names `bones` directly, and the four
