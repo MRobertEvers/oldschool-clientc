@@ -1874,14 +1874,41 @@ parse_header(
     }
     else if( subject_is_coord )
     {
-        /* A three-part coord lexes to its first component, which is exactly
-         * what the reference's parseInt("0_49_46") yields — and why all 118 of
-         * its mapzone/zone scripts collapse onto one key. Reproduced rather
-         * than fixed: the compiled key has to match what the reader expects,
-         * and the reference never dispatches these triggers anyway.
-         * test-ss-corpus reports the collision count. */
-        *out_lookup_key =
-            (int32_t)SSVM_LookupKey(trigger, SS_LOOKUP_TYPE, subject_value);
+        /*
+         * A coord subject is **name-addressed**, like a proc: -1, so it is not
+         * in the key index at all.
+         *
+         * That is by construction rather than by taste, and the arithmetic is
+         * why. `zone`/`zoneexit` subjects are five-part and `ssc_lex.c` packs
+         * them into 28 bits (`(level << 28) | ((mx * 64 + lx) << 14) | …`);
+         * `SSVM_LookupKey` puts the subject at bit 10 and the compiled field is
+         * an i32, so the pack's top 21 bits are simply lost.
+         *
+         * Measured over the reference's 427 five-part headers rather than
+         * argued: **78 truncate to a negative key**, which `ssvm_provider.c`
+         * deliberately keeps out of `by_key` — `[zone,0_50_50_16_16]` packs to
+         * 52,694,160 and keys to -1,875,754,333. The other **349 stay
+         * non-negative** and land on a subject field that is not the coord under
+         * any reading, **10 of them colliding** with a neighbour — which is the
+         * `dup zone x10` line `test-ss-corpus` prints. The sign turns on bit 1
+         * of `mx`, so which half a zone falls in is an accident of where it is.
+         *
+         * `mapzone`/`mapzoneexit` are three-part and lex to their first
+         * component, which for all 379 of them is 0 — the reference's own
+         * `parseInt("0_49_46")` collapse. One key, 379 scripts.
+         *
+         * Neither shape is addressable by key, which is why the engine formats
+         * the header's own text and asks `getByName`
+         * (`mock230_scripts_run_trigger_at`, `NetworkPlayer.updateMap`). Writing
+         * a key nothing can look up was harmless only while nothing dispatched
+         * these triggers; that stopped being true with triage §9 step 5c.
+         *
+         * `test-ss-corpus` is unaffected: it loads the reference's *own*
+         * compiled pack, so its duplicate counts describe the reference's
+         * compiler rather than this one.
+         */
+        (void)subject_value;
+        *out_lookup_key = -1;
     }
     else
     {

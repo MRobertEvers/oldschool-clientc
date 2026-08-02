@@ -10,12 +10,12 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    151  host commands
+ *    160  host commands
  *      9  host commands (db)
  *      5  host commands (loc)
  *      7  host commands (npc)
  *      2  host commands (param)
- *    237  total, of 399 declared opcodes
+ *    246  total, of 399 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 237
+#define MOCK230_OPCODE_COVERAGE_COUNT 246
 #define MOCK230_OPCODE_DECLARED_COUNT 399
 
 /*
@@ -79,6 +79,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1016, /* SS_OP_MOVECOORD (host commands) */
     1021, /* SS_OP_WORLD_DELAY (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
+    2011, /* SS_OP_CLEARQUEUE (host commands) */
+    2012, /* SS_OP_CLEARSOFTTIMER (host commands) */
     2013, /* SS_OP_CLEARTIMER (host commands) */
     2014, /* SS_OP_COORD (host commands) */
     2015, /* SS_OP_DAMAGE (host commands) */
@@ -86,6 +88,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2017, /* SS_OP_FACESQUARE (host commands) */
     2019, /* SS_OP_FINDUID (host commands) */
     2020, /* SS_OP_GENDER (host commands) */
+    2021, /* SS_OP_GETQUEUE (host commands) */
+    2022, /* SS_OP_GETTIMER (host commands) */
     2024, /* SS_OP_HEADICONS_GET (host commands) */
     2025, /* SS_OP_HEADICONS_SET (host commands) */
     2026, /* SS_OP_HEALENERGY (host commands) */
@@ -106,6 +110,9 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2054, /* SS_OP_LAST_ITEM (host commands) */
     2056, /* SS_OP_LAST_SLOT (host commands) */
     2057, /* SS_OP_LAST_TARGETSLOT (host commands) */
+    2058, /* SS_OP_LAST_USEITEM (host commands) */
+    2059, /* SS_OP_LAST_USESLOT (host commands) */
+    2060, /* SS_OP_LONGQUEUE (host commands) */
     2063, /* SS_OP_MES (host commands) */
     2069, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2071, /* SS_OP_P_COUNTDIALOG (host commands) */
@@ -133,7 +140,9 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2116, /* SS_OP_STAT_SUB (host commands) */
     2117, /* SS_OP_STAT_TOTAL (host commands) */
     2118, /* SS_OP_STAT (host commands) */
+    2119, /* SS_OP_STRONGQUEUE (host commands) */
     2125, /* SS_OP_UID (host commands) */
+    2131, /* SS_OP_WEAKQUEUE (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
     2503, /* SS_OP_NPC_ATTACKRANGE (host commands) */

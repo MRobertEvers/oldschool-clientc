@@ -392,6 +392,30 @@ release_parked(struct Mock230Server* srv, struct SSVM_State* state)
     SSVM_StateRelease(state);
 }
 
+/*
+ * `Player.canAccess()` — may the engine hand this player a script right now?
+ *
+ * The reference is `!this.protect && !(this.delayed || containsModalInterface())`.
+ * `protect` has no equivalent here: this engine's one-parked-script rule
+ * (`run_or_park`) stands in for it, which is a stated divergence rather than an
+ * omission — see osrs230_mockserver.md §3.19.
+ *
+ * This is what makes a queue a queue. Without it a `[queue]` armed by a dialogue
+ * ran *through* the dialogue, and a normal timer fired while the player was
+ * `p_delay`ed.
+ */
+static int
+player_can_access(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    if( srv->tick < player->delayed_until )
+        return 0;
+    if( player->mainmodal_group > 0 || player->chatmodal_group > 0 )
+        return 0;
+    return 1;
+}
+
 /**
  * Run a state, and park it wherever its suspend status says it belongs.
  *
@@ -401,7 +425,34 @@ release_parked(struct Mock230Server* srv, struct SSVM_State* state)
 static int
 run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
 {
+    int was_parked = srv->active_player->active_script == state;
     enum SSVM_Exec status = SSVM_Execute(state);
+
+    /*
+     * A parked script that finishes closes the chatbox behind it.
+     *
+     * `Player.executeScript`: when the state that just ended *was* the player's
+     * active one, it clears the resume buttons and — if no MAIN modal is up —
+     * calls `closeModal(false)`. This engine never did, which was invisible
+     * until `canAccess()` existed and then fatal: a conversation that ended on a
+     * `~mesbox` left the chat interface mounted, so the player stayed busy and
+     * every later queue entry and normal timer was held forever.
+     *
+     * `false` is the whole reason `close_modal_ex` exists — a script may
+     * `weakqueue` on its last line, and the automatic close must not discard it.
+     */
+    if( was_parked && (status == SSVM_FINISHED || status == SSVM_ABORTED) )
+    {
+        struct Mock230Player* owner = srv->active_player;
+
+        if( status == SSVM_ABORTED )
+            fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+        release_parked(srv, state);
+        owner->resume_button_count = 0;
+        if( owner->mainmodal_group <= 0 )
+            mock230_world_close_modal_ex(srv, 0);
+        return status == SSVM_FINISHED;
+    }
 
     switch( status )
     {
@@ -482,14 +533,22 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
     }
 }
 
-/** Start a script by id, with an optional argument, on behalf of the player. */
+/**
+ * Start a script by id, with an optional argument, on behalf of the player.
+ *
+ * `protect` is `Player.executeScript`'s second argument, and it is not decorative:
+ * a SOFT timer runs *without* protected access precisely because it is allowed to
+ * run while the player is busy, and giving it the pointer would let it do things a
+ * busy player must not be doing. Everything else the engine starts is protected.
+ */
 static int
 run_script_id(
     struct Mock230Server* srv,
     int script_id,
     int32_t arg,
     int has_arg,
-    int npc_slot)
+    int npc_slot,
+    int protect)
 {
     const struct SSVM_Script* script = SSVM_ProviderGet(srv->scripts, script_id);
     struct SSVM_State* state;
@@ -518,7 +577,8 @@ run_script_id(
         return 0;
 
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
-    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( protect )
+        SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
     {
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
@@ -587,12 +647,12 @@ mock230_scripts_resume_world(struct Mock230Server* srv)
     }
 }
 
-void
-mock230_scripts_process_queues(struct Mock230Server* srv)
+/** One pass of the queue, over the entries of one kind-set. */
+static void
+drain_queue(
+    struct Mock230Server* srv,
+    int weak)
 {
-    if( !srv->scripts_ok )
-        return;
-
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
     {
         struct Mock230Queued* entry = &srv->active_player->queue[i];
@@ -601,51 +661,118 @@ mock230_scripts_process_queues(struct Mock230Server* srv)
 
         if( !entry->active )
             continue;
-        if( --entry->delay > 0 )
+        if( (entry->kind == MOCK230_QUEUE_WEAK) != (weak != 0) )
+            continue;
+
+        /*
+         * Decrement unconditionally and gate only the *run*, which is what
+         * `Player.processQueue` does: `const delay = request.delay--; if
+         * (this.canAccess() && delay <= 0)`. The difference is visible — an
+         * entry that came due while the player was busy fires on the first tick
+         * after access returns, rather than restarting its wait.
+         */
+        entry->delay--;
+        if( entry->delay > 0 )
+            continue;
+        if( !player_can_access(srv) )
             continue;
 
         script_id = entry->script_id;
         arg = entry->arg;
         entry->active = 0;
-        run_script_id(srv, script_id, arg, 1, -1);
+        run_script_id(srv, script_id, arg, 1, -1, 1);
     }
+}
+
+void
+mock230_scripts_clear_weak_queue(struct Mock230Player* player)
+{
+    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    {
+        if( player->queue[i].active && player->queue[i].kind == MOCK230_QUEUE_WEAK )
+            player->queue[i].active = 0;
+    }
+}
+
+void
+mock230_scripts_process_queues(struct Mock230Server* srv)
+{
+    if( !srv->scripts_ok )
+        return;
+
+    /*
+     * A STRONG entry anywhere in the queue closes whatever modal is up *before*
+     * the drain, so that its own entry passes the access check on the tick it is
+     * due. That is the kind's entire difference (`Player.processQueues`), and it
+     * is why the scan runs even when the strong entry is not yet due.
+     */
+    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    {
+        if( srv->active_player->queue[i].active &&
+            srv->active_player->queue[i].kind == MOCK230_QUEUE_STRONG )
+        {
+            mock230_world_close_modal(srv);
+            break;
+        }
+    }
+
+    /* Primary queue, then the weak one — `processQueue()` then
+     * `processWeakQueue()`, which is the reference's order and matters when a
+     * primary entry closes a modal the weak entries were waiting behind. */
+    drain_queue(srv, 0);
+    drain_queue(srv, 1);
 }
 
 void
 mock230_scripts_process_timers(struct Mock230Server* srv)
 {
+    /*
+     * Two passes, NORMAL then SOFT, as `World.processPlayers` calls it.
+     *
+     * The two differ in both directions and one `case` used to serve both:
+     * a SOFT timer runs while the player is busy and *without* protected access;
+     * a NORMAL one needs `canAccess()` and runs *with* it. A test that only asked
+     * "did a timer fire" would stay green for either half being wrong.
+     */
+    static const int k_order[2] = { MOCK230_TIMER_NORMAL, MOCK230_TIMER_SOFT };
+
     if( !srv->scripts_ok )
         return;
 
-    for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+    for( int pass = 0; pass < 2; pass++ )
     {
-        struct Mock230Timer* timer = &srv->active_player->timers[i];
+        int type = k_order[pass];
 
-        if( !timer->active || timer->interval <= 0 )
-            continue;
-        if( ++timer->clock < timer->interval )
-            continue;
-        timer->clock = 0;
-        run_script_id(srv, timer->script_id, 0, 0, -1);
+        for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+        {
+            struct Mock230Timer* timer = &srv->active_player->timers[i];
+
+            /*
+             * No lower bound on the interval, and that is the reference's shape,
+             * not an omission: `Player.processTimers` tests only
+             * `World.currentTick >= timer.clock + timer.interval`, so an
+             * interval of 0 is a timer that fires on *every* tick rather than a
+             * stopped one. `cleartimer` is the only thing that stops a timer.
+             *
+             * It is reachable from real content, not a theoretical case: the
+             * reference arms `settimer(agilityarena_pillar,
+             * sub(%agilityarena_next_pillar_time, map_clock))`, which is 0 or
+             * negative the moment that deadline has passed. An `interval <= 0`
+             * guard here left such a timer permanently inert while still holding
+             * its slot and still answering `gettimer` — set, and never firing.
+             */
+            if( !timer->active || timer->type != type )
+                continue;
+            /* Absolute, not a countdown: `clock` is the tick it was armed or
+             * last fired at, which is also what `gettimer` returns. */
+            if( srv->tick < timer->clock + timer->interval )
+                continue;
+            if( type == MOCK230_TIMER_NORMAL && !player_can_access(srv) )
+                continue;
+            timer->clock = srv->tick;
+            run_script_id(srv, timer->script_id, 0, 0, -1, type == MOCK230_TIMER_NORMAL);
+        }
     }
-}
-
-void
-mock230_scripts_process_npc_timer(
-    struct Mock230Server* srv,
-    int slot)
-{
-    struct Mock230Npc* npc;
-
-    if( !srv->scripts_ok || slot < 0 || slot >= MOCK230_NPC_MAX )
-        return;
-    npc = &srv->npcs[slot];
-    if( npc->timer_script < 0 || npc->timer_interval <= 0 )
-        return;
-    if( ++npc->timer_clock < npc->timer_interval )
-        return;
-    npc->timer_clock = 0;
-    run_script_id(srv, npc->timer_script, 0, 0, slot);
 }
 
 int
@@ -706,7 +833,7 @@ mock230_scripts_run_script(
 {
     if( !srv->scripts_ok )
         return 0;
-    return run_script_id(srv, script_id, 0, 0, -1);
+    return run_script_id(srv, script_id, 0, 0, -1, 1);
 }
 
 /*
@@ -957,8 +1084,22 @@ mock230_scripts_queue_hook(
          * before it fires, so delay 0 has to mean "next tick". */
         player->queue[i].delay = delay + 1;
         player->queue[i].arg = arg;
+        player->queue[i].kind = MOCK230_QUEUE_NORMAL;
+        player->queue[i].logout_action = 0;
         return 1;
     }
+    /*
+     * Reported, because it became reachable the day the queue learned to wait.
+     *
+     * Before the `canAccess()` gate every entry drained on its next tick, so 16
+     * slots meant 16 entries in flight. An entry now sits there for as long as
+     * the player is busy, and a fight with a level-up message box on screen adds
+     * one per hit. The reference's queue is a linked list with no cap at all, so
+     * this limit is this engine's and nothing content can see coming — and a
+     * dropped `[queue,player_death]` looks exactly like a death that never ends.
+     */
+    fprintf(stderr, "mock230: %s dropped — the player's queue is full (%d)\n", script->name,
+            MOCK230_QUEUE_MAX);
     return 0;
 }
 
@@ -1228,6 +1369,260 @@ mock230_scripts_run_if_button(
     {
         if( srv->verbose )
             fprintf(stderr, "mock230: no trigger for %s\n", name);
+        return MOCK230_TRIGGER_NONE;
+    }
+    return run_trigger_script(srv, script, -1);
+}
+
+/*
+ * Resolve a coordinate-subject trigger to its script, or NULL.
+ *
+ * Both public entry points go through this so the *name* has one spelling. The
+ * spelling is the whole contract: if it disagrees with `ssc_compile.c`'s by one
+ * character, every zone script in the tree stops running and nothing says so.
+ */
+static const struct SSVM_Script*
+zone_trigger_script(
+    struct Mock230Server* srv,
+    int trigger,
+    int level,
+    int x,
+    int z)
+{
+    const char* trigger_name;
+    char name[192];
+
+    if( !srv->scripts_ok )
+        return NULL;
+
+    trigger_name = SSVM_TriggerName(trigger);
+    if( !trigger_name || !trigger_name[0] )
+        return NULL;
+
+    switch( trigger )
+    {
+    case SS_TRIGGER_ZONE:
+    case SS_TRIGGER_ZONEEXIT:
+        /*
+         * `[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, where the last two are **tile
+         * offsets inside the map square**, 0/8/…/56 — not zone indices 0..7, and
+         * not zero-padded. `Player.ts`'s own formatter:
+         *   `${level}_${x >> 6}_${z >> 6}_${(x & 0x3f) >> 3 << 3}_${…}`
+         * Getting a character of this wrong costs nothing at build time and is
+         * permanently silent at run time, which is why the selftest asserts a
+         * compiled header is retrievable by exactly this string.
+         */
+        snprintf(name, sizeof(name), "[%s,%d_%d_%d_%d_%d]", trigger_name, level, x >> 6, z >> 6,
+                 ((x & 0x3f) >> 3) << 3, ((z & 0x3f) >> 3) << 3);
+        break;
+
+    case SS_TRIGGER_MAPZONE:
+    case SS_TRIGGER_MAPZONEEXIT:
+        /*
+         * The map square, and the level is a literal 0 — the reference builds
+         * this latch with `CoordGrid.packCoord(0, x, z)`, so climbing a ladder
+         * inside one square does not re-enter it. `level` is accepted and
+         * ignored on purpose: the caller should not have to know that.
+         */
+        (void)level;
+        snprintf(name, sizeof(name), "[%s,0_%d_%d]", trigger_name, x >> 6, z >> 6);
+        break;
+
+    default:
+        return NULL;
+    }
+
+    /*
+     * No keyed rung, unlike `run_if_button`. There, the keyed lookup is a
+     * correct fast path; here it is actively wrong — `ssc_lex.c` packs a 5-part
+     * coord into 28 bits and the compiled key gives its subject 21, so a zone's
+     * key either goes negative (and `ssvm_provider.c` keeps negatives out of the
+     * index) or wraps onto a subject that no runtime lookup reproduces. Name is
+     * the only address these four have. `ssc_compile.c` now writes -1 for a
+     * coord subject so that is true by construction rather than by luck.
+     *
+     * A miss is silent, and a miss is the overwhelmingly common case: there are
+     * tens of thousands of nameable zones and a handful of bound ones. What
+     * bounds the cost is not the lookup but the *latch* — this runs once per
+     * zone crossing, at most one crossing per four ticks at walking pace, never
+     * once per tick. `SSVM_ProviderGetByName` is FNV-1a plus a binary search
+     * that stops at the first mismatched hash, so a miss is ~log2(n) compares
+     * and no strcmp at all. Measured on this tree's pack (see
+     * osrs230_mockserver.md §3.21) rather than asserted.
+     */
+    return SSVM_ProviderGetByName(srv->scripts, name);
+}
+
+int
+mock230_scripts_run_trigger_at(
+    struct Mock230Server* srv,
+    int trigger,
+    int level,
+    int x,
+    int z)
+{
+    const struct SSVM_Script* script = zone_trigger_script(srv, trigger, level, x, z);
+
+    if( !script )
+        return MOCK230_TRIGGER_NONE;
+    return run_trigger_script(srv, script, -1);
+}
+
+int
+mock230_scripts_queue_trigger_at(
+    struct Mock230Server* srv,
+    int trigger,
+    int level,
+    int x,
+    int z)
+{
+    const struct SSVM_Script* script = zone_trigger_script(srv, trigger, level, x, z);
+    struct Mock230Player* player;
+
+    if( !script )
+        return MOCK230_TRIGGER_NONE;
+
+    player = srv->active_player;
+    for( int i = 0; i < MOCK230_ENGINE_QUEUE_MAX; i++ )
+    {
+        if( player->engine_queue[i].active )
+            continue;
+        player->engine_queue[i].active = 1;
+        player->engine_queue[i].script_id = script->id;
+        /*
+         * Zero, not `delay + 1`. `enqueueScript` overwrites the delay with 0 for
+         * ENGINE, and `processEngineQueue` compares the value the counter had
+         * *before* its decrement — so the entry is due on the first drain after
+         * this one, which is phase 5 of the next tick.
+         */
+        player->engine_queue[i].delay = 0;
+        player->engine_queue[i].arg = 0;
+        player->engine_queue[i].kind = MOCK230_QUEUE_ENGINE;
+        player->engine_queue[i].logout_action = 0;
+        return MOCK230_TRIGGER_RAN;
+    }
+
+    /* Same argument as `queue_hook`'s: the reference's list has no cap, so an
+     * overflow is this engine's own and content cannot see it coming. */
+    fprintf(stderr, "mock230: %s dropped — the engine queue is full (%d)\n", script->name,
+            MOCK230_ENGINE_QUEUE_MAX);
+    return MOCK230_TRIGGER_NONE;
+}
+
+void
+mock230_scripts_process_engine_queue(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+
+    if( !srv->scripts_ok )
+        return;
+
+    player = srv->active_player;
+    for( int i = 0; i < MOCK230_ENGINE_QUEUE_MAX; i++ )
+    {
+        struct Mock230Queued* entry = &player->engine_queue[i];
+        int script_id;
+        int due;
+
+        if( !entry->active )
+            continue;
+
+        /*
+         * `const delay = request.delay--; if (this.canAccess() && delay <= 0)`.
+         * The decrement is unconditional and only the run is gated, exactly as
+         * the normal queue's is — so an entry held by a dialogue fires on the
+         * tick the dialogue closes rather than restarting a wait it never had.
+         */
+        due = entry->delay-- <= 0;
+        if( !due || !player_can_access(srv) )
+            continue;
+
+        script_id = entry->script_id;
+        entry->active = 0;
+        /* Protected, as `processEngineQueue`'s `executeScript(script, true)`. */
+        run_script_id(srv, script_id, 0, 0, -1, 1);
+    }
+}
+
+/*
+ * Exchange the clicked item with the dragged one.
+ *
+ * Both halves move together — item *and* slot — because a script that reads
+ * `last_slot` to consume what it just used would otherwise address the wrong
+ * backpack cell. The reference swaps them as two destructuring assignments back
+ * to back for the same reason.
+ */
+static void
+opheldu_swap(struct Mock230Player* player)
+{
+    int item = player->last_item;
+    int slot = player->last_slot;
+
+    player->last_item = player->last_useitem;
+    player->last_useitem = item;
+    player->last_slot = player->last_useslot;
+    player->last_useslot = slot;
+}
+
+int
+mock230_scripts_run_opheldu(
+    struct Mock230Server* srv,
+    int obj_type,
+    int obj_category,
+    int use_obj_type,
+    int use_obj_category)
+{
+    struct Mock230Player* player = srv->active_player;
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok )
+        return MOCK230_TRIGGER_NONE;
+
+    /*
+     * Four rungs, `getByTriggerSpecific` throughout: `OpHeldUHandler` never asks
+     * for `[opheldu,_]`, and the reference tree has none — a wildcard here would
+     * swallow every "use A on B" in the game the moment somebody wrote one.
+     */
+
+    /* 1 — the item that was clicked. */
+    script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, obj_type, -1);
+
+    /* 2 — the item that was dragged. The swap is *outside* the null check, in
+     * the reference and here: rungs 3 and 4 then run against swapped state, and
+     * the category rungs' orientation depends on it. See the header comment. */
+    if( !script )
+    {
+        script =
+            SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, use_obj_type, -1);
+        opheldu_swap(player);
+    }
+
+    /* 3 — the clicked item's category. */
+    if( !script && obj_category != -1 )
+        script =
+            SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, -1, obj_category);
+
+    /* 4 — the dragged item's category, and back the other way. */
+    if( !script && use_obj_category != -1 )
+    {
+        script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, -1,
+                                                   use_obj_category);
+        opheldu_swap(player);
+    }
+
+    if( !script )
+    {
+        if( srv->verbose )
+        {
+            char label[192];
+
+            /* The *clicked* item names the miss, which is what the reference
+             * prints (`No trigger for [opheldu,${objType.debugname}]`) — and by
+             * this point the swap may have moved it, so it comes from the
+             * argument rather than from the player. */
+            fprintf(stderr, "mock230: no trigger for %s\n",
+                    trigger_label(SS_TRIGGER_OPHELDU, obj_type, label, sizeof(label)));
+        }
         return MOCK230_TRIGGER_NONE;
     }
     return run_trigger_script(srv, script, -1);
@@ -2323,8 +2718,18 @@ mock230_script_command(
                 continue;
             npc->queue[i].active = 1;
             npc->queue[i].queue = queue;
-            /* +1 so delay 0 means "next tick", matching `queue` and `p_delay`. */
-            npc->queue[i].delay = delay + 1;
+            /*
+             * The raw delay, and the drain compares the value *after* its
+             * decrement — `Npc.processQueue`: `request.delay--; if (!delayed &&
+             * request.delay <= 0)`. A player's queue compares the value before
+             * it, so an npc's delay 0 and delay 1 both land on the next npc
+             * phase and a player's do not.
+             *
+             * This stored `delay + 1` and the selftest asserted that
+             * `npc_queue(q, arg, 1)` fires on tick +2. It fires on +1; the
+             * assertion encoded the wrong convention and was rewritten.
+             */
+            npc->queue[i].delay = delay;
             npc->queue[i].arg = arg;
             return 1;
         }
@@ -3738,11 +4143,32 @@ mock230_script_command(
 
     /* ---- queues and timers ---------------------------------------- */
 
+    /*
+     * The four queue commands are one body: they differ only in the *kind* they
+     * store, and the kind is read by the drain and by `close_modal`.
+     *
+     *   queue       (script, delay, arg)                   NORMAL
+     *   strongqueue (script, delay, arg)                   STRONG — closes modals
+     *   weakqueue   (script, delay, arg)                   WEAK   — dies with them
+     *   longqueue   (script, delay, arg, logout_action)    LONG   — survives logout
+     *
+     * The vararg forms (`queue*` and friends) are a separate declaration the
+     * compiler refuses outright (`ssc_compile.c`: "it packs a type string the
+     * compiler does not build"), so both halves agree that they do not exist.
+     */
     case SS_OP_QUEUE:
+    case SS_OP_STRONGQUEUE:
+    case SS_OP_WEAKQUEUE:
+    case SS_OP_LONGQUEUE:
     {
-        int32_t values[3];
+        int32_t values[4] = { 0, 0, 0, 0 };
+        int argc = opcode == SS_OP_LONGQUEUE ? 4 : 3;
+        int kind = opcode == SS_OP_STRONGQUEUE ? MOCK230_QUEUE_STRONG
+                   : opcode == SS_OP_WEAKQUEUE ? MOCK230_QUEUE_WEAK
+                   : opcode == SS_OP_LONGQUEUE ? MOCK230_QUEUE_LONG
+                                               : MOCK230_QUEUE_NORMAL;
 
-        for( int i = 2; i >= 0; i-- )
+        for( int i = argc - 1; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
@@ -3753,12 +4179,52 @@ mock230_script_command(
                 continue;
             player->queue[i].active = 1;
             player->queue[i].script_id = values[0];
-            /* +1 so delay 0 means "next tick", not "this one". */
+            /* +1 so delay 0 means "next tick", not "this one". The drain
+             * pre-decrements, so this is the reference's raw store read the
+             * other way round — same answer for every delay. */
             player->queue[i].delay = values[1] + 1;
             player->queue[i].arg = values[2];
+            player->queue[i].kind = kind;
+            player->queue[i].logout_action = values[3];
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");
+        return 1;
+    }
+
+    /*
+     * `clearqueue` unlinks every copy of one script from the primary *and* the
+     * weak queue — `unlinkQueuedScript`'s default branch walks both.
+     */
+    case SS_OP_CLEARQUEUE:
+    {
+        int32_t script_id;
+
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        {
+            if( player->queue[i].active && player->queue[i].script_id == script_id )
+                player->queue[i].active = 0;
+        }
+        return 1;
+    }
+
+    /* `getqueue` counts and does not clear. Two copies of one script are two
+     * entries, which is the whole reason content asks. */
+    case SS_OP_GETQUEUE:
+    {
+        int32_t script_id;
+        int count = 0;
+
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        {
+            if( player->queue[i].active && player->queue[i].script_id == script_id )
+                count++;
+        }
+        SSVM_PushInt(state, count);
         return 1;
     }
 
@@ -3799,12 +4265,28 @@ mock230_script_command(
             slot->active = 1;
             slot->script_id = values[0];
             slot->interval = values[1];
-            slot->clock = 0;
+            /* The world tick, not zero. `Player.setTimer` stores
+             * `World.currentTick` and fires on `currentTick >= clock + interval`
+             * — and `gettimer` returns this number, so a countdown here would
+             * make that opcode unimplementable rather than merely different. */
+            slot->clock = srv->tick;
+            slot->type = opcode == SS_OP_SOFTTIMER ? MOCK230_TIMER_SOFT : MOCK230_TIMER_NORMAL;
         }
         return 1;
     }
 
+    /*
+     * `cleartimer` and `clearsofttimer` are the same operation on the same
+     * table: the reference's `clearTimer(timerId)` is `timers.delete(timerId)`
+     * with no type in it at all, and a timer is keyed by its script, so the two
+     * commands can never name the same one.
+     *
+     * The `active` test is new. Without it the loop matched zeroed slots, whose
+     * `script_id` is 0 — a no-op in practice, but it made the code say something
+     * it did not mean.
+     */
     case SS_OP_CLEARTIMER:
+    case SS_OP_CLEARSOFTTIMER:
     {
         int32_t script_id;
 
@@ -3812,9 +4294,26 @@ mock230_script_command(
             return 1;
         for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
         {
-            if( player->timers[i].script_id == script_id )
+            if( player->timers[i].active && player->timers[i].script_id == script_id )
                 player->timers[i].active = 0;
         }
+        return 1;
+    }
+
+    /* The absolute tick the timer was last armed or fired at, or -1. */
+    case SS_OP_GETTIMER:
+    {
+        int32_t script_id;
+        int32_t answer = -1;
+
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+        for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+        {
+            if( player->timers[i].active && player->timers[i].script_id == script_id )
+                answer = player->timers[i].clock;
+        }
+        SSVM_PushInt(state, answer);
         return 1;
     }
 
@@ -4707,6 +5206,18 @@ mock230_script_command(
         return 1;
     case SS_OP_LAST_ITEM:
         SSVM_PushInt(state, player->last_item);
+        return 1;
+
+    /*
+     * The other half of a use-on. `last_item` is the trigger's subject and these
+     * are the item it was used *with* — for `[oplocu]`/`[opnpcu]`/`[opobju]` the
+     * subject is not an item at all, so this is the only way in.
+     */
+    case SS_OP_LAST_USEITEM:
+        SSVM_PushInt(state, player->last_useitem);
+        return 1;
+    case SS_OP_LAST_USESLOT:
+        SSVM_PushInt(state, player->last_useslot);
         return 1;
 
     case SS_OP_DISPLAYNAME:

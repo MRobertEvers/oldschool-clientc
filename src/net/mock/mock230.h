@@ -251,6 +251,19 @@ enum
 
     /* Parked script bookkeeping. */
     MOCK230_QUEUE_MAX = 16,
+    /*
+     * The engine queue is its own array because the reference's is its own list:
+     * `unlinkQueuedScript`'s default branch walks `queue` and `weakQueue` and
+     * never `engineQueue`, so `clearqueue` cannot cancel a zone trigger. Sharing
+     * one array would have made that a filter somebody could forget.
+     *
+     * Four is the most one tick can add (mapzoneexit, mapzone, zoneexit, zone)
+     * and entries only accumulate while the player is busy — which is also when
+     * the reference refuses to walk them anywhere new. Eight is two crossings'
+     * worth of slack; an overflow is reported for the same reason
+     * `mock230_scripts_queue_hook`'s is.
+     */
+    MOCK230_ENGINE_QUEUE_MAX = 8,
     MOCK230_TIMER_MAX = 8,
     MOCK230_WORLD_QUEUE_MAX = 16,
     MOCK230_RESUME_BUTTON_MAX = 8,
@@ -940,14 +953,64 @@ struct Mock230GroundObj
     int zone_index;
 };
 
+/**
+ * Which queue a `Mock230Queued` belongs to.
+ *
+ * `PlayerQueueType` in the reference, minus SOFT, which the reference declares
+ * and never uses — a kind nothing can put in the queue is a branch no test can
+ * reach.
+ *
+ * NORMAL, LONG, WEAK and STRONG live in one array where the reference keeps
+ * `queue` and `weakQueue` as two lists; the kind is what the drain splits on,
+ * and the only observable difference between them is *when they are cleared* —
+ * see `mock230_world_close_modal` (WEAK) and `mock230_scripts_process_queues`
+ * (STRONG).
+ *
+ * ENGINE is the exception and lives in `Mock230Player.engine_queue`, because
+ * the reference keeps it apart too and the separation is load-bearing rather
+ * than stylistic: `clearqueue` must not be able to cancel a zone trigger, and
+ * an engine entry's delay is forced to 0 rather than taken from content.
+ */
+enum Mock230QueueKind
+{
+    MOCK230_QUEUE_NORMAL = 0,
+    /** `longqueue` — like NORMAL, plus a logout action. */
+    MOCK230_QUEUE_LONG,
+    /** `weakqueue` — discarded whenever a modal closes. */
+    MOCK230_QUEUE_WEAK,
+    /** `strongqueue` — closes whatever modal is up before the drain, so its own
+     *  entry passes the access check on the tick it is due. */
+    MOCK230_QUEUE_STRONG,
+    /** The zone family. Engine-produced, delay always 0, drained after the
+     *  timers from its own array. Content cannot put one here. */
+    MOCK230_QUEUE_ENGINE
+};
+
 /** A script waiting for its delay to run out. */
 struct Mock230Queued
 {
     int active;
     int script_id;
-    /** Ticks remaining. Decremented once per tick; runs at 0. */
+    /** Ticks remaining. Decremented once per tick — unconditionally, as the
+     *  reference does, so an entry that came due while the player was busy
+     *  fires the moment access returns rather than restarting its wait. */
     int delay;
     int32_t arg;
+    /** enum Mock230QueueKind. */
+    int kind;
+    /** LONG only: `^accelerate` (0) means "run it early when the player logs
+     *  out" rather than discarding it. Stored and not yet read — `phase_logouts`
+     *  is empty (osrs230_mockserver.md §3.9). */
+    int logout_action;
+};
+
+/** Whether a timer runs while the player is busy. */
+enum Mock230TimerType
+{
+    /** `settimer` — needs access, and runs *with* protected access. */
+    MOCK230_TIMER_NORMAL = 0,
+    /** `softtimer` — runs while busy, and without protected access. */
+    MOCK230_TIMER_SOFT
 };
 
 /** A script that re-runs on an interval. */
@@ -956,7 +1019,12 @@ struct Mock230Timer
     int active;
     int script_id;
     int interval;
+    /** The world tick the timer was last armed or fired at — **absolute**, not
+     *  a countdown. That is what `gettimer` returns, so a relative counter here
+     *  would make the opcode unimplementable rather than merely different. */
     int clock;
+    /** enum Mock230TimerType. */
+    int type;
 };
 
 /** One queued tile of movement, in absolute tile coordinates. */
@@ -1030,6 +1098,22 @@ struct Mock230Interaction
      *  adjacent form is left. Without this the ap lookup runs every tick of a
      *  long walk. */
     int ap_tried;
+
+    /**
+     * "Use <this item> on it" rather than "do op <n> to it".
+     *
+     * A use-on click is an interaction like any other — it latches, it walks,
+     * and it acts on arrival — but it resolves to a *different* trigger: the
+     * `u` form, `[aplocu]`/`[oplocu]`, which carries no op number at all. So
+     * this selects the trigger rather than changing what the walk does, and
+     * `op` is meaningless while it is set.
+     *
+     * The item itself is NOT here. It is `last_useitem`/`last_useslot` on the
+     * player, because that is how the script reads it and because the trigger's
+     * subject is the *target*, not the item — see the header comment on
+     * `mock230_scripts_run_opheldu`.
+     */
+    int use_on;
 };
 
 enum
@@ -1149,8 +1233,12 @@ struct Mock230Npc
         int arg;
     } queue[MOCK230_NPC_QUEUE_MAX];
 
-    /** [ai_timer]: re-runs every `timer_interval` ticks. -1 = none. */
-    int timer_script;
+    /** [ai_timer]: re-runs every `timer_interval` ticks, 0 = stopped. Armed by
+     *  `npc_settimer` and drained in phase 4. The script is *not* stored: the
+     *  trigger is resolved by npc type when it fires, so an npc that changed
+     *  type picks up the new type's `[ai_timer]`. (There used to be a
+     *  `timer_script` here as well, written in exactly one place and only ever
+     *  to -1, which made the second drain that read it unreachable.) */
     int timer_interval;
     int timer_clock;
     /** Which waypoint of `def->patrol` this npc is walking to, and how many
@@ -1359,6 +1447,35 @@ struct Mock230Player
     /** Packed zone this client was last in, or -1. */
     int zone_index;
 
+    /*
+     * ── The two coordinate latches `updateMap` holds ─────────────────
+     *
+     * `lastZone` and `lastMapZone` in `NetworkPlayer.updateMap`, and they are
+     * two latches rather than one because the two halves of the zone trigger
+     * family are keyed at different granularities: `[zone]`/`[zoneexit]` off the
+     * 8-tile zone *including the level*, `[mapzone]`/`[mapzoneexit]` off the
+     * 64-tile map square with the level forced to 0. So climbing a ladder
+     * re-enters a zone and does not re-enter a map square.
+     *
+     * **These are deliberately not `zone_index`**, which looks like exactly the
+     * right field and is not: `mock230_zone_player_reset` sets it to -1 on every
+     * rebuild and on every climb (four call sites), so a trigger latch hung off
+     * it would re-fire `[zone,…]` whenever the world's origin moved under a
+     * standing player, and swallow the matching `[zoneexit]`. Nothing else may
+     * write these two; only `mock230_world_update_map` does.
+     *
+     * Stored as components rather than a packed coord so no unpack is needed to
+     * name the zone being *left*. `last_zone_level` and `last_map_x` are -1
+     * until the first transition, which is what suppresses the exit at login —
+     * the reference gets the same from a fresh `Player` and never resets them,
+     * `cleanup()` included.
+     */
+    int last_zone_level;
+    int last_zone_x;
+    int last_zone_z;
+    int last_map_x;
+    int last_map_z;
+
     /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
      *  else moved the world's origin, or it changed level. */
     int rebuild_pending;
@@ -1399,6 +1516,8 @@ struct Mock230Player
     int delayed_until;
 
     struct Mock230Queued queue[MOCK230_QUEUE_MAX];
+    /** `Player.engineQueue`. Zone triggers only; see `enum Mock230QueueKind`. */
+    struct Mock230Queued engine_queue[MOCK230_ENGINE_QUEUE_MAX];
     struct Mock230Timer timers[MOCK230_TIMER_MAX];
 
     /** Component uids that will release a p_pausebutton wait. Cleared whenever
@@ -1424,6 +1543,24 @@ struct Mock230Player
     int last_item;
     int last_verb;
     int32_t last_int;
+    /*
+     * The other half of a use-on: the item the player was *carrying* when they
+     * clicked, as opposed to the thing they clicked on.
+     *
+     * "Use A on B" has two ids and only one of them is the trigger's subject.
+     * The subject is B — the loc, npc, obj or (for `opheldu`) the clicked item;
+     * A reaches the script only through these two. Every `*u` handler sets them
+     * before the dispatch and nothing clears them afterwards, which is the
+     * reference's own behaviour (`Player.clearInteraction` leaves them alone):
+     * they mean "the last use-on", not "the current one".
+     *
+     * `opheldu` additionally *swaps* these with `last_item`/`last_slot` on two
+     * of its four lookup rungs, so that a script always finds its own subject
+     * in `last_item` whichever of the two items the player picked up first.
+     * See `mock230_scripts_run_opheldu`.
+     */
+    int last_useitem;
+    int last_useslot;
 
     /*
      * The db query `db_listall` selects and `db_findnext` walks.
@@ -2400,6 +2537,15 @@ mock230_world_interaction_clear(struct Mock230Server* srv);
 void
 mock230_world_close_modal(struct Mock230Server* srv);
 
+/** `Player.closeModal(clearWeakQueue)`. The `false` form has exactly one caller
+ *  in the reference and exactly one here: the automatic chat close when a parked
+ *  script finishes (`Player.executeScript`), which must not discard a weak queue
+ *  the finished script may have just filled. */
+void
+mock230_world_close_modal_ex(
+    struct Mock230Server* srv,
+    int clear_weak_queue);
+
 /**
  * "The player changed their mind": drop the pending interaction, the combat
  * target and any open dialogue, but leave the walk queue alone.
@@ -2629,6 +2775,118 @@ mock230_scripts_run_if_button(
     int uid);
 
 /**
+ * Dispatch a coordinate-subject trigger — the `zone`/`mapzone` family — by name.
+ *
+ * These four are the only triggers whose subject is a *place*, and a place is
+ * not a type id: the reference formats `[zone,<level>_<mx>_<mz>_<lx>_<lz>]` and
+ * `[mapzone,0_<mx>_<mz>]` and asks `ScriptProvider.getByName`
+ * (`NetworkPlayer.updateMap` → `Player.ts`). `mock230_scripts_run_trigger`
+ * takes an integer subject and cannot express that, which is the whole reason
+ * this exists — the same reason `mock230_scripts_run_if_button` has a
+ * name-addressed rung.
+ *
+ * It differs from that one in taking *no* keyed rung, and that is a correctness
+ * requirement rather than an optimisation: a 5-part coord packs to a subject far
+ * past the compiled key's 21 bits. Measured over the reference's 427 of them, 78
+ * compile to a negative key (which `ssvm_provider.c` deliberately keeps out of
+ * the index) and 349 to a wrapped one no runtime lookup could reproduce. Name is
+ * the only address these have, and `ssc_compile.c` writes -1 for a coord subject
+ * so that is true by construction.
+ *
+ * Components, not a packed coord, because the two granularities disagree about
+ * level: `mapzone` packs it as a literal 0 (`CoordGrid.packCoord(0, …)`), so a
+ * climb inside one map square does not re-fire it. Passing one packed number
+ * would make the two indistinguishable here.
+ *
+ * A miss is **silent**. Every tile in the world is a miss for at least three of
+ * the four, which is the `[ai_spawn]`-across-2,197-npcs argument
+ * (osrs230_mockserver.md §3.18) — so this does not borrow
+ * `trigger_is_player_initiated`'s report.
+ */
+int
+mock230_scripts_run_trigger_at(
+    struct Mock230Server* srv,
+    int trigger,
+    int level,
+    int x,
+    int z);
+
+/**
+ * The same lookup, but *enqueued* on the engine queue rather than run.
+ *
+ * This is what the tick uses, and `run_trigger_at` above is what the selftest
+ * uses. The split is the reference's: `triggerZone` and its three siblings all
+ * end in `enqueueScript(trigger, PlayerQueueType.ENGINE)`, never a direct call.
+ *
+ * Two reasons it has to be a queue, both of which a direct call gets wrong in a
+ * way that looks like a content bug:
+ *
+ *  - detection happens in phase 10, after PLAYER_INFO has been encoded, so a
+ *    zone script that teleports would move a player the client has already been
+ *    told is somewhere else. The drain is phase 5 of the following tick.
+ *  - `run_or_park` allows one parked script per player, so a zone crossed
+ *    mid-dialogue would have its script *refused* with a message rather than
+ *    held. The engine queue's `canAccess()` gate holds it instead.
+ *
+ * Returns MOCK230_TRIGGER_RAN when a script was found and queued (it has not
+ * run yet), MOCK230_TRIGGER_NONE when nothing is bound — the same silent miss.
+ */
+int
+mock230_scripts_queue_trigger_at(
+    struct Mock230Server* srv,
+    int trigger,
+    int level,
+    int x,
+    int z);
+
+/**
+ * Dispatch "use item A on item B" — `[opheldu,…]` — over its four lookup rungs.
+ *
+ * The one member of the use-on family that is not an interaction: there is
+ * nothing to walk to, so `OpHeldUHandler` resolves and runs it in the packet
+ * handler. It is also the only trigger in the engine whose lookup **mutates the
+ * player while it searches**, which is why it cannot be expressed as a call to
+ * `mock230_scripts_run_trigger` (that resolves one `(type, category)` pair).
+ *
+ * The rungs, in the reference's order, none of them chaining to `_`:
+ *
+ *   1. `(OPHELDU, b.id, -1)`        — the item that was *clicked*
+ *   2. `(OPHELDU, a.id, -1)`        — the item that was *dragged*, then SWAP
+ *   3. `(OPHELDU, -1, b.category)`
+ *   4. `(OPHELDU, -1, a.category)`  — then SWAP again
+ *
+ * **The swap is the contract, not an implementation detail.** It exchanges
+ * `last_item`↔`last_useitem` and `last_slot`↔`last_useslot`, so that a script
+ * bound to one of the two items always finds *itself* in `last_item` and the
+ * other item in `last_useitem` — whichever order the player clicked them in.
+ * Content relies on it: the reference's `[opheldu,ball_of_wool]` and
+ * `[opheldu,unstrung_sapphire_amulet]` are both written reading `last_useitem`,
+ * and only one of them can be the clicked item on any given click.
+ *
+ * **Rung 2's swap is outside its null check, and that is deliberate.** After a
+ * failed rung 2 the state is left swapped, so a rung-3 (clicked item's
+ * *category*) hit runs with `last_item` naming the *other* item — an inversion
+ * relative to rungs 1 and 2. It is the reference's behaviour, 53 category
+ * bindings in the reference tree observe it, and content is written against what
+ * it observes. Ported deliberately; the selftest pins it so that "fixing" it
+ * goes red.
+ *
+ * Categories are passed in rather than looked up here for the same reason the
+ * rest of the dispatch takes them: the obj record lives on the world side.
+ * Pass -1 for an obj with no category. Returns `enum Mock230TriggerResult`; a
+ * miss is the caller's to answer, and the answer is content's
+ * `[proc,nothing_interesting_message]` — never an engine fallback, because
+ * there is no engine use-on behaviour for one to fall back to.
+ */
+int
+mock230_scripts_run_opheldu(
+    struct Mock230Server* srv,
+    int obj_type,
+    int obj_category,
+    int use_obj_type,
+    int use_obj_category);
+
+/**
  * Run a `::command` as `[debugproc,<name>]`, with the words after it as its
  * declared arguments. Returns 1 when content claimed the line.
  *
@@ -2651,15 +2909,35 @@ mock230_scripts_resume_npc(
 void
 mock230_scripts_resume_player(struct Mock230Server* srv);
 
-/** Run due queue entries and tick the timers. */
+/**
+ * Run due queue entries and tick the timers, on `srv->active_player`.
+ *
+ * Phase 5's own order, which is the reference's (`World.processPlayers`):
+ * resume, queues (strong-close, normal, weak), then timers (normal, then soft).
+ *
+ * Both are gated on the reference's `canAccess()` — see `player_can_access`.
+ * That gate is the difference between a queued script and an immediate one, and
+ * without it a `[queue]` armed by a dialogue ran *through* the dialogue.
+ */
 void
 mock230_scripts_process_queues(struct Mock230Server* srv);
 void
 mock230_scripts_process_timers(struct Mock230Server* srv);
+/**
+ * Drain the engine queue — the zone family — on `srv->active_player`.
+ *
+ * Runs *after* the timers, which is where `World.processPlayers` calls
+ * `processEngineQueue()`. Entries carry delay 0, so an entry queued by phase 10
+ * of tick N runs in phase 5 of tick N+1 unless the player is busy, in which case
+ * it waits rather than being dropped.
+ */
 void
-mock230_scripts_process_npc_timer(
-    struct Mock230Server* srv,
-    int slot);
+mock230_scripts_process_engine_queue(struct Mock230Server* srv);
+
+/** Discard every WEAK queue entry. Called by `mock230_world_close_modal`, which
+ *  is the only thing that clears them (`Player.closeModal`). */
+void
+mock230_scripts_clear_weak_queue(struct Mock230Player* player);
 
 /**
  * Release a p_pausebutton wait.

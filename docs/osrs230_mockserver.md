@@ -2129,16 +2129,13 @@ forever. `in_range` tests level now, the same way `player_in_view` always did.
   What went away is the *per-player* pass: the cost was O(players × objs) and is
   O(objs). Objs are refiled at each of their four mutation sites anyway; the
   per-tick pass is the reconcile that catches a call site nobody has written yet.
-- **Zone triggers are still undispatched.** Re-measured against the reference
-  rather than taken from the triage: `[zone]` 262, `[zoneexit]` 165,
-  `[mapzone]` 306, `[mapzoneexit]` 73 — 806, which is the number
-  `LOSTCITY_PORT_TRIAGE.md` §7.2 states and it is right. Worth knowing before
-  sizing anything by it: only **427** of those are zone-keyed. `mapzone` and
-  `mapzoneexit` key off the *map square* (`>> 6`), not the zone (`>> 3`), so
-  they never touch this structure. Dispatch is Phase 2 work; the reference fires
-  all four from `NetworkPlayer.updateMap`, keyed by script *name*
-  (`[zone,<level>_<mx>_<mz>_<lx>_<lz>]`), which the numeric-subject
-  `mock230_scripts_run_trigger` cannot express yet.
+- ~~**Zone triggers are still undispatched.**~~ **Closed — §3.21.** All four
+  dispatch now, and the number worth carrying forward is not the 806: **427 are
+  zone-keyed and 379 are map-square-keyed**, and the ZoneMap is irrelevant to the
+  379. Nothing in the zone-trigger path consults this structure — `mapzone` keys
+  off `x >> 6` and even `[zone]` reaches its script by *name*, not through any
+  index this file owns. Read §3.21 before assuming a zone trigger and a zone are
+  the same thing.
 
 ### Verified
 
@@ -2401,6 +2398,884 @@ keeps relearning is that a test which cannot fail is worse than none:
 The third is the one worth keeping. A goblin's Attack is op 2 and a guard's is
 op 1, so an implementation that assumed the first slot passes every test that
 only ever asks about the first slot.
+
+---
+
+## 3.19 Queues and timers, and the name-keyed dispatch path
+
+Triage §9 step 5a. `[queue]` (153 uses in the reference), `[timer]` (34),
+`[softtimer]` (1) and `[ai_timer]` (87) — 275, re-measured, where the triage says
+273 because it omits `softtimer` and counts `queue` at 152.
+
+**Roughly two thirds of it already existed and was wrong in ways nothing could
+see.** All four triggers reached a script before this; what was missing was the
+*semantics*, and every gap was invisible for the same structural reason — the
+engine had no notion of a player being unable to act, so a queue was an
+`n`-tick-delayed immediate call rather than a queue.
+
+### 1. `canAccess()`, which is what makes a queue a queue
+
+`Player.canAccess()` is `!protect && !busy()`, and `busy()` is
+`delayed || containsModalInterface()` — MAIN or CHAT, deliberately not the
+sidebar. `mock230_scripts.c:player_can_access` is that, minus `protect`: the
+reference uses that flag to stop two protected scripts overlapping inside one
+tick, and this engine gets the same property from the one-parked-script-per-player
+rule in `run_or_park`. That divergence is in the permissive direction and is
+stated rather than hidden.
+
+The drain decrements **unconditionally** and gates only the *run*, which is the
+reference's shape and not a rearrangement of it: an entry that comes due while a
+dialogue is open goes to zero and stays there, so it fires on the tick the
+dialogue closes rather than restarting its wait.
+
+Three things fell out of adding the gate, and all three are the interesting part
+of this stage:
+
+- **A finished dialogue takes its own chatbox down, and this engine never did
+  it.** `Player.executeScript`, on FINISHED or ABORTED, and only for the script
+  that was parked: `if ((modalState & MAIN) === NONE) this.closeModal(false)` —
+  "close chat dialogues automatically and leave main modals alone", in its own
+  comment. Nothing depended on it here until `canAccess()` existed, and then
+  everything did: `[label,cooks_assistant_completion]` ends `~mesbox(...)` then
+  `queue(cooks_quest_complete, 0, 0)`, verbatim from the reference, and without
+  the auto-close the chatbox stayed mounted forever, the player was permanently
+  busy, and the quest reward never ran. This is the one place the reference calls
+  `closeModal(false)` — the `false` means *do not discard the weak queue* — so
+  `mock230_world_close_modal_ex(srv, clear_weak_queue)` exists for exactly one
+  caller.
+- **The player's queue has a cap and the reference's does not.** 16 slots was 16
+  entries in flight while everything drained on its next tick; an entry that can
+  wait makes it 16 entries *outstanding*, and a fight with a level-up message box
+  on screen adds one `[queue,playerhit_n_retaliate]` per hit. `queue_hook` says so
+  now instead of returning 0 in silence — a dropped `[queue,player_death]` looks
+  exactly like a death that never ends.
+- **The selftest was carrying dialogue state between sections.** Every stanza that
+  fights or talks used to leave a chatbox mounted; nothing noticed, because a busy
+  player was not a concept. `selftest_park_player` closes the modal and clears the
+  queue now, for the same reason it already cleared the pending interaction.
+
+### 2. Timer type, and an absolute clock
+
+`SS_OP_SETTIMER` and `SS_OP_SOFTTIMER` shared one `case`, and `struct
+Mock230Timer` had nowhere to record which one had been used. Both halves were
+wrong, in opposite directions: `Player.processTimers` runs SOFT **while busy** and
+**without** protected access, and NORMAL only with access and **with** it. So
+`run_script_id` takes the protect flag rather than always adding
+`SSVM_PTR_PROTECTED_PLAYER`, and the drain is two passes, normal then soft, as
+`World.processPlayers` runs them.
+
+`clock` is now the absolute world tick of the last arm-or-fire, testing
+`tick >= clock + interval`, matching `setTimer`'s `clock = World.currentTick`.
+That is not cosmetic: `gettimer` returns `timer.clock`, so a countdown makes the
+opcode unimplementable, and a relative counter also fires once per *call* rather
+than once per *tick* — the prayer-drain stanza was calling the drain five times
+inside one tick and getting five drains.
+
+`cleartimer` and `clearsofttimer` are the same operation in the reference — both
+are `clearTimer(id)`, which deletes by script id with no regard for type. Two
+names, one behaviour, not an oversight to fix.
+
+**There is no lower bound on the interval, and that is deliberate.** An earlier
+draft skipped `interval <= 0`, which reads as a sanity check and is a behaviour
+change: `Player.processTimers` tests `World.currentTick >= timer.clock +
+timer.interval` and nothing else, so an interval of **0 is a timer that fires on
+every tick**, not a stopped one — only `cleartimer` stops a timer. The guard left
+such a timer *set*: it held its slot, `gettimer` still answered for it, and it
+never fired again. It is reachable from real reference content rather than
+theoretical — `settimer(agilityarena_pillar, sub(%agilityarena_next_pillar_time,
+map_clock))` is 0 or negative the moment that deadline has passed — and it was
+found by mutation: re-introducing the guard is now red on
+`[proc,selftest_timer_zero_arm]`'s two checks.
+
+### 3. Queue kinds
+
+`enum Mock230QueueKind`: NORMAL, LONG, WEAK, STRONG. One array where the
+reference keeps two lists; the kind is what the drain splits on. The only
+observable difference between the kinds is *when they are cleared*:
+
+- **STRONG** closes whatever modal is up **before** the drain, so its own entry
+  passes the access check on the tick it is due (`Player.processQueues`).
+- **WEAK** is discarded whenever a modal closes (`Player.closeModal`'s first
+  statement). Implementing `weakqueue` without that would have been a synonym for
+  `queue` that content could not tell apart.
+- **LONG** carries a logout action. It is stored and not yet read, because
+  `phase_logouts` is empty.
+
+ENGINE and SOFT are deliberately **absent**. ENGINE's only producer is the zone
+family (step 5c) and SOFT is declared in the reference and never used — a kind
+nothing can put in the queue is a branch no test can reach.
+
+Seven opcodes landed with it, all of which had a real signature in
+`ss_meta.gen.h` and no implementation, and the VM **aborts** on an unimplemented
+opcode rather than no-op'ing, so each was a hard stop for any content using it.
+Reference call sites, measured: `settimer` 75, `cleartimer` 70, `clearqueue` 39,
+`longqueue` 15, `getqueue` 14, `gettimer` 8, `clearsofttimer` 2, `strongqueue` 1,
+`weakqueue` 0.
+
+`strongqueue` pops three ints here where the reference's handler also pops a type
+string. That is not a divergence in either engine's favour: this compiler emits
+the arity `engine.rs2` declares and refuses the vararg forms outright, so both
+halves of *this* tree agree; the reference's bytecode for the same source line
+differs and `test-ss-corpus` only decodes it.
+
+### 4. Two npc-side corrections, re-derived rather than inherited
+
+- **`npc_queue(q, arg, 1)` fires on tick +1, not +2.** The reference compares the
+  value the counter had *before* its decrement for a player (`const delay =
+  request.delay--`) and the value it has *after* for an npc (`request.delay--; if
+  (request.delay <= 0)`), so an npc's delay 0 and delay 1 both land on the next
+  npc phase where a player's do not. This engine stored `delay + 1` on both — right
+  for the player, one tick late for the npc — and **the selftest asserted the wrong
+  convention**, which is why it had to be re-derived from `Npc.ts` and not
+  preserved. The drain is also gated on the npc not being delayed, with the
+  decrement inside the gate: "purposely only decrements the delay when the npc is
+  not delayed", which is the opposite of the player's queue.
+- **Phase 4 runs timers before queues**, which is `Npc.processNpc`'s order
+  (`processTimers()` then `processQueue()`). It ran the other way round under a
+  comment claiming it matched.
+
+And one deletion: `mock230_scripts_process_npc_timer` gated on
+`Mock230Npc.timer_script >= 0`, and `timer_script` was written in exactly one
+place, only ever to `-1`. The function could not run. It is gone, with the field
+and the write; `timer_interval`/`timer_clock` stay, because the live drain in
+`advance_npcs` is the one that reads them.
+
+### 5. The name-keyed dispatch path
+
+`mock230_scripts_run_trigger_at(srv, trigger, level, x, z)`, beside
+`mock230_scripts_run_if_button` and sharing `run_trigger_script` with it for the
+same reason: the keyed and name-addressed forms must not come to disagree about
+what a trigger's execution context is.
+
+The zone family is the only one whose subject is a *place*, and a place is not a
+type id. It takes coordinate components rather than a packed coord because the
+two granularities disagree about level:
+
+```
+zone/zoneexit  : "[%s,%d_%d_%d_%d_%d]"  level, x>>6, z>>6, ((x&0x3f)>>3)<<3, ((z&0x3f)>>3)<<3
+mapzone/…exit  : "[%s,0_%d_%d]"         x>>6, z>>6        (level literal 0, argument ignored)
+```
+
+`lx`/`lz` are tile offsets 0, 8, … 56 — not zone indices 0..7, and not
+zero-padded. `mapzone`'s level is a literal 0 because the reference builds that
+latch with `CoordGrid.packCoord(0, x, z)`, so a climb inside one map square does
+not re-enter it. That is the 427-vs-379 split, in two format strings.
+
+**It takes no keyed rung, and that is a correctness requirement.** `ssc_lex.c`
+packs a 5-part coord into 28 bits and the compiled `lookup_key` gives its subject
+21, so a zone's key either goes negative — and `ssvm_provider.c` deliberately
+keeps negatives out of the index — or wraps onto a subject no runtime lookup
+reproduces. Name is the only address these four have. (The compiler-side tidy-up,
+setting `*out_lookup_key = -1` for coord subjects so this is true by construction
+rather than by accident, belongs with step 5c.)
+
+A miss is **silent**: every tile in the world misses at least three of the four,
+which is §3.18's `[ai_spawn]`-across-2,197-npcs argument, and these are
+engine-initiated rather than player-initiated.
+
+Nothing in the tick calls it yet. It landed here, one stage early, because it is
+the riskiest structural piece in the lane and its failure mode is *silence* — if
+the format string disagrees with the compiler's spelling by one character, or if
+the lexer ever stops preserving a coord subject's raw text, every zone script in
+the tree simply never runs and nothing anywhere says so. The selftest calls it
+directly against an authored `[zone,0_50_50_16_16]` and `[mapzone,0_50_50]`,
+which also separates "the name resolves" from "the latch fires it" — two
+independent failures that would otherwise present identically.
+
+### Verified
+
+`make -C src test-mock230`, stanza `player queues, timers, name-keyed dispatch`,
+plus the rewritten npc-queue and prayer-drain assertions. Thirteen mutations were
+run and each turned exactly the assertions it should red:
+
+| mutation | what went red |
+|---|---|
+| `process_timer_pass` ignores `type` | the busy-player timer split, 202 instead of 200 |
+| `clearqueue` is a no-op | "clearqueue cancels it rather than delaying it" |
+| zone `lx`/`lz` not truncated to the zone | the whole name-path block |
+| `mapzone`'s name carries the real level | "the level is a literal 0 in its name" |
+| the queue decrement is gated on access | "runs it on the very next tick, not one delay later" |
+| `strongqueue` does not close the modal | both strong assertions |
+| npc queue back to `delay + 1` | "[ai_queue1,chicken] should fire on tick +1" |
+| the timer clock is relative again | the busy-player split, 400 instead of 200 |
+| the timer clock is zeroed at arm | `gettimer` returns 0 instead of the arm tick |
+| `gettimer` pushes 0 for an unset timer | "-1 for a timer that is not set" |
+| `getqueue` counts at most one | "getqueue counts every copy" |
+| the weak queue survives a modal close | "closing a modal discards the weak queue" |
+| no auto chat close when a script finishes | **the whole Cook's Assistant stanza** |
+
+The last one is the load-bearing one: it is the mutation that shows the auto-close
+is not a tidy-up but the thing that lets reference content run at all here.
+
+Headless client, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
+`TORIRS_NET_CHEAT="setlevel prayer 40;pray 18"`: `[debugproc,pray]` arms
+`[timer,prayer_drain]` through content and the drain reaches the real client as a
+run of `UPDATE_STAT` packets spaced over ticks — the NORMAL timer path end to end,
+with the absolute clock and the access gate in it. What that run does **not**
+cover is the auto chat-close from a real click, which is asserted in the selftest
+through the real `RESUME_PAUSEBUTTON` handler instead.
+
+### Still open after this
+
+`[logout]` does not clear queues or timers (`Player.cleanup()` does) — noted and
+not landed, because `phase_logouts` is empty and `mock230_save.c` still has no
+callers, so "a returning player" is not a case anything can be tested against.
+The npc queue stores its `arg` and the drain does not pass it: `[ai_queue<n>]`
+gets no `last_int`, where the reference sets `state.lastInt = request.lastInt`.
+And `MOCK230_QUEUE_MAX` is a cap the reference does not have.
+
+---
+
+## 3.20 Use-on: the `*u` family
+
+Triage §9 step 5b. `[opheldu]` 230 uses in the reference, `[oplocu]` 212,
+`[opnpcu]` 93, `[opobju]` 3, `[opplayeru]` 3, `[aplocu]` 2, `[applayeru]` 2,
+`[apnpcu]` 1, `[apobju]` 0 — **546**, re-measured, where the triage's 535 is the
+three commonest forms and silently drops the other five. **541 of the 546 land
+here**; the two player forms do not, and §"What is not here" says why.
+
+Where LostCity puts it: **engine**, five packet handlers
+(`OpHeldUHandler`/`OpLocU`/`OpNpcU`/`OpObjU`/`OpPlayerU`) that validate the
+click, latch `lastUseItem`/`lastUseSlot`, and set an `AP*U` interaction that
+`Player.getApTrigger`/`getOpTrigger` resolve. No use-on *effect* is engine
+anywhere in the reference.
+
+### 1. There was no wire — this was packet handlers first, dispatch second
+
+The client has emitted all four for as long as the minimenu has had an objsel
+(`net_out_opheldu`/`oplocu`/`opnpcu`/`opobju`, opcodes 64/26/18/37 in
+`src/net/rev/osrs230/packetout.h`), and the mock's inbound routing table had **no
+row for any of them**. Every one was dropped as an unrouted packet, so every `*u`
+script in the tree was unreachable regardless of what the dispatch did.
+
+One asymmetry the decode has to respect, because it is the client's own: the
+component field is **4 bytes in OPHELDU** (`net_out_opheldu` writes it through
+`out_p_com`, which is `rev->component_id_bytes`) and **2 bytes in the other
+three** (`net_out_oplocu` and friends write `p2`). A shared decode is wrong for
+one of them, and the wrongness presents as a use-on that silently does nothing.
+`useon_tail` takes the width as an argument for that reason and the embed test
+pins it.
+
+### 2. THE TRAP: "use A on B" has two ids and only one is the subject
+
+The subject is **B, the thing clicked on** — the loc, the npc, the ground obj.
+`Player.getOpTrigger`/`getApTrigger` read `type.id` and `type.category` off
+`this.target`, which is the target entity; the used obj appears nowhere in the
+lookup. It reaches content only as `last_useitem` / `last_useslot`.
+
+Getting this backwards compiles, runs, and works for every item that only ever
+has one target — which is most of them in a small content tree. It is the same
+shape as the `POP_ARRAY_INT` transposition (docs/…/cs2-pop-array-int-transposed):
+invisible on the symmetric case. So the selftest's two ids are deliberately
+unrelated (`cooksquestrange` loc 114, `bucket_water` obj 1929) and it asserts
+**both** halves: the same loc with a *different* item runs the same script, and
+the same item on a *different* loc runs nothing.
+
+The op form is the ap form **+7**, exactly — `ss_trigger.h` lays every family out
+as `ap1..ap5, apU, apT, op1..op5, opU, opT`, so `APLOCU 64 → OPLOCU 71`,
+`APNPCU 8 → OPNPCU 15`, `APOBJU 36 → OPOBJU 43`. That is stated once, in
+`interaction_ap_trigger`.
+
+A use-on is an interaction like any other: it latches, it walks, and it acts on
+arrival. `Mock230Interaction.use_on` selects the trigger; it does not change what
+the walk does, and `op` is meaningless while it is set (the handlers pass 1 as a
+placeholder). `opheldu` alone is answered in the handler, because there is
+nothing to walk to — the reference does the same.
+
+### 3. `opheldu` is a four-rung chain that mutates the player as it searches
+
+`OpHeldUHandler.ts:94-124`, in order, and **no `_` wildcard** — verified: zero
+bare `_` bindings across the whole `*u` family in the reference tree, against 53
+category bindings.
+
+```
+1. (OPHELDU, b.id, -1)          the item that was CLICKED
+2. (OPHELDU, a.id, -1)          the item that was DRAGGED    → then SWAP
+3. (OPHELDU, -1, b.category)
+4. (OPHELDU, -1, a.category)                                 → then SWAP
+```
+
+**The swap is the contract.** It exchanges `last_item`↔`last_useitem` and
+`last_slot`↔`last_useslot`, so a script bound to one of the two items always
+finds *itself* in `last_item` and the other item in `last_useitem`, whichever
+order the player clicked them in. Content depends on it:
+`skill_crafting/scripts/jewellery/stringing.rs2` binds
+`[opheldu,ball_of_wool]` and `[opheldu,unstrung_sapphire_amulet]` and reads
+`last_useitem` in both, and only one of them can be the clicked item on any given
+click.
+
+This cannot be expressed as a call to `mock230_scripts_run_trigger`, which
+resolves one `(type, category)` pair — hence `mock230_scripts_run_opheldu`. It
+ends at the shared `run_trigger_script` like everything else, so the three
+dispatch entry points cannot come to disagree about a trigger's execution
+context.
+
+**Rung 2's swap sits outside its null check, and that is ported deliberately.**
+After a failed rung 2 the state is left swapped, so a rung-3 hit — the *clicked*
+item's category — runs with `last_item` naming the **other** item. It is an
+inversion relative to the two id rungs, it is the reference's behaviour, 53
+category bindings observe it, and content is written against what it observes.
+The selftest asserts the inversion in both directions so that "fixing" it goes
+red.
+
+### 4. The miss adds **no** row to `enum Mock230Fallback` — still seven
+
+The reference's answer to an unbound `*u` is a message and nothing else
+(`OpHeldUHandler`'s `messageGame('Nothing interesting happens.')`,
+`Player.defaultOp` for the other four). That string already lives here as
+`[proc,nothing_interesting_message]` behind `mock230_say`.
+
+**A `*u` miss must not be routed into `MOCK230_FALLBACK_OPLOC`/`OPNPC`/`OPOBJ`.**
+There is no engine use-on behaviour for it to fall back *to*, and doing it would
+hand "use a bucket on the castle door" to the door handler — the door would open.
+That is why the use-on arm in `mock230_world_process_interaction` returns before
+the `switch( kind )` that holds three of the seven fallback call sites, rather
+than growing a fourth case inside it: Phase 3 has to be able to delete those
+lines out of arms this stage never rewrote.
+
+### 5. `last_useitem` / `last_useslot`
+
+New on `Mock230Player`, initialised to **-1** (0 is a real obj id and a real
+backpack slot), and read by the two new opcodes `LAST_USEITEM` 2058 and
+`LAST_USESLOT` 2059. Nothing clears them after a use-on: the reference does not
+either (`clearInteraction` leaves them alone), so they mean "the last use-on",
+not "the current one".
+
+Noted rather than fixed: `last_item` and `last_slot` are still left at the
+memset's 0 by `mock230_world_player_init`, where `Player.ts:371-374` declares all
+four -1. That is a pre-existing divergence this stage found; changing it is a
+behaviour change to `opheld`/`inv_button` and does not belong in a use-on stage.
+
+### Verified
+
+`make -C src PLATFORM_OBJ_BASE=<objdir> test-mock230`, stanza `use-on, the *u
+family`. Ten mutations were run and each turned exactly the assertions it should
+red:
+
+| mutation | what went red |
+|---|---|
+| key the `*u` trigger on the used obj | every `[oplocu]`/`[opnpcu]`/`[opobju]` assertion |
+| rung 2's swap moved inside its null check | both category-rung inversions |
+| rung 2 dropped | the B→A direction, plus both category rungs |
+| op form is `ap + 1` | every op-rung assertion |
+| a `*u` miss falls through to `MOCK230_FALLBACK_OPLOC` | **"the door stays SHUT"** |
+| `interaction_ap_trigger` ignores `use_on` | the loc op rung *and* the ap rung |
+| the used-item tail decodes obj/slot backwards | the whole stanza |
+| the swap moves items but not slots | only the two slot assertions |
+| the interaction handlers do not latch the used item | "a different item on the same loc" |
+| the interaction is built without `use_on` | five assertions across all three forms |
+
+The load-bearing pair: the first (a transposition that compiles and runs) and the
+fifth (a use-on that opens a door).
+
+**The wire is verified against the client's own encoders**, in
+`make -C src test-mock230-embed`: a real embedded client calls the same
+`net_out_opheldu` / `net_out_oplocu` that `app.c` calls, through the real login
+handshake, the real ISAAC stream and the real session framing, and the content
+script runs. Asserting on a hand-built payload would prove the dispatch and
+nothing about whether the two halves of the wire agree — mutating OPLOCU's
+component width from 2 to 4 leaves the selftest green and turns the embed check
+red, which is the whole reason it is there.
+
+What is **not** covered end to end: the client's *mouse* path into those encoders
+— minimenu → objsel → `net_out_*` in `app.c`. `TORIRS_SIM_SETTAB=3:149` does not
+mount the inventory in a headless session (the rev-230 sidebar is server-driven,
+§3.16), so the two-step "Use → target" click was not simulated. The client boots
+and plays against this server with the four new routes in place; the code between
+the click and the encoder is pre-existing and untouched by this stage.
+
+### What is not here
+
+- **`opplayeru` / `applayeru`, 5 of the 546.** rev-230 assigns no `OPPLAYERU`
+  wire opcode — `src/net/rev/osrs230/packetout.h` has rows for OPHELDU, OPNPCU,
+  OPLOCU and OPOBJU and none for the player form, so `net_out_opplayeru` cannot
+  encode anything this revision carries. There is no packet to route. It also
+  means the one place the reference overrides the trigger's subject with the
+  *used* obj rather than the target (`setInteraction(..., APPLAYERU, useObj)`
+  feeding `targetSubject.com`, which is why `[applayeru,rotten_tomato]` names the
+  thrown item) has no call site here — and that asymmetry must not be generalised
+  to the other four.
+- **`apobju`** — the trigger constant exists; the reference tree binds it zero
+  times.
+- **Component validation.** The reference checks `com.usable` and
+  `isComponentVisible`, and resolves the used inventory through the player's own
+  listener list. This server has no listener model, so the check is "the backpack
+  slot holds that obj", which is the load-bearing half and the same one
+  `handle_opheld` already makes.
+- **The `*t` spell-target family** (89 uses) — not part of step 5.
+
+---
+
+## 3.21 The zone family: two latches, not one
+
+Triage §9 step 5c. `[zone]`, `[zoneexit]`, `[mapzone]`, `[mapzoneexit]` — 806
+uses in the reference, and the number is the least useful thing about them.
+
+### The split, re-measured
+
+Corpus: 1,267 `.rs2` under `LostCity_Server/content`, pruning any path component
+`_unpack`/`_test`, 9,606 headers.
+
+| trigger | uses | subject shape | keyed off |
+|---|---:|---|---|
+| `zone` | 262 | five-part, `<level>_<mx>_<mz>_<lx>_<lz>` | the 8-tile zone, **level included** |
+| `zoneexit` | 165 | five-part | same |
+| `mapzone` | 306 | three-part, `0_<mx>_<mz>` | the 64-tile map square, **level forced to 0** |
+| `mapzoneexit` | 73 | three-part | same |
+
+**427 zone-keyed, 379 square-keyed.** Every one of the 427 has a five-part
+subject (levels 0 ×392, 1 ×2, 3 ×33) and every one of the 379 has a three-part
+subject beginning `0_`. All 806 subjects are distinct within their trigger.
+
+So these are not one latch at two scales, and no single latch can express them:
+climbing a ladder without moving re-enters a *zone* and does not re-enter a *map
+square*. `NetworkPlayer.updateMap` holds `lastZone` and `lastMapZone` as two
+fields for exactly that reason, and `Player.ts` initialises both to -1.
+
+**The ZoneMap (§3.17) is irrelevant to all 806.** It is keyed `(zx, zz, level)`
+and the 379 do not use that granularity; the 427 do, but they are addressed by
+*name*, not by any index. Nothing in this section consults `mock230_zone.c`.
+
+### What landed
+
+**Engine, all of it.** `Player.ts` holds the latches, `World.processClientsOut`
+calls `updateMap`, `World.processPlayers` drains the engine queue. What each zone
+*does* is content, and this stage ported none of the reference's 806.
+
+- **`mock230_world_update_map`** (mock230_world.c), called first in
+  `phase_client_out` — "`// - map update`", which is where
+  `World.processClientsOut` puts it. Two comparisons, four `snprintf`s' worth of
+  dispatch, ~40 lines.
+- **Five new fields on `Mock230Player`**: `last_zone_level/x/z` and
+  `last_map_x/z`, all -1. Stored as components rather than a packed coord so no
+  unpack is needed to name the zone being *left*.
+- **`mock230_scripts_queue_trigger_at`** — the same name lookup as
+  `run_trigger_at` (§3.19), enqueued instead of run.
+- **`MOCK230_QUEUE_ENGINE` and `Mock230Player.engine_queue`**, drained by
+  `mock230_scripts_process_engine_queue` after the timers, which is where
+  `World.processPlayers` calls `processEngineQueue()`.
+- **`ssc_compile.c` writes -1 for a coord subject.** See below.
+
+`enum Mock230Fallback` is still **7**: a zone with no script does nothing, and
+the reference has no engine behaviour behind a missing `[zone]` either.
+
+### `zone_index` is the trap, and it is invisible
+
+`Mock230Player.zone_index` is the `>> 3` key including the level. It looks
+exactly like `lastZone` and it is not: `mock230_zone_player_reset` sets it to -1
+on every `REBUILD_NORMAL` and every climb, from four call sites. A latch hung off
+it re-fires `[zone,…]` whenever the world's origin moves under a standing player
+and swallows the `[zoneexit]` that should have paired with it — a bug that
+presents as "this area's script sometimes runs twice" and never as an error. The
+reference gets away with sharing the comparison only because it never resets
+`lastZone` on a rebuild.
+
+The selftest forces a `REBUILD_NORMAL` and asserts nothing fires. Replacing the
+new fields with `zone_index` turns exactly that check red.
+
+### Detection is phase 10; execution is phase 5 of the next tick
+
+All four of the reference's `triggerZone` family end in
+`enqueueScript(trigger, PlayerQueueType.ENGINE)`, which forces `delay = 0` and
+appends to a list drained from `World.processPlayers` — *earlier* in the tick
+than `processClientsOut`. **A zone script therefore runs on the tick after the
+crossing.** That is not a detail to preserve for fidelity's sake; a direct call
+from phase 10 gets two things wrong:
+
+- a zone script that teleports would move a player whose PLAYER_INFO has already
+  been encoded for the tile they are leaving;
+- `run_or_park` allows one parked script per player, so a boundary crossed
+  mid-dialogue would have its script **refused** with a message rather than held.
+  `processEngineQueue` gates the run on `canAccess()` and decrements regardless,
+  so the entry fires on the first tick access returns.
+
+The engine queue is a **separate array**, not a fifth kind in `queue[]`, because
+the reference keeps it as a separate list and the separation is load-bearing:
+`unlinkQueuedScript`'s default branch walks `queue` and `weakQueue` and never
+`engineQueue`, so `clearqueue` cannot cancel a zone trigger.
+
+### Order, and the two things the order hides
+
+`mapzoneexit(old)` → `mapzone(new)` → `zoneexit(old)` → `zone(new)`, matching
+`updateMap` line for line. `-1` suppresses the exit on the first transition, so
+**login fires enter with no exit**. A teleport across both boundaries fires all
+four in one tick, with no special case.
+
+The selftest's content uses an accumulator (`log * 10 + n`) rather than counters
+precisely because order is the half a port gets wrong: 23 and 32 are different
+numbers where "an exit happened and an enter happened" is the same fact.
+
+### The compiler change that goes with it
+
+`ssc_compile.c`'s `subject_is_coord` branch used to write
+`SSVM_LookupKey(trigger, TYPE, subject_value)`. Measured rather than argued:
+
+- **five-part subjects** pack into 28 bits (`ssc_lex.c`) and the compiled
+  `lookup_key` is an i32 with the subject at bit 10, so the top 21 bits are lost.
+  Of the reference's 427: **78 truncate to a negative key**, which
+  `ssvm_provider.c` deliberately keeps out of `by_key`, and **349 land on a
+  subject field that is not the coord**, 10 of them colliding — which is the
+  `dup zone x10` line `test-ss-corpus` prints. The sign turns on bit 1 of `mx`.
+- **three-part subjects** lex to their first component, which for all 379 is 0.
+  One key, 379 scripts. That is the reference's own `parseInt("0_49_46")`
+  collapse, faithfully reproduced.
+
+Neither shape is addressable by key, so the key was a number nothing could look
+up. It is -1 now, which makes "these four are name-addressed" true by
+construction. `test-ss-corpus` is unaffected — it loads the reference's own
+compiled bytes, so its duplicate count describes the reference's compiler.
+
+`SSVM_ProviderGetByName` works on the raw header text (`ssc_compile.c` stores
+`"[%s,%s]"` with the lexer's untouched source span), and that is a real silent
+dependency: if the lexer ever normalised a coord token, or the compiler
+zero-padded a component, every `[zone]` in the tree would stop running and
+nothing would say so. `test-ssc`'s `coord subjects are name-addressed` pins both
+halves — the name *and* the -1.
+
+### The miss path is the hot path, and it was measured
+
+There are tens of thousands of nameable zones and a handful of bound ones, so
+almost every lookup misses. Measured, not asserted: 2M iterations at `-O2` of
+exactly what `zone_trigger_script` does — `snprintf` the name, then
+`SSVM_ProviderGetByName` — with the coordinate walking 1,024 zones east so the
+branch predictor and the cache see a moving player rather than one repeated
+string. Two real packs, this tree's and the reference's compiled corpus
+(`LostCity_Server/engine/data/pack/server`), because the cost grows with the name
+count and this tree's pack is the small case:
+
+| pack | names | format only | format + miss | format + hit |
+|---|---:|---:|---:|---:|
+| this tree | 353 | 110 ns | **137 ns** | 112 ns |
+| the reference's | 9,389 | 97 ns | **165 ns** | 128 ns |
+
+Two things fall out, and both argue against building an index:
+
+1. **The `snprintf` is the cost, not the lookup.** ~100 ns of it is formatting;
+   the miss adds 27 ns on a 353-name pack and 68 ns on a 9,389-name one. A
+   "bound zones" index would save at most the second number and would still need
+   the string to key on.
+2. **The latch bounds the call rate, not the lookup.** This runs once per zone
+   *crossing* — at most one per four ticks at running pace — never once per tick.
+   Four lookups per crossing is ~660 ns; 2,000 players each crossing every four
+   ticks is ~330 µs of a 600 ms tick, 0.05 %.
+
+A miss is also **silent**: `trigger_is_player_initiated` excludes this family and
+`trigger_subject_kind` has no row for it, so it does not borrow §3.18's report.
+Every tile in the world misses at least three of the four; a report here would be
+the `[ai_spawn]`-across-2,197-npcs argument again.
+
+### What this stage did not do
+
+- **`SetMultiway`** — the other half of `updateMap`'s zone branch, driven by
+  `World.gameMap.isMulti(zone)`. This tree has no multi-way map data, and a wire
+  packet asserting something nobody computed is worse than no packet.
+- **npc zone triggers.** Only `NetworkPlayer` has `updateMap`; npcs never fire
+  them, in either tree.
+- **Persisting the latches.** Per-session, matching a fresh `Player` per login.
+- **Porting any of the 806.** Dispatch is engine; every zone's behaviour is
+  content and is Phase 4.
+
+### Verified
+
+`make -C src test-mock230`, stanza `the zone family, and its two latches`, plus
+`test-ssc`'s new `coord subjects are name-addressed`. Nine mutations, each red on
+the assertions it should be:
+
+| mutation | what went red |
+|---|---|
+| the zone latch is `player->zone_index` | "a REBUILD_NORMAL fires nothing", 121 instead of 1 |
+| enter dispatched before exit | "moving zone fires [zoneexit] then [zone]", 32 instead of 23 |
+| the map-square latch carries the real level | the climb check, plus both later square checks |
+| `queue_trigger_at` → `run_trigger_at` (inline from phase 10) | "phase 10 detects and dispatches nothing", the `map_clock` check, and the busy-player check |
+| the engine drain drops its `canAccess()` gate | "a busy player does not run a queued zone script" |
+| the latches start at a memset's 0 | six checks, all reading 91 — the 9 is `[zoneexit,0_0_0_0_0]` firing at login |
+| the zone latch uses `>> 6` | "moving zone fires [zoneexit] then [zone]", and the square-crossing check |
+| an engine entry is queued with `delay = 1` | eight checks; nothing fires on the tick it should |
+| `ssc_compile.c` writes the old coord key | `test-ssc`, three checks — `lookup_key` −1,875,754,333 instead of -1 |
+
+The sentinel mutation is worth calling out: **-1 versus 0 in the latches is
+otherwise untestable**, because no real content binds anything at the map's
+origin. `selftest_zone.rs2` binds `[zoneexit,0_0_0_0_0]` and `[mapzoneexit,0_0_0]`
+for no other purpose than to make that mistake print a digit.
+
+**Headless client**, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
+`MOCK230_VERBOSE=1`, `TORIRS_NET_CHEAT="tele 3238 3218"` — a real client, real
+login, real ISAAC, real wire:
+
+```
+tick 1   MESSAGE_GAME payload=26    "Teleported to 3238,3218."     <- the crossing
+tick 2   MESSAGE_GAME payload=43    "You step into the zone east of Lumbridge."
+```
+
+and the same run without the cheat produces neither. That is the whole path —
+client packet → server teleport → phase 10 latch → engine queue → phase 5 of the
+*next* tick → content `mes` → MESSAGE_GAME → client — and the one-tick gap is
+visible in the transcript rather than asserted only in C.
+
+### Still open
+
+`[logout]` still clears neither queues nor timers nor the engine queue
+(`Player.cleanup()` clears all three) — `phase_logouts` is empty. The engine
+queue has a cap (`MOCK230_ENGINE_QUEUE_MAX`, 8) where the reference's list has
+none; an overflow is reported, for the same reason `queue_hook`'s is. And
+`updateMovement`'s "players cannot walk with a modal open *and* something
+queued" rule reads `engineQueue` in the reference and is not ported here.
+
+---
+
+## 3.22 The dispatch surface after step 5, and the shape of a trigger's address
+
+§3.19, §3.20 and §3.21 are one stage each. This is the view none of them gives:
+what the engine can now reach a script through, what it still cannot, and — the
+part that turned out to be the actual work — the fact that a trigger's *address*
+is not one kind of thing.
+
+The reason to write it down is that triage §9 sized step 5 off a use count, and
+every use count in it moved when it was measured. The number that did not move is
+the one nobody was counting: how many trigger families have a dispatch path at
+all.
+
+### 1. What dispatches now, against what dispatched before
+
+Counted in `mock230_world.c` below `mock230_world_selftest`, so selftest call
+sites are excluded. A *family* here is one trigger stem as content writes it —
+`opnpc1`..`opnpc5` is one family reached from one site, not five.
+
+| | before step 5 (HEAD) | after |
+|---|---:|---:|
+| production dispatch sites | 18 | **24** |
+| trigger families reachable | 17 | **28** |
+| script-id-addressed drains (`queue`, `timer`, `softtimer`, engine queue) | 3 | **4** |
+| rows in `enum Mock230Fallback` | 7 | **7** |
+
+Triage §2 keeps the canonical list, and it has never been complete. Even after 5a
+and 5b amended it, it omits `debugproc`, `ai_opplayer<n>` and `ai_applayer<n>` —
+and it names `ai_opplayer*` among the families the engine does **not** dispatch,
+where `mock230_world.c:1642` has dispatched it for as long as npc modes have
+existed (`ai_opplayer2` alone is 84 uses in the reference). It also counts
+`command` (511) as a trigger family: `[command,...]` is the *declaration* syntax
+of `engine.rs2` and all 511 are in that one file, so it is the engine's opcode
+surface and not a trigger anything could dispatch. A specified correction is in
+the lane report; this file does not edit that one.
+
+The six new sites and the eleven new families do not correspond one to one, and
+that is worth seeing:
+
+| new site | families |
+|---|---|
+| `mock230_world.c` op-`*u` arm, above the `switch( kind )` | `opnpcu`, `oplocu`, `opobju` |
+| `mock230_scripts_run_opheldu` from the OPHELDU handler | `opheldu` |
+| four `mock230_scripts_queue_trigger_at` calls in `mock230_world_update_map` | `mapzone`, `mapzoneexit`, `zone`, `zoneexit` |
+| *(no new site)* — the at-range attempt, through `interaction_ap_trigger`'s `use_on` arm | `apnpcu`, `aplocu`, `apobju` |
+
+The last row is the one to notice. The three ap-side use-on forms cost zero new
+dispatch sites: an interaction that is walking already asks `interaction_ap_trigger`
+what to try at range, and teaching that one function about `use_on` was the whole
+change. Three families for one `?:`. It is the clearest evidence available that
+the interaction machinery (docs/…/interaction-model-walk-before-act) was the right
+shape — a use-on is not a new kind of thing, it is an interaction with a second
+id attached.
+
+And the four script-id-addressed drains, which are dispatch by another name and
+never touch the trigger index because their scripts are compiled name-addressed:
+`queue`, `timer`, `softtimer` (§3.19) and now the engine queue (§3.21).
+
+### 2. A trigger's address is one of five things, and all five end in one place
+
+This is the structural finding of the lane, and it is not visible from any single
+stage.
+
+```
+                                            resolves through          entry point
+  keyed, chained  type → category → `_`      by_key, 3 rungs          mock230_scripts_run_trigger
+  keyed, one rung type | category | global   by_key, 1 rung           mock230_scripts_run_trigger_specific
+  keyed then named                           by_key, then by_name     mock230_scripts_run_if_button
+  keyed, four rungs, mutating                by_key, 4 rungs          mock230_scripts_run_opheldu
+  named only                                 by_name                  mock230_scripts_{run,queue}_trigger_at
+                                                                              │
+                                                                              ▼
+                                                                      run_trigger_script
+```
+
+Every one of them ends at `run_trigger_script`, which is the only place that
+decides what a trigger's execution context is: zero arguments, active player =
+`srv->active_player`, `SSVM_PTR_PROTECTED_PLAYER`, and the active npc set **by
+slot** through `host_tag` rather than by pointer, so a script that parks and
+resumes finds the same npc or none. That function was not modified by any of the
+three stages. It is the one thing in the seam that must not fork, because the two
+forms did once disagree about the npc and `[if_button,…]` had no npc context at
+all.
+
+**Why the keyed path could not express the zone family** is the interesting half.
+It is not that a coordinate is too large to be a subject. It is that a coordinate
+*fits*, compiles without complaint, and lands on the wrong script.
+
+A compiled `lookup_key` is an `int32_t`: trigger in bits 0-7, kind in bits 8-9,
+subject from bit 10. The arithmetic is exactly saturating —
+
+```
+  (1 << 21) - 1  = 2,097,151         the largest representable subject
+  2,097,151 << 10 = 2,147,482,624
+  INT32_MAX - 2,147,482,624 = 1,023  = (3 << 8) | 255, precisely the room kind|trigger needs
+```
+
+— so one subject past 2^21 turns the field negative, and a negative `lookup_key`
+is the reader's sentinel for "name-addressed". `ssc_compile.c` guards ordinary
+symbol subjects against that bound. Its **coord** branch was a separate path that
+never reached the guard, and `ssc_lex.c` packs a five-part coord into 28 bits.
+
+Measured over the reference's 427 five-part `[zone]`/`[zoneexit]` headers, with
+this tree's own lexer arithmetic:
+
+| | count |
+|---|---:|
+| truncate to a **negative** key — silently dropped from `by_key` | **78** |
+| land on a **non-negative** key whose subject is not the coord | **349** |
+| …of which are *extra* entries on an already-taken key | **10**, all in `zone` (20 headers in a collision group) |
+| `zoneexit` collisions | **0** |
+
+§3.21 records "10 of them colliding", which is the duplicate-key count and is what
+`test-ss-corpus` prints as `dup zone x10`; the number of *headers* involved is 20,
+and the split by trigger is 57/205 negative/positive for `zone` and 21/144 for
+`zoneexit`. The sign turns on bit 1 of `mx`, so which failure a zone gets is a
+property of where it is on the map.
+
+The three-part `[mapzone]`/`[mapzoneexit]` subjects fail the other way and more
+completely: they lex to their first component, which for all 379 is `0`, so 306
+`mapzone` headers share key **673** and 73 `mapzoneexit` headers share key
+**674**. Two keys, 379 scripts. That one is the reference's own
+`parseInt("0_49_46")` collapse reproduced faithfully — and it is why `getByName`
+exists in the reference at all, with `// todo: getByTrigger needs more bits to
+lookup by coord` sitting above the first caller.
+
+So `mock230_scripts_run_trigger_at` takes **no keyed rung**, and that is a
+correctness requirement rather than an optimisation. `run_if_button` takes one —
+there the keyed lookup is a correct fast path and only the components above
+interface 31 need the name. The zone family has no correct fast path to take.
+`ssc_compile.c` now writes -1 for any coord subject, which makes "these four are
+name-addressed" true by construction instead of true by whichever half of the
+coordinate space a zone happens to sit in.
+
+The composition rule that falls out, for whoever adds the next family: **ask by
+key when the subject is a config id, ask by name when the subject is a place or a
+component uid, and never ask by both unless the keyed rung is exactly right.** A
+keyed rung that is *usually* right is worse than none, because its failure is a
+script that runs.
+
+There is a sixth address that is not a dispatch at all and bit this lane anyway:
+the **bare name in an operand**. `queue(my_handler, 3, 0)` names
+`[queue,my_handler]` and `gosub(helper)` names `[proc,helper]`, and rather than
+thread the parameter's declared type down to the resolver,
+`ssc_compile.c:script_id_for_bare_name` tries the name-addressed triggers **in a
+fixed order** — `proc`, `label`, `queue`, `softtimer`, `timer`, `walktrigger` —
+on the stated grounds that "the namespaces do not overlap in practice". They do.
+A `[proc,X]` and a `[queue,X]` sharing a bare name compiles silently to the
+**proc**, so `queue(X, 0, 0)` inside `[proc,X]` is an immediate recursive call
+rather than a queued one. 5a wrote exactly that by accident and it presented as a
+hang, not as an error. The resolution is not trigger-scoped and nothing warns;
+until it is, a queue and a proc must not share a name.
+
+### 3. The map-square half landed, and it is not a scale of the zone half
+
+Naming it explicitly, because a reader who arrives here through §3.17 will have
+just been told the ZoneMap exists and will size this work off it.
+
+| | uses | subject | latch | level |
+|---|---:|---|---|---|
+| `zone` + `zoneexit` | **427** | five-part, every one | `x >> 3`, `z >> 3` | carried: 392 at level 0, 2 at 1, 33 at 3 |
+| `mapzone` + `mapzoneexit` | **379** | three-part, every one begins `0_` | `x >> 6`, `z >> 6` | **literal 0**, always |
+
+Both landed, as two independent latches on `Mock230Player`. The 379 are not a
+coarser version of the 427: a player who climbs a ladder without moving re-enters
+a *zone* and does not re-enter a *map square*, because the map-square latch packs
+level as a literal 0. One latch cannot produce both behaviours, and a port that
+tried would look right everywhere except stairs.
+
+The ZoneMap (§3.17) is consulted by neither. It is keyed `(zx, zz, level)`, which
+is the wrong granularity for 379 of the 806 and the wrong *kind* of address for
+the other 427.
+
+### 4. Every count in step 5, measured this run
+
+Corpus: `LostCity_Server/content`, pruning any path component `_unpack` or
+`_test` — **1,267 `.rs2` files, 9,606 trigger headers**. Headers matched by
+prefix (`^\[name,subject\]`) and not anchored to end-of-line, because a header
+with its body on the same line is common and anchoring loses 191 `oploc1` and 726
+`proc` alone.
+
+| | triage §9 | measured | why they differ |
+|---|---:|---:|---|
+| **5a** queue/timer/ai_timer | 273 | **275** | `queue` is 153 not 152, and `softtimer` (1) is unnamed by the triage though it is the same machinery |
+| **5b** the `*u` family | 535 | **546** | 535 is `opheldu`+`oplocu`+`opnpcu` only; it drops `opobju` 3, `opplayeru` 3, `aplocu` 2, `applayeru` 2, `apnpcu` 1 — five more dispatch shapes, two of them ap-side |
+| **5c** the zone family | 806 | **806** ✔ | holds exactly; 262/165/306/73 |
+
+Per-trigger, for the record: `queue` 153, `timer` 34, `softtimer` 1, `ai_timer`
+87; `opheldu` 230, `oplocu` 212, `opnpcu` 93, `opobju` 3, `opplayeru` 3, `aplocu`
+2, `applayeru` 2, `apnpcu` 1, `apobju` 0; `zone` 262, `zoneexit` 165, `mapzone`
+306, `mapzoneexit` 73. All 806 zone subjects are distinct within their trigger,
+and 14 files hold all 806 — `duel_arena.rs2` alone is 144 `zone` + 144
+`zoneexit`, and `music/scripts/move.rs2` is 303 `mapzone` + 53 `mapzoneexit`.
+
+Bound in this tree, before and after the three stages:
+
+| | before | after |
+|---|---:|---:|
+| `.rs2` files / headers | 47 / 319 | **50 / 353** |
+| `queue`, `timer`, `softtimer`, `ai_timer` | 4, 1, 0, 2 | **8, 2, 1, 2** |
+| the eight `*u` forms | 0 | **6** |
+| the four zone triggers | 0 | **9** |
+| implemented opcodes | 237 of 399 | **246** of 399 |
+
+Nine opcodes, and the VM **aborts** on an unimplemented one rather than no-op'ing
+(docs/…/cs2-unimplemented-opcode-assert), so each was a hard stop for any content
+that used it: `CLEARQUEUE` (39 reference call sites), `LONGQUEUE` (15), `GETQUEUE`
+(14), `GETTIMER` (8), `CLEARSOFTTIMER` (2), `STRONGQUEUE` (1), `WEAKQUEUE` (0),
+`LAST_USEITEM`, `LAST_USESLOT`.
+
+### 5. What still has no path to a script
+
+Measured the same way, so nobody reads step 5 as having closed the trigger
+surface. It closed eleven families of it.
+
+| family | reference uses | why not |
+|---|---:|---|
+| the `*t` spell-target family | **89** (`apnpct` 31, `applayert` 31, `opheldt` 8, `opnpct` 7, `opplayert` 6, `oploct` 4, `apobjt` 1, `opobjt` 1) | not part of step 5; needs the spell-selection wire first |
+| `advancestat` / `changestat` | **19** / **1** | no dispatch from the stat writer |
+| `walktrigger` | **7** | `ai_walktrigger` binds 0 times |
+| `inv_buttond` | **4** | the packet is decoded and goes straight to the bank |
+| `opplayer<n>` / `applayer<n>` | **4** | player-target ops |
+| `opplayeru` / `applayeru` | **5** | rev 230 assigns no `OPPLAYERU` wire opcode — there is no packet to route, so this is a revision limit and not an omission |
+| `logout` | **1** | `phase_logouts` is empty |
+| `tutorial` | **1** | |
+| `ai_despawn`, `apobju`, `aploct` | **0** each | the constants exist; the reference binds them zero times |
+
+Two of those rows are load-bearing rather than trivia. `[logout]` is the one that
+already has consequences: `Player.cleanup()` clears the queue, the weak queue, the
+engine queue and the timers, and nothing here clears any of them — which is
+harmless only for as long as `mock230_save.c` has no callers and a returning
+player is a fresh `Mock230Player`. And `advancestat`'s 19 uses are all in
+`levelup/scripts/levelup.rs2` — one file, and it is the level-up handler, so what
+an undispatched `advancestat` looks like from outside is an XP bug.
+
+### 6. What deliberately did not change
+
+- **`enum Mock230Fallback` is still seven rows.** Eleven families gained a
+  dispatch path and none of them gained an engine fallback, because in the
+  reference none of them *has* one: a zone with no script does nothing, a queue
+  with no script cannot exist, and an unbound `*u` is `messageGame('Nothing
+  interesting happens.')`, which lives here as
+  `[proc,nothing_interesting_message]`. §3.20 records the one place this nearly
+  went the other way — routing a `*u` miss into `MOCK230_FALLBACK_OPLOC` hands
+  "use a bucket on the castle door" to the door handler, and the door opens. The
+  table may shrink; it did not grow.
+- **`run_trigger_script` is byte-identical to HEAD** across all three stages —
+  checked, not assumed — for the reason in §2 above.
+- **`mock230_scripts_run_trigger`'s signature is unchanged.** Every existing call
+  site still passes `(trigger, type, category, npc_slot)` and still reads the
+  tri-state of §3.18. The three new addressing modes are new functions beside it,
+  not parameters on it — a `run_trigger` that took a coordinate *or* a type would
+  be a function whose subject means two things depending on an argument it also
+  takes, which is the shape of the bug this whole section is about.
 
 ---
 
