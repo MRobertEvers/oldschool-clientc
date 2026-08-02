@@ -283,7 +283,9 @@ mock230: -> RUNCLIENTSCRIPT    op=84  payload=25
 The BMP shows the guide open, titled **"Attack – Weapons"**, with the tab strip
 (Overview / Weapons / Armour) down the left and the feature rows built
 (`1 Bronze weapons`, `5 Steel weapons`, `10 Black weapons`, …) with their level
-requirements and item icons. Clicking `stats:magic` instead (535,370 → 535,390)
+requirements. ~~and item icons~~ — **that half was wrong when it was written**;
+the icon column was blank in that BMP and stayed blank for a month. See §8.
+Clicking `stats:magic` instead (535,370 → 535,390)
 gives **"Magic – Standard Spellbook"** with nine tabs and the spell list. Two
 different skills, two correct panels — which is the check the selftest cannot
 make (§6).
@@ -453,3 +455,83 @@ This is general, not skill-guide-specific — **any** cache layer with a click
 mask or ops was unclickable, and the stats tab is simply the first place
 content armed one. Worth re-testing anything that looked inert and was assumed
 to be a missing packet.
+
+---
+
+## 8. The icons were missing, and the cause was not in this feature either
+
+Reported 2026-08-02 as *"object sprites are still not rendering in the skill
+guide"*, against a build where the panel opened, laid itself out, filled in every
+row's level and text — and drew nothing in the 36×32 column between them.
+
+**Nothing was wrong with the obj-icon path. It was never entered.**
+
+`[proc,script9347]` builds one row as four `cc_create`s (rectangle, level text,
+icon, body text) and picks the icon's source from the `skill_features` dbtable:
+
+```
+def_int $int12 = db_getfield($int0, 872448, 0);        // column 0: icon,obj
+$int13, $int14, $int15, $int16, $int17 =
+        db_getfield($int0, 872464, 0);                 // column 1: sprite,graphic,int,int,int,int
+...
+if ($int13 ! -1) { cc_setgraphic($int13); ... }        // a sprite row
+else             { cc_setobject($int12, -1); ... }     // an obj row
+```
+
+`TORIRS_OBJICON_DEBUG=1` on the client prints one line per `CC_SETOBJECT` and one
+per `CC_SETGRAPHIC`. Against the guide it printed **zero** `CC_SETOBJECT` for
+interface 860 and, at a stride of four, one `CC_SETGRAPHIC ... gfx=0` per row:
+
+```
+GFXDBG: com=0x035ca05d gfx=0
+GFXDBG: com=0x035ca061 gfx=0
+GFXDBG: com=0x035ca065 gfx=0        ← +4 per row, forever
+```
+
+`$int13` was 0, so the `!= -1` guard chose the sprite branch, with sprite 0.
+
+### Why `$int13` was 0
+
+**No row in `skill_features` sets column 1 at all**, and a dbrow lists only the
+columns it sets. The client answered the read from the row and stopped there: it
+never loaded the **dbtable** (config group 39), which is the only record that
+states a column's field types and defaults. So the read fell to a
+"nothing resolved" path that pushed a single integer `0` — where the script pops
+**five** values and expects the first to be `-1`.
+
+Two defects in one, and the arity one is the nastier: `$int13` got a value from
+four slots deeper in the stack rather than a wrong value of its own.
+
+The fix is the resolution chain the reference implies and this client never had —
+row value, then table default, then per-type default (`-1`, or `""`) — with the
+DBTABLE loaded on demand like any other config. It is written up in
+[`DBTABLES.md` §9](DBTABLES.md#9-what-a-read-resolves-to--row-then-table-then-type),
+including why `-1` is measured rather than chosen and the single-`awaited`-slot
+trap that comes with an opcode that can now yield twice.
+
+### Verified in the client, by pixels
+
+Same headless recipe as §4, before and after, both BMPs 765×503:
+
+| region | changed pixels |
+|---|---|
+| the guide's icon column (x 180–222, y 58–318) | **1785 / 10920 = 16.35%** |
+| the guide's text column (x 222–460) | 0 |
+| chatbox | 0 |
+| minimap / orbs | 16 |
+| whole screen | 1801 |
+
+The run-to-run noise floor, measured by diffing two runs of the *same* binary, is
+those same 16 minimap pixels and **zero** everywhere else — so 1785 of the 1801
+changed pixels are the icons and the remaining 16 are the minimap animating.
+
+The control is the **Magic** guide, whose rows are the sprite branch (spell
+icons, column 1 set): before vs after is **0 changed pixels anywhere**. The
+branch that already worked is untouched; the branch that never ran now runs.
+
+### Blast radius
+
+This is general, not skill-guide-specific. Every one of the 422 clientscripts
+that read the database was getting `0` and an arity of 1 for any column its row
+omits — 128 of the cache's 246 tables are read by at least one of them. Worth
+re-testing anything that reads a dbtable and looked half-populated.

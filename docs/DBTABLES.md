@@ -816,8 +816,103 @@ no test behind it.
 reason. Neither holds: `append_escaped`/`split_escaped` implement the escaping,
 both packers encode, and `refuse` is now only a parse-failure fallback.
 
-**`make -C src test-db` is broken, and was before this work.** It aborts on
-`RSCache_ProfileIsIdentified` in `CacheProvider_Profile`; it hardcodes
-`cache.osrs230`. Confirmed pre-existing by stashing every change in this pass and
-re-running. Unrelated to dbtables, but it means the client-side DB opcode path
-currently has no green test.
+**~~`make -C src test-db` is broken, and was before this work.~~ Fixed
+2026-08-02** — see §9. Two independent breakages, both invisible because the
+first one aborted before the first line of output: the test never called
+`CacheProvider_SetProfile`, so the profile assert in `CacheProvider_Profile`
+fired inside the very first load task; and its `DB_FIND_WITH_COUNT` call site
+still pushed two arguments after the find family grew its third (the type tag).
+It still hardcodes `cache.osrs230`.
+
+---
+
+## 9. What a read resolves to — row, then table, then type
+
+> Added 2026-08-02, from the rev-230 skill guide's missing item icons. The
+> failure was invisible as a database bug: the panel opened, laid out and filled
+> in, and only the icon column was blank.
+
+**A dbrow lists only the columns it sets.** Nothing else in the row says a
+column exists — there is no "present but empty" encoding. So a read of a column
+the row omits has to be answered from somewhere else, and there is exactly one
+somewhere else: the **dbtable** (config group 39), which states every column's
+field types and, where it declares one, a block of default values.
+
+The resolution chain `DB_GETFIELD` walks, in order:
+
+1. the row's value block for that column,
+2. the **table's default block** for that column,
+3. the **per-type default**: `-1`, or `""` for a string.
+
+`DB_GETFIELDCOUNT` walks the same first two rungs and reports that block's
+`tuple_count`; with neither, 0.
+
+### Why rung 3 is -1 and not 0
+
+Measured over the 9,368 decompiled clientscripts, not chosen. For every
+`db_getfield` of a column that carries **no** table default, the guard the
+script puts on the result:
+
+| type | `!= -1` / `== -1` | `> 0` / `!= 0` |
+|---|---|---|
+| `dbrow` | 47 | 1 |
+| `obj` | 20 | — |
+| `stat` | 7 | — |
+| `loc` | 7 | — |
+| `graphic` | 11 | — |
+| `int` | 10 | 9 |
+| `namedobj`, `inv`, `component`, `struct`, `npc`, `coord` | 15 | — |
+
+Zero appears only in `> 0` / `!= 0` shapes, which a real value satisfies too and
+which therefore discriminate nothing. Every unambiguous guard in the corpus is
+against -1. Strings keep `""`: the tables that declare a string default declare
+it empty (`defaults=2:0:` on `skill_features.text`).
+
+### The arity is the half that bites
+
+A whole-tuple read (low nibble 0) pushes **one value per field**. Answering a
+5-field column with a single integer does not produce one wrong value — it
+shifts every local the script's multi-assignment writes, and the wrongness
+surfaces somewhere else entirely.
+
+That is precisely what hid this. `skill_features.sprite` is
+`graphic,int,int,int,int` and **no row in the table sets it**, so
+`[proc,script9347]`'s
+
+```
+$int13, $int14, $int15, $int16, $int17 = db_getfield($int0, 872464, 0);
+if ($int13 ! -1) { cc_setgraphic($int13); ... } else { cc_setobject($int12, -1); }
+```
+
+read four values that were never pushed. `$int13` came back 0 rather than -1, the
+guard took the sprite branch, and every row of every obj-icon skill guide called
+`cc_setgraphic(0)` instead of `cc_setobject(<obj>, -1)`. No `CC_SETOBJECT` ever
+reached the host, which is why the obj-icon path looked broken when it was never
+entered. See `docs/skill_guide.md` §8.
+
+### What it cost
+
+| | |
+|---|---|
+| `src/engine/dat2/task_dat2_dbtable_load.c` | new; config group 39, same shape as the DBROW task |
+| `CacheProvider_DbTable{Add,Get,Has}` / `DbTablesCleanup` | new hmap beside `dbrow_cache`, 256 entries (the cache has 247 tables) |
+| `CS2VM_DB_LOAD_TABLE` + `TASK_CS2_YIELD_DBTABLE` | the third DB load kind |
+| `db_table_or_yield`, `db_column_of`, `db_push_missing` | the chain above, in `rs_cs2_host.c` |
+
+One ordering trap is written into the code and repeated here because it is not
+obvious: `DB_GETFIELD` can now yield **twice** — once for the row, once for the
+table — and `RS_CS2Host` has a *single* `awaited` slot. Yielding for the table
+overwrites the row's record. That is safe only because the table lookup is gated
+on `row != NULL`: a resident row cannot yield again on the retry. A row that is
+genuinely absent would re-arm its own yield every time the table yield cleared
+it, and the two would ping-pong until the VM's yield-halt guard fired.
+
+### The check
+
+`make -C src test-db` (`src/game/test/db_cache_test.c`), which this pass also
+un-broke (§8). It discovers the columns from the cache rather than naming them,
+so it does not depend on which revision's table 0 is on disk: it finds a
+multi-field column row 0 omits *with* a table default and one *without*, and
+asserts the push count on both stacks, the defaulted value, and the tuple count.
+Proved to fail by mutation — reverting the type default to 0 and dropping the
+table rung from `db_column_of` turns 5 of the 20 checks red.

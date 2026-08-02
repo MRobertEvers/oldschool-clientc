@@ -1789,11 +1789,17 @@ main(
     /* `[ui:boot] window` / --window: the stated boot size. Same slot as the
      * debug knob above and deliberately after it, so TORIRS_ROOT_SIZE keeps
      * winning; the window is created from the layout root a few hundred lines
-     * down, so setting it here is what makes the WINDOW that size too. Fixed
-     * mode ignores it — the canvas is pinned back to the fixed frame when the
-     * mode is applied. */
+     * down, so setting it here is what makes the WINDOW that size too.
+     *
+     * The test is "not fixed", not "== resizable": `cfg.window_mode` is 0 when
+     * nobody stated a mode, and unstated means the host's own default, which is
+     * resizable. Testing for resizable here made a plain `--window 1440x900`
+     * boot silently at 765x503 — the mode it would run in and the mode it was
+     * checked against were not the same value. Fixed mode ignores the size
+     * either way: the canvas is pinned back to the fixed frame when the mode is
+     * applied to the platform. */
     else if( cfg.window_w > 0 && cfg.window_h > 0 &&
-             cfg.window_mode == CS2VM_WINDOW_MODE_RESIZABLE )
+             cfg.window_mode != CS2VM_WINDOW_MODE_FIXED )
     {
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }

@@ -105,6 +105,11 @@ main(void)
         return 0;
     }
     RSCache_Dat2DiskSetProfile(disk, &profile);
+    /* The provider carries the same identity as the disk: every dat2 load task
+     * branches on it, and CacheProvider_Profile asserts rather than guessing.
+     * Without this the first load task (the table index) aborts before the
+     * first CHECK, which is how this test had been failing. */
+    CacheProvider_SetProfile(provider, &profile);
 
     if( RSCache_MapLocsEncrypted(&profile) )
     {
@@ -118,9 +123,11 @@ main(void)
     /* Pre-load the resources the opcodes will read (so exec_db finds them
      * resident and does not need to drive a yield/reload cycle). */
     run_task(queue, io, px, CreateTask_DbTableIndexLoad(provider, 0));
+    run_task(queue, io, px, CreateTask_DbTableLoad(provider, 0));
     run_task(queue, io, px, CreateTask_DbRowLoad(provider, 0));
     run_task(queue, io, px, CreateTask_DbRowLoad(provider, 3997));
 
+    CHECK(CacheProvider_DbTableHas(provider, 0), "table 0 (DBTABLE) loaded");
     CHECK(CacheProvider_DbTableIndexHas(provider, 0), "table 0 index loaded");
     CHECK(CacheProvider_DbRowHas(provider, 0), "row 0 loaded");
     CHECK(CacheProvider_DbRowHas(provider, 3997), "row 3997 loaded");
@@ -178,17 +185,21 @@ main(void)
     /* DB_GETFIELD must push even when nothing resolves — it pops three args and
      * the caller's next opcode reads its result, so skipping the push underflows
      * some later, unrelated opcode (this aborted script 4029 on the live server).
-     * An absent column and an out-of-range index both answer the default. */
+     * An absent column and an out-of-range index both answer the default, and
+     * the default is -1: across the 9,368 decompiled clientscripts every guard
+     * on a db_getfield of a column with no table default compares against -1
+     * (44 `dbrow`, 18 `obj`, 6 `graphic`, 6 plain `int`, ...). Zero appears only
+     * in `> 0` / `!= 0` guards, which a real value satisfies too. */
     {
         int before = t->ints_stack_top;
 
         CS2VM2_PushInt(t, 0);
-        CS2VM2_PushInt(t, pack_col(0, 250, 0)); /* column id the row does not list */
+        CS2VM2_PushInt(t, pack_col(0, 250, 0)); /* column id neither row nor table lists */
         CS2VM2_PushInt(t, 0);
         call_db(t, CS2_OP_DB_GETFIELD);
         CHECK(t->ints_stack_top == before + 1, "DB_GETFIELD(absent column) still pushes");
         CS2VM2_PopInt(t, &iv);
-        CHECK(iv == 0, "DB_GETFIELD(absent column) == 0");
+        CHECK(iv == -1, "DB_GETFIELD(absent column) == -1");
 
         CS2VM2_PushInt(t, 0);
         CS2VM2_PushInt(t, pack_col(0, 0, 0));
@@ -196,7 +207,126 @@ main(void)
         call_db(t, CS2_OP_DB_GETFIELD);
         CHECK(t->ints_stack_top == before + 1, "DB_GETFIELD(index out of range) still pushes");
         CS2VM2_PopInt(t, &iv);
-        CHECK(iv == 0, "DB_GETFIELD(index out of range) == 0");
+        CHECK(iv == -1, "DB_GETFIELD(index out of range) == -1");
+    }
+
+    /*
+     * A column the ROW does not list falls back to the TABLE — the only record
+     * that states that column's field types and its default values.
+     *
+     * The arity is the half that bites. A whole-tuple read of an N-field column
+     * owes the stack N values; answering with a single integer shifts every
+     * local the script's multi-assignment writes. That is exactly what left the
+     * rev-230 skill guide's rows iconless: `skill_features.sprite` is 5 fields
+     * (graphic,int,int,int,int) and no row in the table sets it, so
+     * `$sprite, $w, $h, $dx, $dy = db_getfield(...)` read four values that were
+     * never pushed, `$sprite` came back 0 instead of -1, and script 9347 took
+     * the cc_setgraphic branch — with sprite 0 — instead of cc_setobject.
+     *
+     * Both columns are discovered from the cache rather than named, so this
+     * check does not depend on which revision's table 0 is on disk.
+     */
+    {
+        struct RSCache_Dat2ConfigDbTable* dbt = CacheProvider_DbTableGet(provider, 0);
+        struct RSCache_Dat2ConfigDbRow* r0 = CacheProvider_DbRowGet(provider, 0);
+        int block_ints = t->ints_stack_top;
+        int block_strs = t->strs_stack_top;
+        int col_defaulted = -1; /* multi-field, table declares defaults */
+        int col_typed = -1;     /* multi-field, no defaults anywhere */
+
+        for( int c = 0; dbt && r0 && c < dbt->column_count; c++ )
+        {
+            int row_has = (c < r0->column_count && r0->columns[c].present);
+            if( row_has || !dbt->columns[c].present || dbt->columns[c].type_count < 2 )
+                continue;
+            if( dbt->columns[c].tuple_count > 0 && dbt->columns[c].values )
+            {
+                if( col_defaulted < 0 )
+                    col_defaulted = c;
+            }
+            else if( col_typed < 0 )
+                col_typed = c;
+        }
+        CHECK(col_defaulted >= 0, "table 0 has a defaulted multi-field column row 0 omits");
+        CHECK(col_typed >= 0, "table 0 has a defaultless multi-field column row 0 omits");
+
+        for( int which = 0; which < 2; which++ )
+        {
+            int c = which == 0 ? col_defaulted : col_typed;
+            struct RSCache_DbColumn* col;
+            int int_before, str_before, want_ints = 0, want_strs = 0;
+            char label[96];
+            if( c < 0 )
+                continue;
+            col = &dbt->columns[c];
+            for( int f = 0; f < col->type_count; f++ )
+            {
+                if( RSCache_DbTypeIsString(col->types[f]) )
+                    want_strs++;
+                else
+                    want_ints++;
+            }
+
+            int_before = t->ints_stack_top;
+            str_before = t->strs_stack_top;
+            CS2VM2_PushInt(t, 0);
+            CS2VM2_PushInt(t, pack_col(0, c, 0)); /* nibble 0 = whole tuple */
+            CS2VM2_PushInt(t, 0);
+            call_db(t, CS2_OP_DB_GETFIELD);
+            snprintf(
+                label,
+                sizeof(label),
+                "DB_GETFIELD(row0,col%d,whole) pushes %d ints + %d strings",
+                c,
+                want_ints,
+                want_strs);
+            CHECK(
+                t->ints_stack_top == int_before + want_ints &&
+                    t->strs_stack_top == str_before + want_strs,
+                label);
+
+            /* Drain whatever it pushed, newest first, so the next case starts
+             * from the same stack. */
+            while( t->strs_stack_top > str_before )
+            {
+                char* discard = NULL;
+                CS2VM2_PopStr(t, &discard);
+            }
+            while( t->ints_stack_top > int_before )
+                CS2VM2_PopInt(t, &iv);
+        }
+
+        /* The defaulted column's first field is the table's declared default,
+         * not a type default: read it back on its own (nibble N selects field
+         * N-1) and compare against the record. */
+        if( col_defaulted >= 0 &&
+            !RSCache_DbTypeIsString(dbt->columns[col_defaulted].types[0]) )
+        {
+            CS2VM2_PushInt(t, 0);
+            CS2VM2_PushInt(t, pack_col(0, col_defaulted, 1));
+            CS2VM2_PushInt(t, 0);
+            call_db(t, CS2_OP_DB_GETFIELD);
+            CS2VM2_PopInt(t, &iv);
+            CHECK(
+                iv == dbt->columns[col_defaulted].values[0].int_value,
+                "DB_GETFIELD(omitted column) == the table's declared default");
+        }
+
+        /* DB_GETFIELDCOUNT sees the same fallback: the default block's tuples. */
+        if( col_defaulted >= 0 )
+        {
+            CS2VM2_PushInt(t, 0);
+            CS2VM2_PushInt(t, pack_col(0, col_defaulted, 0));
+            call_db(t, CS2_OP_DB_GETFIELDCOUNT);
+            CS2VM2_PopInt(t, &iv);
+            CHECK(
+                iv == dbt->columns[col_defaulted].tuple_count,
+                "DB_GETFIELDCOUNT(omitted column) == the table's default tuple count");
+        }
+
+        CHECK(
+            t->ints_stack_top == block_ints && t->strs_stack_top == block_strs,
+            "fallback checks left both stacks where they found them");
     }
 
     /* DB_FINDALL_WITH_COUNT(table 0) -> 198 rows. */
@@ -206,9 +336,14 @@ main(void)
     CHECK(iv == 198, "DB_FINDALL_WITH_COUNT(table0) == 198");
 
     /* DB_FIND_WITH_COUNT(col0 == 1) -> 1 row, and DB_FINDNEXT yields row 17.
-     * Convention: value pushed first, dbcolumn last (on top). */
-    CS2VM2_PushInt(t, 1);                  /* value */
+     * Source order is db_find*(dbcolumn, value, type_tag), so dbcolumn goes on
+     * first and the tag ends up on top. The tag names the stack the value is on:
+     * 2 = string, anything else = int. This site used to push only two values —
+     * written before the find family grew its third argument, and unnoticed
+     * because the test could not reach here at all. */
     CS2VM2_PushInt(t, pack_col(0, 0, 0));  /* dbcolumn */
+    CS2VM2_PushInt(t, 1);                  /* value */
+    CS2VM2_PushInt(t, 0);                  /* type tag: int stack */
     call_db(t, CS2_OP_DB_FIND_WITH_COUNT);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 1, "DB_FIND_WITH_COUNT(col0==1) == 1");

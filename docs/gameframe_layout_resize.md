@@ -134,18 +134,88 @@ App has no platform. Same split as `close_modal_requested`.
 The authority is the dialect's own type table (runestar cs2
 `windowmode-names.tsv`: `1 fixed`, `2 resizable`).
 
-### 3.5 Two dev knobs
+### 3.5 Three dev knobs
 
-- `TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH]"` — inject a resize at a main-loop
-  frame. `SDL_VIDEODRIVER=dummy` never delivers a real `SIZE_CHANGED`, and the
-  interesting part is what the scripts do afterwards, which the window cannot
-  show you.
+- `TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH]"` — push a **canvas** resize onto
+  the bus at a main-loop frame. It walks past the follow gate, so it exercises
+  the layout scripts in either window mode and can therefore never tell the two
+  modes apart. Use it to test the layout, not the mode.
+- `TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH]"` — resize the **window**, i.e. do
+  what a user's drag does (`PlatformSDL2_SetWindowSize`). Everything after that
+  is the client's own decision, so this is the only knob that tests the follow
+  gate. **Correction to an earlier claim in this doc:** `SDL_VIDEODRIVER=dummy`
+  does deliver `SDL_WINDOWEVENT_SIZE_CHANGED` for a programmatic
+  `SDL_SetWindowSize` — measured 2026-08-02, the canvas follows it headlessly.
+  What the dummy driver has no way to produce is a *user* drag; a synthesised
+  one is indistinguishable from here down.
 - `TORIRS_SIM_RUNSCRIPT="frame,script[,arg...]"` — run a clientscript by id.
   Needed because **nothing binds 3998**: a full decompile of `cache.osrs239`
   contains no caller, and no `onop=` in the content tree names it, so there is
   no component for `TORIRS_SIM_HOOK` to click. (§5.4 finding 1 again: "not in
   the corpus" is routine.)
 - `TORIRS_RESIZE_DEBUG=1` prints each canvas change.
+
+---
+
+## 3A. The half that was still missing: nobody told the *platform* the mode
+
+Written 2026-08-02, second pass, after the user reported "in resizable mode the
+UI scales instead of resizing".
+
+Everything in §3 was in place and the client still scaled. The reason is one
+missing read at boot:
+
+| | says | measured |
+|---|---|---|
+| `RS_CS2Host_Init` | `window_mode = RESIZABLE` | every clientscript's `getwindowmode` answers **resizable** from the first frame |
+| `PlatformSDL2.canvas_follows_window` | starts `false` | a real window resize was **dropped in the poll loop** |
+
+So the client told its own scripts it was resizable, and then letterboxed and
+upscaled a 765×503 canvas into whatever window it was given. Nothing could clear
+that: `PlatformSDL2_SetCanvasFollowsWindow` was only ever called from the
+post-frame `App_TakeWindowModeChange` drain, which fires only when a script
+*changes* the mode — and **nothing binds 3998**, so no script ever did (§3.5).
+The mode was unreachable and the two halves disagreed for the whole session.
+
+### 3A.1 What landed
+
+- **`App_WindowMode(app)` / `App_SetBootWindowMode(app, mode)`** (`src/app.c`,
+  `src/app.h`). The shell reads the mode once, right after `App_Init` and before
+  `App_OpenRootInterface`, and hands it to
+  `PlatformSDL2_SetCanvasFollowsWindow` — the same call the runtime switch
+  makes, so the two paths cannot drift. `App_SetBootWindowMode` deliberately
+  does **not** raise `window_mode_dirty`: config is not a user action.
+- **A stateable mode.** `[ui:boot] windowmode = fixed|resizable` in the boot
+  manifest, `--windowmode fixed|resizable` on the CLI (CLI wins). Unset keeps
+  the host default, which is resizable.
+- **A stateable boot size.** `[ui:boot] window = WxH`, `--window WxH`. The
+  window is created from the layout root, so this sizes the *window* as well as
+  the canvas. `TORIRS_ROOT_SIZE` still beats both.
+- **The canvas floor is now the window's minimum size**
+  (`SDL_SetWindowMinimumSize`, both modes). Below 765×503 layout is not an
+  answer the client has — the canvas clamps and the present scales — so the
+  window is not allowed there rather than silently scaling.
+- **Fixed mode snaps the window to the floor, and resizable puts it back.**
+  Entering fixed is the one window change the user did not ask for, so
+  `PlatformSDL2` remembers the size it snapped away from (`resizable_w/h`) and
+  restores it when the mode goes back. Without that, a round trip through the
+  Display dropdown shrank the window permanently — measured, then fixed.
+- **`--window` no longer needs `--windowmode`.** The boot-size branch tested
+  `cfg.window_mode == RESIZABLE`, but `cfg.window_mode` is 0 when nobody stated
+  one, and unstated means *the host default*, which is resizable — so a plain
+  `--window 1440x900` booted at 765×503. The test is now `!= FIXED`. This is the
+  same class of bug as the one above: a mode compared against the wrong copy of
+  itself.
+
+### 3A.2 What it costs
+
+The mode is boot config, not an in-game setting. `[clientscript,settings_client_mode]`
+(3998) is still unbound — re-measured this pass: no `3998` hook in the mounted
+tree's 1,737 hooks, none in interface 134 (`settings`) static data
+(`tools/dump_interface --iface 134 --json`), and no CS2 caller in the decompile.
+The ops behind it work (§3.4) and a run-time switch through them round-trips
+(§5A), but there is no button in this build to press. Wiring one is a content
+job in the settings panel, not an engine job.
 
 ---
 
@@ -221,6 +291,60 @@ Tests: `cmdbus_test`, `uitree_test`, `ss_provider_test`,
 
 ---
 
+## 5A. Verified for §3A (2026-08-02, `SDL_VIDEODRIVER=dummy`, fresh mock230)
+
+Method: two binaries, one stimulus. **before** = `2f167941` (the commit before
+the boot-mode wiring), rebuilt in a throwaway worktree with the
+`TORIRS_SIM_WINDOW` knob patched in so it receives the same window resize.
+**after** = this tree. Both run `manifest_osrs230.ini` (port-swapped) against
+the same mock, `TORIRS_MAX_FRAMES=400`, resize injected at frame 260.
+
+**Geometry — the window resize is now heard.**
+
+```
+before  TORIRS_SIM_WINDOW=260,1024x768   BOUNDS (161|0)  765x503    (161|92)  765x503
+after   TORIRS_SIM_WINDOW=260,1024x768   BOUNDS (161|0) 1024x768    (161|92) 1024x768
+before  TORIRS_SIM_WINDOW=260,1440x900   BOUNDS (161|0)  765x503    (161|11)  513x334
+after   TORIRS_SIM_WINDOW=260,1440x900   BOUNDS (161|0) 1440x900    (161|11) 1188x731
+```
+
+**Pixels — the user sees it.** The before frame is a 765×503 canvas the present
+upscales into the window, so the comparison nearest-upscales it to the window
+size (what the GPU does) and diffs per pixel:
+
+```
+1024x768:  before vs after   702,528 / 786,432   = 89.33% of the frame differs
+1440x900:  before vs after 1,192,174 / 1,296,000 = 91.99% of the frame differs
+```
+
+Noise floor for that comparison — the same binary, same knobs, two runs: **0.00%**
+back-to-back, and **0.15–0.19%** across separate logins to the same server
+process (idle NPC animation phase). Anything under ~0.2% at 765×503 is noise.
+
+**No boot regression.** before vs after with no resize at all: 0.10% on the
+first pair and 0.19% on the last, both inside that band. The default frame is
+unchanged.
+
+**Both routes to a size agree.** `--window 1440x900` (boot at size) vs
+`TORIRS_SIM_WINDOW=260,1440x900` (drag to size): 0.17%.
+
+**The floor holds.** `TORIRS_SIM_WINDOW=260,400x300` → no `canvas:` line, root
+stays 765×503: `SDL_SetWindowMinimumSize` refused the window. `2560x1440` →
+canvas 2,560×1,440, no assert, no crash; the raster paths take it.
+
+**Mode round trip restores the window.**
+`TORIRS_SIM_WINDOW="260,1280x800" TORIRS_SIM_RUNSCRIPT="330,3998,0;430,3998,1"`:
+
+```
+windowmode: boot resizable   canvas: 1280x800
+windowmode: fixed            canvas: 765x503
+windowmode: resizable        canvas: 1280x800     <- was 765x503 before §3A.1
+```
+
+Tests: `make -C src test-cmdbus`, `test-uitree`, `test-bootmanifest` all pass.
+
+---
+
 ## 6. Decisions recorded
 
 **Fixed mode letterboxes; resizable mode tracks the window.** Fixed *is*
@@ -236,6 +360,17 @@ has the same floor.
 **The window mode does not persist.** `default_window_mode` is stored and read
 back, and nothing writes it to a save. There is no LostCity precedent to follow
 (§1), so this is a fresh policy call and it is deliberately the minimal one.
+
+**The mode is boot config until content binds the dropdown** (§3A.2). A client
+that reports "resizable" to its scripts and letterboxes anyway is the bug this
+doc exists for, so the mode is stated once, in the same place the cache and the
+protocol are stated, and the platform is told at boot rather than only on a
+change it may never see.
+
+**The floor is a window constraint, not just a canvas clamp.** Below 765×503 the
+client has no layout answer, so the window is not permitted there
+(`SDL_SetWindowMinimumSize`) instead of quietly scaling. Above it there is no
+ceiling: 2560×1440 was measured working, and any cap would be invented.
 
 ---
 
@@ -261,9 +396,22 @@ the correct classic-viewport path for a normal session. Nothing to do there.
 
 ## 8. Still open — the fixed/resizable **toplevel switch**
 
-What landed changes the canvas and reflows the frame. It does **not** switch
-which toplevel is mounted. Fixed mode today is toplevel **161** laid out at
-765×503, not toplevel **548**. Four things are missing, all measured:
+**Which direction is blocked, measured.** The switch is not what resizable mode
+needs — **161 already *is* the resizable toplevel**. Booting each and pushing the
+canvas to 1280×800 (`TORIRS_SIM_WINDOW=260,1280x800 TORIRS_DUMP_BOUNDS=…`):
+
+```
+161  viewport (161|92)  765x503 -> 1280x800    children modes=w1,h1  (parent-relative)
+548  viewport (548|10)  512x334 @4,4 -> unchanged at 1280x800
+     minimap  (548|9)   249x163 @516,4 -> unchanged
+     chat     (548|11)  519x165 @0,338 -> unchanged   children modes=w0,h0 (absolute)
+```
+
+548's frame is authored in absolute pixels and does not reflow at any canvas
+size; 161's is parent-relative and reflows at every size. So the open work is
+**fixed** mode: today `--windowmode fixed` is 161 pinned to 765×503, which looks
+right and is not the same widget tree as the real fixed frame. Four things are
+missing for the real one, all measured:
 
 1. **No wire surface.** `src/net/rev/pktnames.h` declares 96 `PKTOUT_NAME_*` and
    none are window/display related; `src/net/rev/osrs230/packetout.h` has no
@@ -300,4 +448,23 @@ Independently verified as *working already*, for whoever picks this up: booting
 `toplevel_getcomponents` → 1129, and a correct fixed frame —
 `TORIRS_DUMP_BOUNDS=548` → `548|10` viewport 512×334 @4,4; `548|9` minimap
 249×163 @516,4; `548|11` chat 519×165 @0,338. The 548 layout is not the problem;
-the switch is.
+the switch is. (Re-measured 2026-08-02: still true, and still unchanged by canvas
+size — see the table at the top of this section.)
+
+### 8.1 The popout strip is gated on toplevel *identity*, not geometry
+
+Reported as a resize symptom, measured as something else. `popout:container`
+(728:9) resolves to **-6 × 491** — `widthmode=1` means "parent minus 48" and its
+parent `content_desktop` (728:4) is 42 wide. At 1440×900 it is **-6 × 888**: the
+strip's outer frame tracks the window (`728:4` abs 723→1398, height 503→888) and
+the panel container's width does not move at all, at any size.
+
+It cannot: the widening to 58+278 lives in `[clientscript,script7568]`, which
+returns early unless `~script9336` says so, and that proc answers 1 only for
+component set **1745** — which `[proc,toplevel_getcomponents]` returns only when
+`if_gettop = interface_601` (`toplevel_osm`). Under 161 the answer is 1130, so
+the branch is dead by identity. No window size and no resize event can reach it,
+and it is **not** in the way of resizable mode: `toplevel_osrs_stretch:popout`
+is a real slot of 161, the strip draws correctly at both sizes (see the frames
+in §5A), and the collapsed panel is what 161 is supposed to show. Faking the
+enum would mount an OSM-frame layout inside a non-OSM frame.
