@@ -1,5 +1,21 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: NEEDS-ONE-THING, and it is the highest
+> leverage per line in the survey.** The blocker is the fourth container this
+> doc already names: `container_for` — re-measured today at
+> `mock230_scripts.c:2088`, not §2's `1504-1526` — still has exactly three
+> hardcoded cases, and `container_dirty` the same. ~50-80 lines (a
+> `Mock230Item*` + size on `Mock230Player`, a case in each, an
+> `inv_collection` row resolving `"collection_transmit"`, init and shutdown),
+> and it forces the container-registry generalisation shop, GE, trading and
+> death all need. **§2's persistence dependency is no longer a gate**:
+> `mock230_save_player`/`_load_player` were given callers on 2026-08-02 with
+> `farming_tools`. One claim to drop: §2's "this ruled out … a bitset of
+> varbits" — 55 `collection_item_<name>` varbits across 12 `collection_items_N`
+> varps do exist; no decompiled script reads them, so it is a parallel store to
+> decide about, not something ruled out. Otherwise the most accurate doc in the
+> set.
+
 > Companion to `docs/questlist_chatmenu_levelup.md` and
 > `docs/chrome_panels_server_reqs.md`, same discovery pass. **This is the
 > single largest new per-player state requirement found in this whole survey

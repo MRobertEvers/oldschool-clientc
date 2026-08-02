@@ -1,5 +1,24 @@
 # Settings (interface 134): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: BLOCKED, and the real blocker is not the
+> one §0 names.** `CS2VM2_Op_PopVar` and `CS2VM2_Op_PopVarbit` are still
+> stack-balanced no-ops (re-measured today, `cs2vm2.c:5589` and `:5605`), so a
+> toggle does not change even locally — ~30 lines, and fixing it unblocks every
+> client-authored varp in the cache. Behind that sits the unresolved question:
+> `osrs230/packetout.h` has **no client→server varp opcode of any kind**, and
+> the rows are `cc_setonop` (client-handled), so no `IF_BUTTON` reaches the
+> server either — how a CS2-written varp propagates is not established anywhere
+> in this repo, and `Client-TS/` is an uninitialised submodule here. Do not
+> start until that is answered; §3's "declare two `.varp` overlays" does not
+> survive it. **§0's "single load-bearing corpus gap" is not a gap**:
+> `[proc,script6716]` (659 lines — the toggle-id → varp/varbit map) and its
+> setter `[clientscript,script3965]` (651 lines; `settings_clicked_toggle` is
+> not the symbol) both decompile, and Accept Aid is `case 59` in both →
+> `%varbit4180`. §2's `PKT_NAME_CHAT_FILTER_SETTINGS` "confirmed absent from
+> `osrs230/packetin.h`" is now stale — it landed with friends/PM. §1's
+> Shift-click row is unsupported: no script in the 9,433-file corpus references
+> `%var1055` at all.
+
 > Companion to `docs/chrome_panels_server_reqs.md`'s xptracker section, same
 > discovery pass. **Inverts that section's finding.** xptracker's chrome was
 > pure client varc with one real varp buried underneath. Here, **even the

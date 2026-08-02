@@ -19,6 +19,7 @@
 #include "mock230_equipment.h"
 #include "mock230_friends.h"
 #include "mock230_ids.h"
+#include "mock230_save.h"
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
@@ -3517,8 +3518,10 @@ handle_if_button(
      * which is precisely the second implementation this stopped being. */
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = -1;
+    /* Op 0 — this is the op-*less* click (events bit 0), not op 1. It has no
+     * numbered trigger to try, so the lookup goes straight to `[if_button,…]`. */
     if( mock230_scripts_fallback(srv, MOCK230_FALLBACK_IF_BUTTON,
-                                 mock230_scripts_run_if_button(srv, uid)) )
+                                 mock230_scripts_run_if_button(srv, uid, 0)) )
         mock230_bank_handle_button(srv, uid, -1, -1, 1);
 }
 
@@ -3554,14 +3557,23 @@ handle_if_button_op(
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = sub;
     srv->active_player->last_verb = op_num;
-    /* The component uid is the trigger's subject; an interface button has
-     * neither a category nor an npc. `sub` and `op` reach content through
-     * last_slot and last_verb, which is where a RuneScript trigger reads them.
+    /*
+     * The component uid is the trigger's subject; an interface button has
+     * neither a category nor an npc. `sub` reaches content through last_slot,
+     * which is where a RuneScript trigger reads it.
+     *
+     * The op index does not, and cannot: there is no `last_verb` command in
+     * the reference and none here either, so `player->last_verb` is written
+     * and read by nothing. The op index reaches content as the *trigger* —
+     * `[if_button2,stats:attack]` — which is the shape the reference uses for
+     * the other half of this packet family (INV_BUTTON1..5, and see
+     * ClientGameProt.ts:71 on what that family is called at this revision).
      *
      * (uid, sub, obj, op) — the bank fallback needs the sub id, which is which
-     * of the 1,220 dynamic children was clicked. */
+     * of the 1,220 dynamic children was clicked.
+     */
     if( mock230_scripts_fallback(srv, MOCK230_FALLBACK_IF_BUTTON,
-                                 mock230_scripts_run_if_button(srv, uid)) )
+                                 mock230_scripts_run_if_button(srv, uid, op_num)) )
         mock230_bank_handle_button(srv, uid, sub, -1, op_num);
 }
 
@@ -4513,38 +4525,71 @@ mock230_world_attack_style(const struct Mock230Server* srv)
 }
 
 /*
- * Queue a varp for phase 10, once.
+ * A varp has been written: put it on the wire NOW.
  *
- * The dedupe is not an optimisation, it is correctness under varbits: a varbit
- * is a bit range *inside* a varp, so the ten bank settings written on open all
- * land in varp 115. Appending per write queued the same varp ten times, sent it
- * ten times, and — worse — spent ten of the change list's entries on it. The
- * list is a fixed 64 and dropping past it used to be silent, which is a varp the
- * client never hears about and a UI that stays stale with no diagnostic.
+ * "Now" rather than "in phase 10", and the difference is a correctness one that
+ * only shows up in interface content. The reference encodes the packet inside
+ * the setter —
  *
- * This is the only copy. mock230_bank.c and mock230_scripts.c each had their
- * own, with different dedupe semantics, which is exactly how the varbit path
- * ended up on the one that had none.
+ *     // Player.ts:1763
+ *     setVar(id, value) { ... this.vars[varp.id] = value;
+ *                             if (varp.transmit) this.writeVarp(id, value); }
+ *
+ * — and `if_opensub` writes immediately too, so **a script's source order is the
+ * packet order**. Content relies on that. Slayer Rewards is the case that found
+ * it:
+ *
+ *     %slayer_master_in_focus = $master;
+ *     if_opensub(toplevel_osrs_stretch:mainmodal, slayer_rewards, 0);
+ *
+ * Interface 426's onload chain reads that varbit four times as it lays itself
+ * out — the price of cancelling a task, the price of blocking one, what is in
+ * each block slot, which master's task table "View List" shows. Batching the
+ * varp to the end of the tick put the mount first, so the panel drew the
+ * *default* master's prices (100 points instead of Turael's 40) and its task
+ * list came up empty, with every packet present and correct on the wire and
+ * nothing to see in the log but the order.
+ *
+ * Nothing generic can fix that downstream: the Tasks tab's own
+ * `if_setonvartransmit` does not list this varp, so a late write does not even
+ * repaint it. The panel is built once, from whatever the client knew at mount.
+ *
+ * What batching bought was a dedupe — a varbit is a bit range inside a varp, so
+ * the bank's ten settings all land in varp 115 and used to queue it ten times.
+ * Sending ten packets is what the reference does (ten `setVarBit` calls are ten
+ * `writeVarp`s), it is what the client already tolerates, and it costs six bytes
+ * each. The fixed 64-entry change list is gone with it, and so is the silent
+ * drop past its end.
+ *
+ * An untransmitted varp still costs nothing: `transmit=` in the .varp config
+ * decides, an undeclared varp is server-only, and the check is here rather than
+ * at the call site so every writer gets it.
  */
 void
 mock230_world_mark_varp(
     struct Mock230Player* player,
     int varp)
 {
+    const struct Mock230VarpDef* def;
+    int32_t value;
+
     if( varp < 0 || varp >= MOCK230_VARP_COUNT )
         return;
-    for( int i = 0; i < player->varp_changed_count; i++ )
-    {
-        if( player->varp_changed[i] == varp )
-            return;
-    }
-    if( player->varp_changed_count >= MOCK230_VARP_DIRTY_MAX )
-    {
-        fprintf(stderr, "mock230: varp change list full (%d), varp %d not sent\n",
-                MOCK230_VARP_DIRTY_MAX, varp);
+    def = mock230_content_varp(varp);
+    if( !def || !def->transmit )
         return;
-    }
-    player->varp_changed[player->varp_changed_count++] = varp;
+    /*
+     * VARP_SMALL's value is a single signed byte. Special attack energy is in
+     * tenths of a percent, so a full bar is 1000 and would land as -24; the
+     * bank's tab counters occupy bits 0..25 of their varp. The encoder is
+     * chosen per value rather than per call site, so content never has to know
+     * there are two packets.
+     */
+    value = player->varps[varp];
+    if( value >= -128 && value <= 127 )
+        mock230_send_varp_small(player, varp, (int)value);
+    else
+        mock230_send_varp_large(player, varp, (int)value);
 }
 
 /*
@@ -4760,6 +4805,20 @@ mock230_world_remove_player(
     /* Copied, not aliased: the slot this points into is reused by the next
      * login and the notification below runs after the slot has been released. */
     snprintf(display_name, sizeof(display_name), "%s", player->display_name);
+
+    /*
+     * Write the save first, while the player is still whole.
+     *
+     * Everything below this line takes something away — the bank is freed, the
+     * slot is released, the friend service is told the name is gone — so a save
+     * anywhere else in this function saves a partly demolished character. The
+     * bank in particular is heap-allocated and `mock230_save_player` walks it.
+     *
+     * This is the only logout path either host has: the socket server calls it
+     * when the session dies and the embed host calls it when a client
+     * disconnects, so both get persistence from one call.
+     */
+    mock230_save_player(player, mock230_save_path(display_name));
 
     /*
      * The bank is heap-allocated per player, so a logout that only cleared
@@ -5054,6 +5113,29 @@ mock230_world_login(struct Mock230Player* player)
     mock230_world_set_active(srv, player);
 
     /*
+     * -1. The save, before anything reads or sends the player's state.
+     *
+     * `mock230_save_player`/`mock230_load_player` were written complete and
+     * then had **no callers at all** — persistence has been dead code since it
+     * landed, which is why `player/newplayer.rs2`'s `%newplayer_seeded` gate
+     * reads as a declaration of intent rather than a behaviour. These two calls
+     * (and the one in mock230_world_remove_player) are the whole of it.
+     *
+     * Position matters twice over. Before step 1, because everything below
+     * *sends* what the load just changed — the scene is placed from `x`/`z`,
+     * UPDATE_STAT and UPDATE_INV_FULL go out of steps 4 and 5, and a load after
+     * them would leave the client showing a fresh character. And before
+     * `[login,_]` (which phase 7 runs on the next tick), because that is what
+     * makes the seed gate work at all: `~newplayer_setup` tests
+     * `%newplayer_seeded`, and a returning player has to be carrying it by
+     * then or the opening kit is dealt again on top of whatever they had.
+     *
+     * A missing file is a new character, not an error — `mock230_load_player`
+     * says so by returning 0 on ENOENT — so there is nothing to handle here.
+     */
+    mock230_load_player(player, mock230_save_path(player->display_name));
+
+    /*
      * 0. Presence, before any packet.
      *
      * The reference's `player_login` message to the friend server
@@ -5155,6 +5237,42 @@ mock230_world_login(struct Mock230Player* player)
             player->stat_level[stat],
             player->stat_xp_tenths[stat] / 10,
             player->stat_boosted[stat]);
+
+    /*
+     * 4b. The varps a save brought back, in full.
+     *
+     * The other half of persistence, and the half that is easy to miss: the
+     * loader writes `player->varps[]` directly, so nothing marks them changed
+     * and phase 10 — which sends only what moved *this tick* — has nothing to
+     * send. The state was restored perfectly and the client was never told, so
+     * a returning player's Tool Leprechaun store read 0/100 over five rakes
+     * that really were in it.
+     *
+     * Non-zero is the right filter, not "was in the file": the client starts
+     * every session with a zeroed varp table, so a zero is already agreed and
+     * anything else has to be stated. For a new character that sends nothing at
+     * all, which is exactly what it did before.
+     *
+     * Sent directly rather than through `mock230_world_mark_varp`, for the same
+     * reason the containers above are: the dirty list is 64 entries wide and
+     * describes one tick's changes, and a character with a hundred perm varps
+     * is not a change.
+     */
+    for( int varp = 0; varp < MOCK230_VARP_COUNT; varp++ )
+    {
+        const struct Mock230VarpDef* def;
+        int32_t value = player->varps[varp];
+
+        if( value == 0 )
+            continue;
+        def = mock230_content_varp(varp);
+        if( !def || !def->transmit )
+            continue;
+        if( value >= -128 && value <= 127 )
+            mock230_send_varp_small(player, varp, (int)value);
+        else
+            mock230_send_varp_large(player, varp, (int)value);
+    }
 
     /* 5. Containers, in full. Deltas take over from the next tick. */
     mock230_send_inv_full(
@@ -5754,38 +5872,10 @@ phase_client_out(struct Mock230Player* player)
         MOCK230_WORN_SLOTS,
         player->worn_dirty);
 
-    /* VARP_SMALL's value is one signed byte. A varp holding packed varbits is
-     * routinely wider than that — the bank's tab counters occupy bits 0..25 of
-     * their varp — so the encoder is chosen per value rather than per call
-     * site. Truncating instead would corrupt every bit above the eighth. */
-    /*
-     * Changed varps.
-     *
-     * Two decisions per varp, and both are data rather than code:
-     *
-     * - **Whether it goes at all.** A varp the client's own CS2 reads has to
-     *   reach it; one that is purely server bookkeeping must not. `transmit=`
-     *   in a .varp config says which, and an *undeclared* varp is server-only —
-     *   the safe default, and what keeps the mock's own counters
-     *   (`mock_greeting_count`, `lumbridge_visited`) off the wire.
-     * - **Which encoder.** VARP_SMALL's value is a single signed byte. Special
-     *   attack energy is in tenths of a percent, so a full bar is 1000 and
-     *   would land as -24. Picking by magnitude means content never has to know
-     *   there are two packets.
-     */
-    for( int i = 0; i < player->varp_changed_count; i++ )
-    {
-        int varp = player->varp_changed[i];
-        const struct Mock230VarpDef* def = mock230_content_varp(varp);
-        int32_t value = player->varps[varp];
-
-        if( !def || !def->transmit )
-            continue;
-        if( value >= -128 && value <= 127 )
-            mock230_send_varp_small(player, varp, (int)value);
-        else
-            mock230_send_varp_large(player, varp, (int)value);
-    }
+    /* Varps are NOT sent from here. `mock230_world_mark_varp` puts each one on
+     * the wire at the point of the write, which is where the reference puts it
+     * and the only place that preserves a script's own ordering against
+     * `if_opensub` — see its comment for the panel that proved it. */
 
     mock230_bank_flush(srv);
 
@@ -5826,7 +5916,6 @@ phase_cleanup_player(struct Mock230Player* player)
     player->stat_dirty = 0;
     player->inv_dirty = 0;
     player->worn_dirty = 0;
-    player->varp_changed_count = 0;
     player->clear_map_flag = 0;
     /* One social packet per tick, spent by whichever of the six arrived first.
      * The reference clears it in `resetEntity`, which is this phase. */
@@ -6235,6 +6324,57 @@ selftest_find(
 }
 
 /*
+ * Backpack fixtures.
+ *
+ * `selftest_give` writes one slot per call rather than a count, because that is
+ * what a non-stackable item is — and the Tool Leprechaun's twelve are all
+ * non-stackable. A helper that took a count would let a test assert five rakes
+ * against a single cell reading "rake x5", which is the exact bug the store's
+ * `~farming_give` loop exists to avoid.
+ */
+static void
+selftest_clear_inv(struct Mock230Player* player)
+{
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+    {
+        player->inv[i].obj_id = -1;
+        player->inv[i].count = 0;
+    }
+    player->inv_dirty = 0xfffffffu;
+}
+
+static void
+selftest_give(
+    struct Mock230Player* player,
+    int obj_id,
+    int count)
+{
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+    {
+        if( player->inv[i].obj_id >= 0 )
+            continue;
+        player->inv[i].obj_id = obj_id;
+        player->inv[i].count = count;
+        player->inv_dirty |= 1u << i;
+        return;
+    }
+}
+
+/** Total of `obj_id` across every slot, the way `inv_total` counts it. */
+static int
+selftest_count(
+    const struct Mock230Player* player,
+    int obj_id)
+{
+    int total = 0;
+
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        if( player->inv[i].obj_id == obj_id )
+            total += player->inv[i].count;
+    return total;
+}
+
+/*
  * Prayer, as the selftest can reach it now that the engine has no prayer module.
  *
  * One name does both jobs, which is not a coincidence and is worth stating: a
@@ -6278,6 +6418,16 @@ mock230_world_selftest(void)
     int slot = 0;
 
     memset(&srv, 0, sizeof(srv));
+    /*
+     * Its own save directory, before anything can read one.
+     *
+     * `mock230_world_login` loads a save now, and the login-burst stanza calls
+     * it — so without this the selftest would read whatever the last real
+     * session wrote into `saves/` and assert against state no line of it sets.
+     * A run whose result depends on a file from a previous run is not a test.
+     */
+    setenv("MOCK230_SAVES", "build/selftest_saves", 1);
+    remove(mock230_save_path(""));
     /* No session: a world with no client. Every mock230_send still builds its
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
@@ -7100,6 +7250,1379 @@ mock230_world_selftest(void)
                            "an unmodelled emote should play nothing, got %d", player->anim_id);
 
             player->anim_id = -1;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: skill guide\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Op 2 on a skill cell opens that skill's guide.
+             *
+             * Everything that can break looks the same on screen — a panel that
+             * is up but is the wrong skill, or no panel at all — so this asserts
+             * the whole chain once per cell rather than any one link:
+             *
+             *   1. IF_BUTTON2 reaches the *numbered* trigger. Before
+             *      SS_TRIGGER_IF_BUTTON1..10 existed all ten ops of a component
+             *      arrived as one trigger, and `[if_button2,stats:attack]` could
+             *      not be written at all.
+             *   2. The mount goes out before the clientscript that lays it out.
+             *      Reversed, clientscript 1902 measures components that are not
+             *      in the tree yet and the guide comes up an empty window.
+             *   3. The RUNCLIENTSCRIPT carries FOUR INTS, and the packet is the
+             *      only place that is provable. `runclientscript_ss` is one int
+             *      and two strings; the vararg form is what can say this shape.
+             *   4. All 24 cells are bound, to 24 *different* skills. A forgotten
+             *      trigger block is one skill in twenty-four that does nothing;
+             *      a copy-pasted constant is two cells opening one guide.
+             *
+             * What this deliberately does not assert is that index N is the
+             * skill whose name the cell carries. That mapping's ground truth is
+             * the fourth argument of each cell's onload in `interfaces/stats.if`
+             * (and the same numbers in the cache's enum_681), and neither is
+             * readable from here: nothing server-side parses an `.if`,
+             * mock230_content.c walks `.enum` only under server/scripts, and the
+             * exported `configs/all.dbtable` uses a `columndef=`/`values=`
+             * grammar this server's `column=`/`data=` parser skips — so its copy
+             * of skill_guide_subsections is an empty shell. Verified in the real
+             * client instead, per skill: docs/skill_guide.md §4.
+             */
+            static const char* const k_cells[] = {
+                "stats:attack",      "stats:strength",     "stats:defence",
+                "stats:ranged",      "stats:prayer",       "stats:magic",
+                "stats:runecraft",   "stats:construction", "stats:hitpoints",
+                "stats:agility",     "stats:herblore",     "stats:thieving",
+                "stats:crafting",    "stats:fletching",    "stats:slayer",
+                "stats:hunter",      "stats:mining",       "stats:smithing",
+                "stats:fishing",     "stats:cooking",      "stats:firemaking",
+                "stats:woodcutting", "stats:farming",      "stats:sailing",
+            };
+            enum
+            {
+                CELL_COUNT = (int)(sizeof(k_cells) / sizeof(k_cells[0]))
+            };
+            int guide = mock230_content_symbol(MOCK230_PACK_INTERFACE, "skill_guide_v2");
+            int slot = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                              "toplevel_osrs_stretch:mainmodal");
+            int seen[CELL_COUNT];
+            int seen_count = 0;
+            int shared_tab = -1;
+            int shared_script = -1;
+
+            SELFTEST_CHECK(guide > 0, "the content pack should name skill_guide_v2");
+            SELFTEST_CHECK(slot > 0,
+                           "the content pack should name toplevel_osrs_stretch:mainmodal");
+
+            for( int i = 0; i < CELL_COUNT; i++ )
+            {
+                static struct Mock230Capture capture;
+                int com = mock230_content_symbol(MOCK230_PACK_COMPONENT, k_cells[i]);
+                uint8_t button[6];
+                int open_at;
+                int run_at;
+
+                SELFTEST_CHECK(com > 0, "the content pack should name %s", k_cells[i]);
+                if( com <= 0 )
+                    continue;
+
+                button[0] = (uint8_t)(com >> 24);
+                button[1] = (uint8_t)(com >> 16);
+                button[2] = (uint8_t)(com >> 8);
+                button[3] = (uint8_t)com;
+                button[4] = 0xff; /* sub = -1: a static cell has no dynamic child */
+                button[5] = 0xff;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+
+                SELFTEST_CHECK(open_at >= 0, "op 2 on %s should mount the guide", k_cells[i]);
+                SELFTEST_CHECK(run_at >= 0,
+                               "op 2 on %s should run the layout clientscript", k_cells[i]);
+                SELFTEST_CHECK(open_at >= 0 && run_at > open_at,
+                               "%s: the mount must precede the clientscript that lays it out "
+                               "(IF_OPENSUB %d, RUNCLIENTSCRIPT %d)", k_cells[i], open_at, run_at);
+
+                if( open_at >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int type;
+                    int group;
+                    int target;
+
+                    rsab_wrap(&mount, capture.packets[open_at].data,
+                              (size_t)capture.packets[open_at].len);
+                    type = rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    target = rsab_g4_alt3(&mount);
+                    SELFTEST_CHECK(group == guide,
+                                   "%s should mount skill_guide_v2 (%d), got %d", k_cells[i],
+                                   guide, group);
+                    SELFTEST_CHECK(target == slot,
+                                   "%s should mount into toplevel's mainmodal (%d), got %d",
+                                   k_cells[i], slot, target);
+                    SELFTEST_CHECK(type == 0,
+                                   "%s should mount as a modal (type 0), got %d — CLOSE_MODAL "
+                                   "keys off the modal slot", k_cells[i], type);
+                }
+
+                if( run_at < 0 )
+                    continue;
+
+                {
+                    /* Wire layout: the per-argument type string, newline
+                     * terminated; then the arguments in REVERSE; then the script
+                     * id. See mock230_send_run_clientscript_mixed. */
+                    struct RSAreaBuf run;
+                    char types[8];
+                    int argc = 0;
+                    int argv[4] = { 0, 0, 0, 0 };
+                    int script_id;
+                    int index;
+
+                    rsab_wrap(&run, capture.packets[run_at].data,
+                              (size_t)capture.packets[run_at].len);
+                    while( argc < (int)sizeof(types) - 1 )
+                    {
+                        int c = rsab_g1(&run);
+                        if( c == '\n' || !rsab_ok(&run) )
+                            break;
+                        types[argc++] = (char)c;
+                    }
+                    types[argc] = '\0';
+
+                    SELFTEST_CHECK(strcmp(types, "iiii") == 0,
+                                   "%s: clientscript 1902 takes four ints, the packet says "
+                                   "\"%s\" — runclientscript_ss cannot express this shape",
+                                   k_cells[i], types);
+                    if( strcmp(types, "iiii") != 0 )
+                        continue;
+
+                    for( int a = argc - 1; a >= 0; a-- )
+                        argv[a] = rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    SELFTEST_CHECK(rsab_ok(&run),
+                                   "%s: the RUNCLIENTSCRIPT payload is short", k_cells[i]);
+
+                    index = argv[0];
+                    for( int j = 0; j < seen_count; j++ )
+                    {
+                        SELFTEST_CHECK(seen[j] != index,
+                                       "%s reuses skill index %d — two cells would open the "
+                                       "same guide", k_cells[i], index);
+                    }
+                    seen[seen_count++] = index;
+
+                    /* One tab and one clientscript for all 24, because content
+                     * states each once. A cell that drifted would be a panel
+                     * that opens on a tab its skill does not have. */
+                    if( shared_tab < 0 )
+                    {
+                        shared_tab = argv[1];
+                        shared_script = script_id;
+                        SELFTEST_CHECK(script_id > 0,
+                                       "the layout clientscript id should be a real id, got %d",
+                                       script_id);
+                    }
+                    else
+                    {
+                        SELFTEST_CHECK(argv[1] == shared_tab,
+                                       "%s opens on tab %d, the others on %d", k_cells[i],
+                                       argv[1], shared_tab);
+                        SELFTEST_CHECK(script_id == shared_script,
+                                       "%s runs clientscript %d, the others %d", k_cells[i],
+                                       script_id, shared_script);
+                    }
+                    SELFTEST_CHECK(argv[2] == 0 && argv[3] == 0,
+                                   "%s: 1902's last two arguments are a scroll position it "
+                                   "only reads on tab 31, got %d,%d", k_cells[i], argv[2],
+                                   argv[3]);
+                }
+            }
+
+            SELFTEST_CHECK(seen_count == CELL_COUNT,
+                           "all %d skill cells should answer op 2, %d did", CELL_COUNT,
+                           seen_count);
+
+            /* ---- arming ---------------------------------------------------
+             *
+             * The loop above proves the dispatch: an IF_BUTTON2 that reaches the
+             * server opens the right guide. It cannot prove the packet would
+             * ever be sent, because it injects one directly.
+             *
+             * At rev 230 a component is inert until IF_SETEVENTS arms it, so a
+             * cell missing from `~skill_guide_login` is a skill whose right-click
+             * menu has no "View … guide" row at all — and every assertion above
+             * stays green, because the server answers a click the client will
+             * never make. Measured, not argued: deleting the one
+             * `if_setevents(stats:magic, …)` line left `mock230 --selftest`
+             * fully green while the real client, driven headlessly, went from
+             * `<- IF_BUTTON2 320:6` to `minimenu: no hook for com=0x1400006` and
+             * no packet at all.
+             *
+             * So this asserts what the login burst actually put on the wire, per
+             * cell, with the mask the cache's own clickmask implies: op 2 and
+             * nothing else. Op 1 is deliberately NOT armed (see below), and a
+             * mask that grew would be a right-click row that draws and sends
+             * nothing back.
+             */
+            {
+                static struct Mock230Capture capture;
+                int armed = 0;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( int i = 0; i < CELL_COUNT; i++ )
+                {
+                    int com = mock230_content_symbol(MOCK230_PACK_COMPONENT, k_cells[i]);
+                    int mask = -1;
+
+                    if( com <= 0 )
+                        continue;
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf ev;
+
+                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            continue;
+                        /* IfSetEventsEncoder: p4Alt3 uid, p2Alt2 start, p4Alt1
+                         * events, p2 end — read in write order, not argument
+                         * order. */
+                        rsab_wrap(&ev, capture.packets[p].data,
+                                  (size_t)capture.packets[p].len);
+                        if( rsab_g4_alt3(&ev) != com )
+                            continue;
+                        rsab_g2_alt2(&ev); /* from */
+                        mask = rsab_g4_alt1(&ev);
+                        break;
+                    }
+                    SELFTEST_CHECK(mask == 4 /* ^if_event_op2 */,
+                                   "%s should be armed for op 2 and only op 2 (mask 4) by the "
+                                   "login burst, got %d — an unarmed cell answers nothing in "
+                                   "the real client no matter what the dispatch does",
+                                   k_cells[i], mask);
+                    if( mask == 4 )
+                        armed++;
+                }
+                SELFTEST_CHECK(armed == CELL_COUNT,
+                               "all %d skill cells should be armed at login, %d were",
+                               CELL_COUNT, armed);
+            }
+
+            /*
+             * Op 1 on the same cell is NOT the server's at this revision:
+             * clientscript 393 labels it only when ~script1972 says the client is
+             * mobile, and sets it to the empty string otherwise. Nothing binds
+             * `[if_button1,stats:attack]`, so the numbered lookup must fall
+             * through and find nothing — running op 2's script here is exactly
+             * the failure a single un-numbered IF_BUTTON trigger produced.
+             */
+            {
+                static struct Mock230Capture capture;
+                int com = mock230_content_symbol(MOCK230_PACK_COMPONENT, "stats:attack");
+                uint8_t button[6];
+
+                button[0] = (uint8_t)(com >> 24);
+                button[1] = (uint8_t)(com >> 16);
+                button[2] = (uint8_t)(com >> 8);
+                button[3] = (uint8_t)com;
+                button[4] = 0xff;
+                button[5] = 0xff;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(mock230_capture_find(&capture, 84, 0) < 0,
+                               "op 1 on stats:attack is unbound and must run nothing");
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: the tool leprechaun's store\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Interfaces 125/126, and the three things about them that can be
+             * wrong without looking wrong.
+             *
+             * 1. **The mount names an interface, and interface names collide.**
+             *    `farming_tools` is interface 125, varp 615 AND loc 7516, and
+             *    before sscompile learned to resolve the open family's arguments
+             *    as interfaces it compiled to the loc. The server then sent a
+             *    perfectly well-formed IF_OPENSUB for interface 7516; the client
+             *    said "pack 7516 missing from cache; skipping mount" and drew
+             *    nothing. So the group id in the packet is asserted, by name.
+             *
+             * 2. **The op index is not a quantity.** Clientscript 1060/1062
+             *    reorder Remove-1/5/X/All per the shared quantity varbit, so op
+             *    2 means "5" under one mode and "1" under the other three. A
+             *    server with a fixed op->quantity table stores 1 when the menu
+             *    row the player clicked said 5, silently. Both orderings are
+             *    exercised below on the same component.
+             *
+             * 3. **A count is split across varbits.** Five rakes are
+             *    `farming_tools_rake = 1` and `farming_tools_extrarakes = 2`, in
+             *    two different varps; buckets are a three-way split with a
+             *    5/3/2-bit division. Asserting the pieces rather than the total
+             *    is what catches a pack/unpack that happens to agree with itself.
+             */
+            struct
+            {
+                const char* name;
+                int id;
+            } sym[] = {
+                { "farming_tools", 0 },              /* 0  interface, the store   */
+                { "farming_tools_side", 0 },         /* 1  interface, carried     */
+                { "toplevel_osrs_stretch:mainmodal", 0 }, /* 2 */
+                { "toplevel_osrs_stretch:sidemodal", 0 }, /* 3 */
+                { "farming_tools:rake", 0 },         /* 4 */
+                { "farming_tools_side:rake", 0 },    /* 5 */
+                { "farming_tools:quantity_1", 0 },   /* 6 */
+                { "farming_tools:quantity_all", 0 }, /* 7 */
+                { "farming_tools:deposit_all", 0 },  /* 8 */
+                { "farming_tools_side:bucket", 0 },  /* 9 */
+                { "farming_tools:quantity_5", 0 },   /* 10 */
+            };
+            int rake = mock230_content_symbol(MOCK230_PACK_OBJ, "rake");
+            int bucket = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_empty");
+            int vb_rake = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_rake");
+            int vb_extra = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_extrarakes");
+            int vb_qty =
+                mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_selectedquantity");
+            int vb_b0 = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_buckets");
+            int vb_b1 = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_extrabuckets");
+            int vb_b2 = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_tools_extra2buckets");
+            int leprechaun = mock230_content_symbol(MOCK230_PACK_NPC, "farming_tools_leprechaun");
+            int ok = 1;
+
+            for( size_t i = 0; i < sizeof(sym) / sizeof(sym[0]); i++ )
+            {
+                sym[i].id = strchr(sym[i].name, ':')
+                                ? mock230_content_symbol(MOCK230_PACK_COMPONENT, sym[i].name)
+                                : mock230_content_symbol(MOCK230_PACK_INTERFACE, sym[i].name);
+                SELFTEST_CHECK(sym[i].id > 0, "the content pack should name %s", sym[i].name);
+                if( sym[i].id <= 0 )
+                    ok = 0;
+            }
+            SELFTEST_CHECK(rake > 0 && bucket > 0, "the pack should name rake and bucket_empty");
+            SELFTEST_CHECK(vb_rake > 0 && vb_extra > 0 && vb_qty > 0,
+                           "the cache should name the storage varbits");
+            SELFTEST_CHECK(vb_b0 > 0 && vb_b1 > 0 && vb_b2 > 0,
+                           "the cache should name the three bucket varbits");
+            SELFTEST_CHECK(leprechaun >= 0, "the pack should name farming_tools_leprechaun");
+            ok = ok && rake > 0 && bucket > 0 && vb_rake > 0 && vb_extra > 0 && vb_qty > 0 &&
+                 vb_b0 > 0 && vb_b1 > 0 && vb_b2 > 0;
+
+            if( ok )
+            {
+                static struct Mock230Capture capture;
+                int slot_npc = selftest_find_npc(&srv, leprechaun);
+                uint8_t payload[6];
+                uint8_t button[6];
+
+                /* ---- the open ------------------------------------------- */
+                SELFTEST_CHECK(slot_npc >= 0, "the roster should include the Tool Leprechaun");
+                if( slot_npc >= 0 )
+                {
+                    int open_a;
+                    int open_b;
+
+                    payload[0] = (uint8_t)(slot_npc >> 8);
+                    payload[1] = (uint8_t)(slot_npc & 0xff);
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC3, payload, 2);
+                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                                   "the walk to the Tool Leprechaun should complete");
+                    mock230_capture_end(&srv);
+
+                    open_a = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                    open_b = open_a >= 0 ? mock230_capture_find(&capture, 6, open_a + 1) : -1;
+                    SELFTEST_CHECK(open_a >= 0 && open_b >= 0,
+                                   "\"Exchange\" should mount both halves of the store, got "
+                                   "%d IF_OPENSUB(s)", open_a >= 0 ? (open_b >= 0 ? 2 : 1) : 0);
+
+                    if( open_a >= 0 && open_b >= 0 )
+                    {
+                        static const int k_want_iface[2] = { 0, 1 }; /* indices into sym[] */
+                        static const int k_want_slot[2] = { 2, 3 };
+                        static const int k_want_type[2] = { 0, 3 };
+                        int at[2];
+
+                        at[0] = open_a;
+                        at[1] = open_b;
+                        for( int h = 0; h < 2; h++ )
+                        {
+                            struct RSAreaBuf mount;
+                            int type;
+                            int group;
+                            int target;
+
+                            rsab_wrap(&mount, capture.packets[at[h]].data,
+                                      (size_t)capture.packets[at[h]].len);
+                            type = rsab_g1(&mount);
+                            group = rsab_g2_alt2(&mount);
+                            target = rsab_g4_alt3(&mount);
+                            SELFTEST_CHECK(group == sym[k_want_iface[h]].id,
+                                           "mount %d should be %s (%d), got interface %d — a "
+                                           "bare interface name also resolves as a loc",
+                                           h, sym[k_want_iface[h]].name, sym[k_want_iface[h]].id,
+                                           group);
+                            SELFTEST_CHECK(target == sym[k_want_slot[h]].id,
+                                           "mount %d should go to %s (%d), got %d", h,
+                                           sym[k_want_slot[h]].name, sym[k_want_slot[h]].id,
+                                           target);
+                            SELFTEST_CHECK(type == k_want_type[h],
+                                           "mount %d should be type %d, got %d", h,
+                                           k_want_type[h], type);
+                        }
+                    }
+
+                    /*
+                     * And the arming. Nothing on either panel is clickable until
+                     * IF_SETEVENTS says so, and the store cell's mask is the
+                     * `.if`'s own clickmask — ops 1-4 Remove-N, 9 Banknotes, 10
+                     * Examine. A short mask is a right-click row that draws and
+                     * sends nothing.
+                     */
+                    {
+                        int found = 0;
+                        int mask = -1;
+
+                        for( int p = 0; p < capture.count; p++ )
+                        {
+                            struct RSAreaBuf ev;
+
+                            if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                                continue;
+                            found++;
+                            rsab_wrap(&ev, capture.packets[p].data,
+                                      (size_t)capture.packets[p].len);
+                            {
+                                /* IfSetEventsEncoder: p4Alt3 uid, p2Alt2 start,
+                                 * p4Alt1 events, p2 end — read in the order it
+                                 * is written, not in argument order. */
+                                int com = rsab_g4_alt3(&ev);
+                                int from = rsab_g2_alt2(&ev);
+                                int events = rsab_g4_alt1(&ev);
+                                int to = rsab_g2(&ev);
+                                (void)to;
+                                (void)from;
+                                if( com == sym[4].id )
+                                    mask = events;
+                            }
+                        }
+                        SELFTEST_CHECK(found >= 29,
+                                       "the open should arm 24 cells, 4 radios and the deposit "
+                                       "button, got %d IF_SETEVENTS", found);
+                        SELFTEST_CHECK(mask == (2 | 4 | 8 | 16 | 512 | 1024),
+                                       "farming_tools:rake should be armed for ops 1-4, 9 and "
+                                       "10 (the .if's own clickmask 1566), got %d", mask);
+                    }
+                }
+
+                /* ---- storing, and what an op index means ----------------- */
+                button[0] = (uint8_t)(sym[5].id >> 24);
+                button[1] = (uint8_t)(sym[5].id >> 16);
+                button[2] = (uint8_t)(sym[5].id >> 8);
+                button[3] = (uint8_t)sym[5].id;
+                button[4] = 0xff;
+                button[5] = 0xff;
+
+                /*
+                 * Under mode "1" (0) the ops read 1 / 5 / X / All, so op 1
+                 * stores one and op 2 stores five. Under mode "All" (2) they
+                 * read All / 1 / 5 / X and op 1 stores everything. Same
+                 * component, same packet, three different answers — which is
+                 * why the quantity varbit has to be the server's.
+                 */
+                {
+                    static const struct
+                    {
+                        int mode;
+                        int op;
+                        int carried;
+                        int want_stored;
+                        const char* label;
+                    } k_cases[] = {
+                        { 0, 1, 5, 1, "mode 1, op 1 = Store-1" },
+                        { 0, 2, 5, 5, "mode 1, op 2 = Store-5" },
+                        { 2, 1, 5, 5, "mode All, op 1 = Store-All" },
+                        { 2, 2, 5, 1, "mode All, op 2 = Store-1" },
+                        { 1, 1, 5, 5, "mode 5, op 1 = Store-5" },
+                        { 1, 2, 5, 1, "mode 5, op 2 = Store-1" },
+                    };
+                    static const int k_pkt[5] = {
+                        PKTOUT_NAME_IF_BUTTON1, PKTOUT_NAME_IF_BUTTON2, PKTOUT_NAME_IF_BUTTON3,
+                        PKTOUT_NAME_IF_BUTTON4, PKTOUT_NAME_IF_BUTTON5,
+                    };
+
+                    for( size_t c = 0; c < sizeof(k_cases) / sizeof(k_cases[0]); c++ )
+                    {
+                        int stored;
+
+                        selftest_clear_inv(player);
+                        mock230_varbit_set(&srv, vb_rake, 0);
+                        mock230_varbit_set(&srv, vb_extra, 0);
+                        mock230_varbit_set(&srv, vb_qty, k_cases[c].mode);
+                        for( int n = 0; n < k_cases[c].carried; n++ )
+                            selftest_give(player, rake, 1);
+
+                        mock230_world_handle(player, k_pkt[k_cases[c].op - 1], button,
+                                             sizeof(button));
+
+                        stored = 2 * mock230_varbit_get(player, vb_extra) +
+                                 mock230_varbit_get(player, vb_rake);
+                        SELFTEST_CHECK(stored == k_cases[c].want_stored,
+                                       "%s should store %d rake(s), stored %d",
+                                       k_cases[c].label, k_cases[c].want_stored, stored);
+                        SELFTEST_CHECK(selftest_count(player, rake) ==
+                                           k_cases[c].carried - k_cases[c].want_stored,
+                                       "%s should leave %d in the backpack, left %d",
+                                       k_cases[c].label,
+                                       k_cases[c].carried - k_cases[c].want_stored,
+                                       selftest_count(player, rake));
+                    }
+                }
+
+                /* ---- and the radio that decides which mode is live -------
+                 *
+                 * The block above sets the quantity varbit with
+                 * `mock230_varbit_set`, so it proves the op->quantity table for
+                 * a mode the *test* chose. It cannot prove the player can reach
+                 * that mode: the four radios are ordinary components whose
+                 * `[if_button1,…]` bodies each write one mode, and the client's
+                 * own write is a `pop_varbit` this VM discards, so the server's
+                 * write is the only one there is.
+                 *
+                 * Measured, not argued: rebinding `[if_button1,quantity_all]` to
+                 * write mode "1" left `mock230 --selftest` fully green, while the
+                 * real client — same clicks, same harness — lit the "1" radio
+                 * when "All" was clicked, offered "Store-1" on hover, and stored
+                 * one rake of five. A silently wrong quantity is exactly the
+                 * failure the mode table exists to prevent, so the radio is
+                 * asserted the same way: by what it makes an op DO, not by the
+                 * number it writes.
+                 */
+                {
+                    static const struct
+                    {
+                        int radio;  /* index into sym[] */
+                        int want;   /* rakes stored by op 1 after clicking it */
+                        const char* label;
+                    } k_radios[] = {
+                        { 6, 1, "quantity_1" },
+                        { 10, 5, "quantity_5" },
+                        { 7, 5, "quantity_all" },
+                    };
+
+                    for( size_t r = 0; r < sizeof(k_radios) / sizeof(k_radios[0]); r++ )
+                    {
+                        uint8_t radio[6];
+                        int id = sym[k_radios[r].radio].id;
+                        int mode_before;
+                        int stored;
+
+                        if( id <= 0 )
+                            continue;
+                        radio[0] = (uint8_t)(id >> 24);
+                        radio[1] = (uint8_t)(id >> 16);
+                        radio[2] = (uint8_t)(id >> 8);
+                        radio[3] = (uint8_t)id;
+                        radio[4] = 0xff;
+                        radio[5] = 0xff;
+
+                        selftest_clear_inv(player);
+                        mock230_varbit_set(&srv, vb_rake, 0);
+                        mock230_varbit_set(&srv, vb_extra, 0);
+                        /* Park on a mode none of the three wants, so a radio
+                         * whose body never ran is distinguishable from one that
+                         * wrote the value that was already there. */
+                        mock230_varbit_set(&srv, vb_qty, 3);
+                        for( int n = 0; n < 5; n++ )
+                            selftest_give(player, rake, 1);
+
+                        mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, radio,
+                                             sizeof(radio));
+                        mode_before = mock230_varbit_get(player, vb_qty);
+                        SELFTEST_CHECK(mode_before != 3,
+                                       "clicking %s should write the quantity varbit; it is "
+                                       "still the parked value", k_radios[r].label);
+
+                        mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button,
+                                             sizeof(button));
+                        stored = 2 * mock230_varbit_get(player, vb_extra) +
+                                 mock230_varbit_get(player, vb_rake);
+                        SELFTEST_CHECK(stored == k_radios[r].want,
+                                       "after clicking %s, op 1 on the carried rake should "
+                                       "store %d of 5, stored %d — the radio and the op table "
+                                       "have to agree or the quantity is silently wrong",
+                                       k_radios[r].label, k_radios[r].want, stored);
+                    }
+                }
+
+                /*
+                 * The split. Five rakes are not "5" anywhere: the low bit holds
+                 * the parity and a *different varp* holds the rest, and the
+                 * client's own clientscript 1063 reads them back as
+                 * `2 * extrarakes + rake`. Ten empty buckets are a three-way
+                 * 5/3/2-bit split of one ten-bit number.
+                 */
+                selftest_clear_inv(player);
+                mock230_varbit_set(&srv, vb_rake, 0);
+                mock230_varbit_set(&srv, vb_extra, 0);
+                mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                for( int n = 0; n < 5; n++ )
+                    selftest_give(player, rake, 1);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_rake) == 1 &&
+                                   mock230_varbit_get(player, vb_extra) == 2,
+                               "5 rakes should pack as rake=1 extrarakes=2, got %d and %d",
+                               mock230_varbit_get(player, vb_rake),
+                               mock230_varbit_get(player, vb_extra));
+
+                {
+                    int side_bucket = sym[9].id;
+                    uint8_t b[6];
+
+                    selftest_clear_inv(player);
+                    mock230_varbit_set(&srv, vb_b0, 0);
+                    mock230_varbit_set(&srv, vb_b1, 0);
+                    mock230_varbit_set(&srv, vb_b2, 0);
+                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                    for( int n = 0; n < 20; n++ )
+                        selftest_give(player, bucket, 1);
+
+                    b[0] = (uint8_t)(side_bucket >> 24);
+                    b[1] = (uint8_t)(side_bucket >> 16);
+                    b[2] = (uint8_t)(side_bucket >> 8);
+                    b[3] = (uint8_t)side_bucket;
+                    b[4] = 0xff;
+                    b[5] = 0xff;
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, b, sizeof(b));
+
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_b0) == 20 &&
+                                       mock230_varbit_get(player, vb_b1) == 0 &&
+                                       mock230_varbit_get(player, vb_b2) == 0,
+                                   "20 buckets fit the low varbit alone, got %d/%d/%d",
+                                   mock230_varbit_get(player, vb_b0),
+                                   mock230_varbit_get(player, vb_b1),
+                                   mock230_varbit_get(player, vb_b2));
+
+                    /* 300 = 256*1 + 32*1 + 12, which is the whole point of the
+                     * three: neither the 5-bit nor the 3-bit varbit can hold it
+                     * and the carry has to land in the right one. */
+                    mock230_scripts_run_proc(&srv, "[proc,farming_setstored]",
+                                             (const int32_t[]){ bucket, 300 }, 2);
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_b0) == 12 &&
+                                       mock230_varbit_get(player, vb_b1) == 1 &&
+                                       mock230_varbit_get(player, vb_b2) == 1,
+                                   "300 buckets should pack as 12/1/1, got %d/%d/%d",
+                                   mock230_varbit_get(player, vb_b0),
+                                   mock230_varbit_get(player, vb_b1),
+                                   mock230_varbit_get(player, vb_b2));
+                }
+
+                /* ---- removing ------------------------------------------- */
+                {
+                    uint8_t b[6];
+
+                    selftest_clear_inv(player);
+                    mock230_varbit_set(&srv, vb_rake, 1);
+                    mock230_varbit_set(&srv, vb_extra, 2); /* 5 */
+                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+
+                    b[0] = (uint8_t)(sym[4].id >> 24);
+                    b[1] = (uint8_t)(sym[4].id >> 16);
+                    b[2] = (uint8_t)(sym[4].id >> 8);
+                    b[3] = (uint8_t)sym[4].id;
+                    b[4] = 0xff;
+                    b[5] = 0xff;
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, b, sizeof(b));
+
+                    SELFTEST_CHECK(selftest_count(player, rake) == 5,
+                                   "Remove-All should hand back all 5 rakes, got %d",
+                                   selftest_count(player, rake));
+                    SELFTEST_CHECK(2 * mock230_varbit_get(player, vb_extra) +
+                                           mock230_varbit_get(player, vb_rake) ==
+                                       0,
+                                   "and empty the store, left %d",
+                                   2 * mock230_varbit_get(player, vb_extra) +
+                                       mock230_varbit_get(player, vb_rake));
+
+                    /*
+                     * Rakes do not stack, so five of them are five slots. One
+                     * `inv_add(inv, rake, 5)` would put a single cell reading
+                     * "rake x5" in the backpack — right in every count the
+                     * panels show and wrong in the only place it matters.
+                     */
+                    {
+                        int slots = 0;
+
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id == rake )
+                                slots++;
+                        SELFTEST_CHECK(slots == 5,
+                                       "a rake does not stack: 5 of them are 5 slots, got %d",
+                                       slots);
+                    }
+                }
+
+                /* ---- the capacity the client draws ---------------------- */
+                {
+                    uint8_t b[6];
+                    int cap = 100; /* enum_2193's value for a rake */
+
+                    selftest_clear_inv(player);
+                    mock230_scripts_run_proc(&srv, "[proc,farming_setstored]",
+                                             (const int32_t[]){ rake, cap }, 2);
+                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                    selftest_give(player, rake, 1);
+
+                    b[0] = (uint8_t)(sym[5].id >> 24);
+                    b[1] = (uint8_t)(sym[5].id >> 16);
+                    b[2] = (uint8_t)(sym[5].id >> 8);
+                    b[3] = (uint8_t)sym[5].id;
+                    b[4] = 0xff;
+                    b[5] = 0xff;
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, b, sizeof(b));
+
+                    SELFTEST_CHECK(selftest_count(player, rake) == 1,
+                                   "a full store should refuse the deposit and leave the rake "
+                                   "in the backpack, got %d", selftest_count(player, rake));
+                    SELFTEST_CHECK(2 * mock230_varbit_get(player, vb_extra) +
+                                           mock230_varbit_get(player, vb_rake) ==
+                                       cap,
+                                   "and hold exactly its %d, holds %d", cap,
+                                   2 * mock230_varbit_get(player, vb_extra) +
+                                       mock230_varbit_get(player, vb_rake));
+                }
+
+                /* ---- persistence ---------------------------------------- */
+                /*
+                 * The whole of "counts survive logout", in one round trip.
+                 *
+                 * `mock230_save_player`/`mock230_load_player` had no callers at
+                 * all until this feature, so this is the first thing that has
+                 * ever exercised them — and the varbit split is what makes it
+                 * worth asserting rather than assuming: the five rakes live in
+                 * two different varps, and only one of the two is on the
+                 * `.varp` overlay by an obvious name.
+                 */
+                {
+                    const char* path = mock230_save_path("farming_selftest");
+                    int saved;
+
+                    selftest_clear_inv(player);
+                    mock230_varbit_set(&srv, vb_rake, 1);
+                    mock230_varbit_set(&srv, vb_extra, 2); /* 5 rakes */
+                    mock230_varbit_set(&srv, vb_qty, 3 /* X */);
+                    remove(path);
+                    saved = mock230_save_player(player, path);
+                    SELFTEST_CHECK(saved, "the save should be written to %s", path);
+
+                    mock230_varbit_set(&srv, vb_rake, 0);
+                    mock230_varbit_set(&srv, vb_extra, 0);
+                    mock230_varbit_set(&srv, vb_qty, 0);
+                    SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
+
+                    SELFTEST_CHECK(2 * mock230_varbit_get(player, vb_extra) +
+                                           mock230_varbit_get(player, vb_rake) ==
+                                       5,
+                                   "5 rakes should survive a logout, %d did",
+                                   2 * mock230_varbit_get(player, vb_extra) +
+                                       mock230_varbit_get(player, vb_rake));
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_qty) == 3,
+                                   "and so should the quantity mode, got %d",
+                                   mock230_varbit_get(player, vb_qty));
+                    remove(path);
+                }
+
+                /*
+                 * Put the world back the way it was found.
+                 *
+                 * This section is the only one that empties the backpack, and
+                 * the equip/drag sections after it assert against the opening
+                 * kit — so the fixture is re-seeded here rather than left for
+                 * them to discover missing. `%newplayer_seeded` makes the proc
+                 * idempotent, so the deal has to be asked for explicitly.
+                 */
+                selftest_clear_inv(player);
+                mock230_varbit_set(&srv, vb_rake, 0);
+                mock230_varbit_set(&srv, vb_extra, 0);
+                mock230_varbit_set(&srv, vb_qty, 0);
+                mock230_varbit_set(&srv, vb_b0, 0);
+                mock230_varbit_set(&srv, vb_b1, 0);
+                mock230_varbit_set(&srv, vb_b2, 0);
+                mock230_scripts_run_proc(&srv, "[proc,newplayer_inv]", NULL, 0);
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: slayer rewards\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Interface 426, and the four things about it that can be wrong
+             * while every packet on the wire looks correct.
+             *
+             * 1. **The varp has to precede the mount.** The panel's onload chain
+             *    reads `slayer_master_in_focus` four times as it lays itself out
+             *    — the price of cancelling a task, the price of blocking one,
+             *    what is in each block slot, whose task table "View List" opens.
+             *    Batching the varp to the end of the tick (which is what this
+             *    server did until this feature) mounts first, and the panel draws
+             *    the *default* master's prices. Nothing downstream can repair it:
+             *    the Tasks tab's own `if_setonvartransmit` does not list that
+             *    varp, so a late write does not even repaint. The order of the
+             *    two packets is asserted below and it is the whole of that bug.
+             *
+             * 2. **The sub id IS the action.** Clientscript 414 confirms an
+             *    unlock as `cc_create(confirm_button, 3, <unlock bit>, 0)` and
+             *    423/427 confirm the task verbs as `calc(66 + N)` on the same
+             *    component. One trigger, `last_slot` for the verb. A server that
+             *    read the component instead would answer every button with the
+             *    same action.
+             *
+             * 3. **The bit has to land in the right word.** Ownership is 96 bits
+             *    across three varps and the split is `bit / 32`. Bit 51 belongs
+             *    in `slayer_rewards_unlocks1` and bit 66 in `..._unlocks2`; an
+             *    off-by-one word writes a real, different unlock, and the panel
+             *    shows a tick on a row nobody bought.
+             *
+             * 4. **The price is the client's.** The tile and the extend-all bar
+             *    draw dbtable 117's `cost` column, and the server charges from a
+             *    transcription of the same table (slayer_unlock.enum, generated —
+             *    the server cannot read a cache dbtable, see
+             *    docs/slayer_rewards.md §6). The prices below are the *cache's*,
+             *    quoted per unlock, so this section is what fails if that
+             *    transcription drifts from what the player is reading.
+             */
+            struct
+            {
+                const char* name;
+                int id;
+            } sym[] = {
+                { "slayer_rewards", 0 },                  /* 0 */
+                { "slayer_rewards_task_list", 0 },        /* 1 */
+                { "toplevel_osrs_stretch:mainmodal", 0 }, /* 2 */
+                { "slayer_rewards:confirm_button", 0 },   /* 3 */
+                { "slayer_rewards:view_tasks", 0 },       /* 4 */
+                { "slayer_rewards:popup", 0 },            /* 5 */
+            };
+            /*
+             * Named rows of dbtable 117, with the cache's own numbers.
+             *
+             *   bit  name (dbrow)                          cost  list  refundable
+             *     1  slayer_rewards_autokill_rockslugs       10     0   no
+             *     4  slayer_rewards_longer_darkbeasts       100     1   yes
+             *     0  slayer_rewards_autokill_gargoyles      120     0   no
+             *    51  slayer_rewards_unlock_storage          500     0   no
+             *    66  slayer_rewards_weighted_frost_dragons  100     0   yes
+             *
+             * 1, 51 and 66 sit in the three different ownership words.
+             */
+            enum
+            {
+                BIT_SLUG = 1,
+                BIT_DARKBEASTS = 4,
+                BIT_GARGOYLE = 0,
+                BIT_STORAGE = 51,
+                BIT_FROST = 66,
+                COST_SLUG = 10,
+                COST_DARKBEASTS = 100,
+                COST_GARGOYLE = 120,
+                COST_STORAGE = 500,
+                COST_FROST = 100,
+                /* Clientscript 1092: 29 un-owned Extend rows costing 2,875, and
+                 * `interpolate(0, 95, 0, 100, total)` when more than one is left. */
+                EXTEND_COUNT = 29,
+                EXTEND_PRICE = 2731,
+                /* `calc(66 + 9)` in clientscript 1092, and `calc(66 + 1)` (Cancel)
+                 * in clientscript 423. */
+                ACTION_EXTEND_ALL = 75,
+                ACTION_CANCEL = 67
+            };
+            int vb_points = mock230_content_symbol(MOCK230_PACK_VARBIT, "slayer_points");
+            int vb_master = mock230_content_symbol(MOCK230_PACK_VARBIT, "slayer_master_in_focus");
+            int vp_master = mock230_content_symbol(MOCK230_PACK_VARP, "slayer_misc");
+            int vp_own[3];
+            int turael = mock230_content_symbol(MOCK230_PACK_NPC, "slayer_master_1_tureal");
+            int ok = 1;
+
+            vp_own[0] = mock230_content_symbol(MOCK230_PACK_VARP, "slayer_rewards_unlocks");
+            vp_own[1] = mock230_content_symbol(MOCK230_PACK_VARP, "slayer_rewards_unlocks1");
+            vp_own[2] = mock230_content_symbol(MOCK230_PACK_VARP, "slayer_rewards_unlocks2");
+
+            for( size_t i = 0; i < sizeof(sym) / sizeof(sym[0]); i++ )
+            {
+                sym[i].id = strchr(sym[i].name, ':')
+                                ? mock230_content_symbol(MOCK230_PACK_COMPONENT, sym[i].name)
+                                : mock230_content_symbol(MOCK230_PACK_INTERFACE, sym[i].name);
+                SELFTEST_CHECK(sym[i].id > 0, "the content pack should name %s", sym[i].name);
+                if( sym[i].id <= 0 )
+                    ok = 0;
+            }
+            SELFTEST_CHECK(vb_points > 0 && vb_master > 0 && vp_master > 0,
+                           "the cache should name slayer_points, slayer_master_in_focus and "
+                           "slayer_misc");
+            SELFTEST_CHECK(vp_own[0] > 0 && vp_own[1] > 0 && vp_own[2] > 0,
+                           "the cache should name the three ownership varps");
+            SELFTEST_CHECK(turael >= 0, "the pack should name slayer_master_1_tureal");
+            ok = ok && vb_points > 0 && vb_master > 0 && vp_master > 0 && vp_own[0] > 0 &&
+                 vp_own[1] > 0 && vp_own[2] > 0;
+
+            if( ok )
+            {
+                static struct Mock230Capture capture;
+                int slot_npc = selftest_find_npc(&srv, turael);
+                uint8_t payload[6];
+                uint8_t button[6];
+                int owned_before[3];
+                int points_before = mock230_varbit_get(player, vb_points);
+
+                for( int w = 0; w < 3; w++ )
+                    owned_before[w] = player->varps[vp_own[w]];
+
+                /* A confirm click, by the sub id that names the action. */
+#define SLAYER_CONFIRM(sub)                                                                        \
+    do                                                                                             \
+    {                                                                                              \
+        button[0] = (uint8_t)(sym[3].id >> 24);                                                    \
+        button[1] = (uint8_t)(sym[3].id >> 16);                                                    \
+        button[2] = (uint8_t)(sym[3].id >> 8);                                                     \
+        button[3] = (uint8_t)sym[3].id;                                                            \
+        button[4] = (uint8_t)((sub) >> 8);                                                         \
+        button[5] = (uint8_t)(sub);                                                                \
+        mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));              \
+    } while( 0 )
+#define SLAYER_OWNED(bit)                                                                          \
+    ((player->varps[vp_own[(bit) / 32]] >> ((bit) % 32)) & 1)
+#define SLAYER_RESET()                                                                             \
+    do                                                                                             \
+    {                                                                                              \
+        for( int w = 0; w < 3; w++ )                                                               \
+            mock230_world_set_varp(&srv, vp_own[w], 0);                                            \
+    } while( 0 )
+
+                /* ---- the open, and the order of its two packets ---------- */
+                SELFTEST_CHECK(slot_npc >= 0, "the roster should include Turael");
+                if( slot_npc >= 0 )
+                {
+                    int open_at;
+                    int varp_at = -1;
+
+                    mock230_varbit_set(&srv, vb_master, 0);
+                    payload[0] = (uint8_t)(slot_npc >> 8);
+                    payload[1] = (uint8_t)(slot_npc & 0xff);
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC5, payload, 2);
+                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                                   "the walk to Turael should complete");
+                    mock230_capture_end(&srv);
+
+                    open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                    SELFTEST_CHECK(open_at >= 0,
+                                   "\"Rewards\" (op 5) should mount slayer_rewards");
+
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf vp;
+                        int id;
+
+                        if( capture.packets[p].opcode != 35 /* VARP_SMALL */ &&
+                            capture.packets[p].opcode != 82 /* VARP_LARGE */ )
+                            continue;
+                        rsab_wrap(&vp, capture.packets[p].data, (size_t)capture.packets[p].len);
+                        id = rsab_g2(&vp);
+                        if( id == vp_master )
+                        {
+                            varp_at = p;
+                            break;
+                        }
+                    }
+                    SELFTEST_CHECK(varp_at >= 0,
+                                   "the open should transmit slayer_misc (%d) — the panel's "
+                                   "onload reads the master out of it four times", vp_master);
+                    SELFTEST_CHECK(varp_at >= 0 && open_at >= 0 && varp_at < open_at,
+                                   "the master varp must precede the mount (varp %d, mount %d) "
+                                   "— a varp batched to end-of-tick draws the wrong master's "
+                                   "prices with every packet correct",
+                                   varp_at, open_at);
+
+                    if( open_at >= 0 )
+                    {
+                        struct RSAreaBuf mount;
+                        int type = 0;
+                        int group;
+                        int target;
+
+                        rsab_wrap(&mount, capture.packets[open_at].data,
+                                  (size_t)capture.packets[open_at].len);
+                        type = rsab_g1(&mount);
+                        group = rsab_g2_alt2(&mount);
+                        target = rsab_g4_alt3(&mount);
+                        SELFTEST_CHECK(group == sym[0].id,
+                                       "the mount should be slayer_rewards (%d), got %d",
+                                       sym[0].id, group);
+                        SELFTEST_CHECK(target == sym[2].id,
+                                       "it should go to toplevel's mainmodal (%d), got %d",
+                                       sym[2].id, target);
+                        SELFTEST_CHECK(type == 0,
+                                       "it should be a modal (type 0), got %d — CLOSE_MODAL "
+                                       "keys off the modal slot", type);
+                    }
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_master) == 1,
+                                   "Turael is master 1 in the cache's own numbering "
+                                   "(clientscript 823's switch), got %d",
+                                   mock230_varbit_get(player, vb_master));
+                }
+
+                /* ---- arming ---------------------------------------------- */
+                /*
+                 * Both components are addressed through `cc_create`d children, so
+                 * both need a RANGE. `if_setevents(com, 0, 0, mask)` on a
+                 * container full of dynamic children arms slot 0 and nothing
+                 * else, and every confirm cell but the unlock at bit 0 is above
+                 * it — a panel that answers exactly one of its seventy-nine
+                 * buttons.
+                 */
+                {
+                    /* Both armed components, not just the one this section goes
+                     * on to click. `view_tasks` is the ONLY `if_setop` server op
+                     * on this panel (clientscript 422) and the only door to 924;
+                     * every IF_BUTTON1 below is injected straight into the
+                     * dispatcher, so deleting its `if_setevents` line left the
+                     * whole selftest green while making the button dead in the
+                     * real client. Measured — the same hole was found in the
+                     * skill guide's arming and fixed there too. */
+                    static const int k_want[] = { 3, 4 }; /* confirm_button, view_tasks */
+                    int mask[2] = { -1, -1 };
+                    int to[2] = { -1, -1 };
+
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_scripts_run_proc(&srv, "[proc,slayer_rewards_login]", NULL, 0);
+                    mock230_capture_end(&srv);
+
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf ev;
+                        int com;
+
+                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            continue;
+                        /* IfSetEventsEncoder: p4Alt3 combinedId, p2Alt2 start,
+                         * p4Alt1 events, p2 end. */
+                        rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
+                        com = rsab_g4_alt3(&ev);
+                        rsab_g2_alt2(&ev); /* from */
+                        for( int w = 0; w < 2; w++ )
+                        {
+                            if( com != sym[k_want[w]].id )
+                                continue;
+                            mask[w] = rsab_g4_alt1(&ev);
+                            to[w] = rsab_g2(&ev);
+                        }
+                    }
+                    for( int w = 0; w < 2; w++ )
+                        SELFTEST_CHECK(mask[w] == 2,
+                                       "%s should be armed for op 1 (mask 2) by the login "
+                                       "burst, got %d — an unarmed component sends nothing "
+                                       "however well the server answers it",
+                                       sym[k_want[w]].name, mask[w]);
+                    SELFTEST_CHECK(to[0] >= ACTION_EXTEND_ALL,
+                                   "and over a sub range reaching the highest action code "
+                                   "(>= %d), got %d — the unblock slot 6 code is 66+12, out "
+                                   "of order and above every other one",
+                                   (int)ACTION_EXTEND_ALL, to[0]);
+                }
+
+                /* ---- buying ---------------------------------------------- */
+                SLAYER_RESET();
+                mock230_varbit_set(&srv, vb_points, 1000);
+                SLAYER_CONFIRM(BIT_SLUG);
+                SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG),
+                               "confirming sub %d should unlock Slug Salter", (int)BIT_SLUG);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 1000 - COST_SLUG,
+                               "and charge the cache's %d points, leaving %d — got %d",
+                               (int)COST_SLUG, 1000 - (int)COST_SLUG,
+                               mock230_varbit_get(player, vb_points));
+
+                /* A non-refundable unlock has no "Disable" op at all (clientscript
+                 * 413 reads column 5), so a second confirm must not clear it. */
+                SLAYER_CONFIRM(BIT_SLUG);
+                SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG),
+                               "Slug Salter is not refundable and must stay unlocked");
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 1000 - COST_SLUG,
+                               "and cost nothing further, got %d",
+                               mock230_varbit_get(player, vb_points));
+
+                /* Too poor. The client draws the price in red either way. */
+                SLAYER_RESET();
+                mock230_varbit_set(&srv, vb_points, COST_GARGOYLE - 1);
+                SLAYER_CONFIRM(BIT_GARGOYLE);
+                SELFTEST_CHECK(!SLAYER_OWNED(BIT_GARGOYLE),
+                               "%d points should not buy a %d-point unlock",
+                               (int)COST_GARGOYLE - 1, (int)COST_GARGOYLE);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == COST_GARGOYLE - 1,
+                               "and should not be spent, got %d",
+                               mock230_varbit_get(player, vb_points));
+
+                /* ---- which word the bit lands in ------------------------- */
+                SLAYER_RESET();
+                mock230_varbit_set(&srv, vb_points, 5000);
+                SLAYER_CONFIRM(BIT_STORAGE);
+                SLAYER_CONFIRM(BIT_FROST);
+                SELFTEST_CHECK(player->varps[vp_own[1]] == (1 << (BIT_STORAGE % 32)),
+                               "bit %d belongs in slayer_rewards_unlocks1 bit %d, that varp "
+                               "reads 0x%x", (int)BIT_STORAGE, (int)BIT_STORAGE % 32,
+                               (unsigned)player->varps[vp_own[1]]);
+                SELFTEST_CHECK(player->varps[vp_own[2]] == (1 << (BIT_FROST % 32)),
+                               "bit %d belongs in slayer_rewards_unlocks2 bit %d, that varp "
+                               "reads 0x%x", (int)BIT_FROST, (int)BIT_FROST % 32,
+                               (unsigned)player->varps[vp_own[2]]);
+                SELFTEST_CHECK(player->varps[vp_own[0]] == 0,
+                               "and neither should touch slayer_rewards_unlocks, which reads "
+                               "0x%x", (unsigned)player->varps[vp_own[0]]);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) ==
+                                   5000 - COST_STORAGE - COST_FROST,
+                               "two unlocks should cost %d, %d left",
+                               (int)COST_STORAGE + (int)COST_FROST,
+                               mock230_varbit_get(player, vb_points));
+
+                /* ---- disabling a refundable one -------------------------- */
+                SLAYER_RESET();
+                mock230_varbit_set(&srv, vb_points, 1000);
+                SLAYER_CONFIRM(BIT_DARKBEASTS);
+                SELFTEST_CHECK(SLAYER_OWNED(BIT_DARKBEASTS),
+                               "Need More Darkness should unlock");
+                SLAYER_CONFIRM(BIT_DARKBEASTS);
+                SELFTEST_CHECK(!SLAYER_OWNED(BIT_DARKBEASTS),
+                               "it is refundable, so a second confirm disables it");
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 1000 - COST_DARKBEASTS,
+                               "and there is no refund (\"You will not get your points back\") "
+                               "— %d left, expected %d",
+                               mock230_varbit_get(player, vb_points), 1000 - (int)COST_DARKBEASTS);
+
+                /* ---- extend everything ----------------------------------- */
+                SLAYER_RESET();
+                mock230_varbit_set(&srv, vb_points, 5000);
+                SLAYER_CONFIRM(ACTION_EXTEND_ALL);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 5000 - EXTEND_PRICE,
+                               "\"Extend remaining %d tasks\" costs %d points at this "
+                               "revision (95%% of %d, floored) — %d left, expected %d",
+                               (int)EXTEND_COUNT, (int)EXTEND_PRICE, 2875,
+                               mock230_varbit_get(player, vb_points), 5000 - (int)EXTEND_PRICE);
+                {
+                    int extended = 0;
+
+                    for( int bit = 0; bit <= 66; bit++ )
+                        extended += SLAYER_OWNED(bit) ? 1 : 0;
+                    SELFTEST_CHECK(extended == EXTEND_COUNT,
+                                   "and unlocks exactly the %d rows of the Extend list, got %d",
+                                   (int)EXTEND_COUNT, extended);
+                }
+                SELFTEST_CHECK(SLAYER_OWNED(BIT_DARKBEASTS),
+                               "including bit %d in the first word", (int)BIT_DARKBEASTS);
+                SELFTEST_CHECK(!SLAYER_OWNED(BIT_SLUG),
+                               "and none of the Unlock list — bit %d is list 0", (int)BIT_SLUG);
+                /* Nothing left to extend: the bar greys out and the second press
+                 * must not charge again. */
+                SLAYER_CONFIRM(ACTION_EXTEND_ALL);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 5000 - EXTEND_PRICE,
+                               "a second Extend-all with nothing left must be free, %d left",
+                               mock230_varbit_get(player, vb_points));
+
+                /* ---- an action that needs a task ------------------------- */
+                /*
+                 * Cancel/Block/Store/Unstore and the seven Unblock slots share
+                 * this component and this op. This world assigns no task, so the
+                 * client greys all of them out and none can be sent — but the
+                 * range is armed, so the sub id can still arrive, and answering
+                 * it by spending points would be a purchase nobody agreed to.
+                 */
+                {
+                    int before = mock230_varbit_get(player, vb_points);
+
+                    SLAYER_CONFIRM(ACTION_CANCEL);
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == before,
+                                   "cancelling a task nobody has must cost nothing, %d -> %d",
+                                   before, mock230_varbit_get(player, vb_points));
+                }
+
+                /* ---- "View List" ----------------------------------------- */
+                /*
+                 * 924 carries no onload — it is the shared small-popup template,
+                 * fourteen interfaces deep — so unlike 426 it cannot draw itself.
+                 * Clientscript 8059 is the whole of it, it has no caller in the
+                 * cache, and its FIRST argument is the component the server
+                 * mounted it into: 8059 hands that down to ~script612, which
+                 * hangs `if_setonsubchange`/`if_setondialogabort` on it so the
+                 * popup closes when what is under it changes.
+                 */
+                {
+                    int open_at;
+                    int run_at;
+
+                    button[0] = (uint8_t)(sym[4].id >> 24);
+                    button[1] = (uint8_t)(sym[4].id >> 16);
+                    button[2] = (uint8_t)(sym[4].id >> 8);
+                    button[3] = (uint8_t)sym[4].id;
+                    button[4] = 0;
+                    button[5] = 0;
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_capture_end(&srv);
+
+                    open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                    run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    SELFTEST_CHECK(open_at >= 0, "\"View List\" should mount 924");
+                    SELFTEST_CHECK(run_at >= 0, "and run the clientscript that fills it");
+                    SELFTEST_CHECK(open_at >= 0 && run_at > open_at,
+                                   "the mount must precede the clientscript (mount %d, run %d)",
+                                   open_at, run_at);
+
+                    if( open_at >= 0 )
+                    {
+                        struct RSAreaBuf mount;
+                        int group;
+                        int target;
+
+                        rsab_wrap(&mount, capture.packets[open_at].data,
+                                  (size_t)capture.packets[open_at].len);
+                        rsab_g1(&mount);
+                        group = rsab_g2_alt2(&mount);
+                        target = rsab_g4_alt3(&mount);
+                        SELFTEST_CHECK(group == sym[1].id,
+                                       "it should mount slayer_rewards_task_list (%d), got %d",
+                                       sym[1].id, group);
+                        SELFTEST_CHECK(target == sym[5].id,
+                                       "into slayer_rewards:popup (%d), got %d — 426 declares "
+                                       "that slot for exactly this", sym[5].id, target);
+                    }
+                    if( run_at >= 0 )
+                    {
+                        struct RSAreaBuf run;
+                        char types[8];
+                        int argc = 0;
+                        int argv[3] = { 0, 0, 0 };
+
+                        rsab_wrap(&run, capture.packets[run_at].data,
+                                  (size_t)capture.packets[run_at].len);
+                        while( argc < (int)sizeof(types) - 1 )
+                        {
+                            int c = rsab_g1(&run);
+
+                            if( c == '\n' || !rsab_ok(&run) )
+                                break;
+                            types[argc++] = (char)c;
+                        }
+                        types[argc] = '\0';
+                        SELFTEST_CHECK(strcmp(types, "iii") == 0,
+                                       "clientscript 8059 takes three ints, the packet says "
+                                       "\"%s\"", types);
+                        if( strcmp(types, "iii") == 0 )
+                        {
+                            for( int a = argc - 1; a >= 0; a-- )
+                                argv[a] = rsab_g4(&run);
+                            SELFTEST_CHECK(argv[0] == sym[5].id,
+                                           "8059's first argument is the slot the server "
+                                           "mounted into (%d), got %d", sym[5].id, argv[0]);
+                            SELFTEST_CHECK(argv[1] == 0 && argv[2] == 0,
+                                           "and the blocked-task bitmask is empty in a world "
+                                           "that blocks nothing, got %d,%d", argv[1], argv[2]);
+                        }
+                    }
+                }
+
+                /* ---- persistence ----------------------------------------- */
+                /*
+                 * Three ownership varps and a points varbit, across a logout.
+                 * The three are `wholewrite=allow` carriers, so a `.varp` overlay
+                 * that forgot one would lose a third of the catalogue and keep
+                 * the other two thirds — the same shape as farming's low-bit
+                 * loss, one word wider.
+                 */
+                {
+                    const char* path = mock230_save_path("slayer_selftest");
+                    int saved;
+
+                    SLAYER_RESET();
+                    mock230_varbit_set(&srv, vb_points, 4321);
+                    SLAYER_CONFIRM(BIT_SLUG);    /* word 0 */
+                    SLAYER_CONFIRM(BIT_STORAGE); /* word 1 */
+                    SLAYER_CONFIRM(BIT_FROST);   /* word 2 */
+                    remove(path);
+                    saved = mock230_save_player(player, path);
+                    SELFTEST_CHECK(saved, "the save should be written to %s", path);
+
+                    SLAYER_RESET();
+                    mock230_varbit_set(&srv, vb_points, 0);
+                    SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
+                    SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG) && SLAYER_OWNED(BIT_STORAGE) &&
+                                       SLAYER_OWNED(BIT_FROST),
+                                   "all three ownership words should survive a logout "
+                                   "(0x%x 0x%x 0x%x)", (unsigned)player->varps[vp_own[0]],
+                                   (unsigned)player->varps[vp_own[1]],
+                                   (unsigned)player->varps[vp_own[2]]);
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_points) ==
+                                       4321 - COST_SLUG - COST_STORAGE - COST_FROST,
+                                   "and so should the balance, got %d",
+                                   mock230_varbit_get(player, vb_points));
+                    remove(path);
+                }
+
+                /* Put the world back. */
+                for( int w = 0; w < 3; w++ )
+                    mock230_world_set_varp(&srv, vp_own[w], owned_before[w]);
+                mock230_varbit_set(&srv, vb_points, points_before);
+                mock230_varbit_set(&srv, vb_master, 0);
+#undef SLAYER_CONFIRM
+#undef SLAYER_OWNED
+#undef SLAYER_RESET
+            }
+
             mock230_scripts_free(&srv);
         }
     }

@@ -823,6 +823,47 @@ RS_CS2Host_TakeSocialSend(
     return true;
 }
 
+/* Queue a component whose on-resize listener the App should run this tick. */
+static void
+rs_cs2_call_on_resize_push(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    int slot;
+
+    assert(host);
+    if( host->call_on_resize_count >= RS_CS2_HOST_CALL_ON_RESIZE_MAX )
+    {
+        /* A dropped one is a panel that never builds itself, and a blank panel
+         * has no other symptom — so it says so rather than reading as a missing
+         * packet. */
+        fprintf(
+            stderr,
+            "cs2: if_callonresize queue full (%d), dropped component 0x%08x\n",
+            RS_CS2_HOST_CALL_ON_RESIZE_MAX,
+            (unsigned)component_id);
+        return;
+    }
+    slot = (host->call_on_resize_head + host->call_on_resize_count) %
+           RS_CS2_HOST_CALL_ON_RESIZE_MAX;
+    host->call_on_resize[slot] = component_id;
+    host->call_on_resize_count++;
+}
+
+bool
+RS_CS2Host_TakeCallOnResize(
+    struct RS_CS2Host* host,
+    int* out_component_id)
+{
+    if( !host || !out_component_id || host->call_on_resize_count <= 0 )
+        return false;
+    *out_component_id = host->call_on_resize[host->call_on_resize_head];
+    host->call_on_resize_head =
+        (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
+    host->call_on_resize_count--;
+    return true;
+}
+
 void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
@@ -1731,6 +1772,28 @@ exec_cc_getcomponentparam(
         /* Still missing after the load: 0 is the answer a param-less id gets. */
     }
     return CS2VM2_PushInt(thread, param && !param->is_string ? param->default_int : 0);
+}
+
+/*
+ * IF_GETCOMPONENTPARAM (2703): the same table, for a component named by
+ * argument, with the caller's own answer for a miss.
+ *
+ * Unlike CC_GETCOMPONENTPARAM this never consults the ParamType's default and
+ * so never yields: the script supplied the value it wants back, which is the
+ * whole point of the third argument. `request.value` carries it.
+ */
+static int
+exec_if_getcomponentparam(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_CC_ComponentParam request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int value = 0;
+
+    if( tree && UITree_ComponentParamGet(tree, request.component_id, request.param_id, &value) )
+        return CS2VM2_PushInt(thread, value);
+    return CS2VM2_PushInt(thread, request.value);
 }
 
 static int
@@ -2664,7 +2727,21 @@ rs_cs2_acquire_inv_transmit_hook(
         }
         host->inv_transmit_hook_count = w;
         if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+        {
+            /* Say so, once. A dropped registration is invisible at the drop:
+             * the script that asked carries on, the panel draws, and the bug
+             * only shows up later as a panel that never updates. */
+            static int warned;
+            if( !warned )
+            {
+                warned = 1;
+                fprintf(stderr,
+                        "cs2 host: inv-transmit hooks full (%d); component 0x%08x will "
+                        "never update\n",
+                        RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX, (unsigned)component_id);
+            }
             return NULL;
+        }
     }
 
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
@@ -2706,7 +2783,21 @@ rs_cs2_acquire_var_transmit_hook(
         }
         host->var_transmit_hook_count = w;
         if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+        {
+            /* Say so, once. A dropped registration is invisible at the drop:
+             * the script that asked carries on, the panel draws, and the bug
+             * only shows up later as a panel that never updates. */
+            static int warned;
+            if( !warned )
+            {
+                warned = 1;
+                fprintf(stderr,
+                        "cs2 host: var-transmit hooks full (%d); component 0x%08x will "
+                        "never update\n",
+                        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
+            }
             return NULL;
+        }
     }
 
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
@@ -2821,7 +2912,21 @@ rs_cs2_acquire_stat_transmit_hook(
         }
         host->stat_transmit_hook_count = w;
         if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+        {
+            /* Say so, once. A dropped registration is invisible at the drop:
+             * the script that asked carries on, the panel draws, and the bug
+             * only shows up later as a panel that never updates. */
+            static int warned;
+            if( !warned )
+            {
+                warned = 1;
+                fprintf(stderr,
+                        "cs2 host: stat-transmit hooks full (%d); component 0x%08x will "
+                        "never update\n",
+                        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
+            }
             return NULL;
+        }
     }
 
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
@@ -4717,6 +4822,9 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
         return exec_cc_getcomponentparam(host, vm, request->u.cc_component_param);
 
+    case CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM:
+        return exec_if_getcomponentparam(host, vm, request->u.cc_component_param);
+
     case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
         if( tree )
             (void)UITree_ApplyComponentParam(
@@ -4802,6 +4910,14 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
         if( tree )
             rs_cs2_clear_ops(tree, request->u.if_clear_ops.component_id);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_IF_CALLONRESIZE:
+        /* Queued, not run: this is reached from inside a running CS2 script and
+         * the host has no runner to nest a second one on. See the queue's
+         * comment in rs_cs2_host.h for why deferring is safe for every call
+         * site in this cache. */
+        rs_cs2_call_on_resize_push(host, request->u.if_call_on_resize.component_id);
         return CS2VM_EXECNO_OK;
 
     /* ---- SetOn (hooks / no-ops) ---- */

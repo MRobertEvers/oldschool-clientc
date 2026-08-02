@@ -170,6 +170,72 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # a cache id, and the engine holding one is the arrangement this server is
     # organised against. Content names it (see interface_chat/configs/chat.constant).
     "RUNCLIENTSCRIPT_SS": (11002, 1, 2, 0, 0),
+
+    # runclientscript*(clientscript)(args...) — the general form of the above.
+    #
+    # RUNCLIENTSCRIPT_SS is fixed at one int and two strings because the one
+    # caller it was written for (chatbox_multi_init) takes exactly that. The
+    # wire is not: RUNCLIENTSCRIPT carries a per-argument type string, and
+    # `mock230_send_run_clientscript_mixed` has taken one since it was written.
+    # Everything else in the rev-230 UI needs other shapes — the skill guide's
+    # clientscript 1902 takes four ints — and there is no way to spell that
+    # with the _SS form.
+    #
+    # So: the vararg form, in the reference's own vararg convention.
+    # `queue*(queue, delay)(args...)` compiles to QUEUEVARARG (2094) with the
+    # declared arguments first, the vararg values next, and a type string on
+    # top describing them; `parse_command` builds that type string from the
+    # static type of each vararg expression. The arity below counts only the
+    # fixed part — the script id — exactly as QUEUEVARARG's {2,0,0,0,1,1,...}
+    # counts only `queue, delay`. The variadic flag is what says the rest is on
+    # the stack, and it is why the VM refuses to *stub* this rather than
+    # popping a wrong number of values (unimplemented_stub in ssvm.c).
+    #
+    # RUNCLIENTSCRIPT_SS stays. It is spelled by content already, and a command
+    # that can be written without the star is the cheaper thing to read.
+    "RUNCLIENTSCRIPTVARARG": (11003, 1, 0, 0, 0),
+}
+
+# ---------------------------------------------------------------------------
+
+# Triggers with no entry in the reference's ServerTriggerType.ts, allocated
+# above its highest id (167) for the same reason EXTRA_OPCODES sits at 11000:
+# the reference's numbering is an enum this port reproduces exactly, so
+# rev-230-only surface goes strictly outside it.
+#
+# IF_BUTTON1..IF_BUTTON10 — *which op* was clicked on an interface button.
+#
+# The reference has one IF_BUTTON (147) because a 2004 interface component has
+# one action. A rev-230 component has up to ten and the packet says which:
+# IF_BUTTON1..IF_BUTTON10 are ten distinct opcodes on the wire
+# (src/net/rev/osrs230/packetout.h), all ten of which this server collapsed
+# into the single trigger. Content could not tell "View <skill> guide" (op 2)
+# from "Toggle <skill> XP" (op 1) on the *same* component, and there is no
+# `last_verb` command in the reference to read the index out of either — the
+# op index simply had no path into a script.
+#
+# The reference names this shape itself, in ClientGameProt.ts:71-75:
+#
+#     INV_BUTTON1 = new ClientGameProt(181, 6);
+#         // NXT has "IF_BUTTON1" but for our interface system, this makes
+#         // more sense
+#
+# i.e. the numbered form of this family *is* IF_BUTTON<n> at the revision this
+# client speaks, and LostCity renamed it INV_BUTTON<n> because the only
+# multi-op components its interface system has are inventories. Those five
+# triggers exist here already (149..153) and already dispatch per op. This is
+# the same mechanism for the other half of the family, under the wire's name.
+EXTRA_TRIGGERS: dict[str, int] = {
+    "IF_BUTTON1": 168,
+    "IF_BUTTON2": 169,
+    "IF_BUTTON3": 170,
+    "IF_BUTTON4": 171,
+    "IF_BUTTON5": 172,
+    "IF_BUTTON6": 173,
+    "IF_BUTTON7": 174,
+    "IF_BUTTON8": 175,
+    "IF_BUTTON9": 176,
+    "IF_BUTTON10": 177,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.
@@ -182,7 +248,12 @@ NON_DOT_OPERAND = {
 }
 
 # JOIN_STRING and GOSUB/JUMP_WITH_PARAMS pop a count the table cannot express.
-STRUCTURAL_VARIADIC = {"JOIN_STRING", "GOSUB_WITH_PARAMS", "JUMP_WITH_PARAMS"}
+STRUCTURAL_VARIADIC = {
+    "JOIN_STRING", "GOSUB_WITH_PARAMS", "JUMP_WITH_PARAMS",
+    # Declared in EXTRA_OPCODES rather than engine.rs2, so there is no `*` in a
+    # signature file for parse_engine_rs2 to notice.
+    "RUNCLIENTSCRIPTVARARG",
+}
 
 # Var access is runtime-typed for the same reason the *_param family is: the
 # variable's declared type decides which stack it touches. CoreOps.ts branches
@@ -570,6 +641,10 @@ def main() -> int:
         assert extra_name not in opcodes, f"{extra_name} collides with a reference opcode"
         opcodes[extra_name] = extra_row[0]
     triggers = parse_triggers(script_dir / "ServerTriggerType.ts")
+    for extra_trigger, extra_id in EXTRA_TRIGGERS.items():
+        assert extra_trigger not in triggers, f"{extra_trigger} collides with a reference trigger"
+        assert extra_id not in triggers.values(), f"{extra_trigger} collides with trigger id {extra_id}"
+        triggers[extra_trigger] = extra_id
     sigs = parse_engine_rs2(ref / "content/scripts/engine.rs2")
     pointers = parse_pointers(script_dir / "ScriptOpcodePointers.ts", opcodes)
 

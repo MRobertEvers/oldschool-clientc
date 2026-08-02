@@ -151,6 +151,23 @@ mock230_embed_stop(struct Mock230Embed* embed)
 
         if( !client->open )
             continue;
+        /*
+         * Log the player out before freeing anything, exactly as
+         * `mock230_embed_disconnect` does.
+         *
+         * Shutting the host down IS a logout for whoever is still on it, and
+         * this loop was skipping it — it freed the session and the pipes and
+         * left `mock230_world_remove_player` uncalled. That was invisible while
+         * `remove_player` only released a slot the process was about to drop
+         * anyway; it stopped being invisible when the save moved there, because
+         * closing the embedded client (which is how anyone actually plays this)
+         * threw the session's progress away while a socket logout kept it.
+         */
+        if( client->session.player )
+        {
+            mock230_world_remove_player(&embed->srv, client->session.player);
+            client->session.player = NULL;
+        }
         mock230_session_free(&client->session);
         /* The transport closed the pipes; this releases what they held. */
         mock230_pipe_free(&client->to_server);

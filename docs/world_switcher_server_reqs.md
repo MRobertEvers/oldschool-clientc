@@ -1,5 +1,17 @@
 # World Switcher (interface 69): what this actually needs from a game-world server
 
+> **NOT BUILT — triaged 2026-08-02: OUT OF SCOPE, and there is nothing for the
+> server to owe.** This doc's own conclusion holds and is confirmed: mock230 is
+> one world by construction (`mock230_embed.c:9-12`), no `WORLDLIST_JOIN`-shaped
+> op exists, and the worldlist tuple carries no host/port. The five client host
+> ops (6500/6501/6502/6506/6507) are `known=0`, so the panel would abort the
+> client rather than hang on "Loading…" — §3's Gap 2 option (2), a
+> permanent-false `worldlist_fetch`, is the only defensible move. Two
+> under-statements: `logout` (5630) and `map_world` (3318) are **already
+> implemented** (`cs2vm2.c:8005` and `:8760`), and §1.1's "4 lines total, read
+> in full" is 7 — the prose mentions the sound branch the quote omits.
+> Near-zero leverage: last, or never.
+
 > Companion to `docs/chrome_panels_server_reqs.md`'s hiscores section, same
 > discovery pass. **Same shape of finding**: the CS2 client half is fully
 > present and traceable, but the actual mechanism is login-server-tier, not

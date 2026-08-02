@@ -165,9 +165,19 @@
 #define SS_TRIGGER_CHANGESTAT 165
 #define SS_TRIGGER_AI_SPAWN 166
 #define SS_TRIGGER_AI_DESPAWN 167
+#define SS_TRIGGER_IF_BUTTON1 168
+#define SS_TRIGGER_IF_BUTTON2 169
+#define SS_TRIGGER_IF_BUTTON3 170
+#define SS_TRIGGER_IF_BUTTON4 171
+#define SS_TRIGGER_IF_BUTTON5 172
+#define SS_TRIGGER_IF_BUTTON6 173
+#define SS_TRIGGER_IF_BUTTON7 174
+#define SS_TRIGGER_IF_BUTTON8 175
+#define SS_TRIGGER_IF_BUTTON9 176
+#define SS_TRIGGER_IF_BUTTON10 177
 
 /** One past the highest trigger id. */
-#define SS_TRIGGER_MAX 168
+#define SS_TRIGGER_MAX 178
 
 /** Distance from an ap trigger to its matching op trigger. */
 #define SS_TRIGGER_AP_TO_OP 7

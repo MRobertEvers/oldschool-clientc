@@ -1,5 +1,24 @@
 # Chrome panels: XP Tracker, Hiscores, Loot Tracker
 
+> **NOT BUILT — triaged 2026-08-02: split verdict, and two of the three are
+> blocked in the *client*.** xptracker is READY minus one op no server can fix:
+> §1.1's "Set Goal" is not a corpus gap — `[clientscript,script5461]` sets ops
+> 6/8/9/10 and routes all four into one client-side `cc_setonop` on
+> `script5463`, whose switch has exactly three cases (8, 9, 10; there is **no
+> case 5**, so "jumps from case 5 straight to case 8" is wrong about the
+> mechanism and right about the conclusion). Hiscores (7801-7824) and
+> loottools (7613/7614/7616/7617/7621) are all past
+> `CS2VM2_OPCODE_STACK_MAX`, re-measured today at **7602**
+> (`cs2vm2_opcode_stack.gen.h:5`, written by `gen_opcode_stack.py`) — bump the
+> constant and mirror ~15 rows whose arities already exist in
+> `3rd/rscache/src/cs2/cs2_command.gen.h:1051-1065`; §3's own "no opcode-stack
+> entry for any of them" is that ceiling, not a missing signature. §3's
+> "single load-bearing gap" `script7166`/`script7133` and §2.1's `script7529`
+> are **all three in the cache** — they fail to decompile on unknown opcodes
+> 7601/7408/7800, a decompiler gap rather than a corpus one. Line drift:
+> `IF_SETONSTATTRANSMIT` dispatch is `rs_cs2_dispatch.c:229-242` and the timer
+> loop is `app.c:3955-3967`.
+
 > Third round of the discovery pass (`docs/PORTING_GUIDE.md` §5.3), companion
 > to `docs/questlist_chatmenu_levelup.md`, `docs/shop_server_reqs.md`, and
 > `docs/friends_pm_chat_server_reqs.md`. Unlike the first two rounds, all

@@ -3975,6 +3975,41 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /*
+     * if_callonresize — run the on-resize listeners scripts asked for.
+     *
+     * The layout does not call these; a script does, and it is how a rev-230
+     * panel that draws none of itself runs its own builder. The skill guide is
+     * the clearest case: `if_setonresize` registers the layout script and
+     * `if_callonresize` on the next line is the whole of "now draw yourself".
+     * The op cannot run its listener in place — it is handled inside a running
+     * CS2 script, from a host with no task runner — so it queues, and this is
+     * the drain.
+     *
+     * A listener may queue another (a tab click does), so the loop re-reads the
+     * queue rather than snapshotting it. The queue's own cap bounds it; the
+     * extra counter is there so a listener that re-queued *itself* stops after
+     * a tick's worth instead of hanging the frame.
+     */
+    {
+        int com_id;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_CALL_ON_RESIZE_MAX * 4 &&
+               RS_CS2Host_TakeCallOnResize(&app->host, &com_id) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                com_id,
+                &app->tree->components[idx].runtime_hooks.on_resize);
+            redraw = 1;
+        }
+    }
+
     /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
      * Early-outs unless a widget was unhidden this tick; per-hook serial gating
      * means already-fired hooks run nothing. */

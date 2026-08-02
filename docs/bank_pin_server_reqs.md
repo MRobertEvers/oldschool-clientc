@@ -1,5 +1,19 @@
 # Bank PIN (`bankpin_keypad` 213, `bankpin_settings` 14): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: READY, content only, no blocker.** The
+> keypad self-bootstraps (`bankpin_keypad.if:14` carries `onload=i:333,…` with
+> all 18 component uids baked in) and `P_COUNTDIALOG` is implemented and
+> covered, so the server owes only "open 213 → `p_countdialog` → compare".
+> **§3's "confirmed zero PIN entries in `pack/varbit.pack`/`pack/varp.pack`" is
+> wrong twice**: neither file exists (the name tables are
+> `configs/all.*.compack`), and varp **563 `bankpin_2`** and varbit **1011
+> `bankpin_anticracker`** are both real — and 563 is already occupied by
+> `ge_newoffer_quantity` (varbit 4396, bits 0-30) and `ge_newoffer_type`
+> (4397, bit 31), so author a fresh varp rather than reusing it. Two smaller
+> ones: §1's shuffle is 20 rounds of `random(9)` swapping against index 9, not
+> Fisher-Yates, and `bankpin_settings.if` does carry 7 `onload=` rows (chrome
+> only — §2's "zero `onop=`" substance stands).
+
 > Layered on the already-landed bank (`docs/mock230_bank.md`) — this doc
 > covers only what the PIN itself adds. Short, since it's a small feature
 > on infrastructure that already exists.

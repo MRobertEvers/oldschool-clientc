@@ -1,4 +1,113 @@
-# Skill Guide (`skill_guide_v2`, 860): what the server owes
+# Skill Guide (`skill_guide_v2`, 860): what the server owed
+
+> **BUILT — 2026-08-01, verified in the client.** The case file is
+> [`skill_guide.md`](skill_guide.md). This document is the discovery pass that
+> preceded the build; the record of what landed comes first, then the
+> corrections, then the original body kept as written. **Four of its
+> load-bearing claims were wrong**, and one of them — the engine blocker it
+> names — does not exist.
+
+## What landed
+
+One click: "View \<skill\> guide" on any of the 24 stats-tab cells. The server
+arms op 2 at login, and answers the click with a mount and a layout script, in
+that order. Once the guide is open, tab clicks never reach the server —
+`%varcint1173` and a local re-layout — so opening it on the right skill is the
+*whole* obligation.
+
+| layer | what was missing | what landed |
+|---|---|---|
+| trigger | all ten `IF_BUTTON<n>` opcodes collapsed into one `SS_TRIGGER_IF_BUTTON`, so content could not tell op 2 from op 1 on the same component | `SS_TRIGGER_IF_BUTTON1..IF_BUTTON10` = **168..177** (`SS_TRIGGER_MAX` **168 → 178**), allocated by a new `EXTRA_TRIGGERS` mechanism in `gen_opcode_meta.py`. Reference-named: `ClientGameProt.ts:71` says the numbered family *is* `IF_BUTTON<n>` at this revision |
+| opcode | `runclientscript_ss` (11002) is fixed at one int and two strings; clientscript 1902 takes four ints | `SS_OP_RUNCLIENTSCRIPTVARARG` = **11003** (`SS_OPCODE_MAX` **11003 → 11004**), in the reference's own vararg convention. Coverage **246/399 → 248/400** |
+| client VM | `if_callonresize` unimplemented — the panel mounted and then aborted the client | `CS2_OP_IF_CALLONRESIZE` **2927**, arity `(1 in, 0 out)` read off script 1911's bytecode, queued and drained beside the `onTimer` loop |
+| client VM | `if_getcomponentparam` in neither opcode table — 20 scripts in this cache fail to decompile at it | `CS2_OP_IF_GETCOMPONENTPARAM` **2703**, `(3 in, 1 out)`, arity pinned by a stack-balance argument at script 9181 rather than inferred |
+| content | nothing armed op 2 and nothing opened 860 | `interface_skill_guide/` — `skill_guide.constant` (107 lines) and `skill_guide.rs2` (208 lines): `~skill_guide_login` arms all 24 cells, `~skill_guide_open` mounts and runs 1902, 24 `[if_button2,stats:<cell>]` triggers. One line in `player/login.rs2` |
+
+The permanent check is `mock230 --selftest` section **"skill guide"**
+(`mock230_world.c:7225`), which sends a real `IF_BUTTON2` per cell and asserts
+mount-before-clientscript, the type string `"iiii"`, and 24 distinct skill
+indices. Three mutations were run against it and each produced a distinct
+failure — table in [`skill_guide.md`](skill_guide.md) §6.
+
+## What it cost
+
+Zero new packets — `IF_BUTTON2`, `IF_OPENSUB` and `RUNCLIENTSCRIPT` were all
+already on the wire. Two ServerScript surface additions (one trigger family,
+one opcode) and two client CS2 opcodes. **No engine fallback was widened**:
+both new `run_if_button` lookup rungs are content, and `enum Mock230Fallback`
+is unchanged. `player->last_verb` turned out to be written by the engine and
+read by nothing — there is no `last_verb` command here or in the reference —
+and the comment claiming otherwise was corrected rather than given a command.
+
+## What was deliberately left
+
+- **The Overview tab.** It aborts the client: `~script9176` and the
+  `9150..9199` widget library under it use twelve CS2 opcodes with no
+  signature (`211 212 213 215 4036 8003 8012 8018 8019 8022 8023 8024`).
+  Measured, not assumed — the same gosub walk with 9176 excluded finds none at
+  all. Content therefore opens on `^skill_guide_tab_default = 1`; set it back
+  to **0** when the twelve land and nothing else moves. **Clicking Overview in
+  the strip still takes the client down**, because the tab is the cache's and
+  no packet can hide it. This is the top follow-on.
+- **`cc_callonresize` (1927).** Its row in `cs2_command.gen.h` claims one
+  argument, which no other `cc_*` component op takes, and no script in this
+  cache calls it — nothing to verify an arity against, so it stays
+  unimplemented and aborting.
+- **Persistence.** Carried by the plan into this stage and cut here: the skill
+  guide has no persisted state at all (`%varcint1172/1173` are client varcs),
+  so there was nothing to verify a save/load path against. Landed in stage 2
+  (`farming_tools`), which has varbits to assert.
+
+## What the discovery pass got wrong
+
+> 1. **"`db_find_filter_with_count` (7507) — new host op, gap, confirmed" is
+>    wrong, and it is the wrong VM.** `script_1904` is a *clientscript*: 7507 is
+>    declared `{2,0,1,0,1}` in `cs2vm2_opcode_stack.gen.h`, dispatched at
+>    `cs2vm2.c`, and fully implemented in `src/game/rs_cs2_host.c` — including
+>    the in-flight query intersect this document says the query state has no
+>    room for. `mock230_ops_db.c` is the *ServerScript* db surface and was never
+>    in this path. Nothing about the skill guide needed a new db opcode.
+>
+> 2. **The real blocker was the packet, not the query.** `runclientscript_ss`
+>    (11002) is fixed at one int and two strings; clientscript 1902 takes four
+>    ints, and there was no way to spell that. That is `SS_OP_RUNCLIENTSCRIPTVARARG`
+>    (11003). The second blocker was a *trigger*: all ten `IF_BUTTON<n>` opcodes
+>    collapsed into one `SS_TRIGGER_IF_BUTTON`, so content could not tell op 2
+>    ("View … guide") from op 1 ("Toggle … XP") on the same component, and
+>    `player->last_verb` — which the engine sets — is read by nothing and has no
+>    command behind it. That is `SS_TRIGGER_IF_BUTTON1..10` (168..177).
+>
+> 3. **"The entry point is missing from the corpus" is right, and it is the
+>    answer rather than a gap.** `~script1902` having no caller in 9,433 scripts,
+>    in front of an interface whose only two onloads are the cosmetic `thinbox`
+>    border, is the cache saying the server runs it. §5's advice to re-decompile
+>    first was followed: 1902, 1904 and 1911 are all present and complete. What a
+>    fresh decompile does *not* recover is `~script9176` (the Overview body) or
+>    `script9345` — both are in the decompiler's 292-script failure list, i.e.
+>    present in the cache and unreadable by the tool, not absent.
+>
+> 4. **"Two dbtables … both already loading generically — landed" is wrong.**
+>    The server's `.dbtable`/`.dbrow` parser reads the *authored* grammar
+>    (`column=`, `data=`); the machine-exported `configs/all.dbtable` and
+>    `all.dbrow` use `columndef=`/`values=`, which it silently skips. So
+>    `skill_guide_subsections` loads as a name and an id with **zero columns**
+>    and 196 empty rows. It does not matter here — the client reads those tables
+>    from the cache — but it is not "landed".
+>
+> 5. **What actually blocks the feature today is neither of the two this
+>    document names.** It is twelve CS2 opcodes with no signature in the client
+>    VM (`211 212 213 215 4036 8003 8012 8018 8019 8022 8023 8024`), all of them
+>    inside `~script9176`'s subtree — the **Overview** tab. Everything else opens
+>    and draws. See `docs/skill_guide.md` §5.
+>
+> 6. Minor: `%varcint1172` is a key of `enum_681`, not a stat id, and the
+>    quest-progress battery in §3 is not on the path this build exercises —
+>    it is read by `~script9350`/`~script9352` for the *feature-row* colouring,
+>    which draws uncoloured rather than not at all when the varps are absent.
+
+---
+
+# The discovery pass, as written
 
 > Companion to `docs/questlist_chatmenu_levelup.md`, same discovery pass.
 > Dominated by static dbtable content already generic in mock230 — but the

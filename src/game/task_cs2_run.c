@@ -165,8 +165,42 @@ task_cs2_set_int_local(
     switch( argi )
     {
     case CS2VM_SCRIPT_ARG_WIDGET_ID:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, active_component_id);
+    {
+        /*
+         * `event_com` is the component's ADDRESS, not its runtime identity: for
+         * a dynamic child that is the PARENT's packed `(interface << 16) | child`,
+         * with `event_comsubid` carrying the index within it. It is the same
+         * (container, sub) pair `app_if_button_target` puts on the wire, and for
+         * the same reason — a dynamic child's own component id is a runtime
+         * allocation nothing outside this process has a name for.
+         *
+         * The cache says so plainly, because the pair is what its own scripts
+         * feed straight back into `cc_find`:
+         *
+         *     cc_setonvartransmit("script409(event_com, event_comsubid){var661}")
+         *     [clientscript,script409](component $com, int $sub)
+         *         if (cc_find($com, $sub) = ^true) { ~script410; }
+         *
+         * and `~script410` is a bare `cc_settext(...)` on whatever `cc_find`
+         * just made active. With `event_com` reported as the child's own id the
+         * `cc_find` asks a leaf for a child it does not have, answers false, and
+         * the repaint silently does nothing — Slayer Rewards' points header sat
+         * at its build-time value through every purchase. `script412` (the
+         * unlock tiles) and `script85` (every hover highlight in the game) pass
+         * `event_com` beside a *sibling's* `cc_getid` and are unreadable under
+         * any other convention.
+         */
+        int32_t idx = UITree_FindByComponentId(host->tree, active_component_id);
+        int com = active_component_id;
+        if( idx >= 0 && host->tree->components[idx].dynamic )
+        {
+            int32_t parent = host->tree->components[idx].parent;
+            if( parent >= 0 && (uint32_t)parent < host->tree->component_count )
+                com = host->tree->components[parent].component_id;
+        }
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, com);
         break;
+    }
     case CS2VM_SCRIPT_ARG_OP_INDEX:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_op_index);
         break;

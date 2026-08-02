@@ -1,5 +1,28 @@
 # Player Trading (`trademain` 335, `tradeside` 336, `tradeconfirm` 334): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: BLOCKED, deepest in the survey, and §4's
+> "the player-vs-player click — trigger constants exist, zero dispatch"
+> understates it by two layers that are both in the *client*.**
+> `osrs230/packetout.h` has **no OPPLAYER1..U row at all**, so
+> `packetout_code_osrs230` returns -1 and `out_begin` refuses; `src/app.c` never
+> calls `net_out_opplayer` (which exists at `net_out.c:752` with zero call
+> sites); and `uitree_minimenu.h` has no `UI_MINIMENU_PICK_PLAYER`. That is the
+> exact pre-friends failure shape. Behind it: zero `invother` support anywhere
+> in `src/game/`, `src/ui/` or `src/cs2vm2/` (one `InvManager`), no wire packet
+> for a second player's container, `container_for` still three cases
+> (`mock230_scripts.c:2088`), and `INVOTHER_TRANSMIT` (4332) / `BOTH_MOVEINV`
+> (4301) still declared-and-uncovered (all re-measured today). The variadic
+> `script_1216`/`_1217` push (§1, 28 ints each) is **no longer a blocker** —
+> `SS_OP_RUNCLIENTSCRIPTVARARG` (11003) landed 2026-08-01. Two corrections:
+> §1's "`trade_main_init` binds two grids" reads script 755's components as
+> bindings when they are *arguments* — `trademain.if:40` carries
+> `onload=i:755,…` with all five component uids baked in, so **the panel
+> self-bootstraps and the server needs no component knowledge**; and the
+> `invother_getobj/getnum` stack meta `{2,0,1,0,1}` pops 2 and pushes **0**, so
+> the other player's 28 slots would render obj id 0, not blank. §1.1's
+> read-never-written accept delay and §3.1's "no value-mismatch mechanic" both
+> verified correct.
+
 > Same discovery pass as `docs/shop_server_reqs.md`. Unlike GE/collection
 > log, this is 2004-era core content — LostCity has a full, well-commented
 > reference (`content/scripts/interface_trade/`). **This is also the first

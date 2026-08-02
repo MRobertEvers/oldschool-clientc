@@ -141,6 +141,24 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7508: (2, 0, 0, 0),  # DB_FIND(dbcolumn, value)
     7509: (1, 0, 0, 0),  # DB_FINDALL(dbtable)
     7510: (2, 0, 0, 0),  # DB_FIND_FILTER(dbcolumn, value)
+    # IF_CALLONRESIZE(component): run that component's on-resize listener now.
+    # Dedicated dispatch in cs2vm2.c (CS2VM_HOST_REQUEST_IF_CALLONRESIZE) owns
+    # the stack, so this only documents the contract — but the contract was read
+    # off the bytecode rather than inferred: script 1911 ends
+    # `PUSH_INT_LOCAL 2; IF_CALLONRESIZE; RETURN`, and all seventeen call sites
+    # in cache.osrs239 have that shape.
+    #
+    # 1927 CC_CALLONRESIZE is left out deliberately: cs2_command.gen.h gives it
+    # one argument, which is not the shape any other `cc_*` component op has,
+    # and no script in this cache calls it — so there is nothing to verify an
+    # arity against, and a guess is exactly what StackMetaStub exists to catch.
+    2927: (1, 0, 0, 0),  # IF_CALLONRESIZE(component)
+    # IF_GETCOMPONENTPARAM(param, component, fallback) -> int. The IF form of
+    # CC_GETCOMPONENTPARAM (1703), absent from the vendored table and from
+    # 3rd/rscache's cs2_command.gen.h — which is why 20 scripts in cache.osrs239
+    # fail to decompile at it. Dedicated dispatch in cs2vm2.c owns the stack;
+    # see the handler for how the arity was read off the bytecode.
+    2703: (3, 0, 1, 0),  # IF_GETCOMPONENTPARAM(param, component, fallback)
     # FRIEND_COUNT is a no-arg getter (total friends), but the name heuristic gave
     # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
     # arg and underflowed, aborting the friends-list builder (script 125).

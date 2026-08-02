@@ -1,5 +1,18 @@
 # Friends (429) and PM chat (163): what the server owes each
 
+> **DONE — this is the worked example for the series, and it is superseded by
+> [`FRIENDS_PRIVATE_CHAT.md`](FRIENDS_PRIVATE_CHAT.md) and
+> [`FRIENDS_PRIVATE_CHAT_CONTENT.md`](FRIENDS_PRIVATE_CHAT_CONTENT.md).**
+> `mock230_friends.{c,h}`, interfaces 429/432/163, packets 15/21/29/56, 18 CS2
+> host ops, and content under `server/scripts/interface_friends/` with
+> `~friends_login` at `player/login.rs2:49`; `make -C src test-social` green as
+> of 2026-08-02. §5's "zero rows in `packetout.h` for any of the five names"
+> and "the host ops are stubs" were true when written and are now stale, as is
+> §1.1's `~friend_update` corpus gap — it is clientscript 125, recovered by a
+> full re-decompile. Its roster / `isVisibleTo` / base-37 store is what clan
+> chat tier 1 is meant to reuse
+> (`docs/clan_chat_server_reqs.md`, still blocked).
+
 > Companion to `docs/questlist_chatmenu_levelup.md`, same discovery pass
 > (`docs/PORTING_GUIDE.md` §5.3) applied to the two interfaces §5.2 names as
 > the thing to do **before** clan chat: *"Do friends/PM first; clan chat

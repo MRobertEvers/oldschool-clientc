@@ -41,6 +41,38 @@ save_dir(void)
     return configured ? configured : "saves";
 }
 
+/*
+ * `mkdir -p` for the save directory.
+ *
+ * One `mkdir` was enough while the only path was the bare `saves`, and it stops
+ * being enough the moment anything configures `MOCK230_SAVES` to something
+ * nested — the mkdir fails with ENOENT, the fopen behind it fails too, and the
+ * save is lost with one line on stderr that reads like a permissions problem.
+ * `mock230_embed_test` points it at `build/embed_test_saves` so its runs cannot
+ * contaminate each other, which is what found this.
+ */
+static void
+save_mkdir_p(const char* dir)
+{
+    char path[1024];
+    size_t used = 0;
+
+    for( const char* scan = dir; *scan; scan++ )
+    {
+        if( used + 1 >= sizeof(path) )
+            return;
+        if( (*scan == '/' || *scan == '\\') && used > 0 )
+        {
+            path[used] = '\0';
+            save_mkdir(path);
+        }
+        path[used++] = *scan;
+    }
+    path[used] = '\0';
+    if( used > 0 )
+        save_mkdir(path);
+}
+
 const char*
 mock230_save_path(const char* display_name)
 {
@@ -108,7 +140,7 @@ mock230_save_player(
     if( !path || !*path )
         return 0;
 
-    save_mkdir(save_dir());
+    save_mkdir_p(save_dir());
 
     /* Write-then-rename: a crash mid-write leaves the previous save intact
      * rather than a truncated one. For a save file that is the difference

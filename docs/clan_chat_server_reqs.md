@@ -1,5 +1,30 @@
 # Clan Chat (`clans_sidepanel` 701, `clans_members` 693): what the server owes
 
+> **NOT BUILT — triaged 2026-08-02: split verdict.** 701/693 are **BLOCKED**,
+> and §2's reading of the failure mode is wrong in a way that inverts the risk:
+> of the 60 clan-family opcodes, 8 are genuinely handled (the transmit-listener
+> discard group), 19 are silent zero stubs, and **33 have `known=0` and hit
+> `assert(0 && "unimplemented CS2 opcode reached StackMetaStub")` — SIGABRT,
+> not a zeroed default.** `activeclansettings_getaffinedcount` is in the abort
+> set; it does not crash today only because `activeclansettings_find_affined`
+> (3801, `known=1`) returns false and short-circuits every guard, so it starts
+> crashing the moment the server says "you are in a clan". The fix is **one
+> generator change**, not 33 signatures: `gen_opcode_stack.py` reads only
+> `cs2_opcode_meta.c`, while `3rd/rscache/src/cs2/cs2_command.gen.h` already
+> carries proto arities for all 60. Two things this doc misses: the interfaces
+> that matter for tier 1 are `side_channels` **707** (the tab strip) and
+> `chatchannel_current` **7** (the classic Friends-Chat panel, the real home of
+> the `clan_*` ops) — 7's 14 ops are `known=1` today, so tier 1 is buildable
+> now on friends' plumbing; and §1's `clan_*` range is 3611-3620 + 3624-3627,
+> because 3621/3622/3623 are `ignore_count`/`ignore_getname`/`ignore_test`,
+> already implemented by friends. §1.1's chattype ids are **not** a corpus gap
+> either — `script84` has five cases: 41 own clan, 43 clan/system broadcast, 44
+> guest/listened, 46 guest broadcast, 9 legacy friends-chat. §5's secondary ids
+> are **8 of 12 wrong**; pack truth: `clans_hall` 692, `clans_board` 700,
+> `clans_storage_main/_side` 696/697, `clans_permissions` 706,
+> `clans_events/_create` 703/704, `clans_interests` 691, `clans_outfit` 694,
+> `clans_ranktitles` 695 (689, 699, 702, 705 are right).
+
 > Companion to `docs/friends_pm_chat_server_reqs.md`, same discovery pass —
 > the feature `docs/PORTING_GUIDE.md` §5.2 names as the direct follow-on:
 > *"Do friends/PM first; clan chat reuses its plumbing."* **Correction to

@@ -4597,6 +4597,40 @@ CS2VM2_Op_IF_ClearOps(
     return CS2VM_EXECNO_OK;
 }
 
+/*
+ * IF_CALLONRESIZE(component) — run that component's on-resize listener.
+ *
+ * One int in, nothing out, read off the bytecode rather than inferred:
+ *
+ *     pc=23 PUSH_INT_LOCAL 2        <- the component
+ *     pc=24 IF_CALLONRESIZE
+ *     pc=25 RETURN
+ *
+ * (script 1911, the skill guide's window setup). All seventeen call sites in
+ * cache.osrs239 have the same shape.
+ */
+int
+CS2VM2_Op_IF_CallOnResize(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_CALLONRESIZE;
+    request.u.if_call_on_resize.component_id = component_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_Add(
     struct CS2VM2_Thread* vm,
@@ -5625,9 +5659,42 @@ CS2VM2_Op_DefineArray(
     array->defined = 1;
     array->size = size;
     /* Low half of the operand is the RuneScript element-type char; 's' is the
-     * only one that lives on the string stack. */
+     * only one that lives on the string stack. The rest are the RuneScript base
+     * types (`i` 105 int, `Ð` 208 dbrow, …) and all share the int stack.
+     *
+     * A fresh array's cells are **-1, not 0**, and that is not cosmetic. -1 is
+     * `null` for every reference-typed RuneScript base type, so a script that
+     * fills an array and guards each slot with `= null` is testing a sentinel —
+     * and 0 is a perfectly good dbrow / component / obj id.
+     *
+     * `[clientscript,script1090]`, the builder behind all three of Slayer
+     * Rewards' catalogue tabs, is the witness, and it fails closed:
+     *
+     *     def_dbrow $rows($n);
+     *     while ($row ! null) {
+     *         if ($rows($i) = null) { $rows($i) = $row; ... }
+     *         else { ~error("Multiple overlapping reward ids …"); return; }
+     *     }
+     *
+     * With zeroed cells the very first slot compares unequal to null, the
+     * script takes the error branch on iteration zero and returns, and three
+     * tabs of a panel that mounted perfectly draw nothing at all — with nothing
+     * logged, because `db_find` had already answered with its 24 rows.
+     *
+     * Strings stay NULL rather than "": the reference fills them with the empty
+     * string, but no script in this cache reads an unwritten string cell, so
+     * there is nothing here to verify the change against and every reader
+     * already treats NULL as "". */
     array->is_string = ((operand & 0xffff) == 's');
-    memset(&array->cells, 0, sizeof(array->cells));
+    if( array->is_string )
+    {
+        memset(&array->cells, 0, sizeof(array->cells));
+    }
+    else
+    {
+        for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
+            array->cells.ints[i] = -1;
+    }
     frame->str_locals[str_slot] = (char*)array;
     return CS2VM_EXECNO_OK;
 }
@@ -6259,6 +6326,12 @@ CS2VM2_Op_CC_GetTrans(
 
 int
 CS2VM2_Op_CC_GetComponentParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
+CS2VM2_Op_IF_GetComponentParam(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
     int operand);
@@ -8573,6 +8646,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
     case CS2_OP_CC_GETCOMPONENTPARAM:
         return CS2VM2_Op_CC_GetComponentParam(vm, frame, operand);
+    case CS2_OP_IF_GETCOMPONENTPARAM:
+        return CS2VM2_Op_IF_GetComponentParam(vm, frame, operand);
     case CS2_OP_CC_SETCOMPONENTPARAM:
         return CS2VM2_Op_CC_SetComponentParam(vm, frame, operand);
     case CS2_OP_IF_SETONHOLD:
@@ -8609,6 +8684,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnSubChange(vm, frame, operand);
     case CS2_OP_IF_SETONRESIZE:
         return CS2VM2_Op_IF_SetOnResize(vm, frame, operand);
+    case CS2_OP_IF_CALLONRESIZE:
+        return CS2VM2_Op_IF_CallOnResize(vm, frame, operand);
     case CS2_OP_IF_SETDRAGGABLE:
         return CS2VM2_Op_IF_SetDraggable(vm, frame, operand);
     case CS2_OP_IF_SETDRAGGABLEBEHAVIOR:
@@ -9541,6 +9618,52 @@ CS2VM2_Op_CC_GetComponentParam(
     request.kind = CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM;
     request.u.cc_component_param.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_component_param.param_id = param_id;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * IF_GETCOMPONENTPARAM (2703) — the same table, for a component named by
+ * argument rather than the active one.
+ *
+ * Three ints in, one out: `(param, component, fallback)`, fallback on top. The
+ * arity is read rather than inferred — script 8304's entire body is
+ * `push 2356; push $com; push -1; 2703; return`, script 9181 feeds the result
+ * straight into a three-argument `if_setscrollsize`, and script 9182 compares
+ * it against 4. All 16 call sites in cache.osrs239 push three and consume one.
+ *
+ * The third argument is the literal -1 at every one of those sites, so
+ * "fallback for a miss" and "sub-id, with -1 meaning the component itself"
+ * cannot be told apart from this cache. It is read as the fallback because
+ * every read site guards the result against -1, and a table that starts empty
+ * — which an OldSchool IF3 component's does, see above — misses far more often
+ * than it hits.
+ */
+int
+CS2VM2_Op_IF_GetComponentParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int param_id;
+    int component_id;
+    int fallback;
+
+    if( CS2VM2_PopInt(vm, &fallback) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM;
+    request.u.cc_component_param.component_id = component_id;
+    request.u.cc_component_param.param_id = param_id;
+    request.u.cc_component_param.value = fallback;
 
     return vm->vm->host_exec(vm, &request);
 }
