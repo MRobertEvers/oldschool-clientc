@@ -18,6 +18,12 @@ struct CP_RegisterEntry
 {
     char name[CP_REGISTER_NAME_MAX];
     bool machine_owned; /* names = cache */
+    /** `membership = authored`, which is the default and today the only
+     *  supported value. */
+    bool membership_authored;
+    /** The file spelled `membership` as something else — a claim
+     *  `cp_register_check` refuses rather than acts on. */
+    bool membership_generated;
 };
 
 static struct CP_RegisterEntry g_entries[CP_REGISTER_MAX];
@@ -160,7 +166,24 @@ cp_register_load(const char* srcdir)
                 continue;
             current = &g_entries[g_count++];
             snprintf(current->name, sizeof(current->name), "%s", element._section.name + 10);
-            current->machine_owned = true; /* until the file says otherwise */
+            /*
+             * The derived fact, not `true`.
+             *
+             * A section that omits `names` must behave exactly as a namespace
+             * the file never mentions, which is what `cp_register_may_write_pack`
+             * already documents: machine-owned iff there is a gameval archive to
+             * generate it from. Defaulting to `true` made merely *appearing* in
+             * the file — to state something else entirely, like `membership` —
+             * change the answer to a different question, and for the eight
+             * namespaces with no archive it would then fail `cp_register_check`.
+             *
+             * Inert for every section this tree writes today: `cp_register_check`
+             * is precisely the assertion that each one's `names` equals this
+             * derivation, and it passes.
+             */
+            current->machine_owned = gameval_archive_for(current->name) >= 0;
+            current->membership_authored = true;
+            current->membership_generated = false;
             continue;
         }
         if( element.kind != INI_ELEMENT_KEYVAL || !current )
@@ -169,6 +192,11 @@ cp_register_load(const char* srcdir)
         trim(element._keyval.value);
         if( strcmp(element._keyval.name, "names") == 0 )
             current->machine_owned = strcmp(element._keyval.value, "cache") == 0;
+        else if( strcmp(element._keyval.name, "membership") == 0 )
+        {
+            current->membership_authored = strcmp(element._keyval.value, "authored") == 0;
+            current->membership_generated = !current->membership_authored;
+        }
     }
 
     free(data);
@@ -191,6 +219,20 @@ cp_register_may_write_pack(const char* ns)
     return gameval_archive_for(ns) >= 0;
 }
 
+bool
+cp_register_membership_is_authored(const char* ns)
+{
+    const struct CP_RegisterEntry* entry = find_entry(ns);
+
+    /*
+     * Undeclared is authored, and unlike `names` there is no fact to derive it
+     * from — a membership file has no generator to be "machine-owned" by. That
+     * makes authored the only safe default: it is the answer that never lets a
+     * tool replace a file a person wrote.
+     */
+    return entry ? entry->membership_authored : true;
+}
+
 int
 cp_register_check(void)
 {
@@ -200,6 +242,21 @@ cp_register_check(void)
     {
         const char* ns = g_entries[i].name;
         int archive = gameval_archive_for(ns);
+
+        /*
+         * Checked for every declared namespace, including the ones cachepack has
+         * no codec table for: `stat` and `category` have membership too, and
+         * unlike `names` this key needs no table to be checkable against.
+         */
+        if( g_entries[i].membership_generated )
+        {
+            fprintf(stderr,
+                    "cachepack: content.ini declares `%s` as `membership = generated`, but "
+                    "nothing generates pack/%s.client or pack/%s.server — the only supported "
+                    "value is `authored`\n",
+                    ns, ns, ns);
+            violations++;
+        }
 
         if( archive == -2 )
             continue; /* not a table cachepack has */

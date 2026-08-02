@@ -26,6 +26,29 @@
  *
  * A tree with no `content.ini` gets the built-in defaults, so this is additive:
  * nothing has to ship the file before the loaders can use the register.
+ *
+ * ## One key this register deliberately does not carry
+ *
+ * `content.ini` also states `membership = authored` on five namespaces — who
+ * owns `pack/<ns>.client` and `pack/<ns>.server`, the files saying which
+ * *entities* have a half on each side (docs/PACK_ENTITY_SPLIT_PLAN.md) and which
+ * `cachepack pack` now *routes* on rather than merely reporting. Neither
+ * the runtime nor the compiler opens those files: both load symbols, and
+ * membership is not a symbol. cachepack does, has its own reader of the same
+ * `content.ini` (`cp_register.h`, and the reason it is a second reader), and both
+ * stores and validates the key there — so a typo is caught, by the only tool with
+ * a reason to care.
+ *
+ * `mock230_pack` is the one thing on this side that reads a membership *file*,
+ * and it reads it to check it: `server_base` lives in this register and cachepack
+ * links nothing from `src/`, so the id half of the plan's §3.3 has to run here.
+ * It uses cachepack's own parser rather than a second one (`cp_membership.c`
+ * compiles into it) and it consults no key of this register but `server_base`.
+ *
+ * Carrying an unread copy here would be the `ids` mistake again: a fact stated
+ * in two places, acted on in one. The field lands in `struct ContentNamespace`
+ * when the runtime gains a reader for it, which the plan's §3.4 is where that
+ * happens — not before.
  */
 
 #include <stddef.h>

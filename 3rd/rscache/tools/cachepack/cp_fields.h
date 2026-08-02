@@ -151,12 +151,12 @@ struct CP_Fields
     /** How many of `entries` carry a server opcode. */
     int band_count;
     /**
-     * Whether *records the tree adds* belong in the client cache.
+     * Whether *records the tree adds* belong in the client cache, **by default**.
      *
      * Spelled `records = client` in a bare `[<type>]` section. The default is no,
      * and the default is the interesting one: a block that exists only in
      * `server/scripts` is usually a server table wearing a config type's grammar.
-     * The seven enums this tree authors are exactly that — `bank_tabs` and
+     * The 32 enums this tree authors are exactly that — `bank_tabs` and
      * `worn_slots` are read by `mock230_content_enum`, and no client script has
      * ever heard of them — so writing them into the cache would add records with
      * no reader, in a grammar cachepack cannot fully resolve.
@@ -167,6 +167,13 @@ struct CP_Fields
      *
      * A record that exists at rank 0 is written either way — it is already in the
      * cache, and this is only about *new* ones.
+     *
+     * **It is one boolean per type, which is why it is no longer the answer.**
+     * There is no way to spell "this one param is the server's" here, and that is
+     * what `pack/<ns>.client` and `pack/<ns>.server` exist to say. `cp_pack.c`
+     * routes on those files and falls back to this only for a record neither of
+     * them names (docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 3), which is what keeps
+     * a namespace nobody has seeded packing exactly as it did.
      */
     int records_client;
     /** 1 when a `fields/<type>.ini` was actually read. A tree that meant to

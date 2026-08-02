@@ -21,6 +21,7 @@ usage(void)
         "  cachepack pack   --src DIR --server-only\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
+        "  cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]\n"
         "\n"
         "  unpack  writes pack/<type>.pack (id=name, seeded from the cache's gameval\n"
         "          table), configs/all.<type> (text records) and meta.ini.\n"
@@ -44,6 +45,20 @@ usage(void)
         "          round-trips the asset tables through their friendly forms in a\n"
         "          scratch directory and holds each one to its own bar. Exits\n"
         "          non-zero when a bar is missed.\n"
+        "  membership\n"
+        "          seeds pack/<ns>.client and pack/<ns>.server — which *entities*\n"
+        "          have a half on each side, as bare names, the ids coming from the\n"
+        "          namespace both sides share. Written from the two gates the packer\n"
+        "          already applies, so they state today's routing rather than a new\n"
+        "          one; nothing reads them yet. Creates only files that do not exist\n"
+        "          and never rewrites one, because a membership file is authored the\n"
+        "          moment it exists. No cache is opened and no --out is needed.\n"
+        "          --check-only writes nothing at all: it holds the files against the\n"
+        "          routing they state — a name no config layer states, a name in\n"
+        "          <ns>.server the tree says nothing about, a record under\n"
+        "          server/scripts neither file claims — and exits non-zero on any of\n"
+        "          them. The id-range half of that check runs in mock230_pack, where\n"
+        "          the allocation bases live.\n"
         "\n"
         "Options:\n"
         "  --types a,b     restrict to these config types (default: all)\n"
@@ -317,7 +332,8 @@ main(int argc, char** argv)
             return 1;
         snprintf(ctx.rev_name, sizeof(ctx.rev_name), "%s", rev);
     }
-    else if( strcmp(command, "pack") == 0 && load_meta(src_dir, &ctx.profile) )
+    else if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0) &&
+             load_meta(src_dir, &ctx.profile) )
     {
         printf("Using the identity meta.ini recorded (game %d, revision %d)\n", ctx.profile.game,
                ctx.profile.revision);
@@ -463,6 +479,22 @@ main(int argc, char** argv)
             if( !cp_binary_import(&ctx, out_dir) )
                 rc = 1;
         }
+    }
+    else if( strcmp(command, "membership") == 0 )
+    {
+        /* No cache, no --out: the routing gates read the text tree and the name
+         * packs and nothing else, which is the same reason `--server-only`
+         * needs neither.
+         *
+         * `--check-only` is the same word `pack` and `mock230_pack` use, and it
+         * means the same thing here: read everything, write nothing, exit
+         * non-zero on a disagreement. Seeding and checking are one command
+         * because they walk and merge the same tree through the same gates —
+         * a checker that reconstructed either would be checking itself. */
+        if( check_only )
+            rc = cp_membership_check(&ctx, &sel) ? 0 : 1;
+        else
+            rc = cp_membership_emit(&ctx, &sel) ? 0 : 1;
     }
     else
     {

@@ -25,6 +25,7 @@
  */
 
 #include "content/content_register.h"
+#include "cp_membership.h"
 #include "mock230.h"
 #include "mock230_content.h"
 #include "mock230_db.h"
@@ -633,33 +634,39 @@ prune_doors(const char* content)
  * placeholders from layer 0 rather than allocations — for `ids = cache` the base
  * is where *new* records would start, not a claim about what is below it.
  */
+/* The config group each namespace's records live in. Asset tables are left out
+ * — they are addressed by reference table rather than by config group, and
+ * cachepack is what walks those.
+ *
+ * File scope because two validators need it: the allocation bases below, and the
+ * membership id check after it, which asks the cache the same "does this group
+ * hold this id" question. A second copy is how a namespace ends up checked by one
+ * and not the other. */
+static const struct
+{
+    enum Mock230PackKind kind;
+    int config_kind;
+} k_config_groups[] = {
+    { MOCK230_PACK_NPC,      RSCACHE_DAT2_CONFIG_KIND_NPC       },
+    { MOCK230_PACK_OBJ,      RSCACHE_DAT2_CONFIG_KIND_OBJECT    },
+    { MOCK230_PACK_LOC,      RSCACHE_DAT2_CONFIG_KIND_LOCS      },
+    { MOCK230_PACK_SEQ,      RSCACHE_DAT2_CONFIG_KIND_SEQUENCE  },
+    { MOCK230_PACK_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM  },
+    { MOCK230_PACK_INV,      RSCACHE_DAT2_CONFIG_KIND_INV       },
+    { MOCK230_PACK_VARP,     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER },
+    { MOCK230_PACK_VARBIT,   RSCACHE_DAT2_CONFIG_KIND_VARBIT    },
+    { MOCK230_PACK_PARAM,    RSCACHE_DAT2_CONFIG_KIND_PARAMS    },
+    { MOCK230_PACK_STRUCT,   RSCACHE_DAT2_CONFIG_KIND_STRUCT    },
+    { MOCK230_PACK_ENUM,     RSCACHE_DAT2_CONFIG_KIND_ENUM      },
+    { MOCK230_PACK_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT  },
+    { MOCK230_PACK_DBTABLE,  RSCACHE_DAT2_CONFIG_KIND_DBTABLE   },
+};
+
 static void
 validate_id_bases(
     struct RSCache_Dat2Disk* disk,
     const char* content_dir)
 {
-    /* The config group each namespace's records live in. Asset tables are left out
-     * — they are addressed by reference table rather than by config group, and
-     * cachepack is what walks those. */
-    static const struct
-    {
-        enum Mock230PackKind kind;
-        int config_kind;
-    } k_groups[] = {
-        { MOCK230_PACK_NPC,      RSCACHE_DAT2_CONFIG_KIND_NPC       },
-        { MOCK230_PACK_OBJ,      RSCACHE_DAT2_CONFIG_KIND_OBJECT    },
-        { MOCK230_PACK_LOC,      RSCACHE_DAT2_CONFIG_KIND_LOCS      },
-        { MOCK230_PACK_SEQ,      RSCACHE_DAT2_CONFIG_KIND_SEQUENCE  },
-        { MOCK230_PACK_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM  },
-        { MOCK230_PACK_INV,      RSCACHE_DAT2_CONFIG_KIND_INV       },
-        { MOCK230_PACK_VARP,     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER },
-        { MOCK230_PACK_VARBIT,   RSCACHE_DAT2_CONFIG_KIND_VARBIT    },
-        { MOCK230_PACK_PARAM,    RSCACHE_DAT2_CONFIG_KIND_PARAMS    },
-        { MOCK230_PACK_STRUCT,   RSCACHE_DAT2_CONFIG_KIND_STRUCT    },
-        { MOCK230_PACK_ENUM,     RSCACHE_DAT2_CONFIG_KIND_ENUM      },
-        { MOCK230_PACK_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT  },
-        { MOCK230_PACK_DBTABLE,  RSCACHE_DAT2_CONFIG_KIND_DBTABLE   },
-    };
     int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
     struct ContentRegister reg;
     int checked = 0;
@@ -676,9 +683,9 @@ validate_id_bases(
      */
     ContentRegister_Load(&reg, content_dir);
 
-    for( size_t g = 0; g < sizeof(k_groups) / sizeof(k_groups[0]); g++ )
+    for( size_t g = 0; g < sizeof(k_config_groups) / sizeof(k_config_groups[0]); g++ )
     {
-        const char* ns = mock230_content_pack_name(k_groups[g].kind);
+        const char* ns = mock230_content_pack_name(k_config_groups[g].kind);
         const struct ContentNamespace* row = ContentRegister_Find(&reg, ns);
         struct RSCache_Dat2DiskArchive* archive;
         int cache_max = -1;
@@ -686,7 +693,7 @@ validate_id_bases(
         if( !row || row->server_base == 0 )
             continue; /* nothing to allocate here — see `server_base`'s docs */
 
-        archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, k_groups[g].config_kind);
+        archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, k_config_groups[g].config_kind);
         if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
         {
             report_warning("no %s config archive — its allocation base is unchecked", ns);
@@ -734,7 +741,7 @@ validate_id_bases(
         int lowest = -1;
         for( int id = cache_max + 1; id < row->server_base; id++ )
         {
-            if( !mock230_content_symbol_name(k_groups[g].kind, id) )
+            if( !mock230_content_symbol_name(k_config_groups[g].kind, id) )
                 continue;
             if( lowest < 0 )
                 lowest = id;
@@ -751,6 +758,202 @@ validate_id_bases(
 
     fprintf(stderr, "id bases\n        %d namespace(s) checked against the cache%s\n", checked,
             problems ? ", WITH COLLISIONS" : "");
+}
+
+/* ------------------------------------------------------------------ */
+/* Membership vs the id range                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The second of docs/PACK_ENTITY_SPLIT_PLAN.md §3.3's two agreement checks:
+ * `pack/<ns>.client` and `pack/<ns>.server` held against the namespace's
+ * allocation base and against the cache itself.
+ *
+ * It runs here and not in cachepack because this is where the facts are.
+ * `server_base` is a field of `struct ContentNamespace`, defaulted in
+ * `content/content_register.c` and overlayable from `content.ini`, and cachepack
+ * deliberately links nothing from `src/` (`cp_register.h`) — so a base over there
+ * would have to be a second copy of this number, which is the failure the whole
+ * register exists to prevent. The provenance half of §3.3 runs in cachepack for
+ * the mirror-image reason: it needs the two-rank merge, and that is the packer's.
+ *
+ * The format is not re-implemented either: `cp_membership.c` compiles into this
+ * binary. One reader, two callers.
+ *
+ * ## What the base does and does not say
+ *
+ * `server_base` is **where a new name gets its number**, and that is all — §5 of
+ * the plan retired the `ids = cache|server` axis precisely because it claimed to
+ * say more. So an id at or above the base means "allocated by this tree", never
+ * "belongs to the server", and the check is written to that meaning:
+ *
+ *   in `<ns>.server`, below the base    fine when the cache holds the id — that is
+ *                                       §2's overlap, a cache record with a server
+ *                                       half. An ERROR when it does not: a record
+ *                                       nothing on the client defines, sitting on
+ *                                       a cache-range id.
+ *   in `<ns>.client`, below the base     the same question, and the same error when
+ *                                       the cache does not hold it.
+ *   in `<ns>.client`, at or above        counted. The tree allocated the id and
+ *                                       tells the client about the record. Whether
+ *                                       it *also* has a server half is what the
+ *                                       file pair is for, and 44 params say it
+ *                                       does not while their ids came out of the
+ *                                       server allocator (§8.5 finding 2).
+ *
+ * A name that resolves to nothing is an error whatever its side: the format's
+ * whole justification for holding names instead of ids is that a misspelling
+ * fails the moment something looks it up (`cp_membership.h`), and this is that
+ * lookup.
+ */
+static int
+archive_holds_id(
+    const struct RSCache_Dat2DiskArchive* archive,
+    int id)
+{
+    if( !archive )
+        return 0;
+    if( !archive->file_ids )
+        return id >= 0 && id < archive->file_count;
+    for( int i = 0; i < archive->file_count; i++ )
+    {
+        if( archive->file_ids[i] == id )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+validate_membership_ids(
+    struct RSCache_Dat2Disk* disk,
+    const char* content_dir)
+{
+    int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    struct ContentRegister reg;
+    int namespaces = 0;
+    int names = 0;
+    int overlap = 0;
+    int allocated_client = 0;
+
+    ContentRegister_Load(&reg, content_dir);
+
+    for( size_t g = 0; g < sizeof(k_config_groups) / sizeof(k_config_groups[0]); g++ )
+    {
+        enum Mock230PackKind kind = k_config_groups[g].kind;
+        const char* ns = mock230_content_pack_name(kind);
+        const struct ContentNamespace* row = ContentRegister_Find(&reg, ns);
+        struct CP_Membership side[CP_MEMBERSHIP_SIDES];
+        struct RSCache_Dat2DiskArchive* archive = NULL;
+        int loaded = 0;
+
+        for( int s = 0; s < CP_MEMBERSHIP_SIDES; s++ )
+        {
+            char path[1200];
+
+            cp_membership_path(path, sizeof(path), content_dir, ns, (enum CP_MembershipSide)s);
+            if( !cp_membership_load(&side[s], path, ns, (enum CP_MembershipSide)s, 1) )
+            {
+                report_error("%s: pack/%s.%s exists and cannot be read", ns, ns,
+                             cp_membership_side_name((enum CP_MembershipSide)s));
+                for( int f = 0; f < s; f++ )
+                    cp_membership_free(&side[f]);
+                loaded = -1;
+                break;
+            }
+            loaded++;
+        }
+        if( loaded < 0 )
+            continue;
+        if( side[CP_MEMBERSHIP_CLIENT].count == 0 && side[CP_MEMBERSHIP_SERVER].count == 0 )
+        {
+            /* No pair, which §8.3 says means every record here is the cache's.
+             * Nothing to hold against an id range. */
+            for( int s = 0; s < CP_MEMBERSHIP_SIDES; s++ )
+                cp_membership_free(&side[s]);
+            continue;
+        }
+        namespaces++;
+
+        archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, k_config_groups[g].config_kind);
+        if( archive && !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
+        {
+            RSCache_Dat2DiskArchiveFree(archive);
+            archive = NULL;
+        }
+        if( !archive )
+        {
+            report_warning("no %s config archive — its membership ids are unchecked", ns);
+            for( int s = 0; s < CP_MEMBERSHIP_SIDES; s++ )
+                cp_membership_free(&side[s]);
+            continue;
+        }
+
+        for( int s = 0; s < CP_MEMBERSHIP_SIDES; s++ )
+        {
+            const char* half = cp_membership_side_name((enum CP_MembershipSide)s);
+
+            for( int i = 0; i < side[s].count; i++ )
+            {
+                const char* name = side[s].names[i];
+                int id = -1;
+                int in_cache;
+
+                names++;
+                if( !mock230_content_symbol_checked(kind, name, &id) || id < 0 )
+                {
+                    report_error("pack/%s.%s names `%s`, and nothing in the %s namespace is "
+                                 "spelled that way — a membership file holds names so that a "
+                                 "misspelling fails here",
+                                 ns, half, name, ns);
+                    continue;
+                }
+                in_cache = archive_holds_id(archive, id);
+
+                if( row && row->server_base > 0 && id >= row->server_base )
+                {
+                    if( s == CP_MEMBERSHIP_CLIENT )
+                    {
+                        /*
+                         * Allocated by this tree and stated client-side. Counted,
+                         * not failed: the base says where a number comes from and
+                         * not which side owns the record. What makes it worth
+                         * printing is the pair — an id out of the server
+                         * allocator whose entity states no server half.
+                         */
+                        allocated_client++;
+                        if( !cp_membership_has(&side[CP_MEMBERSHIP_SERVER], name) )
+                            report_info("%s `%s` is id %d, at or above the allocation base %d, "
+                                        "and pack/%s.server does not name it",
+                                        ns, name, id, row->server_base, ns);
+                    }
+                    continue;
+                }
+                if( in_cache )
+                {
+                    /* Below the base and the cache defines it: the overlap §2
+                     * describes, and the normal case for a record with a server
+                     * half. */
+                    overlap++;
+                    continue;
+                }
+                report_error("pack/%s.%s names `%s` at id %d, which is below the allocation "
+                             "base %d and which the cache's %s group does not define — the "
+                             "record sits on an id no side owns",
+                             ns, half, name, id, row ? row->server_base : 0, ns);
+            }
+        }
+
+        if( allocated_client && !g_verbose )
+            report_info("(-v lists them)");
+        RSCache_Dat2DiskArchiveFree(archive);
+        for( int s = 0; s < CP_MEMBERSHIP_SIDES; s++ )
+            cp_membership_free(&side[s]);
+    }
+
+    fprintf(stderr,
+            "membership ids\n        %d namespace(s), %d name(s): %d below the base and in the "
+            "cache, %d allocated and stated client-side\n",
+            namespaces, names, overlap, allocated_client);
 }
 
 static void
@@ -980,6 +1183,7 @@ main(
         {
             RSCache_Dat2DiskSetProfile(disk, &profile);
             validate_id_bases(disk, content);
+            validate_membership_ids(disk, content);
             validate_doors(disk, &profile);
             RSCache_Dat2DiskFree(disk);
             if( prune )

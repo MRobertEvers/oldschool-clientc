@@ -29,6 +29,27 @@
  *
  * A tree that ships no `content.ini` therefore gets correct behaviour rather than
  * the old unconditional yes.
+ *
+ * ## The second question: `membership`
+ *
+ * `pack/<ns>.client` and `pack/<ns>.server` (`cp_membership.h`) are different
+ * files from `pack/<ns>.pack` and need their own answer, because `names` cannot
+ * carry it. `names = authored` would say the right thing about the membership
+ * files and the *wrong* thing about the name table: npc, obj, loc, seq and eight
+ * more are named by a gameval archive, so `cp_register_check` refuses to let them
+ * claim anything but `names = cache` — and a namespace whose name table is
+ * legitimately the cache's still has membership a person decides. Overloading one
+ * key would make the two facts unstatable together.
+ *
+ *     [namespace:npc]
+ *     names      = cache      ; the cache's gameval table names them
+ *     membership = authored   ; a person decides which side each npc has a half on
+ *
+ * `authored` is the default and today the only supported value. `generated` is
+ * spellable so that a tree can be refused for claiming it rather than quietly
+ * getting `authored` behaviour: nothing regenerates a membership file, and a
+ * namespace that believes otherwise would eventually be edited on the assumption
+ * that its edits would be reproduced.
  */
 
 #include <stdbool.h>
@@ -48,6 +69,23 @@ bool
 cp_register_may_write_pack(const char* ns);
 
 /**
+ * Does the tree declare `<ns>`'s membership authored?
+ *
+ * True by default, and true for every namespace today. A distinct question from
+ * `cp_register_may_write_pack`, answered by a distinct key; see the header
+ * comment for why one key could not carry both.
+ *
+ * "Authored" is what makes the protection a statement rather than an accident of
+ * which paths happen to exist: `pack`, `unpack` and `verify` open no membership
+ * file, and `cachepack membership` seeds only a namespace that has none. That
+ * second guard is deliberately *not* this predicate — a file already on disk is
+ * never replaced whatever the register says, because a declaration and a refusal
+ * should not fail together.
+ */
+bool
+cp_register_membership_is_authored(const char* ns);
+
+/**
  * Refuse a `content.ini` that contradicts the codec tables.
  *
  * For every namespace the file declares, `names = cache` must hold if and only if
@@ -56,6 +94,10 @@ cp_register_may_write_pack(const char* ns);
  * never imported — so it is reported per namespace, naming both sources, and the
  * count is returned. Namespaces neither `cp_types.c` nor `cp_assets.c` knows are
  * skipped: cachepack has no opinion about `stat`.
+ *
+ * Also refuses `membership = generated`, for the same class of reason: nothing
+ * generates a membership file, so declaring one generated is a claim the tree
+ * would later be edited on.
  */
 int
 cp_register_check(void);
