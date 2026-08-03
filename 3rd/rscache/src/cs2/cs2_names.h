@@ -144,6 +144,20 @@ RSCache_CS2_NamesSetParamType(
     enum RSCache_CS2_Type type);
 
 /**
+ * Record a script's `[trigger,name]` from a source other than the TSV.
+ *
+ * A source tree of decompiled `.cs2` already states this about itself — every
+ * file opens with the header — so a caller holding one can answer `~name`
+ * without RuneStar's corpus. Replaces whatever the id held, so the caller
+ * decides which source wins by ordering.
+ */
+void
+RSCache_CS2_NamesSetScript(
+    struct RSCache_CS2_Names* names,
+    int script_id,
+    const char* name);
+
+/**
  * Format an int constant as source, given the prototype the solver assigned.
  *
  * Writes into `out` and returns true; returns false when the constant has no

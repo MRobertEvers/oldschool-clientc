@@ -18,6 +18,7 @@
 #include "datatypes/dat2_sprites.h"
 #include "datatypes/dat2_texture.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -2237,6 +2238,65 @@ cs2_load_param_types(struct cp_cs2_state* state)
     cp_group_free(&group);
 }
 
+/**
+ * Seed the script-name table from the tree's own sources.
+ *
+ * `~on_mobile` names a script, and resolving it needs id -> `[trigger,name]` —
+ * which RuneStar publishes as `script-names.tsv` and which is deliberately not
+ * vendored (EXCEPTIONS.md G5). The tree does not need that file to answer the
+ * question *about itself*: every `scripts/<name>.cs2` opens with the header the
+ * decompiler wrote, and `pack/12_clientscripts.pack` maps that file to its id.
+ * Reading the two together is the same id-through-the-pack rule the rest of the
+ * packer follows, and it makes the tree self-describing.
+ *
+ * Not cosmetic. Without it, a name the compiler cannot resolve declines the
+ * record, `pack --base` keeps the *base cache's* bytes, and an edited script
+ * ships unchanged with nothing but a counter to say so (tools/README.md, "pack
+ * the way you unpacked"). That is a silent dropped edit for every source in the
+ * tree that spells a name — 5,032 of osrs239's on a machine with no corpus.
+ * Seeded after any `CACHEPACK_CS2_NAMES` directory, because when the two
+ * disagree it is the tree's own headers that its own sources are calling.
+ */
+static void
+cs2_seed_script_names(struct cp_cs2_state* state)
+{
+    const struct CP_Asset* asset = cp_asset(CP_ASSET_SCRIPT);
+    const struct LC_Pack* pack = &state->ctx->names.asset_packs[CP_ASSET_SCRIPT];
+
+    assert(asset && asset->codec);
+    for( int id = 0; id < pack->max; id++ )
+    {
+        const char* file = pack->names ? pack->names[id] : NULL;
+        if( !file )
+            continue;
+
+        char path[1700];
+        snprintf(path, sizeof(path), "%s/%s/%s.%s", state->ctx->srcdir, asset->dir, file,
+                 asset->codec->ext);
+        FILE* source = fopen(path, "rb");
+        if( !source )
+            continue; /* bytecode-only (`.cs2b`), or a tree with no scripts yet */
+
+        /* The header is the first line that opens a bracket; the `// <id>` banner
+         * above it is a comment. Everything from `]` on is the parameter list,
+         * which is not part of the name. */
+        char line[1024];
+        while( fgets(line, (int)sizeof(line), source) )
+        {
+            if( line[0] != '[' )
+                continue;
+            char* close = strchr(line, ']');
+            if( close )
+            {
+                close[1] = '\0';
+                RSCache_CS2_NamesSetScript(&state->names, id, line);
+            }
+            break;
+        }
+        fclose(source);
+    }
+}
+
 static int
 cs2_state_ready(struct CP_Ctx* ctx)
 {
@@ -2262,6 +2322,7 @@ cs2_state_ready(struct CP_Ctx* ctx)
     const char* names_dir = getenv("CACHEPACK_CS2_NAMES");
     if( names_dir )
         RSCache_CS2_NamesLoadDirectory(&g_cs2.names, names_dir);
+    cs2_seed_script_names(&g_cs2);
     cs2_load_param_types(&g_cs2);
     g_cs2.db_columns = tool_db_columns_load(ctx->cache.disk);
     g_cs2.names_loaded = 1;

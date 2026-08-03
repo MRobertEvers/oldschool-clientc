@@ -2032,6 +2032,11 @@ create_no_trigger_transmit_dispatch(
 
             if( node->freed || slot->script_id <= 0 )
                 continue;
+            /* Unmounted packs stay in the tree hidden; their listeners were
+             * cleared by ClearHooksForInterfaceGroup, but skip anyway so a
+             * missed clear cannot keep firing. */
+            if( UITree_ComponentOrAncestorHidden(host->tree, node->component_id) )
+                continue;
             dst = &self->hooks[self->hook_count++];
             dst->component_id = node->component_id;
             dst->script_id = slot->script_id;

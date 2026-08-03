@@ -3058,6 +3058,103 @@ rs_cs2_acquire_stat_transmit_hook(
     return hook;
 }
 
+/* True when `idx` is part of interface `group_id`: its own packed id matches,
+ * or an ancestor's does (dynamic cc_create children use 0x8000|n uids). */
+static int
+rs_cs2_component_in_interface_group(
+    struct UITree const* tree,
+    int32_t idx,
+    int group_id)
+{
+    while( idx >= 0 && (uint32_t)idx < tree->component_count )
+    {
+        struct UITreeComponent const* c = &tree->components[idx];
+        if( !c->freed && c->component_id >= 0 &&
+            ((c->component_id >> 16) & 0xffff) == group_id )
+            return 1;
+        idx = c->parent;
+    }
+    return 0;
+}
+
+void
+RS_CS2Host_ClearHooksForInterfaceGroup(
+    struct RS_CS2Host* host,
+    int group_id)
+{
+    struct UITree* tree;
+    int w;
+    int i;
+
+    assert(host);
+    if( group_id <= 0 )
+        return;
+    tree = host->tree;
+    if( !tree )
+        return;
+
+    w = 0;
+    for( i = 0; i < host->inv_transmit_hook_count; i++ )
+    {
+        int32_t idx =
+            UITree_FindByComponentId(tree, host->inv_transmit_hooks[i].component_id);
+        if( idx < 0 || rs_cs2_component_in_interface_group(tree, idx, group_id) )
+            continue;
+        if( w != i )
+            host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
+        w++;
+    }
+    host->inv_transmit_hook_count = w;
+
+    w = 0;
+    for( i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        int32_t idx =
+            UITree_FindByComponentId(tree, host->var_transmit_hooks[i].component_id);
+        if( idx < 0 || rs_cs2_component_in_interface_group(tree, idx, group_id) )
+            continue;
+        if( w != i )
+            host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
+        w++;
+    }
+    host->var_transmit_hook_count = w;
+
+    w = 0;
+    for( i = 0; i < host->stat_transmit_hook_count; i++ )
+    {
+        int32_t idx =
+            UITree_FindByComponentId(tree, host->stat_transmit_hooks[i].component_id);
+        if( idx < 0 || rs_cs2_component_in_interface_group(tree, idx, group_id) )
+            continue;
+        if( w != i )
+            host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
+        w++;
+    }
+    host->stat_transmit_hook_count = w;
+
+    /* Component-local reactive listeners for the same group. Interaction hooks
+     * (click/op/drag/…) stay so the reused bake still responds to input. */
+    for( uint32_t n = 0; n < tree->component_count; n++ )
+    {
+        struct UITreeComponent* c = &tree->components[n];
+        struct UITreeRuntimeHooks* hooks;
+        if( c->freed || !c->runtime_hooks )
+            continue;
+        if( !rs_cs2_component_in_interface_group(tree, (int32_t)n, group_id) )
+            continue;
+        hooks = c->runtime_hooks;
+        memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
+        memset(&hooks->on_key, 0, sizeof(hooks->on_key));
+        memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
+        memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
+        memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
+        memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
+        memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
+        memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
+    }
+    tree->hook_index_stale = 1;
+}
+
 /*
  * `if_setonstattransmit(script, args, component)` — the XP drops' listener.
  *

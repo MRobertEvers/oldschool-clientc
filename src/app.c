@@ -3916,6 +3916,7 @@ Task_OpenSubRefresh_Run(
                         c->behavior.hide_unmounted = 1;
                     c->behavior.hide = 1;
                 }
+                RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
             }
         }
         UITree_InterfaceParentClear(app->tree, self->target_uid);

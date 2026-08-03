@@ -588,6 +588,23 @@ RS_CS2Host_TakeCameraForce(
 void
 RS_CS2Host_Tick(struct RS_CS2Host* host);
 
+/**
+ * Drop every host-side transmit hook (inv / var / stat) and the reactive
+ * component listeners (timer / key / *transmit / resize / sub_change) that
+ * belong to interface `group_id`, including dynamic children parented under
+ * that pack.
+ *
+ * Call this when IF_CLOSESUB or a replacing IF_OPENSUB unmounts a group.
+ * Hiding alone leaves the nodes in the tree for reuse; without this the
+ * host registries keep firing for them (and grow again when onload
+ * re-registers under new dynamic uids). Interaction hooks (click / op / …)
+ * stay — they are event-driven and the remount path reuses the bake.
+ */
+void
+RS_CS2Host_ClearHooksForInterfaceGroup(
+    struct RS_CS2Host* host,
+    int group_id);
+
 /** Releases what the host owns (the world map state); the host itself is the
  *  caller's storage. */
 void

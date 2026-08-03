@@ -590,6 +590,7 @@ Task_InterfaceOpen_Run(
                             c->behavior.hide_unmounted = 1;
                         c->behavior.hide = 1;
                     }
+                    RS_CS2Host_ClearHooksForInterfaceGroup(self->host, old_group);
                 }
                 UITree_InterfaceParentClear(self->tree, self->target_uid);
             }

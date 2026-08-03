@@ -203,8 +203,12 @@ strips `::`). With a real bank open/close cycle:
 - Each remount re-runs onload (`cc_deleteall` + `cc_create` with fresh dynamic
   uids) and re-registers `if_setonvartransmit`. Dead hook entries for the
   reclaimed uids were only compacted when the 512-slot array filled, so
-  `var_hooks` sawtoothed 220→512→220 every few minutes of open/close. Fixed:
-  compact dead inv/var/stat transmit hooks before every append.
+  `var_hooks` sawtoothed 220→512→220 every few minutes of open/close. Fixed in
+  two layers: (1) compact dead inv/var/stat hooks before every append;
+  (2) `RS_CS2Host_ClearHooksForInterfaceGroup` on IF_CLOSESUB / replacing
+  mount drops host inv/var/stat entries and reactive component listeners
+  (timer/key/*transmit/resize/sub_change) for that pack, including dynamic
+  children. Misc/friend transmit walks also skip hidden ancestors.
 - `onTimer` did not skip hidden ancestors (inv/var/stat already did). Closed
   panels' timers kept firing; gated with `UITree_ComponentOrAncestorHidden`.
 

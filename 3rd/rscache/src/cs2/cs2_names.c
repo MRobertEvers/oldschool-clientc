@@ -69,6 +69,21 @@ RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
     RSCache_CS2_IntMapPut(
         &names->tables[RSCACHE_CS2_NAMES_BOOLEAN], 1,
         RSCache_CS2_ArenaStrDup(&names->arena, "true"));
+
+    /* `windowmode` is seeded on the same grounds, and it is the same size of
+     * table: two values, `windowmode-names.tsv` is two lines, and they are the
+     * dialect's own words rather than community-recovered ids — the client
+     * implements exactly `1 fixed` / `2 resizable` and nothing else is
+     * spellable. Leaving it to a TSV made `[clientscript,settings_client_mode]`
+     * (script 3998, the Display panel's layout dropdown) uncompilable for a
+     * caller with no name directory, which is every caller that only has this
+     * repo. A loaded TSV still overwrites these. */
+    RSCache_CS2_IntMapPut(
+        &names->tables[RSCACHE_CS2_NAMES_WINDOWMODE], 1,
+        RSCache_CS2_ArenaStrDup(&names->arena, "fixed"));
+    RSCache_CS2_IntMapPut(
+        &names->tables[RSCACHE_CS2_NAMES_WINDOWMODE], 2,
+        RSCache_CS2_ArenaStrDup(&names->arena, "resizable"));
 }
 
 void
@@ -304,6 +319,18 @@ RSCache_CS2_NamesSetParamType(
     if( !names || type == RSCACHE_CS2_TYPE_NONE )
         return;
     RSCache_CS2_IntMapPut(&names->param_types, param_id, (void*)(intptr_t)(type + 1));
+}
+
+void
+RSCache_CS2_NamesSetScript(
+    struct RSCache_CS2_Names* names,
+    int script_id,
+    const char* name)
+{
+    assert(names && name);
+    assert(script_id >= 0);
+    RSCache_CS2_IntMapPut(
+        &names->script_names, script_id, RSCache_CS2_ArenaStrDup(&names->arena, name));
 }
 
 /* -------------------------------------------------------------------------

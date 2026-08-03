@@ -1569,6 +1569,14 @@ player_take_step(struct Mock230Player* player)
     }
 
     /* Blocked — stall, keep the waypoint; still record last_step. */
+    fprintf(stderr, "DBG stall at %d,%d toward %d,%d flags_dest=%x flags_here=%x\n",
+            player->x, player->z, wp_x, wp_z,
+            mock230_scene_collision(player->level) ? collision_map_tile(
+                mock230_scene_collision(player->level), player->x + dx - mock230_scene_base_x(),
+                player->z + dz - mock230_scene_base_z()) : 0,
+            mock230_scene_collision(player->level) ? collision_map_tile(
+                mock230_scene_collision(player->level), player->x - mock230_scene_base_x(),
+                player->z - mock230_scene_base_z()) : 0);
     player->last_step_x = prev_x;
     player->last_step_z = prev_z;
     return -1;
