@@ -6654,9 +6654,17 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(selftest_prayer("prayer_count") == 29,
                        "the tree should declare 29 prayers, got %d",
                        selftest_prayer("prayer_count"));
+        /* Both ends of the prayerbook numbering. prayer1/541:9 is Thick Skin
+         * under book order and under component order, so it cannot catch a
+         * swapped binding table. prayer4/541:12 is Rock Skin in the cache
+         * (param_1751 bit 3) and Sharp Eye under a naive prayerN→N-1 map. */
         SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_COMPONENT, "prayerbook:prayer1") ==
                            MOCK230_COM(541, 9),
                        "the first prayer button should be 541:9");
+        SELFTEST_CHECK(mock230_content_symbol(MOCK230_PACK_COMPONENT, "prayerbook:prayer4") ==
+                           MOCK230_COM(541, 12),
+                       "prayer4 should be 541:12 (Rock Skin's component), got %d",
+                       mock230_content_symbol(MOCK230_PACK_COMPONENT, "prayerbook:prayer4"));
         SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 15)) == MOCK230_WEAR_HEAD,
                        "387:15 should be the helmet slot, got %d",
                        mock230_equipment_worn_slot(MOCK230_COM(387, 15)));
@@ -11157,6 +11165,34 @@ mock230_world_selftest(void)
                        "::pray 18 is protect from melee");
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(&srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
+
+        /*
+         * Binding table, both ends. prayerbook:prayer4 is 541:12 (asserted with
+         * the content symbols above). The cache's Rock Skin sits there
+         * (param_1751 / varbit bit 3); a naive prayerN→^prayer_(N-1) map would
+         * light Sharp Eye instead. Drive the click the client sends.
+         */
+        {
+            int uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "prayerbook:prayer4");
+            uint8_t button[6];
+
+            SELFTEST_CHECK(uid == MOCK230_COM(541, 12),
+                           "prayer4 must be 541:12 for the binding click, got %d", uid);
+            mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+            player->stat_level[MOCK230_STAT_PRAYER] = 99;
+            player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+            button[0] = (uint8_t)(uid >> 24);
+            button[1] = (uint8_t)(uid >> 16);
+            button[2] = (uint8_t)(uid >> 8);
+            button[3] = (uint8_t)uid;
+            button[4] = 0xff;
+            button[5] = 0xff;
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_rockskin"),
+                           "clicking 541:12 should toggle Rock Skin");
+            SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_sharpeye"),
+                           "and must not light Sharp Eye (the naive map's answer)");
+        }
 
         /*
          * Drain: protect from melee is 12 a tick against a resistance of 60, so

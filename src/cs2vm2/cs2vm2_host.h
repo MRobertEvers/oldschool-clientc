@@ -357,6 +357,12 @@ enum CS2VM_HostRequestKind
      * which is the same shape as LOGOUT above. */
     CS2VM_HOST_REQUEST_IF_CLOSE,
 
+    /* IF_RESUME_PAUSEBUTTON (2121) / CC_RESUME_PAUSEBUTTON (1121): answer a
+     * server script parked on p_pausebutton. One component id (IF pops it; CC
+     * uses the active/dot component). The host records it and the App drains
+     * it into RESUME_PAUSEBUTTON — same split as IF_CLOSE. */
+    CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON,
+
     /* RESUME_COUNTDIALOG (3104): the answer to a server script parked on
      * P_COUNTDIALOG. Same split as IF_CLOSE — the host has no socket, so it
      * queues the send and the App turns it into RESUME_P_COUNTDIALOG.
@@ -453,6 +459,13 @@ struct CS2VM_HostRequest_Social
 struct CS2VM_HostRequest_ResumeCountDialog
 {
     char* text;
+};
+
+/** IF_RESUME_PAUSEBUTTON / CC_RESUME_PAUSEBUTTON. Component that the paused
+ *  server script armed with if_addresumebutton. */
+struct CS2VM_HostRequest_ResumePauseButton
+{
+    int component_id;
 };
 
 /** Chat filter get/set and the private send (5000/5001/5005/5009/5016).
@@ -1444,6 +1457,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_Social social;
         struct CS2VM_HostRequest_Chat chat;
         struct CS2VM_HostRequest_ResumeCountDialog resume_countdialog;
+        struct CS2VM_HostRequest_ResumePauseButton resume_pausebutton;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_friend_transmit;
     } u;
 };

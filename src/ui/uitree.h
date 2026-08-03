@@ -748,6 +748,16 @@ struct UITree
      *  a rebuild re-resolves them from the manifest. */
     struct UITreeHotkey hotkeys[UITREE_HOTKEY_MAX];
     int hotkey_count;
+    /** Compact indices of components with on_timer / on_key hooks. Rebuilt
+     *  lazily when hook_index_stale is set (ApplyRuntimeHook, push, reclaim).
+     *  Steady-state logic ticks walk timer_count entries instead of every node. */
+    int32_t* timer_hook_ids;
+    int timer_hook_count;
+    int timer_hook_cap;
+    int32_t* key_hook_ids;
+    int key_hook_count;
+    int key_hook_cap;
+    uint8_t hook_index_stale;
 };
 
 struct UITreeNodeSpec
@@ -1473,5 +1483,11 @@ int
 UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,
     int component_id);
+
+/** Rebuild timer/key hook id lists if stale. Returns timer_hook_count. */
+int UITree_EnsureHookIndexes(struct UITree* tree);
+
+/** Mark hook indexes stale (call after external hook writes). */
+void UITree_InvalidateHookIndexes(struct UITree* tree);
 
 #endif

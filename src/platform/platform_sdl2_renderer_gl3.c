@@ -105,7 +105,7 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_VBO_PAGE (1u << 28)
 #define TRSPK_GL3_GPU_IBO_INIT 4096u
 #define TRSPK_GL3_GPU_VBO_INIT 4096u
-#define TRSPK_GL3_SPRITE_CAP 256
+#define TRSPK_GL3_SPRITE_CAP 2048
 #define TRSPK_GL3_FONT_CAP 32
 #define TRSPK_GL3_2D_ATLAS_DIM 2048u
 #define GL3_2D_BATCH_MAX_VERTS 32768u
@@ -1174,7 +1174,22 @@ gl3_sprite_slot_index(
             free_idx = i;
     }
     if( !create || free_idx < 0 )
+    {
+        if( create && free_idx < 0 )
+        {
+            static int warned = 0;
+            if( !warned )
+            {
+                warned = 1;
+                fprintf(
+                    stderr,
+                    "gl3: 2D sprite slot table full (%d entries); further scene "
+                    "sprites dropped\n",
+                    TRSPK_GL3_SPRITE_CAP);
+            }
+        }
         return -1;
+    }
     renderer->sprite_slots[free_idx].scene_id = scene_id;
     renderer->sprite_slots[free_idx].count = 0;
     free(renderer->sprite_slots[free_idx].uvs);

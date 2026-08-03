@@ -1,5 +1,6 @@
 #include "uitree_hover.h"
 
+#include "perf/torirs_perf.h"
 #include "uitree_layout.h"
 
 #include <assert.h>
@@ -89,6 +90,8 @@ find_hovered_recursive(
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_HOVER, 1);
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 &&
         !UITree_PointInClip(mouse_x, mouse_y, clip) )

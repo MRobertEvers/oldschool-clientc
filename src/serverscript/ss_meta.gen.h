@@ -824,7 +824,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11006] = {
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */
-static const char* const g_ss_trigger_names[178] = {
+static const char* const g_ss_trigger_names[179] = {
     [0] = "proc",
     [1] = "label",
     [2] = "debugproc",
@@ -986,4 +986,5 @@ static const char* const g_ss_trigger_names[178] = {
     [175] = "if_button8",
     [176] = "if_button9",
     [177] = "if_button10",
+    [178] = "if_open",
 };

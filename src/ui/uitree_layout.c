@@ -1,5 +1,6 @@
 #include "uitree_layout.h"
 
+#include "perf/torirs_perf.h"
 #include "ui_if3_layout.h"
 
 #include <assert.h>
@@ -32,6 +33,7 @@ UITree_LayoutInvalidate(struct UITree* tree)
 void
 UITree_EnsureLayout(struct UITree const* tree)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ENSURE_LAYOUT, 1);
     /* Lazy JIT re-layout for CS2 getters (reference ensureLayout). The resolve
      * does not change logical state, so mutate through the const handle. */
     struct UITree* t = (struct UITree*)tree;
@@ -221,6 +223,7 @@ UITree_EnsureLayoutFor(
     struct UITree const* tree,
     int32_t idx)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ENSURE_LAYOUT, 1);
     /* Lazy JIT re-layout for a single CS2 getter. `layout_stale` is one
      * tree-wide flag set by every CC_SETPOSITION/CC_SETSIZE, so servicing a
      * getter with the full resolve made an interleaved set/get script cost
@@ -275,6 +278,20 @@ UITree_EnsureLayoutFor(
     }
 }
 
+static void
+uitree_perf_snapshot(struct UITree const* tree)
+{
+    int free_len = 0;
+    for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
+        free_len++;
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_COMPONENTS, (int64_t)tree->component_count);
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_CAPACITY, (int64_t)tree->component_capacity);
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_FREE_LIST, free_len);
+    TORIRS_PERF_COUNT_SET(
+        TORIRS_PERF_CTR_UITREE_NODE_BYTES,
+        (int64_t)sizeof(struct UITreeComponent) * tree->component_capacity);
+}
+
 void
 UITree_LayoutResolve(
     struct UITree* tree,
@@ -284,6 +301,9 @@ UITree_LayoutResolve(
     int root_h)
 {
     assert(tree);
+    uitree_perf_snapshot(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_RESOLVE, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, (int64_t)tree->component_count);
     if( tree->component_count == 0 )
         return;
 
@@ -335,6 +355,7 @@ UITree_LayoutResolve(
      * (reclaimed) slots are excluded entirely. */
     if( !tree->layout_order_valid || tree->layout_order_gen != tree->generation )
     {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_DEPTH_RECOMPUTE, 1);
         int max_depth = 0;
         for( uint32_t i = 0; i < n; i++ )
         {

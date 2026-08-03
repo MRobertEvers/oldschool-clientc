@@ -3,6 +3,7 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/torirs_db.h"
 #include "engine/torirs_worldmap_from_rscache.h"
+#include "perf/torirs_perf.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -21,6 +22,12 @@
  * models — so that walking back and forth across a border keeps hitting the
  * cache instead of reloading, which is the same reason Client-TS gives
  * LocType.mc1 a capacity of 500 rather than a handful.
+ *
+ * Config caches (objtype/npctype/loctype/texture/sound/…) intentionally do not
+ * evict within a session: they are decode-once tables the scripts and world
+ * keep referring to by id, and a mid-session miss would re-decode (or worse,
+ * return NULL) while CS2 still holds the id. Bound them by session lifetime;
+ * TorirsModelInstCache covers the expensive drawable copies that do churn.
  */
 #define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
 #define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
@@ -491,8 +498,12 @@ CacheProvider_ModelGet(
     entry = (struct MapEntry_ProviderModel*)hmap_search(
         provider->model_cache, &model_id, HMAP_FIND);
     if( !entry )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_MISS, 1);
         return NULL;
+    }
     entry->last_used = ++provider->derived_clock;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_HIT, 1);
     return entry->model;
 }
 
@@ -601,6 +612,7 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
         if( entry && entry->model )
             ToriRS_ModelFree(entry->model);
     }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
     free(doomed);
 }
 
@@ -643,6 +655,7 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
         if( entry && entry->sprite )
             ToriRS_SpriteFree(entry->sprite);
     }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_EVICT, doomed_count);
     free(doomed);
 }
 
@@ -710,8 +723,12 @@ CacheProvider_SpriteGet(
     entry = (struct MapEntry_ProviderSprite*)hmap_search(
         provider->sprite_cache, &sprite_id, HMAP_FIND);
     if( !entry )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_MISS, 1);
         return NULL;
+    }
     entry->last_used = ++provider->derived_clock;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_HIT, 1);
     return entry->sprite;
 }
 

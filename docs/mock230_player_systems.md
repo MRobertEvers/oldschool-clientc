@@ -469,52 +469,45 @@ because nothing but npcs attacks. Every npc in the mock is a melee attacker, so
 protect-from-melee is the only one with an effect today; the lookup is by damage
 type so that stops being true the moment a ranged npc exists.
 
-### 4.5 ~~Honest gap~~ — closed, and the gap that replaced it
+### 4.5 Prayerbook button bindings
 
-This section used to read: *"**The prayer buttons do not light up.** The lit
-state is a per-prayer varbit the client's own CS2 reads, and those ids have not
-been identified."* **That is stale.** The ids are identified, transmitted, and
-verified on pixels — `skill_prayer/configs/prayers.varp` declares `prayer0`
-(varp 83) `transmit=yes scope=perm`, `prayer.rs2`'s `~prayer_set` writes the
-cache's own named `%prayer_*` varbits, and `configs/all.varbit` gives each one
-its bit on `prayer0`. Screenshots in §4.8 show two prayers lit in the book.
-Code won; the prose had not been re-read.
+**Fixed 2026-08-03.** Twenty-four of the twenty-nine `[if_button,prayerbook:prayerN]`
+handlers in `prayer.rs2` used to toggle a different prayer than the button the
+player clicked. The cause is that `prayerbook.compack`'s `prayer1..prayer29` are
+numbered by **component id**, and the book's on-screen (level) order that
+`^prayer_*` uses is not. The cache states which component belongs to which
+prayer, on the obj, as **`param_1751`** — and it is not `8 + book_index`:
 
-**What is actually wrong is one layer up, and it is worse than a missing
-light: the book's button bindings name the wrong prayers.** Twenty-four of the
-twenty-nine `[if_button,prayerbook:prayerN]` handlers in `prayer.rs2` toggle a
-different prayer than the button the player clicked.
-
-The cause is that `prayerbook.compack`'s `prayer1..prayer29` are numbered by
-**component id**, and the book's on-screen order is not. The cache states which
-component belongs to which prayer, on the obj, as **`param_1751`** — and it is
-not `8 + N`:
-
-| the player clicks | component | compack calls it | `prayer.rs2` toggles |
+| the player clicks | component | compack calls it | handler toggles (now) |
 |---|---:|---|---|
 | Thick Skin | 541:9 | `prayer1` | Thick Skin ✓ |
-| Rock Skin | 541:12 | `prayer4` | Sharp Eye ✗ |
-| Sharp Eye | 541:27 | `prayer19` | Protect from Melee ✗ |
-| Preserve | 541:37 | `prayer29` | Augury ✗ |
+| Rock Skin | 541:12 | `prayer4` | Rock Skin ✓ (was Sharp Eye) |
+| Sharp Eye | 541:27 | `prayer19` | Sharp Eye ✓ (was Protect from Melee) |
+| Preserve | 541:37 | `prayer29` | Preserve ✓ (was Augury) |
 
-Five agree, and only by coincidence: `prayer1`, `prayer2`, `prayer3`,
+Five already agreed by coincidence: `prayer1`, `prayer2`, `prayer3`,
 `prayer26` (Chivalry) and `prayer27` (Piety). Measured three ways that agree
-exactly:
-`param_1751`/`param_1752` on objs 20803..20831 in `configs/all.obj`; the
+exactly: `param_1751`/`param_1752` on the prayer objs in `configs/all.obj`; the
 `prayer_*` `startbit`s on `basevar=prayer0` in `configs/all.varbit`; and the
 client itself — lighting bit 3 lights the **sixth** slot in the book, which is
 Rock Skin's position, not the fourth.
 
-This was invisible because the only assertion anyone had written was
-`IF_BUTTON1 541:9` (the sentence below this one used to end there), and 541:9
-is Thick Skin under *both* numberings.
+**Choice taken: re-point the 24 headers**, leave `^prayer_*` as book/level order.
+Renumbering the constants to cache/component order instead would also have
+worked, but would have forced `::pray N` and every dbrow identity through the
+same shift, and (because a few component indices still disagree with varbit
+bits for the ranged/magic cluster — e.g. `prayer20` is Hawk Eye bit **20**, not
+19) would not have deleted §4.7's `bit` column cleanly. Doing both translations
+independently produces a silently wrong prayer on every activate. Quick prayers
+(§4.7) does **not** go through these bindings and was already correct via `bit`.
 
-**Not fixed here**, deliberately: it is the prayer-book slice's, and the fix is
-a choice between renumbering `^prayer_*` to the cache's order (which also
-deletes §4.7's `bit` column) and re-pointing twenty-six `[if_button]` headers.
-Doing both independently produces a double translation and a silently wrong
-prayer. Quick prayers (§4.7) does **not** go through those bindings and is
-correct today.
+LostCity puts the same handlers in content (`skill_prayer/scripts/prayer.rs2`)
+but names each interface component after the prayer (`prayer_thickskin`, …), so
+this mismatch cannot arise there — rev 254 has 15 prayers and no interleaved
+modern book.
+
+The selftest pins both ends: `prayerbook:prayer4 == 541:12`, and `IF_BUTTON1` on
+that component lights `%prayer_rockskin` rather than `%prayer_sharpeye`.
 
 ### 4.6 Verified
 
@@ -522,9 +515,8 @@ correct today.
 drain arithmetic (12 units a tick against 60 = a point every fifth tick), and
 that running out clears both the prayers and the icon mask. In the client,
 `TORIRS_NET_CHEAT="pray 18"` draws the Protect from Melee icon above the
-player's head, and clicking a prayer button in the tab arrives as
-`IF_BUTTON1 541:9` — which, per §4.5, is the one component id that proves
-nothing about the binding table. Assert on a prayer past the third.
+player's head. The binding table is pinned past the third: `prayerbook:prayer4`
+is `541:12`, and clicking it lights Rock Skin (bit 3), not Sharp Eye.
 
 ### 4.7 Quick prayers
 

@@ -277,6 +277,13 @@ EXTRA_TRIGGERS: dict[str, int] = {
     "IF_BUTTON8": 175,
     "IF_BUTTON9": 176,
     "IF_BUTTON10": 177,
+    # Rev-230 nested mounts (OpenRune onIfOpen). LostCity stops at IF_CLOSE —
+    # its three fixed slots never needed an open-side twin. At rev 230 a panel
+    # mounts into an arbitrary component of another panel, so content that
+    # fills a nested slot (side_journal's tab_container → account_summary)
+    # has to run *when that parent opens*, not from [login] a tick later: the
+    # child's IF_OPENSUB otherwise races the parent's bake on the client.
+    "IF_OPEN": 178,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.

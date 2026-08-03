@@ -4,6 +4,7 @@
 #
 #   ./profile-mac.sh                              # headless, manifest_osrs230.ini, 25s
 #   ./profile-mac.sh manifest_rs254.ini           # another manifest
+#   ./profile-mac.sh manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
 #   ./profile-mac.sh manifest_osrs230.ini 40      # sample for 40 seconds
 #   TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real SDL window instead of dummy
 #   TORIRS_PROFILE_ATTACH=<pid> ./profile-mac.sh  # sample a client you already started
@@ -13,6 +14,8 @@
 #                    then ~/git_repos/FlameGraph, then $PWD/../FlameGraph)
 #   OUT              output basename (default: flamegraph_<manifest stem>)
 #   TORIRS_PROFILE_WARMUP  seconds to let the client boot + log in before sampling (default 8)
+#   TORIRS_PROFILE_SOFT3D=1  force Soft3D (default for embed manifests)
+#   TORIDRAW_OPT=1   rebuild Soft3D at -O2 (perf harness default for embed)
 #
 # Writes <OUT>.svg plus the raw <OUT>.sample / <OUT>.folded next to it, and prints
 # the main-thread breakdown. Everything else in the process (AppKit's event thread
@@ -51,33 +54,53 @@ if [ -n "${TORIRS_PROFILE_ATTACH:-}" ]; then
     echo "profile-mac.sh: attaching to pid $PID"
 else
     [ -f "$MANIFEST" ] || { echo "profile-mac.sh: manifest '$MANIFEST' not found" >&2; exit 1; }
-    [ -x src/torirs ] || make -C src torirs
 
-    # The rev230 manifest talks to the local mock server; start one if the port
-    # is idle (other manifests point at a real server and are left alone).
+    TRANSPORT=$(sed -n 's/^[[:space:]]*transport[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
     PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
     HOST=$(sed -n 's/^[[:space:]]*host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
     REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-    if [ "$REV" = "osrs230" ] && [ "${HOST:-localhost}" = "localhost" ] &&
-       ! lsof -i ":${PORT:-43594}" >/dev/null 2>&1; then
-        echo "profile-mac.sh: starting src/build/mock230 on ${PORT:-43594}"
-        make -C src mock230 >/dev/null
-        src/build/mock230 "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
-        MOCK_PID=$!
-        trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
-        sleep 1
+
+    # Embed manifests need EMBED_SERVER=1 (and typically TORIDRAW_OPT=1 for the
+    # harness). TCP osrs230 still auto-starts mock230.
+    if [ "$TRANSPORT" = "embed" ]; then
+        echo "profile-mac.sh: embed transport — building EMBED_SERVER=1 TORIDRAW_OPT=${TORIDRAW_OPT:-1}"
+        make -C src EMBED_SERVER=1 TORIDRAW_OPT="${TORIDRAW_OPT:-1}" torirs
+        RENDERER="--soft3d"
+        OFFLINE=""
+    else
+        [ -x src/torirs ] || make -C src torirs
+        if [ "$REV" = "osrs230" ] && [ "${HOST:-localhost}" = "localhost" ] &&
+           ! lsof -i ":${PORT:-43594}" >/dev/null 2>&1; then
+            echo "profile-mac.sh: starting src/build/mock230 on ${PORT:-43594}"
+            make -C src mock230 >/dev/null
+            src/build/mock230 "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
+            MOCK_PID=$!
+            trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
+            sleep 1
+        fi
+        if [ -n "${TORIRS_PROFILE_SOFT3D:-}" ]; then
+            RENDERER="--soft3d"
+            OFFLINE="--offline"
+        else
+            RENDERER="--opengl3"
+            OFFLINE="--offline"
+        fi
     fi
 
     # Frames are capped at 50 fps, so the run must outlast warmup + sampling;
     # dummy video keeps it off screen (TORIRS_PROFILE_WINDOWED=1 to see it).
     FRAMES=$(( (WARMUP + DURATION + 10) * 50 ))
     if [ -n "${TORIRS_PROFILE_WINDOWED:-}" ]; then
-        TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" --offline --opengl3 \
-            --user "${TORIRS_PROFILE_USER:-asdf}" --pass "${TORIRS_PROFILE_PASS:-a}" \
+        # shellcheck disable=SC2086
+        TORIRS_MAX_FRAMES=$FRAMES TORIRS_PERF=1 src/torirs --manifest "$MANIFEST" \
+            $OFFLINE $RENDERER \
+            --user "${TORIRS_PROFILE_USER:-testc}" --pass "${TORIRS_PROFILE_PASS:-test}" \
             > "$OUT.run.log" 2>&1 &
     else
-        SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=$FRAMES src/torirs --manifest "$MANIFEST" --offline --opengl3 \
-            --user "${TORIRS_PROFILE_USER:-asdf}" --pass "${TORIRS_PROFILE_PASS:-a}" \
+        # shellcheck disable=SC2086
+        SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=$FRAMES TORIRS_PERF=1 \
+            src/torirs --manifest "$MANIFEST" $OFFLINE $RENDERER \
+            --user "${TORIRS_PROFILE_USER:-testc}" --pass "${TORIRS_PROFILE_PASS:-test}" \
             > "$OUT.run.log" 2>&1 &
     fi
     STARTED_PID=$!

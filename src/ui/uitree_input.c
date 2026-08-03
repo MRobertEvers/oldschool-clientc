@@ -1,5 +1,6 @@
 #include "uitree_input.h"
 
+#include "perf/torirs_perf.h"
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
 
@@ -220,6 +221,8 @@ hit_test_interactive_recursive(
         *out_blocks_world = 0;
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return -1;
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_HIT, 1);
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
         return -1;

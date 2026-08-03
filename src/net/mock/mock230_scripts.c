@@ -1169,10 +1169,17 @@ trigger_subject_kind(
         *out_kind = MOCK230_PACK_LOC;
         return 1;
     }
-    if( trigger == SS_TRIGGER_IF_BUTTON || trigger == SS_TRIGGER_IF_CLOSE ||
+    if( trigger == SS_TRIGGER_IF_BUTTON ||
         (trigger >= SS_TRIGGER_INV_BUTTON1 && trigger <= SS_TRIGGER_INV_BUTTOND) )
     {
         *out_kind = MOCK230_PACK_COMPONENT;
+        return 1;
+    }
+    /* IF_CLOSE / IF_OPEN subjects are bare interface ids (see close_modal's
+     * `[if_close,bankmain]` comment) — not packed component uids. */
+    if( trigger == SS_TRIGGER_IF_CLOSE || trigger == SS_TRIGGER_IF_OPEN )
+    {
+        *out_kind = MOCK230_PACK_INTERFACE;
         return 1;
     }
     return 0;

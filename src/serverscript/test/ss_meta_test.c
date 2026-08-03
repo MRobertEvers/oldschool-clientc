@@ -230,7 +230,8 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_IF_BUTTON1, 168, "if_button1 is the first non-reference trigger");
     CHECK_EQ(SS_TRIGGER_IF_BUTTON10, 177, "if_button10");
     CHECK_EQ(SS_TRIGGER_IF_BUTTON10 - SS_TRIGGER_IF_BUTTON1, 9, "ten contiguous op triggers");
-    CHECK_EQ(SS_TRIGGER_MAX, 178, "trigger table size");
+    CHECK_EQ(SS_TRIGGER_IF_OPEN, 178, "if_open is the open-side twin of if_close");
+    CHECK_EQ(SS_TRIGGER_MAX, 179, "trigger table size");
 
     /* The numbered form is a *different* trigger from the op-less click, not a
      * relabelling of it: `[if_button,x]` still answers a plain click and

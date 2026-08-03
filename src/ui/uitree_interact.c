@@ -1,5 +1,6 @@
 #include "uitree_interact.h"
 
+#include "perf/torirs_perf.h"
 #include "uitree_hover.h"
 #include "uitree_layout.h"
 
@@ -167,24 +168,34 @@ collect_key_targets(
     int max_targets)
 {
     int count = 0;
-    uint32_t i;
+    int i;
+    struct UITree* t;
 
     assert(tree);
     assert(out_targets);
 
-    for( i = 0; i < tree->component_count && count < max_targets; i++ )
+    t = (struct UITree*)tree;
+    UITree_EnsureHookIndexes(t);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_KEY_SCAN, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_KEY_SCAN_NODES, (int64_t)t->key_hook_count);
+
+    for( i = 0; i < t->key_hook_count && count < max_targets; i++ )
     {
-        struct UITreeComponent const* c = &tree->components[i];
+        int com_id = t->key_hook_ids[i];
+        int32_t idx = UITree_FindByComponentId(tree, com_id);
+        struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
-        if( c->freed || c->component_id < 0 )
+        if( idx < 0 )
             continue;
-        if( c->runtime_hooks.on_key.script_id <= 0 )
+        c = &tree->components[idx];
+        if( c->freed || c->runtime_hooks.on_key.script_id <= 0 )
             continue;
         if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
-        UITree_AccumScrollOffset(tree, (int32_t)i, &offx, &offy);
+        UITree_AccumScrollOffset(tree, idx, &offx, &offy);
         out_targets[count].component_id = c->component_id;
         out_targets[count].abs_x = bx - offx;
         out_targets[count].abs_y = by - offy;

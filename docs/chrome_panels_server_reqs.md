@@ -51,7 +51,7 @@ See §7.5 for the runs.
 |---|---|---|---|---|
 | `xptracker` | 729 | **needs almost nothing from the server** | **opens and draws, exit 0, zero stubbed opcodes** | the `xpdrops_*` varps for the goal *display*; the goal *button* is dead in the cache (§1.1) |
 | `hiscores` | 894 | **not a server feature at all** | **opens and draws, exit 0, one stubbed opcode (7809)** | host implementations for 7809/7811 — and the lookup itself is out of band, so "lookup failed" is the honest end state |
-| `loottools` | 650 | **blocked on tier-B arities, not on a corpus gap** | **opens, then aborts at opcode 7601** | 16 opcodes with no arity in either signature table (§7.6); no new packet is needed — that question is now settled |
+| `loottools` | 650 | **open-path arities landed; store still stubbed** | **opens, exit 0** (re-measured 2026-08-03); `cs2-stub` on the 7600/7401/7407/7408 family | host impl for the client-native loot store; remaining tier-B outside this open path (§7.6); content still `mes()`-gates the popout |
 
 ---
 
@@ -381,7 +381,7 @@ panels could be opened.
 |---|---|---|---|---|
 | `xptracker` 729 | yes | yes (71k px differ vs no-panel) | 0 | **zero** `cs2-stub` lines — its open path reaches no un-implemented opcode at all |
 | `hiscores` 894 | yes | yes (104k px differ) | 0 | one `cs2-stub` line: opcode **7809**, `(0,0,1,0)`, in script 7469 |
-| `loottools` 650 | yes | — | **134** | aborts at opcode **7601**, which has no arity in *either* table (tier B, §7.6) |
+| `loottools` 650 | yes | chrome draws (empty store) | **0** | open path no longer aborts; 7601/7602/7605/7606/7619/7620/7625/7626/7630/7401/7407/7408 now have call-site arities and inherit as `known=2` stubs (§7.6) |
 
 The hiscores row is the proof the bridge does work, and it was obtained the
 way PORTING_GUIDE §2.5 demands — by making the assertion fail. A control
@@ -398,21 +398,33 @@ be claiming verification that was not run.
 
 ### 7.6 Still missing — the honest list
 
-- **Tier-B arities: 2624, 7407, 7408, 7601, 7602, 7605, 7606, 7630, 7800,
-  7803, 7805, 7807, 7813, 7814, 7816, 7820.** These have no signature in
-  *either* table, so the bridge cannot reach them and they still abort. They
-  are what blocks loottools, and they also break `cs2 decompile` — which is
-  why the closures measured for these panels are **lower bounds**: 7 hiscores
-  scripts and 5 loottools scripts still fail to decompile, so their callees
-  were never walked. Establishing them is `local_commands.py`'s documented
-  method (override sweeps, call-site reading, `cs2 infer-arity` rounds) and is
-  not done here. Two of them (`7800` = `(STRING, INT)`, `7408` =
-  `(INT, STRING, INT, INT)->(INT)`) cannot even be *tried* via
+- **Tier-B arities still unsigned: 2624, 7800, 7803, 7805, 7807, 7813, 7814,
+  7816, 7820.** (And neighbours like 7608/7609/7404 that sit off the plain
+  open path.) These still have no signature in either table. Two of them
+  (`7800` = `(STRING, INT)` shape claims) cannot even be *tried* via
   `cs2 decompile --override`, which can only express ints-then-strings.
+- **Loottools open-path arities, landed 2026-08-03** by call-site reading of
+  scripts 7166/7200/1792/7133/7212 (empty-stack statement boundaries / typed
+  pops), not a client — LostCity/Client-TS have none of this family, and the
+  older deob tops out before it. Installed in `local_commands.py` and
+  inherited as `known=2`: **7601** `()->(INT)`, **7602** `(INT)->(STRING)`,
+  **7605** `(INT,INT,INT)->(INT)`, **7606** `(INT)->(INT)`, **7619**/**7625**
+  `()->(INT)`, **7620**/**7626** `(INT)->(STRING)`, **7630** `(INT)->(STRING)`,
+  **7401** `(INT,STRING,INT)->()`, **7407** `(INT)->(INT)`, **7408**
+  `(INT,STRING,INT,INT)->(INT)`. `cs2 decompile` recovers 7166/7200/1792;
+  headless `TORIRS_NET_CHEAT=loottools` exits **0** (was 134 at 7601).
+  Evidence is not uniform across that list, and the comments in
+  `local_commands.py` say so per opcode. **7407** was left
+  "2 candidates, under-determined" by `cs2 infer-arity` and is settled by
+  scoring instead (5 of its 6 witnesses decompile under `(1,0,1,0)`, 0 under
+  every other candidate tried). **7408** rests on call-site reading alone —
+  four sites agree, but it cannot be scored at all, because every script using
+  it also holds an unknown (7609/7404), which is also why `infer-arity` reports
+  "no arity works" for it. It is the weakest row of the set.
 - **Host implementations for the bridged families.** 7809/7811 (hiscores
-  request status and result string), the 7600 loottools store family, and
-  `NC_PARAM`/`LC_PARAM` (6513/6514) all now have signatures and no behaviour.
-  They report themselves via `cs2-stub`.
+  request status and result string), the 7600 loottools store family (now
+  including the open-path set above), and `NC_PARAM`/`LC_PARAM` (6513/6514)
+  all have signatures and no behaviour. They report themselves via `cs2-stub`.
 - **The hiscores lookup cannot be made to work and should not be faked.**
   `grep -rn hiscore src/net/rev/` is zero in every revision: the real client
   goes out of band over HTTP. The correct end state is a panel that opens and
@@ -420,10 +432,9 @@ be claiming verification that was not run.
   content (PORTING_GUIDE §2.4 item 2), not a literal in C. Fabricating ranks
   would be inventing data.
 - **Populating loottools** is greenfield client-engine work (a native loot
-  store fed from the kill/pickup path) — but §3's open question is now
-  settled: decompiling script 7166 under trial overrides reads as
-  `begin→count / index→id / id→name` against a **client-native list store**, so
-  **no new game packet is needed**.
+  store fed from the kill/pickup path). Script 7166 under the landed arities
+  reads as `begin→count / index→id / id→name` against a **client-native list
+  store**, so **no new game packet is needed**.
 - **The varps** (`xpdrops_*` 1228-1275, `loottools_varp1` 3798,
   `settings_varp_ehc_5` 3795) are still undeclared under `server/scripts/`.
   They earn the tracker's goal *display* only; the Set Goal *button* stays
@@ -540,12 +551,12 @@ have left the strip narrow and the panel homeless.
 
 ### 8.3 Loot Tools is armed and deliberately refuses
 
-`loottools` still aborts the client on unimplemented opcode 7601 (§7). A chrome
-button that kills the session is worse than one that explains itself, so slot 2
-answers with `mes("The loot tracker is not available yet.")` and stays shut. It
-is armed rather than skipped so the refusal is visible instead of looking like
-the same dead click this change just fixed. Verified: client exit 0, `650
-mounted: 0`, refusal printed.
+`loottools` no longer aborts on open (§7.6 — arities landed, store still
+stubbed), but the panel is empty without a native loot store, so slot 2 still
+answers with `mes("The loot tracker is not available yet.")` and stays shut.
+It is armed rather than skipped so the refusal is visible instead of looking
+like a dead click. The `::loottools` debugproc still opens the panel for VM
+work. Verified: client exit 0 with stubs; popout path prints the refusal.
 
 ### 8.4 Verified by clicking
 

@@ -7,6 +7,7 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_scene_bridge.h"
+#include "engine/torirs_model_inst_cache.h"
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
@@ -236,6 +237,8 @@ struct App
     struct Dat2BuildCache* dat2_bc;
     struct Dat1BuildCache* dat1_bc;
     struct CacheProvider* provider;
+    /** Lit model-instance LRU (spot/npc/loc/obj/player). Cleared at map build. */
+    struct TorirsModelInstCache model_inst_cache;
 
     /* Phase 3: scene + bridge. */
     struct ToriDraw_Scene* scene;

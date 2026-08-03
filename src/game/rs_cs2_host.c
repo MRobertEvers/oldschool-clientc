@@ -13,6 +13,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
+#include "perf/torirs_perf.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
@@ -619,6 +620,7 @@ RS_CS2Host_Init(
     host->minimap_zoom = 2;
     host->logout_requested = false;
     host->close_modal_requested = false;
+    host->resume_pausebutton_component_id = -1;
     /* Preserve what VIEWPORT_GETFOV/GETZOOM returned before they were
      * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
     host->viewport_fov = 128;
@@ -4183,6 +4185,7 @@ RS_CS2Host_Exec(
     host = (struct RS_CS2Host*)CS2VM_USER(vm);
     assert(host && "CS2VM_USER(thread) must be RS_CS2Host*");
 
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
     result = rs_cs2_host_exec_dispatch(vm, request);
     /* The await record only spans the yield -> load -> retry window: a request
      * that completes retires it, so a resource evicted later can be awaited
@@ -4464,6 +4467,13 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_CLOSE:
         host->close_modal_requested = true;
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON:
+        /* Last write wins within a tick — a double-fire of the continue
+         * listener (key + click) would otherwise queue two resumes for one
+         * pause. The server matches on the component uid either way. */
+        host->resume_pausebutton_component_id = request->u.resume_pausebutton.component_id;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_SET_WINDOW_MODE:

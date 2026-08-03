@@ -9,6 +9,7 @@
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
 #include "net/net.h"
+#include "perf/torirs_perf.h"
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
@@ -348,7 +349,10 @@ interactive_render_present(
                 ToriRS_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
-            ToriRS_GL3_RenderFrame(gl3, &frame);
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_GL3_RenderFrame(gl3, &frame);
+            }
             if( getenv("TORIRS_FRAME_DEBUG") )
                 fprintf(
                     stderr,
@@ -360,7 +364,10 @@ interactive_render_present(
             if( pick_armed )
                 App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
         }
-        PlatformSDL2_PresentGL(sdl);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            PlatformSDL2_PresentGL(sdl);
+        }
     }
     else
 #else
@@ -368,7 +375,10 @@ interactive_render_present(
 #endif
     {
         App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        PlatformSDL2_Present(sdl);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            PlatformSDL2_Present(sdl);
+        }
     }
 }
 
@@ -478,6 +488,8 @@ frame_loop_step(void)
 
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
+
+    TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
      * every `step` loop iterations from `start` on — a film strip of a live
@@ -1188,10 +1200,20 @@ frame_loop_step(void)
         interactive_render_present(&app, sdl, gl3);
 #if defined(TORIRS_HAVE_GL3)
     else if( gl3 )
-        PlatformSDL2_PresentGL(sdl);
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            PlatformSDL2_PresentGL(sdl);
+        }
+    }
 #endif
     else
-        PlatformSDL2_Present(sdl);
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            PlatformSDL2_Present(sdl);
+        }
+    }
 
     /*
      * A clientscript changed the window mode (the Display panel's client-mode
@@ -1248,6 +1270,7 @@ frame_loop_step(void)
         }
     }
 #endif
+    TORIRS_PERF_FRAME_END();
     return 1;
 }
 
@@ -1805,6 +1828,7 @@ main(
     }
 
     App_Init(&app, &cfg);
+    TorirsPerf_Init(0);
     /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
      * whose default the manifest is entitled to override, and the root
      * interface's own scripts (opened on the next line) call getwindowmode. */
@@ -2753,5 +2777,6 @@ main(
     }
 
     App_Shutdown(&app);
+    TorirsPerf_Shutdown();
     return 0;
 }

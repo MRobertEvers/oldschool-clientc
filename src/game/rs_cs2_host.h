@@ -264,6 +264,11 @@ struct RS_CS2Host
      *  unmounts, so nothing here touches the tree. */
     bool close_modal_requested;
 
+    /** Set by IF_RESUME_PAUSEBUTTON / CC_RESUME_PAUSEBUTTON. Packed component
+     *  uid to send as RESUME_PAUSEBUTTON, or -1 when none is pending. Drained
+     *  by the App through button_sink.resume_pausebutton. */
+    int resume_pausebutton_component_id;
+
     /** Viewport FOV/zoom, backing VIEWPORT_SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM.
      *  Host-owned so SET/CLAMP round-trips through the matching GET; defaults
      *  match the values these getters returned before they were host-routed. */

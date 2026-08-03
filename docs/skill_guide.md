@@ -535,3 +535,41 @@ This is general, not skill-guide-specific. Every one of the 422 clientscripts
 that read the database was getting `0` and an arity of 1 for any column its row
 omits — 128 of the cache's 246 tables are read by at least one of them. Worth
 re-testing anything that reads a dbtable and looked half-populated.
+
+---
+
+## 9. Outline/shadow on obj rows (remeasured 2026-08-03)
+
+After §8, `CC_SETOBJECT` applies with real `item_id`/`item_scene_id`, layout is
+36×32 at the icon column, emit includes those sprites, and Soft3D / GL3 both
+blit sword pixels into the EXIT / `TORIRS_GL3_READBACK` BMPs. The earlier
+"still blank" report does not survive that measurement: zero-size, clip,
+wrong layer, and yield/active-component were ruled out again with
+`TORIRS_DUMP_BOUNDS=860` + `TORIRS_DUMP_EMIT_EXIT=860` (no `OBJICON_DEBUG`
+flood).
+
+What *was* still wrong: `uitree_emit.c`'s item-overlay arm forced
+`outline = 0` and `graphic_shadow = 0`. Script 9347, after both the sprite and
+obj branches, does `cc_setgraphicshadow(0x333333)` then `cc_setoutline(1)`.
+Inventory cells leave those fields at 0, so they were fine; skill-guide obj
+rows discarded the same post-process the spell-icon branch keeps.
+
+**Fix.** Pass `rs_graphic.outline` / `graphic_shadow` through on the item
+overlay. Also raise `TRSPK_GL3_SPRITE_CAP` 256→2048 (with a one-shot stderr
+when the table is full) so a large unique-icon burst cannot silently drop
+late scene sprites on the GL path.
+
+### Pixel proof (outline pass-through)
+
+Same §4 headless recipe (embed Soft3D); before = emit still zeroing
+outline/shadow, after = pass-through. Icon cells are 36×32 at x=181
+(`TORIRS_DUMP_BOUNDS=860`, 82 rows / 82 emit sprites).
+
+| region | changed pixels |
+|---|---|
+| icon column (x 180–222, y 58–318) | **1138 / 10920 = 10.42%** |
+| text column (x 222–460) | 0 |
+| whole screen | 1173 |
+
+Icon-column pure black went **0 → 809** (the `cc_setoutline(1)` edge).
+Same-binary noise floor on that icon column is **0%**.

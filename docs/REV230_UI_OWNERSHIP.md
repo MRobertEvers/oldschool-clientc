@@ -412,7 +412,47 @@ and right-click → "Use" on an inventory item still arms the selection.
   *cache* spelling (`noClickThrough`) as well as the local one before concluding
   a field is unsupported.
 
-## 6. Harness notes
+## 6. Printable keys must deliver a code event *and* a character event
+
+**Symptom.** Spacebar did not advance "Click here to continue" on NPC dialogue
+(`chat_left:continue` / `231:5`), even though the cache already wires it:
+`onload` → script **55** (`chatbox_keyinput_init`) → onKey script **57**
+(`chatbox_keyinput_listener`) with `$int5 = 83` (`TORIRS_OSRSKEY_SPACE`) →
+script **2153** (`chatbox_keyinput_matched`) → `if_resume_pausebutton`.
+
+**Who owns what.** LostCity puts the dialogue interfaces and their resume
+buttons in content (`interface_chat/scripts/chat.rs2` uses `if_addresumebutton`
++ `p_pausebutton`). The key-to-code delivery and the `RESUME_PAUSEBUTTON` write
+are engine.
+
+**Root cause — two client breaks.**
+
+1. **Code event cancelled.** `PlatformSDL2_PollCommands` held each
+   `SDL_KEYDOWN`'s OSRS code and cleared it when a printable `SDL_TEXTINPUT`
+   followed, so space only reached scripts as `event_key = -1,
+   event_keychar = ' '`. Script 57's code branch needs `event_key = 83`; its
+   character branch tests `$string0`/`$string1`, which are empty (`s:,s:`) for
+   dialog continue buttons — so it returned without matching. The reference
+   `KeyHandler` queues both: `(code, char = 0)` from `keyPressed` and
+   `(-1, char)` from `keyTyped`.
+2. **`if_resume_pausebutton` was a no-op.** The host arm accepted and dropped
+   it; mouse continue worked only because the minimenu/`IF_BUTTON` path sends
+   the packet. The opcode is now a pending host request drained through
+   `app->button_sink.resume_pausebutton` → `net_out_resume_pausebutton`.
+
+**Fix.** Push the code event on `SDL_KEYDOWN` and let `SDL_TEXTINPUT` add its
+own character event (`src/platform/platform_sdl2.c`). No double-insert into the
+chat line: `RS_Chat_HandleKey` inserts only on `key_typed == -1 &&
+key_pressed >= 32`, and `chatdefault_onkey` (73) splits the same way — codes
+for Enter/Backspace, character events for insertion. Headless
+`TORIRS_SIM_TYPE` must use `k83` for space (a `c32` character event alone still
+misses script 57's code branch).
+
+**Verified.** Hans `::talk hans 1`, then `k83`: one `RESUME_PAUSEBUTTON 231:5`
+per press (`MOCK230_VERBOSE=1`), interface 219 opens. Chat typing via character
+events still inserts once.
+
+## 7. Harness notes
 
 Everything above was found and checked with knobs that already existed
 (`REV230_UI_BLANK_PANELS.md` §3 lists more):
@@ -420,7 +460,7 @@ Everything above was found and checked with knobs that already existed
 | knob | answered |
 |---|---|
 | `TORIRS_KEY_DEBUG=1` | which component's onKey script a keystroke reaches — how script 73 was found |
-| `TORIRS_SIM_TYPE="frame,c<char>,…,k84"` | type and submit a chat line headlessly |
+| `TORIRS_SIM_TYPE="frame,c<char>,…,k84"` | type and submit a chat line headlessly; use `k83` for space-as-code |
 | `TORIRS_SIM_WHEEL="frame,x,y,notches"` | park the pointer and turn the wheel; pairs with `TORIRS_CAM_DEBUG=1` to see who got the notch |
 | `TORIRS_NET_CHEAT="bank"` | open the bank without walking to a booth (body only — no leading `::`) |
 | `TORIRS_DUMP_BOUNDS=<group>` | the clip rect a count was being cut against |
@@ -430,13 +470,11 @@ Pixel measurements were taken by reading `TORIRS_EXIT_BMP` output directly
 rather than by eye — the clipped-count bug is three pixels and the "before"
 crop of it reads as a slightly odd font.
 
-## 7. Not fixed here
+## 8. Not fixed here
 
-- `mock230_pack --check-only` reports 17 errors, all one shape (*"category N is
-  carried by no obj and no npc record"*). They come from uncommitted in-flight
-  work in the `OSRS-Content` submodule — the loc-category lane
-  (`pack/category.pack` +95 lines, `port/categories_loc.map`, `doors/scripts/`,
-  `ladders_stairs/`) — and predate this work, which touches no content.
+- `mock230_pack --check-only` is currently clean at 0 errors (15 warnings of
+  the combat-block / door shape). Earlier drafts of this doc recorded 17
+  category-lane errors from in-flight content work; those are gone on HEAD.
 - `make -C src test-ui-slots` and `test-db` still fail on
   `[cache:boot] identity`, exactly as `REV230_UI_BLANK_PANELS.md` §4 recorded
   before any of that work either.

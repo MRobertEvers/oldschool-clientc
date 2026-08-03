@@ -237,6 +237,50 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7042": (["INT", "STRING"], [], False),
     "_7615": (["INT"], [], False),
     "_8019": (["STRING", "STRING"], [], False),
+    # Loot-tracker native store (rev-239). Settled from script 7166's
+    # bytecode, not a client: every site sits between empty-stack statement
+    # boundaries (or is pinned by the pushes immediately before and the
+    # typed pop immediately after). `cs2 decompile` with these five overrides
+    # and nothing else recovers 7166 end-to-end; flipping any one arity fails
+    # it. The older deob that supplied the 7500/8000 block below predates this
+    # range (local_commands.py header / tools/README.md G4), which is why
+    # infer-arity alone never saw them — they only ever appear beside each
+    # other until the call-site pass breaks the cycle.
+    #   $n = _7605(0, ~script1046(_7601, 10), 1);
+    #   while ($i < $n) { $id = _7606($i); $name = _7602($id); … }
+    #   $name = _7630($id);   # second list, string-keyed
+    "_7601": ([], ["INT"], False),
+    "_7602": (["INT"], ["STRING"], False),
+    "_7605": (["INT", "INT", "INT"], ["INT"], False),
+    "_7606": (["INT"], ["INT"], False),
+    "_7630": (["INT"], ["STRING"], False),
+    # Same call-site method, scripts 7200 / 1792 (loottools chrome helpers
+    # gosub'd from 7166). 7200 and 1792 are structural twins: begin→count,
+    # index→name, then a three-arg write. 7401's args are INT,STRING,INT —
+    # the two stacks make that (2,1,0,0) at the VM regardless of interleaving.
+    "_7619": ([], ["INT"], False),
+    "_7620": (["INT"], ["STRING"], False),
+    "_7625": ([], ["INT"], False),
+    "_7626": (["INT"], ["STRING"], False),
+    "_7401": (["INT", "STRING", "INT"], [], False),
+    # 7408: every site is `_7408(<kind>, <string>, <a>, <b>) -> int` — three
+    # ints and one string in, one int out, read off the local stack deltas at
+    # 7133 pc149, 4298 pc84, 7158 pc18 and 7199 pc9 (four sites, one reading).
+    # Call-site evidence ONLY: it cannot be scored, because every script that
+    # uses it also holds other unknowns (7609/7404), so `cs2 decompile` fails
+    # on all of them under every candidate. `cs2 infer-arity` says "no arity
+    # works" for the same reason. Weaker evidence than the rest of this block;
+    # revisit if a client that implements the 7400 range turns up.
+    # Documented in chrome_panels §7.6 as un-tryable via `--override`
+    # (ints-then-strings only); LOCAL_BASIC keeps the interleaved order.
+    "_7408": (["INT", "STRING", "INT", "INT"], ["INT"], False),
+    # 7407: list/store length for a kind id — `_7407($kind) -> $n`, sites
+    # 7202/7212/7221 with nothing else on the stacks. `cs2 infer-arity` calls
+    # this "2 candidates, under-determined"; scoring settles it, which is the
+    # documented tiebreak (tools/README.md, method 3): over its six witnesses
+    # (1,0,1,0) decompiles 5 and every other candidate tried — (0,0,1,0),
+    # (1,0,0,0), (2,0,1,0), (1,0,0,1) — decompiles 0.
+    "_7407": (["INT"], ["INT"], False),
 
     # ---------------------------------------------------------------
     # Read out of a deobfuscated client, not inferred.

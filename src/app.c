@@ -14,6 +14,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_model_inst_cache.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
@@ -35,6 +36,7 @@
 #include "input/torirs_input_cmd.h"
 #include "input/torirs_keymap.h"
 #include "painters/painters.h"
+#include "perf/torirs_perf.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
@@ -2407,6 +2409,8 @@ App_Init(
         app->provider = dat2_buildcache_as_provider(app->dat2_bc);
     }
     app_provider_set_cache_profile(app, cfg);
+    if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
+        assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
     app->scene = ToriDraw_SceneNew(0);
@@ -2631,6 +2635,7 @@ App_Shutdown(struct App* app)
     if( app->builder_active )
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
+    TorirsModelInstCache_Free(&app->model_inst_cache);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
      * on NULL, so the unused side must not be handed to them. */
@@ -3114,6 +3119,10 @@ app_world_load_begin(
 {
     int chunks[2] = { 50, 50 };
     struct ToriRS_Task* task;
+
+    /* Same seam as CacheProvider_TrimDerivedCaches inside Task_WorldLoad:
+     * previous scene's instance bases are no longer live. */
+    TorirsModelInstCache_Clear(&app->model_inst_cache);
 
     if( !chunks_xz )
     {
@@ -3981,6 +3990,14 @@ app_logic_tick(struct App* app)
             app->button_sink.close_modal(app->button_sink.user);
     }
 
+    if( app->host.resume_pausebutton_component_id != -1 )
+    {
+        int const com_id = app->host.resume_pausebutton_component_id;
+        app->host.resume_pausebutton_component_id = -1;
+        if( app->button_sink.resume_pausebutton )
+            app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
+    }
+
     /*
      * Social requests a CS2 script queued this tick (friend_add, ignore_del,
      * chat_setfilter, chat_sendprivate — all reached from clientscript 681,
@@ -4077,26 +4094,23 @@ app_logic_tick(struct App* app)
         redraw = 1;
 
     /* onTimer fires once per client tick for every component with a timer
-     * hook (reference processWidgetTimers). Component ids are snapshotted
-     * first because a hook can CC_CREATE children and realloc the array. */
+     * hook (reference processWidgetTimers). Walk the compact hook index —
+     * rebuilt lazily when ApplyRuntimeHook / reclaim dirty it — instead of
+     * scanning every component every tick. */
     {
-        int timer_ids[256];
-        int timer_n = 0;
-        for( uint32_t ti = 0; ti < app->tree->component_count && timer_n < 256; ti++ )
-        {
-            struct UITreeComponent const* tc = &app->tree->components[ti];
-            if( tc->component_id >= 0 && tc->runtime_hooks.on_timer.script_id > 0 )
-                timer_ids[timer_n++] = tc->component_id;
-        }
+        int timer_n = UITree_EnsureHookIndexes(app->tree);
+        if( timer_n > 256 )
+            timer_n = 256;
         for( int i = 0; i < timer_n; i++ )
         {
-            int32_t idx = UITree_FindByComponentId(app->tree, timer_ids[i]);
+            int com_id = app->tree->timer_hook_ids[i];
+            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
             if( idx < 0 )
                 continue;
             RS_CS2_DispatchHook(
                 &app->host,
                 &app->runner,
-                timer_ids[i],
+                com_id,
                 &app->tree->components[idx].runtime_hooks.on_timer);
             redraw = 1;
         }
@@ -5822,9 +5836,24 @@ app_world_build_model(
 static struct ToriDraw_Model*
 app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype* spot)
 {
-    struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, spot->model);
-    struct ToriDraw_Model* model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+    struct ToriDraw_Model* cached;
+    struct ToriDraw_Model* model;
     int retextured = 0;
+    int64_t key;
+
+    assert(spot);
+    /* Key by spotanim id — transforms are baked into the cached base, matching
+     * Client-TS SpotType.modelCache keyed on spot id. */
+    key = (int64_t)spot->id;
+    cached = TorirsModelInstCache_CopyGet(
+        &app->model_inst_cache, TORIRS_MODEL_INST_SPOT, key);
+    if( cached )
+        return cached;
+
+    {
+        struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, spot->model);
+        model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+    }
     if( !model )
         return NULL;
 
@@ -5843,21 +5872,15 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
             retextured = 1;
         }
     }
-    /* Swapped-in ids are new to the loader's registry — see
-     * ToriDraw_ModelNoteTextureWants. */
     if( retextured )
         ToriDraw_ModelNoteTextureWants(model);
 
-    /* Resize: reference model.resize(resizeh, resizev, resizeh) scales x by
-     * resizeh, y by resizev, z by resizeh. ToriDraw_ModelScale is (x, z, y). */
     if( spot->resizeh != 128 || spot->resizev != 128 )
         ToriDraw_ModelScale(model, spot->resizeh, spot->resizeh, spot->resizev);
 
-    /* Angle: rotate90 applied angle/90 times (0/90/180/270). */
     if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
 
-    /* HD-only textures off before lighting — same isSd gate as scenery/NPC. */
     ToriDraw_ModelDropNonSdTextures(app->provider, model);
     ToriDraw_ModelNoteTextureWants(model);
 
@@ -5866,13 +5889,18 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
         memset(&hnd, 0, sizeof(hnd));
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = model;
-        /* Reference lights with 64+ambient / 850+contrast; the engine's house
-         * lighting base is 768 (used pre-scaled for every model), so pass the
-         * config offsets straight through — the engine-native equivalent. */
         ToriDraw_LightModelDefaultPreScaled(hnd, spot->contrast, spot->ambient);
     }
     ToriDraw_ModelSetBoundsCylinder(model);
     ToriDraw_ModelCaptureOriginalVertices(model);
+
+    /* Cache the lit base; return a copy so the scene owns a mutable instance. */
+    {
+        struct ToriDraw_Model* base_copy = ToriDraw_ModelCopy(model);
+        if( base_copy )
+            TorirsModelInstCache_Put(
+                &app->model_inst_cache, TORIRS_MODEL_INST_SPOT, key, base_copy);
+    }
     return model;
 }
 
@@ -9081,6 +9109,7 @@ App_RunOnce(
     /* Pump the async pipeline (bounded — never a blocking drain). While
      * BOOTING the budget is generous so a native boot converges in a few
      * frames; once READY a small budget keeps frame pacing. */
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
         int booting = app->app_state == APP_STATE_BOOTING;
         int budget = booting ? 512 : 32;
@@ -9131,6 +9160,7 @@ App_RunOnce(
     /* Logic ticks at 20ms with bounded catch-up after a stall. */
     if( app->last_logic_ms == 0 )
         app->last_logic_ms = now_ms;
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LOGIC)
     {
         int ticks = (int)((now_ms - app->last_logic_ms) / APP_LOGIC_TICK_MS);
         if( ticks > 0 )
@@ -9140,10 +9170,13 @@ App_RunOnce(
                 ticks = APP_MAX_CATCHUP_TICKS;
             for( int t = 0; t < ticks; t++ )
             {
-                if( app_logic_tick(app) )
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
                 {
-                    app->need_redraw = 1;
-                    ran_cs2 = 1;
+                    if( app_logic_tick(app) )
+                    {
+                        app->need_redraw = 1;
+                        ran_cs2 = 1;
+                    }
                 }
             }
         }
@@ -9168,7 +9201,10 @@ App_RunOnce(
      * path that runs the last two has no input handle. */
     app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? 1 : 0;
 
-    UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
+    {
+        UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
+    }
 
     /* World hover: gate on the mouse being over the world element. The pick
      * itself runs inside App_Render (hittest right after each visible model
@@ -9721,7 +9757,10 @@ App_RunOnce(
 
     if( ran_cs2 )
     {
-        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        {
+            UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
         /* The dispatched scripts run asynchronously; refresh the tree again
          * when the runner queue next drains so late mutations land. */
         app->runner_had_work = 1;
@@ -9781,7 +9820,10 @@ App_RunOnce(
             }
         }
         app->emit.count = 0;
-        UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
+        {
+            UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+        }
         app->need_redraw = 0;
         return 1;
     }
@@ -10773,24 +10815,30 @@ App_BuildFrame(
     if( app->app_state == APP_STATE_BOOTING )
         return false;
 
-    ToriRS_FrameInit(frame);
-    ToriRS_FrameSetScene(frame, app->scene);
-    ToriRS_FrameSetCanvas(frame, width, height);
-    ToriRS_FrameSetEmitBuffer(frame, &app->emit);
-
-    /* World pass: paint the visibility-ordered command list for the current
-     * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
-    if( app_world_drawable(app) )
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_BUILD)
     {
-        app_world_paint(app);
-        ToriRS_FrameSetWorld(
-            frame,
-            app->world,
-            app->painter_buffer,
-            &app->world_camera,
-            app->world_camera_pos.x,
-            app->world_camera_pos.y,
-            app->world_camera_pos.z);
+        ToriRS_FrameInit(frame);
+        ToriRS_FrameSetScene(frame, app->scene);
+        ToriRS_FrameSetCanvas(frame, width, height);
+        ToriRS_FrameSetEmitBuffer(frame, &app->emit);
+
+        /* World pass: paint the visibility-ordered command list for the current
+         * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
+        if( app_world_drawable(app) )
+        {
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PAINT)
+            {
+                app_world_paint(app);
+            }
+            ToriRS_FrameSetWorld(
+                frame,
+                app->world,
+                app->painter_buffer,
+                &app->world_camera,
+                app->world_camera_pos.x,
+                app->world_camera_pos.y,
+                app->world_camera_pos.z);
+        }
     }
     return true;
 }
@@ -10852,7 +10900,10 @@ App_Render(
     if( app_world_drawable(app) && app->world_mouse_in_viewport )
         ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
 
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+    {
+        ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    }
 
     if( getenv("TORIRS_FRAME_DEBUG") )
         fprintf(

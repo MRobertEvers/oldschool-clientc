@@ -26,6 +26,8 @@
 /* The client's framing table, for the length check in mock230_send. */
 #include "net/rev/osrs230/packetin.h"
 
+#include "ss_trigger.h"
+
 #include <rsareabuf.h>
 
 #include <stdio.h>
@@ -387,6 +389,11 @@ mock230_send_if_opensub(
     rsab_p4_alt3(&buf, (parent << 16) | child);
     flush(player, &buf, OP_IF_OPENSUB, 0);
     mock230_note_modal_mount(srv, (parent << 16) | child, group);
+    /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
+     * here so their IF_OPENSUB is encoded immediately after the parent's on
+     * the wire. Subject is the interface id, same shape as IF_CLOSE. */
+    if( group > 0 && srv && srv->scripts )
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_OPEN, group, -1, -1);
 }
 
 /*

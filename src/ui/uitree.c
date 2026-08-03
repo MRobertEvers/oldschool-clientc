@@ -1,5 +1,6 @@
 #include "uitree.h"
 
+#include "perf/torirs_perf.h"
 #include "uitree_layout.h"
 #include "uitree_scroll.h"
 
@@ -671,6 +672,7 @@ uitree_reclaim_subtree(
     c->free_next = tree->free_head;
     tree->free_head = idx;
     tree->id_generation++;
+    tree->hook_index_stale = 1;
 }
 
 void
@@ -688,6 +690,8 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_abs_y);
     free(tree->layout_abs_w);
     free(tree->layout_abs_h);
+    free(tree->timer_hook_ids);
+    free(tree->key_hook_ids);
     free(tree->components);
     free(tree);
 }
@@ -762,6 +766,7 @@ UITree_FindByComponentId_Linear(
     struct UITree const* tree,
     int component_id)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_ID_LINEAR, 1);
     int32_t fallback = -1;
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
@@ -821,6 +826,7 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
 static bool
 UITree_RebuildIdIndex(struct UITree* tree)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ID_REBUILD, 1);
     uint32_t cap = tree->id_index_cap ? tree->id_index_cap : 16;
     while( cap < tree->component_count * 2u )
         cap <<= 1;
@@ -884,6 +890,7 @@ UITree_FindByComponentId(
     int component_id)
 {
     assert(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_ID, 1);
     if( component_id < 0 || !tree->components )
         return -1;
 
@@ -902,6 +909,7 @@ UITree_FindByComponentId(
     uint32_t h = uitree_id_hash(component_id) & mask;
     for( ;; )
     {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_ID_PROBES, 1);
         int32_t const k = t->id_index_keys[h];
         if( k < 0 )
             break;
@@ -1337,6 +1345,7 @@ UITree_Push(
     if( spec->behavior )
         UITree_SetBehavior(tree, idx, spec->behavior);
 
+    tree->hook_index_stale = 1;
     return idx;
 }
 
@@ -1391,6 +1400,7 @@ UITree_FindChildBySubid(
 {
     (void)parent_component_id;
     assert(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD, 1);
     if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
 
@@ -1406,7 +1416,10 @@ UITree_FindChildBySubid(
     if( sub_id >= 0 && sub_id <= 0xFFFF )
     {
         if( sub_id > uitree_child_key_ceiling((struct UITree*)tree, parent_index) )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_CEIL_MISS, 1);
             return -1;
+        }
     }
 
     /* Dynamic children win over cache-baked ones. The reference's cc_find only
@@ -1424,10 +1437,15 @@ UITree_FindChildBySubid(
     {
         struct UITreeComponent const* c = &tree->components[child];
         if( c->dynamic && c->dynamic_child_index == sub_id )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
             return child;
+        }
         if( !c->dynamic && static_match < 0 && (c->component_id & 0xFFFF) == (sub_id & 0xFFFF) )
             static_match = child;
     }
+    if( static_match >= 0 )
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
     return static_match;
 }
 
@@ -1440,6 +1458,7 @@ UITree_CcCreate(
     int sub_id)
 {
     assert(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_CC_CREATE, 1);
     if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
 
@@ -1601,6 +1620,7 @@ UITree_CcDelete(
     int32_t index)
 {
     assert(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_CC_DELETE, 1);
     if( index < 0 || (uint32_t)index >= tree->component_count )
         return;
 
@@ -1645,6 +1665,7 @@ UITree_CcDeleteAll(
     int32_t parent_index)
 {
     assert(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_CC_DELETEALL, 1);
     if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return;
 
@@ -1665,6 +1686,7 @@ UITree_CcDeleteAll(
             /* Really delete (TS unregisterWidgetTree parity): recycle the slot
              * and free the uid instead of leaking an orphan that lookups,
              * layout, and uid allocation would keep paying for. */
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_CC_DELETEALL_ROWS, 1);
             uitree_reclaim_subtree(tree, child);
         }
         else
@@ -1730,6 +1752,7 @@ UITree_ApplyHide(
     int component_id,
     int hide)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1746,6 +1769,7 @@ UITree_ApplyComponentParam(
     int value,
     char const* str)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1846,6 +1870,7 @@ UITree_ApplyClickMask(
     int component_id,
     int32_t click_mask)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1860,6 +1885,7 @@ UITree_ApplyText(
     int component_id,
     char const* text)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
@@ -1880,6 +1906,7 @@ UITree_ApplyGraphic(
     int scene_id,
     int atlas_index)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
@@ -1896,6 +1923,7 @@ UITree_ApplyColour(
     int component_id,
     int colour)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1916,6 +1944,7 @@ UITree_ApplyPosition(
     int x,
     int y)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1934,6 +1963,7 @@ UITree_ApplySize(
     int width,
     int height)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1954,6 +1984,7 @@ UITree_ApplyPositionModes(
     int x_mode,
     int y_mode)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1976,6 +2007,7 @@ UITree_ApplySizeModes(
     int width_mode,
     int height_mode)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -1995,6 +2027,7 @@ UITree_ApplyGraphicTiled(
     int component_id,
     int tiled)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
@@ -2009,6 +2042,7 @@ UITree_ApplyGraphicOutline(
     int component_id,
     int outline)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
@@ -2023,6 +2057,7 @@ UITree_ApplyGraphicShadow(
     int component_id,
     int shadow_colour)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
@@ -2038,6 +2073,7 @@ UITree_ApplyScrollSize(
     int scroll_width,
     int scroll_height)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_LAYER )
         return false;
@@ -2054,6 +2090,7 @@ UITree_ApplyScrollPos(
     int scroll_x,
     int scroll_y)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_GEO, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -2106,6 +2143,7 @@ UITree_ApplyObject(
     int atlas_index,
     int num_mode)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -2199,6 +2237,7 @@ UITree_ApplyModel(
     int component_id,
     int model_id)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
@@ -2213,6 +2252,7 @@ UITree_ApplyModelTransparent(
     int component_id,
     int transparent)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -2229,6 +2269,7 @@ UITree_ApplyModelAngle(
     int yan,
     int zoom)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
@@ -2246,6 +2287,7 @@ UITree_ApplyModelAnim(
     int component_id,
     int anim_seq_id)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
@@ -2280,6 +2322,7 @@ UITree_ApplyTextFont(
     int component_id,
     int font_id)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
@@ -2296,6 +2339,7 @@ UITree_ApplyTextAlign(
     int v_align,
     int line_height)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
@@ -2312,6 +2356,7 @@ UITree_ApplyTextShadow(
     int component_id,
     int shadowed)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
@@ -2326,6 +2371,7 @@ UITree_ApplyTargetPriority(
     int component_id,
     int priority)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     int stored;
     if( idx < 0 )
@@ -2347,6 +2393,7 @@ UITree_ApplyForceLeftClick(
     int component_id,
     int enabled)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -2384,9 +2431,10 @@ UITree_ApplyRuntimeHook(
     char const* const* strs,
     int str_argc)
 {
-    (void)tree;
     (void)component_id;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_HOOK, 1);
     assert(slot);
+    assert(tree);
 
     memset(slot, 0, sizeof(*slot));
     slot->script_id = script_id;
@@ -2408,6 +2456,7 @@ UITree_ApplyRuntimeHook(
         strncpy(slot->strv[i], strs[i] ? strs[i] : "", UITREE_HOOK_STR_ARG_LEN - 1);
         slot->strv[i][UITREE_HOOK_STR_ARG_LEN - 1] = '\0';
     }
+    tree->hook_index_stale = 1;
     return true;
 }
 
@@ -2417,6 +2466,7 @@ UITree_ApplyOpBase(
     int component_id,
     char const* text)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
@@ -2469,6 +2519,7 @@ UITree_ApplyOpKey(
     int const* key_codes,
     int pair_count)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     struct UITreeComponent* node = NULL;
     struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, &node);
 
@@ -2506,6 +2557,7 @@ UITree_ApplyOpKeyRate(
     int rate,
     int enabled)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, NULL);
     if( !slot )
         return false;
@@ -2520,6 +2572,7 @@ UITree_ApplyOpKeyIgnoreHeld(
     int component_id,
     int op_index)
 {
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
     struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, NULL);
     if( !slot )
         return false;
@@ -2884,6 +2937,7 @@ drop_target_pick_in_subtree(
 
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return 0;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
     if( c->behavior.hide )
         return 0;
@@ -3001,4 +3055,68 @@ UITree_FindDropTarget(
             tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);
     }
     return best_id;
+}
+
+void
+UITree_InvalidateHookIndexes(struct UITree* tree)
+{
+    assert(tree);
+    tree->hook_index_stale = 1;
+}
+
+int
+UITree_EnsureHookIndexes(struct UITree* tree)
+{
+    uint32_t i;
+    int t_n = 0;
+    int k_n = 0;
+    assert(tree);
+    if( !tree->hook_index_stale && tree->timer_hook_ids )
+        return tree->timer_hook_count;
+
+    /* Count first so we size once. */
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->runtime_hooks.on_timer.script_id > 0 )
+            t_n++;
+        if( c->runtime_hooks.on_key.script_id > 0 )
+            k_n++;
+    }
+
+    if( t_n > tree->timer_hook_cap )
+    {
+        int cap = t_n < 16 ? 16 : t_n;
+        int32_t* p = (int32_t*)realloc(tree->timer_hook_ids, (size_t)cap * sizeof(int32_t));
+        assert(p);
+        tree->timer_hook_ids = p;
+        tree->timer_hook_cap = cap;
+    }
+    if( k_n > tree->key_hook_cap )
+    {
+        int cap = k_n < 16 ? 16 : k_n;
+        int32_t* p = (int32_t*)realloc(tree->key_hook_ids, (size_t)cap * sizeof(int32_t));
+        assert(p);
+        tree->key_hook_ids = p;
+        tree->key_hook_cap = cap;
+    }
+
+    t_n = 0;
+    k_n = 0;
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->runtime_hooks.on_timer.script_id > 0 )
+            tree->timer_hook_ids[t_n++] = c->component_id;
+        if( c->runtime_hooks.on_key.script_id > 0 )
+            tree->key_hook_ids[k_n++] = c->component_id;
+    }
+    tree->timer_hook_count = t_n;
+    tree->key_hook_count = k_n;
+    tree->hook_index_stale = 0;
+    return tree->timer_hook_count;
 }

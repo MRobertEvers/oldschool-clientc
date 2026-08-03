@@ -8,7 +8,15 @@
 #   make -C src release         native optimized -> src/torirs
 #   make -C src web             emscripten       -> build-web/torirs.js
 #   make -C src io-server       the web build's cache backend (always native)
-# Every (PLATFORM, OPT) pair owns its own OBJ_DIR, so flavors never share .o's.
+# Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE]) tuple owns its own OBJ_DIR,
+# so flavors never share .o's.
+#
+# TORIDRAW_OPT=1 compiles the Soft3D/ToriDraw unity at -O2 while the rest of
+# the client stays at OPT's level (default -O0). Same idea as COMPRESS_CFLAGS
+# (always -O3) and tommath.o (always -O2): hot kernels get their own flag
+# without forcing a full-client release build. The harness uses this so a
+# -O0 client can still hit 50 fps. Needs its own OBJ_DIR suffix — mixing
+# toridraw_unity.o built at -O0 with one at -O2 is silently wrong.
 
 OPT ?= 0
 # MEMTRACE=1 links platform/torirs_memtrace.c, which interposes the C heap and
@@ -19,6 +27,9 @@ OPT ?= 0
 #   make -C src MEMTRACE=1 web          web, traced      -> build-web/torirs.js
 # See tools/memtrace/README.md.
 MEMTRACE ?= 0
+# TORIDRAW_OPT=1: Soft3D/ToriDraw at -O2 regardless of OPT. Default 0.
+#   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
+TORIDRAW_OPT ?= 0
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
@@ -31,11 +42,16 @@ MEMTRACE_SUFFIX = _mt
 else
 MEMTRACE_SUFFIX =
 endif
+ifeq ($(TORIDRAW_OPT),1)
+TORIDRAW_OPT_SUFFIX = _tdo
+else
+TORIDRAW_OPT_SUFFIX =
+endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
@@ -74,7 +90,14 @@ COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
 
-TORIDRAW_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+# Soft3D/ToriDraw: TORIDRAW_OPT=1 forces -O2 even when the rest of the client
+# is -O0 (perf harness). When OPT=1 the whole tree is already -O3, so leave it.
+ifeq ($(TORIDRAW_OPT),1)
+TORIDRAW_O_LEVEL = -O2
+else
+TORIDRAW_O_LEVEL = $(O_LEVEL)
+endif
+TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -141,6 +164,8 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
 	engine/cs2_opcode_dialect.c \
+	engine/torirs_lru.c \
+	engine/torirs_model_inst_cache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
@@ -235,7 +260,8 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
-	painters/painters.c
+	painters/painters.c \
+	perf/torirs_perf.c
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
 endif
@@ -745,6 +771,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
+		perf/torirs_perf.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -760,6 +787,7 @@ test-chat-widgets: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
 		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		perf/torirs_perf.c \
 		game/test/rs_chat_widgets_test.c -lm
 	./$(OBJ_DIR)/chat_widgets_test
 
@@ -776,6 +804,7 @@ bench-uitree: $(OBJ_DIR)
 		-DBENCH_STATIC_CHILDREN=$(BENCH_STATIC_CHILDREN) \
 		-o $(OBJ_DIR)/uitree_bench \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		perf/torirs_perf.c \
 		ui/test/uitree_bench.c -lm
 	./$(OBJ_DIR)/uitree_bench
 

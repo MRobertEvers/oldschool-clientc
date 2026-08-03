@@ -1,5 +1,6 @@
 #include "uitree_emit.h"
 
+#include "perf/torirs_perf.h"
 #include "uitree_chatview.h"
 #include "uitree_hovertext.h"
 #include "uitree_inv_view.h"
@@ -194,12 +195,18 @@ UITree_EmitFill(
     if( host )
     {
         if( !UITree_ComponentShouldEmit(component, host) )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
             return false;
+        }
     }
 
     /* Fully transparent: skip self content; children still walked by emit_walk_node. */
     if( component->trans >= 255 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return false;
+    }
 
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
@@ -241,14 +248,18 @@ UITree_EmitFill(
             /* SETOBJECT on type-5 stores the icon in item_*; SETGRAPHIC chrome
              * stays in rs_graphic.scene_id. Prefer the item overlay when set.
              * Reference draws the 36x32 icon at the widget rect with no
-             * draw-time centering (widgets-gl type-5 itemId path). */
+             * draw-time centering (widgets-gl type-5 itemId path).
+             * Outline/shadow stay on the component: skill-guide rows call
+             * cc_setoutline/cc_setgraphicshadow after cc_setobject, same as the
+             * sprite branch — zeroing them here dropped that pass. Inventory
+             * cells leave both at 0, so they are unchanged. */
             if( component->item_id > 0 && component->item_scene_id > 0 )
             {
                 out->scene_id = component->item_scene_id;
                 out->atlas_index = component->item_atlas_index;
                 out->tiled = 0;
-                out->outline = 0;
-                out->graphic_shadow = 0;
+                out->outline = component->u.rs_graphic.outline;
+                out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
                 out->flip_h = component->u.rs_graphic.flip_h;
                 out->flip_v = component->u.rs_graphic.flip_v;
             }
@@ -1773,10 +1784,18 @@ emit_walk_node(
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
 
+    if( drag_pass )
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT_DRAG, 1);
+    else
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
+
     c = &tree->components[idx];
     /* Hide-gated layers stay invisible unless their component_id is hovered. */
     if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
+    }
 
     /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
      * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
@@ -1785,7 +1804,10 @@ emit_walk_node(
     {
         struct UITreeHostRequest tab_req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
         if( UITree_Host(host, &tab_req) != c->u.sidebar.tabno )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
             return;
+        }
     }
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
@@ -1809,7 +1831,10 @@ emit_walk_node(
     {
         /* A deferred drag subtree draws only on the drag pass. */
         if( !drag_pass )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
             return;
+        }
     }
     else if( drag_pass )
     {
@@ -1877,7 +1902,10 @@ emit_walk_node(
          * the types that clip (RS_LAYER, sidebar, chat, inv grid) paint no
          * content of their own. */
         if( UITree_LayerCullsChildren(c, w, h) )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
             return;
+        }
         if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
         {
             layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
@@ -2153,6 +2181,17 @@ UITree_EmitWalk(
 {
     assert(tree);
     assert(out);
+    {
+        int free_len = 0;
+        for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
+            free_len++;
+        TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_COMPONENTS, (int64_t)tree->component_count);
+        TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_CAPACITY, (int64_t)tree->component_capacity);
+        TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_FREE_LIST, free_len);
+        TORIRS_PERF_COUNT_SET(
+            TORIRS_PERF_CTR_UITREE_NODE_BYTES,
+            (int64_t)sizeof(struct UITreeComponent) * tree->component_capacity);
+    }
     /* Single interleaved pass in tree order (reference widgets-gl drawNode emits a
      * widget's own fill/sprite/text inline, then descends into children), then
      * deferred drag sources on top. Splitting text into its own pass put every

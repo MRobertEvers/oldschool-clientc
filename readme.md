@@ -733,6 +733,12 @@ thread parked in `mach_msg2_trap`. Filter to the main thread
 
 ## UITree performance — what pegged the CPU on rev230
 
+> **2026-08-03 update:** for live frame-budget work see
+> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifest_osrs230_embed.ini`
+> with `-O0` + `TORIDRAW_OPT=1`, idle/ui frame p95 is ~8 ms (50 fps gate is
+> 20 ms). Soft3D remains the dominant stage; the numbers below are the
+> historical UITree-only story.
+
 `./run-live.sh manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
 1000 frames (~33 ms/frame) against a 20 ms budget, in the default `-O0` build.
 Almost none of it was the renderer. Three things compounded, all of them widget
@@ -809,7 +815,9 @@ geometry). In the `-O0` profile now, everything `UITree_*`/`uitree_*` adds up to
 sync and the var-transmit scripts are 0.0%, `app_logic_tick` as a whole is 0.3%,
 and **84% is inside `ToriDraw`** — the software renderer, which is where it
 belongs. `flamegraph_osrs230_before.svg` and `flamegraph_osrs230_after.svg` in
-the repo root are those two profiles.
+the repo root are those two profiles. Re-measure with `./tools/perf/run_perf.sh`
+/ `./profile-mac.sh manifest_osrs230_embed.ini` before citing these percentages —
+they are from an older tree; live numbers live in `docs/PERF_HARNESS.md`.
 
 ### The rebuild burst — node size and the by-sub-id scan
 

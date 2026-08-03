@@ -745,19 +745,15 @@ PlatformSDL2_PollCommands(
     enum LibToriRS_KeyCode key;
     enum LibToriRS_MouseButton button;
     /*
-     * The reference emits exactly one key event per keypress: a character event
-     * when the key produces a printable char, otherwise a key-code event, never
-     * both (InputManager.onKeyDown). SDL instead splits one keypress into
-     * SDL_KEYDOWN followed -- only sometimes -- by SDL_TEXTINPUT, guaranteed in
-     * that order within a poll batch. So hold the key-code event back until we
-     * know whether a character followed: a printable SDL_TEXTINPUT cancels it,
-     * anything else flushes it. Since the pending event is flushed at the top of
-     * every KEYDOWN and once more after the loop, and nothing else in the loop
-     * pushes key events, arrival order is preserved exactly. The resolution
-     * happens here, before encoding, so the bus (and therefore recordings)
-     * carries only resolved key events.
+     * The reference emits BOTH a key-code event and a character event for a
+     * printable keypress (KeyHandler.copy$keyPressed queues (code, char=0),
+     * then copy$keyTyped queues (-1, char)). Scripts that match on event_key —
+     * notably chatbox_keyinput_listener (57), which advances "Click here to
+     * continue" on space = OSRS key 83 — need the code event; chat typing
+     * inserts on the character event. SDL splits one keypress into KEYDOWN
+     * then TEXTINPUT, so push the code event on KEYDOWN and the character
+     * event on TEXTINPUT. Do not cancel one when the other arrives.
      */
-    int pending_osrs = -1;
     int pending_mods = 0;
     int pending_repeat = 0;
     /*
@@ -785,12 +781,6 @@ PlatformSDL2_PollCommands(
             int vk;
             int osrs;
 
-            if( pending_osrs >= 0 )
-            {
-                CmdBus_PushKeyEvent(bus, pending_osrs, 0, pending_repeat);
-                pending_osrs = -1;
-            }
-
             key = sdl_keycode_to_torirs(event.key.keysym.sym);
             if( platform->esc_quits && key == TORIRSK_ESCAPE )
                 platform->quit = true;
@@ -806,7 +796,9 @@ PlatformSDL2_PollCommands(
             if( osrs >= 0 )
             {
                 CmdBus_PushOsrsKey(bus, osrs, 1, !event.key.repeat);
-                pending_osrs = osrs;
+                /* Code event now; a following TEXTINPUT may add a character
+                 * event. Reference KeyHandler queues both for printable keys. */
+                CmdBus_PushKeyEvent(bus, osrs, 0, event.key.repeat ? 1 : 0);
                 pending_mods = event.key.keysym.mod;
                 pending_repeat = event.key.repeat ? 1 : 0;
             }
@@ -823,10 +815,7 @@ PlatformSDL2_PollCommands(
              * reference passes charCodeAt(0) unclamped, so this is a deliberate
              * divergence rather than an oversight. */
             if( codepoint >= 32 && codepoint <= 255 )
-            {
-                pending_osrs = -1; /* the character event replaces the code event */
                 CmdBus_PushKeyEvent(bus, -1, codepoint, pending_repeat);
-            }
             pending_mods = 0;
             break;
         }
@@ -844,7 +833,6 @@ PlatformSDL2_PollCommands(
              * would latch forever. Reference InputManager.onFocusOut. */
             if( event.window.event == SDL_WINDOWEVENT_FOCUS_LOST )
             {
-                pending_osrs = -1;
                 pending_mods = 0;
                 CmdBus_Push(bus, TORIRS_CMD_INPUT_CLEAR_KEYS, NULL, 0);
             }
@@ -887,11 +875,6 @@ PlatformSDL2_PollCommands(
             break;
         }
     }
-
-    /* No SDL_TEXTINPUT arrived for the last keydown, so it was a non-character
-     * key after all. */
-    if( pending_osrs >= 0 )
-        CmdBus_PushKeyEvent(bus, pending_osrs, 0, pending_repeat);
 
     /* The coalesced resize. Pushed after the input above so a click that landed
      * at the old size is applied at the old size, exactly as it was seen.

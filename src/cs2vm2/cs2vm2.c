@@ -8,6 +8,7 @@
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm2_opcode_stack.gen.h"
+#include "perf/torirs_perf.h"
 
 #include <assert.h>
 #include <math.h>
@@ -15,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define CS2VM2_DEBUG_OPS 0
 
@@ -8651,7 +8653,16 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_CHATHEAD, true);
     case CS2_OP_CC_RESUME_PAUSEBUTTON:
-        return CS2VM2_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
+    {
+        /* No stack args — the active/dot component is the button. Stack
+         * signature is {0,0,0,0}; do not route through WidgetInt (which pops
+         * a phantom value). */
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON;
+        request.u.resume_pausebutton.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_CC_INPUT_SETSUBMITMODE:
         return CS2VM2_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SUBMITMODE);
     case CS2_OP_CC_INPUT_SETSELECTCOLOUR:
@@ -8728,7 +8739,20 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_CHATHEAD, true);
     case CS2_OP_IF_RESUME_PAUSEBUTTON:
-        return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
+    {
+        /* One component on the int stack. Stack signature is {1,0,0,0}; do not
+         * route through WidgetInt (which also pops a phantom value). */
+        struct CS2VM_HostRequest request;
+        int component_id;
+        memset(&request, 0, sizeof(request));
+        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.kind = CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON;
+        request.u.resume_pausebutton.component_id = component_id;
+        (void)frame;
+        (void)operand;
+        return vm->vm->host_exec(vm, &request);
+    }
     /* Op-key bindings. Args are (is_if, is_typed[, is_ignore_held]). */
     case CS2_OP_CC_SETOPKEY:
         return CS2VM2_Op_SetOpKey(vm, frame, operand, 0, 0);
@@ -9456,16 +9480,26 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
     assert(vm);
     assert(vm->frame_sp > 0);
 
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
+
     int result;
     int cycles = 0;
     while( cycles++ < CS2VM_MAX_CYCLES )
     {
         if( vm->frame_sp <= 0 )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles - 1);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
             return CS2VM_EXECNO_DONE;
+        }
 
         struct CS2VM2_Frame* frame = &vm->frames[vm->frame_sp - 1];
         if( frame->pc >= frame->script->op_count )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles - 1);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles - 1);
             return CS2VM_EXECNO_DONE;
+        }
 
         int opcode = frame->script->opcodes[frame->pc];
         int operand = frame->script->int_operands[frame->pc];
@@ -9499,8 +9533,15 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
             break;
         case CS2VM_EXECNO_YIELD:
             if( !CS2VM2_CheckYieldHalt(vm, frame, op_pc, opcode) )
+            {
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
                 return CS2VM_EXECNO_ERROR;
+            }
             CS2VM2_RestoreYieldCheckpoint(vm, &yield_cp, op_pc);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
             return CS2VM_EXECNO_YIELD;
         default:
             if( result == CS2VM_EXECNO_ERROR )
@@ -9509,6 +9550,10 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
                 vm->last_error_pc = op_pc;
                 vm->last_error_script_id = frame->script->script_id;
             }
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
+            if( result == CS2VM_EXECNO_ERROR )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
             return result;
         }
     }
@@ -9519,6 +9564,9 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
         vm->last_error_pc = frame->pc;
         vm->last_error_script_id = frame->script->script_id;
     }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
     return CS2VM_EXECNO_ERROR;
 }
 
@@ -10128,7 +10176,7 @@ CS2VM2_Free(struct CS2VM2* vm)
 /* Scripts nest (a script awaits a load and another starts), so this is a small
  * free list rather than a singleton. The cap bounds what the pool retains when
  * a burst of nesting unwinds; past it, blocks go back to the allocator. */
-#define CS2VM2_POOL_MAX 4
+#define CS2VM2_POOL_MAX 16
 
 static struct CS2VM2* g_vm_pool[CS2VM2_POOL_MAX];
 static int g_vm_pool_count;
@@ -10137,15 +10185,30 @@ struct CS2VM2*
 CS2VM2_Acquire(void)
 {
     struct CS2VM2* vm;
+    struct timespec t0;
+    struct timespec t1;
+    int64_t init_ns;
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_ACQUIRE, 1);
 
     if( g_vm_pool_count > 0 )
+    {
         vm = g_vm_pool[--g_vm_pool_count];
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_POOL_HIT, 1);
+    }
     else
+    {
         vm = (struct CS2VM2*)malloc(sizeof(*vm));
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_POOL_MISS, 1);
+    }
     if( !vm )
         return NULL;
 
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     CS2VM2_Init(vm);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    init_ns = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_INIT_NS, init_ns);
     return vm;
 }
 
