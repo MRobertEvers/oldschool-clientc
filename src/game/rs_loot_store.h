@@ -147,19 +147,21 @@ LootStore_RowCountById(
     const struct LootStore* store,
     int source_id);
 
+/** 1-based row index (ops 7611 / script 4298). */
 bool
 LootStore_RowByName(
     const struct LootStore* store,
     const char* source_name,
-    int index,
+    int index_1based,
     int* out_obj_id,
     int* out_qty);
 
+/** 1-based row index (ops 7612 / script 4452). */
 bool
 LootStore_RowById(
     const struct LootStore* store,
     int source_id,
-    int index,
+    int index_1based,
     int* out_obj_id,
     int* out_qty);
 

@@ -445,14 +445,17 @@ bool
 LootStore_RowByName(
     const struct LootStore* store,
     const char* source_name,
-    int index,
+    int index_1based,
     int* out_obj_id,
     int* out_qty)
 {
     assert(store);
     if( !source_name )
         return false;
+    /* Ops 7611/4298 and 7612/4452 index rows from 1 (see script4452:
+     * `$i = 1; while ($i <= _7610) { _7612(id, $i) }`). */
     const struct LootSource* src = find_source_by_name(store, source_name);
+    int index = index_1based - 1;
     if( !src || index < 0 || index >= src->row_count )
         return false;
     if( out_obj_id )
@@ -466,12 +469,13 @@ bool
 LootStore_RowById(
     const struct LootStore* store,
     int source_id,
-    int index,
+    int index_1based,
     int* out_obj_id,
     int* out_qty)
 {
     assert(store);
     const struct LootSource* src = find_source_by_id(store, source_id);
+    int index = index_1based - 1;
     if( !src || index < 0 || index >= src->row_count )
         return false;
     if( out_obj_id )

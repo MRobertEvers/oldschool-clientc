@@ -67,7 +67,7 @@ test_add_kill_loot(void)
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Goblin") == 2, "merge same obj_id");
 
     int obj, qty;
-    TEST_ASSERT(LootStore_RowByName(&store, "Goblin", 0, &obj, &qty), "row 0 exists");
+    TEST_ASSERT(LootStore_RowByName(&store, "Goblin", 1, &obj, &qty), "row 1 exists");
     TEST_ASSERT(obj == 100, "row 0 obj");
     TEST_ASSERT(qty == 3, "row 0 merged qty");
 
@@ -169,14 +169,15 @@ test_row_access(void)
     TEST_ASSERT(LootStore_RowCountById(&store, id) == 2, "2 rows by id");
 
     int obj, qty;
-    TEST_ASSERT(LootStore_RowById(&store, id, 0, &obj, &qty), "row 0 by id");
-    TEST_ASSERT(obj == 100 && qty == 5, "row 0 values by id");
-
     TEST_ASSERT(LootStore_RowById(&store, id, 1, &obj, &qty), "row 1 by id");
-    TEST_ASSERT(obj == 101 && qty == 3, "row 1 values by id");
+    TEST_ASSERT(obj == 100 && qty == 5, "row 1 values by id");
 
-    TEST_ASSERT(!LootStore_RowById(&store, id, 2, &obj, &qty), "row 2 out of range");
-    TEST_ASSERT(!LootStore_RowById(&store, 9999, 0, &obj, &qty), "bad source id");
+    TEST_ASSERT(LootStore_RowById(&store, id, 2, &obj, &qty), "row 2 by id");
+    TEST_ASSERT(obj == 101 && qty == 3, "row 2 values by id");
+
+    TEST_ASSERT(!LootStore_RowById(&store, id, 0, &obj, &qty), "0-based rejected");
+    TEST_ASSERT(!LootStore_RowById(&store, id, 3, &obj, &qty), "row 3 out of range");
+    TEST_ASSERT(!LootStore_RowById(&store, 9999, 1, &obj, &qty), "bad source id");
 
     LootStore_Free(&store);
 }

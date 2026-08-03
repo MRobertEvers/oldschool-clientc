@@ -1018,12 +1018,19 @@ ToriDraw_SceneAnimatedElements(
 
     if( scene->anim_list_dirty )
     {
-        int const slots = scene->elements.count;
+        /* Walk the live intrusive chain, not 0..elements.count. `count` is a
+         * high-water slot index that never shrinks on free — scanning it made
+         * every rebuild O(peak elements ever allocated), which climbed for the
+         * life of a session whenever NPCs/spotanims churned through the pool. */
+        int live = 0;
+        for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+             id = scene->elements.nodes[id].next )
+            live++;
 
-        if( scene->anim_list_cap < slots )
+        if( scene->anim_list_cap < live )
         {
             int cap = scene->anim_list_cap ? scene->anim_list_cap : 32;
-            while( cap < slots )
+            while( cap < live )
                 cap <<= 1;
             {
                 int* grown = (int*)realloc(scene->anim_list, (size_t)cap * sizeof(int));
@@ -1040,12 +1047,11 @@ ToriDraw_SceneAnimatedElements(
         }
 
         scene->anim_list_count = 0;
-        for( int id = 0; id < slots; id++ )
+        for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+             id = scene->elements.nodes[id].next )
         {
-            struct ToriDraw_SceneElement const* element;
-            if( !td_scene_element_valid(scene, id) )
-                continue;
-            element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, id);
+            struct ToriDraw_SceneElement const* element =
+                (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, id);
             if( !element || element->anim_seq_id == -1 || element->anim_external )
                 continue;
             scene->anim_list[scene->anim_list_count++] = id;

@@ -4081,10 +4081,25 @@ App_LootNotifyKill(
     assert(app);
     assert(source_name);
 
-    int cost = 0;
+    /*
+     * Script 7166 only mounts a source into the Drops-mode info slots when
+     * _7604(name) != 0. Dat2 objtypes default cost to 1; when the type is not
+     * yet resident (common right after login for a lootkill cheat) treat the
+     * value the same way and queue the load so later OC_* ops see the real
+     * record.
+     */
+    int cost = 1;
     struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
     if( obj )
+    {
         cost = obj->cost;
+    }
+    else if( app->provider )
+    {
+        struct ToriRS_Task* load = CreateTask_ObjLoad(app->provider, obj_id);
+        if( load )
+            ToriRS_TaskQueue_Add(app->runner.queue, load);
+    }
 
     LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost);
 

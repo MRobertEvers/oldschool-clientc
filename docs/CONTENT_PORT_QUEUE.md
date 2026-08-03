@@ -18,9 +18,9 @@ re-arm. Stop only when the user stops the loop.
 | 5a | general_use batch: barrels, bookcases, chests, coffins, cupboards | done | barrels/bookcases/coffins; chests+cupboards deferred (orphan cats) |
 | 5b | general_use batch: drawers, fence, findsomethingnice, gangplank, hammer | done | sacks/manholes/hammer/spade; drawers/fence/findsomethingnice/gangplank deferred |
 | 5c | general_use batch: hat_stand, locked_doors, locked_gates, manholes, mithril_seeds | done | hatstand/lockeddoor1/metal gates/mithril seeds; manholes already in 5b |
-| 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | pending | |
-| 6a | F2P quest: Rune Mysteries | pending | Needs Duke (slice 1) |
-| 6b | F2P quest: Imp Catcher | pending | |
+| 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | done | tables/trapdoors/wardrobes/web/windmills/organs; sacks+spade already 5b; newcomer_map deferred (playermap_east + newcomers_pos) |
+| 6a | F2P quest: Rune Mysteries | done | Duke+Sedridor+Aubury+journal; essence teleport/shop stubbed |
+| 6b | F2P quest: Imp Catcher | in_progress | |
 | 6c | F2P quest: Doric's Quest | done | full dialogue + journal + quest_dorics |
 | 6d | F2P quest: Witch's Potion (Hetty) | pending | |
 | 6e | F2P quest: Romeo & Juliet | pending | |
@@ -48,4 +48,7 @@ re-arm. Stop only when the user stops the loop.
 - loop armed: AGENT_LOOP_WAKE_content_port every ~180s
 - slice 6c done: Doric's Quest (ahead of 5c/6a — small self-contained F2P)
 - slice 5c done: hatstand, lockeddoor1, lockedmetalgate l/r, mithril_seeds (simplified plant)
-- next pending: 5d
+- slice 5d done: tables (cat+name expand), trapdoors, wardrobes, web+slash_checker, windmills (%mill_flour + hopper_full), organs mes-stub; newcomer_map deferred
+- slice 6a done: Rune Mysteries (Duke/Sedridor/Aubury + journal + quest_runemysteries); essence teleport + Aubury shop stubbed
+- next pending: 6b Imp Catcher
+- loop armed: AGENT_LOOP_TICK_content_port every 3m (pid tracked in agent)

@@ -26,13 +26,25 @@ hot kernels get their own flag without forcing a full-client release build.
 ./tools/perf/run_perf.sh idle 900   # logged in, world visible, no input
 ./tools/perf/run_perf.sh ui 900     # bank open (::bank) — UITree rebuild pressure
 ./tools/perf/run_perf.sh world 900  # npc spawn pressure for model-instance cache
+./tools/perf/run_perf.sh drift 30000        # long idle uncapped (work-time drift)
+./tools/perf/run_perf.sh drift-capped 30000 # long idle at 50 fps (wall-clock ticks)
 
 # Compare two CSVs (exit 1 on p95 regression >5% or frame p95 over 20 ms)
 python3 tools/perf/compare.py before.csv after.csv
+
+# Windowed idle-drift guard (reads TORIRS_PERF_CSV.windows.csv)
+python3 tools/perf/compare.py --drift tools/perf/results/<rev>-drift.csv.windows.csv
 ```
 
 Env: `TORIRS_PERF=1` enables stage timers/counters; `TORIRS_PERF_CSV=<path>`
-writes the machine-readable report. Embed transport requires `EMBED_SERVER=1`.
+writes the machine-readable report; `TORIRS_PERF_WINDOW=<N>` (default 1000,
+500 for drift) also appends `<csv>.windows.csv` with per-window stage
+percentiles and counter deltas / gauge snapshots. Embed transport requires
+`EMBED_SERVER=1`.
+
+**Frame work vs pacing:** `TORIRS_PERF_FRAME_END` runs *before* the 50 fps
+`Delay` / uncapped `Delay(1)`. Capped runs that timed the sleep used to report
+a flat ~20 ms residual and could not see work drift.
 
 ## Flamegraphs
 
@@ -44,10 +56,13 @@ writes the machine-readable report. Embed transport requires `EMBED_SERVER=1`.
 ## Stages timed
 
 ```
-frame → async → logic → cs2 → layout → interact → emit → paint → build → render → present
+frame → async → logic → cs2 → layout → interact → emit → paint → build → render → present → server
 ```
 
-Residual = frame_mean − sum(stage means). Render is measured but not optimized
+`server` wraps `mock230_embed_pump` (and therefore `mock230_world_tick` when
+the 600 ms schedule fires). Residual = frame_mean − sum(stage means). Nested
+stages (cs2 inside logic) can make residual negative; read stage columns, not
+the residual, for attribution. Render is measured but not optimized
 algorithmically in this effort (see TORIDRAW_OPT).
 
 ## Baseline (measured 2026-08-03)
@@ -123,6 +138,34 @@ Gate: **PASS** on p95.
 | incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip |    **6.30 ms** | keep                             |
 | emit drag pass only when something is being dragged                                  |    **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
 | CS2 call stack grown on demand instead of reserved inline                            |   *no change*  | keep for footprint, not for time |
+| windowed perf + `server` stage + FRAME_END before Delay                              |   harness only | keep                             |
+| `SceneAnimatedElements` walks live intrusive chain (not high-water slots)            |   structural   | keep                             |
+| Soft3D outline/shadow LRU (stops per-frame `SpriteNewGraphicOutline` calloc)         |   see below    | keep                             |
+
+### Idle FPS drift investigation (2026-08-03)
+
+Symptom report: embed client FPS degrades while sitting idle for several
+minutes. Measurement:
+
+- `TORIRS_STATS=1` for ~3 min capped: `components=7092` / `free_head=7091`
+  flat — not a UITree CC leak.
+- Uncapped `drift` 45k frames (~3 min wall, window=500): frame work p95
+  first-half 4.84 ms → second-half 4.74 ms (**no upward slope**).
+  Gauges flat except `zone_map_count` 46→63 (wandering NPCs touching zones;
+  ZoneMap never evicts — memory/rebuild cost, not per-frame yet).
+- Flamegraph A/B on one process at ~1.5 min vs ~7.5 min: leaf shares noise
+  only; early Soft3D put `ToriDraw_SpriteNewGraphicOutline` at ~2.1–2.5%.
+- Capped runs previously could not see work drift: `FRAME_END` ran *after*
+  the 20 ms pacing sleep.
+
+Fixes applied anyway (structural / Soft3D allocator churn):
+
+1. Anim-list rebuild iterates the live element chain.
+2. Soft3D caches outlined/shadowed sprite pixels (32-entry LRU) and reuses a
+   clamp scratch buffer.
+
+Drift guard: `python3 tools/perf/compare.py --drift <csv>.windows.csv`
+(fails if last steady frame p95 > first by 5%).
 
 The last row is a footprint change, not a speed change, and it is in the table so
 nobody re-derives it from the frame time. `struct CS2VM2` held

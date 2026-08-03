@@ -16,6 +16,29 @@
 #include <string.h>
 
 /*
+ * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
+ * working buffers live here rather than on the struct. The outline cache is
+ * what stops SpriteNewGraphicOutline from calloc/freeing the same chrome
+ * icons every frame (idle flamegraphs put it at ~2.5% of samples).
+ */
+static uint32_t* g_soft3d_scratch;
+static size_t g_soft3d_scratch_cap;
+
+struct Soft3DOutlineCacheEntry
+{
+    uint32_t const* src;
+    int sw, sh;
+    int outline;
+    int graphic_shadow;
+    uint32_t* pixels;
+    int w, h;
+    uint64_t last_used;
+};
+
+static struct Soft3DOutlineCacheEntry g_soft3d_outline_cache[32];
+static uint64_t g_soft3d_outline_clock;
+
+/*
  * Emitted scissor -> raster clip rect, intersected with the pixel buffer.
  *
  * The clip an emitter produces is whatever the layout says (a RevConfig node
@@ -51,6 +74,112 @@ viewport_from_scissor(
 }
 
 static uint32_t*
+soft3d_scratch(size_t pixels)
+{
+    if( pixels == 0 )
+        return NULL;
+    if( pixels > g_soft3d_scratch_cap )
+    {
+        uint32_t* grown =
+            (uint32_t*)realloc(g_soft3d_scratch, pixels * sizeof(uint32_t));
+        if( !grown )
+            return NULL;
+        g_soft3d_scratch = grown;
+        g_soft3d_scratch_cap = pixels;
+    }
+    return g_soft3d_scratch;
+}
+
+static uint32_t*
+soft3d_outline_cache_get(
+    uint32_t const* src,
+    int sw,
+    int sh,
+    int outline,
+    int graphic_shadow,
+    int* out_w,
+    int* out_h)
+{
+    int i;
+    int victim = 0;
+    uint64_t victim_used = UINT64_MAX;
+    uint32_t* outlined;
+    uint32_t* final_px;
+    int ow = 0;
+    int oh = 0;
+    int fw = 0;
+    int fh = 0;
+
+    assert(out_w);
+    assert(out_h);
+    g_soft3d_outline_clock++;
+
+    for( i = 0; i < 32; i++ )
+    {
+        if( g_soft3d_outline_cache[i].src == src && g_soft3d_outline_cache[i].sw == sw &&
+            g_soft3d_outline_cache[i].sh == sh &&
+            g_soft3d_outline_cache[i].outline == outline &&
+            g_soft3d_outline_cache[i].graphic_shadow == graphic_shadow &&
+            g_soft3d_outline_cache[i].pixels )
+        {
+            g_soft3d_outline_cache[i].last_used = g_soft3d_outline_clock;
+            *out_w = g_soft3d_outline_cache[i].w;
+            *out_h = g_soft3d_outline_cache[i].h;
+            return g_soft3d_outline_cache[i].pixels;
+        }
+        if( g_soft3d_outline_cache[i].last_used < victim_used )
+        {
+            victim_used = g_soft3d_outline_cache[i].last_used;
+            victim = i;
+        }
+    }
+
+    outlined = src;
+    ow = sw;
+    oh = sh;
+    final_px = NULL;
+
+    if( outline > 0 )
+    {
+        outlined = ToriDraw_SpriteNewGraphicOutline(src, sw, sh, outline, &ow, &oh);
+        if( !outlined )
+            return NULL;
+        final_px = outlined;
+    }
+
+    if( graphic_shadow != 0 )
+    {
+        uint32_t* shadowed = ToriDraw_SpriteNewGraphicShadow(
+            outlined, ow, oh, graphic_shadow, &fw, &fh);
+        if( final_px && final_px != src )
+            free(final_px);
+        if( !shadowed )
+            return NULL;
+        final_px = shadowed;
+        ow = fw;
+        oh = fh;
+    }
+    else if( !final_px )
+    {
+        return NULL;
+    }
+
+    free(g_soft3d_outline_cache[victim].pixels);
+    g_soft3d_outline_cache[victim].src = src;
+    g_soft3d_outline_cache[victim].sw = sw;
+    g_soft3d_outline_cache[victim].sh = sh;
+    g_soft3d_outline_cache[victim].outline = outline;
+    g_soft3d_outline_cache[victim].graphic_shadow = graphic_shadow;
+    g_soft3d_outline_cache[victim].pixels = final_px;
+    g_soft3d_outline_cache[victim].w = ow;
+    g_soft3d_outline_cache[victim].h = oh;
+    g_soft3d_outline_cache[victim].last_used = g_soft3d_outline_clock;
+    *out_w = ow;
+    *out_h = oh;
+    return final_px;
+}
+
+static uint32_t*
 soft3d_clamp_to_nominal(
     uint32_t const* src,
     int src_w,
@@ -63,13 +192,16 @@ soft3d_clamp_to_nominal(
     uint32_t* dst;
     int y;
     int x;
+    size_t n;
 
     if( !src || nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
         return NULL;
 
-    dst = calloc((size_t)nominal_w * (size_t)nominal_h, sizeof(uint32_t));
+    n = (size_t)nominal_w * (size_t)nominal_h;
+    dst = soft3d_scratch(n);
     if( !dst )
         return NULL;
+    memset(dst, 0, n * sizeof(uint32_t));
 
     for( y = 0; y < src_h; y++ )
     {
@@ -266,40 +398,88 @@ soft3d_draw_sprite(
         }
     }
 
+    /*
+     * Outlined/shadowed icons with no further pixel mutation: serve from the
+     * process-lifetime LRU so idle chrome stops calloc/freeing every frame.
+     */
+    if( (cmd->outline > 0 || cmd->graphic_shadow != 0) && cmd->trans <= 0 &&
+        !cmd->flip_h && !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 && !cmd->tiled )
+    {
+        int cw = 0;
+        int ch = 0;
+        uint32_t* cached = soft3d_outline_cache_get(
+            spr->pixels_argb,
+            sw,
+            sh,
+            cmd->outline,
+            cmd->graphic_shadow,
+            &cw,
+            &ch);
+        if( cached )
+        {
+            int cox = ox;
+            int coy = oy;
+            if( cmd->outline > 0 )
+            {
+                cox -= cmd->outline;
+                coy -= cmd->outline;
+            }
+            if( cmd->if3 )
+            {
+                int draw_w = cmd->w > 0 ? cmd->w : nominal_w;
+                int draw_h = cmd->h > 0 ? cmd->h : nominal_h;
+                /* Scale the nominal box; crop/outline offset is already baked
+                 * into the cached image size relative to the original. */
+                if( cox == 0 && coy == 0 && cw == nominal_w && ch == nominal_h )
+                {
+                    ToriDraw2D_BlitArgbScaled(
+                        &vp, cmd->x, cmd->y, draw_w, draw_h, cached, cw, ch, soft->pixels);
+                    return;
+                }
+            }
+            else
+            {
+                ToriDraw2D_BlitArgb(
+                    &vp, cmd->x + cox, cmd->y + coy, cached, cw, ch, soft->pixels);
+                return;
+            }
+        }
+    }
+
     spr_px = malloc(pixel_count * sizeof(uint32_t));
     if( !spr_px )
         return;
     memcpy(spr_px, spr->pixels_argb, pixel_count * sizeof(uint32_t));
 
-    if( cmd->outline > 0 )
+    if( cmd->outline > 0 || cmd->graphic_shadow != 0 )
     {
         int sw2 = 0;
         int sh2 = 0;
-        uint32_t* outlined =
-            ToriDraw_SpriteNewGraphicOutline(spr_px, sw, sh, cmd->outline, &sw2, &sh2);
-        if( outlined )
+        uint32_t* cached = soft3d_outline_cache_get(
+            spr->pixels_argb,
+            nominal_w,
+            nominal_h,
+            cmd->outline,
+            cmd->graphic_shadow,
+            &sw2,
+            &sh2);
+        if( cached )
         {
-            free(spr_px);
-            spr_px = outlined;
-            sw = sw2;
-            sh = sh2;
-            ox -= cmd->outline;
-            oy -= cmd->outline;
-        }
-    }
-
-    if( cmd->graphic_shadow != 0 )
-    {
-        int sw2 = 0;
-        int sh2 = 0;
-        uint32_t* shadowed = ToriDraw_SpriteNewGraphicShadow(
-            spr_px, sw, sh, cmd->graphic_shadow, &sw2, &sh2);
-        if( shadowed )
-        {
-            free(spr_px);
-            spr_px = shadowed;
-            sw = sw2;
-            sh = sh2;
+            size_t n = (size_t)sw2 * (size_t)sh2;
+            uint32_t* copy = malloc(n * sizeof(uint32_t));
+            if( copy )
+            {
+                memcpy(copy, cached, n * sizeof(uint32_t));
+                free(spr_px);
+                spr_px = copy;
+                sw = sw2;
+                sh = sh2;
+                if( cmd->outline > 0 )
+                {
+                    ox -= cmd->outline;
+                    oy -= cmd->outline;
+                }
+            }
         }
     }
 
@@ -329,12 +509,20 @@ soft3d_draw_sprite(
                 soft3d_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
             if( clamped )
             {
-                free(spr_px);
-                spr_px = clamped;
-                sw = nominal_w;
-                sh = nominal_h;
-                ox = 0;
-                oy = 0;
+                /* clamp writes into the process scratch — copy out so the
+                 * later TransformPixels free stays well-defined. */
+                size_t n = (size_t)nominal_w * (size_t)nominal_h;
+                uint32_t* owned = malloc(n * sizeof(uint32_t));
+                if( owned )
+                {
+                    memcpy(owned, clamped, n * sizeof(uint32_t));
+                    free(spr_px);
+                    spr_px = owned;
+                    sw = nominal_w;
+                    sh = nominal_h;
+                    ox = 0;
+                    oy = 0;
+                }
             }
         }
 
