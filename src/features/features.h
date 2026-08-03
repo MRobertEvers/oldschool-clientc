@@ -110,6 +110,20 @@ struct ToriRS_FeatureTable
      * either way. See docs/OSRS_PATHING_LOS.md.
      */
     int los_symmetric_pvp;
+    /**
+     * Width of the BFS search window in tiles, centred on the mover.
+     *
+     * 0 = flood the whole collision map, which is literally what Client-TS does
+     * (its BFS is over the resident 104x104 scene, so the scene *is* the
+     * window). 128 = rsmod / LostCity `PathFinder.DEFAULT_SEARCH_MAP_SIZE`,
+     * where the window is the router's own constant and a bigger map does not
+     * make longer routes possible.
+     *
+     * The two only differ once a map wider than the window exists: a 104-tile
+     * scene is covered whole either way. Stating it here is what keeps the
+     * route from silently becoming a function of how much terrain is loaded.
+     */
+    int route_window_tiles;
 
     /* --- model lighting -------------------------------------------------- */
 

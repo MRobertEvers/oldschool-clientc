@@ -499,6 +499,10 @@ painter_set_cullspan(
     struct Painter* painter,
     const struct PaintersCullSpan* span);
 
+/** Returns the painter's live cullspan when active, else NULL. */
+const struct PaintersCullSpan*
+painter_get_cullspan(const struct Painter* painter);
+
 struct SceneOccluders;
 
 /** Install (or clear, with NULL) the planar occluder set for this painter.

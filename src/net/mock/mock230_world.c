@@ -316,6 +316,73 @@ player_set_occupancy(struct Mock230Player const* player, int add)
         player->level, player->x, player->z, 1, COLL_FLAG_PLAYER_OCC, add);
 }
 
+/*
+ * Which move restriction an npc walks under — LostCity
+ * `PathingEntity.getCollisionStrategy`, whose MoveRestrict ids the content tree
+ * parses into `moverestrict` (fields/npc.ini).
+ *
+ * `nomove` has no collision type: it means the npc does not step at all, which
+ * every caller answers before asking this (npc_walk_to / the wander roll). It
+ * maps to NORMAL here so a stray call cannot silently make a stationary npc
+ * walk through walls.
+ */
+static int
+npc_collision_type(struct Mock230Npc const* npc)
+{
+    assert(npc);
+    if( !npc->def )
+        return COLL_TYPE_NORMAL;
+    switch( npc->def->moverestrict )
+    {
+    case 1: /* blocked */
+        return COLL_TYPE_BLOCKED;
+    case 2: /* blocked_normal */
+        return COLL_TYPE_LINE_OF_SIGHT;
+    case 3: /* indoors */
+        return COLL_TYPE_INDOORS;
+    case 4: /* outdoors */
+        return COLL_TYPE_OUTDOORS;
+    default: /* normal, nomove, passthru */
+        return COLL_TYPE_NORMAL;
+    }
+}
+
+/*
+ * Re-stamp every entity's occupancy onto a freshly built collision map.
+ *
+ * `mock230_scene_build` re-reads the map squares, so the flags it hands back
+ * describe the terrain and the locs and nothing else — every NPC_OCC /
+ * PLAYER_OCC bit written since the last build is on the array it just freed.
+ * Without this, the first tick after a scene re-centre lets npcs and players
+ * walk through each other until each of them happens to move (a step clears the
+ * old tile and sets the new one, so occupancy heals itself only where somebody
+ * walks).
+ *
+ * Called by every caller of mock230_scene_build that has entities to re-stamp.
+ * `mock230_world_init` does not: it builds before anything is placed.
+ */
+static void
+world_occupancy_restamp(struct Mock230Server* srv)
+{
+    assert(srv);
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        struct Mock230Npc const* npc = &srv->npcs[i];
+
+        if( !npc->active || npc->death_tick >= 0 )
+            continue;
+        npc_set_occupancy(npc, 1);
+    }
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player const* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        player_set_occupancy(player, 1);
+    }
+}
+
 static void
 npc_queue_waypoint(struct Mock230Npc* npc, int x, int z)
 {
@@ -1592,6 +1659,9 @@ maybe_rebuild(struct Mock230Server* srv)
      */
     mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
     mock230_world_locs_reapply(srv);
+    /* And the entities' own collision, which the rebuilt map does not carry —
+     * see world_occupancy_restamp. */
+    world_occupancy_restamp(srv);
     /* Tracked npcs and players deliberately survive: the client shifts every
      * kept entity by the base-tile delta when it rebuilds
      * (App_WorldRebuildShift), so their slots stay valid. Dropping and re-adding
@@ -1763,6 +1833,7 @@ npc_take_step(struct Mock230Npc* npc)
     int prev_z;
     int extra;
     int size;
+    int coll_type;
     int moved = 0;
 
     assert(npc);
@@ -1789,24 +1860,28 @@ npc_take_step(struct Mock230Npc* npc)
     prev_z = npc->z;
     extra = npc_travel_extra(npc);
     size = npc->size > 0 ? npc->size : 1;
+    /* The npc's own move restriction, not everyone's: a swimmer walks where the
+     * map blocks, an indoors npc will not leave the roof. */
+    coll_type = npc_collision_type(npc);
     try_dx = 0;
     try_dz = 0;
 
     /* Diagonal only for 1x1 — PathingEntity.takeStep. */
     if( size == 1 && dx != 0 && dz != 0 &&
-        mock230_scene_can_travel(npc->level, npc->x, npc->z, dx, dz, size, extra) )
+        mock230_scene_can_travel_typed(npc->level, npc->x, npc->z, dx, dz, size, extra,
+                                       coll_type) )
     {
         try_dx = dx;
         try_dz = dz;
     }
-    else if( dx != 0 &&
-             mock230_scene_can_travel(npc->level, npc->x, npc->z, dx, 0, size, extra) )
+    else if( dx != 0 && mock230_scene_can_travel_typed(npc->level, npc->x, npc->z, dx, 0, size,
+                                                       extra, coll_type) )
     {
         try_dx = dx;
         try_dz = 0;
     }
-    else if( dz != 0 &&
-             mock230_scene_can_travel(npc->level, npc->x, npc->z, 0, dz, size, extra) )
+    else if( dz != 0 && mock230_scene_can_travel_typed(npc->level, npc->x, npc->z, 0, dz, size,
+                                                       extra, coll_type) )
     {
         try_dx = 0;
         try_dz = dz;

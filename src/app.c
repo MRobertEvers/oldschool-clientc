@@ -37,6 +37,7 @@
 #include "input/torirs_keymap.h"
 #include "painters/painters.h"
 #include "painters/painters_cull_project.h"
+#include "painters/scene_occluders.h"
 #include "perf/torirs_perf.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -5182,6 +5183,33 @@ app_world_paint(struct App* app)
     painter_set_level_mask(app->world->painter, level_mask);
 
     app_update_painter_cull(app, cam_sx, cam_sz);
+
+    /* Planar occluders: project shadows for this eye. TORIRS_OCCLUDERS=0
+     * disables (mirrors TORIRS_PAINTER_NOCULL=1). Default is on. */
+    {
+        struct SceneOccluders* occ = painter_get_occluders(app->world->painter);
+        const char* env_occ = getenv("TORIRS_OCCLUDERS");
+        int occ_off = env_occ && env_occ[0] == '0' && env_occ[1] == '\0';
+        if( occ && !occ_off )
+        {
+            int top_level = app_world_roof_check(app);
+            scene_occluders_select_for_camera(
+                occ,
+                app->world_camera_pos.x,
+                app->world_camera_pos.y,
+                app->world_camera_pos.z,
+                top_level,
+                painter_get_cullspan(app->world->painter),
+                NULL,
+                app->world_camera.pitch,
+                app->world_camera.yaw);
+        }
+        else if( occ && occ_off )
+        {
+            occ->active_count = 0;
+        }
+    }
+
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;

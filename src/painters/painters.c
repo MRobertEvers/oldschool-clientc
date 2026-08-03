@@ -623,6 +623,15 @@ painter_set_cullspan(
     painter->cullspan_active = 1;
 }
 
+const struct PaintersCullSpan*
+painter_get_cullspan(const struct Painter* painter)
+{
+    assert(painter);
+    if( !painter->cullspan_active )
+        return NULL;
+    return &painter->cullspan;
+}
+
 void
 painter_set_occluders(
     struct Painter* painter,

@@ -34,6 +34,7 @@ REAL_COMMON = \
 	painter_bench_real.c \
 	$(SRC_DIR)/painters/painters.c \
 	$(SRC_DIR)/painters/painters_cull_project.c \
+	$(SRC_DIR)/painters/scene_occluders.c \
 	$(REPO_ROOT)/3rd/toridraw/graphics/shared_tables.c
 
 FUZZ_SOURCES = fuzz_real.c $(REAL_COMMON)

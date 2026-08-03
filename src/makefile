@@ -262,6 +262,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	engine/world_builder/task_world_load.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
+	painters/scene_occluders.c \
 	perf/torirs_perf.c
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
@@ -345,11 +346,12 @@ WB_DIR = engine/world_builder
 WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/blendmap.o $(OBJ_DIR)/overlaymap.o $(OBJ_DIR)/lightmap.o \
 	$(OBJ_DIR)/shademap.o $(OBJ_DIR)/sharelight_map.o $(OBJ_DIR)/terrain_shapemap.o \
-	$(OBJ_DIR)/contour_ground.o $(OBJ_DIR)/decor_buildmap.o $(OBJ_DIR)/world_decode_tile.o \
+	$(OBJ_DIR)/contour_ground.o $(OBJ_DIR)/decor_buildmap.o $(OBJ_DIR)/occluder_buildmap.o \
+	$(OBJ_DIR)/world_decode_tile.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social test-cs2-transmit-pump test-minimenu-world
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-painters-occluders
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -468,6 +470,8 @@ $(OBJ_DIR)/contour_ground.o: $(WB_DIR)/contour_ground.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/contour_ground.c -o $@
 $(OBJ_DIR)/decor_buildmap.o: $(WB_DIR)/decor_buildmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/decor_buildmap.c -o $@
+$(OBJ_DIR)/occluder_buildmap.o: $(WB_DIR)/occluder_buildmap.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $(WB_DIR)/occluder_buildmap.c -o $@
 $(OBJ_DIR)/world_decode_tile.o: $(WB_DIR)/world_decode_tile.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/world_decode_tile.c -o $@
 $(OBJ_DIR)/heightmap.o: $(WB_DIR)/heightmap.c | $(OBJ_DIR)
@@ -764,12 +768,20 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
-		engine/world_builder/minimap.c painters/painters.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
 		features/features.c \
 		world/test/world_test_unit.c world/test/world_test_sim.c \
 		world/test/world_test_route.c world/test/world_test_main.c \
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/world_test
+
+test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
+		-o $(OBJ_DIR)/painters_test_occluders \
+		painters/test/painters_test_occluders.c \
+		painters/scene_occluders.c \
+		$(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
+	./$(OBJ_DIR)/painters_test_occluders
 
 test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \

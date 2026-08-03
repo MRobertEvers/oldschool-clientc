@@ -23,6 +23,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
     .los_symmetric_pvp = 0,
+    .route_window_tiles = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
 };
@@ -41,6 +42,8 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
  *     the way instead of producing no movement at all.
  *   - los_symmetric_pvp: the 2019 LMS update — PvP LoS is symmetric; PvM is
  *     not.
+ *   - route_window_tiles 128: rsmod's PathFinder floods a fixed 128x128 box
+ *     around the mover rather than whatever map is resident.
  */
 static struct ToriRS_FeatureTable const k_features_osrs = {
     .era = TORIRS_FEATURE_ERA_OSRS,
@@ -51,6 +54,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
     .los_symmetric_pvp = 1,
+    .route_window_tiles = 128,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
 };
@@ -74,6 +78,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 1,
     .los_symmetric_pvp = 1,
+    .route_window_tiles = 128,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
      * light with absolute ambient 128 + actor dir (PlayerChatheadFactory). */
     .npc_light_uses_type_ambient_contrast = 1,

@@ -36,7 +36,9 @@ re-arm. Stop only when the user stops the loop.
 | 8a | F2P quest: The Restless Ghost | done | Aereck/Urhney/ghostx + coffin/skull; dbrow quest_restlessghost; open=openghostcoffin_* |
 | 8b | F2P quest: Ernest the Chicken | done | Veronica/Oddenstein + manor/levers/doors via ernestlever/ernestdoors; quest_ernestthechicken |
 | 8c | F2P quest: Prince Ali Rescue | done | Hassan/Osman/Leela/Keli/Joe/Ali + Ned rope/wig + Aggie paste; quest_princealirescue |
-| 8 | Outward areas / remaining quests / minigames | pending | Tail after Prince Ali |
+| 8d | F2P quest: Demon Slayer | done | Aris/Prysin/Rovin/Traiborn/Oracle + drain/Delrith; quest_demonslayer; clue/DS map deferred |
+| 8e | F2P quest: Black Knights' Fortress | done | Amik + fortress doors/grill/cabbage; quest_blackknightsfortress; door swing deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | Tail after Black Knights' Fortress |
 
 ## Log
 
@@ -68,4 +70,6 @@ re-arm. Stop only when the user stops the loop.
 - slice 8a done: Restless Ghost (Aereck/Urhney/ghostx + shutghostcoffin↔openghostcoffin_*; skull; journal quest_restlessghost); tower altar multiloc + npc_retaliate deferred
 - slice 8b done: Ernest the Chicken (Veronica/Oddenstein + compost/fountain/closet/levers; %ernestdoors multilocs; journal quest_ernestthechicken); double-door open_and_close deferred; fountain poison server varp
 - slice 8c done: Prince Ali Rescue (Hassan/Osman/Leela/Keli/Joe/Ali + Ned rope/wig + Aggie paste; journal quest_princealirescue); Aggie dyes + Ned Dragon Slayer + metal gate helper deferred
-- next pending: 8 outward (Demon Slayer/Black Knight/Pirate's Treasure/Dragon Slayer/smithing/…)
+- slice 8d done: Demon Slayer (Aris/Prysin/Rovin/Traiborn + drain key + Delrith incantation; journal quest_demonslayer); Oracle clues + Dragon Slayer map piece deferred
+- slice 8e done: Black Knights' Fortress (Sir Amik + fortress doors/grill/cabbage sabotage; journal quest_blackknightsfortress); open_and_close_door swing + inacbk Open op deferred
+- next pending: 8 outward (Shield of Arrav/Pirate's Treasure/Dragon Slayer/smithing/…)

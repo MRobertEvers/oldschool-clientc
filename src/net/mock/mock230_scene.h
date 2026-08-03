@@ -255,6 +255,16 @@ mock230_scene_can_step_extra(
     int dir,
     int extra_flag);
 
+/** Like can_step_extra, under an `enum CollisionType` (an npc's moverestrict). */
+int
+mock230_scene_can_step_typed(
+    int level,
+    int x,
+    int z,
+    int dir,
+    int extra_flag,
+    int coll_type);
+
 int
 mock230_scene_can_travel(
     int level,
@@ -264,6 +274,17 @@ mock230_scene_can_travel(
     int offset_z,
     int size,
     int extra_flag);
+
+int
+mock230_scene_can_travel_typed(
+    int level,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag,
+    int coll_type);
 
 int
 mock230_scene_line_of_sight(
@@ -293,6 +314,26 @@ mock230_scene_line_of_walk(
 
 int
 mock230_scene_approached(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh);
+
+/**
+ * AP LoS between two *players*.
+ *
+ * Same ray as mock230_scene_approached, but symmetric when the era says so
+ * (`los_symmetric_pvp` — the 2019 LMS change, PvP only). Player-vs-npc and
+ * npc-vs-player must keep calling mock230_scene_approached: PvM never became
+ * symmetric.
+ */
+int
+mock230_scene_approached_pvp(
     int level,
     int sx,
     int sz,

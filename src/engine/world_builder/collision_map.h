@@ -11,11 +11,16 @@
 /*
  * Width of the BFS search window, in tiles — rsmod / LostCity
  * `PathFinder.DEFAULT_SEARCH_MAP_SIZE`. The flood is centred on the mover and
- * clamped to this box, which is what stops a route from being a function of
- * how big the loaded scene happens to be. A map narrower than the window (this
+ * clamped to this box, which is what stops a route from being a function of how
+ * big the loaded scene happens to be. A map narrower than the window (this
  * client's 104-tile scene) is covered whole, so the two agree until the scene
- * grows. `collision_map_set_route_window` overrides it per map; 0 means "the
- * whole map", which is the 2004 client's own behaviour (it floods its scene).
+ * grows.
+ *
+ * A fresh map's window is 0 — "the whole map" — because that is what the 2004
+ * client does: its BFS is over the resident scene and has no window of its own.
+ * Whoever owns the map states the window it routes under
+ * (`collision_map_set_route_window`); the mock server takes it from the era
+ * table's `route_window_tiles`, which is this constant for the modern eras.
  */
 #define COLLISION_ROUTE_WINDOW 128
 
@@ -167,9 +172,8 @@ struct CollisionMap
     int* flags;
     int size_x;
     int size_z;
-    /** BFS window width in tiles, centred on the mover. 0 = the whole map.
-     *  Defaults to COLLISION_ROUTE_WINDOW; set with
-     *  collision_map_set_route_window. */
+    /** BFS window width in tiles, centred on the mover. 0 (the constructor's
+     *  value) = the whole map; set with collision_map_set_route_window. */
     int route_window;
 };
 

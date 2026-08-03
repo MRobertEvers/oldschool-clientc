@@ -436,6 +436,14 @@ apply_terrain(
 
                 if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 && g_collision[level] )
                     collision_map_add_floor(g_collision[level], scene_x, scene_z);
+
+                /* Roofed-ness, which is what moverestrict=indoors/outdoors
+                 * reads. REMOVE_ROOF marks the tiles the client hides roofs
+                 * over, i.e. the ones that are indoors, and it is the same bit
+                 * the reference stamps ROOF from (LostCity GameMap). Raw cache
+                 * level, no bridge shift — like the BLOCK bit above. */
+                if( (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) != 0 && g_collision[level] )
+                    collision_map_change_roof(g_collision[level], scene_x, scene_z, 1);
             }
         }
     }
@@ -542,8 +550,14 @@ mock230_scene_build(
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
         g_collision[level] = collision_map_new(SCENE_TILES, SCENE_TILES);
-        if( g_collision[level] )
-            collision_map_reset(g_collision[level]);
+        if( !g_collision[level] )
+            continue;
+        collision_map_reset(g_collision[level]);
+        /* The router's window is the era's, not the scene's — see
+         * ToriRS_FeatureTable.route_window_tiles and
+         * docs/OSRS_PATHING_LOS.md §5.1. */
+        collision_map_set_route_window(g_collision[level],
+                                       mock230_scene_features()->route_window_tiles);
     }
     memset(g_link_below, 0, sizeof(g_link_below));
 
@@ -843,10 +857,22 @@ mock230_scene_can_step_extra(
     int dir,
     int extra_flag)
 {
+    return mock230_scene_can_step_typed(level, x, z, dir, extra_flag, COLL_TYPE_NORMAL);
+}
+
+int
+mock230_scene_can_step_typed(
+    int level,
+    int x,
+    int z,
+    int dir,
+    int extra_flag,
+    int coll_type)
+{
     if( dir < 0 || dir > 7 )
         return 0;
-    return mock230_scene_can_travel(
-        level, x, z, k_step_dx[dir], k_step_dz[dir], 1, extra_flag);
+    return mock230_scene_can_travel_typed(
+        level, x, z, k_step_dx[dir], k_step_dz[dir], 1, extra_flag, coll_type);
 }
 
 int
@@ -859,6 +885,21 @@ mock230_scene_can_travel(
     int size,
     int extra_flag)
 {
+    return mock230_scene_can_travel_typed(
+        level, x, z, offset_x, offset_z, size, extra_flag, COLL_TYPE_NORMAL);
+}
+
+int
+mock230_scene_can_travel_typed(
+    int level,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag,
+    int coll_type)
+{
     struct CollisionMap* map = mock230_scene_collision(level);
 
     if( !map || size < 1 )
@@ -867,8 +908,8 @@ mock230_scene_can_travel(
         return 0;
     if( !mock230_scene_contains(x + offset_x, z + offset_z) )
         return 0;
-    return collision_map_can_travel(
-        map, x - g_base_x, z - g_base_z, offset_x, offset_z, size, extra_flag);
+    return collision_map_can_travel_typed(
+        map, x - g_base_x, z - g_base_z, offset_x, offset_z, size, extra_flag, coll_type);
 }
 
 int
@@ -956,6 +997,30 @@ mock230_scene_approached(
     if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
         return 0;
     return collision_map_approached(
+        map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh);
+}
+
+int
+mock230_scene_approached_pvp(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map )
+        return 0;
+    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+        return 0;
+    if( !mock230_scene_features()->los_symmetric_pvp )
+        return mock230_scene_approached(level, sx, sz, dx, dz, sw, sh, dw, dh);
+    return collision_map_approached_symmetric(
         map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh);
 }
 

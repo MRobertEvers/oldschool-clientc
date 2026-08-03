@@ -34,7 +34,7 @@ collision_map_new(
     memset(cm, 0, sizeof(struct CollisionMap));
     cm->size_x = size_x;
     cm->size_z = size_z;
-    cm->route_window = COLLISION_ROUTE_WINDOW;
+    cm->route_window = 0; /* whole map, until the owner states a window */
     cm->flags = (int*)malloc((size_t)(size_x * size_z) * sizeof(int));
     collision_map_reset(cm);
     return cm;
@@ -969,6 +969,9 @@ collision_flood(
     int* out_arrive_z)
 {
     const int buf_size = cm->size_x * cm->size_z;
+    struct CollisionFloodWindow win;
+
+    collision_flood_window(cm, src_x, src_z, &win);
 
     memset(dir_map, 0, (size_t)buf_size * sizeof(int));
     for( int i = 0; i < buf_size; i++ )
@@ -1001,7 +1004,7 @@ collision_flood(
         int next_cost = dist_map[collision_map_index_at(cm, x, z)] + 1;
         int idx = 0;
 
-        if( collision_map_can_step_west(cm, x, z) )
+        if( x - 1 >= win.min_x && collision_map_can_step_west(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x - 1, z);
             if( dir_map[idx] == 0 )
@@ -1014,7 +1017,7 @@ collision_flood(
             }
         }
 
-        if( collision_map_can_step_east(cm, x, z) )
+        if( x + 1 <= win.max_x && collision_map_can_step_east(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x + 1, z);
             if( dir_map[idx] == 0 )
@@ -1027,7 +1030,7 @@ collision_flood(
             }
         }
 
-        if( collision_map_can_step_south(cm, x, z) )
+        if( z - 1 >= win.min_z && collision_map_can_step_south(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x, z - 1);
             if( dir_map[idx] == 0 )
@@ -1040,7 +1043,7 @@ collision_flood(
             }
         }
 
-        if( collision_map_can_step_north(cm, x, z) )
+        if( z + 1 <= win.max_z && collision_map_can_step_north(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x, z + 1);
             if( dir_map[idx] == 0 )
@@ -1053,7 +1056,8 @@ collision_flood(
             }
         }
 
-        if( collision_map_can_step_diagonal_south_west(cm, x, z) )
+        if( x - 1 >= win.min_x && z - 1 >= win.min_z &&
+            collision_map_can_step_diagonal_south_west(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x - 1, z - 1);
             if( dir_map[idx] == 0 )
@@ -1065,7 +1069,8 @@ collision_flood(
                 dist_map[idx] = next_cost;
             }
         }
-        if( collision_map_can_step_diagonal_south_east(cm, x, z) )
+        if( x + 1 <= win.max_x && z - 1 >= win.min_z &&
+            collision_map_can_step_diagonal_south_east(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x + 1, z - 1);
             if( dir_map[idx] == 0 )
@@ -1077,7 +1082,8 @@ collision_flood(
                 dist_map[idx] = next_cost;
             }
         }
-        if( collision_map_can_step_diagonal_north_west(cm, x, z) )
+        if( x - 1 >= win.min_x && z + 1 <= win.max_z &&
+            collision_map_can_step_diagonal_north_west(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x - 1, z + 1);
             if( dir_map[idx] == 0 )
@@ -1089,7 +1095,8 @@ collision_flood(
                 dist_map[idx] = next_cost;
             }
         }
-        if( collision_map_can_step_diagonal_north_east(cm, x, z) )
+        if( x + 1 <= win.max_x && z + 1 <= win.max_z &&
+            collision_map_can_step_diagonal_north_east(cm, x, z) )
         {
             idx = collision_map_index_at(cm, x + 1, z + 1);
             if( dir_map[idx] == 0 )
@@ -1729,6 +1736,26 @@ collision_map_approached(
         COLL_FLAG_BLOCK_NPC_AND_PLAYERS);
 }
 
+int
+collision_map_approached_symmetric(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height)
+{
+    assert(cm);
+    if( !collision_map_approached(
+            cm, src_x, src_z, dest_x, dest_z, src_width, src_height, dest_width, dest_height) )
+        return 0;
+    return collision_map_approached(
+        cm, dest_x, dest_z, src_x, src_z, dest_width, dest_height, src_width, src_height);
+}
+
 /* =========================================================================
  * Entity occupancy — rsmod CollisionEngine.changeSquare
  * ========================================================================= */
@@ -1768,13 +1795,14 @@ collision_map_change_square(
 static int
 collision_tile_open(
     struct CollisionMap* cm,
+    int coll_type,
     int x,
     int z,
     int masks)
 {
     if( x < 0 || z < 0 || x >= cm->size_x || z >= cm->size_z )
         return 0;
-    return (cm->flags[collision_map_index_at(cm, x, z)] & masks) == COLL_FLAG_OPEN;
+    return collision_can_move(coll_type, cm->flags[collision_map_index_at(cm, x, z)], masks);
 }
 
 int
@@ -1787,6 +1815,21 @@ collision_map_can_travel(
     int size,
     int extra_flag)
 {
+    return collision_map_can_travel_typed(
+        cm, x, z, offset_x, offset_z, size, extra_flag, COLL_TYPE_NORMAL);
+}
+
+int
+collision_map_can_travel_typed(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag,
+    int coll_type)
+{
     assert(cm);
     assert(size >= 1);
 
@@ -1795,64 +1838,64 @@ collision_map_can_travel(
     if( size == 1 )
     {
         if( offset_x == 0 && offset_z == -1 )
-            return collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
         if( offset_x == 0 && offset_z == 1 )
-            return collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
         if( offset_x == -1 && offset_z == 0 )
-            return collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag);
         if( offset_x == 1 && offset_z == 0 )
-            return collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag);
         if( offset_x == -1 && offset_z == -1 )
-            return collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
-                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
         if( offset_x == -1 && offset_z == 1 )
-            return collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
-                   collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
         if( offset_x == 1 && offset_z == -1 )
-            return collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
-                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
         if( offset_x == 1 && offset_z == 1 )
-            return collision_tile_open(cm, x + 1, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
-                   collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 1, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
         return 0;
     }
 
     if( size == 2 )
     {
         if( offset_x == 0 && offset_z == -1 )
-            return collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag);
+            return collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag);
         if( offset_x == 0 && offset_z == 1 )
-            return collision_tile_open(cm, x, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
+            return collision_tile_open(cm, coll_type, x, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
         if( offset_x == -1 && offset_z == 0 )
-            return collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag);
         if( offset_x == 1 && offset_z == 0 )
-            return collision_tile_open(cm, x + 2, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 2, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
         /* Diagonals for size 2: three-tile check via the size-1 style on the
          * leading corner plus the two cardinals — matches StepValidator. */
         if( offset_x == -1 && offset_z == -1 )
-            return collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
         if( offset_x == -1 && offset_z == 1 )
-            return collision_tile_open(cm, x - 1, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x - 1, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
         if( offset_x == 1 && offset_z == -1 )
-            return collision_tile_open(cm, x + 2, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x + 2, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 2, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 2, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
         if( offset_x == 1 && offset_z == 1 )
-            return collision_tile_open(cm, x + 2, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
-                   collision_tile_open(cm, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
-                   collision_tile_open(cm, x + 1, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
+            return collision_tile_open(cm, coll_type, x + 2, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, coll_type, x + 1, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
         return 0;
     }
 
@@ -1860,13 +1903,13 @@ collision_map_can_travel(
     if( offset_x == 0 && offset_z == -1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
             return 0;
-        if( !collision_tile_open(cm, x + size - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
             return 0;
         for( mid = x + 1; mid < x + size - 1; mid++ )
         {
-            if( !collision_tile_open(cm, mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+            if( !collision_tile_open(cm, coll_type, mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1874,13 +1917,13 @@ collision_map_can_travel(
     if( offset_x == 0 && offset_z == 1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
             return 0;
-        if( !collision_tile_open(cm, x + size - 1, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size - 1, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
             return 0;
         for( mid = x + 1; mid < x + size - 1; mid++ )
         {
-            if( !collision_tile_open(cm, mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+            if( !collision_tile_open(cm, coll_type, mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1888,13 +1931,13 @@ collision_map_can_travel(
     if( offset_x == -1 && offset_z == 0 )
     {
         int mid;
-        if( !collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
             return 0;
-        if( !collision_tile_open(cm, x - 1, z + size - 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x - 1, z + size - 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
             return 0;
         for( mid = z + 1; mid < z + size - 1; mid++ )
         {
-            if( !collision_tile_open(cm, x - 1, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+            if( !collision_tile_open(cm, coll_type, x - 1, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1902,13 +1945,13 @@ collision_map_can_travel(
     if( offset_x == 1 && offset_z == 0 )
     {
         int mid;
-        if( !collision_tile_open(cm, x + size, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
             return 0;
-        if( !collision_tile_open(cm, x + size, z + size - 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size, z + size - 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
             return 0;
         for( mid = z + 1; mid < z + size - 1; mid++ )
         {
-            if( !collision_tile_open(cm, x + size, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+            if( !collision_tile_open(cm, coll_type, x + size, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1917,15 +1960,15 @@ collision_map_can_travel(
     if( offset_x == -1 && offset_z == -1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
             return 0;
         for( mid = 1; mid < size; mid++ )
         {
             if( !collision_tile_open(
-                    cm, x - 1, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+                    cm, coll_type, x - 1, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
                 return 0;
             if( !collision_tile_open(
-                    cm, x + mid - 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+                    cm, coll_type, x + mid - 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1933,15 +1976,15 @@ collision_map_can_travel(
     if( offset_x == -1 && offset_z == 1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x - 1, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x - 1, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
             return 0;
         for( mid = 1; mid < size; mid++ )
         {
             if( !collision_tile_open(
-                    cm, x - 1, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+                    cm, coll_type, x - 1, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
                 return 0;
             if( !collision_tile_open(
-                    cm, x + mid - 1, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+                    cm, coll_type, x + mid - 1, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1949,15 +1992,15 @@ collision_map_can_travel(
     if( offset_x == 1 && offset_z == -1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x + size, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
             return 0;
         for( mid = 1; mid < size; mid++ )
         {
             if( !collision_tile_open(
-                    cm, x + size, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+                    cm, coll_type, x + size, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
                 return 0;
             if( !collision_tile_open(
-                    cm, x + mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+                    cm, coll_type, x + mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
                 return 0;
         }
         return 1;
@@ -1965,15 +2008,15 @@ collision_map_can_travel(
     if( offset_x == 1 && offset_z == 1 )
     {
         int mid;
-        if( !collision_tile_open(cm, x + size, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+        if( !collision_tile_open(cm, coll_type, x + size, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
             return 0;
         for( mid = 1; mid < size; mid++ )
         {
             if( !collision_tile_open(
-                    cm, x + mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+                    cm, coll_type, x + mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
                 return 0;
             if( !collision_tile_open(
-                    cm, x + size, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+                    cm, coll_type, x + size, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
                 return 0;
         }
         return 1;

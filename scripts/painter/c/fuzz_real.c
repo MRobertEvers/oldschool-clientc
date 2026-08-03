@@ -11,10 +11,165 @@
 #include "painter_fuzz_scene.h"
 
 #include "graphics/shared_tables.h"
+#include "painters/scene_occluders.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/** True iff every packed command in `sub` appears in `full` in the same order
+ * (sub is a subsequence of full). Occlusion may only remove commands. */
+static int
+commands_are_subsequence(
+    const struct PaintersBuffer* sub,
+    const struct PaintersBuffer* full)
+{
+    int fi = 0;
+    int si;
+    for( si = 0; si < sub->command_count; si++ )
+    {
+        uint32_t want = sub->commands[si]._packed;
+        while( fi < full->command_count && full->commands[fi]._packed != want )
+            fi++;
+        if( fi >= full->command_count )
+            return 0;
+        fi++;
+    }
+    return 1;
+}
+
+/**
+ * Paint once without occluders and once with a large synthetic wall plane in
+ * front of the camera. The occluded stream must be a subsequence of the
+ * un-occluded one — occlusion may remove commands, never add/reorder/change.
+ */
+static int
+run_occlusion_subsequence(
+    const PainterFuzzConfig* cfg,
+    int verbose)
+{
+    struct PaintersCullMap* cm = NULL;
+    PainterFuzzAddedCounts added;
+    struct Painter* painter = painter_fuzz_build_scene(cfg, &cm, &added);
+    struct PaintersBuffer* buf_off = NULL;
+    struct PaintersBuffer* buf_on = NULL;
+    struct SceneOccluders* occ = NULL;
+    int16_t* heights = NULL;
+    int fail = 0;
+    int gw;
+    int gh;
+    int n;
+
+    if( !painter )
+        return -1;
+
+    buf_off = painter_buffer_new();
+    buf_on = painter_buffer_new();
+    if( !buf_off || !buf_on )
+    {
+        fail = -1;
+        goto done;
+    }
+
+    painter_paint_bucket(
+        painter, buf_off, cfg->camera_sx, cfg->camera_sz, cfg->camera_slevel);
+
+    occ = scene_occluders_new(cfg->grid, cfg->grid, cfg->levels > 0 ? cfg->levels : 4);
+    if( !occ )
+    {
+        fail = -1;
+        goto done;
+    }
+    gw = cfg->grid + 1;
+    gh = cfg->grid + 1;
+    n = gw * gh * (cfg->levels > 0 ? cfg->levels : 4);
+    heights = calloc((size_t)n, sizeof(int16_t));
+    if( !heights )
+    {
+        fail = -1;
+        goto done;
+    }
+    scene_occluders_set_ground_heights(
+        occ, heights, gw, gh, cfg->levels > 0 ? cfg->levels : 4);
+
+    /* Wall between the camera and the far half of the scene. */
+    {
+        int wall_x = cfg->camera_sx - 2;
+        int top = (cfg->levels > 0 ? cfg->levels : 4) - 1;
+        if( wall_x < 1 )
+            wall_x = cfg->camera_sx + 2;
+        if( wall_x >= cfg->grid - 1 )
+            wall_x = cfg->grid / 2;
+        if( scene_occluders_add(
+                occ,
+                top,
+                OCCLUDER_PLANE_CONSTANT_X,
+                wall_x * 128,
+                -240,
+                0,
+                wall_x * 128,
+                0,
+                cfg->grid * 128) != 0 )
+        {
+            fail = -1;
+            goto done;
+        }
+        scene_occluders_select_for_camera(
+            occ,
+            cfg->camera_sx * 128 + 64,
+            -100,
+            cfg->camera_sz * 128 + 64,
+            top,
+            NULL,
+            NULL,
+            cfg->pitch,
+            cfg->yaw);
+    }
+
+    painter_set_occluders(painter, occ);
+    occ = NULL; /* ownership transferred */
+
+    painter_paint_bucket(
+        painter, buf_on, cfg->camera_sx, cfg->camera_sz, cfg->camera_slevel);
+
+    if( !commands_are_subsequence(buf_on, buf_off) )
+    {
+        fail = 1;
+        printf(
+            "FAIL occlusion subsequence: seed=%u off=%d on=%d (on must be subsequence of off)\n",
+            cfg->seed,
+            buf_off->command_count,
+            buf_on->command_count);
+    }
+    else if( verbose )
+    {
+        printf(
+            "occlusion subsequence OK seed=%u off=%d on=%d active=%d\n",
+            cfg->seed,
+            buf_off->command_count,
+            buf_on->command_count,
+            painter_get_occluders(painter) ? painter_get_occluders(painter)->active_count
+                                           : 0);
+    }
+
+done:
+    free(heights);
+    if( occ )
+        scene_occluders_free(occ);
+    if( buf_off )
+    {
+        free(buf_off->commands);
+        free(buf_off);
+    }
+    if( buf_on )
+    {
+        free(buf_on->commands);
+        free(buf_on);
+    }
+    painter_free(painter);
+    painters_cullmap_free(cm);
+    return fail;
+}
 
 static int
 run_case(
@@ -227,6 +382,20 @@ main(int argc, char** argv)
             {
                 failures++;
                 shrink_seed(start + i);
+                break;
+            }
+
+            /* Separate scene so the bucket-vs-world3d check stays free of
+             * occluders (traversal honesty). Occlusion may only remove. */
+            int ro = run_occlusion_subsequence(&cfg, 0);
+            if( ro < 0 )
+            {
+                fprintf(stderr, "occlusion setup failed seed=%u\n", start + i);
+                failures++;
+            }
+            else if( ro > 0 )
+            {
+                failures++;
                 break;
             }
         }
