@@ -2,7 +2,7 @@
 # Build and run a deterministic headless perf scenario with the embedded server.
 #
 # Usage:
-#   ./tools/perf/run_perf.sh [idle|ui|world|drift|drift-capped|drift-ui] [frames]
+#   ./tools/perf/run_perf.sh [idle|ui|world|drift|drift-capped|drift-ui|soak-ui] [frames]
 #
 # Env:
 #   PLATFORM_OBJ_BASE   private objdir (default: build_perf)
@@ -28,9 +28,9 @@ mkdir -p "$OUT_DIR"
 MANIFEST="$ROOT/manifest_osrs230_embed.ini"
 
 case "$SCENARIO" in
-  idle|ui|world|drift|drift-capped|drift-ui) ;;
+  idle|ui|world|drift|drift-capped|drift-ui|soak-ui) ;;
   *)
-    echo "usage: $0 [idle|ui|world|drift|drift-capped|drift-ui] [frames]" >&2
+    echo "usage: $0 [idle|ui|world|drift|drift-capped|drift-ui|soak-ui] [frames]" >&2
     exit 2
     ;;
 esac
@@ -39,6 +39,7 @@ esac
 if [ -z "$FRAMES" ]; then
   case "$SCENARIO" in
     drift|drift-ui) FRAMES=30000 ;;
+    soak-ui) FRAMES=60000 ;;
     drift-capped) FRAMES=30000 ;; # ~10 min at 50 fps
     *) FRAMES=1200 ;;
   esac
@@ -48,7 +49,7 @@ CSV="${TORIRS_PERF_OUT:-$OUT_DIR/${REV}-${SCENARIO}.csv}"
 WINDOW="${TORIRS_PERF_WINDOW:-}"
 if [ -z "$WINDOW" ]; then
   case "$SCENARIO" in
-    drift|drift-capped|drift-ui) WINDOW=500 ;;
+    drift|drift-capped|drift-ui|soak-ui) WINDOW=500 ;;
     *) WINDOW=1000 ;;
   esac
 fi
@@ -104,6 +105,29 @@ case "$SCENARIO" in
       EXTRA_ENV+=(TORIRS_SIM_HOTKEY="${parts[*]}")
     }
     ;;
+  soak-ui)
+    # Multi-panel residency soak: rotate distinct IF_OPENSUB targets so
+    # component_count grows with each new pack (drift-ui remounts one pack).
+    # Escape closes the current modal between opens; f-keys cycle sidebars.
+    EXTRA_ENV+=(TORIRS_NET_CHEAT="bank;equipstats;xptracker;loottools;hiscores;farmkit")
+    EXTRA_ENV+=(TORIRS_NET_CHEAT_EVERY=50)
+    EXTRA_ENV+=(TORIRS_NET_CHEAT_ROTATE=1)
+    EXTRA_ENV+=(TORIRS_IFACE_STATS=1)
+    EXTRA_ENV+=(TORIRS_STATS=1)
+    {
+      parts=("350,escape")
+      f=400
+      while [ "$f" -lt "$FRAMES" ]; do
+        for key in escape f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 escape; do
+          parts+=("${f},${key}")
+          f=$((f + 20))
+          [ "$f" -ge "$FRAMES" ] && break
+        done
+      done
+      IFS=';'
+      EXTRA_ENV+=(TORIRS_SIM_HOTKEY="${parts[*]}")
+    }
+    ;;
 esac
 
 echo "run_perf: scenario=$SCENARIO frames=$FRAMES window=$WINDOW csv=$CSV"
@@ -134,7 +158,7 @@ fi
 # Print the report summary from the log for interactive use.
 grep -A80 '=== torirs_perf report ===' "$OUT_DIR/${REV}-${SCENARIO}.log" || true
 # Drift: print window frame_p95 lines so the slope is visible without opening CSV.
-if [[ "$SCENARIO" == drift* ]]; then
+if [[ "$SCENARIO" == drift* || "$SCENARIO" == soak-ui ]]; then
   echo "--- window frame_p95 ---"
   grep 'torirs_perf: window=' "$OUT_DIR/${REV}-${SCENARIO}.log" || true
   if [ -f "${CSV}.windows.csv" ]; then

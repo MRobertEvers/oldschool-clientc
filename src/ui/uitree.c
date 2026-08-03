@@ -709,6 +709,7 @@ uitree_reclaim_subtree(
     tree->free_head = idx;
     tree->id_generation++;
     tree->hook_index_stale = 1;
+    tree->model_index_stale = 1;
 }
 
 void
@@ -725,6 +726,9 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_changed);
     free(tree->timer_hook_ids);
     free(tree->key_hook_ids);
+    free(tree->wheel_hook_ids);
+    free(tree->opkey_ids);
+    free(tree->model_node_ids);
     free(tree->components);
     free(tree);
 }
@@ -749,6 +753,7 @@ UITree_Clear(struct UITree* tree)
     tree->interface_parent_count = 0;
     tree->generation++;
     tree->hook_index_stale = 1;
+    tree->model_index_stale = 1;
 }
 
 void
@@ -1411,6 +1416,8 @@ UITree_Push(
         UITree_SetBehavior(tree, idx, spec->behavior);
 
     tree->hook_index_stale = 1;
+    if( component->type == UIELEM_RS_MODEL )
+        tree->model_index_stale = 1;
     return idx;
 }
 
@@ -2679,6 +2686,7 @@ UITree_ApplyOpKey(
     {
         memset(slot, 0, sizeof(*slot));
         uitree_opkey_refresh_has_bindings(node);
+        tree->hook_index_stale = 1;
         return true;
     }
 
@@ -2691,6 +2699,7 @@ UITree_ApplyOpKey(
         slot->key_codes[i] = key_codes[i];
     }
     node->op_keys.has_bindings = 1;
+    tree->hook_index_stale = 1;
     return true;
 }
 
@@ -3258,21 +3267,32 @@ UITree_EnsureHookIndexes(struct UITree* tree)
     uint32_t i;
     int t_n = 0;
     int k_n = 0;
+    int w_n = 0;
+    int o_n = 0;
     assert(tree);
     if( !tree->hook_index_stale && tree->timer_hook_ids )
         return tree->timer_hook_count;
 
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_UITREE_HOOK_INDEX_REBUILD_NODES, (int64_t)tree->component_count);
+
     /* Count first so we size once. A node with no hook block cannot carry
-     * either hook, so the scan is a pointer test on all but a few nodes. */
+     * timer/key/wheel hooks; opkeys live on the component itself. */
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 || !c->runtime_hooks )
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->op_keys.has_bindings )
+            o_n++;
+        if( !c->runtime_hooks )
             continue;
         if( c->runtime_hooks->on_timer.script_id > 0 )
             t_n++;
         if( c->runtime_hooks->on_key.script_id > 0 )
             k_n++;
+        if( c->runtime_hooks->on_scroll_wheel.script_id > 0 )
+            w_n++;
     }
 
     if( t_n > tree->timer_hook_cap )
@@ -3291,21 +3311,86 @@ UITree_EnsureHookIndexes(struct UITree* tree)
         tree->key_hook_ids = p;
         tree->key_hook_cap = cap;
     }
+    if( w_n > tree->wheel_hook_cap )
+    {
+        int cap = w_n < 16 ? 16 : w_n;
+        int32_t* p = (int32_t*)realloc(tree->wheel_hook_ids, (size_t)cap * sizeof(int32_t));
+        assert(p);
+        tree->wheel_hook_ids = p;
+        tree->wheel_hook_cap = cap;
+    }
+    if( o_n > tree->opkey_cap )
+    {
+        int cap = o_n < 16 ? 16 : o_n;
+        int32_t* p = (int32_t*)realloc(tree->opkey_ids, (size_t)cap * sizeof(int32_t));
+        assert(p);
+        tree->opkey_ids = p;
+        tree->opkey_cap = cap;
+    }
 
     t_n = 0;
     k_n = 0;
+    w_n = 0;
+    o_n = 0;
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 || !c->runtime_hooks )
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->op_keys.has_bindings )
+            tree->opkey_ids[o_n++] = c->component_id;
+        if( !c->runtime_hooks )
             continue;
         if( c->runtime_hooks->on_timer.script_id > 0 )
             tree->timer_hook_ids[t_n++] = c->component_id;
         if( c->runtime_hooks->on_key.script_id > 0 )
             tree->key_hook_ids[k_n++] = c->component_id;
+        if( c->runtime_hooks->on_scroll_wheel.script_id > 0 )
+            tree->wheel_hook_ids[w_n++] = c->component_id;
     }
     tree->timer_hook_count = t_n;
     tree->key_hook_count = k_n;
+    tree->wheel_hook_count = w_n;
+    tree->opkey_count = o_n;
     tree->hook_index_stale = 0;
     return tree->timer_hook_count;
+}
+
+int
+UITree_EnsureModelIndex(struct UITree* tree)
+{
+    uint32_t i;
+    int n = 0;
+    assert(tree);
+    if( !tree->model_index_stale && tree->model_node_ids )
+        return tree->model_node_count;
+
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->type == UIELEM_RS_MODEL )
+            n++;
+    }
+    if( n > tree->model_node_cap )
+    {
+        int cap = n < 16 ? 16 : n;
+        int32_t* p = (int32_t*)realloc(tree->model_node_ids, (size_t)cap * sizeof(int32_t));
+        assert(p);
+        tree->model_node_ids = p;
+        tree->model_node_cap = cap;
+    }
+    n = 0;
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->type == UIELEM_RS_MODEL )
+            tree->model_node_ids[n++] = c->component_id;
+    }
+    tree->model_node_count = n;
+    tree->model_index_stale = 0;
+    return tree->model_node_count;
 }

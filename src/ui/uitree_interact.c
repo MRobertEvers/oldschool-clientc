@@ -114,14 +114,20 @@ find_wheel_hook_component(
 {
     int32_t best = -1;
     int best_area = 0;
-    uint32_t i;
+    int wi;
 
     assert(tree);
-    for( i = 0; i < tree->component_count; i++ )
+    UITree_EnsureHookIndexes((struct UITree*)tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WHEEL_SCAN_NODES, (int64_t)tree->wheel_hook_count);
+    for( wi = 0; wi < tree->wheel_hook_count; wi++ )
     {
-        struct UITreeComponent const* c = &tree->components[i];
+        int32_t idx = UITree_FindByComponentId(tree, tree->wheel_hook_ids[wi]);
+        struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
+        if( idx < 0 )
+            continue;
+        c = &tree->components[idx];
         if( c->freed || c->component_id < 0 )
             continue;
         if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
@@ -131,14 +137,14 @@ find_wheel_hook_component(
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         if( bw <= 0 || bh <= 0 )
             continue;
-        UITree_AccumScrollOffset(tree, (int32_t)i, &offx, &offy);
+        UITree_AccumScrollOffset(tree, idx, &offx, &offy);
         if( !UITree_PointInScrolledBounds(mx, my, bx, by, bw, bh, offx, offy) )
             continue;
         {
             int area = bw * bh;
             if( best < 0 || area < best_area )
             {
-                best = (int32_t)i;
+                best = idx;
                 best_area = area;
             }
         }
@@ -876,11 +882,17 @@ interact_op_keys(
     struct LibToriRS_Input* input,
     struct UIInteractOut* out)
 {
-    uint32_t i;
+    int oi;
 
-    for( i = 0; i < tree->component_count; i++ )
+    UITree_EnsureHookIndexes(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_OPKEY_SCAN_NODES, (int64_t)tree->opkey_count);
+    for( oi = 0; oi < tree->opkey_count; oi++ )
     {
-        struct UITreeComponent const* node = &tree->components[i];
+        int32_t idx = UITree_FindByComponentId(tree, tree->opkey_ids[oi]);
+        struct UITreeComponent const* node;
+        if( idx < 0 )
+            continue;
+        node = &tree->components[idx];
         if( node->freed || node->component_id < 0 || !node->op_keys.has_bindings )
             continue;
         if( UITree_Hooks(node)->on_op.script_id <= 0 )

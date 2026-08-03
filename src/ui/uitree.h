@@ -825,8 +825,9 @@ struct UITree
      *  a rebuild re-resolves them from the manifest. */
     struct UITreeHotkey hotkeys[UITREE_HOTKEY_MAX];
     int hotkey_count;
-    /** Compact indices of components with on_timer / on_key hooks. Rebuilt
-     *  lazily when hook_index_stale is set (ApplyRuntimeHook, push, reclaim).
+    /** Compact indices of components with on_timer / on_key / on_scroll_wheel
+     *  hooks, and of nodes with op-key bindings. Rebuilt lazily when
+     *  hook_index_stale is set (ApplyRuntimeHook, push, reclaim, SetOpKey).
      *  Steady-state logic ticks walk timer_count entries instead of every node. */
     int32_t* timer_hook_ids;
     int timer_hook_count;
@@ -834,7 +835,20 @@ struct UITree
     int32_t* key_hook_ids;
     int key_hook_count;
     int key_hook_cap;
+    int32_t* wheel_hook_ids;
+    int wheel_hook_count;
+    int wheel_hook_cap;
+    int32_t* opkey_ids;
+    int opkey_count;
+    int opkey_cap;
     uint8_t hook_index_stale;
+    /** Compact indices of UIELEM_RS_MODEL nodes. Rebuilt lazily when
+     *  model_index_stale is set (Push of a model, reclaim). UITreeAnim walks
+     *  this instead of every component every tick. */
+    int32_t* model_node_ids;
+    int model_node_count;
+    int model_node_cap;
+    uint8_t model_index_stale;
 };
 
 struct UITreeNodeSpec
@@ -1616,8 +1630,11 @@ UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,
     int component_id);
 
-/** Rebuild timer/key hook id lists if stale. Returns timer_hook_count. */
+/** Rebuild timer/key/wheel/opkey hook id lists if stale. Returns timer_hook_count. */
 int UITree_EnsureHookIndexes(struct UITree* tree);
+
+/** Rebuild model-node id list if stale. Returns model_node_count. */
+int UITree_EnsureModelIndex(struct UITree* tree);
 
 /** Mark hook indexes stale (call after external hook writes). */
 void UITree_InvalidateHookIndexes(struct UITree* tree);

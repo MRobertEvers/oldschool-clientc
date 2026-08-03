@@ -44,6 +44,7 @@
 #include "render/torirs_pick.h"
 #include "toridraw.h"
 #include "ui/uitree_layout.h"
+#include "ui/uitree_iface_stats.h"
 #include "world/world.h"
 
 #include "bmp.h"
@@ -3795,6 +3796,7 @@ App_OpenRootInterface(
         UITree_Clear(app->tree);
         app->host.inv_transmit_hook_count = 0;
         app->host.var_transmit_hook_count = 0;
+        app->host.stat_transmit_hook_count = 0;
     }
 
     if( app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] )
@@ -3897,10 +3899,16 @@ Task_OpenSubRefresh_Run(
          * mount task asserts interface_id>0, so a close never routes through
          * it. */
         {
+            struct timespec close_t0;
+            struct timespec close_t1;
+            uint64_t close_ns;
             int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
+            clock_gettime(CLOCK_MONOTONIC, &close_t0);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
             if( rec >= 0 )
             {
                 int old_group = app->tree->interface_parents[rec].group_id;
+                UITreeIfaceStats_NoteClose(old_group);
                 for( uint32_t i = 0; i < app->tree->component_count; i++ )
                 {
                     struct UITreeComponent* c = &app->tree->components[i];
@@ -3918,8 +3926,13 @@ Task_OpenSubRefresh_Run(
                 }
                 RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
             }
+            UITree_InterfaceParentClear(app->tree, self->target_uid);
+            clock_gettime(CLOCK_MONOTONIC, &close_t1);
+            close_ns =
+                (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
+                (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE_NS, (int64_t)close_ns);
         }
-        UITree_InterfaceParentClear(app->tree, self->target_uid);
         /*
          * Then tell the tree a sub-interface went away.
          *
@@ -4255,22 +4268,39 @@ app_logic_tick(struct App* app)
             }
             if( fire )
             {
+                static int cheat_rotate = -1;
+                static int cheat_index = 0;
+                int rotate;
+                int part_i;
+
                 app->net_cheat_sent = 1;
+                if( cheat_rotate < 0 )
+                    cheat_rotate = getenv("TORIRS_NET_CHEAT_ROTATE") != NULL;
+                rotate = cheat_rotate;
+
+                /* Rotate mode: fire one semicolon-separated command per shot so
+                 * soak-ui can open a different panel each EVERY cycle. Default
+                 * still fires the whole list (tele;give;…). */
+                part_i = 0;
                 while( cheat && cheat[0] )
                 {
                     char one[96] = { 0 };
                     char const* sep = strchr(cheat, ';');
                     size_t len = sep ? (size_t)(sep - cheat) : strlen(cheat);
                     char const* body;
+                    int take = 1;
                     if( len >= sizeof(one) )
                         len = sizeof(one) - 1;
                     memcpy(one, cheat, len);
-                    /* Packet body is without "::" (net_out_client_cheat); accept
-                     * either spelling in the env so harnesses can write ::bank. */
                     body = one;
                     if( body[0] == ':' && body[1] == ':' )
                         body += 2;
-                    if( body[0] )
+                    if( rotate )
+                    {
+                        take = (part_i == cheat_index);
+                        part_i++;
+                    }
+                    if( take && body[0] )
                     {
                         if( strncmp(body, "lootkill ", 9) == 0 )
                         {
@@ -4295,8 +4325,23 @@ app_logic_tick(struct App* app)
                                     sizeof(_nsbuf),
                                     body));
                         }
+                        if( rotate )
+                            break;
                     }
                     cheat = sep ? sep + 1 : NULL;
+                }
+                if( rotate )
+                {
+                    int parts = 0;
+                    char const* p = getenv("TORIRS_NET_CHEAT");
+                    while( p && p[0] )
+                    {
+                        char const* sep = strchr(p, ';');
+                        parts++;
+                        p = sep ? sep + 1 : NULL;
+                    }
+                    if( parts > 0 )
+                        cheat_index = (cheat_index + 1) % parts;
                 }
             }
         }
@@ -4574,13 +4619,44 @@ app_logic_tick(struct App* app)
     app_request_cs1_eval(app);
 
     /* TORIRS_STATS=1: periodic growth diagnostics — component_count must stay
-     * flat under the CC_DELETEALL/CC_CREATE rebuild pattern (reclamation). */
+     * flat under the CC_DELETEALL/CC_CREATE rebuild pattern (reclamation).
+     * TORIRS_IFACE_STATS=1: per-group open/close ledger (names the panel). */
     {
         static int stats_enabled = -1;
         static int stats_tick = 0;
         if( stats_enabled < 0 )
             stats_enabled = getenv("TORIRS_STATS") != NULL;
-        if( stats_enabled && ++stats_tick % 250 == 0 )
+        stats_tick++;
+#if !defined(TORIRS_PERF_DISABLE)
+        if( g_torirs_perf_enabled || stats_enabled )
+#else
+        if( stats_enabled )
+#endif
+        {
+            UITreeIfaceStats_SampleGauges(app->tree);
+            TORIRS_PERF_COUNT_SET(
+                TORIRS_PERF_CTR_HOST_INV_HOOKS, app->host.inv_transmit_hook_count);
+            TORIRS_PERF_COUNT_SET(
+                TORIRS_PERF_CTR_HOST_VAR_HOOKS, app->host.var_transmit_hook_count);
+            TORIRS_PERF_COUNT_SET(
+                TORIRS_PERF_CTR_HOST_STAT_HOOKS, app->host.stat_transmit_hook_count);
+            if( app->bridge.sprite_map )
+                TORIRS_PERF_COUNT_SET(
+                    TORIRS_PERF_CTR_BRIDGE_SPRITE_MAP, (int64_t)app->bridge.sprite_map->size);
+            if( app->bridge.model_map )
+                TORIRS_PERF_COUNT_SET(
+                    TORIRS_PERF_CTR_BRIDGE_MODEL_MAP, (int64_t)app->bridge.model_map->size);
+            if( app->bridge.obj_icon_map )
+                TORIRS_PERF_COUNT_SET(
+                    TORIRS_PERF_CTR_BRIDGE_OBJ_ICON_MAP,
+                    (int64_t)app->bridge.obj_icon_map->size);
+            if( app->provider && app->provider->clientscript_cache )
+                TORIRS_PERF_COUNT_SET(
+                    TORIRS_PERF_CTR_CACHE_CLIENTSCRIPT_SIZE,
+                    (int64_t)app->provider->clientscript_cache->size);
+        }
+        UITreeIfaceStats_Tick(app->tree, stats_tick);
+        if( stats_enabled && stats_tick % 250 == 0 )
         {
             uint32_t hidden = 0;
             uint32_t freed = 0;

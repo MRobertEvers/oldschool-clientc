@@ -125,6 +125,31 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "npc_slot_max",
     "cache_model_size",
     "cache_sprite_size",
+    "iface_open",
+    "iface_close",
+    "iface_bake",
+    "iface_bake_reuse",
+    "iface_mount_ns",
+    "iface_close_ns",
+    "iface_groups_resident",
+    "uitree_hidden",
+    "uitree_unmounted",
+    "uitree_freed",
+    "uitree_hook_blocks",
+    "uitree_hook_bytes",
+    "host_inv_hooks",
+    "host_var_hooks",
+    "host_stat_hooks",
+    "bridge_sprite_map",
+    "bridge_model_map",
+    "bridge_obj_icon_map",
+    "cache_clientscript_size",
+    "uitree_anim_scan",
+    "uitree_anim_scan_nodes",
+    "uitree_anim_model_nodes",
+    "uitree_wheel_scan_nodes",
+    "uitree_opkey_scan_nodes",
+    "uitree_hook_index_rebuild_nodes",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
@@ -146,6 +171,19 @@ ctr_is_gauge(enum TorirsPerfCounter ctr)
     case TORIRS_PERF_CTR_NPC_SLOT_MAX:
     case TORIRS_PERF_CTR_CACHE_MODEL_SIZE:
     case TORIRS_PERF_CTR_CACHE_SPRITE_SIZE:
+    case TORIRS_PERF_CTR_IFACE_GROUPS_RESIDENT:
+    case TORIRS_PERF_CTR_UITREE_HIDDEN:
+    case TORIRS_PERF_CTR_UITREE_UNMOUNTED:
+    case TORIRS_PERF_CTR_UITREE_FREED:
+    case TORIRS_PERF_CTR_UITREE_HOOK_BLOCKS:
+    case TORIRS_PERF_CTR_UITREE_HOOK_BYTES:
+    case TORIRS_PERF_CTR_HOST_INV_HOOKS:
+    case TORIRS_PERF_CTR_HOST_VAR_HOOKS:
+    case TORIRS_PERF_CTR_HOST_STAT_HOOKS:
+    case TORIRS_PERF_CTR_BRIDGE_SPRITE_MAP:
+    case TORIRS_PERF_CTR_BRIDGE_MODEL_MAP:
+    case TORIRS_PERF_CTR_BRIDGE_OBJ_ICON_MAP:
+    case TORIRS_PERF_CTR_CACHE_CLIENTSCRIPT_SIZE:
         return 1;
     default:
         return 0;

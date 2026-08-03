@@ -1,6 +1,7 @@
 #include "uitree_anim.h"
 
 #include "engine/cache_provider.h"
+#include "perf/torirs_perf.h"
 #include "toridraw_animation.h"
 #include "toridraw_model.h"
 
@@ -34,14 +35,23 @@ UITreeAnim_RequestMissing(
     struct SeqLoadTracker* tracker)
 {
     int requested = 0;
-    uint32_t i;
+    int model_n;
+    int mi;
 
     assert(tree && scene && queue && tracker);
-    for( i = 0; i < tree->component_count; i++ )
+    model_n = UITree_EnsureModelIndex(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN_NODES, (int64_t)model_n);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_MODEL_NODES, (int64_t)model_n);
+    for( mi = 0; mi < model_n; mi++ )
     {
-        struct UITreeComponent const* c = &tree->components[i];
+        int32_t idx = UITree_FindByComponentId(tree, tree->model_node_ids[mi]);
+        struct UITreeComponent const* c;
         int seq;
-        if( c->type != UIELEM_RS_MODEL )
+        if( idx < 0 )
+            continue;
+        c = &tree->components[idx];
+        if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
         seq = c->u.rs_model.anim_seq_id;
         if( seq < 0 || c->u.rs_model.gamecache_model_id < 0 )
@@ -69,17 +79,26 @@ UITreeAnim_Advance(
     int cycles)
 {
     int applied = 0;
-    uint32_t i;
+    int model_n;
+    int mi;
 
     assert(tree && scene);
-    for( i = 0; i < tree->component_count; i++ )
+    model_n = UITree_EnsureModelIndex(tree);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN_NODES, (int64_t)model_n);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_MODEL_NODES, (int64_t)model_n);
+    for( mi = 0; mi < model_n; mi++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
+        int32_t idx = UITree_FindByComponentId(tree, tree->model_node_ids[mi]);
+        struct UITreeComponent* c;
         int seq;
         int model_id;
         struct ToriDraw_Animation* anim;
         struct ToriDraw_ModelHandle hnd;
-        if( c->type != UIELEM_RS_MODEL )
+        if( idx < 0 )
+            continue;
+        c = &tree->components[idx];
+        if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
         seq = c->u.rs_model.anim_seq_id;
         model_id = c->u.rs_model.gamecache_model_id;

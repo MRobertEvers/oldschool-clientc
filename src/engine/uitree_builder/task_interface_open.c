@@ -11,7 +11,9 @@
 #include "game/task_cs2_run.h"
 #include "inv/inv_manager.h"
 #include "task_pack_assets_load.h"
+#include "perf/torirs_perf.h"
 #include "ui/uitree.h"
+#include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 
 #include "asyncio.h"
@@ -20,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Standard human idle sequence for the player preview (clientCode 327/328). */
 #ifndef INTERFACE_PLAYER_IDLE_SEQ
@@ -543,12 +546,19 @@ Task_InterfaceOpen_Run(
      * scripts keep writing there. Baking a second copy therefore mounts an
      * empty duplicate over the populated one and the panel renders blank. */
     {
+        struct timespec mount_t0;
+        uint64_t mount_ns;
         struct ToriRS_ComponentPack* pack =
             CacheProvider_ComponentPackGet(self->provider, self->interface_id);
         assert(pack);
+        clock_gettime(CLOCK_MONOTONIC, &mount_t0);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_OPEN, 1);
+        UITreeIfaceStats_NoteOpen(self->interface_id);
         collect_onloads(self, pack);
         if( interface_group_in_tree(self->tree, self->interface_id) )
         {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
+            UITreeIfaceStats_NoteBakeReuse(self->interface_id);
             if( getenv("TORIRS_NET_DEBUG") )
                 fprintf(
                     stderr,
@@ -557,10 +567,20 @@ Task_InterfaceOpen_Run(
         }
         else
         {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE, 1);
+            UITreeIfaceStats_NoteBake(self->interface_id);
             (void)UITree_BuildFromComponentPack(
                 self->tree, pack, open_resolve_sprite, open_resolve_font, self);
         }
         upload_model_nodes(self->tree, self->bridge);
+        {
+            struct timespec mount_t1;
+            clock_gettime(CLOCK_MONOTONIC, &mount_t1);
+            mount_ns =
+                (uint64_t)(mount_t1.tv_sec - mount_t0.tv_sec) * 1000000000ull +
+                (uint64_t)(mount_t1.tv_nsec - mount_t0.tv_nsec);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_MOUNT_NS, (int64_t)mount_ns);
+        }
     }
 
     if( self->target_uid >= 0 )
@@ -575,6 +595,8 @@ Task_InterfaceOpen_Run(
                 int old_group = self->tree->interface_parents[old].group_id;
                 if( old_group != self->interface_id )
                 {
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
+                    UITreeIfaceStats_NoteClose(old_group);
                     for( uint32_t i = 0; i < self->tree->component_count; i++ )
                     {
                         struct UITreeComponent* c = &self->tree->components[i];
