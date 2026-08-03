@@ -226,6 +226,7 @@ Dat2GroupCache_Put(
     slot->group.filelist = filelist;
     slot->group.file_ids = file_ids;
     slot->group.file_count = archive->file_count;
+    slot->group.revision = archive->revision;
     slot->group.bytes = bytes;
     cache->bytes += bytes;
 

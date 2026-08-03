@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 #include "engine/torirs_spotanimtype_from_rscache.h"
 
 #include "asyncio.h"
@@ -17,47 +18,45 @@ struct Task_Dat2SpotanimLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int spotanim_id;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
 };
 
-/* Decode a single spotanim id straight out of the config group archive and hand
- * the converted type to the provider. Unlike the npc/obj path there is no dat2
- * buildcache spotanim store: the provider caches the ToriRS type and
+/* Decode a single spotanim id out of the config group and hand the converted
+ * type to the provider. Unlike the npc/obj path there is no dat2 buildcache
+ * spotanim store: the provider caches the ToriRS type and
  * CacheProvider_SpotanimtypeHas gates re-loads, so the raw config is transient.
- * The group archive itself is LRU-cached in the IO layer. */
+ * The split group is held by the buildcache LRU, so a burst of spotanims (a
+ * fight spawning projectiles) splits the group once rather than per id. */
 static int
 Task_Dat2SpotanimLoad_Run(
     struct ToriRS_Task* task_base,
     struct ToriRS_IO* io)
 {
     struct Task_Dat2SpotanimLoad* task = (struct Task_Dat2SpotanimLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_FileList* filelist = NULL;
     struct RSCache_Dat2ConfigSpotanim* rscache_spotanim = NULL;
     struct ToriRS_Spotanimtype* torirs_spotanim = NULL;
+    int pos;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM);
-    PT_YIELD(&task->pt);
+    DAT2_GROUP_AWAIT(
+        &task->pt, io, 0, task->bc->group_cache, RSCACHE_DAT2_TABLE_CONFIGS,
+        RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, task->group);
 
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM);
-    if( !archive || !archive->file_ids )
+    if( !task->group )
     {
         fprintf(stderr, "Failed to decode dat2 spotanim config group for %d\n", task->spotanim_id);
         PT_EXIT(&task->pt);
     }
 
-    filelist = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( filelist )
+    pos = Dat2Group_IndexOf(task->group, task->spotanim_id);
+    if( pos >= 0 )
     {
-        for( int i = 0; i < filelist->file_count; i++ )
-        {
-            if( archive->file_ids[i] != task->spotanim_id )
-                continue;
-            rscache_spotanim = RSCache_Dat2ConfigSpotanimNewDecode(
-                archive->revision, filelist->files[i], filelist->file_sizes[i]);
-            break;
-        }
+        rscache_spotanim = RSCache_Dat2ConfigSpotanimNewDecode(
+            task->group->revision,
+            task->group->filelist->files[pos],
+            task->group->filelist->file_sizes[pos]);
     }
 
     if( rscache_spotanim )
@@ -66,10 +65,6 @@ Task_Dat2SpotanimLoad_Run(
             ToriRS_SpotanimtypeFromRSCacheDat2(task->spotanim_id, rscache_spotanim);
         RSCache_Dat2ConfigSpotanimFree(rscache_spotanim);
     }
-
-    if( filelist )
-        RSCache_FileListFree(filelist);
-    RSCache_Dat2DiskArchiveFree(archive);
 
     if( !torirs_spotanim )
     {

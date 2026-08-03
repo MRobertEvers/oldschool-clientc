@@ -1838,7 +1838,7 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
              i++ )
         {
             struct UITreeComponent const* node = &host->tree->components[i];
-            struct UITreeRuntimeScriptHook const* slot = &node->runtime_hooks.on_sub_change;
+            struct UITreeRuntimeScriptHook const* slot = &UITree_Hooks(node)->on_sub_change;
             struct Task_CS2SubChangeHook* dst;
 
             if( node->freed || slot->script_id <= 0 )
@@ -1981,13 +1981,13 @@ create_no_trigger_transmit_dispatch(
 static struct UITreeRuntimeScriptHook const*
 misc_transmit_slot(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_misc_transmit;
+    return &UITree_Hooks(node)->on_misc_transmit;
 }
 
 static struct UITreeRuntimeScriptHook const*
 friend_transmit_slot(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_friend_transmit;
+    return &UITree_Hooks(node)->on_friend_transmit;
 }
 
 struct ToriRS_Task*

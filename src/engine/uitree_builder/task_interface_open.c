@@ -429,8 +429,9 @@ collect_runtime_hooks_kind(
     for( i = 0; i < self->tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &self->tree->components[i];
+        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
         struct UITreeRuntimeScriptHook const* slot =
-            use_resize ? &c->runtime_hooks.on_resize : &c->runtime_hooks.on_sub_change;
+            use_resize ? &hooks->on_resize : &hooks->on_sub_change;
         struct InterfaceOpenRuntimeHook* dst;
         if( slot->script_id <= 0 )
             continue;

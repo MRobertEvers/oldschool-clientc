@@ -28,6 +28,10 @@ LOCAL_NAMES: dict[int, str] = {
     # names it, and its meaning is still unknown. Named so the decompiler can
     # print it — the signature below is what lets it get that far.
     210: "_210",
+    # Vendored Opcodes.kt still calls this if_haschild_modal (rev-634 name).
+    # At osrs239 it is IF_SETPARAM (xrsps WidgetOps); Overview script 9176
+    # call sites are five ints and nothing out — haschild's (2i->1i) desyncs.
+    2704: "if_setparam",
 }
 
 # NAME -> (args, defs, dot)
@@ -204,6 +208,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # exactly three `push_constant_int`/`push_int_local` followed by
     # `pop_string_local`, and 38 further sites have the same shape. Three ints
     # in, one string out is the only reading, and it is worth 40 scripts.
+    # xrsps names it ARRAY_NEW (typeCode, length, capacity) -> handle.
     "_8022": (["INT", "INT", "INT"], ["STRING"], False),
     # Round 5. The search converges here: rounds 6 and 7 solve nothing new.
     "_7801": (["STRING"], ["INT"], False),
@@ -212,6 +217,45 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # remains needs an opcode identified in a client rather than inferred (G4).
     "_1628": ([], ["INT"], False),
     "_1139": (["INT"], [], False),
+
+    # ---------------------------------------------------------------
+    # Skill-guide Overview tab (scripts 9150..9199 / 9176), remeasured
+    # 2026-08-03. LostCity has no reference (PORTING_GUIDE §5). Names from
+    # xrsps Opcodes.ts where it has them; arities from call-site balance and
+    # `cs2 decompile --override` scoring against cache.osrs239.
+    #
+    # 211/215: script 9181 — `push 1; push $com; push -1; 211; pop_int_discard;
+    # 215; pop_string_local; 8003`. Only (3i->1i)+(()->1s) and two weaker
+    # pairings decompile; the three-arg form matches the IF_GETCOMPONENTPARAM
+    # shape and is the one kept. 215's string is an array handle (8003'd).
+    "_211": (["INT", "INT", "INT"], ["INT"], False),
+    "_215": ([], ["STRING"], False),
+    # 212: scripts 9179/9186 — after `.cc_find`, `push 1; 212; pop_int_discard;
+    # 213…`. (1i->1i) and (0i->0i) both decompile; (1i->0i) fails on the
+    # discard. Kept as (1i->1i): start_index in, child-count out — the CC
+    # children-find family (203/205) plus a count the scripts discard.
+    "_212": (["INT"], ["INT"], False),
+    # 8018: script 9183 — `push $s; push "||"; 8018; pop_string_local; 8003`.
+    # Two strings in, one string (array handle) out: split.
+    "_8018": (["STRING", "STRING"], ["STRING"], False),
+    # 8012: script 9194 — after ARRAY_SORT, `push $arr; 8012` twice. One
+    # string in, nothing out. Meaning unknown (mutate-in-place); arity only.
+    "_8012": (["STRING"], [], False),
+    # 8023: every Overview site is `push $arr; push N; 8023` then N
+    # `pop_array_int` writes. Array handle + length in, nothing out: resize.
+    "_8023": (["STRING", "INT"], [], False),
+    # 8024: script 9194 — `push $arr; push $value; push 0; 8024` (type 0 =
+    # int). Array + int value + type in, nothing out: append. Typed like
+    # ARRAY_COUNT_MATCHES when the type names a string; Overview only uses
+    # int. xrsps names the broader op ARRAY_INSERT (with an index); this
+    # cache's sites have no index.
+    "_8024": (["STRING", "INT", "INT"], [], False),
+    # 2704: IF_SETPARAM. xrsps WidgetOps: (param, value, uid, child, type)
+    # with typed value. Script 9176: five ints, nothing consumed. Override
+    # scoring `--override 2704:5,0,0,0` recovers 9176; the vendored
+    # if_haschild_modal (2i->1i) from an older deob does not. LOCAL_NAMES
+    # renames the row away from that stale spelling.
+    "IF_SETPARAM": (["INT", "INT", "INT", "INT", "INT"], [], False),
 
     # ---------------------------------------------------------------
     # Settled from call sites rather than by search, against cache.osrs239.
@@ -236,7 +280,11 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7041": (["INT", "STRING"], [], False),
     "_7042": (["INT", "STRING"], [], False),
     "_7615": (["INT"], [], False),
-    "_8019": (["STRING", "STRING"], [], False),
+    # 8019: was recorded as (str,str)->() from an incomplete call-site pass.
+    # Script 9153 pins the push: after `push ""; push $arr; push "||::p||";
+    # 8019` the next gosub is 9182 which takes (int, str, str). Only a string
+    # out leaves the stack right; xrsps ARRAY_JOIN agrees (array, sep) -> str.
+    "_8019": (["STRING", "STRING"], ["STRING"], False),
     # Loot-tracker native store (rev-239). Settled from script 7166's
     # bytecode, not a client: every site sits between empty-stack statement
     # boundaries (or is pinned by the pushes immediately before and the

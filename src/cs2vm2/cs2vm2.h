@@ -109,6 +109,19 @@ struct CS2VM2_Array
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+/* Skill-guide Overview (9150..9199): children-find variant that also pushes
+ * the match count (call-site (1i->1i) in scripts 9179/9186). */
+#define CS2_OP_CC_CHILDREN_FIND_COUNT 212
+#define CS2_OP__213 213
+/* Array-handle family used by the Overview widget library. Names from xrsps
+ * where it has them; 8012/8023 are call-site arities only. */
+#define CS2_OP_ARRAY_LENGTH 8003
+#define CS2_OP_ARRAY_SPLIT 8018
+#define CS2_OP_ARRAY_JOIN 8019
+#define CS2_OP_ARRAY_NEW 8022
+#define CS2_OP_ARRAY_SETLENGTH 8023
+#define CS2_OP_ARRAY_APPEND 8024
+#define CS2_OP_STRING_TO_INT 4036
 #define CS2_OP_CC_SETGRAPHIC2 1122
 #define CS2_OP_IF_SETGRAPHIC2 2122
 #define CS2_OP_CC_SETTRANSBOT 1124

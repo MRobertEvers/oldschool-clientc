@@ -52,7 +52,12 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_UITREE_WALK_DROP,
     TORIRS_PERF_CTR_UITREE_EMIT_SKIP,
     TORIRS_PERF_CTR_UITREE_LAYOUT_RESOLVE,
+    /** Resolves that returned without walking (nothing invalidated since). */
+    TORIRS_PERF_CTR_UITREE_LAYOUT_SKIP,
     TORIRS_PERF_CTR_UITREE_LAYOUT_NODES,
+    /** Nodes the walk visited but did not recompute (own box and parent's box
+     *  both unchanged). LAYOUT_NODES minus this is the real per-frame work. */
+    TORIRS_PERF_CTR_UITREE_LAYOUT_NODE_SKIP,
     TORIRS_PERF_CTR_UITREE_LAYOUT_DEPTH_RECOMPUTE,
     TORIRS_PERF_CTR_UITREE_ENSURE_LAYOUT,
     TORIRS_PERF_CTR_UITREE_CC_CREATE,

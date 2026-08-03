@@ -421,7 +421,7 @@ test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
 
 define make-goal
-$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
@@ -430,49 +430,49 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 
 $(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
-$(OBJ_DIR)/painters.o: painters/painters.c
+$(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
 
 # Rev protocol tables include their own dir for packetin.h/packetout.h.
-$(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c
+$(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
-$(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c
+$(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
-$(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c
+$(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
-$(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c
+$(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs230 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
-$(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c
+$(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c | $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -w -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
 
 # --- World builder pipeline object rules ---------------------------------
-$(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c
+$(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/world_builder.c -o $@
-$(OBJ_DIR)/blendmap.o: $(WB_DIR)/blendmap.c
+$(OBJ_DIR)/blendmap.o: $(WB_DIR)/blendmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/blendmap.c -o $@
-$(OBJ_DIR)/overlaymap.o: $(WB_DIR)/overlaymap.c
+$(OBJ_DIR)/overlaymap.o: $(WB_DIR)/overlaymap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/overlaymap.c -o $@
-$(OBJ_DIR)/lightmap.o: $(WB_DIR)/lightmap.c
+$(OBJ_DIR)/lightmap.o: $(WB_DIR)/lightmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/lightmap.c -o $@
-$(OBJ_DIR)/shademap.o: $(WB_DIR)/shademap.c
+$(OBJ_DIR)/shademap.o: $(WB_DIR)/shademap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/shademap.c -o $@
-$(OBJ_DIR)/sharelight_map.o: $(WB_DIR)/sharelight_map.c
+$(OBJ_DIR)/sharelight_map.o: $(WB_DIR)/sharelight_map.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/sharelight_map.c -o $@
-$(OBJ_DIR)/terrain_shapemap.o: $(WB_DIR)/terrain_shapemap.c
+$(OBJ_DIR)/terrain_shapemap.o: $(WB_DIR)/terrain_shapemap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/terrain_shapemap.c -o $@
-$(OBJ_DIR)/contour_ground.o: $(WB_DIR)/contour_ground.c
+$(OBJ_DIR)/contour_ground.o: $(WB_DIR)/contour_ground.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/contour_ground.c -o $@
-$(OBJ_DIR)/decor_buildmap.o: $(WB_DIR)/decor_buildmap.c
+$(OBJ_DIR)/decor_buildmap.o: $(WB_DIR)/decor_buildmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/decor_buildmap.c -o $@
-$(OBJ_DIR)/world_decode_tile.o: $(WB_DIR)/world_decode_tile.c
+$(OBJ_DIR)/world_decode_tile.o: $(WB_DIR)/world_decode_tile.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/world_decode_tile.c -o $@
-$(OBJ_DIR)/heightmap.o: $(WB_DIR)/heightmap.c
+$(OBJ_DIR)/heightmap.o: $(WB_DIR)/heightmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/heightmap.c -o $@
-$(OBJ_DIR)/collision_map.o: $(WB_DIR)/collision_map.c
+$(OBJ_DIR)/collision_map.o: $(WB_DIR)/collision_map.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/collision_map.c -o $@
-$(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c
+$(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(WB_DIR)/minimap.c -o $@
 
 world-builder: $(OBJ_DIR) $(WB_OBJS)
@@ -564,10 +564,10 @@ test-db: $(OBJ_DIR) $(DB_TEST_OBJS)
 		game/test/db_cache_test.c $(DB_TEST_OBJS) $(LDFLAGS)
 	./$(OBJ_DIR)/db_cache_test
 
-$(OBJ_DIR)/hmap.o: $(HMAP_DIR)/hmap.c
+$(OBJ_DIR)/hmap.o: $(HMAP_DIR)/hmap.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(HMAP_DIR)/hmap.c -o $@
 
-$(OBJ_DIR)/rsareabuf.o: $(RSAREABUF_DIR)/rsareabuf.c
+$(OBJ_DIR)/rsareabuf.o: $(RSAREABUF_DIR)/rsareabuf.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(RSAREABUF_DIR)/rsareabuf.c -o $@
 
 # rsareabuf: byte/bit/alt-order round-trips + arena + psize back-patching.
@@ -576,40 +576,40 @@ test-rsareabuf: $(OBJ_DIR)
 		$(RSAREABUF_DIR)/rsareabuf.c $(RSAREABUF_DIR)/rsareabuf_test.c
 	./$(OBJ_DIR)/rsareabuf_test
 
-$(OBJ_DIR)/ini.o: $(INI_SRC)
+$(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(INI_SRC) -o $@
 
-$(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
+$(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c
+$(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 # bzip_encode.c is the compression side (bzip.c is decompress-only). rscache's
 # RSCache_CompressionBzipCompress calls into it, so it belongs in every link set
 # that includes rscache_unity.o.
-$(OBJ_DIR)/bzip_encode.o: $(REPO_ROOT)/3rd/bzip/bzip_encode.c
+$(OBJ_DIR)/bzip_encode.o: $(REPO_ROOT)/3rd/bzip/bzip_encode.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
-$(OBJ_DIR)/miniz.o: $(REPO_ROOT)/3rd/miniz/miniz.c
+$(OBJ_DIR)/miniz.o: $(REPO_ROOT)/3rd/miniz/miniz.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
-$(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c
+$(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
+$(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC)
+$(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
 
-$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c
+$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c
+$(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@
 
-$(OBJ_DIR)/toridraw_font.o: $(TORIDRAW_DIR)/toridraw_font.c
+$(OBJ_DIR)/toridraw_font.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $(TORIDRAW_DIR)/toridraw_font.c -o $@
 
-$(OBJ_DIR)/toridraw_model_sprite.o: $(TORIDRAW_DIR)/toridraw_model_sprite.c
+$(OBJ_DIR)/toridraw_model_sprite.o: $(TORIDRAW_DIR)/toridraw_model_sprite.c | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_DIR)/toridraw_model_sprite.c -o $@
 
 run: $(TARGET)
@@ -719,6 +719,7 @@ test-cs1: $(OBJ_DIR)
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
 		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
+		perf/torirs_perf.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 

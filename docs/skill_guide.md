@@ -292,42 +292,69 @@ make (§6).
 
 ---
 
-## 5. Still open: the Overview tab
+## 5. Overview tab (remeasured 2026-08-03)
 
-**The guide opens on subsection 1, not on Overview, and that is a client
-limitation showing through.** The Overview body is clientscript **9176** and
-the `9150..9199` widget library under it, which between them use twelve CS2
-opcodes this VM has no signature for:
+**Abort is fixed.** Opening Overview (clientscript **9176** + `9150..9199`) no
+longer takes the client down. LostCity has no reference (PORTING_GUIDE §5).
+Arities were established from call-site balance / `cs2 decompile --override`
+scoring against `cache.osrs239`, with names from xrsps where present — not
+invented. Tables: `local_commands.py` → `cs2_command.gen.h`, and
+`gen_opcode_stack.py` → `cs2vm2_opcode_stack.gen.h`.
+
+| Op | Arity | Source | Runtime |
+|---|---|---|---|
+| 211 | `(3i)->(1i)` | script 9181 decompile survivors | StackMetaStub (known) |
+| 212 | `(1i)->(1i)` | 9179/9186 after `.cc_find` | real — children-find + count |
+| 213 | `()->(1i)` | same as FINDNEXTID 204/206 | real — alias |
+| 215 | `()->(1s)` | 9181 → array handle for 8003 | StackMetaStub (known) |
+| 4036 | `(1s)->(1i)` | xrsps `STRING_TO_INT` | real |
+| 8003 | `(1s)->(1i)` | xrsps `ARRAY_LENGTH` | real |
+| 8012 | `(1s)->()` | 9194 after sort; meaning unknown | StackMetaStub (known) |
+| 8018 | `(2s)->(1s)` | 9183 split → handle | real |
+| 8019 | `(2s)->(1s)` | 9153→gosub 9182; xrsps `ARRAY_JOIN` | real |
+| 8022 | `(3i)->(1s)` | xrsps `ARRAY_NEW` | real |
+| 8023 | `(1s,1i)->()` | resize before N `pop_array_int` | real |
+| 8024 | `(1s,2i)->()` | append (int-typed form) | real |
+
+`cs2 infer-arity` is not the route, and that is measured: a full run over
+`cache.osrs239` examines 28 opcodes and solves **0**. It calls `211` and `212`
+under-determined (2 surviving candidates each) and says of `8018`, `8023` and
+`8024` "no arity works; the signature is not the only problem" — they only ever
+appear beside another unknown, so no witness script interprets end to end. Every
+row above therefore comes from call-site balance or `--override` scoring.
+
+**Collateral: opcode 2704 was misidentified.** Vendored / older deob called it
+`IF_HASCHILD_MODAL` `(2i)->(1i)`. At this revision it is **`IF_SETPARAM`**
+(xrsps WidgetOps) — the IF form of `CC_SETCOMPONENTPARAM` (1704). Script 9176
+call sites are five ints and nothing out; `--override 2704:5,0,0,0` recovers
+9176 end-to-end (`if_setparam(2525, 3, $com, -1, 0); …`). Wrong arity left the
+Overview body blank / desynced after the twelve above stopped aborting. Handler
+reuses `CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM`. 2705 remains
+`IF_HASCHILD_OVERLAY`.
+
+### Verified (headless embed Soft3D)
 
 ```
-211  212  213  215  4036  8003  8012  8018  8019  8022  8023  8024
+SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=500 \
+TORIRS_SIM_CLICK_AT="150,536,186;230,535,220,1;242,535,240;300,70,52" \
+TORIRS_EXIT_BMP=/tmp/guide_ov_click.bmp MOCK230_VERBOSE=1 \
+  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 ```
 
-An unimplemented opcode aborts deliberately rather than returning a silent
-zero, so opening on Overview takes the client down. Measured rather than
-assumed: a walk of the guide's whole gosub closure from 1902 reaches 117
-scripts and finds those twelve; the **same walk with 9176 excluded finds none
-at all**. So the gap is exactly the Overview tab, and every other tab of every
-skill is safe.
+Exit **0**. No `unimplemented` / `Assertion failed` / `cs2-stub`. BMP title
+reads **Attack - Overview**; Overview tab selected; content draws (training
+blurb + Quest XP rows). Weapons→Overview content region ~31% pixel diff.
 
-Consequences, stated plainly:
+### Still open (not abort)
 
-- `^skill_guide_tab_default = 1` in the content constant. Every one of the 24
-  skills has a subsection 1 (Attack "Weapons", Agility "Courses", Cooking
-  "Meats", …) — decomposed from `skill_guide_subsections`, not assumed. Set it
-  back to 0 when the twelve land; nothing else moves.
-- **Clicking the Overview tab in the strip still aborts the client.** The tab
-  is the cache's, built by `script1904` from the dbtable, and no server packet
-  can hide it. This is the top follow-on.
-
-Seven of the twelve (`8003 8012 8018 8019 8022 8023 8024`) are the array/string
-family, and are the same class of work as `ARRAY_COUNT_MATCHES` (8007) — see
-`REV230_UI_BLANK_PANELS.md` §2.8. Four (`211 212 213 215`) are the component
-family that already has `203..206`. `cs2 infer-arity` reports every one of them
-under-determined or worse, so each needs the per-site balance argument §3.4
-used for 2703.
+- **Layout overlap / raw `<u=…>` tags** on Overview body — two panels drawn on
+  top of each other. Likely unfinished 211/215 semantics (stubs keep the stack
+  honest but do not drive find/array state). Separate from the abort.
+- `^skill_guide_tab_default = 1` still opens on subsection 1 so first paint
+  stays the clean Weapons list. Set back to 0 when Overview layout is clean.
 
 ---
+
 
 ## 6. The permanent check
 
@@ -573,3 +600,13 @@ outline/shadow, after = pass-through. Icon cells are 36×32 at x=181
 
 Icon-column pure black went **0 → 809** (the `cc_setoutline(1)` edge).
 Same-binary noise floor on that icon column is **0%**.
+
+### Re-verify (2026-08-03, same recipe)
+
+Candidates re-checked against a live Attack Weapons dump: 82× `36×32` bounds at
+`x=181`, 82 emit sprites (`scene=569…`), clip `150,55 306×261`, and the icon
+column BMP shows tiered sword pixels with outline+shadow. Forcing the item
+overlay back to `outline=0`/`graphic_shadow=0` and diffing again reproduces
+**1138 / 10920 = 10.42%** and black **0 → 809**; metal/sword pixels remain in
+the before BMP (icons were never blank after §8 — only the post-process was
+missing). No further C change.

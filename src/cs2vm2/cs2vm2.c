@@ -235,7 +235,9 @@ CS2VM2_IsTargetingOpcode(int opcode)
     case CS2_OP_CC_FIND:
     case CS2_OP_CC_FINDROOT:
     case CS2_OP_CC_CHILDREN_FIND:
+    case CS2_OP_CC_CHILDREN_FIND_COUNT:
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
+    case CS2_OP__213:
     case CS2_OP_IF_CHILDREN_FIND:
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
     case CS2_OP_CC_CREATE:
@@ -2992,9 +2994,64 @@ CS2VM2_Op_IF_HasSub(
     return vm->vm->host_exec(vm, &request);
 }
 
-/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705): pop widget + parent group,
- * push 1 iff InterfaceParent[widget] is mounted to that group. Rev 634 treats
- * both opcodes identically (no modal/overlay type check). */
+/* IF_SETPARAM (2704): write a runtime param onto a named component.
+ * Stack top-first: type, child_index, component_uid, then typed value, then
+ * param_id. child_index of -1 means the component itself (Overview sites).
+ * xrsps WidgetOps IF_SETPARAM; call-site arity (5i->()) against script 9176. */
+static int
+CS2VM2_Op_IF_SetParam(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int type;
+    int child_index;
+    int component_id;
+    int param_id;
+    int value = 0;
+    char* str_value = NULL;
+
+    if( CS2VM2_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( type == 2 || type == 115 || type == CS2_CC_COMPONENTPARAM_KIND_STRING )
+    {
+        if( CS2VM2_PopStr(vm, &str_value) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        type = CS2_CC_COMPONENTPARAM_KIND_STRING;
+    }
+    else if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    /* child_index != -1 would mean a dynamic child under component_id; Overview
+     * always passes -1. A non-(-1) child without a resolve helper is left as the
+     * parent uid — better than inventing a lookup we have not verified. */
+    (void)child_index;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM;
+    request.u.cc_component_param.component_id = component_id;
+    request.u.cc_component_param.param_id = param_id;
+    request.u.cc_component_param.value = value;
+    request.u.cc_component_param.str_value = str_value;
+    request.u.cc_component_param.kind = type;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* IF_HASCHILD_OVERLAY (2705): pop widget + parent group, push 1 iff mounted.
+ * Rev-634 name; 2704 was reclaimed as IF_SETPARAM at this revision. */
 static int
 CS2VM2_Op_IF_HasChild(
     struct CS2VM2_Thread* vm,
@@ -6057,6 +6114,391 @@ CS2VM2_Op_ArrayCountMatches(
     return CS2VM2_PushInt(vm, matches);
 }
 
+/*
+ * Opcode 8003 — ARRAY_LENGTH. Handle on the string stack -> element count.
+ * Null handle pushes 0 (xrsps VarOps ARRAY_LENGTH).
+ */
+int
+CS2VM2_Op_ArrayLength(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    char* handle = NULL;
+    if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+    return CS2VM2_PushInt(vm, array ? array->size : 0);
+}
+
+/*
+ * Opcode 8019 — ARRAY_JOIN. (handle, separator) -> joined string.
+ * Reference: xrsps VarOps ARRAY_JOIN. Call-site correction: local_commands
+ * previously recorded no string out; script 9153's gosub 9182 needs the push.
+ */
+int
+CS2VM2_Op_ArrayJoin(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    char* separator = NULL;
+    char* handle = NULL;
+    if( CS2VM2_PopStr(vm, &separator) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+    if( !array )
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
+    char const* sep = separator ? separator : "";
+    size_t sep_len = strlen(sep);
+    size_t total = 1; /* NUL */
+    for( int i = 0; i < array->size; i++ )
+    {
+        if( i > 0 )
+            total += sep_len;
+        if( array->is_string )
+        {
+            char const* cell = array->cells.strings[i];
+            total += strlen(cell ? cell : "");
+        }
+        else
+        {
+            char buf[16];
+            total += (size_t)snprintf(buf, sizeof(buf), "%d", array->cells.ints[i]);
+        }
+    }
+
+    char* out = CS2VM2_StrAlloc(vm, total);
+    if( !out )
+        return CS2VM_EXECNO_ERROR;
+    size_t off = 0;
+    for( int i = 0; i < array->size; i++ )
+    {
+        if( i > 0 && sep_len > 0 )
+        {
+            memcpy(out + off, sep, sep_len);
+            off += sep_len;
+        }
+        if( array->is_string )
+        {
+            char const* cell = array->cells.strings[i];
+            size_t n = strlen(cell ? cell : "");
+            if( n )
+            {
+                memcpy(out + off, cell ? cell : "", n);
+                off += n;
+            }
+        }
+        else
+        {
+            int n = snprintf(out + off, total - off, "%d", array->cells.ints[i]);
+            if( n > 0 )
+                off += (size_t)n;
+        }
+    }
+    out[off] = '\0';
+    return CS2VM2_PushStr(vm, out);
+}
+
+/*
+ * Opcode 8018 — split a string on a separator into a new string-array handle.
+ * Script 9183: push $s; push "||"; 8018; length.
+ */
+int
+CS2VM2_Op_ArraySplit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    char* separator = NULL;
+    char* text = NULL;
+    if( CS2VM2_PopStr(vm, &separator) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
+    {
+        fprintf(
+            stderr,
+            "CS2VM2: array pool exhausted (%d) in script %d (ARRAY_SPLIT)\n",
+            CS2VM2_MAX_ARRAYS,
+            frame->script ? frame->script->script_id : -1);
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+    }
+
+    struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
+    array->defined = 1;
+    array->is_string = 1;
+    array->size = 0;
+    memset(&array->cells, 0, sizeof(array->cells));
+
+    char const* sep = separator ? separator : "";
+    size_t sep_len = strlen(sep);
+    char const* cursor = text ? text : "";
+
+    if( sep_len == 0 )
+    {
+        /* Empty separator: one cell holding the whole string. */
+        if( array->size < CS2VM2_ARRAY_CAPACITY )
+            array->cells.strings[array->size++] = CS2VM2_StrDup(vm, cursor);
+    }
+    else
+    {
+        for( ;; )
+        {
+            if( array->size >= CS2VM2_ARRAY_CAPACITY )
+                break;
+            char const* found = strstr(cursor, sep);
+            if( !found )
+            {
+                array->cells.strings[array->size++] = CS2VM2_StrDup(vm, cursor);
+                break;
+            }
+            size_t part_len = (size_t)(found - cursor);
+            array->cells.strings[array->size++] =
+                CS2VM2_StrDupLen(vm, cursor, part_len);
+            cursor = found + sep_len;
+        }
+    }
+
+    return CS2VM2_PushStr(vm, (char*)array);
+}
+
+/*
+ * Opcode 8022 — ARRAY_NEW(typeCode, length, capacity) -> handle.
+ * typeCode 115 ('s') / 2 => string cells; else int cells filled with -1.
+ * Reference: xrsps createTypedArrayFromCode.
+ */
+int
+CS2VM2_Op_ArrayNew(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int capacity;
+    int length;
+    int type_code;
+    if( CS2VM2_PopInt(vm, &capacity) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &length) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &type_code) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( capacity < length )
+        capacity = length;
+    if( length < 0 )
+        length = 0;
+    if( capacity < 0 )
+        capacity = 0;
+    if( capacity > CS2VM2_ARRAY_CAPACITY )
+        capacity = CS2VM2_ARRAY_CAPACITY;
+    if( length > capacity )
+        length = capacity;
+
+    if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
+    {
+        fprintf(
+            stderr,
+            "CS2VM2: array pool exhausted (%d) in script %d (ARRAY_NEW)\n",
+            CS2VM2_MAX_ARRAYS,
+            frame->script ? frame->script->script_id : -1);
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+    }
+
+    struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
+    array->defined = 1;
+    array->size = length;
+    array->is_string = (type_code == 2 || type_code == 115);
+    if( array->is_string )
+    {
+        memset(&array->cells, 0, sizeof(array->cells));
+        for( int i = 0; i < length; i++ )
+            array->cells.strings[i] = CS2VM2_StrEmpty(vm);
+    }
+    else
+    {
+        for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
+            array->cells.ints[i] = -1;
+    }
+    (void)capacity; /* capacity is reserved length; we store `size` as length. */
+    return CS2VM2_PushStr(vm, (char*)array);
+}
+
+/*
+ * Opcode 8023 — set an array handle's length (Overview: prepare N slots, then
+ * fill with pop_array_int). Grows with -1/"" defaults; shrinks by truncating.
+ */
+int
+CS2VM2_Op_ArraySetLength(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int length;
+    char* handle = NULL;
+    if( CS2VM2_PopInt(vm, &length) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+    if( !array )
+        return CS2VM_EXECNO_OK;
+    if( length < 0 )
+        length = 0;
+    if( length > CS2VM2_ARRAY_CAPACITY )
+        length = CS2VM2_ARRAY_CAPACITY;
+    if( length > array->size )
+    {
+        if( array->is_string )
+        {
+            for( int i = array->size; i < length; i++ )
+                array->cells.strings[i] = CS2VM2_StrEmpty(vm);
+        }
+        /* int cells already hold -1 from allocation. */
+    }
+    array->size = length;
+    return CS2VM_EXECNO_OK;
+}
+
+/*
+ * Opcode 8024 — append a typed value onto an array handle.
+ * Stack (top first): typeCode, then the value (int or string by type), then
+ * the handle. Overview sites use type 0 (int) with no index — append at end.
+ * Same type-code convention as ARRAY_COUNT_MATCHES (8007).
+ */
+int
+CS2VM2_Op_ArrayAppend(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int value_type;
+    if( CS2VM2_PopInt(vm, &value_type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int want_str = (value_type == 2 || value_type == 115);
+    int want_int = (value_type == 0 || value_type == 49 || value_type == 105);
+
+    int value_int = 0;
+    char* value_str = NULL;
+    if( want_int && CS2VM2_PopInt(vm, &value_int) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( want_str && CS2VM2_PopStr(vm, &value_str) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char* handle = NULL;
+    if( CS2VM2_PopStr(vm, &handle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
+    if( !array || array->size >= CS2VM2_ARRAY_CAPACITY )
+        return CS2VM_EXECNO_OK;
+
+    int index = array->size;
+    if( array->is_string || want_str )
+    {
+        array->is_string = 1;
+        array->cells.strings[index] =
+            value_str ? CS2VM2_StrDup(vm, value_str) : CS2VM2_StrEmpty(vm);
+    }
+    else
+    {
+        array->cells.ints[index] = value_int;
+    }
+    array->size = index + 1;
+    return CS2VM_EXECNO_OK;
+}
+
+/*
+ * Opcode 4036 — STRING_TO_INT. Parse decimal; -1 on failure (xrsps MathOps).
+ */
+int
+CS2VM2_Op_StringToInt(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    char* text = NULL;
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( !text || !*text )
+        return CS2VM2_PushInt(vm, -1);
+    char* end = NULL;
+    long value = strtol(text, &end, 10);
+    if( end == text || *end != '\0' )
+        return CS2VM2_PushInt(vm, -1);
+    return CS2VM2_PushInt(vm, (int)value);
+}
+
+/*
+ * Opcode 212 — children-find on the active component that also pushes the
+ * match count (scripts discard it). Same host request as CC_CHILDREN_FIND.
+ */
+int
+CS2VM2_Op_CC_ChildrenFindCount(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int start_index;
+    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_CHILDREN_FIND;
+    request.u.cc_children_find.parent_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.cc_children_find.start_index = start_index;
+
+    int rc = vm->vm->host_exec(vm, &request);
+    if( rc != CS2VM_EXECNO_OK )
+        return rc;
+    return CS2VM2_PushInt(vm, vm->children_iter_count);
+}
+
 int
 CS2VM2_Op_SetBit(
     struct CS2VM2_Thread* vm,
@@ -8316,7 +8758,10 @@ CS2VM2_RunOp(
     case CS2_OP_CC_CHILDREN_FIND:
         return CS2VM2_Op_CC_ChildrenFind(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
+    case CS2_OP__213:
         return CS2VM2_Op_CC_ChildrenFindNextId(vm, frame, operand);
+    case CS2_OP_CC_CHILDREN_FIND_COUNT:
+        return CS2VM2_Op_CC_ChildrenFindCount(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FIND:
         return CS2VM2_Op_IF_ChildrenFind(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
@@ -8464,7 +8909,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetHide(vm, frame, operand);
     case CS2_OP_IF_HASSUB:
         return CS2VM2_Op_IF_HasSub(vm, frame, operand);
-    case CS2_OP_IF_HASCHILD_MODAL:
+    case CS2_OP_IF_SETPARAM:
+        return CS2VM2_Op_IF_SetParam(vm, frame, operand);
     case CS2_OP_IF_HASCHILD_OVERLAY:
         return CS2VM2_Op_IF_HasChild(vm, frame, operand);
     case CS2_OP_IF_SETHIDE:
@@ -8792,6 +9238,20 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ArraySortAll(vm, frame, operand);
     case CS2_OP_ARRAY_COUNT_MATCHES:
         return CS2VM2_Op_ArrayCountMatches(vm, frame, operand);
+    case CS2_OP_ARRAY_LENGTH:
+        return CS2VM2_Op_ArrayLength(vm, frame, operand);
+    case CS2_OP_ARRAY_SPLIT:
+        return CS2VM2_Op_ArraySplit(vm, frame, operand);
+    case CS2_OP_ARRAY_JOIN:
+        return CS2VM2_Op_ArrayJoin(vm, frame, operand);
+    case CS2_OP_ARRAY_NEW:
+        return CS2VM2_Op_ArrayNew(vm, frame, operand);
+    case CS2_OP_ARRAY_SETLENGTH:
+        return CS2VM2_Op_ArraySetLength(vm, frame, operand);
+    case CS2_OP_ARRAY_APPEND:
+        return CS2VM2_Op_ArrayAppend(vm, frame, operand);
+    case CS2_OP_STRING_TO_INT:
+        return CS2VM2_Op_StringToInt(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
     /* CC_SETTARGETVERB has no model yet, but it takes a string argument. An

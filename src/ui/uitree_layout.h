@@ -34,6 +34,13 @@ UITree_MulShift14(int a, int b)
 void
 UITree_LayoutInvalidate(struct UITree* tree);
 
+/** Mark every node's resolved box as possibly out of date, in O(1). Every write
+ *  to a layout input must call this (or UITree_LayoutInvalidate, which also
+ *  clears the per-node resolved flags), because UITree_LayoutResolve skips the
+ *  walk entirely when nothing has invalidated since the last one. */
+void
+UITree_LayoutInvalidateBoxes(struct UITree* tree);
+
 /** Re-resolve at root dims if any layout was invalidated since the last
  *  resolve (reference WidgetManager.ensureLayout — CS2 getters must not read
  *  stale geometry mid-script). No-op when layout is current. */

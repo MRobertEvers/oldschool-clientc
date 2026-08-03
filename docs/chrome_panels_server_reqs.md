@@ -51,7 +51,7 @@ See §7.5 for the runs.
 |---|---|---|---|---|
 | `xptracker` | 729 | **needs almost nothing from the server** | **opens and draws, exit 0, zero stubbed opcodes** | the `xpdrops_*` varps for the goal *display*; the goal *button* is dead in the cache (§1.1) |
 | `hiscores` | 894 | **not a server feature at all** | **opens and draws, exit 0, one stubbed opcode (7809)** | host implementations for 7809/7811 — and the lookup itself is out of band, so "lookup failed" is the honest end state |
-| `loottools` | 650 | **open-path arities landed; store still stubbed** | **opens, exit 0** (re-measured 2026-08-03); `cs2-stub` on the 7600/7401/7407/7408 family | host impl for the client-native loot store; remaining tier-B outside this open path (§7.6); content still `mes()`-gates the popout |
+| `loottools` | 650 | **open-path arities landed; store still stubbed** | **opens, exit 0** (re-measured 2026-08-03); `cs2-stub` on the 7600/7401/7407/7408 family | host impl for the client-native loot store; remaining tier-B outside this open path (§7.6); popout opens into mainmodal like the other two (store answers are faked zeros / panel may be empty) |
 
 ---
 
@@ -549,29 +549,34 @@ container form. `[clientscript,script7568]` keys its whole layout off
 `if_hassub(interface_728:9)`, so the mainmodal slot the debugprocs use would
 have left the strip narrow and the panel homeless.
 
-### 8.3 Loot Tools is armed and deliberately refuses
+### 8.3 Loot Tools opens; store answers are faked zeros
 
 `loottools` no longer aborts on open (§7.6 — arities landed, store still
-stubbed), but the panel is empty without a native loot store, so slot 2 still
-answers with `mes("The loot tracker is not available yet.")` and stays shut.
-It is armed rather than skipped so the refusal is visible instead of looking
-like a dead click. The `::loottools` debugproc still opens the panel for VM
-work. Verified: client exit 0 with stubs; popout path prints the refusal.
+stubbed). Slot 2 opens into `toplevel_osrs_stretch:mainmodal` the same way
+xptracker and hiscores do. The stubs return zeros, so the chrome draws and the
+loot list stays empty until a native store lands — honest emptiness, not a
+`mes()` refusal. Re-measured 2026-08-03: popout click at (744,57) mounts
+iface=650 and the client exits 0.
 
 ### 8.4 Verified by clicking
 
-Against a private verbose server, `TORIRS_SIM_CLICK_AT` at the measured button
-centres (x 744; y 21 / 57 / 93):
+Against a fresh mock230 on a private port, `TORIRS_SIM_CLICK_AT` at the
+measured button centres (x 744; y 21 / 57 / 93). Re-measured 2026-08-03 for
+Loot Tools after the popout gate came off:
 
 ```
 XP Tracker (744,21):  mock230: <- IF_BUTTON1 728:6 sub=0
                       -> if_closesub, IF_OPENSUB, VARP_LARGE
                       client: mount iface=729 under 0x02d80009   aborts=0
+Loot Tools (744,57):  mock230: <- IF_BUTTON1 728:6 sub=1
+                      client: mount iface=650 under 0x00a10010 (161:16) type=0
+                      cs2-stub: opcode 7601 … results faked — exit 0
 Hiscores   (744,93):  mount iface=894                            aborts=0
-Loot Tools (744,57):  650 mounted=0, refusal printed, exit 0
 toggle (click 744,21 twice): mount iface=729 then unmount 0x02d80009
 ```
 
+`TORIRS_NET_CHEAT=loottools` is the same open path (debugproc →
+`~chrome_loottools_open`) and also exits 0 with mount iface=650.
 ### 8.5 Two traps this cost time on, worth writing down
 
 1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it

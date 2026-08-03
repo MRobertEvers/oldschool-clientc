@@ -3163,48 +3163,54 @@ rs_cs2_runtime_hook_slot(
     struct UITreeComponent* node,
     enum CS2VM_HostRequestKind kind)
 {
+    struct UITreeRuntimeHooks* hooks;
+
     assert(node);
+    /* Registration is the only writer, so it is also where the block is born. */
+    hooks = UITree_HooksMut(node);
+    if( !hooks )
+        return NULL;
     switch( kind )
     {
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
-        return &node->runtime_hooks.on_click;
+        return &hooks->on_click;
     case CS2VM_HOST_REQUEST_IF_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
-        return &node->runtime_hooks.on_hold;
+        return &hooks->on_hold;
     case CS2VM_HOST_REQUEST_IF_SETONOP:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
-        return &node->runtime_hooks.on_op;
+        return &hooks->on_op;
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
-        return &node->runtime_hooks.on_mouse_over;
+        return &hooks->on_mouse_over;
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
-        return &node->runtime_hooks.on_mouse_leave;
+        return &hooks->on_mouse_leave;
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
-        return &node->runtime_hooks.on_mouse_repeat;
+        return &hooks->on_mouse_repeat;
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
     case CS2VM_HOST_REQUEST_CC_SETONTIMER:
-        return &node->runtime_hooks.on_timer;
+        return &hooks->on_timer;
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
-        return &node->runtime_hooks.on_scroll_wheel;
+        return &hooks->on_scroll_wheel;
     case CS2VM_HOST_REQUEST_IF_SETONDRAG:
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
-        return &node->runtime_hooks.on_drag;
+        return &hooks->on_drag;
     case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
-        return &node->runtime_hooks.on_drag_complete;
+        return &hooks->on_drag_complete;
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
     case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
-        return &node->runtime_hooks.on_resize;
+        return &hooks->on_resize;
     case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
     case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
-        return &node->runtime_hooks.on_sub_change;
+        return &hooks->on_sub_change;
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
-        return &node->runtime_hooks.on_key;
+        return &hooks->on_key;
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* IF_ only — there is no CC_ misc-transmit request kind at this
          * revision, and the CC_SETONMISCTRANSMIT opcode (1422) is parsed into
@@ -3214,13 +3220,13 @@ rs_cs2_runtime_hook_slot(
          * run energy and run weight at this revision. The field existed but
          * nothing resolved to it, so every registration was discarded and the
          * run orb never repainted on its own. */
-        return &node->runtime_hooks.on_misc_transmit;
+        return &hooks->on_misc_transmit;
     case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
         /* IF_ only, like misc: CC_SETONFRIENDTRANSMIT (1420) is parsed into
          * the discard group. The friends and ignore panels register this on
          * their root component in scripts 123 / 127, and it is the only thing
          * that ever asks them to repaint. */
-        return &node->runtime_hooks.on_friend_transmit;
+        return &hooks->on_friend_transmit;
     default:
         return NULL;
     }

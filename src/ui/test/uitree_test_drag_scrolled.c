@@ -51,7 +51,7 @@ test_drag_scrolled(void)
 
     /* Drop target at content (120,160) → drawn at (120,40). */
     int32_t tgt = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, TUID(11), 120, 160, 40, 30);
-    tree->components[tgt].runtime_hooks.on_drag_complete.script_id = 1;
+    UITree_HooksMut(&tree->components[tgt])->on_drag_complete.script_id = 1;
 
     UITree_TestResolve(tree);
     tree->components[layer].scroll_y = 120;

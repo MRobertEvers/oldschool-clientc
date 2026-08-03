@@ -248,6 +248,19 @@
 /* Count cells in [start, end) equal to a value. `end` < 0 means "to the end".
  * The array is a HANDLE on the string stack — see cs2-arrays-are-handles. */
 #define CS2_OP_ARRAY_COUNT_MATCHES 8007
+/* ARRAY_LENGTH — handle on the string stack -> element count. xrsps 8003. */
+#define CS2_OP_ARRAY_LENGTH 8003
+/* ARRAY_SPLIT — (string, separator) -> new string-array handle. */
+#define CS2_OP_ARRAY_SPLIT 8018
+/* ARRAY_JOIN — (handle, separator) -> joined string. xrsps 8019. */
+#define CS2_OP_ARRAY_JOIN 8019
+/* ARRAY_NEW — (typeCode, length, capacity) -> handle. xrsps 8022. */
+#define CS2_OP_ARRAY_NEW 8022
+/* ARRAY_SETLENGTH — (handle, n). Overview sites then fill 0..n-1. */
+#define CS2_OP_ARRAY_SETLENGTH 8023
+/* ARRAY_APPEND — (handle, value, typeCode). Int-typed form at Overview sites;
+ * string-typed pops the value off the string stack (same convention as 8007). */
+#define CS2_OP_ARRAY_APPEND 8024
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
 /* PUSH_VARC_STRING — Read client string varc.
@@ -1480,15 +1493,14 @@
  * literal -1 everywhere, which is what makes "fallback" and "sub-id" the same
  * observable behaviour here. */
 #define CS2_OP_IF_GETCOMPONENTPARAM 2703
-/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.
- * operand: unused
- * int stack in:   widget, parent  (parent = top)
- * str stack in:   -
- * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0
- * str stack out:  -
- * notes: identical handlers in Class66; names follow cs2-editor
- *        (hasChildModal / hasChildOverlay). Sibling of IF_HASSUB. */
-#define CS2_OP_IF_HASCHILD_MODAL 2704
+/* IF_SETPARAM (2704) — write a runtime param onto a named component.
+ * int stack in:   param_id, value, component_uid, child_index, type
+ *                 (type on top; 2/115 = string value on the string stack)
+ * str stack in:   value when type names a string
+ * notes: xrsps IF_SETPARAM. Previously misidentified as IF_HASCHILD_MODAL from
+ * an older deob; Overview (9176) call sites are five ints and nothing out. */
+#define CS2_OP_IF_SETPARAM 2704
+#define CS2_OP_IF_HASCHILD_MODAL 2704 /* legacy alias; same opcode id */
 #define CS2_OP_IF_HASCHILD_OVERLAY 2705
 /* IF_GETTOP — Get root component id.
  * int stack in:   -

@@ -41,14 +41,11 @@ and the comment claiming otherwise was corrected rather than given a command.
 
 ## What was deliberately left
 
-- **The Overview tab.** It aborts the client: `~script9176` and the
-  `9150..9199` widget library under it use twelve CS2 opcodes with no
-  signature (`211 212 213 215 4036 8003 8012 8018 8019 8022 8023 8024`).
-  Measured, not assumed — the same gosub walk with 9176 excluded finds none at
-  all. Content therefore opens on `^skill_guide_tab_default = 1`; set it back
-  to **0** when the twelve land and nothing else moves. **Clicking Overview in
-  the strip still takes the client down**, because the tab is the cache's and
-  no packet can hide it. This is the top follow-on.
+- **The Overview tab.** Abort on the twelve missing CS2 opcodes is fixed
+  (remeasured 2026-08-03) — see `docs/skill_guide.md` §5. Content still opens
+  on `^skill_guide_tab_default = 1` because Overview layout (overlapping
+  panels / raw `<u=…>` tags; 211/215 stubbed) is not clean yet. Set the
+  default back to **0** when that lands.
 - **`cc_callonresize` (1927).** Its row in `cs2_command.gen.h` claims one
   argument, which no other `cc_*` component op takes, and no script in this
   cache calls it — nothing to verify an arity against, so it stays

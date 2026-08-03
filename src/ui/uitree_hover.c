@@ -131,9 +131,9 @@ find_hovered_recursive(
         /* CS2/IF3 addition: components with hover scripts must also report as
          * hovered so on_mouse_over / on_mouse_leave / on_mouse_repeat dispatch
          * (main loop). */
-        else if( component->runtime_hooks.on_mouse_over.script_id > 0 ||
-                 component->runtime_hooks.on_mouse_leave.script_id > 0 ||
-                 component->runtime_hooks.on_mouse_repeat.script_id > 0 )
+        else if( UITree_Hooks(component)->on_mouse_over.script_id > 0 ||
+                 UITree_Hooks(component)->on_mouse_leave.script_id > 0 ||
+                 UITree_Hooks(component)->on_mouse_repeat.script_id > 0 )
             *out_hovered_component_id = component->component_id;
     }
 

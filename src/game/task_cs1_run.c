@@ -146,6 +146,11 @@ Task_CS1Eval_Run(
 
     PT_BEGIN(&self->pt);
 
+    /* The scan below reads one field out of every component, so on an if3/CS2
+     * tree it is a few megabytes of pointless traffic per 20ms tick. */
+    if( !UITree_HasCS1Scripts(self->host->tree) )
+        PT_EXIT(&self->pt);
+
     for( self->cursor = 0; self->cursor < (int32_t)self->host->tree->component_count;
          self->cursor++ )
     {

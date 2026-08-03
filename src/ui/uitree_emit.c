@@ -1841,12 +1841,14 @@ emit_walk_node(
         /* On the drag pass, non-deferred nodes only descend to reach any
          * deferred drag source deeper in the tree; they do not draw here.
          * Same mount-last sweep as the draw path so both agree on order. */
-        for( int mount_sweep = 0; mount_sweep < 2; mount_sweep++ )
+        int const has_mounts = UITree_ContainerHasMounts(tree, c->component_id);
+        for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
         {
             for( child = c->first_child; child >= 0;
                  child = tree->components[child].next_sibling )
             {
-                if( child_is_interface_parent_mount(
+                if( has_mounts &&
+                    child_is_interface_parent_mount(
                         tree, c->component_id, &tree->components[child]) != mount_sweep )
                     continue;
                 emit_walk_node(
@@ -2088,14 +2090,18 @@ emit_walk_node(
      * (task_cs2_run reparents the pack root under the container) and
      * link_under_parent appends, so without this they only stay on top until the
      * container gains another child. */
-    for( int mount_sweep = 0; mount_sweep < 2; mount_sweep++ )
+    int const has_mounts = UITree_ContainerHasMounts(tree, c->component_id);
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
         {
             int sx = child_scroll_x;
             int sy = child_scroll_y;
             int const is_mount =
-                child_is_interface_parent_mount(tree, c->component_id, &tree->components[child]);
+                has_mounts
+                    ? child_is_interface_parent_mount(
+                          tree, c->component_id, &tree->components[child])
+                    : 0;
             if( is_mount != mount_sweep )
                 continue;
             /* InterfaceParent mounts: no scroll offset (TS widgets-gl). */

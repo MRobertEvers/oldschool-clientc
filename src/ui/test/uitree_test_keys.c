@@ -11,8 +11,9 @@ set_on_key(
     int32_t idx,
     int script_id)
 {
-    memset(&tree->components[idx].runtime_hooks.on_key, 0, sizeof(struct UITreeRuntimeScriptHook));
-    tree->components[idx].runtime_hooks.on_key.script_id = script_id;
+    struct UITreeRuntimeHooks* hooks = UITree_HooksMut(&tree->components[idx]);
+    memset(&hooks->on_key, 0, sizeof(hooks->on_key));
+    hooks->on_key.script_id = script_id;
 }
 
 static void
@@ -21,8 +22,9 @@ set_on_op(
     int32_t idx,
     int script_id)
 {
-    memset(&tree->components[idx].runtime_hooks.on_op, 0, sizeof(struct UITreeRuntimeScriptHook));
-    tree->components[idx].runtime_hooks.on_op.script_id = script_id;
+    struct UITreeRuntimeHooks* hooks = UITree_HooksMut(&tree->components[idx]);
+    memset(&hooks->on_op, 0, sizeof(hooks->on_op));
+    hooks->on_op.script_id = script_id;
 }
 
 static int
@@ -272,7 +274,7 @@ test_key_dispatch(void)
         TEST_ASSERT(out.intents[0].component_id == 12, "intent targets the bound component");
         TEST_ASSERT(out.intents[0].op_index == 3, "intent reports the bound op index");
         TEST_ASSERT(
-            out.intents[0].hook == &tree->components[right].runtime_hooks.on_op,
+            out.intents[0].hook == &UITree_Hooks(&tree->components[right])->on_op,
             "op key dispatches through on_op");
 
         /* A different key does not fire it. */

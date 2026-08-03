@@ -28,6 +28,15 @@ UITree_LayoutInvalidate(struct UITree* tree)
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
     tree->layout_stale = 1;
+    tree->layout_resolved_valid = 0;
+}
+
+void
+UITree_LayoutInvalidateBoxes(struct UITree* tree)
+{
+    assert(tree);
+    tree->layout_stale = 1;
+    tree->layout_resolved_valid = 0;
 }
 
 void
@@ -146,7 +155,7 @@ layout_parent_box(
  * never its siblings or children. That is the property UITree_EnsureLayoutFor
  * relies on to resolve a single root->node chain instead of the whole tree.
  */
-static void
+static bool
 layout_compute_node(
     struct UITree* tree,
     uint32_t i,
@@ -157,11 +166,17 @@ layout_compute_node(
 {
     struct UITreeComponent* c = &tree->components[i];
     struct UITreeElemPosition* pos = &c->position;
+    int const was_resolved = pos->layout_resolved;
+    int const old_x = pos->abs_x;
+    int const old_y = pos->abs_y;
+    int const old_w = pos->abs_w;
+    int const old_h = pos->abs_h;
 
     if( pos->kind == UIPOS_RELATIVE )
     {
         resolve_relative(pos, px, py, pw, ph);
-        return;
+        return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
+               pos->abs_w != old_w || pos->abs_h != old_h;
     }
 
     int w = pos->width;
@@ -212,11 +227,17 @@ layout_compute_node(
     pos->abs_w = w;
     pos->abs_h = h;
     pos->layout_resolved = 1;
+    return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y || pos->abs_w != old_w ||
+           pos->abs_h != old_h;
 }
 
 /* Deepest root->node chain UITree_EnsureLayoutFor will walk before giving up
  * and doing a full resolve. Real interface trees nest far shallower than this. */
 #define UITREE_LAYOUT_MAX_CHAIN 64
+
+/* Depth not computed yet, as distinct from -1 (a freed slot, excluded from the
+ * resolve order entirely). */
+#define UITREE_LAYOUT_DEPTH_UNKNOWN (-2)
 
 void
 UITree_EnsureLayoutFor(
@@ -274,7 +295,16 @@ UITree_EnsureLayoutFor(
             &py,
             &pw,
             &ph);
-        layout_compute_node(t, (uint32_t)node, px, py, pw, ph);
+        if( !layout_compute_node(t, (uint32_t)node, px, py, pw, ph) )
+            continue;
+        /* This node's box moved, and it now reads as resolved — so the full
+         * resolve would skip it and its still-stale descendants. Hand the
+         * change over to the resolve's propagation, or make it walk everything
+         * if there is nowhere to record it yet. */
+        if( t->layout_changed && (uint32_t)node < t->layout_cap )
+            t->layout_changed[node] = 1;
+        else
+            t->layout_force_full = 1;
     }
 }
 
@@ -303,9 +333,23 @@ UITree_LayoutResolve(
     assert(tree);
     uitree_perf_snapshot(tree);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_RESOLVE, 1);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, (int64_t)tree->component_count);
     if( tree->component_count == 0 )
         return;
+
+    /* Nothing invalidated, same topology, same root box: every box already
+     * holds the value this walk would recompute. The per-frame callers run
+     * whenever CS2 ran, which on an idle frame is every frame, and an idle
+     * frame changes no layout input at all. */
+    if( tree->layout_resolved_valid && !tree->layout_stale && !tree->layout_force_full &&
+        tree->layout_resolved_gen == tree->generation &&
+        tree->layout_resolved_root_x == root_x && tree->layout_resolved_root_y == root_y &&
+        tree->layout_resolved_root_w == root_w && tree->layout_resolved_root_h == root_h )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_SKIP, 1);
+        return;
+    }
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, (int64_t)tree->component_count);
 
     uint32_t const n = tree->component_count;
 
@@ -319,33 +363,22 @@ UITree_LayoutResolve(
             cap <<= 1;
         int* new_order = realloc(tree->layout_order, (size_t)cap * sizeof(int));
         int* new_depth = realloc(tree->layout_depth, (size_t)cap * sizeof(int));
-        int* new_abs_x = realloc(tree->layout_abs_x, (size_t)cap * sizeof(int));
-        int* new_abs_y = realloc(tree->layout_abs_y, (size_t)cap * sizeof(int));
-        int* new_abs_w = realloc(tree->layout_abs_w, (size_t)cap * sizeof(int));
-        int* new_abs_h = realloc(tree->layout_abs_h, (size_t)cap * sizeof(int));
+        uint8_t* new_changed = realloc(tree->layout_changed, (size_t)cap);
         if( new_order )
             tree->layout_order = new_order;
         if( new_depth )
             tree->layout_depth = new_depth;
-        if( new_abs_x )
-            tree->layout_abs_x = new_abs_x;
-        if( new_abs_y )
-            tree->layout_abs_y = new_abs_y;
-        if( new_abs_w )
-            tree->layout_abs_w = new_abs_w;
-        if( new_abs_h )
-            tree->layout_abs_h = new_abs_h;
-        if( !new_order || !new_depth || !new_abs_x || !new_abs_y || !new_abs_w || !new_abs_h )
+        if( new_changed )
+            tree->layout_changed = new_changed;
+        if( !new_order || !new_depth || !new_changed )
             return; /* out of memory: skip this frame rather than crash */
         tree->layout_cap = cap;
         tree->layout_order_valid = 0;
     }
 
-    /* abs_* scratch is no longer read: nodes resolve against their parent's box
-     * in the tree directly (see layout_parent_box). The buffers stay allocated
-     * so UITree_Free is unchanged. */
     int* const depth = tree->layout_depth;
     int* const order = tree->layout_order;
+    uint8_t* const changed = tree->layout_changed;
 
     /* depth/order are a pure function of tree topology (parent links). Recompute
      * only when the topology changed; otherwise reuse the cached ordering. The
@@ -362,25 +395,48 @@ UITree_LayoutResolve(
             if( tree->components[i].freed )
             {
                 depth[i] = -1;
+                /* Freed slots are excluded from `order`, so nothing writes their
+                 * `changed` in the walk below — but a live child of a freed
+                 * parent still reads it. Freeing a slot bumps `generation`, so
+                 * this branch runs whenever the set of freed slots changes. */
+                changed[i] = 0;
                 continue;
             }
-            int d = 0;
+            depth[i] = UITREE_LAYOUT_DEPTH_UNKNOWN;
+        }
+
+        /* Each node's depth is its parent's plus one, so walking the parent chain
+         * per node re-walks shared ancestors over and over — O(n * depth) random
+         * reads into 1.7 KB structs, which measured as the most expensive thing
+         * in the resolve. Instead take each chain only as far as the first
+         * ancestor whose depth is already known and fill the run in from there,
+         * so every node's parent link is followed once. `order` doubles as the
+         * scratch stack: it is about to be overwritten anyway. */
+        for( uint32_t i = 0; i < n; i++ )
+        {
+            if( depth[i] != UITREE_LAYOUT_DEPTH_UNKNOWN )
+                continue;
+
+            uint32_t run = 0;
             int32_t cur = (int32_t)i;
-            while( cur >= 0 && (uint32_t)cur < n )
+            while( cur >= 0 && (uint32_t)cur < n && depth[cur] == UITREE_LAYOUT_DEPTH_UNKNOWN )
             {
-                int32_t const parent = tree->components[cur].parent;
-                if( parent < 0 )
+                /* Only reachable if the parent links contain a cycle. */
+                if( run >= n )
                     break;
-                if( (uint32_t)parent >= n )
-                    break;
-                cur = parent;
-                d++;
-                if( d > (int)n )
-                    break;
+                order[run++] = cur;
+                cur = tree->components[cur].parent;
             }
-            depth[i] = d;
-            if( d > max_depth )
-                max_depth = d;
+
+            /* A parent that is out of range, absent or freed makes its child a
+             * root as far as ordering is concerned. */
+            int d = (cur >= 0 && (uint32_t)cur < n && depth[cur] >= 0) ? depth[cur] : -1;
+            while( run-- > 0 )
+            {
+                depth[order[run]] = ++d;
+                if( d > max_depth )
+                    max_depth = d;
+            }
         }
 
         int* counts = calloc((size_t)max_depth + 1, sizeof(int));
@@ -406,21 +462,58 @@ UITree_LayoutResolve(
         tree->layout_order_valid = 1;
     }
 
-    /* Depth order guarantees a parent is resolved before its children, so each
-     * node can read its parent's box straight out of the tree. */
+    /* A node's box is a pure function of its own fields and its parent's box, so
+     * it only needs recomputing when one of those two changed: the mutators
+     * clear `layout_resolved` on the node they touch, and `changed` propagates a
+     * parent's new box down. One CC_CREATE bumps `generation` and so reaches
+     * here, but it must not drag the other few thousand nodes with it.
+     *
+     * Depth order guarantees a parent is visited (and its `changed` written)
+     * before any of its children read it. */
+    bool const force = tree->layout_force_full != 0;
+    bool const root_changed = !tree->layout_resolved_root_valid ||
+                              tree->layout_resolved_root_x != root_x ||
+                              tree->layout_resolved_root_y != root_y ||
+                              tree->layout_resolved_root_w != root_w ||
+                              tree->layout_resolved_root_h != root_h;
+    int64_t skipped = 0;
     for( uint32_t k = 0; k < tree->layout_order_count; k++ )
     {
-        int i = order[k];
+        int const i = order[k];
+        int32_t const parent = tree->components[i].parent;
+        bool const parent_changed = (parent >= 0 && (uint32_t)parent < n) ? changed[parent] != 0
+                                                                         : root_changed;
         int px;
         int py;
         int pw;
         int ph;
 
-        layout_parent_box(
-            tree, tree->components[i].parent, root_x, root_y, root_w, root_h, &px, &py, &pw, &ph);
-        layout_compute_node(tree, (uint32_t)i, px, py, pw, ph);
+        if( !force && !parent_changed && tree->components[i].position.layout_resolved )
+        {
+            /* changed[i] is left alone: a JIT chain resolve may have set it, and
+             * this node's children have not read it yet. */
+            skipped++;
+            continue;
+        }
+
+        layout_parent_box(tree, parent, root_x, root_y, root_w, root_h, &px, &py, &pw, &ph);
+        if( layout_compute_node(tree, (uint32_t)i, px, py, pw, ph) )
+            changed[i] = 1;
     }
+    /* Accumulated rather than counted per node: at a few thousand skips a frame
+     * the counter call was costing more than the work it was measuring. */
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODE_SKIP, skipped);
+    /* The marks only describe this pass; children have consumed them by now. */
+    memset(changed, 0, n);
+    tree->layout_force_full = 0;
     tree->layout_stale = 0;
+    tree->layout_resolved_valid = 1;
+    tree->layout_resolved_gen = tree->generation;
+    tree->layout_resolved_root_valid = 1;
+    tree->layout_resolved_root_x = root_x;
+    tree->layout_resolved_root_y = root_y;
+    tree->layout_resolved_root_w = root_w;
+    tree->layout_resolved_root_h = root_h;
     /* Scratch buffers are owned by the tree and reused; freed in UITree_Free. */
 }
 

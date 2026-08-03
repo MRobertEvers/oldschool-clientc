@@ -4111,7 +4111,7 @@ app_logic_tick(struct App* app)
                 &app->host,
                 &app->runner,
                 com_id,
-                &app->tree->components[idx].runtime_hooks.on_timer);
+                &UITree_Hooks(&app->tree->components[idx])->on_timer);
             redraw = 1;
         }
     }
@@ -4146,7 +4146,7 @@ app_logic_tick(struct App* app)
                 &app->host,
                 &app->runner,
                 com_id,
-                &app->tree->components[idx].runtime_hooks.on_resize);
+                &UITree_Hooks(&app->tree->components[idx])->on_resize);
             redraw = 1;
         }
     }
@@ -4175,7 +4175,7 @@ app_logic_tick(struct App* app)
                 &app->host,
                 &app->runner,
                 trig.component_id,
-                &app->tree->components[idx].runtime_hooks.on_op);
+                &UITree_Hooks(&app->tree->components[idx])->on_op);
             redraw = 1;
         }
     }
@@ -8948,7 +8948,7 @@ app_dispatch_resize_hooks(struct App* app)
         struct UITreeComponent const* c = &app->tree->components[i];
         if( c->freed || c->component_id < 0 )
             continue;
-        if( c->runtime_hooks.on_resize.script_id <= 0 )
+        if( UITree_Hooks(c)->on_resize.script_id <= 0 )
             continue;
         if( n >= APP_RESIZE_HOOK_MAX )
         {
@@ -8967,7 +8967,7 @@ app_dispatch_resize_hooks(struct App* app)
             &app->host,
             &app->runner,
             ids[i],
-            &app->tree->components[idx].runtime_hooks.on_resize);
+            &UITree_Hooks(&app->tree->components[idx])->on_resize);
     }
 }
 
@@ -9504,7 +9504,7 @@ App_RunOnce(
                 continue;
             /* Re-check the hook too: the id may have been reclaimed and handed
              * to a different node since collection. */
-            if( app->tree->components[idx].runtime_hooks.on_key.script_id <= 0 )
+            if( UITree_Hooks(&app->tree->components[idx])->on_key.script_id <= 0 )
                 continue;
             RS_CS2_SetEventMouse(
                 &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
@@ -9515,14 +9515,14 @@ App_RunOnce(
                     stderr,
                     "key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
                     target->component_id,
-                    app->tree->components[idx].runtime_hooks.on_key.script_id,
+                    UITree_Hooks(&app->tree->components[idx])->on_key.script_id,
                     out.key_events[e].key_typed,
                     out.key_events[e].key_pressed);
             RS_CS2_DispatchHook(
                 &app->host,
                 &app->runner,
                 target->component_id,
-                &app->tree->components[idx].runtime_hooks.on_key);
+                &UITree_Hooks(&app->tree->components[idx])->on_key);
             ran_cs2 = 1;
         }
     }

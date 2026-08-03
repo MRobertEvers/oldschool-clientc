@@ -108,7 +108,7 @@ test_hover_input(void)
      * reported hovered so the dispatcher can fire it. */
     {
         int32_t rep = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, 14, 200, 10, 30, 30);
-        tree->components[rep].runtime_hooks.on_mouse_repeat.script_id = 5;
+        UITree_HooksMut(&tree->components[rep])->on_mouse_repeat.script_id = 5;
         UITree_TestResolve(tree);
         int id = UITree_FindHoveredComponentIdForRegion(
             tree, &host, tree->root_index, 210, 20, 0, 0, 400, 300);

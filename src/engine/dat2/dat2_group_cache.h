@@ -37,6 +37,9 @@ struct Dat2Group
      * which means index == id. */
     int* file_ids;
     int file_count;
+    /** The archive's revision. Some record decoders pick their opcode set from
+     *  it (spotanims), and the archive it came from is gone by then. */
+    int revision;
     size_t bytes;
 };
 

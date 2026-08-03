@@ -79,6 +79,25 @@ UITree_MenuSubmenuFree(struct UITreeMenuOptions* opts)
     opts->submenus = NULL;
 }
 
+struct UITreeRuntimeHooks const uitree_hooks_none;
+
+struct UITreeRuntimeHooks*
+UITree_HooksMut(struct UITreeComponent* c)
+{
+    assert(c);
+    if( !c->runtime_hooks )
+        c->runtime_hooks = calloc(1, sizeof(struct UITreeRuntimeHooks));
+    return c->runtime_hooks;
+}
+
+void
+UITree_HooksFree(struct UITreeComponent* c)
+{
+    assert(c);
+    free(c->runtime_hooks);
+    c->runtime_hooks = NULL;
+}
+
 /* Copy menu options between components: everything is by value except the
  * submenu block, which is owned per component and must not be aliased. Whatever
  * dst held is released, and dst == src (or a shared block) is safe. */
@@ -483,7 +502,7 @@ UITree_Reparent(
     child->next_sibling = -1;
     child->is_dirty = 1;
     child->position.layout_resolved = 0;
-    tree->layout_stale = 1;
+    UITree_LayoutInvalidateBoxes(tree);
 
     if( new_parent_index < 0 )
     {
@@ -594,6 +613,16 @@ UITree_New(uint32_t hint)
     return tree;
 }
 
+/* One fewer node carries CS1 scripts. The count exists so the per-tick CS1 pass
+ * can skip its whole-tree scan on an if3/CS2 tree, where nothing has any — see
+ * UITree_HasCS1Scripts. */
+static void
+uitree_cs1_script_nodes_drop(struct UITree* tree)
+{
+    assert(tree->cs1_script_nodes > 0);
+    tree->cs1_script_nodes--;
+}
+
 /* Free a component's heap-owned resources and NULL the pointers so the slot is
  * safe to reuse and UITree_Free cannot double-free. */
 static void
@@ -631,6 +660,7 @@ uitree_component_free_owned(struct UITreeComponent* c)
     b->script_operand = NULL;
     b->scripts_count = 0;
     UITree_MenuSubmenuFree(&c->menu_options);
+    UITree_HooksFree(c);
 }
 
 /* Reclaim an already-unlinked component and its entire subtree: free owned
@@ -660,6 +690,8 @@ uitree_reclaim_subtree(
         child = next;
     }
 
+    if( c->behavior.scripts_count > 0 )
+        uitree_cs1_script_nodes_drop(tree);
     uitree_component_free_owned(c);
     memset(c, 0, sizeof(*c));
     c->parent = -1;
@@ -686,10 +718,7 @@ UITree_Free(struct UITree* tree)
     free(tree->id_index_vals);
     free(tree->layout_order);
     free(tree->layout_depth);
-    free(tree->layout_abs_x);
-    free(tree->layout_abs_y);
-    free(tree->layout_abs_w);
-    free(tree->layout_abs_h);
+    free(tree->layout_changed);
     free(tree->timer_hook_ids);
     free(tree->key_hook_ids);
     free(tree->components);
@@ -999,6 +1028,8 @@ UITree_SetBehavior(
     free(dst->scripts_lengths);
     free(dst->script_comparator);
     free(dst->script_operand);
+    if( dst->scripts_count > 0 )
+        uitree_cs1_script_nodes_drop(tree);
     memset(dst, 0, sizeof(*dst));
 
     dst->hide = src->hide;
@@ -1012,6 +1043,8 @@ UITree_SetBehavior(
     dst->scripts_count = src->scripts_count;
     dst->comparator_count = src->comparator_count;
     dst->script_kind = src->script_kind;
+    if( dst->scripts_count > 0 )
+        tree->cs1_script_nodes++;
 
     if( src->scripts_count <= 0 || !src->scripts )
         return;
@@ -1068,6 +1101,8 @@ fail:
     free(dst->scripts_lengths);
     free(dst->script_comparator);
     free(dst->script_operand);
+    if( dst->scripts_count > 0 )
+        uitree_cs1_script_nodes_drop(tree);
     memset(dst, 0, sizeof(*dst));
 }
 
@@ -1145,8 +1180,11 @@ UITree_Push(
         component->position.y_mode = -1;
         component->position.width_mode = -1;
         component->position.height_mode = -1;
+        /* Slots come off the free list with whatever the previous occupant left
+         * behind; the resolve treats a set flag as "box is already correct". */
+        component->position.layout_resolved = 0;
     }
-    tree->layout_stale = 1;
+    UITree_LayoutInvalidateBoxes(tree);
 
     switch( spec->type )
     {
@@ -1583,10 +1621,21 @@ UITree_CcCopy(
     dst->target_priority = src.target_priority;
     dst->force_left_click = src.force_left_click;
     dst->position = src.position;
+    /* The copy hangs off a different parent than the template row, so the box
+     * that came with `position` is not its box — the resolve treats a set flag
+     * as "already correct" and would keep it. */
+    dst->position.layout_resolved = 0;
     /* Deep: the submenu block is owned per component, so the copy must not alias
      * the source's (both are reclaimed independently). */
     uitree_menu_options_copy(&dst->menu_options, &src.menu_options);
-    dst->runtime_hooks = src.runtime_hooks;
+    /* Deep for the same reason as the submenu block above: the hook block is
+     * owned per component. A template row with no hooks copies as none. */
+    if( src.runtime_hooks )
+    {
+        struct UITreeRuntimeHooks* hooks = UITree_HooksMut(dst);
+        if( hooks )
+            *hooks = *src.runtime_hooks;
+    }
     /* Plain data, but it must be listed explicitly: this function copies field
      * by field rather than by struct assignment, so a template row that binds
      * op keys would silently lose them on copy. */
@@ -1948,10 +1997,13 @@ UITree_ApplyPosition(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].position.x = x;
-    tree->components[idx].position.y = y;
-    tree->components[idx].position.layout_resolved = 0;
-    tree->layout_stale = 1;
+    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->position.x == x && com->position.y == y && com->position.layout_resolved )
+        return true;
+    com->position.x = x;
+    com->position.y = y;
+    com->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1967,10 +2019,14 @@ UITree_ApplySize(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].position.width = width;
-    tree->components[idx].position.height = height;
-    tree->components[idx].position.layout_resolved = 0;
-    tree->layout_stale = 1;
+    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->position.width == width && com->position.height == height &&
+        com->position.layout_resolved )
+        return true;
+    com->position.width = width;
+    com->position.height = height;
+    com->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1988,12 +2044,16 @@ UITree_ApplyPositionModes(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].position.x = x;
-    tree->components[idx].position.y = y;
-    tree->components[idx].position.x_mode = (int8_t)x_mode;
-    tree->components[idx].position.y_mode = (int8_t)y_mode;
-    tree->components[idx].position.layout_resolved = 0;
-    tree->layout_stale = 1;
+    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
+        com->position.y_mode == (int8_t)y_mode && com->position.layout_resolved )
+        return true;
+    com->position.x = x;
+    com->position.y = y;
+    com->position.x_mode = (int8_t)x_mode;
+    com->position.y_mode = (int8_t)y_mode;
+    com->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -2011,12 +2071,17 @@ UITree_ApplySizeModes(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].position.width = width;
-    tree->components[idx].position.height = height;
-    tree->components[idx].position.width_mode = (int8_t)width_mode;
-    tree->components[idx].position.height_mode = (int8_t)height_mode;
-    tree->components[idx].position.layout_resolved = 0;
-    tree->layout_stale = 1;
+    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->position.width == width && com->position.height == height &&
+        com->position.width_mode == (int8_t)width_mode &&
+        com->position.height_mode == (int8_t)height_mode && com->position.layout_resolved )
+        return true;
+    com->position.width = width;
+    com->position.height = height;
+    com->position.width_mode = (int8_t)width_mode;
+    com->position.height_mode = (int8_t)height_mode;
+    com->position.layout_resolved = 0;
+    UITree_LayoutInvalidateBoxes(tree);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -2077,8 +2142,15 @@ UITree_ApplyScrollSize(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_LAYER )
         return false;
-    tree->components[idx].u.rs_layer.scroll_width = scroll_width;
-    tree->components[idx].u.rs_layer.scroll_height = scroll_height;
+    struct UITreeComponent* const com = &tree->components[idx];
+    if( com->u.rs_layer.scroll_width == scroll_width &&
+        com->u.rs_layer.scroll_height == scroll_height )
+        return true;
+    com->u.rs_layer.scroll_width = scroll_width;
+    com->u.rs_layer.scroll_height = scroll_height;
+    /* The scroll extent is what this layer's children lay out against
+     * (layout_parent_box), so it is a layout input like a position field. */
+    UITree_LayoutInvalidate(tree);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -2784,6 +2856,24 @@ UITree_InterfaceParentIsMountedGroup(
 }
 
 int
+UITree_ContainerHasMounts(
+    struct UITree const* tree,
+    int container_uid)
+{
+    int i;
+
+    assert(tree);
+    if( container_uid < 0 )
+        return 0;
+    for( i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( tree->interface_parents[i].container_uid == container_uid )
+            return 1;
+    }
+    return 0;
+}
+
+int
 UITree_ChildMountType(
     struct UITree const* tree,
     int container_uid,
@@ -2872,7 +2962,7 @@ UITree_ComponentIsDraggable(struct UITreeComponent const* c)
         return 1;
     if( c->draggable )
         return 1;
-    if( c->runtime_hooks.on_drag.script_id > 0 )
+    if( UITree_Hooks(c)->on_drag.script_id > 0 )
         return 1;
     return 0;
 }
@@ -2880,16 +2970,18 @@ UITree_ComponentIsDraggable(struct UITreeComponent const* c)
 int
 UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
 {
+    struct UITreeRuntimeHooks const* hooks;
     assert(c);
     if( (c->behavior.click_mask & UITREE_FLAG_DRAG_ON) != 0 )
         return 1;
-    if( c->runtime_hooks.on_drag.script_id > 0 )
+    hooks = UITree_Hooks(c);
+    if( hooks->on_drag.script_id > 0 )
         return 1;
-    if( c->runtime_hooks.on_drag_complete.script_id > 0 )
+    if( hooks->on_drag_complete.script_id > 0 )
         return 1;
-    if( c->runtime_hooks.on_op.script_id > 0 )
+    if( hooks->on_op.script_id > 0 )
         return 1;
-    if( c->runtime_hooks.on_click.script_id > 0 )
+    if( hooks->on_click.script_id > 0 )
         return 1;
     return 0;
 }
@@ -3074,15 +3166,16 @@ UITree_EnsureHookIndexes(struct UITree* tree)
     if( !tree->hook_index_stale && tree->timer_hook_ids )
         return tree->timer_hook_count;
 
-    /* Count first so we size once. */
+    /* Count first so we size once. A node with no hook block cannot carry
+     * either hook, so the scan is a pointer test on all but a few nodes. */
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
+        if( c->freed || c->component_id < 0 || !c->runtime_hooks )
             continue;
-        if( c->runtime_hooks.on_timer.script_id > 0 )
+        if( c->runtime_hooks->on_timer.script_id > 0 )
             t_n++;
-        if( c->runtime_hooks.on_key.script_id > 0 )
+        if( c->runtime_hooks->on_key.script_id > 0 )
             k_n++;
     }
 
@@ -3108,11 +3201,11 @@ UITree_EnsureHookIndexes(struct UITree* tree)
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
+        if( c->freed || c->component_id < 0 || !c->runtime_hooks )
             continue;
-        if( c->runtime_hooks.on_timer.script_id > 0 )
+        if( c->runtime_hooks->on_timer.script_id > 0 )
             tree->timer_hook_ids[t_n++] = c->component_id;
-        if( c->runtime_hooks.on_key.script_id > 0 )
+        if( c->runtime_hooks->on_key.script_id > 0 )
             tree->key_hook_ids[k_n++] = c->component_id;
     }
     tree->timer_hook_count = t_n;

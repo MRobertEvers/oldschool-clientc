@@ -6,6 +6,7 @@
 #include "rs_idk_design.h"
 #include "rs_social.h"
 #include "ui/uitree.h"
+#include "ui/uitree_layout.h"
 
 #include <assert.h>
 #include <math.h>
@@ -57,6 +58,7 @@ set_button_type(
  * CC_FRIENDS_SIZE / CC_IGNORES_SIZE). */
 static int
 set_list_scroll_height(
+    struct UITree* tree,
     struct UITreeComponent* c,
     int count)
 {
@@ -67,6 +69,9 @@ set_list_scroll_height(
     if( c->type != UIELEM_RS_LAYER || c->u.rs_layer.scroll_height == scroll_height )
         return 0;
     c->u.rs_layer.scroll_height = scroll_height;
+    /* A layer's scroll extent is the box its children lay out against, so this
+     * is a layout input like any position field (see UITree::layout_stale). */
+    UITree_LayoutInvalidate(tree);
     return 1;
 }
 
@@ -310,12 +315,13 @@ RS_ClientCode_Tick(
             changed |= friends_world_row_tick(tree, (int32_t)i, social, cc);
         else if( cc == RS_CC_FRIENDS_SIZE )
             changed |= set_list_scroll_height(
+                tree,
                 c,
                 social->server_status == RS_SOCIAL_SERVER_CONNECTED ? social->friend_count : 0);
         else if( cc >= RS_CC_IGNORES_START && cc <= RS_CC_IGNORES_END )
             changed |= ignores_row_tick(tree, (int32_t)i, social, cc);
         else if( cc == RS_CC_IGNORES_SIZE )
-            changed |= set_list_scroll_height(c, social->ignore_count);
+            changed |= set_list_scroll_height(tree, c, social->ignore_count);
         else if( cc == RS_CC_DESIGN_PREVIEW && c->type == UIELEM_RS_MODEL )
         {
             /* Reference: modelXAn=150, modelYAn=sin(loop/40)*256 wrapped. */

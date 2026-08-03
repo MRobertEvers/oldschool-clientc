@@ -54,12 +54,13 @@ CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 
 
 # RSCACHE_CS2_OPCODE_TABLE_SIZE (3rd/rscache/src/cs2/cs2_command.gen.h) — the
-# highest defined opcode there is 8022 (the array-op family, this revision's
-# newest), so this is the measured ceiling, not a guess. Used to top out at
-# 7602, which put the entire 8000-series permanently out of reach: not
-# implemented, not asserted, just silently absent from this table and from
-# CS2VM2_Op_StackMetaStub's `opcode < CS2VM2_OPCODE_STACK_MAX` gate.
-MAX_OPCODE = 8023
+# highest defined opcode there is 8024 (ARRAY_INSERT / append), so this is the
+# measured ceiling, not a guess. Used to top out at 7602, which put the entire
+# 8000-series permanently out of reach: not implemented, not asserted, just
+# silently absent from this table and from CS2VM2_Op_StackMetaStub's
+# `opcode < CS2VM2_OPCODE_STACK_MAX` gate. Raised 8023→8025 when Overview's
+# 8023/8024 landed (skill_guide.md §5).
+MAX_OPCODE = 8025
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
@@ -96,6 +97,10 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # arguments are dropped and nothing happens. Reached from script 8483 during
     # boot, where the alternative was StackMetaStub's assert.
     210: (6, 0, 0, 0),  # _210(component, int, int, int, int, int)
+    211: (3, 0, 1, 0),  # _211(int, component, int) -> int
+    212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
+    213: (0, 0, 1, 0),  # children find-next id (same as 204/206)
+    215: (0, 0, 0, 1),  # _215() -> string (array handle)
     6200: (2, 0, 0, 0),  # VIEWPORT_SETFOV
     6201: (2, 0, 0, 0),  # VIEWPORT_SETZOOM
     6202: (4, 0, 0, 0),  # VIEWPORT_CLAMPFOV
@@ -284,7 +289,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     5030: (2, 0, 4, 4),  # CHAT_GETHISTORYEX_BYTYPEANDLINE(chattype, line)
     5031: (1, 0, 4, 4),  # CHAT_GETHISTORYEX_BYUID(mesuid)
     2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
-    2704: (2, 0, 1, 0),  # IF_HASCHILD_MODAL(widget, parent) -> bool
+    2704: (5, 0, 0, 0),  # IF_SETPARAM(param, value, uid, child, type) — xrsps; was misnamed HASCHILD
     2705: (2, 0, 1, 0),  # IF_HASCHILD_OVERLAY(widget, parent) -> bool
     # Sort-builder families for the friend / ignore / clan lists (3628..3657).
     # These build a sort spec imperatively: CLEAR, then one ADD_* per key (each
@@ -425,21 +430,23 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # host (rs_cs2_host.c stores/returns host->cam_follow_height), so they never
     # reach StackMetaStub.
     #
-    # The 8000-series array family (see docs/cs2-arrays-are-handles.md — arrays
-    # are handles on the STRING stack at this revision). 8000/8007 already carry
-    # real doc comments in cs2_opcode.h and need nothing here; the rest were
-    # unreachable until MAX_OPCODE above widened to the table's measured size
-    # (8023), because CS2VM2_Op_StackMetaStub zeroes anything past the old 7602
-    # ceiling before it can even check `known`. Every tuple below is read out of
-    # 3rd/rscache/tools/cs2/local_commands.py, not guessed: 8001 from a
-    # deobfuscated client's straight-line opcode handler; 8003/8019/8021/8022
-    # from call-site stack-balance solving against cache.osrs239 (8003 alone
-    # confirmed across eleven scripts; 8022's shape confirmed by 40).
-    8001: (3, 0, 0, 0),  # _8001(int, int, int)
-    8003: (0, 1, 1, 0),  # _8003(string) -> int
-    8019: (0, 2, 0, 0),  # _8019(string, string)
+    # The 8000-series array family (arrays are handles on the STRING stack at
+    # this revision). 8000/8007 already carry real doc comments in cs2_opcode.h
+    # and need nothing here; the rest were unreachable until MAX_OPCODE widened
+    # past the old 7602 ceiling. Tuples below are from local_commands.py /
+    # call-site evidence against cache.osrs239, not guessed. 8019 was corrected
+    # 2026-08-03: it pushes the joined string (script 9153 → gosub 9182; xrsps
+    # ARRAY_JOIN). 8023/8024 are the Overview-tab resize/append pair.
+    8001: (3, 0, 0, 0),  # ARRAY_SORT_BY(array, start, end) — ints only in older deob
+    8003: (0, 1, 1, 0),  # ARRAY_LENGTH(handle) -> int
+    8012: (0, 1, 0, 0),  # _8012(handle) — mutate in place; meaning unknown
+    8018: (0, 2, 0, 1),  # ARRAY_SPLIT(string, sep) -> handle
+    8019: (0, 2, 0, 1),  # ARRAY_JOIN(handle, sep) -> string
     8021: (2, 0, 0, 1),  # _8021(int, int) -> string
-    8022: (3, 0, 0, 1),  # _8022(int, int, int) -> string
+    8022: (3, 0, 0, 1),  # ARRAY_NEW(type, length, capacity) -> handle
+    8023: (1, 1, 0, 0),  # ARRAY_SETLENGTH(handle, n)
+    8024: (2, 1, 0, 0),  # ARRAY_APPEND(handle, value, type) — int-typed form
+    4036: (0, 1, 1, 0),  # STRING_TO_INT(string) -> int
 }
 
 

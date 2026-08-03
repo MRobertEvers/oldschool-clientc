@@ -232,14 +232,35 @@ invalidate the id index — id lookups do not depend on tree shape.
 DFS. It:
 
 1. Computes each live node's depth (freed slots get `depth = -1` and are dropped).
+   Each node's depth is its parent's plus one, so the pass takes a chain only as
+   far as the first ancestor whose depth it already knows — every parent link is
+   followed once, not once per descendant.
 2. Builds a **parent-before-child** order with an O(n) counting sort by depth —
    order within a depth level is irrelevant, since a node only reads its parent's
    resolved box.
 3. Writes absolute boxes into `position.abs_*` and sets `layout_resolved`.
 
-Both the order and the `abs_*` scratch buffers are cached on the tree; the order is
+The order and the `layout_changed` scratch are cached on the tree; the order is
 recomputed only when `generation` changes, and the buffers are reused across calls
 instead of being `calloc`'d every frame.
+
+Step 3 is **incremental**. A node's box is a pure function of its own fields and
+its parent's box, so the walk recomputes a node only when its own
+`position.layout_resolved` is clear or its parent's box moved earlier in the same
+pass (`layout_changed`, which depth order guarantees is written before any child
+reads it). This matters because a single `CC_CREATE` bumps `generation` and so
+reaches the resolve, but must not drag the other few thousand nodes with it — on
+rev230 that is ~100 nodes recomputed per frame instead of ~8900.
+
+The consequence for callers: **every write to a layout input must clear that
+node's `position.layout_resolved`**, since the walk reads a set flag as "this box
+is already correct". Use `UITree_LayoutInvalidateBoxes` (node-local change) or
+`UITree_LayoutInvalidate` (clears the flag tree-wide, for a change like a scroll
+extent that moves boxes the writer cannot enumerate). `UITree_EnsureLayoutFor`'s
+JIT chain resolve is the awkward case — it leaves its nodes reading as resolved
+while their descendants are still stale — so it publishes the change through
+`layout_changed`, or raises `layout_force_full` when there is nowhere to record it
+yet.
 
 Positioning modes:
 

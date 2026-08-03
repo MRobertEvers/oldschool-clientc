@@ -5,30 +5,43 @@
 #include "ui/uitree_build.h"
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* slot_off names the UITreeRuntimeHooks member to bake into, rather than a
+ * pointer, because the hook block is allocated lazily: an unhooked pack
+ * component must not be handed one just to be asked whether it has a hook, and
+ * most of the pack is unhooked. */
 static void
 bake_runtime_hook_from_torirs(
     struct UITree* tree,
+    struct UITreeComponent* node,
     int component_id,
-    struct UITreeRuntimeScriptHook* slot,
+    size_t slot_off,
     struct ToriRS_ScriptHook const* src)
 {
     int script_id;
     int const* args;
     int arg_count;
     char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
+    struct UITreeRuntimeHooks* hooks;
+    struct UITreeRuntimeScriptHook* slot;
     int i;
 
     assert(tree);
-    assert(slot);
+    assert(node);
     if( !src || src->argc <= 0 )
         return;
 
     script_id = src->argv[0];
     if( script_id <= 0 )
         return;
+
+    hooks = UITree_HooksMut(node);
+    if( !hooks )
+        return;
+    slot = (struct UITreeRuntimeScriptHook*)((char*)hooks + slot_off);
 
     if( src->argc > 1 )
     {
@@ -73,27 +86,26 @@ bake_pack_runtime_hooks(
 
         if( idx < 0 )
             continue;
+#define BAKE_HOOK(member, source)                     \
+    bake_runtime_hook_from_torirs(                    \
+        tree,                                         \
+        node,                                         \
+        src->id,                                      \
+        offsetof(struct UITreeRuntimeHooks, member),   \
+        (source))
+
         node = &tree->components[idx];
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_click, &src->on_click);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_op, &src->on_op);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_mouse_over, &src->on_mouse_over);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_mouse_leave, &src->on_mouse_leave);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_drag, &src->on_drag);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_drag_complete, &src->on_drag_complete);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_hold, &src->on_hold);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_mouse_repeat, &src->on_mouse_repeat);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_scroll_wheel, &src->on_scroll_wheel);
-        bake_runtime_hook_from_torirs(
-            tree, src->id, &node->runtime_hooks.on_timer, &src->on_timer);
+        BAKE_HOOK(on_click, &src->on_click);
+        BAKE_HOOK(on_op, &src->on_op);
+        BAKE_HOOK(on_mouse_over, &src->on_mouse_over);
+        BAKE_HOOK(on_mouse_leave, &src->on_mouse_leave);
+        BAKE_HOOK(on_drag, &src->on_drag);
+        BAKE_HOOK(on_drag_complete, &src->on_drag_complete);
+        BAKE_HOOK(on_hold, &src->on_hold);
+        BAKE_HOOK(on_mouse_repeat, &src->on_mouse_repeat);
+        BAKE_HOOK(on_scroll_wheel, &src->on_scroll_wheel);
+        BAKE_HOOK(on_timer, &src->on_timer);
+#undef BAKE_HOOK
     }
 }
 

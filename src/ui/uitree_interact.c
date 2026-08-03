@@ -48,15 +48,16 @@ UITree_ResolveClickHook(
     for( idx = leaf_index; idx >= 0; idx = tree->components[idx].parent )
     {
         struct UITreeComponent const* node = &tree->components[idx];
-        if( node->runtime_hooks.on_op.script_id > 0 )
+        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(node);
+        if( hooks->on_op.script_id > 0 )
         {
             *out_component_id = node->component_id;
-            return &node->runtime_hooks.on_op;
+            return &hooks->on_op;
         }
-        if( node->runtime_hooks.on_click.script_id > 0 )
+        if( hooks->on_click.script_id > 0 )
         {
             *out_component_id = node->component_id;
-            return &node->runtime_hooks.on_click;
+            return &hooks->on_click;
         }
     }
     return NULL;
@@ -123,7 +124,7 @@ find_wheel_hook_component(
         int offx = 0, offy = 0;
         if( c->freed || c->component_id < 0 )
             continue;
-        if( c->runtime_hooks.on_scroll_wheel.script_id <= 0 )
+        if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
             continue;
         if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
@@ -190,7 +191,7 @@ collect_key_targets(
         if( idx < 0 )
             continue;
         c = &tree->components[idx];
-        if( c->freed || c->runtime_hooks.on_key.script_id <= 0 )
+        if( c->freed || UITree_Hooks(c)->on_key.script_id <= 0 )
             continue;
         if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
@@ -246,25 +247,25 @@ hook_by_component_id(
 static struct UITreeRuntimeScriptHook const*
 pick_on_mouse_over(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_mouse_over;
+    return &UITree_Hooks(node)->on_mouse_over;
 }
 
 static struct UITreeRuntimeScriptHook const*
 pick_on_mouse_leave(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_mouse_leave;
+    return &UITree_Hooks(node)->on_mouse_leave;
 }
 
 static struct UITreeRuntimeScriptHook const*
 pick_on_mouse_repeat(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_mouse_repeat;
+    return &UITree_Hooks(node)->on_mouse_repeat;
 }
 
 static struct UITreeRuntimeScriptHook const*
 pick_on_drag_complete(struct UITreeComponent const* node)
 {
-    return &node->runtime_hooks.on_drag_complete;
+    return &UITree_Hooks(node)->on_drag_complete;
 }
 
 static struct UIInputResult
@@ -452,7 +453,7 @@ interact_wheel(
         int offx = 0, offy = 0;
         struct UIIntent intent = {
             .component_id = c->component_id,
-            .hook = &c->runtime_hooks.on_scroll_wheel,
+            .hook = &UITree_Hooks(c)->on_scroll_wheel,
         };
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, hook_idx, &offx, &offy);
@@ -497,7 +498,7 @@ interact_drag(
             int32_t parent_idx = src->parent;
             struct UIIntent intent = {
                 .component_id = st->drag_source_id,
-                .hook = &src->runtime_hooks.on_drag,
+                .hook = &UITree_Hooks(src)->on_drag,
                 .has_drag_target = 1,
                 .drag_target_id = st->drag_target_id,
             };
@@ -576,9 +577,9 @@ interact_hold(
         int offx = 0, offy = 0;
         struct UIIntent intent = {
             .component_id = c->component_id,
-            .hook = &c->runtime_hooks.on_hold,
+            .hook = &UITree_Hooks(c)->on_hold,
         };
-        if( c->runtime_hooks.on_hold.script_id <= 0 )
+        if( UITree_Hooks(c)->on_hold.script_id <= 0 )
             return;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, st->pressed, &offx, &offy);
@@ -882,7 +883,7 @@ interact_op_keys(
         struct UITreeComponent const* node = &tree->components[i];
         if( node->freed || node->component_id < 0 || !node->op_keys.has_bindings )
             continue;
-        if( node->runtime_hooks.on_op.script_id <= 0 )
+        if( UITree_Hooks(node)->on_op.script_id <= 0 )
             continue;
         if( UITree_ComponentOrAncestorHidden(tree, node->component_id) )
             continue;
@@ -896,7 +897,7 @@ interact_op_keys(
                 {
                     struct UIIntent intent = {
                         .component_id = node->component_id,
-                        .hook = &node->runtime_hooks.on_op,
+                        .hook = &UITree_Hooks(node)->on_op,
                         .op_index = slot + 1,
                     };
                     intent_push(out, &intent);

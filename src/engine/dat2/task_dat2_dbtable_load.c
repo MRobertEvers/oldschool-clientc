@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_group_await.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
@@ -11,8 +12,9 @@
 #include <string.h>
 
 /* DBTABLE config group (config kind 39). Same shape as the DBROW load task: read
- * the whole config group, find the file whose id is the table id, decode it into
- * the rscache DBTABLE struct, and hand it to the provider.
+ * the whole config group through the split-group LRU, find the file whose id is
+ * the table id, decode it into the rscache DBTABLE struct, and hand it to the
+ * provider.
  *
  * A DBROW lists only the columns it sets. Everything about a column a row does
  * *not* list — its arity, its field types and its default values — is stated
@@ -25,6 +27,8 @@ struct Task_Dat2DbTableLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int table_id;
+    /* Borrowed from the buildcache's split-group LRU — never freed here. */
+    struct Dat2Group const* group;
 };
 
 static int
@@ -33,55 +37,34 @@ Task_Dat2DbTableLoad_Run(
     struct ToriRS_IO* io)
 {
     struct Task_Dat2DbTableLoad* task = (struct Task_Dat2DbTableLoad*)task_base;
-    struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_FileList* filelist = NULL;
     struct RSCache_Dat2ConfigDbTable* table = NULL;
-    int found = 0;
+    int pos;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_DBTABLE);
-    PT_YIELD(&task->pt);
+    DAT2_GROUP_AWAIT(
+        &task->pt, io, 0, task->bc->group_cache, RSCACHE_DAT2_TABLE_CONFIGS,
+        RSCACHE_DAT2_CONFIG_KIND_DBTABLE, task->group);
 
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_DBTABLE);
-    if( !archive )
+    if( !task->group )
     {
         fprintf(
             stderr, "Failed to decode dat2 dbtable config group for table %d\n", task->table_id);
         PT_EXIT(&task->pt);
     }
 
-    filelist = RSCache_FileListNewFromDecode(
-        archive->data, archive->data_size, archive->file_count);
-    if( !filelist || !archive->file_ids )
-    {
-        fprintf(stderr, "Failed to filelist dat2 dbtable group for table %d\n", task->table_id);
-        RSCache_FileListFree(filelist);
-        RSCache_Dat2DiskArchiveFree(archive);
-        PT_EXIT(&task->pt);
-    }
-
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        if( archive->file_ids[i] != task->table_id )
-            continue;
-        table = calloc(1, sizeof(*table));
-        assert(table);
-        table->id = task->table_id;
-        RSCache_Dat2ConfigDbTableDecodeInplace(
-            table, filelist->files[i], filelist->file_sizes[i]);
-        found = 1;
-        break;
-    }
-
-    RSCache_FileListFree(filelist);
-    RSCache_Dat2DiskArchiveFree(archive);
-
-    if( !found )
+    pos = Dat2Group_IndexOf(task->group, task->table_id);
+    if( pos < 0 )
     {
         fprintf(stderr, "Failed to find dat2 dbtable %d in config group\n", task->table_id);
         PT_EXIT(&task->pt);
     }
+
+    table = calloc(1, sizeof(*table));
+    assert(table);
+    table->id = task->table_id;
+    RSCache_Dat2ConfigDbTableDecodeInplace(
+        table, task->group->filelist->files[pos], task->group->filelist->file_sizes[pos]);
 
     CacheProvider_DbTableAdd(&task->bc->base, task->table_id, table);
 

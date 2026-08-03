@@ -1,6 +1,7 @@
 #ifndef SRC_UITREE_H
 #define SRC_UITREE_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -443,7 +444,14 @@ struct UITreeComponent
      *  the task layer. */
     uint8_t cs1_active;
     int cs1_values[UITREE_CS1_VALUE_MAX];
-    struct UITreeRuntimeHooks runtime_hooks;
+    /** CS2 event hooks, owned by the component, NULL until one is registered.
+     *  17 slots each carrying argv[64] and strv[4][80] inline is ~10 KB — the
+     *  whole of a widget node, memset on every push and reclaim and strided over
+     *  by all four per-frame DFS walks, to carry hooks that only a few hundred of
+     *  the tree's thousands of components ever have. Same rationale as
+     *  UITreeMenuOptions::submenus. Go through UITree_Hooks / UITree_HooksMut
+     *  rather than dereferencing it. */
+    struct UITreeRuntimeHooks* runtime_hooks;
     int target_priority;
     /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
     uint8_t force_left_click;
@@ -638,6 +646,32 @@ struct UITreeComponent
     } u;
 };
 
+/** The all-zero block a component with no hooks reads as. Never written. */
+extern struct UITreeRuntimeHooks const uitree_hooks_none;
+
+/**
+ * A component's hook block for reading. Never NULL, so a caller may take the
+ * address of any slot: an unregistered hook reads as script_id 0, which is what
+ * "no hook" means on every dispatch path already.
+ */
+static inline struct UITreeRuntimeHooks const*
+UITree_Hooks(struct UITreeComponent const* c)
+{
+    assert(c);
+    return c->runtime_hooks ? c->runtime_hooks : &uitree_hooks_none;
+}
+
+/**
+ * A component's hook block for writing, allocated zeroed on first use.
+ * NULL only if the allocation failed.
+ */
+struct UITreeRuntimeHooks*
+UITree_HooksMut(struct UITreeComponent* c);
+
+/** Release the block (component reclaim / tree free). */
+void
+UITree_HooksFree(struct UITreeComponent* c);
+
 /**
  * Chrome actions a configured hotkey can trigger.
  *
@@ -704,17 +738,26 @@ struct UITree
     uint8_t id_index_valid; /* 0 until first successful build */
     /** Cached layout scratch (see UITree_LayoutResolve). `order`/`depth` depend
      *  only on tree topology and are recomputed only when `generation` changes;
-     *  the abs_* buffers are reused across calls to avoid per-frame calloc/free. */
+     *  `changed` carries "this node's box moved in this pass" down to the
+     *  children that read it. All three are reused across calls to avoid a
+     *  per-frame calloc/free. */
     int* layout_order;
     int* layout_depth;
-    int* layout_abs_x;
-    int* layout_abs_y;
-    int* layout_abs_w;
-    int* layout_abs_h;
+    uint8_t* layout_changed;
     uint32_t layout_cap;         /* allocated length of each layout buffer */
     uint32_t layout_order_count; /* live (non-freed) entries in layout_order */
     uint32_t layout_order_gen;   /* generation order/depth were computed for */
     uint8_t layout_order_valid;
+    /** Forces the next resolve to recompute every node instead of only the ones
+     *  whose own box or parent's box changed. Set when a box moved outside the
+     *  resolve's own bookkeeping (a JIT chain resolve that could not record into
+     *  `layout_changed`), where the per-node flags no longer describe which
+     *  descendants went stale. */
+    uint8_t layout_force_full;
+    /** Live nodes whose behavior carries CS1 scripts (see UITree_HasCS1Scripts).
+     *  Maintained by UITree_SetBehavior and slot reclaim, the only two places a
+     *  node's `behavior.scripts_count` can change. */
+    uint32_t cs1_script_nodes;
     uint16_t next_dynamic_uid;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
@@ -725,8 +768,30 @@ struct UITree
      *  mutation); cleared by UITree_LayoutResolve. Lets CS2 geometry getters
      *  lazily re-resolve mid-script (reference WidgetManager.ensureLayout —
      *  scripts read computed dims immediately after if_setsize/if_setposition,
-     *  e.g. dropdown scrollbar dragger sizing). */
+     *  e.g. dropdown scrollbar dragger sizing).
+     *
+     *  It is also what lets UITree_LayoutResolve return without walking the
+     *  tree, so EVERY write to a layout input must set it (position fields,
+     *  parent links, and an RS_LAYER's scroll extent — see layout_parent_box).
+     *  Use UITree_LayoutInvalidateBoxes rather than writing it directly. A
+     *  writer that forgets it leaves the affected boxes a frame stale. */
     uint8_t layout_stale;
+    /** State the last full resolve was computed against, so a resolve with the
+     *  same topology, the same root box and no invalidation since can be
+     *  skipped: idle frames run CS2 (the gameframe clock varc ticks every
+     *  frame) without touching a single layout input. */
+    uint32_t layout_resolved_gen;
+    uint8_t layout_resolved_valid;
+    /** Set once the root box below has been resolved against, and — unlike
+     *  `layout_resolved_valid` — never cleared by an invalidation. An
+     *  invalidation says some node's box changed, not that the canvas resized,
+     *  so clearing it would make every root-level node recompute on any
+     *  mutation anywhere in the tree. */
+    uint8_t layout_resolved_root_valid;
+    int layout_resolved_root_x;
+    int layout_resolved_root_y;
+    int layout_resolved_root_w;
+    int layout_resolved_root_h;
     /** Minimap/compass mask polarity: 1 = the mask sprite's *opaque* pixels are
      *  the window, 0 = its transparent ones are (the default).
      *
@@ -1433,6 +1498,28 @@ UITree_ChildMountType(
     struct UITree const* tree,
     int container_uid,
     struct UITreeComponent const* child);
+
+/** 1 if anything is mounted on this container at all.
+ *
+ * Answers the per-child UITree_ChildMountType question once for the whole
+ * child list: the emit walk asks it for every child of every node on both the
+ * draw and the drag pass, and all but a handful of containers hold no mount. */
+int
+UITree_ContainerHasMounts(
+    struct UITree const* tree,
+    int container_uid);
+
+/** 1 if any live node carries CS1 (if1) behavior scripts.
+ *
+ * The CS1 evaluation pass runs on every 20ms tick and its first act is to scan
+ * the whole tree for nodes to evaluate. An if3/CS2 tree has none at all, and at
+ * a few thousand nodes of ~1.7 KB each that scan is pure memory traffic. */
+static inline int
+UITree_HasCS1Scripts(struct UITree const* tree)
+{
+    assert(tree);
+    return tree->cs1_script_nodes > 0;
+}
 
 /** 1 if a top-level root should be shown/hovered/clicked; 0 for an unplaced
  *  orphan interface group (auto-mounted for CS2 property access, not displayed). */

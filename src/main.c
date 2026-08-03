@@ -247,10 +247,11 @@ dump_hooks(struct App* app)
     for( i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent* c = &app->tree->components[i];
-        struct UITreeRuntimeScriptHook* hooks = (struct UITreeRuntimeScriptHook*)&c->runtime_hooks;
+        struct UITreeRuntimeScriptHook const* hooks;
         int h;
         if( c->freed )
             continue;
+        hooks = (struct UITreeRuntimeScriptHook const*)UITree_Hooks(c);
         for( h = 0; h < (int)(sizeof(hook_names) / sizeof(hook_names[0])); h++ )
         {
             if( hooks[h].script_id == 0 )
@@ -827,9 +828,9 @@ frame_loop_step(void)
                 if( idx >= 0 )
                 {
                     struct UITreeRuntimeScriptHook hook =
-                        app.tree->components[idx].runtime_hooks.on_op;
+                        UITree_Hooks(&app.tree->components[idx])->on_op;
                     if( hook.script_id <= 0 )
-                        hook = app.tree->components[idx].runtime_hooks.on_click;
+                        hook = UITree_Hooks(&app.tree->components[idx])->on_click;
                     fprintf(stderr, "sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
                     /* A real op click latches which op it was; an onop script
                      * that switches on event_opindex (every list row does) is
@@ -1888,9 +1889,10 @@ main(
         idx = UITree_FindByComponentId(app.tree, com_id);
         if( idx >= 0 )
         {
-            struct UITreeRuntimeScriptHook hook = app.tree->components[idx].runtime_hooks.on_click;
+            struct UITreeRuntimeScriptHook hook =
+                UITree_Hooks(&app.tree->components[idx])->on_click;
             if( hook.script_id <= 0 )
-                hook = app.tree->components[idx].runtime_hooks.on_op;
+                hook = UITree_Hooks(&app.tree->components[idx])->on_op;
             fprintf(stderr, "sim_click: com=0x%x script=%d\n", com_id, hook.script_id);
             RS_CS2_DispatchHook(&app.host, &app.runner, com_id, &hook);
         }
@@ -2262,7 +2264,7 @@ main(
                     b->rate,
                     b->rate_enabled,
                     b->ignore_held,
-                    c->runtime_hooks.on_op.script_id);
+                    UITree_Hooks(c)->on_op.script_id);
             }
         }
     }

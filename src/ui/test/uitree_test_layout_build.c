@@ -199,4 +199,61 @@ test_layout_build(void)
 
         UITree_Free(tree);
     }
+
+    /* A resolve with nothing invalidated since the last one is skipped, so
+     * every layout input has to invalidate. The scroll extent is one: children
+     * of an RS_LAYER lay out against it, not against its visible box. */
+    {
+        struct UITree* tree = UITree_New(4);
+        int32_t L = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 60, 0, 0, 100, 80);
+        /* height_mode 1 = fill the parent box, i.e. read the scroll extent. */
+        int32_t child = UITree_TestPushXy(tree, L, UIELEM_RS_RECT, 61, 0, 0, 10, 0);
+        tree->components[child].position.height_mode = 1;
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[child].position.abs_h == 80, "child fills visible box");
+
+        UITree_ApplyScrollSize(tree, 60, 0, 400);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(
+            tree->components[child].position.abs_h == 400,
+            "scroll extent change re-resolves children");
+
+        /* And the skip itself: a resolve with no invalidation leaves the boxes
+         * alone rather than recomputing them (a poisoned box stays poisoned). */
+        tree->components[child].position.abs_h = -1;
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[child].position.abs_h == -1, "clean resolve is skipped");
+
+        UITree_Free(tree);
+    }
+
+    /* Within a resolve that does run, a node is recomputed only if its own box
+     * was invalidated or its parent's moved. Descendants have to follow a parent
+     * that moves, however deep, and untouched branches have to be left alone. */
+    {
+        struct UITree* tree = UITree_New(4);
+        int32_t outer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 60, 10, 10, 200, 200);
+        int32_t mid = UITree_TestPushXy(tree, outer, UIELEM_RS_LAYER, 61, 5, 5, 100, 100);
+        int32_t leaf = UITree_TestPushXy(tree, mid, UIELEM_RS_RECT, 62, 2, 2, 10, 10);
+        int32_t other = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 70, 300, 300, 10, 10);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[leaf].position.abs_x == 17, "leaf abs_x before move");
+
+        /* Poison the untouched branch: it must not be recomputed. */
+        tree->components[other].position.abs_x = -1;
+        /* Move the grandparent; only its own subtree may re-resolve. */
+        UITree_ApplyPosition(tree, 60, 20, 10);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[leaf].position.abs_x == 27, "leaf follows moved grandparent");
+        TEST_ASSERT(tree->components[other].position.abs_x == -1, "untouched branch not revisited");
+
+        /* Rewriting a position with the value it already has is not a change, so
+         * it must not invalidate — CS2 does this every frame. */
+        tree->components[leaf].position.abs_x = -1;
+        UITree_ApplyPosition(tree, 60, 20, 10);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[leaf].position.abs_x == -1, "no-op setposition does not resolve");
+
+        UITree_Free(tree);
+    }
 }
