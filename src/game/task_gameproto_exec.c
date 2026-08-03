@@ -53,24 +53,54 @@ obj_ground_model_task(struct Task_GameProtoExec* self)
     return CreateTask_ModelLoad(self->app->provider, obj->inventory_model_id);
 }
 
-/* REBUILD_NORMAL zone -> map-square list: scene sw tile = (zone - 6) * 8,
- * squares covering tiles [sw, sw + 103]. */
+void
+rebuild_square_rect(
+    int zone_x,
+    int zone_z,
+    int* mx0,
+    int* mz0,
+    int* mx1,
+    int* mz1)
+{
+    int sw_tile_x = (zone_x - 6) * 8;
+    int sw_tile_z = (zone_z - 6) * 8;
+
+    assert(mx0 && mz0 && mx1 && mz1);
+    *mx0 = sw_tile_x >> 6;
+    *mz0 = sw_tile_z >> 6;
+    *mx1 = (sw_tile_x + 103) >> 6;
+    *mz1 = (sw_tile_z + 103) >> 6;
+}
+
+int
+rebuild_squares_resident(
+    struct World const* world,
+    int mx0,
+    int mz0,
+    int mx1,
+    int mz1)
+{
+    assert(world);
+    return world->_chunk_sw_x <= mx0 && mx1 <= world->_chunk_ne_x &&
+           world->_chunk_sw_z <= mz0 && mz1 <= world->_chunk_ne_z;
+}
+
+/* REBUILD_NORMAL zone -> map-square list covering the 104x104 scene window.
+ * Rect is at most 3x3 by construction; hitting the cap is a programming error. */
 static void
 rebuild_compute_chunks(struct Task_GameProtoExec* self)
 {
-    int sw_tile_x = (self->packet._map_rebuild.zonex - 6) * 8;
-    int sw_tile_z = (self->packet._map_rebuild.zonez - 6) * 8;
-    int mx0 = sw_tile_x >> 6;
-    int mz0 = sw_tile_z >> 6;
-    int mx1 = (sw_tile_x + 103) >> 6;
-    int mz1 = (sw_tile_z + 103) >> 6;
+    int mx0, mz0, mx1, mz1;
+
+    rebuild_square_rect(
+        self->packet._map_rebuild.zonex, self->packet._map_rebuild.zonez, &mx0, &mz0, &mx1,
+        &mz1);
 
     self->chunk_count = 0;
     for( int mx = mx0; mx <= mx1; mx++ )
         for( int mz = mz0; mz <= mz1; mz++ )
         {
-            if( self->chunk_count >= 9 )
-                return;
+            assert(self->chunk_count < 9 && "REBUILD_NORMAL square rect exceeds 3x3");
             self->chunks[self->chunk_count * 2] = mx;
             self->chunks[self->chunk_count * 2 + 1] = mz;
             self->chunk_count++;
@@ -98,16 +128,19 @@ Task_GameProtoExec_Run(
         /* Region-addressed world load. Serial-queue position gates every
          * later packet (entity/zone updates for the new scene) until the
          * load lands — the reference sceneState gate for free. Skip the
-         * refetch when the region is already loaded. */
+         * refetch only when every map square covering the new 104-tile
+         * window is already resident (SW-only matching left the NE edge
+         * unloaded when the window slid into a new square). */
+        int mx0, mz0, mx1, mz1;
+        int squares_resident;
+
+        rebuild_square_rect(
+            self->packet._map_rebuild.zonex, self->packet._map_rebuild.zonez, &mx0, &mz0,
+            &mx1, &mz1);
         rebuild_compute_chunks(self);
-        /* Our scene base is the min map-square corner; the server's local
-         * coords are relative to (zone-6)*8. Offset = classic sw within the
-         * min map square. */
-        app->scene_off_x = ((self->packet._map_rebuild.zonex - 6) * 8) & 63;
-        app->scene_off_z = ((self->packet._map_rebuild.zonez - 6) * 8) & 63;
-        if( !(app->world_active && app->world->_chunk_sw_x == self->chunks[0] &&
-              app->world->_chunk_sw_z == self->chunks[1] &&
-              app->world->load_complete && self->chunk_count >= 1) )
+        squares_resident = app->world_active && app->world && app->world->load_complete &&
+                           rebuild_squares_resident(app->world, mx0, mz0, mx1, mz1);
+        if( !squares_resident )
         {
             /* Entities carry scene-local coords relative to the old base;
              * capture it so they can be shifted onto the new one (Client-TS
@@ -138,8 +171,17 @@ Task_GameProtoExec_Run(
         }
         else
         {
-            app->world_load_server_driven = 0;
+            /* Reference always acks REBUILD_NORMAL (Client.ts:5373). */
+            App_SendMapBuildComplete(app);
         }
+        /* Classic scene origin relative to OUR map-square-aligned base.
+         * Must follow the load/skip decision: the base can sit west/south
+         * of the window's own SW square when a prior larger rect is kept. */
+        assert(app->world);
+        app->scene_off_x =
+            ((self->packet._map_rebuild.zonex - 6) * 8) - app->world->_base_tile_x;
+        app->scene_off_z =
+            ((self->packet._map_rebuild.zonez - 6) * 8) - app->world->_base_tile_z;
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
              self->packet.packet_type == PKT_NAME_OBJ_REVEAL )

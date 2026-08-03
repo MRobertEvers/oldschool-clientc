@@ -1027,6 +1027,12 @@ App_WorldRebuildShift(
 void
 App_WorldLoadFinish(struct App* app);
 
+/** MAP_BUILD_COMPLETE ack. Sent after a REBUILD_NORMAL-driven load finishes,
+ * and also on the skip path when the required map squares are already resident
+ * (reference Client.ts always acks every accepted REBUILD_NORMAL). */
+void
+App_SendMapBuildComplete(struct App* app);
+
 /** LOC_ANIM: attach a sequence to the scenery element on a tile. `loc_shape`
  * (zone packet info >> 2) selects the loc's layer so a door animates the wall,
  * not a centrepiece/floor-decor sharing the tile. */

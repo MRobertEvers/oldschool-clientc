@@ -3268,8 +3268,6 @@ app_world_map_poll(struct App* app)
     app->need_redraw = 1;
 }
 
-static void
-app_send_map_build_complete(struct App* app);
 
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
 static void
@@ -3420,7 +3418,7 @@ App_WorldLoadFinish(struct App* app)
         if( app->world_load_server_driven )
         {
             app->world_load_server_driven = 0;
-            app_send_map_build_complete(app);
+            App_SendMapBuildComplete(app);
         }
     }
     else
@@ -11004,8 +11002,8 @@ app_send_close_modal(void* user)
 }
 
 /* Server ack after a REBUILD_NORMAL-driven world load finishes. */
-static void
-app_send_map_build_complete(struct App* app)
+void
+App_SendMapBuildComplete(struct App* app)
 {
     APP_NET_SEND(
         app, net_out_map_build_complete(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));

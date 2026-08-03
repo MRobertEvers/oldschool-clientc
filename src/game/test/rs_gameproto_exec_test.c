@@ -3,14 +3,19 @@
  * packets by hand and asserts they land in VarPManager / InvManager /
  * RS_PlayerStats / UITree / RS_Chat. The app-only branches (IF_OPEN*, world)
  * are exercised by the ui-slots and loopback tests.
+ *
+ * Also pins the REBUILD_NORMAL map-square residency predicate that used to
+ * compare only the SW square and skip loads that needed an eastern square.
  */
 #include "game/rs_chat.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
+#include "game/task_gameproto_exec.h"
 #include "inv/inv_manager.h"
 #include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
+#include "world/world.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -132,6 +137,36 @@ main(void)
         assert(chat.message_count == 1);
         assert(strcmp(chat.messages[0].text, "A goblin appears.") == 0);
         printf("ok - MESSAGE_GAME applied\n");
+    }
+
+    /* REBUILD_NORMAL residency: measured from the live void bug.
+     * zone 391,403 loads squares (48,49)-(49,51); zone 396,403 needs
+     * (48,49)-(50,51). A world resident at the former must NOT report the
+     * latter as covered (SW-only matching wrongly would). zone 392,403
+     * slides within the same squares and must still skip. */
+    {
+        int mx0, mz0, mx1, mz1;
+        struct World world;
+
+        memset(&world, 0, sizeof(world));
+        world._chunk_sw_x = 48;
+        world._chunk_sw_z = 49;
+        world._chunk_ne_x = 49;
+        world._chunk_ne_z = 51;
+
+        rebuild_square_rect(391, 403, &mx0, &mz0, &mx1, &mz1);
+        assert(mx0 == 48 && mz0 == 49 && mx1 == 49 && mz1 == 51);
+        assert(rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
+
+        rebuild_square_rect(396, 403, &mx0, &mz0, &mx1, &mz1);
+        assert(mx0 == 48 && mz0 == 49 && mx1 == 50 && mz1 == 51);
+        assert(!rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
+
+        rebuild_square_rect(392, 403, &mx0, &mz0, &mx1, &mz1);
+        assert(mx0 == 48 && mz0 == 49 && mx1 == 49 && mz1 == 51);
+        assert(rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
+
+        printf("ok - REBUILD_NORMAL square residency\n");
     }
 
     UITree_Free(tree);
